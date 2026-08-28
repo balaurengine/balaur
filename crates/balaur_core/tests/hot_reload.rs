@@ -48,7 +48,10 @@ return Counter
 
 fn global_i64(app: &App, name: &str) -> i64 {
     let lua = app.engine.scripts().unwrap().lua();
-    lua.globals().get::<Option<i64>>(name).unwrap().unwrap_or(-1)
+    lua.globals()
+        .get::<Option<i64>>(name)
+        .unwrap()
+        .unwrap_or(-1)
 }
 
 #[test]

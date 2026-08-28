@@ -172,7 +172,9 @@ impl App {
     ) -> &mut Self {
         let schema = def.schema.clone();
         {
-            let registry = self.engine.resource::<crate::components::ComponentRegistry>();
+            let registry = self
+                .engine
+                .resource::<crate::components::ComponentRegistry>();
             registry.borrow_mut().0.push((name.to_string(), def));
         }
         let component = name.to_string();
@@ -195,7 +197,10 @@ impl App {
         handler: impl Fn(&Engine, hecs::Entity, &toml::Value) -> Result<()> + 'static,
     ) -> &mut Self {
         let vocab = self.engine.resource::<SceneVocab>();
-        vocab.borrow_mut().0.push((key.to_string(), Box::new(handler)));
+        vocab
+            .borrow_mut()
+            .0
+            .push((key.to_string(), Box::new(handler)));
         self
     }
 
@@ -216,8 +221,9 @@ impl App {
             }
             None => {
                 let path = self.project_root.join("project.toml");
-                manifest_src = std::fs::read_to_string(&path)
-                    .with_context(|| format!("no project.toml in {}", self.project_root.display()))?;
+                manifest_src = std::fs::read_to_string(&path).with_context(|| {
+                    format!("no project.toml in {}", self.project_root.display())
+                })?;
                 let manifest = ProjectManifest::parse(&manifest_src)?;
                 let scene_path = self.project_root.join(&manifest.main_scene);
                 scene_src = std::fs::read_to_string(&scene_path)

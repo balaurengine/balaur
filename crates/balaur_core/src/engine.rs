@@ -69,9 +69,8 @@ impl Engine {
     /// Panics if the resource was never inserted; use `try_resource` when the
     /// plugin providing it is optional.
     pub fn resource<T: 'static>(&self) -> Rc<RefCell<T>> {
-        self.try_resource::<T>().unwrap_or_else(|| {
-            panic!("missing resource {}", std::any::type_name::<T>())
-        })
+        self.try_resource::<T>()
+            .unwrap_or_else(|| panic!("missing resource {}", std::any::type_name::<T>()))
     }
 
     pub fn try_resource<T: 'static>(&self) -> Option<Rc<RefCell<T>>> {

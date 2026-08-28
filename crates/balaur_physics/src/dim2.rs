@@ -31,8 +31,10 @@ pub struct Physics2DState {
 
 impl Physics2DState {
     fn new() -> Self {
-        let mut world = PhysicsWorld2::default();
-        world.gravity = Vec2::new(0.0, -9.81);
+        let world = PhysicsWorld2 {
+            gravity: Vec2::new(0.0, -9.81),
+            ..Default::default()
+        };
         Physics2DState {
             world,
             bodies: DetHashMap::default(),
@@ -125,9 +127,15 @@ fn remove_body_and_colliders(eng: &Engine, entity: Entity) {
 /// Build and insert the collider described by `params`, replacing any
 /// existing one.
 fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let shape = params.get("shape").and_then(|v| v.as_str()).unwrap_or("rect");
+    let shape = params
+        .get("shape")
+        .and_then(|v| v.as_str())
+        .unwrap_or("rect");
     let f = |key: &str, default: f64| {
-        params.get(key).and_then(balaur_core::components::as_f64).unwrap_or(default) as f32
+        params
+            .get(key)
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or(default) as f32
     };
     let he = |i: usize| {
         params
@@ -159,7 +167,8 @@ fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     if let Some(ball) = collider.shape().as_ball() {
         map.insert("shape".into(), toml::Value::String("circle".into()));
         map.insert("radius".into(), toml::Value::Float(ball.radius as f64));
-    } else if let Some(cuboid) = collider.shape().as_cuboid() {
+    } else {
+        let cuboid = collider.shape().as_cuboid()?;
         map.insert("shape".into(), toml::Value::String("rect".into()));
         map.insert(
             "half_extents".into(),
@@ -168,8 +177,6 @@ fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
                 toml::Value::Float(cuboid.half_extents.y as f64),
             ]),
         );
-    } else {
-        return None;
     }
     map.insert(
         "restitution".into(),
@@ -425,7 +432,7 @@ restitution = { kind = "float", default = 0.0, min = 0.0, max = 1.0 }
 friction = { kind = "float", default = 0.5, min = 0.0 }
 density = { kind = "float", default = 1.0, min = 0.001 }"#,
             ),
-            apply: Box::new(|eng, entity, params| apply_collider(eng, entity, params)),
+            apply: Box::new(apply_collider),
             remove: Box::new(|eng, entity| {
                 remove_colliders(eng, entity);
                 Ok(())

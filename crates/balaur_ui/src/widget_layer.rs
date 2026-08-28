@@ -10,7 +10,7 @@
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_core::{App, Engine};
-use egui::{Align2, Color32, Stroke, pos2, vec2};
+use egui::{pos2, vec2, Align2, Color32, Stroke};
 
 use crate::theme::{family, parse_hex};
 
@@ -118,17 +118,15 @@ pub fn draw(engine: &Engine, ctx: &egui::Context, scale: f32) {
     }
     let screen = ctx.viewport_rect();
     let area = match rect {
-        Some([x, y, w, h]) => egui::Rect::from_min_size(
-            pos2(x * scale, y * scale),
-            vec2(w * scale, h * scale),
-        ),
+        Some([x, y, w, h]) => {
+            egui::Rect::from_min_size(pos2(x * scale, y * scale), vec2(w * scale, h * scale))
+        }
         None => screen,
     };
     let widgets: Vec<(Entity, Widget)> = {
         let world = engine.world();
         let mut query = world.query::<(Entity, &Widget)>();
-        let collected: Vec<(Entity, Widget)> =
-            query.iter().map(|(e, w)| (e, w.clone())).collect();
+        let collected: Vec<(Entity, Widget)> = query.iter().map(|(e, w)| (e, w.clone())).collect();
         collected
     };
     let mut clicked: Vec<Entity> = Vec::new();
@@ -159,10 +157,12 @@ pub fn draw(engine: &Engine, ctx: &egui::Context, scale: f32) {
                 "button" => {
                     let response = ui.add(
                         egui::Button::new(
-                            egui::RichText::new(&widget.text).font(font.clone()).color(color),
+                            egui::RichText::new(&widget.text)
+                                .font(font.clone())
+                                .color(color),
                         )
                         .corner_radius(egui::CornerRadius::same(
-                            (widget.size * scale).min(120.0) as u8,
+                            (widget.size * scale).min(120.0) as u8
                         ))
                         .stroke(Stroke::new(1.0, color)),
                     );
@@ -177,12 +177,18 @@ pub fn draw(engine: &Engine, ctx: &egui::Context, scale: f32) {
                         .inner_margin(egui::Margin::same(8))
                         .show(ui, |ui| {
                             ui.label(
-                                egui::RichText::new(&widget.text).font(font.clone()).color(color),
+                                egui::RichText::new(&widget.text)
+                                    .font(font.clone())
+                                    .color(color),
                             );
                         });
                 }
                 _ => {
-                    ui.label(egui::RichText::new(&widget.text).font(font.clone()).color(color));
+                    ui.label(
+                        egui::RichText::new(&widget.text)
+                            .font(font.clone())
+                            .color(color),
+                    );
                 }
             });
     }

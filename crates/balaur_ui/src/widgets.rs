@@ -7,8 +7,8 @@ use anyhow::Result;
 use balaur_core::mlua::{self, Function, Table, Value};
 use balaur_core::{App, Engine};
 use egui::{
-    Align, Align2, Color32, CornerRadius, FontId, Layout, Margin, Rect, Sense, Stroke, StrokeKind,
-    pos2, vec2,
+    pos2, vec2, Align, Align2, Color32, CornerRadius, FontId, Layout, Margin, Rect, Sense, Stroke,
+    StrokeKind,
 };
 
 use crate::bridge::{scale, scoped, with_ctx, with_ui};
@@ -78,7 +78,9 @@ fn panel_frame(opts: &Opts) -> egui::Frame {
 }
 
 fn text(label: &str, size: f32, fam: &str, color: Option<Color32>, strong: bool) -> egui::RichText {
-    let mut rt = egui::RichText::new(label).size(size).family(theme::family(fam));
+    let mut rt = egui::RichText::new(label)
+        .size(size)
+        .family(theme::family(fam));
     if let Some(color) = color {
         rt = rt.color(color);
     }
@@ -254,27 +256,34 @@ pub fn install(app: &mut App) -> Result<()> {
     )?;
     t.set(
         "scroll",
-        lua.create_function(move |_, (id, opts, cb): (String, Option<Table>, Function)| {
-            let opts = Opts(opts);
-            with_ui(|ui| {
-                let mut result = Ok(());
-                let mut area = egui::ScrollArea::vertical()
-                    .id_salt(id)
-                    .auto_shrink([false, false]);
-                let max_h = opts.px("max_height", 0.0);
-                if max_h > 0.0 {
-                    area = area.max_height(max_h);
-                }
-                area.show(ui, |ui| {
-                    result = scoped(ui, &cb);
-                });
-                result
-            })
-        })?,
+        lua.create_function(
+            move |_, (id, opts, cb): (String, Option<Table>, Function)| {
+                let opts = Opts(opts);
+                with_ui(|ui| {
+                    let mut result = Ok(());
+                    let mut area = egui::ScrollArea::vertical()
+                        .id_salt(id)
+                        .auto_shrink([false, false]);
+                    let max_h = opts.px("max_height", 0.0);
+                    if max_h > 0.0 {
+                        area = area.max_height(max_h);
+                    }
+                    area.show(ui, |ui| {
+                        result = scoped(ui, &cb);
+                    });
+                    result
+                })
+            },
+        )?,
     )?;
     t.set(
         "add_space",
-        lua.create_function(move |_, px: f32| with_ui(|ui| Ok(ui.add_space(sc(px)))))?,
+        lua.create_function(move |_, px: f32| {
+            with_ui(|ui| {
+                let _: () = ui.add_space(sc(px));
+                Ok(())
+            })
+        })?,
     )?;
     t.set(
         "separator",
@@ -400,7 +409,8 @@ pub fn install(app: &mut App) -> Result<()> {
                     color,
                 );
                 let y = rect.center().y - galley.size().y / 2.0;
-                ui.painter().galley(pos2(rect.min.x + sc(10.0), y), galley, color);
+                ui.painter()
+                    .galley(pos2(rect.min.x + sc(10.0), y), galley, color);
                 if response.clicked() {
                     ui.close();
                     return Ok(true);
@@ -491,7 +501,11 @@ pub fn install(app: &mut App) -> Result<()> {
                 with_ui(|ui| {
                     let w = {
                         let w = opts.px("width", 0.0);
-                        if w > 0.0 { w } else { ui.available_width().max(24.0) }
+                        if w > 0.0 {
+                            w
+                        } else {
+                            ui.available_width().max(24.0)
+                        }
                     };
                     let (rect, response) =
                         ui.allocate_exact_size(vec2(w, sc(28.0)), Sense::click_and_drag());
@@ -546,10 +560,13 @@ pub fn install(app: &mut App) -> Result<()> {
                 let h = opts.px("height", 28.0);
                 let w = {
                     let w = opts.px("width", 0.0);
-                    if w > 0.0 { w } else { ui.available_width().max(24.0) }
+                    if w > 0.0 {
+                        w
+                    } else {
+                        ui.available_width().max(24.0)
+                    }
                 };
-                let (rect, response) =
-                    ui.allocate_exact_size(vec2(w, h), Sense::click_and_drag());
+                let (rect, response) = ui.allocate_exact_size(vec2(w, h), Sense::click_and_drag());
                 let mut value = value;
                 let mut changed = false;
                 if response.dragged() {
@@ -566,7 +583,10 @@ pub fn install(app: &mut App) -> Result<()> {
                     rect,
                     pill_radius(h),
                     opts.color("fill", Color32::from_rgb(0x10, 0x12, 0x15)),
-                    Stroke::new(1.0, opts.color("stroke", Color32::from_rgb(0x2b, 0x30, 0x37))),
+                    Stroke::new(
+                        1.0,
+                        opts.color("stroke", Color32::from_rgb(0x2b, 0x30, 0x37)),
+                    ),
                     StrokeKind::Inside,
                 );
                 let mut x = rect.min.x + sc(11.0);
@@ -629,92 +649,106 @@ pub fn install(app: &mut App) -> Result<()> {
     // ---- code --------------------------------------------------------
     t.set(
         "code_line",
-        lua.create_function(move |_, (gutter, spans, opts): (String, Table, Option<Table>)| {
-            let opts = Opts(opts);
-            with_ui(|ui| {
-                let size = opts.px("size", 12.5);
-                let row_h = size * opts.f32("line_height", 1.78);
-                let gutter_w = opts.px("gutter_width", 24.0);
-                let (rect, _) = ui
-                    .allocate_exact_size(vec2(ui.available_width(), row_h), Sense::hover());
-                if let Some(fill) = opts.opt_color("highlight") {
-                    ui.painter().rect_filled(rect, 0.0, fill);
-                }
-                let mono = FontId::new(size, theme::family("mono"));
-                let gutter_color = opts.color("gutter_color", Color32::from_rgb(0x76, 0x7e, 0x88));
-                ui.painter().text(
-                    pos2(rect.min.x + gutter_w, rect.center().y),
-                    Align2::RIGHT_CENTER,
-                    gutter,
-                    FontId::new((size - 1.5).max(8.0), theme::family("mono")),
-                    gutter_color,
-                );
-                let mut job = egui::text::LayoutJob::default();
-                spans.for_each(|_: i64, span: Table| {
-                    let s: String = span.get("text").unwrap_or_default();
-                    let color = span
-                        .get::<Option<String>>("color")
-                        .ok()
-                        .flatten()
-                        .and_then(|c| parse_hex(&c))
-                        .unwrap_or(Color32::WHITE);
-                    let mut format = egui::TextFormat::simple(mono.clone(), color);
-                    if span.get::<Option<bool>>("strong").ok().flatten().unwrap_or(false) {
-                        format.font_id = FontId::new(size, theme::family("mono"));
-                        format.underline = Stroke::NONE;
-                        format.color = color;
+        lua.create_function(
+            move |_, (gutter, spans, opts): (String, Table, Option<Table>)| {
+                let opts = Opts(opts);
+                with_ui(|ui| {
+                    let size = opts.px("size", 12.5);
+                    let row_h = size * opts.f32("line_height", 1.78);
+                    let gutter_w = opts.px("gutter_width", 24.0);
+                    let (rect, _) =
+                        ui.allocate_exact_size(vec2(ui.available_width(), row_h), Sense::hover());
+                    if let Some(fill) = opts.opt_color("highlight") {
+                        ui.painter().rect_filled(rect, 0.0, fill);
                     }
-                    job.append(&s, 0.0, format);
+                    let mono = FontId::new(size, theme::family("mono"));
+                    let gutter_color =
+                        opts.color("gutter_color", Color32::from_rgb(0x76, 0x7e, 0x88));
+                    ui.painter().text(
+                        pos2(rect.min.x + gutter_w, rect.center().y),
+                        Align2::RIGHT_CENTER,
+                        gutter,
+                        FontId::new((size - 1.5).max(8.0), theme::family("mono")),
+                        gutter_color,
+                    );
+                    let mut job = egui::text::LayoutJob::default();
+                    spans.for_each(|_: i64, span: Table| {
+                        let s: String = span.get("text").unwrap_or_default();
+                        let color = span
+                            .get::<Option<String>>("color")
+                            .ok()
+                            .flatten()
+                            .and_then(|c| parse_hex(&c))
+                            .unwrap_or(Color32::WHITE);
+                        let mut format = egui::TextFormat::simple(mono.clone(), color);
+                        if span
+                            .get::<Option<bool>>("strong")
+                            .ok()
+                            .flatten()
+                            .unwrap_or(false)
+                        {
+                            format.font_id = FontId::new(size, theme::family("mono"));
+                            format.underline = Stroke::NONE;
+                            format.color = color;
+                        }
+                        job.append(&s, 0.0, format);
+                        Ok(())
+                    })?;
+                    let galley = ui.painter().layout_job(job);
+                    let y = rect.center().y - galley.size().y / 2.0;
+                    ui.painter().galley(
+                        pos2(rect.min.x + gutter_w + sc(12.0), y),
+                        galley,
+                        Color32::WHITE,
+                    );
                     Ok(())
-                })?;
-                let galley = ui.painter().layout_job(job);
-                let y = rect.center().y - galley.size().y / 2.0;
-                ui.painter()
-                    .galley(pos2(rect.min.x + gutter_w + sc(12.0), y), galley, Color32::WHITE);
-                Ok(())
-            })
-        })?,
+                })
+            },
+        )?,
     )?;
 
     // ---- modal -------------------------------------------------------
     t.set(
         "modal",
-        lua.create_function(move |_, (id, opts, cb): (String, Option<Table>, Function)| {
-            let opts = Opts(opts);
-            with_ctx(|ctx| {
-                let screen = ctx.viewport_rect();
-                let scrim = opts.color("scrim", Color32::from_rgba_unmultiplied(23, 25, 28, 107));
-                let mut scrim_clicked = false;
-                egui::Area::new(egui::Id::new(format!("{id}-scrim")))
-                    .order(egui::Order::Foreground)
-                    .fixed_pos(screen.min)
-                    .show(ctx, |ui| {
-                        ui.painter().rect_filled(screen, 0.0, scrim);
-                        let response = ui.allocate_rect(screen, Sense::click());
-                        scrim_clicked = response.clicked();
-                    });
-                let width = opts.px("width", 560.0).min(screen.width() * 0.92);
-                let top = screen.height() * opts.f32("top", 0.11);
-                let mut result = Ok(());
-                egui::Area::new(egui::Id::new(id))
-                    .order(egui::Order::Foreground)
-                    .fixed_pos(pos2(screen.center().x - width / 2.0, top))
-                    .show(ctx, |ui| {
-                        let mut frame = egui::Frame::new()
-                            .corner_radius(pill_radius(sc(32.0)))
-                            .fill(opts.color("fill", Color32::from_rgb(0x20, 0x24, 0x2a)));
-                        if let Some(stroke) = opts.opt_color("stroke") {
-                            frame = frame.stroke(Stroke::new(1.0, stroke));
-                        }
-                        frame.show(ui, |ui| {
-                            ui.set_width(width);
-                            result = scoped(ui, &cb);
+        lua.create_function(
+            move |_, (id, opts, cb): (String, Option<Table>, Function)| {
+                let opts = Opts(opts);
+                with_ctx(|ctx| {
+                    let screen = ctx.viewport_rect();
+                    let scrim =
+                        opts.color("scrim", Color32::from_rgba_unmultiplied(23, 25, 28, 107));
+                    let mut scrim_clicked = false;
+                    egui::Area::new(egui::Id::new(format!("{id}-scrim")))
+                        .order(egui::Order::Foreground)
+                        .fixed_pos(screen.min)
+                        .show(ctx, |ui| {
+                            ui.painter().rect_filled(screen, 0.0, scrim);
+                            let response = ui.allocate_rect(screen, Sense::click());
+                            scrim_clicked = response.clicked();
                         });
-                    });
-                result?;
-                Ok(scrim_clicked)
-            })
-        })?,
+                    let width = opts.px("width", 560.0).min(screen.width() * 0.92);
+                    let top = screen.height() * opts.f32("top", 0.11);
+                    let mut result = Ok(());
+                    egui::Area::new(egui::Id::new(id))
+                        .order(egui::Order::Foreground)
+                        .fixed_pos(pos2(screen.center().x - width / 2.0, top))
+                        .show(ctx, |ui| {
+                            let mut frame = egui::Frame::new()
+                                .corner_radius(pill_radius(sc(32.0)))
+                                .fill(opts.color("fill", Color32::from_rgb(0x20, 0x24, 0x2a)));
+                            if let Some(stroke) = opts.opt_color("stroke") {
+                                frame = frame.stroke(Stroke::new(1.0, stroke));
+                            }
+                            frame.show(ui, |ui| {
+                                ui.set_width(width);
+                                result = scoped(ui, &cb);
+                            });
+                        });
+                    result?;
+                    Ok(scrim_clicked)
+                })
+            },
+        )?,
     )?;
 
     // ---- widget layer ------------------------------------------------
@@ -868,7 +902,8 @@ pub fn install(app: &mut App) -> Result<()> {
                             ));
                         }
                     } else {
-                        ui.painter().rect_stroke(rect, 0.0, stroke, StrokeKind::Inside);
+                        ui.painter()
+                            .rect_stroke(rect, 0.0, stroke, StrokeKind::Inside);
                     }
                     Ok(())
                 })
@@ -956,8 +991,7 @@ fn text_field(
         if autofocus {
             response.request_focus();
         }
-        let submitted =
-            response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+        let submitted = response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
         Ok((response.changed(), submitted))
     })?;
     let (changed, submitted) = result;
@@ -967,7 +1001,6 @@ fn text_field(
         .insert(id.to_string(), buffer.clone());
     Ok((buffer, changed, submitted))
 }
-
 
 // ---------------------------------------------------------------- code editor
 
@@ -996,13 +1029,13 @@ impl SyntaxColors {
 }
 
 const LUAU_KEYWORDS: &[&str] = &[
-    "local", "function", "end", "if", "then", "else", "elseif", "while", "for",
-    "in", "do", "return", "and", "or", "not", "true", "false", "nil", "break",
-    "continue", "repeat", "until", "type", "export",
+    "local", "function", "end", "if", "then", "else", "elseif", "while", "for", "in", "do",
+    "return", "and", "or", "not", "true", "false", "nil", "break", "continue", "repeat", "until",
+    "type", "export",
 ];
 const LUAU_BUILTINS: &[&str] = &[
-    "engine", "scene", "input", "physics", "render", "audio", "rng", "ui",
-    "log", "fs", "toml", "math", "string", "table", "self", "require",
+    "engine", "scene", "input", "physics", "render", "audio", "rng", "ui", "log", "fs", "toml",
+    "math", "string", "table", "self", "require",
 ];
 
 /// Line-based Luau highlighting into a LayoutJob (used by the editable code
@@ -1024,7 +1057,13 @@ fn highlight_luau(text_src: &str, font: &FontId, colors: &SyntaxColors) -> egui:
             let rest = &line[pos..];
             let c = rest.chars().next().unwrap();
             let (token_len, color) = if c.is_whitespace() {
-                (rest.chars().take_while(|c| c.is_whitespace()).map(char::len_utf8).sum(), colors.ident)
+                (
+                    rest.chars()
+                        .take_while(|c| c.is_whitespace())
+                        .map(char::len_utf8)
+                        .sum(),
+                    colors.ident,
+                )
             } else if c == '"' || c == '\'' {
                 let quote = c;
                 let mut len = c.len_utf8();
@@ -1052,9 +1091,9 @@ fn highlight_luau(text_src: &str, font: &FontId, colors: &SyntaxColors) -> egui:
                 let word = &rest[..len];
                 let color = if LUAU_KEYWORDS.contains(&word) {
                     colors.key
-                } else if LUAU_BUILTINS.contains(&word) {
-                    colors.builtin
-                } else if word.chars().next().is_some_and(|c| c.is_uppercase()) {
+                } else if LUAU_BUILTINS.contains(&word)
+                    || word.chars().next().is_some_and(|c| c.is_uppercase())
+                {
                     colors.builtin
                 } else {
                     colors.ident
@@ -1099,16 +1138,18 @@ fn code_editor(
     let font = FontId::new(size, theme::family("mono"));
     let changed = with_ui(|ui| {
         let font = font.clone();
-        let row_h = ui.painter().layout_no_wrap("0".into(), font.clone(), gutter_color).size().y;
+        let row_h = ui
+            .painter()
+            .layout_no_wrap("0".into(), font.clone(), gutter_color)
+            .size()
+            .y;
         let mut changed = false;
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
             // Gutter.
             let n_lines = buffer.split('\n').count().max(1);
-            let (gutter_rect, _) = ui.allocate_exact_size(
-                vec2(gutter_w, row_h * n_lines as f32),
-                Sense::hover(),
-            );
+            let (gutter_rect, _) =
+                ui.allocate_exact_size(vec2(gutter_w, row_h * n_lines as f32), Sense::hover());
             for i in 0..n_lines {
                 ui.painter().text(
                     pos2(
@@ -1123,12 +1164,11 @@ fn code_editor(
             }
             ui.add_space(sc(12.0));
             // Editor.
-            let mut layouter =
-                |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _wrap: f32| {
-                    let mut job = highlight_luau(buf.as_str(), &font, &colors);
-                    job.wrap.max_width = f32::INFINITY;
-                    ui.fonts_mut(|f| f.layout_job(job))
-                };
+            let mut layouter = |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _wrap: f32| {
+                let mut job = highlight_luau(buf.as_str(), &font, &colors);
+                job.wrap.max_width = f32::INFINITY;
+                ui.fonts_mut(|f| f.layout_job(job))
+            };
             let response = ui.add(
                 egui::TextEdit::multiline(&mut buffer)
                     .id(egui::Id::new(id.to_string()))
@@ -1146,7 +1186,6 @@ fn code_editor(
         .insert(id.to_string(), buffer.clone());
     Ok((buffer, changed))
 }
-
 
 /// Draw a PNG from the project (cached as an egui texture by path).
 fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> mlua::Result<()> {
@@ -1166,9 +1205,9 @@ fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> mlua::Result<()> {
                 let rgba = dynamic.to_rgba8();
                 let size = [rgba.width() as usize, rgba.height() as usize];
                 let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
-                let handle =
-                    ui.ctx()
-                        .load_texture(path, color, egui::TextureOptions::LINEAR);
+                let handle = ui
+                    .ctx()
+                    .load_texture(path, color, egui::TextureOptions::LINEAR);
                 state
                     .borrow_mut()
                     .textures
@@ -1177,7 +1216,11 @@ fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> mlua::Result<()> {
             }
         };
         let native = texture.size_vec2();
-        let aspect = if native.y > 0.0 { native.x / native.y } else { 1.0 };
+        let aspect = if native.y > 0.0 {
+            native.x / native.y
+        } else {
+            1.0
+        };
         let w = opts.px("width", 0.0);
         let h = opts.px("height", 0.0);
         let size = if w > 0.0 && h > 0.0 {
@@ -1197,7 +1240,11 @@ fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> mlua::Result<()> {
             let (rect, _) = ui.allocate_exact_size(total, Sense::hover());
             ui.painter().rect_filled(
                 rect,
-                if radius > 0.0 { pill_radius((radius + padding) * 2.0) } else { pill_radius(total.y) },
+                if radius > 0.0 {
+                    pill_radius((radius + padding) * 2.0)
+                } else {
+                    pill_radius(total.y)
+                },
                 bg,
             );
             let inner = egui::Rect::from_center_size(rect.center(), size);
@@ -1217,7 +1264,6 @@ fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> mlua::Result<()> {
     })
 }
 
-
 /// A left-aligned pill row (tree rows, list rows, menu items): custom paint
 /// so the icon and label hug the left edge instead of egui's centered
 /// button text. Supports fill/stroke, a colored leading icon, an optional
@@ -1226,7 +1272,11 @@ fn left_pill(ui: &mut egui::Ui, label: &str, opts: &Opts) -> mlua::Result<bool> 
     let h = opts.px("height", 27.0);
     let w = {
         let w = opts.px("min_width", 0.0);
-        if w > 0.0 { w } else { ui.available_width().max(sc(40.0)) }
+        if w > 0.0 {
+            w
+        } else {
+            ui.available_width().max(sc(40.0))
+        }
     };
     let (rect, mut response) = ui.allocate_exact_size(vec2(w, h), Sense::click());
     let hovered = response.hovered();
@@ -1240,8 +1290,13 @@ fn left_pill(ui: &mut egui::Ui, label: &str, opts: &Opts) -> mlua::Result<bool> 
         ui.painter().rect_filled(rect, pill_radius(h), fill);
     }
     if let Some(stroke) = opts.opt_color("stroke") {
-        ui.painter()
-            .rect(rect, pill_radius(h), Color32::TRANSPARENT, Stroke::new(1.0, stroke), StrokeKind::Inside);
+        ui.painter().rect(
+            rect,
+            pill_radius(h),
+            Color32::TRANSPARENT,
+            Stroke::new(1.0, stroke),
+            StrokeKind::Inside,
+        );
     }
     let fam = opts.string("font").unwrap_or_else(|| "ui".into());
     let size = opts.px("size", 12.0);
@@ -1260,7 +1315,10 @@ fn left_pill(ui: &mut egui::Ui, label: &str, opts: &Opts) -> mlua::Result<bool> 
     }
     let mut font = FontId::new(size, theme::family(&fam));
     if opts.boolean("strong", false) {
-        font = FontId::new(size, theme::family(if fam == "ui" { "heading" } else { &fam }));
+        font = FontId::new(
+            size,
+            theme::family(if fam == "ui" { "heading" } else { &fam }),
+        );
     }
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, color);
     let y = rect.center().y - galley.size().y / 2.0;

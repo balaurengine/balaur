@@ -47,9 +47,7 @@ pub fn leave_pass() {
 pub fn with_ctx<R>(f: impl FnOnce(&egui::Context) -> mlua::Result<R>) -> mlua::Result<R> {
     CTX.with(|c| match c.borrow().as_ref() {
         Some(ctx) => f(ctx),
-        None => Err(mlua::Error::runtime(
-            "ui.* can only be called from draw_ui",
-        )),
+        None => Err(mlua::Error::runtime("ui.* can only be called from draw_ui")),
     })
 }
 

@@ -45,7 +45,10 @@ fn math_fastcalls_are_routed_through_the_global_table() {
     lua.load("math.sin = function(x) return 42 end")
         .exec()
         .unwrap();
-    let v: f64 = eval_compiled(&app, "local s = 0 for i = 1, 3 do s += math.sin(i) end return s");
+    let v: f64 = eval_compiled(
+        &app,
+        "local s = 0 for i = 1, 3 do s += math.sin(i) end return s",
+    );
     assert_eq!(v, 126.0, "fastcall bypassed the rebound math.sin");
 }
 

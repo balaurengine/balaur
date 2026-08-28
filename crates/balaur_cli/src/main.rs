@@ -1,6 +1,6 @@
 //! The `balaur` command line tool: create, run, export, and play projects.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use balaur::{AppConfig, Pack};
@@ -88,7 +88,13 @@ fn main() -> Result<()> {
             frames,
             screenshot,
         } => run_project(&path, headless, frames, screenshot),
-        Command::Edit { path, editor, frames, screenshot, state } => edit_project(&path, editor, frames, screenshot, state),
+        Command::Edit {
+            path,
+            editor,
+            frames,
+            screenshot,
+            state,
+        } => edit_project(&path, editor, frames, screenshot, state),
         Command::Export { path, output } => {
             let pack = Pack::build(&path)?;
             let output = output.unwrap_or_else(|| {
@@ -109,8 +115,8 @@ fn main() -> Result<()> {
             Ok(())
         }
         Command::Play { pack, frames } => {
-            let bytes = std::fs::read(&pack)
-                .with_context(|| format!("reading {}", pack.display()))?;
+            let bytes =
+                std::fs::read(&pack).with_context(|| format!("reading {}", pack.display()))?;
             if let Some(frames) = frames {
                 let pack = Pack::decode(&bytes)?;
                 let mut app = balaur::standard_app(AppConfig::packed(pack))?;
@@ -126,7 +132,7 @@ fn main() -> Result<()> {
 }
 
 fn run_project(
-    path: &PathBuf,
+    path: &Path,
     headless: bool,
     frames: Option<u64>,
     screenshot: Option<PathBuf>,
@@ -170,7 +176,7 @@ fn run_project(
 }
 
 fn edit_project(
-    path: &PathBuf,
+    path: &Path,
     editor: Option<PathBuf>,
     frames: Option<u64>,
     screenshot: Option<PathBuf>,
@@ -183,8 +189,7 @@ fn edit_project(
         .or_else(|| std::env::var("BALAUR_EDITOR").ok().map(PathBuf::from))
         .or_else(|| {
             // The editor that ships next to the engine sources.
-            let candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../editor");
+            let candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../editor");
             candidate.canonicalize().ok()
         })
         .context("no editor project found; pass --editor <dir>")?;
@@ -214,7 +219,7 @@ fn edit_project(
     balaur::run(app, "balaur editor")
 }
 
-fn new_project(path: &PathBuf) -> Result<()> {
+fn new_project(path: &Path) -> Result<()> {
     let name = path
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())

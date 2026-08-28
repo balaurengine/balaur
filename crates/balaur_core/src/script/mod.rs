@@ -163,10 +163,7 @@ impl ScriptHost {
             return Ok(value.clone());
         }
         let value = self.eval_chunk(&key)?;
-        self.state
-            .borrow_mut()
-            .modules
-            .insert(key, value.clone());
+        self.state.borrow_mut().modules.insert(key, value.clone());
         Ok(value)
     }
 
@@ -356,9 +353,8 @@ impl ScriptHost {
             };
             let mut call_args = mlua::MultiValue::new();
             call_args.push_back(Value::Table(inst.clone()));
-            match args.clone().into_lua_multi(&self.lua) {
-                Ok(extra) => call_args.extend(extra),
-                Err(_) => {}
+            if let Ok(extra) = args.clone().into_lua_multi(&self.lua) {
+                call_args.extend(extra)
             }
             if let Err(err) = func.call::<()>(call_args) {
                 self.report_error(method, &err.to_string());

@@ -210,7 +210,9 @@ pub fn install_fonts(engine: &Engine, ctx: &egui::Context) {
     fonts
         .families
         .insert(FontFamily::Name("heading".into()), heading_chain);
-    fonts.families.insert(FontFamily::Name("ui".into()), ui_chain);
+    fonts
+        .families
+        .insert(FontFamily::Name("ui".into()), ui_chain);
     fonts
         .families
         .insert(FontFamily::Name("mono".into()), mono_chain);

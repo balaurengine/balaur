@@ -88,10 +88,12 @@ pub fn install_globals(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     })?;
     m.function("get_node", |eng, path: String| {
         let world = eng.world();
-        Ok(scene::find_node(&world, eng.root(), &path).map(|entity| NodeRef {
-            entity,
-            engine: eng.clone(),
-        }))
+        Ok(
+            scene::find_node(&world, eng.root(), &path).map(|entity| NodeRef {
+                entity,
+                engine: eng.clone(),
+            }),
+        )
     })?;
     m.function(
         "spawn",
@@ -109,8 +111,7 @@ pub fn install_globals(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     // opts: { scripts = false } skips script attachment (editor mirroring).
     m.function(
         "instantiate",
-        |eng,
-         (source, parent, opts): (String, Option<UserDataRef<NodeRef>>, Option<Table>)| {
+        |eng, (source, parent, opts): (String, Option<UserDataRef<NodeRef>>, Option<Table>)| {
             let base = parent.map(|p| p.entity).unwrap_or_else(|| eng.root());
             let attach = opts
                 .and_then(|o| o.get::<Option<bool>>("scripts").ok().flatten())
@@ -140,7 +141,10 @@ pub fn install_globals(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
         "recent",
         lua.create_function(|lua, n: Option<usize>| {
             let out = lua.create_table()?;
-            for (i, e) in crate::logbuf::recent(n.unwrap_or(100)).into_iter().enumerate() {
+            for (i, e) in crate::logbuf::recent(n.unwrap_or(100))
+                .into_iter()
+                .enumerate()
+            {
                 let t = lua.create_table()?;
                 t.set("time", e.time)?;
                 t.set("level", e.level)?;

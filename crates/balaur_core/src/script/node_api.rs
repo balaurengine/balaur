@@ -14,10 +14,7 @@ pub struct NodeRef {
 }
 
 impl NodeRef {
-    fn with_transform<R>(
-        &self,
-        f: impl FnOnce(&mut Transform) -> R,
-    ) -> mlua::Result<R> {
+    fn with_transform<R>(&self, f: impl FnOnce(&mut Transform) -> R) -> mlua::Result<R> {
         let world = self.engine.world();
         let mut transform = world
             .get::<&mut Transform>(self.entity)
@@ -103,10 +100,12 @@ impl UserData for NodeRef {
 
         methods.add_method("get_node", |_, this, path: String| {
             let world = this.engine.world();
-            Ok(scene::find_node(&world, this.entity, &path).map(|entity| NodeRef {
-                entity,
-                engine: this.engine.clone(),
-            }))
+            Ok(
+                scene::find_node(&world, this.entity, &path).map(|entity| NodeRef {
+                    entity,
+                    engine: this.engine.clone(),
+                }),
+            )
         });
         methods.add_method("add_child", |_, this, name: String| {
             let mut world = this.engine.world_mut();

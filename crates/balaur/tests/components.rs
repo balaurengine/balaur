@@ -1,7 +1,7 @@
 //! Component registry end-to-end: plugin components are addable, readable,
 //! editable, and removable through the generic node API.
 
-use balaur::{AppConfig, standard_app};
+use balaur::{standard_app, AppConfig};
 
 #[test]
 fn plugin_components_roundtrip_through_the_registry() {

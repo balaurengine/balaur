@@ -62,18 +62,39 @@ impl Default for GridConfig {
 
 /// Immediate-mode debug/overlay lines, cleared every frame after drawing.
 /// Reusable for editor gizmos, physics debug, navigation debug.
+/// Script arguments for `draw_line`: two endpoints, colour, then optional
+/// width, perspective-correct width and always-on-top flags.
+type DrawLineArgs = (
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    f32,
+    Option<f32>,
+    Option<bool>,
+    Option<bool>,
+);
+
+/// (a, b, color, pixel width, perspective-correct width, always-on-top)
+pub type DebugLine = ([f32; 3], [f32; 3], [f32; 3], f32, bool, bool);
+
 #[derive(Default)]
 pub struct DebugLines {
-    /// (a, b, color, pixel width, perspective-correct width, always-on-top)
-    pub lines: Vec<([f32; 3], [f32; 3], [f32; 3], f32, bool, bool)>,
+    pub lines: Vec<DebugLine>,
 }
 
 /// 2D counterpart of [`DebugLines`]: world-space 2D segments rendered with
 /// the 2D camera, cleared every frame.
+/// (a, b, color, pixel width)
+pub type DebugLine2D = ([f32; 2], [f32; 2], [f32; 3], f32);
+
 #[derive(Default)]
 pub struct DebugLines2D {
-    /// (a, b, color, pixel width)
-    pub lines: Vec<([f32; 2], [f32; 2], [f32; 3], f32)>,
+    pub lines: Vec<DebugLine2D>,
 }
 
 /// Where the 2D camera looks (world center) and its zoom in logical pixels
@@ -270,41 +291,47 @@ impl Plugin for RenderPlugin {
         // HiDPI scale factor.
         // The camera's exact projection*view matrix (column-major, 16
         // numbers): scripts project points precisely as the renderer does.
-        m.table().set(
-            "camera_matrix",
-            {
-                let eng = app.engine.clone();
-                app.engine
-                    .scripts()
-                    .expect("script host present")
-                    .lua()
-                    .create_function(move |lua, ()| {
-                        let cam = eng.resource::<ViewportCamera>();
-                        let cam = cam.borrow();
-                        let t = lua.create_table()?;
-                        for (i, v) in cam.view_proj.iter().enumerate() {
-                            t.set(i + 1, *v)?;
-                        }
-                        Ok(t)
-                    })?
-            },
-        )?;
+        m.table().set("camera_matrix", {
+            let eng = app.engine.clone();
+            app.engine
+                .scripts()
+                .expect("script host present")
+                .lua()
+                .create_function(move |lua, ()| {
+                    let cam = eng.resource::<ViewportCamera>();
+                    let cam = cam.borrow();
+                    let t = lua.create_table()?;
+                    for (i, v) in cam.view_proj.iter().enumerate() {
+                        t.set(i + 1, *v)?;
+                    }
+                    Ok(t)
+                })?
+        })?;
         // Picking ray through the mouse: origin xyz, direction xyz.
         m.function("mouse_ray", |eng, ()| {
             let cam = eng.resource::<ViewportCamera>();
             let cam = cam.borrow();
             Ok((
-                cam.ray_origin[0], cam.ray_origin[1], cam.ray_origin[2],
-                cam.ray_dir[0], cam.ray_dir[1], cam.ray_dir[2],
+                cam.ray_origin[0],
+                cam.ray_origin[1],
+                cam.ray_origin[2],
+                cam.ray_dir[0],
+                cam.ray_dir[1],
+                cam.ray_dir[2],
             ))
         })?;
         m.function("camera_pose", |eng, ()| {
             let cam = eng.resource::<ViewportCamera>();
             let cam = cam.borrow();
             Ok((
-                cam.eye[0], cam.eye[1], cam.eye[2],
-                cam.target[0], cam.target[1], cam.target[2],
-                cam.fov, cam.scale_factor,
+                cam.eye[0],
+                cam.eye[1],
+                cam.eye[2],
+                cam.target[0],
+                cam.target[1],
+                cam.target[2],
+                cam.fov,
+                cam.scale_factor,
             ))
         })?;
         m.function("set_background", |eng, (r, g, b): (f32, f32, f32)| {
@@ -316,7 +343,13 @@ impl Plugin for RenderPlugin {
         })?;
         m.function(
             "set_grid",
-            |eng, (enabled, step, major_every, extent): (bool, Option<f32>, Option<u32>, Option<i32>)| {
+            |eng,
+             (enabled, step, major_every, extent): (
+                bool,
+                Option<f32>,
+                Option<u32>,
+                Option<i32>,
+            )| {
                 let grid = eng.resource::<GridConfig>();
                 let mut grid = grid.borrow_mut();
                 grid.enabled = enabled;
@@ -346,10 +379,7 @@ impl Plugin for RenderPlugin {
         // perspective = true for distance-scaled width (gizmos want false).
         m.function(
             "draw_line",
-            |eng,
-             (x1, y1, z1, x2, y2, z2, r, g, b, width, perspective, on_top): (
-                f32, f32, f32, f32, f32, f32, f32, f32, f32, Option<f32>, Option<bool>, Option<bool>,
-            )| {
+            |eng, (x1, y1, z1, x2, y2, z2, r, g, b, width, perspective, on_top): DrawLineArgs| {
                 let lines = eng.resource::<DebugLines>();
                 lines.borrow_mut().lines.push((
                     [x1, y1, z1],
@@ -435,8 +465,7 @@ impl Plugin for RenderPlugin {
         m.function(
             "set_ball",
             |eng, (node, radius): (UserDataRef<NodeRef>, f32)| {
-                set_shape(eng, node.entity, Shape::Ball { radius })
-                    .map_err(mlua::Error::external)
+                set_shape(eng, node.entity, Shape::Ball { radius }).map_err(mlua::Error::external)
             },
         )?;
         m.function(
@@ -490,7 +519,10 @@ radius = { kind = "float", default = 0.5, min = 0.01 }
 half_extents = { kind = "vec3", default = [0.5, 0.5, 0.5] }"#,
                 ),
                 apply: Box::new(|eng, entity, params| {
-                    let kind = params.get("kind").and_then(|v| v.as_str()).unwrap_or("cuboid");
+                    let kind = params
+                        .get("kind")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("cuboid");
                     let radius = params
                         .get("radius")
                         .and_then(balaur_core::components::as_f64)
@@ -555,7 +587,10 @@ radius = { kind = "float", default = 0.5, min = 0.01 }
 half_extents = { kind = "vec2", default = [0.5, 0.5] }"#,
                 ),
                 apply: Box::new(|eng, entity, params| {
-                    let kind = params.get("kind").and_then(|v| v.as_str()).unwrap_or("rect");
+                    let kind = params
+                        .get("kind")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("rect");
                     let radius = params
                         .get("radius")
                         .and_then(balaur_core::components::as_f64)

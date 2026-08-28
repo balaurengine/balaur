@@ -10,11 +10,11 @@
 
 use anyhow::{anyhow, Result};
 use balaur_core::collections::DetHashMap;
+use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_core::mlua::{self, UserDataRef};
 use balaur_core::{App, Engine, NodeRef, Plugin, Stage, Transform};
 use glamx::{Pose3, Vec3};
-use balaur_core::components::ComponentDef;
 use rapier3d::pipeline::PhysicsWorld;
 use rapier3d::prelude::{ColliderBuilder, ColliderHandle, RigidBodyBuilder, RigidBodyHandle};
 
@@ -103,12 +103,7 @@ impl Plugin for PhysicsPlugin {
             for handle in handles {
                 state.world.remove_body(handle);
             }
-            let standalone: Vec<_> = state
-                .colliders
-                .values()
-                .flatten()
-                .copied()
-                .collect();
+            let standalone: Vec<_> = state.colliders.values().flatten().copied().collect();
             for handle in standalone {
                 state.world.remove_collider(handle);
             }
@@ -161,16 +156,13 @@ impl Plugin for PhysicsPlugin {
                 .map_err(mlua::Error::external)
             },
         )?;
-        m.function(
-            "linear_velocity",
-            |eng, node: UserDataRef<NodeRef>| {
-                with_body(eng, node.entity, |state, handle| {
-                    let v = state.world.bodies[handle].linvel();
-                    (v.x, v.y, v.z)
-                })
-                .map_err(mlua::Error::external)
-            },
-        )?;
+        m.function("linear_velocity", |eng, node: UserDataRef<NodeRef>| {
+            with_body(eng, node.entity, |state, handle| {
+                let v = state.world.bodies[handle].linvel();
+                (v.x, v.y, v.z)
+            })
+            .map_err(mlua::Error::external)
+        })?;
 
         // Components (schema-driven: addable and editable from the editor,
         // and usable as scene-file keys). `body = "dynamic"` shorthand keeps
@@ -229,7 +221,7 @@ impl Plugin for PhysicsPlugin {
 radius = { kind = "float", default = 0.5, min = 0.01 }
 half_extents = { kind = "vec3", default = [0.5, 0.5, 0.5] }"#,
                 ),
-                apply: Box::new(|eng, entity, params| apply_collider(eng, entity, params)),
+                apply: Box::new(apply_collider),
                 remove: Box::new(|eng, entity| {
                     remove_colliders(eng, entity);
                     Ok(())
@@ -245,7 +237,10 @@ half_extents = { kind = "vec3", default = [0.5, 0.5, 0.5] }"#,
 /// Build and insert the collider described by `params`, replacing any
 /// existing one (attached to the entity's body when it has one).
 fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let shape = params.get("shape").and_then(|v| v.as_str()).unwrap_or("cuboid");
+    let shape = params
+        .get("shape")
+        .and_then(|v| v.as_str())
+        .unwrap_or("cuboid");
     let radius = params
         .get("radius")
         .and_then(balaur_core::components::as_f64)
@@ -296,7 +291,8 @@ fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     if let Some(ball) = collider.shape().as_ball() {
         map.insert("shape".into(), toml::Value::String("ball".into()));
         map.insert("radius".into(), toml::Value::Float(ball.radius as f64));
-    } else if let Some(cuboid) = collider.shape().as_cuboid() {
+    } else {
+        let cuboid = collider.shape().as_cuboid()?;
         map.insert("shape".into(), toml::Value::String("cuboid".into()));
         map.insert(
             "half_extents".into(),
@@ -306,8 +302,6 @@ fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
                 toml::Value::Float(cuboid.half_extents.z as f64),
             ]),
         );
-    } else {
-        return None;
     }
     Some(toml::Value::Table(map))
 }
@@ -406,10 +400,7 @@ fn step_system(eng: &Engine, dt: f32) {
             let body = &mut state.world.bodies[handle];
             if body.is_kinematic() {
                 if let Ok(t) = world.get::<&Transform>(entity) {
-                    body.set_next_kinematic_position(Pose3::from_parts(
-                        t.position,
-                        t.rotation,
-                    ));
+                    body.set_next_kinematic_position(Pose3::from_parts(t.position, t.rotation));
                 }
             }
         }

@@ -36,14 +36,21 @@ pub fn as_f64(value: &toml::Value) -> Option<f64> {
     }
 }
 
+/// Insert-or-update a component from a full property table.
+pub type ApplyFn = Box<dyn Fn(&Engine, Entity, &toml::Value) -> Result<()>>;
+/// Remove a component from an entity.
+pub type RemoveFn = Box<dyn Fn(&Engine, Entity) -> Result<()>>;
+/// Read a component's property table, or `None` when the entity lacks it.
+pub type GetFn = Box<dyn Fn(&Engine, Entity) -> Option<toml::Value>>;
+
 pub struct ComponentDef {
     /// TOML table of property specs (see module docs).
     pub schema: toml::Value,
     /// Insert-or-update the component from a full property table.
-    pub apply: Box<dyn Fn(&Engine, Entity, &toml::Value) -> Result<()>>,
-    pub remove: Box<dyn Fn(&Engine, Entity) -> Result<()>>,
+    pub apply: ApplyFn,
+    pub remove: RemoveFn,
     /// Current property table, or None when the entity lacks the component.
-    pub get: Box<dyn Fn(&Engine, Entity) -> Option<toml::Value>>,
+    pub get: GetFn,
 }
 
 impl ComponentDef {
@@ -60,10 +67,7 @@ pub struct ComponentRegistry(pub Vec<(String, ComponentDef)>);
 
 impl ComponentRegistry {
     pub fn def(&self, name: &str) -> Option<&ComponentDef> {
-        self.0
-            .iter()
-            .find(|(n, _)| n == name)
-            .map(|(_, def)| def)
+        self.0.iter().find(|(n, _)| n == name).map(|(_, def)| def)
     }
 }
 
@@ -102,7 +106,12 @@ pub fn merge_defaults(schema: &toml::Value, params: Option<&toml::Value>) -> tom
     toml::Value::Table(out)
 }
 
-pub fn add(engine: &Engine, entity: Entity, name: &str, params: Option<&toml::Value>) -> Result<()> {
+pub fn add(
+    engine: &Engine,
+    entity: Entity,
+    name: &str,
+    params: Option<&toml::Value>,
+) -> Result<()> {
     let registry = engine
         .try_resource::<ComponentRegistry>()
         .ok_or_else(|| anyhow!("component registry missing"))?;

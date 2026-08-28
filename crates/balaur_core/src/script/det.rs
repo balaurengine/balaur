@@ -101,8 +101,8 @@ fn lua_random(eng: &Engine, args: Variadic<i64>) -> mlua::Result<Value> {
     let mut rng = rng.borrow_mut();
     match args.len() {
         0 => Ok(Value::Number(rng.0.next_f64())),
-        1 => Ok(Value::Integer(rng.0.next_range_i64(1, args[0]) as i64)),
-        _ => Ok(Value::Integer(rng.0.next_range_i64(args[0], args[1]) as i64)),
+        1 => Ok(Value::Integer(rng.0.next_range_i64(1, args[0]))),
+        _ => Ok(Value::Integer(rng.0.next_range_i64(args[0], args[1]))),
     }
 }
 

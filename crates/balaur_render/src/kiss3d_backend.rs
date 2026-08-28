@@ -12,7 +12,11 @@ use balaur_input::InputState;
 use glamx::Pose3;
 use kiss3d::prelude::*;
 
-use crate::{AppIcon, Camera2DConfig, CameraConfig, CameraInputEnabled, ClearColor, DebugLines, DebugLines2D, GridConfig, Renderable, Renderable2d, ScreenshotRequest, Shape, Shape2d, Viewport2D, ViewportCamera};
+use crate::{
+    AppIcon, Camera2DConfig, CameraConfig, CameraInputEnabled, ClearColor, DebugLines,
+    DebugLines2D, GridConfig, Renderable, Renderable2d, ScreenshotRequest, Shape, Shape2d,
+    Viewport2D, ViewportCamera,
+};
 
 struct Slot {
     node: SceneNode3d,
@@ -268,12 +272,8 @@ fn dock_icon_png(path: &std::path::Path) -> Option<Vec<u8>> {
     const RADIUS: f32 = 185.0;
     const LOGO: u32 = 660;
     let source = image::open(path).ok()?.to_rgba8();
-    let logo = image::imageops::resize(
-        &source,
-        LOGO,
-        LOGO,
-        image::imageops::FilterType::CatmullRom,
-    );
+    let logo =
+        image::imageops::resize(&source, LOGO, LOGO, image::imageops::FilterType::CatmullRom);
     let mut canvas = image::RgbaImage::new(CANVAS, CANVAS);
     let plate_min = ((CANVAS - PLATE) / 2) as f32;
     let plate_max = plate_min + PLATE as f32;
@@ -365,12 +365,10 @@ fn pump_input(app: &App, window: &Window) {
             }
         }
         match event.value {
-            WindowEvent::Key(key, action, _) => {
-                match action {
-                    Action::Press => input.key_event(&format!("{key:?}"), true),
-                    Action::Release => input.key_event(&format!("{key:?}"), false),
-                }
-            }
+            WindowEvent::Key(key, action, _) => match action {
+                Action::Press => input.key_event(&format!("{key:?}"), true),
+                Action::Release => input.key_event(&format!("{key:?}"), false),
+            },
             WindowEvent::MouseButton(button, action, _) => {
                 let idx = button as usize;
                 match action {
