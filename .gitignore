@@ -1,0 +1,4 @@
+/target
+*.bpak
+.DS_Store
+.idea/

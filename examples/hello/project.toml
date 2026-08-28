@@ -1,0 +1,2 @@
+name = "hello"
+main_scene = "scenes/main.toml"

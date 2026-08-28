@@ -1,0 +1,46 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
+
+[workspace.dependencies]
+balaur_core = { path = "crates/balaur_core", version = "0.1.0" }
+balaur_physics = { path = "crates/balaur_physics", version = "0.1.0" }
+balaur_render = { path = "crates/balaur_render", version = "0.1.0" }
+balaur_audio = { path = "crates/balaur_audio", version = "0.1.0" }
+balaur_input = { path = "crates/balaur_input", version = "0.1.0" }
+balaur_ui = { path = "crates/balaur_ui", version = "0.1.0" }
+balaur = { path = "crates/balaur", version = "0.1.0" }
+
+hecs = "0.11"
+mlua = { version = "0.12", features = ["luau", "error-send"] }
+glamx = "0.3"
+notify = "8"
+rapier3d = { version = "0.35", features = ["enhanced-determinism"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.9"
+anyhow = "1"
+indexmap = "2"
+egui = "0.36"
+rustc-hash = "2"
+libm = "0.2"
+log = { version = "0.4", features = ["std"] }
+env_logger = "0.11"
+clap = { version = "4", features = ["derive"] }
+
+# Fast script iteration is the whole point; keep debug builds usable.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+# Local kiss3d with the macOS Command-modifier fix for egui
+# (get_egui_modifiers reported ⌘ as never pressed upstream).
+[patch.crates-io]
+kiss3d = { path = "/Users/sebcrozet/work/kiss3d" }

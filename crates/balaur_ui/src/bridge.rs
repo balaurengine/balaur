@@ -1,0 +1,75 @@
+//! The Lua ↔ egui bridge: a thread-local stack of the `Ui` currently being
+//! built. Panels and containers push their child `Ui` before invoking the
+//! Lua callback and pop afterwards; widget calls act on the stack top.
+//!
+//! Raw pointers are sound here because the engine is single-threaded and the
+//! Lua callbacks run strictly inside the borrow of the `Ui` they were given
+//! (the pointer never outlives the closure that pushed it).
+
+use balaur_core::mlua;
+use std::cell::RefCell;
+
+thread_local! {
+    static CTX: RefCell<Option<egui::Context>> = const { RefCell::new(None) };
+    static ROOT: RefCell<Option<Box<egui::Ui>>> = const { RefCell::new(None) };
+    static UI_STACK: RefCell<Vec<*mut egui::Ui>> = const { RefCell::new(Vec::new()) };
+    static SCALE: std::cell::Cell<f32> = const { std::cell::Cell::new(1.0) };
+}
+
+/// The pass's UI scale: every widget dimension is multiplied by this.
+pub fn scale() -> f32 {
+    SCALE.with(|s| s.get())
+}
+
+pub fn enter_pass(ctx: &egui::Context, ui_scale: f32) {
+    SCALE.with(|s| s.set(ui_scale));
+    CTX.with(|c| *c.borrow_mut() = Some(ctx.clone()));
+    // The root Ui spanning the viewport; panels carve regions out of it
+    // (this mirrors what `Context::run_ui` builds internally).
+    let mut root = Box::new(egui::Ui::new(
+        ctx.clone(),
+        egui::Id::new("balaur_root_ui"),
+        egui::UiBuilder::new()
+            .layer_id(egui::LayerId::background())
+            .max_rect(ctx.viewport_rect()),
+    ));
+    let ptr: *mut egui::Ui = &mut *root;
+    ROOT.with(|r| *r.borrow_mut() = Some(root));
+    UI_STACK.with(|s| s.borrow_mut().push(ptr));
+}
+
+pub fn leave_pass() {
+    UI_STACK.with(|s| s.borrow_mut().clear());
+    ROOT.with(|r| *r.borrow_mut() = None);
+    CTX.with(|c| *c.borrow_mut() = None);
+}
+
+pub fn with_ctx<R>(f: impl FnOnce(&egui::Context) -> mlua::Result<R>) -> mlua::Result<R> {
+    CTX.with(|c| match c.borrow().as_ref() {
+        Some(ctx) => f(ctx),
+        None => Err(mlua::Error::runtime(
+            "ui.* can only be called from draw_ui",
+        )),
+    })
+}
+
+pub fn with_ui<R>(f: impl FnOnce(&mut egui::Ui) -> mlua::Result<R>) -> mlua::Result<R> {
+    let top = UI_STACK.with(|s| s.borrow().last().copied());
+    match top {
+        Some(ptr) => f(unsafe { &mut *ptr }),
+        None => Err(mlua::Error::runtime(
+            "this ui.* call must run inside a panel or container callback",
+        )),
+    }
+}
+
+/// Push `ui`, run the Lua callback, pop. All container widgets funnel
+/// through here.
+pub fn scoped(ui: &mut egui::Ui, callback: &mlua::Function) -> mlua::Result<()> {
+    UI_STACK.with(|s| s.borrow_mut().push(ui as *mut egui::Ui));
+    let result = callback.call::<()>(());
+    UI_STACK.with(|s| {
+        s.borrow_mut().pop();
+    });
+    result
+}

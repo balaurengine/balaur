@@ -1,0 +1,21 @@
+[package]
+name = "balaur_cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "balaur"
+path = "src/main.rs"
+
+[features]
+# Build with a real window (kiss3d/wgpu). Without it, runs are headless.
+window = ["balaur/window"]
+
+[dependencies]
+balaur.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+env_logger.workspace = true
+log.workspace = true

@@ -1,0 +1,25 @@
+[package]
+name = "balaur_render"
+description = "Balaur rendering plugin: renderable components, with a kiss3d backend"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[features]
+default = []
+# The windowed kiss3d/wgpu backend. Off by default so headless tools, tests,
+# and servers build without a graphics stack.
+kiss3d = ["dep:kiss3d", "dep:pollster", "dep:balaur_input", "dep:balaur_ui", "dep:image"]
+
+[dependencies]
+balaur_core.workspace = true
+glamx.workspace = true
+anyhow.workspace = true
+log.workspace = true
+toml.workspace = true
+kiss3d = { version = "0.46", optional = true, features = ["egui"] }
+pollster = { version = "1", optional = true }
+balaur_input = { workspace = true, optional = true }
+balaur_ui = { workspace = true, optional = true }
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }

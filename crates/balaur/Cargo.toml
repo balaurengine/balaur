@@ -1,0 +1,24 @@
+[package]
+name = "balaur"
+description = "Balaur game engine: batteries-included facade over the core and standard plugins"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[features]
+default = []
+# Windowed rendering (kiss3d/wgpu).
+window = ["balaur_render/kiss3d"]
+
+[dependencies]
+balaur_core.workspace = true
+balaur_physics.workspace = true
+balaur_render.workspace = true
+balaur_audio.workspace = true
+balaur_input.workspace = true
+balaur_ui.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

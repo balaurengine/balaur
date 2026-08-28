@@ -1,0 +1,6 @@
+# The editor is a regular balaur project: one node, one script, the whole
+# shell drawn through the `ui` module.
+
+[[nodes]]
+name = "Editor"
+script = "scripts/editor.luau"

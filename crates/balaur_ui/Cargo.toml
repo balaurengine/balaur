@@ -1,0 +1,15 @@
+[package]
+name = "balaur_ui"
+description = "Balaur UI plugin: an immediate-mode egui API for Luau scripts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+balaur_core.workspace = true
+egui.workspace = true
+anyhow.workspace = true
+toml.workspace = true
+log.workspace = true
+image = { version = "0.25", default-features = false, features = ["png"] }

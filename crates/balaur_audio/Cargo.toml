@@ -1,0 +1,13 @@
+[package]
+name = "balaur_audio"
+description = "Balaur audio plugin backed by rodio"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+balaur_core.workspace = true
+anyhow.workspace = true
+log.workspace = true
+rodio = "0.22"
