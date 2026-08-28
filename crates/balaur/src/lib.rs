@@ -43,7 +43,7 @@ pub fn run(mut app: App, title: &str) -> Result<()> {
     {
         return balaur_render::kiss3d_backend::run_windowed(app, title);
     }
-    #[allow(unreachable_code)]
+    #[allow(unreachable_code)] // The windowed path above returns when the feature is on.
     {
         let _ = title;
         app.run();

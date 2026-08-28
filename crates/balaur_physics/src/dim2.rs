@@ -321,6 +321,14 @@ pub fn set_sleeping_allowed(eng: &Engine, allowed: bool) {
 }
 
 pub fn build(app: &mut App) -> Result<()> {
+    install_physics2d_api(app)?;
+    register_physics2d_components(app)?;
+
+    Ok(())
+}
+
+/// `physics2d`: gravity, velocities and contact impulse.
+fn install_physics2d_api(app: &mut App) -> Result<()> {
     app.engine.insert_resource(Physics2DState::new());
     app.add_system(Stage::PostUpdate, step_system);
 
@@ -373,7 +381,11 @@ pub fn build(app: &mut App) -> Result<()> {
     m.function("max_contact_impulse", |eng, node: UserDataRef<NodeRef>| {
         Ok(max_contact_impulse(eng, node.entity))
     })?;
+    Ok(())
+}
 
+/// The 2D `body` and collider components.
+fn register_physics2d_components(app: &mut App) -> Result<()> {
     // Components (schema-driven; also usable as scene keys).
     app.register_component(
         "body2d",

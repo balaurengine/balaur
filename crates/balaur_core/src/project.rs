@@ -99,6 +99,7 @@ pub fn instantiate_scene(
         let entity = scene::spawn_node(&mut engine.world_mut(), &node.name, parent);
         {
             let world = engine.world();
+            // spawn_node inserts a Transform on every node it creates.
             let mut transform = world.get::<&mut Transform>(entity).unwrap();
             if let Some([x, y, z]) = node.position {
                 transform.position = Vec3::new(x, y, z);

@@ -443,6 +443,7 @@ fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
                 },
             );
         }
+        // The block above inserts the slot when it is missing.
         let slot = slots.get_mut(&entity).unwrap();
         let [r, g, b, a] = renderable.color;
         // kiss3d primitives encode their dimensions in the node's local
@@ -533,6 +534,7 @@ fn sync_2d(
                 },
             );
         }
+        // The block above inserts the slot when it is missing.
         let slot = slots.get_mut(&entity).unwrap();
         let [r, g, b, a] = renderable.color;
         let size = match renderable.shape {

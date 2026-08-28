@@ -57,6 +57,17 @@ pub fn module(lua: &Lua, engine: &Engine, name: &str) -> anyhow::Result<LuaModul
 
 /// Install the built-in `engine`, `scene`, and `log` modules.
 pub fn install_globals(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
+    install_engine_module(lua, engine)?;
+    install_scene_module(lua, engine)?;
+    install_scene_assets(lua, engine)?;
+    install_log_module(lua, engine)?;
+    install_prelude(lua, engine)?;
+
+    Ok(())
+}
+
+/// `engine`: clock, argv, quit, and script reload.
+fn install_engine_module(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     let m = module(lua, engine, "engine")?;
     m.function("time", |eng, ()| Ok(eng.time()))?;
     m.function("delta", |eng, ()| Ok(eng.delta()))?;
@@ -78,7 +89,11 @@ pub fn install_globals(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
             .ok_or_else(|| mlua::Error::runtime("script host not running"))?;
         host.reload(&path).map_err(mlua::Error::external)
     })?;
+    Ok(())
+}
 
+/// `scene`: the node tree, spawning and instancing.
+fn install_scene_module(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     let m = module(lua, engine, "scene")?;
     m.function("root", |eng, ()| {
         Ok(NodeRef {
@@ -120,7 +135,11 @@ pub fn install_globals(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
                 .map_err(mlua::Error::external)
         },
     )?;
+    Ok(())
+}
 
+/// `scene` continued: project loading and component schemas.
+fn install_scene_assets(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     let m = module(lua, engine, "scene")?;
     // A scene document's source by project-relative path (works in packed
     // runs too, unlike `fs.read`). Returns nil when the scene is unknown.
@@ -135,7 +154,11 @@ pub fn install_globals(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
             .def(&name)
             .map(|def| crate::script::tooling::TomlToLua(def.schema.clone())))
     })?;
+    Ok(())
+}
 
+/// `log`: the capture buffer and the level helpers.
+fn install_log_module(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     let m = module(lua, engine, "log")?;
     m.table().set(
         "recent",
@@ -188,6 +211,11 @@ pub fn install_globals(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     }
 
     // `print` goes through the logger too, so it shows up in editor consoles.
+    Ok(())
+}
+
+/// Globals every script gets: `require` and `print`.
+fn install_prelude(lua: &Lua, _engine: &Engine) -> anyhow::Result<()> {
     let globals = lua.globals();
     globals.set(
         "print",

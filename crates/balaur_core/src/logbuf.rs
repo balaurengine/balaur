@@ -32,6 +32,16 @@ struct TeeLogger {
     filter: log::LevelFilter,
 }
 
+/// Lock the buffer, recovering from poisoning.
+///
+/// A panic while holding this lock must not make every later log call panic
+/// too: losing the buffer's contents is acceptable, losing the process is not.
+fn lock_buffer() -> std::sync::MutexGuard<'static, Option<Buffer>> {
+    BUFFER
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 impl log::Log for TeeLogger {
     fn enabled(&self, metadata: &log::Metadata) -> bool {
         metadata.level() <= self.filter
@@ -53,7 +63,7 @@ impl log::Log for TeeLogger {
             record.target(),
             record.args()
         );
-        let mut guard = BUFFER.lock().unwrap();
+        let mut guard = lock_buffer();
         if let Some(buffer) = guard.as_mut() {
             if buffer.entries.len() == CAPACITY {
                 buffer.entries.pop_front();
@@ -73,7 +83,7 @@ impl log::Log for TeeLogger {
 
 /// Install the capturing logger. `max_level`: e.g. `log::LevelFilter::Info`.
 pub fn install(max_level: log::LevelFilter) {
-    *BUFFER.lock().unwrap() = Some(Buffer {
+    *lock_buffer() = Some(Buffer {
         start: Instant::now(),
         entries: VecDeque::new(),
     });
@@ -83,7 +93,7 @@ pub fn install(max_level: log::LevelFilter) {
 
 /// The most recent `n` entries, oldest first.
 pub fn recent(n: usize) -> Vec<LogEntry> {
-    let guard = BUFFER.lock().unwrap();
+    let guard = lock_buffer();
     match guard.as_ref() {
         Some(buffer) => {
             let skip = buffer.entries.len().saturating_sub(n);
@@ -94,7 +104,7 @@ pub fn recent(n: usize) -> Vec<LogEntry> {
 }
 
 pub fn clear() {
-    if let Some(buffer) = BUFFER.lock().unwrap().as_mut() {
+    if let Some(buffer) = lock_buffer().as_mut() {
         buffer.entries.clear();
     }
 }

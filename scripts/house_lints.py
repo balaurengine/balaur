@@ -145,11 +145,19 @@ def check_file(path: Path) -> list[Finding]:
                                         "TODO/FIXME needs an issue reference", "ERROR"))
 
             if not in_test_mod and re.search(r"\.(unwrap|expect)\s*\(", line):
-                justified = "//" in raw or (i > 1 and lines[i - 2].strip().startswith("//"))
-                if not justified:
+                # A descriptive .expect("..") IS the justification -- the rule
+                # exists to stop silent panics, not to mandate a comment beside
+                # a message that already explains itself. Bare .unwrap() and
+                # filler messages still need one.
+                msg = re.search(r"\.expect\s*\(\s*\"([^\"]*)\"", line)
+                FILLER = {"failed", "error", "should work", "unwrap", "todo", "oops", "!"}
+                self_explaining = bool(msg) and len(msg.group(1)) >= 12 \
+                    and msg.group(1).strip().lower() not in FILLER
+                commented = "//" in raw or (i > 1 and lines[i - 2].strip().startswith("//"))
+                if not (self_explaining or commented):
                     findings.append(Finding(rel, i, "unjustified-unwrap",
-                                            "unwrap/expect outside tests needs a justification comment",
-                                            "ERROR"))
+                                            "unwrap/expect outside tests needs a justification comment "
+                                            "or a descriptive expect message", "ERROR"))
 
             if re.search(r"\bfor\s+.*\bin\s+.*\b(HashMap|HashSet)\b", line) or \
                re.search(r"\b(HashMap|HashSet)\b.*\.(iter|keys|values)\(\)", line):

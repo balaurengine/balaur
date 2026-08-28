@@ -134,7 +134,10 @@ fn take<'a>(cursor: &mut &'a [u8], n: usize) -> Result<&'a [u8]> {
 
 fn read_u32(cursor: &mut &[u8]) -> Result<u32> {
     let bytes = take(cursor, 4)?;
-    Ok(u32::from_le_bytes(bytes.try_into().unwrap()))
+    // take() either returned exactly 4 bytes or already returned Err.
+    Ok(u32::from_le_bytes(
+        bytes.try_into().expect("take(4) yields 4 bytes"),
+    ))
 }
 
 fn read_bytes<'a>(cursor: &mut &'a [u8]) -> Result<&'a [u8]> {
