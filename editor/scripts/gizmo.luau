@@ -383,19 +383,21 @@ function M.draw(S)
     end
     local hot = hot_part(S)
     local he = geo.he
-    local hot_face_axis = if hot ~= nil and hot.kind == "face" then hot.axis else nil
-    local function edge_color(axis_a, axis_b)
-        -- A face's four edges are those not along its normal axis.
-        if hot_face_axis ~= nil and axis_a ~= hot_face_axis and axis_b ~= hot_face_axis then
-            return HOVER
-        end
-        return ORANGE
-    end
-    -- The 12 box edges, in the node's rotated frame.
+    local hot_face = if hot ~= nil and hot.kind == "face" then hot else nil
+    -- The 12 box edges, in the node's rotated frame. An edge bounds the
+    -- hovered face when its fixed position on the face's normal axis
+    -- matches the face's sign.
     for axis = 1, 3 do
         local b_axis, c_axis = FACE_AXES[axis][1], FACE_AXES[axis][2]
         for _, sb in { -1, 1 } do
             for _, sc2 in { -1, 1 } do
+                local color = ORANGE
+                if hot_face ~= nil
+                    and ((b_axis == hot_face.axis and sb == hot_face.sign)
+                        or (c_axis == hot_face.axis and sc2 == hot_face.sign))
+                then
+                    color = HOVER
+                end
                 local a_off, b_off = { 0, 0, 0 }, { 0, 0, 0 }
                 a_off[axis], b_off[axis] = -he[axis], he[axis]
                 for _, o in { a_off, b_off } do
@@ -405,7 +407,7 @@ function M.draw(S)
                 line(
                     local_point(geo, a_off[1], a_off[2], a_off[3]),
                     local_point(geo, b_off[1], b_off[2], b_off[3]),
-                    edge_color(b_axis, c_axis),
+                    color,
                     W
                 )
             end
