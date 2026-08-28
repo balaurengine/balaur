@@ -158,13 +158,16 @@ fn apply_app_icon(app: &App) {
     };
     #[cfg(target_os = "macos")]
     {
-        use objc2_app_kit::{NSApplication, NSImage};
         use objc2::AnyThread;
+        use objc2_app_kit::{NSApplication, NSImage};
         use objc2_foundation::{MainThreadMarker, NSData};
-        let Ok(bytes) = std::fs::read(&path) else {
-            log::warn!("app icon not found: {}", path.display());
+        let Some(bytes) = dock_icon_png(&path) else {
+            log::warn!("app icon not usable: {}", path.display());
             return;
         };
+        if let Ok(dump) = std::env::var("BALAUR_ICON_DUMP") {
+            let _ = std::fs::write(&dump, &bytes);
+        }
         let data = NSData::with_bytes(&bytes);
         let image = NSImage::initWithData(NSImage::alloc(), &data);
         if let (Some(image), Some(mtm)) = (image, MainThreadMarker::new()) {
@@ -179,8 +182,59 @@ fn apply_app_icon(app: &App) {
     }
 }
 
-/// Expose the real camera pose (the user may have orbited it) for
-/// script-side screen-space math.
+/// Build a macOS-style dock icon: the source image composited onto a white
+/// rounded-rect plate (Big Sur proportions: 824-of-1024 plate, ~185 corner
+/// radius) with transparent margins.
+#[cfg(target_os = "macos")]
+fn dock_icon_png(path: &std::path::Path) -> Option<Vec<u8>> {
+    const CANVAS: u32 = 1024;
+    const PLATE: u32 = 824;
+    const RADIUS: f32 = 185.0;
+    const LOGO: u32 = 660;
+    let source = image::open(path).ok()?.to_rgba8();
+    let logo = image::imageops::resize(
+        &source,
+        LOGO,
+        LOGO,
+        image::imageops::FilterType::CatmullRom,
+    );
+    let mut canvas = image::RgbaImage::new(CANVAS, CANVAS);
+    let plate_min = ((CANVAS - PLATE) / 2) as f32;
+    let plate_max = plate_min + PLATE as f32;
+    let inside_plate = |x: f32, y: f32| -> bool {
+        if x < plate_min || x > plate_max || y < plate_min || y > plate_max {
+            return false;
+        }
+        let cx = x.clamp(plate_min + RADIUS, plate_max - RADIUS);
+        let cy = y.clamp(plate_min + RADIUS, plate_max - RADIUS);
+        (x - cx).powi(2) + (y - cy).powi(2) <= RADIUS * RADIUS
+    };
+    let logo_min = (CANVAS - LOGO) / 2;
+    for (x, y, px) in canvas.enumerate_pixels_mut() {
+        if inside_plate(x as f32 + 0.5, y as f32 + 0.5) {
+            let mut color = [255u8, 255, 255, 255];
+            if x >= logo_min && x < logo_min + LOGO && y >= logo_min && y < logo_min + LOGO {
+                let lp = logo.get_pixel(x - logo_min, y - logo_min).0;
+                // Alpha-over white.
+                let a = lp[3] as f32 / 255.0;
+                for c in 0..3 {
+                    color[c] = (lp[c] as f32 * a + 255.0 * (1.0 - a)) as u8;
+                }
+            }
+            *px = image::Rgba(color);
+        }
+    }
+    let mut out = Vec::new();
+    let encoder = image::codecs::png::PngEncoder::new(&mut out);
+    use image::ImageEncoder;
+    encoder
+        .write_image(&canvas, CANVAS, CANVAS, image::ExtendedColorType::Rgba8)
+        .ok()?;
+    Some(out)
+}
+
+/// Expose the real camera state — pose, exact projection matrix, and the
+/// picking ray through the current mouse position — for script-side math.
 fn publish_camera(app: &App, camera: &OrbitCamera3d, window: &Window) {
     let Some(vp) = app.engine.try_resource::<ViewportCamera>() else {
         return;
@@ -191,7 +245,23 @@ fn publish_camera(app: &App, camera: &OrbitCamera3d, window: &Window) {
     vp.eye = [eye.x, eye.y, eye.z];
     vp.target = [at.x, at.y, at.z];
     vp.fov = std::f32::consts::FRAC_PI_4;
-    vp.scale_factor = window.scale_factor() as f32;
+    let scale = window.scale_factor() as f32;
+    vp.scale_factor = scale;
+    use kiss3d::camera::Camera3d;
+    vp.view_proj = camera.transformation().to_cols_array();
+    if let Some(input) = app.engine.try_resource::<InputState>() {
+        let (mx, my) = {
+            let input = input.borrow();
+            input.mouse_pos()
+        };
+        let size = Vec2::new(
+            window.width() as f32 / scale,
+            window.height() as f32 / scale,
+        );
+        let (origin, dir) = camera.unproject(Vec2::new(mx / scale, my / scale), size);
+        vp.ray_origin = [origin.x, origin.y, origin.z];
+        vp.ray_dir = [dir.x, dir.y, dir.z];
+    }
 }
 
 /// Feed this frame's OS events into the input resource (if the input plugin

@@ -96,12 +96,30 @@ local function camera_frame(S)
     local up = vcross(right, forward)
     local sw, sh = S.screen_w or 1280, S.screen_h or 800
     local wpp = 2 * dist * math.tan(fov / 2) / math.max(sh, 1)
+    local rox, roy, roz, rdx, rdy, rdz = render.mouse_ray()
     return {
         eye = eye, forward = forward, right = right, up = up,
         dist = dist, fov = fov, dpi = dpi, wpp = wpp,
+        -- The renderer's exact projection*view (column-major).
+        m = render.camera_matrix(),
+        ray_o = { rox, roy, roz },
+        ray_d = { rdx, rdy, rdz },
         rect = { x = 0, y = 0, w = sw, h = sh },
         vp = M.viewport_rect(S),
     }
+end
+
+-- Intersect the current mouse ray with a plane (point p, normal n).
+local function ray_plane(cam, p, n)
+    local denom = vdot(cam.ray_d, n)
+    if math.abs(denom) < 1e-6 then
+        return nil
+    end
+    local t = vdot(vsub(p, cam.ray_o), n) / denom
+    if t < 0 then
+        return nil
+    end
+    return vadd(cam.ray_o, vscale(cam.ray_d, t))
 end
 
 local function mouse_design_px(S, cam)
@@ -115,19 +133,19 @@ local function in_viewport(S, cam, mx, my)
     return mx > r.x and mx < r.x + r.w and my > r.y + 44 and my < r.y + r.h - 40
 end
 
--- Project a world point to design-px screen coordinates (nil if behind).
+-- Project a world point to design-px screen coordinates using the
+-- renderer's exact projection*view matrix (nil if behind the camera).
 local function project(S, cam, p)
-    local v = vsub(p, cam.eye)
-    local z = vdot(v, cam.forward)
-    if z < 0.01 then
+    local m = cam.m
+    local x, y, z = p[1], p[2], p[3]
+    local cw = m[4] * x + m[8] * y + m[12] * z + m[16]
+    if cw < 1e-4 then
         return nil
     end
-    local tan_half = math.tan(cam.fov / 2)
+    local cx = (m[1] * x + m[5] * y + m[9] * z + m[13]) / cw
+    local cy = (m[2] * x + m[6] * y + m[10] * z + m[14]) / cw
     local r = cam.rect
-    local aspect = r.w / r.h
-    local ndc_x = vdot(v, cam.right) / (z * tan_half * aspect)
-    local ndc_y = vdot(v, cam.up) / (z * tan_half)
-    return r.x + r.w * (0.5 + ndc_x / 2), r.y + r.h * (0.5 - ndc_y / 2)
+    return r.w * (0.5 + cx * 0.5), r.h * (0.5 - cy * 0.5)
 end
 
 -- Selection geometry: center, padded half-extents, handle size, ring radius.
@@ -260,30 +278,48 @@ end
 -- What the cursor is over. Priority mirrors steadyum: the rotation ball
 -- always wins over the face behind it, then the face-center scale rects,
 -- then corner brackets, and finally the face surfaces (plane translate).
+local function face_normal(geo, face)
+    return vscale(geo.basis[face.axis], face.sign)
+end
+
+local function face_front_facing(cam, geo, face)
+    return vdot(face_normal(geo, face), vsub(cam.eye, face.pos)) > 0
+end
+
 local function hit_test(S, cam, geo, mx, my)
+    -- The rotation ball wins over everything behind it.
     for axis = 1, 3 do
         for t = 0, 47 do
             local sx, sy = project(S, cam, ring_point(geo, axis, t / 48))
-            if sx ~= nil and (sx - mx) ^ 2 + (sy - my) ^ 2 < 10 ^ 2 then
+            if sx ~= nil and (sx - mx) ^ 2 + (sy - my) ^ 2 < 12 ^ 2 then
                 return { kind = "ring", axis = axis }
             end
         end
     end
+    -- Face-center scale rects and corner brackets: only front-facing /
+    -- generous radii so the hotspot is at least as big as the visual.
     local all_faces = faces(geo)
     for i, face in all_faces do
-        if quad_contains(S, cam, face_rect_points(geo, face), mx, my) then
-            return { kind = "facerect", index = i, axis = face.axis, sign = face.sign }
+        if face_front_facing(cam, geo, face) then
+            local sx, sy = project(S, cam, face.pos)
+            if quad_contains(S, cam, face_rect_points(geo, face), mx, my)
+                or (sx ~= nil and (sx - mx) ^ 2 + (sy - my) ^ 2 < 16 ^ 2)
+            then
+                return { kind = "facerect", index = i, axis = face.axis, sign = face.sign }
+            end
         end
     end
     for i, corner in corners(geo) do
         local sx, sy = project(S, cam, corner)
-        if sx ~= nil and (sx - mx) ^ 2 + (sy - my) ^ 2 < 14 ^ 2 then
+        if sx ~= nil and (sx - mx) ^ 2 + (sy - my) ^ 2 < 18 ^ 2 then
             return { kind = "handle", index = i }
         end
     end
+    -- Face surfaces (plane translate): only the faces looking at the
+    -- camera; front faces tile the silhouette, so the hit is unambiguous.
     for i, face in all_faces do
-        if quad_contains(S, cam, face.quad, mx, my) then
-            return { kind = "face", index = i, axis = face.axis }
+        if face_front_facing(cam, geo, face) and quad_contains(S, cam, face.quad, mx, my) then
+            return { kind = "face", index = i, axis = face.axis, sign = face.sign }
         end
     end
     return nil
@@ -417,7 +453,7 @@ local function start_gizmo_drag(S, cam, geo, part, mx, my)
     local sx, sy, sz = ref:scale()
     local rot = node.rotation_euler or { 0, 0, 0 }
     local cx, cy = project(S, cam, geo.center)
-    S.gizmo_drag = {
+    local drag = {
         part = part,
         pos = { px, py, pz },
         scale = { sx, sy, sz },
@@ -428,6 +464,14 @@ local function start_gizmo_drag(S, cam, geo, part, mx, my)
         extent = geo.he[part.axis or 1],
         world_center = { geo.center[1], geo.center[2], geo.center[3] },
     }
+    if part.kind == "face" then
+        -- Anchor: where the mouse ray first hits the face's plane.
+        local n = vscale(geo.basis[part.axis], part.sign or 1)
+        drag.plane_n = n
+        drag.plane_p = { geo.center[1], geo.center[2], geo.center[3] }
+        drag.anchor = ray_plane(cam, drag.plane_p, n)
+    end
+    S.gizmo_drag = drag
 end
 
 local function apply_gizmo_drag(S, cam, mx, my)
@@ -477,32 +521,23 @@ local function apply_gizmo_drag(S, cam, mx, my)
             end
         end
     elseif d.part.kind == "face" then
-        -- Grab a face and slide the object in that face's (rotated) plane.
-        local normal = d.part.axis
-        local dx, dy = mx - d.mouse[1], my - d.mouse[2]
-        local pos = { d.pos[1], d.pos[2], d.pos[3] }
-        for axis = 1, 3 do
-            if axis ~= normal then
-                local dir_world = d.basis[axis]
-                local dir = screen_dir(S, cam, d.world_center, dir_world)
-                if dir ~= nil then
-                    local len2 = dir[1] ^ 2 + dir[2] ^ 2
-                    if len2 > 1e-6 then
-                        local amount = (dx * dir[1] + dy * dir[2]) / len2
-                        pos = vadd(pos, vscale(dir_world, amount))
+        -- Slide the object in the face's plane: the world-space delta
+        -- between where the mouse ray hits that plane now vs at drag start.
+        if d.anchor ~= nil then
+            local hit = ray_plane(cam, d.plane_p, d.plane_n)
+            if hit ~= nil then
+                local delta = vsub(hit, d.anchor)
+                local pos = vadd({ d.pos[1], d.pos[2], d.pos[3] }, delta)
+                if (S.chip_state.scene or {}).snap then
+                    for axis = 1, 3 do
+                        pos[axis] = math.round(pos[axis] * 2) / 2
                     end
                 end
+                ref:set_position(pos[1], pos[2], pos[3])
+                node.position = { pos[1], pos[2], pos[3] }
+                S.dirty = true
             end
         end
-        local snap_on = (S.chip_state.scene or {}).snap
-        if snap_on then
-            for axis = 1, 3 do
-                pos[axis] = math.round(pos[axis] * 2) / 2
-            end
-        end
-        ref:set_position(pos[1], pos[2], pos[3])
-        node.position = { pos[1], pos[2], pos[3] }
-        S.dirty = true
     end
 end
 

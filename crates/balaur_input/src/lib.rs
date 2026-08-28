@@ -77,6 +77,10 @@ impl InputState {
     pub fn is_down(&self, key: &str) -> bool {
         self.down.contains(key)
     }
+
+    pub fn mouse_pos(&self) -> (f32, f32) {
+        self.mouse_pos
+    }
 }
 
 pub struct InputPlugin;

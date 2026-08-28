@@ -78,6 +78,11 @@ pub struct ViewportCamera {
     pub fov: f32,
     /// OS pixels per logical point (HiDPI factor).
     pub scale_factor: f32,
+    /// The camera's exact projection*view matrix, column-major.
+    pub view_proj: [f32; 16],
+    /// Picking ray through the current mouse position.
+    pub ray_origin: [f32; 3],
+    pub ray_dir: [f32; 3],
 }
 
 /// When false, windowed backends inhibit the camera's mouse controls
@@ -181,6 +186,36 @@ impl Plugin for RenderPlugin {
         })?;
         // The actual camera pose this frame: eye xyz, target xyz, fov (rad),
         // HiDPI scale factor.
+        // The camera's exact projection*view matrix (column-major, 16
+        // numbers): scripts project points precisely as the renderer does.
+        m.table().set(
+            "camera_matrix",
+            {
+                let eng = app.engine.clone();
+                app.engine
+                    .scripts()
+                    .expect("script host present")
+                    .lua()
+                    .create_function(move |lua, ()| {
+                        let cam = eng.resource::<ViewportCamera>();
+                        let cam = cam.borrow();
+                        let t = lua.create_table()?;
+                        for (i, v) in cam.view_proj.iter().enumerate() {
+                            t.set(i + 1, *v)?;
+                        }
+                        Ok(t)
+                    })?
+            },
+        )?;
+        // Picking ray through the mouse: origin xyz, direction xyz.
+        m.function("mouse_ray", |eng, ()| {
+            let cam = eng.resource::<ViewportCamera>();
+            let cam = cam.borrow();
+            Ok((
+                cam.ray_origin[0], cam.ray_origin[1], cam.ray_origin[2],
+                cam.ray_dir[0], cam.ray_dir[1], cam.ray_dir[2],
+            ))
+        })?;
         m.function("camera_pose", |eng, ()| {
             let cam = eng.resource::<ViewportCamera>();
             let cam = cam.borrow();
