@@ -1,0 +1,19 @@
+# Violations that predate the lint. Never add to this file by hand;
+# regenerate with: python3 scripts/house_lints.py --update-baseline
+# Every line here is debt. Deleting one is progress.
+crates/balaur/src/lib.rs	allow-without-reason	1
+crates/balaur_core/src/app.rs	unjustified-unwrap	1
+crates/balaur_core/src/components.rs	unjustified-unwrap	1
+crates/balaur_core/src/logbuf.rs	unjustified-unwrap	4
+crates/balaur_core/src/pack.rs	unjustified-unwrap	1
+crates/balaur_core/src/project.rs	unjustified-unwrap	1
+crates/balaur_core/src/script/env.rs	fn-too-long	1
+crates/balaur_core/src/script/node_api.rs	fn-too-long	1
+crates/balaur_physics/src/dim2.rs	fn-too-long	1
+crates/balaur_physics/src/lib.rs	fn-too-long	1
+crates/balaur_render/src/kiss3d_backend.rs	unjustified-unwrap	2
+crates/balaur_render/src/lib.rs	fn-too-long	1
+crates/balaur_render/src/lib.rs	unjustified-unwrap	1
+crates/balaur_ui/src/widgets.rs	file-too-long	1
+crates/balaur_ui/src/widgets.rs	fn-too-long	1
+crates/balaur_ui/src/widgets.rs	unjustified-unwrap	2

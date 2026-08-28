@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The workspace patches kiss3d to a sibling checkout; CI must provide it.
+  check:
+    name: fmt · clippy · test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: balaur
+      - uses: actions/checkout@v7
+        with:
+          repository: dimforge/kiss3d
+          ref: v0.46.0
+          path: kiss3d
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Linux build deps
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: balaur
+      - name: Format
+        working-directory: balaur
+        run: cargo fmt --all --check
+      - name: Clippy
+        working-directory: balaur
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        working-directory: balaur
+        run: cargo test --workspace
+      # examples/ are Balaur projects, not cargo examples: run them headlessly.
+      - name: E2E — run every example project headless
+        working-directory: balaur
+        run: |
+          for ex in examples/*/; do
+            echo "== $ex"
+            cargo run -q -p balaur_cli --bin balaur -- run "$ex" --headless --frames 60
+          done
+
+  house-lints:
+    name: house lints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: House lints
+        run: python3 scripts/house_lints.py --fail-on-error
+
+  supply-chain:
+    name: licences · advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: balaur
+      - uses: actions/checkout@v7
+        with:
+          repository: dimforge/kiss3d
+          ref: v0.46.0
+          path: kiss3d
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: balaur/Cargo.toml
+          command: check licenses advisories bans sources
