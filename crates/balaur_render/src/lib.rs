@@ -68,6 +68,43 @@ pub struct DebugLines {
     pub lines: Vec<([f32; 3], [f32; 3], [f32; 3], f32, bool, bool)>,
 }
 
+/// 2D counterpart of [`DebugLines`]: world-space 2D segments rendered with
+/// the 2D camera, cleared every frame.
+#[derive(Default)]
+pub struct DebugLines2D {
+    /// (a, b, color, pixel width)
+    pub lines: Vec<([f32; 2], [f32; 2], [f32; 3], f32)>,
+}
+
+/// Where the 2D camera looks (world center) and its zoom in logical pixels
+/// per world unit. Backends apply it when changed and keep their own
+/// interactive pan/zoom in between.
+pub struct Camera2DConfig {
+    pub center: [f32; 2],
+    pub zoom: f32,
+    pub changed: bool,
+}
+
+impl Default for Camera2DConfig {
+    fn default() -> Self {
+        Camera2DConfig {
+            center: [0.0, 0.0],
+            zoom: 60.0,
+            changed: false,
+        }
+    }
+}
+
+/// The actual 2D camera state this frame, published by windowed backends
+/// (zoom in logical pixels per world unit), plus the mouse in 2D world
+/// coordinates for script-side picking.
+#[derive(Default)]
+pub struct Viewport2D {
+    pub center: [f32; 2],
+    pub zoom: f32,
+    pub mouse_world: [f32; 2],
+}
+
 /// The actual camera pose this frame, published by windowed backends so
 /// tools (editor gizmos, pickers) can do screen-space math in scripts.
 #[derive(Default)]
@@ -122,6 +159,20 @@ pub struct Renderable {
     pub version: u64,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum Shape2d {
+    Circle { radius: f32 },
+    Rect { hx: f32, hy: f32 },
+}
+
+/// 2D renderable, mirrored into the backend's 2D scene. The node's regular
+/// `Transform` drives it: x/y translate, the z rotation spins it, x/y scale.
+pub struct Renderable2d {
+    pub shape: Shape2d,
+    pub color: [f32; 4],
+    pub version: u64,
+}
+
 fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()> {
     let mut world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable>(entity) {
@@ -141,12 +192,40 @@ fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()> {
         .map_err(|_| anyhow!("node is dead"))
 }
 
+fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Result<()> {
+    let mut world = eng.world_mut();
+    if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
+        r.shape = shape;
+        r.version += 1;
+        return Ok(());
+    }
+    world
+        .insert_one(
+            entity,
+            Renderable2d {
+                shape,
+                color: [0.8, 0.8, 0.8, 1.0],
+                version: 0,
+            },
+        )
+        .map_err(|_| anyhow!("node is dead"))
+}
+
+/// Tint whichever renderable(s) the node carries (3D and/or 2D).
 fn set_color(eng: &Engine, entity: Entity, color: [f32; 4]) -> Result<()> {
     let world = eng.world_mut();
-    let mut r = world
-        .get::<&mut Renderable>(entity)
-        .map_err(|_| anyhow!("node has no shape yet"))?;
-    r.color = color;
+    let mut any = false;
+    if let Ok(mut r) = world.get::<&mut Renderable>(entity) {
+        r.color = color;
+        any = true;
+    }
+    if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
+        r.color = color;
+        any = true;
+    }
+    if !any {
+        return Err(anyhow!("node has no shape yet"));
+    }
     Ok(())
 }
 
@@ -165,6 +244,9 @@ impl Plugin for RenderPlugin {
         });
         app.engine.insert_resource(GridConfig::default());
         app.engine.insert_resource(DebugLines::default());
+        app.engine.insert_resource(DebugLines2D::default());
+        app.engine.insert_resource(Camera2DConfig::default());
+        app.engine.insert_resource(Viewport2D::default());
         app.engine.insert_resource(ViewportCamera::default());
         app.engine.insert_resource(CameraInputEnabled(true));
         let m = app.lua_module("render")?;
@@ -294,9 +376,12 @@ impl Plugin for RenderPlugin {
         })?;
         m.function("get_color", |eng, node: UserDataRef<NodeRef>| {
             let world = eng.world();
-            let result = match world.get::<&Renderable>(node.entity) {
-                Ok(r) => (r.color[0], r.color[1], r.color[2], r.color[3]),
-                Err(_) => (1.0, 1.0, 1.0, 1.0),
+            let result = if let Ok(r) = world.get::<&Renderable>(node.entity) {
+                (r.color[0], r.color[1], r.color[2], r.color[3])
+            } else if let Ok(r) = world.get::<&Renderable2d>(node.entity) {
+                (r.color[0], r.color[1], r.color[2], r.color[3])
+            } else {
+                (1.0, 1.0, 1.0, 1.0)
             };
             Ok(result)
         })?;
@@ -308,6 +393,42 @@ impl Plugin for RenderPlugin {
                 config.eye = glamx::Vec3::new(ex, ey, ez);
                 config.target = glamx::Vec3::new(tx, ty, tz);
                 config.changed = true;
+                Ok(())
+            },
+        )?;
+        // 2D camera: world center + zoom in logical pixels per world unit.
+        m.function("set_camera_2d", |eng, (cx, cy, zoom): (f32, f32, f32)| {
+            let config = eng.resource::<Camera2DConfig>();
+            let mut config = config.borrow_mut();
+            config.center = [cx, cy];
+            config.zoom = zoom.max(0.01);
+            config.changed = true;
+            Ok(())
+        })?;
+        // The actual 2D camera state this frame: center xy, zoom.
+        m.function("camera_2d", |eng, ()| {
+            let vp = eng.resource::<Viewport2D>();
+            let vp = vp.borrow();
+            Ok((vp.center[0], vp.center[1], vp.zoom))
+        })?;
+        // The mouse position in 2D world coordinates (picking).
+        m.function("mouse_world_2d", |eng, ()| {
+            let vp = eng.resource::<Viewport2D>();
+            let vp = vp.borrow();
+            Ok((vp.mouse_world[0], vp.mouse_world[1]))
+        })?;
+        // One 2D world-space line for one frame; width in pixels.
+        m.function(
+            "draw_line_2d",
+            |eng,
+             (x1, y1, x2, y2, r, g, b, width): (f32, f32, f32, f32, f32, f32, f32, Option<f32>)| {
+                let lines = eng.resource::<DebugLines2D>();
+                lines.borrow_mut().lines.push((
+                    [x1, y1],
+                    [x2, y2],
+                    [r, g, b],
+                    width.unwrap_or(1.0),
+                ));
                 Ok(())
             },
         )?;
@@ -332,6 +453,32 @@ impl Plugin for RenderPlugin {
                     .map_err(mlua::Error::external)
             },
         )?;
+        m.function(
+            "set_rect",
+            |eng, (node, hx, hy): (UserDataRef<NodeRef>, f32, f32)| {
+                set_shape2d(eng, node.entity, Shape2d::Rect { hx, hy })
+                    .map_err(mlua::Error::external)
+            },
+        )?;
+        m.function(
+            "set_circle",
+            |eng, (node, radius): (UserDataRef<NodeRef>, f32)| {
+                set_shape2d(eng, node.entity, Shape2d::Circle { radius })
+                    .map_err(mlua::Error::external)
+            },
+        )?;
+        // Returns ("", 0, 0) when the node has no 2D shape.
+        m.function("get_shape2d", |eng, node: UserDataRef<NodeRef>| {
+            let world = eng.world();
+            let result = match world.get::<&Renderable2d>(node.entity) {
+                Ok(r) => match r.shape {
+                    Shape2d::Circle { radius } => ("circle".to_string(), radius, radius),
+                    Shape2d::Rect { hx, hy } => ("rect".to_string(), hx, hy),
+                },
+                Err(_) => (String::new(), 0.0, 0.0),
+            };
+            Ok(result)
+        })?;
 
         // Components (schema-driven; also usable as scene keys).
         app.register_component(
@@ -346,14 +493,14 @@ half_extents = { kind = "vec3", default = [0.5, 0.5, 0.5] }"#,
                     let kind = params.get("kind").and_then(|v| v.as_str()).unwrap_or("cuboid");
                     let radius = params
                         .get("radius")
-                        .and_then(|v| v.as_float())
+                        .and_then(balaur_core::components::as_f64)
                         .unwrap_or(0.5) as f32;
                     let he = |i: usize| {
                         params
                             .get("half_extents")
                             .and_then(|v| v.as_array())
                             .and_then(|a| a.get(i))
-                            .and_then(|v| v.as_float())
+                            .and_then(balaur_core::components::as_f64)
                             .unwrap_or(0.5) as f32
                     };
                     let shape = match kind {
@@ -400,6 +547,69 @@ half_extents = { kind = "vec3", default = [0.5, 0.5, 0.5] }"#,
             },
         );
         app.register_component(
+            "shape2d",
+            ComponentDef {
+                schema: ComponentDef::parse_schema(
+                    r#"kind = { kind = "enum", default = "rect", options = ["circle", "rect"] }
+radius = { kind = "float", default = 0.5, min = 0.01 }
+half_extents = { kind = "vec2", default = [0.5, 0.5] }"#,
+                ),
+                apply: Box::new(|eng, entity, params| {
+                    let kind = params.get("kind").and_then(|v| v.as_str()).unwrap_or("rect");
+                    let radius = params
+                        .get("radius")
+                        .and_then(balaur_core::components::as_f64)
+                        .unwrap_or(0.5) as f32;
+                    let he = |i: usize| {
+                        params
+                            .get("half_extents")
+                            .and_then(|v| v.as_array())
+                            .and_then(|a| a.get(i))
+                            .and_then(balaur_core::components::as_f64)
+                            .unwrap_or(0.5) as f32
+                    };
+                    let shape = match kind {
+                        "circle" => Shape2d::Circle {
+                            radius: radius.max(0.01),
+                        },
+                        "rect" => Shape2d::Rect {
+                            hx: he(0).max(0.01),
+                            hy: he(1).max(0.01),
+                        },
+                        other => return Err(anyhow!("unknown shape2d kind '{other}'")),
+                    };
+                    set_shape2d(eng, entity, shape)
+                }),
+                remove: Box::new(|eng, entity| {
+                    let mut world = eng.world_mut();
+                    let _ = world.remove_one::<Renderable2d>(entity);
+                    Ok(())
+                }),
+                get: Box::new(|eng, entity| {
+                    let world = eng.world();
+                    let renderable = world.get::<&Renderable2d>(entity).ok()?;
+                    let mut map = toml::map::Map::new();
+                    match renderable.shape {
+                        Shape2d::Circle { radius } => {
+                            map.insert("kind".into(), toml::Value::String("circle".into()));
+                            map.insert("radius".into(), toml::Value::Float(radius as f64));
+                        }
+                        Shape2d::Rect { hx, hy } => {
+                            map.insert("kind".into(), toml::Value::String("rect".into()));
+                            map.insert(
+                                "half_extents".into(),
+                                toml::Value::Array(vec![
+                                    toml::Value::Float(hx as f64),
+                                    toml::Value::Float(hy as f64),
+                                ]),
+                            );
+                        }
+                    }
+                    Some(toml::Value::Table(map))
+                }),
+            },
+        );
+        app.register_component(
             "color",
             ComponentDef {
                 schema: ComponentDef::parse_schema(
@@ -411,7 +621,7 @@ half_extents = { kind = "vec3", default = [0.5, 0.5, 0.5] }"#,
                             .get("rgba")
                             .and_then(|v| v.as_array())
                             .and_then(|a| a.get(i))
-                            .and_then(|v| v.as_float())
+                            .and_then(balaur_core::components::as_f64)
                             .unwrap_or(default) as f32
                     };
                     set_color(eng, entity, [c(0, 0.8), c(1, 0.8), c(2, 0.8), c(3, 1.0)])
@@ -421,12 +631,15 @@ half_extents = { kind = "vec3", default = [0.5, 0.5, 0.5] }"#,
                 }),
                 get: Box::new(|eng, entity| {
                     let world = eng.world();
-                    let renderable = world.get::<&Renderable>(entity).ok()?;
+                    let color = if let Ok(r) = world.get::<&Renderable>(entity) {
+                        r.color
+                    } else {
+                        world.get::<&Renderable2d>(entity).ok()?.color
+                    };
                     Some(toml::Value::Table(toml::map::Map::from_iter([(
                         "rgba".to_string(),
                         toml::Value::Array(
-                            renderable
-                                .color
+                            color
                                 .iter()
                                 .map(|c| toml::Value::Float(*c as f64))
                                 .collect(),

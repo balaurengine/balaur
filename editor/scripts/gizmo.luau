@@ -4,6 +4,7 @@
 -- All hit-testing and drag math is screen-space Luau over the camera pose
 -- the backend publishes; the rail tools remain as drag-anywhere fallbacks.
 local model = require("scripts/model")
+local gizmo2d = require("scripts/gizmo2d")
 
 local M = {}
 
@@ -377,6 +378,9 @@ end
 
 -- Draw the frame, handles and rings (steadyum: orange, hot element blue).
 function M.draw(S)
+    if model.is_2d(S) then
+        return gizmo2d.draw(S)
+    end
     local geo = geometry(S)
     if geo == nil or S.persona == "script" then
         return
@@ -547,6 +551,9 @@ local MANIP = { move = true, rotate = true, scale = true, zoom = true }
 
 -- Runs every frame from Editor:update.
 function M.update(S)
+    if model.is_2d(S) then
+        return gizmo2d.update(S, M.viewport_rect(S))
+    end
     local cam = camera_frame(S)
     local mx, my = mouse_design_px(S, cam)
     local geo = geometry(S)

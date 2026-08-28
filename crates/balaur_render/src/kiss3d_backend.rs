@@ -12,10 +12,15 @@ use balaur_input::InputState;
 use glamx::Pose3;
 use kiss3d::prelude::*;
 
-use crate::{AppIcon, CameraConfig, CameraInputEnabled, ClearColor, DebugLines, GridConfig, Renderable, ScreenshotRequest, Shape, ViewportCamera};
+use crate::{AppIcon, Camera2DConfig, CameraConfig, CameraInputEnabled, ClearColor, DebugLines, DebugLines2D, GridConfig, Renderable, Renderable2d, ScreenshotRequest, Shape, Shape2d, Viewport2D, ViewportCamera};
 
 struct Slot {
     node: SceneNode3d,
+    version: u64,
+}
+
+struct Slot2d {
+    node: SceneNode2d,
     version: u64,
 }
 
@@ -26,17 +31,32 @@ pub fn run_windowed(mut app: App, title: &str) -> anyhow::Result<()> {
     pollster::block_on(async move {
         let mut window = Window::new_with_size(&title, 1600, 1000).await;
         let mut camera = OrbitCamera3d::default();
+        let mut camera_2d = PanZoomCamera2d::default();
         let mut scene = SceneNode3d::empty();
         scene
             .add_light(Light::directional(Vec3::new(-1.0, -1.0, -0.5)))
             .set_position(Vec3::new(5.0, 10.0, 5.0));
+        let mut scene_2d = SceneNode2d::empty();
         let mut slots: HashMap<Entity, Slot> = HashMap::new();
+        let mut slots_2d: HashMap<Entity, Slot2d> = HashMap::new();
         let mut last = Instant::now();
         let mut frame: u64 = 0;
-        while window.render_3d(&mut scene, &mut camera).await {
+        while window
+            .render(
+                Some(&mut scene),
+                Some(&mut scene_2d),
+                Some(&mut camera),
+                Some(&mut camera_2d),
+                None,
+                None,
+            )
+            .await
+        {
             apply_camera(&app, &mut camera);
+            apply_camera_2d(&app, &mut camera_2d, &window);
             apply_app_icon(&app);
             publish_camera(&app, &camera, &window);
+            publish_camera_2d(&app, &camera_2d, &window);
             apply_clear_color(&app, &mut window);
             pump_input(&app, &window);
             let now = Instant::now();
@@ -44,8 +64,10 @@ pub fn run_windowed(mut app: App, title: &str) -> anyhow::Result<()> {
             last = now;
             app.tick(dt);
             sync(&app, &mut scene, &mut slots);
+            sync_2d(&app, &mut scene_2d, &mut slots_2d);
             draw_grid(&app, &mut window);
             flush_debug_lines(&app, &mut window);
+            flush_debug_lines_2d(&app, &mut window);
             window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
             frame += 1;
             take_screenshot_if_due(&app, &window, frame);
@@ -67,6 +89,45 @@ fn apply_camera(app: &App, camera: &mut OrbitCamera3d) {
     if config.changed {
         camera.look_at(config.eye, config.target);
         config.changed = false;
+    }
+}
+
+/// Apply script-driven 2D camera changes. The config zoom is in logical
+/// pixels per world unit; the kiss3d camera works in physical pixels.
+fn apply_camera_2d(app: &App, camera: &mut PanZoomCamera2d, window: &Window) {
+    let Some(config) = app.engine.try_resource::<Camera2DConfig>() else {
+        return;
+    };
+    let mut config = config.borrow_mut();
+    if config.changed {
+        let scale = window.scale_factor() as f32;
+        camera.look_at(
+            Vec2::new(config.center[0], config.center[1]),
+            config.zoom * scale,
+        );
+        config.changed = false;
+    }
+}
+
+/// Publish the actual 2D camera state (zoom back in logical px per world
+/// unit) and the mouse position unprojected to 2D world coordinates.
+fn publish_camera_2d(app: &App, camera: &PanZoomCamera2d, window: &Window) {
+    let Some(vp) = app.engine.try_resource::<Viewport2D>() else {
+        return;
+    };
+    let mut vp = vp.borrow_mut();
+    let scale = window.scale_factor() as f32;
+    let at = camera.at();
+    vp.center = [at.x, at.y];
+    vp.zoom = camera.zoom() / scale;
+    if let Some(input) = app.engine.try_resource::<InputState>() {
+        let (mx, my) = input.borrow().mouse_pos();
+        // The 2D camera's projection is built from the framebuffer size, so
+        // unproject in physical pixels.
+        use kiss3d::camera::Camera2d;
+        let size = Vec2::new(window.width() as f32, window.height() as f32);
+        let world = camera.unproject(Vec2::new(mx, my), size);
+        vp.mouse_world = [world.x, world.y];
     }
 }
 
@@ -116,6 +177,20 @@ fn draw_grid(app: &App, window: &mut Window) {
             color,
             width,
             true,
+        );
+    }
+}
+
+fn flush_debug_lines_2d(app: &App, window: &mut Window) {
+    let Some(lines) = app.engine.try_resource::<DebugLines2D>() else {
+        return;
+    };
+    for (a, b, c, width) in lines.borrow_mut().lines.drain(..) {
+        window.draw_line_2d(
+            Vec2::new(a[0], a[1]),
+            Vec2::new(b[0], b[1]),
+            Color::new(c[0], c[1], c[2], 1.0),
+            width,
         );
     }
 }
@@ -388,6 +463,61 @@ fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
             true
         } else {
             slot.node.remove();
+            false
+        }
+    });
+}
+
+/// Mirror `Renderable2d` + `GlobalTransform` into the kiss3d 2D scene graph
+/// (x/y translation, z rotation, x/y scale).
+fn sync_2d(app: &App, scene: &mut SceneNode2d, slots: &mut HashMap<Entity, Slot2d>) {
+    let world = app.engine.world();
+    let mut seen: HashSet<Entity> = HashSet::new();
+    for (entity, renderable, global) in world
+        .query::<(Entity, &Renderable2d, &GlobalTransform)>()
+        .iter()
+    {
+        seen.insert(entity);
+        let rebuild = match slots.get(&entity) {
+            Some(slot) => slot.version != renderable.version,
+            None => true,
+        };
+        if rebuild {
+            if let Some(mut old) = slots.remove(&entity) {
+                old.node.detach();
+            }
+            // Unit primitives: like the 3D path, dimensions live in the
+            // node's local scale, updated every frame below.
+            let node = match renderable.shape {
+                Shape2d::Circle { .. } => scene.add_circle(0.5),
+                Shape2d::Rect { .. } => scene.add_rectangle(1.0, 1.0),
+            };
+            slots.insert(
+                entity,
+                Slot2d {
+                    node,
+                    version: renderable.version,
+                },
+            );
+        }
+        let slot = slots.get_mut(&entity).unwrap();
+        let [r, g, b, a] = renderable.color;
+        let size = match renderable.shape {
+            Shape2d::Circle { radius } => Vec2::splat(2.0 * radius),
+            Shape2d::Rect { hx, hy } => Vec2::new(2.0 * hx, 2.0 * hy),
+        };
+        let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
+        slot.node
+            .set_position(Vec2::new(global.position.x, global.position.y))
+            .set_rotation(angle)
+            .set_local_scale(size.x * global.scale.x, size.y * global.scale.y)
+            .set_color(Color::new(r, g, b, a));
+    }
+    slots.retain(|entity, slot| {
+        if seen.contains(entity) {
+            true
+        } else {
+            slot.node.detach();
             false
         }
     });

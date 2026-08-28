@@ -18,6 +18,9 @@ use balaur_core::components::ComponentDef;
 use rapier3d::pipeline::PhysicsWorld;
 use rapier3d::prelude::{ColliderBuilder, ColliderHandle, RigidBodyBuilder, RigidBodyHandle};
 
+pub mod dim2;
+pub use dim2::Physics2DState;
+
 const FIXED_DT: f32 = 1.0 / 60.0;
 const MAX_SUBSTEPS: u32 = 4;
 
@@ -58,9 +61,12 @@ impl Plugin for PhysicsPlugin {
         app.add_system(Stage::PostUpdate, step_system);
 
         let m = app.lua_module("physics")?;
+        // Pause/clear/sleep span both the 3D and the 2D world: editors and
+        // games treat "physics" as one simulation.
         m.function("set_paused", |eng, paused: bool| {
             let state = eng.resource::<PhysicsState>();
             state.borrow_mut().paused = paused;
+            dim2::set_paused(eng, paused);
             Ok(())
         })?;
         m.function("is_paused", |eng, ()| {
@@ -84,6 +90,8 @@ impl Plugin for PhysicsPlugin {
                     RigidBodyActivation::cannot_sleep()
                 };
             }
+            drop(state);
+            dim2::set_sleeping_allowed(eng, allowed);
             Ok(())
         })?;
         // Remove every body and collider (editors use this to reset a
@@ -106,6 +114,8 @@ impl Plugin for PhysicsPlugin {
             }
             state.bodies.clear();
             state.colliders.clear();
+            drop(state);
+            dim2::clear(eng);
             Ok(())
         })?;
         m.function("set_gravity", |eng, (x, y, z): (f32, f32, f32)| {
@@ -227,6 +237,7 @@ half_extents = { kind = "vec3", default = [0.5, 0.5, 0.5] }"#,
                 get: Box::new(get_collider_params),
             },
         );
+        dim2::build(app)?;
         Ok(())
     }
 }
@@ -237,14 +248,14 @@ fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<
     let shape = params.get("shape").and_then(|v| v.as_str()).unwrap_or("cuboid");
     let radius = params
         .get("radius")
-        .and_then(|v| v.as_float())
+        .and_then(balaur_core::components::as_f64)
         .unwrap_or(0.5) as f32;
     let he = |i: usize| {
         params
             .get("half_extents")
             .and_then(|v| v.as_array())
             .and_then(|a| a.get(i))
-            .and_then(|v| v.as_float())
+            .and_then(balaur_core::components::as_f64)
             .unwrap_or(0.5) as f32
     };
     let builder = match shape {

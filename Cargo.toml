@@ -22,6 +22,7 @@ mlua = { version = "0.12", features = ["luau", "error-send"] }
 glamx = "0.3"
 notify = "8"
 rapier3d = { version = "0.35", features = ["enhanced-determinism"] }
+rapier2d = { version = "0.35", features = ["enhanced-determinism"] }
 serde = { version = "1", features = ["derive"] }
 toml = "0.9"
 anyhow = "1"

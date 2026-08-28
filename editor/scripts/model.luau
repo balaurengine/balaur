@@ -25,16 +25,25 @@ end
 -- A friendly type name derived from the node's components.
 function M.node_type(node)
     local kind = M.body_kind(node)
+    local kind2d = M.body2d_kind(node)
     if kind == "dynamic" then
         return "RigidBody3D"
     elseif kind == "fixed" or kind == "static" then
         return "StaticBody3D"
     elseif kind == "kinematic" then
         return "KinematicBody3D"
+    elseif kind2d == "dynamic" then
+        return "RigidBody2D"
+    elseif kind2d == "fixed" or kind2d == "static" then
+        return "StaticBody2D"
+    elseif kind2d == "kinematic" then
+        return "KinematicBody2D"
     elseif node.widget ~= nil then
         return "Widget"
     elseif node.shape ~= nil then
         return "MeshInstance3D"
+    elseif node.shape2d ~= nil then
+        return "MeshInstance2D"
     end
     return "Node"
 end
@@ -46,9 +55,27 @@ function M.body_kind(node)
     return node.body
 end
 
+function M.body2d_kind(node)
+    if type(node.body2d) == "table" then
+        return node.body2d.kind
+    end
+    return node.body2d
+end
+
+-- True when the edited scene is 2D (any node carries a 2D component). The
+-- editor switches camera, grid and gizmo accordingly.
+function M.is_2d(S)
+    for _, node in S.doc do
+        if node.shape2d ~= nil or node.body2d ~= nil or node.collider2d ~= nil then
+            return true
+        end
+    end
+    return false
+end
+
 -- Icon glyph + color role ("sage" physics, "accent" render/ui, "dim" other).
 function M.node_icon(node)
-    local kind = M.body_kind(node)
+    local kind = M.body_kind(node) or M.body2d_kind(node)
     if node.widget ~= nil then
         return "▤", "accent"
     elseif kind == "dynamic" then
@@ -62,6 +89,11 @@ function M.node_icon(node)
             return "◯", "accent"
         end
         return "◆", "accent"
+    elseif node.shape2d ~= nil then
+        if node.shape2d.kind == "circle" then
+            return "◯", "accent"
+        end
+        return "▭", "accent"
     elseif node.script ~= nil then
         return "⚙", "dim"
     end

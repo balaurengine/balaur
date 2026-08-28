@@ -15,7 +15,7 @@
 //!    plugin components are addable and editable without editor changes.
 //!
 //! Property specs (`schema` is a TOML table of `name = { ... }`):
-//!   kind = "float" | "bool" | "str" | "enum" | "vec3" | "color"
+//!   kind = "float" | "bool" | "str" | "enum" | "vec2" | "vec3" | "color"
 //!   default = ...          (required)
 //!   options = [...]        (enum only)
 //!   min/max/step/decimals  (float, optional)
@@ -24,6 +24,17 @@ use anyhow::{anyhow, Context, Result};
 use hecs::Entity;
 
 use crate::engine::Engine;
+
+/// Read a numeric TOML value as f64, integers included: schemas say
+/// "float" but scene authors naturally write `14`, which TOML parses as an
+/// integer (`Value::as_float` alone would reject it).
+pub fn as_f64(value: &toml::Value) -> Option<f64> {
+    match value {
+        toml::Value::Float(f) => Some(*f),
+        toml::Value::Integer(i) => Some(*i as f64),
+        _ => None,
+    }
+}
 
 pub struct ComponentDef {
     /// TOML table of property specs (see module docs).

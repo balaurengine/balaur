@@ -118,7 +118,11 @@ local function viewport(S, k)
         ui.horizontal(nil, function()
             ui.spacing(6, 0)
             for _, c in defs.chips[S.persona] do
-                chip(S, k, c[1], c[2], c[3])
+                local label = c[2]
+                if c[1] == "proj" and S.mode2d then
+                    label = "2D · Orthographic"
+                end
+                chip(S, k, c[1], label, c[3])
             end
         end)
         -- Bottom row: axis pill (left), zoom pill (right).

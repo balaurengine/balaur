@@ -65,7 +65,7 @@ color = { kind = "str", default = "#eef1f4" }"##,
                         .to_string()
                 };
                 let f = |key: &str, default: f64| {
-                    params.get(key).and_then(|v| v.as_float()).unwrap_or(default) as f32
+                    params.get(key).and_then(balaur_core::components::as_f64).unwrap_or(default) as f32
                 };
                 let widget = Widget {
                     kind: s("kind", "label"),

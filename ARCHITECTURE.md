@@ -82,7 +82,8 @@ optional `hot_reload` hook lets scripts migrate state shapes.
 
 Plugins declare named, schema-described components through
 `App::register_component` (`balaur_core::components`). A schema is TOML —
-property names, kinds (`float`, `bool`, `str`, `enum`, `vec3`, `color`),
+property names, kinds (`float`, `bool`, `str`, `enum`, `vec2`, `vec3`,
+`color`),
 defaults, enum options, a `shorthand` marker for scalar scene syntax — plus
 apply/get/remove hooks. One registration buys: the scene-file key, the
 runtime node API (`node:add_component / set_component / get_component /
@@ -90,11 +91,32 @@ remove_component / component_names`, `scene.components()`,
 `scene.component_schema(name)`), and full editor support — the editor's
 "Add component" palette and its property inspectors are generated from the
 registry, so third-party plugin components are addable and editable with
-zero editor changes. Physics registers `body` and `collider`, rendering
-registers `shape` and `color`, and the UI plugin registers `widget`: game
-UI elements (label / button / panel, anchored to the screen) that live as
-scene-tree nodes and draw through the widget layer (`ui.set_widget_layer`
-scopes/toggles it — the editor previews widgets in its viewport).
+zero editor changes. Physics registers `body`/`collider` (3D) and
+`body2d`/`collider2d` (2D), rendering registers `shape`/`shape2d` and
+`color`, and the UI plugin registers `widget`: game UI elements (label /
+button / panel, anchored to the screen) that live as scene-tree nodes and
+draw through the widget layer (`ui.set_widget_layer` scopes/toggles it —
+the editor previews widgets in its viewport).
+
+### 2D (core feature)
+
+2D is not a separate engine; it is a second set of components over the same
+scene tree. A 2D node uses the regular `Transform`: x/y translate, the
+z-axis rotation spins it, x/y scale. `shape2d` (`rect`/`circle`) mirrors
+into kiss3d's 2D scene graph and renders through a pan/zoom orthographic
+camera (`render.set_camera_2d(cx, cy, zoom)` — zoom in logical px per world
+unit; `render.camera_2d()`, `render.mouse_world_2d()` and
+`render.draw_line_2d(...)` cover picking and overlays). `body2d`/`collider2d`
+run in a rapier2d world that lives alongside the 3D one, with the same
+`enhanced-determinism` build, fixed 60 Hz accumulator and ordered
+collections; the `physics2d` module adds impulses, velocities and
+`physics2d.max_contact_impulse(node)` for impact-driven gameplay.
+`physics.set_paused/clear/set_sleeping_allowed` span both worlds, so editors
+treat "physics" as one simulation. The editor detects a 2D scene from its
+components and switches automatically: 2D grid, pan/zoom camera, a 2D
+selection gizmo (translate box, corner scale brackets, per-axis edge
+handles, rotation ring), click-picking in world space, and 2D collider
+overlays — see `examples/angrybirds` for a complete 2D game.
 
 ### Binding API (plugin feature)
 

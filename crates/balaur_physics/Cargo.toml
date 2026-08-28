@@ -9,6 +9,7 @@ authors.workspace = true
 [dependencies]
 balaur_core.workspace = true
 rapier3d.workspace = true
+rapier2d.workspace = true
 glamx.workspace = true
 anyhow.workspace = true
 log.workspace = true

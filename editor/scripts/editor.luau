@@ -90,6 +90,9 @@ function Editor:init()
             log.info("stop: scene reset")
         end
         model.build_mirror(S)
+        -- The game may have restyled the viewport (background, camera).
+        theme.apply()
+        Editor.apply_camera(S)
     end
 
     -- Viewport chip side effects (chips themselves live in center.luau).
@@ -163,6 +166,14 @@ function Editor:init()
         anim.add_key(S, 2.0)
         S.anim_time = 0.6
         S.set_persona("anim")
+    elseif start ~= nil and string.sub(start, 1, 7) == "select:" then
+        -- Self-test state: select a node by name (e.g. select:Pig1).
+        local name = string.sub(start, 8)
+        for i, node in S.doc do
+            if node.name == name then
+                S.sel = i
+            end
+        end
     elseif start ~= nil and start ~= "" then
         S.set_persona(start)
         if start == "script" then
@@ -177,6 +188,12 @@ function Editor:init()
 end
 
 function Editor.apply_camera(S)
+    if model.is_2d(S) then
+        -- Keep the current pan; zoom in logical px per world unit.
+        local cx, cy = render.camera_2d()
+        render.set_camera_2d(cx, cy, 55 * S.zoom / 100)
+        return
+    end
     local scale = 100 / S.zoom
     render.set_camera(
         TARGET[1] + (BASE_EYE[1] - TARGET[1]) * scale,
@@ -184,6 +201,35 @@ function Editor.apply_camera(S)
         TARGET[3] + (BASE_EYE[3] - TARGET[3]) * scale,
         TARGET[1], TARGET[2], TARGET[3]
     )
+end
+
+-- 2D grid, drawn as per-frame world-space lines over the visible extents.
+local function draw_grid2d(S)
+    local k = theme.current
+    local cx, cy, zoom = render.camera_2d()
+    local sw = (S.screen_w or 1280) * S.ui_scale
+    local sh = (S.screen_h or 800) * S.ui_scale
+    local half_w = sw / zoom / 2 + 1
+    local half_h = sh / zoom / 2 + 1
+    if half_w > 200 or half_h > 200 then
+        return
+    end
+    local mr, mg, mb = theme.hex_to_rgb(k.grid)
+    local jr, jg, jb = theme.hex_to_rgb(k.grid_major)
+    for x = math.floor(cx - half_w), math.ceil(cx + half_w) do
+        local r, g, b = mr, mg, mb
+        if x % 5 == 0 then
+            r, g, b = jr, jg, jb
+        end
+        render.draw_line_2d(x, cy - half_h, x, cy + half_h, r, g, b, if x == 0 then 2 else 1)
+    end
+    for y = math.floor(cy - half_h), math.ceil(cy + half_h) do
+        local r, g, b = mr, mg, mb
+        if y % 5 == 0 then
+            r, g, b = jr, jg, jb
+        end
+        render.draw_line_2d(cx - half_w, y, cx + half_w, y, r, g, b, if y == 0 then 2 else 1)
+    end
 end
 
 -- Axis guide lines through the selection (Guides chip).
@@ -196,10 +242,58 @@ local function draw_guides(S)
     local k = theme.current
     local ar, ag, ab = theme.hex_to_rgb(k.accent)
     local sr, sg, sb = theme.hex_to_rgb(k.sage)
+    if model.is_2d(S) then
+        render.draw_line_2d(x - 4, y, x + 4, y, ar, ag, ab, 1)
+        render.draw_line_2d(x, y - 4, x, y + 4, sr, sg, sb, 1)
+        return
+    end
     local dr, dg, db = theme.hex_to_rgb(k.dim)
     render.draw_line(x - 4, y, z, x + 4, y, z, ar, ag, ab, 1)
     render.draw_line(x, y - 4, z, x, y + 4, z, sr, sg, sb, 1)
     render.draw_line(x, y, z - 4, x, y, z + 4, dr, dg, db, 1)
+end
+
+-- 2D collider outlines (Show colliders chip, phys persona).
+local function draw_colliders2d(S)
+    local k = theme.current
+    local r, g, b = theme.hex_to_rgb(k.sage)
+    for i, node in S.doc do
+        local c = node.collider2d
+        local ref = model.ref(S, i)
+        if c ~= nil and ref ~= nil then
+            local x, y = ref:global_position()
+            local _, _, angle = ref:global_rotation_euler()
+            local sx, sy = ref:global_scale()
+            local ca, sa = math.cos(angle), math.sin(angle)
+            local function pt(ox, oy)
+                return x + ca * ox - sa * oy, y + sa * ox + ca * oy
+            end
+            if c.shape == "circle" then
+                local radius = (c.radius or 0.5) * sx
+                local px, py = pt(radius, 0)
+                for t = 1, 32 do
+                    local a = t / 32 * math.pi * 2
+                    local nx, ny = pt(math.cos(a) * radius, math.sin(a) * radius)
+                    render.draw_line_2d(px, py, nx, ny, r, g, b, 1)
+                    px, py = nx, ny
+                end
+            else
+                local he = c.half_extents or { 0.5, 0.5 }
+                local hx, hy = he[1] * sx, he[2] * sy
+                local x1, y1 = pt(-hx, -hy)
+                local x2, y2 = pt(hx, -hy)
+                local x3, y3 = pt(hx, hy)
+                local x4, y4 = pt(-hx, hy)
+                render.draw_line_2d(x1, y1, x2, y2, r, g, b, 1)
+                render.draw_line_2d(x2, y2, x3, y3, r, g, b, 1)
+                render.draw_line_2d(x3, y3, x4, y4, r, g, b, 1)
+                render.draw_line_2d(x4, y4, x1, y1, r, g, b, 1)
+            end
+            -- Center of mass.
+            render.draw_line_2d(x - 0.1, y, x + 0.1, y, r, g, b, 3)
+            render.draw_line_2d(x, y - 0.1, x, y + 0.1, r, g, b, 3)
+        end
+    end
 end
 
 -- Collider wireboxes + center-of-mass dots (Show colliders chip).
@@ -248,6 +342,16 @@ function Editor:update(dt)
             S.refs[i] = S.mirror:get_node(model.node_path(S.doc, node))
         end
     end
+    -- 2D/3D viewport mode follows the edited scene's components.
+    local is2d = model.is_2d(S)
+    if is2d ~= S.mode2d then
+        S.mode2d = is2d
+        render.set_grid(not is2d, 1.0, 5, 20)
+        Editor.apply_camera(S)
+    end
+    if is2d then
+        draw_grid2d(S)
+    end
     gizmo.update(S)
     anim.update(S, dt)
     -- Scene-tree UI widgets draw during play (and for preview in the
@@ -264,7 +368,11 @@ function Editor:update(dt)
         draw_guides(S)
     end
     if S.persona == "phys" and chips.colliders ~= false then
-        draw_colliders(S)
+        if S.mode2d then
+            draw_colliders2d(S)
+        else
+            draw_colliders(S)
+        end
     end
 end
 

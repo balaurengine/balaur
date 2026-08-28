@@ -121,6 +121,11 @@ pub fn install_globals(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     )?;
 
     let m = module(lua, engine, "scene")?;
+    // A scene document's source by project-relative path (works in packed
+    // runs too, unlike `fs.read`). Returns nil when the scene is unknown.
+    m.function("load", |eng, rel: String| {
+        Ok(eng.scripts().and_then(|host| host.scene_source(&rel)))
+    })?;
     m.function("components", |eng, ()| Ok(crate::components::names(eng)))?;
     m.function("component_schema", |eng, name: String| {
         let registry = eng.resource::<crate::components::ComponentRegistry>();

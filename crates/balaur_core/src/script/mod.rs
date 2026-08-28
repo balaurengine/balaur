@@ -137,6 +137,16 @@ impl ScriptHost {
         env::module(&self.lua, &self.engine, name)
     }
 
+    /// A scene document's source by project-relative path, from the pack in
+    /// packed runs, from disk otherwise (backs `scene.load`).
+    pub fn scene_source(&self, rel: &str) -> Option<String> {
+        let state = self.state.borrow();
+        match &state.pack {
+            Some(pack) => pack.scenes.get(rel).cloned(),
+            None => std::fs::read_to_string(state.project_root.join(rel)).ok(),
+        }
+    }
+
     fn normalize_key(&self, path: &str) -> String {
         let mut key = path.replace('\\', "/");
         if !key.ends_with(".luau") {

@@ -67,6 +67,17 @@ get `input` (keys/mouse), `rng` (seeded, deterministic), `audio`, `physics`,
 `render` (shapes, colors, `render.set_camera`), and deterministic `math.*`
 replacements out of the box.
 
+2D is first-class: `shape2d`, `body2d` and `collider2d` components (rapier2d
+under the hood, same determinism guarantees), an orthographic pan/zoom
+camera, and `physics2d`/`render` 2D script APIs. The editor detects 2D
+scenes and switches its grid, camera and gizmo accordingly. Try the
+slingshot game:
+
+```bash
+cargo run -p balaur_cli --features window -- run examples/angrybirds
+cargo run -p balaur_cli --features window -- edit examples/angrybirds
+```
+
 ## Workspace map
 
 | Crate | Role |

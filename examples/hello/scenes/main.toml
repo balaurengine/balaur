@@ -8,11 +8,9 @@ color = [0.3, 0.55, 0.3]
 name = "Ground"
 parent = "World"
 position = [0, -1, 0]
-rotation_euler = [0.013761785205964383, 0, 0]
-scale = [0.5496217041710507, 0.5496217041710507, 0.5496217041710507]
 
 [nodes.collider]
-half_extents = [17.28671646118164, 0.5, 0.5]
+half_extents = [10, 0.5, 10]
 shape = "cuboid"
 
 [nodes.shape]
@@ -23,12 +21,10 @@ kind = "cuboid"
 name = "Ball"
 parent = "World"
 position = [0, 6, 0]
-rotation_euler = [0, -1.5082181129012848, 0]
-scale = [2.4155611047995915, 2.4155611047995915, 2.4155611047995915]
 script = "scripts/ball.luau"
 
 [nodes.color]
-rgba = [0.8521093726158142, 0.8999999761581421, 0.8999999761581421, 1]
+rgba = [0.9, 0.9, 0.9, 1]
 
 [nodes.shape]
 kind = "ball"
@@ -53,7 +49,7 @@ parent = ""
 anchor = "top_left"
 color = "#f9f4ed"
 kind = "label"
-size = 18
+size = 16
 text = "hello · balaur"
 x = 16
-y = 14
+y = 16

@@ -281,10 +281,10 @@ local function prop_row(S, k, comp, prop, spec, data)
                 model.set_component_prop(S, comp, prop, v)
             end
         end)
-    elseif kind == "vec3" or kind == "color" then
+    elseif kind == "vec2" or kind == "vec3" or kind == "color" then
         row(k, prop, function()
             local v = value or {}
-            local count = if kind == "color" then 4 else 3
+            local count = if kind == "color" then 4 elseif kind == "vec2" then 2 else 3
             local letters = if kind == "color" then { "r", "g", "b", "a" } else { "x", "y", "z" }
             local w = CONTROL_W / count - 5
             local changed = false
@@ -402,7 +402,7 @@ function M.draw(S)
 
         ui.scroll("inspector-scroll", { max_height = ui.available_height() - 50 }, function()
             if S.persona == "phys" then
-                component_sections(S, k, { body = true, collider = true })
+                component_sections(S, k, { body = true, collider = true, body2d = true, collider2d = true })
                 script_section(S, k)
             elseif S.persona == "script" then
                 script_section(S, k, "Attached script")
