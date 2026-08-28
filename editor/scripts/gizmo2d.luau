@@ -16,10 +16,11 @@ local W = 4.2
 local HANDLE_PX = 12
 -- steadyum HANDLE_DRAW_HALF: drawn marker half-size vs the pick radius.
 local DRAW_HALF = 0.6
--- steadyum handle_outward_offset: corners sit 1 pick-radius outside the
--- frame, edge midpoints 1.25 (compensates the corners' diagonal reach).
-local OUT_CORNER = 1.0
-local OUT_EDGE = 1.25
+-- Outward offset of the handle centers, in pick-radii (edge midpoints get
+-- a bit more, compensating the corners' diagonal reach). Kept small so the
+-- markers hug the frame.
+local OUT_CORNER = 0.4
+local OUT_EDGE = 0.5
 
 -- steadyum HANDLE_SIGNS (dim2): 4 corners, then 4 edge midpoints.
 local HANDLE_SIGNS = {
