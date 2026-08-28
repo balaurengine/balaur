@@ -12,7 +12,7 @@ use balaur_input::InputState;
 use glamx::Pose3;
 use kiss3d::prelude::*;
 
-use crate::{CameraConfig, CameraInputEnabled, ClearColor, DebugLines, GridConfig, Renderable, ScreenshotRequest, Shape, ViewportCamera};
+use crate::{AppIcon, CameraConfig, CameraInputEnabled, ClearColor, DebugLines, GridConfig, Renderable, ScreenshotRequest, Shape, ViewportCamera};
 
 struct Slot {
     node: SceneNode3d,
@@ -35,6 +35,7 @@ pub fn run_windowed(mut app: App, title: &str) -> anyhow::Result<()> {
         let mut frame: u64 = 0;
         while window.render_3d(&mut scene, &mut camera).await {
             apply_camera(&app, &mut camera);
+            apply_app_icon(&app);
             publish_camera(&app, &camera, &window);
             apply_clear_color(&app, &mut window);
             pump_input(&app, &window);
@@ -139,6 +140,42 @@ fn flush_debug_lines(app: &App, window: &mut Window) {
         } else {
             window.draw_line(a, b, color, width, perspective);
         }
+    }
+}
+
+/// Apply a requested dock/application icon (macOS only for now).
+fn apply_app_icon(app: &App) {
+    let Some(icon) = app.engine.try_resource::<AppIcon>() else {
+        return;
+    };
+    let path = {
+        let mut icon = icon.borrow_mut();
+        if !icon.changed {
+            return;
+        }
+        icon.changed = false;
+        icon.path.clone()
+    };
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_app_kit::{NSApplication, NSImage};
+        use objc2::AnyThread;
+        use objc2_foundation::{MainThreadMarker, NSData};
+        let Ok(bytes) = std::fs::read(&path) else {
+            log::warn!("app icon not found: {}", path.display());
+            return;
+        };
+        let data = NSData::with_bytes(&bytes);
+        let image = NSImage::initWithData(NSImage::alloc(), &data);
+        if let (Some(image), Some(mtm)) = (image, MainThreadMarker::new()) {
+            let ns_app = NSApplication::sharedApplication(mtm);
+            unsafe { ns_app.setApplicationIconImage(Some(&image)) };
+            log::info!("app icon set from {}", path.display());
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = path;
     }
 }
 

@@ -78,6 +78,21 @@ impl UserData for NodeRef {
         methods.add_method("set_scale", |_, this, (x, y, z): (f32, f32, f32)| {
             this.with_transform(|t| t.scale = Vec3::new(x, y, z))
         });
+        methods.add_method("global_scale", |_, this, ()| {
+            let world = this.engine.world();
+            let g = world
+                .get::<&crate::scene::GlobalTransform>(this.entity)
+                .map_err(|_| mlua::Error::runtime("node is dead"))?;
+            Ok((g.scale.x, g.scale.y, g.scale.z))
+        });
+        methods.add_method("global_rotation_euler", |_, this, ()| {
+            let world = this.engine.world();
+            let g = world
+                .get::<&crate::scene::GlobalTransform>(this.entity)
+                .map_err(|_| mlua::Error::runtime("node is dead"))?;
+            let (yaw, pitch, roll) = g.rotation.to_euler(glamx::EulerRot::ZYX);
+            Ok((roll, pitch, yaw))
+        });
         methods.add_method("global_position", |_, this, ()| {
             let world = this.engine.world();
             let g = world

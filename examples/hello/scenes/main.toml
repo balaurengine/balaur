@@ -1,7 +1,6 @@
 [[nodes]]
 name = "World"
 parent = ""
-scale = [1.2129371503500612, 1.2129371503500612, 1.2129371503500612]
 
 [[nodes]]
 body = "fixed"

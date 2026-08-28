@@ -24,6 +24,12 @@ pub struct ScreenshotRequest {
     pub after_frame: u64,
 }
 
+/// The application (dock/taskbar) icon, applied by windowed backends.
+pub struct AppIcon {
+    pub path: std::path::PathBuf,
+    pub changed: bool,
+}
+
 /// Viewport clear color, applied by windowed backends when changed.
 pub struct ClearColor {
     pub color: [f32; 3],
@@ -157,6 +163,17 @@ impl Plugin for RenderPlugin {
         app.engine.insert_resource(ViewportCamera::default());
         app.engine.insert_resource(CameraInputEnabled(true));
         let m = app.lua_module("render")?;
+        // Set the OS application icon (dock icon on macOS) from a PNG in
+        // the project.
+        m.function("set_app_icon", |eng, path: String| {
+            let root = eng.resource::<balaur_core::project::ProjectRoot>();
+            let full = root.borrow().0.join(path);
+            eng.insert_resource(AppIcon {
+                path: full,
+                changed: true,
+            });
+            Ok(())
+        })?;
         m.function("set_camera_input", |eng, enabled: bool| {
             let flag = eng.resource::<CameraInputEnabled>();
             flag.borrow_mut().0 = enabled;

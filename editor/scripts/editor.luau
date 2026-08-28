@@ -118,6 +118,7 @@ function Editor:init()
 
     model.load(S)
     theme.apply()
+    render.set_app_icon("assets/balaur-logo.png")
     ui.set_scale(S.ui_scale)
     render.set_grid(true, 1.0, 5, 20)
     Editor.apply_camera(S)
@@ -141,7 +142,9 @@ function Editor:init()
         local _, ref = model.selected(S)
         ref:set_rotation_euler(math.rad(15), math.rad(30), 0)
         S.doc[S.sel].rotation_euler = { math.rad(15), math.rad(30), 0 }
-        S.set_zoom(150)
+        ref:set_scale(3, 3, 3)
+        S.doc[S.sel].scale = { 3, 3, 3 }
+        S.set_zoom(100)
     elseif start == "animdemo" then
         -- Self-test state: author a clip on the Spinner programmatically.
         for i, node in S.doc do

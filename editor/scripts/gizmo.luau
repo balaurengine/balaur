@@ -146,7 +146,9 @@ local function geometry(S)
             hx, hy, hz = shape.half_extents[1], shape.half_extents[2], shape.half_extents[3]
         end
     end
-    local sx, sy, sz = ref:scale()
+    -- The renderer sizes and orients by the GLOBAL transform (parents may
+    -- carry scale/rotation), so the gizmo must too.
+    local sx, sy, sz = ref:global_scale()
     hx, hy, hz = hx * sx + 0.06, hy * sy + 0.06, hz * sz + 0.06
     local min_he = math.min(hx, hy, hz)
     -- steadyum: handle size scales with camera distance (constant on
@@ -154,14 +156,14 @@ local function geometry(S)
     local ex, ey, ez = render.camera_pose()
     local dist = math.sqrt((x - ex) ^ 2 + (y - ey) ^ 2 + (z - ez) ^ 2)
     local marker = 0.6 * dist * 0.0144
-    local rx, ry, rz = ref:rotation_euler()
+    local rx, ry, rz = ref:global_rotation_euler()
     return {
         center = { x, y, z },
         basis = basis_from_euler({ rx, ry, rz }),
         he = { hx, hy, hz },
         -- The rotation ball tracks the selection but never grows past a
         -- fraction of the camera distance (or shrinks below pickability).
-        ring = math.clamp(min_he * 0.75, marker * 2.5, dist * 0.10),
+        ring = math.clamp(min_he * 0.75, marker * 2.5, dist * 0.14),
         marker = marker,
     }
 end

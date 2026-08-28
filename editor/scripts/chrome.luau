@@ -10,7 +10,7 @@ function M.persona_bar(S)
     ui.top_panel("persona", { height = 56, fill = k.panel, padding_x = 12 }, function()
         ui.horizontal({ height = 56 }, function()
             -- Brand: the balaur mark + wordmark.
-            ui.image("assets/balaur-logo.png", { height = 30, radius = 15 })
+            ui.image("assets/balaur-logo.png", { height = 24, radius = 12, bg = "#ffffff", padding = 3 })
             ui.add_space(5)
             ui.label("balaur", { size = 17, font = "heading", strong = true, color = k.text })
             ui.add_space(12)

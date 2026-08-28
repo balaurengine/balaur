@@ -1189,8 +1189,26 @@ fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> mlua::Result<()> {
         } else {
             native
         };
-        let mut img = egui::Image::new((texture.id(), size));
         let radius = opts.px("radius", 0.0);
+        let padding = opts.px("padding", 0.0);
+        if let Some(bg) = opts.opt_color("bg") {
+            // Backing plate (e.g. white circle behind a logo) with padding.
+            let total = size + vec2(padding * 2.0, padding * 2.0);
+            let (rect, _) = ui.allocate_exact_size(total, Sense::hover());
+            ui.painter().rect_filled(
+                rect,
+                if radius > 0.0 { pill_radius((radius + padding) * 2.0) } else { pill_radius(total.y) },
+                bg,
+            );
+            let inner = egui::Rect::from_center_size(rect.center(), size);
+            let mut img = egui::Image::new((texture.id(), size));
+            if radius > 0.0 {
+                img = img.corner_radius(pill_radius(radius * 2.0));
+            }
+            img.paint_at(ui, inner);
+            return Ok(());
+        }
+        let mut img = egui::Image::new((texture.id(), size));
         if radius > 0.0 {
             img = img.corner_radius(pill_radius(radius * 2.0));
         }
