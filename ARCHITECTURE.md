@@ -116,7 +116,7 @@ treat "physics" as one simulation. The editor detects a 2D scene from its
 components and switches automatically: 2D grid, pan/zoom camera, a 2D
 selection gizmo (translate box, corner scale brackets, per-axis edge
 handles, rotation ring), click-picking in world space, and 2D collider
-overlays — see `examples/angrybirds` for a complete 2D game.
+overlays — see `examples/angrynerds` for a complete 2D game.
 
 ### Binding API (plugin feature)
 

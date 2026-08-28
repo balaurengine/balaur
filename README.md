@@ -74,8 +74,8 @@ scenes and switches its grid, camera and gizmo accordingly. Try the
 slingshot game:
 
 ```bash
-cargo run -p balaur_cli --features window -- run examples/angrybirds
-cargo run -p balaur_cli --features window -- edit examples/angrybirds
+cargo run -p balaur_cli --features window -- run examples/angrynerds
+cargo run -p balaur_cli --features window -- edit examples/angrynerds
 ```
 
 ## Workspace map
