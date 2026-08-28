@@ -1,31 +1,62 @@
 [[nodes]]
 name = "World"
+parent = ""
+scale = [1.2129371503500612, 1.2129371503500612, 1.2129371503500612]
 
 [[nodes]]
+body = "fixed"
+color = [0.3, 0.55, 0.3]
 name = "Ground"
 parent = "World"
-position = [0.0, -1.0, 0.0]
-body = "fixed"
-collider = { shape = "cuboid", half_extents = [10.0, 0.5, 10.0] }
-shape = { kind = "cuboid", half_extents = [10.0, 0.5, 10.0] }
-color = [0.3, 0.55, 0.3]
+position = [0, -1, 0]
+rotation_euler = [0.013761785205964383, 0, 0]
+scale = [0.5496217041710507, 0.5496217041710507, 0.5496217041710507]
+
+[nodes.collider]
+half_extents = [17.28671646118164, 0.5, 0.5]
+shape = "cuboid"
+
+[nodes.shape]
+half_extents = [10, 0.5, 10]
+kind = "cuboid"
 
 [[nodes]]
 name = "Ball"
 parent = "World"
-position = [0.0, 6.0, 0.0]
+position = [0, 6, 0]
+rotation_euler = [0, -1.5082181129012848, 0]
+scale = [2.4155611047995915, 2.4155611047995915, 2.4155611047995915]
 script = "scripts/ball.luau"
-shape = { kind = "ball", radius = 0.5 }
-color = [0.9, 0.9, 0.9]
+
+[nodes.color]
+rgba = [0.8521093726158142, 0.8999999761581421, 0.8999999761581421, 1]
+
+[nodes.shape]
+kind = "ball"
+radius = 0.5
 
 [[nodes]]
+color = [0.2, 0.4, 0.9]
 name = "Spinner"
 parent = "World"
-position = [2.5, 0.5, 0.0]
+position = [2.5, 0.5, 0]
+rotation_euler = [9.388636389905594, -4.553559194334996, 0]
+scale = [2.286401341205284, 2.286401341205284, 2.286401341205284]
 script = "scripts/spinner.luau"
-shape = { kind = "cuboid", half_extents = [0.5, 0.5, 0.5] }
-color = [0.2, 0.4, 0.9]
+
+[nodes.shape]
+half_extents = [0.5, 0.5, 0.5]
+kind = "cuboid"
 
 [[nodes]]
 name = "Hud"
-widget = { kind = "label", text = "hello · balaur", anchor = "top_left", x = 16, y = 14, size = 18, color = "#f9f4ed" }
+parent = ""
+
+[nodes.widget]
+anchor = "top_left"
+color = "#f9f4ed"
+kind = "label"
+size = 18
+text = "hello · balaur"
+x = 16
+y = 14

@@ -123,14 +123,22 @@ fn flush_debug_lines(app: &App, window: &mut Window) {
     let Some(lines) = app.engine.try_resource::<DebugLines>() else {
         return;
     };
-    for (a, b, c, width, perspective) in lines.borrow_mut().lines.drain(..) {
-        window.draw_line(
-            Vec3::new(a[0], a[1], a[2]),
-            Vec3::new(b[0], b[1], b[2]),
-            Color::new(c[0], c[1], c[2], 1.0),
-            width,
-            perspective,
-        );
+    for (a, b, c, width, perspective, on_top) in lines.borrow_mut().lines.drain(..) {
+        let a = Vec3::new(a[0], a[1], a[2]);
+        let b = Vec3::new(b[0], b[1], b[2]);
+        let color = Color::new(c[0], c[1], c[2], 1.0);
+        if on_top {
+            // depth_bias = 1.0 collapses depth to the near plane: the line
+            // renders over everything (editor rotation ball, overlays).
+            let polyline = kiss3d::renderer::Polyline3d::new(vec![a, b])
+                .with_color(color)
+                .with_width(width)
+                .with_perspective(perspective)
+                .with_depth_bias(1.0);
+            window.draw_polyline(&polyline);
+        } else {
+            window.draw_line(a, b, color, width, perspective);
+        }
     }
 }
 

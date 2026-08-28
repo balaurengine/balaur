@@ -58,8 +58,8 @@ impl Default for GridConfig {
 /// Reusable for editor gizmos, physics debug, navigation debug.
 #[derive(Default)]
 pub struct DebugLines {
-    /// (a, b, color, pixel width, perspective-correct width)
-    pub lines: Vec<([f32; 3], [f32; 3], [f32; 3], f32, bool)>,
+    /// (a, b, color, pixel width, perspective-correct width, always-on-top)
+    pub lines: Vec<([f32; 3], [f32; 3], [f32; 3], f32, bool, bool)>,
 }
 
 /// The actual camera pose this frame, published by windowed backends so
@@ -213,8 +213,8 @@ impl Plugin for RenderPlugin {
         m.function(
             "draw_line",
             |eng,
-             (x1, y1, z1, x2, y2, z2, r, g, b, width, perspective): (
-                f32, f32, f32, f32, f32, f32, f32, f32, f32, Option<f32>, Option<bool>,
+             (x1, y1, z1, x2, y2, z2, r, g, b, width, perspective, on_top): (
+                f32, f32, f32, f32, f32, f32, f32, f32, f32, Option<f32>, Option<bool>, Option<bool>,
             )| {
                 let lines = eng.resource::<DebugLines>();
                 lines.borrow_mut().lines.push((
@@ -223,6 +223,7 @@ impl Plugin for RenderPlugin {
                     [r, g, b],
                     width.unwrap_or(1.0),
                     perspective.unwrap_or(false),
+                    on_top.unwrap_or(false),
                 ));
                 Ok(())
             },

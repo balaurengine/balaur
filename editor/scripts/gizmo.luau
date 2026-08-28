@@ -112,7 +112,9 @@ local function geometry(S)
     return {
         center = { x, y, z },
         he = { hx, hy, hz },
-        ring = math.max(min_he * 0.75, marker * 2.5),
+        -- The rotation ball tracks the selection but never grows past a
+        -- fraction of the camera distance (or shrinks below pickability).
+        ring = math.clamp(min_he * 0.75, marker * 2.5, dist * 0.10),
         marker = marker,
     }
 end
@@ -134,14 +136,66 @@ local function corners(geo)
     return out
 end
 
+local FACE_AXES = { { 2, 3 }, { 1, 3 }, { 1, 2 } }
+
 local function faces(geo)
     local out = {}
     for axis = 1, 3 do
         for _, sign in { -1, 1 } do
             local p = { geo.center[1], geo.center[2], geo.center[3] }
             p[axis] += sign * geo.he[axis]
-            table.insert(out, { pos = p, axis = axis, sign = sign })
+            local u_axis, v_axis = FACE_AXES[axis][1], FACE_AXES[axis][2]
+            local quad = {}
+            for _, uv in { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } } do
+                local c = { p[1], p[2], p[3] }
+                c[u_axis] += uv[1] * geo.he[u_axis]
+                c[v_axis] += uv[2] * geo.he[v_axis]
+                table.insert(quad, c)
+            end
+            table.insert(out, { pos = p, axis = axis, sign = sign, quad = quad })
         end
+    end
+    return out
+end
+
+-- Point-in-quad (screen space) via consistent cross-product winding.
+local function quad_contains(S, cam, quad, mx, my)
+    local pts = {}
+    for _, c in quad do
+        local sx, sy = project(S, cam, c)
+        if sx == nil then
+            return false
+        end
+        table.insert(pts, { sx, sy })
+    end
+    local sign = nil
+    for i = 1, 4 do
+        local a, b = pts[i], pts[i % 4 + 1]
+        local cross = (b[1] - a[1]) * (my - a[2]) - (b[2] - a[2]) * (mx - a[1])
+        if math.abs(cross) > 1e-6 then
+            local this = cross > 0
+            if sign == nil then
+                sign = this
+            elseif sign ~= this then
+                return false
+            end
+        end
+    end
+    return true
+end
+
+-- The small floating rectangle at a face's center (scale along the normal).
+local function face_rect_points(geo, face)
+    local u_axis, v_axis = FACE_AXES[face.axis][1], FACE_AXES[face.axis][2]
+    local h = geo.marker * 0.9
+    local out = {}
+    for _, uv in { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } } do
+        local c = { face.pos[1], face.pos[2], face.pos[3] }
+        -- Float slightly off the face so it never z-fights the surface.
+        c[face.axis] += face.sign * geo.marker * 0.25
+        c[u_axis] += uv[1] * h
+        c[v_axis] += uv[2] * h
+        table.insert(out, c)
     end
     return out
 end
@@ -153,33 +207,43 @@ local function ring_point(geo, axis, t)
     return vadd(geo.center, vadd(vscale(u, math.cos(angle) * geo.ring), vscale(v, math.sin(angle) * geo.ring)))
 end
 
--- What the cursor is over: {kind="handle"/"ring"/"face", index/axis, ...}.
+-- What the cursor is over. Priority mirrors steadyum: the rotation ball
+-- always wins over the face behind it, then the face-center scale rects,
+-- then corner brackets, and finally the face surfaces (plane translate).
 local function hit_test(S, cam, geo, mx, my)
+    for axis = 1, 3 do
+        for t = 0, 47 do
+            local sx, sy = project(S, cam, ring_point(geo, axis, t / 48))
+            if sx ~= nil and (sx - mx) ^ 2 + (sy - my) ^ 2 < 10 ^ 2 then
+                return { kind = "ring", axis = axis }
+            end
+        end
+    end
+    local all_faces = faces(geo)
+    for i, face in all_faces do
+        if quad_contains(S, cam, face_rect_points(geo, face), mx, my) then
+            return { kind = "facerect", index = i, axis = face.axis, sign = face.sign }
+        end
+    end
     for i, corner in corners(geo) do
         local sx, sy = project(S, cam, corner)
         if sx ~= nil and (sx - mx) ^ 2 + (sy - my) ^ 2 < 14 ^ 2 then
             return { kind = "handle", index = i }
         end
     end
-    for axis = 1, 3 do
-        for t = 0, 47 do
-            local sx, sy = project(S, cam, ring_point(geo, axis, t / 48))
-            if sx ~= nil and (sx - mx) ^ 2 + (sy - my) ^ 2 < 9 ^ 2 then
-                return { kind = "ring", axis = axis }
-            end
-        end
-    end
-    for i, face in faces(geo) do
-        local sx, sy = project(S, cam, face.pos)
-        if sx ~= nil and (sx - mx) ^ 2 + (sy - my) ^ 2 < 16 ^ 2 then
+    for i, face in all_faces do
+        if quad_contains(S, cam, face.quad, mx, my) then
             return { kind = "face", index = i, axis = face.axis }
         end
     end
     return nil
 end
 
-local function line(a, b, color, width)
-    render.draw_line(a[1], a[2], a[3], b[1], b[2], b[3], color[1], color[2], color[3], width)
+-- steadyum's 6px stroke, 30% thinner per taste.
+local W = 4.2
+
+local function line(a, b, color, width, on_top)
+    render.draw_line(a[1], a[2], a[3], b[1], b[2], b[3], color[1], color[2], color[3], width, false, on_top == true)
 end
 
 -- Corner marker in steadyum's open-bracket style: of the mini-cube's 12
@@ -203,7 +267,7 @@ local function draw_handle_marker(corner, signs, half, color)
                     b[b_axis] += b_sign * half
                     a[c_axis] += c_sign * half
                     b[c_axis] += c_sign * half
-                    line(a, b, color, 6)
+                    line(a, b, color, W)
                 end
             end
         end
@@ -239,30 +303,40 @@ function M.draw(S)
     end
     for _, y in ys do
         for _, z in zs do
-            line({ xs[1], y, z }, { xs[2], y, z }, edge_color(2, 3), 6)
+            line({ xs[1], y, z }, { xs[2], y, z }, edge_color(2, 3), W)
         end
     end
     for _, x in xs do
         for _, z in zs do
-            line({ x, ys[1], z }, { x, ys[2], z }, edge_color(1, 3), 6)
+            line({ x, ys[1], z }, { x, ys[2], z }, edge_color(1, 3), W)
         end
     end
     for _, x in xs do
         for _, y in ys do
-            line({ x, y, zs[1] }, { x, y, zs[2] }, edge_color(1, 2), 6)
+            line({ x, y, zs[1] }, { x, y, zs[2] }, edge_color(1, 2), W)
         end
     end
     for i, corner in corners(geo) do
         local hot_handle = hot ~= nil and hot.kind == "handle" and hot.index == i
         draw_handle_marker(corner, corner.signs, geo.marker, if hot_handle then HOVER else ORANGE)
     end
+    -- Face-center scale rectangles (drag = scale along the face normal).
+    for i, face in faces(geo) do
+        local hot_rect = hot ~= nil and hot.kind == "facerect" and hot.index == i
+        local color = if hot_rect then HOVER else ORANGE
+        local pts = face_rect_points(geo, face)
+        for j = 1, 4 do
+            line(pts[j], pts[j % 4 + 1], color, W)
+        end
+    end
+    -- The rotation ball renders on top of everything.
     for axis = 1, 3 do
         local hot_ring = hot ~= nil and hot.kind == "ring" and hot.axis == axis
         local color = if hot_ring then HOVER else ORANGE
         local prev = ring_point(geo, axis, 0)
         for t = 1, 48 do
             local next = ring_point(geo, axis, t / 48)
-            line(prev, next, color, 6)
+            line(prev, next, color, W, true)
             prev = next
         end
     end
@@ -291,6 +365,8 @@ local function start_gizmo_drag(S, cam, geo, part, mx, my)
         rot = { rot[1], rot[2], rot[3] },
         mouse = { mx, my },
         center = { cx, cy },
+        extent = geo.he[part.axis or 1],
+        world_center = { geo.center[1], geo.center[2], geo.center[3] },
     }
 end
 
@@ -323,6 +399,24 @@ local function apply_gizmo_drag(S, cam, mx, my)
         node.rotation_euler = rot
         ref:set_rotation_euler(rot[1], rot[2], rot[3])
         S.dirty = true
+    elseif d.part.kind == "facerect" then
+        -- Scale along the face's normal: mouse movement projected onto the
+        -- normal's screen direction, converted to world units.
+        local axis = d.part.axis
+        local dir = screen_axis(S, cam, d.world_center, axis)
+        if dir ~= nil then
+            local len2 = dir[1] ^ 2 + dir[2] ^ 2
+            if len2 > 1e-6 then
+                local moved = ((mx - d.mouse[1]) * dir[1] + (my - d.mouse[2]) * dir[2]) / len2
+                local ext0 = math.max(d.extent, 1e-3)
+                local f = math.clamp((ext0 + moved * d.part.sign) / ext0, 0.05, 20)
+                local sc = { d.scale[1], d.scale[2], d.scale[3] }
+                sc[axis] *= f
+                ref:set_scale(sc[1], sc[2], sc[3])
+                node.scale = { sc[1], sc[2], sc[3] }
+                S.dirty = true
+            end
+        end
     elseif d.part.kind == "face" then
         -- Grab a face and slide the object in that face's plane.
         local normal = d.part.axis

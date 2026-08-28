@@ -202,12 +202,16 @@ reload, `log.recent` (the ring buffer behind the Output dock),
 `render.set_background/set_grid/draw_line/get_shape/get_color`,
 `render.set_camera` (zoom pill on the orbit camera), and
 `render.camera_pose` + `render.set_camera_input`, which power the viewport
-tools. The selection gizmo follows steadyum's style: an orange padded
-bounding-box frame whose faces translate (in the face's plane, with Snap),
-corner handles scale, and three axis rings rotate, with the hot element
-tinted deep blue — hit-testing and drag math are screen-space Luau in
-`editor/scripts/gizmo.luau`, and the backend inhibits the orbit camera
-while the gizmo is hot. The rail tools remain as drag-anywhere fallbacks.
+tools. The selection gizmo follows steadyum's design: an orange bounding-box
+frame; dragging anywhere on a face translates in that face's plane (with
+Snap); the small floating rectangle at each face's center scales along the
+face normal; corner brackets scale uniformly; and the rotation ball — three
+axis rings, radius capped relative to camera distance, rendered always on
+top via depth-biased lines — rotates and wins the pick over the face behind
+it. The hot element tints deep blue. Hit-testing and drag math are
+screen-space Luau in `editor/scripts/gizmo.luau`, and the backend inhibits
+the orbit camera while the gizmo is hot. The rail tools remain as
+drag-anywhere fallbacks.
 The scene tree draws connector rails with collapse arrows and colored
 type icons, and every row has a right-click context menu (add child,
 attach script, duplicate, delete) via `ui.pill`'s `menu` callback and
