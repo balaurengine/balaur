@@ -335,6 +335,9 @@ pub fn install(app: &mut App) -> Result<()> {
         lua.create_function(move |_, (s, opts): (String, Option<Table>)| {
             let opts = Opts(opts);
             with_ui(|ui| {
+                if opts.string("align").as_deref() == Some("left") {
+                    return left_pill(ui, &s, &opts);
+                }
                 let h = opts.px("height", 27.0);
                 let fam = opts.string("font").unwrap_or_else(|| "ui".into());
                 let mut display = String::new();
@@ -381,19 +384,23 @@ pub fn install(app: &mut App) -> Result<()> {
         lua.create_function(move |_, (s, opts): (String, Option<Table>)| {
             let opts = Opts(opts);
             with_ui(|ui| {
-                let rt = text(
-                    &s,
-                    opts.px("size", 12.5),
-                    "ui",
-                    opts.opt_color("color"),
-                    false,
+                let (rect, response) =
+                    ui.allocate_exact_size(vec2(sc(180.0), sc(26.0)), Sense::click());
+                if response.hovered() {
+                    ui.painter().rect_filled(
+                        rect,
+                        pill_radius(sc(26.0)),
+                        Color32::from_white_alpha(10),
+                    );
+                }
+                let color = opts.color("color", Color32::WHITE);
+                let galley = ui.painter().layout_no_wrap(
+                    s.clone(),
+                    FontId::new(opts.px("size", 12.5), theme::family("ui")),
+                    color,
                 );
-                let response = ui.add(
-                    egui::Button::new(rt)
-                        .fill(Color32::TRANSPARENT)
-                        .corner_radius(pill_radius(sc(24.0)))
-                        .min_size(vec2(sc(170.0), sc(26.0))),
-                );
+                let y = rect.center().y - galley.size().y / 2.0;
+                ui.painter().galley(pos2(rect.min.x + sc(10.0), y), galley, color);
                 if response.clicked() {
                     ui.close();
                     return Ok(true);
@@ -1138,4 +1145,77 @@ fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> mlua::Result<()> {
         ui.add(img);
         Ok(())
     })
+}
+
+
+/// A left-aligned pill row (tree rows, list rows, menu items): custom paint
+/// so the icon and label hug the left edge instead of egui's centered
+/// button text. Supports fill/stroke, a colored leading icon, an optional
+/// trailing glyph on the right, tooltip and a context menu.
+fn left_pill(ui: &mut egui::Ui, label: &str, opts: &Opts) -> mlua::Result<bool> {
+    let h = opts.px("height", 27.0);
+    let w = {
+        let w = opts.px("min_width", 0.0);
+        if w > 0.0 { w } else { ui.available_width().max(sc(40.0)) }
+    };
+    let (rect, mut response) = ui.allocate_exact_size(vec2(w, h), Sense::click());
+    let hovered = response.hovered();
+    let mut fill = opts.color("fill", Color32::TRANSPARENT);
+    if hovered && fill == Color32::TRANSPARENT {
+        if let Some(hover) = opts.opt_color("hover_fill") {
+            fill = hover;
+        }
+    }
+    if fill != Color32::TRANSPARENT {
+        ui.painter().rect_filled(rect, pill_radius(h), fill);
+    }
+    if let Some(stroke) = opts.opt_color("stroke") {
+        ui.painter()
+            .rect(rect, pill_radius(h), Color32::TRANSPARENT, Stroke::new(1.0, stroke), StrokeKind::Inside);
+    }
+    let fam = opts.string("font").unwrap_or_else(|| "ui".into());
+    let size = opts.px("size", 12.0);
+    let color = opts.color("color", Color32::WHITE);
+    let mut x = rect.min.x + sc(10.0);
+    if let Some(icon) = opts.string("icon") {
+        let icon_color = opts.opt_color("icon_color").unwrap_or(color);
+        let galley = ui.painter().layout_no_wrap(
+            icon,
+            FontId::new(opts.px("icon_size", 12.0), theme::family(&fam)),
+            icon_color,
+        );
+        let y = rect.center().y - galley.size().y / 2.0;
+        ui.painter().galley(pos2(x, y), galley, icon_color);
+        x += sc(7.0) + opts.px("icon_size", 12.0);
+    }
+    let mut font = FontId::new(size, theme::family(&fam));
+    if opts.boolean("strong", false) {
+        font = FontId::new(size, theme::family(if fam == "ui" { "heading" } else { &fam }));
+    }
+    let galley = ui.painter().layout_no_wrap(label.to_string(), font, color);
+    let y = rect.center().y - galley.size().y / 2.0;
+    ui.painter().galley(pos2(x, y), galley, color);
+    if let Some(trailing) = opts.string("trailing") {
+        let t_color = opts.opt_color("trailing_color").unwrap_or(color);
+        let galley = ui.painter().layout_no_wrap(
+            trailing,
+            FontId::new(opts.px("trailing_size", 11.0), theme::family(&fam)),
+            t_color,
+        );
+        let ty = rect.center().y - galley.size().y / 2.0;
+        ui.painter().galley(
+            pos2(rect.max.x - sc(11.0) - galley.size().x, ty),
+            galley,
+            t_color,
+        );
+    }
+    if let Some(tip) = opts.string("tooltip") {
+        response = response.on_hover_text(tip);
+    }
+    if let Some(menu) = opts.function("menu") {
+        response.context_menu(|ui| {
+            let _ = scoped(ui, &menu);
+        });
+    }
+    Ok(response.clicked())
 }

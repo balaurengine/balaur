@@ -123,13 +123,13 @@ fn flush_debug_lines(app: &App, window: &mut Window) {
     let Some(lines) = app.engine.try_resource::<DebugLines>() else {
         return;
     };
-    for (a, b, c, width) in lines.borrow_mut().lines.drain(..) {
+    for (a, b, c, width, perspective) in lines.borrow_mut().lines.drain(..) {
         window.draw_line(
             Vec3::new(a[0], a[1], a[2]),
             Vec3::new(b[0], b[1], b[2]),
             Color::new(c[0], c[1], c[2], 1.0),
             width,
-            true,
+            perspective,
         );
     }
 }

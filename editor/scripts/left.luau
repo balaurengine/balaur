@@ -40,14 +40,19 @@ local function tree_row(S, k, i, depth, rails, is_last, has_kids)
             elseif role == "accent" then k.accent
             elseif role == "dim" then k.dim
             else k.faint
-        if ui.pill(node.name .. (if node.script then "   ‹›" else ""), {
-            height = 27, size = 12,
+        -- Row spans the rest of the panel, content left-aligned.
+        local used = 12 + (if depth > 0 then depth * 13 + 14 else 0) + 26
+        if ui.pill(node.name, {
+            height = 27, size = 12, align = "left",
             strong = depth == 0,
-            min_width = 110,
+            min_width = math.max(120, 246 - used),
             icon = icon, icon_size = 12,
             icon_color = if selected then k.on_accent else icon_color,
             fill = if selected then k.accent_fill else "#00000000",
+            hover_fill = k.raised,
             color = if selected then k.on_accent else k.text,
+            trailing = if node.script then "‹›" else nil,
+            trailing_color = if selected then k.on_accent else k.sage,
             menu = function()
                 if ui.menu_item("＋  Add child", { color = k.text }) then
                     S.select(i)
@@ -120,18 +125,13 @@ local function secondary_rows(S, k, title, rows)
     for _, row in rows do
         ui.horizontal({ height = 29 }, function()
             ui.add_space(8)
-            if ui.pill(row[1] .. "  " .. row[2], {
-                height = 29, size = 12, min_width = 200,
+            if ui.pill(row[2], {
+                height = 29, size = 12, min_width = 238, align = "left",
+                icon = row[1], icon_size = 12, icon_color = k.dim,
                 fill = k.sunken, color = k.text,
-                tooltip = row[3],
+                trailing = row[3], trailing_color = k.faint,
             }) and row[4] ~= nil then
                 row[4]()
-            end
-            if row[3] ~= nil then
-                ui.right(function()
-                    ui.add_space(10)
-                    ui.label(row[3], { size = 11, font = "mono", color = k.faint })
-                end)
             end
         end)
     end

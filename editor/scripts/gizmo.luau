@@ -40,18 +40,22 @@ function M.viewport_rect(S)
     return { x = 262 + 46, y = 56 + 38, w = sw - 308 - 262 - 46, h = sh - 28 - dock_h - 56 - 38 }
 end
 
--- Camera basis + world-units-per-point at the target's depth.
+-- Camera basis + world-units-per-design-px at the target's depth. The 3D
+-- scene renders across the whole window (panels overlay it), so projection
+-- maps NDC to the full screen, not the visible viewport region.
 local function camera_frame(S)
     local ex, ey, ez, tx, ty, tz, fov, dpi = render.camera_pose()
     local eye = { ex, ey, ez }
     local forward, dist = vnorm(vsub({ tx, ty, tz }, eye))
     local right = vnorm(vcross(forward, { 0, 1, 0 }))
     local up = vcross(right, forward)
-    local rect = M.viewport_rect(S)
-    local wpp = 2 * dist * math.tan(fov / 2) / math.max(rect.h * S.ui_scale, 1)
+    local sw, sh = S.screen_w or 1280, S.screen_h or 800
+    local wpp = 2 * dist * math.tan(fov / 2) / math.max(sh, 1)
     return {
         eye = eye, forward = forward, right = right, up = up,
-        dist = dist, fov = fov, dpi = dpi, wpp = wpp, rect = rect,
+        dist = dist, fov = fov, dpi = dpi, wpp = wpp,
+        rect = { x = 0, y = 0, w = sw, h = sh },
+        vp = M.viewport_rect(S),
     }
 end
 
@@ -61,7 +65,7 @@ local function mouse_design_px(S, cam)
 end
 
 local function in_viewport(S, cam, mx, my)
-    local r = cam.rect
+    local r = cam.vp
     -- Leave the chip row and the bottom pill row to egui.
     return mx > r.x and mx < r.x + r.w and my > r.y + 44 and my < r.y + r.h - 40
 end
@@ -98,14 +102,18 @@ local function geometry(S)
         end
     end
     local sx, sy, sz = ref:scale()
-    hx, hy, hz = hx * sx + 0.12, hy * sy + 0.12, hz * sz + 0.12
+    hx, hy, hz = hx * sx + 0.02, hy * sy + 0.02, hz * sz + 0.02
     local min_he = math.min(hx, hy, hz)
+    -- steadyum: handle size scales with camera distance (constant on
+    -- screen), rings sit at 75% of the smallest extent.
+    local ex, ey, ez = render.camera_pose()
+    local dist = math.sqrt((x - ex) ^ 2 + (y - ey) ^ 2 + (z - ez) ^ 2)
+    local marker = 0.6 * dist * 0.0144
     return {
         center = { x, y, z },
         he = { hx, hy, hz },
-        -- steadyum sizes the rotation ring at 75% of the smallest extent.
-        ring = math.max(min_he * 0.75 * 2, 0.35),
-        marker = math.clamp(min_he * 0.18, 0.05, 0.3),
+        ring = math.max(min_he * 0.75, marker * 2.5),
+        marker = marker,
     }
 end
 
@@ -149,14 +157,14 @@ end
 local function hit_test(S, cam, geo, mx, my)
     for i, corner in corners(geo) do
         local sx, sy = project(S, cam, corner)
-        if sx ~= nil and (sx - mx) ^ 2 + (sy - my) ^ 2 < 12 ^ 2 then
+        if sx ~= nil and (sx - mx) ^ 2 + (sy - my) ^ 2 < 14 ^ 2 then
             return { kind = "handle", index = i }
         end
     end
     for axis = 1, 3 do
         for t = 0, 47 do
             local sx, sy = project(S, cam, ring_point(geo, axis, t / 48))
-            if sx ~= nil and (sx - mx) ^ 2 + (sy - my) ^ 2 < 8 ^ 2 then
+            if sx ~= nil and (sx - mx) ^ 2 + (sy - my) ^ 2 < 9 ^ 2 then
                 return { kind = "ring", axis = axis }
             end
         end
@@ -174,23 +182,30 @@ local function line(a, b, color, width)
     render.draw_line(a[1], a[2], a[3], b[1], b[2], b[3], color[1], color[2], color[3], width)
 end
 
-local function draw_wire_cube(center, half, color)
-    local xs = { center[1] - half, center[1] + half }
-    local ys = { center[2] - half, center[2] + half }
-    local zs = { center[3] - half, center[3] + half }
-    for _, y in ys do
-        for _, z in zs do
-            line({ xs[1], y, z }, { xs[2], y, z }, color, 3)
-        end
-    end
-    for _, x in xs do
-        for _, z in zs do
-            line({ x, ys[1], z }, { x, ys[2], z }, color, 3)
-        end
-    end
-    for _, x in xs do
-        for _, y in ys do
-            line({ x, y, zs[1] }, { x, y, zs[2] }, color, 3)
+-- Corner marker in steadyum's open-bracket style: of the mini-cube's 12
+-- edges, draw only those with at least one outward face (faces whose sign
+-- matches the handle's corner sign), leaving an open bracket.
+local EDGE_AXES = { { 2, 3 }, { 1, 3 }, { 1, 2 } }
+
+local function draw_handle_marker(corner, signs, half, color)
+    for axis = 1, 3 do
+        local b_axis, c_axis = EDGE_AXES[axis][1], EDGE_AXES[axis][2]
+        for _, b_sign in { -1, 1 } do
+            for _, c_sign in { -1, 1 } do
+                local b_inner = b_sign == -signs[b_axis]
+                local c_inner = c_sign == -signs[c_axis]
+                if not (b_inner and c_inner) then
+                    local a = { corner[1], corner[2], corner[3] }
+                    local b = { corner[1], corner[2], corner[3] }
+                    a[axis] -= half
+                    b[axis] += half
+                    a[b_axis] += b_sign * half
+                    b[b_axis] += b_sign * half
+                    a[c_axis] += c_sign * half
+                    b[c_axis] += c_sign * half
+                    line(a, b, color, 6)
+                end
+            end
         end
     end
 end
@@ -224,22 +239,22 @@ function M.draw(S)
     end
     for _, y in ys do
         for _, z in zs do
-            line({ xs[1], y, z }, { xs[2], y, z }, edge_color(2, 3), 3)
+            line({ xs[1], y, z }, { xs[2], y, z }, edge_color(2, 3), 6)
         end
     end
     for _, x in xs do
         for _, z in zs do
-            line({ x, ys[1], z }, { x, ys[2], z }, edge_color(1, 3), 3)
+            line({ x, ys[1], z }, { x, ys[2], z }, edge_color(1, 3), 6)
         end
     end
     for _, x in xs do
         for _, y in ys do
-            line({ x, y, zs[1] }, { x, y, zs[2] }, edge_color(1, 2), 3)
+            line({ x, y, zs[1] }, { x, y, zs[2] }, edge_color(1, 2), 6)
         end
     end
     for i, corner in corners(geo) do
         local hot_handle = hot ~= nil and hot.kind == "handle" and hot.index == i
-        draw_wire_cube(corner, geo.marker, if hot_handle then HOVER else ORANGE)
+        draw_handle_marker(corner, corner.signs, geo.marker, if hot_handle then HOVER else ORANGE)
     end
     for axis = 1, 3 do
         local hot_ring = hot ~= nil and hot.kind == "ring" and hot.axis == axis
@@ -247,7 +262,7 @@ function M.draw(S)
         local prev = ring_point(geo, axis, 0)
         for t = 1, 48 do
             local next = ring_point(geo, axis, t / 48)
-            line(prev, next, color, 3)
+            line(prev, next, color, 6)
             prev = next
         end
     end

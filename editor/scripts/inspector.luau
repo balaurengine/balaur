@@ -74,10 +74,11 @@ end
 local function select_row(k, label, value, on_click)
     local clicked = false
     row(k, label, function()
-        if ui.pill(value .. "   ▼", {
-            height = 28, size = 12,
+        if ui.pill(value, {
+            height = 28, size = 12, align = "left",
             min_width = CONTROL_W,
             fill = k.sunken, stroke = k.line_soft, color = k.text,
+            trailing = "▼", trailing_color = k.faint, trailing_size = 10,
         }) then
             clicked = true
         end

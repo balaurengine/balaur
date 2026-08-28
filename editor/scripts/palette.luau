@@ -92,10 +92,12 @@ function M.draw(S)
                     local run = false
                     ui.horizontal({ height = 40 }, function()
                         ui.add_space(8)
-                        if ui.pill(cmd.icon .. "   " .. cmd.label, {
-                            height = 40, size = 13.5,
+                        if ui.pill(cmd.label, {
+                            height = 40, size = 13.5, align = "left",
                             min_width = 430,
+                            icon = cmd.icon, icon_size = 14, icon_color = k.accent,
                             fill = if first then k.sunken else "#00000000",
+                            hover_fill = k.sunken,
                             color = k.text,
                             tooltip = cmd.key,
                         }) then
