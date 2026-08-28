@@ -273,17 +273,12 @@ local function prop_row(S, k, comp, prop, spec, data)
             end
         end)
     elseif kind == "enum" then
-        select_row(k, prop, tostring(value), function()
-            local options = spec.options or {}
-            local index = 1
-            for i, option in options do
-                if option == value then
-                    index = i
-                end
-            end
-            local next_value = options[index % #options + 1]
-            if next_value ~= nil then
-                model.set_component_prop(S, comp, prop, next_value)
+        row(k, prop, function()
+            local v, changed = ui.select(`sel:{comp}:{prop}:{S.sel}`, tostring(value), spec.options or {}, {
+                width = CONTROL_W, size = 12, height = 28, color = k.text,
+            })
+            if changed then
+                model.set_component_prop(S, comp, prop, v)
             end
         end)
     elseif kind == "vec3" or kind == "color" then

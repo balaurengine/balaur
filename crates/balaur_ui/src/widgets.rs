@@ -771,6 +771,58 @@ pub fn install(app: &mut App) -> Result<()> {
         )?;
     }
 
+    // ---- drop-down select ---------------------------------------------
+    t.set(
+        "select",
+        lua.create_function(
+            move |_, (id, current, options, opts): (String, String, Table, Option<Table>)| {
+                let opts = Opts(opts);
+                with_ui(|ui| {
+                    let mut items: Vec<String> = Vec::new();
+                    options.for_each(|_: i64, v: String| {
+                        items.push(v);
+                        Ok(())
+                    })?;
+                    let w = opts.px("width", 160.0);
+                    let size = opts.px("size", 12.0);
+                    let text_color = opts.color("color", Color32::WHITE);
+                    let mut selected = current.clone();
+                    ui.scope(|ui| {
+                        // Pill-shaped shell and menu items for this widget only.
+                        let radius = pill_radius(opts.px("height", 28.0));
+                        let visuals = &mut ui.style_mut().visuals;
+                        visuals.widgets.inactive.corner_radius = radius;
+                        visuals.widgets.hovered.corner_radius = radius;
+                        visuals.widgets.active.corner_radius = radius;
+                        visuals.widgets.open.corner_radius = radius;
+                        ui.spacing_mut().button_padding = vec2(sc(11.0), sc(6.0));
+                        egui::ComboBox::from_id_salt(id)
+                            .width(w)
+                            .selected_text(
+                                egui::RichText::new(&current)
+                                    .size(size)
+                                    .family(theme::family("ui"))
+                                    .color(text_color),
+                            )
+                            .show_ui(ui, |ui| {
+                                for item in &items {
+                                    ui.selectable_value(
+                                        &mut selected,
+                                        item.clone(),
+                                        egui::RichText::new(item)
+                                            .size(size)
+                                            .family(theme::family("ui")),
+                                    );
+                                }
+                            });
+                    });
+                    let changed = selected != current;
+                    Ok((selected, changed))
+                })
+            },
+        )?,
+    )?;
+
     // ---- images and overlay shapes ------------------------------------
     {
         let eng = engine.clone();

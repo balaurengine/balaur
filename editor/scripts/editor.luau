@@ -132,6 +132,16 @@ function Editor:init()
         theme.set_dark(false)
     elseif start == "play" then
         S.toggle_play()
+    elseif start == "rotdemo" then
+        for i, node in S.doc do
+            if node.name == "Spinner" then
+                S.sel = i
+            end
+        end
+        local _, ref = model.selected(S)
+        ref:set_rotation_euler(math.rad(15), math.rad(30), 0)
+        S.doc[S.sel].rotation_euler = { math.rad(15), math.rad(30), 0 }
+        S.set_zoom(150)
     elseif start == "animdemo" then
         -- Self-test state: author a clip on the Spinner programmatically.
         for i, node in S.doc do

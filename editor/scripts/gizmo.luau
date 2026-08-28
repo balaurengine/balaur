@@ -32,6 +32,51 @@ end
 
 local AXES = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } }
 
+-- Rotation basis from the engine's ZYX euler (roll=x, pitch=y, yaw=z):
+-- R = Rz(yaw) * Ry(pitch) * Rx(roll). Returns the world-space directions of
+-- the node's local axes (the matrix columns).
+local function basis_from_euler(r)
+    local cr, sr = math.cos(r[1]), math.sin(r[1])
+    local cp, sp = math.cos(r[2]), math.sin(r[2])
+    local cy, sy = math.cos(r[3]), math.sin(r[3])
+    return {
+        { cy * cp, sy * cp, -sp },
+        { cy * sp * sr - sy * cr, sy * sp * sr + cy * cr, cp * sr },
+        { cy * sp * cr + sy * sr, sy * sp * cr - cy * sr, cp * cr },
+    }
+end
+
+-- Euler (roll, pitch, yaw) back from a basis (columns bx, by, bz).
+local function euler_from_basis(b)
+    local pitch = math.asin(math.clamp(-b[1][3], -1, 1))
+    local yaw = math.atan(b[1][2], b[1][1])
+    local roll = math.atan(b[2][3], b[3][3])
+    return { roll, pitch, yaw }
+end
+
+-- basis * elementary rotation about local axis `axis` by `angle`.
+local function rotate_basis_local(b, axis, angle)
+    local c, s = math.cos(angle), math.sin(angle)
+    local i = axis % 3 + 1
+    local j = (axis + 1) % 3 + 1
+    -- Columns i and j rotate into each other around column `axis`.
+    local bi, bj = b[i], b[j]
+    local out = { b[1], b[2], b[3] }
+    out[i] = { bi[1] * c + bj[1] * s, bi[2] * c + bj[2] * s, bi[3] * c + bj[3] * s }
+    out[j] = { bj[1] * c - bi[1] * s, bj[2] * c - bi[2] * s, bj[3] * c - bi[3] * s }
+    return out
+end
+
+-- center + basis-space offset -> world point.
+local function local_point(geo, ox, oy, oz)
+    local b = geo.basis
+    return {
+        geo.center[1] + b[1][1] * ox + b[2][1] * oy + b[3][1] * oz,
+        geo.center[2] + b[1][2] * ox + b[2][2] * oy + b[3][2] * oz,
+        geo.center[3] + b[1][3] * ox + b[2][3] * oy + b[3][3] * oz,
+    }
+end
+
 -- The 3D viewport rectangle in design px (matches the panel layout).
 -- Uses the screen size cached by draw_ui (ui.* is pass-scoped).
 function M.viewport_rect(S)
@@ -102,15 +147,17 @@ local function geometry(S)
         end
     end
     local sx, sy, sz = ref:scale()
-    hx, hy, hz = hx * sx + 0.02, hy * sy + 0.02, hz * sz + 0.02
+    hx, hy, hz = hx * sx + 0.06, hy * sy + 0.06, hz * sz + 0.06
     local min_he = math.min(hx, hy, hz)
     -- steadyum: handle size scales with camera distance (constant on
     -- screen), rings sit at 75% of the smallest extent.
     local ex, ey, ez = render.camera_pose()
     local dist = math.sqrt((x - ex) ^ 2 + (y - ey) ^ 2 + (z - ez) ^ 2)
     local marker = 0.6 * dist * 0.0144
+    local rx, ry, rz = ref:rotation_euler()
     return {
         center = { x, y, z },
+        basis = basis_from_euler({ rx, ry, rz }),
         he = { hx, hy, hz },
         -- The rotation ball tracks the selection but never grows past a
         -- fraction of the camera distance (or shrinks below pickability).
@@ -124,12 +171,9 @@ local function corners(geo)
     for _, sx in { -1, 1 } do
         for _, sy in { -1, 1 } do
             for _, sz in { -1, 1 } do
-                table.insert(out, {
-                    geo.center[1] + sx * geo.he[1],
-                    geo.center[2] + sy * geo.he[2],
-                    geo.center[3] + sz * geo.he[3],
-                    signs = { sx, sy, sz },
-                })
+                local p = local_point(geo, sx * geo.he[1], sy * geo.he[2], sz * geo.he[3])
+                p.signs = { sx, sy, sz }
+                table.insert(out, p)
             end
         end
     end
@@ -142,17 +186,20 @@ local function faces(geo)
     local out = {}
     for axis = 1, 3 do
         for _, sign in { -1, 1 } do
-            local p = { geo.center[1], geo.center[2], geo.center[3] }
-            p[axis] += sign * geo.he[axis]
+            local offset = { 0, 0, 0 }
+            offset[axis] = sign * geo.he[axis]
             local u_axis, v_axis = FACE_AXES[axis][1], FACE_AXES[axis][2]
             local quad = {}
             for _, uv in { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } } do
-                local c = { p[1], p[2], p[3] }
-                c[u_axis] += uv[1] * geo.he[u_axis]
-                c[v_axis] += uv[2] * geo.he[v_axis]
-                table.insert(quad, c)
+                local o = { offset[1], offset[2], offset[3] }
+                o[u_axis] += uv[1] * geo.he[u_axis]
+                o[v_axis] += uv[2] * geo.he[v_axis]
+                table.insert(quad, local_point(geo, o[1], o[2], o[3]))
             end
-            table.insert(out, { pos = p, axis = axis, sign = sign, quad = quad })
+            table.insert(out, {
+                pos = local_point(geo, offset[1], offset[2], offset[3]),
+                axis = axis, sign = sign, quad = quad,
+            })
         end
     end
     return out
@@ -190,21 +237,22 @@ local function face_rect_points(geo, face)
     local h = geo.marker * 0.9
     local out = {}
     for _, uv in { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } } do
-        local c = { face.pos[1], face.pos[2], face.pos[3] }
+        local o = { 0, 0, 0 }
         -- Float slightly off the face so it never z-fights the surface.
-        c[face.axis] += face.sign * geo.marker * 0.25
-        c[u_axis] += uv[1] * h
-        c[v_axis] += uv[2] * h
-        table.insert(out, c)
+        o[face.axis] = face.sign * (geo.he[face.axis] + geo.marker * 0.25)
+        o[u_axis] += uv[1] * h
+        o[v_axis] += uv[2] * h
+        table.insert(out, local_point(geo, o[1], o[2], o[3]))
     end
     return out
 end
 
 local function ring_point(geo, axis, t)
     local angle = t * math.pi * 2
-    local u = AXES[axis % 3 + 1]
-    local v = AXES[(axis + 1) % 3 + 1]
-    return vadd(geo.center, vadd(vscale(u, math.cos(angle) * geo.ring), vscale(v, math.sin(angle) * geo.ring)))
+    local o = { 0, 0, 0 }
+    o[axis % 3 + 1] = math.cos(angle) * geo.ring
+    o[(axis + 1) % 3 + 1] = math.sin(angle) * geo.ring
+    return local_point(geo, o[1], o[2], o[3])
 end
 
 -- What the cursor is over. Priority mirrors steadyum: the rotation ball
@@ -251,7 +299,9 @@ end
 -- matches the handle's corner sign), leaving an open bracket.
 local EDGE_AXES = { { 2, 3 }, { 1, 3 }, { 1, 2 } }
 
-local function draw_handle_marker(corner, signs, half, color)
+local function draw_handle_marker(geo, corner, signs, half, color)
+    -- Corner offset in the box's local frame.
+    local base = { signs[1] * geo.he[1], signs[2] * geo.he[2], signs[3] * geo.he[3] }
     for axis = 1, 3 do
         local b_axis, c_axis = EDGE_AXES[axis][1], EDGE_AXES[axis][2]
         for _, b_sign in { -1, 1 } do
@@ -259,15 +309,20 @@ local function draw_handle_marker(corner, signs, half, color)
                 local b_inner = b_sign == -signs[b_axis]
                 local c_inner = c_sign == -signs[c_axis]
                 if not (b_inner and c_inner) then
-                    local a = { corner[1], corner[2], corner[3] }
-                    local b = { corner[1], corner[2], corner[3] }
+                    local a = { base[1], base[2], base[3] }
+                    local b = { base[1], base[2], base[3] }
                     a[axis] -= half
                     b[axis] += half
                     a[b_axis] += b_sign * half
                     b[b_axis] += b_sign * half
                     a[c_axis] += c_sign * half
                     b[c_axis] += c_sign * half
-                    line(a, b, color, W)
+                    line(
+                        local_point(geo, a[1], a[2], a[3]),
+                        local_point(geo, b[1], b[2], b[3]),
+                        color,
+                        W
+                    )
                 end
             end
         end
@@ -289,10 +344,7 @@ function M.draw(S)
         return
     end
     local hot = hot_part(S)
-    local c, he = geo.center, geo.he
-    local xs = { c[1] - he[1], c[1] + he[1] }
-    local ys = { c[2] - he[2], c[2] + he[2] }
-    local zs = { c[3] - he[3], c[3] + he[3] }
+    local he = geo.he
     local hot_face_axis = if hot ~= nil and hot.kind == "face" then hot.axis else nil
     local function edge_color(axis_a, axis_b)
         -- A face's four edges are those not along its normal axis.
@@ -301,24 +353,29 @@ function M.draw(S)
         end
         return ORANGE
     end
-    for _, y in ys do
-        for _, z in zs do
-            line({ xs[1], y, z }, { xs[2], y, z }, edge_color(2, 3), W)
-        end
-    end
-    for _, x in xs do
-        for _, z in zs do
-            line({ x, ys[1], z }, { x, ys[2], z }, edge_color(1, 3), W)
-        end
-    end
-    for _, x in xs do
-        for _, y in ys do
-            line({ x, y, zs[1] }, { x, y, zs[2] }, edge_color(1, 2), W)
+    -- The 12 box edges, in the node's rotated frame.
+    for axis = 1, 3 do
+        local b_axis, c_axis = FACE_AXES[axis][1], FACE_AXES[axis][2]
+        for _, sb in { -1, 1 } do
+            for _, sc2 in { -1, 1 } do
+                local a_off, b_off = { 0, 0, 0 }, { 0, 0, 0 }
+                a_off[axis], b_off[axis] = -he[axis], he[axis]
+                for _, o in { a_off, b_off } do
+                    o[b_axis] = sb * he[b_axis]
+                    o[c_axis] = sc2 * he[c_axis]
+                end
+                line(
+                    local_point(geo, a_off[1], a_off[2], a_off[3]),
+                    local_point(geo, b_off[1], b_off[2], b_off[3]),
+                    edge_color(b_axis, c_axis),
+                    W
+                )
+            end
         end
     end
     for i, corner in corners(geo) do
         local hot_handle = hot ~= nil and hot.kind == "handle" and hot.index == i
-        draw_handle_marker(corner, corner.signs, geo.marker, if hot_handle then HOVER else ORANGE)
+        draw_handle_marker(geo, corner, corner.signs, geo.marker, if hot_handle then HOVER else ORANGE)
     end
     -- Face-center scale rectangles (drag = scale along the face normal).
     for i, face in faces(geo) do
@@ -342,10 +399,10 @@ function M.draw(S)
     end
 end
 
--- Screen direction (design px) of a world axis at the gizmo center.
-local function screen_axis(S, cam, center, axis)
+-- Screen direction (design px per world unit) of a world direction at a point.
+local function screen_dir(S, cam, center, dir)
     local ax, ay = project(S, cam, center)
-    local bx, by = project(S, cam, vadd(center, AXES[axis]))
+    local bx, by = project(S, cam, vadd(center, dir))
     if ax == nil or bx == nil then
         return nil
     end
@@ -363,6 +420,7 @@ local function start_gizmo_drag(S, cam, geo, part, mx, my)
         pos = { px, py, pz },
         scale = { sx, sy, sz },
         rot = { rot[1], rot[2], rot[3] },
+        basis = geo.basis,
         mouse = { mx, my },
         center = { cx, cy },
         extent = geo.he[part.axis or 1],
@@ -386,24 +444,23 @@ local function apply_gizmo_drag(S, cam, mx, my)
         node.scale = { sx, sy, sz }
         S.dirty = true
     elseif d.part.kind == "ring" then
-        -- Screen-angle delta around the projected center, signed by whether
-        -- the ring axis points toward the camera.
+        -- Screen-angle delta around the projected center, applied about the
+        -- node's LOCAL axis (the rings rotate with the object), signed by
+        -- whether that axis points toward the camera.
         local a0 = math.atan(d.mouse[2] - d.center[2], d.mouse[1] - d.center[1])
         local a1 = math.atan(my - d.center[2], mx - d.center[1])
-        local axis = AXES[d.part.axis]
-        local geo_center = { d.pos[1], d.pos[2], d.pos[3] }
-        local toward = vdot(axis, vsub(cam.eye, geo_center))
+        local axis_dir = d.basis[d.part.axis]
+        local toward = vdot(axis_dir, vsub(cam.eye, d.world_center))
         local delta = (a1 - a0) * (if toward >= 0 then -1 else 1)
-        local rot = { d.rot[1], d.rot[2], d.rot[3] }
-        rot[d.part.axis] += delta
+        local rot = euler_from_basis(rotate_basis_local(basis_from_euler(d.rot), d.part.axis, delta))
         node.rotation_euler = rot
         ref:set_rotation_euler(rot[1], rot[2], rot[3])
         S.dirty = true
     elseif d.part.kind == "facerect" then
-        -- Scale along the face's normal: mouse movement projected onto the
-        -- normal's screen direction, converted to world units.
+        -- Scale along the face's (rotated) normal: mouse movement projected
+        -- onto its screen direction, converted to world units.
         local axis = d.part.axis
-        local dir = screen_axis(S, cam, d.world_center, axis)
+        local dir = screen_dir(S, cam, d.world_center, d.basis[axis])
         if dir ~= nil then
             local len2 = dir[1] ^ 2 + dir[2] ^ 2
             if len2 > 1e-6 then
@@ -418,18 +475,19 @@ local function apply_gizmo_drag(S, cam, mx, my)
             end
         end
     elseif d.part.kind == "face" then
-        -- Grab a face and slide the object in that face's plane.
+        -- Grab a face and slide the object in that face's (rotated) plane.
         local normal = d.part.axis
-        local center = { d.pos[1], d.pos[2], d.pos[3] }
         local dx, dy = mx - d.mouse[1], my - d.mouse[2]
         local pos = { d.pos[1], d.pos[2], d.pos[3] }
         for axis = 1, 3 do
             if axis ~= normal then
-                local dir = screen_axis(S, cam, center, axis)
+                local dir_world = d.basis[axis]
+                local dir = screen_dir(S, cam, d.world_center, dir_world)
                 if dir ~= nil then
                     local len2 = dir[1] ^ 2 + dir[2] ^ 2
                     if len2 > 1e-6 then
-                        pos[axis] += (dx * dir[1] + dy * dir[2]) / len2
+                        local amount = (dx * dir[1] + dy * dir[2]) / len2
+                        pos = vadd(pos, vscale(dir_world, amount))
                     end
                 end
             end
@@ -437,9 +495,7 @@ local function apply_gizmo_drag(S, cam, mx, my)
         local snap_on = (S.chip_state.scene or {}).snap
         if snap_on then
             for axis = 1, 3 do
-                if axis ~= normal then
-                    pos[axis] = math.round(pos[axis] * 2) / 2
-                end
+                pos[axis] = math.round(pos[axis] * 2) / 2
             end
         end
         ref:set_position(pos[1], pos[2], pos[3])
