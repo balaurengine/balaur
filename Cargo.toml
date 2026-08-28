@@ -44,4 +44,4 @@ opt-level = 3
 # Local kiss3d with the macOS Command-modifier fix for egui
 # (get_egui_modifiers reported ⌘ as never pressed upstream).
 [patch.crates-io]
-kiss3d = { path = "/Users/sebcrozet/work/kiss3d" }
+kiss3d = { path = "../kiss3d" }
