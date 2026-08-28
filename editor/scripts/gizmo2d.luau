@@ -1,15 +1,39 @@
--- 2D selection gizmo, steadyum-flavored like the 3D one: an orange padded
--- box whose interior translates, corner brackets scale uniformly,
--- edge-center rectangles scale along one axis, and a rotation ring rotates
--- about z. All math is in 2D world space over the camera state the backend
--- publishes (`render.camera_2d`, `render.mouse_world_2d`).
+-- 2D selection gizmo replicating steadyum's dim2 bbox/transform gizmo:
+-- the object's local AABB frame with eight scale handles floating just
+-- outside it (4 corner brackets scale per-axis, 4 edge midpoints scale one
+-- axis, Shift makes either uniform; the opposite corner/edge stays
+-- anchored), the whole interior translates, and a center rotation disc
+-- (drawn as a circle, picked as the full disc, priority over everything)
+-- rotates about z. All math is 2D world space over the camera state the
+-- backend publishes.
 local model = require("scripts/model")
-
-local M = {}
 
 local ORANGE = { 1.0, 0.647, 0.0 }
 local HOVER = { 0.118, 0.314, 0.784 }
+-- steadyum's 6px bbox stroke, 30% thinner per taste (matches the 3D gizmo).
 local W = 4.2
+-- steadyum HANDLE_SCALE_2D: handle pick radius is ~12 px on screen.
+local HANDLE_PX = 12
+-- steadyum HANDLE_DRAW_HALF: drawn marker half-size vs the pick radius.
+local DRAW_HALF = 0.6
+-- steadyum handle_outward_offset: corners sit 1 pick-radius outside the
+-- frame, edge midpoints 1.25 (compensates the corners' diagonal reach).
+local OUT_CORNER = 1.0
+local OUT_EDGE = 1.25
+
+-- steadyum HANDLE_SIGNS (dim2): 4 corners, then 4 edge midpoints.
+local HANDLE_SIGNS = {
+    { -1, -1 },
+    { 1, -1 },
+    { 1, 1 },
+    { -1, 1 },
+    { -1, 0 },
+    { 1, 0 },
+    { 0, -1 },
+    { 0, 1 },
+}
+
+local M = {}
 
 -- World units per design pixel (design px = logical px / ui scale).
 local function world_per_px(S)
@@ -48,7 +72,17 @@ function M.node_half_extents(node)
     return he[1], he[2]
 end
 
--- Selection geometry: center, angle, padded half extents, marker sizes.
+-- Handle center in box-local coordinates (steadyum: signs * half_extents
+-- plus the normalized outward offset).
+local function handle_local(geo, signs)
+    local nx, ny = signs[1], signs[2]
+    local len = math.sqrt(nx * nx + ny * ny)
+    local corner = nx ~= 0 and ny ~= 0
+    local out = geo.rs * (if corner then OUT_CORNER else OUT_EDGE) / len
+    return signs[1] * geo.he[1] + nx * out, signs[2] * geo.he[2] + ny * out
+end
+
+-- Selection geometry: center, angle, half extents, camera-adaptive sizes.
 local function geometry(S)
     local node, ref = model.selected(S)
     if ref == nil then
@@ -60,60 +94,37 @@ local function geometry(S)
         hx, hy = 0.6, 0.6
     end
     local sx, sy = ref:global_scale()
-    hx, hy = hx * sx + 0.06, hy * sy + 0.06
+    hx, hy = hx * sx, hy * sy
     local _, _, angle = ref:global_rotation_euler()
-    local wpp = world_per_px(S)
-    local marker = 9 * wpp
+    local rs = HANDLE_PX * world_per_px(S)
     return {
         center = { x, y },
         angle = angle,
         he = { hx, hy },
-        marker = marker,
-        ring = math.clamp(math.min(hx, hy) * 0.75, marker * 2.5, 110 * wpp),
-        wpp = wpp,
+        -- steadyum: the pick radius doubles as the camera-adaptive scale.
+        rs = rs,
+        marker = DRAW_HALF * rs,
+        -- steadyum ring: diameter 75% of the smallest bbox side, capped at
+        -- 4x the handle's full drawn size.
+        ring = math.min(0.75 * math.min(hx, hy), 2.4 * rs),
     }
 end
 
-local EDGE_RECTS = {
-    { axis = 1, sign = 1 },
-    { axis = 1, sign = -1 },
-    { axis = 2, sign = 1 },
-    { axis = 2, sign = -1 },
-}
-
-local function edge_rect_center(geo, part)
-    local o = { 0, 0 }
-    o[part.axis] = part.sign * (geo.he[part.axis] + geo.marker * 1.2)
-    return o[1], o[2]
-end
-
+-- What the cursor is over. steadyum priority: the rotation disc (the full
+-- disc, not just the circle line) wins over every bbox element, then the
+-- scale handles, then the interior translate picker.
 local function hit_test(S, geo, mx, my)
     local lx, ly = to_local(geo, mx, my)
-    local wpp = geo.wpp
-    -- The rotation ring wins over everything it overlaps.
-    local dist = math.sqrt(lx ^ 2 + ly ^ 2)
-    if math.abs(dist - geo.ring) < 8 * wpp then
+    if math.sqrt(lx * lx + ly * ly) <= geo.ring then
         return { kind = "ring" }
     end
-    -- Edge-center scale rectangles (generous hotspot).
-    for _, part in EDGE_RECTS do
-        local cx, cy = edge_rect_center(geo, part)
-        local h = geo.marker * 1.4
-        if math.abs(lx - cx) < h and math.abs(ly - cy) < h then
-            return { kind = "facerect", axis = part.axis, sign = part.sign }
+    for _, signs in HANDLE_SIGNS do
+        local cx, cy = handle_local(geo, signs)
+        if (lx - cx) ^ 2 + (ly - cy) ^ 2 <= geo.rs ^ 2 then
+            return { kind = "handle", signs = { signs[1], signs[2] } }
         end
     end
-    -- Corner brackets: uniform scale.
-    for _, sx in { -1, 1 } do
-        for _, sy in { -1, 1 } do
-            local cx, cy = sx * geo.he[1], sy * geo.he[2]
-            if math.abs(lx - cx) < geo.marker * 1.8 and math.abs(ly - cy) < geo.marker * 1.8 then
-                return { kind = "handle", signs = { sx, sy } }
-            end
-        end
-    end
-    -- Box interior: translate.
-    if math.abs(lx) < geo.he[1] and math.abs(ly) < geo.he[2] then
+    if math.abs(lx) <= geo.he[1] and math.abs(ly) <= geo.he[2] then
         return { kind = "face" }
     end
     return nil
@@ -126,6 +137,41 @@ local function hot_part(S)
     return S.gizmo_hover
 end
 
+-- Handle marker, steadyum style: an open square of half-size
+-- `geo.marker` at the handle position. Corners keep their two outer
+-- edges (an L bracket opening toward the box); edge midpoints keep the
+-- single outer edge parallel to the frame.
+local MARKER_EDGES = {
+    -- face_axis, face_sign, ax, ay, bx, by (unit square edge endpoints)
+    { 2, -1, -1, -1, 1, -1 }, -- bottom
+    { 2, 1, -1, 1, 1, 1 },    -- top
+    { 1, -1, -1, -1, -1, 1 }, -- left
+    { 1, 1, 1, -1, 1, 1 },    -- right
+}
+
+local function draw_handle_marker(geo, signs, color)
+    local hx, hy = handle_local(geo, signs)
+    local h = geo.marker
+    local is_edge_handle = (if signs[1] ~= 0 then 1 else 0) + (if signs[2] ~= 0 then 1 else 0) == 1
+    for _, e in MARKER_EDGES do
+        local face_axis, face_sign = e[1], e[2]
+        -- Edge-midpoint handles: only the edge on their face's axis.
+        if is_edge_handle and signs[face_axis] == 0 then
+            continue
+        end
+        -- Skip inner edges (the ones facing into the box).
+        if signs[face_axis] ~= 0 and face_sign == -signs[face_axis] then
+            continue
+        end
+        line(
+            local_point(geo, hx + e[3] * h, hy + e[4] * h),
+            local_point(geo, hx + e[5] * h, hy + e[6] * h),
+            color,
+            W
+        )
+    end
+end
+
 function M.draw(S)
     local geo = geometry(S)
     if geo == nil or S.persona == "script" then
@@ -133,7 +179,8 @@ function M.draw(S)
     end
     local hot = hot_part(S)
     local hx, hy = geo.he[1], geo.he[2]
-    -- Box edges (all four highlight during a translate hover/drag).
+    -- Frame: in steadyum the 2D translate picker covers the whole interior,
+    -- so a translate hover/drag highlights all four edges.
     local box_color = if hot ~= nil and hot.kind == "face" then HOVER else ORANGE
     local corners = {
         local_point(geo, -hx, -hy),
@@ -144,48 +191,14 @@ function M.draw(S)
     for i = 1, 4 do
         line(corners[i], corners[i % 4 + 1], box_color, W)
     end
-    -- Corner brackets: two short outward segments per corner.
-    for _, sx in { -1, 1 } do
-        for _, sy in { -1, 1 } do
-            local hot_handle = hot ~= nil
-                and hot.kind == "handle"
-                and hot.signs[1] == sx
-                and hot.signs[2] == sy
-            local color = if hot_handle then HOVER else ORANGE
-            local m = geo.marker
-            local cx, cy = sx * hx, sy * hy
-            line(
-                local_point(geo, cx - sx * m, cy),
-                local_point(geo, cx + sx * m * 0.4, cy),
-                color, W
-            )
-            line(
-                local_point(geo, cx, cy - sy * m),
-                local_point(geo, cx, cy + sy * m * 0.4),
-                color, W
-            )
-        end
+    for _, signs in HANDLE_SIGNS do
+        local hot_handle = hot ~= nil
+            and hot.kind == "handle"
+            and hot.signs[1] == signs[1]
+            and hot.signs[2] == signs[2]
+        draw_handle_marker(geo, signs, if hot_handle then HOVER else ORANGE)
     end
-    -- Edge-center rectangles (scale along one local axis).
-    for _, part in EDGE_RECTS do
-        local hot_rect = hot ~= nil
-            and hot.kind == "facerect"
-            and hot.axis == part.axis
-            and hot.sign == part.sign
-        local color = if hot_rect then HOVER else ORANGE
-        local cx, cy = edge_rect_center(geo, part)
-        local h = geo.marker * 0.9
-        local pts = {
-            local_point(geo, cx - h, cy - h),
-            local_point(geo, cx + h, cy - h),
-            local_point(geo, cx + h, cy + h),
-            local_point(geo, cx - h, cy + h),
-        }
-        for i = 1, 4 do
-            line(pts[i], pts[i % 4 + 1], color, W)
-        end
-    end
-    -- Rotation ring.
+    -- Rotation circle, same stroke and colors as the frame.
     local ring_color = if hot ~= nil and hot.kind == "ring" then HOVER else ORANGE
     local prev = local_point(geo, geo.ring, 0)
     for t = 1, 48 do
@@ -201,7 +214,7 @@ local function start_drag(S, geo, part, mx, my)
     local px, py, pz = ref:position()
     local sx, sy, sz = ref:scale()
     local rot = node.rotation_euler or { 0, 0, 0 }
-    S.gizmo_drag = {
+    local drag = {
         part = part,
         pos = { px, py, pz },
         scale = { sx, sy, sz },
@@ -209,9 +222,14 @@ local function start_drag(S, geo, part, mx, my)
         center = { geo.center[1], geo.center[2] },
         angle = geo.angle,
         he = { geo.he[1], geo.he[2] },
-        anchor = { mx, my },
+        mouse = { mx, my },
         angle0 = math.atan(my - geo.center[2], mx - geo.center[1]),
     }
+    if part.kind == "handle" then
+        -- The opposite corner/edge stays fixed in world space.
+        drag.anchor = local_point(geo, -part.signs[1] * geo.he[1], -part.signs[2] * geo.he[2])
+    end
+    S.gizmo_drag = drag
 end
 
 local function apply_drag(S, mx, my)
@@ -221,8 +239,8 @@ local function apply_drag(S, mx, my)
         return
     end
     if d.part.kind == "face" then
-        local x = d.pos[1] + (mx - d.anchor[1])
-        local y = d.pos[2] + (my - d.anchor[2])
+        local x = d.pos[1] + (mx - d.mouse[1])
+        local y = d.pos[2] + (my - d.mouse[2])
         if (S.chip_state.scene or {}).snap then
             x = math.round(x * 2) / 2
             y = math.round(y * 2) / 2
@@ -230,33 +248,56 @@ local function apply_drag(S, mx, my)
         ref:set_position(x, y, d.pos[3])
         node.position = { x, y, d.pos[3] }
         S.dirty = true
-    elseif d.part.kind == "handle" then
-        -- Uniform scale by radial world distance from the center.
-        local d0 = math.max(1e-3, math.sqrt((d.anchor[1] - d.center[1]) ^ 2 + (d.anchor[2] - d.center[2]) ^ 2))
-        local d1 = math.sqrt((mx - d.center[1]) ^ 2 + (my - d.center[2]) ^ 2)
-        local f = math.clamp(d1 / d0, 0.05, 20)
-        local sx, sy = d.scale[1] * f, d.scale[2] * f
-        ref:set_scale(sx, sy, d.scale[3])
-        node.scale = { sx, sy, d.scale[3] }
-        S.dirty = true
-    elseif d.part.kind == "facerect" then
-        -- Scale along one local axis by the mouse's local travel.
-        local axis = d.part.axis
-        local c, s = math.cos(d.angle), math.sin(d.angle)
-        local dx, dy = mx - d.center[1], my - d.center[2]
-        local l = if axis == 1 then c * dx + s * dy else -s * dx + c * dy
-        local ext0 = math.max(d.he[axis], 1e-3)
-        local f = math.clamp(math.abs(l) / ext0, 0.05, 20)
-        local sc = { d.scale[1], d.scale[2] }
-        sc[axis] *= f
-        ref:set_scale(sc[1], sc[2], d.scale[3])
-        node.scale = { sc[1], sc[2], d.scale[3] }
-        S.dirty = true
     elseif d.part.kind == "ring" then
         local a1 = math.atan(my - d.center[2], mx - d.center[1])
         local rot = { d.rot[1], d.rot[2], d.rot[3] + (a1 - d.angle0) }
         node.rotation_euler = rot
         ref:set_rotation_euler(rot[1], rot[2], rot[3])
+        S.dirty = true
+    elseif d.part.kind == "handle" then
+        -- steadyum drive_single_drag: per-axis factor from the cursor's
+        -- world travel projected on the box's (rotated) axes; Shift applies
+        -- the dominant factor to every active axis.
+        local dx, dy = mx - d.mouse[1], my - d.mouse[2]
+        local c, s = math.cos(d.angle), math.sin(d.angle)
+        local axes = { { c, s }, { -s, c } }
+        local factors = { 1, 1 }
+        for i = 1, 2 do
+            local sign = d.part.signs[i]
+            if sign ~= 0 then
+                local denom = 2 * sign * d.he[i]
+                if math.abs(denom) > 1e-6 then
+                    local travel = dx * axes[i][1] + dy * axes[i][2]
+                    factors[i] = math.max(0.001, 1 + travel / denom)
+                end
+            end
+        end
+        if input.is_down("LShift") or input.is_down("RShift") then
+            local dominant = 1
+            for i = 1, 2 do
+                if d.part.signs[i] ~= 0 and math.abs(factors[i] - 1) > math.abs(dominant - 1) then
+                    dominant = factors[i]
+                end
+            end
+            for i = 1, 2 do
+                if d.part.signs[i] ~= 0 then
+                    factors[i] = math.max(0.001, dominant)
+                end
+            end
+        end
+        local sx, sy = d.scale[1] * factors[1], d.scale[2] * factors[2]
+        ref:set_scale(sx, sy, d.scale[3])
+        node.scale = { sx, sy, d.scale[3] }
+        -- Keep the anchor (opposite corner/edge) fixed: recompute the box
+        -- center from the anchor and the scaled half extents.
+        local off_x = d.part.signs[1] * d.he[1] * factors[1]
+        local off_y = d.part.signs[2] * d.he[2] * factors[2]
+        local ncx = d.anchor[1] + c * off_x - s * off_y
+        local ncy = d.anchor[2] + s * off_x + c * off_y
+        local x = d.pos[1] + (ncx - d.center[1])
+        local y = d.pos[2] + (ncy - d.center[2])
+        ref:set_position(x, y, d.pos[3])
+        node.position = { x, y, d.pos[3] }
         S.dirty = true
     end
 end

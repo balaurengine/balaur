@@ -24,24 +24,34 @@ function Game:init()
 
     -- Capture every level node's initial state so R can rebuild the level
     -- in place (components are re-applied, which also zeroes velocities).
+    -- Decorations (the pigs' glasses) are child nodes: each entry remembers
+    -- its top-level owner so popping a pig pops its whole subtree.
     self.level = {}
     self.pigs = {}
-    for _, child in self.root:children() do
-        if child:has_component("shape2d") then
-            local x, y, z = child:position()
-            local rx, ry, rz = child:rotation_euler()
-            table.insert(self.level, {
-                ref = child,
-                name = child:name(),
-                pos = { x, y, z },
-                rot = { rx, ry, rz },
-                shape2d = child:get_component("shape2d"),
-                collider2d = child:get_component("collider2d"),
-                body2d = child:get_component("body2d"),
-            })
-            if string.sub(child:name(), 1, 3) == "Pig" then
-                self.pigs[child:name()] = true
+    local function capture(self, node, owner)
+        for _, child in node:children() do
+            local top = owner or child:name()
+            if child:has_component("shape2d") then
+                local x, y, z = child:position()
+                local rx, ry, rz = child:rotation_euler()
+                table.insert(self.level, {
+                    ref = child,
+                    name = child:name(),
+                    owner = top,
+                    pos = { x, y, z },
+                    rot = { rx, ry, rz },
+                    shape2d = child:get_component("shape2d"),
+                    collider2d = child:get_component("collider2d"),
+                    body2d = child:get_component("body2d"),
+                })
             end
+            capture(self, child, top)
+        end
+    end
+    capture(self, self.root, nil)
+    for _, entry in self.level do
+        if string.sub(entry.owner, 1, 3) == "Pig" and entry.name == entry.owner then
+            self.pigs[entry.owner] = true
         end
     end
     self.bird = self.root:get_node("Bird")
@@ -181,7 +191,7 @@ function Game:update(dt)
                 local impulse = physics2d.max_contact_impulse(pig)
                 if impulse > KILL_IMPULSE or y < -3 then
                     for _, entry in self.level do
-                        if entry.name == name then
+                        if entry.owner == name then
                             pop(entry)
                         end
                     end

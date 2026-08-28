@@ -39,6 +39,7 @@ pub fn run_windowed(mut app: App, title: &str) -> anyhow::Result<()> {
         let mut scene_2d = SceneNode2d::empty();
         let mut slots: HashMap<Entity, Slot> = HashMap::new();
         let mut slots_2d: HashMap<Entity, Slot2d> = HashMap::new();
+        let mut order_2d: Vec<Entity> = Vec::new();
         let mut last = Instant::now();
         let mut frame: u64 = 0;
         while window
@@ -64,7 +65,7 @@ pub fn run_windowed(mut app: App, title: &str) -> anyhow::Result<()> {
             last = now;
             app.tick(dt);
             sync(&app, &mut scene, &mut slots);
-            sync_2d(&app, &mut scene_2d, &mut slots_2d);
+            sync_2d(&app, &mut scene_2d, &mut slots_2d, &mut order_2d);
             draw_grid(&app, &mut window);
             flush_debug_lines(&app, &mut window);
             flush_debug_lines_2d(&app, &mut window);
@@ -470,13 +471,47 @@ fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
 
 /// Mirror `Renderable2d` + `GlobalTransform` into the kiss3d 2D scene graph
 /// (x/y translation, z rotation, x/y scale).
-fn sync_2d(app: &App, scene: &mut SceneNode2d, slots: &mut HashMap<Entity, Slot2d>) {
+///
+/// kiss3d draws 2D nodes in insertion order, so draw order is made explicit
+/// and deterministic: scene-tree traversal order, stably sorted by the
+/// global z coordinate (z acts as a 2D layer; equal z means later-declared
+/// nodes draw on top). When the order changes, the kiss3d nodes are rebuilt
+/// in the new order.
+fn sync_2d(
+    app: &App,
+    scene: &mut SceneNode2d,
+    slots: &mut HashMap<Entity, Slot2d>,
+    order_cache: &mut Vec<Entity>,
+) {
     let world = app.engine.world();
+    let root = app.engine.root();
+    let mut desired: Vec<(f32, Entity)> = Vec::new();
+    for entity in balaur_core::scene::collect_subtree(&world, root) {
+        if world.get::<&Renderable2d>(entity).is_ok() {
+            let z = world
+                .get::<&GlobalTransform>(entity)
+                .map(|g| g.position.z)
+                .unwrap_or(0.0);
+            desired.push((z, entity));
+        }
+    }
+    desired.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    let order: Vec<Entity> = desired.iter().map(|&(_, e)| e).collect();
+    if order != *order_cache {
+        for (_, mut slot) in slots.drain() {
+            slot.node.detach();
+        }
+        *order_cache = order.clone();
+    }
+
     let mut seen: HashSet<Entity> = HashSet::new();
-    for (entity, renderable, global) in world
-        .query::<(Entity, &Renderable2d, &GlobalTransform)>()
-        .iter()
-    {
+    for &entity in &order {
+        let Ok(renderable) = world.get::<&Renderable2d>(entity) else {
+            continue;
+        };
+        let Ok(global) = world.get::<&GlobalTransform>(entity) else {
+            continue;
+        };
         seen.insert(entity);
         let rebuild = match slots.get(&entity) {
             Some(slot) => slot.version != renderable.version,

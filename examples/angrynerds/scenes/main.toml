@@ -224,6 +224,91 @@ friction = 0.6
 [nodes.color]
 rgba = [0.36, 0.72, 0.25, 1.0]
 
+
+[[nodes]]
+name = "RimL"
+parent = "Pig1"
+position = [-0.18, 0.072, 0.01]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.189
+
+[nodes.color]
+rgba = [0.16, 0.13, 0.11, 1.0]
+
+[[nodes]]
+name = "RimR"
+parent = "Pig1"
+position = [0.18, 0.072, 0.01]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.189
+
+[nodes.color]
+rgba = [0.16, 0.13, 0.11, 1.0]
+
+[[nodes]]
+name = "Bridge"
+parent = "Pig1"
+position = [0, 0.072, 0.01]
+
+[nodes.shape2d]
+kind = "rect"
+half_extents = [0.05, 0.016]
+
+[nodes.color]
+rgba = [0.16, 0.13, 0.11, 1.0]
+
+[[nodes]]
+name = "LensL"
+parent = "Pig1"
+position = [-0.18, 0.072, 0.02]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.135
+
+[nodes.color]
+rgba = [0.96, 0.96, 0.93, 1.0]
+
+[[nodes]]
+name = "LensR"
+parent = "Pig1"
+position = [0.18, 0.072, 0.02]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.135
+
+[nodes.color]
+rgba = [0.96, 0.96, 0.93, 1.0]
+
+[[nodes]]
+name = "PupilL"
+parent = "Pig1"
+position = [-0.18, 0.072, 0.03]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.05
+
+[nodes.color]
+rgba = [0.1, 0.1, 0.12, 1.0]
+
+[[nodes]]
+name = "PupilR"
+parent = "Pig1"
+position = [0.18, 0.072, 0.03]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.05
+
+[nodes.color]
+rgba = [0.1, 0.1, 0.12, 1.0]
+
 [[nodes]]
 name = "Pig2"
 parent = ""
@@ -243,6 +328,91 @@ friction = 0.6
 [nodes.color]
 rgba = [0.36, 0.72, 0.25, 1.0]
 
+
+[[nodes]]
+name = "RimL"
+parent = "Pig2"
+position = [-0.16, 0.064, 0.01]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.168
+
+[nodes.color]
+rgba = [0.16, 0.13, 0.11, 1.0]
+
+[[nodes]]
+name = "RimR"
+parent = "Pig2"
+position = [0.16, 0.064, 0.01]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.168
+
+[nodes.color]
+rgba = [0.16, 0.13, 0.11, 1.0]
+
+[[nodes]]
+name = "Bridge"
+parent = "Pig2"
+position = [0, 0.064, 0.01]
+
+[nodes.shape2d]
+kind = "rect"
+half_extents = [0.044, 0.014]
+
+[nodes.color]
+rgba = [0.16, 0.13, 0.11, 1.0]
+
+[[nodes]]
+name = "LensL"
+parent = "Pig2"
+position = [-0.16, 0.064, 0.02]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.12
+
+[nodes.color]
+rgba = [0.96, 0.96, 0.93, 1.0]
+
+[[nodes]]
+name = "LensR"
+parent = "Pig2"
+position = [0.16, 0.064, 0.02]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.12
+
+[nodes.color]
+rgba = [0.96, 0.96, 0.93, 1.0]
+
+[[nodes]]
+name = "PupilL"
+parent = "Pig2"
+position = [-0.16, 0.064, 0.03]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.044
+
+[nodes.color]
+rgba = [0.1, 0.1, 0.12, 1.0]
+
+[[nodes]]
+name = "PupilR"
+parent = "Pig2"
+position = [0.16, 0.064, 0.03]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.044
+
+[nodes.color]
+rgba = [0.1, 0.1, 0.12, 1.0]
+
 [[nodes]]
 name = "Pig3"
 parent = ""
@@ -261,3 +431,88 @@ friction = 0.6
 
 [nodes.color]
 rgba = [0.36, 0.72, 0.25, 1.0]
+
+[[nodes]]
+name = "RimL"
+parent = "Pig3"
+position = [-0.144, 0.058, 0.01]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.151
+
+[nodes.color]
+rgba = [0.16, 0.13, 0.11, 1.0]
+
+[[nodes]]
+name = "RimR"
+parent = "Pig3"
+position = [0.144, 0.058, 0.01]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.151
+
+[nodes.color]
+rgba = [0.16, 0.13, 0.11, 1.0]
+
+[[nodes]]
+name = "Bridge"
+parent = "Pig3"
+position = [0, 0.058, 0.01]
+
+[nodes.shape2d]
+kind = "rect"
+half_extents = [0.04, 0.013]
+
+[nodes.color]
+rgba = [0.16, 0.13, 0.11, 1.0]
+
+[[nodes]]
+name = "LensL"
+parent = "Pig3"
+position = [-0.144, 0.058, 0.02]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.108
+
+[nodes.color]
+rgba = [0.96, 0.96, 0.93, 1.0]
+
+[[nodes]]
+name = "LensR"
+parent = "Pig3"
+position = [0.144, 0.058, 0.02]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.108
+
+[nodes.color]
+rgba = [0.96, 0.96, 0.93, 1.0]
+
+[[nodes]]
+name = "PupilL"
+parent = "Pig3"
+position = [-0.144, 0.058, 0.03]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.04
+
+[nodes.color]
+rgba = [0.1, 0.1, 0.12, 1.0]
+
+[[nodes]]
+name = "PupilR"
+parent = "Pig3"
+position = [0.144, 0.058, 0.03]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.04
+
+[nodes.color]
+rgba = [0.1, 0.1, 0.12, 1.0]
+
