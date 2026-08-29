@@ -12,6 +12,7 @@ rapier3d.workspace = true
 rapier2d.workspace = true
 glamx.workspace = true
 anyhow.workspace = true
+balaur_script.workspace = true
 tracing.workspace = true
 toml.workspace = true
 

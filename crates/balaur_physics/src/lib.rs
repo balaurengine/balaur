@@ -11,10 +11,10 @@
 use anyhow::{anyhow, Result};
 use balaur_core::collections::DetHashMap;
 use balaur_core::components::ComponentDef;
+use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
-use balaur_core::mlua::{self, UserDataRef};
-use balaur_core::LuaModule;
-use balaur_core::{App, Engine, NodeRef, Plugin, Stage, Transform};
+use balaur_core::{App, Engine, Plugin, Stage, Transform};
+use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Pose3, Vec3};
 use rapier3d::pipeline::PhysicsWorld;
 use rapier3d::prelude::{ColliderBuilder, ColliderHandle, RigidBodyBuilder, RigidBodyHandle};
@@ -61,9 +61,9 @@ impl Plugin for PhysicsPlugin {
         app.engine.insert_resource(PhysicsState::new());
         app.add_system(Stage::PostUpdate, step_system);
 
-        let m = app.lua_module("physics")?;
-        install_world_controls(&m)?;
-        install_body_api(&m)?;
+        let mut m = app.lua_module("physics")?;
+        install_world_controls(&mut m);
+        install_body_api(&mut m);
         register_physics_components(app);
 
         dim2::build(app)?;
@@ -263,23 +263,23 @@ fn step_system(eng: &Engine, dt: f32) {
 
 /// Pause, sleeping and gravity. These span the 3D and 2D worlds: a script
 /// treats "physics" as one simulation.
-fn install_world_controls(m: &LuaModule) -> Result<()> {
+fn install_world_controls(m: &mut dyn Bindings<Engine>) {
     // Pause/clear/sleep span both the 3D and the 2D world: editors and
     // games treat "physics" as one simulation.
-    m.function("set_paused", |eng, paused: bool| {
+    m.function("set_paused", |eng: &Engine, paused: bool| {
         let state = eng.resource::<PhysicsState>();
         state.borrow_mut().paused = paused;
         dim2::set_paused(eng, paused);
         Ok(())
-    })?;
-    m.function("is_paused", |eng, ()| {
+    });
+    m.function("is_paused", |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState>();
         let v = state.borrow().paused;
         Ok(v)
-    })?;
+    });
     // Allow or forbid bodies falling asleep (editors expose this as the
     // "Sleep bodies" toggle).
-    m.function("set_sleeping_allowed", |eng, allowed: bool| {
+    m.function("set_sleeping_allowed", |eng: &Engine, allowed: bool| {
         use rapier3d::prelude::RigidBodyActivation;
         let state = eng.resource::<PhysicsState>();
         let mut state = state.borrow_mut();
@@ -296,10 +296,10 @@ fn install_world_controls(m: &LuaModule) -> Result<()> {
         drop(state);
         dim2::set_sleeping_allowed(eng, allowed);
         Ok(())
-    })?;
+    });
     // Remove every body and collider (editors use this to reset a
     // play-in-editor session).
-    m.function("clear", |eng, ()| {
+    m.function("clear", |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState>();
         let mut state = state.borrow_mut();
         let handles: Vec<_> = state.bodies.values().copied().collect();
@@ -315,67 +315,58 @@ fn install_world_controls(m: &LuaModule) -> Result<()> {
         drop(state);
         dim2::clear(eng);
         Ok(())
-    })?;
-    m.function("set_gravity", |eng, (x, y, z): (f32, f32, f32)| {
+    });
+    m.function("set_gravity", |eng: &Engine, (x, y, z): (f32, f32, f32)| {
         let state = eng.resource::<PhysicsState>();
         state.borrow_mut().world.gravity = Vec3::new(x, y, z);
         Ok(())
-    })?;
-    Ok(())
+    });
 }
 
 /// Body and collider creation, impulses, and velocity access.
-fn install_body_api(m: &LuaModule) -> Result<()> {
+fn install_body_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "add_body",
-        |eng, (node, kind): (UserDataRef<NodeRef>, String)| {
-            add_body(eng, node.entity, &kind).map_err(mlua::Error::external)
-        },
-    )?;
+        |eng: &Engine, (node, kind): (NodeId, String)| add_body(eng, entity_of(node)?, &kind),
+    );
     m.function(
         "add_ball_collider",
-        |eng, (node, radius): (UserDataRef<NodeRef>, f32)| {
-            add_collider(eng, node.entity, ColliderBuilder::ball(radius))
-                .map_err(mlua::Error::external)
+        |eng: &Engine, (node, radius): (NodeId, f32)| {
+            add_collider(eng, entity_of(node)?, ColliderBuilder::ball(radius))
         },
-    )?;
+    );
     m.function(
         "add_cuboid_collider",
-        |eng, (node, hx, hy, hz): (UserDataRef<NodeRef>, f32, f32, f32)| {
-            add_collider(eng, node.entity, ColliderBuilder::cuboid(hx, hy, hz))
-                .map_err(mlua::Error::external)
+        |eng: &Engine, (node, hx, hy, hz): (NodeId, f32, f32, f32)| {
+            add_collider(eng, entity_of(node)?, ColliderBuilder::cuboid(hx, hy, hz))
         },
-    )?;
+    );
     m.function(
         "apply_impulse",
-        |eng, (node, x, y, z): (UserDataRef<NodeRef>, f32, f32, f32)| {
-            with_body(eng, node.entity, |state, handle| {
+        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].apply_impulse(Vec3::new(x, y, z), true);
             })
-            .map_err(mlua::Error::external)
         },
-    )?;
+    );
     m.function(
         "set_linear_velocity",
-        |eng, (node, x, y, z): (UserDataRef<NodeRef>, f32, f32, f32)| {
-            with_body(eng, node.entity, |state, handle| {
+        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].set_linvel(Vec3::new(x, y, z), true);
             })
-            .map_err(mlua::Error::external)
         },
-    )?;
-    m.function("linear_velocity", |eng, node: UserDataRef<NodeRef>| {
-        with_body(eng, node.entity, |state, handle| {
+    );
+    m.function("linear_velocity", |eng: &Engine, node: NodeId| {
+        with_body(eng, entity_of(node)?, |state, handle| {
             let v = state.world.bodies[handle].linvel();
             (v.x, v.y, v.z)
         })
-        .map_err(mlua::Error::external)
-    })?;
+    });
 
     // Components (schema-driven: addable and editable from the editor,
     // and usable as scene-file keys). `body = "dynamic"` shorthand keeps
     // working via the schema's shorthand marker.
-    Ok(())
 }
 
 /// Schema-driven components, so bodies and colliders are editable from the

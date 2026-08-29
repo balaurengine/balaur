@@ -402,6 +402,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "balaur_core",
+ "balaur_script",
  "glamx",
  "rapier2d",
  "rapier3d",
@@ -417,6 +418,7 @@ dependencies = [
  "anyhow",
  "balaur_core",
  "balaur_input",
+ "balaur_script",
  "balaur_ui",
  "glamx",
  "image",

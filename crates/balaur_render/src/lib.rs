@@ -8,10 +8,10 @@
 
 use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
+use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
-use balaur_core::mlua::{self, UserDataRef};
-use balaur_core::LuaModule;
-use balaur_core::{App, Engine, NodeRef, Plugin};
+use balaur_core::{App, Engine, Plugin};
+use balaur_script::{Bindings, BindingsExt, NodeId};
 
 #[cfg(feature = "kiss3d")]
 pub mod kiss3d_backend;
@@ -271,11 +271,11 @@ impl Plugin for RenderPlugin {
         app.engine.insert_resource(Viewport2D::default());
         app.engine.insert_resource(ViewportCamera::default());
         app.engine.insert_resource(CameraInputEnabled(true));
-        let m = app.lua_module("render")?;
-        install_camera_api(&m, app)?;
-        install_scene_api(&m)?;
-        install_shape_api(&m)?;
-        install_2d_api(&m)?;
+        let mut m = app.lua_module("render")?;
+        install_camera_api(&mut m);
+        install_scene_api(&mut m);
+        install_shape_api(&mut m);
+        install_2d_api(&mut m);
         register_shape_component(app);
         register_shape2d_component(app);
         register_color_component(app);
@@ -285,10 +285,10 @@ impl Plugin for RenderPlugin {
 }
 
 /// Window icon, camera input, matrices, mouse ray and camera pose.
-fn install_camera_api(m: &LuaModule, app: &App) -> Result<()> {
+fn install_camera_api(m: &mut dyn Bindings<Engine>) {
     // Set the OS application icon (dock icon on macOS) from a PNG in
     // the project.
-    m.function("set_app_icon", |eng, path: String| {
+    m.function("set_app_icon", |eng: &Engine, path: String| {
         let root = eng.resource::<balaur_core::project::ProjectRoot>();
         let full = root.borrow().0.join(path);
         eng.insert_resource(AppIcon {
@@ -296,34 +296,23 @@ fn install_camera_api(m: &LuaModule, app: &App) -> Result<()> {
             changed: true,
         });
         Ok(())
-    })?;
-    m.function("set_camera_input", |eng, enabled: bool| {
+    });
+    m.function("set_camera_input", |eng: &Engine, enabled: bool| {
         let flag = eng.resource::<CameraInputEnabled>();
         flag.borrow_mut().0 = enabled;
         Ok(())
-    })?;
+    });
     // The actual camera pose this frame: eye xyz, target xyz, fov (rad),
     // HiDPI scale factor.
     // The camera's exact projection*view matrix (column-major, 16
     // numbers): scripts project points precisely as the renderer does.
-    m.table().set("camera_matrix", {
-        let eng = app.engine.clone();
-        app.engine
-            .scripts()
-            .expect("script host present")
-            .lua()
-            .create_function(move |lua, ()| {
-                let cam = eng.resource::<ViewportCamera>();
-                let cam = cam.borrow();
-                let t = lua.create_table()?;
-                for (i, v) in cam.view_proj.iter().enumerate() {
-                    t.set(i + 1, *v)?;
-                }
-                Ok(t)
-            })?
-    })?;
+    m.function("camera_matrix", |eng: &Engine, ()| {
+        let cam = eng.resource::<ViewportCamera>();
+        let view_proj = cam.borrow().view_proj;
+        Ok(view_proj.to_vec())
+    });
     // Picking ray through the mouse: origin xyz, direction xyz.
-    m.function("mouse_ray", |eng, ()| {
+    m.function("mouse_ray", |eng: &Engine, ()| {
         let cam = eng.resource::<ViewportCamera>();
         let cam = cam.borrow();
         Ok((
@@ -334,8 +323,8 @@ fn install_camera_api(m: &LuaModule, app: &App) -> Result<()> {
             cam.ray_dir[1],
             cam.ray_dir[2],
         ))
-    })?;
-    m.function("camera_pose", |eng, ()| {
+    });
+    m.function("camera_pose", |eng: &Engine, ()| {
         let cam = eng.resource::<ViewportCamera>();
         let cam = cam.borrow();
         Ok((
@@ -348,19 +337,21 @@ fn install_camera_api(m: &LuaModule, app: &App) -> Result<()> {
             cam.fov,
             cam.scale_factor,
         ))
-    })?;
-    Ok(())
+    });
 }
 
 /// Background, grid, and 3D debug lines.
-fn install_scene_api(m: &LuaModule) -> Result<()> {
-    m.function("set_background", |eng, (r, g, b): (f32, f32, f32)| {
-        let clear = eng.resource::<ClearColor>();
-        let mut clear = clear.borrow_mut();
-        clear.color = [r, g, b];
-        clear.changed = true;
-        Ok(())
-    })?;
+fn install_scene_api(m: &mut dyn Bindings<Engine>) {
+    m.function(
+        "set_background",
+        |eng: &Engine, (r, g, b): (f32, f32, f32)| {
+            let clear = eng.resource::<ClearColor>();
+            let mut clear = clear.borrow_mut();
+            clear.color = [r, g, b];
+            clear.changed = true;
+            Ok(())
+        },
+    );
     m.function(
         "set_grid",
         |eng,
@@ -384,22 +375,23 @@ fn install_scene_api(m: &LuaModule) -> Result<()> {
             }
             Ok(())
         },
-    )?;
+    );
     m.function(
         "set_grid_colors",
-        |eng, (mr, mg, mb, jr, jg, jb): (f32, f32, f32, f32, f32, f32)| {
+        |eng: &Engine, (mr, mg, mb, jr, jg, jb): (f32, f32, f32, f32, f32, f32)| {
             let grid = eng.resource::<GridConfig>();
             let mut grid = grid.borrow_mut();
             grid.minor_color = [mr, mg, mb];
             grid.major_color = [jr, jg, jb];
             Ok(())
         },
-    )?;
+    );
     // One line for one frame, world space. Width is in pixels; pass
     // perspective = true for distance-scaled width (gizmos want false).
     m.function(
         "draw_line",
-        |eng, (x1, y1, z1, x2, y2, z2, r, g, b, width, perspective, on_top): DrawLineArgs| {
+        |eng: &Engine,
+         (x1, y1, z1, x2, y2, z2, r, g, b, width, perspective, on_top): DrawLineArgs| {
             let lines = eng.resource::<DebugLines>();
             lines.borrow_mut().lines.push((
                 [x1, y1, z1],
@@ -411,16 +403,15 @@ fn install_scene_api(m: &LuaModule) -> Result<()> {
             ));
             Ok(())
         },
-    )?;
+    );
     // Returns ("", 0, 0, 0) when the node has no shape.
-    Ok(())
 }
 
 /// 3D shape and colour access.
-fn install_shape_api(m: &LuaModule) -> Result<()> {
-    m.function("get_shape", |eng, node: UserDataRef<NodeRef>| {
+fn install_shape_api(m: &mut dyn Bindings<Engine>) {
+    m.function("get_shape", |eng: &Engine, node: NodeId| {
         let world = eng.world();
-        let result = match world.get::<&Renderable>(node.entity) {
+        let result = match world.get::<&Renderable>(entity_of(node)?) {
             Ok(r) => match r.shape {
                 Shape::Ball { radius } => ("ball".to_string(), radius, radius, radius),
                 Shape::Cuboid { hx, hy, hz } => ("cuboid".to_string(), hx, hy, hz),
@@ -428,21 +419,21 @@ fn install_shape_api(m: &LuaModule) -> Result<()> {
             Err(_) => (String::new(), 0.0, 0.0, 0.0),
         };
         Ok(result)
-    })?;
-    m.function("get_color", |eng, node: UserDataRef<NodeRef>| {
+    });
+    m.function("get_color", |eng: &Engine, node: NodeId| {
         let world = eng.world();
-        let result = if let Ok(r) = world.get::<&Renderable>(node.entity) {
+        let result = if let Ok(r) = world.get::<&Renderable>(entity_of(node)?) {
             (r.color[0], r.color[1], r.color[2], r.color[3])
-        } else if let Ok(r) = world.get::<&Renderable2d>(node.entity) {
+        } else if let Ok(r) = world.get::<&Renderable2d>(entity_of(node)?) {
             (r.color[0], r.color[1], r.color[2], r.color[3])
         } else {
             (1.0, 1.0, 1.0, 1.0)
         };
         Ok(result)
-    })?;
+    });
     m.function(
         "set_camera",
-        |eng, (ex, ey, ez, tx, ty, tz): (f32, f32, f32, f32, f32, f32)| {
+        |eng: &Engine, (ex, ey, ez, tx, ty, tz): (f32, f32, f32, f32, f32, f32)| {
             let config = eng.resource::<CameraConfig>();
             let mut config = config.borrow_mut();
             config.eye = glamx::Vec3::new(ex, ey, ez);
@@ -450,33 +441,35 @@ fn install_shape_api(m: &LuaModule) -> Result<()> {
             config.changed = true;
             Ok(())
         },
-    )?;
+    );
     // 2D camera: world center + zoom in logical pixels per world unit.
-    Ok(())
 }
 
 /// The 2D camera, world-space mouse, debug lines and 2D shapes.
-fn install_2d_api(m: &LuaModule) -> Result<()> {
-    m.function("set_camera_2d", |eng, (cx, cy, zoom): (f32, f32, f32)| {
-        let config = eng.resource::<Camera2DConfig>();
-        let mut config = config.borrow_mut();
-        config.center = [cx, cy];
-        config.zoom = zoom.max(0.01);
-        config.changed = true;
-        Ok(())
-    })?;
+fn install_2d_api(m: &mut dyn Bindings<Engine>) {
+    m.function(
+        "set_camera_2d",
+        |eng: &Engine, (cx, cy, zoom): (f32, f32, f32)| {
+            let config = eng.resource::<Camera2DConfig>();
+            let mut config = config.borrow_mut();
+            config.center = [cx, cy];
+            config.zoom = zoom.max(0.01);
+            config.changed = true;
+            Ok(())
+        },
+    );
     // The actual 2D camera state this frame: center xy, zoom.
-    m.function("camera_2d", |eng, ()| {
+    m.function("camera_2d", |eng: &Engine, ()| {
         let vp = eng.resource::<Viewport2D>();
         let vp = vp.borrow();
         Ok((vp.center[0], vp.center[1], vp.zoom))
-    })?;
+    });
     // The mouse position in 2D world coordinates (picking).
-    m.function("mouse_world_2d", |eng, ()| {
+    m.function("mouse_world_2d", |eng: &Engine, ()| {
         let vp = eng.resource::<Viewport2D>();
         let vp = vp.borrow();
         Ok((vp.mouse_world[0], vp.mouse_world[1]))
-    })?;
+    });
     // One 2D world-space line for one frame; width in pixels.
     m.function(
         "draw_line_2d",
@@ -491,41 +484,38 @@ fn install_2d_api(m: &LuaModule) -> Result<()> {
             ));
             Ok(())
         },
-    )?;
-    m.function(
-        "set_ball",
-        |eng, (node, radius): (UserDataRef<NodeRef>, f32)| {
-            set_shape(eng, node.entity, Shape::Ball { radius }).map_err(mlua::Error::external)
-        },
-    )?;
+    );
+    m.function("set_ball", |eng: &Engine, (node, radius): (NodeId, f32)| {
+        set_shape(eng, entity_of(node)?, Shape::Ball { radius })
+    });
     m.function(
         "set_cuboid",
-        |eng, (node, hx, hy, hz): (UserDataRef<NodeRef>, f32, f32, f32)| {
-            set_shape(eng, node.entity, Shape::Cuboid { hx, hy, hz }).map_err(mlua::Error::external)
+        |eng: &Engine, (node, hx, hy, hz): (NodeId, f32, f32, f32)| {
+            set_shape(eng, entity_of(node)?, Shape::Cuboid { hx, hy, hz })
         },
-    )?;
+    );
     m.function(
         "set_color",
-        |eng, (node, r, g, b, a): (UserDataRef<NodeRef>, f32, f32, f32, Option<f32>)| {
-            set_color(eng, node.entity, [r, g, b, a.unwrap_or(1.0)]).map_err(mlua::Error::external)
+        |eng: &Engine, (node, r, g, b, a): (NodeId, f32, f32, f32, Option<f32>)| {
+            set_color(eng, entity_of(node)?, [r, g, b, a.unwrap_or(1.0)])
         },
-    )?;
+    );
     m.function(
         "set_rect",
-        |eng, (node, hx, hy): (UserDataRef<NodeRef>, f32, f32)| {
-            set_shape2d(eng, node.entity, Shape2d::Rect { hx, hy }).map_err(mlua::Error::external)
+        |eng: &Engine, (node, hx, hy): (NodeId, f32, f32)| {
+            set_shape2d(eng, entity_of(node)?, Shape2d::Rect { hx, hy })
         },
-    )?;
+    );
     m.function(
         "set_circle",
-        |eng, (node, radius): (UserDataRef<NodeRef>, f32)| {
-            set_shape2d(eng, node.entity, Shape2d::Circle { radius }).map_err(mlua::Error::external)
+        |eng: &Engine, (node, radius): (NodeId, f32)| {
+            set_shape2d(eng, entity_of(node)?, Shape2d::Circle { radius })
         },
-    )?;
+    );
     // Returns ("", 0, 0) when the node has no 2D shape.
-    m.function("get_shape2d", |eng, node: UserDataRef<NodeRef>| {
+    m.function("get_shape2d", |eng: &Engine, node: NodeId| {
         let world = eng.world();
-        let result = match world.get::<&Renderable2d>(node.entity) {
+        let result = match world.get::<&Renderable2d>(entity_of(node)?) {
             Ok(r) => match r.shape {
                 Shape2d::Circle { radius } => ("circle".to_string(), radius, radius),
                 Shape2d::Rect { hx, hy } => ("rect".to_string(), hx, hy),
@@ -533,10 +523,9 @@ fn install_2d_api(m: &LuaModule) -> Result<()> {
             Err(_) => (String::new(), 0.0, 0.0),
         };
         Ok(result)
-    })?;
+    });
 
     // Components (schema-driven; also usable as scene keys).
-    Ok(())
 }
 
 /// The `shape` component: 3D primitives, editable from the editor.

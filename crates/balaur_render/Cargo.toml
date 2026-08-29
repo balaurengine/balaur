@@ -16,6 +16,7 @@ kiss3d = ["dep:kiss3d", "dep:pollster", "dep:balaur_input", "dep:balaur_ui", "de
 balaur_core.workspace = true
 glamx.workspace = true
 anyhow.workspace = true
+balaur_script.workspace = true
 tracing.workspace = true
 toml.workspace = true
 kiss3d = { version = "0.46", optional = true, features = ["egui"] }

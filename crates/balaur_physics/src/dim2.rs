@@ -8,9 +8,10 @@
 use anyhow::{anyhow, Result};
 use balaur_core::collections::DetHashMap;
 use balaur_core::components::ComponentDef;
+use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
-use balaur_core::mlua::{self, UserDataRef};
-use balaur_core::{App, Engine, NodeRef, Stage, Transform};
+use balaur_core::{App, Engine, Stage, Transform};
+use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{EulerRot, Pose2, Quat, Rot2, Vec2};
 use rapier2d::pipeline::PhysicsWorld as PhysicsWorld2;
 use rapier2d::prelude::{
@@ -329,55 +330,51 @@ fn install_physics2d_api(app: &mut App) -> Result<()> {
     app.engine.insert_resource(Physics2DState::new());
     app.add_system(Stage::PostUpdate, step_system);
 
-    let m = app.lua_module("physics2d")?;
-    m.function("set_gravity", |eng, (x, y): (f32, f32)| {
+    let mut m = app.lua_module("physics2d")?;
+    let m = &mut m as &mut dyn Bindings<Engine>;
+    m.function("set_gravity", |eng: &Engine, (x, y): (f32, f32)| {
         let state = eng.resource::<Physics2DState>();
         state.borrow_mut().world.gravity = Vec2::new(x, y);
         Ok(())
-    })?;
+    });
     m.function(
         "apply_impulse",
-        |eng, (node, x, y): (UserDataRef<NodeRef>, f32, f32)| {
-            with_body(eng, node.entity, |state, handle| {
+        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].apply_impulse(Vec2::new(x, y), true);
             })
-            .map_err(mlua::Error::external)
         },
-    )?;
+    );
     m.function(
         "set_linear_velocity",
-        |eng, (node, x, y): (UserDataRef<NodeRef>, f32, f32)| {
-            with_body(eng, node.entity, |state, handle| {
+        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].set_linvel(Vec2::new(x, y), true);
             })
-            .map_err(mlua::Error::external)
         },
-    )?;
-    m.function("linear_velocity", |eng, node: UserDataRef<NodeRef>| {
-        with_body(eng, node.entity, |state, handle| {
+    );
+    m.function("linear_velocity", |eng: &Engine, node: NodeId| {
+        with_body(eng, entity_of(node)?, |state, handle| {
             let v = state.world.bodies[handle].linvel();
             (v.x, v.y)
         })
-        .map_err(mlua::Error::external)
-    })?;
+    });
     m.function(
         "set_angular_velocity",
-        |eng, (node, w): (UserDataRef<NodeRef>, f32)| {
-            with_body(eng, node.entity, |state, handle| {
+        |eng: &Engine, (node, w): (NodeId, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].set_angvel(w, true);
             })
-            .map_err(mlua::Error::external)
         },
-    )?;
-    m.function("angular_velocity", |eng, node: UserDataRef<NodeRef>| {
-        with_body(eng, node.entity, |state, handle| {
+    );
+    m.function("angular_velocity", |eng: &Engine, node: NodeId| {
+        with_body(eng, entity_of(node)?, |state, handle| {
             state.world.bodies[handle].angvel()
         })
-        .map_err(mlua::Error::external)
-    })?;
-    m.function("max_contact_impulse", |eng, node: UserDataRef<NodeRef>| {
-        Ok(max_contact_impulse(eng, node.entity))
-    })?;
+    });
+    m.function("max_contact_impulse", |eng: &Engine, node: NodeId| {
+        Ok(max_contact_impulse(eng, entity_of(node)?))
+    });
     Ok(())
 }
 

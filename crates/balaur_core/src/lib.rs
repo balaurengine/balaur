@@ -28,3 +28,12 @@ pub use script::{LuaModule, NodeRef, ScriptHost};
 pub use glamx;
 pub use hecs;
 pub use mlua;
+
+/// Re-hydrate a script's node handle.
+///
+/// `balaur_script` keeps nodes opaque so it depends on nothing; this is where
+/// the bits become an entity again. A stale handle is an error, not a panic:
+/// scripts hold handles across frees.
+pub fn entity_of(node: balaur_script::NodeId) -> anyhow::Result<hecs::Entity> {
+    hecs::Entity::from_bits(node.0).ok_or_else(|| anyhow::anyhow!("stale node handle"))
+}
