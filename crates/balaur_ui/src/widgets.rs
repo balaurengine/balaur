@@ -97,26 +97,26 @@ pub(crate) fn text(
 
 pub(crate) fn install(app: &mut App) -> Result<()> {
     let host = app.engine.scripts().expect("script host present");
-    let lua = host.lua();
+    let _lua = host.lua();
     let m = host.module("ui")?;
-    let t = m.table().clone();
-    let engine = app.engine.clone();
+    let _t = m.table().clone();
+    let _engine = app.engine.clone();
 
-    crate::widget_bindings::install_theme(&lua, &t, &engine)?;
-    crate::widget_bindings::install_panels(&lua, &t)?;
-    crate::widget_bindings::install_containers(&lua, &t)?;
-    crate::widget_bindings::install_text(&lua, &t)?;
-    crate::widget_bindings::install_buttons(&lua, &t)?;
-    crate::widget_bindings::install_controls(&lua, &t)?;
-    crate::widget_bindings::install_text_input(&lua, &t, &engine)?;
-    crate::widget_bindings::install_code(&lua, &t)?;
-    crate::widget_bindings::install_modal(&lua, &t)?;
-    crate::widget_bindings::install_widget_layer(&lua, &t, &engine)?;
-    crate::widget_bindings::install_scale(&lua, &t, &engine)?;
-    crate::widget_bindings::install_code_editor(&lua, &t, &engine)?;
-    crate::widget_bindings::install_dropdown_select(&lua, &t)?;
-    crate::widget_bindings::install_images(&lua, &t, &engine)?;
-    crate::widget_bindings::install_queries(&lua, &t)?;
+    crate::widget_bindings::install_theme(&m)?;
+    crate::widget_bindings::install_panels(&m)?;
+    crate::widget_bindings::install_containers(&m)?;
+    crate::widget_bindings::install_text(&m)?;
+    crate::widget_bindings::install_buttons(&m)?;
+    crate::widget_bindings::install_controls(&m)?;
+    crate::widget_bindings::install_text_input(&m)?;
+    crate::widget_bindings::install_code(&m)?;
+    crate::widget_bindings::install_modal(&m)?;
+    crate::widget_bindings::install_widget_layer(&m)?;
+    crate::widget_bindings::install_scale(&m)?;
+    crate::widget_bindings::install_code_editor(&m)?;
+    crate::widget_bindings::install_dropdown_select(&m)?;
+    crate::widget_bindings::install_images(&m)?;
+    crate::widget_bindings::install_queries(&m)?;
 
     Ok(())
 }
