@@ -11,4 +11,4 @@ mod value;
 
 pub use bindings::{Bindings, BindingsExt, BoundFn};
 pub use language::{InstanceId, ReloadReport, ScriptId, ScriptLanguage};
-pub use value::{FromArgs, IntoValue, Value};
+pub use value::{expect_arity, FromArg, FromArgs, IntoValue, NodeId, Value};

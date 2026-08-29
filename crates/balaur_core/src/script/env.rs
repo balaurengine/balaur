@@ -37,6 +37,118 @@ impl LuaModule {
     }
 }
 
+/// Bridge: the neutral seam, implemented over Lua.
+///
+/// Subsystems register through `&mut dyn Bindings<Engine>` and never name a
+/// language; this converts at the boundary.
+impl balaur_script::Bindings<Engine> for LuaModule {
+    fn function_raw(&mut self, name: &str, f: balaur_script::BoundFn<Engine>) {
+        let engine = self.engine.clone();
+        let Ok(func) = self
+            .lua
+            .create_function(move |lua, args: mlua::MultiValue| {
+                let neutral: Vec<balaur_script::Value> = args
+                    .into_iter()
+                    .map(|v| to_neutral(&v))
+                    .collect::<mlua::Result<_>>()?;
+                let out = f(&engine, &neutral).map_err(mlua::Error::external)?;
+                from_neutral(lua, &engine, &out)
+            })
+        else {
+            tracing::error!(binding = name, "could not create the Lua function");
+            return;
+        };
+        if self.table.set(name, func).is_err() {
+            tracing::error!(binding = name, "could not register the binding");
+        }
+    }
+
+    fn constant(&mut self, name: &str, value: balaur_script::Value) {
+        let Ok(v) = from_neutral(&self.lua, &self.engine, &value) else {
+            tracing::error!(constant = name, "could not convert the constant");
+            return;
+        };
+        if self.table.set(name, v).is_err() {
+            tracing::error!(constant = name, "could not register the constant");
+        }
+    }
+}
+
+fn to_neutral(v: &mlua::Value) -> mlua::Result<balaur_script::Value> {
+    use balaur_script::Value as N;
+    Ok(match v {
+        mlua::Value::Nil => N::Nil,
+        mlua::Value::Boolean(b) => N::Bool(*b),
+        mlua::Value::Integer(i) => N::Int(*i),
+        mlua::Value::Number(n) => N::Num(*n),
+        mlua::Value::String(s) => N::Str(s.to_str()?.to_string()),
+        mlua::Value::UserData(ud) => {
+            let node = ud.borrow::<NodeRef>()?;
+            N::Node(node.entity.to_bits().get())
+        }
+        mlua::Value::Table(t) => {
+            let mut map = Vec::new();
+            t.for_each(|k: mlua::Value, v: mlua::Value| {
+                if let mlua::Value::String(k) = k {
+                    map.push((k.to_str()?.to_string(), to_neutral(&v)?));
+                }
+                Ok(())
+            })?;
+            N::Map(map)
+        }
+        other => {
+            return Err(mlua::Error::runtime(format!(
+                "cannot pass a {} to a binding",
+                other.type_name()
+            )))
+        }
+    })
+}
+
+fn from_neutral(lua: &Lua, engine: &Engine, v: &balaur_script::Value) -> mlua::Result<mlua::Value> {
+    use balaur_script::Value as N;
+    Ok(match v {
+        N::Nil => mlua::Value::Nil,
+        N::Bool(b) => mlua::Value::Boolean(*b),
+        N::Int(i) => mlua::Value::Integer(*i),
+        N::Num(n) => mlua::Value::Number(*n),
+        N::Str(s) => mlua::Value::String(lua.create_string(s)?),
+        N::Vec2(a) => list(lua, a)?,
+        N::Vec3(a) => list(lua, a)?,
+        N::Color(a) => list(lua, a)?,
+        N::Node(bits) => {
+            let entity = hecs::Entity::from_bits(*bits)
+                .ok_or_else(|| mlua::Error::runtime("stale node handle"))?;
+            mlua::Value::UserData(lua.create_userdata(NodeRef {
+                entity,
+                engine: engine.clone(),
+            })?)
+        }
+        N::List(items) => {
+            let t = lua.create_table()?;
+            for (i, item) in items.iter().enumerate() {
+                t.set(i + 1, from_neutral(lua, engine, item)?)?;
+            }
+            mlua::Value::Table(t)
+        }
+        N::Map(entries) => {
+            let t = lua.create_table()?;
+            for (k, item) in entries {
+                t.set(k.as_str(), from_neutral(lua, engine, item)?)?;
+            }
+            mlua::Value::Table(t)
+        }
+    })
+}
+
+fn list(lua: &Lua, xs: &[f32]) -> mlua::Result<mlua::Value> {
+    let t = lua.create_table()?;
+    for (i, x) in xs.iter().enumerate() {
+        t.set(i + 1, f64::from(*x))?;
+    }
+    Ok(mlua::Value::Table(t))
+}
+
 /// Fetch or create the global module table `name`.
 pub(super) fn module(lua: &Lua, engine: &Engine, name: &str) -> anyhow::Result<LuaModule> {
     let globals = lua.globals();

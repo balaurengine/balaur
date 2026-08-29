@@ -1,10 +1,9 @@
 //! What a language backend must provide.
 
 use anyhow::Result;
-use balaur_core::hecs::Entity;
 
 use crate::bindings::Bindings;
-use crate::value::Value;
+use crate::value::{NodeId, Value};
 
 /// A compiled script, keyed by its normalised path.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -39,7 +38,7 @@ impl ReloadReport {
 }
 
 /// A scripting language backend.
-pub trait ScriptLanguage {
+pub trait ScriptLanguage<C: ?Sized> {
     /// For diagnostics and the `ReloadReport` header.
     fn name(&self) -> &'static str;
 
@@ -48,11 +47,11 @@ pub trait ScriptLanguage {
     fn extensions(&self) -> &'static [&'static str];
 
     /// The module a subsystem registers into. Called once per module name.
-    fn module(&mut self, name: &str) -> &mut dyn Bindings;
+    fn module(&mut self, name: &str) -> &mut dyn Bindings<C>;
 
     fn compile(&mut self, key: &str, source: &str) -> Result<ScriptId>;
 
-    fn instantiate(&mut self, script: ScriptId, node: Entity) -> Result<InstanceId>;
+    fn instantiate(&mut self, script: ScriptId, node: NodeId) -> Result<InstanceId>;
 
     /// Returns `Ok(None)` when the instance does not define `method`, which is
     /// the common case and must not cost an error allocation.

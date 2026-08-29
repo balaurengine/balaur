@@ -8,7 +8,6 @@ description = "Language-neutral scripting seam: traits only, no backend."
 
 [dependencies]
 anyhow.workspace = true
-balaur_core.workspace = true
 
 [lints]
 workspace = true

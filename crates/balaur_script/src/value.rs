@@ -1,13 +1,13 @@
 //! The neutral value type crossing the engine/script boundary.
 
-use balaur_core::hecs::Entity;
+use anyhow::{bail, Result};
 
 /// A value a script can pass or receive.
 ///
 /// Deliberately small and closed: every backend must represent all of it, and
 /// a closed set means a type confusion is a caught error rather than silent
-/// corruption. Vectors and colours are variants rather than lists because
-/// they are the hot types and boxing them is what makes scripting slow.
+/// corruption. Vectors and colours are variants rather than lists because they
+/// are the hot types and boxing them is what makes scripting slow.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Nil,
@@ -18,7 +18,9 @@ pub enum Value {
     Vec2([f32; 2]),
     Vec3([f32; 3]),
     Color([f32; 4]),
-    Node(Entity),
+    /// A node, as `hecs::Entity::to_bits()`. Kept opaque so this crate
+    /// depends on nothing.
+    Node(u64),
     List(Vec<Value>),
     Map(Vec<(String, Value)>),
 }
@@ -41,70 +43,121 @@ impl Value {
     }
 }
 
-/// Convert script arguments into a Rust type.
-pub trait FromArgs: Sized {
-    fn from_args(args: &[Value]) -> anyhow::Result<Self>;
+/// One positional argument.
+pub trait FromArg: Sized {
+    fn from_arg(v: Option<&Value>) -> Result<Self>;
 }
 
-/// Convert a Rust value into something a script can hold.
+/// A whole argument list. Implemented for scalars (one argument) and for
+/// tuples (one argument each, positionally).
+pub trait FromArgs: Sized {
+    fn from_args(args: &[Value]) -> Result<Self>;
+}
+
+/// A Rust value a script can hold.
 pub trait IntoValue {
     fn into_value(self) -> Value;
 }
 
-macro_rules! from_args_scalar {
-    ($t:ty, $variant:ident, $conv:expr) => {
-        impl FromArgs for $t {
-            fn from_args(args: &[Value]) -> anyhow::Result<Self> {
-                match args.first() {
-                    Some(Value::$variant(v)) => Ok($conv(v)),
-                    Some(other) => {
-                        anyhow::bail!(
-                            "expected {}, got {}",
-                            stringify!($variant),
-                            other.type_name()
-                        )
-                    }
-                    None => anyhow::bail!("expected {}, got no argument", stringify!($variant)),
+fn want(v: Option<&Value>, expected: &str) -> anyhow::Error {
+    v.map_or_else(
+        || anyhow::anyhow!("expected {expected}, got no argument"),
+        |v| anyhow::anyhow!("expected {expected}, got {}", v.type_name()),
+    )
+}
+
+macro_rules! num_arg {
+    ($($t:ty),*) => { $(
+        impl FromArg for $t {
+            fn from_arg(v: Option<&Value>) -> Result<Self> {
+                match v {
+                    Some(Value::Num(n)) => Ok(*n as Self),
+                    Some(Value::Int(i)) => Ok(*i as Self),
+                    other => Err(want(other, "number")),
                 }
             }
         }
-    };
+        impl IntoValue for $t {
+            // Widening f32->f64 is lossless; f64->f64 is identity.
+            #[allow(clippy::cast_lossless)]
+            fn into_value(self) -> Value { Value::Num(self as f64) }
+        }
+    )* };
 }
+num_arg!(f32, f64);
 
-from_args_scalar!(bool, Bool, |v: &bool| *v);
-from_args_scalar!(i64, Int, |v: &i64| *v);
-from_args_scalar!(f64, Num, |v: &f64| *v);
-from_args_scalar!(String, Str, std::clone::Clone::clone);
+macro_rules! int_arg {
+    ($($t:ty),*) => { $(
+        impl FromArg for $t {
+            fn from_arg(v: Option<&Value>) -> Result<Self> {
+                match v {
+                    Some(Value::Int(i)) => Self::try_from(*i)
+                        .map_err(|_| anyhow::anyhow!("{i} is out of range for {}", stringify!($t))),
+                    Some(Value::Num(n)) => Ok(*n as Self),
+                    other => Err(want(other, "integer")),
+                }
+            }
+        }
+        impl IntoValue for $t {
+            // The neutral integer is i64; u64/usize past i64::MAX are not a
+            // value a script can hold anyway.
+            #[allow(clippy::cast_lossless, clippy::cast_possible_wrap)]
+            fn into_value(self) -> Value { Value::Int(self as i64) }
+        }
+    )* };
+}
+int_arg!(i32, i64, u32, u64, usize);
 
-impl FromArgs for () {
-    fn from_args(_: &[Value]) -> anyhow::Result<Self> {
-        Ok(())
+impl FromArg for bool {
+    fn from_arg(v: Option<&Value>) -> Result<Self> {
+        match v {
+            Some(Value::Bool(b)) => Ok(*b),
+            other => Err(want(other, "bool")),
+        }
     }
 }
 
-impl IntoValue for () {
-    fn into_value(self) -> Value {
-        Value::Nil
+impl FromArg for String {
+    fn from_arg(v: Option<&Value>) -> Result<Self> {
+        match v {
+            Some(Value::Str(s)) => Ok(s.clone()),
+            other => Err(want(other, "string")),
+        }
     }
 }
+
+/// A node handle, opaque here and re-hydrated by the backend.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct NodeId(pub u64);
+
+impl FromArg for NodeId {
+    fn from_arg(v: Option<&Value>) -> Result<Self> {
+        match v {
+            Some(Value::Node(bits)) => Ok(Self(*bits)),
+            other => Err(want(other, "node")),
+        }
+    }
+}
+
+impl FromArg for Value {
+    fn from_arg(v: Option<&Value>) -> Result<Self> {
+        Ok(v.cloned().unwrap_or(Value::Nil))
+    }
+}
+
+/// A missing or nil argument is `None`; anything else must convert.
+impl<T: FromArg> FromArg for Option<T> {
+    fn from_arg(v: Option<&Value>) -> Result<Self> {
+        match v {
+            None | Some(Value::Nil) => Ok(None),
+            some => T::from_arg(some).map(Some),
+        }
+    }
+}
+
 impl IntoValue for bool {
     fn into_value(self) -> Value {
         Value::Bool(self)
-    }
-}
-impl IntoValue for i64 {
-    fn into_value(self) -> Value {
-        Value::Int(self)
-    }
-}
-impl IntoValue for f64 {
-    fn into_value(self) -> Value {
-        Value::Num(self)
-    }
-}
-impl IntoValue for f32 {
-    fn into_value(self) -> Value {
-        Value::Num(f64::from(self))
     }
 }
 impl IntoValue for String {
@@ -112,8 +165,95 @@ impl IntoValue for String {
         Value::Str(self)
     }
 }
+impl IntoValue for &str {
+    fn into_value(self) -> Value {
+        Value::Str(self.to_string())
+    }
+}
+impl IntoValue for NodeId {
+    fn into_value(self) -> Value {
+        Value::Node(self.0)
+    }
+}
 impl IntoValue for Value {
     fn into_value(self) -> Value {
         self
+    }
+}
+impl IntoValue for () {
+    fn into_value(self) -> Value {
+        Value::Nil
+    }
+}
+impl<T: IntoValue> IntoValue for Option<T> {
+    fn into_value(self) -> Value {
+        self.map_or(Value::Nil, IntoValue::into_value)
+    }
+}
+impl<T: IntoValue> IntoValue for Vec<T> {
+    fn into_value(self) -> Value {
+        Value::List(self.into_iter().map(IntoValue::into_value).collect())
+    }
+}
+
+impl FromArgs for () {
+    fn from_args(_: &[Value]) -> Result<Self> {
+        Ok(())
+    }
+}
+
+/// A single scalar consumes one argument.
+macro_rules! scalar_args {
+    ($($t:ty),*) => { $(
+        impl FromArgs for $t {
+            fn from_args(args: &[Value]) -> Result<Self> { Self::from_arg(args.first()) }
+        }
+    )* };
+}
+scalar_args!(bool, i32, i64, u32, u64, usize, f32, f64, String, NodeId, Value);
+
+impl<T: FromArg> FromArgs for Option<T> {
+    fn from_args(args: &[Value]) -> Result<Self> {
+        Self::from_arg(args.first())
+    }
+}
+
+/// Tuples map positionally: element `n` reads argument `n`.
+macro_rules! tuple_args {
+    ($($n:tt $name:ident),+) => {
+        impl<$($name: FromArg),+> FromArgs for ($($name,)+) {
+            fn from_args(args: &[Value]) -> Result<Self> {
+                Ok(($($name::from_arg(args.get($n))?,)+))
+            }
+        }
+        impl<$($name: IntoValue),+> IntoValue for ($($name,)+) {
+            // The macro reuses the type-parameter idents as bindings.
+            #[allow(non_snake_case)]
+            fn into_value(self) -> Value {
+                let ($($name,)+) = self;
+                Value::List(vec![$($name.into_value()),+])
+            }
+        }
+    };
+}
+tuple_args!(0 A);
+tuple_args!(0 A, 1 B);
+tuple_args!(0 A, 1 B, 2 C);
+tuple_args!(0 A, 1 B, 2 C, 3 D);
+tuple_args!(0 A, 1 B, 2 C, 3 D, 4 E);
+tuple_args!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F);
+tuple_args!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G);
+tuple_args!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H);
+tuple_args!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H, 8 I);
+tuple_args!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H, 8 I, 9 J);
+tuple_args!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H, 8 I, 9 J, 10 K);
+tuple_args!(0 A, 1 B, 2 C, 3 D, 4 E, 5 F, 6 G, 7 H, 8 I, 9 J, 10 K, 11 L);
+
+/// A wrong argument count is a bug in the binding, not in the script.
+pub fn expect_arity(args: &[Value], n: usize, name: &str) -> Result<()> {
+    if args.len() == n {
+        Ok(())
+    } else {
+        bail!("{name} takes {n} arguments, got {}", args.len())
     }
 }

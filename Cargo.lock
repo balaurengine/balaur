@@ -369,6 +369,7 @@ name = "balaur_core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "balaur_script",
  "glamx",
  "hecs",
  "indexmap",
@@ -431,7 +432,6 @@ name = "balaur_script"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "balaur_core",
 ]
 
 [[package]]

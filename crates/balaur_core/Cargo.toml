@@ -17,6 +17,7 @@ anyhow.workspace = true
 indexmap.workspace = true
 rustc-hash.workspace = true
 libm.workspace = true
+balaur_script.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-log.workspace = true
