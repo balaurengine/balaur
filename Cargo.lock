@@ -348,6 +348,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "balaur_core",
+ "balaur_script",
  "rodio",
  "tracing",
 ]
@@ -391,6 +392,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "balaur_core",
+ "balaur_script",
  "tracing",
 ]
 

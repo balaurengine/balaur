@@ -1,7 +1,7 @@
 //! Input as a Balaur plugin.
 //!
 //! Backend-agnostic: window backends (and, later, replay files) feed events
-//! into [`InputState`] each frame; scripts read it through the `input` Lua
+//! into [`InputState`] each frame; scripts read it through the `input`
 //! module. In headless runs nothing feeds it, and every query returns the
 //! neutral answer, so simulation code does not need to care.
 //!
@@ -11,7 +11,9 @@
 
 use anyhow::Result;
 use balaur_core::collections::DetHashSet;
+use balaur_core::Engine;
 use balaur_core::{App, Plugin};
+use balaur_script::{Bindings, BindingsExt};
 
 const MOUSE_BUTTONS: usize = 8;
 
@@ -93,54 +95,61 @@ impl Plugin for InputPlugin {
     fn build(&mut self, app: &mut App) -> Result<()> {
         app.engine.insert_resource(InputState::default());
 
-        let m = app.lua_module("input")?;
-        m.function("is_down", |eng, key: String| {
-            let state = eng.resource::<InputState>();
-            let v = state.borrow().down.contains(&key);
-            Ok(v)
-        })?;
-        m.function("just_pressed", |eng, key: String| {
-            let state = eng.resource::<InputState>();
-            let v = state.borrow().just_pressed.contains(&key);
-            Ok(v)
-        })?;
-        m.function("just_released", |eng, key: String| {
-            let state = eng.resource::<InputState>();
-            let v = state.borrow().just_released.contains(&key);
-            Ok(v)
-        })?;
-        m.function("mouse_position", |eng, ()| {
-            let state = eng.resource::<InputState>();
-            let v = state.borrow().mouse_pos;
-            Ok(v)
-        })?;
-        m.function("mouse_delta", |eng, ()| {
-            let state = eng.resource::<InputState>();
-            let v = state.borrow().mouse_delta;
-            Ok(v)
-        })?;
-        m.function("scroll_delta", |eng, ()| {
-            let state = eng.resource::<InputState>();
-            let v = state.borrow().scroll;
-            Ok(v)
-        })?;
-        // Buttons are 1-based from Lua, matching the usual Lua convention:
-        // 1 = left, 2 = right, 3 = middle.
-        m.function("is_mouse_down", |eng, button: usize| {
-            let state = eng.resource::<InputState>();
-            let v = button >= 1 && *state.borrow().mouse_down.get(button - 1).unwrap_or(&false);
-            Ok(v)
-        })?;
-        m.function("mouse_just_pressed", |eng, button: usize| {
-            let state = eng.resource::<InputState>();
-            let v = button >= 1
-                && *state
-                    .borrow()
-                    .mouse_just_pressed
-                    .get(button - 1)
-                    .unwrap_or(&false);
-            Ok(v)
-        })?;
+        let mut m = app.lua_module("input")?;
+        register(&mut m);
         Ok(())
     }
+}
+
+/// `input.*`. Declared against the neutral seam.
+fn register(m: &mut dyn Bindings<Engine>) {
+    m.function("is_down", |eng: &Engine, key: String| {
+        let state = eng.resource::<InputState>();
+        let v = state.borrow().down.contains(&key);
+        Ok(v)
+    });
+    m.function("just_pressed", |eng: &Engine, key: String| {
+        let state = eng.resource::<InputState>();
+        let v = state.borrow().just_pressed.contains(&key);
+        Ok(v)
+    });
+    m.function("just_released", |eng: &Engine, key: String| {
+        let state = eng.resource::<InputState>();
+        let v = state.borrow().just_released.contains(&key);
+        Ok(v)
+    });
+    m.function("mouse_position", |eng: &Engine, ()| {
+        let state = eng.resource::<InputState>();
+        let v = state.borrow().mouse_pos;
+        Ok(v)
+    });
+    m.function("mouse_delta", |eng: &Engine, ()| {
+        let state = eng.resource::<InputState>();
+        let v = state.borrow().mouse_delta;
+        Ok(v)
+    });
+    m.function("scroll_delta", |eng: &Engine, ()| {
+        let state = eng.resource::<InputState>();
+        let v = state.borrow().scroll;
+        Ok(v)
+    });
+    // Buttons are 1-based: 1 = left, 2 = right, 3 = middle. This follows Lua's
+    // convention and is a script-visible contract, so a 0-based backend such as
+    // Rune must either keep it or the scripts change. Decide before shipping a
+    // second language, not after.
+    m.function("is_mouse_down", |eng: &Engine, button: usize| {
+        let state = eng.resource::<InputState>();
+        let v = button >= 1 && *state.borrow().mouse_down.get(button - 1).unwrap_or(&false);
+        Ok(v)
+    });
+    m.function("mouse_just_pressed", |eng: &Engine, button: usize| {
+        let state = eng.resource::<InputState>();
+        let v = button >= 1
+            && *state
+                .borrow()
+                .mouse_just_pressed
+                .get(button - 1)
+                .unwrap_or(&false);
+        Ok(v)
+    });
 }

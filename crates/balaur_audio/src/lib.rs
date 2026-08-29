@@ -10,8 +10,9 @@ use std::io::BufReader;
 use std::path::PathBuf;
 
 use anyhow::Result;
-use balaur_core::mlua;
+use balaur_core::Engine;
 use balaur_core::{App, Plugin, Stage};
+use balaur_script::{Bindings, BindingsExt};
 use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player};
 
 pub struct AudioState {
@@ -73,34 +74,40 @@ impl Plugin for AudioPlugin {
             state.borrow_mut().players.retain(|p| !p.empty());
         });
 
-        let m = app.lua_module("audio")?;
-        m.function("play", |eng, (path, volume): (String, Option<f32>)| {
-            let state = eng.resource::<AudioState>();
-            let result = state
-                .borrow_mut()
-                .play(&path, volume.unwrap_or(1.0), false)
-                .map_err(mlua::Error::external);
-            result
-        })?;
-        m.function(
-            "play_looping",
-            |eng, (path, volume): (String, Option<f32>)| {
-                let state = eng.resource::<AudioState>();
-                let result = state
-                    .borrow_mut()
-                    .play(&path, volume.unwrap_or(1.0), true)
-                    .map_err(mlua::Error::external);
-                result
-            },
-        )?;
-        m.function("stop_all", |eng, ()| {
-            let state = eng.resource::<AudioState>();
-            let mut state = state.borrow_mut();
-            for player in state.players.drain(..) {
-                player.stop();
-            }
-            Ok(())
-        })?;
+        let mut m = app.lua_module("audio")?;
+        register(&mut m);
         Ok(())
     }
+}
+
+/// `audio.*`. Declared against the neutral seam, so it works on any backend.
+fn register(m: &mut dyn Bindings<Engine>) {
+    m.function(
+        "play",
+        |eng: &Engine, (path, volume): (String, Option<f32>)| {
+            let state = eng.resource::<AudioState>();
+            state
+                .borrow_mut()
+                .play(&path, volume.unwrap_or(1.0), false)?;
+            Ok(())
+        },
+    );
+    m.function(
+        "play_looping",
+        |eng: &Engine, (path, volume): (String, Option<f32>)| {
+            let state = eng.resource::<AudioState>();
+            state
+                .borrow_mut()
+                .play(&path, volume.unwrap_or(1.0), true)?;
+            Ok(())
+        },
+    );
+    m.function("stop_all", |eng: &Engine, ()| {
+        let state = eng.resource::<AudioState>();
+        let mut state = state.borrow_mut();
+        for player in state.players.drain(..) {
+            player.stop();
+        }
+        Ok(())
+    });
 }

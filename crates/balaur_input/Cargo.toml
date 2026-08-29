@@ -9,6 +9,7 @@ authors.workspace = true
 [dependencies]
 balaur_core.workspace = true
 anyhow.workspace = true
+balaur_script.workspace = true
 tracing.workspace = true
 
 [lints]
