@@ -19,7 +19,7 @@ fn write_project(root: &std::path::Path, script: &str) {
     std::fs::write(root.join("scripts/counter.luau"), script).unwrap();
 }
 
-const V1: &str = r#"
+const V1: &str = r"
 local Counter = {}
 function Counter:init()
     self.count = 0
@@ -29,9 +29,9 @@ function Counter:update(dt)
     _G.count = self.count
 end
 return Counter
-"#;
+";
 
-const V2: &str = r#"
+const V2: &str = r"
 local Counter = {}
 function Counter:init()
     self.count = 0
@@ -44,7 +44,7 @@ function Counter:hot_reload()
     _G.migrated = true
 end
 return Counter
-"#;
+";
 
 fn global_i64(app: &App, name: &str) -> i64 {
     let lua = app.engine.scripts().unwrap().lua();

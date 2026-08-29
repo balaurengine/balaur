@@ -25,10 +25,10 @@ pub struct Pack {
 
 impl Pack {
     /// Compile every script in `project_root` and gather scenes into a pack.
-    pub fn build(project_root: &Path) -> Result<Pack> {
+    pub fn build(project_root: &Path) -> Result<Self> {
         let manifest = std::fs::read_to_string(project_root.join("project.toml"))
             .with_context(|| format!("no project.toml in {}", project_root.display()))?;
-        let mut pack = Pack {
+        let mut pack = Self {
             manifest,
             ..Default::default()
         };
@@ -71,14 +71,14 @@ impl Pack {
         out
     }
 
-    pub fn decode(data: &[u8]) -> Result<Pack> {
+    pub fn decode(data: &[u8]) -> Result<Self> {
         let mut cursor = data;
         let magic = take(&mut cursor, MAGIC.len())?;
         if magic != MAGIC {
             return Err(anyhow!("not a balaur pack (bad magic)"));
         }
         let manifest = String::from_utf8(read_bytes(&mut cursor)?.to_vec())?;
-        let mut pack = Pack {
+        let mut pack = Self {
             manifest,
             ..Default::default()
         };

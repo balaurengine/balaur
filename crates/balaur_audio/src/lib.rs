@@ -49,7 +49,7 @@ impl AudioState {
 pub struct AudioPlugin;
 
 impl Plugin for AudioPlugin {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "audio"
     }
 

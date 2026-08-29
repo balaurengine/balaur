@@ -17,11 +17,11 @@ thread_local! {
 }
 
 /// The pass's UI scale: every widget dimension is multiplied by this.
-pub fn scale() -> f32 {
-    SCALE.with(|s| s.get())
+pub(crate) fn scale() -> f32 {
+    SCALE.with(std::cell::Cell::get)
 }
 
-pub fn enter_pass(ctx: &egui::Context, ui_scale: f32) {
+pub(crate) fn enter_pass(ctx: &egui::Context, ui_scale: f32) {
     SCALE.with(|s| s.set(ui_scale));
     CTX.with(|c| *c.borrow_mut() = Some(ctx.clone()));
     // The root Ui spanning the viewport; panels carve regions out of it
@@ -33,25 +33,25 @@ pub fn enter_pass(ctx: &egui::Context, ui_scale: f32) {
             .layer_id(egui::LayerId::background())
             .max_rect(ctx.viewport_rect()),
     ));
-    let ptr: *mut egui::Ui = &mut *root;
+    let ptr: *mut egui::Ui = &raw mut *root;
     ROOT.with(|r| *r.borrow_mut() = Some(root));
     UI_STACK.with(|s| s.borrow_mut().push(ptr));
 }
 
-pub fn leave_pass() {
+pub(crate) fn leave_pass() {
     UI_STACK.with(|s| s.borrow_mut().clear());
     ROOT.with(|r| *r.borrow_mut() = None);
     CTX.with(|c| *c.borrow_mut() = None);
 }
 
-pub fn with_ctx<R>(f: impl FnOnce(&egui::Context) -> mlua::Result<R>) -> mlua::Result<R> {
+pub(crate) fn with_ctx<R>(f: impl FnOnce(&egui::Context) -> mlua::Result<R>) -> mlua::Result<R> {
     CTX.with(|c| match c.borrow().as_ref() {
         Some(ctx) => f(ctx),
         None => Err(mlua::Error::runtime("ui.* can only be called from draw_ui")),
     })
 }
 
-pub fn with_ui<R>(f: impl FnOnce(&mut egui::Ui) -> mlua::Result<R>) -> mlua::Result<R> {
+pub(crate) fn with_ui<R>(f: impl FnOnce(&mut egui::Ui) -> mlua::Result<R>) -> mlua::Result<R> {
     let top = UI_STACK.with(|s| s.borrow().last().copied());
     match top {
         Some(ptr) => f(unsafe { &mut *ptr }),
@@ -63,8 +63,8 @@ pub fn with_ui<R>(f: impl FnOnce(&mut egui::Ui) -> mlua::Result<R>) -> mlua::Res
 
 /// Push `ui`, run the Lua callback, pop. All container widgets funnel
 /// through here.
-pub fn scoped(ui: &mut egui::Ui, callback: &mlua::Function) -> mlua::Result<()> {
-    UI_STACK.with(|s| s.borrow_mut().push(ui as *mut egui::Ui));
+pub(crate) fn scoped(ui: &mut egui::Ui, callback: &mlua::Function) -> mlua::Result<()> {
+    UI_STACK.with(|s| s.borrow_mut().push(std::ptr::from_mut::<egui::Ui>(ui)));
     let result = callback.call::<()>(());
     UI_STACK.with(|s| {
         s.borrow_mut().pop();

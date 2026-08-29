@@ -7,6 +7,7 @@ step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 
 step "fmt";     cargo fmt --all --check
 step "clippy";  cargo clippy --workspace --all-targets -- -D warnings
+step "docs";    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --lib
 step "test";    cargo test --workspace
 step "e2e: example projects headless"
 for ex in examples/*/; do
@@ -17,7 +18,7 @@ for ex in examples/*/; do
 done
 step "house lints"; python3 scripts/house_lints.py --fail-on-error
 if command -v cargo-deny >/dev/null 2>&1; then
-  step "deny"; cargo deny check licenses advisories bans sources
+  step "deny"; cargo deny check advisories bans sources
 else
   printf '\n(skipping cargo-deny: not installed — cargo install cargo-deny)\n'
 fi

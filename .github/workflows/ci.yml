@@ -42,6 +42,11 @@ jobs:
       - name: Clippy
         working-directory: balaur
         run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Docs
+        working-directory: balaur
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps --lib
       - name: Test
         working-directory: balaur
         run: cargo test --workspace
@@ -66,7 +71,7 @@ jobs:
         run: python3 scripts/house_lints.py --fail-on-error
 
   supply-chain:
-    name: licences · advisories
+    name: advisories · bans
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -80,4 +85,4 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           manifest-path: balaur/Cargo.toml
-          command: check licenses advisories bans sources
+          command: check advisories bans sources

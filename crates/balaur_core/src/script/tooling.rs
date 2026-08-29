@@ -23,7 +23,7 @@ fn resolve(eng: &Engine, path: &str) -> PathBuf {
     }
 }
 
-pub fn install(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
+pub(crate) fn install(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     let m = super::env::module(lua, engine, "fs")?;
     m.function("read", |eng, path: String| {
         Ok(std::fs::read_to_string(resolve(eng, &path)).ok())
@@ -89,14 +89,14 @@ impl mlua::IntoLua for TomlToLua {
             toml::Value::Array(items) => {
                 let t = lua.create_table()?;
                 for (i, item) in items.into_iter().enumerate() {
-                    t.set(i + 1, TomlToLua(item))?;
+                    t.set(i + 1, Self(item))?;
                 }
                 Value::Table(t)
             }
             toml::Value::Table(map) => {
                 let t = lua.create_table()?;
                 for (k, v) in map {
-                    t.set(k, TomlToLua(v))?;
+                    t.set(k, Self(v))?;
                 }
                 Value::Table(t)
             }

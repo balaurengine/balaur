@@ -1,3 +1,7 @@
+// Exact equality is the assertion: a determinism test that tolerated drift
+// would not be testing determinism.
+#![allow(clippy::float_cmp)]
+
 //! Tests for the deterministic scripting layer: fastcall routing, libm-backed
 //! math, and the seeded RNG.
 
@@ -81,7 +85,7 @@ fn rng_is_seeded_and_reproducible() {
     let sequence = |app: &App| -> Vec<f64> {
         eval_compiled(
             app,
-            r#"
+            r"
             rng.seed(1234)
             local out = {}
             for i = 1, 4 do out[i] = rng.random() end
@@ -90,7 +94,7 @@ fn rng_is_seeded_and_reproducible() {
             out[7] = math.random(-5, 5)     -- int in [-5, 5]
             out[8] = rng.int(0, 100)
             return out
-            "#,
+            ",
         )
     };
     let (app1, _d1) = make_app();

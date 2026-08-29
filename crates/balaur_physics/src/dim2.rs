@@ -35,7 +35,7 @@ impl Physics2DState {
             gravity: Vec2::new(0.0, -9.81),
             ..Default::default()
         };
-        Physics2DState {
+        Self {
             world,
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
@@ -80,19 +80,16 @@ fn add_collider(eng: &Engine, entity: Entity, builder: ColliderBuilder2) -> Resu
     {
         let state = eng.resource::<Physics2DState>();
         let mut state = state.borrow_mut();
-        match state.bodies.get(&entity).copied() {
-            Some(body) => {
-                handle = state.world.insert_collider(builder, Some(body));
-            }
-            None => {
-                drop(state);
-                let pose = node_pose_2d(eng, entity)?;
-                let state = eng.resource::<Physics2DState>();
-                handle = state
-                    .borrow_mut()
-                    .world
-                    .insert_collider(builder.position(pose), None);
-            }
+        if let Some(body) = state.bodies.get(&entity).copied() {
+            handle = state.world.insert_collider(builder, Some(body));
+        } else {
+            drop(state);
+            let pose = node_pose_2d(eng, entity)?;
+            let state = eng.resource::<Physics2DState>();
+            handle = state
+                .borrow_mut()
+                .world
+                .insert_collider(builder.position(pose), None);
         }
     }
     let state = eng.resource::<Physics2DState>();
@@ -166,29 +163,29 @@ fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let mut map = toml::map::Map::new();
     if let Some(ball) = collider.shape().as_ball() {
         map.insert("shape".into(), toml::Value::String("circle".into()));
-        map.insert("radius".into(), toml::Value::Float(ball.radius as f64));
+        map.insert("radius".into(), toml::Value::Float(f64::from(ball.radius)));
     } else {
         let cuboid = collider.shape().as_cuboid()?;
         map.insert("shape".into(), toml::Value::String("rect".into()));
         map.insert(
             "half_extents".into(),
             toml::Value::Array(vec![
-                toml::Value::Float(cuboid.half_extents.x as f64),
-                toml::Value::Float(cuboid.half_extents.y as f64),
+                toml::Value::Float(f64::from(cuboid.half_extents.x)),
+                toml::Value::Float(f64::from(cuboid.half_extents.y)),
             ]),
         );
     }
     map.insert(
         "restitution".into(),
-        toml::Value::Float(collider.restitution() as f64),
+        toml::Value::Float(f64::from(collider.restitution())),
     );
     map.insert(
         "friction".into(),
-        toml::Value::Float(collider.friction() as f64),
+        toml::Value::Float(f64::from(collider.friction())),
     );
     map.insert(
         "density".into(),
-        toml::Value::Float(collider.density() as f64),
+        toml::Value::Float(f64::from(collider.density())),
     );
     Some(toml::Value::Table(map))
 }
@@ -322,7 +319,7 @@ pub fn set_sleeping_allowed(eng: &Engine, allowed: bool) {
 
 pub fn build(app: &mut App) -> Result<()> {
     install_physics2d_api(app)?;
-    register_physics2d_components(app)?;
+    register_physics2d_components(app);
 
     Ok(())
 }
@@ -385,7 +382,7 @@ fn install_physics2d_api(app: &mut App) -> Result<()> {
 }
 
 /// The 2D `body` and collider components.
-fn register_physics2d_components(app: &mut App) -> Result<()> {
+fn register_physics2d_components(app: &mut App) {
     // Components (schema-driven; also usable as scene keys).
     app.register_component(
         "body2d",
@@ -452,5 +449,4 @@ density = { kind = "float", default = 1.0, min = 0.001 }"#,
             get: Box::new(get_collider_params),
         },
     );
-    Ok(())
 }

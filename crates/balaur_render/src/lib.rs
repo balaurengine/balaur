@@ -50,7 +50,7 @@ pub struct GridConfig {
 
 impl Default for GridConfig {
     fn default() -> Self {
-        GridConfig {
+        Self {
             enabled: false,
             step: 1.0,
             major_every: 5,
@@ -109,7 +109,7 @@ pub struct Camera2DConfig {
 
 impl Default for Camera2DConfig {
     fn default() -> Self {
-        Camera2DConfig {
+        Self {
             center: [0.0, 0.0],
             zoom: 60.0,
             changed: false,
@@ -160,7 +160,7 @@ pub struct CameraConfig {
 
 impl Default for CameraConfig {
     fn default() -> Self {
-        CameraConfig {
+        Self {
             eye: glamx::Vec3::new(8.0, 5.0, 12.0),
             target: glamx::Vec3::new(0.0, 1.0, 0.0),
             changed: true,
@@ -254,7 +254,7 @@ fn set_color(eng: &Engine, entity: Entity, color: [f32; 4]) -> Result<()> {
 pub struct RenderPlugin;
 
 impl Plugin for RenderPlugin {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "render"
     }
 
@@ -591,16 +591,16 @@ half_extents = { kind = "vec3", default = [0.5, 0.5, 0.5] }"#,
                 match renderable.shape {
                     Shape::Ball { radius } => {
                         map.insert("kind".into(), toml::Value::String("ball".into()));
-                        map.insert("radius".into(), toml::Value::Float(radius as f64));
+                        map.insert("radius".into(), toml::Value::Float(f64::from(radius)));
                     }
                     Shape::Cuboid { hx, hy, hz } => {
                         map.insert("kind".into(), toml::Value::String("cuboid".into()));
                         map.insert(
                             "half_extents".into(),
                             toml::Value::Array(vec![
-                                toml::Value::Float(hx as f64),
-                                toml::Value::Float(hy as f64),
-                                toml::Value::Float(hz as f64),
+                                toml::Value::Float(f64::from(hx)),
+                                toml::Value::Float(f64::from(hy)),
+                                toml::Value::Float(f64::from(hz)),
                             ]),
                         );
                     }
@@ -662,15 +662,15 @@ half_extents = { kind = "vec2", default = [0.5, 0.5] }"#,
                 match renderable.shape {
                     Shape2d::Circle { radius } => {
                         map.insert("kind".into(), toml::Value::String("circle".into()));
-                        map.insert("radius".into(), toml::Value::Float(radius as f64));
+                        map.insert("radius".into(), toml::Value::Float(f64::from(radius)));
                     }
                     Shape2d::Rect { hx, hy } => {
                         map.insert("kind".into(), toml::Value::String("rect".into()));
                         map.insert(
                             "half_extents".into(),
                             toml::Value::Array(vec![
-                                toml::Value::Float(hx as f64),
-                                toml::Value::Float(hy as f64),
+                                toml::Value::Float(f64::from(hx)),
+                                toml::Value::Float(f64::from(hy)),
                             ]),
                         );
                     }
@@ -713,7 +713,7 @@ fn register_color_component(app: &mut App) {
                     toml::Value::Array(
                         color
                             .iter()
-                            .map(|c| toml::Value::Float(*c as f64))
+                            .map(|c| toml::Value::Float(f64::from(*c)))
                             .collect(),
                     ),
                 )])))

@@ -40,7 +40,7 @@ pub struct PhysicsState {
 
 impl PhysicsState {
     fn new() -> Self {
-        PhysicsState {
+        Self {
             world: PhysicsWorld::default(),
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
@@ -53,7 +53,7 @@ impl PhysicsState {
 pub struct PhysicsPlugin;
 
 impl Plugin for PhysicsPlugin {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "physics"
     }
 
@@ -127,16 +127,16 @@ fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let mut map = toml::map::Map::new();
     if let Some(ball) = collider.shape().as_ball() {
         map.insert("shape".into(), toml::Value::String("ball".into()));
-        map.insert("radius".into(), toml::Value::Float(ball.radius as f64));
+        map.insert("radius".into(), toml::Value::Float(f64::from(ball.radius)));
     } else {
         let cuboid = collider.shape().as_cuboid()?;
         map.insert("shape".into(), toml::Value::String("cuboid".into()));
         map.insert(
             "half_extents".into(),
             toml::Value::Array(vec![
-                toml::Value::Float(cuboid.half_extents.x as f64),
-                toml::Value::Float(cuboid.half_extents.y as f64),
-                toml::Value::Float(cuboid.half_extents.z as f64),
+                toml::Value::Float(f64::from(cuboid.half_extents.x)),
+                toml::Value::Float(f64::from(cuboid.half_extents.y)),
+                toml::Value::Float(f64::from(cuboid.half_extents.z)),
             ]),
         );
     }
@@ -174,20 +174,17 @@ fn add_collider(eng: &Engine, entity: Entity, builder: ColliderBuilder) -> Resul
     {
         let state = eng.resource::<PhysicsState>();
         let mut state = state.borrow_mut();
-        match state.bodies.get(&entity).copied() {
-            Some(body) => {
-                handle = state.world.insert_collider(builder, Some(body));
-            }
-            None => {
-                // No body: static world geometry at the node's current pose.
-                drop(state);
-                let pose = node_pose(eng, entity)?;
-                let state = eng.resource::<PhysicsState>();
-                handle = state
-                    .borrow_mut()
-                    .world
-                    .insert_collider(builder.position(pose), None);
-            }
+        if let Some(body) = state.bodies.get(&entity).copied() {
+            handle = state.world.insert_collider(builder, Some(body));
+        } else {
+            // No body: static world geometry at the node's current pose.
+            drop(state);
+            let pose = node_pose(eng, entity)?;
+            let state = eng.resource::<PhysicsState>();
+            handle = state
+                .borrow_mut()
+                .world
+                .insert_collider(builder.position(pose), None);
         }
     }
     let state = eng.resource::<PhysicsState>();

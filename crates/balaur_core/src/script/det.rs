@@ -48,19 +48,19 @@ pub struct Pcg32 {
     state: u64,
 }
 
-const PCG_MULT: u64 = 6364136223846793005;
-const PCG_INC: u64 = 1442695040888963407;
+const PCG_MULT: u64 = 6_364_136_223_846_793_005;
+const PCG_INC: u64 = 1_442_695_040_888_963_407;
 
 impl Pcg32 {
-    pub fn new(seed: u64) -> Self {
-        let mut rng = Pcg32 {
+    pub const fn new(seed: u64) -> Self {
+        let mut rng = Self {
             state: seed.wrapping_add(PCG_INC),
         };
         rng.next_u32();
         rng
     }
 
-    pub fn next_u32(&mut self) -> u32 {
+    pub const fn next_u32(&mut self) -> u32 {
         let old = self.state;
         self.state = old.wrapping_mul(PCG_MULT).wrapping_add(PCG_INC);
         let xorshifted = (((old >> 18) ^ old) >> 27) as u32;
@@ -70,8 +70,8 @@ impl Pcg32 {
 
     /// Uniform in `[0, 1)` with 53 bits of precision.
     pub fn next_f64(&mut self) -> f64 {
-        let hi = (self.next_u32() >> 6) as u64; // 26 bits
-        let lo = (self.next_u32() >> 5) as u64; // 27 bits
+        let hi = u64::from(self.next_u32() >> 6); // 26 bits
+        let lo = u64::from(self.next_u32() >> 5); // 27 bits
         ((hi << 27) | lo) as f64 * (1.0 / (1u64 << 53) as f64)
     }
 
@@ -82,8 +82,9 @@ impl Pcg32 {
             return lo;
         }
         let span = (hi - lo) as u64 + 1;
-        let r = ((self.next_u32() as u64) * span) >> 32;
-        lo + r as i64
+        let r = (u64::from(self.next_u32()) * span) >> 32;
+        // span fits in u32, so r < 2^32 and the cast cannot wrap.
+        lo + i64::try_from(r).unwrap_or(i64::MAX)
     }
 }
 
@@ -92,11 +93,13 @@ pub struct DetRng(pub Pcg32);
 
 impl Default for DetRng {
     fn default() -> Self {
-        DetRng(Pcg32::new(0))
+        Self(Pcg32::new(0))
     }
 }
 
-fn lua_random(eng: &Engine, args: Variadic<i64>) -> mlua::Result<Value> {
+// Returns Result to match the signature mlua's create_function expects.
+#[allow(clippy::unnecessary_wraps)]
+fn lua_random(eng: &Engine, args: &Variadic<i64>) -> mlua::Result<Value> {
     let rng = eng.resource::<DetRng>();
     let mut rng = rng.borrow_mut();
     match args.len() {
@@ -159,7 +162,7 @@ pub fn install(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     let eng = engine.clone();
     math.set(
         "random",
-        lua.create_function(move |_, args: Variadic<i64>| lua_random(&eng, args))?,
+        lua.create_function(move |_, args: Variadic<i64>| lua_random(&eng, &args))?,
     )?;
     let eng = engine.clone();
     math.set(
@@ -186,7 +189,7 @@ pub fn install(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     m.function("range", |eng, (lo, hi): (f64, f64)| {
         let rng = eng.resource::<DetRng>();
         let v = rng.borrow_mut().0.next_f64();
-        Ok(lo + v * (hi - lo))
+        Ok(v.mul_add(hi - lo, lo))
     })?;
     m.function("int", |eng, (lo, hi): (i64, i64)| {
         let rng = eng.resource::<DetRng>();

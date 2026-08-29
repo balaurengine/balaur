@@ -26,8 +26,8 @@ pub struct Transform {
 }
 
 impl Transform {
-    pub fn identity() -> Self {
-        Transform {
+    pub const fn identity() -> Self {
+        Self {
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
             scale: Vec3::ONE,
@@ -46,16 +46,16 @@ pub struct GlobalTransform {
 }
 
 impl GlobalTransform {
-    pub fn identity() -> Self {
-        GlobalTransform {
+    pub const fn identity() -> Self {
+        Self {
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
             scale: Vec3::ONE,
         }
     }
 
-    fn mul(&self, local: &Transform) -> GlobalTransform {
-        GlobalTransform {
+    fn mul(&self, local: &Transform) -> Self {
+        Self {
             position: self.position + self.rotation * (local.position * self.scale),
             rotation: self.rotation * local.rotation,
             scale: self.scale * local.scale,

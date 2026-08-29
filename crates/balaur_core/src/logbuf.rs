@@ -39,15 +39,15 @@ struct TeeLogger {
 fn lock_buffer() -> std::sync::MutexGuard<'static, Option<Buffer>> {
     BUFFER
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 impl log::Log for TeeLogger {
-    fn enabled(&self, metadata: &log::Metadata) -> bool {
+    fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
         metadata.level() <= self.filter
     }
 
-    fn log(&self, record: &log::Record) {
+    fn log(&self, record: &log::Record<'_>) {
         if !self.enabled(record.metadata()) {
             return;
         }

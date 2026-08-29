@@ -20,7 +20,7 @@ pub struct ThemeTokens {
 
 impl Default for ThemeTokens {
     fn default() -> Self {
-        ThemeTokens {
+        Self {
             dark: true,
             colors: HashMap::new(),
         }
@@ -34,7 +34,7 @@ impl ThemeTokens {
 }
 
 /// `#rrggbb` or `#rrggbbaa` to Color32.
-pub fn parse_hex(hex: &str) -> Option<Color32> {
+pub(crate) fn parse_hex(hex: &str) -> Option<Color32> {
     let hex = hex.strip_prefix('#')?;
     let parse = |i: usize| u8::from_str_radix(hex.get(i..i + 2)?, 16).ok();
     match hex.len() {
@@ -49,7 +49,7 @@ pub fn parse_hex(hex: &str) -> Option<Color32> {
     }
 }
 
-pub fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
+pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
     let c = |name: &str, fb: Color32| tokens.color(name, fb);
     let panel = c("panel", Color32::from_rgb(0x20, 0x24, 0x2a));
     let sunken = c("sunken", Color32::from_rgb(0x10, 0x12, 0x15));
@@ -111,7 +111,7 @@ pub fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
 }
 
 /// The named family for a widget option value.
-pub fn family(name: &str) -> FontFamily {
+pub(crate) fn family(name: &str) -> FontFamily {
     match name {
         "heading" => FontFamily::Name("heading".into()),
         "mono" => FontFamily::Name("mono".into()),
@@ -123,7 +123,7 @@ pub fn family(name: &str) -> FontFamily {
 /// (Caprasimo, Figtree, JetBrains Mono per the design), they take priority;
 /// otherwise the families alias egui's built-in fonts so everything still
 /// renders.
-pub fn install_fonts(engine: &Engine, ctx: &egui::Context) {
+pub(crate) fn install_fonts(engine: &Engine, ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     let mut heading_chain: Vec<String> = Vec::new();
     let mut ui_chain: Vec<String> = Vec::new();
@@ -135,12 +135,7 @@ pub fn install_fonts(engine: &Engine, ctx: &egui::Context) {
             let mut files: Vec<_> = entries
                 .flatten()
                 .map(|e| e.path())
-                .filter(|p| {
-                    matches!(
-                        p.extension().and_then(|e| e.to_str()),
-                        Some("ttf") | Some("otf")
-                    )
-                })
+                .filter(|p| matches!(p.extension().and_then(|e| e.to_str()), Some("ttf" | "otf")))
                 .collect();
             files.sort();
             for path in files {
@@ -201,7 +196,7 @@ pub fn install_fonts(engine: &Engine, ctx: &egui::Context) {
         .cloned()
         .unwrap_or_default();
     if heading_chain.is_empty() {
-        heading_chain = ui_chain.clone();
+        heading_chain.clone_from(&ui_chain);
     }
     heading_chain.extend(default_prop.clone());
     ui_chain.extend(default_prop);

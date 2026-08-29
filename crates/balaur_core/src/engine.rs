@@ -40,7 +40,7 @@ impl Engine {
     pub fn new() -> Self {
         let mut world = hecs::World::new();
         let root = crate::scene::spawn_root(&mut world);
-        Engine {
+        Self {
             inner: Rc::new(EngineInner {
                 world: RefCell::new(world),
                 resources: RefCell::new(Resources::default()),
@@ -111,7 +111,7 @@ impl Engine {
 
     pub fn advance_time(&self, dt: f32) {
         self.inner.delta.set(dt);
-        self.inner.time.set(self.inner.time.get() + dt as f64);
+        self.inner.time.set(self.inner.time.get() + f64::from(dt));
     }
 
     pub fn request_quit(&self) {

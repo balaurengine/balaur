@@ -32,21 +32,20 @@ impl LuaModule {
         Ok(())
     }
 
-    pub fn table(&self) -> &Table {
+    pub const fn table(&self) -> &Table {
         &self.table
     }
 }
 
 /// Fetch or create the global module table `name`.
-pub fn module(lua: &Lua, engine: &Engine, name: &str) -> anyhow::Result<LuaModule> {
+pub(super) fn module(lua: &Lua, engine: &Engine, name: &str) -> anyhow::Result<LuaModule> {
     let globals = lua.globals();
-    let table: Table = match globals.get::<Option<Table>>(name)? {
-        Some(t) => t,
-        None => {
-            let t = lua.create_table()?;
-            globals.set(name, t.clone())?;
-            t
-        }
+    let table: Table = if let Some(t) = globals.get::<Option<Table>>(name)? {
+        t
+    } else {
+        let t = lua.create_table()?;
+        globals.set(name, t.clone())?;
+        t
     };
     Ok(LuaModule {
         lua: lua.clone(),
@@ -56,7 +55,7 @@ pub fn module(lua: &Lua, engine: &Engine, name: &str) -> anyhow::Result<LuaModul
 }
 
 /// Install the built-in `engine`, `scene`, and `log` modules.
-pub fn install_globals(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
+pub(super) fn install_globals(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     install_engine_module(lua, engine)?;
     install_scene_module(lua, engine)?;
     install_scene_assets(lua, engine)?;
@@ -113,7 +112,7 @@ fn install_scene_module(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     m.function(
         "spawn",
         |eng, (name, parent): (String, Option<UserDataRef<NodeRef>>)| {
-            let parent = parent.map(|p| p.entity).unwrap_or_else(|| eng.root());
+            let parent = parent.map_or_else(|| eng.root(), |p| p.entity);
             let mut world = eng.world_mut();
             let entity = scene::spawn_node(&mut world, &name, parent);
             Ok(NodeRef {
@@ -127,7 +126,7 @@ fn install_scene_module(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     m.function(
         "instantiate",
         |eng, (source, parent, opts): (String, Option<UserDataRef<NodeRef>>, Option<Table>)| {
-            let base = parent.map(|p| p.entity).unwrap_or_else(|| eng.root());
+            let base = parent.map_or_else(|| eng.root(), |p| p.entity);
             let attach = opts
                 .and_then(|o| o.get::<Option<bool>>("scripts").ok().flatten())
                 .unwrap_or(true);

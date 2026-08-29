@@ -8,6 +8,29 @@ edition = "2021"
 license = "Apache-2.0"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
 
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery  = { level = "allow", priority = -1 }
+# Noise for an application: these fire on hundreds of sites and none of them
+# is a defect.
+must_use_candidate       = "allow"
+module_name_repetitions  = "allow"
+struct_field_names       = "allow"
+# Graphics and physics: f32 is the GPU type and these casts are deliberate.
+cast_possible_truncation = "allow"
+cast_precision_loss      = "allow"
+cast_sign_loss           = "allow"
+many_single_char_names   = "allow"
+redundant_pub_crate      = "allow"
+missing_errors_doc       = "allow"
+missing_panics_doc       = "allow"
+doc_markdown             = "allow"
+too_long_first_doc_paragraph = "allow"
+
+[workspace.lints.rust]
+unreachable_pub    = "warn"
+rust_2018_idioms   = { level = "warn", priority = -1 }
+
 [workspace.dependencies]
 balaur_core = { path = "crates/balaur_core", version = "0.1.0" }
 balaur_physics = { path = "crates/balaur_physics", version = "0.1.0" }

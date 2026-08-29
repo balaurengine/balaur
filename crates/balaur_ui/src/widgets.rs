@@ -95,7 +95,7 @@ pub(crate) fn text(
 
 // ---------------------------------------------------------------- install
 
-pub fn install(app: &mut App) -> Result<()> {
+pub(crate) fn install(app: &mut App) -> Result<()> {
     let host = app.engine.scripts().expect("script host present");
     let lua = host.lua();
     let m = host.module("ui")?;
@@ -180,7 +180,7 @@ pub(crate) struct SyntaxColors {
 
 impl SyntaxColors {
     pub(crate) fn from_opts(opts: &Opts) -> Self {
-        SyntaxColors {
+        Self {
             key: opts.color("k_key", Color32::from_rgb(0xf0, 0xa2, 0x73)),
             string: opts.color("k_str", Color32::from_rgb(0x8f, 0xbc, 0xae)),
             number: opts.color("k_num", Color32::from_rgb(0xff, 0xc7, 0xa8)),
@@ -261,7 +261,7 @@ pub(crate) fn highlight_luau(
                 let color = if LUAU_KEYWORDS.contains(&word) {
                     colors.key
                 } else if LUAU_BUILTINS.contains(&word)
-                    || word.chars().next().is_some_and(|c| c.is_uppercase())
+                    || word.chars().next().is_some_and(char::is_uppercase)
                 {
                     colors.builtin
                 } else {
@@ -289,15 +289,14 @@ pub(crate) fn code_editor(
     let state = engine.resource::<UiState>();
     let mut buffer = {
         let cached = state.borrow().text_buffers.get(id).cloned();
-        match cached {
-            Some(b) => b,
-            None => {
-                state
-                    .borrow_mut()
-                    .text_buffers
-                    .insert(id.to_string(), source.to_string());
-                source.to_string()
-            }
+        if let Some(b) = cached {
+            b
+        } else {
+            state
+                .borrow_mut()
+                .text_buffers
+                .insert(id.to_string(), source.to_string());
+            source.to_string()
         }
     };
     let size = opts.px("size", 12.5);
@@ -361,28 +360,27 @@ pub(crate) fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> mlua::Resu
     let state = engine.resource::<UiState>();
     let cached = state.borrow().textures.get(path).cloned();
     with_ui(|ui| {
-        let texture = match cached {
-            Some(t) => t,
-            None => {
-                let full = match engine.try_resource::<balaur_core::project::ProjectRoot>() {
-                    Some(root) if !std::path::Path::new(path).is_absolute() => {
-                        root.borrow().0.join(path)
-                    }
-                    _ => std::path::PathBuf::from(path),
-                };
-                let dynamic = image::open(&full).map_err(mlua::Error::external)?;
-                let rgba = dynamic.to_rgba8();
-                let size = [rgba.width() as usize, rgba.height() as usize];
-                let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
-                let handle = ui
-                    .ctx()
-                    .load_texture(path, color, egui::TextureOptions::LINEAR);
-                state
-                    .borrow_mut()
-                    .textures
-                    .insert(path.to_string(), handle.clone());
-                handle
-            }
+        let texture = if let Some(t) = cached {
+            t
+        } else {
+            let full = match engine.try_resource::<balaur_core::project::ProjectRoot>() {
+                Some(root) if !std::path::Path::new(path).is_absolute() => {
+                    root.borrow().0.join(path)
+                }
+                _ => std::path::PathBuf::from(path),
+            };
+            let dynamic = image::open(&full).map_err(mlua::Error::external)?;
+            let rgba = dynamic.to_rgba8();
+            let size = [rgba.width() as usize, rgba.height() as usize];
+            let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
+            let handle = ui
+                .ctx()
+                .load_texture(path, color, egui::TextureOptions::LINEAR);
+            state
+                .borrow_mut()
+                .textures
+                .insert(path.to_string(), handle.clone());
+            handle
         };
         let native = texture.size_vec2();
         let aspect = if native.y > 0.0 {
@@ -437,6 +435,8 @@ pub(crate) fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> mlua::Resu
 /// so the icon and label hug the left edge instead of egui's centered
 /// button text. Supports fill/stroke, a colored leading icon, an optional
 /// trailing glyph on the right, tooltip and a context menu.
+// Returns Result so the widget helpers share one signature at the binding site.
+#[allow(clippy::unnecessary_wraps)]
 pub(crate) fn left_pill(ui: &mut egui::Ui, label: &str, opts: &Opts) -> mlua::Result<bool> {
     let h = opts.px("height", 27.0);
     let w = {

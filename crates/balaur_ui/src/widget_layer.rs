@@ -36,14 +36,14 @@ pub struct WidgetLayer {
 
 impl Default for WidgetLayer {
     fn default() -> Self {
-        WidgetLayer {
+        Self {
             enabled: true,
             rect: None,
         }
     }
 }
 
-pub fn register(app: &mut App) {
+pub(crate) fn register(app: &mut App) {
     app.register_component(
         "widget",
         ComponentDef {
@@ -92,9 +92,9 @@ color = { kind = "str", default = "#eef1f4" }"##,
                 map.insert("kind".into(), toml::Value::String(widget.kind.clone()));
                 map.insert("text".into(), toml::Value::String(widget.text.clone()));
                 map.insert("anchor".into(), toml::Value::String(widget.anchor.clone()));
-                map.insert("x".into(), toml::Value::Float(widget.x as f64));
-                map.insert("y".into(), toml::Value::Float(widget.y as f64));
-                map.insert("size".into(), toml::Value::Float(widget.size as f64));
+                map.insert("x".into(), toml::Value::Float(f64::from(widget.x)));
+                map.insert("y".into(), toml::Value::Float(f64::from(widget.y)));
+                map.insert("size".into(), toml::Value::Float(f64::from(widget.size)));
                 map.insert("color".into(), toml::Value::String(widget.color.clone()));
                 map.insert("clicked".into(), toml::Value::Boolean(widget.clicked));
                 Some(toml::Value::Table(map))
@@ -105,7 +105,7 @@ color = { kind = "str", default = "#eef1f4" }"##,
 
 /// Draw every widget entity. Runs inside the frame's egui pass, after the
 /// scripts' `draw_ui`.
-pub fn draw(engine: &Engine, ctx: &egui::Context, scale: f32) {
+pub(crate) fn draw(engine: &Engine, ctx: &egui::Context, scale: f32) {
     let Some(layer) = engine.try_resource::<WidgetLayer>() else {
         return;
     };

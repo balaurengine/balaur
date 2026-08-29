@@ -46,7 +46,7 @@ pub struct UiState {
 
 impl Default for UiState {
     fn default() -> Self {
-        UiState {
+        Self {
             theme: ThemeTokens::default(),
             theme_dirty: false,
             fonts_installed: false,
@@ -61,7 +61,7 @@ impl Default for UiState {
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "ui"
     }
 

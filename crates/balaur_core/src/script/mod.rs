@@ -80,6 +80,8 @@ struct HostState {
 impl ScriptHost {
     /// `pack`: run from precompiled bytecode instead of source files (used by
     /// exported games). `watch`: enable automatic hot reload (dev mode).
+    // `engine` is stored in the returned ScriptHost, so it is consumed.
+    #[allow(clippy::needless_pass_by_value)]
     pub fn new(
         engine: Engine,
         project_root: &Path,
@@ -104,11 +106,11 @@ impl ScriptHost {
         } else {
             (None, None)
         };
-        let host = ScriptHost {
+        let host = Self {
             lua,
             engine: engine.clone(),
             state: Rc::new(RefCell::new(HostState {
-                project_root: project_root.to_path_buf(),
+                project_root: project_root.clone(),
                 classes: HashMap::new(),
                 modules: HashMap::new(),
                 instances: HashMap::new(),
@@ -147,9 +149,12 @@ impl ScriptHost {
         }
     }
 
-    fn normalize_key(&self, path: &str) -> String {
+    fn normalize_key(path: &str) -> String {
         let mut key = path.replace('\\', "/");
-        if !key.ends_with(".luau") {
+        if !std::path::Path::new(&key)
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("luau"))
+        {
             key.push_str(".luau");
         }
         key
@@ -158,7 +163,7 @@ impl ScriptHost {
     /// `require("scripts/foo")`: evaluate a Luau module once and cache its
     /// value. Modules returning a table hot reload in place, like classes.
     pub fn require(&self, path: &str) -> Result<Value> {
-        let key = self.normalize_key(path);
+        let key = Self::normalize_key(path);
         if let Some(value) = self.state.borrow().modules.get(&key) {
             return Ok(value.clone());
         }
@@ -169,7 +174,7 @@ impl ScriptHost {
 
     /// Attach a script to a node. Creates the Lua instance and calls `init`.
     pub fn attach(&self, entity: Entity, path: &str) -> Result<()> {
-        let key = self.normalize_key(path);
+        let key = Self::normalize_key(path);
         let class = self.load_class(&key)?;
         let inst = self.lua.create_table()?;
         let meta = self.lua.create_table()?;
@@ -222,9 +227,8 @@ impl ScriptHost {
             .map(|(e, t)| (*e, t.clone()))
             .collect();
         for (entity, inst) in batch {
-            let update = match inst.get::<Option<Function>>("update") {
-                Ok(Some(f)) => f,
-                _ => continue,
+            let Ok(Some(update)) = inst.get::<Option<Function>>("update") else {
+                continue;
             };
             if let Err(err) = update.call::<()>((inst, dt)) {
                 self.report_error(&format!("update({entity:?})"), &err.to_string());
@@ -268,14 +272,13 @@ impl ScriptHost {
     /// Recompile `key` and swap the new class into the existing class table.
     /// Public so editors and tests can force a reload deterministically.
     pub fn reload(&self, key: &str) -> Result<()> {
-        let key = self.normalize_key(key);
+        let key = Self::normalize_key(key);
         let maybe_class = {
             let state = self.state.borrow();
             state.classes.get(&key).cloned()
         };
-        let old = match maybe_class {
-            Some(class) => class,
-            None => return self.reload_module(&key),
+        let Some(old) = maybe_class else {
+            return self.reload_module(&key);
         };
         let fresh = self.eval_class(&key)?;
         // In-place swap: every live instance and cross-script reference keeps
@@ -315,21 +318,18 @@ impl ScriptHost {
             .cloned()
             .ok_or_else(|| anyhow!("script {key} was never loaded"))?;
         let fresh = self.eval_chunk(key)?;
-        match (&old, &fresh) {
-            (Value::Table(old_t), Value::Table(new_t)) => {
-                old_t.clear()?;
-                new_t.for_each(|k: Value, v: Value| old_t.set(k, v))?;
-                old_t.set_metatable(new_t.metatable())?;
-            }
-            _ => {
-                // Non-table module: requirers keep their old copy until they
-                // are themselves reloaded.
-                self.state
-                    .borrow_mut()
-                    .modules
-                    .insert(key.to_string(), fresh);
-                log::warn!("{key}: non-table module; existing references keep the old value");
-            }
+        if let (Value::Table(old_t), Value::Table(new_t)) = (&old, &fresh) {
+            old_t.clear()?;
+            new_t.for_each(|k: Value, v: Value| old_t.set(k, v))?;
+            old_t.set_metatable(new_t.metatable())?;
+        } else {
+            // Non-table module: requirers keep their old copy until they
+            // are themselves reloaded.
+            self.state
+                .borrow_mut()
+                .modules
+                .insert(key.to_string(), fresh);
+            log::warn!("{key}: non-table module; existing references keep the old value");
         }
         self.state.borrow_mut().last_errors.remove(key);
         Ok(())
@@ -337,6 +337,8 @@ impl ScriptHost {
 
     /// Call `method` on every live instance that defines it, in entity order
     /// (deterministic; UI code depends on stable call order).
+    // `args` is cloned once per instance inside the loop, so it is consumed.
+    #[allow(clippy::needless_pass_by_value)]
     pub fn call_all(&self, method: &str, args: impl mlua::IntoLuaMulti + Clone) {
         let mut batch: Vec<(Entity, Table)> = self
             .state
@@ -347,14 +349,13 @@ impl ScriptHost {
             .collect();
         batch.sort_by_key(|(e, _)| *e);
         for (_, inst) in batch {
-            let func = match inst.get::<Option<Function>>(method) {
-                Ok(Some(f)) => f,
-                _ => continue,
+            let Ok(Some(func)) = inst.get::<Option<Function>>(method) else {
+                continue;
             };
             let mut call_args = mlua::MultiValue::new();
             call_args.push_back(Value::Table(inst.clone()));
             if let Ok(extra) = args.clone().into_lua_multi(&self.lua) {
-                call_args.extend(extra)
+                call_args.extend(extra);
             }
             if let Err(err) = func.call::<()>(call_args) {
                 self.report_error(method, &err.to_string());
@@ -397,20 +398,18 @@ impl ScriptHost {
     fn eval_chunk(&self, key: &str) -> Result<Value> {
         let bytecode = {
             let state = self.state.borrow();
-            match &state.pack {
-                Some(pack) => pack
-                    .scripts
+            if let Some(pack) = &state.pack {
+                pack.scripts
                     .get(key)
                     .cloned()
-                    .ok_or_else(|| anyhow!("script {key} missing from pack"))?,
-                None => {
-                    let path = state.project_root.join(key);
-                    let source = std::fs::read_to_string(&path)
-                        .with_context(|| format!("reading {}", path.display()))?;
-                    compiler()
-                        .compile(&source)
-                        .with_context(|| format!("compiling {key}"))?
-                }
+                    .ok_or_else(|| anyhow!("script {key} missing from pack"))?
+            } else {
+                let path = state.project_root.join(key);
+                let source = std::fs::read_to_string(&path)
+                    .with_context(|| format!("reading {}", path.display()))?;
+                compiler()
+                    .compile(&source)
+                    .with_context(|| format!("compiling {key}"))?
             }
         };
         self.lua
@@ -423,7 +422,7 @@ impl ScriptHost {
 
     fn report_error(&self, key: &str, err: &str) {
         let mut state = self.state.borrow_mut();
-        if state.last_errors.get(key).map(|s| s.as_str()) != Some(err) {
+        if state.last_errors.get(key).map(std::string::String::as_str) != Some(err) {
             log::error!("[{key}] {err}");
             state.last_errors.insert(key.to_string(), err.to_string());
         }

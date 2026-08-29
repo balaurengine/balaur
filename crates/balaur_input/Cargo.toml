@@ -10,3 +10,6 @@ authors.workspace = true
 balaur_core.workspace = true
 anyhow.workspace = true
 log.workspace = true
+
+[lints]
+workspace = true

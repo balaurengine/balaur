@@ -57,8 +57,7 @@ pub fn boot_project(project_root: &str) -> Result<()> {
     app.load_project()?;
     let title = app
         .manifest()
-        .map(|m| m.name.clone())
-        .unwrap_or_else(|| "balaur".to_string());
+        .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
     run(app, &title)
 }
 
@@ -69,7 +68,6 @@ pub fn boot_pack(bytes: &[u8]) -> Result<()> {
     app.load_project()?;
     let title = app
         .manifest()
-        .map(|m| m.name.clone())
-        .unwrap_or_else(|| "balaur".to_string());
+        .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
     run(app, &title)
 }

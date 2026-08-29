@@ -135,10 +135,13 @@ def check_file(path: Path) -> list[Finding]:
 
         # --- rules on code lines ------------------------------------------
         if not is_comment and line:
-            if re.search(r"#\[allow\(", line) and "reason" not in line and "//" not in raw:
-                findings.append(Finding(rel, i, "allow-without-reason",
-                                        "#[allow(..)] needs a reason = \"..\" or a trailing comment",
-                                        "ERROR"))
+            if re.search(r"#\[allow\(", line) and "reason" not in line:
+                # A comment on the line above counts, same as for unwrap.
+                commented = "//" in raw or (i > 1 and lines[i - 2].strip().startswith("//"))
+                if not commented:
+                    findings.append(Finding(rel, i, "allow-without-reason",
+                                            "#[allow(..)] needs a reason = \"..\", a trailing "
+                                            "comment, or a comment on the line above", "ERROR"))
 
             if re.search(r"\b(TODO|FIXME|XXX)\b", raw) and not re.search(r"#\d+|issues?/\d+", raw):
                 findings.append(Finding(rel, i, "todo-without-issue",

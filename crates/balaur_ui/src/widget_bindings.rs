@@ -13,7 +13,9 @@ use egui::{
 
 use crate::bridge::{scale, scoped, with_ctx, with_ui};
 use crate::theme::{self, parse_hex};
-use crate::widgets::*;
+use crate::widgets::{
+    code_editor, draw_image, left_pill, panel_frame, pill_radius, sc, text, text_field, Opts,
+};
 use crate::UiState;
 
 /// `ui.*` bindings: theme.
@@ -587,11 +589,11 @@ fn install_toggle_and_slider(lua: &Lua, t: &Table) -> Result<()> {
                     );
                     let fill_rect = Rect::from_min_max(
                         rail.min,
-                        pos2(rail.min.x + rail.width() * t, rail.max.y),
+                        pos2(rail.width().mul_add(t, rail.min.x), rail.max.y),
                     );
                     let accent = opts.color("fill", Color32::from_rgb(0xd5, 0x81, 0x4e));
                     ui.painter().rect_filled(fill_rect, 2.5, accent);
-                    let knob_x = rect.min.x + rect.width() * t;
+                    let knob_x = rect.width().mul_add(t, rect.min.x);
                     ui.painter().circle_filled(
                         pos2(knob_x, rect.center().y),
                         sc(6.5),
@@ -630,7 +632,8 @@ fn install_drag_value(lua: &Lua, t: &Table) -> Result<()> {
                 let mut value = value;
                 let mut changed = false;
                 if response.dragged() {
-                    let delta = response.drag_delta().x as f64 * opts.f32("speed", 0.05) as f64;
+                    let delta =
+                        f64::from(response.drag_delta().x) * f64::from(opts.f32("speed", 0.05));
                     if delta != 0.0 {
                         value += delta;
                         changed = true;
@@ -662,10 +665,10 @@ fn install_drag_value(lua: &Lua, t: &Table) -> Result<()> {
                     x += sc(14.0);
                 }
                 let decimals = opts.f32("decimals", 1.0) as usize;
-                let display = opts
-                    .string("suffix")
-                    .map(|s| format!("{value:.decimals$}{s}"))
-                    .unwrap_or_else(|| format!("{value:.decimals$}"));
+                let display = opts.string("suffix").map_or_else(
+                    || format!("{value:.decimals$}"),
+                    |s| format!("{value:.decimals$}{s}"),
+                );
                 let color = opts.color("color", Color32::from_rgb(0xee, 0xf1, 0xf4));
                 let galley = ui.painter().layout_no_wrap(
                     display,

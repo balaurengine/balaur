@@ -49,7 +49,7 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn dev(project_root: impl Into<PathBuf>) -> Self {
-        AppConfig {
+        Self {
             project_root: project_root.into(),
             pack: None,
             watch: true,
@@ -58,7 +58,7 @@ impl AppConfig {
     }
 
     pub fn packed(pack: Pack) -> Self {
-        AppConfig {
+        Self {
             project_root: PathBuf::from("."),
             pack: Some(pack),
             watch: false,
@@ -97,7 +97,7 @@ impl App {
             config.watch,
         )?;
         engine.set_scripts(host);
-        let mut app = App {
+        let mut app = Self {
             engine,
             systems: (0..STAGE_COUNT).map(|_| Vec::new()).collect(),
             plugins: Vec::new(),
@@ -208,35 +208,31 @@ impl App {
     /// plugins are added so their scene keys are known.
     pub fn load_project(&mut self) -> Result<&mut Self> {
         let (manifest_src, scene_src);
-        match &self.pack {
-            Some(pack) => {
-                manifest_src = pack.manifest.clone();
-                let manifest = ProjectManifest::parse(&manifest_src)?;
-                scene_src = pack
-                    .scenes
-                    .get(&manifest.main_scene)
-                    .cloned()
-                    .with_context(|| format!("scene {} missing from pack", manifest.main_scene))?;
-                self.manifest = Some(manifest);
-            }
-            None => {
-                let path = self.project_root.join("project.toml");
-                manifest_src = std::fs::read_to_string(&path).with_context(|| {
-                    format!("no project.toml in {}", self.project_root.display())
-                })?;
-                let manifest = ProjectManifest::parse(&manifest_src)?;
-                let scene_path = self.project_root.join(&manifest.main_scene);
-                scene_src = std::fs::read_to_string(&scene_path)
-                    .with_context(|| format!("reading {}", scene_path.display()))?;
-                self.manifest = Some(manifest);
-            }
+        if let Some(pack) = &self.pack {
+            manifest_src = pack.manifest.clone();
+            let manifest = ProjectManifest::parse(&manifest_src)?;
+            scene_src = pack
+                .scenes
+                .get(&manifest.main_scene)
+                .cloned()
+                .with_context(|| format!("scene {} missing from pack", manifest.main_scene))?;
+            self.manifest = Some(manifest);
+        } else {
+            let path = self.project_root.join("project.toml");
+            manifest_src = std::fs::read_to_string(&path)
+                .with_context(|| format!("no project.toml in {}", self.project_root.display()))?;
+            let manifest = ProjectManifest::parse(&manifest_src)?;
+            let scene_path = self.project_root.join(&manifest.main_scene);
+            scene_src = std::fs::read_to_string(&scene_path)
+                .with_context(|| format!("reading {}", scene_path.display()))?;
+            self.manifest = Some(manifest);
         }
         let root = self.engine.root();
         project::instantiate_scene(&self.engine, &scene_src, root, true)?;
         Ok(self)
     }
 
-    pub fn manifest(&self) -> Option<&ProjectManifest> {
+    pub const fn manifest(&self) -> Option<&ProjectManifest> {
         self.manifest.as_ref()
     }
 
@@ -267,7 +263,8 @@ impl App {
             self.tick(dt);
             let elapsed = last.elapsed();
             if elapsed < TARGET {
-                std::thread::sleep(TARGET - elapsed);
+                // elapsed < TARGET was just checked, so the subtraction cannot underflow.
+                std::thread::sleep(TARGET.checked_sub(elapsed).unwrap());
             }
         }
     }

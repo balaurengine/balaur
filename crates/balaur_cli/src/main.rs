@@ -141,8 +141,7 @@ fn run_project(
     app.load_project()?;
     let title = app
         .manifest()
-        .map(|m| m.name.clone())
-        .unwrap_or_else(|| "balaur".to_string());
+        .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
     if let Some(path) = screenshot {
         app.engine
             .insert_resource(balaur::render::ScreenshotRequest {
@@ -222,8 +221,7 @@ fn edit_project(
 fn new_project(path: &Path) -> Result<()> {
     let name = path
         .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "game".to_string());
+        .map_or_else(|| "game".to_string(), |n| n.to_string_lossy().into_owned());
     std::fs::create_dir_all(path.join("scenes"))?;
     std::fs::create_dir_all(path.join("scripts"))?;
     std::fs::write(

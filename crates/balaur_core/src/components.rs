@@ -28,7 +28,7 @@ use crate::engine::Engine;
 /// Read a numeric TOML value as f64, integers included: schemas say
 /// "float" but scene authors naturally write `14`, which TOML parses as an
 /// integer (`Value::as_float` alone would reject it).
-pub fn as_f64(value: &toml::Value) -> Option<f64> {
+pub const fn as_f64(value: &toml::Value) -> Option<f64> {
     match value {
         toml::Value::Float(f) => Some(*f),
         toml::Value::Integer(i) => Some(*i as f64),
@@ -94,7 +94,7 @@ pub fn merge_defaults(schema: &toml::Value, params: Option<&toml::Value>) -> tom
         Some(other) => {
             if let Some(table) = schema.as_table() {
                 for (prop, spec) in table {
-                    if spec.get("shorthand").and_then(|v| v.as_bool()) == Some(true) {
+                    if spec.get("shorthand").and_then(toml::Value::as_bool) == Some(true) {
                         out.insert(prop.clone(), other.clone());
                         break;
                     }

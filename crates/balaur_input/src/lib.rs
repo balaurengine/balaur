@@ -50,7 +50,7 @@ impl InputState {
         }
     }
 
-    pub fn mouse_button_event(&mut self, button: usize, pressed: bool) {
+    pub const fn mouse_button_event(&mut self, button: usize, pressed: bool) {
         if button >= MOUSE_BUTTONS {
             return;
         }
@@ -78,7 +78,7 @@ impl InputState {
         self.down.contains(key)
     }
 
-    pub fn mouse_pos(&self) -> (f32, f32) {
+    pub const fn mouse_pos(&self) -> (f32, f32) {
         self.mouse_pos
     }
 }
@@ -86,7 +86,7 @@ impl InputState {
 pub struct InputPlugin;
 
 impl Plugin for InputPlugin {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "input"
     }
 
