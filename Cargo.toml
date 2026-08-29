@@ -35,6 +35,7 @@ rust_2018_idioms   = { level = "warn", priority = -1 }
 balaur_core = { path = "crates/balaur_core", version = "0.1.0" }
 balaur_script = { path = "crates/balaur_script", version = "0.1.0" }
 balaur_script_luau = { path = "crates/balaur_script_luau", version = "0.1.0" }
+balaur_script_rune = { path = "crates/balaur_script_rune", version = "0.1.0" }
 balaur_physics = { path = "crates/balaur_physics", version = "0.1.0" }
 balaur_render = { path = "crates/balaur_render", version = "0.1.0" }
 balaur_audio = { path = "crates/balaur_audio", version = "0.1.0" }

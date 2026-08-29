@@ -28,6 +28,14 @@ use crate::scene::{self, Transform};
 pub struct ProjectManifest {
     pub name: String,
     pub main_scene: String,
+    /// Which scripting language this project is written in. The assembling
+    /// crate maps the name to a backend; core does not know the set.
+    #[serde(default = "default_language")]
+    pub language: String,
+}
+
+fn default_language() -> String {
+    "luau".to_string()
 }
 
 impl ProjectManifest {

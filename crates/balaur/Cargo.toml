@@ -14,6 +14,7 @@ window = ["balaur_render/kiss3d"]
 [dependencies]
 balaur_core.workspace = true
 balaur_script_luau.workspace = true
+balaur_script_rune.workspace = true
 balaur_physics.workspace = true
 balaur_render.workspace = true
 balaur_audio.workspace = true

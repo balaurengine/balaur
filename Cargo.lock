@@ -339,6 +339,7 @@ dependencies = [
  "balaur_physics",
  "balaur_render",
  "balaur_script_luau",
+ "balaur_script_rune",
  "balaur_ui",
  "tempfile",
 ]
