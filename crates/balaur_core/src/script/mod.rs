@@ -197,7 +197,7 @@ impl ScriptHost {
             .map_err(|_| anyhow!("cannot attach script to a dead node"))?;
         if let Some(init) = class.get::<Option<Function>>("init")? {
             if let Err(err) = init.call::<()>(inst) {
-                log::error!("[{key}] init: {err}");
+                tracing::error!("[{key}] init: {err}");
             }
         }
         Ok(())
@@ -209,7 +209,7 @@ impl ScriptHost {
         if let Some(inst) = inst {
             if let Ok(Some(on_free)) = inst.get::<Option<Function>>("on_free") {
                 if let Err(err) = on_free.call::<()>(inst) {
-                    log::error!("on_free: {err}");
+                    tracing::error!("on_free: {err}");
                 }
             }
         }
@@ -263,7 +263,7 @@ impl ScriptHost {
         }
         for key in changed {
             match self.reload(&key) {
-                Ok(()) => log::info!("hot reloaded {key}"),
+                Ok(()) => tracing::info!("hot reloaded {key}"),
                 Err(err) => self.report_error(&key, &err.to_string()),
             }
         }
@@ -300,7 +300,7 @@ impl ScriptHost {
         if let Ok(Some(hook)) = old.get::<Option<Function>>("hot_reload") {
             for (_, inst) in instances {
                 if let Err(err) = hook.call::<()>(inst) {
-                    log::error!("[{key}] hot_reload: {err}");
+                    tracing::error!("[{key}] hot_reload: {err}");
                 }
             }
         }
@@ -329,7 +329,7 @@ impl ScriptHost {
                 .borrow_mut()
                 .modules
                 .insert(key.to_string(), fresh);
-            log::warn!("{key}: non-table module; existing references keep the old value");
+            tracing::warn!("{key}: non-table module; existing references keep the old value");
         }
         self.state.borrow_mut().last_errors.remove(key);
         Ok(())
@@ -423,7 +423,7 @@ impl ScriptHost {
     fn report_error(&self, key: &str, err: &str) {
         let mut state = self.state.borrow_mut();
         if state.last_errors.get(key).map(std::string::String::as_str) != Some(err) {
-            log::error!("[{key}] {err}");
+            tracing::error!("[{key}] {err}");
             state.last_errors.insert(key.to_string(), err.to_string());
         }
     }

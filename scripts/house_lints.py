@@ -162,6 +162,14 @@ def check_file(path: Path) -> list[Finding]:
                                             "unwrap/expect outside tests needs a justification comment "
                                             "or a descriptive expect message", "ERROR"))
 
+            # We emit structured events, not strings: `log` records carry no
+            # fields, so the editor's Output dock cannot filter them and an
+            # observability test cannot assert on them. tracing-log bridges
+            # dependencies that still use `log`; our own code must not.
+            if re.search(r"\blog::(info|warn|error|debug|trace)!", line):
+                findings.append(Finding(rel, i, "log-instead-of-tracing",
+                                        "use tracing::* rather than log::*", "ERROR"))
+
             if re.search(r"\bfor\s+.*\bin\s+.*\b(HashMap|HashSet)\b", line) or \
                re.search(r"\b(HashMap|HashSet)\b.*\.(iter|keys|values)\(\)", line):
                 findings.append(Finding(rel, i, "nondeterministic-iteration",

@@ -182,15 +182,15 @@ fn install_log_module(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
         Ok(())
     })?;
     m.function("info", |_, msg: String| {
-        log::info!("[script] {msg}");
+        tracing::info!("[script] {msg}");
         Ok(())
     })?;
     m.function("warn", |_, msg: String| {
-        log::warn!("[script] {msg}");
+        tracing::warn!("[script] {msg}");
         Ok(())
     })?;
     m.function("error", |_, msg: String| {
-        log::error!("[script] {msg}");
+        tracing::error!("[script] {msg}");
         Ok(())
     })?;
 
@@ -223,7 +223,7 @@ fn install_prelude(lua: &Lua, _engine: &Engine) -> anyhow::Result<()> {
                 .iter()
                 .map(|v| v.to_string().unwrap_or_else(|_| "?".into()))
                 .collect();
-            log::info!("[script] {}", parts.join("\t"));
+            tracing::info!("[script] {}", parts.join("\t"));
             Ok(())
         })?,
     )?;

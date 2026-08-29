@@ -73,11 +73,11 @@ fn main() -> Result<()> {
     // The capturing logger tees to stderr and to the in-engine ring buffer
     // that powers `log.recent` (the editor's Output dock).
     let level = match std::env::var("RUST_LOG").ok().as_deref() {
-        Some("debug") => log::LevelFilter::Debug,
-        Some("trace") => log::LevelFilter::Trace,
-        Some("warn") => log::LevelFilter::Warn,
-        Some("error") => log::LevelFilter::Error,
-        _ => log::LevelFilter::Info,
+        Some("debug") => tracing::level_filters::LevelFilter::DEBUG,
+        Some("trace") => tracing::level_filters::LevelFilter::TRACE,
+        Some("warn") => tracing::level_filters::LevelFilter::WARN,
+        Some("error") => tracing::level_filters::LevelFilter::ERROR,
+        _ => tracing::level_filters::LevelFilter::INFO,
     };
     balaur::logbuf::install(level);
     match Cli::parse().command {
@@ -106,7 +106,7 @@ fn main() -> Result<()> {
                 PathBuf::from(format!("{name}.bpak"))
             });
             std::fs::write(&output, pack.encode())?;
-            log::info!(
+            tracing::info!(
                 "exported {} scripts, {} scenes -> {}",
                 pack.scripts.len(),
                 pack.scenes.len(),
@@ -251,7 +251,7 @@ end
 return Hello
 "#,
     )?;
-    log::info!("created project '{name}' at {}", path.display());
-    log::info!("run it with: balaur run {}", path.display());
+    tracing::info!("created project '{name}' at {}", path.display());
+    tracing::info!("run it with: balaur run {}", path.display());
     Ok(())
 }

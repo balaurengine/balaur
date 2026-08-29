@@ -158,7 +158,7 @@ pub(crate) fn install_fonts(engine: &Engine, ctx: &egui::Context) {
                 } else {
                     ui_chain.push(name);
                 }
-                log::info!("ui: loaded font {stem}");
+                tracing::info!("ui: loaded font {stem}");
             }
         }
     }

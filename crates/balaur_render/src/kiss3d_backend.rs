@@ -242,7 +242,7 @@ fn apply_app_icon(app: &App) {
         use objc2_app_kit::{NSApplication, NSImage};
         use objc2_foundation::{MainThreadMarker, NSData};
         let Some(bytes) = dock_icon_png(&path) else {
-            log::warn!("app icon not usable: {}", path.display());
+            tracing::warn!("app icon not usable: {}", path.display());
             return;
         };
         if let Ok(dump) = std::env::var("BALAUR_ICON_DUMP") {
@@ -253,7 +253,7 @@ fn apply_app_icon(app: &App) {
         if let (Some(image), Some(mtm)) = (image, MainThreadMarker::new()) {
             let ns_app = NSApplication::sharedApplication(mtm);
             unsafe { ns_app.setApplicationIconImage(Some(&image)) };
-            log::info!("app icon set from {}", path.display());
+            tracing::info!("app icon set from {}", path.display());
         }
     }
     #[cfg(not(target_os = "macos"))]
@@ -403,13 +403,13 @@ fn take_screenshot_if_due(app: &App, window: &Window, frame: u64) {
             .iter()
         {
             let _ = renderable;
-            log::debug!("renderable {entity:?} at {}", global.position);
+            tracing::debug!("renderable {entity:?} at {}", global.position);
         }
     }
     let image = window.snap_image();
     match image.save(&path) {
-        Ok(()) => log::info!("saved screenshot to {}", path.display()),
-        Err(err) => log::error!("screenshot failed: {err}"),
+        Ok(()) => tracing::info!("saved screenshot to {}", path.display()),
+        Err(err) => tracing::error!("screenshot failed: {err}"),
     }
     app.engine.remove_resource::<ScreenshotRequest>();
 }

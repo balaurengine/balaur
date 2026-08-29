@@ -9,7 +9,7 @@ authors.workspace = true
 [dependencies]
 balaur_core.workspace = true
 anyhow.workspace = true
-log.workspace = true
+tracing.workspace = true
 rodio = "0.22"
 
 [lints]

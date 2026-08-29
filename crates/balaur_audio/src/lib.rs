@@ -57,7 +57,7 @@ impl Plugin for AudioPlugin {
         let device = match DeviceSinkBuilder::open_default_sink() {
             Ok(device) => Some(device),
             Err(err) => {
-                log::warn!("audio disabled: {err}");
+                tracing::warn!("audio disabled: {err}");
                 None
             }
         };

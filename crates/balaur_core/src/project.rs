@@ -119,7 +119,7 @@ pub fn instantiate_scene(
         }
         for key in node.extra.keys() {
             if !handlers.iter().any(|(k, _)| k == key) {
-                log::warn!(
+                tracing::warn!(
                     "scene key '{key}' on node '{}' has no registered handler",
                     node.name
                 );

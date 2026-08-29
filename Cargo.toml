@@ -53,8 +53,11 @@ indexmap = "2"
 egui = "0.36"
 rustc-hash = "2"
 libm = "0.2"
-log = { version = "0.4", features = ["std"] }
-env_logger = "0.11"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+# Bridges `log` records from third-party crates (wgpu, winit, rapier)
+# into tracing so they land in the same buffer.
+tracing-log = "0.2"
 clap = { version = "4", features = ["derive"] }
 
 # Fast script iteration is the whole point; keep debug builds usable.

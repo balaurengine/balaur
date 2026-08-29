@@ -17,7 +17,9 @@ anyhow.workspace = true
 indexmap.workspace = true
 rustc-hash.workspace = true
 libm.workspace = true
-log.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-log.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
