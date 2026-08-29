@@ -4,9 +4,8 @@
 //! function grows past the house limits. Registration order is the order
 //! [`crate::widgets::install`] calls these.
 
-use anyhow::Result;
-use balaur_core::mlua::{Function, Table, Value};
-use balaur_core::LuaModule;
+use balaur_core::Engine;
+use balaur_script::{Bindings, BindingsExt, CallbackId, Value};
 use egui::{
     pos2, vec2, Align, Align2, Color32, FontId, Layout, Margin, Rect, Sense, Stroke, StrokeKind,
 };
@@ -19,36 +18,39 @@ use crate::widgets::{
 use crate::UiState;
 
 /// `ui.*` bindings: theme.
-pub(crate) fn install_theme(m: &LuaModule) -> Result<()> {
+pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
     {
-        m.function("set_theme", |eng, tokens: Table| {
+        m.function("set_theme", |eng: &Engine, tokens: Value| {
+            let Value::Map(entries) = &tokens else {
+                anyhow::bail!("set_theme takes a table of tokens");
+            };
             let state = eng.resource::<UiState>();
             let mut state = state.borrow_mut();
             state.theme.colors.clear();
-            state.theme.dark = tokens.get::<Option<bool>>("dark")?.unwrap_or(true);
-            tokens.for_each(|k: String, v: Value| {
-                if let Value::String(s) = v {
-                    if let Some(color) = parse_hex(&s.to_str()?) {
-                        state.theme.colors.insert(k, color);
+            for (key, value) in entries {
+                match (key.as_str(), value) {
+                    ("dark", Value::Bool(dark)) => state.theme.dark = *dark,
+                    (_, Value::Str(hex)) => {
+                        if let Some(color) = parse_hex(hex) {
+                            state.theme.colors.insert(key.clone(), color);
+                        }
                     }
+                    _ => {}
                 }
-                Ok(())
-            })?;
+            }
             state.theme_dirty = true;
             Ok(())
-        })?;
+        });
     }
-
-    Ok(())
 }
 
 /// `ui.*` bindings: panels.
-pub(crate) fn install_panels(m: &LuaModule) -> Result<()> {
+pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
     macro_rules! panel {
         ($name:literal, $ctor:ident, $size_key:literal) => {
             m.function(
                 $name,
-                |_eng, (id, opts, cb): (String, Option<Table>, Function)| {
+                |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
                     let opts = Opts(opts);
                     with_ui(|parent| {
                         let mut result = Ok(());
@@ -58,12 +60,12 @@ pub(crate) fn install_panels(m: &LuaModule) -> Result<()> {
                             .frame(panel_frame(&opts))
                             .show_separator_line(opts.boolean("separator", true))
                             .show(parent, |ui| {
-                                result = scoped(ui, &cb);
+                                result = scoped(eng, ui, cb);
                             });
                         result
                     })
                 },
-            )?;
+            );
         };
     }
     panel!("top_panel", top, "height");
@@ -73,101 +75,92 @@ pub(crate) fn install_panels(m: &LuaModule) -> Result<()> {
 
     m.function(
         "central_panel",
-        |_eng, (opts, cb): (Option<Table>, Function)| {
+        |eng: &Engine, (opts, cb): (Option<Value>, CallbackId)| {
             let opts = Opts(opts);
             with_ui(|parent| {
                 let mut result = Ok(());
                 egui::CentralPanel::default()
                     .frame(panel_frame(&opts))
                     .show(parent, |ui| {
-                        result = scoped(ui, &cb);
+                        result = scoped(eng, ui, cb);
                     });
                 result
             })
         },
-    )?;
-
-    Ok(())
+    );
 }
 
 /// `ui.*` bindings: containers.
-pub(crate) fn install_containers(m: &LuaModule) -> Result<()> {
-    install_layout_containers(m)?;
-    install_spacing_helpers(m)?;
-
-    Ok(())
+pub(crate) fn install_containers(m: &mut dyn Bindings<Engine>) {
+    install_layout_containers(m);
+    install_spacing_helpers(m);
 }
 
 /// `ui.*` bindings: text.
-pub(crate) fn install_text(m: &LuaModule) -> Result<()> {
-    m.function("label", |_eng, (s, opts): (String, Option<Table>)| {
-        let opts = Opts(opts);
-        with_ui(|ui| {
-            let fam = opts.string("font").unwrap_or_else(|| "ui".into());
-            let rt = text(
-                &s,
-                opts.px("size", 12.0),
-                &fam,
-                opts.opt_color("color"),
-                opts.boolean("strong", false),
-            );
-            let mut label = egui::Label::new(rt).selectable(false);
-            if !opts.boolean("wrap", false) {
-                label = label.extend();
-            }
-            ui.add(label);
-            Ok(())
-        })
-    })?;
-
-    Ok(())
+pub(crate) fn install_text(m: &mut dyn Bindings<Engine>) {
+    m.function(
+        "label",
+        |_eng: &Engine, (s, opts): (String, Option<Value>)| {
+            let opts = Opts(opts);
+            with_ui(|ui| {
+                let fam = opts.string("font").unwrap_or_else(|| "ui".into());
+                let rt = text(
+                    &s,
+                    opts.px("size", 12.0),
+                    &fam,
+                    opts.opt_color("color"),
+                    opts.boolean("strong", false),
+                );
+                let mut label = egui::Label::new(rt).selectable(false);
+                if !opts.boolean("wrap", false) {
+                    label = label.extend();
+                }
+                ui.add(label);
+                Ok(())
+            })
+        },
+    );
 }
 
 /// `ui.*` bindings: buttons.
-pub(crate) fn install_buttons(m: &LuaModule) -> Result<()> {
-    install_button_widgets(m)?;
-    install_button_shapes(m)?;
-
-    Ok(())
+pub(crate) fn install_buttons(m: &mut dyn Bindings<Engine>) {
+    install_button_widgets(m);
+    install_button_shapes(m);
 }
 
 /// `ui.*` bindings: controls.
-pub(crate) fn install_controls(m: &LuaModule) -> Result<()> {
-    install_toggle_and_slider(m)?;
-    install_drag_value(m)?;
-
-    Ok(())
+pub(crate) fn install_controls(m: &mut dyn Bindings<Engine>) {
+    install_toggle_and_slider(m);
+    install_drag_value(m);
 }
 
 /// `ui.*` bindings: text input.
-pub(crate) fn install_text_input(m: &LuaModule) -> Result<()> {
+pub(crate) fn install_text_input(m: &mut dyn Bindings<Engine>) {
     {
         m.function(
             "text_field",
-            |eng, (id, placeholder, opts): (String, Option<String>, Option<Table>)| {
+            |eng: &Engine, (id, placeholder, opts): (String, Option<String>, Option<Value>)| {
                 let opts = Opts(opts);
                 text_field(eng, &id, placeholder.as_deref().unwrap_or(""), &opts)
             },
-        )?;
+        );
     }
     {
-        m.function("set_text", |eng, (id, value): (String, String)| {
+        m.function("set_text", |eng: &Engine, (id, value): (String, String)| {
             let state = eng.resource::<UiState>();
             let mut state = state.borrow_mut();
             state.text_buffers.insert(id.clone(), value);
             state.focused_once.remove(&id);
             Ok(())
-        })?;
+        });
     }
-
-    Ok(())
 }
 
 /// `ui.*` bindings: code.
-pub(crate) fn install_code(m: &LuaModule) -> Result<()> {
+pub(crate) fn install_code(m: &mut dyn Bindings<Engine>) {
     m.function(
         "code_line",
-        |_eng, (gutter, spans, opts): (String, Table, Option<Table>)| {
+        |_eng: &Engine, (gutter, spans, opts): (String, Value, Option<Value>)| {
             let opts = Opts(opts);
             with_ui(|ui| {
                 let size = opts.px("size", 12.5);
@@ -188,28 +181,34 @@ pub(crate) fn install_code(m: &LuaModule) -> Result<()> {
                     gutter_color,
                 );
                 let mut job = egui::text::LayoutJob::default();
-                spans.for_each(|_: i64, span: Table| {
-                    let s: String = span.get("text").unwrap_or_default();
-                    let color = span
-                        .get::<Option<String>>("color")
-                        .ok()
-                        .flatten()
-                        .and_then(|c| parse_hex(&c))
-                        .unwrap_or(Color32::WHITE);
+                // `spans` is a list of { text, color?, strong? } maps.
+                let items: &[Value] = match &spans {
+                    Value::List(items) => items,
+                    _ => &[],
+                };
+                for span in items {
+                    let field = |key: &str| match span {
+                        Value::Map(entries) => {
+                            entries.iter().find(|(k, _)| k == key).map(|(_, v)| v)
+                        }
+                        _ => None,
+                    };
+                    let text = match field("text") {
+                        Some(Value::Str(s)) => s.clone(),
+                        _ => String::new(),
+                    };
+                    let color = match field("color") {
+                        Some(Value::Str(c)) => parse_hex(c).unwrap_or(Color32::WHITE),
+                        _ => Color32::WHITE,
+                    };
                     let mut format = egui::TextFormat::simple(mono.clone(), color);
-                    if span
-                        .get::<Option<bool>>("strong")
-                        .ok()
-                        .flatten()
-                        .unwrap_or(false)
-                    {
+                    if matches!(field("strong"), Some(Value::Bool(true))) {
                         format.font_id = FontId::new(size, theme::family("mono"));
                         format.underline = Stroke::NONE;
                         format.color = color;
                     }
-                    job.append(&s, 0.0, format);
-                    Ok(())
-                })?;
+                    job.append(&text, 0.0, format);
+                }
                 let galley = ui.painter().layout_job(job);
                 let y = rect.center().y - galley.size().y / 2.0;
                 ui.painter().galley(
@@ -220,16 +219,14 @@ pub(crate) fn install_code(m: &LuaModule) -> Result<()> {
                 Ok(())
             })
         },
-    )?;
-
-    Ok(())
+    );
 }
 
 /// `ui.*` bindings: modal.
-pub(crate) fn install_modal(m: &LuaModule) -> Result<()> {
+pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
     m.function(
         "modal",
-        |_eng, (id, opts, cb): (String, Option<Table>, Function)| {
+        |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
             let opts = Opts(opts);
             with_ctx(|ctx| {
                 let screen = ctx.viewport_rect();
@@ -258,24 +255,22 @@ pub(crate) fn install_modal(m: &LuaModule) -> Result<()> {
                         }
                         frame.show(ui, |ui| {
                             ui.set_width(width);
-                            result = scoped(ui, &cb);
+                            result = scoped(eng, ui, cb);
                         });
                     });
                 result?;
                 Ok(scrim_clicked)
             })
         },
-    )?;
-
-    Ok(())
+    );
 }
 
 /// `ui.*` bindings: widget layer.
-pub(crate) fn install_widget_layer(m: &LuaModule) -> Result<()> {
+pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
     {
         m.function(
             "set_widget_layer",
-            |eng, (enabled, x, y, w, h): (
+            |eng: &Engine, (enabled, x, y, w, h): (
                     bool,
                     Option<f32>,
                     Option<f32>,
@@ -291,49 +286,49 @@ pub(crate) fn install_widget_layer(m: &LuaModule) -> Result<()> {
                     };
                     Ok(())
                 },
-            )?;
+            );
     }
-
-    Ok(())
 }
 
 /// `ui.*` bindings: scale.
-pub(crate) fn install_scale(m: &LuaModule) -> Result<()> {
-    m.function("set_scale", |eng, f: f32| {
+pub(crate) fn install_scale(m: &mut dyn Bindings<Engine>) {
+    m.function("set_scale", |eng: &Engine, f: f32| {
         let state = eng.resource::<UiState>();
         state.borrow_mut().scale = f.clamp(0.5, 3.0);
         Ok(())
-    })?;
-    Ok(())
+    });
 }
 
 /// `ui.*` bindings: code editor.
-pub(crate) fn install_code_editor(m: &LuaModule) -> Result<()> {
+pub(crate) fn install_code_editor(m: &mut dyn Bindings<Engine>) {
     {
         m.function(
             "code_editor",
-            |eng, (id, source, opts): (String, String, Option<Table>)| {
+            |eng: &Engine, (id, source, opts): (String, String, Option<Value>)| {
                 let opts = Opts(opts);
                 code_editor(eng, &id, &source, &opts)
             },
-        )?;
+        );
     }
-
-    Ok(())
 }
 
 /// `ui.*` bindings: drop-down select.
-pub(crate) fn install_dropdown_select(m: &LuaModule) -> Result<()> {
+pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
     m.function(
         "select",
-        |_eng, (id, current, options, opts): (String, String, Table, Option<Table>)| {
+        |_eng: &Engine, (id, current, options, opts): (String, String, Value, Option<Value>)| {
             let opts = Opts(opts);
             with_ui(|ui| {
-                let mut items: Vec<String> = Vec::new();
-                options.for_each(|_: i64, v: String| {
-                    items.push(v);
-                    Ok(())
-                })?;
+                let items: Vec<String> = match &options {
+                    Value::List(vs) => vs
+                        .iter()
+                        .filter_map(|v| match v {
+                            Value::Str(s) => Some(s.clone()),
+                            _ => None,
+                        })
+                        .collect(),
+                    _ => Vec::new(),
+                };
                 let w = opts.px("width", 160.0);
                 let size = opts.px("size", 12.0);
                 let text_color = opts.color("color", Color32::WHITE);
@@ -371,24 +366,25 @@ pub(crate) fn install_dropdown_select(m: &LuaModule) -> Result<()> {
                 Ok((selected, changed))
             })
         },
-    )?;
-
-    Ok(())
+    );
 }
 
 /// `ui.*` bindings: images and overlay shapes.
-pub(crate) fn install_images(m: &LuaModule) -> Result<()> {
+pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
     {
-        m.function("image", |eng, (path, opts): (String, Option<Table>)| {
-            let opts = Opts(opts);
-            draw_image(eng, &path, &opts)
-        })?;
+        m.function(
+            "image",
+            |eng: &Engine, (path, opts): (String, Option<Value>)| {
+                let opts = Opts(opts);
+                draw_image(eng, &path, &opts)
+            },
+        );
     }
     // An outline rectangle painted at (x, y, w, h) in design px relative to
     // the current panel (viewport overlays: safe area, guides).
     m.function(
         "rect_stroke",
-        |_eng, (x, y, w, h, opts): (f32, f32, f32, f32, Option<Table>)| {
+        |_eng: &Engine, (x, y, w, h, opts): (f32, f32, f32, f32, Option<Value>)| {
             let opts = Opts(opts);
             with_ui(|ui| {
                 let origin = ui.max_rect().min;
@@ -419,79 +415,83 @@ pub(crate) fn install_images(m: &LuaModule) -> Result<()> {
                 Ok(())
             })
         },
-    )?;
-
-    Ok(())
+    );
 }
 
 /// `ui.*` bindings: queries.
-pub(crate) fn install_queries(m: &LuaModule) -> Result<()> {
+pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
     // Queries return design pixels (real points divided by the UI scale), so
     // scripts compute layout in one consistent unit.
-    m.function("available_width", |_eng, ()| {
+    m.function("available_width", |_eng: &Engine, ()| {
         with_ui(|ui| Ok(ui.available_width() / scale()))
-    })?;
-    m.function("available_height", |_eng, ()| {
+    });
+    m.function("available_height", |_eng: &Engine, ()| {
         with_ui(|ui| Ok(ui.available_height() / scale()))
-    })?;
-    m.function("screen_size", |_eng, ()| {
+    });
+    m.function("screen_size", |_eng: &Engine, ()| {
         with_ctx(|ctx| {
             let rect = ctx.viewport_rect();
             Ok((rect.width() / scale(), rect.height() / scale()))
         })
-    })?;
-    m.function("shortcut", |_eng, (mods, key): (String, String)| {
-        with_ctx(|ctx| {
-            let Some(key) = egui::Key::from_name(&key) else {
-                return Ok(false);
-            };
-            let modifiers = match mods.as_str() {
-                "cmd" => egui::Modifiers::COMMAND,
-                "ctrl" => egui::Modifiers::CTRL,
-                "alt" => egui::Modifiers::ALT,
-                "shift" => egui::Modifiers::SHIFT,
-                _ => egui::Modifiers::NONE,
-            };
-            Ok(ctx.input_mut(|i| i.consume_key(modifiers, key)))
-        })
-    })?;
-    m.function("wants_keyboard", |_eng, ()| {
+    });
+    m.function(
+        "shortcut",
+        |_eng: &Engine, (mods, key): (String, String)| {
+            with_ctx(|ctx| {
+                let Some(key) = egui::Key::from_name(&key) else {
+                    return Ok(false);
+                };
+                let modifiers = match mods.as_str() {
+                    "cmd" => egui::Modifiers::COMMAND,
+                    "ctrl" => egui::Modifiers::CTRL,
+                    "alt" => egui::Modifiers::ALT,
+                    "shift" => egui::Modifiers::SHIFT,
+                    _ => egui::Modifiers::NONE,
+                };
+                Ok(ctx.input_mut(|i| i.consume_key(modifiers, key)))
+            })
+        },
+    );
+    m.function("wants_keyboard", |_eng: &Engine, ()| {
         with_ctx(|ctx| Ok(ctx.egui_wants_keyboard_input()))
-    })?;
-    Ok(())
+    });
 }
 
 /// `ui.toggle` and `ui.hslider`.
-fn install_toggle_and_slider(m: &LuaModule) -> Result<()> {
-    m.function("toggle", |_eng, (on, opts): (bool, Option<Table>)| {
-        let opts = Opts(opts);
-        with_ui(|ui| {
-            let (rect, response) = ui.allocate_exact_size(vec2(sc(42.0), sc(24.0)), Sense::click());
-            let on = if response.clicked() { !on } else { on };
-            let track = if on {
-                opts.color("on_fill", Color32::from_rgb(0xd5, 0x81, 0x4e))
-            } else {
-                opts.color("off_fill", Color32::from_rgb(0x10, 0x12, 0x15))
-            };
-            let knob = if on {
-                opts.color("on_knob", Color32::from_rgb(0xf9, 0xf4, 0xed))
-            } else {
-                opts.color("off_knob", Color32::from_rgb(0x76, 0x7e, 0x88))
-            };
-            ui.painter().rect_filled(rect, sc(12.0), track);
-            let x = if on {
-                rect.max.x - sc(12.0)
-            } else {
-                rect.min.x + sc(12.0)
-            };
-            ui.painter()
-                .circle_filled(pos2(x, rect.center().y), sc(9.0), knob);
-            Ok((on, response.clicked()))
-        })
-    })?;
+fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
+    m.function(
+        "toggle",
+        |_eng: &Engine, (on, opts): (bool, Option<Value>)| {
+            let opts = Opts(opts);
+            with_ui(|ui| {
+                let (rect, response) =
+                    ui.allocate_exact_size(vec2(sc(42.0), sc(24.0)), Sense::click());
+                let on = if response.clicked() { !on } else { on };
+                let track = if on {
+                    opts.color("on_fill", Color32::from_rgb(0xd5, 0x81, 0x4e))
+                } else {
+                    opts.color("off_fill", Color32::from_rgb(0x10, 0x12, 0x15))
+                };
+                let knob = if on {
+                    opts.color("on_knob", Color32::from_rgb(0xf9, 0xf4, 0xed))
+                } else {
+                    opts.color("off_knob", Color32::from_rgb(0x76, 0x7e, 0x88))
+                };
+                ui.painter().rect_filled(rect, sc(12.0), track);
+                let x = if on {
+                    rect.max.x - sc(12.0)
+                } else {
+                    rect.min.x + sc(12.0)
+                };
+                ui.painter()
+                    .circle_filled(pos2(x, rect.center().y), sc(9.0), knob);
+                Ok((on, response.clicked()))
+            })
+        },
+    );
     m.function(
         "hslider",
-        |_eng, (value, min, max, opts): (f32, f32, f32, Option<Table>)| {
+        |_eng: &Engine, (value, min, max, opts): (f32, f32, f32, Option<Value>)| {
             let opts = Opts(opts);
             with_ui(|ui| {
                 let w = {
@@ -545,83 +545,85 @@ fn install_toggle_and_slider(m: &LuaModule) -> Result<()> {
                 Ok((value, response.dragged() || response.clicked()))
             })
         },
-    )?;
-    Ok(())
+    );
 }
 
 /// `ui.drag_value` and its keyboard handling.
-fn install_drag_value(m: &LuaModule) -> Result<()> {
-    m.function("drag_value", |_eng, (value, opts): (f64, Option<Table>)| {
-        let opts = Opts(opts);
-        with_ui(|ui| {
-            let h = opts.px("height", 28.0);
-            let w = {
-                let w = opts.px("width", 0.0);
-                if w > 0.0 {
-                    w
-                } else {
-                    ui.available_width().max(24.0)
+fn install_drag_value(m: &mut dyn Bindings<Engine>) {
+    m.function(
+        "drag_value",
+        |_eng: &Engine, (value, opts): (f64, Option<Value>)| {
+            let opts = Opts(opts);
+            with_ui(|ui| {
+                let h = opts.px("height", 28.0);
+                let w = {
+                    let w = opts.px("width", 0.0);
+                    if w > 0.0 {
+                        w
+                    } else {
+                        ui.available_width().max(24.0)
+                    }
+                };
+                let (rect, response) = ui.allocate_exact_size(vec2(w, h), Sense::click_and_drag());
+                let mut value = value;
+                let mut changed = false;
+                if response.dragged() {
+                    let delta =
+                        f64::from(response.drag_delta().x) * f64::from(opts.f32("speed", 0.05));
+                    if delta != 0.0 {
+                        value += delta;
+                        changed = true;
+                    }
                 }
-            };
-            let (rect, response) = ui.allocate_exact_size(vec2(w, h), Sense::click_and_drag());
-            let mut value = value;
-            let mut changed = false;
-            if response.dragged() {
-                let delta = f64::from(response.drag_delta().x) * f64::from(opts.f32("speed", 0.05));
-                if delta != 0.0 {
-                    value += delta;
-                    changed = true;
+                if response.hovered() {
+                    ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
                 }
-            }
-            if response.hovered() {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
-            }
-            ui.painter().rect(
-                rect,
-                pill_radius(h),
-                opts.color("fill", Color32::from_rgb(0x10, 0x12, 0x15)),
-                Stroke::new(
-                    1.0,
-                    opts.color("stroke", Color32::from_rgb(0x2b, 0x30, 0x37)),
-                ),
-                StrokeKind::Inside,
-            );
-            let mut x = rect.min.x + sc(11.0);
-            if let Some(prefix) = opts.string("prefix") {
-                let color = opts.color("prefix_color", Color32::from_rgb(0xf0, 0xa2, 0x73));
+                ui.painter().rect(
+                    rect,
+                    pill_radius(h),
+                    opts.color("fill", Color32::from_rgb(0x10, 0x12, 0x15)),
+                    Stroke::new(
+                        1.0,
+                        opts.color("stroke", Color32::from_rgb(0x2b, 0x30, 0x37)),
+                    ),
+                    StrokeKind::Inside,
+                );
+                let mut x = rect.min.x + sc(11.0);
+                if let Some(prefix) = opts.string("prefix") {
+                    let color = opts.color("prefix_color", Color32::from_rgb(0xf0, 0xa2, 0x73));
+                    let galley = ui.painter().layout_no_wrap(
+                        prefix,
+                        FontId::new(sc(10.0), theme::family("heading")),
+                        color,
+                    );
+                    let y = rect.center().y - galley.size().y / 2.0;
+                    ui.painter().galley(pos2(x, y), galley, color);
+                    x += sc(14.0);
+                }
+                let decimals = opts.f32("decimals", 1.0) as usize;
+                let display = opts.string("suffix").map_or_else(
+                    || format!("{value:.decimals$}"),
+                    |s| format!("{value:.decimals$}{s}"),
+                );
+                let color = opts.color("color", Color32::from_rgb(0xee, 0xf1, 0xf4));
                 let galley = ui.painter().layout_no_wrap(
-                    prefix,
-                    FontId::new(sc(10.0), theme::family("heading")),
+                    display,
+                    FontId::new(sc(11.5), theme::family("mono")),
                     color,
                 );
                 let y = rect.center().y - galley.size().y / 2.0;
                 ui.painter().galley(pos2(x, y), galley, color);
-                x += sc(14.0);
-            }
-            let decimals = opts.f32("decimals", 1.0) as usize;
-            let display = opts.string("suffix").map_or_else(
-                || format!("{value:.decimals$}"),
-                |s| format!("{value:.decimals$}{s}"),
-            );
-            let color = opts.color("color", Color32::from_rgb(0xee, 0xf1, 0xf4));
-            let galley = ui.painter().layout_no_wrap(
-                display,
-                FontId::new(sc(11.5), theme::family("mono")),
-                color,
-            );
-            let y = rect.center().y - galley.size().y / 2.0;
-            ui.painter().galley(pos2(x, y), galley, color);
-            Ok((value, changed))
-        })
-    })?;
-    Ok(())
+                Ok((value, changed))
+            })
+        },
+    );
 }
 
 /// `ui.horizontal`, `ui.vertical`, `ui.right` and `ui.frame`.
-fn install_layout_containers(m: &LuaModule) -> Result<()> {
+fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
     m.function(
         "horizontal",
-        |_eng, (opts, cb): (Option<Table>, Function)| {
+        |eng: &Engine, (opts, cb): (Option<Value>, CallbackId)| {
             let opts = Opts(opts);
             with_ui(|ui| {
                 let mut result = Ok(());
@@ -647,61 +649,63 @@ fn install_layout_containers(m: &LuaModule) -> Result<()> {
                     if fixed > 0.0 {
                         ui.set_min_width(fixed);
                     }
-                    result = scoped(ui, &cb);
+                    result = scoped(eng, ui, cb);
                 });
                 result
             })
         },
-    )?;
-    m.function("vertical", |_eng, cb: Function| {
+    );
+    m.function("vertical", |eng: &Engine, cb: CallbackId| {
         with_ui(|ui| {
             let mut result = Ok(());
             ui.vertical(|ui| {
-                result = scoped(ui, &cb);
+                result = scoped(eng, ui, cb);
             });
             result
         })
-    })?;
+    });
     // Right-aligned run of widgets (declared left to right in Lua).
-    m.function("right", |_eng, cb: Function| {
+    m.function("right", |eng: &Engine, cb: CallbackId| {
         with_ui(|ui| {
             let mut result = Ok(());
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                result = scoped(ui, &cb);
+                result = scoped(eng, ui, cb);
             });
             result
         })
-    })?;
-    m.function("frame", |_eng, (opts, cb): (Option<Table>, Function)| {
-        let opts = Opts(opts);
-        with_ui(|ui| {
-            let mut result = Ok(());
-            let mut frame = egui::Frame::new()
-                .inner_margin(Margin::symmetric(
-                    opts.px("padding_x", 0.0) as i8,
-                    opts.px("padding_y", 0.0) as i8,
-                ))
-                .corner_radius(pill_radius(opts.px("radius", 0.0) * 2.0));
-            if let Some(fill) = opts.opt_color("fill") {
-                frame = frame.fill(fill);
-            }
-            if let Some(stroke) = opts.opt_color("stroke") {
-                frame = frame.stroke(Stroke::new(1.0, stroke));
-            }
-            frame.show(ui, |ui| {
-                result = scoped(ui, &cb);
-            });
-            result
-        })
-    })?;
-    Ok(())
+    });
+    m.function(
+        "frame",
+        |eng: &Engine, (opts, cb): (Option<Value>, CallbackId)| {
+            let opts = Opts(opts);
+            with_ui(|ui| {
+                let mut result = Ok(());
+                let mut frame = egui::Frame::new()
+                    .inner_margin(Margin::symmetric(
+                        opts.px("padding_x", 0.0) as i8,
+                        opts.px("padding_y", 0.0) as i8,
+                    ))
+                    .corner_radius(pill_radius(opts.px("radius", 0.0) * 2.0));
+                if let Some(fill) = opts.opt_color("fill") {
+                    frame = frame.fill(fill);
+                }
+                if let Some(stroke) = opts.opt_color("stroke") {
+                    frame = frame.stroke(Stroke::new(1.0, stroke));
+                }
+                frame.show(ui, |ui| {
+                    result = scoped(eng, ui, cb);
+                });
+                result
+            })
+        },
+    );
 }
 
 /// `ui.scroll`, spacing and separators.
-fn install_spacing_helpers(m: &LuaModule) -> Result<()> {
+fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
     m.function(
         "scroll",
-        |_eng, (id, opts, cb): (String, Option<Table>, Function)| {
+        |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
             let opts = Opts(opts);
             with_ui(|ui| {
                 let mut result = Ok(());
@@ -713,19 +717,19 @@ fn install_spacing_helpers(m: &LuaModule) -> Result<()> {
                     area = area.max_height(max_h);
                 }
                 area.show(ui, |ui| {
-                    result = scoped(ui, &cb);
+                    result = scoped(eng, ui, cb);
                 });
                 result
             })
         },
-    )?;
-    m.function("add_space", |_eng, px: f32| {
+    );
+    m.function("add_space", |_eng: &Engine, px: f32| {
         with_ui(|ui| {
             let _: () = ui.add_space(sc(px));
             Ok(())
         })
-    })?;
-    m.function("separator", |_eng, color: Option<String>| {
+    });
+    m.function("separator", |_eng: &Engine, color: Option<String>| {
         with_ui(|ui| {
             match color.and_then(|c| parse_hex(&c)) {
                 Some(color) => {
@@ -740,100 +744,104 @@ fn install_spacing_helpers(m: &LuaModule) -> Result<()> {
             }
             Ok(())
         })
-    })?;
-    m.function("spacing", |_eng, (x, y): (f32, f32)| {
+    });
+    m.function("spacing", |_eng: &Engine, (x, y): (f32, f32)| {
         with_ui(|ui| {
             ui.spacing_mut().item_spacing = vec2(sc(x), sc(y));
             Ok(())
         })
-    })?;
-    Ok(())
+    });
 }
 
 /// `ui.pill` and `ui.menu_item`.
-fn install_button_widgets(m: &LuaModule) -> Result<()> {
-    m.function("pill", |_eng, (s, opts): (String, Option<Table>)| {
-        let opts = Opts(opts);
-        with_ui(|ui| {
-            if opts.string("align").as_deref() == Some("left") {
-                return left_pill(ui, &s, &opts);
-            }
-            let h = opts.px("height", 27.0);
-            let fam = opts.string("font").unwrap_or_else(|| "ui".into());
-            let mut display = String::new();
-            if let Some(icon) = opts.string("icon") {
-                display.push_str(&icon);
-                if !s.is_empty() {
-                    display.push_str("  ");
+fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
+    m.function(
+        "pill",
+        |eng: &Engine, (s, opts): (String, Option<Value>)| {
+            let opts = Opts(opts);
+            with_ui(|ui| {
+                if opts.string("align").as_deref() == Some("left") {
+                    return left_pill(eng, ui, &s, &opts);
                 }
-            }
-            display.push_str(&s);
-            let rt = text(
-                &display,
-                opts.px("size", 12.0),
-                &fam,
-                opts.opt_color("color"),
-                opts.boolean("strong", false),
-            );
-            let fill = opts.color("fill", Color32::TRANSPARENT);
-            let mut button = egui::Button::new(rt)
-                .fill(fill)
-                .corner_radius(pill_radius(h))
-                .min_size(vec2(opts.px("min_width", 0.0), h));
-            button = match opts.opt_color("stroke") {
-                Some(color) => button.stroke(Stroke::new(1.0, color)),
-                None => button.stroke(Stroke::NONE),
-            };
-            let mut response = ui.add(button);
-            if let Some(tip) = opts.string("tooltip") {
-                response = response.on_hover_text(tip);
-            }
-            // Right-click context menu: the callback draws menu items.
-            if let Some(menu) = opts.function("menu") {
-                response.context_menu(|ui| {
-                    let _ = scoped(ui, &menu);
-                });
-            }
-            Ok(response.clicked())
-        })
-    })?;
-    // A row inside a context menu; clicking runs and closes the menu.
-    m.function("menu_item", |_eng, (s, opts): (String, Option<Table>)| {
-        let opts = Opts(opts);
-        with_ui(|ui| {
-            let (rect, response) =
-                ui.allocate_exact_size(vec2(sc(180.0), sc(26.0)), Sense::click());
-            if response.hovered() {
-                ui.painter().rect_filled(
-                    rect,
-                    pill_radius(sc(26.0)),
-                    Color32::from_white_alpha(10),
+                let h = opts.px("height", 27.0);
+                let fam = opts.string("font").unwrap_or_else(|| "ui".into());
+                let mut display = String::new();
+                if let Some(icon) = opts.string("icon") {
+                    display.push_str(&icon);
+                    if !s.is_empty() {
+                        display.push_str("  ");
+                    }
+                }
+                display.push_str(&s);
+                let rt = text(
+                    &display,
+                    opts.px("size", 12.0),
+                    &fam,
+                    opts.opt_color("color"),
+                    opts.boolean("strong", false),
                 );
-            }
-            let color = opts.color("color", Color32::WHITE);
-            let galley = ui.painter().layout_no_wrap(
-                s.clone(),
-                FontId::new(opts.px("size", 12.5), theme::family("ui")),
-                color,
-            );
-            let y = rect.center().y - galley.size().y / 2.0;
-            ui.painter()
-                .galley(pos2(rect.min.x + sc(10.0), y), galley, color);
-            if response.clicked() {
-                ui.close();
-                return Ok(true);
-            }
-            Ok(false)
-        })
-    })?;
-    Ok(())
+                let fill = opts.color("fill", Color32::TRANSPARENT);
+                let mut button = egui::Button::new(rt)
+                    .fill(fill)
+                    .corner_radius(pill_radius(h))
+                    .min_size(vec2(opts.px("min_width", 0.0), h));
+                button = match opts.opt_color("stroke") {
+                    Some(color) => button.stroke(Stroke::new(1.0, color)),
+                    None => button.stroke(Stroke::NONE),
+                };
+                let mut response = ui.add(button);
+                if let Some(tip) = opts.string("tooltip") {
+                    response = response.on_hover_text(tip);
+                }
+                // Right-click context menu: the callback draws menu items.
+                if let Some(menu) = opts.callback("menu") {
+                    response.context_menu(|ui| {
+                        let _ = scoped(eng, ui, menu);
+                    });
+                }
+                Ok(response.clicked())
+            })
+        },
+    );
+    // A row inside a context menu; clicking runs and closes the menu.
+    m.function(
+        "menu_item",
+        |_eng: &Engine, (s, opts): (String, Option<Value>)| {
+            let opts = Opts(opts);
+            with_ui(|ui| {
+                let (rect, response) =
+                    ui.allocate_exact_size(vec2(sc(180.0), sc(26.0)), Sense::click());
+                if response.hovered() {
+                    ui.painter().rect_filled(
+                        rect,
+                        pill_radius(sc(26.0)),
+                        Color32::from_white_alpha(10),
+                    );
+                }
+                let color = opts.color("color", Color32::WHITE);
+                let galley = ui.painter().layout_no_wrap(
+                    s.clone(),
+                    FontId::new(opts.px("size", 12.5), theme::family("ui")),
+                    color,
+                );
+                let y = rect.center().y - galley.size().y / 2.0;
+                ui.painter()
+                    .galley(pos2(rect.min.x + sc(10.0), y), galley, color);
+                if response.clicked() {
+                    ui.close();
+                    return Ok(true);
+                }
+                Ok(false)
+            })
+        },
+    );
 }
 
 /// `ui.circle_button` and `ui.dot`.
-fn install_button_shapes(m: &LuaModule) -> Result<()> {
+fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
     m.function(
         "circle_button",
-        |_eng, (glyph, opts): (String, Option<Table>)| {
+        |_eng: &Engine, (glyph, opts): (String, Option<Value>)| {
             let opts = Opts(opts);
             with_ui(|ui| {
                 let d = opts.px("d", 32.0);
@@ -859,8 +867,8 @@ fn install_button_shapes(m: &LuaModule) -> Result<()> {
                 Ok(response.clicked())
             })
         },
-    )?;
-    m.function("dot", |_eng, (color, d): (String, f32)| {
+    );
+    m.function("dot", |_eng: &Engine, (color, d): (String, f32)| {
         with_ui(|ui| {
             let d = sc(d);
             let (rect, _) = ui.allocate_exact_size(vec2(d, d), Sense::hover());
@@ -869,6 +877,5 @@ fn install_button_shapes(m: &LuaModule) -> Result<()> {
             }
             Ok(())
         })
-    })?;
-    Ok(())
+    });
 }

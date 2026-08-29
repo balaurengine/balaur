@@ -4,8 +4,8 @@
 //! entirely script-defined.
 
 use anyhow::Result;
-use balaur_core::mlua::{self, Function, Table};
 use balaur_core::{App, Engine};
+use balaur_script::{Bindings, CallbackId, Value};
 use egui::{pos2, vec2, Align2, Color32, CornerRadius, FontId, Margin, Sense, Stroke, StrokeKind};
 
 use crate::bridge::{scale, scoped, with_ui};
@@ -14,25 +14,37 @@ use crate::UiState;
 
 // ---------------------------------------------------------------- opts
 
-pub(crate) struct Opts(pub(crate) Option<Table>);
+/// An options table as passed from script: `{ height = 56, fill = "#20242a" }`.
+///
+/// Reads the neutral map rather than a Lua table, so widgets name no language.
+/// A missing or wrong-typed key falls back to the default: a typo in an options
+/// table should not stop the frame.
+pub(crate) struct Opts(pub(crate) Option<Value>);
 
 impl Opts {
+    fn get(&self, key: &str) -> Option<&Value> {
+        match self.0.as_ref()? {
+            Value::Map(entries) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
+            _ => None,
+        }
+    }
     pub(crate) fn f32(&self, key: &str, default: f32) -> f32 {
-        self.0
-            .as_ref()
-            .and_then(|t| t.get::<Option<f32>>(key).ok().flatten())
-            .unwrap_or(default)
+        match self.get(key) {
+            Some(Value::Num(n)) => *n as f32,
+            Some(Value::Int(i)) => *i as f32,
+            _ => default,
+        }
     }
     pub(crate) fn boolean(&self, key: &str, default: bool) -> bool {
-        self.0
-            .as_ref()
-            .and_then(|t| t.get::<Option<bool>>(key).ok().flatten())
-            .unwrap_or(default)
+        matches!(self.get(key), Some(Value::Bool(b)) if *b) || {
+            !matches!(self.get(key), Some(Value::Bool(_))) && default
+        }
     }
     pub(crate) fn string(&self, key: &str) -> Option<String> {
-        self.0
-            .as_ref()
-            .and_then(|t| t.get::<Option<String>>(key).ok().flatten())
+        match self.get(key) {
+            Some(Value::Str(s)) => Some(s.clone()),
+            _ => None,
+        }
     }
     pub(crate) fn color(&self, key: &str, default: Color32) -> Color32 {
         self.string(key)
@@ -46,10 +58,11 @@ impl Opts {
     pub(crate) fn px(&self, key: &str, default: f32) -> f32 {
         self.f32(key, default) * scale()
     }
-    pub(crate) fn function(&self, key: &str) -> Option<Function> {
-        self.0
-            .as_ref()
-            .and_then(|t| t.get::<Option<Function>>(key).ok().flatten())
+    pub(crate) fn callback(&self, key: &str) -> Option<CallbackId> {
+        match self.get(key) {
+            Some(Value::Callback(id)) => Some(*id),
+            _ => None,
+        }
     }
 }
 
@@ -97,26 +110,24 @@ pub(crate) fn text(
 
 pub(crate) fn install(app: &mut App) -> Result<()> {
     let host = app.engine.scripts().expect("script host present");
-    let _lua = host.lua();
-    let m = host.module("ui")?;
-    let _t = m.table().clone();
-    let _engine = app.engine.clone();
+    let mut module = host.module("ui")?;
+    let m: &mut dyn Bindings<Engine> = &mut module;
 
-    crate::widget_bindings::install_theme(&m)?;
-    crate::widget_bindings::install_panels(&m)?;
-    crate::widget_bindings::install_containers(&m)?;
-    crate::widget_bindings::install_text(&m)?;
-    crate::widget_bindings::install_buttons(&m)?;
-    crate::widget_bindings::install_controls(&m)?;
-    crate::widget_bindings::install_text_input(&m)?;
-    crate::widget_bindings::install_code(&m)?;
-    crate::widget_bindings::install_modal(&m)?;
-    crate::widget_bindings::install_widget_layer(&m)?;
-    crate::widget_bindings::install_scale(&m)?;
-    crate::widget_bindings::install_code_editor(&m)?;
-    crate::widget_bindings::install_dropdown_select(&m)?;
-    crate::widget_bindings::install_images(&m)?;
-    crate::widget_bindings::install_queries(&m)?;
+    crate::widget_bindings::install_theme(m);
+    crate::widget_bindings::install_panels(m);
+    crate::widget_bindings::install_containers(m);
+    crate::widget_bindings::install_text(m);
+    crate::widget_bindings::install_buttons(m);
+    crate::widget_bindings::install_controls(m);
+    crate::widget_bindings::install_text_input(m);
+    crate::widget_bindings::install_code(m);
+    crate::widget_bindings::install_modal(m);
+    crate::widget_bindings::install_widget_layer(m);
+    crate::widget_bindings::install_scale(m);
+    crate::widget_bindings::install_code_editor(m);
+    crate::widget_bindings::install_dropdown_select(m);
+    crate::widget_bindings::install_images(m);
+    crate::widget_bindings::install_queries(m);
 
     Ok(())
 }
@@ -126,7 +137,7 @@ pub(crate) fn text_field(
     id: &str,
     placeholder: &str,
     opts: &Opts,
-) -> mlua::Result<(String, bool, bool)> {
+) -> anyhow::Result<(String, bool, bool)> {
     let state = engine.resource::<UiState>();
     let mut buffer = {
         let state = state.borrow();
@@ -285,7 +296,7 @@ pub(crate) fn code_editor(
     id: &str,
     source: &str,
     opts: &Opts,
-) -> mlua::Result<(String, bool)> {
+) -> anyhow::Result<(String, bool)> {
     let state = engine.resource::<UiState>();
     let mut buffer = {
         let cached = state.borrow().text_buffers.get(id).cloned();
@@ -356,7 +367,7 @@ pub(crate) fn code_editor(
 }
 
 /// Draw a PNG from the project (cached as an egui texture by path).
-pub(crate) fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> mlua::Result<()> {
+pub(crate) fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> anyhow::Result<()> {
     let state = engine.resource::<UiState>();
     let cached = state.borrow().textures.get(path).cloned();
     with_ui(|ui| {
@@ -369,7 +380,7 @@ pub(crate) fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> mlua::Resu
                 }
                 _ => std::path::PathBuf::from(path),
             };
-            let dynamic = image::open(&full).map_err(mlua::Error::external)?;
+            let dynamic = image::open(&full)?;
             let rgba = dynamic.to_rgba8();
             let size = [rgba.width() as usize, rgba.height() as usize];
             let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
@@ -437,7 +448,12 @@ pub(crate) fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> mlua::Resu
 /// trailing glyph on the right, tooltip and a context menu.
 // Returns Result so the widget helpers share one signature at the binding site.
 #[allow(clippy::unnecessary_wraps)]
-pub(crate) fn left_pill(ui: &mut egui::Ui, label: &str, opts: &Opts) -> mlua::Result<bool> {
+pub(crate) fn left_pill(
+    engine: &Engine,
+    ui: &mut egui::Ui,
+    label: &str,
+    opts: &Opts,
+) -> anyhow::Result<bool> {
     let h = opts.px("height", 27.0);
     let w = {
         let w = opts.px("min_width", 0.0);
@@ -509,9 +525,9 @@ pub(crate) fn left_pill(ui: &mut egui::Ui, label: &str, opts: &Opts) -> mlua::Re
     if let Some(tip) = opts.string("tooltip") {
         response = response.on_hover_text(tip);
     }
-    if let Some(menu) = opts.function("menu") {
+    if let Some(menu) = opts.callback("menu") {
         response.context_menu(|ui| {
-            let _ = scoped(ui, &menu);
+            let _ = scoped(engine, ui, menu);
         });
     }
     Ok(response.clicked())

@@ -6,7 +6,8 @@
 //! Lua callbacks run strictly inside the borrow of the `Ui` they were given
 //! (the pointer never outlives the closure that pushed it).
 
-use balaur_core::mlua;
+use balaur_core::Engine;
+use balaur_script::{CallbackHost, CallbackId};
 use std::cell::RefCell;
 
 thread_local! {
@@ -44,18 +45,20 @@ pub(crate) fn leave_pass() {
     CTX.with(|c| *c.borrow_mut() = None);
 }
 
-pub(crate) fn with_ctx<R>(f: impl FnOnce(&egui::Context) -> mlua::Result<R>) -> mlua::Result<R> {
+pub(crate) fn with_ctx<R>(
+    f: impl FnOnce(&egui::Context) -> anyhow::Result<R>,
+) -> anyhow::Result<R> {
     CTX.with(|c| match c.borrow().as_ref() {
         Some(ctx) => f(ctx),
-        None => Err(mlua::Error::runtime("ui.* can only be called from draw_ui")),
+        None => Err(anyhow::anyhow!("ui.* can only be called from draw_ui")),
     })
 }
 
-pub(crate) fn with_ui<R>(f: impl FnOnce(&mut egui::Ui) -> mlua::Result<R>) -> mlua::Result<R> {
+pub(crate) fn with_ui<R>(f: impl FnOnce(&mut egui::Ui) -> anyhow::Result<R>) -> anyhow::Result<R> {
     let top = UI_STACK.with(|s| s.borrow().last().copied());
     match top {
         Some(ptr) => f(unsafe { &mut *ptr }),
-        None => Err(mlua::Error::runtime(
+        None => Err(anyhow::anyhow!(
             "this ui.* call must run inside a panel or container callback",
         )),
     }
@@ -63,9 +66,17 @@ pub(crate) fn with_ui<R>(f: impl FnOnce(&mut egui::Ui) -> mlua::Result<R>) -> ml
 
 /// Push `ui`, run the Lua callback, pop. All container widgets funnel
 /// through here.
-pub(crate) fn scoped(ui: &mut egui::Ui, callback: &mlua::Function) -> mlua::Result<()> {
+/// Run a script callback with `ui` as the current target.
+///
+/// The stack is popped even when the callback fails, so one bad handler does
+/// not leave every later widget drawing into a dead `Ui`.
+pub(crate) fn scoped(
+    engine: &Engine,
+    ui: &mut egui::Ui,
+    callback: CallbackId,
+) -> anyhow::Result<()> {
     UI_STACK.with(|s| s.borrow_mut().push(std::ptr::from_mut::<egui::Ui>(ui)));
-    let result = callback.call::<()>(());
+    let result = engine.invoke(callback, &[]).map(|_| ());
     UI_STACK.with(|s| {
         s.borrow_mut().pop();
     });
