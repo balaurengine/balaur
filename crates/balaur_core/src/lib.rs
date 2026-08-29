@@ -37,3 +37,8 @@ pub use mlua;
 pub fn entity_of(node: balaur_script::NodeId) -> anyhow::Result<hecs::Entity> {
     hecs::Entity::from_bits(node.0).ok_or_else(|| anyhow::anyhow!("stale node handle"))
 }
+
+/// The script-facing handle for an entity, the inverse of [`entity_of`].
+pub fn node_id_of(entity: hecs::Entity) -> balaur_script::NodeId {
+    balaur_script::NodeId(entity.to_bits().get())
+}

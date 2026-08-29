@@ -120,7 +120,7 @@ impl ScriptHost {
                 last_errors: HashMap::new(),
             })),
         };
-        env::install_globals(&host.lua, &engine)?;
+        env::install_globals(&host.lua, &engine, &host)?;
         det::install(&host.lua, &engine)?;
         tooling::install(&host.lua, &engine)?;
         Ok(host)
@@ -453,8 +453,27 @@ impl ScriptHost {
 ///
 /// Implemented on the concrete host rather than replacing it: plugins can move
 /// to the trait one at a time while the engine still holds the struct.
+/// The Luau interpreter behind an engine's script host.
+///
+/// For code written against the Luau backend on purpose — a tool wanting the
+/// raw interpreter, or a test of this backend. Code that should work with any
+/// language goes through `balaur_script::ScriptHost` instead. Panics if the
+/// engine is running a different backend.
+///
+/// # Panics
+/// If the engine's script host is not the Luau one.
+pub fn lua_of(engine: &Engine) -> Lua {
+    engine
+        .scripts()
+        .expect("the engine always has a script host")
+        .as_any()
+        .downcast_ref::<ScriptHost>()
+        .expect("the engine is not running the Luau backend")
+        .lua()
+}
+
 impl balaur_script::ScriptHost<Engine> for ScriptHost {
-    fn module(&self, name: &str) -> anyhow::Result<Box<dyn balaur_script::Bindings<Engine> + '_>> {
+    fn module(&self, name: &str) -> anyhow::Result<Box<dyn balaur_script::Bindings<Engine>>> {
         Ok(Box::new(ScriptHost::module(self, name)?))
     }
 
@@ -490,17 +509,14 @@ impl balaur_script::ScriptHost<Engine> for ScriptHost {
         ScriptHost::call_all(self, method, ());
     }
 
-    fn require(&self, path: &str) -> anyhow::Result<balaur_script::Value> {
-        ScriptHost::require(self, path)?;
-        // Modules are consumed on the Lua side; the seam only reports success.
-        Ok(balaur_script::Value::Nil)
-    }
-
     fn scene_source(&self, rel: &str) -> Option<String> {
         ScriptHost::scene_source(self, rel)
     }
 
     fn instance_count(&self) -> usize {
         ScriptHost::instance_count(self)
+    }
+    fn as_any(&self) -> &dyn core::any::Any {
+        self
     }
 }

@@ -29,7 +29,7 @@ fn make_app() -> (App, tempfile::TempDir) {
 
 /// Compile a chunk with the engine's compiler configuration and evaluate it.
 fn eval_compiled<T: balaur_core::mlua::FromLuaMulti>(app: &App, src: &str) -> T {
-    let lua = app.engine.scripts().unwrap().lua();
+    let lua = balaur_core::script::lua_of(&app.engine);
     let bytecode = balaur_core::script::compiler().compile(src).unwrap();
     lua.load(bytecode.as_slice())
         .set_mode(ChunkMode::Binary)
@@ -45,7 +45,7 @@ fn eval_compiled<T: balaur_core::mlua::FromLuaMulti>(app: &App, src: &str) -> T 
 #[test]
 fn math_fastcalls_are_routed_through_the_global_table() {
     let (app, _dir) = make_app();
-    let lua = app.engine.scripts().unwrap().lua();
+    let lua = balaur_core::script::lua_of(&app.engine);
     lua.load("math.sin = function(x) return 42 end")
         .exec()
         .unwrap();

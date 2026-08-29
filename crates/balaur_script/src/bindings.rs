@@ -37,6 +37,26 @@ pub trait BindingsExt<C: ?Sized>: Bindings<C> {
     }
 }
 
+/// So `&mut dyn Bindings<C>` and `Box<dyn Bindings<C>>` are usable wherever a
+/// `Bindings` is expected, which is how every plugin receives one.
+impl<C: ?Sized, T: Bindings<C> + ?Sized> Bindings<C> for &mut T {
+    fn function_raw(&mut self, name: &str, f: BoundFn<C>) {
+        (**self).function_raw(name, f);
+    }
+    fn constant(&mut self, name: &str, value: Value) {
+        (**self).constant(name, value);
+    }
+}
+
+impl<C: ?Sized, T: Bindings<C> + ?Sized> Bindings<C> for Box<T> {
+    fn function_raw(&mut self, name: &str, f: BoundFn<C>) {
+        (**self).function_raw(name, f);
+    }
+    fn constant(&mut self, name: &str, value: Value) {
+        (**self).constant(name, value);
+    }
+}
+
 impl<C: ?Sized, T: Bindings<C> + ?Sized> BindingsExt<C> for T {}
 
 /// A host that can call back into script.

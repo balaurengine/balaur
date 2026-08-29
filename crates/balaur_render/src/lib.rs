@@ -271,11 +271,11 @@ impl Plugin for RenderPlugin {
         app.engine.insert_resource(Viewport2D::default());
         app.engine.insert_resource(ViewportCamera::default());
         app.engine.insert_resource(CameraInputEnabled(true));
-        let mut m = app.lua_module("render")?;
-        install_camera_api(&mut m);
-        install_scene_api(&mut m);
-        install_shape_api(&mut m);
-        install_2d_api(&mut m);
+        let mut m = app.script_module("render")?;
+        install_camera_api(&mut *m);
+        install_scene_api(&mut *m);
+        install_shape_api(&mut *m);
+        install_2d_api(&mut *m);
         register_shape_component(app);
         register_shape2d_component(app);
         register_color_component(app);

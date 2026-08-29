@@ -16,7 +16,7 @@ fn plugin_components_roundtrip_through_the_registry() {
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let app = standard_app(config).unwrap();
-    let lua = app.engine.scripts().unwrap().lua();
+    let lua = balaur_core::script::lua_of(&app.engine);
     lua.load(
         r#"
         -- The registry lists every plugin's components.

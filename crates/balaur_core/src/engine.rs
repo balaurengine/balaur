@@ -2,7 +2,6 @@ use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::rc::Rc;
 
 use crate::resources::Resources;
-use crate::script::ScriptHost;
 
 /// Deferred structural change, applied at the end of the frame so scripts can
 /// freely request them mid-update without invalidating iteration.
@@ -28,7 +27,7 @@ pub struct EngineInner {
     // Option because the host is installed after the engine exists (it needs
     // an Engine clone for its Lua closures). This is a deliberate Rc cycle:
     // the engine is a live-forever singleton.
-    pub scripts: RefCell<Option<ScriptHost>>,
+    pub scripts: RefCell<Option<Rc<dyn balaur_script::ScriptHost<Engine>>>>,
     pub commands: RefCell<Vec<Command>>,
     pub root: Cell<hecs::Entity>,
     pub time: Cell<f64>,
@@ -81,11 +80,13 @@ impl Engine {
         self.inner.resources.borrow_mut().remove::<T>();
     }
 
-    pub fn scripts(&self) -> Option<ScriptHost> {
+    /// The script subsystem, as a trait object: the engine does not know
+    /// which language is running.
+    pub fn scripts(&self) -> Option<Rc<dyn balaur_script::ScriptHost<Engine>>> {
         self.inner.scripts.borrow().clone()
     }
 
-    pub fn set_scripts(&self, host: ScriptHost) {
+    pub fn set_scripts(&self, host: Rc<dyn balaur_script::ScriptHost<Engine>>) {
         *self.inner.scripts.borrow_mut() = Some(host);
     }
 

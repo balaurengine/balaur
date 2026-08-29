@@ -18,20 +18,21 @@ fn app() -> App {
 #[test]
 fn a_binding_can_call_the_function_it_was_passed() {
     let mut app = app();
-    let mut m = app.lua_module("t").unwrap();
+    let mut m = app.script_module("t").unwrap();
     let m: &mut dyn Bindings<Engine> = &mut m;
     m.function("twice", |eng: &Engine, cb: CallbackId| {
         eng.invoke(cb, &[])?;
         eng.invoke(cb, &[])?;
         Ok(())
     });
-
-    let host = app.engine.scripts().unwrap();
-    host.lua()
+    balaur_core::script::lua_of(&app.engine)
         .load("local n = 0; t.twice(function() n = n + 1 end); _G.hits = n")
         .exec()
         .unwrap();
-    let hits: i64 = host.lua().globals().get("hits").unwrap();
+    let hits: i64 = balaur_core::script::lua_of(&app.engine)
+        .globals()
+        .get("hits")
+        .unwrap();
     assert_eq!(hits, 2, "the binding should have called back twice");
 }
 
@@ -40,15 +41,16 @@ fn a_callback_does_not_outlive_its_call() {
     let mut app = app();
     let stashed: std::rc::Rc<std::cell::Cell<Option<CallbackId>>> = std::rc::Rc::default();
     let keep = stashed.clone();
-    let mut m = app.lua_module("t").unwrap();
+    let mut m = app.script_module("t").unwrap();
     let m: &mut dyn Bindings<Engine> = &mut m;
     m.function("stash", move |_: &Engine, cb: CallbackId| {
         keep.set(Some(cb));
         Ok(())
     });
-
-    let host = app.engine.scripts().unwrap();
-    host.lua().load("t.stash(function() end)").exec().unwrap();
+    balaur_core::script::lua_of(&app.engine)
+        .load("t.stash(function() end)")
+        .exec()
+        .unwrap();
 
     let err = app
         .engine

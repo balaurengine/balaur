@@ -154,7 +154,7 @@ pub fn instantiate_scene(
             .scripts()
             .ok_or_else(|| anyhow!("script host not running"))?;
         for (entity, script) in pending_scripts {
-            host.attach(entity, &script)?;
+            host.attach(crate::node_id_of(entity), &script)?;
         }
     }
     Ok(())

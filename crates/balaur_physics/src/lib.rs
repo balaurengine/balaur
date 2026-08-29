@@ -61,9 +61,9 @@ impl Plugin for PhysicsPlugin {
         app.engine.insert_resource(PhysicsState::new());
         app.add_system(Stage::PostUpdate, step_system);
 
-        let mut m = app.lua_module("physics")?;
-        install_world_controls(&mut m);
-        install_body_api(&mut m);
+        let mut m = app.script_module("physics")?;
+        install_world_controls(&mut *m);
+        install_body_api(&mut *m);
         register_physics_components(app);
 
         dim2::build(app)?;

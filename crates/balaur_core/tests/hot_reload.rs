@@ -47,7 +47,7 @@ return Counter
 ";
 
 fn global_i64(app: &App, name: &str) -> i64 {
-    let lua = app.engine.scripts().unwrap().lua();
+    let lua = balaur_core::script::lua_of(&app.engine);
     lua.globals()
         .get::<Option<i64>>(name)
         .unwrap()
@@ -81,7 +81,7 @@ fn hot_reload_swaps_code_and_preserves_state() {
         .reload("scripts/counter.luau")
         .unwrap();
 
-    let lua = app.engine.scripts().unwrap().lua();
+    let lua = balaur_core::script::lua_of(&app.engine);
     assert_eq!(
         lua.globals().get::<Option<bool>>("migrated").unwrap(),
         Some(true),
@@ -140,7 +140,7 @@ fn watcher_reloads_automatically() {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     loop {
         app.tick(1.0 / 60.0);
-        let lua = app.engine.scripts().unwrap().lua();
+        let lua = balaur_core::script::lua_of(&app.engine);
         if lua
             .globals()
             .get::<Option<bool>>("migrated")

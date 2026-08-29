@@ -211,7 +211,7 @@ fn add_scripting_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
             .engine
             .scripts()
             .ok_or_else(|| mlua::Error::runtime("script host not running"))?;
-        host.attach(this.entity, &path)
+        host.attach(crate::node_id_of(this.entity), &path)
             .map_err(mlua::Error::external)
     });
     methods.add_method("queue_free", |_, this, ()| {

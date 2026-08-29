@@ -224,7 +224,7 @@ fn settle_clicks(engine: &Engine, widgets: &[(Entity, Widget)], clicked: &[Entit
     }
     if let Some(host) = engine.scripts() {
         for (entity, method) in signals {
-            host.call_on(entity, &method);
+            host.call_on(balaur_core::node_id_of(entity), &method);
         }
     }
 }

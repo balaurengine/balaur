@@ -98,7 +98,7 @@ pub fn run_pass(engine: &Engine, ctx: &egui::Context) {
     let scale = state.borrow().scale;
     bridge::enter_pass(ctx, scale);
     if let Some(host) = engine.scripts() {
-        host.call_all("draw_ui", ());
+        host.call_all("draw_ui");
     }
     widget_layer::draw(engine, ctx, scale);
     bridge::leave_pass();

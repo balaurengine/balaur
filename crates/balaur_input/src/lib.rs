@@ -95,7 +95,7 @@ impl Plugin for InputPlugin {
     fn build(&mut self, app: &mut App) -> Result<()> {
         app.engine.insert_resource(InputState::default());
 
-        let mut m = app.lua_module("input")?;
+        let mut m = app.script_module("input")?;
         register(&mut m);
         Ok(())
     }

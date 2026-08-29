@@ -74,7 +74,7 @@ pub trait ScriptLanguage<C: ?Sized> {
 /// host context so this crate depends on nothing.
 pub trait ScriptHost<C: ?Sized> {
     /// The binding group a plugin registers into, creating it if needed.
-    fn module(&self, name: &str) -> Result<Box<dyn Bindings<C> + '_>>;
+    fn module(&self, name: &str) -> Result<Box<dyn Bindings<C>>>;
 
     /// Attach a script to a node and run its `init`.
     fn attach(&self, node: NodeId, path: &str) -> Result<()>;
@@ -101,11 +101,13 @@ pub trait ScriptHost<C: ?Sized> {
     /// order.
     fn call_all(&self, method: &str);
 
-    /// Load a module by path, as `require` does from script.
-    fn require(&self, path: &str) -> Result<Value>;
-
     /// Scene source by project-relative path, from the pack or from disk.
     fn scene_source(&self, rel: &str) -> Option<String>;
 
     fn instance_count(&self) -> usize;
+
+    /// Downcast to the concrete backend, for code written against one language
+    /// on purpose: a tool that wants the raw interpreter state, or a test of a
+    /// specific backend. Code that works across languages uses the trait.
+    fn as_any(&self) -> &dyn core::any::Any;
 }

@@ -74,7 +74,7 @@ impl Plugin for AudioPlugin {
             state.borrow_mut().players.retain(|p| !p.empty());
         });
 
-        let mut m = app.lua_module("audio")?;
+        let mut m = app.script_module("audio")?;
         register(&mut m);
         Ok(())
     }

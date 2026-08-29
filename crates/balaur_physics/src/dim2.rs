@@ -330,7 +330,7 @@ fn install_physics2d_api(app: &mut App) -> Result<()> {
     app.engine.insert_resource(Physics2DState::new());
     app.add_system(Stage::PostUpdate, step_system);
 
-    let mut m = app.lua_module("physics2d")?;
+    let mut m = app.script_module("physics2d")?;
     let m = &mut m as &mut dyn Bindings<Engine>;
     m.function("set_gravity", |eng: &Engine, (x, y): (f32, f32)| {
         let state = eng.resource::<Physics2DState>();

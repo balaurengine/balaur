@@ -25,7 +25,7 @@ fn make_app(dir: &std::path::Path) -> App {
 fn toml_roundtrips_through_lua() {
     let dir = tempfile::tempdir().unwrap();
     let app = make_app(dir.path());
-    let lua = app.engine.scripts().unwrap().lua();
+    let lua = balaur_core::script::lua_of(&app.engine);
     let out: String = lua
         .load(
             r#"
@@ -51,7 +51,7 @@ fn require_caches_and_hot_reloads_in_place() {
         "return { value = 1 }\n",
     )
     .unwrap();
-    let lua = app.engine.scripts().unwrap().lua();
+    let lua = balaur_core::script::lua_of(&app.engine);
     lua.load(
         r#"
         local a = require("scripts/mod")
@@ -82,7 +82,7 @@ fn require_caches_and_hot_reloads_in_place() {
 fn scenes_instantiate_at_runtime_and_args_reach_scripts() {
     let dir = tempfile::tempdir().unwrap();
     let app = make_app(dir.path());
-    let lua = app.engine.scripts().unwrap().lua();
+    let lua = balaur_core::script::lua_of(&app.engine);
     lua.load(
         r#"
         assert(engine.args()[1] == "arg-one")

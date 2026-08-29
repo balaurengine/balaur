@@ -173,11 +173,15 @@ pub(super) fn module(lua: &Lua, engine: &Engine, name: &str) -> anyhow::Result<L
 }
 
 /// Install the built-in `engine`, `scene`, and `log` modules.
-pub(super) fn install_globals(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
+pub(super) fn install_globals(
+    lua: &Lua,
+    engine: &Engine,
+    host: &super::ScriptHost,
+) -> anyhow::Result<()> {
     install_engine_module(lua, engine)?;
     install_scene_module(lua, engine)?;
     install_scene_assets(lua, engine)?;
-    install_log_module(lua, engine)?;
+    install_log_module(lua, engine, host)?;
     install_prelude(lua, engine)?;
 
     Ok(())
@@ -275,7 +279,7 @@ fn install_scene_assets(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
 }
 
 /// `log`: the capture buffer and the level helpers.
-fn install_log_module(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
+fn install_log_module(lua: &Lua, engine: &Engine, host: &super::ScriptHost) -> anyhow::Result<()> {
     let m = module(lua, engine, "log")?;
     m.table().set(
         "recent",
@@ -315,13 +319,13 @@ fn install_log_module(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     // Shared Luau modules: `require("scripts/util")` evaluates once and
     // caches; module tables hot reload in place like classes.
     {
-        let eng = engine.clone();
+        // `require` is Lua's own module system, so it uses the backend
+        // directly rather than the neutral seam: it returns a module table,
+        // which no neutral value can carry.
+        let host = host.clone();
         lua.globals().set(
             "require",
             lua.create_function(move |_, path: String| {
-                let host = eng
-                    .scripts()
-                    .ok_or_else(|| mlua::Error::runtime("script host not running"))?;
                 host.require(&path).map_err(mlua::Error::external)
             })?,
         )?;

@@ -9,7 +9,7 @@ use crate::engine::{Command, Engine};
 use crate::pack::Pack;
 use crate::project::{self, ProjectManifest, ProjectRoot, SceneVocab};
 use crate::scene;
-use crate::script::{LuaModule, ScriptHost};
+use crate::script::ScriptHost;
 
 /// Frame stages, run in order every tick.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -96,7 +96,7 @@ impl App {
             config.pack.clone(),
             config.watch,
         )?;
-        engine.set_scripts(host);
+        engine.set_scripts(std::rc::Rc::new(host));
         let mut app = Self {
             engine,
             systems: (0..STAGE_COUNT).map(|_| Vec::new()).collect(),
@@ -126,7 +126,7 @@ impl App {
                         let subtree = scene::collect_subtree(&eng.world(), entity);
                         if let Some(host) = eng.scripts() {
                             for &e in &subtree {
-                                host.detach(e);
+                                host.detach(crate::node_id_of(e));
                             }
                         }
                         scene::free_subtree(&mut eng.world_mut(), entity);
@@ -155,7 +155,11 @@ impl App {
     }
 
     /// Get the builder for a global Lua module (creating it if needed).
-    pub fn lua_module(&mut self, name: &str) -> Result<LuaModule> {
+    /// The binding group a plugin registers into, creating it if needed.
+    pub fn script_module(
+        &mut self,
+        name: &str,
+    ) -> Result<Box<dyn balaur_script::Bindings<Engine>>> {
         self.engine
             .scripts()
             .expect("script host always present")
