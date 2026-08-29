@@ -1,12 +1,14 @@
 [[nodes]]
+id = "n_world"
 name = "World"
 parent = ""
 
 [[nodes]]
 body = "fixed"
 color = [0.3, 0.55, 0.3]
+id = "n_ground"
 name = "Ground"
-parent = "World"
+parent = "n_world"
 position = [0, -1, 0]
 
 [nodes.collider]
@@ -18,8 +20,9 @@ half_extents = [10, 0.5, 10]
 kind = "cuboid"
 
 [[nodes]]
+id = "n_ball"
 name = "Ball"
-parent = "World"
+parent = "n_world"
 position = [0, 6, 0]
 script = "scripts/ball.luau"
 
@@ -32,8 +35,9 @@ radius = 0.5
 
 [[nodes]]
 color = [0.2, 0.4, 0.9]
+id = "n_spinner"
 name = "Spinner"
-parent = "World"
+parent = "n_world"
 position = [2.5, 0.5, 0]
 script = "scripts/spinner.luau"
 
@@ -42,6 +46,7 @@ half_extents = [0.5, 0.5, 0.5]
 kind = "cuboid"
 
 [[nodes]]
+id = "n_hud"
 name = "Hud"
 parent = ""
 

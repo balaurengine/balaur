@@ -4,11 +4,13 @@
 # restarts.
 
 [[nodes]]
+id = "n_game"
 name = "Game"
 parent = ""
 script = "scripts/game.luau"
 
 [[nodes]]
+id = "n_score"
 name = "Score"
 parent = ""
 
@@ -22,6 +24,7 @@ size = 22
 color = "#2b2b2b"
 
 [[nodes]]
+id = "n_birds"
 name = "Birds"
 parent = ""
 
@@ -35,6 +38,7 @@ size = 22
 color = "#2b2b2b"
 
 [[nodes]]
+id = "n_hint"
 name = "Hint"
 parent = ""
 
@@ -48,6 +52,7 @@ size = 15
 color = "#4b4b4b"
 
 [[nodes]]
+id = "n_ground"
 name = "Ground"
 parent = ""
 position = [0, -0.5, 0]
@@ -66,6 +71,7 @@ friction = 0.9
 rgba = [0.45, 0.63, 0.35, 1.0]
 
 [[nodes]]
+id = "n_slingpost"
 name = "SlingPost"
 parent = ""
 position = [-8, 0.9, 0]
@@ -78,6 +84,7 @@ half_extents = [0.12, 0.9]
 rgba = [0.42, 0.28, 0.16, 1.0]
 
 [[nodes]]
+id = "n_bird"
 name = "Bird"
 parent = ""
 position = [-8, 2.2, 0]
@@ -98,6 +105,7 @@ density = 2.5
 rgba = [0.85, 0.2, 0.18, 1.0]
 
 [[nodes]]
+id = "n_columnl"
 name = "ColumnL"
 parent = ""
 position = [6, 1.0, 0]
@@ -116,6 +124,7 @@ friction = 0.7
 rgba = [0.74, 0.57, 0.32, 1.0]
 
 [[nodes]]
+id = "n_columnr"
 name = "ColumnR"
 parent = ""
 position = [8, 1.0, 0]
@@ -134,6 +143,7 @@ friction = 0.7
 rgba = [0.74, 0.57, 0.32, 1.0]
 
 [[nodes]]
+id = "n_plank"
 name = "Plank"
 parent = ""
 position = [7, 2.16, 0]
@@ -152,6 +162,7 @@ friction = 0.7
 rgba = [0.68, 0.5, 0.28, 1.0]
 
 [[nodes]]
+id = "n_columnl2"
 name = "ColumnL2"
 parent = ""
 position = [6.4, 3.1, 0]
@@ -170,6 +181,7 @@ friction = 0.7
 rgba = [0.74, 0.57, 0.32, 1.0]
 
 [[nodes]]
+id = "n_columnr2"
 name = "ColumnR2"
 parent = ""
 position = [7.6, 3.1, 0]
@@ -188,6 +200,7 @@ friction = 0.7
 rgba = [0.74, 0.57, 0.32, 1.0]
 
 [[nodes]]
+id = "n_plank2"
 name = "Plank2"
 parent = ""
 position = [7, 4.04, 0]
@@ -206,6 +219,7 @@ friction = 0.7
 rgba = [0.68, 0.5, 0.28, 1.0]
 
 [[nodes]]
+id = "n_pig1"
 name = "Pig1"
 parent = ""
 position = [7, 0.45, 0]
@@ -226,8 +240,9 @@ rgba = [0.36, 0.72, 0.25, 1.0]
 
 
 [[nodes]]
+id = "n_riml"
 name = "RimL"
-parent = "Pig1"
+parent = "n_pig1"
 position = [-0.18, 0.072, 0.01]
 
 [nodes.shape2d]
@@ -238,8 +253,9 @@ radius = 0.189
 rgba = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
+id = "n_rimr"
 name = "RimR"
-parent = "Pig1"
+parent = "n_pig1"
 position = [0.18, 0.072, 0.01]
 
 [nodes.shape2d]
@@ -250,8 +266,9 @@ radius = 0.189
 rgba = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
+id = "n_bridge"
 name = "Bridge"
-parent = "Pig1"
+parent = "n_pig1"
 position = [0, 0.072, 0.01]
 
 [nodes.shape2d]
@@ -262,8 +279,9 @@ half_extents = [0.05, 0.016]
 rgba = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
+id = "n_lensl"
 name = "LensL"
-parent = "Pig1"
+parent = "n_pig1"
 position = [-0.18, 0.072, 0.02]
 
 [nodes.shape2d]
@@ -274,8 +292,9 @@ radius = 0.135
 rgba = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
+id = "n_lensr"
 name = "LensR"
-parent = "Pig1"
+parent = "n_pig1"
 position = [0.18, 0.072, 0.02]
 
 [nodes.shape2d]
@@ -286,8 +305,9 @@ radius = 0.135
 rgba = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
+id = "n_pupill"
 name = "PupilL"
-parent = "Pig1"
+parent = "n_pig1"
 position = [-0.18, 0.072, 0.03]
 
 [nodes.shape2d]
@@ -298,8 +318,9 @@ radius = 0.05
 rgba = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
+id = "n_pupilr"
 name = "PupilR"
-parent = "Pig1"
+parent = "n_pig1"
 position = [0.18, 0.072, 0.03]
 
 [nodes.shape2d]
@@ -310,6 +331,7 @@ radius = 0.05
 rgba = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
+id = "n_pig2"
 name = "Pig2"
 parent = ""
 position = [7, 2.72, 0]
@@ -330,8 +352,9 @@ rgba = [0.36, 0.72, 0.25, 1.0]
 
 
 [[nodes]]
+id = "n_riml_2"
 name = "RimL"
-parent = "Pig2"
+parent = "n_pig2"
 position = [-0.16, 0.064, 0.01]
 
 [nodes.shape2d]
@@ -342,8 +365,9 @@ radius = 0.168
 rgba = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
+id = "n_rimr_2"
 name = "RimR"
-parent = "Pig2"
+parent = "n_pig2"
 position = [0.16, 0.064, 0.01]
 
 [nodes.shape2d]
@@ -354,8 +378,9 @@ radius = 0.168
 rgba = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
+id = "n_bridge_2"
 name = "Bridge"
-parent = "Pig2"
+parent = "n_pig2"
 position = [0, 0.064, 0.01]
 
 [nodes.shape2d]
@@ -366,8 +391,9 @@ half_extents = [0.044, 0.014]
 rgba = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
+id = "n_lensl_2"
 name = "LensL"
-parent = "Pig2"
+parent = "n_pig2"
 position = [-0.16, 0.064, 0.02]
 
 [nodes.shape2d]
@@ -378,8 +404,9 @@ radius = 0.12
 rgba = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
+id = "n_lensr_2"
 name = "LensR"
-parent = "Pig2"
+parent = "n_pig2"
 position = [0.16, 0.064, 0.02]
 
 [nodes.shape2d]
@@ -390,8 +417,9 @@ radius = 0.12
 rgba = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
+id = "n_pupill_2"
 name = "PupilL"
-parent = "Pig2"
+parent = "n_pig2"
 position = [-0.16, 0.064, 0.03]
 
 [nodes.shape2d]
@@ -402,8 +430,9 @@ radius = 0.044
 rgba = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
+id = "n_pupilr_2"
 name = "PupilR"
-parent = "Pig2"
+parent = "n_pig2"
 position = [0.16, 0.064, 0.03]
 
 [nodes.shape2d]
@@ -414,6 +443,7 @@ radius = 0.044
 rgba = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
+id = "n_pig3"
 name = "Pig3"
 parent = ""
 position = [7, 4.55, 0]
@@ -433,8 +463,9 @@ friction = 0.6
 rgba = [0.36, 0.72, 0.25, 1.0]
 
 [[nodes]]
+id = "n_riml_3"
 name = "RimL"
-parent = "Pig3"
+parent = "n_pig3"
 position = [-0.144, 0.058, 0.01]
 
 [nodes.shape2d]
@@ -445,8 +476,9 @@ radius = 0.151
 rgba = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
+id = "n_rimr_3"
 name = "RimR"
-parent = "Pig3"
+parent = "n_pig3"
 position = [0.144, 0.058, 0.01]
 
 [nodes.shape2d]
@@ -457,8 +489,9 @@ radius = 0.151
 rgba = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
+id = "n_bridge_3"
 name = "Bridge"
-parent = "Pig3"
+parent = "n_pig3"
 position = [0, 0.058, 0.01]
 
 [nodes.shape2d]
@@ -469,8 +502,9 @@ half_extents = [0.04, 0.013]
 rgba = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
+id = "n_lensl_3"
 name = "LensL"
-parent = "Pig3"
+parent = "n_pig3"
 position = [-0.144, 0.058, 0.02]
 
 [nodes.shape2d]
@@ -481,8 +515,9 @@ radius = 0.108
 rgba = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
+id = "n_lensr_3"
 name = "LensR"
-parent = "Pig3"
+parent = "n_pig3"
 position = [0.144, 0.058, 0.02]
 
 [nodes.shape2d]
@@ -493,8 +528,9 @@ radius = 0.108
 rgba = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
+id = "n_pupill_3"
 name = "PupilL"
-parent = "Pig3"
+parent = "n_pig3"
 position = [-0.144, 0.058, 0.03]
 
 [nodes.shape2d]
@@ -505,8 +541,9 @@ radius = 0.04
 rgba = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
+id = "n_pupilr_3"
 name = "PupilR"
-parent = "Pig3"
+parent = "n_pig3"
 position = [0.144, 0.058, 0.03]
 
 [nodes.shape2d]

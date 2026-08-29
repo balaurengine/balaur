@@ -29,7 +29,7 @@ fn toml_roundtrips_through_lua() {
     let out: String = lua
         .load(
             r#"
-            local doc = toml.parse('[[nodes]]\nname = "A"\nposition = [1.5, 2, 3]\n')
+            local doc = toml.parse('[[nodes]]\nid = "n_a"\nname = "A"\nposition = [1.5, 2, 3]\n')
             assert(doc.nodes[1].name == "A")
             assert(doc.nodes[1].position[1] == 1.5)
             doc.nodes[1].name = "B"
@@ -87,7 +87,7 @@ fn scenes_instantiate_at_runtime_and_args_reach_scripts() {
         r#"
         assert(engine.args()[1] == "arg-one")
         local parent = scene.spawn("Holder")
-        scene.instantiate('[[nodes]]\nname = "A"\n\n[[nodes]]\nname = "B"\nparent = "A"\nposition = [0, 3, 0]\n', parent, { scripts = false })
+        scene.instantiate('[[nodes]]\nid = "n_a"\nname = "A"\n\n[[nodes]]\nid = "n_b"\nname = "B"\nparent = "n_a"\nposition = [0, 3, 0]\n', parent, { scripts = false })
         local b = parent:get_node("A/B")
         assert(b ~= nil, "nested instantiation failed")
         local _, y = b:position()

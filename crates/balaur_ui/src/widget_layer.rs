@@ -23,6 +23,10 @@ pub struct Widget {
     pub y: f32,
     pub size: f32,
     pub color: String,
+    /// Method on this node's script, called when the widget is clicked.
+    /// Empty means nothing is connected. A name rather than a function value:
+    /// scene files cannot hold closures, and a name works on any backend.
+    pub on_click: String,
     pub clicked: bool,
 }
 
@@ -54,7 +58,8 @@ anchor = { kind = "enum", default = "top_left", options = ["top_left", "top_righ
 x = { kind = "float", default = 16.0 }
 y = { kind = "float", default = 16.0 }
 size = { kind = "float", default = 16.0, min = 6.0 }
-color = { kind = "str", default = "#eef1f4" }"##,
+color = { kind = "str", default = "#eef1f4" }
+on_click = { kind = "str", default = "" }"##,
             ),
             apply: Box::new(|eng, entity, params| {
                 let s = |key: &str, default: &str| {
@@ -75,6 +80,7 @@ color = { kind = "str", default = "#eef1f4" }"##,
                     y: f("y", 16.0),
                     size: f("size", 16.0),
                     color: s("color", "#eef1f4"),
+                    on_click: s("on_click", ""),
                     clicked: false,
                 };
                 eng.world_mut()
@@ -97,6 +103,10 @@ color = { kind = "str", default = "#eef1f4" }"##,
                 map.insert("size".into(), toml::Value::Float(f64::from(widget.size)));
                 map.insert("color".into(), toml::Value::String(widget.color.clone()));
                 map.insert("clicked".into(), toml::Value::Boolean(widget.clicked));
+                map.insert(
+                    "on_click".into(),
+                    toml::Value::String(widget.on_click.clone()),
+                );
                 Some(toml::Value::Table(map))
             }),
         },
@@ -192,10 +202,29 @@ pub(crate) fn draw(engine: &Engine, ctx: &egui::Context, scale: f32) {
                 }
             });
     }
-    let world = engine.world();
-    for (entity, _) in &widgets {
-        if let Ok(mut w) = world.get::<&mut Widget>(*entity) {
-            w.clicked = clicked.contains(entity);
+    settle_clicks(engine, &widgets, &clicked);
+}
+
+/// Record this frame's clicks on each widget, then fire their `on_click`.
+///
+/// Dispatch happens after the world borrow is released: a handler may spawn,
+/// free or reparent nodes, and it must not do that mid-iteration.
+fn settle_clicks(engine: &Engine, widgets: &[(Entity, Widget)], clicked: &[Entity]) {
+    let mut signals: Vec<(Entity, String)> = Vec::new();
+    {
+        let world = engine.world();
+        for (entity, _) in widgets {
+            if let Ok(mut w) = world.get::<&mut Widget>(*entity) {
+                w.clicked = clicked.contains(entity);
+                if w.clicked && !w.on_click.is_empty() {
+                    signals.push((*entity, w.on_click.clone()));
+                }
+            }
+        }
+    }
+    if let Some(host) = engine.scripts() {
+        for (entity, method) in signals {
+            host.call_on(entity, &method);
         }
     }
 }

@@ -25,14 +25,22 @@ name = "Player"
 parent = "n_root"
 "#;
 
-/// Pre-id scenes address the parent by name path and must still load.
-const LEGACY: &str = r#"
+/// A node without an id is a scene we cannot safely edit.
+const NO_ID: &str = r#"
 [[nodes]]
 name = "World"
+"#;
+
+/// Parents must be declared before the children that name them.
+const FORWARD_REF: &str = r#"
+[[nodes]]
+id = "n_child"
+name = "Player"
+parent = "n_root"
 
 [[nodes]]
-name = "Player"
-parent = "World"
+id = "n_root"
+name = "World"
 "#;
 
 const DUPLICATE: &str = r#"
@@ -67,8 +75,19 @@ fn renaming_a_parent_does_not_break_its_children() {
 }
 
 #[test]
-fn scenes_without_ids_still_load() {
-    load(LEGACY).expect("name-path parenting is still supported");
+fn a_node_without_an_id_is_rejected() {
+    let err = load(NO_ID).expect_err("id is required");
+    let chain = format!("{err:#}");
+    assert!(chain.contains("id"), "unhelpful message: {chain}");
+}
+
+#[test]
+fn a_forward_parent_reference_is_rejected() {
+    let err = load(FORWARD_REF).expect_err("parents must come first");
+    assert!(
+        err.to_string().contains("no earlier node declares"),
+        "unhelpful message: {err}"
+    );
 }
 
 #[test]

@@ -13,7 +13,7 @@ fn write_project(root: &std::path::Path, script: &str) {
     .unwrap();
     std::fs::write(
         root.join("scenes/main.toml"),
-        "[[nodes]]\nname = \"Counter\"\nscript = \"scripts/counter.luau\"\n",
+        "[[nodes]]\nid = \"n_counter\"\nname = \"Counter\"\nscript = \"scripts/counter.luau\"\n",
     )
     .unwrap();
     std::fs::write(root.join("scripts/counter.luau"), script).unwrap();

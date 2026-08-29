@@ -16,18 +16,21 @@ fn write_project(root: &std::path::Path) {
         root.join("scenes/main.toml"),
         r#"
 [[nodes]]
+id = "n_ground"
 name = "Ground"
 position = [0.0, -1.0, 0.0]
 body = "fixed"
 collider = { shape = "cuboid", half_extents = [10.0, 0.5, 10.0] }
 
 [[nodes]]
+id = "n_balla"
 name = "BallA"
 position = [0.1, 5.0, 0.0]
 body = "dynamic"
 collider = { shape = "ball", radius = 0.5 }
 
 [[nodes]]
+id = "n_ballb"
 name = "BallB"
 position = [-0.1, 7.0, 0.05]
 body = "dynamic"
@@ -90,18 +93,21 @@ fn write_project_2d(root: &std::path::Path) {
         root.join("scenes/main.toml"),
         r#"
 [[nodes]]
+id = "n_ground"
 name = "Ground"
 position = [0.0, -1.0, 0.0]
 body2d = "fixed"
 collider2d = { shape = "rect", half_extents = [10, 1] }
 
 [[nodes]]
+id = "n_balla"
 name = "BallA"
 position = [0.1, 5.0, 0.0]
 body2d = "dynamic"
 collider2d = { shape = "circle", radius = 0.5, restitution = 0.4 }
 
 [[nodes]]
+id = "n_boxb"
 name = "BoxB"
 position = [-0.1, 7.0, 0.0]
 rotation_euler = [0.0, 0.0, 0.4]

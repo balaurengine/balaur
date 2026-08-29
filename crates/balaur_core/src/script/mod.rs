@@ -335,6 +335,21 @@ impl ScriptHost {
         Ok(())
     }
 
+    /// Call one node's script method — how a signal reaches its handler.
+    ///
+    /// Missing method is not an error: a widget may name a handler the script
+    /// does not implement yet, and that should not stop the frame.
+    pub fn call_on(&self, entity: Entity, method: &str) {
+        let inst = self.state.borrow().instances.get(&entity).cloned();
+        let Some(inst) = inst else { return };
+        let Ok(Some(func)) = inst.get::<Option<Function>>(method) else {
+            return;
+        };
+        if let Err(err) = func.call::<()>(inst) {
+            self.report_error(method, &err.to_string());
+        }
+    }
+
     /// Call `method` on every live instance that defines it, in entity order
     /// (deterministic; UI code depends on stable call order).
     // `args` is cloned once per instance inside the loop, so it is consumed.

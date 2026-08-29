@@ -2,5 +2,6 @@
 # shell drawn through the `ui` module.
 
 [[nodes]]
+id = "n_editor"
 name = "Editor"
 script = "scripts/editor.luau"

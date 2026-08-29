@@ -46,15 +46,11 @@ struct SceneDoc {
 struct SceneNode {
     /// Stable identity, assigned once and never reused.
     ///
-    /// `parent` refers to this, so renaming a node does not silently reparent
-    /// its children and two siblings may share a display name. Optional: a
-    /// scene written before ids existed still loads, falling back to the name
-    /// path below.
-    #[serde(default)]
-    id: Option<String>,
+    /// Required. `parent` refers to this, so renaming a node cannot silently
+    /// reparent its children and two siblings may share a display name.
+    id: String,
     name: String,
-    /// The parent's `id`, or — for scenes without ids — a name path relative
-    /// to the scene root. Omitted or empty means a root child.
+    /// The parent's `id`. Omitted or empty means a root child.
     #[serde(default)]
     parent: String,
     position: Option<[f32; 3]>,
@@ -104,22 +100,22 @@ pub fn instantiate_scene(
     for node in &doc.nodes {
         let parent = if node.parent.is_empty() {
             root
-        } else if let Some(entity) = by_id.get(node.parent.as_str()) {
-            *entity
         } else {
-            // Legacy scenes address the parent by name path.
-            scene::find_node(&engine.world(), root, &node.parent)
-                .ok_or_else(|| anyhow!("unknown parent '{}'", node.parent))?
+            *by_id.get(node.parent.as_str()).ok_or_else(|| {
+                anyhow!(
+                    "node '{}' names parent id '{}', which no earlier node declares",
+                    node.name,
+                    node.parent
+                )
+            })?
         };
         let entity = scene::spawn_node(&mut engine.world_mut(), &node.name, parent);
-        if let Some(id) = node.id.as_deref() {
-            if by_id.insert(id, entity).is_some() {
-                anyhow::bail!("two nodes share the id '{id}'");
-            }
-            engine
-                .world_mut()
-                .insert_one(entity, StableId(id.to_string()))?;
+        if by_id.insert(node.id.as_str(), entity).is_some() {
+            anyhow::bail!("two nodes share the id '{}'", node.id);
         }
+        engine
+            .world_mut()
+            .insert_one(entity, StableId(node.id.clone()))?;
         {
             let world = engine.world();
             // spawn_node inserts a Transform on every node it creates.
