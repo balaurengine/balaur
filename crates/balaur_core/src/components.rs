@@ -159,3 +159,11 @@ pub fn present_on(engine: &Engine, entity: Entity) -> Vec<String> {
         .map(|(n, _)| n.clone())
         .collect()
 }
+
+/// A node's stable identity from the scene file.
+///
+/// Present only on nodes that carry an `id`. It is what `parent` refers to and
+/// what a future save path writes back, so it must survive rename, reparent
+/// and reload.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct StableId(pub String);

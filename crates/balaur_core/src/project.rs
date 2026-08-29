@@ -14,6 +14,8 @@
 
 use std::collections::HashMap;
 
+use crate::collections::DetHashMap;
+use crate::components::StableId;
 use anyhow::{anyhow, Context, Result};
 use glamx::{EulerRot, Quat, Vec3};
 use hecs::Entity;
@@ -42,8 +44,17 @@ struct SceneDoc {
 
 #[derive(Deserialize)]
 struct SceneNode {
+    /// Stable identity, assigned once and never reused.
+    ///
+    /// `parent` refers to this, so renaming a node does not silently reparent
+    /// its children and two siblings may share a display name. Optional: a
+    /// scene written before ids existed still loads, falling back to the name
+    /// path below.
+    #[serde(default)]
+    id: Option<String>,
     name: String,
-    /// Path relative to the scene root; omitted or empty means a root child.
+    /// The parent's `id`, or — for scenes without ids — a name path relative
+    /// to the scene root. Omitted or empty means a root child.
     #[serde(default)]
     parent: String,
     position: Option<[f32; 3]>,
@@ -89,14 +100,26 @@ pub fn instantiate_scene(
     let handlers = &vocab.0;
     let root = base;
     let mut pending_scripts: Vec<(Entity, String)> = Vec::new();
+    let mut by_id: DetHashMap<&str, Entity> = DetHashMap::default();
     for node in &doc.nodes {
         let parent = if node.parent.is_empty() {
             root
+        } else if let Some(entity) = by_id.get(node.parent.as_str()) {
+            *entity
         } else {
+            // Legacy scenes address the parent by name path.
             scene::find_node(&engine.world(), root, &node.parent)
-                .ok_or_else(|| anyhow!("unknown parent path '{}'", node.parent))?
+                .ok_or_else(|| anyhow!("unknown parent '{}'", node.parent))?
         };
         let entity = scene::spawn_node(&mut engine.world_mut(), &node.name, parent);
+        if let Some(id) = node.id.as_deref() {
+            if by_id.insert(id, entity).is_some() {
+                anyhow::bail!("two nodes share the id '{id}'");
+            }
+            engine
+                .world_mut()
+                .insert_one(entity, StableId(id.to_string()))?;
+        }
         {
             let world = engine.world();
             // spawn_node inserts a Transform on every node it creates.
