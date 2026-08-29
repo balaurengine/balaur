@@ -4,10 +4,10 @@ use std::cell::{Cell, RefCell};
 
 use mlua::{FromLuaMulti, IntoLuaMulti, Lua, Table, UserDataRef};
 
-use crate::app::ScriptArgs;
-use crate::engine::Engine;
-use crate::scene;
-use crate::script::NodeRef;
+use crate::NodeRef;
+use balaur_core::app::ScriptArgs;
+use balaur_core::engine::Engine;
+use balaur_core::scene;
 
 /// Builder for a named global module exposed to scripts. This is the whole
 /// plugin binding API: wrapping a Rust crate for scripting is one
@@ -79,7 +79,7 @@ impl balaur_script::Bindings<Engine> for LuaModule {
     }
 }
 
-fn to_neutral(v: &mlua::Value) -> mlua::Result<balaur_script::Value> {
+pub(crate) fn to_neutral(v: &mlua::Value) -> mlua::Result<balaur_script::Value> {
     use balaur_script::Value as N;
     Ok(match v {
         mlua::Value::Nil => N::Nil,
@@ -111,7 +111,11 @@ fn to_neutral(v: &mlua::Value) -> mlua::Result<balaur_script::Value> {
     })
 }
 
-fn from_neutral(lua: &Lua, engine: &Engine, v: &balaur_script::Value) -> mlua::Result<mlua::Value> {
+pub(crate) fn from_neutral(
+    lua: &Lua,
+    engine: &Engine,
+    v: &balaur_script::Value,
+) -> mlua::Result<mlua::Value> {
     use balaur_script::Value as N;
     Ok(match v {
         // A callback never travels back out to script; it is call-scoped.
@@ -253,7 +257,7 @@ fn install_scene_module(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
             let attach = opts
                 .and_then(|o| o.get::<Option<bool>>("scripts").ok().flatten())
                 .unwrap_or(true);
-            crate::project::instantiate_scene(eng, &source, base, attach)
+            balaur_core::project::instantiate_scene(eng, &source, base, attach)
                 .map_err(mlua::Error::external)
         },
     )?;
@@ -268,13 +272,15 @@ fn install_scene_assets(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
     m.function("load", |eng, rel: String| {
         Ok(eng.scripts().and_then(|host| host.scene_source(&rel)))
     })?;
-    m.function("components", |eng, ()| Ok(crate::components::names(eng)))?;
+    m.function("components", |eng, ()| {
+        Ok(balaur_core::components::names(eng))
+    })?;
     m.function("component_schema", |eng, name: String| {
-        let registry = eng.resource::<crate::components::ComponentRegistry>();
+        let registry = eng.resource::<balaur_core::components::ComponentRegistry>();
         let registry = registry.borrow();
         Ok(registry
             .def(&name)
-            .map(|def| crate::script::tooling::TomlToLua(def.schema.clone())))
+            .map(|def| crate::tooling::TomlToLua(def.schema.clone())))
     })?;
     Ok(())
 }
@@ -286,7 +292,7 @@ fn install_log_module(lua: &Lua, engine: &Engine, host: &super::ScriptHost) -> a
         "recent",
         lua.create_function(|lua, n: Option<usize>| {
             let out = lua.create_table()?;
-            for (i, e) in crate::logbuf::recent(n.unwrap_or(100))
+            for (i, e) in balaur_core::logbuf::recent(n.unwrap_or(100))
                 .into_iter()
                 .enumerate()
             {
@@ -301,7 +307,7 @@ fn install_log_module(lua: &Lua, engine: &Engine, host: &super::ScriptHost) -> a
         })?,
     )?;
     m.function("clear", |_, ()| {
-        crate::logbuf::clear();
+        balaur_core::logbuf::clear();
         Ok(())
     })?;
     m.function("info", |_, msg: String| {

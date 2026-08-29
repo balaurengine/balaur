@@ -11,7 +11,7 @@ fn app() -> App {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: Some(balaur_core::script::factory()),
+        scripts: Some(balaur_script_luau::factory()),
     })
     .unwrap()
 }
@@ -26,11 +26,11 @@ fn a_binding_can_call_the_function_it_was_passed() {
         eng.invoke(cb, &[])?;
         Ok(())
     });
-    balaur_core::script::lua_of(&app.engine)
+    balaur_script_luau::lua_of(&app.engine)
         .load("local n = 0; t.twice(function() n = n + 1 end); _G.hits = n")
         .exec()
         .unwrap();
-    let hits: i64 = balaur_core::script::lua_of(&app.engine)
+    let hits: i64 = balaur_script_luau::lua_of(&app.engine)
         .globals()
         .get("hits")
         .unwrap();
@@ -48,7 +48,7 @@ fn a_callback_does_not_outlive_its_call() {
         keep.set(Some(cb));
         Ok(())
     });
-    balaur_core::script::lua_of(&app.engine)
+    balaur_script_luau::lua_of(&app.engine)
         .load("t.stash(function() end)")
         .exec()
         .unwrap();

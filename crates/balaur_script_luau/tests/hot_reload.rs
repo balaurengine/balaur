@@ -47,7 +47,7 @@ return Counter
 ";
 
 fn global_i64(app: &App, name: &str) -> i64 {
-    let lua = balaur_core::script::lua_of(&app.engine);
+    let lua = balaur_script_luau::lua_of(&app.engine);
     lua.globals()
         .get::<Option<i64>>(name)
         .unwrap()
@@ -63,7 +63,7 @@ fn hot_reload_swaps_code_and_preserves_state() {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: Some(balaur_core::script::factory()),
+        scripts: Some(balaur_script_luau::factory()),
     })
     .unwrap();
     app.load_project().unwrap();
@@ -82,7 +82,7 @@ fn hot_reload_swaps_code_and_preserves_state() {
         .reload("scripts/counter.luau")
         .unwrap();
 
-    let lua = balaur_core::script::lua_of(&app.engine);
+    let lua = balaur_script_luau::lua_of(&app.engine);
     assert_eq!(
         lua.globals().get::<Option<bool>>("migrated").unwrap(),
         Some(true),
@@ -103,7 +103,7 @@ fn compile_error_keeps_previous_version_running() {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: Some(balaur_core::script::factory()),
+        scripts: Some(balaur_script_luau::factory()),
     })
     .unwrap();
     app.load_project().unwrap();
@@ -131,7 +131,7 @@ fn watcher_reloads_automatically() {
         pack: None,
         watch: true,
         script_args: Vec::new(),
-        scripts: Some(balaur_core::script::factory()),
+        scripts: Some(balaur_script_luau::factory()),
     })
     .unwrap();
     app.load_project().unwrap();
@@ -143,7 +143,7 @@ fn watcher_reloads_automatically() {
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
     loop {
         app.tick(1.0 / 60.0);
-        let lua = balaur_core::script::lua_of(&app.engine);
+        let lua = balaur_script_luau::lua_of(&app.engine);
         if lua
             .globals()
             .get::<Option<bool>>("migrated")
@@ -164,7 +164,7 @@ fn watcher_reloads_automatically() {
 fn pack_roundtrip_runs_from_bytecode_only() {
     let dir = tempfile::tempdir().unwrap();
     write_project(dir.path(), V1);
-    let pack = Pack::build(dir.path()).unwrap();
+    let pack = Pack::build(dir.path(), &balaur_script_luau::Compiler).unwrap();
     let bytes = pack.encode();
     // Sources are gone from this point on: only the pack remains.
     drop(dir);
@@ -172,7 +172,7 @@ fn pack_roundtrip_runs_from_bytecode_only() {
     let pack = Pack::decode(&bytes).unwrap();
     assert_eq!(pack.scripts.len(), 1);
     let mut app = App::new(AppConfig {
-        scripts: Some(balaur_core::script::factory()),
+        scripts: Some(balaur_script_luau::factory()),
         ..AppConfig::packed(pack)
     })
     .unwrap();

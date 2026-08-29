@@ -20,7 +20,7 @@
 
 use mlua::{Lua, Table, Value, Variadic};
 
-use crate::engine::Engine;
+use balaur_core::engine::Engine;
 
 /// Builtins that must not be compiled to fastcalls because we replace them
 /// at runtime. `sqrt`, `abs`, `floor`, `ceil`, `fmod` & co stay native: they

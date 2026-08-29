@@ -149,10 +149,10 @@ pub fn instantiate_scene(
             pending_scripts.push((entity, script.clone()));
         }
     }
-    if attach_scripts {
-        let host = engine
-            .scripts()
-            .ok_or_else(|| anyhow!("script host not running"))?;
+    if attach_scripts && !pending_scripts.is_empty() {
+        let host = engine.scripts().ok_or_else(|| {
+            anyhow!("the scene attaches scripts but no script backend is running")
+        })?;
         for (entity, script) in pending_scripts {
             host.attach(crate::node_id_of(entity), &script)?;
         }

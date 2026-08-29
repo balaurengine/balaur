@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 
 use mlua::{Lua, Value};
 
-use crate::engine::Engine;
-use crate::project::ProjectRoot;
+use balaur_core::engine::Engine;
+use balaur_core::project::ProjectRoot;
 
 fn resolve(eng: &Engine, path: &str) -> PathBuf {
     let path = Path::new(path);

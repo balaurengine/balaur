@@ -5,8 +5,8 @@
 //! Tests for the deterministic scripting layer: fastcall routing, libm-backed
 //! math, and the seeded RNG.
 
-use balaur_core::mlua::chunk::ChunkMode;
 use balaur_core::{App, AppConfig};
+use balaur_script_luau::mlua::chunk::ChunkMode;
 
 fn make_app() -> (App, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
@@ -22,16 +22,16 @@ fn make_app() -> (App, tempfile::TempDir) {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: Some(balaur_core::script::factory()),
+        scripts: Some(balaur_script_luau::factory()),
     })
     .unwrap();
     (app, dir)
 }
 
 /// Compile a chunk with the engine's compiler configuration and evaluate it.
-fn eval_compiled<T: balaur_core::mlua::FromLuaMulti>(app: &App, src: &str) -> T {
-    let lua = balaur_core::script::lua_of(&app.engine);
-    let bytecode = balaur_core::script::compiler().compile(src).unwrap();
+fn eval_compiled<T: balaur_script_luau::mlua::FromLuaMulti>(app: &App, src: &str) -> T {
+    let lua = balaur_script_luau::lua_of(&app.engine);
+    let bytecode = balaur_script_luau::compiler().compile(src).unwrap();
     lua.load(bytecode.as_slice())
         .set_mode(ChunkMode::Binary)
         .eval()
@@ -46,7 +46,7 @@ fn eval_compiled<T: balaur_core::mlua::FromLuaMulti>(app: &App, src: &str) -> T 
 #[test]
 fn math_fastcalls_are_routed_through_the_global_table() {
     let (app, _dir) = make_app();
-    let lua = balaur_core::script::lua_of(&app.engine);
+    let lua = balaur_script_luau::lua_of(&app.engine);
     lua.load("math.sin = function(x) return 42 end")
         .exec()
         .unwrap();

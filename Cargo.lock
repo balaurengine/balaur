@@ -338,6 +338,7 @@ dependencies = [
  "balaur_input",
  "balaur_physics",
  "balaur_render",
+ "balaur_script_luau",
  "balaur_ui",
  "tempfile",
 ]
@@ -374,9 +375,6 @@ dependencies = [
  "glamx",
  "hecs",
  "indexmap",
- "libm",
- "mlua",
- "notify",
  "rustc-hash 2.1.3",
  "serde",
  "tempfile",
@@ -436,6 +434,23 @@ name = "balaur_script"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+]
+
+[[package]]
+name = "balaur_script_luau"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "balaur_core",
+ "balaur_script",
+ "glamx",
+ "hecs",
+ "libm",
+ "mlua",
+ "notify",
+ "tempfile",
+ "toml",
+ "tracing",
 ]
 
 [[package]]

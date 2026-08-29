@@ -3,7 +3,7 @@
 use anyhow::Result;
 
 use crate::bindings::Bindings;
-use crate::value::{NodeId, Value};
+use crate::value::{CallbackId, NodeId, Value};
 
 /// A compiled script, keyed by its normalised path.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -66,6 +66,19 @@ pub trait ScriptLanguage<C: ?Sized> {
     fn instance_count(&self) -> usize;
 }
 
+/// Compiles script sources ahead of time, for export packs.
+///
+/// Export happens without a running host, so this is separate from
+/// `ScriptLanguage`. A backend claims the file extensions it compiles; the
+/// exporter hands it every matching file and stores the result opaquely.
+pub trait ScriptCompiler {
+    /// Extensions this backend compiles, without the dot.
+    fn extensions(&self) -> &[&str];
+
+    /// Compile one source file. `rel` is the project-relative path, for errors.
+    fn compile(&self, rel: &str, source: &str) -> Result<Vec<u8>>;
+}
+
 /// The running script system, as the engine and its plugins see it.
 ///
 /// `ScriptLanguage` is what a backend implements for one language;
@@ -105,6 +118,12 @@ pub trait ScriptHost<C: ?Sized> {
     fn scene_source(&self, rel: &str) -> Option<String>;
 
     fn instance_count(&self) -> usize;
+
+    /// Call a function a script passed into a binding.
+    ///
+    /// Valid only during the binding call that received it — see
+    /// `Value::Callback`.
+    fn invoke(&self, callback: CallbackId, args: &[Value]) -> Result<Value>;
 
     /// Downcast to the concrete backend, for code written against one language
     /// on purpose: a tool that wants the raw interpreter state, or a test of a

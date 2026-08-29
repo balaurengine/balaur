@@ -23,6 +23,7 @@ mod node_api;
 pub(crate) mod tooling;
 
 pub use env::LuaModule;
+pub use mlua;
 pub use node_api::NodeRef;
 
 use std::cell::RefCell;
@@ -37,9 +38,9 @@ use mlua::chunk::ChunkMode;
 use mlua::{Function, Lua, Table, Value};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 
-use crate::engine::Engine;
-use crate::pack::Pack;
-use crate::scene::ScriptAttachment;
+use balaur_core::engine::Engine;
+use balaur_core::pack::Pack;
+use balaur_core::scene::ScriptAttachment;
 
 /// Luau compiler settings shared by dev mode and pack export, so shipped
 /// bytecode behaves exactly like what was tested during development.
@@ -52,8 +53,24 @@ pub fn compiler() -> mlua::chunk::Compiler {
         .set_disabled_builtins(det::DISABLED_BUILTINS.iter().copied())
 }
 
+/// Compiles `.luau` sources for an export pack, with the same settings the
+/// dev-mode host uses, so shipped bytecode behaves like what was tested.
+pub struct Compiler;
+
+impl balaur_script::ScriptCompiler for Compiler {
+    fn extensions(&self) -> &[&str] {
+        &["luau"]
+    }
+
+    fn compile(&self, rel: &str, source: &str) -> anyhow::Result<Vec<u8>> {
+        compiler()
+            .compile(source)
+            .with_context(|| format!("compiling {rel}"))
+    }
+}
+
 /// The Luau backend, as an `AppConfig::scripts` factory.
-pub fn factory() -> crate::app::ScriptHostFactory {
+pub fn factory() -> balaur_core::ScriptHostFactory {
     Box::new(|setup| {
         Ok(Rc::new(ScriptHost::new(
             setup.engine.clone(),
@@ -487,11 +504,11 @@ impl balaur_script::ScriptHost<Engine> for ScriptHost {
     }
 
     fn attach(&self, node: balaur_script::NodeId, path: &str) -> anyhow::Result<()> {
-        ScriptHost::attach(self, crate::entity_of(node)?, path)
+        ScriptHost::attach(self, balaur_core::entity_of(node)?, path)
     }
 
     fn detach(&self, node: balaur_script::NodeId) {
-        if let Ok(entity) = crate::entity_of(node) {
+        if let Ok(entity) = balaur_core::entity_of(node) {
             ScriptHost::detach(self, entity);
         }
     }
@@ -509,7 +526,7 @@ impl balaur_script::ScriptHost<Engine> for ScriptHost {
     }
 
     fn call_on(&self, node: balaur_script::NodeId, method: &str) {
-        if let Ok(entity) = crate::entity_of(node) {
+        if let Ok(entity) = balaur_core::entity_of(node) {
             ScriptHost::call_on(self, entity, method);
         }
     }
@@ -525,6 +542,21 @@ impl balaur_script::ScriptHost<Engine> for ScriptHost {
     fn instance_count(&self) -> usize {
         ScriptHost::instance_count(self)
     }
+    fn invoke(
+        &self,
+        callback: balaur_script::CallbackId,
+        args: &[balaur_script::Value],
+    ) -> anyhow::Result<balaur_script::Value> {
+        let func = env::lookup_callback(callback)
+            .ok_or_else(|| anyhow!("callback used after its call returned"))?;
+        let args: mlua::Result<Vec<_>> = args
+            .iter()
+            .map(|a| env::from_neutral(&self.lua, &self.engine, a))
+            .collect();
+        let ret: mlua::Value = func.call(mlua::MultiValue::from_iter(args?))?;
+        Ok(env::to_neutral(&ret)?)
+    }
+
     fn as_any(&self) -> &dyn core::any::Any {
         self
     }

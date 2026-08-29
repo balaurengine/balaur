@@ -19,16 +19,22 @@ pub use balaur_audio as audio;
 pub use balaur_input as input;
 pub use balaur_physics as physics;
 pub use balaur_render as render;
+pub use balaur_script_luau as scripts;
 pub use balaur_ui as ui;
 
 use anyhow::Result;
 
 /// Build an [`App`] with the standard plugin set (input, physics, render,
 /// audio).
+/// Build an export pack with the script backend `standard_app` installs.
+pub fn build_pack(project_root: &std::path::Path) -> Result<Pack> {
+    Pack::build(project_root, &balaur_script_luau::Compiler)
+}
+
 pub fn standard_app(mut config: AppConfig) -> Result<App> {
     config
         .scripts
-        .get_or_insert_with(balaur_core::script::factory);
+        .get_or_insert_with(balaur_script_luau::factory);
     let mut app = App::new(config)?;
     app.add_plugin(InputPlugin)?;
     app.add_plugin(PhysicsPlugin)?;

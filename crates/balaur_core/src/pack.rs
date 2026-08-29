@@ -1,10 +1,10 @@
 //! Exported game packs: the whole project (manifest, scenes, scripts) in one
-//! binary blob, with every script precompiled to Luau bytecode.
+//! binary blob, with every script precompiled by its backend.
 //!
 //! A pack is what `balaur export` produces and what a shipped game runs
 //! from, either as a standalone file (`balaur play game.bpak`) or embedded
 //! straight into a release binary with `include_bytes!`. Running from a pack
-//! needs no Luau compiler, no source files, and no file watcher.
+//! needs no compiler, no source files, and no file watcher.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -19,31 +19,31 @@ pub struct Pack {
     pub manifest: String,
     /// Scene sources keyed by project-relative path.
     pub scenes: HashMap<String, String>,
-    /// Luau bytecode keyed by project-relative path.
+    /// Compiled script bytes keyed by project-relative path. The format is
+    /// the backend's business; the pack only stores and ships them.
     pub scripts: HashMap<String, Vec<u8>>,
 }
 
 impl Pack {
     /// Compile every script in `project_root` and gather scenes into a pack.
-    pub fn build(project_root: &Path) -> Result<Self> {
+    ///
+    /// `scripts` decides which files count as scripts and how they compile.
+    pub fn build(project_root: &Path, scripts: &dyn balaur_script::ScriptCompiler) -> Result<Self> {
         let manifest = std::fs::read_to_string(project_root.join("project.toml"))
             .with_context(|| format!("no project.toml in {}", project_root.display()))?;
         let mut pack = Self {
             manifest,
             ..Default::default()
         };
-        let compiler = crate::script::compiler();
         let mut files = Vec::new();
         collect_files(project_root, project_root, &mut files)?;
         for rel in files {
             let path = project_root.join(&rel);
             match Path::new(&rel).extension().and_then(|e| e.to_str()) {
-                Some("luau") => {
+                Some(ext) if scripts.extensions().contains(&ext) => {
                     let source = std::fs::read_to_string(&path)?;
-                    let bytecode = compiler
-                        .compile(&source)
-                        .with_context(|| format!("compiling {rel}"))?;
-                    pack.scripts.insert(rel, bytecode);
+                    let compiled = scripts.compile(&rel, &source)?;
+                    pack.scripts.insert(rel, compiled);
                 }
                 Some("toml") if rel != "project.toml" => {
                     pack.scenes.insert(rel, std::fs::read_to_string(&path)?);

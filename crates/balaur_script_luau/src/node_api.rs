@@ -4,8 +4,8 @@ use glamx::{EulerRot, Quat, Vec3};
 use hecs::Entity;
 use mlua::{MetaMethod, UserData, UserDataMethods, UserDataRef};
 
-use crate::engine::{Command, Engine};
-use crate::scene::{self, Name, Parent, Transform};
+use balaur_core::engine::{Command, Engine};
+use balaur_core::scene::{self, Name, Parent, Transform};
 
 #[derive(Clone)]
 pub struct NodeRef {
@@ -94,14 +94,14 @@ fn add_global_transform_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
     methods.add_method("global_scale", |_, this, ()| {
         let world = this.engine.world();
         let g = world
-            .get::<&crate::scene::GlobalTransform>(this.entity)
+            .get::<&balaur_core::scene::GlobalTransform>(this.entity)
             .map_err(|_| mlua::Error::runtime("node is dead"))?;
         Ok((g.scale.x, g.scale.y, g.scale.z))
     });
     methods.add_method("global_rotation_euler", |_, this, ()| {
         let world = this.engine.world();
         let g = world
-            .get::<&crate::scene::GlobalTransform>(this.entity)
+            .get::<&balaur_core::scene::GlobalTransform>(this.entity)
             .map_err(|_| mlua::Error::runtime("node is dead"))?;
         let (yaw, pitch, roll) = g.rotation.to_euler(glamx::EulerRot::ZYX);
         Ok((roll, pitch, yaw))
@@ -109,7 +109,7 @@ fn add_global_transform_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
     methods.add_method("global_position", |_, this, ()| {
         let world = this.engine.world();
         let g = world
-            .get::<&crate::scene::GlobalTransform>(this.entity)
+            .get::<&balaur_core::scene::GlobalTransform>(this.entity)
             .map_err(|_| mlua::Error::runtime("node is dead"))?;
         Ok((g.position.x, g.position.y, g.position.z))
     });
@@ -144,7 +144,7 @@ fn add_hierarchy_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
     methods.add_method("children", |lua, this, ()| {
         let world = this.engine.world();
         let out = lua.create_table()?;
-        if let Ok(children) = world.get::<&crate::scene::Children>(this.entity) {
+        if let Ok(children) = world.get::<&balaur_core::scene::Children>(this.entity) {
             for (i, &child) in children.0.iter().enumerate() {
                 out.set(
                     i + 1,
@@ -163,9 +163,9 @@ fn add_hierarchy_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
         "add_component",
         |_, this, (name, params): (String, Option<mlua::Value>)| {
             let params = params
-                .map(|v| crate::script::tooling::lua_to_toml(&v))
+                .map(|v| crate::tooling::lua_to_toml(&v))
                 .transpose()?;
-            crate::components::add(&this.engine, this.entity, &name, params.as_ref())
+            balaur_core::components::add(&this.engine, this.entity, &name, params.as_ref())
                 .map_err(mlua::Error::external)
         },
     );
@@ -173,8 +173,8 @@ fn add_hierarchy_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
     methods.add_method(
         "set_component",
         |_, this, (name, params): (String, mlua::Value)| {
-            let params = crate::script::tooling::lua_to_toml(&params)?;
-            crate::components::add(&this.engine, this.entity, &name, Some(&params))
+            let params = crate::tooling::lua_to_toml(&params)?;
+            balaur_core::components::add(&this.engine, this.entity, &name, Some(&params))
                 .map_err(mlua::Error::external)
         },
     );
@@ -183,17 +183,23 @@ fn add_hierarchy_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
 /// Generic component add, read and remove.
 fn add_components_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
     methods.add_method("remove_component", |_, this, name: String| {
-        crate::components::remove(&this.engine, this.entity, &name).map_err(mlua::Error::external)
+        balaur_core::components::remove(&this.engine, this.entity, &name)
+            .map_err(mlua::Error::external)
     });
     methods.add_method("get_component", |_, this, name: String| {
-        Ok(crate::components::get(&this.engine, this.entity, &name)
-            .map(crate::script::tooling::TomlToLua))
+        Ok(
+            balaur_core::components::get(&this.engine, this.entity, &name)
+                .map(crate::tooling::TomlToLua),
+        )
     });
     methods.add_method("has_component", |_, this, name: String| {
-        Ok(crate::components::get(&this.engine, this.entity, &name).is_some())
+        Ok(balaur_core::components::get(&this.engine, this.entity, &name).is_some())
     });
     methods.add_method("component_names", |_, this, ()| {
-        Ok(crate::components::present_on(&this.engine, this.entity))
+        Ok(balaur_core::components::present_on(
+            &this.engine,
+            this.entity,
+        ))
     });
 }
 
@@ -202,7 +208,7 @@ fn add_scripting_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
     methods.add_method("script_path", |_, this, ()| {
         let world = this.engine.world();
         Ok(world
-            .get::<&crate::scene::ScriptAttachment>(this.entity)
+            .get::<&balaur_core::scene::ScriptAttachment>(this.entity)
             .ok()
             .map(|a| a.path.clone()))
     });
@@ -211,7 +217,7 @@ fn add_scripting_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
             .engine
             .scripts()
             .ok_or_else(|| mlua::Error::runtime("script host not running"))?;
-        host.attach(crate::node_id_of(this.entity), &path)
+        host.attach(balaur_core::node_id_of(this.entity), &path)
             .map_err(mlua::Error::external)
     });
     methods.add_method("queue_free", |_, this, ()| {

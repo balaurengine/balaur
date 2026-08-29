@@ -135,11 +135,10 @@ impl balaur_script::CallbackHost for Engine {
     fn invoke(
         &self,
         callback: balaur_script::CallbackId,
-        _args: &[balaur_script::Value],
+        args: &[balaur_script::Value],
     ) -> anyhow::Result<balaur_script::Value> {
-        let func = crate::script::env::lookup_callback(callback)
-            .ok_or_else(|| anyhow::anyhow!("callback used after its call returned"))?;
-        func.call::<()>(())?;
-        Ok(balaur_script::Value::Nil)
+        self.scripts()
+            .ok_or_else(|| anyhow::anyhow!("no script backend is running"))?
+            .invoke(callback, args)
     }
 }

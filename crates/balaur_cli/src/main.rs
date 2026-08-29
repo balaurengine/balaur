@@ -96,7 +96,7 @@ fn main() -> Result<()> {
             state,
         } => edit_project(&path, editor, frames, screenshot, state),
         Command::Export { path, output } => {
-            let pack = Pack::build(&path)?;
+            let pack = balaur::build_pack(&path)?;
             let output = output.unwrap_or_else(|| {
                 let name = path
                     .canonicalize()

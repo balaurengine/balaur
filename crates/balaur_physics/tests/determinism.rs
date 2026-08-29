@@ -46,7 +46,7 @@ fn simulate(root: &std::path::Path, frames: u32) -> Vec<[u32; 3]> {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: Some(balaur_core::script::factory()),
+        scripts: None,
     })
     .unwrap();
     app.add_plugin(PhysicsPlugin).unwrap();
