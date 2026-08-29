@@ -448,3 +448,59 @@ impl ScriptHost {
         self.state.borrow().instances.len()
     }
 }
+
+/// The Luau host, seen through the neutral seam.
+///
+/// Implemented on the concrete host rather than replacing it: plugins can move
+/// to the trait one at a time while the engine still holds the struct.
+impl balaur_script::ScriptHost<Engine> for ScriptHost {
+    fn module(&self, name: &str) -> anyhow::Result<Box<dyn balaur_script::Bindings<Engine> + '_>> {
+        Ok(Box::new(ScriptHost::module(self, name)?))
+    }
+
+    fn attach(&self, node: balaur_script::NodeId, path: &str) -> anyhow::Result<()> {
+        ScriptHost::attach(self, crate::entity_of(node)?, path)
+    }
+
+    fn detach(&self, node: balaur_script::NodeId) {
+        if let Ok(entity) = crate::entity_of(node) {
+            ScriptHost::detach(self, entity);
+        }
+    }
+
+    fn update(&self, dt: f32) {
+        ScriptHost::update(self, dt);
+    }
+
+    fn pump_reloads(&self) {
+        ScriptHost::pump_reloads(self);
+    }
+
+    fn reload(&self, key: &str) -> anyhow::Result<()> {
+        ScriptHost::reload(self, key)
+    }
+
+    fn call_on(&self, node: balaur_script::NodeId, method: &str) {
+        if let Ok(entity) = crate::entity_of(node) {
+            ScriptHost::call_on(self, entity, method);
+        }
+    }
+
+    fn call_all(&self, method: &str) {
+        ScriptHost::call_all(self, method, ());
+    }
+
+    fn require(&self, path: &str) -> anyhow::Result<balaur_script::Value> {
+        ScriptHost::require(self, path)?;
+        // Modules are consumed on the Lua side; the seam only reports success.
+        Ok(balaur_script::Value::Nil)
+    }
+
+    fn scene_source(&self, rel: &str) -> Option<String> {
+        ScriptHost::scene_source(self, rel)
+    }
+
+    fn instance_count(&self) -> usize {
+        ScriptHost::instance_count(self)
+    }
+}
