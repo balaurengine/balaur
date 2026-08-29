@@ -1,5 +1,7 @@
 //! Global Lua environment and the plugin binding builder.
 
+use std::cell::{Cell, RefCell};
+
 use mlua::{FromLuaMulti, IntoLuaMulti, Lua, Table, UserDataRef};
 
 use crate::engine::Engine;
@@ -47,6 +49,8 @@ impl balaur_script::Bindings<Engine> for LuaModule {
         let Ok(func) = self
             .lua
             .create_function(move |lua, args: mlua::MultiValue| {
+                // Callbacks live only for this call; the guard drops them after.
+                let _scope = CallbackScope::open();
                 let neutral: Vec<balaur_script::Value> = args
                     .into_iter()
                     .map(|v| to_neutral(&v))
@@ -86,6 +90,7 @@ fn to_neutral(v: &mlua::Value) -> mlua::Result<balaur_script::Value> {
             let node = ud.borrow::<NodeRef>()?;
             N::Node(node.entity.to_bits().get())
         }
+        mlua::Value::Function(f) => N::Callback(CallbackScope::register(f.clone())),
         mlua::Value::Table(t) => {
             let mut map = Vec::new();
             t.for_each(|k: mlua::Value, v: mlua::Value| {
@@ -108,7 +113,8 @@ fn to_neutral(v: &mlua::Value) -> mlua::Result<balaur_script::Value> {
 fn from_neutral(lua: &Lua, engine: &Engine, v: &balaur_script::Value) -> mlua::Result<mlua::Value> {
     use balaur_script::Value as N;
     Ok(match v {
-        N::Nil => mlua::Value::Nil,
+        // A callback never travels back out to script; it is call-scoped.
+        N::Nil | N::Callback(_) => mlua::Value::Nil,
         N::Bool(b) => mlua::Value::Boolean(*b),
         N::Int(i) => mlua::Value::Integer(*i),
         N::Num(n) => mlua::Value::Number(*n),
@@ -340,4 +346,56 @@ fn install_prelude(lua: &Lua, _engine: &Engine) -> anyhow::Result<()> {
         })?,
     )?;
     Ok(())
+}
+
+thread_local! {
+    /// Callbacks registered for the binding call currently on the stack.
+    ///
+    /// Thread-local because the VM is single-threaded by design, and a plain
+    /// counter because ids only need to be unique while the call is running.
+    static CALLBACKS: RefCell<Vec<(u64, mlua::Function)>> = const { RefCell::new(Vec::new()) };
+    static NEXT_CALLBACK: Cell<u64> = const { Cell::new(1) };
+}
+
+/// Registers callbacks for one binding call and drops them on the way out.
+struct CallbackScope {
+    base: usize,
+}
+
+impl CallbackScope {
+    /// Open a scope for one binding call. Callbacks registered while it is
+    /// alive are dropped when it ends.
+    fn open() -> Self {
+        Self {
+            base: CALLBACKS.with(|c| c.borrow().len()),
+        }
+    }
+
+    fn register(f: mlua::Function) -> balaur_script::CallbackId {
+        let id = NEXT_CALLBACK.with(|n| {
+            let id = n.get();
+            n.set(id + 1);
+            id
+        });
+        CALLBACKS.with(|c| c.borrow_mut().push((id, f)));
+        balaur_script::CallbackId(id)
+    }
+}
+
+impl Drop for CallbackScope {
+    fn drop(&mut self) {
+        CALLBACKS.with(|c| c.borrow_mut().truncate(self.base));
+    }
+}
+
+/// Look up a live callback. `None` once its scope has ended, which is what a
+/// binding that stashed one would hit -- deliberately, since call-scoped means
+/// call-scoped.
+pub(crate) fn lookup_callback(id: balaur_script::CallbackId) -> Option<mlua::Function> {
+    CALLBACKS.with(|c| {
+        c.borrow()
+            .iter()
+            .find(|(cid, _)| *cid == id.0)
+            .map(|(_, f)| f.clone())
+    })
 }

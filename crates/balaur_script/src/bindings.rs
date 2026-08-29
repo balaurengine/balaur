@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 
-use crate::value::{FromArgs, IntoValue, Value};
+use crate::value::{CallbackId, FromArgs, IntoValue, Value};
 
 /// A registered entry point, after type erasure. `C` is the host context the
 /// engine hands every binding — `balaur_core::Engine` in practice. It is a
@@ -38,3 +38,14 @@ pub trait BindingsExt<C: ?Sized>: Bindings<C> {
 }
 
 impl<C: ?Sized, T: Bindings<C> + ?Sized> BindingsExt<C> for T {}
+
+/// A host that can call back into script.
+///
+/// Implemented by the context a binding receives, so a binding taking a
+/// callback needs nothing beyond the argument it was handed. Only the
+/// immediate-mode UI needs this; data bindings never touch it.
+pub trait CallbackHost {
+    /// Invoke a call-scoped callback. Errors propagate to the binding, which
+    /// propagates to the script that passed it.
+    fn invoke(&self, callback: CallbackId, args: &[Value]) -> Result<Value>;
+}

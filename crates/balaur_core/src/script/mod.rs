@@ -18,7 +18,7 @@
 //! A compile error keeps the previous version running and reports the error.
 
 pub mod det;
-mod env;
+pub mod env;
 mod node_api;
 pub(crate) mod tooling;
 

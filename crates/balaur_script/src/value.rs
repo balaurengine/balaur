@@ -21,6 +21,11 @@ pub enum Value {
     /// A node, as `hecs::Entity::to_bits()`. Kept opaque so this crate
     /// depends on nothing.
     Node(u64),
+    /// A script function, valid only for the duration of the binding call it
+    /// was passed to. Immediate-mode UI callbacks never outlive their call, so
+    /// the backend can register on entry and drop on exit -- no ownership
+    /// question, no interaction with the collector.
+    Callback(CallbackId),
     List(Vec<Value>),
     Map(Vec<(String, Value)>),
 }
@@ -37,6 +42,7 @@ impl Value {
             Self::Vec3(_) => "vec3",
             Self::Color(_) => "color",
             Self::Node(_) => "node",
+            Self::Callback(_) => "function",
             Self::List(_) => "list",
             Self::Map(_) => "map",
         }
@@ -126,6 +132,19 @@ impl FromArg for String {
     }
 }
 
+/// A call-scoped script function, resolved by the backend that registered it.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct CallbackId(pub u64);
+
+impl FromArg for CallbackId {
+    fn from_arg(v: Option<&Value>) -> Result<Self> {
+        match v {
+            Some(Value::Callback(id)) => Ok(*id),
+            other => Err(want(other, "function")),
+        }
+    }
+}
+
 /// A node handle, opaque here and re-hydrated by the backend.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct NodeId(pub u64);
@@ -210,7 +229,7 @@ macro_rules! scalar_args {
         }
     )* };
 }
-scalar_args!(bool, i32, i64, u32, u64, usize, f32, f64, String, NodeId, Value);
+scalar_args!(bool, i32, i64, u32, u64, usize, f32, f64, String, NodeId, CallbackId, Value);
 
 impl<T: FromArg> FromArgs for Option<T> {
     fn from_args(args: &[Value]) -> Result<Self> {
