@@ -25,7 +25,10 @@ use anyhow::Result;
 
 /// Build an [`App`] with the standard plugin set (input, physics, render,
 /// audio).
-pub fn standard_app(config: AppConfig) -> Result<App> {
+pub fn standard_app(mut config: AppConfig) -> Result<App> {
+    config
+        .scripts
+        .get_or_insert_with(balaur_core::script::factory);
     let mut app = App::new(config)?;
     app.add_plugin(InputPlugin)?;
     app.add_plugin(PhysicsPlugin)?;

@@ -1,6 +1,7 @@
 //! The application shell: plugins, staged scheduler, main loop.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
@@ -9,7 +10,6 @@ use crate::engine::{Command, Engine};
 use crate::pack::Pack;
 use crate::project::{self, ProjectManifest, ProjectRoot, SceneVocab};
 use crate::scene;
-use crate::script::ScriptHost;
 
 /// Frame stages, run in order every tick.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -34,6 +34,26 @@ const STAGE_COUNT: usize = 7;
 
 pub type SystemFn = Box<dyn FnMut(&Engine, f32)>;
 
+/// CLI arguments exposed to scripts through `engine.args()`.
+pub struct ScriptArgs(pub Vec<String>);
+
+/// What a script backend needs to start.
+pub struct ScriptSetup<'a> {
+    pub engine: &'a Engine,
+    pub project_root: &'a Path,
+    pub pack: Option<Pack>,
+    pub watch: bool,
+}
+
+/// Builds the script host for an app.
+///
+/// Core names no language. The crate assembling the app picks a backend and
+/// puts its factory here; `balaur::standard_app` installs Luau. An app with no
+/// factory runs without scripting: binding registrations are discarded and the
+/// per-frame script systems do nothing.
+pub type ScriptHostFactory =
+    Box<dyn FnOnce(ScriptSetup<'_>) -> Result<Rc<dyn balaur_script::ScriptHost<Engine>>>>;
+
 pub struct AppConfig {
     /// Project directory (scripts and scenes are resolved against it). For
     /// packed runs this is only used as a working directory hint.
@@ -45,6 +65,8 @@ pub struct AppConfig {
     /// Extra arguments handed to scripts via `engine.args()` (e.g. the
     /// project a tool operates on).
     pub script_args: Vec<String>,
+    /// Which script backend to run. `None` means no scripting.
+    pub scripts: Option<ScriptHostFactory>,
 }
 
 impl AppConfig {
@@ -54,6 +76,7 @@ impl AppConfig {
             pack: None,
             watch: true,
             script_args: Vec::new(),
+            scripts: None,
         }
     }
 
@@ -63,6 +86,7 @@ impl AppConfig {
             pack: Some(pack),
             watch: false,
             script_args: Vec::new(),
+            scripts: None,
         }
     }
 }
@@ -84,19 +108,22 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(config: AppConfig) -> Result<Self> {
+    pub fn new(mut config: AppConfig) -> Result<Self> {
         let engine = Engine::new();
         engine.insert_resource(SceneVocab::default());
         engine.insert_resource(crate::components::ComponentRegistry::default());
         engine.insert_resource(ProjectRoot(config.project_root.clone()));
-        engine.insert_resource(crate::script::ScriptArgs(config.script_args.clone()));
-        let host = ScriptHost::new(
-            engine.clone(),
-            &config.project_root,
-            config.pack.clone(),
-            config.watch,
-        )?;
-        engine.set_scripts(std::rc::Rc::new(host));
+        engine.insert_resource(ScriptArgs(config.script_args.clone()));
+        if let Some(make) = config.scripts.take() {
+            engine.set_scripts(make(ScriptSetup {
+                engine: &engine,
+                project_root: &config.project_root,
+                pack: config.pack.clone(),
+                watch: config.watch,
+            })?);
+        } else {
+            tracing::info!("no script backend configured; scripting is off");
+        }
         let mut app = Self {
             engine,
             systems: (0..STAGE_COUNT).map(|_| Vec::new()).collect(),
@@ -154,16 +181,17 @@ impl App {
         self
     }
 
-    /// Get the builder for a global Lua module (creating it if needed).
     /// The binding group a plugin registers into, creating it if needed.
+    /// With no script backend the registrations go nowhere, since nothing can
+    /// call them.
     pub fn script_module(
         &mut self,
         name: &str,
     ) -> Result<Box<dyn balaur_script::Bindings<Engine>>> {
-        self.engine
-            .scripts()
-            .expect("script host always present")
-            .module(name)
+        match self.engine.scripts() {
+            Some(host) => host.module(name),
+            None => Ok(Box::new(balaur_script::NoBindings)),
+        }
     }
 
     /// Register a named, schema-described component (see

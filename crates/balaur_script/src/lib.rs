@@ -10,6 +10,6 @@ mod language;
 mod value;
 
 pub use bindings::CallbackHost;
-pub use bindings::{Bindings, BindingsExt, BoundFn};
+pub use bindings::{Bindings, BindingsExt, BoundFn, NoBindings};
 pub use language::{InstanceId, ReloadReport, ScriptHost, ScriptId, ScriptLanguage};
 pub use value::{expect_arity, CallbackId, FromArg, FromArgs, IntoValue, NodeId, Value};

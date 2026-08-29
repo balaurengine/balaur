@@ -41,9 +41,6 @@ use crate::engine::Engine;
 use crate::pack::Pack;
 use crate::scene::ScriptAttachment;
 
-/// CLI arguments exposed to scripts through `engine.args()`.
-pub struct ScriptArgs(pub Vec<String>);
-
 /// Luau compiler settings shared by dev mode and pack export, so shipped
 /// bytecode behaves exactly like what was tested during development.
 pub fn compiler() -> mlua::chunk::Compiler {
@@ -53,6 +50,18 @@ pub fn compiler() -> mlua::chunk::Compiler {
         // Determinism: keep the replaced math functions out of fastcalls so
         // calls route through the (rebound) global table. See `script::det`.
         .set_disabled_builtins(det::DISABLED_BUILTINS.iter().copied())
+}
+
+/// The Luau backend, as an `AppConfig::scripts` factory.
+pub fn factory() -> crate::app::ScriptHostFactory {
+    Box::new(|setup| {
+        Ok(Rc::new(ScriptHost::new(
+            setup.engine.clone(),
+            setup.project_root,
+            setup.pack,
+            setup.watch,
+        )?))
+    })
 }
 
 #[derive(Clone)]

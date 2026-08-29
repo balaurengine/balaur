@@ -4,9 +4,10 @@ use std::cell::{Cell, RefCell};
 
 use mlua::{FromLuaMulti, IntoLuaMulti, Lua, Table, UserDataRef};
 
+use crate::app::ScriptArgs;
 use crate::engine::Engine;
 use crate::scene;
-use crate::script::{NodeRef, ScriptArgs};
+use crate::script::NodeRef;
 
 /// Builder for a named global module exposed to scripts. This is the whole
 /// plugin binding API: wrapping a Rust crate for scripting is one

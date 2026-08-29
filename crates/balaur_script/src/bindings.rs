@@ -69,3 +69,12 @@ pub trait CallbackHost {
     /// propagates to the script that passed it.
     fn invoke(&self, callback: CallbackId, args: &[Value]) -> Result<Value>;
 }
+
+/// A binding group that discards everything registered into it, for an app
+/// running without a script backend.
+pub struct NoBindings;
+
+impl<C: ?Sized> Bindings<C> for NoBindings {
+    fn function_raw(&mut self, _name: &str, _f: BoundFn<C>) {}
+    fn constant(&mut self, _name: &str, _value: Value) {}
+}

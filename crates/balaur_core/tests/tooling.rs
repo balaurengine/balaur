@@ -17,6 +17,7 @@ fn make_app(dir: &std::path::Path) -> App {
         pack: None,
         watch: false,
         script_args: vec!["arg-one".into()],
+        scripts: Some(balaur_core::script::factory()),
     })
     .unwrap()
 }

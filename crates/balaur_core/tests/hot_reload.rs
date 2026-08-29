@@ -63,6 +63,7 @@ fn hot_reload_swaps_code_and_preserves_state() {
         pack: None,
         watch: false,
         script_args: Vec::new(),
+        scripts: Some(balaur_core::script::factory()),
     })
     .unwrap();
     app.load_project().unwrap();
@@ -102,6 +103,7 @@ fn compile_error_keeps_previous_version_running() {
         pack: None,
         watch: false,
         script_args: Vec::new(),
+        scripts: Some(balaur_core::script::factory()),
     })
     .unwrap();
     app.load_project().unwrap();
@@ -129,6 +131,7 @@ fn watcher_reloads_automatically() {
         pack: None,
         watch: true,
         script_args: Vec::new(),
+        scripts: Some(balaur_core::script::factory()),
     })
     .unwrap();
     app.load_project().unwrap();
@@ -168,7 +171,11 @@ fn pack_roundtrip_runs_from_bytecode_only() {
 
     let pack = Pack::decode(&bytes).unwrap();
     assert_eq!(pack.scripts.len(), 1);
-    let mut app = App::new(AppConfig::packed(pack)).unwrap();
+    let mut app = App::new(AppConfig {
+        scripts: Some(balaur_core::script::factory()),
+        ..AppConfig::packed(pack)
+    })
+    .unwrap();
     app.load_project().unwrap();
     for _ in 0..5 {
         app.tick(1.0 / 60.0);
