@@ -46,8 +46,10 @@ struct SceneDoc {
 struct SceneNode {
     /// Stable identity, assigned once and never reused.
     ///
-    /// Required. `parent` refers to this, so renaming a node cannot silently
-    /// reparent its children and two siblings may share a display name.
+    /// `parent` refers to this, so renaming a node cannot silently reparent
+    /// its children and two siblings may share a display name. Omitted or
+    /// duplicated ids are repaired at load; see [`repair_ids`].
+    #[serde(default)]
     id: String,
     name: String,
     /// The parent's `id`. Omitted or empty means a root child.
@@ -97,7 +99,8 @@ pub fn instantiate_scene(
     let root = base;
     let mut pending_scripts: Vec<(Entity, String)> = Vec::new();
     let mut by_id: DetHashMap<&str, Entity> = DetHashMap::default();
-    for node in &doc.nodes {
+    let ids = repair_ids(&doc.nodes);
+    for (index, node) in doc.nodes.iter().enumerate() {
         let parent = if node.parent.is_empty() {
             root
         } else {
@@ -110,12 +113,10 @@ pub fn instantiate_scene(
             })?
         };
         let entity = scene::spawn_node(&mut engine.world_mut(), &node.name, parent);
-        if by_id.insert(node.id.as_str(), entity).is_some() {
-            anyhow::bail!("two nodes share the id '{}'", node.id);
-        }
+        by_id.insert(ids[index].as_str(), entity);
         engine
             .world_mut()
-            .insert_one(entity, StableId(node.id.clone()))?;
+            .insert_one(entity, StableId(ids[index].clone()))?;
         {
             let world = engine.world();
             // spawn_node inserts a Transform on every node it creates.
@@ -157,4 +158,70 @@ pub fn instantiate_scene(
         }
     }
     Ok(())
+}
+
+/// Give every node a unique id, repairing what the file got wrong.
+///
+/// A scene should load even when hand-edited, so a missing or duplicated id is
+/// fixed rather than fatal. Generation is by document order and node name, so
+/// the same file always yields the same ids — an id that changed between runs
+/// would defeat the point of having one. Repairs are logged: the fix is in
+/// memory only, and the file still needs saving to make it permanent.
+fn repair_ids(nodes: &[SceneNode]) -> Vec<String> {
+    let mut taken: std::collections::BTreeSet<String> = nodes
+        .iter()
+        .filter(|n| !n.id.is_empty())
+        .map(|n| n.id.clone())
+        .collect();
+    let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    let mut out = Vec::with_capacity(nodes.len());
+
+    for node in nodes {
+        let reason = if node.id.is_empty() {
+            Some("missing")
+        } else if !seen.insert(node.id.as_str()) {
+            Some("duplicate")
+        } else {
+            None
+        };
+        let Some(reason) = reason else {
+            out.push(node.id.clone());
+            continue;
+        };
+        let base = slug(&node.name);
+        let mut candidate = base.clone();
+        let mut n = 2;
+        while !taken.insert(candidate.clone()) {
+            candidate = format!("{base}_{n}");
+            n += 1;
+        }
+        tracing::warn!(
+            node = %node.name,
+            id = %candidate,
+            reason,
+            "generated a scene node id; save the scene to keep it"
+        );
+        out.push(candidate);
+    }
+    out
+}
+
+fn slug(name: &str) -> String {
+    let mut s = String::from("n_");
+    let mut last_underscore = true;
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() {
+            s.extend(c.to_lowercase());
+            last_underscore = false;
+        } else if !last_underscore {
+            s.push('_');
+            last_underscore = true;
+        }
+    }
+    let trimmed = s.trim_end_matches('_');
+    if trimmed.len() > 2 {
+        trimmed.to_string()
+    } else {
+        String::from("n_node")
+    }
 }

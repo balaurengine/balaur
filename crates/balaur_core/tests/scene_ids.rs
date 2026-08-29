@@ -25,10 +25,22 @@ name = "Player"
 parent = "n_root"
 "#;
 
-/// A node without an id is a scene we cannot safely edit.
+/// Hand-edited scenes are missing ids; they are generated, not rejected.
 const NO_ID: &str = r#"
 [[nodes]]
 name = "World"
+
+[[nodes]]
+name = "Player"
+"#;
+
+/// Two nodes may share a display name; the second id is regenerated.
+const DUP_NAMES: &str = r#"
+[[nodes]]
+name = "Pupil"
+
+[[nodes]]
+name = "Pupil"
 "#;
 
 /// Parents must be declared before the children that name them.
@@ -75,10 +87,15 @@ fn renaming_a_parent_does_not_break_its_children() {
 }
 
 #[test]
-fn a_node_without_an_id_is_rejected() {
-    let err = load(NO_ID).expect_err("id is required");
-    let chain = format!("{err:#}");
-    assert!(chain.contains("id"), "unhelpful message: {chain}");
+fn missing_ids_are_generated_not_rejected() {
+    let a = load(NO_ID).expect("a scene without ids should still load");
+    let b = load(NO_ID).expect("and load again");
+    assert_eq!(a, b, "generated ids must be deterministic across loads");
+}
+
+#[test]
+fn nodes_sharing_a_name_get_distinct_ids() {
+    load(DUP_NAMES).expect("two nodes may share a display name");
 }
 
 #[test]
@@ -91,10 +108,8 @@ fn a_forward_parent_reference_is_rejected() {
 }
 
 #[test]
-fn duplicate_ids_are_rejected() {
-    let err = load(DUPLICATE).expect_err("two nodes sharing an id is a broken scene");
-    assert!(
-        err.to_string().contains("share the id"),
-        "unhelpful message: {err}"
-    );
+fn a_duplicated_id_is_regenerated() {
+    // The first node keeps the id it declared; the second is given a fresh one
+    // rather than silently overwriting the first.
+    load(DUPLICATE).expect("a duplicated id is repaired, not fatal");
 }
