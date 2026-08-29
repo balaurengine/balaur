@@ -1,0 +1,170 @@
+//! Native functions, from the neutral `Bindings` trait into a Rune module.
+//!
+//! Rune requires handlers to be `Send + Sync`, but a binding closure captures
+//! the engine, which is `Rc`-based. So the handler carries only an index and
+//! looks the closure up in a thread-local: safe, no unsafe, and a call from
+//! the wrong thread fails with a script error instead of being undefined.
+
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
+use balaur_core::Engine;
+use balaur_script::{BoundFn, CallbackId, Value};
+use rune::alloc::clone::TryClone as _;
+use rune::runtime::{InstAddress, Memory, Output, VmError, VmResult};
+
+thread_local! {
+    /// Registered bindings, indexed by the handle a Rune handler carries.
+    static BOUND: RefCell<Vec<(Engine, BoundFn<Engine>)>> = const { RefCell::new(Vec::new()) };
+    /// Script functions passed into a binding, live only for that call.
+    static CALLBACKS: RefCell<Vec<(u64, rune::runtime::Function)>> =
+        const { RefCell::new(Vec::new()) };
+    static NEXT_CALLBACK: Cell<u64> = const { Cell::new(1) };
+}
+
+/// Register a script function for the duration of one binding call.
+pub(crate) fn hold_callback(f: rune::runtime::Function) -> CallbackId {
+    let id = NEXT_CALLBACK.with(|n| {
+        let id = n.get();
+        n.set(id + 1);
+        id
+    });
+    CALLBACKS.with_borrow_mut(|c| c.push((id, f)));
+    CallbackId(id)
+}
+
+pub(crate) fn lookup_callback(id: CallbackId) -> Option<rune::runtime::Function> {
+    CALLBACKS.with_borrow(|c| {
+        c.iter()
+            .find(|(held, _)| *held == id.0)
+            .and_then(|(_, f)| f.try_clone().ok())
+    })
+}
+
+/// Drops every callback registered since it was created.
+///
+/// A callback is valid only while the binding that received it is running, so
+/// the registry is truncated on the way out. A script that stashes one and
+/// calls it later gets an error rather than a dangling function.
+struct CallbackScope {
+    base: usize,
+}
+
+impl CallbackScope {
+    fn enter() -> Self {
+        Self {
+            base: CALLBACKS.with_borrow(Vec::len),
+        }
+    }
+}
+
+impl Drop for CallbackScope {
+    fn drop(&mut self) {
+        CALLBACKS.with_borrow_mut(|c| c.truncate(self.base));
+    }
+}
+
+/// A named group of bindings, becoming one Rune module.
+///
+/// Rune installs a module into its context whole, so unlike Lua there is
+/// nowhere to write a function as it is registered. The module therefore joins
+/// the host's pending list when it is dropped — which is the end of the
+/// plugin's `build`, before any script runs.
+pub struct RuneModule {
+    module: Option<rune::Module>,
+    name: String,
+    engine: Engine,
+    pending: Rc<RefCell<Vec<rune::Module>>>,
+}
+
+impl RuneModule {
+    pub(crate) fn new(
+        name: &str,
+        engine: Engine,
+        pending: Rc<RefCell<Vec<rune::Module>>>,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            module: Some(rune::Module::with_crate(name)?),
+            name: name.to_string(),
+            engine,
+            pending,
+        })
+    }
+}
+
+impl Drop for RuneModule {
+    fn drop(&mut self) {
+        if let Some(m) = self.module.take() {
+            self.pending.borrow_mut().push(m);
+        }
+    }
+}
+
+impl balaur_script::Bindings<Engine> for RuneModule {
+    fn function_raw(&mut self, name: &str, f: BoundFn<Engine>) {
+        let handle = BOUND.with_borrow_mut(|b| {
+            b.push((self.engine.clone(), f));
+            b.len() - 1
+        });
+        let Some(module) = self.module.as_mut() else {
+            return;
+        };
+        let registered = module.raw_function(
+            name,
+            move |stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output| {
+                let values = rune::vm_try!(stack.slice_at(addr, args)).to_vec();
+                let _scope = CallbackScope::enter();
+                let mut neutral = Vec::with_capacity(values.len());
+                for v in &values {
+                    match crate::value::to_neutral(v) {
+                        Ok(n) => neutral.push(n),
+                        Err(err) => return VmResult::Err(VmError::panic(err.to_string())),
+                    }
+                }
+                let called =
+                    BOUND.with_borrow(|b| b.get(handle).map(|(engine, f)| f(engine, &neutral)));
+                let result = match called {
+                    Some(Ok(v)) => v,
+                    Some(Err(err)) => return VmResult::Err(VmError::panic(err.to_string())),
+                    None => {
+                        return VmResult::Err(VmError::panic(
+                            "binding was registered on another thread",
+                        ))
+                    }
+                };
+                match crate::value::from_neutral(&result) {
+                    Ok(v) => rune::vm_try!(out.store(stack, v)),
+                    Err(err) => return VmResult::Err(VmError::panic(err.to_string())),
+                }
+                VmResult::Ok(())
+            },
+        );
+        if let Err(err) = registered.build() {
+            tracing::error!("binding {}::{name}: {err}", self.name);
+        }
+    }
+
+    fn constant(&mut self, name: &str, value: Value) {
+        let Some(module) = self.module.as_mut() else {
+            return;
+        };
+        // Rune constants are typed at registration, so each neutral variant
+        // has to be handed over as itself.
+        let built = match &value {
+            Value::Bool(b) => module.constant(name, *b).build().map(|_| ()),
+            Value::Int(i) => module.constant(name, *i).build().map(|_| ()),
+            Value::Num(n) => module.constant(name, *n).build().map(|_| ()),
+            Value::Str(s) => module.constant(name, s.as_str()).build().map(|_| ()),
+            other => {
+                tracing::error!(
+                    "constant {}::{name}: {other:?} is not a constant Rune type",
+                    self.name
+                );
+                return;
+            }
+        };
+        if let Err(err) = built {
+            tracing::error!("constant {}::{name}: {err}", self.name);
+        }
+    }
+}

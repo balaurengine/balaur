@@ -1,0 +1,202 @@
+//! The Rune backend, driven through the language-neutral seam.
+//!
+//! Every test here goes through `balaur_script` types — the same path a
+//! subsystem takes. Nothing in the engine had to change to gain a second
+//! language, and these tests are what says so.
+
+use std::cell::Cell;
+use std::rc::Rc;
+
+use balaur_core::{App, AppConfig, Engine};
+use balaur_script::{Bindings, BindingsExt, CallbackHost, CallbackId};
+
+fn app_in(dir: &std::path::Path) -> App {
+    App::new(AppConfig {
+        project_root: dir.to_path_buf(),
+        pack: None,
+        watch: false,
+        script_args: Vec::new(),
+        scripts: Some(balaur_script_rune::factory()),
+    })
+    .unwrap()
+}
+
+fn spawn(app: &App, name: &str) -> hecs::Entity {
+    let root = app.engine.root();
+    balaur_core::scene::spawn_node(&mut app.engine.world_mut(), name, root)
+}
+
+fn project(files: &[(&str, &str)]) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("project.toml"), "[project]\nname = \"t\"\n").unwrap();
+    for (name, body) in files {
+        std::fs::write(dir.path().join(name), body).unwrap();
+    }
+    dir
+}
+
+/// A script's `update` runs every frame and its writes to `this` persist,
+/// which is the whole instance model.
+#[test]
+fn instance_state_survives_between_frames() {
+    let dir = project(&[(
+        "spin.rn",
+        "pub fn init(this) { this.angle = 0.0; }\n\
+         pub fn update(this, dt) { this.angle = this.angle + dt; }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    let node = spawn(&app, "Spinner");
+    let host = app.engine.scripts().unwrap();
+    host.attach(balaur_core::node_id_of(node), "spin.rn")
+        .unwrap();
+
+    for _ in 0..4 {
+        app.tick(0.5);
+    }
+
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .expect("the app is running Rune");
+    assert_eq!(rune.instance_count(), 1);
+    assert!(
+        (rune.number_field(node, "angle").unwrap() - 2.0).abs() < 1e-6,
+        "four ticks of 0.5 should accumulate to 2.0"
+    );
+}
+
+/// A binding registered through the neutral trait is callable from Rune, with
+/// the same typed signature a Lua-facing subsystem would declare.
+#[test]
+fn a_typed_binding_reaches_rune() {
+    let dir = project(&[(
+        "call.rn",
+        "pub fn init(this) { this.out = t::scaled(7, 3); }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    {
+        let mut m = app.script_module("t").unwrap();
+        let m: &mut dyn Bindings<Engine> = &mut *m;
+        m.function("scaled", |_: &Engine, (a, b): (i64, i64)| Ok(a * b));
+    }
+    let node = spawn(&app, "Caller");
+    let host = app.engine.scripts().unwrap();
+    host.attach(balaur_core::node_id_of(node), "call.rn")
+        .unwrap();
+
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(node, "out"), Some(21.0));
+}
+
+/// A wrong argument type is a script error, not a panic.
+#[test]
+fn a_wrong_argument_type_is_reported_not_fatal() {
+    let dir = project(&[("bad.rn", "pub fn init(this) { t::need_int(\"nope\"); }\n")]);
+    let mut app = app_in(dir.path());
+    {
+        let mut m = app.script_module("t").unwrap();
+        let m: &mut dyn Bindings<Engine> = &mut *m;
+        m.function("need_int", |_: &Engine, n: i64| Ok(n));
+    }
+    let node = spawn(&app, "Bad");
+    let host = app.engine.scripts().unwrap();
+    // init's failure is logged, not propagated: one bad script must not take
+    // the frame down.
+    host.attach(balaur_core::node_id_of(node), "bad.rn")
+        .unwrap();
+    assert_eq!(host.instance_count(), 1);
+}
+
+/// A script function handed to a binding is callable during that call.
+#[test]
+fn a_binding_can_call_the_function_it_was_passed() {
+    let dir = project(&[(
+        "cb.rn",
+        "pub fn init(this) { t::twice(|| { t::bump(); }); }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    let hits = Rc::new(Cell::new(0i64));
+    {
+        let mut m = app.script_module("t").unwrap();
+        let m: &mut dyn Bindings<Engine> = &mut *m;
+        m.function("twice", |eng: &Engine, cb: CallbackId| {
+            eng.invoke(cb, &[])?;
+            eng.invoke(cb, &[])?;
+            Ok(())
+        });
+        let sink = hits.clone();
+        m.function("bump", move |_: &Engine, ()| {
+            sink.set(sink.get() + 1);
+            Ok(())
+        });
+    }
+    let node = spawn(&app, "Cb");
+    let host = app.engine.scripts().unwrap();
+    host.attach(balaur_core::node_id_of(node), "cb.rn").unwrap();
+    assert_eq!(hits.get(), 2, "the binding should have called back twice");
+}
+
+/// A callback must not outlive the binding call that received it.
+#[test]
+fn a_callback_does_not_outlive_its_call() {
+    let dir = project(&[("stash.rn", "pub fn init(this) { t::stash(|| {}); }\n")]);
+    let mut app = app_in(dir.path());
+    let stashed: Rc<Cell<Option<CallbackId>>> = Rc::default();
+    {
+        let keep = stashed.clone();
+        let mut m = app.script_module("t").unwrap();
+        let m: &mut dyn Bindings<Engine> = &mut *m;
+        m.function("stash", move |_: &Engine, cb: CallbackId| {
+            keep.set(Some(cb));
+            Ok(())
+        });
+    }
+    let node = spawn(&app, "Stash");
+    let host = app.engine.scripts().unwrap();
+    host.attach(balaur_core::node_id_of(node), "stash.rn")
+        .unwrap();
+
+    let err = app
+        .engine
+        .invoke(stashed.get().expect("the binding ran"), &[])
+        .expect_err("a stashed callback must not still be live");
+    assert!(
+        err.to_string().contains("after its call returned"),
+        "unhelpful message: {err}"
+    );
+}
+
+/// Editing a script swaps the code without disturbing live instances.
+#[test]
+fn a_reload_keeps_instance_state() {
+    let dir = project(&[(
+        "v.rn",
+        "pub fn init(this) { this.n = 1.0; }\npub fn update(this, dt) { this.n = this.n + 1.0; }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    let node = spawn(&app, "V");
+    let host = app.engine.scripts().unwrap();
+    host.attach(balaur_core::node_id_of(node), "v.rn").unwrap();
+    app.tick(0.1);
+
+    std::fs::write(
+        dir.path().join("v.rn"),
+        "pub fn init(this) { this.n = 1.0; }\npub fn update(this, dt) { this.n = this.n + 10.0; }\n",
+    )
+    .unwrap();
+    host.reload("v.rn").unwrap();
+    app.tick(0.1);
+
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(
+        rune.number_field(node, "n"),
+        Some(12.0),
+        "state should carry (1 + 1) and the new code should run (+10)"
+    );
+}
