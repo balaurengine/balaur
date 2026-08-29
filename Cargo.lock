@@ -427,6 +427,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "balaur_script"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "balaur_core",
+]
+
+[[package]]
 name = "balaur_ui"
 version = "0.1.0"
 dependencies = [

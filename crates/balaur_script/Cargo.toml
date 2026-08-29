@@ -1,0 +1,14 @@
+[package]
+name = "balaur_script"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Language-neutral scripting seam: traits only, no backend."
+
+[dependencies]
+anyhow.workspace = true
+balaur_core.workspace = true
+
+[lints]
+workspace = true
