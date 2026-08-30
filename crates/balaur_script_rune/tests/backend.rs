@@ -264,3 +264,33 @@ fn a_node_returned_to_a_script_is_still_a_node() {
         .unwrap();
     assert_eq!(name.0, "Renamed");
 }
+
+/// The engine and scene modules reach Rune too, from the same declarations
+/// the Luau backend registers.
+#[test]
+fn the_engine_modules_reach_rune() {
+    let dir = project(&[(
+        "world.rn",
+        "pub fn init(this) {\n\
+         \x20 this.made = scene::spawn(\"Made\", this.node);\n\
+         \x20 this.found = scene::get_node(\"Root/Made\").name();\n\
+         \x20 this.argc = engine::args().len();\n\
+         }\n",
+    )]);
+    let app = app_in(dir.path());
+    let node = spawn(&app, "Root");
+    let host = app.engine.scripts().unwrap();
+    host.attach(balaur_core::node_id_of(node), "world.rn")
+        .unwrap();
+
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(
+        rune.text_field(node, "found").as_deref(),
+        Some("Made"),
+        "scene::spawn then scene::get_node found it by path"
+    );
+    assert_eq!(rune.number_field(node, "argc"), Some(0.0));
+}

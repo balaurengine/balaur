@@ -5,6 +5,10 @@
 //! handle — see `DECLARATIONS`. Adding a language costs the sugar, not the
 //! twenty-odd operations.
 
+// Every declaration shares one signature so they can sit in a table of
+// function pointers; several of them have nothing to fail at.
+#![allow(clippy::unnecessary_wraps)]
+
 use anyhow::{anyhow, Result};
 use balaur_script::{Bindings, Value};
 use glamx::{EulerRot, Quat, Vec3};
@@ -192,9 +196,6 @@ fn with_transform<R>(eng: &Engine, e: Entity, f: impl FnOnce(&mut Transform) -> 
 
 // ---- identity --------------------------------------------------------
 
-// Every declaration shares one signature so they can sit in a table of
-// function pointers; this one just has nothing to fail at.
-#[allow(clippy::unnecessary_wraps)]
 fn is_valid(eng: &Engine, args: &[Value]) -> Result<Value> {
     let Ok(e) = node(args) else {
         return Ok(Value::Bool(false));

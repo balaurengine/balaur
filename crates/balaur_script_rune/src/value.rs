@@ -74,7 +74,7 @@ pub(crate) fn install(
 
 /// Rune value -> neutral. A function becomes a call-scoped callback.
 pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
-    use rune::runtime::{Object, OwnedTuple};
+    use rune::runtime::Object;
     if let Ok(b) = rune::from_value::<bool>(v.clone()) {
         return Ok(Neutral::Bool(b));
     }
@@ -84,8 +84,8 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
     if let Ok(f) = rune::from_value::<f64>(v.clone()) {
         return Ok(Neutral::Num(f));
     }
-    if let Ok(s) = rune::from_value::<String>(v.clone()) {
-        return Ok(Neutral::Str(s));
+    if let Ok(s) = v.borrow_string_ref() {
+        return Ok(Neutral::Str(s.to_string()));
     }
     // Borrow rather than convert: `from_value` on a Rune `Any` moves the value
     // out of its shared cell, so reading a node would destroy it.
@@ -108,14 +108,14 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
             f.try_clone()?,
         )));
     }
-    if let Ok(items) = rune::from_value::<Vec<rune::Value>>(v.clone()) {
+    if let Ok(items) = v.borrow_ref::<rune::runtime::Vec>() {
         return Ok(Neutral::List(
             items.iter().map(to_neutral).collect::<Result<_>>()?,
         ));
     }
-    if let Ok(obj) = rune::from_value::<Object>(v.clone()) {
+    if let Ok(obj) = v.borrow_ref::<Object>() {
         let mut out = Vec::with_capacity(obj.len());
-        for (k, val) in &obj {
+        for (k, val) in obj.iter() {
             out.push((k.to_string(), to_neutral(val)?));
         }
         // Rune objects do not preserve insertion order; sort so a binding sees
@@ -123,8 +123,12 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
         out.sort_by(|a, b| a.0.cmp(&b.0));
         return Ok(Neutral::Map(out));
     }
-    if rune::from_value::<OwnedTuple>(v.clone()).is_ok() {
-        return Err(anyhow!("tuples are not a script value; use a list"));
+    if let Ok(t) = v.borrow_tuple_ref() {
+        // Unit is the empty tuple in Rune, and it is how a void function
+        // returns. Anything longer has no neutral counterpart.
+        if !t.is_empty() {
+            return Err(anyhow!("tuples are not a script value; use a list"));
+        }
     }
     Ok(Neutral::Nil)
 }

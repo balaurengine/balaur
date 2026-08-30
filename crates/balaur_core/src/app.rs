@@ -121,6 +121,7 @@ impl App {
                 pack: config.pack.clone(),
                 watch: config.watch,
             })?);
+            crate::engine_api::install(&engine)?;
         } else {
             tracing::info!("no script backend configured; scripting is off");
         }

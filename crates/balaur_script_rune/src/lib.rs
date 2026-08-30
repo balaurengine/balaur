@@ -421,19 +421,22 @@ impl RuneHost {
     pub fn number_field(&self, entity: Entity, name: &str) -> Option<f64> {
         let state = self.state.borrow();
         let inst = state.instances.get(&entity)?;
-        let obj: rune::runtime::Object = rune::from_value(inst.state.try_clone().ok()?).ok()?;
-        let field = obj.get(name)?.try_clone().ok()?;
-        rune::from_value::<f64>(field.try_clone().ok()?)
+        let obj = inst.state.borrow_ref::<rune::runtime::Object>().ok()?;
+        let field = obj.get(name)?;
+        if let Ok(n) = rune::from_value::<f64>(field.try_clone().ok()?) {
+            return Some(n);
+        }
+        rune::from_value::<i64>(field.try_clone().ok()?)
             .ok()
-            .or_else(|| rune::from_value::<i64>(field).ok().map(|i| i as f64))
+            .map(|n| n as f64)
     }
 
     /// Read a string out of a node's instance state.
     pub fn text_field(&self, entity: Entity, name: &str) -> Option<String> {
         let state = self.state.borrow();
         let inst = state.instances.get(&entity)?;
-        let obj: rune::runtime::Object = rune::from_value(inst.state.try_clone().ok()?).ok()?;
-        rune::from_value::<String>(obj.get(name)?.try_clone().ok()?).ok()
+        let obj = inst.state.borrow_ref::<rune::runtime::Object>().ok()?;
+        Some(obj.get(name)?.borrow_string_ref().ok()?.to_string())
     }
 
     pub fn instance_count(&self) -> usize {
