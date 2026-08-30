@@ -48,8 +48,6 @@ fn a_transform_survives_a_write_and_read() {
     );
 }
 
-/// Three numbers and one vector must mean the same thing, because scripts in
-/// the wild use both spellings.
 #[test]
 fn a_vector_argument_and_three_numbers_agree() {
     let app = app();
@@ -136,7 +134,6 @@ fn renaming_a_node_changes_what_name_returns() {
     );
 }
 
-/// A freed node must report itself dead rather than answer as if it were live.
 #[test]
 fn a_freed_node_stops_being_valid() {
     let mut app = app();
@@ -161,8 +158,6 @@ fn a_missing_node_argument_is_an_error_not_a_panic() {
     assert!(call(&app.engine, "position", &[]).is_err());
 }
 
-/// Every declaration must reject a non-node first argument the same way,
-/// rather than each having its own idea of what to do.
 #[test]
 fn every_declaration_rejects_a_non_node() {
     let app = app();
@@ -192,11 +187,6 @@ fn declarations_are_uniquely_named() {
     }
 }
 
-/// Degrees and radians are the same rotation, read two ways.
-///
-/// The pair exists because people author in degrees; the engine's unit is
-/// still radians, so the two readers must never disagree — a script mixing
-/// `set_rotation_degrees` with `rotation_euler` has to see one rotation.
 #[test]
 fn degrees_and_radians_are_two_readings_of_one_rotation() {
     let app = app();
@@ -254,8 +244,6 @@ fn scale_reads_back_what_was_set() {
     );
 }
 
-/// The world transform is what a parent's motion produces, so it only means
-/// anything after propagation has run.
 #[test]
 fn world_transforms_report_the_composed_result() {
     let mut app = app();
@@ -310,8 +298,6 @@ fn world_transforms_report_the_composed_result() {
     ));
 }
 
-/// A node with no script has no path, rather than an empty string that reads
-/// like a script called "".
 #[test]
 fn a_node_without_a_script_reports_nil() {
     let app = app();
@@ -322,8 +308,6 @@ fn a_node_without_a_script_reports_nil() {
     );
 }
 
-/// Attaching needs a backend, and saying so is better than pretending it
-/// worked.
 #[test]
 fn attaching_a_script_without_a_backend_is_a_clear_error() {
     let app = app();

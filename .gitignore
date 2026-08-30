@@ -2,3 +2,4 @@
 *.bpak
 .DS_Store
 .idea/
+/dist

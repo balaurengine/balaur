@@ -140,10 +140,32 @@ The generated ones come from `python3 scripts/gen_docs.py`; CI fails on drift.
 | `balaur_cli` | The `balaur` binary: `new`, `run`, `export`, `play` |
 | `editor/` | The editor: a Balaur project whose scripts draw the whole shell |
 
-## Shipping a binary
+## Shipping a game
 
 `balaur export` compiles every script to Luau bytecode and bundles it with
-scenes and the manifest into a single `.bpak`. A release binary is:
+scenes and the manifest into a single `.bpak`. That pack is data, though — it
+still needs an engine to run it. To ship something a player can just open, fuse
+it onto a runtime template:
+
+```bash
+balaur export my-game --target linux-x64     # or macos-arm64, windows-x64
+```
+
+The result is one executable. Templates are the engine binaries published with
+each release; the editor download ships with the one for its own platform in
+`templates/`, so exporting for your own machine works out of the box. To export
+for another platform, drop that platform's `balaur-runtime-*` into `templates/`
+(or point `BALAUR_TEMPLATES` at a directory of them), or pass `--template
+<file>` outright.
+
+Fusing appends the pack to the binary and marks the end of the file; on startup
+the engine reads its own executable, finds the pack, and boots it instead of
+parsing a command line. Every desktop executable format ignores trailing bytes,
+so nothing about the binary breaks. It also means a fused macOS game is
+unsigned — appending invalidates a signature, so sign after exporting.
+
+Without `--target`, `balaur export` still writes a plain `.bpak`, which is what
+you want for `balaur play game.bpak` or for embedding yourself:
 
 ```rust
 fn main() -> anyhow::Result<()> {

@@ -369,6 +369,9 @@ fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
             add_collider(eng, entity_of(node)?, collider_builder(&params)?)
         },
     );
+    // No reader by design (N8): `PhysicsState2d`'s rapier world already
+    // holds the gravity vector; add `physics2d.gravity` when a caller needs
+    // to read it back.
     m.function("set_gravity", |eng: &Engine, (x, y): (f32, f32)| {
         let state = eng.resource::<PhysicsState2d>();
         state.borrow_mut().world.gravity = Vec2::new(x, y);

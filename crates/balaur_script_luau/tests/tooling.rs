@@ -113,8 +113,6 @@ fn a_lua_array_reaches_a_binding_as_a_list() {
     assert!(out.contains("name = \"n\""), "{out}");
 }
 
-/// A table with holes or mixed keys is a map, and the non-string keys survive
-/// rather than vanishing.
 #[test]
 fn a_sparse_table_keeps_its_keys() {
     let dir = tempfile::tempdir().unwrap();

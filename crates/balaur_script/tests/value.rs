@@ -16,8 +16,6 @@ fn numbers_convert_in_both_directions() {
     assert_eq!(7i64.into_value(), Value::Int(7));
 }
 
-/// A script writes `1` where a float is wanted more often than not, so an
-/// integer has to be accepted as one.
 #[test]
 fn an_integer_is_accepted_where_a_float_is_wanted() {
     assert!((f32::from_arg(Some(&Value::Int(2))).unwrap() - 2.0).abs() < f32::EPSILON);
@@ -47,8 +45,6 @@ fn node_and_callback_handles_survive_a_round_trip() {
     );
 }
 
-/// A wrong type must name what it wanted and what it got. This is the message
-/// a script author sees, so it is part of the API.
 #[test]
 fn a_wrong_type_says_what_it_expected() {
     let err = bool::from_arg(Some(&Value::Str("no".into())))
@@ -68,8 +64,6 @@ fn a_missing_argument_is_an_error_not_a_default() {
     assert!(bool::from_arg(None).is_err());
 }
 
-/// `Value` itself accepts anything, which is how a binding takes an options
-/// table without naming its shape.
 #[test]
 fn the_neutral_value_accepts_anything() {
     for v in [
@@ -89,9 +83,6 @@ fn tuples_map_positionally() {
     assert_eq!((a, b.as_str(), c), (1, "two", true));
 }
 
-/// Extra arguments are ignored, the way Lua itself ignores them. A binding
-/// declared `()` accepts a stray argument rather than erroring, so this is
-/// pinned as the contract rather than left to be discovered.
 #[test]
 fn extra_arguments_are_ignored_like_lua_does() {
     assert!(<()>::from_args(&[]).is_ok());
@@ -100,8 +91,6 @@ fn extra_arguments_are_ignored_like_lua_does() {
     assert_eq!(a, 1);
 }
 
-/// A trailing optional may be left off, which is how `set_component(name)` and
-/// `set_component(name, params)` are the same binding.
 #[test]
 fn a_trailing_optional_may_be_omitted() {
     assert_eq!(<Option<i64>>::from_args(&[]).unwrap(), None);
@@ -132,8 +121,6 @@ fn vectors_and_colors_carry_their_components() {
     assert_ne!(Value::Vec2([1.0, 2.0]), Value::Vec3([1.0, 2.0, 0.0]));
 }
 
-/// An app with no script backend still builds its plugins; their registrations
-/// go nowhere rather than panicking.
 #[test]
 fn no_bindings_accepts_registrations_and_discards_them() {
     struct Host;
@@ -144,7 +131,6 @@ fn no_bindings_accepts_registrations_and_discards_them() {
     m.function_raw("raw", Box::new(|_, _| Ok(Value::Nil)));
 }
 
-/// `&mut T` and `Box<T>` forward, which is how a plugin can take either.
 #[test]
 fn bindings_forward_through_references_and_boxes() {
     struct Host;

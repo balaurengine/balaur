@@ -215,6 +215,34 @@ Before that, the maps were hashed and ten exports of a three-script project
 produced five different files, which quietly rules out reproducible builds and
 any "did the content change?" check downstream.
 
+### Fused executables (how a game ships)
+
+A pack is data, so `balaur export` on its own produces something that still
+needs an engine beside it. `--target <platform>` instead appends the pack to a
+*runtime template* — the engine binary CI publishes for that platform — and
+writes a trailer:
+
+```text
+[ template executable ][ pack bytes ][ pack length: u64 LE ][ "BPAKFUSE" ]
+```
+
+ELF, Mach-O and PE all ignore trailing bytes, so the fused file still runs. On
+startup the CLI reads its own executable (`balaur_core::fused`); finding a pack
+means it is a shipped game, so it boots that and never looks at argv, and
+finding nothing means it is the CLI. One binary is therefore the editor, the
+CLI, and every game's runtime, which is why the release builds one artifact and
+ship it twice.
+
+The alternative — `include_bytes!` and a rebuild per game — needs Rust on the
+machine doing the shipping, which rules out anyone who downloaded the editor.
+That route still exists for people building their own binary.
+
+Two consequences worth stating. Appending invalidates a macOS code signature,
+so signing happens after export, not before. And a template that came through a
+zip or a CI artifact store has usually lost its executable bit, so the exporter
+sets the execute bits on its output rather than inheriting them — inheriting
+produces a game that cannot be launched.
+
 Export is also where a statically-resolved language differs from a dynamic
 one. Luau resolves `input.just_pressed` at run time, so a file compiles on its
 own. Rune resolves `input::just_pressed` while compiling, so validating an

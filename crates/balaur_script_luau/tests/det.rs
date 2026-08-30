@@ -57,8 +57,6 @@ fn math_fastcalls_are_routed_through_the_global_table() {
     assert_eq!(v, 126.0, "fastcall bypassed the rebound math.sin");
 }
 
-/// `math.sin` and friends must be the pure-Rust libm implementations, bit
-/// for bit.
 #[test]
 fn math_functions_are_libm_backed() {
     let (app, _dir) = make_app();
@@ -79,8 +77,6 @@ fn math_functions_are_libm_backed() {
     }
 }
 
-/// The engine RNG stream is reproducible from a seed and shared with
-/// `math.random`.
 #[test]
 fn rng_is_seeded_and_reproducible() {
     let sequence = |app: &App| -> Vec<f64> {

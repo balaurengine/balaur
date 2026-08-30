@@ -69,8 +69,6 @@ fn add_then_get_returns_what_was_set() {
     );
 }
 
-/// Unset properties come from the schema, so a scene file only names what it
-/// changes.
 #[test]
 fn defaults_fill_in_what_was_not_given() {
     let app = app_with_marker();
@@ -138,9 +136,6 @@ fn a_node_starts_with_no_components() {
     assert!(components::get(&app.engine, e, "marker").is_none());
 }
 
-/// A hex string on a `color` property must reach `apply` as the float array
-/// every hook reads. Before this, `as_array()` returned None and the value
-/// fell through to the default without a word.
 #[test]
 fn a_colour_property_accepts_hex_as_well_as_floats() {
     let schema = ComponentDef::parse_schema(
@@ -184,7 +179,6 @@ label = { type = "string", default = "#notacolour" }"##,
     );
 }
 
-/// Nonsense in a colour is reported, not expanded into garbage.
 #[test]
 fn an_unparseable_colour_is_left_alone() {
     let schema = ComponentDef::parse_schema(

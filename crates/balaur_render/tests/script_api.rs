@@ -81,8 +81,6 @@ fn a_colour_set_from_a_script_reads_back() {
     );
 }
 
-/// Alpha is optional, so a script may write an opaque colour with four
-/// arguments instead of five.
 #[test]
 fn a_colour_may_be_set_without_alpha() {
     run_clean(
@@ -149,7 +147,6 @@ fn debug_lines_can_be_drawn_in_both_dimensions() {
     );
 }
 
-/// An icon path that is not there is a script's mistake, not a crash.
 #[test]
 fn a_missing_app_icon_does_not_take_the_frame_down() {
     let (_app, errors) = run(r#"render.set_app_icon("no/such/icon.png")"#);

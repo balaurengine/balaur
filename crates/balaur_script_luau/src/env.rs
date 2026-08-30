@@ -48,14 +48,12 @@ impl balaur_script::Bindings<Engine> for LuaModule {
         let Ok(func) = self
             .lua
             .create_function(move |lua, args: mlua::MultiValue| {
-                // Callbacks live only for this call; the guard drops them after.
                 let _scope = CallbackScope::open();
                 let neutral: Vec<balaur_script::Value> = args
                     .into_iter()
                     .map(|v| to_neutral(&v))
                     .collect::<mlua::Result<_>>()?;
                 let out = f(&engine, &neutral).map_err(mlua::Error::external)?;
-                // Several values come back as several values, not one table.
                 if let balaur_script::Value::Many(items) = &out {
                     let mut multi = mlua::MultiValue::new();
                     for item in items {
@@ -101,13 +99,7 @@ pub(crate) fn to_neutral(v: &mlua::Value) -> mlua::Result<balaur_script::Value> 
         }
         mlua::Value::Function(f) => N::Callback(CallbackScope::register(f.clone())),
         mlua::Value::Table(t) => {
-            // A Lua table is both a record and an array. A contiguous 1..n is
-            // a list, anything else a map — and dropping integer keys, as this
-            // once did, silently turned every array into an empty map.
-            //
-            // One pass: classify while collecting. Deciding first and then
-            // building walked every table twice, which a map paid on every
-            // binding call.
+            // A contiguous 1..n is a list, anything else a map.
             let len = t.raw_len();
             let mut sequence = len > 0;
             let mut entries: Vec<(mlua::Value, balaur_script::Value)> = Vec::with_capacity(len);
@@ -121,7 +113,6 @@ pub(crate) fn to_neutral(v: &mlua::Value) -> mlua::Result<balaur_script::Value> 
                 Ok(())
             })?;
             if sequence && entries.len() == len {
-                // for_each does not promise order, so place by index.
                 let mut items: Vec<Option<balaur_script::Value>> = (0..len).map(|_| None).collect();
                 for (k, v) in entries {
                     if let mlua::Value::Integer(i) = k {
@@ -220,27 +211,32 @@ pub(super) fn module(lua: &Lua, eng: &Engine, name: &str) -> anyhow::Result<LuaM
     })
 }
 
-/// Install the built-in `engine`, `scene`, and `log` modules.
+/// Declare the built-ins that only the Lua state can carry.
+///
+/// `engine`, `scene`, `log` and `node` are declared through the neutral seam
+/// by `balaur_core::engine_api`; what is left here is the prelude.
+///
+/// Takes `&Lua` rather than a `Bindings` because the functions below are
+/// globals rather than members of a module, and `require` returns a module
+/// table, which no neutral value can carry.
 pub(super) fn install_globals(
     lua: &Lua,
     eng: &Engine,
     host: &super::ScriptHost,
 ) -> anyhow::Result<()> {
-    // `engine`, `scene`, `log` and `node` come from balaur_core::engine_api,
-    // registered through the seam. Only what needs the Lua state is here.
     install_prelude(lua, eng, host)?;
 
     Ok(())
 }
 
 /// Globals every script gets: `require` and `print`.
+///
+/// Takes `&Lua` rather than a `Bindings` because both are globals rather than
+/// members of a module, and `require` is Lua's own module system: it returns a
+/// module table, which no neutral value can carry.
 fn install_prelude(lua: &Lua, _eng: &Engine, host: &super::ScriptHost) -> anyhow::Result<()> {
     // Shared Luau modules: `require("scripts/util")` evaluates once and
     // caches; module tables hot reload in place like classes.
-    //
-    // `require` is Lua's own module system, so it goes to the backend directly
-    // rather than through the neutral seam: it returns a module table, which
-    // no neutral value can carry.
     {
         let host = host.clone();
         lua.globals().set(

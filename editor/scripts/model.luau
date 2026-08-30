@@ -222,12 +222,16 @@ end
 
 -- Component editing goes through the engine's component registry: the live
 -- node is the source of truth, the document mirrors it for saving.
-local TRANSIENT = { clicked = true }
-
-local function doc_value(data)
+-- `readonly` properties are engine output (widget.clicked): they round-trip
+-- through `get` but writing them back is meaningless, so they are stripped
+-- from both the saved document and the table handed to `set_component`. The
+-- schema says which, so a new one needs no editor change.
+local function doc_value(name, data)
+    local schema = scene.component_schema(name) or {}
     local out = {}
     for key, value in data do
-        if not TRANSIENT[key] then
+        local spec = schema[key]
+        if spec == nil or not spec.readonly then
             out[key] = value
         end
     end
@@ -241,7 +245,7 @@ function M.sync_component_doc(S, name)
         return
     end
     local data = ref:get_component(name)
-    node[name] = if data ~= nil then doc_value(data) else nil
+    node[name] = if data ~= nil then doc_value(name, data) else nil
     S.dirty = true
 end
 
@@ -272,7 +276,7 @@ function M.set_component_prop(S, name, prop, value)
     end
     local data = ref:get_component(name) or {}
     data[prop] = value
-    ref:set_component(name, doc_value(data))
+    ref:set_component(name, doc_value(name, data))
     M.sync_component_doc(S, name)
 end
 

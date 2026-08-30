@@ -11,8 +11,10 @@ flow nothing checks.
 - a binding can call the function it was passed
 - a broken rune script fails the export
 - a callback does not outlive its call
+- a colour may be set without alpha
 - a colour property accepts hex as well as floats
 - a colour reads back as it was set
+- a colour set from a script reads back
 - a compile error fails the build
 - a constant is readable from a script
 - a different seed gives a different stream
@@ -25,18 +27,25 @@ flow nothing checks.
 - a hex string is a colour wherever a colour is taken
 - a leaf subtree is just itself
 - a lua array reaches a binding as a list
+- a lying trailer is refused rather than panicking
+- a missing app icon does not take the frame down
 - a missing argument is an error not a default
+- a missing image does not stop the pass
 - a missing node argument is an error not a panic
 - a missing resource is none rather than a panic
+- a modal runs its body
 - a node path round trips through find
 - a node returned to a script is still a node
 - a node starts with no components
+- a node with no shape answers with an empty kind
+- a node without a script reports nil
 - a pack encodes the same whatever order it was filled in
 - a pack round trips through bytes
 - a pack writes its entries in sorted order
 - a packed project boots without its sources
 - a pass with no widgets is quiet
 - a path finds a descendant and missing ones are none
+- a plain binary has no pack
 - a press is just pressed for one frame only
 - a project with no manifest fails to load
 - a project without a language runs on luau
@@ -47,17 +56,22 @@ flow nothing checks.
 - a reload keeps instance state
 - a resource round trips and is shared not copied
 - a rune project that calls the engine can be exported
+- a script can attach another script and read it back
 - a script can write to the log it reads back
 - a script error inside a pass is logged not fatal
 - a shape component puts a renderable on the node
 - a sparse table keeps its keys
 - a spawned node is named parented and has a transform
+- a standalone binary gives the pack back
+- a standalone file is read back from disk
 - a subtree is collected parent first
+- a theme can be set from a script
 - a trailing optional may be omitted
 - a transform survives a write and read
 - a typed binding reaches rune
 - a vector argument and three numbers agree
 - a windowed backend keeps the fallback off its buffers
+- a wrong argument is reported not fatal
 - a wrong argument type is an error not a panic
 - a wrong argument type is reported not fatal
 - a wrong type says what it expected
@@ -65,7 +79,9 @@ flow nothing checks.
 - adding twice updates rather than duplicating
 - an app without a backend has no script host
 - an empty or inverted range does not panic
+- an empty pack still round trips
 - an engine has a root node from the start
+- an impulse starts a body moving
 - an integer is accepted where a float is wanted
 - an out of range button does not panic
 - an unknown body kind is rejected with its name
@@ -75,20 +91,24 @@ flow nothing checks.
 - an unparseable colour is left alone
 - an unregistered name is an error that says so
 - anchor constants match the registered schema
+- attaching a script without a backend is a clear error
 - attaching to a compiled script is cheap per node
 - bad options are reported rather than fatal
 - bindings forward through references and boxes
 - body constants match the registered schema
 - build pack uses the compiler the project asks for
 - camera input can be switched off
+- colliders can be added in every shape the api offers
 - commands queue and drain once
 - compile error keeps previous version running
 - crates/balaur/src/lib.rs - (line 5)
 - debug lines accumulate and can be cleared
+- debug lines can be drawn in both dimensions
 - declarations are uniquely named
 - declarations are uniquely named within a module
 - defaults fill in what was not given
 - degrees and radians are two readings of one rotation
+- det
 - dispatch over a thousand nodes stays inside a frame
 - draw ui is actually called
 - events carry their structured fields
@@ -107,6 +127,7 @@ flow nothing checks.
 - freeing a subtree removes all of it and unlinks the parent
 - fs is rooted at the project
 - fs list is sorted and hides dotfiles
+- gravity and clear are callable
 - hierarchy reads back what it wrote
 - holding a key does not re fire
 - hot reload swaps code and preserves state
@@ -115,12 +136,14 @@ flow nothing checks.
 - interactive widgets report no interaction without input
 - keys are independent
 - language rune runs on rune
+- linear velocity is set and read back
 - math fastcalls are routed through the global table
 - math functions are libm backed
 - merge defaults prefers what was given
 - missing ids are generated not rejected
 - mouse buttons follow the same edge rules
 - mouse delta is per frame and position is absolute
+- mouse position is readable without a window
 - moving a parent moves the subtree
 - no bindings accepts registrations and discards them
 - node and callback handles survive a round trip
@@ -128,11 +151,13 @@ flow nothing checks.
 - numbers convert in both directions
 - pack roundtrip runs from bytecode only
 - panels and containers nest
+- pause and sleeping are readable after being set
 - pausing stops the simulation and resuming continues it
 - playing a missing file does not take the frame down
 - plugin components roundtrip through the registry
 - quit is off until asked for
 - reading a missing file is nil rather than an error
+- reload script picks up a rewritten file
 - remove takes it off the node
 - removing a body stops it being simulated
 - removing a shape takes the renderable with it
@@ -141,10 +166,15 @@ flow nothing checks.
 - require caches and hot reloads in place
 - rng int stays inside its range
 - rng is seeded and reproducible
+- scale reads back what was set
 - scenes are gathered but the manifest is not one of them
 - scenes instantiate at runtime and args reach scripts
 - script args reach scripts as a list
 - script module works without a backend
+- scroll accumulates within a frame and resets between
+- set text replaces a field buffer
+- shapes can be set from a script in both dimensions
+- shortcuts report no press without input
 - siblings keep their order
 - simulation 2d is bitwise reproducible
 - simulation is bitwise reproducible
@@ -152,17 +182,22 @@ flow nothing checks.
 - strings and bools convert
 - tests
 - text and layout helpers run
+- the 2d camera reports its centre and zoom
+- the 2d world has the same shape of api
 - the backend decides what a script compiles to
 - the buffer is bounded and keeps the newest
+- the camera can be aimed and its pose read
 - the clock advances and reports the last step
 - the code editor returns its buffer unchanged
 - the engine modules reach rune
+- the grid background and camera input are settable
 - the mouse constants address real buttons
 - the neutral value accepts anything
 - the node api is available as methods
 - the plugin builds without an output device
 - the plugin inserts the resources a frame reads
-- the plugin registers its scene vocabulary
+- the plugin registers its components
+- the remaining widgets are callable
 - the rng is reproducible from a seed
 - the same setup simulates identically twice
 - the scale factor is readable and settable
@@ -170,6 +205,7 @@ flow nothing checks.
 - the standard app has every plugin registered
 - the stream is pinned for a given seed
 - the two worlds share body kinds and differ on shapes
+- the widget layer can be placed and turned off
 - ticking a headless app with render does not panic
 - ticking advances the clock by the step given
 - ticking with audio does not panic
@@ -187,3 +223,4 @@ flow nothing checks.
 - widget kind constants match the registered schema
 - widgets
 - world transforms compose down the chain
+- world transforms report the composed result

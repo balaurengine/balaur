@@ -80,7 +80,6 @@ fn an_unknown_path_is_nil_rather_than_an_error() {
     );
 }
 
-/// The same seed must give the same sequence, or replays are worthless.
 #[test]
 fn the_rng_is_reproducible_from_a_seed() {
     let dir = tempfile::tempdir().unwrap();
@@ -158,8 +157,6 @@ fn reading_a_missing_file_is_nil_rather_than_an_error() {
     );
 }
 
-/// Dotfiles are skipped and the order is stable, so tooling built on this is
-/// reproducible.
 #[test]
 fn fs_list_is_sorted_and_hides_dotfiles() {
     let dir = tempfile::tempdir().unwrap();
@@ -220,12 +217,6 @@ fn declarations_are_uniquely_named_within_a_module() {
     }
 }
 
-/// The three `log` writers exist and land in the same buffer `log.recent`
-/// reads.
-///
-/// Worth pinning: they were dropped once already, when the log module moved
-/// behind these declarations, and nothing noticed — a missing script function
-/// is a run-time error in the editor and the examples, not a build failure.
 #[test]
 fn a_script_can_write_to_the_log_it_reads_back() {
     let dir = tempfile::tempdir().unwrap();

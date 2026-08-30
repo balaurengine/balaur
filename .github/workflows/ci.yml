@@ -1,5 +1,9 @@
 name: CI
 
+# Does the change work? Formatting and project lints are in lint.yml,
+# documentation in docs.yml, and anything that produces a downloadable
+# artifact in build.yml.
+
 on:
   push:
     branches: [main, master]
@@ -15,8 +19,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Runs on all three desktop platforms because platform code is where the
-  # engine actually differs: path handling, the macOS dock-icon path, and the
+  # Correctness, on all three desktop platforms, because platform code is where
+  # the engine actually differs: path handling, the macOS dock-icon path, and the
   # windowed backend's wgpu/winit stack. A single Linux job compiled none of it.
   check:
     name: ${{ matrix.os }} · clippy · test · e2e
@@ -41,11 +45,6 @@ jobs:
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
             libxkbcommon-dev libwayland-dev
       - uses: Swatinem/rust-cache@v2
-      # Formatting and rustdoc are platform-independent; one run is the whole
-      # answer.
-      - name: Format
-        if: runner.os == 'Linux'
-        run: cargo fmt --all --check
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
       # Without this the windowed backend — kiss3d, wgpu, egui, and the macOS
@@ -53,11 +52,6 @@ jobs:
       # editor. It is off by default, so `--all-targets` above never reaches it.
       - name: Clippy (windowed)
         run: cargo clippy -p balaur_cli --features window --all-targets -- -D warnings
-      - name: Docs
-        if: runner.os == 'Linux'
-        env:
-          RUSTDOCFLAGS: -D warnings
-        run: cargo doc --workspace --no-deps --lib
       - name: Test
         run: cargo test --workspace
       # examples/ are Balaur projects, not cargo examples: run, export and play
@@ -71,7 +65,7 @@ jobs:
           name: packs-${{ matrix.os }}
           path: target/e2e/digests.txt
 
-  # The cross-platform half of the promise in
+  # The multi-platform half of the promise in
   # crates/balaur_physics/tests/determinism.rs, which a single-OS CI could
   # never actually check. See scripts/compare_packs.sh for what it does and
   # does not claim.
@@ -87,92 +81,6 @@ jobs:
           path: digests
       - name: Compare
         run: ./scripts/compare_packs.sh digests
-
-  # Platforms the engine claims but that nothing compiles for. Headless only:
-  # the kiss3d window is desktop-bound (its egui feature pulls in `rfd`, which
-  # has no mobile backend), so what is checked here is the engine and its
-  # simulation — which is exactly what running a pack needs.
-  cross:
-    name: cross · ${{ matrix.target }}
-    runs-on: ${{ matrix.host }}
-    continue-on-error: ${{ matrix.optional }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Green today: Luau's C++, rune, rapier, rodio and notify all
-          # cross-compile. ARCHITECTURE.md claims a pack "ships everywhere
-          # (iOS included)" — this is what holds that claim up.
-          - target: aarch64-apple-ios
-            host: macos-latest
-            optional: false
-          # Not green yet, so it reports without failing the run. Kept visible
-          # rather than deleted: the whole point is to see the day it starts
-          # working, or the day it breaks differently.
-          - target: aarch64-linux-android
-            host: ubuntu-latest
-            optional: true
-          # Blocked upstream in cpal 0.17: its emscripten host does not
-          # compile. Luau itself builds for wasm, so audio is the only thing in
-          # the way — gating balaur_audio behind a feature would likely clear it.
-          - target: wasm32-unknown-emscripten
-            host: ubuntu-latest
-            optional: true
-    steps:
-      - uses: actions/checkout@v7
-      - name: Linux build deps
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
-      - name: Add target
-        run: rustup target add ${{ matrix.target }}
-      # Luau is C++, so a cross build needs a cross C++ compiler, not just a
-      # Rust target.
-      - name: Android NDK toolchain
-        if: matrix.target == 'aarch64-linux-android'
-        run: |
-          bin=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin
-          {
-            echo "CC_aarch64_linux_android=$bin/aarch64-linux-android24-clang"
-            echo "CXX_aarch64_linux_android=$bin/aarch64-linux-android24-clang++"
-            echo "AR_aarch64_linux_android=$bin/llvm-ar"
-            echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android24-clang"
-          } >> "$GITHUB_ENV"
-      - name: Emscripten
-        if: matrix.target == 'wasm32-unknown-emscripten'
-        run: |
-          git clone --depth 1 https://github.com/emscripten-core/emsdk.git
-          ./emsdk/emsdk install latest
-          ./emsdk/emsdk activate latest
-          echo "$PWD/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
-      - name: Check
-        run: cargo check -p balaur --target ${{ matrix.target }}
-
-  generated-docs:
-    name: generated docs
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      # gen_docs boots the engine to read the script API, so it needs whatever
-      # balaur_cli needs to build.
-      - name: Linux build deps
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
-      - uses: Swatinem/rust-cache@v2
-      - name: Regenerate and diff
-        run: python3 scripts/gen_docs.py --check
-
-  house-lints:
-    name: house lints
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - name: House lints
-        run: python3 scripts/house_lints.py --fail-on-error
 
   supply-chain:
     name: advisories · bans

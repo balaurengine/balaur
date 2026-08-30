@@ -48,8 +48,6 @@ fn a_path_finds_a_descendant_and_missing_ones_are_none() {
     assert_eq!(find_node(&world, engine.root(), ""), Some(engine.root()));
 }
 
-/// A path and a lookup have to agree, or the editor shows one thing and
-/// scripts resolve another.
 #[test]
 fn a_node_path_round_trips_through_find() {
     let (engine, _, _, c) = tree();
@@ -78,7 +76,6 @@ fn world_transforms_compose_down_the_chain() {
     assert!((world.get::<&GlobalTransform>(b).unwrap().position.x - 2.0).abs() < 1e-5);
 }
 
-/// Moving a parent moves its children, which is the point of a scene tree.
 #[test]
 fn moving_a_parent_moves_the_subtree() {
     let (engine, a, _, c) = tree();
@@ -143,8 +140,6 @@ fn siblings_keep_their_order() {
     assert_eq!(engine.world().get::<&Children>(root).unwrap().0, made);
 }
 
-/// Two siblings may share a name; a path finds one deterministically rather
-/// than at random.
 #[test]
 fn a_duplicate_name_resolves_the_same_way_every_time() {
     let engine = Engine::new();

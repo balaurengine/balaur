@@ -338,6 +338,9 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
         Ok(())
     });
     // 3D only, unlike the four above; the 2D world has `physics2d.set_gravity`.
+    //
+    // No reader by design (N8): `PhysicsState`'s rapier world already holds
+    // the gravity vector; add `physics.gravity` when a caller needs it back.
     m.function("set_gravity", |eng: &Engine, (x, y, z): (f32, f32, f32)| {
         let state = eng.resource::<PhysicsState>();
         state.borrow_mut().world.gravity = Vec3::new(x, y, z);

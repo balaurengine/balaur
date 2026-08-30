@@ -60,8 +60,6 @@ fn language_rune_runs_on_rune() {
     assert_eq!(host.instance_count(), 1);
 }
 
-/// A language this build does not have must say so by name rather than
-/// silently falling back to the default and behaving strangely.
 #[test]
 fn an_unknown_language_is_a_named_error() {
     let dir = tempfile::tempdir().unwrap();
@@ -109,7 +107,6 @@ fn build_pack_uses_the_compiler_the_project_asks_for() {
     }
 }
 
-/// A pack must run with the sources gone; that is what shipping one means.
 #[test]
 fn a_packed_project_boots_without_its_sources() {
     let dir = tempfile::tempdir().unwrap();
@@ -131,11 +128,6 @@ fn a_project_with_no_manifest_fails_to_load() {
     assert!(app.load_project().is_err());
 }
 
-/// Rune resolves module paths while compiling, so exporting it through a bare
-/// `rune::Context` rejected every script that touched the engine — the whole
-/// language could not be exported, while `balaur run` on the same project was
-/// fine. The script here deliberately calls a plugin module; one that only did
-/// arithmetic would have passed even with the bug.
 #[test]
 fn a_rune_project_that_calls_the_engine_can_be_exported() {
     let dir = tempfile::tempdir().unwrap();
@@ -155,8 +147,6 @@ fn a_rune_project_that_calls_the_engine_can_be_exported() {
     assert!(pack.scripts.contains_key("scripts/s.rn"));
 }
 
-/// Export still has to reject a script that cannot compile: the fix above
-/// widened the context, it did not switch the check off.
 #[test]
 fn a_broken_rune_script_fails_the_export() {
     let dir = tempfile::tempdir().unwrap();
@@ -172,8 +162,6 @@ fn a_broken_rune_script_fails_the_export() {
     );
 }
 
-/// Attaching a script at run time, and reading back what a node is running.
-/// These need a live backend, so they cannot be tested from core.
 #[test]
 fn a_script_can_attach_another_script_and_read_it_back() {
     let dir = tempfile::tempdir().unwrap();
@@ -212,8 +200,6 @@ fn a_script_can_attach_another_script_and_read_it_back() {
     assert_eq!(app.engine.script_host().unwrap().instance_count(), 2);
 }
 
-/// `engine.reload_script` is what a tool calls after writing a file outside
-/// the watched root; it must pick up the new source.
 #[test]
 fn reload_script_picks_up_a_rewritten_file() {
     let dir = tempfile::tempdir().unwrap();
@@ -246,8 +232,6 @@ fn reload_script_picks_up_a_rewritten_file() {
     );
 }
 
-/// The mouse position is readable headless; it is simply the origin, because
-/// nothing has moved it.
 #[test]
 fn mouse_position_is_readable_without_a_window() {
     let dir = tempfile::tempdir().unwrap();

@@ -52,8 +52,6 @@ const EMPTY: [(Backend, &str); 2] = [
     ),
 ];
 
-/// Dispatch across a thousand nodes is the shape of a real frame. Measured at
-/// roughly 200-260 us; budget 4 ms, well inside one 16.6 ms frame.
 #[test]
 fn dispatch_over_a_thousand_nodes_stays_inside_a_frame() {
     for (backend, source) in EMPTY {
@@ -70,9 +68,6 @@ fn dispatch_over_a_thousand_nodes_stays_inside_a_frame() {
     }
 }
 
-/// Attaching to already-compiled scripts must stay per-node cheap. If a
-/// compile ever creeps back into this path the number jumps by orders of
-/// magnitude, which is exactly what this catches.
 #[test]
 fn attaching_to_a_compiled_script_is_cheap_per_node() {
     for (backend, source) in EMPTY {
@@ -90,8 +85,6 @@ fn attaching_to_a_compiled_script_is_cheap_per_node() {
     }
 }
 
-/// Propagation is linear in node count. A budget that scales with n catches a
-/// quadratic walk, which is the failure this path is prone to.
 #[test]
 fn transform_propagation_stays_linear() {
     let project = Project::new(Backend::Luau, EMPTY[0].1).unwrap();
@@ -121,8 +114,6 @@ fn transform_propagation_stays_linear() {
     );
 }
 
-/// A binding call crossing the seam should stay in the hundreds of nanoseconds.
-/// Budget 20 us catches a call that started allocating or locking.
 #[test]
 fn a_binding_call_stays_sub_microsecond() {
     for backend in Backend::ALL {

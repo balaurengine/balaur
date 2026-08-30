@@ -12,8 +12,6 @@ use crate::bridge::{scale, scoped, with_ui};
 use crate::theme::{self, parse_hex};
 use crate::UiState;
 
-// ---------------------------------------------------------------- opts
-
 /// An options table as passed from script: `{ height = 56, fill = "#20242a" }`.
 ///
 /// Reads the neutral map rather than one language's table type, so widgets
@@ -106,8 +104,6 @@ pub(crate) fn text(
     }
     rt
 }
-
-// ---------------------------------------------------------------- install
 
 /// Screen anchors for the `widget` scene component, so a script says
 /// `ui.ANCHOR_TOP_LEFT` rather than spelling the string.
@@ -216,8 +212,6 @@ pub(crate) fn text_field(
     Ok((buffer, changed, submitted))
 }
 
-// ---------------------------------------------------------------- code editor
-
 pub(crate) struct SyntaxColors {
     key: Color32,
     string: Color32,
@@ -247,6 +241,10 @@ impl SyntaxColors {
 pub(crate) struct Syntax {
     line_comment: &'static str,
     keywords: &'static [&'static str],
+    /// Every script module (the 13 in `docs/generated/script-api.md`) plus
+    /// the language's own globals. The module half is the same for every
+    /// language — it drifted once, with `node` missing from Luau and `fs` /
+    /// `toml` from Rune — so add a new module to both lists at once.
     builtins: &'static [&'static str],
 }
 
@@ -258,8 +256,24 @@ const LUAU: Syntax = Syntax {
         "until", "type", "export",
     ],
     builtins: &[
-        "engine", "scene", "input", "physics", "render", "audio", "rng", "ui", "log", "fs", "toml",
-        "math", "string", "table", "self", "require",
+        "engine",
+        "scene",
+        "input",
+        "physics",
+        "physics2d",
+        "render",
+        "audio",
+        "rng",
+        "ui",
+        "log",
+        "node",
+        "fs",
+        "toml",
+        "math",
+        "string",
+        "table",
+        "self",
+        "require",
     ],
 };
 
@@ -271,8 +285,21 @@ const RUNE: Syntax = Syntax {
         "not", "is", "as", "select", "yield",
     ],
     builtins: &[
-        "engine", "scene", "input", "physics", "render", "audio", "rng", "ui", "log", "node",
-        "this", "println",
+        "engine",
+        "scene",
+        "input",
+        "physics",
+        "physics2d",
+        "render",
+        "audio",
+        "rng",
+        "ui",
+        "log",
+        "node",
+        "fs",
+        "toml",
+        "this",
+        "println",
     ],
 };
 

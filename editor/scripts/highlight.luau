@@ -11,10 +11,14 @@ local KEYWORDS = {
     ["repeat"] = true, ["until"] = true, ["type"] = true, ["export"] = true,
 }
 
--- Engine modules read as builtins/types, per the design's rule.
+-- Engine modules read as builtins/types, per the design's rule. All 13 of
+-- them (docs/generated/script-api.md), then Luau's own globals. The list in
+-- crates/balaur_ui/src/widgets.rs highlights the same source in the built-in
+-- code editor, so a new module goes in both.
 local BUILTIN = {
-    engine = true, scene = true, input = true, physics = true, render = true,
-    audio = true, rng = true, ui = true, log = true, fs = true, toml = true,
+    engine = true, scene = true, input = true, physics = true, physics2d = true,
+    render = true, audio = true, rng = true, ui = true, log = true, node = true,
+    fs = true, toml = true,
     math = true, string = true, table = true, self = true, require = true,
 }
 

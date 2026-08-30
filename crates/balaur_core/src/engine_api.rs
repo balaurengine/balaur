@@ -191,8 +191,6 @@ pub fn install_engine_api(eng: &Engine) -> Result<()> {
     Ok(())
 }
 
-// ---- engine ----------------------------------------------------------
-
 fn time(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Num(eng.time()))
 }
@@ -222,8 +220,6 @@ fn reload_script(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-// ---- scene -----------------------------------------------------------
-
 fn root(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Node(crate::node_id_of(eng.root()).0))
 }
@@ -243,7 +239,6 @@ fn spawn(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn instantiate(eng: &Engine, args: &[Value]) -> Result<Value> {
     let base = optional_node(args, 1)?.unwrap_or_else(|| eng.root());
-    // opts: { scripts = false } skips script attachment (editor mirroring).
     let attach = match args.get(2) {
         Some(Value::Map(pairs)) => !pairs
             .iter()
@@ -283,8 +278,6 @@ fn component_schema(eng: &Engine, args: &[Value]) -> Result<Value> {
         crate::node_api::from_toml(&def.schema)
     })
 }
-
-// ---- log -------------------------------------------------------------
 
 /// The three writers a script has. They emit through `tracing`, so a scripted
 /// line lands in the same stream, and the same `logbuf`, as an engine one --
@@ -330,8 +323,6 @@ fn log_clear(_: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-// ---- rng -------------------------------------------------------------
-
 fn rng_seed(eng: &Engine, args: &[Value]) -> Result<Value> {
     let seed = match args.first() {
         Some(Value::Int(n)) => *n,
@@ -358,8 +349,6 @@ fn rng_int(eng: &Engine, args: &[Value]) -> Result<Value> {
     let v = crate::rng::with_rng(eng, |rng| rng.next_range_i64(lo, hi));
     Ok(Value::Int(v))
 }
-
-// ---- fs, rooted at the project ---------------------------------------
 
 /// Project-relative unless absolute, so a script cannot wander the disk by
 /// accident.
@@ -411,8 +400,6 @@ fn fs_list(eng: &Engine, args: &[Value]) -> Result<Value> {
     ))
 }
 
-// ---- toml ------------------------------------------------------------
-
 fn toml_parse(_: &Engine, args: &[Value]) -> Result<Value> {
     let parsed: toml::Value = toml::from_str(text(args, 0)?)?;
     crate::node_api::from_toml(&parsed)
@@ -424,8 +411,6 @@ fn toml_encode(_: &Engine, args: &[Value]) -> Result<Value> {
         value,
     )?)?))
 }
-
-// ---- argument helpers ------------------------------------------------
 
 fn number(args: &[Value], i: usize) -> Result<f64> {
     match args.get(i) {

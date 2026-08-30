@@ -66,8 +66,18 @@ impl Default for RngState {
 /// module, a backend's `math.random` override — goes through here rather than
 /// pulling the resource out of the typemap itself, so the stream has one
 /// owner and nobody is tempted to insert a second.
+///
+/// An `Engine` built by hand rather than through `App::new` has no stream, and
+/// `balaur_script_luau::ScriptHost::new` is `pub` and takes a raw `Engine`, so
+/// that case is reachable from outside the workspace. Rather than panic, seed
+/// the default stream here on first use: it is the same seed `App::new`
+/// inserts, so the first draw is identical either way, and there is still
+/// exactly one owner — this function.
 pub fn with_rng<R>(eng: &crate::engine::Engine, f: impl FnOnce(&mut Pcg32) -> R) -> R {
-    let rng = eng.resource::<RngState>();
+    let rng = eng.try_resource::<RngState>().unwrap_or_else(|| {
+        eng.insert_resource(RngState::default());
+        eng.resource::<RngState>()
+    });
     let mut rng = rng.borrow_mut();
     f(&mut rng.0)
 }

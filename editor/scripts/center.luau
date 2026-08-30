@@ -79,19 +79,24 @@ end
 local function chip(S, k, key, label, default_on)
     local state = S.chip_state[S.persona] or {}
     S.chip_state[S.persona] = state
-    if state[key] == nil then
+    -- Engine-backed chips (no declared default, see defs.chips) read their
+    -- value back from the engine every frame; the rest live in `chip_state`.
+    local live = if S.chip_value ~= nil then S.chip_value(S.persona, key) else nil
+    if live == nil and state[key] == nil then
         state[key] = default_on
     end
-    local on = state[key]
+    local on = if live ~= nil then live else state[key]
     if ui.pill(label, {
         height = 26, size = 11, strong = true,
         fill = if on then k.accent_soft else k.panel,
         stroke = k.line_soft,
         color = if on then k.accent else k.dim,
     }) then
-        state[key] = not on
+        if live == nil then
+            state[key] = not on
+        end
         if S.on_chip ~= nil then
-            S.on_chip(S.persona, key, state[key])
+            S.on_chip(S.persona, key, not on)
         end
     end
 end

@@ -91,7 +91,6 @@ macro_rules! num_arg {
             }
         }
         impl IntoValue for $t {
-            // Widening f32->f64 is lossless; f64->f64 is identity.
             #[allow(clippy::cast_lossless)]
             fn into_value(self) -> Value { Value::Num(self as f64) }
         }
@@ -253,7 +252,6 @@ macro_rules! tuple_args {
             }
         }
         impl<$($name: IntoValue),+> IntoValue for ($($name,)+) {
-            // The macro reuses the type-parameter idents as bindings.
             #[allow(non_snake_case)]
             fn into_value(self) -> Value {
                 let ($($name,)+) = self;

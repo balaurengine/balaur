@@ -62,8 +62,6 @@ fn colliders_can_be_added_in_every_shape_the_api_offers() {
     );
 }
 
-/// Velocity round-trips: what is set is what comes back, and a body that was
-/// pushed is moving.
 #[test]
 fn linear_velocity_is_set_and_read_back() {
     run_clean(
@@ -138,8 +136,6 @@ fn the_2d_world_has_the_same_shape_of_api() {
     );
 }
 
-/// A binding handed the wrong type must say so rather than take the frame
-/// down: the argument came from a script.
 #[test]
 fn a_wrong_argument_is_reported_not_fatal() {
     let errors = run(r"physics.add_body(self.node, 42)");

@@ -54,7 +54,7 @@ Balaur engine core: the Rust data plane.
 
 - **workspace deps:** `balaur_script`
 - **external deps:** 10 (anyhow, glamx, hecs, indexmap, rustc-hash, serde, toml, tracing, …)
-- **public surface:** 24 fn, 24 struct, 2 enum, 1 trait, 4 const, 8 type
+- **public surface:** 29 fn, 24 struct, 2 enum, 1 trait, 4 const, 8 type
 - **traits:** `Plugin`
 - **structs:** `App`, `AppConfig`, `Children`, `ComponentDef`, `ComponentRegistry`, `Engine`, `EngineOp`, `GlobalTransform`, `LogEntry`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `ProjectManifest`, `ProjectRoot`, `Resources`, `RngState`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `StableId`, `Transform`
 - **enums:** `Command`, `Stage`

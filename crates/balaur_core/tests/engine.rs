@@ -41,8 +41,6 @@ fn a_missing_resource_is_none_rather_than_a_panic() {
     assert!(engine.try_resource::<Counter>().is_none());
 }
 
-/// Inserting twice replaces rather than stacking, so a plugin rebuilt during
-/// a reload does not leave the old one behind.
 #[test]
 fn inserting_a_resource_twice_replaces_it() {
     let engine = Engine::new();
@@ -51,8 +49,6 @@ fn inserting_a_resource_twice_replaces_it() {
     assert_eq!(engine.resource::<Counter>().borrow().0, 2);
 }
 
-/// Commands are deferred so a script can free a node while the world is being
-/// iterated. Taking them must drain, or the same free runs every frame.
 #[test]
 fn commands_queue_and_drain_once() {
     let engine = Engine::new();
@@ -93,8 +89,6 @@ fn an_engine_has_a_root_node_from_the_start() {
     assert!(engine.world().contains(engine.root()));
 }
 
-/// Freeing a node takes its subtree with it, or children outlive their parent
-/// as orphans.
 #[test]
 fn freeing_a_node_frees_its_children() {
     let mut app = app();
@@ -118,8 +112,6 @@ fn an_app_without_a_backend_has_no_script_host() {
     assert!(app.engine.script_host().is_none());
 }
 
-/// A script module on a backendless app must still hand back something to
-/// register into, so plugin build order does not depend on scripting.
 #[test]
 fn script_module_works_without_a_backend() {
     let mut app = app();

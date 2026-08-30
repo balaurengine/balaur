@@ -33,11 +33,16 @@ M.tool_icons = {
 }
 
 -- Viewport overlay chips per persona: { key, label, default_on }.
+--
+-- A chip that omits `default_on` is engine-backed: `S.chip_value` reads the
+-- live value back every frame instead of the editor keeping a copy, so the
+-- two cannot drift. "Sleep bodies" is one — `physics.sleeping_allowed()` is
+-- the truth, and it starts out on.
 M.chips = {
     scene = { { "proj", "3D · Perspective", true }, { "snap", "Snap 8 px", false }, { "guides", "Guides", false } },
     script = {},
     anim = { { "onion", "Onion skin", true }, { "snap", "Snap 8 px", false } },
-    phys = { { "colliders", "Show colliders", true }, { "sleep", "Sleep bodies", false } },
+    phys = { { "colliders", "Show colliders", true }, { "sleep", "Sleep bodies" } },
     ui = { { "safe", "Safe area", true }, { "res", "1920 × 1080", false } },
 }
 

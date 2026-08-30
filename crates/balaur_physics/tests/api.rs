@@ -93,8 +93,6 @@ fn an_unknown_body_kind_is_rejected_with_its_name() {
     );
 }
 
-/// Pausing must stop the simulation without dropping the bodies, or a paused
-/// editor loses the scene.
 #[test]
 fn pausing_stops_the_simulation_and_resuming_continues_it() {
     let mut app = app();
@@ -155,8 +153,6 @@ fn removing_a_body_stops_it_being_simulated() {
     );
 }
 
-/// Two runs from the same setup must agree bit for bit; the whole engine is
-/// built on that promise.
 #[test]
 fn the_same_setup_simulates_identically_twice() {
     let run = || {

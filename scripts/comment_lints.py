@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+"""Comment lints, across every language in the tree.
+
+A comment that repeats the line under it is worse than none: it doubles what
+has to be kept true, and it goes stale silently. Names carry that weight
+better. This flags the mechanical cases in Rust, Luau, Rune, Python, shell,
+YAML and TOML alike.
+
+  ERROR   fails CI. No judgement needed.
+  REPORT  prints only. Heuristics that will false-positive.
+
+  python3 scripts/comment_lints.py [--reports] [--fail-on-error]
+"""
+import argparse
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SKIP_DIRS = {"target", ".git", "node_modules", "build", "__pycache__", ".venv"}
+
+MARKERS = {
+    ".rs": "//", ".rn": "//", ".luau": "--", ".lua": "--",
+    ".py": "#", ".sh": "#", ".yml": "#", ".yaml": "#", ".toml": "#",
+}
+DOC_PREFIXES = {"//": ("///", "//!"), "--": ("---",), "#": ("#!",)}
+STOPWORDS = {
+    "the", "a", "an", "is", "are", "to", "of", "and", "or", "in", "on", "it",
+    "this", "that", "for", "as", "be", "we", "its", "so", "not", "with", "by",
+    "from", "at", "if", "then", "else", "do", "no", "yes", "into", "than",
+}
+BANNER = re.compile(r"^[-=*#~ ]{4,}|[-=*#~]{4,}\s*$")
+
+
+def files():
+    for path in sorted(ROOT.rglob("*")):
+        if not path.is_file() or path.suffix not in MARKERS:
+            continue
+        if any(part in SKIP_DIRS for part in path.relative_to(ROOT).parts):
+            continue
+        yield path
+
+
+def words(text):
+    return {w for w in re.split(r"[^a-zA-Z0-9]+", text.lower()) if len(w) > 2 and w not in STOPWORDS}
+
+
+def next_code(lines, i, marker):
+    for line in lines[i + 1:]:
+        stripped = line.strip()
+        if stripped and not stripped.startswith(marker):
+            return stripped
+        if not stripped:
+            return ""
+    return ""
+
+
+def looks_like_code(text, marker):
+    """Prose ends in a semicolon often enough that punctuation alone is not
+    evidence. Real commented-out code carries syntax and almost no prose."""
+    prose = sum(1 for w in re.split(r"[^a-zA-Z]+", text.lower()) if w in STOPWORDS)
+    if prose >= 2:
+        return False
+    if marker == "#":
+        syntax = re.search(r"^\s*(def |class |import |from \w+ import|return |[\w.]+\s*=[^=])", text)
+        return bool(syntax) and text.rstrip().endswith((":", ")", ","))
+    syntax = re.search(r"(\blet\b|\bfn\b|\breturn\b|::|->|=>|\w+\()", text)
+    return bool(syntax) and text.rstrip().endswith((";", "{", "}"))
+
+
+def check(path):
+    marker = MARKERS[path.suffix]
+    docs = DOC_PREFIXES.get(marker, ())
+    rel = path.relative_to(ROOT)
+    lines = path.read_text(errors="replace").splitlines()
+    out = []
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped.startswith(marker) or stripped.startswith(docs):
+            continue
+        body = stripped[len(marker):].strip()
+        if not body:
+            continue
+        if BANNER.match(body):
+            out.append((rel, i + 1, "banner", "a divider comment; the code's own structure is the divider", "ERROR"))
+            continue
+        if looks_like_code(body, marker):
+            out.append((rel, i + 1, "commented-out-code", "commented-out code; delete it, git remembers", "ERROR"))
+            continue
+        comment_words = words(body)
+        if len(comment_words) < 3:
+            continue
+        code = next_code(lines, i, marker)
+        if not code:
+            continue
+        shared = comment_words & words(code)
+        overlap = len(shared) / len(comment_words)
+        if overlap >= 0.7:
+            out.append((rel, i + 1, "restates-code",
+                        f"repeats the line below ({int(overlap * 100)}% of its words); the code says it", "ERROR"))
+        elif overlap >= 0.5:
+            out.append((rel, i + 1, "restates-code",
+                        f"mostly repeats the line below ({int(overlap * 100)}%)", "REPORT"))
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--reports", action="store_true")
+    ap.add_argument("--fail-on-error", action="store_true")
+    args = ap.parse_args()
+
+    findings, scanned = [], 0
+    for path in files():
+        scanned += 1
+        findings.extend(check(path))
+
+    errors = [f for f in findings if f[4] == "ERROR"]
+    reports = [f for f in findings if f[4] == "REPORT"]
+    for rel, line, rule, message, severity in errors + (reports if args.reports else []):
+        print(f"{severity:<6} {rel}:{line}  [{rule}] {message}")
+    print(f"\n{scanned} files · {len(errors)} errors · {len(reports)} reports (--reports)")
+    return 1 if errors and args.fail_on_error else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

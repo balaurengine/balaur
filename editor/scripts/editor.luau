@@ -102,6 +102,16 @@ function Editor:init()
         end
     end
 
+    -- The other half of the pair: chips that command the engine read their
+    -- state back from it, so nothing is mirrored in `S.chip_state`. Returns
+    -- nil for a chip the editor owns outright.
+    function S.chip_value(persona, key)
+        if persona == "phys" and key == "sleep" then
+            return physics.sleeping_allowed()
+        end
+        return nil
+    end
+
     function S.attach_script()
         local node = S.doc[S.sel]
         if node.script ~= nil then

@@ -20,6 +20,9 @@ use crate::{UiConfig, UiState};
 /// `ui.*` bindings: theme.
 pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
     {
+        // No reader by design (N8): `UiConfig::theme` already holds every
+        // token the caller wrote, and scripts keep their own palette table;
+        // add `ui.theme` when a caller needs to read it back.
         m.function("set_theme", |eng: &Engine, tokens: Value| {
             let Value::Map(entries) = &tokens else {
                 anyhow::bail!("set_theme takes a table of tokens");
@@ -268,6 +271,9 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
 /// `ui.*` bindings: widget layer.
 pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
     {
+        // No reader by design (N8): the `WidgetLayerConfig` entry already
+        // holds the flag and the rect; add `ui.widget_layer` when a caller
+        // needs to read them back.
         m.function(
             "set_widget_layer",
             |eng: &Engine, (enabled, x, y, w, h): (

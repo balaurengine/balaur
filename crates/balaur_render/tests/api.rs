@@ -125,8 +125,6 @@ fn removing_a_shape_takes_the_renderable_with_it() {
     assert!(app.engine.world().get::<&Renderable>(e).is_err());
 }
 
-/// Debug lines are per frame: whatever draws them must not accumulate across
-/// frames, or the buffer grows without bound.
 #[test]
 fn debug_lines_accumulate_and_can_be_cleared() {
     let app = app();

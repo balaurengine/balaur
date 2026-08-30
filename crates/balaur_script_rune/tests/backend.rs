@@ -35,8 +35,6 @@ fn project(files: &[(&str, &str)]) -> tempfile::TempDir {
     dir
 }
 
-/// A script's `update` runs every frame and its writes to `this` persist,
-/// which is the whole instance model.
 #[test]
 fn instance_state_survives_between_frames() {
     let dir = project(&[(
@@ -65,8 +63,6 @@ fn instance_state_survives_between_frames() {
     );
 }
 
-/// A binding registered through the neutral trait is callable from Rune, with
-/// the same typed signature a Lua-facing subsystem would declare.
 #[test]
 fn a_typed_binding_reaches_rune() {
     let dir = project(&[(
@@ -91,7 +87,6 @@ fn a_typed_binding_reaches_rune() {
     assert_eq!(rune.number_field(node, "out"), Some(21.0));
 }
 
-/// A wrong argument type is a script error, not a panic.
 #[test]
 fn a_wrong_argument_type_is_reported_not_fatal() {
     let dir = project(&[("bad.rn", "pub fn init(this) { t::need_int(\"nope\"); }\n")]);
@@ -110,7 +105,6 @@ fn a_wrong_argument_type_is_reported_not_fatal() {
     assert_eq!(host.instance_count(), 1);
 }
 
-/// A script function handed to a binding is callable during that call.
 #[test]
 fn a_binding_can_call_the_function_it_was_passed() {
     let dir = project(&[(
@@ -139,7 +133,6 @@ fn a_binding_can_call_the_function_it_was_passed() {
     assert_eq!(hits.get(), 2, "the binding should have called back twice");
 }
 
-/// A callback must not outlive the binding call that received it.
 #[test]
 fn a_callback_does_not_outlive_its_call() {
     let dir = project(&[("stash.rn", "pub fn init(this) { t::stash(|| {}); }\n")]);
@@ -169,7 +162,6 @@ fn a_callback_does_not_outlive_its_call() {
     );
 }
 
-/// Editing a script swaps the code without disturbing live instances.
 #[test]
 fn a_reload_keeps_instance_state() {
     let dir = project(&[(
@@ -201,9 +193,6 @@ fn a_reload_keeps_instance_state() {
     );
 }
 
-/// The node API reaches Rune as methods, from the same declaration list the
-/// Luau backend uses. If this passes, adding a third language costs the sugar
-/// and nothing else.
 #[test]
 fn the_node_api_is_available_as_methods() {
     let dir = project(&[(
@@ -228,7 +217,6 @@ fn the_node_api_is_available_as_methods() {
     );
 }
 
-/// Node identity survives a round trip through a script.
 #[test]
 fn a_node_returned_to_a_script_is_still_a_node() {
     let dir = project(&[(
@@ -265,8 +253,6 @@ fn a_node_returned_to_a_script_is_still_a_node() {
     assert_eq!(name.0, "Renamed");
 }
 
-/// The engine and scene modules reach Rune too, from the same declarations
-/// the Luau backend registers.
 #[test]
 fn the_engine_modules_reach_rune() {
     let dir = project(&[(
@@ -295,8 +281,6 @@ fn the_engine_modules_reach_rune() {
     assert_eq!(rune.number_field(node, "argc"), Some(0.0));
 }
 
-/// Constants registered through the seam must be readable as module constants,
-/// or named values are not an option for bindings.
 #[test]
 fn a_constant_is_readable_from_a_script() {
     let dir = project(&[(

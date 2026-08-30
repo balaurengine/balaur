@@ -67,8 +67,6 @@ fn the_backend_decides_what_a_script_compiles_to() {
     );
 }
 
-/// A file the compiler does not claim is not a script, so it must not end up
-/// in the pack as one.
 #[test]
 fn unclaimed_extensions_are_left_alone() {
     let dir = project();
@@ -87,7 +85,6 @@ fn scenes_are_gathered_but_the_manifest_is_not_one_of_them() {
     assert!(pack.manifest.contains("name = \"p\""));
 }
 
-/// A broken script must fail the export rather than ship a pack missing it.
 #[test]
 fn a_compile_error_fails_the_build() {
     let dir = project();
@@ -144,8 +141,6 @@ fn a_pack_encodes_the_same_whatever_order_it_was_filled_in() {
     );
 }
 
-/// The order is not merely stable, it is sorted — the property that lets a CI
-/// matrix compare a pack digest built on Linux against one built on macOS.
 #[test]
 fn a_pack_writes_its_entries_in_sorted_order() {
     let mut pack = Pack {

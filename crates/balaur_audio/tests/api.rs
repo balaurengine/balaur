@@ -32,8 +32,6 @@ fn ticking_with_audio_does_not_panic() {
     }
 }
 
-/// Asking for a file that is not there must be an ordinary error, not a
-/// crash: the path comes from a script.
 #[test]
 fn playing_a_missing_file_does_not_take_the_frame_down() {
     let app = app();

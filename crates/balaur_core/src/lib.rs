@@ -18,6 +18,7 @@ pub mod project;
 pub mod resources;
 pub mod rng;
 pub mod scene;
+pub mod standalone;
 
 pub use app::{App, AppConfig, Plugin, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage};
 pub use collections::{DetHashMap, DetHashSet};

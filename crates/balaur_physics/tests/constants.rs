@@ -60,7 +60,6 @@ fn every_constant_is_screaming_snake_and_unique() {
     }
 }
 
-/// The 2D and 3D worlds take the same body kinds; only shapes differ.
 #[test]
 fn the_two_worlds_share_body_kinds_and_differ_on_shapes() {
     let three: Vec<&str> = SHAPE_KINDS.iter().map(|(n, _)| *n).collect();

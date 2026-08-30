@@ -32,8 +32,6 @@ fn a_release_is_just_released_for_one_frame_only() {
     assert!(!input.just_released("Space"));
 }
 
-/// A key held across frames must not re-fire, or every held key reads as a
-/// fresh press.
 #[test]
 fn holding_a_key_does_not_re_fire() {
     let mut input = InputSnapshot::default();
@@ -80,7 +78,6 @@ fn mouse_buttons_follow_the_same_edge_rules() {
     assert!(!input.mouse_just_pressed(0));
 }
 
-/// The edge a drag-release handler waits for: true for exactly one frame.
 #[test]
 fn a_released_mouse_button_reports_one_frame_of_release() {
     let mut input = InputSnapshot::default();
@@ -100,7 +97,6 @@ fn a_released_mouse_button_reports_one_frame_of_release() {
     assert!(!input.mouse_just_released(999), "out of range is quiet");
 }
 
-/// Out of range must be quiet rather than panic: the index comes from a script.
 #[test]
 fn an_out_of_range_button_does_not_panic() {
     let mut input = InputSnapshot::default();
@@ -122,7 +118,6 @@ fn mouse_delta_is_per_frame_and_position_is_absolute() {
     assert_eq!(input.mouse_pos(), (13.0, 14.0), "position is not per frame");
 }
 
-/// The constants scripts use must name buttons this snapshot actually tracks.
 #[test]
 fn the_mouse_constants_address_real_buttons() {
     let mut input = InputSnapshot::default();

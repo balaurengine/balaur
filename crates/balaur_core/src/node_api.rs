@@ -149,8 +149,6 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
     }
 }
 
-// ---- argument helpers ------------------------------------------------
-
 fn node(args: &[Value]) -> Result<Entity> {
     match args.first() {
         Some(Value::Node(id)) => crate::entity_of(balaur_script::NodeId(*id)),
@@ -198,8 +196,6 @@ fn with_transform<R>(eng: &Engine, e: Entity, f: impl FnOnce(&mut Transform) -> 
     Ok(f(&mut transform))
 }
 
-// ---- identity --------------------------------------------------------
-
 fn is_valid(eng: &Engine, args: &[Value]) -> Result<Value> {
     let Ok(e) = node(args) else {
         return Ok(Value::Bool(false));
@@ -231,8 +227,6 @@ fn path(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     Ok(Value::Str(scene::node_path(&eng.world(), e)))
 }
-
-// ---- local transform -------------------------------------------------
 
 fn position(eng: &Engine, args: &[Value]) -> Result<Value> {
     with_transform(eng, node(args)?, |t| vec3(t.position))
@@ -300,8 +294,6 @@ fn set_scale(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-// ---- world transform, read only --------------------------------------
-
 fn global<R>(eng: &Engine, args: &[Value], f: impl FnOnce(&GlobalTransform) -> R) -> Result<R> {
     let e = node(args)?;
     let world = eng.world();
@@ -325,8 +317,6 @@ fn global_rotation_euler(eng: &Engine, args: &[Value]) -> Result<Value> {
         Value::Vec3([roll, pitch, yaw])
     })
 }
-
-// ---- hierarchy -------------------------------------------------------
 
 fn get_node(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
@@ -364,8 +354,6 @@ fn children(eng: &Engine, args: &[Value]) -> Result<Value> {
     );
     Ok(Value::List(out))
 }
-
-// ---- components ------------------------------------------------------
 
 /// Adds the component if the node lacks it, merges over it if it has it, so
 /// one verb covers both. There is deliberately no `add_component`: the family
@@ -410,8 +398,6 @@ fn component_names(eng: &Engine, args: &[Value]) -> Result<Value> {
     ))
 }
 
-// ---- scripting -------------------------------------------------------
-
 fn script_path(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let world = eng.world();
@@ -434,8 +420,6 @@ fn queue_free(eng: &Engine, args: &[Value]) -> Result<Value> {
     eng.push_command(Command::Free(node(args)?));
     Ok(Value::Nil)
 }
-
-// ---- component parameters, as TOML -----------------------------------
 
 /// Component parameters travel as TOML, so a script table and a scene file
 /// describe a component the same way.

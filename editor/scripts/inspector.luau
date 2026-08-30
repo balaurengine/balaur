@@ -326,6 +326,41 @@ local function prop_row(S, k, comp, prop, spec, data)
     end
 end
 
+-- A `readonly` property is engine output (widget.clicked): the component
+-- declares it so `get` round-trips and the inspector can see it, but a write
+-- here would be overwritten on the next frame. So it renders as a plain
+-- faint value — visible, with no drag handle and nothing to focus.
+local function readonly_text(spec, value)
+    local datatype = spec.type
+    if datatype == "float" then
+        return string.format(`%.{math.floor(spec.decimals or 2)}f`, value or 0)
+    elseif datatype == "bool" then
+        return if value == true then "true" else "false"
+    elseif datatype == "vec2" or datatype == "vec3" or datatype == "color" then
+        local count = if datatype == "color" then 4 elseif datatype == "vec2" then 2 else 3
+        local v = value or {}
+        local parts = {}
+        for i = 1, count do
+            parts[i] = string.format("%.2f", v[i] or (if datatype == "color" then 1 else 0))
+        end
+        return table.concat(parts, ", ")
+    end
+    return tostring(value or "")
+end
+
+local function readonly_row(k, prop, spec, data)
+    local value = data[prop]
+    if value == nil then
+        value = spec.default
+    end
+    row(k, prop, function()
+        ui.label(readonly_text(spec, value), { size = 11.5, font = "mono", color = k.faint })
+        ui.right(function()
+            ui.label("read-only", { size = 10, color = k.faint })
+        end)
+    end)
+end
+
 -- One auto-generated section per component present on the node.
 -- `filter` limits which components a persona shows (nil = all).
 local function component_sections(S, k, filter)
@@ -353,11 +388,11 @@ local function component_sections(S, k, filter)
             local schema = scene.component_schema(comp) or {}
             local data = ref:get_component(comp) or {}
             for _, prop in sorted_keys(schema) do
-                -- `readonly` props are engine output (widget.clicked): the
-                -- component declares them so they round-trip, but editing
-                -- one would be a write the next frame overwrites.
-                if not schema[prop].readonly then
-                    prop_row(S, k, comp, prop, schema[prop], data)
+                local spec = schema[prop]
+                if spec.readonly then
+                    readonly_row(k, prop, spec, data)
+                else
+                    prop_row(S, k, comp, prop, spec, data)
                 end
             end
         end

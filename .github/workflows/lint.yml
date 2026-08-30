@@ -1,0 +1,44 @@
+name: Lint
+
+# The platform-independent gates. Formatting and the project's own naming and
+# style rules have one right answer everywhere, so they run once rather than
+# three times in the CI matrix.
+#
+# Compile-level lints (clippy) live in ci.yml instead: those genuinely differ
+# per platform, because the code they see does.
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Format
+        run: cargo fmt --all --check
+
+  project-lints:
+    name: project lints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      # Naming, function length, deterministic iteration, tracing over log —
+      # the rules in docs/NAMING.md that no compiler enforces.
+      - name: Project lints
+        run: python3 scripts/house_lints.py --fail-on-error
+      - name: Comment lints
+        run: python3 scripts/comment_lints.py --fail-on-error

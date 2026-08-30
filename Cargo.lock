@@ -433,6 +433,7 @@ name = "balaur_physics"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "balaur",
  "balaur_core",
  "balaur_script",
  "glamx",
@@ -448,6 +449,7 @@ name = "balaur_render"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "balaur",
  "balaur_core",
  "balaur_input",
  "balaur_script",
@@ -459,6 +461,7 @@ dependencies = [
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
  "pollster 1.0.1",
+ "tempfile",
  "toml",
  "tracing",
 ]

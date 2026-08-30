@@ -89,12 +89,6 @@ fn spawn(app: &balaur::App, name: &str) -> balaur::hecs::Entity {
     balaur::scene::spawn_node(&mut app.engine.world_mut(), name, root)
 }
 
-/// `get` may only emit keys the schema declares.
-///
-/// An undeclared key is invisible to the inspector, to
-/// `scene.component_schema(name)` and to any generic round trip, while still
-/// coming back out of `node:get_component` — which is how `widget.clicked`
-/// stayed undeclared for as long as it did.
 #[test]
 fn every_component_emits_only_keys_its_schema_declares() {
     let (_dir, app) = app_with_every_component();
@@ -132,9 +126,6 @@ fn every_component_emits_only_keys_its_schema_declares() {
     }
 }
 
-/// The scene-file spelling of a colour. Before this, `as_array()` returned
-/// None for a hex string and every colour fell through to its default in
-/// silence.
 #[test]
 fn a_hex_string_is_a_colour_wherever_a_colour_is_taken() {
     let (_dir, app) = app_with_every_component();
@@ -169,11 +160,6 @@ fn a_hex_string_is_a_colour_wherever_a_colour_is_taken() {
     );
 }
 
-/// `apply` -> `get` -> `apply` is a fixed point for every registered component.
-///
-/// The editor's save normalises an edited component through `get` and writes
-/// that straight back into the scene, so a key `get` emits in a shape `apply`
-/// does not accept is a value the next load quietly drops.
 #[test]
 fn every_component_round_trips_through_get_and_apply() {
     let (_dir, app) = app_with_every_component();
@@ -205,11 +191,6 @@ fn every_component_round_trips_through_get_and_apply() {
     }
 }
 
-/// Every option a schema advertises can actually be set and read back.
-///
-/// The inspector serves `options` verbatim as a dropdown, so an option the
-/// component cannot round-trip is a control that silently snaps back — which
-/// is what a reverse map missing an arm looks like from the outside.
 #[test]
 fn every_enum_option_a_schema_offers_round_trips() {
     let (_dir, app) = app_with_every_component();

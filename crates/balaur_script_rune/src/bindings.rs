@@ -148,8 +148,6 @@ impl balaur_script::Bindings<Engine> for RuneModule {
         let Some(module) = self.module.as_mut() else {
             return;
         };
-        // Rune constants are typed at registration, so each neutral variant
-        // has to be handed over as itself.
         let built = match &value {
             Value::Bool(b) => module.constant(name, *b).build().map(|_| ()),
             Value::Int(i) => module.constant(name, *i).build().map(|_| ()),

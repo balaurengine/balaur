@@ -117,3 +117,34 @@ pub fn install(lua: &Lua, eng: &Engine) -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use balaur_core::engine::Engine;
+    use balaur_core::rng::RngState;
+
+    /// `ScriptHost::new` is public and takes a raw `Engine`, so an embedder can
+    /// build a host on an engine that never went through `App::new` and so
+    /// never got an `RngState`. `math.random` must still work there:
+    /// `with_rng` seeds the default stream on first use.
+    #[test]
+    fn math_random_works_on_an_engine_built_without_app() {
+        let eng = Engine::new();
+        assert!(
+            eng.try_resource::<RngState>().is_none(),
+            "a bare Engine should start with no RngState"
+        );
+        let host = crate::ScriptHost::new(eng.clone(), std::path::Path::new("."), None, false)
+            .expect("script host on a bare engine");
+        let lua = host.lua();
+        let roll: i64 = lua
+            .load("return math.random(1, 6)")
+            .eval()
+            .expect("math.random with no RngState inserted");
+        assert!((1..=6).contains(&roll), "roll out of range: {roll}");
+        assert!(
+            eng.try_resource::<RngState>().is_some(),
+            "the stream should have been seeded on first use"
+        );
+    }
+}
