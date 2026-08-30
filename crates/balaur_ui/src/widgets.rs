@@ -204,20 +204,55 @@ impl SyntaxColors {
     }
 }
 
-pub(crate) const LUAU_KEYWORDS: &[&str] = &[
-    "local", "function", "end", "if", "then", "else", "elseif", "while", "for", "in", "do",
-    "return", "and", "or", "not", "true", "false", "nil", "break", "continue", "repeat", "until",
-    "type", "export",
-];
-pub(crate) const LUAU_BUILTINS: &[&str] = &[
-    "engine", "scene", "input", "physics", "render", "audio", "rng", "ui", "log", "fs", "toml",
-    "math", "string", "table", "self", "require",
-];
+/// What the highlighter needs to know about one language. The tokenizer is
+/// shared; only these differ.
+pub(crate) struct Syntax {
+    line_comment: &'static str,
+    keywords: &'static [&'static str],
+    builtins: &'static [&'static str],
+}
 
-/// Line-based Luau highlighting into a LayoutJob (used by the editable code
+const LUAU: Syntax = Syntax {
+    line_comment: "--",
+    keywords: &[
+        "local", "function", "end", "if", "then", "else", "elseif", "while", "for", "in", "do",
+        "return", "and", "or", "not", "true", "false", "nil", "break", "continue", "repeat",
+        "until", "type", "export",
+    ],
+    builtins: &[
+        "engine", "scene", "input", "physics", "render", "audio", "rng", "ui", "log", "fs", "toml",
+        "math", "string", "table", "self", "require",
+    ],
+};
+
+const RUNE: Syntax = Syntax {
+    line_comment: "//",
+    keywords: &[
+        "fn", "let", "if", "else", "while", "for", "in", "loop", "match", "struct", "impl", "pub",
+        "return", "break", "continue", "const", "async", "await", "use", "mod", "true", "false",
+        "not", "is", "as", "select", "yield",
+    ],
+    builtins: &[
+        "engine", "scene", "input", "physics", "render", "audio", "rng", "ui", "log", "node",
+        "this", "println",
+    ],
+};
+
+/// The highlighter for a language name, falling back to Luau.
+pub(crate) const fn syntax_for(language: &str) -> &'static Syntax {
+    // A const fn cannot match on &str, so compare the bytes.
+    if matches!(language.as_bytes(), b"rune") {
+        &RUNE
+    } else {
+        &LUAU
+    }
+}
+
+/// Line-based highlighting into a LayoutJob (used by the editable code
 /// editor's layouter; mirrors the design handoff's tokenizer rules).
-pub(crate) fn highlight_luau(
+pub(crate) fn highlight(
     text_src: &str,
+    syntax: &Syntax,
     font: &FontId,
     colors: &SyntaxColors,
 ) -> egui::text::LayoutJob {
@@ -227,7 +262,7 @@ pub(crate) fn highlight_luau(
         if i > 0 {
             job.append("\n", 0.0, fmt(colors.punct));
         }
-        if line.trim_start().starts_with("--") {
+        if line.trim_start().starts_with(syntax.line_comment) {
             job.append(line, 0.0, fmt(colors.comment));
             continue;
         }
@@ -270,9 +305,9 @@ pub(crate) fn highlight_luau(
                     .map(char::len_utf8)
                     .sum();
                 let word = &rest[..len];
-                let color = if LUAU_KEYWORDS.contains(&word) {
+                let color = if syntax.keywords.contains(&word) {
                     colors.key
-                } else if LUAU_BUILTINS.contains(&word)
+                } else if syntax.builtins.contains(&word)
                     || word.chars().next().is_some_and(char::is_uppercase)
                 {
                     colors.builtin
@@ -298,6 +333,14 @@ pub(crate) fn code_editor(
     source: &str,
     opts: &Opts,
 ) -> anyhow::Result<(String, bool)> {
+    // `language` overrides; otherwise highlight whatever the project is
+    // written in, so an editor shows Rune as Rune.
+    let language = opts.string("language").unwrap_or_else(|| {
+        engine
+            .try_resource::<balaur_core::project::ProjectManifest>()
+            .map_or_else(|| "luau".to_string(), |m| m.borrow().language.clone())
+    });
+    let syntax = syntax_for(&language);
     let state = engine.resource::<UiState>();
     let mut buffer = {
         let cached = state.borrow().text_buffers.get(id).cloned();
@@ -345,7 +388,7 @@ pub(crate) fn code_editor(
             ui.add_space(sc(12.0));
             // Editor.
             let mut layouter = |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _wrap: f32| {
-                let mut job = highlight_luau(buf.as_str(), &font, &colors);
+                let mut job = highlight(buf.as_str(), syntax, &font, &colors);
                 job.wrap.max_width = f32::INFINITY;
                 ui.fonts_mut(|f| f.layout_job(job))
             };
@@ -532,4 +575,30 @@ pub(crate) fn left_pill(
         });
     }
     Ok(response.clicked())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{syntax_for, LUAU, RUNE};
+
+    #[test]
+    fn a_language_selects_its_own_tokens() {
+        let rune = syntax_for("rune");
+        assert_eq!(rune.line_comment, "//");
+        assert!(rune.keywords.contains(&"fn"));
+        assert!(!rune.keywords.contains(&"local"));
+
+        let luau = syntax_for("luau");
+        assert_eq!(luau.line_comment, "--");
+        assert!(luau.keywords.contains(&"local"));
+    }
+
+    /// An unknown or absent language must still highlight something rather
+    /// than render the editor as plain punctuation.
+    #[test]
+    fn an_unknown_language_falls_back_to_luau() {
+        assert_eq!(syntax_for("wesl").line_comment, LUAU.line_comment);
+        assert_eq!(syntax_for("").line_comment, LUAU.line_comment);
+        assert_ne!(LUAU.line_comment, RUNE.line_comment);
+    }
 }

@@ -261,6 +261,11 @@ impl App {
                 .with_context(|| format!("reading {}", scene_path.display()))?;
             self.manifest = Some(manifest);
         }
+        // A resource too, so subsystems can read the project's language and
+        // name without reaching back through App.
+        if let Some(manifest) = &self.manifest {
+            self.engine.insert_resource(manifest.clone());
+        }
         let root = self.engine.root();
         project::instantiate_scene(&self.engine, &scene_src, root, true)?;
         Ok(self)
