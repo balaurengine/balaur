@@ -1,0 +1,60 @@
+[[nodes]]
+id = "n_world"
+name = "World"
+parent = ""
+
+[[nodes]]
+body = "fixed"
+color = [0.3, 0.55, 0.3]
+id = "n_ground"
+name = "Ground"
+parent = "n_world"
+position = [0, -1, 0]
+
+[nodes.collider]
+half_extents = [10, 0.5, 10]
+shape = "cuboid"
+
+[nodes.shape]
+half_extents = [10, 0.5, 10]
+kind = "cuboid"
+
+[[nodes]]
+id = "n_ball"
+name = "Ball"
+parent = "n_world"
+position = [0, 6, 0]
+script = "scripts/ball.rn"
+
+[nodes.color]
+rgba = [0.9, 0.9, 0.9, 1]
+
+[nodes.shape]
+kind = "ball"
+radius = 0.5
+
+[[nodes]]
+color = [0.2, 0.4, 0.9]
+id = "n_spinner"
+name = "Spinner"
+parent = "n_world"
+position = [2.5, 0.5, 0]
+script = "scripts/spinner.rn"
+
+[nodes.shape]
+half_extents = [0.5, 0.5, 0.5]
+kind = "cuboid"
+
+[[nodes]]
+id = "n_hud"
+name = "Hud"
+parent = ""
+
+[nodes.widget]
+anchor = "top_left"
+color = "#f9f4ed"
+kind = "label"
+size = 16
+text = "hello · balaur · rune"
+x = 16
+y = 16

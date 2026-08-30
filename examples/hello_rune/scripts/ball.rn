@@ -1,0 +1,16 @@
+// A bouncing ball: sets up its own physics in init (Godot-style _ready), then
+// watches its own fall from update.
+
+pub fn init(this) {
+    physics::add_body(this.node, "dynamic");
+    physics::add_ball_collider(this.node, 0.5);
+    this.reported = false;
+}
+
+pub fn update(this, dt) {
+    let y = this.node.position().y;
+    if y < 0.2 && !this.reported {
+        this.reported = true;
+        println!("ball touched down at t = {:.2}", engine::time());
+    }
+}
