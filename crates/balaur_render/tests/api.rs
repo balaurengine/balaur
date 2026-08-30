@@ -27,7 +27,7 @@ fn node(app: &App) -> balaur_core::hecs::Entity {
 }
 
 #[test]
-fn the_plugin_registers_its_scene_vocabulary() {
+fn the_plugin_registers_its_components() {
     let app = app();
     let names = components::names(&app.engine);
     for expected in ["shape", "shape2d", "color"] {
@@ -137,8 +137,8 @@ fn debug_lines_accumulate_and_can_be_cleared() {
     lines.borrow_mut().lines.clear();
     assert!(lines.borrow().lines.is_empty());
 
-    let lines2d = app.engine.resource::<DebugLineBuffer2d>();
-    assert!(lines2d.borrow().lines.is_empty());
+    let lines_2d = app.engine.resource::<DebugLineBuffer2d>();
+    assert!(lines_2d.borrow().lines.is_empty());
 }
 
 /// With no windowed backend nothing drains the buffers as it draws, so the

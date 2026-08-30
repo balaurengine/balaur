@@ -146,3 +146,17 @@ fn every_named_key_can_actually_be_pressed() {
         input.key_event(key, false);
     }
 }
+
+#[test]
+fn scroll_accumulates_within_a_frame_and_resets_between() {
+    let mut input = InputSnapshot::default();
+    input.add_scroll(1.0, 2.0);
+    input.add_scroll(0.5, 0.5);
+    assert_eq!(
+        input.scroll_delta(),
+        (1.5, 2.5),
+        "scroll did not accumulate"
+    );
+    input.begin_frame();
+    assert_eq!(input.scroll_delta(), (0.0, 0.0), "scroll did not reset");
+}

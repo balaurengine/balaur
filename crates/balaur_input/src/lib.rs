@@ -121,6 +121,11 @@ impl InputSnapshot {
         self.mouse_delta
     }
 
+    /// Wheel movement since the last frame.
+    pub const fn scroll_delta(&self) -> (f32, f32) {
+        self.scroll
+    }
+
     pub fn is_down(&self, key: &str) -> bool {
         self.down.contains(key)
     }
@@ -412,7 +417,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("scroll_delta", |eng: &Engine, ()| {
         let state = eng.resource::<InputSnapshot>();
-        let v = state.borrow().scroll;
+        let v = state.borrow().scroll_delta();
         Ok(v)
     });
     // Buttons are 0-based: 0 = left, 1 = right, 2 = middle. Same indexing as

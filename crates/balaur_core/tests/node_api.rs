@@ -237,3 +237,105 @@ fn degrees_and_radians_are_two_readings_of_one_rotation() {
     };
     assert!((dx.abs() - 180.0).abs() < 1e-3, "pi radians is 180 degrees");
 }
+
+#[test]
+fn scale_reads_back_what_was_set() {
+    let app = app();
+    let node = spawn(&app, "N");
+    call(
+        &app.engine,
+        "set_scale",
+        &[node.clone(), Value::Vec3([2.0, 3.0, 4.0])],
+    )
+    .unwrap();
+    assert_eq!(
+        call(&app.engine, "scale", &[node]).unwrap(),
+        Value::Vec3([2.0, 3.0, 4.0])
+    );
+}
+
+/// The world transform is what a parent's motion produces, so it only means
+/// anything after propagation has run.
+#[test]
+fn world_transforms_report_the_composed_result() {
+    let mut app = app();
+    let parent = spawn(&app, "Parent");
+    let child = call(
+        &app.engine,
+        "add_child",
+        &[parent.clone(), Value::Str("Kid".into())],
+    )
+    .unwrap();
+
+    call(
+        &app.engine,
+        "set_position",
+        &[parent.clone(), Value::Vec3([1.0, 0.0, 0.0])],
+    )
+    .unwrap();
+    call(
+        &app.engine,
+        "set_position",
+        &[child.clone(), Value::Vec3([2.0, 0.0, 0.0])],
+    )
+    .unwrap();
+    call(
+        &app.engine,
+        "set_scale",
+        &[parent, Value::Vec3([2.0, 2.0, 2.0])],
+    )
+    .unwrap();
+    app.tick(0.0);
+
+    let Value::Vec3([x, ..]) =
+        call(&app.engine, "global_position", std::slice::from_ref(&child)).unwrap()
+    else {
+        panic!("global_position should be a vector");
+    };
+    assert!((x - 5.0).abs() < 1e-5, "1 + 2*2 expected, got {x}");
+
+    let Value::Vec3([sx, ..]) =
+        call(&app.engine, "global_scale", std::slice::from_ref(&child)).unwrap()
+    else {
+        panic!("global_scale should be a vector");
+    };
+    assert!(
+        (sx - 2.0).abs() < 1e-5,
+        "the parent's scale did not reach the child"
+    );
+
+    assert!(matches!(
+        call(&app.engine, "global_rotation_euler", &[child]).unwrap(),
+        Value::Vec3(_)
+    ));
+}
+
+/// A node with no script has no path, rather than an empty string that reads
+/// like a script called "".
+#[test]
+fn a_node_without_a_script_reports_nil() {
+    let app = app();
+    let node = spawn(&app, "N");
+    assert_eq!(
+        call(&app.engine, "script_path", &[node]).unwrap(),
+        Value::Nil
+    );
+}
+
+/// Attaching needs a backend, and saying so is better than pretending it
+/// worked.
+#[test]
+fn attaching_a_script_without_a_backend_is_a_clear_error() {
+    let app = app();
+    let node = spawn(&app, "N");
+    let err = call(
+        &app.engine,
+        "attach_script",
+        &[node, Value::Str("s.luau".into())],
+    )
+    .unwrap_err();
+    assert!(
+        format!("{err:#}").contains("backend"),
+        "does not explain the problem: {err:#}"
+    );
+}

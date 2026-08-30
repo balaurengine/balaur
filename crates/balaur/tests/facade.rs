@@ -171,3 +171,96 @@ fn a_broken_rune_script_fails_the_export() {
         "error does not name the script: {err}"
     );
 }
+
+/// Attaching a script at run time, and reading back what a node is running.
+/// These need a live backend, so they cannot be tested from core.
+#[test]
+fn a_script_can_attach_another_script_and_read_it_back() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path(), None, LUAU);
+    std::fs::write(
+        dir.path().join("scripts/other.luau"),
+        "local O = {}\nfunction O:init() _G.other_ran = true end\nreturn O\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("scripts/s.luau"),
+        r#"
+        local S = {}
+        function S:init()
+            local kid = self.node:add_child("Kid")
+            assert(kid:script_path() == nil, "a fresh node claims a script")
+            kid:attach_script("scripts/other.luau")
+            _G.kid_path = kid:script_path()
+        end
+        return S
+        "#,
+    )
+    .unwrap();
+
+    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    app.load_project().unwrap();
+
+    let lua = balaur::luau::lua_of(&app.engine);
+    let ran: bool = lua.globals().get("other_ran").unwrap_or(false);
+    let path: String = lua.globals().get("kid_path").unwrap_or_default();
+    assert!(ran, "the attached script's init never ran");
+    assert_eq!(
+        path, "scripts/other.luau",
+        "script_path did not report the attachment"
+    );
+    assert_eq!(app.engine.script_host().unwrap().instance_count(), 2);
+}
+
+/// `engine.reload_script` is what a tool calls after writing a file outside
+/// the watched root; it must pick up the new source.
+#[test]
+fn reload_script_picks_up_a_rewritten_file() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path(), None, LUAU);
+    std::fs::write(
+        dir.path().join("scripts/s.luau"),
+        "local S = {}\nfunction S:init() _G.version = 1 end\nreturn S\n",
+    )
+    .unwrap();
+
+    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    app.load_project().unwrap();
+    let lua = balaur::luau::lua_of(&app.engine);
+    assert_eq!(lua.globals().get::<i64>("version").unwrap_or(0), 1);
+
+    std::fs::write(
+        dir.path().join("scripts/s.luau"),
+        "local S = {}\nfunction S:init() _G.version = 2 end\nfunction S:hot_reload() _G.version = 2 end\nreturn S\n",
+    )
+    .unwrap();
+    lua.load("engine.reload_script('scripts/s.luau')")
+        .exec()
+        .unwrap();
+    app.tick(1.0 / 60.0);
+
+    assert_eq!(
+        lua.globals().get::<i64>("version").unwrap_or(0),
+        2,
+        "the reload did not take"
+    );
+}
+
+/// The mouse position is readable headless; it is simply the origin, because
+/// nothing has moved it.
+#[test]
+fn mouse_position_is_readable_without_a_window() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path(), None, LUAU);
+    let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    app.load_project().unwrap();
+    let lua = balaur::luau::lua_of(&app.engine);
+    lua.load(
+        "local x, y = input.mouse_position()\n\
+         assert(type(x) == 'number' and type(y) == 'number')\n\
+         local dx, dy = input.scroll_delta()\n\
+         assert(dx == 0 and dy == 0)",
+    )
+    .exec()
+    .unwrap();
+}

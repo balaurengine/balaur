@@ -213,3 +213,112 @@ fn draw_ui_is_actually_called() {
         "draw_ui never ran, so these tests prove nothing"
     );
 }
+
+/// The widgets not covered above, each called with the arguments its binding
+/// declares. A registered-but-uncallable binding shows up here as a nil call.
+#[test]
+fn the_remaining_widgets_are_callable() {
+    draw_clean(
+        r#"
+        ui.central_panel({}, function()
+            local v = ui.drag_value(1.5, {})
+            assert(type(v) == "number", "drag_value should return a number")
+
+            local choice, changed = ui.select("sel", "b", {"a", "b", "c"}, {})
+            assert(choice == "b", "select changed with no input")
+            assert(changed == false)
+
+            assert(ui.menu_item("Open", {}) == false)
+            ui.rect_stroke(0, 0, 10, 10, {})
+        end)
+        "#,
+    );
+}
+
+/// A modal takes a callback like the containers do, so its body has to run.
+#[test]
+fn a_modal_runs_its_body() {
+    let (app, errors) = draw(
+        r#"
+        _G.in_modal = false
+        ui.central_panel({}, function()
+            ui.modal("m", {}, function() _G.in_modal = true end)
+        end)
+        "#,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let lua = balaur::luau::lua_of(&app.engine);
+    let ran: bool = lua.globals().get("in_modal").unwrap_or(false);
+    assert!(ran, "the modal never ran its body");
+}
+
+/// `set_text` writes a widget's buffer from outside, which is how the editor
+/// loads a file into an open text field.
+#[test]
+fn set_text_replaces_a_field_buffer() {
+    draw_clean(
+        r#"
+        ui.central_panel({}, function()
+            ui.text_field("f", "placeholder")
+            ui.set_text("f", "written from outside")
+            local shown = ui.text_field("f", "placeholder")
+            assert(shown == "written from outside", "set_text did not take: " .. tostring(shown))
+        end)
+        "#,
+    );
+}
+
+/// A missing image is a script's mistake, not a reason to stop drawing.
+#[test]
+fn a_missing_image_does_not_stop_the_pass() {
+    let (_app, errors) = draw(
+        r#"
+        ui.central_panel({}, function()
+            ui.image("no/such/picture.png", {})
+            ui.label("drawn after the bad image")
+        end)
+        "#,
+    );
+    assert!(
+        errors.iter().all(|e| !e.contains("panic")),
+        "a missing image panicked: {errors:#?}"
+    );
+}
+
+/// Theme tokens come from a script table, which is how a whole look lives in
+/// script and hot reloads with it.
+#[test]
+fn a_theme_can_be_set_from_a_script() {
+    draw_clean(
+        r##"
+        ui.set_theme({ panel = "#101418", text = "#f0f0f0", accent = "#d5814e" })
+        ui.central_panel({}, function() ui.label("themed") end)
+        "##,
+    );
+}
+
+#[test]
+fn the_widget_layer_can_be_placed_and_turned_off() {
+    draw_clean(
+        r#"
+        ui.set_widget_layer(true, 0, 0, 320, 240)
+        ui.set_widget_layer(false, 0, 0, 0, 0)
+        ui.central_panel({}, function() ui.label("after") end)
+        "#,
+    );
+}
+
+/// A shortcut reports whether the chord was pressed; with no input it is
+/// false, and an unknown modifier must not be fatal.
+#[test]
+fn shortcuts_report_no_press_without_input() {
+    draw_clean(
+        r#"
+        ui.central_panel({}, function()
+            assert(ui.shortcut("cmd", "S") == false)
+            assert(ui.shortcut("ctrl", "Z") == false)
+            assert(ui.shortcut("", "A") == false)
+        end)
+        "#,
+    );
+}

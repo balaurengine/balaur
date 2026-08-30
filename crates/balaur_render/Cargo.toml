@@ -30,5 +30,9 @@ objc2 = { version = "0.6", optional = true }
 objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSImage", "NSResponder"], optional = true }
 objc2-foundation = { version = "0.3", optional = true }
 
+[dev-dependencies]
+balaur.workspace = true
+tempfile = "3"
+
 [lints]
 workspace = true
