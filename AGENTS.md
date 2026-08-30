@@ -48,9 +48,3 @@ CI runners are shared and a gate that cries wolf gets ignored.
 
 CI runs the same checks. Green locally and red on push means the two have
 drifted, which is a bug in the scripts, not in the commit.
-
-## Concurrency
-
-One checkout, one writer. Two agents in the same tree collide on the cargo
-build lock, on `git` state, and on each other's half-finished edits. Use a
-separate worktree.
