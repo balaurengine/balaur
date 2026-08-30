@@ -91,7 +91,7 @@ macro_rules! num_arg {
             }
         }
         impl IntoValue for $t {
-            #[allow(clippy::cast_lossless)]
+            #[allow(clippy::cast_lossless, reason = "f32 to f64 widens; f64 is identity")]
             fn into_value(self) -> Value { Value::Num(self as f64) }
         }
     )* };
@@ -252,7 +252,7 @@ macro_rules! tuple_args {
             }
         }
         impl<$($name: IntoValue),+> IntoValue for ($($name,)+) {
-            #[allow(non_snake_case)]
+            #[allow(non_snake_case, reason = "the macro binds the type-parameter idents")]
             fn into_value(self) -> Value {
                 let ($($name,)+) = self;
                 Value::Many(vec![$($name.into_value()),+])
