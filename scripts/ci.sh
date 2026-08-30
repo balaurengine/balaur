@@ -10,10 +10,18 @@ step "clippy";  cargo clippy --workspace --all-targets -- -D warnings
 step "docs";    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --lib
 step "test";    cargo test --workspace
 step "e2e: example projects headless"
+# A script error is logged, not fatal — one bad script must not take the frame
+# down. So the exit code is not enough: an example that logs ERROR every frame
+# would still pass. Read the log.
 for ex in examples/*/; do
   name=$(basename "$ex")
   printf '  %s ... ' "$name"
-  cargo run -q -p balaur_cli --bin balaur -- run "$ex" --headless --frames 60 >/dev/null
+  out=$(cargo run -q -p balaur_cli --bin balaur -- run "$ex" --headless --frames 120 2>&1)
+  if grep -q 'ERROR' <<<"$out"; then
+    printf 'FAILED\n'
+    grep 'ERROR' <<<"$out" | head -5
+    exit 1
+  fi
   printf 'ok\n'
 done
 step "house lints"; python3 scripts/house_lints.py --fail-on-error

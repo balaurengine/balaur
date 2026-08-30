@@ -51,12 +51,19 @@ jobs:
         working-directory: balaur
         run: cargo test --workspace
       # examples/ are Balaur projects, not cargo examples: run them headlessly.
+      # A script error is logged rather than fatal, so check the log too — an
+      # example erroring every frame would otherwise still exit 0.
       - name: E2E — run every example project headless
         working-directory: balaur
         run: |
           for ex in examples/*/; do
             echo "== $ex"
-            cargo run -q -p balaur_cli --bin balaur -- run "$ex" --headless --frames 60
+            out=$(cargo run -q -p balaur_cli --bin balaur -- run "$ex" --headless --frames 120 2>&1)
+            echo "$out"
+            if grep -q 'ERROR' <<<"$out"; then
+              echo "::error::$ex logged errors"
+              exit 1
+            fi
           done
 
   house-lints:

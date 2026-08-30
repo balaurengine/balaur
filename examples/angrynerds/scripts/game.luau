@@ -32,8 +32,8 @@ function Game:init()
         for _, child in node:children() do
             local top = owner or child:name()
             if child:has_component("shape2d") then
-                local x, y, z = child:position()
-                local rx, ry, rz = child:rotation_euler()
+                local x, y, z = table.unpack(child:position())
+                local rx, ry, rz = table.unpack(child:rotation_euler())
                 table.insert(self.level, {
                     ref = child,
                     name = child:name(),
@@ -142,7 +142,7 @@ function Game:update(dt)
     end
 
     local mx, my = render.mouse_world_2d()
-    local bx, by = self.bird:position()
+    local bx, by = table.unpack(self.bird:position())
 
     -- Slingshot: grab the parked bird, pull, release to launch.
     if not self.launched then
@@ -161,7 +161,7 @@ function Game:update(dt)
             self.bird:set_position(ANCHOR[1] + dx, ANCHOR[2] + dy, 0)
             if not input.is_mouse_down(input.MOUSE_LEFT) then
                 self.aiming = false
-                local px, py = self.bird:position()
+                local px, py = table.unpack(self.bird:position())
                 local ix, iy = (ANCHOR[1] - px) * POWER, (ANCHOR[2] - py) * POWER
                 if math.sqrt(ix ^ 2 + iy ^ 2) > 1.0 then
                     self.bird:set_component("body2d", { kind = physics2d.BODY_DYNAMIC })
@@ -175,7 +175,7 @@ function Game:update(dt)
             end
         end
         -- Sling bands, drawn from the post to the bird.
-        local px, py = self.bird:position()
+        local px, py = table.unpack(self.bird:position())
         render.draw_line_2d(ANCHOR[1] - 0.14, ANCHOR[2] - 0.5, px, py, 0.35, 0.2, 0.12, 4)
         render.draw_line_2d(ANCHOR[1] + 0.14, ANCHOR[2] - 0.45, px, py, 0.3, 0.16, 0.1, 4)
     end
@@ -187,7 +187,7 @@ function Game:update(dt)
             if pig == nil then
                 self.pigs[name] = false
             else
-                local x, y = pig:position()
+                local x, y = table.unpack(pig:position())
                 local impulse = physics2d.max_contact_impulse(pig)
                 if impulse > KILL_IMPULSE or y < -3 then
                     for _, entry in self.level do
@@ -215,7 +215,7 @@ function Game:update(dt)
     if self.launched then
         local vx, vy = physics2d.linear_velocity(self.bird)
         local speed = math.sqrt(vx ^ 2 + vy ^ 2)
-        local x, y = self.bird:position()
+        local x, y = table.unpack(self.bird:position())
         local gone = y < -3 or math.abs(x) > 20
         if speed < 0.25 then
             self.rest_timer += dt
