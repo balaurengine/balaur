@@ -1,3 +1,7 @@
+> **Status:** superseded in part. This was written before the scripting seam
+> existed and says Lua/Luau was rejected; both Luau and Rune ship, selected per
+> project. Kept for the reasoning, not as a description of the code.
+
 # Plan: extensibility tiers and the quality apparatus
 
 Draft for review. Two parts: how code is layered and loaded, and how we keep

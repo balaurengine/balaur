@@ -1,3 +1,7 @@
+> **Status:** phases 0-4 are done. Phase 5 (modules and extensions) is not
+> started. Kept as written for the record; it is a plan, not a description of
+> the code. See [docs/generated/](generated/) for what the code actually is.
+
 # Implementation plan
 
 Ordered least-intrusive first. Phases 0-2 touch no engine code and can start

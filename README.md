@@ -95,6 +95,17 @@ cargo run -p balaur_cli --features window -- run examples/angrynerds
 cargo run -p balaur_cli --features window -- edit examples/angrynerds
 ```
 
+## Documentation
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) — decisions and why, hand-written
+- [docs/generated/script-api.md](docs/generated/script-api.md) — every module,
+  function and constant a script can reach
+- [docs/generated/crates.md](docs/generated/crates.md) — what each crate is for
+- [docs/generated/crate-graph.md](docs/generated/crate-graph.md) — the dependency graph
+- [docs/generated/behaviour.md](docs/generated/behaviour.md) — every test as a sentence
+
+The generated ones come from wrote 5 files to docs/generated/; CI fails on drift.
+
 ## Workspace map
 
 | Crate | Role |
