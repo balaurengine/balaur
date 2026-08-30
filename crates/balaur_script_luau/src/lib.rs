@@ -68,7 +68,7 @@ impl balaur_script::ScriptCompiler for Compiler {
     }
 }
 
-/// The Luau backend, as an `AppConfig::scripts` factory.
+/// The Luau backend, as an `AppConfig::script_backend` factory.
 pub fn factory() -> balaur_core::ScriptHostFactory {
     Box::new(|setup| {
         Ok(Rc::new(ScriptHost::new(
@@ -164,7 +164,7 @@ impl ScriptHost {
     }
 
     /// A scene document's source by project-relative path, from the pack in
-    /// packed runs, from disk otherwise (backs `scene.load`).
+    /// packed runs, from disk otherwise (backs `scene.source`).
     pub fn scene_source(&self, rel: &str) -> Option<String> {
         let state = self.state.borrow();
         match &state.pack {
@@ -486,9 +486,8 @@ impl ScriptHost {
 ///
 /// # Panics
 /// If the engine's script host is not the Luau one.
-pub fn lua_of(engine: &Engine) -> Lua {
-    engine
-        .scripts()
+pub fn lua_of(eng: &Engine) -> Lua {
+    eng.script_host()
         .expect("the engine always has a script host")
         .as_any()
         .downcast_ref::<ScriptHost>()

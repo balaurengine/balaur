@@ -8,7 +8,7 @@ use hecs::Entity;
 use mlua::{MetaMethod, MultiValue, UserData, UserDataMethods, UserDataRef};
 
 use balaur_core::engine::Engine;
-use balaur_core::node_api::DECLARATIONS;
+use balaur_core::node_api::NODE_OPS;
 use balaur_core::scene;
 
 #[derive(Clone)]
@@ -19,7 +19,7 @@ pub struct NodeRef {
 
 impl UserData for NodeRef {
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
-        for declared in DECLARATIONS {
+        for declared in NODE_OPS {
             let call = declared.call;
             methods.add_method(declared.name, move |lua, this, args: MultiValue| {
                 let mut neutral = Vec::with_capacity(args.len() + 1);

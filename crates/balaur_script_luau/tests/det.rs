@@ -22,7 +22,7 @@ fn make_app() -> (App, tempfile::TempDir) {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: Some(balaur_script_luau::factory()),
+        script_backend: Some(balaur_script_luau::factory()),
     })
     .unwrap();
     (app, dir)

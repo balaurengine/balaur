@@ -12,133 +12,149 @@ use anyhow::{anyhow, Result};
 use balaur_script::{Bindings as _, Value};
 
 use crate::engine::Engine;
+use crate::rng::Pcg32;
 use crate::scene;
 
 /// One engine operation, tagged with the module it belongs to.
-pub struct Decl {
+pub struct EngineOp {
     pub module: &'static str,
     pub name: &'static str,
     pub call: fn(&Engine, &[Value]) -> Result<Value>,
 }
 
 /// Everything the engine itself exposes to scripts.
-pub const DECLARATIONS: &[Decl] = &[
-    Decl {
+pub const ENGINE_OPS: &[EngineOp] = &[
+    EngineOp {
         module: "engine",
         name: "time",
         call: time,
     },
-    Decl {
+    EngineOp {
         module: "engine",
         name: "delta",
         call: delta,
     },
-    Decl {
+    EngineOp {
         module: "engine",
         name: "quit",
         call: quit,
     },
-    Decl {
+    EngineOp {
         module: "engine",
         name: "args",
         call: args,
     },
-    Decl {
+    EngineOp {
         module: "engine",
         name: "reload_script",
         call: reload_script,
     },
-    Decl {
+    EngineOp {
         module: "scene",
         name: "root",
         call: root,
     },
-    Decl {
+    EngineOp {
         module: "scene",
         name: "get_node",
         call: get_node,
     },
-    Decl {
+    EngineOp {
         module: "scene",
         name: "spawn",
         call: spawn,
     },
-    Decl {
+    EngineOp {
         module: "scene",
         name: "instantiate",
         call: instantiate,
     },
-    Decl {
+    EngineOp {
         module: "scene",
-        name: "load",
-        call: load,
+        name: "source",
+        call: source,
     },
-    Decl {
+    EngineOp {
         module: "scene",
-        name: "components",
-        call: components,
+        name: "component_types",
+        call: component_types,
     },
-    Decl {
+    EngineOp {
         module: "scene",
         name: "component_schema",
         call: component_schema,
     },
-    Decl {
+    EngineOp {
+        module: "log",
+        name: "info",
+        call: log_info,
+    },
+    EngineOp {
+        module: "log",
+        name: "warn",
+        call: log_warn,
+    },
+    EngineOp {
+        module: "log",
+        name: "error",
+        call: log_error,
+    },
+    EngineOp {
         module: "log",
         name: "recent",
         call: log_recent,
     },
-    Decl {
+    EngineOp {
         module: "log",
         name: "clear",
         call: log_clear,
     },
-    Decl {
+    EngineOp {
         module: "rng",
         name: "seed",
         call: rng_seed,
     },
-    Decl {
+    EngineOp {
         module: "rng",
         name: "random",
         call: rng_random,
     },
-    Decl {
+    EngineOp {
         module: "rng",
         name: "range",
         call: rng_range,
     },
-    Decl {
+    EngineOp {
         module: "rng",
         name: "int",
         call: rng_int,
     },
-    Decl {
+    EngineOp {
         module: "fs",
         name: "read",
         call: fs_read,
     },
-    Decl {
+    EngineOp {
         module: "fs",
         name: "write",
         call: fs_write,
     },
-    Decl {
+    EngineOp {
         module: "fs",
         name: "exists",
         call: fs_exists,
     },
-    Decl {
+    EngineOp {
         module: "fs",
         name: "list",
         call: fs_list,
     },
-    Decl {
+    EngineOp {
         module: "toml",
         name: "parse",
         call: toml_parse,
     },
-    Decl {
+    EngineOp {
         module: "toml",
         name: "encode",
         call: toml_encode,
@@ -148,14 +164,19 @@ pub const DECLARATIONS: &[Decl] = &[
 /// Register every engine module into the host, plus the node API under `node`.
 ///
 /// Called once when an app gains a script backend. A backend that gives its
-/// node handle method syntax still walks `node_api::DECLARATIONS` for the
+/// node handle method syntax still walks `node_api::NODE_OPS` for the
 /// sugar; this is what makes the operations reachable at all.
-pub fn install(engine: &Engine) -> Result<()> {
-    let host = engine
-        .scripts()
+///
+/// Takes `&Engine` rather than a `Bindings` — unlike every other
+/// `install_*`, it creates the modules on the host itself instead of filling
+/// one it was handed, because the operations it registers span several
+/// modules.
+pub fn install_engine_api(eng: &Engine) -> Result<()> {
+    let host = eng
+        .script_host()
         .ok_or_else(|| anyhow!("no script backend is running"))?;
     let mut current: Option<(&str, Box<dyn balaur_script::Bindings<Engine>>)> = None;
-    for d in DECLARATIONS {
+    for d in ENGINE_OPS {
         let m = match &mut current {
             Some((name, m)) if *name == d.module => m,
             _ => {
@@ -166,7 +187,7 @@ pub fn install(engine: &Engine) -> Result<()> {
         m.function_raw(d.name, Box::new(d.call));
     }
     let mut node = host.module("node")?;
-    crate::node_api::install(&mut *node);
+    crate::node_api::install_node_api(&mut *node);
     Ok(())
 }
 
@@ -195,7 +216,7 @@ fn args(eng: &Engine, _: &[Value]) -> Result<Value> {
 
 fn reload_script(eng: &Engine, args: &[Value]) -> Result<Value> {
     let host = eng
-        .scripts()
+        .script_host()
         .ok_or_else(|| anyhow!("no script backend is running"))?;
     host.reload(text(args, 0)?)?;
     Ok(Value::Nil)
@@ -233,15 +254,20 @@ fn instantiate(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-fn load(eng: &Engine, args: &[Value]) -> Result<Value> {
+/// The scene file's raw TOML text, or nil. Not a load: nothing is parsed or
+/// spawned. Unlike `fs.read` it goes through the script host, so it finds the
+/// file inside the pack in a packed run.
+fn source(eng: &Engine, args: &[Value]) -> Result<Value> {
     let rel = text(args, 0)?;
     Ok(eng
-        .scripts()
+        .script_host()
         .and_then(|host| host.scene_source(rel))
         .map_or(Value::Nil, Value::Str))
 }
 
-fn components(eng: &Engine, _: &[Value]) -> Result<Value> {
+/// The names of every registered component TYPE, not the components on any
+/// node. Pairs with `scene.component_schema(name)`.
+fn component_types(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::List(
         crate::components::names(eng)
             .into_iter()
@@ -259,6 +285,24 @@ fn component_schema(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 // ---- log -------------------------------------------------------------
+
+/// The three writers a script has. They emit through `tracing`, so a scripted
+/// line lands in the same stream, and the same `logbuf`, as an engine one --
+/// which is what makes `log.recent` able to show both.
+fn log_info(_: &Engine, args: &[Value]) -> Result<Value> {
+    tracing::info!("[script] {}", text(args, 0)?);
+    Ok(Value::Nil)
+}
+
+fn log_warn(_: &Engine, args: &[Value]) -> Result<Value> {
+    tracing::warn!("[script] {}", text(args, 0)?);
+    Ok(Value::Nil)
+}
+
+fn log_error(_: &Engine, args: &[Value]) -> Result<Value> {
+    tracing::error!("[script] {}", text(args, 0)?);
+    Ok(Value::Nil)
+}
 
 fn log_recent(_: &Engine, args: &[Value]) -> Result<Value> {
     let n = match args.first() {
@@ -294,28 +338,24 @@ fn rng_seed(eng: &Engine, args: &[Value]) -> Result<Value> {
         Some(Value::Num(n)) => *n as i64,
         other => return Err(anyhow!("seed should be a number, got {other:?}")),
     };
-    let rng = eng.resource::<crate::rng::DetRng>();
-    rng.borrow_mut().0 = crate::rng::Pcg32::new(seed as u64);
+    crate::rng::with_rng(eng, |rng| *rng = Pcg32::new(seed as u64));
     Ok(Value::Nil)
 }
 
 fn rng_random(eng: &Engine, _: &[Value]) -> Result<Value> {
-    let rng = eng.resource::<crate::rng::DetRng>();
-    let v = rng.borrow_mut().0.next_f64();
+    let v = crate::rng::with_rng(eng, Pcg32::next_f64);
     Ok(Value::Num(v))
 }
 
 fn rng_range(eng: &Engine, args: &[Value]) -> Result<Value> {
     let (lo, hi) = (number(args, 0)?, number(args, 1)?);
-    let rng = eng.resource::<crate::rng::DetRng>();
-    let v = rng.borrow_mut().0.next_f64();
+    let v = crate::rng::with_rng(eng, Pcg32::next_f64);
     Ok(Value::Num(v.mul_add(hi - lo, lo)))
 }
 
 fn rng_int(eng: &Engine, args: &[Value]) -> Result<Value> {
     let (lo, hi) = (integer(args, 0)?, integer(args, 1)?);
-    let rng = eng.resource::<crate::rng::DetRng>();
-    let v = rng.borrow_mut().0.next_range_i64(lo, hi);
+    let v = crate::rng::with_rng(eng, |rng| rng.next_range_i64(lo, hi));
     Ok(Value::Int(v))
 }
 

@@ -159,7 +159,7 @@ function Game:update(dt)
                 dx, dy = dx / len * MAX_PULL, dy / len * MAX_PULL
             end
             self.bird:set_position(ANCHOR[1] + dx, ANCHOR[2] + dy, 0)
-            if not input.is_mouse_down(input.MOUSE_LEFT) then
+            if input.mouse_just_released(input.MOUSE_LEFT) then
                 self.aiming = false
                 local px, py = table.unpack(self.bird:position())
                 local ix, iy = (ANCHOR[1] - px) * POWER, (ANCHOR[2] - py) * POWER

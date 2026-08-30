@@ -50,7 +50,7 @@ pub struct Color {
 /// Register the value types every binding may see, and give `Node` the whole
 /// engine node API as methods.
 ///
-/// The operations come from `balaur_core::node_api::DECLARATIONS`, so this is
+/// The operations come from `balaur_core::node_api::NODE_OPS`, so this is
 /// only the `node.position()` sugar — the behaviour is shared with every other
 /// language.
 pub(crate) fn install(
@@ -62,7 +62,7 @@ pub(crate) fn install(
     m.ty::<Vec3>()?;
     m.ty::<Color>()?;
 
-    for declared in balaur_core::node_api::DECLARATIONS {
+    for declared in balaur_core::node_api::NODE_OPS {
         let call = declared.call;
         let engine = engine.clone();
         let handle = crate::bindings::hold_node_fn(engine, call);
@@ -157,7 +157,9 @@ pub(crate) fn from_neutral(v: &Neutral) -> Result<rune::Value> {
             b: f64::from(*b),
             a: f64::from(*a),
         })?,
-        Neutral::List(items) => {
+        // Rune returns several values as a tuple; nested, a vector is the
+        // closest thing, same as a list.
+        Neutral::Many(items) | Neutral::List(items) => {
             let mut out = rune::runtime::Vec::new();
             for it in items {
                 out.push(from_neutral(it)?)?;

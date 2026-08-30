@@ -10,7 +10,7 @@ use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
-use balaur_core::{App, Engine, Plugin};
+use balaur_core::{App, Engine, Plugin, Stage};
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 #[cfg(feature = "kiss3d")]
@@ -25,14 +25,19 @@ pub struct ScreenshotRequest {
     pub after_frame: u64,
 }
 
+/// Inserted by a windowed backend at startup to claim the debug-line
+/// buffers: it drains them itself as it draws, so [`RenderPlugin`]'s
+/// headless fallback drain stands down while this is present.
+pub struct WindowedBackend;
+
 /// The application (dock/taskbar) icon, applied by windowed backends.
-pub struct AppIcon {
+pub struct AppIconConfig {
     pub path: std::path::PathBuf,
     pub changed: bool,
 }
 
 /// Viewport clear color, applied by windowed backends when changed.
-pub struct ClearColor {
+pub struct ClearColorConfig {
     pub color: [f32; 3],
     pub changed: bool,
 }
@@ -61,8 +66,6 @@ impl Default for GridConfig {
     }
 }
 
-/// Immediate-mode debug/overlay lines, cleared every frame after drawing.
-/// Reusable for editor gizmos, physics debug, navigation debug.
 /// Script arguments for `draw_line`: two endpoints, colour, then optional
 /// width, perspective-correct width and always-on-top flags.
 type DrawLineArgs = (
@@ -83,31 +86,36 @@ type DrawLineArgs = (
 /// (a, b, color, pixel width, perspective-correct width, always-on-top)
 pub type DebugLine = ([f32; 3], [f32; 3], [f32; 3], f32, bool, bool);
 
+/// Scripts append with `render.draw_line`; the windowed backend drains it as
+/// it draws, and with no window [`RenderPlugin`]'s Render-stage system
+/// clears it instead, so it is empty at the start of every frame either way.
 #[derive(Default)]
-pub struct DebugLines {
+pub struct DebugLineBuffer {
     pub lines: Vec<DebugLine>,
 }
 
-/// 2D counterpart of [`DebugLines`]: world-space 2D segments rendered with
-/// the 2D camera, cleared every frame.
+/// 2D counterpart of [`DebugLineBuffer`]: world-space 2D segments rendered
+/// with the 2D camera.
 /// (a, b, color, pixel width)
-pub type DebugLine2D = ([f32; 2], [f32; 2], [f32; 3], f32);
+pub type DebugLine2d = ([f32; 2], [f32; 2], [f32; 3], f32);
 
+/// Appended by `render.draw_line_2d`, drained on the same terms as
+/// [`DebugLineBuffer`].
 #[derive(Default)]
-pub struct DebugLines2D {
-    pub lines: Vec<DebugLine2D>,
+pub struct DebugLineBuffer2d {
+    pub lines: Vec<DebugLine2d>,
 }
 
 /// Where the 2D camera looks (world center) and its zoom in logical pixels
 /// per world unit. Backends apply it when changed and keep their own
 /// interactive pan/zoom in between.
-pub struct Camera2DConfig {
+pub struct CameraConfig2d {
     pub center: [f32; 2],
     pub zoom: f32,
     pub changed: bool,
 }
 
-impl Default for Camera2DConfig {
+impl Default for CameraConfig2d {
     fn default() -> Self {
         Self {
             center: [0.0, 0.0],
@@ -119,9 +127,15 @@ impl Default for Camera2DConfig {
 
 /// The actual 2D camera state this frame, published by windowed backends
 /// (zoom in logical pixels per world unit), plus the mouse in 2D world
-/// coordinates for script-side picking.
+/// coordinates for script-side picking. Read-only: write
+/// [`CameraConfig2d`] instead.
+///
+/// With no windowed backend running nothing ever publishes into it and it
+/// keeps its `Default`, which is all zeros — including `zoom`, where
+/// [`CameraConfig2d::default`] says 60.0. So a headless `render.camera_2d()`
+/// returns `(0, 0, 0)`, and callers that divide by the zoom must clamp it.
 #[derive(Default)]
-pub struct Viewport2D {
+pub struct ViewportSnapshot2d {
     pub center: [f32; 2],
     pub zoom: f32,
     pub mouse_world: [f32; 2],
@@ -129,8 +143,14 @@ pub struct Viewport2D {
 
 /// The actual camera pose this frame, published by windowed backends so
 /// tools (editor gizmos, pickers) can do screen-space math in scripts.
+/// Read-only: write [`CameraConfig`] instead.
+///
+/// With no windowed backend running it keeps its `Default` — an all-zero
+/// pose, a zero `fov`, a zero `scale_factor` and an all-zero `view_proj`,
+/// which is not invertible. Headless screen-space math gets zeros, not the
+/// camera the scene would have had.
 #[derive(Default)]
-pub struct ViewportCamera {
+pub struct ViewportSnapshot {
     pub eye: [f32; 3],
     pub target: [f32; 3],
     /// Vertical field of view, radians.
@@ -144,9 +164,11 @@ pub struct ViewportCamera {
     pub ray_dir: [f32; 3],
 }
 
-/// When false, windowed backends inhibit the camera's mouse controls
-/// (editors take the pointer over for gizmo drags).
-pub struct CameraInputEnabled(pub bool);
+/// When `enabled` is false, windowed backends inhibit the camera's mouse
+/// controls (editors take the pointer over for gizmo drags).
+pub struct CameraInputConfig {
+    pub enabled: bool,
+}
 
 /// Where the camera looks from and at. Scripts drive it through
 /// `render.set_camera`; windowed backends apply it whenever it changes (and
@@ -260,60 +282,82 @@ impl Plugin for RenderPlugin {
 
     fn build(&mut self, app: &mut App) -> Result<()> {
         app.engine.insert_resource(CameraConfig::default());
-        app.engine.insert_resource(ClearColor {
+        app.engine.insert_resource(ClearColorConfig {
             color: [0.09, 0.098, 0.11],
             changed: true,
         });
         app.engine.insert_resource(GridConfig::default());
-        app.engine.insert_resource(DebugLines::default());
-        app.engine.insert_resource(DebugLines2D::default());
-        app.engine.insert_resource(Camera2DConfig::default());
-        app.engine.insert_resource(Viewport2D::default());
-        app.engine.insert_resource(ViewportCamera::default());
-        app.engine.insert_resource(CameraInputEnabled(true));
+        app.engine.insert_resource(DebugLineBuffer::default());
+        app.engine.insert_resource(DebugLineBuffer2d::default());
+        app.engine.insert_resource(CameraConfig2d::default());
+        app.engine.insert_resource(ViewportSnapshot2d::default());
+        app.engine.insert_resource(ViewportSnapshot::default());
+        app.engine
+            .insert_resource(CameraInputConfig { enabled: true });
         let mut m = app.script_module("render")?;
         install_camera_api(&mut *m);
-        install_scene_api(&mut *m);
+        install_camera_2d_api(&mut *m);
+        install_window_api(&mut *m);
+        install_backdrop_api(&mut *m);
         install_shape_api(&mut *m);
-        install_2d_api(&mut *m);
         register_shape_component(app);
         register_shape2d_component(app);
         register_color_component(app);
+        app.add_system(Stage::Render, clear_debug_lines_system);
 
         Ok(())
     }
 }
 
-/// Window icon, camera input, matrices, mouse ray and camera pose.
+/// The debug-line buffers' fallback owner. A windowed backend drains them
+/// itself while it draws (`flush_debug_lines`, after `App::tick` returns),
+/// and announces that by inserting [`WindowedBackend`]; this runs only when
+/// nothing has, so the two can never both empty the same frame's lines.
+///
+/// Without it a headless run — `--headless`, CI, tests, the editor's
+/// screenshot mode — grows both `Vec`s forever, one push per
+/// `render.draw_line` per frame.
+fn clear_debug_lines_system(eng: &Engine, _dt: f32) {
+    if eng.try_resource::<WindowedBackend>().is_some() {
+        return;
+    }
+    if let Some(lines) = eng.try_resource::<DebugLineBuffer>() {
+        lines.borrow_mut().lines.clear();
+    }
+    if let Some(lines) = eng.try_resource::<DebugLineBuffer2d>() {
+        lines.borrow_mut().lines.clear();
+    }
+}
+
+/// The 3D camera: where it looks from, whether it takes the mouse, and the
+/// pose, matrix and picking ray it published this frame.
 fn install_camera_api(m: &mut dyn Bindings<Engine>) {
-    // Set the OS application icon (dock icon on macOS) from a PNG in
-    // the project.
-    m.function("set_app_icon", |eng: &Engine, path: String| {
-        let root = eng.resource::<balaur_core::project::ProjectRoot>();
-        let full = root.borrow().0.join(path);
-        eng.insert_resource(AppIcon {
-            path: full,
-            changed: true,
-        });
-        Ok(())
-    });
+    m.function(
+        "set_camera",
+        |eng: &Engine, (ex, ey, ez, tx, ty, tz): (f32, f32, f32, f32, f32, f32)| {
+            let config = eng.resource::<CameraConfig>();
+            let mut config = config.borrow_mut();
+            config.eye = glamx::Vec3::new(ex, ey, ez);
+            config.target = glamx::Vec3::new(tx, ty, tz);
+            config.changed = true;
+            Ok(())
+        },
+    );
     m.function("set_camera_input", |eng: &Engine, enabled: bool| {
-        let flag = eng.resource::<CameraInputEnabled>();
-        flag.borrow_mut().0 = enabled;
+        let config = eng.resource::<CameraInputConfig>();
+        config.borrow_mut().enabled = enabled;
         Ok(())
     });
-    // The actual camera pose this frame: eye xyz, target xyz, fov (rad),
-    // HiDPI scale factor.
     // The camera's exact projection*view matrix (column-major, 16
     // numbers): scripts project points precisely as the renderer does.
     m.function("camera_matrix", |eng: &Engine, ()| {
-        let cam = eng.resource::<ViewportCamera>();
+        let cam = eng.resource::<ViewportSnapshot>();
         let view_proj = cam.borrow().view_proj;
         Ok(view_proj.to_vec())
     });
     // Picking ray through the mouse: origin xyz, direction xyz.
     m.function("mouse_ray", |eng: &Engine, ()| {
-        let cam = eng.resource::<ViewportCamera>();
+        let cam = eng.resource::<ViewportSnapshot>();
         let cam = cam.borrow();
         Ok((
             cam.ray_origin[0],
@@ -324,8 +368,10 @@ fn install_camera_api(m: &mut dyn Bindings<Engine>) {
             cam.ray_dir[2],
         ))
     });
+    // The actual camera pose this frame: eye xyz, target xyz, fov (rad),
+    // HiDPI scale factor. All zeros with no windowed backend.
     m.function("camera_pose", |eng: &Engine, ()| {
-        let cam = eng.resource::<ViewportCamera>();
+        let cam = eng.resource::<ViewportSnapshot>();
         let cam = cam.borrow();
         Ok((
             cam.eye[0],
@@ -340,12 +386,58 @@ fn install_camera_api(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-/// Background, grid, and 3D debug lines.
-fn install_scene_api(m: &mut dyn Bindings<Engine>) {
+/// The 2D camera: its target center and zoom, the state it published this
+/// frame, and the mouse unprojected through it.
+fn install_camera_2d_api(m: &mut dyn Bindings<Engine>) {
+    // 2D camera: world center + zoom in logical pixels per world unit.
+    m.function(
+        "set_camera_2d",
+        |eng: &Engine, (cx, cy, zoom): (f32, f32, f32)| {
+            let config = eng.resource::<CameraConfig2d>();
+            let mut config = config.borrow_mut();
+            config.center = [cx, cy];
+            config.zoom = zoom.max(0.01);
+            config.changed = true;
+            Ok(())
+        },
+    );
+    // The actual 2D camera state this frame: center xy, zoom. All zeros
+    // with no windowed backend, zoom included.
+    m.function("camera_2d", |eng: &Engine, ()| {
+        let vp = eng.resource::<ViewportSnapshot2d>();
+        let vp = vp.borrow();
+        Ok((vp.center[0], vp.center[1], vp.zoom))
+    });
+    // The mouse position in 2D world coordinates (picking).
+    m.function("mouse_world_2d", |eng: &Engine, ()| {
+        let vp = eng.resource::<ViewportSnapshot2d>();
+        let vp = vp.borrow();
+        Ok((vp.mouse_world[0], vp.mouse_world[1]))
+    });
+}
+
+/// The OS window and its desktop presence.
+fn install_window_api(m: &mut dyn Bindings<Engine>) {
+    // Set the OS application icon (dock icon on macOS) from a PNG in
+    // the project.
+    m.function("set_app_icon", |eng: &Engine, path: String| {
+        let root = eng.resource::<balaur_core::project::ProjectRoot>();
+        let full = root.borrow().0.join(path);
+        eng.insert_resource(AppIconConfig {
+            path: full,
+            changed: true,
+        });
+        Ok(())
+    });
+}
+
+/// What is drawn behind and around the scene: clear colour, ground grid,
+/// and the per-frame debug lines (3D and 2D).
+fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_background",
         |eng: &Engine, (r, g, b): (f32, f32, f32)| {
-            let clear = eng.resource::<ClearColor>();
+            let clear = eng.resource::<ClearColorConfig>();
             let mut clear = clear.borrow_mut();
             clear.color = [r, g, b];
             clear.changed = true;
@@ -392,7 +484,7 @@ fn install_scene_api(m: &mut dyn Bindings<Engine>) {
         "draw_line",
         |eng: &Engine,
          (x1, y1, z1, x2, y2, z2, r, g, b, width, perspective, on_top): DrawLineArgs| {
-            let lines = eng.resource::<DebugLines>();
+            let lines = eng.resource::<DebugLineBuffer>();
             lines.borrow_mut().lines.push((
                 [x1, y1, z1],
                 [x2, y2, z2],
@@ -404,78 +496,12 @@ fn install_scene_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
-    // Returns ("", 0, 0, 0) when the node has no shape.
-}
-
-/// 3D shape and colour access.
-fn install_shape_api(m: &mut dyn Bindings<Engine>) {
-    m.function("get_shape", |eng: &Engine, node: NodeId| {
-        let world = eng.world();
-        let result = match world.get::<&Renderable>(entity_of(node)?) {
-            Ok(r) => match r.shape {
-                Shape::Ball { radius } => ("ball".to_string(), radius, radius, radius),
-                Shape::Cuboid { hx, hy, hz } => ("cuboid".to_string(), hx, hy, hz),
-            },
-            Err(_) => (String::new(), 0.0, 0.0, 0.0),
-        };
-        Ok(result)
-    });
-    m.function("get_color", |eng: &Engine, node: NodeId| {
-        let world = eng.world();
-        let result = if let Ok(r) = world.get::<&Renderable>(entity_of(node)?) {
-            (r.color[0], r.color[1], r.color[2], r.color[3])
-        } else if let Ok(r) = world.get::<&Renderable2d>(entity_of(node)?) {
-            (r.color[0], r.color[1], r.color[2], r.color[3])
-        } else {
-            (1.0, 1.0, 1.0, 1.0)
-        };
-        Ok(result)
-    });
-    m.function(
-        "set_camera",
-        |eng: &Engine, (ex, ey, ez, tx, ty, tz): (f32, f32, f32, f32, f32, f32)| {
-            let config = eng.resource::<CameraConfig>();
-            let mut config = config.borrow_mut();
-            config.eye = glamx::Vec3::new(ex, ey, ez);
-            config.target = glamx::Vec3::new(tx, ty, tz);
-            config.changed = true;
-            Ok(())
-        },
-    );
-    // 2D camera: world center + zoom in logical pixels per world unit.
-}
-
-/// The 2D camera, world-space mouse, debug lines and 2D shapes.
-fn install_2d_api(m: &mut dyn Bindings<Engine>) {
-    m.function(
-        "set_camera_2d",
-        |eng: &Engine, (cx, cy, zoom): (f32, f32, f32)| {
-            let config = eng.resource::<Camera2DConfig>();
-            let mut config = config.borrow_mut();
-            config.center = [cx, cy];
-            config.zoom = zoom.max(0.01);
-            config.changed = true;
-            Ok(())
-        },
-    );
-    // The actual 2D camera state this frame: center xy, zoom.
-    m.function("camera_2d", |eng: &Engine, ()| {
-        let vp = eng.resource::<Viewport2D>();
-        let vp = vp.borrow();
-        Ok((vp.center[0], vp.center[1], vp.zoom))
-    });
-    // The mouse position in 2D world coordinates (picking).
-    m.function("mouse_world_2d", |eng: &Engine, ()| {
-        let vp = eng.resource::<Viewport2D>();
-        let vp = vp.borrow();
-        Ok((vp.mouse_world[0], vp.mouse_world[1]))
-    });
     // One 2D world-space line for one frame; width in pixels.
     m.function(
         "draw_line_2d",
         |eng,
          (x1, y1, x2, y2, r, g, b, width): (f32, f32, f32, f32, f32, f32, f32, Option<f32>)| {
-            let lines = eng.resource::<DebugLines2D>();
+            let lines = eng.resource::<DebugLineBuffer2d>();
             lines.borrow_mut().lines.push((
                 [x1, y1],
                 [x2, y2],
@@ -485,6 +511,10 @@ fn install_2d_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
+}
+
+/// Shape and colour on a node, 3D and 2D.
+fn install_shape_api(m: &mut dyn Bindings<Engine>) {
     m.function("set_ball", |eng: &Engine, (node, radius): (NodeId, f32)| {
         set_shape(eng, entity_of(node)?, Shape::Ball { radius })
     });
@@ -492,12 +522,6 @@ fn install_2d_api(m: &mut dyn Bindings<Engine>) {
         "set_cuboid",
         |eng: &Engine, (node, hx, hy, hz): (NodeId, f32, f32, f32)| {
             set_shape(eng, entity_of(node)?, Shape::Cuboid { hx, hy, hz })
-        },
-    );
-    m.function(
-        "set_color",
-        |eng: &Engine, (node, r, g, b, a): (NodeId, f32, f32, f32, Option<f32>)| {
-            set_color(eng, entity_of(node)?, [r, g, b, a.unwrap_or(1.0)])
         },
     );
     m.function(
@@ -512,8 +536,26 @@ fn install_2d_api(m: &mut dyn Bindings<Engine>) {
             set_shape2d(eng, entity_of(node)?, Shape2d::Circle { radius })
         },
     );
+    m.function(
+        "set_color",
+        |eng: &Engine, (node, r, g, b, a): (NodeId, f32, f32, f32, Option<f32>)| {
+            set_color(eng, entity_of(node)?, [r, g, b, a.unwrap_or(1.0)])
+        },
+    );
+    // Returns ("", 0, 0, 0) when the node has no shape.
+    m.function("shape", |eng: &Engine, node: NodeId| {
+        let world = eng.world();
+        let result = match world.get::<&Renderable>(entity_of(node)?) {
+            Ok(r) => match r.shape {
+                Shape::Ball { radius } => ("ball".to_string(), radius, radius, radius),
+                Shape::Cuboid { hx, hy, hz } => ("cuboid".to_string(), hx, hy, hz),
+            },
+            Err(_) => (String::new(), 0.0, 0.0, 0.0),
+        };
+        Ok(result)
+    });
     // Returns ("", 0, 0) when the node has no 2D shape.
-    m.function("get_shape2d", |eng: &Engine, node: NodeId| {
+    m.function("shape2d", |eng: &Engine, node: NodeId| {
         let world = eng.world();
         let result = match world.get::<&Renderable2d>(entity_of(node)?) {
             Ok(r) => match r.shape {
@@ -524,9 +566,20 @@ fn install_2d_api(m: &mut dyn Bindings<Engine>) {
         };
         Ok(result)
     });
-
-    // Components (schema-driven; also usable as scene keys).
+    m.function("color", |eng: &Engine, node: NodeId| {
+        let world = eng.world();
+        let result = if let Ok(r) = world.get::<&Renderable>(entity_of(node)?) {
+            (r.color[0], r.color[1], r.color[2], r.color[3])
+        } else if let Ok(r) = world.get::<&Renderable2d>(entity_of(node)?) {
+            (r.color[0], r.color[1], r.color[2], r.color[3])
+        } else {
+            (1.0, 1.0, 1.0, 1.0)
+        };
+        Ok(result)
+    });
 }
+
+// Components below are schema-driven, and each key doubles as a scene key.
 
 /// The `shape` component: 3D primitives, editable from the editor.
 fn register_shape_component(app: &mut App) {
@@ -534,9 +587,10 @@ fn register_shape_component(app: &mut App) {
         "shape",
         ComponentDef {
             schema: ComponentDef::parse_schema(
-                r#"kind = { kind = "enum", default = "cuboid", options = ["ball", "cuboid"] }
-radius = { kind = "float", default = 0.5, min = 0.01 }
-half_extents = { kind = "vec3", default = [0.5, 0.5, 0.5] }"#,
+                "shape",
+                r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid"] }
+radius = { type = "float", default = 0.5, min = 0.01 }
+half_extents = { type = "vec3", default = [0.5, 0.5, 0.5] }"#,
             ),
             apply: Box::new(|eng, entity, params| {
                 let kind = params
@@ -606,9 +660,10 @@ fn register_shape2d_component(app: &mut App) {
         "shape2d",
         ComponentDef {
             schema: ComponentDef::parse_schema(
-                r#"kind = { kind = "enum", default = "rect", options = ["circle", "rect"] }
-radius = { kind = "float", default = 0.5, min = 0.01 }
-half_extents = { kind = "vec2", default = [0.5, 0.5] }"#,
+                "shape2d",
+                r#"kind = { type = "enum", default = "rect", options = ["circle", "rect"] }
+radius = { type = "float", default = 0.5, min = 0.01 }
+half_extents = { type = "vec2", default = [0.5, 0.5] }"#,
             ),
             apply: Box::new(|eng, entity, params| {
                 let kind = params
@@ -676,7 +731,8 @@ fn register_color_component(app: &mut App) {
         "color",
         ComponentDef {
             schema: ComponentDef::parse_schema(
-                r#"rgba = { kind = "color", default = [0.8, 0.8, 0.8, 1.0], shorthand = true }"#,
+                "color",
+                r#"rgba = { type = "color", default = [0.8, 0.8, 0.8, 1.0], shorthand = true }"#,
             ),
             apply: Box::new(|eng, entity, params| {
                 let c = |i: usize, default: f64| {

@@ -4,7 +4,7 @@
 [graph]
 # Audit what we ship, which includes the optional `window` feature and its
 # kiss3d/wgpu tree. Left at the default this checked only the headless graph,
-# so CI failed on advisories `./scripts/ci.sh` could not see.
+# so CI failed on advisories a headless local build could not see.
 all-features = true
 
 [bans]
@@ -23,4 +23,6 @@ unmaintained = "none"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-allow-git = []
+# The kiss3d patch (see the root Cargo.toml): v0.46.0 plus the macOS
+# Command-modifier fix, which is not on crates.io.
+allow-git = ["https://github.com/dimforge/kiss3d"]

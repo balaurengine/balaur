@@ -22,15 +22,18 @@ use rapier2d::prelude::{
 const FIXED_DT: f32 = 1.0 / 60.0;
 const MAX_SUBSTEPS: u32 = 4;
 
-pub struct Physics2DState {
+pub struct PhysicsState2d {
     pub world: PhysicsWorld2,
     pub bodies: DetHashMap<Entity, RigidBodyHandle2>,
     pub colliders: DetHashMap<Entity, Vec<ColliderHandle2>>,
     pub paused: bool,
+    /// Mirrors `PhysicsState::sleeping_allowed`; `physics.set_sleeping_allowed`
+    /// writes both worlds.
+    pub sleeping_allowed: bool,
     accumulator: f32,
 }
 
-impl Physics2DState {
+impl PhysicsState2d {
     fn new() -> Self {
         let world = PhysicsWorld2 {
             gravity: Vec2::new(0.0, -9.81),
@@ -41,6 +44,7 @@ impl Physics2DState {
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
             paused: false,
+            sleeping_allowed: true,
             accumulator: 0.0,
         }
     }
@@ -64,13 +68,18 @@ fn node_pose_2d(eng: &Engine, entity: Entity) -> Result<Pose2> {
 fn add_body(eng: &Engine, entity: Entity, kind: &str) -> Result<()> {
     let builder = match kind {
         "dynamic" => RigidBodyBuilder2::dynamic(),
-        "fixed" => RigidBodyBuilder2::fixed(),
+        "static" => RigidBodyBuilder2::fixed(),
         "kinematic" => RigidBodyBuilder2::kinematic_position_based(),
         other => return Err(anyhow!("unknown body kind '{other}'")),
     };
     let pose = node_pose_2d(eng, entity)?;
-    let state = eng.resource::<Physics2DState>();
+    let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
+    let builder = if state.sleeping_allowed {
+        builder
+    } else {
+        builder.can_sleep(false)
+    };
     let handle = state.world.insert_body(builder.pose(pose));
     state.bodies.insert(entity, handle);
     Ok(())
@@ -79,21 +88,21 @@ fn add_body(eng: &Engine, entity: Entity, kind: &str) -> Result<()> {
 fn add_collider(eng: &Engine, entity: Entity, builder: ColliderBuilder2) -> Result<()> {
     let handle;
     {
-        let state = eng.resource::<Physics2DState>();
+        let state = eng.resource::<PhysicsState2d>();
         let mut state = state.borrow_mut();
         if let Some(body) = state.bodies.get(&entity).copied() {
             handle = state.world.insert_collider(builder, Some(body));
         } else {
             drop(state);
             let pose = node_pose_2d(eng, entity)?;
-            let state = eng.resource::<Physics2DState>();
+            let state = eng.resource::<PhysicsState2d>();
             handle = state
                 .borrow_mut()
                 .world
                 .insert_collider(builder.position(pose), None);
         }
     }
-    let state = eng.resource::<Physics2DState>();
+    let state = eng.resource::<PhysicsState2d>();
     state
         .borrow_mut()
         .colliders
@@ -104,7 +113,7 @@ fn add_collider(eng: &Engine, entity: Entity, builder: ColliderBuilder2) -> Resu
 }
 
 fn remove_colliders(eng: &Engine, entity: Entity) {
-    let state = eng.resource::<Physics2DState>();
+    let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     if let Some(handles) = state.colliders.swap_remove(&entity) {
         for handle in handles {
@@ -114,7 +123,7 @@ fn remove_colliders(eng: &Engine, entity: Entity) {
 }
 
 fn remove_body_and_colliders(eng: &Engine, entity: Entity) {
-    let state = eng.resource::<Physics2DState>();
+    let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     state.colliders.swap_remove(&entity);
     if let Some(handle) = state.bodies.swap_remove(&entity) {
@@ -122,11 +131,11 @@ fn remove_body_and_colliders(eng: &Engine, entity: Entity) {
     }
 }
 
-/// Build and insert the collider described by `params`, replacing any
-/// existing one.
-fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let shape = params
-        .get("shape")
+/// The collider described by `params`, in the `collider2d` schema's own
+/// vocabulary — so a script table and a scene-file entry build the same thing.
+fn collider_builder(params: &toml::Value) -> Result<ColliderBuilder2> {
+    let kind = params
+        .get("kind")
         .and_then(|v| v.as_str())
         .unwrap_or("rect");
     let f = |key: &str, default: f64| {
@@ -143,31 +152,37 @@ fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<
             .and_then(balaur_core::components::as_f64)
             .unwrap_or(0.5) as f32
     };
-    let builder = match shape {
+    let builder = match kind {
         "circle" => ColliderBuilder2::ball(f("radius", 0.5).max(0.01)),
         "rect" => ColliderBuilder2::cuboid(he(0).max(0.01), he(1).max(0.01)),
-        other => return Err(anyhow!("unknown collider2d shape '{other}'")),
+        other => return Err(anyhow!("unknown collider2d kind '{other}'")),
     };
-    let builder = builder
+    Ok(builder
         .restitution(f("restitution", 0.0))
         .friction(f("friction", 0.5))
-        .density(f("density", 1.0).max(0.001));
+        .density(f("density", 1.0).max(0.001)))
+}
+
+/// Build and insert the collider described by `params`, replacing any
+/// existing one.
+fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
+    let builder = collider_builder(params)?;
     remove_colliders(eng, entity);
     add_collider(eng, entity, builder)
 }
 
 fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let state = eng.resource::<Physics2DState>();
+    let state = eng.resource::<PhysicsState2d>();
     let state = state.borrow();
     let handle = state.colliders.get(&entity)?.first()?;
     let collider = state.world.colliders.get(*handle)?;
     let mut map = toml::map::Map::new();
     if let Some(ball) = collider.shape().as_ball() {
-        map.insert("shape".into(), toml::Value::String("circle".into()));
+        map.insert("kind".into(), toml::Value::String("circle".into()));
         map.insert("radius".into(), toml::Value::Float(f64::from(ball.radius)));
     } else {
         let cuboid = collider.shape().as_cuboid()?;
-        map.insert("shape".into(), toml::Value::String("rect".into()));
+        map.insert("kind".into(), toml::Value::String("rect".into()));
         map.insert(
             "half_extents".into(),
             toml::Value::Array(vec![
@@ -194,9 +209,9 @@ fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
 fn with_body<R>(
     eng: &Engine,
     entity: Entity,
-    f: impl FnOnce(&mut Physics2DState, RigidBodyHandle2) -> R,
+    f: impl FnOnce(&mut PhysicsState2d, RigidBodyHandle2) -> R,
 ) -> Result<R> {
-    let state = eng.resource::<Physics2DState>();
+    let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     let handle = state
         .bodies
@@ -209,7 +224,7 @@ fn with_body<R>(
 /// Largest contact normal impulse currently applied to the node's colliders
 /// (0 when untouched). Gameplay uses this for impact damage.
 fn max_contact_impulse(eng: &Engine, entity: Entity) -> f32 {
-    let state = eng.resource::<Physics2DState>();
+    let state = eng.resource::<PhysicsState2d>();
     let state = state.borrow();
     let Some(handles) = state.colliders.get(&entity) else {
         return 0.0;
@@ -228,7 +243,7 @@ fn max_contact_impulse(eng: &Engine, entity: Entity) -> f32 {
 }
 
 fn step_system(eng: &Engine, dt: f32) {
-    let state = eng.resource::<Physics2DState>();
+    let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     let state = &mut *state;
     if state.paused {
@@ -283,7 +298,7 @@ fn step_system(eng: &Engine, dt: f32) {
 }
 
 pub fn clear(eng: &Engine) {
-    let state = eng.resource::<Physics2DState>();
+    let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     let handles: Vec<_> = state.bodies.values().copied().collect();
     for handle in handles {
@@ -298,14 +313,15 @@ pub fn clear(eng: &Engine) {
 }
 
 pub fn set_paused(eng: &Engine, paused: bool) {
-    let state = eng.resource::<Physics2DState>();
+    let state = eng.resource::<PhysicsState2d>();
     state.borrow_mut().paused = paused;
 }
 
 pub fn set_sleeping_allowed(eng: &Engine, allowed: bool) {
     use rapier2d::prelude::RigidBodyActivation;
-    let state = eng.resource::<Physics2DState>();
+    let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
+    state.sleeping_allowed = allowed;
     let handles: Vec<_> = state.bodies.values().copied().collect();
     for handle in handles {
         let body = &mut state.world.bodies[handle];
@@ -319,22 +335,42 @@ pub fn set_sleeping_allowed(eng: &Engine, allowed: bool) {
 }
 
 pub fn build(app: &mut App) -> Result<()> {
-    install_physics2d_api(app)?;
+    build_physics2d(app);
+
+    let mut m = app.script_module("physics2d")?;
+    crate::install_constants(&mut *m, crate::BODY_KINDS, crate::SHAPE_KINDS_2D);
+    install_physics2d_api(&mut *m);
     register_physics2d_components(app);
 
     Ok(())
 }
 
-/// `physics2d`: gravity, velocities and contact impulse.
-fn install_physics2d_api(app: &mut App) -> Result<()> {
-    app.engine.insert_resource(Physics2DState::new());
+/// The 2D world and the system that steps it, mirroring `PhysicsPlugin::build`.
+fn build_physics2d(app: &mut App) {
+    app.engine.insert_resource(PhysicsState2d::new());
     app.add_system(Stage::PostUpdate, step_system);
+}
 
-    let mut m = app.script_module("physics2d")?;
-    crate::install_constants(&mut *m, crate::BODY_KINDS, crate::SHAPE_KINDS_2D);
-    let m = &mut m as &mut dyn Bindings<Engine>;
+/// `physics2d`: bodies, colliders, gravity, velocities and contact impulse.
+fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
+    // Constructors, so a 2D body can be built from script rather than only
+    // declared in a scene file.
+    m.function(
+        "add_body",
+        |eng: &Engine, (node, kind): (NodeId, String)| add_body(eng, entity_of(node)?, &kind),
+    );
+    // Takes the `collider2d` component's own table (`kind`, `radius`,
+    // `half_extents`, `restitution`, `friction`, `density`), so one
+    // vocabulary covers scripts and scene files.
+    m.function(
+        "add_collider",
+        |eng: &Engine, (node, params): (NodeId, balaur_script::Value)| {
+            let params = balaur_core::node_api::to_toml(&params)?;
+            add_collider(eng, entity_of(node)?, collider_builder(&params)?)
+        },
+    );
     m.function("set_gravity", |eng: &Engine, (x, y): (f32, f32)| {
-        let state = eng.resource::<Physics2DState>();
+        let state = eng.resource::<PhysicsState2d>();
         state.borrow_mut().world.gravity = Vec2::new(x, y);
         Ok(())
     });
@@ -376,17 +412,17 @@ fn install_physics2d_api(app: &mut App) -> Result<()> {
     m.function("max_contact_impulse", |eng: &Engine, node: NodeId| {
         Ok(max_contact_impulse(eng, entity_of(node)?))
     });
-    Ok(())
 }
 
-/// The 2D `body` and collider components.
+/// The `body2d` and `collider2d` component keys. Neither is backed by a
+/// component type: both write into `PhysicsState2d`.
 fn register_physics2d_components(app: &mut App) {
-    // Components (schema-driven; also usable as scene keys).
     app.register_component(
         "body2d",
         ComponentDef {
             schema: ComponentDef::parse_schema(
-                r#"kind = { kind = "enum", default = "dynamic", options = ["dynamic", "fixed", "kinematic"], shorthand = true }"#,
+                "body2d",
+                r#"kind = { type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic"], shorthand = true }"#,
             ),
             apply: Box::new(|eng, entity, params| {
                 let kind = params
@@ -413,12 +449,12 @@ fn register_physics2d_components(app: &mut App) {
                 Ok(())
             }),
             get: Box::new(|eng, entity| {
-                let state = eng.resource::<Physics2DState>();
+                let state = eng.resource::<PhysicsState2d>();
                 let state = state.borrow();
                 let handle = state.bodies.get(&entity)?;
                 let kind = match state.world.bodies[*handle].body_type() {
                     rapier2d::prelude::RigidBodyType::Dynamic => "dynamic",
-                    rapier2d::prelude::RigidBodyType::Fixed => "fixed",
+                    rapier2d::prelude::RigidBodyType::Fixed => "static",
                     _ => "kinematic",
                 };
                 Some(toml::Value::Table(toml::map::Map::from_iter([(
@@ -432,12 +468,13 @@ fn register_physics2d_components(app: &mut App) {
         "collider2d",
         ComponentDef {
             schema: ComponentDef::parse_schema(
-                r#"shape = { kind = "enum", default = "rect", options = ["circle", "rect"] }
-radius = { kind = "float", default = 0.5, min = 0.01 }
-half_extents = { kind = "vec2", default = [0.5, 0.5] }
-restitution = { kind = "float", default = 0.0, min = 0.0, max = 1.0 }
-friction = { kind = "float", default = 0.5, min = 0.0 }
-density = { kind = "float", default = 1.0, min = 0.001 }"#,
+                "collider2d",
+                r#"kind = { type = "enum", default = "rect", options = ["circle", "rect"] }
+radius = { type = "float", default = 0.5, min = 0.01 }
+half_extents = { type = "vec2", default = [0.5, 0.5] }
+restitution = { type = "float", default = 0.0, min = 0.0, max = 1.0 }
+friction = { type = "float", default = 0.5, min = 0.0 }
+density = { type = "float", default = 1.0, min = 0.001 }"#,
             ),
             apply: Box::new(apply_collider),
             remove: Box::new(|eng, entity| {

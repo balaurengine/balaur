@@ -11,7 +11,7 @@ fn app() -> App {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: Some(balaur_script_luau::factory()),
+        script_backend: Some(balaur_script_luau::factory()),
     })
     .unwrap()
 }

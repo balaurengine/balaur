@@ -52,10 +52,22 @@ impl Pcg32 {
 }
 
 /// The engine-owned RNG stream backing `math.random` and the `rng` module.
-pub struct DetRng(pub Pcg32);
+pub struct RngState(pub Pcg32);
 
-impl Default for DetRng {
+impl Default for RngState {
     fn default() -> Self {
         Self(Pcg32::new(0))
     }
+}
+
+/// Borrow the one engine stream for the duration of `f`.
+///
+/// `App::new` inserts exactly one `RngState`; every consumer — the `rng`
+/// module, a backend's `math.random` override — goes through here rather than
+/// pulling the resource out of the typemap itself, so the stream has one
+/// owner and nobody is tempted to insert a second.
+pub fn with_rng<R>(eng: &crate::engine::Engine, f: impl FnOnce(&mut Pcg32) -> R) -> R {
+    let rng = eng.resource::<RngState>();
+    let mut rng = rng.borrow_mut();
+    f(&mut rng.0)
 }

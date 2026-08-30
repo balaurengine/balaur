@@ -60,7 +60,7 @@ fn dispatch_over_a_thousand_nodes_stays_inside_a_frame() {
         let project = Project::new(backend, source).unwrap();
         let app = app(backend, &project).unwrap();
         attach_many(&app, backend, 1000).unwrap();
-        let host = app.engine.scripts().unwrap();
+        let host = app.engine.script_host().unwrap();
         let each = per_iteration(Duration::from_millis(120), || host.update(1.0 / 60.0));
         assert_under(
             &format!("{}: update over 1000 nodes", backend.name()),
@@ -138,7 +138,7 @@ fn a_binding_call_stays_sub_microsecond() {
             m.function_raw("noop", Box::new(|_, _| Ok(balaur_script::Value::Nil)));
         }
         attach_many(&app, backend, 1).unwrap();
-        let host = app.engine.scripts().unwrap();
+        let host = app.engine.script_host().unwrap();
         let each = per_iteration(Duration::from_millis(120), || host.update(1.0 / 60.0));
         assert_under(
             &format!("{}: one binding call", backend.name()),

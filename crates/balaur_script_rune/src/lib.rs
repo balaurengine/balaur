@@ -35,7 +35,7 @@ use rune::{Diagnostics, Source, Sources, Vm};
 pub use bindings::RuneModule;
 pub use value::{Color, Node, Vec2, Vec3};
 
-/// The Rune backend, as an `AppConfig::scripts` factory.
+/// The Rune backend, as an `AppConfig::script_backend` factory.
 pub fn factory() -> balaur_core::ScriptHostFactory {
     Box::new(|setup| {
         Ok(Rc::new(RuneHost::new(
@@ -52,26 +52,21 @@ pub fn factory() -> balaur_core::ScriptHostFactory {
 /// Rune has no stable serialised unit format, so a pack stores the source and
 /// the shipped game compiles it at load. That is the honest tradeoff: startup
 /// costs a compile, and a pack stays portable across Rune versions.
-pub struct Compiler;
-
-impl balaur_script::ScriptCompiler for Compiler {
+///
+/// The compile still happens at export, purely to fail the build on a broken
+/// script — and it runs through the live host, not a bare context. Rune
+/// resolves `input::just_pressed` and friends at compile time, so a context
+/// without the engine's modules rejects every script that touches the engine.
+/// That is why the exporter boots an app (`AppConfig::export`) and compiles
+/// through its host rather than constructing a compiler out of thin air.
+impl balaur_script::ScriptCompiler for RuneHost {
     fn extensions(&self) -> &[&str] {
         &["rn"]
     }
 
     fn compile(&self, rel: &str, source: &str) -> Result<Vec<u8>> {
-        // Compile once at export purely to fail the build on a broken script.
-        let ctx = rune::Context::with_default_modules()?;
-        let mut sources = Sources::new();
-        sources.insert(Source::memory(source)?)?;
-        let mut diagnostics = Diagnostics::new();
-        let built = rune::prepare(&mut sources)
-            .with_context(&ctx)
-            .with_diagnostics(&mut diagnostics)
-            .build();
-        if built.is_err() {
-            return Err(anyhow!("{rel}: {}", render(&diagnostics, &sources)));
-        }
+        self.compile_unit(rel, source)
+            .map_err(|e| anyhow!("{rel}: {e}"))?;
         Ok(source.as_bytes().to_vec())
     }
 }
@@ -207,7 +202,7 @@ impl RuneHost {
             .with_context(|| format!("reading {key}"))
     }
 
-    fn compile(&self, key: &str, source: &str) -> Result<Arc<Unit>> {
+    fn compile_unit(&self, key: &str, source: &str) -> Result<Arc<Unit>> {
         let (ctx, _) = self.context()?;
         let mut sources = Sources::new();
         sources.insert(Source::new(key, source)?)?;
@@ -227,7 +222,7 @@ impl RuneHost {
             return Ok(script.unit.clone());
         }
         let source = self.source_of(key)?;
-        let unit = self.compile(key, &source)?;
+        let unit = self.compile_unit(key, &source)?;
         self.state.borrow_mut().scripts.insert(
             key.to_string(),
             Script {
@@ -403,7 +398,7 @@ impl RuneHost {
         {
             return Ok(());
         }
-        let unit = self.compile(key, &source)?;
+        let unit = self.compile_unit(key, &source)?;
         let mut state = self.state.borrow_mut();
         state.scripts.insert(
             key.to_string(),

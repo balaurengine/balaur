@@ -1,6 +1,12 @@
 //! Determinism is a core engine feature: identical inputs must produce
-//! bit-for-bit identical simulations. This test guards the same-platform
-//! half; cross-platform runs compare the same digest in CI.
+//! bit-for-bit identical simulations. This test guards the same-platform half.
+//!
+//! The cross-platform half is not asserted anywhere yet. CI's matrix does
+//! compare exported pack bytes across Linux, macOS and Windows, but a pack is
+//! bytecode and TOML — agreeing on it says nothing about whether two CPUs step
+//! the same physics. Closing that gap means emitting this digest as an
+//! artifact and diffing it across the matrix, and being ready for the answer
+//! on x86_64 versus aarch64.
 
 use balaur_core::{App, AppConfig, Transform};
 use balaur_physics::PhysicsPlugin;
@@ -19,22 +25,22 @@ fn write_project(root: &std::path::Path) {
 id = "n_ground"
 name = "Ground"
 position = [0.0, -1.0, 0.0]
-body = "fixed"
-collider = { shape = "cuboid", half_extents = [10.0, 0.5, 10.0] }
+body = "static"
+collider = { kind = "cuboid", half_extents = [10.0, 0.5, 10.0] }
 
 [[nodes]]
 id = "n_balla"
 name = "BallA"
 position = [0.1, 5.0, 0.0]
 body = "dynamic"
-collider = { shape = "ball", radius = 0.5 }
+collider = { kind = "ball", radius = 0.5 }
 
 [[nodes]]
 id = "n_ballb"
 name = "BallB"
 position = [-0.1, 7.0, 0.05]
 body = "dynamic"
-collider = { shape = "ball", radius = 0.5 }
+collider = { kind = "ball", radius = 0.5 }
 "#,
     )
     .unwrap();
@@ -46,7 +52,7 @@ fn simulate(root: &std::path::Path, frames: u32) -> Vec<[u32; 3]> {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: None,
+        script_backend: None,
     })
     .unwrap();
     app.add_plugin(PhysicsPlugin).unwrap();
@@ -97,15 +103,15 @@ fn write_project_2d(root: &std::path::Path) {
 id = "n_ground"
 name = "Ground"
 position = [0.0, -1.0, 0.0]
-body2d = "fixed"
-collider2d = { shape = "rect", half_extents = [10, 1] }
+body2d = "static"
+collider2d = { kind = "rect", half_extents = [10, 1] }
 
 [[nodes]]
 id = "n_balla"
 name = "BallA"
 position = [0.1, 5.0, 0.0]
 body2d = "dynamic"
-collider2d = { shape = "circle", radius = 0.5, restitution = 0.4 }
+collider2d = { kind = "circle", radius = 0.5, restitution = 0.4 }
 
 [[nodes]]
 id = "n_boxb"
@@ -113,7 +119,7 @@ name = "BoxB"
 position = [-0.1, 7.0, 0.0]
 rotation_euler = [0.0, 0.0, 0.4]
 body2d = "dynamic"
-collider2d = { shape = "rect", half_extents = [0.5, 0.3] }
+collider2d = { kind = "rect", half_extents = [0.5, 0.3] }
 "#,
     )
     .unwrap();

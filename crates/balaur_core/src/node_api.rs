@@ -2,7 +2,7 @@
 //!
 //! Each operation takes the node as its first argument, so a backend can
 //! register these as free functions or bind them as methods on its own node
-//! handle — see `DECLARATIONS`. Adding a language costs the sugar, not the
+//! handle — see `NODE_OPS`. Adding a language costs the sugar, not the
 //! twenty-odd operations.
 
 // Every declaration shares one signature so they can sit in a table of
@@ -18,118 +18,122 @@ use crate::engine::{Command, Engine};
 use crate::scene::{self, Children, GlobalTransform, Name, Parent, ScriptAttachment, Transform};
 
 /// One node operation, as a plain function pointer so the list stays a `const`.
-pub struct NodeFn {
+pub struct NodeOp {
     pub name: &'static str,
     pub call: fn(&Engine, &[Value]) -> Result<Value>,
 }
 
 /// Every node operation, in one list.
-pub const DECLARATIONS: &[NodeFn] = &[
-    NodeFn {
+pub const NODE_OPS: &[NodeOp] = &[
+    NodeOp {
         name: "is_valid",
         call: is_valid,
     },
-    NodeFn {
+    NodeOp {
         name: "name",
         call: name,
     },
-    NodeFn {
+    NodeOp {
         name: "set_name",
         call: set_name,
     },
-    NodeFn {
+    NodeOp {
         name: "path",
         call: path,
     },
-    NodeFn {
+    NodeOp {
         name: "position",
         call: position,
     },
-    NodeFn {
+    NodeOp {
         name: "set_position",
         call: set_position,
     },
-    NodeFn {
+    NodeOp {
         name: "translate",
         call: translate,
     },
-    NodeFn {
+    NodeOp {
         name: "rotation_euler",
         call: rotation_euler,
     },
-    NodeFn {
+    NodeOp {
         name: "set_rotation_euler",
         call: set_rotation_euler,
     },
-    NodeFn {
+    NodeOp {
+        name: "rotation_degrees",
+        call: rotation_degrees,
+    },
+    NodeOp {
+        name: "set_rotation_degrees",
+        call: set_rotation_degrees,
+    },
+    NodeOp {
         name: "scale",
         call: scale,
     },
-    NodeFn {
+    NodeOp {
         name: "set_scale",
         call: set_scale,
     },
-    NodeFn {
+    NodeOp {
         name: "global_position",
         call: global_position,
     },
-    NodeFn {
+    NodeOp {
         name: "global_rotation_euler",
         call: global_rotation_euler,
     },
-    NodeFn {
+    NodeOp {
         name: "global_scale",
         call: global_scale,
     },
-    NodeFn {
+    NodeOp {
         name: "get_node",
         call: get_node,
     },
-    NodeFn {
+    NodeOp {
         name: "add_child",
         call: add_child,
     },
-    NodeFn {
+    NodeOp {
         name: "parent",
         call: parent,
     },
-    NodeFn {
+    NodeOp {
         name: "children",
         call: children,
     },
-    NodeFn {
-        name: "add_component",
-        call: add_component,
-    },
-    NodeFn {
+    NodeOp {
         name: "set_component",
-        call: add_component,
+        call: set_component,
     },
-    NodeFn {
+    NodeOp {
         name: "remove_component",
         call: remove_component,
     },
-    NodeFn {
+    NodeOp {
         name: "get_component",
         call: get_component,
     },
-    NodeFn {
+    NodeOp {
         name: "has_component",
         call: has_component,
     },
-    NodeFn {
+    NodeOp {
         name: "component_names",
         call: component_names,
     },
-    NodeFn {
+    NodeOp {
         name: "script_path",
         call: script_path,
     },
-    NodeFn {
+    NodeOp {
         name: "attach_script",
         call: attach_script,
     },
-    NodeFn {
+    NodeOp {
         name: "queue_free",
         call: queue_free,
     },
@@ -137,10 +141,10 @@ pub const DECLARATIONS: &[NodeFn] = &[
 
 /// Register every node operation into a binding group as a free function.
 ///
-/// A backend that gives its node handle method syntax walks `DECLARATIONS`
+/// A backend that gives its node handle method syntax walks `NODE_OPS`
 /// itself instead; this is the plain path.
-pub fn install(m: &mut dyn Bindings<Engine>) {
-    for d in DECLARATIONS {
+pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
+    for d in NODE_OPS {
         m.function_raw(d.name, Box::new(d.call));
     }
 }
@@ -261,6 +265,31 @@ fn set_rotation_euler(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
+/// The same rotation as `rotation_euler`, in degrees.
+///
+/// Radians are the engine's unit and stay the default; degrees are what a
+/// person authors, so the pair exists rather than every caller carrying its
+/// own `math.deg` conversion the way the editor's inspector used to.
+fn rotation_degrees(eng: &Engine, args: &[Value]) -> Result<Value> {
+    with_transform(eng, node(args)?, |t| {
+        let (yaw, pitch, roll) = t.rotation.to_euler(EulerRot::ZYX);
+        Value::Vec3([roll.to_degrees(), pitch.to_degrees(), yaw.to_degrees()])
+    })
+}
+
+fn set_rotation_degrees(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let v = xyz(args, 1)?;
+    with_transform(eng, node(args)?, |t| {
+        t.rotation = Quat::from_euler(
+            EulerRot::ZYX,
+            v.z.to_radians(),
+            v.y.to_radians(),
+            v.x.to_radians(),
+        );
+    })?;
+    Ok(Value::Nil)
+}
+
 fn scale(eng: &Engine, args: &[Value]) -> Result<Value> {
     with_transform(eng, node(args)?, |t| vec3(t.scale))
 }
@@ -338,7 +367,10 @@ fn children(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 // ---- components ------------------------------------------------------
 
-fn add_component(eng: &Engine, args: &[Value]) -> Result<Value> {
+/// Adds the component if the node lacks it, merges over it if it has it, so
+/// one verb covers both. There is deliberately no `add_component`: the family
+/// reads set_ / get_ / has_ / remove_.
+fn set_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let params = match args.get(2) {
         None | Some(Value::Nil) => None,
@@ -392,7 +424,7 @@ fn script_path(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn attach_script(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let host = eng
-        .scripts()
+        .script_host()
         .ok_or_else(|| anyhow!("no script backend is running"))?;
     host.attach(crate::node_id_of(e), text(args, 1)?)?;
     Ok(Value::Nil)
@@ -417,6 +449,7 @@ pub fn to_toml(v: &Value) -> Result<toml::Value> {
         Value::Node(_) | Value::Callback(_) => {
             return Err(anyhow!("a node or callback is not component data"))
         }
+        Value::Many(_) => return Err(anyhow!("several values are not component data")),
         Value::Vec2(a) => number_list(a),
         Value::Vec3(a) => number_list(a),
         Value::Color(a) => number_list(a),

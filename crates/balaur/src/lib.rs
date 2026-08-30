@@ -23,7 +23,7 @@ pub use balaur_script_luau as luau;
 pub use balaur_script_rune as rune;
 pub use balaur_ui as ui;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 /// Build an [`App`] with the standard plugin set (input, physics, render,
 /// audio).
@@ -51,20 +51,38 @@ fn backend_for(config: &AppConfig) -> Result<balaur_core::ScriptHostFactory> {
 }
 
 /// Build an export pack with the script backend `standard_app` installs.
+///
+/// Luau compiles a file on its own — names are resolved at run time, so
+/// bytecode does not depend on which modules exist. Rune resolves `input::…`
+/// while compiling, so its export has to run against the same modules the
+/// game will have: boot the app the game would boot, and compile through its
+/// host. Exporting through a bare context instead rejects every script that
+/// touches the engine.
 pub fn build_pack(project_root: &std::path::Path) -> Result<Pack> {
     let manifest = std::fs::read_to_string(project_root.join("project.toml"))?;
     match balaur_core::project::ProjectManifest::parse(&manifest)?
         .language
         .as_str()
     {
-        "rune" => Pack::build(project_root, &balaur_script_rune::Compiler),
+        "rune" => {
+            let app = standard_app(AppConfig::export(project_root))?;
+            let host = app
+                .engine
+                .script_host()
+                .context("no script backend for a rune project")?;
+            let host = host
+                .as_any()
+                .downcast_ref::<balaur_script_rune::RuneHost>()
+                .context("expected the rune backend for a rune project")?;
+            Pack::build(project_root, host)
+        }
         _ => Pack::build(project_root, &balaur_script_luau::Compiler),
     }
 }
 
 pub fn standard_app(mut config: AppConfig) -> Result<App> {
-    if config.scripts.is_none() {
-        config.scripts = Some(backend_for(&config)?);
+    if config.script_backend.is_none() {
+        config.script_backend = Some(backend_for(&config)?);
     }
     let mut app = App::new(config)?;
     app.add_plugin(InputPlugin)?;

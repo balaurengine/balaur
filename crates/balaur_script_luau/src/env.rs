@@ -55,7 +55,17 @@ impl balaur_script::Bindings<Engine> for LuaModule {
                     .map(|v| to_neutral(&v))
                     .collect::<mlua::Result<_>>()?;
                 let out = f(&engine, &neutral).map_err(mlua::Error::external)?;
-                from_neutral(lua, &engine, &out)
+                // Several values come back as several values, not one table.
+                if let balaur_script::Value::Many(items) = &out {
+                    let mut multi = mlua::MultiValue::new();
+                    for item in items {
+                        multi.push_back(from_neutral(lua, &engine, item)?);
+                    }
+                    return Ok(multi);
+                }
+                Ok(mlua::MultiValue::from_vec(vec![from_neutral(
+                    lua, &engine, &out,
+                )?]))
             })
         else {
             tracing::error!(binding = name, "could not create the Lua function");
@@ -144,7 +154,7 @@ pub(crate) fn to_neutral(v: &mlua::Value) -> mlua::Result<balaur_script::Value> 
 
 pub(crate) fn from_neutral(
     lua: &Lua,
-    engine: &Engine,
+    eng: &Engine,
     v: &balaur_script::Value,
 ) -> mlua::Result<mlua::Value> {
     use balaur_script::Value as N;
@@ -163,20 +173,22 @@ pub(crate) fn from_neutral(
                 .ok_or_else(|| mlua::Error::runtime("stale node handle"))?;
             mlua::Value::UserData(lua.create_userdata(NodeRef {
                 entity,
-                engine: engine.clone(),
+                engine: eng.clone(),
             })?)
         }
-        N::List(items) => {
+        // Splatted at the call boundary; nested, the best that can be done is
+        // a table, which is what a list already is.
+        N::Many(items) | N::List(items) => {
             let t = lua.create_table()?;
             for (i, item) in items.iter().enumerate() {
-                t.set(i + 1, from_neutral(lua, engine, item)?)?;
+                t.set(i + 1, from_neutral(lua, eng, item)?)?;
             }
             mlua::Value::Table(t)
         }
         N::Map(entries) => {
             let t = lua.create_table()?;
             for (k, item) in entries {
-                t.set(k.as_str(), from_neutral(lua, engine, item)?)?;
+                t.set(k.as_str(), from_neutral(lua, eng, item)?)?;
             }
             mlua::Value::Table(t)
         }
@@ -192,7 +204,7 @@ fn list(lua: &Lua, xs: &[f32]) -> mlua::Result<mlua::Value> {
 }
 
 /// Fetch or create the global module table `name`.
-pub(super) fn module(lua: &Lua, engine: &Engine, name: &str) -> anyhow::Result<LuaModule> {
+pub(super) fn module(lua: &Lua, eng: &Engine, name: &str) -> anyhow::Result<LuaModule> {
     let globals = lua.globals();
     let table: Table = if let Some(t) = globals.get::<Option<Table>>(name)? {
         t
@@ -203,7 +215,7 @@ pub(super) fn module(lua: &Lua, engine: &Engine, name: &str) -> anyhow::Result<L
     };
     Ok(LuaModule {
         lua: lua.clone(),
-        engine: engine.clone(),
+        engine: eng.clone(),
         table,
     })
 }
@@ -211,18 +223,18 @@ pub(super) fn module(lua: &Lua, engine: &Engine, name: &str) -> anyhow::Result<L
 /// Install the built-in `engine`, `scene`, and `log` modules.
 pub(super) fn install_globals(
     lua: &Lua,
-    engine: &Engine,
+    eng: &Engine,
     host: &super::ScriptHost,
 ) -> anyhow::Result<()> {
     // `engine`, `scene`, `log` and `node` come from balaur_core::engine_api,
     // registered through the seam. Only what needs the Lua state is here.
-    install_prelude(lua, engine, host)?;
+    install_prelude(lua, eng, host)?;
 
     Ok(())
 }
 
 /// Globals every script gets: `require` and `print`.
-fn install_prelude(lua: &Lua, _engine: &Engine, host: &super::ScriptHost) -> anyhow::Result<()> {
+fn install_prelude(lua: &Lua, _eng: &Engine, host: &super::ScriptHost) -> anyhow::Result<()> {
     // Shared Luau modules: `require("scripts/util")` evaluates once and
     // caches; module tables hot reload in place like classes.
     //

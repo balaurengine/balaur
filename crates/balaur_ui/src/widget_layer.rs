@@ -12,7 +12,18 @@ use balaur_core::hecs::Entity;
 use balaur_core::{App, Engine};
 use egui::{pos2, vec2, Align2, Color32, Stroke};
 
-use crate::theme::{family, parse_hex};
+use crate::theme::family;
+
+/// A component colour (`[r, g, b, a]` in 0..=1) as egui's 8-bit one.
+fn rgba_color(rgba: [f32; 4]) -> Color32 {
+    let channel = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+    Color32::from_rgba_unmultiplied(
+        channel(rgba[0]),
+        channel(rgba[1]),
+        channel(rgba[2]),
+        channel(rgba[3]),
+    )
+}
 
 #[derive(Clone)]
 pub struct Widget {
@@ -21,8 +32,11 @@ pub struct Widget {
     pub anchor: String,
     pub x: f32,
     pub y: f32,
-    pub size: f32,
-    pub color: String,
+    /// Height of the widget's text, in design pixels.
+    pub font_size: f32,
+    /// The text's colour as `[r, g, b, a]` in 0..=1, the same representation
+    /// the `color` component uses.
+    pub text_color: [f32; 4],
     /// Method on this node's script, called when the widget is clicked.
     /// Empty means nothing is connected. A name rather than a function value:
     /// scene files cannot hold closures, and a name works on any backend.
@@ -32,13 +46,13 @@ pub struct Widget {
 
 /// Where and whether the widget layer draws. Games leave the default (full
 /// window); editors point it at their viewport and enable it during play.
-pub struct WidgetLayer {
+pub struct WidgetLayerConfig {
     pub enabled: bool,
     /// Design-px rect (x, y, w, h); None = whole screen.
     pub rect: Option<[f32; 4]>,
 }
 
-impl Default for WidgetLayer {
+impl Default for WidgetLayerConfig {
     fn default() -> Self {
         Self {
             enabled: true,
@@ -47,19 +61,26 @@ impl Default for WidgetLayer {
     }
 }
 
-pub(crate) fn register(app: &mut App) {
+/// The `widget` key, backed by exactly one `Widget` component on the node.
+///
+/// `clicked` is declared `readonly`: the widget layer writes it every frame
+/// (see `settle_clicks`) and `apply` always clears it, but it is in the
+/// schema so that `get`'s output round-trips and the inspector can see it.
+pub(crate) fn register_widget_component(app: &mut App) {
     app.register_component(
         "widget",
         ComponentDef {
             schema: ComponentDef::parse_schema(
-                r##"kind = { kind = "enum", default = "label", options = ["label", "button", "panel"] }
-text = { kind = "str", default = "label" }
-anchor = { kind = "enum", default = "top_left", options = ["top_left", "top_right", "bottom_left", "bottom_right", "center"] }
-x = { kind = "float", default = 16.0 }
-y = { kind = "float", default = 16.0 }
-size = { kind = "float", default = 16.0, min = 6.0 }
-color = { kind = "str", default = "#eef1f4" }
-on_click = { kind = "str", default = "" }"##,
+                "widget",
+                r##"kind = { type = "enum", default = "label", options = ["label", "button", "panel"] }
+text = { type = "string", default = "label" }
+anchor = { type = "enum", default = "top_left", options = ["top_left", "top_right", "bottom_left", "bottom_right", "center"] }
+x = { type = "float", default = 16.0 }
+y = { type = "float", default = 16.0 }
+font_size = { type = "float", default = 16.0, min = 6.0 }
+text_color = { type = "color", default = [0.933, 0.945, 0.957, 1.0] }
+on_click = { type = "string", default = "" }
+clicked = { type = "bool", default = false, readonly = true }"##,
             ),
             apply: Box::new(|eng, entity, params| {
                 let s = |key: &str, default: &str| {
@@ -72,14 +93,28 @@ on_click = { kind = "str", default = "" }"##,
                 let f = |key: &str, default: f64| {
                     params.get(key).and_then(balaur_core::components::as_f64).unwrap_or(default) as f32
                 };
+                // Hex strings were expanded to floats by `merge_defaults`.
+                let channel = |i: usize, default: f64| {
+                    params
+                        .get("text_color")
+                        .and_then(|v| v.as_array())
+                        .and_then(|a| a.get(i))
+                        .and_then(balaur_core::components::as_f64)
+                        .unwrap_or(default) as f32
+                };
                 let widget = Widget {
                     kind: s("kind", "label"),
                     text: s("text", "label"),
                     anchor: s("anchor", "top_left"),
                     x: f("x", 16.0),
                     y: f("y", 16.0),
-                    size: f("size", 16.0),
-                    color: s("color", "#eef1f4"),
+                    font_size: f("font_size", 16.0),
+                    text_color: [
+                        channel(0, 0.933),
+                        channel(1, 0.945),
+                        channel(2, 0.957),
+                        channel(3, 1.0),
+                    ],
                     on_click: s("on_click", ""),
                     clicked: false,
                 };
@@ -100,8 +135,20 @@ on_click = { kind = "str", default = "" }"##,
                 map.insert("anchor".into(), toml::Value::String(widget.anchor.clone()));
                 map.insert("x".into(), toml::Value::Float(f64::from(widget.x)));
                 map.insert("y".into(), toml::Value::Float(f64::from(widget.y)));
-                map.insert("size".into(), toml::Value::Float(f64::from(widget.size)));
-                map.insert("color".into(), toml::Value::String(widget.color.clone()));
+                map.insert(
+                    "font_size".into(),
+                    toml::Value::Float(f64::from(widget.font_size)),
+                );
+                map.insert(
+                    "text_color".into(),
+                    toml::Value::Array(
+                        widget
+                            .text_color
+                            .iter()
+                            .map(|c| toml::Value::Float(f64::from(*c)))
+                            .collect(),
+                    ),
+                );
                 map.insert("clicked".into(), toml::Value::Boolean(widget.clicked));
                 map.insert(
                     "on_click".into(),
@@ -115,8 +162,8 @@ on_click = { kind = "str", default = "" }"##,
 
 /// Draw every widget entity. Runs inside the frame's egui pass, after the
 /// scripts' `draw_ui`.
-pub(crate) fn draw(engine: &Engine, ctx: &egui::Context, scale: f32) {
-    let Some(layer) = engine.try_resource::<WidgetLayer>() else {
+pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
+    let Some(layer) = eng.try_resource::<WidgetLayerConfig>() else {
         return;
     };
     let (enabled, rect) = {
@@ -134,7 +181,7 @@ pub(crate) fn draw(engine: &Engine, ctx: &egui::Context, scale: f32) {
         None => screen,
     };
     let widgets: Vec<(Entity, Widget)> = {
-        let world = engine.world();
+        let world = eng.world();
         let mut query = world.query::<(Entity, &Widget)>();
         let collected: Vec<(Entity, Widget)> = query.iter().map(|(e, w)| (e, w.clone())).collect();
         collected
@@ -157,8 +204,8 @@ pub(crate) fn draw(engine: &Engine, ctx: &egui::Context, scale: f32) {
             "center" => Align2::CENTER_CENTER,
             _ => Align2::LEFT_TOP,
         };
-        let color = parse_hex(&widget.color).unwrap_or(Color32::WHITE);
-        let font = egui::FontId::new(widget.size * scale, family("ui"));
+        let color = rgba_color(widget.text_color);
+        let font = egui::FontId::new(widget.font_size * scale, family("ui"));
         egui::Area::new(egui::Id::new(("balaur-widget", entity)))
             .order(egui::Order::Middle)
             .pivot(align)
@@ -172,7 +219,7 @@ pub(crate) fn draw(engine: &Engine, ctx: &egui::Context, scale: f32) {
                                 .color(color),
                         )
                         .corner_radius(egui::CornerRadius::same(
-                            (widget.size * scale).min(120.0) as u8
+                            (widget.font_size * scale).min(120.0) as u8,
                         ))
                         .stroke(Stroke::new(1.0, color)),
                     );
@@ -202,17 +249,17 @@ pub(crate) fn draw(engine: &Engine, ctx: &egui::Context, scale: f32) {
                 }
             });
     }
-    settle_clicks(engine, &widgets, &clicked);
+    settle_clicks(eng, &widgets, &clicked);
 }
 
 /// Record this frame's clicks on each widget, then fire their `on_click`.
 ///
 /// Dispatch happens after the world borrow is released: a handler may spawn,
 /// free or reparent nodes, and it must not do that mid-iteration.
-fn settle_clicks(engine: &Engine, widgets: &[(Entity, Widget)], clicked: &[Entity]) {
+fn settle_clicks(eng: &Engine, widgets: &[(Entity, Widget)], clicked: &[Entity]) {
     let mut signals: Vec<(Entity, String)> = Vec::new();
     {
-        let world = engine.world();
+        let world = eng.world();
         for (entity, _) in widgets {
             if let Ok(mut w) = world.get::<&mut Widget>(*entity) {
                 w.clicked = clicked.contains(entity);
@@ -222,7 +269,7 @@ fn settle_clicks(engine: &Engine, widgets: &[(Entity, Widget)], clicked: &[Entit
             }
         }
     }
-    if let Some(host) = engine.scripts() {
+    if let Some(host) = eng.script_host() {
         for (entity, method) in signals {
             host.call_on(balaur_core::node_id_of(entity), &method);
         }

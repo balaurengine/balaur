@@ -7,26 +7,53 @@
 
 use std::fs::File;
 use std::io::BufReader;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use balaur_core::project::ProjectRoot;
 use balaur_core::Engine;
 use balaur_core::{App, Plugin, Stage};
-use balaur_script::{Bindings, BindingsExt};
+use balaur_script::{Bindings, BindingsExt, Value};
 use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player};
 
 pub struct AudioState {
     device: Option<MixerDeviceSink>,
     players: Vec<Player>,
-    project_root: PathBuf,
+}
+
+/// Resolve a script-supplied sound path against the project.
+///
+/// Project-relative unless absolute, and read from the `ProjectRoot` entry
+/// rather than cached here: one copy of the root, owned by the engine.
+fn resolve(eng: &Engine, path: &str) -> PathBuf {
+    let p = Path::new(path);
+    if p.is_absolute() {
+        return p.to_path_buf();
+    }
+    eng.try_resource::<ProjectRoot>()
+        .map_or_else(|| p.to_path_buf(), |root| root.borrow().0.join(p))
 }
 
 impl AudioState {
-    fn play(&mut self, path: &str, volume: f32, looped: bool) -> Result<()> {
+    /// Stop everything currently playing.
+    pub fn stop_all(&mut self) {
+        for player in self.players.drain(..) {
+            player.stop();
+        }
+    }
+
+    /// Start a sound from an already-resolved path — the `audio.*` bindings
+    /// resolve script paths against the project root. Silent, not an error,
+    /// when there is no output device: a headless run must behave like a
+    /// windowed one.
+    ///
+    /// # Errors
+    /// If the file cannot be read or decoded.
+    pub fn play(&mut self, path: &Path, volume: f32, looped: bool) -> Result<()> {
         let Some(device) = &self.device else {
             return Ok(());
         };
-        let file = File::open(self.project_root.join(path))?;
+        let file = File::open(path)?;
         let player = rodio::play(device.mixer(), BufReader::new(file))?;
         player.set_volume(volume);
         if looped {
@@ -34,7 +61,7 @@ impl AudioState {
             // decode time instead. Keep it simple: re-open with a looped
             // decoder.
             player.stop();
-            let file = File::open(self.project_root.join(path))?;
+            let file = File::open(path)?;
             let decoder = rodio::Decoder::try_from(BufReader::new(file))?;
             let looped_player = Player::connect_new(device.mixer());
             looped_player.set_volume(volume);
@@ -65,7 +92,6 @@ impl Plugin for AudioPlugin {
         app.engine.insert_resource(AudioState {
             device,
             players: Vec::new(),
-            project_root: app.project_root().to_path_buf(),
         });
 
         // Drop finished one-shot players so they do not accumulate.
@@ -75,39 +101,43 @@ impl Plugin for AudioPlugin {
         });
 
         let mut m = app.script_module("audio")?;
-        register(&mut m);
+        install_audio_api(&mut m);
         Ok(())
     }
 }
 
+/// One key out of a script options table, or `None` if the table, the key or
+/// its type is missing. A typo in an options table should not stop the frame.
+fn opt<'a>(opts: Option<&'a Value>, key: &str) -> Option<&'a Value> {
+    match opts? {
+        Value::Map(entries) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
+        _ => None,
+    }
+}
+
 /// `audio.*`. Declared against the neutral seam, so it works on any backend.
-fn register(m: &mut dyn Bindings<Engine>) {
+fn install_audio_api(m: &mut dyn Bindings<Engine>) {
+    // `audio.play(path, { volume = 1.0, loop = true })`. The flag lives in the
+    // options table rather than in the name, so fade/pitch/bus can join it
+    // without doubling the function count (N9).
     m.function(
         "play",
-        |eng: &Engine, (path, volume): (String, Option<f32>)| {
+        |eng: &Engine, (path, opts): (String, Option<Value>)| {
+            let opts = opts.as_ref();
+            let volume = match opt(opts, "volume") {
+                Some(Value::Num(n)) => *n as f32,
+                Some(Value::Int(i)) => *i as f32,
+                _ => 1.0,
+            };
+            let looped = matches!(opt(opts, "loop"), Some(Value::Bool(true)));
+            let full = resolve(eng, &path);
             let state = eng.resource::<AudioState>();
-            state
-                .borrow_mut()
-                .play(&path, volume.unwrap_or(1.0), false)?;
-            Ok(())
-        },
-    );
-    m.function(
-        "play_looping",
-        |eng: &Engine, (path, volume): (String, Option<f32>)| {
-            let state = eng.resource::<AudioState>();
-            state
-                .borrow_mut()
-                .play(&path, volume.unwrap_or(1.0), true)?;
+            state.borrow_mut().play(&full, volume, looped)?;
             Ok(())
         },
     );
     m.function("stop_all", |eng: &Engine, ()| {
-        let state = eng.resource::<AudioState>();
-        let mut state = state.borrow_mut();
-        for player in state.players.drain(..) {
-            player.stop();
-        }
+        eng.resource::<AudioState>().borrow_mut().stop_all();
         Ok(())
     });
 }

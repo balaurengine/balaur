@@ -28,13 +28,13 @@ function M.node_type(node)
     local kind2d = M.body2d_kind(node)
     if kind == "dynamic" then
         return "RigidBody3D"
-    elseif kind == "fixed" or kind == "static" then
+    elseif kind == "static" then
         return "StaticBody3D"
     elseif kind == "kinematic" then
         return "KinematicBody3D"
     elseif kind2d == "dynamic" then
         return "RigidBody2D"
-    elseif kind2d == "fixed" or kind2d == "static" then
+    elseif kind2d == "static" then
         return "StaticBody2D"
     elseif kind2d == "kinematic" then
         return "KinematicBody2D"
@@ -250,7 +250,7 @@ function M.add_component(S, name)
     if ref == nil then
         return
     end
-    ref:add_component(name)
+    ref:set_component(name)
     M.sync_component_doc(S, name)
     log.info("added " .. name .. " to " .. S.doc[S.sel].name)
 end

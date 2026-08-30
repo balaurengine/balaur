@@ -163,7 +163,7 @@ local function timeline(S, k)
                 animlib.delete_key_at(S, S.anim_time)
             end
         end)
-        local t, scrubbed = ui.hslider(S.anim_time, 0, anim.length, {
+        local t, scrubbed = ui.slider(S.anim_time, 0, anim.length, {
             width = lane_w,
             rail = k.sunken, fill = k.accent_fill, knob = k.bg,
         })

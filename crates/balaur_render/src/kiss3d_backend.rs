@@ -1,6 +1,6 @@
 //! Windowed backend built on kiss3d (wgpu). kiss3d 0.46 drives an async
 //! render loop, so this backend owns the main loop: per frame it pumps OS
-//! events into [`balaur_input::InputState`], ticks the [`App`], then mirrors
+//! events into [`balaur_input::InputSnapshot`], ticks the [`App`], then mirrors
 //! renderables into the kiss3d scene graph.
 
 use std::collections::{HashMap, HashSet};
@@ -8,14 +8,14 @@ use std::time::Instant;
 
 use balaur_core::hecs::Entity;
 use balaur_core::{App, GlobalTransform};
-use balaur_input::InputState;
+use balaur_input::InputSnapshot;
 use glamx::Pose3;
 use kiss3d::prelude::*;
 
 use crate::{
-    AppIcon, Camera2DConfig, CameraConfig, CameraInputEnabled, ClearColor, DebugLines,
-    DebugLines2D, GridConfig, Renderable, Renderable2d, ScreenshotRequest, Shape, Shape2d,
-    Viewport2D, ViewportCamera,
+    AppIconConfig, CameraConfig, CameraConfig2d, CameraInputConfig, ClearColorConfig,
+    DebugLineBuffer, DebugLineBuffer2d, GridConfig, Renderable, Renderable2d, ScreenshotRequest,
+    Shape, Shape2d, ViewportSnapshot, ViewportSnapshot2d, WindowedBackend,
 };
 
 struct Slot {
@@ -31,6 +31,9 @@ struct Slot2d {
 /// Run the app inside a kiss3d window until the window closes or the game
 /// requests quit.
 pub fn run_windowed(mut app: App, title: &str) -> anyhow::Result<()> {
+    // Claim the debug-line buffers: `flush_debug_lines`/`_2d` below drain
+    // them as they draw, so the plugin's headless fallback stands down.
+    app.engine.insert_resource(WindowedBackend);
     let title = title.to_string();
     pollster::block_on(async move {
         let mut window = Window::new_with_size(&title, 1600, 1000).await;
@@ -100,7 +103,7 @@ fn apply_camera(app: &App, camera: &mut OrbitCamera3d) {
 /// Apply script-driven 2D camera changes. The config zoom is in logical
 /// pixels per world unit; the kiss3d camera works in physical pixels.
 fn apply_camera_2d(app: &App, camera: &mut PanZoomCamera2d, window: &Window) {
-    let Some(config) = app.engine.try_resource::<Camera2DConfig>() else {
+    let Some(config) = app.engine.try_resource::<CameraConfig2d>() else {
         return;
     };
     let mut config = config.borrow_mut();
@@ -117,7 +120,9 @@ fn apply_camera_2d(app: &App, camera: &mut PanZoomCamera2d, window: &Window) {
 /// Publish the actual 2D camera state (zoom back in logical px per world
 /// unit) and the mouse position unprojected to 2D world coordinates.
 fn publish_camera_2d(app: &App, camera: &PanZoomCamera2d, window: &Window) {
-    let Some(vp) = app.engine.try_resource::<Viewport2D>() else {
+    use kiss3d::camera::Camera2d;
+
+    let Some(vp) = app.engine.try_resource::<ViewportSnapshot2d>() else {
         return;
     };
     let mut vp = vp.borrow_mut();
@@ -125,11 +130,10 @@ fn publish_camera_2d(app: &App, camera: &PanZoomCamera2d, window: &Window) {
     let at = camera.at();
     vp.center = [at.x, at.y];
     vp.zoom = camera.zoom() / scale;
-    if let Some(input) = app.engine.try_resource::<InputState>() {
+    if let Some(input) = app.engine.try_resource::<InputSnapshot>() {
         let (mx, my) = input.borrow().mouse_pos();
         // The 2D camera's projection is built from the framebuffer size, so
         // unproject in physical pixels.
-        use kiss3d::camera::Camera2d;
         let size = Vec2::new(window.width() as f32, window.height() as f32);
         let world = camera.unproject(Vec2::new(mx, my), size);
         vp.mouse_world = [world.x, world.y];
@@ -137,7 +141,7 @@ fn publish_camera_2d(app: &App, camera: &PanZoomCamera2d, window: &Window) {
 }
 
 fn apply_clear_color(app: &App, window: &mut Window) {
-    let Some(clear) = app.engine.try_resource::<ClearColor>() else {
+    let Some(clear) = app.engine.try_resource::<ClearColorConfig>() else {
         return;
     };
     let mut clear = clear.borrow_mut();
@@ -162,7 +166,7 @@ fn draw_grid(app: &App, window: &mut Window) {
     let [jr, jg, jb] = grid.major_color;
     for i in -grid.extent..=grid.extent {
         let offset = i as f32 * grid.step;
-        let major = grid.major_every > 0 && i.rem_euclid(grid.major_every as i32) == 0;
+        let major = grid.major_every > 0 && i.rem_euclid(grid.major_every.cast_signed()) == 0;
         let color = if major {
             Color::new(jr, jg, jb, 1.0)
         } else {
@@ -187,7 +191,7 @@ fn draw_grid(app: &App, window: &mut Window) {
 }
 
 fn flush_debug_lines_2d(app: &App, window: &mut Window) {
-    let Some(lines) = app.engine.try_resource::<DebugLines2D>() else {
+    let Some(lines) = app.engine.try_resource::<DebugLineBuffer2d>() else {
         return;
     };
     for (a, b, c, width) in lines.borrow_mut().lines.drain(..) {
@@ -201,7 +205,7 @@ fn flush_debug_lines_2d(app: &App, window: &mut Window) {
 }
 
 fn flush_debug_lines(app: &App, window: &mut Window) {
-    let Some(lines) = app.engine.try_resource::<DebugLines>() else {
+    let Some(lines) = app.engine.try_resource::<DebugLineBuffer>() else {
         return;
     };
     for (a, b, c, width, perspective, on_top) in lines.borrow_mut().lines.drain(..) {
@@ -225,7 +229,7 @@ fn flush_debug_lines(app: &App, window: &mut Window) {
 
 /// Apply a requested dock/application icon (macOS only for now).
 fn apply_app_icon(app: &App) {
-    let Some(icon) = app.engine.try_resource::<AppIcon>() else {
+    let Some(icon) = app.engine.try_resource::<AppIconConfig>() else {
         return;
     };
     let path = {
@@ -267,6 +271,8 @@ fn apply_app_icon(app: &App) {
 /// radius) with transparent margins.
 #[cfg(target_os = "macos")]
 fn dock_icon_png(path: &std::path::Path) -> Option<Vec<u8>> {
+    use image::ImageEncoder;
+
     const CANVAS: u32 = 1024;
     const PLATE: u32 = 824;
     const RADIUS: f32 = 185.0;
@@ -292,9 +298,9 @@ fn dock_icon_png(path: &std::path::Path) -> Option<Vec<u8>> {
             if x >= logo_min && x < logo_min + LOGO && y >= logo_min && y < logo_min + LOGO {
                 let lp = logo.get_pixel(x - logo_min, y - logo_min).0;
                 // Alpha-over white.
-                let a = lp[3] as f32 / 255.0;
+                let a = f32::from(lp[3]) / 255.0;
                 for c in 0..3 {
-                    color[c] = (lp[c] as f32 * a + 255.0 * (1.0 - a)) as u8;
+                    color[c] = (f32::from(lp[c]) * a + 255.0 * (1.0 - a)) as u8;
                 }
             }
             *px = image::Rgba(color);
@@ -302,7 +308,6 @@ fn dock_icon_png(path: &std::path::Path) -> Option<Vec<u8>> {
     }
     let mut out = Vec::new();
     let encoder = image::codecs::png::PngEncoder::new(&mut out);
-    use image::ImageEncoder;
     encoder
         .write_image(&canvas, CANVAS, CANVAS, image::ExtendedColorType::Rgba8)
         .ok()?;
@@ -312,7 +317,9 @@ fn dock_icon_png(path: &std::path::Path) -> Option<Vec<u8>> {
 /// Expose the real camera state — pose, exact projection matrix, and the
 /// picking ray through the current mouse position — for script-side math.
 fn publish_camera(app: &App, camera: &OrbitCamera3d, window: &Window) {
-    let Some(vp) = app.engine.try_resource::<ViewportCamera>() else {
+    use kiss3d::camera::Camera3d;
+
+    let Some(vp) = app.engine.try_resource::<ViewportSnapshot>() else {
         return;
     };
     let mut vp = vp.borrow_mut();
@@ -323,9 +330,8 @@ fn publish_camera(app: &App, camera: &OrbitCamera3d, window: &Window) {
     vp.fov = std::f32::consts::FRAC_PI_4;
     let scale = window.scale_factor() as f32;
     vp.scale_factor = scale;
-    use kiss3d::camera::Camera3d;
     vp.view_proj = camera.transformation().to_cols_array();
-    if let Some(input) = app.engine.try_resource::<InputState>() {
+    if let Some(input) = app.engine.try_resource::<InputSnapshot>() {
         let (mx, my) = {
             let input = input.borrow();
             input.mouse_pos()
@@ -343,14 +349,13 @@ fn publish_camera(app: &App, camera: &OrbitCamera3d, window: &Window) {
 /// Feed this frame's OS events into the input resource (if the input plugin
 /// is installed).
 fn pump_input(app: &App, window: &Window) {
-    let Some(input) = app.engine.try_resource::<InputState>() else {
+    let Some(input) = app.engine.try_resource::<InputSnapshot>() else {
         return;
     };
     let camera_enabled = app
         .engine
-        .try_resource::<CameraInputEnabled>()
-        .map(|f| f.borrow().0)
-        .unwrap_or(true);
+        .try_resource::<CameraInputConfig>()
+        .is_none_or(|c| c.borrow().enabled);
     let mut input = input.borrow_mut();
     input.begin_frame();
     for mut event in window.events().iter() {
@@ -401,9 +406,8 @@ fn take_screenshot_if_due(app: &App, window: &Window, frame: u64) {
     let path = request.borrow().path.clone();
     {
         let world = app.engine.world();
-        for (entity, renderable, global) in world
-            .query::<(Entity, &Renderable, &GlobalTransform)>()
-            .iter()
+        for (entity, renderable, global) in
+            &mut world.query::<(Entity, &Renderable, &GlobalTransform)>()
         {
             let _ = renderable;
             tracing::debug!("renderable {entity:?} at {}", global.position);
@@ -421,9 +425,8 @@ fn take_screenshot_if_due(app: &App, window: &Window, frame: u64) {
 fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
     let world = app.engine.world();
     let mut seen: HashSet<Entity> = HashSet::new();
-    for (entity, renderable, global) in world
-        .query::<(Entity, &Renderable, &GlobalTransform)>()
-        .iter()
+    for (entity, renderable, global) in
+        &mut world.query::<(Entity, &Renderable, &GlobalTransform)>()
     {
         seen.insert(entity);
         let rebuild = match slots.get(&entity) {
@@ -492,8 +495,7 @@ fn sync_2d(
         if world.get::<&Renderable2d>(entity).is_ok() {
             let z = world
                 .get::<&GlobalTransform>(entity)
-                .map(|g| g.position.z)
-                .unwrap_or(0.0);
+                .map_or(0.0, |g| g.position.z);
             desired.push((z, entity));
         }
     }
@@ -503,7 +505,7 @@ fn sync_2d(
         for (_, mut slot) in slots.drain() {
             slot.node.detach();
         }
-        *order_cache = order.clone();
+        order_cache.clone_from(&order);
     }
 
     let mut seen: HashSet<Entity> = HashSet::new();

@@ -1,7 +1,7 @@
 //! The engine-level modules — engine, scene, log, rng, fs, toml — called
 //! directly. Every language reaches these through the same declarations.
 
-use balaur_core::engine_api::DECLARATIONS;
+use balaur_core::engine_api::ENGINE_OPS;
 use balaur_core::{App, AppConfig, Engine};
 use balaur_script::Value;
 
@@ -11,17 +11,17 @@ fn app_in(root: &std::path::Path) -> App {
         pack: None,
         watch: false,
         script_args: vec!["first".into(), "second".into()],
-        scripts: None,
+        script_backend: None,
     })
     .unwrap()
 }
 
-fn call(engine: &Engine, module: &str, name: &str, args: &[Value]) -> anyhow::Result<Value> {
-    let decl = DECLARATIONS
+fn call(eng: &Engine, module: &str, name: &str, args: &[Value]) -> anyhow::Result<Value> {
+    let decl = ENGINE_OPS
         .iter()
         .find(|d| d.module == module && d.name == name)
         .unwrap_or_else(|| panic!("`{module}.{name}` is not declared"));
-    (decl.call)(engine, args)
+    (decl.call)(eng, args)
 }
 
 #[test]
@@ -210,12 +210,45 @@ fn toml_round_trips_through_neutral_values() {
 #[test]
 fn declarations_are_uniquely_named_within_a_module() {
     let mut seen = std::collections::BTreeSet::new();
-    for decl in DECLARATIONS {
+    for decl in ENGINE_OPS {
         assert!(
             seen.insert((decl.module, decl.name)),
             "`{}.{}` is declared twice",
             decl.module,
             decl.name
         );
+    }
+}
+
+/// The three `log` writers exist and land in the same buffer `log.recent`
+/// reads.
+///
+/// Worth pinning: they were dropped once already, when the log module moved
+/// behind these declarations, and nothing noticed — a missing script function
+/// is a run-time error in the editor and the examples, not a build failure.
+#[test]
+fn a_script_can_write_to_the_log_it_reads_back() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+
+    for level in ["info", "warn", "error"] {
+        call(
+            &app.engine,
+            "log",
+            level,
+            &[Value::Str(format!("hello from {level}"))],
+        )
+        .unwrap();
+    }
+
+    let recent = balaur_core::logbuf::recent(10);
+    for level in ["info", "warn", "error"] {
+        let entry = recent
+            .iter()
+            .find(|e| e.message.contains(&format!("hello from {level}")))
+            .unwrap_or_else(|| panic!("log.{level} did not reach the buffer"));
+        assert_eq!(entry.level, level);
     }
 }

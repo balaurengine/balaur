@@ -1,13 +1,13 @@
 //! Input as a Balaur plugin.
 //!
 //! Backend-agnostic: window backends (and, later, replay files) feed events
-//! into [`InputState`] each frame; scripts read it through the `input`
+//! into [`InputSnapshot`] each frame; scripts read it through the `input`
 //! module. In headless runs nothing feeds it, and every query returns the
 //! neutral answer, so simulation code does not need to care.
 //!
 //! Determinism note: input is part of the simulation's inputs. Recording the
-//! per-frame `InputState` gives byte-exact replays; the state itself uses
-//! ordered collections so any future iteration/serialization is stable.
+//! per-frame `InputSnapshot` gives byte-exact replays; the snapshot itself
+//! uses ordered collections so any future iteration/serialization is stable.
 
 use anyhow::Result;
 use balaur_core::collections::DetHashSet;
@@ -17,8 +17,20 @@ use balaur_script::{Bindings, BindingsExt};
 
 const MOUSE_BUTTONS: usize = 8;
 
+/// One frame of input, republished by whichever backend owns the OS events.
+///
+/// The backend calls [`InputSnapshot::begin_frame`] and then the `*_event`
+/// feeders once per frame; everything else reads. Scripts must never write it
+/// — there is no binding that does, and a written edge would be erased by the
+/// next `begin_frame` anyway.
+///
+/// **Under a headless backend the entry exists but nothing ever feeds it**, so
+/// it keeps its `Default` forever: no key is down, no edge ever fires, the
+/// mouse sits at `(0, 0)` with zero delta and zero scroll. Every `input.*`
+/// query therefore returns the neutral answer rather than failing, which is
+/// what lets the same simulation code run in CI and in a window.
 #[derive(Default)]
-pub struct InputState {
+pub struct InputSnapshot {
     down: DetHashSet<String>,
     just_pressed: DetHashSet<String>,
     just_released: DetHashSet<String>,
@@ -30,7 +42,7 @@ pub struct InputState {
     scroll: (f32, f32),
 }
 
-impl InputState {
+impl InputSnapshot {
     /// Reset per-frame edges. Backends call this before feeding the frame's
     /// events.
     pub fn begin_frame(&mut self) {
@@ -126,10 +138,10 @@ impl Plugin for InputPlugin {
     }
 
     fn build(&mut self, app: &mut App) -> Result<()> {
-        app.engine.insert_resource(InputState::default());
+        app.engine.insert_resource(InputSnapshot::default());
 
         let mut m = app.script_module("input")?;
-        register(&mut m);
+        install_input_api(&mut m);
         Ok(())
     }
 }
@@ -352,13 +364,13 @@ fn check_key(key: &str) {
 
 /// Mouse buttons, so scripts say `input.MOUSE_LEFT` rather than `0`.
 ///
-/// The index is the one `InputState` stores, so a constant and a raw number
+/// The index is the one `InputSnapshot` stores, so a constant and a raw number
 /// cannot disagree.
 pub const MOUSE_BUTTON_CONSTANTS: &[(&str, i64)] =
     &[("MOUSE_LEFT", 0), ("MOUSE_RIGHT", 1), ("MOUSE_MIDDLE", 2)];
 
 /// `input.*`. Declared against the neutral seam.
-fn register(m: &mut dyn Bindings<Engine>) {
+fn install_input_api(m: &mut dyn Bindings<Engine>) {
     for (name, index) in MOUSE_BUTTON_CONSTANTS {
         m.constant(name, balaur_script::Value::Int(*index));
     }
@@ -372,51 +384,52 @@ fn register(m: &mut dyn Bindings<Engine>) {
     }
     m.function("is_down", |eng: &Engine, key: String| {
         check_key(&key);
-        let state = eng.resource::<InputState>();
+        let state = eng.resource::<InputSnapshot>();
         let v = state.borrow().is_down(&key);
         Ok(v)
     });
     m.function("just_pressed", |eng: &Engine, key: String| {
         check_key(&key);
-        let state = eng.resource::<InputState>();
+        let state = eng.resource::<InputSnapshot>();
         let v = state.borrow().just_pressed(&key);
         Ok(v)
     });
     m.function("just_released", |eng: &Engine, key: String| {
         check_key(&key);
-        let state = eng.resource::<InputState>();
+        let state = eng.resource::<InputSnapshot>();
         let v = state.borrow().just_released(&key);
         Ok(v)
     });
     m.function("mouse_position", |eng: &Engine, ()| {
-        let state = eng.resource::<InputState>();
+        let state = eng.resource::<InputSnapshot>();
         let v = state.borrow().mouse_pos;
         Ok(v)
     });
     m.function("mouse_delta", |eng: &Engine, ()| {
-        let state = eng.resource::<InputState>();
+        let state = eng.resource::<InputSnapshot>();
         let v = state.borrow().mouse_delta;
         Ok(v)
     });
     m.function("scroll_delta", |eng: &Engine, ()| {
-        let state = eng.resource::<InputState>();
+        let state = eng.resource::<InputSnapshot>();
         let v = state.borrow().scroll;
         Ok(v)
     });
     // Buttons are 0-based: 0 = left, 1 = right, 2 = middle. Same indexing as
     // the engine uses internally, and the same in every language.
     m.function("is_mouse_down", |eng: &Engine, button: usize| {
-        let state = eng.resource::<InputState>();
+        let state = eng.resource::<InputSnapshot>();
         let v = state.borrow().is_mouse_down(button);
         Ok(v)
     });
     m.function("mouse_just_pressed", |eng: &Engine, button: usize| {
-        let state = eng.resource::<InputState>();
-        let v = *state
-            .borrow()
-            .mouse_just_pressed
-            .get(button)
-            .unwrap_or(&false);
+        let state = eng.resource::<InputSnapshot>();
+        let v = state.borrow().mouse_just_pressed(button);
+        Ok(v)
+    });
+    m.function("mouse_just_released", |eng: &Engine, button: usize| {
+        let state = eng.resource::<InputSnapshot>();
+        let v = state.borrow().mouse_just_released(button);
         Ok(v)
     });
 }

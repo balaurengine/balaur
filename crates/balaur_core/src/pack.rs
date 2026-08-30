@@ -6,7 +6,7 @@
 //! straight into a release binary with `include_bytes!`. Running from a pack
 //! needs no compiler, no source files, and no file watcher.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use anyhow::{anyhow, Context, Result};
@@ -18,17 +18,23 @@ pub struct Pack {
     /// `project.toml` source.
     pub manifest: String,
     /// Scene sources keyed by project-relative path.
-    pub scenes: HashMap<String, String>,
+    ///
+    /// Ordered, not hashed: `encode` walks these maps, and a pack has to come
+    /// out byte-identical on every machine that builds it.
+    pub scenes: BTreeMap<String, String>,
     /// Compiled script bytes keyed by project-relative path. The format is
     /// the backend's business; the pack only stores and ships them.
-    pub scripts: HashMap<String, Vec<u8>>,
+    pub scripts: BTreeMap<String, Vec<u8>>,
 }
 
 impl Pack {
     /// Compile every script in `project_root` and gather scenes into a pack.
     ///
-    /// `scripts` decides which files count as scripts and how they compile.
-    pub fn build(project_root: &Path, scripts: &dyn balaur_script::ScriptCompiler) -> Result<Self> {
+    /// `compiler` decides which files count as scripts and how they compile.
+    pub fn build(
+        project_root: &Path,
+        compiler: &dyn balaur_script::ScriptCompiler,
+    ) -> Result<Self> {
         let manifest = std::fs::read_to_string(project_root.join("project.toml"))
             .with_context(|| format!("no project.toml in {}", project_root.display()))?;
         let mut pack = Self {
@@ -40,10 +46,10 @@ impl Pack {
         for rel in files {
             let path = project_root.join(&rel);
             match Path::new(&rel).extension().and_then(|e| e.to_str()) {
-                Some(ext) if scripts.extensions().contains(&ext) => {
+                Some(ext) if compiler.extensions().contains(&ext) => {
                     let source = std::fs::read_to_string(&path)?;
-                    let compiled = scripts.compile(&rel, &source)?;
-                    pack.scripts.insert(rel, compiled);
+                    let bytes = compiler.compile(&rel, &source)?;
+                    pack.scripts.insert(rel, bytes);
                 }
                 Some("toml") if rel != "project.toml" => {
                     pack.scenes.insert(rel, std::fs::read_to_string(&path)?);

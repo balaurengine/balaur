@@ -21,7 +21,7 @@
 use mlua::{Lua, Table, Value, Variadic};
 
 use balaur_core::engine::Engine;
-use balaur_core::rng::{DetRng, Pcg32};
+use balaur_core::rng::{with_rng, Pcg32};
 
 /// Builtins that must not be compiled to fastcalls because we replace them
 /// at runtime. `sqrt`, `abs`, `floor`, `ceil`, `fmod` & co stay native: they
@@ -46,19 +46,15 @@ pub const DISABLED_BUILTINS: &[&str] = &[
 // Returns Result to match the signature mlua's create_function expects.
 #[allow(clippy::unnecessary_wraps)]
 fn lua_random(eng: &Engine, args: &Variadic<i64>) -> mlua::Result<Value> {
-    let rng = eng.resource::<DetRng>();
-    let mut rng = rng.borrow_mut();
-    match args.len() {
-        0 => Ok(Value::Number(rng.0.next_f64())),
-        1 => Ok(Value::Integer(rng.0.next_range_i64(1, args[0]))),
-        _ => Ok(Value::Integer(rng.0.next_range_i64(args[0], args[1]))),
-    }
+    with_rng(eng, |rng| match args.len() {
+        0 => Ok(Value::Number(rng.next_f64())),
+        1 => Ok(Value::Integer(rng.next_range_i64(1, args[0]))),
+        _ => Ok(Value::Integer(rng.next_range_i64(args[0], args[1]))),
+    })
 }
 
 /// Install the deterministic `math` overrides and the `rng` module.
-pub fn install(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
-    engine.insert_resource(DetRng::default());
-
+pub fn install(lua: &Lua, eng: &Engine) -> anyhow::Result<()> {
     let math: Table = lua.globals().get("math")?;
     macro_rules! unary {
         ($name:literal, $f:path) => {
@@ -105,17 +101,16 @@ pub fn install(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
 
     // Engine-seeded randomness. Note: `math.random` is not a compiler
     // fastcall, so rebinding the table entry is sufficient.
-    let eng = engine.clone();
+    let random_eng = eng.clone();
     math.set(
         "random",
-        lua.create_function(move |_, args: Variadic<i64>| lua_random(&eng, &args))?,
+        lua.create_function(move |_, args: Variadic<i64>| lua_random(&random_eng, &args))?,
     )?;
-    let eng = engine.clone();
+    let seed_eng = eng.clone();
     math.set(
         "randomseed",
         lua.create_function(move |_, seed: i64| {
-            let rng = eng.resource::<DetRng>();
-            rng.borrow_mut().0 = Pcg32::new(seed as u64);
+            with_rng(&seed_eng, |rng| *rng = Pcg32::new(seed as u64));
             Ok(())
         })?,
     )?;

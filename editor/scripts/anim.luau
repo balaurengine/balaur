@@ -33,8 +33,8 @@ function M.add_key(S, t)
     if ref == nil then
         return
     end
-    local px, py, pz = ref:position()
-    local rx, ry, rz = ref:rotation_euler()
+    local px, py, pz = table.unpack(ref:position())
+    local rx, ry, rz = table.unpack(ref:rotation_euler())
     local key = { t = t, pos = { px, py, pz }, rot = { rx, ry, rz } }
     for i, k in anim.keys do
         if math.abs(k.t - t) < 0.021 then

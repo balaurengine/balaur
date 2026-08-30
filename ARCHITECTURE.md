@@ -77,17 +77,23 @@ mid-frame.
 crate and changed nothing in physics, input, render, audio or ui.
 
 Two things are declared once in `balaur_core` and reach every language:
-`node_api.rs` (the ~27 node operations) and `engine_api.rs` (the `engine`,
-`scene` and `log` modules). Each backend adds only its own call sugar, so
-`node:position()` works in Luau and `node.position()` in Rune from the same
-list. A third language costs the sugar, not the operations.
+`node_api.rs` (`NODE_OPS`, the 28 node operations) and `engine_api.rs`
+(`ENGINE_OPS`, the `engine`, `scene` and `log` modules). Each backend adds
+only its own call sugar, so `node:position()` works in Luau and
+`node.position()` in Rune from the same list. A third language costs the
+sugar, not the operations.
 
 `Value` carries `Nil/Bool/Int/Num/Str/Vec2/Vec3/Color/List/Map`, plus
 `Node(u64)` (entity bits, kept opaque so the crate depends on nothing) and
 `Callback(id)` for a script function valid only during the binding call that
 received it. Immediate-mode UI callbacks never outlive their call, so the
 backend registers on entry and drops on exit — no ownership question and no
-interaction with the collector.
+interaction with the collector. One more variant is load-bearing at call
+sites: `Many` is *several return values*, not a list of one, so
+`local text, changed = ui.text_field(...)` reads the way the widget is meant
+to. A `Vec3` is one value and arrives as a table, which is why
+`node:position()` is indexed or unpacked rather than destructured into three
+names.
 
 A project picks its language with `language` in `project.toml`; absent means
 Luau. One project, one language: both backends can run in a process, but a
@@ -128,13 +134,20 @@ unit running, the same as Luau.
 ### Components (plugin feature)
 
 Plugins declare named, schema-described components through
-`App::register_component` (`balaur_core::components`). A schema is TOML —
-property names, kinds (`float`, `bool`, `str`, `enum`, `vec2`, `vec3`,
-`color`),
-defaults, enum options, a `shorthand` marker for scalar scene syntax — plus
-apply/get/remove hooks. One registration buys: the scene-file key, the
-runtime node API (`node:add_component / set_component / get_component /
-remove_component / component_names`, `scene.components()`,
+`App::register_component` (`balaur_core::components`). A schema is TOML — a
+`type` per property from the closed set `PROPERTY_TYPES` (`float`, `bool`,
+`string`, `enum`, `vec2`, `vec3`, `color`), defaults, enum options, a
+`shorthand` marker for scalar scene syntax and a `readonly` marker the
+inspector honours — plus apply/get/remove hooks.
+`parse_schema` validates all of that at registration and panics naming the
+component and the property, so a malformed schema fails at boot rather than
+at the first inspector row. A tagged-union property is always called `kind`,
+which is why `type` is the datatype and never the discriminant
+(`docs/NAMING.md` N6); a `color` property takes either channel floats or
+`#rrggbb` / `#rrggbbaa`, expanded once for every component before `apply`
+sees it. One registration buys: the scene-file key, the
+runtime node API (`node:set_component / get_component / has_component /
+remove_component / component_names`, `scene.component_types()`,
 `scene.component_schema(name)`), and full editor support — the editor's
 "Add component" palette and its property inspectors are generated from the
 registry, so third-party plugin components are addable and editable with
@@ -156,10 +169,12 @@ unit; `render.camera_2d()`, `render.mouse_world_2d()` and
 `render.draw_line_2d(...)` cover picking and overlays). `body2d`/`collider2d`
 run in a rapier2d world that lives alongside the 3D one, with the same
 `enhanced-determinism` build, fixed 60 Hz accumulator and ordered
-collections; the `physics2d` module adds impulses, velocities and
+collections; the `physics2d` module adds bodies and colliders
+(`physics2d.add_body`, `physics2d.add_collider`), impulses, velocities and
 `physics2d.max_contact_impulse(node)` for impact-driven gameplay.
-`physics.set_paused/clear/set_sleeping_allowed` span both worlds, so editors
-treat "physics" as one simulation. The editor detects a 2D scene from its
+`physics.set_paused`, `is_paused`, `clear`, `set_sleeping_allowed` and
+`sleeping_allowed` span both worlds, so editors treat "physics" as one
+simulation. The editor detects a 2D scene from its
 components and switches automatically: 2D grid, pan/zoom camera, a 2D
 selection gizmo (translate box, corner scale brackets, per-axis edge
 handles, rotation ring), click-picking in world space, and 2D collider
@@ -189,7 +204,24 @@ tested), bundles scripts + scenes + manifest into a `.bpak`. Packed runs
 construct no compiler and no watcher. `balaur::boot_pack(include_bytes!(...))`
 turns a pack into a self-contained release binary; on platforms without
 JIT/codegen restrictions this is still pure interpretation of precompiled
-bytecode, so it ships everywhere (iOS included).
+bytecode, so it ships everywhere (iOS included). CI cross-compiles the
+headless engine to `aarch64-apple-ios` on every run, so that last sentence is
+checked rather than asserted.
+
+A pack is written in sorted key order, which makes exporting the same sources
+twice give the same bytes — on the same machine and on any other. CI exports
+every example twice per platform and diffs the digests across the matrix.
+Before that, the maps were hashed and ten exports of a three-script project
+produced five different files, which quietly rules out reproducible builds and
+any "did the content change?" check downstream.
+
+Export is also where a statically-resolved language differs from a dynamic
+one. Luau resolves `input.just_pressed` at run time, so a file compiles on its
+own. Rune resolves `input::just_pressed` while compiling, so validating an
+export needs the modules the plugins register: `balaur::build_pack` boots the
+app the game would boot (`AppConfig::export`) and compiles through its host.
+Compiling against a bare `rune::Context` instead — which is what it used to do
+— rejects every script that touches the engine.
 
 ## Determinism
 
@@ -268,7 +300,7 @@ Tooling bindings the editor is built on (all reusable): `fs` (read / write
 `engine.args`, `engine.reload_script`, `require` with in-place module hot
 reload, `log.recent` (the ring buffer behind the Output dock),
 `physics.set_paused/clear/set_sleeping_allowed`,
-`render.set_background/set_grid/draw_line/get_shape/get_color`,
+`render.set_background/set_grid/draw_line/shape/color`,
 `render.set_camera` (zoom pill on the orbit camera), and
 `render.camera_pose` + `render.set_camera_input`, which power the viewport
 tools. The selection gizmo follows steadyum's design: an orange bounding-box
@@ -299,7 +331,7 @@ modifiers`); drop the `[patch.crates-io]` entry once that ships upstream.
 
 ## Input
 
-`balaur_input` owns a backend-agnostic `InputState` (keys by name, mouse,
+`balaur_input` owns a backend-agnostic `InputSnapshot` (keys by name, mouse,
 scroll, per-frame edges) and the `input` module (`is_down`,
 `just_pressed`, `just_released`, `mouse_position`, `mouse_delta`,
 `is_mouse_down`, ...). The kiss3d backend pumps OS events into it once per

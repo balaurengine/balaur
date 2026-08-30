@@ -4,7 +4,7 @@ name = "World"
 parent = ""
 
 [[nodes]]
-body = "fixed"
+body = "static"
 color = [0.3, 0.55, 0.3]
 id = "n_ground"
 name = "Ground"
@@ -13,7 +13,7 @@ position = [0, -1, 0]
 
 [nodes.collider]
 half_extents = [10, 0.5, 10]
-shape = "cuboid"
+kind = "cuboid"
 
 [nodes.shape]
 half_extents = [10, 0.5, 10]
@@ -52,9 +52,9 @@ parent = ""
 
 [nodes.widget]
 anchor = "top_left"
-color = "#f9f4ed"
+text_color = "#f9f4ed"
 kind = "label"
-size = 16
+font_size = 16
 text = "hello · balaur"
 x = 16
 y = 16

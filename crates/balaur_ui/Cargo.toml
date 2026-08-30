@@ -15,5 +15,10 @@ balaur_script.workspace = true
 tracing.workspace = true
 image = { version = "0.25", default-features = false, features = ["png"] }
 
+[dev-dependencies]
+balaur.workspace = true
+tempfile = "3"
+egui.workspace = true
+
 [lints]
 workspace = true

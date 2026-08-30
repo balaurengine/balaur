@@ -83,7 +83,7 @@ fn main() -> Result<()> {
         Some("error") => tracing::level_filters::LevelFilter::ERROR,
         _ => tracing::level_filters::LevelFilter::INFO,
     };
-    balaur::logbuf::install(level);
+    balaur::logbuf::capture(level);
     match Cli::parse().command {
         Command::Api => dump_api(),
         Command::New { path } => new_project(&path),

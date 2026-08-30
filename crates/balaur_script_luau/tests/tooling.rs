@@ -17,7 +17,7 @@ fn make_app(dir: &std::path::Path) -> App {
         pack: None,
         watch: false,
         script_args: vec!["arg-one".into()],
-        scripts: Some(balaur_script_luau::factory()),
+        script_backend: Some(balaur_script_luau::factory()),
     })
     .unwrap()
 }
@@ -70,7 +70,7 @@ fn require_caches_and_hot_reloads_in_place() {
     )
     .unwrap();
     app.engine
-        .scripts()
+        .script_host()
         .unwrap()
         .reload("scripts/mod.luau")
         .unwrap();

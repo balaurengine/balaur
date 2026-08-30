@@ -155,11 +155,11 @@ local function geometry(S)
     if ref == nil then
         return nil
     end
-    local x, y, z = ref:global_position()
+    local x, y, z = table.unpack(ref:global_position())
     local hx, hy, hz = 0.6, 0.6, 0.6
     local shape = node.shape or node.collider
     if shape ~= nil then
-        if shape.radius ~= nil and (shape.kind == "ball" or shape.shape == "ball") then
+        if shape.radius ~= nil and shape.kind == "ball" then
             hx, hy, hz = shape.radius, shape.radius, shape.radius
         elseif shape.half_extents ~= nil then
             hx, hy, hz = shape.half_extents[1], shape.half_extents[2], shape.half_extents[3]
@@ -167,7 +167,7 @@ local function geometry(S)
     end
     -- The renderer sizes and orients by the GLOBAL transform (parents may
     -- carry scale/rotation), so the gizmo must too.
-    local sx, sy, sz = ref:global_scale()
+    local sx, sy, sz = table.unpack(ref:global_scale())
     hx, hy, hz = hx * sx + 0.06, hy * sy + 0.06, hz * sz + 0.06
     local min_he = math.min(hx, hy, hz)
     -- steadyum: handle size scales with camera distance (constant on
@@ -175,7 +175,7 @@ local function geometry(S)
     local ex, ey, ez = render.camera_pose()
     local dist = math.sqrt((x - ex) ^ 2 + (y - ey) ^ 2 + (z - ez) ^ 2)
     local marker = 0.6 * dist * 0.0144
-    local rx, ry, rz = ref:global_rotation_euler()
+    local rx, ry, rz = table.unpack(ref:global_rotation_euler())
     return {
         center = { x, y, z },
         basis = basis_from_euler({ rx, ry, rz }),
@@ -455,8 +455,8 @@ end
 
 local function start_gizmo_drag(S, cam, geo, part, mx, my)
     local node, ref = model.selected(S)
-    local px, py, pz = ref:position()
-    local sx, sy, sz = ref:scale()
+    local px, py, pz = table.unpack(ref:position())
+    local sx, sy, sz = table.unpack(ref:scale())
     local rot = node.rotation_euler or { 0, 0, 0 }
     local cx, cy = project(S, cam, geo.center)
     local drag = {
@@ -580,7 +580,7 @@ function M.update(S)
                 for i in S.doc do
                     local ref = model.ref(S, i)
                     if ref ~= nil then
-                        local x, y, z = ref:global_position()
+                        local x, y, z = table.unpack(ref:global_position())
                         local px, py = project(S, cam, { x, y, z })
                         if px ~= nil then
                             local dist = math.sqrt((px - mx) ^ 2 + (py - my) ^ 2)
@@ -618,7 +618,7 @@ function M.update(S)
     end
     local node, ref = model.selected(S)
     if S.tool == "move" and ref ~= nil then
-        local x, y, z = ref:position()
+        local x, y, z = table.unpack(ref:position())
         if input.is_down("LShift") or input.is_down("RShift") then
             y -= dy * cam.wpp
         else
@@ -642,7 +642,7 @@ function M.update(S)
         ref:set_rotation_euler(r[1], r[2], r[3])
         S.dirty = true
     elseif S.tool == "scale" and ref ~= nil then
-        local sx, sy, sz = ref:scale()
+        local sx, sy, sz = table.unpack(ref:scale())
         local f = math.clamp(1 - dy * 0.01, 0.2, 5)
         sx, sy, sz = sx * f, sy * f, sz * f
         ref:set_scale(sx, sy, sz)

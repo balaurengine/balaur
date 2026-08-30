@@ -7,7 +7,7 @@ use balaur_core::logbuf;
 
 #[test]
 fn events_carry_their_structured_fields() {
-    logbuf::install_for_test();
+    logbuf::capture_for_test();
     logbuf::clear();
 
     tracing::info!(script = "pig.luau", nodes = 24, "reloaded");
@@ -24,7 +24,7 @@ fn events_carry_their_structured_fields() {
 
 #[test]
 fn the_buffer_is_bounded_and_keeps_the_newest() {
-    logbuf::install_for_test();
+    logbuf::capture_for_test();
     logbuf::clear();
 
     for i in 0..600 {

@@ -92,7 +92,7 @@ local function transform_section(S, k)
     section(k, "Transform")
     vec3_row(S, k, "Position", function(node, ref)
         if ref then
-            local x, y, z = ref:position()
+            local x, y, z = table.unpack(ref:position())
             return { x, y, z }
         end
         return node.position or { 0, 0, 0 }
@@ -102,18 +102,25 @@ local function transform_section(S, k)
             ref:set_position(v[1], v[2], v[3])
         end
     end)
+    -- The row is in degrees and the engine takes them directly. The scene doc
+    -- still stores radians, which is the scene-file unit, so the doc write is
+    -- the only conversion left.
     vec3_row(S, k, "Rotation", function(node, ref)
+        if ref then
+            local x, y, z = table.unpack(ref:rotation_degrees())
+            return { x, y, z }
+        end
         local r = node.rotation_euler or { 0, 0, 0 }
         return { math.deg(r[1]), math.deg(r[2]), math.deg(r[3]) }
     end, function(node, ref, v)
         node.rotation_euler = { math.rad(v[1]), math.rad(v[2]), math.rad(v[3]) }
         if ref then
-            ref:set_rotation_euler(math.rad(v[1]), math.rad(v[2]), math.rad(v[3]))
+            ref:set_rotation_degrees(v[1], v[2], v[3])
         end
     end)
     vec3_row(S, k, "Scale", function(node, ref)
         if ref then
-            local x, y, z = ref:scale()
+            local x, y, z = table.unpack(ref:scale())
             return { x, y, z }
         end
         return node.scale or { 1, 1, 1 }
@@ -170,7 +177,7 @@ local function animation_section(S, k)
     end
     select_row(k, "Clip", anim.clip)
     row(k, "Speed", function()
-        local v, ch = ui.hslider(anim.speed or 1.0, 0.1, 3.0, {
+        local v, ch = ui.slider(anim.speed or 1.0, 0.1, 3.0, {
             width = CONTROL_W - 44,
             rail = k.sunken, fill = k.accent_fill, knob = k.bg,
         })
@@ -245,8 +252,8 @@ local function prop_row(S, k, comp, prop, spec, data)
     if value == nil then
         value = spec.default
     end
-    local kind = spec.kind
-    if kind == "float" then
+    local datatype = spec.type
+    if datatype == "float" then
         row(k, prop, function()
             local v, ch = value_field(k, value or 0, {
                 speed = spec.step or 0.02,
@@ -262,7 +269,7 @@ local function prop_row(S, k, comp, prop, spec, data)
                 model.set_component_prop(S, comp, prop, v)
             end
         end)
-    elseif kind == "bool" then
+    elseif datatype == "bool" then
         row(k, prop, function()
             local on, ch = ui.toggle(value == true, {
                 on_fill = k.accent_fill, off_fill = k.sunken,
@@ -272,7 +279,7 @@ local function prop_row(S, k, comp, prop, spec, data)
                 model.set_component_prop(S, comp, prop, on)
             end
         end)
-    elseif kind == "enum" then
+    elseif datatype == "enum" then
         row(k, prop, function()
             local v, changed = ui.select(`sel:{comp}:{prop}:{S.sel}`, tostring(value), spec.options or {}, {
                 width = CONTROL_W, size = 12, height = 28, color = k.text,
@@ -281,24 +288,24 @@ local function prop_row(S, k, comp, prop, spec, data)
                 model.set_component_prop(S, comp, prop, v)
             end
         end)
-    elseif kind == "vec2" or kind == "vec3" or kind == "color" then
+    elseif datatype == "vec2" or datatype == "vec3" or datatype == "color" then
         row(k, prop, function()
             local v = value or {}
-            local count = if kind == "color" then 4 elseif kind == "vec2" then 2 else 3
-            local letters = if kind == "color" then { "r", "g", "b", "a" } else { "x", "y", "z" }
+            local count = if datatype == "color" then 4 elseif datatype == "vec2" then 2 else 3
+            local letters = if datatype == "color" then { "r", "g", "b", "a" } else { "x", "y", "z" }
             local w = CONTROL_W / count - 5
             local changed = false
             local out = {}
             for i = 1, count do
-                out[i] = v[i] or (if kind == "color" then 1 else 0)
+                out[i] = v[i] or (if datatype == "color" then 1 else 0)
                 local nv, ch = ui.drag_value(out[i], {
-                    width = w, speed = if kind == "color" then 0.005 else 0.02,
+                    width = w, speed = if datatype == "color" then 0.005 else 0.02,
                     decimals = 2,
                     prefix = letters[i], prefix_color = k.accent,
                     fill = k.sunken, stroke = k.line_soft, color = k.text,
                 })
                 if ch then
-                    out[i] = if kind == "color" then math.clamp(nv, 0, 1) else nv
+                    out[i] = if datatype == "color" then math.clamp(nv, 0, 1) else nv
                     changed = true
                 end
             end
@@ -306,7 +313,7 @@ local function prop_row(S, k, comp, prop, spec, data)
                 model.set_component_prop(S, comp, prop, out)
             end
         end)
-    else -- str
+    else -- string
         row(k, prop, function()
             local id = `comp:{comp}:{prop}:{S.sel}`
             local text, _, submitted = ui.text_field(id, tostring(value or ""), {
@@ -346,7 +353,12 @@ local function component_sections(S, k, filter)
             local schema = scene.component_schema(comp) or {}
             local data = ref:get_component(comp) or {}
             for _, prop in sorted_keys(schema) do
-                prop_row(S, k, comp, prop, schema[prop], data)
+                -- `readonly` props are engine output (widget.clicked): the
+                -- component declares them so they round-trip, but editing
+                -- one would be a write the next frame overwrites.
+                if not schema[prop].readonly then
+                    prop_row(S, k, comp, prop, schema[prop], data)
+                end
             end
         end
     end

@@ -357,6 +357,7 @@ dependencies = [
  "balaur_script_rune",
  "balaur_ui",
  "tempfile",
+ "toml",
 ]
 
 [[package]]
@@ -506,10 +507,12 @@ name = "balaur_ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "balaur",
  "balaur_core",
  "balaur_script",
  "egui",
  "image",
+ "tempfile",
  "toml",
  "tracing",
 ]
@@ -2048,6 +2051,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kiss3d"
 version = "0.46.0"
+source = "git+https://github.com/dimforge/kiss3d.git?branch=cmd-mod#4c2287ff853ee745b4e3cc2f6844535a311cf824"
 dependencies = [
  "bitflags 2.13.1",
  "bytemuck",
@@ -2078,6 +2082,7 @@ dependencies = [
 [[package]]
 name = "kiss3d-macro"
 version = "0.36.0"
+source = "git+https://github.com/dimforge/kiss3d.git?branch=cmd-mod#4c2287ff853ee745b4e3cc2f6844535a311cf824"
 dependencies = [
  "proc-macro2",
  "quote",

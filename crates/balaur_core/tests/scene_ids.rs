@@ -72,7 +72,7 @@ fn load(source: &str) -> anyhow::Result<usize> {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: None,
+        script_backend: None,
     })?;
     let root = app.engine.root();
     balaur_core::project::instantiate_scene(&app.engine, source, root, false)?;

@@ -10,7 +10,7 @@
 //!
 //! Scene files declare the node tree; behavior lives in scripts. Keys the
 //! core does not know are dispatched to plugin-registered handlers, so a
-//! plugin can teach scenes new vocabulary (e.g. `shape = "ball"`).
+//! plugin can teach scenes new keys (e.g. `shape = "ball"`).
 
 use std::collections::HashMap;
 
@@ -73,7 +73,10 @@ struct SceneNode {
 }
 
 /// A plugin hook for custom scene keys: `(engine, node, value)`.
-pub type SceneKeyHandler = Box<dyn Fn(&Engine, Entity, &toml::Value) -> Result<()>>;
+///
+/// Byte-identical to a component's `apply`, and `App::register_component`
+/// wraps one into the other, so it is the same alias rather than a copy.
+pub type SceneKeyHandler = crate::components::ApplyFn;
 
 /// Handlers with their key, in plugin registration order. Application order
 /// must be deterministic, and plugins know the right order for their own
@@ -81,7 +84,7 @@ pub type SceneKeyHandler = Box<dyn Fn(&Engine, Entity, &toml::Value) -> Result<(
 /// scenes can also be instantiated at runtime (from scripts, tools, the
 /// editor).
 #[derive(Default)]
-pub struct SceneVocab(pub Vec<(String, SceneKeyHandler)>);
+pub struct SceneKeyRegistry(pub Vec<(String, SceneKeyHandler)>);
 
 /// The project directory, as an engine resource (used by `fs`, audio, and
 /// any plugin resolving project-relative paths).
@@ -93,17 +96,17 @@ pub struct ProjectRoot(pub std::path::PathBuf);
 /// `attach_scripts: false` builds the tree and plugin components only, which
 /// is what an editor mirroring a foreign project wants.
 pub fn instantiate_scene(
-    engine: &Engine,
+    eng: &Engine,
     source: &str,
     base: Entity,
     attach_scripts: bool,
 ) -> Result<()> {
     let doc: SceneDoc = toml::from_str(source).context("parsing scene")?;
-    let vocab = engine
-        .try_resource::<SceneVocab>()
-        .ok_or_else(|| anyhow!("scene vocabulary resource missing"))?;
-    let vocab = vocab.borrow();
-    let handlers = &vocab.0;
+    let registry = eng
+        .try_resource::<SceneKeyRegistry>()
+        .ok_or_else(|| anyhow!("scene key registry resource missing"))?;
+    let registry = registry.borrow();
+    let handlers = &registry.0;
     let root = base;
     let mut pending_scripts: Vec<(Entity, String)> = Vec::new();
     let mut by_id: DetHashMap<&str, Entity> = DetHashMap::default();
@@ -120,13 +123,12 @@ pub fn instantiate_scene(
                 )
             })?
         };
-        let entity = scene::spawn_node(&mut engine.world_mut(), &node.name, parent);
+        let entity = scene::spawn_node(&mut eng.world_mut(), &node.name, parent);
         by_id.insert(ids[index].as_str(), entity);
-        engine
-            .world_mut()
+        eng.world_mut()
             .insert_one(entity, StableId(ids[index].clone()))?;
         {
-            let world = engine.world();
+            let world = eng.world();
             // spawn_node inserts a Transform on every node it creates.
             let mut transform = world.get::<&mut Transform>(entity).unwrap();
             if let Some([x, y, z]) = node.position {
@@ -141,7 +143,7 @@ pub fn instantiate_scene(
         }
         for (key, handler) in handlers {
             if let Some(value) = node.extra.get(key) {
-                handler(engine, entity, value)
+                handler(eng, entity, value)
                     .with_context(|| format!("scene key '{key}' on node '{}'", node.name))?;
             }
         }
@@ -158,7 +160,7 @@ pub fn instantiate_scene(
         }
     }
     if attach_scripts && !pending_scripts.is_empty() {
-        let host = engine.scripts().ok_or_else(|| {
+        let host = eng.script_host().ok_or_else(|| {
             anyhow!("the scene attaches scripts but no script backend is running")
         })?;
         for (entity, script) in pending_scripts {

@@ -2,7 +2,7 @@
 //!
 //! Split out of `widgets.rs` so neither the file nor any single registration
 //! function grows past the house limits. Registration order is the order
-//! [`crate::widgets::install`] calls these.
+//! [`crate::widgets::install_ui_api`] calls these.
 
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, CallbackId, Value};
@@ -15,7 +15,7 @@ use crate::theme::{self, parse_hex};
 use crate::widgets::{
     code_editor, draw_image, left_pill, panel_frame, pill_radius, sc, text, text_field, Opts,
 };
-use crate::UiState;
+use crate::{UiConfig, UiState};
 
 /// `ui.*` bindings: theme.
 pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
@@ -24,21 +24,21 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
             let Value::Map(entries) = &tokens else {
                 anyhow::bail!("set_theme takes a table of tokens");
             };
-            let state = eng.resource::<UiState>();
-            let mut state = state.borrow_mut();
-            state.theme.colors.clear();
+            let config = eng.resource::<UiConfig>();
+            let mut config = config.borrow_mut();
+            config.theme.colors.clear();
             for (key, value) in entries {
                 match (key.as_str(), value) {
-                    ("dark", Value::Bool(dark)) => state.theme.dark = *dark,
+                    ("dark", Value::Bool(dark)) => config.theme.dark = *dark,
                     (_, Value::Str(hex)) => {
                         if let Some(color) = parse_hex(hex) {
-                            state.theme.colors.insert(key.clone(), color);
+                            config.theme.colors.insert(key.clone(), color);
                         }
                     }
                     _ => {}
                 }
             }
-            state.theme_dirty = true;
+            config.changed = true;
             Ok(())
         });
     }
@@ -277,7 +277,7 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
                     Option<f32>,
                     Option<f32>,
                 )| {
-                    let layer = eng.resource::<crate::WidgetLayer>();
+                    let layer = eng.resource::<crate::WidgetLayerConfig>();
                     let mut layer = layer.borrow_mut();
                     layer.enabled = enabled;
                     layer.rect = match (x, y, w, h) {
@@ -292,9 +292,14 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: scale.
 pub(crate) fn install_scale(m: &mut dyn Bindings<Engine>) {
+    m.function("scale", |eng: &Engine, ()| {
+        let config = eng.resource::<UiConfig>();
+        let v = config.borrow().scale;
+        Ok(v)
+    });
     m.function("set_scale", |eng: &Engine, f: f32| {
-        let state = eng.resource::<UiState>();
-        state.borrow_mut().scale = f.clamp(0.5, 3.0);
+        let config = eng.resource::<UiConfig>();
+        config.borrow_mut().scale = f.clamp(0.5, 3.0);
         Ok(())
     });
 }
@@ -457,7 +462,8 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-/// `ui.toggle` and `ui.hslider`.
+/// The two controls that return their edited value plus whether this frame
+/// changed it, so a script can write back only on a real edit.
 fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
     m.function(
         "toggle",
@@ -490,7 +496,7 @@ fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function(
-        "hslider",
+        "slider",
         |_eng: &Engine, (value, min, max, opts): (f32, f32, f32, Option<Value>)| {
             let opts = Opts(opts);
             with_ui(|ui| {

@@ -29,34 +29,45 @@ use balaur_core::{App, Engine, Plugin};
 use std::collections::{HashMap, HashSet};
 
 pub use theme::ThemeTokens;
-pub use widget_layer::{Widget, WidgetLayer};
+pub use widget_layer::{Widget, WidgetLayerConfig};
 pub use widgets::{ANCHORS, FONTS, MODIFIERS, WIDGET_KINDS};
 
-/// Per-engine UI state: pending theme, persistent text-edit buffers, and
-/// the global UI scale (all widget metrics multiply by it, so scripts keep
-/// authoring in design pixels).
-pub struct UiState {
+/// What scripts ask the UI to look like: the theme tokens `ui.set_theme`
+/// writes, and the global UI scale (all widget metrics multiply by it, so
+/// scripts keep authoring in design pixels).
+///
+/// [`run_pass`] applies a pending theme and clears `changed`; nothing else
+/// owns these values.
+pub struct UiConfig {
     pub theme: ThemeTokens,
-    pub theme_dirty: bool,
-    pub fonts_installed: bool,
+    /// Set by `ui.set_theme`, cleared once the theme reaches egui.
+    pub changed: bool,
     pub scale: f32,
-    pub text_buffers: HashMap<String, String>,
-    pub focused_once: HashSet<String>,
-    pub textures: HashMap<String, egui::TextureHandle>,
 }
 
-impl Default for UiState {
+impl Default for UiConfig {
     fn default() -> Self {
         Self {
             theme: ThemeTokens::default(),
-            theme_dirty: false,
-            fonts_installed: false,
+            changed: false,
             scale: 1.0,
-            text_buffers: HashMap::new(),
-            focused_once: HashSet::new(),
-            textures: HashMap::new(),
         }
     }
+}
+
+/// The plugin's own cache, all of it derived from what it has already drawn:
+/// whether fonts are bound to the egui context yet, the persistent text-edit
+/// buffers behind `ui.text_field` and `ui.code_editor`, which of them have
+/// taken focus once, and the textures `ui.image` has uploaded.
+///
+/// Split from [`UiConfig`] by ownership: nothing outside this crate writes
+/// any of it, whereas every field of `UiConfig` comes from a script.
+#[derive(Default)]
+pub struct UiState {
+    pub fonts_installed: bool,
+    pub text_buffers: HashMap<String, String>,
+    pub focused_once: HashSet<String>,
+    pub textures: HashMap<String, egui::TextureHandle>,
 }
 
 pub struct UiPlugin;
@@ -67,10 +78,11 @@ impl Plugin for UiPlugin {
     }
 
     fn build(&mut self, app: &mut App) -> Result<()> {
+        app.engine.insert_resource(UiConfig::default());
         app.engine.insert_resource(UiState::default());
-        app.engine.insert_resource(WidgetLayer::default());
-        widgets::install(app)?;
-        widget_layer::register(app);
+        app.engine.insert_resource(WidgetLayerConfig::default());
+        widgets::install_ui_api(app)?;
+        widget_layer::register_widget_component(app);
         Ok(())
     }
 }
@@ -78,8 +90,8 @@ impl Plugin for UiPlugin {
 /// Run one UI pass: apply pending theme changes, then let scripts draw.
 /// Called by a windowed backend once per frame with the frame's egui
 /// context. Does nothing when the `UiPlugin` is not installed.
-pub fn run_pass(engine: &Engine, ctx: &egui::Context) {
-    let Some(state) = engine.try_resource::<UiState>() else {
+pub fn run_pass(eng: &Engine, ctx: &egui::Context) {
+    let Some(state) = eng.try_resource::<UiState>() else {
         return;
     };
     {
@@ -87,20 +99,28 @@ pub fn run_pass(engine: &Engine, ctx: &egui::Context) {
         if !state.fonts_installed {
             // Fonts registered mid-pass only take effect next pass; skip one
             // frame of drawing so widgets never see unbound families.
-            theme::install_fonts(engine, ctx);
+            theme::load_fonts(eng, ctx);
             state.fonts_installed = true;
             return;
         }
-        if state.theme_dirty {
-            theme::apply(&state.theme, ctx);
-            state.theme_dirty = false;
+    }
+    // A second lookup and borrow, deliberately: the pending theme is the
+    // script's to set and this crate's cache is not, so they are two entries.
+    let Some(config) = eng.try_resource::<UiConfig>() else {
+        return;
+    };
+    {
+        let mut config = config.borrow_mut();
+        if config.changed {
+            theme::apply(&config.theme, ctx);
+            config.changed = false;
         }
     }
-    let scale = state.borrow().scale;
+    let scale = config.borrow().scale;
     bridge::enter_pass(ctx, scale);
-    if let Some(host) = engine.scripts() {
+    if let Some(host) = eng.script_host() {
         host.call_all("draw_ui");
     }
-    widget_layer::draw(engine, ctx, scale);
+    widget_layer::draw(eng, ctx, scale);
     bridge::leave_pass();
 }

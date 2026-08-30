@@ -63,7 +63,7 @@ fn hot_reload_swaps_code_and_preserves_state() {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: Some(balaur_script_luau::factory()),
+        script_backend: Some(balaur_script_luau::factory()),
     })
     .unwrap();
     app.load_project().unwrap();
@@ -77,7 +77,7 @@ fn hot_reload_swaps_code_and_preserves_state() {
     // this automatically; tests call it directly for determinism).
     std::fs::write(dir.path().join("scripts/counter.luau"), V2).unwrap();
     app.engine
-        .scripts()
+        .script_host()
         .unwrap()
         .reload("scripts/counter.luau")
         .unwrap();
@@ -103,7 +103,7 @@ fn compile_error_keeps_previous_version_running() {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: Some(balaur_script_luau::factory()),
+        script_backend: Some(balaur_script_luau::factory()),
     })
     .unwrap();
     app.load_project().unwrap();
@@ -114,7 +114,11 @@ fn compile_error_keeps_previous_version_running() {
         "this is not luau at all (",
     )
     .unwrap();
-    let result = app.engine.scripts().unwrap().reload("scripts/counter.luau");
+    let result = app
+        .engine
+        .script_host()
+        .unwrap()
+        .reload("scripts/counter.luau");
     assert!(result.is_err(), "broken script must report an error");
 
     // The previous version keeps running.
@@ -131,7 +135,7 @@ fn watcher_reloads_automatically() {
         pack: None,
         watch: true,
         script_args: Vec::new(),
-        scripts: Some(balaur_script_luau::factory()),
+        script_backend: Some(balaur_script_luau::factory()),
     })
     .unwrap();
     app.load_project().unwrap();
@@ -172,7 +176,7 @@ fn pack_roundtrip_runs_from_bytecode_only() {
     let pack = Pack::decode(&bytes).unwrap();
     assert_eq!(pack.scripts.len(), 1);
     let mut app = App::new(AppConfig {
-        scripts: Some(balaur_script_luau::factory()),
+        script_backend: Some(balaur_script_luau::factory()),
         ..AppConfig::packed(pack)
     })
     .unwrap();

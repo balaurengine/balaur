@@ -119,11 +119,11 @@ impl<S: Subscriber> Layer<S> for CaptureLayer {
     }
 }
 
-/// Install the capturing subscriber: stderr output plus the ring buffer, and a
-/// bridge so `log` records from dependencies land in the same place.
+/// Start capturing: stderr output plus the ring buffer, and a bridge so `log`
+/// records from dependencies land in the same place.
 ///
 /// Idempotent — a second call is a no-op, which keeps tests from fighting.
-pub fn install(max_level: LevelFilter) {
+pub fn capture(max_level: LevelFilter) {
     *lock_buffer() = Some(Buffer {
         start: Instant::now(),
         entries: VecDeque::new(),
@@ -139,8 +139,8 @@ pub fn install(max_level: LevelFilter) {
         .try_init();
 }
 
-/// Install capture only, without stderr output. For tests.
-pub fn install_for_test() {
+/// Capture only, without stderr output. For tests.
+pub fn capture_for_test() {
     *lock_buffer() = Some(Buffer {
         start: Instant::now(),
         entries: VecDeque::new(),

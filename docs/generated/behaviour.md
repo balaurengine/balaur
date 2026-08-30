@@ -5,62 +5,137 @@
 Every test in the workspace, as a sentence. A flow that is not here is a
 flow nothing checks.
 
+- a 2d shape component puts a 2d renderable on the node
+- a bad schema is rejected at registration
 - a binding call stays sub microsecond
 - a binding can call the function it was passed
+- a broken rune script fails the export
 - a callback does not outlive its call
+- a colour property accepts hex as well as floats
+- a colour reads back as it was set
 - a compile error fails the build
 - a constant is readable from a script
 - a different seed gives a different stream
+- a duplicate name resolves the same way every time
 - a duplicated id is regenerated
+- a dynamic body falls and a static one does not
 - a forward parent reference is rejected
 - a freed node stops being valid
+- a headless frame empties the debug line buffers
+- a hex string is a colour wherever a colour is taken
+- a leaf subtree is just itself
 - a lua array reaches a binding as a list
+- a missing argument is an error not a default
 - a missing node argument is an error not a panic
+- a missing resource is none rather than a panic
+- a node path round trips through find
 - a node returned to a script is still a node
+- a node starts with no components
+- a pack encodes the same whatever order it was filled in
 - a pack round trips through bytes
+- a pack writes its entries in sorted order
+- a packed project boots without its sources
+- a pass with no widgets is quiet
+- a path finds a descendant and missing ones are none
 - a press is just pressed for one frame only
+- a project with no manifest fails to load
+- a project without a language runs on luau
 - a project without a manifest is an error
+- a registered component is listed and has a schema
 - a release is just released for one frame only
+- a released mouse button reports one frame of release
 - a reload keeps instance state
+- a resource round trips and is shared not copied
+- a rune project that calls the engine can be exported
+- a script can write to the log it reads back
+- a script error inside a pass is logged not fatal
+- a shape component puts a renderable on the node
 - a sparse table keeps its keys
+- a spawned node is named parented and has a transform
+- a subtree is collected parent first
 - a trailing optional may be omitted
 - a transform survives a write and read
 - a typed binding reaches rune
 - a vector argument and three numbers agree
+- a windowed backend keeps the fallback off its buffers
 - a wrong argument type is an error not a panic
 - a wrong argument type is reported not fatal
+- a wrong type says what it expected
+- add then get returns what was set
+- adding twice updates rather than duplicating
+- an app without a backend has no script host
 - an empty or inverted range does not panic
+- an engine has a root node from the start
+- an integer is accepted where a float is wanted
 - an out of range button does not panic
+- an unknown body kind is rejected with its name
 - an unknown key is simply not down
+- an unknown language is a named error
 - an unknown path is nil rather than an error
+- an unparseable colour is left alone
+- an unregistered name is an error that says so
 - anchor constants match the registered schema
 - attaching to a compiled script is cheap per node
+- bad options are reported rather than fatal
+- bindings forward through references and boxes
 - body constants match the registered schema
+- build pack uses the compiler the project asks for
+- camera input can be switched off
+- commands queue and drain once
 - compile error keeps previous version running
 - crates/balaur/src/lib.rs - (line 5)
+- debug lines accumulate and can be cleared
 - declarations are uniquely named
 - declarations are uniquely named within a module
+- defaults fill in what was not given
+- degrees and radians are two readings of one rotation
 - dispatch over a thousand nodes stays inside a frame
+- draw ui is actually called
 - events carry their structured fields
+- every component emits only keys its schema declares
+- every component round trips through get and apply
 - every constant is screaming snake and unique
 - every declaration rejects a non node
+- every declared body kind is accepted
+- every declared shape is accepted
+- every enum option a schema offers round trips
 - every named key can actually be pressed
+- every shape kind the schema offers is accepted
+- expect arity names the function and both counts
+- extra arguments are ignored like lua does
+- freeing a node frees its children
+- freeing a subtree removes all of it and unlinks the parent
 - fs is rooted at the project
 - fs list is sorted and hides dotfiles
 - hierarchy reads back what it wrote
 - holding a key does not re fire
 - hot reload swaps code and preserves state
+- inserting a resource twice replaces it
 - instance state survives between frames
+- interactive widgets report no interaction without input
 - keys are independent
+- language rune runs on rune
 - math fastcalls are routed through the global table
 - math functions are libm backed
+- merge defaults prefers what was given
 - missing ids are generated not rejected
 - mouse buttons follow the same edge rules
 - mouse delta is per frame and position is absolute
+- moving a parent moves the subtree
+- no bindings accepts registrations and discards them
+- node and callback handles survive a round trip
 - nodes sharing a name get distinct ids
+- numbers convert in both directions
 - pack roundtrip runs from bytecode only
+- panels and containers nest
+- pausing stops the simulation and resuming continues it
+- playing a missing file does not take the frame down
 - plugin components roundtrip through the registry
+- quit is off until asked for
 - reading a missing file is nil rather than an error
+- remove takes it off the node
+- removing a body stops it being simulated
+- removing a shape takes the renderable with it
 - renaming a node changes what name returns
 - renaming a parent does not break its children
 - require caches and hot reloads in place
@@ -69,26 +144,46 @@ flow nothing checks.
 - scenes are gathered but the manifest is not one of them
 - scenes instantiate at runtime and args reach scripts
 - script args reach scripts as a list
+- script module works without a backend
+- siblings keep their order
 - simulation 2d is bitwise reproducible
 - simulation is bitwise reproducible
+- stopping when nothing plays is harmless
+- strings and bools convert
 - tests
+- text and layout helpers run
 - the backend decides what a script compiles to
 - the buffer is bounded and keeps the newest
+- the clock advances and reports the last step
+- the code editor returns its buffer unchanged
 - the engine modules reach rune
 - the mouse constants address real buttons
+- the neutral value accepts anything
 - the node api is available as methods
+- the plugin builds without an output device
+- the plugin inserts the resources a frame reads
+- the plugin registers its scene vocabulary
 - the rng is reproducible from a seed
+- the same setup simulates identically twice
+- the scale factor is readable and settable
 - the scene root is a node and can be spawned under
+- the standard app has every plugin registered
 - the stream is pinned for a given seed
 - the two worlds share body kinds and differ on shapes
+- ticking a headless app with render does not panic
+- ticking advances the clock by the step given
+- ticking with audio does not panic
 - toml round trips through neutral values
 - toml roundtrips through lua
+- too few arguments for a tuple is an error
 - transform propagation stays linear
 - translate accumulates
 - truncated or foreign bytes do not decode
 - tuples map positionally
 - typed registration survives erasure
 - unclaimed extensions are left alone
+- vectors and colors carry their components
 - watcher reloads automatically
 - widget kind constants match the registered schema
 - widgets
+- world transforms compose down the chain

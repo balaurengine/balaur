@@ -119,17 +119,17 @@ pub(crate) fn family(name: &str) -> FontFamily {
     }
 }
 
-/// Register the three named families. When `<project>/fonts` ships TTFs
+/// Load the three named families into `ctx`. When `<project>/fonts` ships TTFs
 /// (Caprasimo, Figtree, JetBrains Mono per the design), they take priority;
 /// otherwise the families alias egui's built-in fonts so everything still
 /// renders.
-pub(crate) fn install_fonts(engine: &Engine, ctx: &egui::Context) {
+pub(crate) fn load_fonts(eng: &Engine, ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     let mut heading_chain: Vec<String> = Vec::new();
     let mut ui_chain: Vec<String> = Vec::new();
     let mut mono_chain: Vec<String> = Vec::new();
 
-    if let Some(root) = engine.try_resource::<ProjectRoot>() {
+    if let Some(root) = eng.try_resource::<ProjectRoot>() {
         let dir = root.borrow().0.join("fonts");
         if let Ok(entries) = std::fs::read_dir(&dir) {
             let mut files: Vec<_> = entries

@@ -8,23 +8,23 @@ cannot drift from what scripts actually see.
 
 | Module | Functions | Constants | Available in |
 | --- | ---: | ---: | --- |
-| [`audio`](#audio) | 3 | 0 | every language |
+| [`audio`](#audio) | 2 | 0 | every language |
 | [`engine`](#engine) | 5 | 0 | every language |
 | [`fs`](#fs) | 4 | 0 | every language |
-| [`input`](#input) | 8 | 165 | every language |
-| [`log`](#log) | 2 | 0 | every language |
-| [`node`](#node) | 27 | 0 | every language |
-| [`physics`](#physics) | 11 | 5 | every language |
-| [`physics2d`](#physics2d) | 7 | 5 | every language |
+| [`input`](#input) | 9 | 165 | every language |
+| [`log`](#log) | 5 | 0 | every language |
+| [`node`](#node) | 28 | 0 | every language |
+| [`physics`](#physics) | 12 | 5 | every language |
+| [`physics2d`](#physics2d) | 9 | 5 | every language |
 | [`render`](#render) | 22 | 0 | every language |
 | [`rng`](#rng) | 4 | 0 | every language |
 | [`scene`](#scene) | 7 | 0 | every language |
 | [`toml`](#toml) | 2 | 0 | every language |
-| [`ui`](#ui) | 37 | 14 | every language |
+| [`ui`](#ui) | 38 | 14 | every language |
 
 ## `audio`
 
-**Functions:** `play`, `play_looping`, `stop_all`
+**Functions:** `play`, `stop_all`
 
 ## `engine`
 
@@ -36,7 +36,7 @@ cannot drift from what scripts actually see.
 
 ## `input`
 
-**Functions:** `is_down`, `is_mouse_down`, `just_pressed`, `just_released`, `mouse_delta`, `mouse_just_pressed`, `mouse_position`, `scroll_delta`
+**Functions:** `is_down`, `is_mouse_down`, `just_pressed`, `just_released`, `mouse_delta`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `scroll_delta`
 
 **Constants** (165):
 
@@ -71,43 +71,43 @@ cannot drift from what scripts actually see.
 
 ## `log`
 
-**Functions:** `clear`, `recent`
+**Functions:** `clear`, `error`, `info`, `recent`, `warn`
 
 ## `node`
 
-**Functions:** `add_child`, `add_component`, `attach_script`, `children`, `component_names`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `is_valid`, `name`, `parent`, `path`, `position`, `queue_free`, `remove_component`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_position`, `set_rotation_euler`, `set_scale`, `translate`
+**Functions:** `add_child`, `attach_script`, `children`, `component_names`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `is_valid`, `name`, `parent`, `path`, `position`, `queue_free`, `remove_component`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `translate`
 
 ## `physics`
 
-**Functions:** `add_ball_collider`, `add_body`, `add_cuboid_collider`, `apply_impulse`, `clear`, `is_paused`, `linear_velocity`, `set_gravity`, `set_linear_velocity`, `set_paused`, `set_sleeping_allowed`
+**Functions:** `add_ball_collider`, `add_body`, `add_cuboid_collider`, `apply_impulse`, `clear`, `is_paused`, `linear_velocity`, `set_gravity`, `set_linear_velocity`, `set_paused`, `set_sleeping_allowed`, `sleeping_allowed`
 
 **Constants** (5):
 
 | Name | Value |
 | --- | --- |
 | `BODY_DYNAMIC` | `dynamic` |
-| `BODY_FIXED` | `fixed` |
 | `BODY_KINEMATIC` | `kinematic` |
+| `BODY_STATIC` | `static` |
 | `SHAPE_BALL` | `ball` |
 | `SHAPE_CUBOID` | `cuboid` |
 
 ## `physics2d`
 
-**Functions:** `angular_velocity`, `apply_impulse`, `linear_velocity`, `max_contact_impulse`, `set_angular_velocity`, `set_gravity`, `set_linear_velocity`
+**Functions:** `add_body`, `add_collider`, `angular_velocity`, `apply_impulse`, `linear_velocity`, `max_contact_impulse`, `set_angular_velocity`, `set_gravity`, `set_linear_velocity`
 
 **Constants** (5):
 
 | Name | Value |
 | --- | --- |
 | `BODY_DYNAMIC` | `dynamic` |
-| `BODY_FIXED` | `fixed` |
 | `BODY_KINEMATIC` | `kinematic` |
+| `BODY_STATIC` | `static` |
 | `SHAPE_CIRCLE` | `circle` |
 | `SHAPE_RECT` | `rect` |
 
 ## `render`
 
-**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `draw_line`, `draw_line_2d`, `get_color`, `get_shape`, `get_shape2d`, `mouse_ray`, `mouse_world_2d`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_circle`, `set_color`, `set_cuboid`, `set_grid`, `set_grid_colors`, `set_rect`
+**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `color`, `draw_line`, `draw_line_2d`, `mouse_ray`, `mouse_world_2d`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_circle`, `set_color`, `set_cuboid`, `set_grid`, `set_grid_colors`, `set_rect`, `shape`, `shape2d`
 
 ## `rng`
 
@@ -115,7 +115,7 @@ cannot drift from what scripts actually see.
 
 ## `scene`
 
-**Functions:** `component_schema`, `components`, `get_node`, `instantiate`, `load`, `root`, `spawn`
+**Functions:** `component_schema`, `component_types`, `get_node`, `instantiate`, `root`, `source`, `spawn`
 
 ## `toml`
 
@@ -123,7 +123,7 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `circle_button`, `code_editor`, `code_line`, `dot`, `drag_value`, `frame`, `horizontal`, `hslider`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `pill`, `rect_stroke`, `right`, `right_panel`, `screen_size`, `scroll`, `select`, `separator`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`
+**Functions:** `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `circle_button`, `code_editor`, `code_line`, `dot`, `drag_value`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `select`, `separator`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`
 
 **Constants** (14):
 

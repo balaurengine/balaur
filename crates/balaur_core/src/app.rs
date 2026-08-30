@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 
 use crate::engine::{Command, Engine};
 use crate::pack::Pack;
-use crate::project::{self, ProjectManifest, ProjectRoot, SceneVocab};
+use crate::project::{self, ProjectManifest, ProjectRoot, SceneKeyRegistry};
 use crate::scene;
 
 /// Frame stages, run in order every tick.
@@ -67,7 +67,7 @@ pub struct AppConfig {
     /// project a tool operates on).
     pub script_args: Vec<String>,
     /// Which script backend to run. `None` means no scripting.
-    pub scripts: Option<ScriptHostFactory>,
+    pub script_backend: Option<ScriptHostFactory>,
 }
 
 impl AppConfig {
@@ -77,7 +77,20 @@ impl AppConfig {
             pack: None,
             watch: true,
             script_args: Vec::new(),
-            scripts: None,
+            script_backend: None,
+        }
+    }
+
+    /// Load a project the way a build tool does: no watcher, no hot reload.
+    ///
+    /// Export needs a booted app (a statically-resolved language can only
+    /// validate a script against the modules its plugins registered), and a
+    /// build tool that leaves a file watcher running is a build tool that
+    /// never exits.
+    pub fn export(project_root: impl Into<PathBuf>) -> Self {
+        Self {
+            watch: false,
+            ..Self::dev(project_root)
         }
     }
 
@@ -87,13 +100,13 @@ impl AppConfig {
             pack: Some(pack),
             watch: false,
             script_args: Vec::new(),
-            scripts: None,
+            script_backend: None,
         }
     }
 }
 
 /// A plugin wires a subsystem into the app: resources, per-frame systems,
-/// script modules, scene vocabulary.
+/// script modules, scene keys.
 pub trait Plugin {
     fn name(&self) -> &str;
     fn build(&mut self, app: &mut App) -> Result<()>;
@@ -111,19 +124,19 @@ pub struct App {
 impl App {
     pub fn new(mut config: AppConfig) -> Result<Self> {
         let engine = Engine::new();
-        engine.insert_resource(SceneVocab::default());
+        engine.insert_resource(SceneKeyRegistry::default());
         engine.insert_resource(crate::components::ComponentRegistry::default());
         engine.insert_resource(ProjectRoot(config.project_root.clone()));
         engine.insert_resource(ScriptArgs(config.script_args.clone()));
-        engine.insert_resource(crate::rng::DetRng::default());
-        if let Some(make) = config.scripts.take() {
-            engine.set_scripts(make(ScriptSetup {
+        engine.insert_resource(crate::rng::RngState::default());
+        if let Some(make) = config.script_backend.take() {
+            engine.set_script_host(make(ScriptSetup {
                 engine: &engine,
                 project_root: &config.project_root,
                 pack: config.pack.clone(),
                 watch: config.watch,
             })?);
-            crate::engine_api::install(&engine)?;
+            crate::engine_api::install_engine_api(&engine)?;
         } else {
             tracing::info!("no script backend configured; scripting is off");
         }
@@ -136,12 +149,12 @@ impl App {
             manifest: None,
         };
         app.add_system(Stage::PreUpdate, |eng, _| {
-            if let Some(host) = eng.scripts() {
+            if let Some(host) = eng.script_host() {
                 host.pump_reloads();
             }
         });
         app.add_system(Stage::Update, |eng, dt| {
-            if let Some(host) = eng.scripts() {
+            if let Some(host) = eng.script_host() {
                 host.update(dt);
             }
         });
@@ -154,7 +167,7 @@ impl App {
                 match cmd {
                     Command::Free(entity) => {
                         let subtree = scene::collect_subtree(&eng.world(), entity);
-                        if let Some(host) = eng.scripts() {
+                        if let Some(host) = eng.script_host() {
                             for &e in &subtree {
                                 host.detach(crate::node_id_of(e));
                             }
@@ -191,7 +204,7 @@ impl App {
         &mut self,
         name: &str,
     ) -> Result<Box<dyn balaur_script::Bindings<Engine>>> {
-        match self.engine.scripts() {
+        match self.engine.script_host() {
             Some(host) => host.module(name),
             None => Ok(Box::new(balaur_script::NoBindings)),
         }
@@ -231,9 +244,8 @@ impl App {
         key: &str,
         handler: impl Fn(&Engine, hecs::Entity, &toml::Value) -> Result<()> + 'static,
     ) -> &mut Self {
-        let vocab = self.engine.resource::<SceneVocab>();
-        vocab
-            .borrow_mut()
+        let keys = self.engine.resource::<SceneKeyRegistry>();
+        keys.borrow_mut()
             .0
             .push((key.to_string(), Box::new(handler)));
         self

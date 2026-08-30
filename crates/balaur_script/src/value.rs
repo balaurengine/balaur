@@ -28,6 +28,12 @@ pub enum Value {
     Callback(CallbackId),
     List(Vec<Value>),
     Map(Vec<(String, Value)>),
+    /// Several return values, not a list of one.
+    ///
+    /// Lua and Rune both let a function return more than one thing, and
+    /// `local text, changed = ui.text_field(...)` is how the widgets are meant
+    /// to read. A tuple return becomes this; a `Vec` still becomes a `List`.
+    Many(Vec<Value>),
 }
 
 impl Value {
@@ -45,6 +51,7 @@ impl Value {
             Self::Callback(_) => "function",
             Self::List(_) => "list",
             Self::Map(_) => "map",
+            Self::Many(_) => "several values",
         }
     }
 }
@@ -250,7 +257,7 @@ macro_rules! tuple_args {
             #[allow(non_snake_case)]
             fn into_value(self) -> Value {
                 let ($($name,)+) = self;
-                Value::List(vec![$($name.into_value()),+])
+                Value::Many(vec![$($name.into_value()),+])
             }
         }
     };

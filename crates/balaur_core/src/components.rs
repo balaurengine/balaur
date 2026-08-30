@@ -1,24 +1,35 @@
 //! The named-component registry: how plugins make their data editable.
 //!
 //! A plugin registers a component under a name with a *schema* (property
-//! names, kinds, defaults — declared as TOML) plus apply/get/remove hooks.
+//! names, types, defaults — declared as TOML) plus apply/get/remove hooks.
 //! Registration buys three things at once:
 //!
 //! 1. a scene-file key (`body = { kind = "dynamic" }`) applied at
 //!    instantiation, in registration order;
-//! 2. a runtime script API on every node (`node:add_component`,
-//!    `set_component`, `get_component`, `remove_component`,
-//!    `node:component_names()`), plus `scene.components()` /
+//! 2. a runtime script API on every node (`node:set_component`,
+//!    `get_component`, `has_component`, `remove_component`,
+//!    `node:component_names()`), plus `scene.component_types()` /
 //!    `scene.component_schema(name)` for enumeration;
 //! 3. editor support for free: the balaur editor builds its "Add component"
 //!    list and its property inspectors from the schemas, so third-party
 //!    plugin components are addable and editable without editor changes.
 //!
 //! Property specs (`schema` is a TOML table of `name = { ... }`):
-//!   kind = "float" | "bool" | "str" | "enum" | "vec2" | "vec3" | "color"
-//!   default = ...          (required)
-//!   options = [...]        (enum only)
+//!   type = "float" | "bool" | "string" | "enum" | "vec2" | "vec3" | "color"
+//!   default = ...          (required, and of the declared type)
+//!   options = [...]        (enum only, and required there)
 //!   min/max/step/decimals  (float, optional)
+//!   shorthand/readonly     (bool, optional)
+//!
+//! `type` declares a property's datatype; `kind` is a property *name*, the one
+//! reserved for a tagged union's discriminant (`shape.kind = "ball"`), so a
+//! discriminant reads `kind = { type = "enum", options = [...] }`.
+//! `ComponentDef::parse_schema` enforces all of that and panics on a schema
+//! that departs from it.
+//!
+//! A `color` property may be written either as `[r, g, b]` / `[r, g, b, a]`
+//! floats or as a `#rrggbb` / `#rrggbbaa` string; the string form is expanded
+//! to the array form before any `apply` hook sees it, so hooks read one shape.
 
 use anyhow::{anyhow, Context, Result};
 use hecs::Entity;
@@ -53,12 +64,170 @@ pub struct ComponentDef {
     pub get: GetFn,
 }
 
+/// The datatypes a schema property may declare (rule N6). Closed: a plugin
+/// that wants another one adds it here, so the editor's inspector and the
+/// scene format learn about it at the same moment.
+pub const PROPERTY_TYPES: [&str; 7] = ["float", "bool", "string", "enum", "vec2", "vec3", "color"];
+
 impl ComponentDef {
-    /// Parse a schema from TOML text (panics on invalid text: schemas are
-    /// compile-time constants written by plugin authors).
-    pub fn parse_schema(text: &str) -> toml::Value {
-        toml::from_str(text).expect("invalid component schema TOML")
+    /// Parse and validate a schema from TOML text.
+    ///
+    /// Panics naming the component, the property and the key at fault. Schemas
+    /// are compile-time constants written by plugin authors, so a bad one is a
+    /// bug in the plugin rather than bad user input, and failing at
+    /// registration beats an inspector row that silently never appears.
+    pub fn parse_schema(component: &str, text: &str) -> toml::Value {
+        let schema: toml::Value = toml::from_str(text)
+            .unwrap_or_else(|e| panic!("component '{component}': schema is not valid TOML: {e}"));
+        let table = schema.as_table().unwrap_or_else(|| {
+            panic!("component '{component}': schema is not a table of property specs")
+        });
+        for (prop, spec) in table {
+            if let Err(why) = validate_property(spec) {
+                panic!("component '{component}', property '{prop}': {why}");
+            }
+        }
+        schema
     }
+}
+
+/// The closed set as prose, for a panic message.
+fn type_list() -> String {
+    PROPERTY_TYPES
+        .iter()
+        .map(|t| format!("\"{t}\""))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// One property spec against the vocabulary in the module docs. The `Err` is
+/// the reason alone; the caller prefixes the component and property.
+fn validate_property(spec: &toml::Value) -> Result<(), String> {
+    let spec = spec.as_table().ok_or_else(|| {
+        format!(
+            "spec is {}, not a table like {{ type = \"float\", default = 0.0 }}",
+            spec.type_str()
+        )
+    })?;
+    let declared = match spec.get("type").map(toml::Value::as_str) {
+        Some(Some(declared)) => declared,
+        Some(None) => return Err(format!("`type` is not a string; expected {}", type_list())),
+        None => return Err(format!("no `type` key; expected one of {}", type_list())),
+    };
+    if !PROPERTY_TYPES.contains(&declared) {
+        return Err(format!(
+            "`type = \"{declared}\"` is not one of {}",
+            type_list()
+        ));
+    }
+    let options = spec.get("options");
+    match (declared == "enum", options) {
+        (true, None) => return Err("`type = \"enum\"` needs an `options` list".into()),
+        (false, Some(_)) => {
+            return Err(format!(
+                "`options` belongs to `type = \"enum\"`, not `type = \"{declared}\"`"
+            ))
+        }
+        _ => {}
+    }
+    let default = spec
+        .get("default")
+        .ok_or_else(|| format!("no `default`; every property needs one, of type `{declared}`"))?;
+    check_default(declared, default, options)
+}
+
+/// `default` against its declared type.
+fn check_default(
+    declared: &str,
+    default: &toml::Value,
+    options: Option<&toml::Value>,
+) -> Result<(), String> {
+    let (ok, wanted) = match declared {
+        "float" => (as_f64(default).is_some(), "a number"),
+        "bool" => (default.as_bool().is_some(), "true or false"),
+        "string" => (default.as_str().is_some(), "a string"),
+        "enum" => return check_enum_default(default, options),
+        "vec2" => return check_numbers(declared, default, &[2]),
+        "vec3" => return check_numbers(declared, default, &[3]),
+        "color" => return check_color_default(default),
+        _ => (true, ""),
+    };
+    if ok {
+        return Ok(());
+    }
+    Err(format!(
+        "`default` is {}, but `type = \"{declared}\"` wants {wanted}",
+        default.type_str()
+    ))
+}
+
+/// An enum's `default` must be a string, and one the `options` list offers —
+/// otherwise the editor opens a dropdown that cannot show its own value.
+fn check_enum_default(default: &toml::Value, options: Option<&toml::Value>) -> Result<(), String> {
+    let choices = options
+        .and_then(toml::Value::as_array)
+        .ok_or_else(|| "`options` is not a list of strings".to_string())?;
+    let choices: Vec<&str> = choices.iter().filter_map(toml::Value::as_str).collect();
+    if choices.is_empty() {
+        return Err("`options` is empty, so no `default` can be legal".into());
+    }
+    let default = default.as_str().ok_or_else(|| {
+        format!(
+            "`default` is {}, but `type = \"enum\"` wants one of the `options` strings",
+            default.type_str()
+        )
+    })?;
+    if choices.contains(&default) {
+        return Ok(());
+    }
+    Err(format!(
+        "`default = \"{default}\"` is not in `options` {choices:?}"
+    ))
+}
+
+/// A `vec2`/`vec3` default: an array of numbers of exactly the right length.
+fn check_numbers(declared: &str, default: &toml::Value, lengths: &[usize]) -> Result<(), String> {
+    let wanted = || {
+        lengths
+            .iter()
+            .map(usize::to_string)
+            .collect::<Vec<_>>()
+            .join(" or ")
+    };
+    let array = default.as_array().ok_or_else(|| {
+        format!(
+            "`default` is {}, but `type = \"{declared}\"` wants an array of {} numbers",
+            default.type_str(),
+            wanted()
+        )
+    })?;
+    if !lengths.contains(&array.len()) {
+        return Err(format!(
+            "`default` has {} entries, but `type = \"{declared}\"` wants {}",
+            array.len(),
+            wanted()
+        ));
+    }
+    if array.iter().all(|v| as_f64(v).is_some()) {
+        return Ok(());
+    }
+    Err(format!(
+        "`default` holds something that is not a number, but `type = \"{declared}\"` wants numbers"
+    ))
+}
+
+/// A `color` default, in either spelling the value form accepts.
+fn check_color_default(default: &toml::Value) -> Result<(), String> {
+    if let Some(text) = default.as_str() {
+        return if hex_rgba(text).is_some() {
+            Ok(())
+        } else {
+            Err(format!(
+                "`default = \"{text}\"` is not #rrggbb or #rrggbbaa"
+            ))
+        };
+    }
+    check_numbers("color", default, &[3, 4])
 }
 
 /// Ordered by registration: scene keys and editor sections follow it.
@@ -74,6 +243,53 @@ impl ComponentRegistry {
 /// Merge `params` over the schema's defaults, producing the full property
 /// table `apply` hooks receive. Unknown keys pass through untouched (schemas
 /// evolve; scenes may carry newer keys).
+/// `#rrggbb` or `#rrggbbaa` as `[r, g, b, a]` in 0..=1.
+fn hex_rgba(text: &str) -> Option<[f64; 4]> {
+    let hex = text.strip_prefix('#')?;
+    let channel = |i: usize| {
+        u8::from_str_radix(hex.get(i..i + 2)?, 16)
+            .ok()
+            .map(|b| f64::from(b) / 255.0)
+    };
+    match hex.len() {
+        6 => Some([channel(0)?, channel(2)?, channel(4)?, 1.0]),
+        8 => Some([channel(0)?, channel(2)?, channel(4)?, channel(6)?]),
+        _ => None,
+    }
+}
+
+/// Expand hex strings on `color`-typed properties into the float array every
+/// `apply` hook reads.
+///
+/// Done once here rather than in each hook, so a hex value works on every
+/// colour property that exists or is added later. Before this, `color =
+/// "#ff0000"` on a node reached an `as_array()` that returned `None` and fell
+/// through to the default grey without a word.
+fn expand_colors(schema: &toml::Value, out: &mut toml::map::Map<String, toml::Value>) {
+    let Some(table) = schema.as_table() else {
+        return;
+    };
+    for (prop, spec) in table {
+        // `type` is the spec's datatype key (see the module docs).
+        if spec.get("type").and_then(toml::Value::as_str) != Some("color") {
+            continue;
+        }
+        let Some(text) = out.get(prop).and_then(toml::Value::as_str) else {
+            continue;
+        };
+        if let Some(rgba) = hex_rgba(text) {
+            let array = rgba.iter().copied().map(toml::Value::Float).collect();
+            out.insert(prop.clone(), toml::Value::Array(array));
+        } else {
+            tracing::warn!(
+                property = prop.as_str(),
+                value = text,
+                "not a colour; expected #rrggbb, #rrggbbaa or [r, g, b, a]"
+            );
+        }
+    }
+}
+
 pub fn merge_defaults(schema: &toml::Value, params: Option<&toml::Value>) -> toml::Value {
     let mut out = toml::map::Map::new();
     if let Some(table) = schema.as_table() {
@@ -89,7 +305,7 @@ pub fn merge_defaults(schema: &toml::Value, params: Option<&toml::Value>) -> tom
                 out.insert(k.clone(), v.clone());
             }
         }
-        // Scalar/array shorthand (`body = "fixed"`, `color = [1, 0, 0]`)
+        // Scalar/array shorthand (`body = "static"`, `color = [1, 0, 0]`)
         // lands on the prop marked `shorthand = true` in the schema.
         Some(other) => {
             if let Some(table) = schema.as_table() {
@@ -103,16 +319,12 @@ pub fn merge_defaults(schema: &toml::Value, params: Option<&toml::Value>) -> tom
         }
         None => {}
     }
+    expand_colors(schema, &mut out);
     toml::Value::Table(out)
 }
 
-pub fn add(
-    engine: &Engine,
-    entity: Entity,
-    name: &str,
-    params: Option<&toml::Value>,
-) -> Result<()> {
-    let registry = engine
+pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value>) -> Result<()> {
+    let registry = eng
         .try_resource::<ComponentRegistry>()
         .ok_or_else(|| anyhow!("component registry missing"))?;
     let registry = registry.borrow();
@@ -120,42 +332,41 @@ pub fn add(
         .def(name)
         .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
     let full = merge_defaults(&def.schema, params);
-    (def.apply)(engine, entity, &full).with_context(|| format!("applying component '{name}'"))
+    (def.apply)(eng, entity, &full).with_context(|| format!("applying component '{name}'"))
 }
 
-pub fn remove(engine: &Engine, entity: Entity, name: &str) -> Result<()> {
-    let registry = engine
+pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
+    let registry = eng
         .try_resource::<ComponentRegistry>()
         .ok_or_else(|| anyhow!("component registry missing"))?;
     let registry = registry.borrow();
     let def = registry
         .def(name)
         .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-    (def.remove)(engine, entity)
+    (def.remove)(eng, entity)
 }
 
-pub fn get(engine: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {
-    let registry = engine.try_resource::<ComponentRegistry>()?;
+pub fn get(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {
+    let registry = eng.try_resource::<ComponentRegistry>()?;
     let registry = registry.borrow();
-    registry.def(name).and_then(|def| (def.get)(engine, entity))
+    registry.def(name).and_then(|def| (def.get)(eng, entity))
 }
 
-pub fn names(engine: &Engine) -> Vec<String> {
-    engine
-        .try_resource::<ComponentRegistry>()
+pub fn names(eng: &Engine) -> Vec<String> {
+    eng.try_resource::<ComponentRegistry>()
         .map(|r| r.borrow().0.iter().map(|(n, _)| n.clone()).collect())
         .unwrap_or_default()
 }
 
-pub fn present_on(engine: &Engine, entity: Entity) -> Vec<String> {
-    let Some(registry) = engine.try_resource::<ComponentRegistry>() else {
+pub fn present_on(eng: &Engine, entity: Entity) -> Vec<String> {
+    let Some(registry) = eng.try_resource::<ComponentRegistry>() else {
         return Vec::new();
     };
     let registry = registry.borrow();
     registry
         .0
         .iter()
-        .filter(|(_, def)| (def.get)(engine, entity).is_some())
+        .filter(|(_, def)| (def.get)(eng, entity).is_some())
         .map(|(n, _)| n.clone())
         .collect()
 }

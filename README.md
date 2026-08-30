@@ -74,7 +74,7 @@ name = "Ball"
 position = [0.0, 6.0, 0.0]
 script = "scripts/ball.luau"
 body = "dynamic"                                # from balaur_physics
-collider = { shape = "ball", radius = 0.5 }     # from balaur_physics
+collider = { kind = "ball", radius = 0.5 }      # from balaur_physics
 shape = { kind = "ball", radius = 0.5 }         # from balaur_render
 ```
 
@@ -113,13 +113,15 @@ only way to say what a language actually costs.
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — decisions and why, hand-written
+- [docs/NAMING.md](docs/NAMING.md) — what every name means and the rules new
+  ones follow; it governs the other docs
 - [docs/generated/script-api.md](docs/generated/script-api.md) — every module,
   function and constant a script can reach
 - [docs/generated/crates.md](docs/generated/crates.md) — what each crate is for
 - [docs/generated/crate-graph.md](docs/generated/crate-graph.md) — the dependency graph
 - [docs/generated/behaviour.md](docs/generated/behaviour.md) — every test as a sentence
 
-The generated ones come from wrote 5 files to docs/generated/; CI fails on drift.
+The generated ones come from `python3 scripts/gen_docs.py`; CI fails on drift.
 
 ## Workspace map
 
@@ -132,7 +134,7 @@ The generated ones come from wrote 5 files to docs/generated/; CI fails on drift
 | `balaur_physics` | Rapier plugin; the reference example for wrapping a Rust crate for scripting |
 | `balaur_render` | Renderable components + `render` module; kiss3d/wgpu backend behind the `kiss3d` feature |
 | `balaur_audio` | rodio-backed `audio` module |
-| `balaur_input` | Backend-agnostic input state + `input` module |
+| `balaur_input` | Backend-agnostic input snapshot + `input` module |
 | `balaur_ui` | Immediate-mode egui API (`ui` module): panels, widgets, script-defined themes |
 | `balaur` | Batteries-included facade: `standard_app`, `boot_project`, `boot_pack`, backend selection |
 | `balaur_cli` | The `balaur` binary: `new`, `run`, `export`, `play` |

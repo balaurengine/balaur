@@ -54,9 +54,9 @@ Balaur engine core: the Rust data plane.
 
 - **workspace deps:** `balaur_script`
 - **external deps:** 10 (anyhow, glamx, hecs, indexmap, rustc-hash, serde, toml, tracing, …)
-- **public surface:** 21 fn, 25 struct, 2 enum, 1 trait, 2 const, 8 type
+- **public surface:** 24 fn, 24 struct, 2 enum, 1 trait, 4 const, 8 type
 - **traits:** `Plugin`
-- **structs:** `App`, `AppConfig`, `Children`, `ComponentDef`, `ComponentRegistry`, `Decl`, `DetRng`, `Engine`, `EngineInner`, `GlobalTransform`, `LogEntry`, `Name`, `NodeFn`, `Pack`, `Parent`, `Pcg32`, `ProjectManifest`, `ProjectRoot`, `Resources`, `SceneVocab`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `StableId`, `Transform`
+- **structs:** `App`, `AppConfig`, `Children`, `ComponentDef`, `ComponentRegistry`, `Engine`, `EngineOp`, `GlobalTransform`, `LogEntry`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `ProjectManifest`, `ProjectRoot`, `Resources`, `RngState`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `StableId`, `Transform`
 - **enums:** `Command`, `Stage`
 
 ## `balaur_input`
@@ -68,7 +68,7 @@ Input as a Balaur plugin.
 - **workspace deps:** `balaur_core`, `balaur_script`
 - **external deps:** 2 (anyhow, tracing)
 - **public surface:** 1 fn, 2 struct, 2 const
-- **structs:** `InputPlugin`, `InputState`
+- **structs:** `InputPlugin`, `InputSnapshot`
 
 ## `balaur_physics`
 
@@ -79,7 +79,7 @@ Rapier physics as a Balaur plugin.
 - **workspace deps:** `balaur_core`, `balaur_script`
 - **external deps:** 6 (anyhow, glamx, rapier2d, rapier3d, toml, tracing)
 - **public surface:** 4 fn, 3 struct, 3 const
-- **structs:** `Physics2DState`, `PhysicsPlugin`, `PhysicsState`
+- **structs:** `PhysicsPlugin`, `PhysicsState`, `PhysicsState2d`
 
 ## `balaur_render`
 
@@ -89,8 +89,8 @@ Rendering as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_input`, `balaur_script`, `balaur_ui`
 - **external deps:** 10 (anyhow, glamx, image, kiss3d, objc2, objc2-app-kit, objc2-foundation, pollster, …)
-- **public surface:** 1 fn, 14 struct, 2 enum, 2 type
-- **structs:** `AppIcon`, `Camera2DConfig`, `CameraConfig`, `CameraInputEnabled`, `ClearColor`, `DebugLines`, `DebugLines2D`, `GridConfig`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `Viewport2D`, `ViewportCamera`
+- **public surface:** 1 fn, 15 struct, 2 enum, 2 type
+- **structs:** `AppIconConfig`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ClearColorConfig`, `DebugLineBuffer`, `DebugLineBuffer2d`, `GridConfig`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowedBackend`
 - **enums:** `Shape`, `Shape2d`
 
 ## `balaur_script`
@@ -121,8 +121,8 @@ The Rune script host: loading, instancing, hot reload, precompiled packs.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
 - **external deps:** 6 (anyhow, hecs, indexmap, notify, rune, tracing)
-- **public surface:** 1 fn, 7 struct
-- **structs:** `Color`, `Compiler`, `Node`, `RuneHost`, `RuneModule`, `Vec2`, `Vec3`
+- **public surface:** 1 fn, 6 struct
+- **structs:** `Color`, `Node`, `RuneHost`, `RuneModule`, `Vec2`, `Vec3`
 
 ## `balaur_ui`
 
@@ -132,6 +132,6 @@ Immediate-mode UI for scripts, rendered with egui.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
 - **external deps:** 5 (anyhow, egui, image, toml, tracing)
-- **public surface:** 1 fn, 5 struct, 4 const
-- **structs:** `ThemeTokens`, `UiPlugin`, `UiState`, `Widget`, `WidgetLayer`
+- **public surface:** 1 fn, 6 struct, 4 const
+- **structs:** `ThemeTokens`, `UiConfig`, `UiPlugin`, `UiState`, `Widget`, `WidgetLayerConfig`
 

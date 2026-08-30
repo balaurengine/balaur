@@ -70,13 +70,9 @@ pub(crate) fn with_ui<R>(f: impl FnOnce(&mut egui::Ui) -> anyhow::Result<R>) -> 
 ///
 /// The stack is popped even when the callback fails, so one bad handler does
 /// not leave every later widget drawing into a dead `Ui`.
-pub(crate) fn scoped(
-    engine: &Engine,
-    ui: &mut egui::Ui,
-    callback: CallbackId,
-) -> anyhow::Result<()> {
+pub(crate) fn scoped(eng: &Engine, ui: &mut egui::Ui, callback: CallbackId) -> anyhow::Result<()> {
     UI_STACK.with(|s| s.borrow_mut().push(std::ptr::from_mut::<egui::Ui>(ui)));
-    let result = engine.invoke(callback, &[]).map(|_| ());
+    let result = eng.invoke(callback, &[]).map(|_| ());
     UI_STACK.with(|s| {
         s.borrow_mut().pop();
     });

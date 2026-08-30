@@ -238,7 +238,7 @@ local function draw_guides(S)
     if ref == nil then
         return
     end
-    local x, y, z = ref:global_position()
+    local x, y, z = table.unpack(ref:global_position())
     local k = theme.current
     local ar, ag, ab = theme.hex_to_rgb(k.accent)
     local sr, sg, sb = theme.hex_to_rgb(k.sage)
@@ -261,14 +261,14 @@ local function draw_colliders2d(S)
         local c = node.collider2d
         local ref = model.ref(S, i)
         if c ~= nil and ref ~= nil then
-            local x, y = ref:global_position()
-            local _, _, angle = ref:global_rotation_euler()
-            local sx, sy = ref:global_scale()
+            local x, y = table.unpack(ref:global_position())
+            local _, _, angle = table.unpack(ref:global_rotation_euler())
+            local sx, sy = table.unpack(ref:global_scale())
             local ca, sa = math.cos(angle), math.sin(angle)
             local function pt(ox, oy)
                 return x + ca * ox - sa * oy, y + sa * ox + ca * oy
             end
-            if c.shape == "circle" then
+            if c.kind == "circle" then
                 local radius = (c.radius or 0.5) * sx
                 local px, py = pt(radius, 0)
                 for t = 1, 32 do
@@ -304,7 +304,7 @@ local function draw_colliders(S)
         local c = node.collider
         local ref = model.ref(S, i)
         if c ~= nil and ref ~= nil then
-            local x, y, z = ref:global_position()
+            local x, y, z = table.unpack(ref:global_position())
             local hx, hy, hz = 0.5, 0.5, 0.5
             if c.radius ~= nil then
                 hx, hy, hz = c.radius, c.radius, c.radius

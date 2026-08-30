@@ -15,78 +15,152 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The workspace patches kiss3d to a sibling checkout; CI must provide it.
+  # Runs on all three desktop platforms because platform code is where the
+  # engine actually differs: path handling, the macOS dock-icon path, and the
+  # windowed backend's wgpu/winit stack. A single Linux job compiled none of it.
   check:
-    name: fmt · clippy · test
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} · clippy · test · e2e
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
-        with:
-          path: balaur
-      - uses: actions/checkout@v7
-        with:
-          repository: dimforge/kiss3d
-          ref: v0.46.0
-          path: kiss3d
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+      # Audio and input for the headless build; X11/Wayland/xkb for the
+      # windowed one, which links winit.
       - name: Linux build deps
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2-dev libudev-dev \
+            libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
+            libxkbcommon-dev libwayland-dev
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: balaur
+      # Formatting and rustdoc are platform-independent; one run is the whole
+      # answer.
       - name: Format
-        working-directory: balaur
+        if: runner.os == 'Linux'
         run: cargo fmt --all --check
       - name: Clippy
-        working-directory: balaur
         run: cargo clippy --workspace --all-targets -- -D warnings
+      # Without this the windowed backend — kiss3d, wgpu, egui, and the macOS
+      # objc2 dock-icon code — is compiled by nobody but whoever last ran the
+      # editor. It is off by default, so `--all-targets` above never reaches it.
+      - name: Clippy (windowed)
+        run: cargo clippy -p balaur_cli --features window --all-targets -- -D warnings
       - name: Docs
-        working-directory: balaur
+        if: runner.os == 'Linux'
         env:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --workspace --no-deps --lib
       - name: Test
-        working-directory: balaur
         run: cargo test --workspace
-      # examples/ are Balaur projects, not cargo examples: run them headlessly.
-      # A script error is logged rather than fatal, so check the log too — an
-      # example erroring every frame would otherwise still exit 0.
-      - name: E2E — run every example project headless
-        working-directory: balaur
+      # examples/ are Balaur projects, not cargo examples: run, export and play
+      # each one. See scripts/e2e.sh for why all three are needed.
+      - name: E2E — run, export and play every example project
+        shell: bash
+        run: ./scripts/e2e.sh
+      - name: Upload pack digests
+        uses: actions/upload-artifact@v4
+        with:
+          name: packs-${{ matrix.os }}
+          path: target/e2e/digests.txt
+
+  # The cross-platform half of the promise in
+  # crates/balaur_physics/tests/determinism.rs, which a single-OS CI could
+  # never actually check. See scripts/compare_packs.sh for what it does and
+  # does not claim.
+  packs-match:
+    name: packs are identical across platforms
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: packs-*
+          path: digests
+      - name: Compare
+        run: ./scripts/compare_packs.sh digests
+
+  # Platforms the engine claims but that nothing compiles for. Headless only:
+  # the kiss3d window is desktop-bound (its egui feature pulls in `rfd`, which
+  # has no mobile backend), so what is checked here is the engine and its
+  # simulation — which is exactly what running a pack needs.
+  cross:
+    name: cross · ${{ matrix.target }}
+    runs-on: ${{ matrix.host }}
+    continue-on-error: ${{ matrix.optional }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Green today: Luau's C++, rune, rapier, rodio and notify all
+          # cross-compile. ARCHITECTURE.md claims a pack "ships everywhere
+          # (iOS included)" — this is what holds that claim up.
+          - target: aarch64-apple-ios
+            host: macos-latest
+            optional: false
+          # Not green yet, so it reports without failing the run. Kept visible
+          # rather than deleted: the whole point is to see the day it starts
+          # working, or the day it breaks differently.
+          - target: aarch64-linux-android
+            host: ubuntu-latest
+            optional: true
+          # Blocked upstream in cpal 0.17: its emscripten host does not
+          # compile. Luau itself builds for wasm, so audio is the only thing in
+          # the way — gating balaur_audio behind a feature would likely clear it.
+          - target: wasm32-unknown-emscripten
+            host: ubuntu-latest
+            optional: true
+    steps:
+      - uses: actions/checkout@v7
+      - name: Linux build deps
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
+      - name: Add target
+        run: rustup target add ${{ matrix.target }}
+      # Luau is C++, so a cross build needs a cross C++ compiler, not just a
+      # Rust target.
+      - name: Android NDK toolchain
+        if: matrix.target == 'aarch64-linux-android'
         run: |
-          for ex in examples/*/; do
-            echo "== $ex"
-            out=$(cargo run -q -p balaur_cli --bin balaur -- run "$ex" --headless --frames 120 2>&1)
-            echo "$out"
-            if grep -q 'ERROR' <<<"$out"; then
-              echo "::error::$ex logged errors"
-              exit 1
-            fi
-          done
+          bin=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin
+          {
+            echo "CC_aarch64_linux_android=$bin/aarch64-linux-android24-clang"
+            echo "CXX_aarch64_linux_android=$bin/aarch64-linux-android24-clang++"
+            echo "AR_aarch64_linux_android=$bin/llvm-ar"
+            echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android24-clang"
+          } >> "$GITHUB_ENV"
+      - name: Emscripten
+        if: matrix.target == 'wasm32-unknown-emscripten'
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git
+          ./emsdk/emsdk install latest
+          ./emsdk/emsdk activate latest
+          echo "$PWD/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Check
+        run: cargo check -p balaur --target ${{ matrix.target }}
 
   generated-docs:
     name: generated docs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          path: balaur
-      - uses: actions/checkout@v7
-        with:
-          repository: dimforge/kiss3d
-          ref: v0.46.0
-          path: kiss3d
       # gen_docs boots the engine to read the script API, so it needs whatever
       # balaur_cli needs to build.
       - name: Linux build deps
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: balaur
       - name: Regenerate and diff
-        working-directory: balaur
         run: python3 scripts/gen_docs.py --check
 
   house-lints:
@@ -105,14 +179,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          path: balaur
-      - uses: actions/checkout@v7
-        with:
-          repository: dimforge/kiss3d
-          ref: v0.46.0
-          path: kiss3d
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          manifest-path: balaur/Cargo.toml
           command: check advisories bans sources

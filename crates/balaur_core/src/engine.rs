@@ -21,18 +21,18 @@ pub struct Engine {
     inner: Rc<EngineInner>,
 }
 
-pub struct EngineInner {
-    pub world: RefCell<hecs::World>,
-    pub resources: RefCell<Resources>,
+pub(crate) struct EngineInner {
+    pub(crate) world: RefCell<hecs::World>,
+    pub(crate) resources: RefCell<Resources>,
     // Option because the host is installed after the engine exists (it needs
     // an Engine clone for its binding closures). This is a deliberate Rc cycle:
     // the engine is a live-forever singleton.
-    pub scripts: RefCell<Option<Rc<dyn balaur_script::ScriptHost<Engine>>>>,
-    pub commands: RefCell<Vec<Command>>,
-    pub root: Cell<hecs::Entity>,
-    pub time: Cell<f64>,
-    pub delta: Cell<f32>,
-    pub quit: Cell<bool>,
+    pub(crate) script_host: RefCell<Option<Rc<dyn balaur_script::ScriptHost<Engine>>>>,
+    pub(crate) commands: RefCell<Vec<Command>>,
+    pub(crate) root: Cell<hecs::Entity>,
+    pub(crate) time: Cell<f64>,
+    pub(crate) delta: Cell<f32>,
+    pub(crate) quit: Cell<bool>,
 }
 
 impl Engine {
@@ -43,7 +43,7 @@ impl Engine {
             inner: Rc::new(EngineInner {
                 world: RefCell::new(world),
                 resources: RefCell::new(Resources::default()),
-                scripts: RefCell::new(None),
+                script_host: RefCell::new(None),
                 commands: RefCell::new(Vec::new()),
                 root: Cell::new(root),
                 time: Cell::new(0.0),
@@ -82,12 +82,12 @@ impl Engine {
 
     /// The script subsystem, as a trait object: the engine does not know
     /// which language is running.
-    pub fn scripts(&self) -> Option<Rc<dyn balaur_script::ScriptHost<Engine>>> {
-        self.inner.scripts.borrow().clone()
+    pub fn script_host(&self) -> Option<Rc<dyn balaur_script::ScriptHost<Engine>>> {
+        self.inner.script_host.borrow().clone()
     }
 
-    pub fn set_scripts(&self, host: Rc<dyn balaur_script::ScriptHost<Engine>>) {
-        *self.inner.scripts.borrow_mut() = Some(host);
+    pub fn set_script_host(&self, host: Rc<dyn balaur_script::ScriptHost<Engine>>) {
+        *self.inner.script_host.borrow_mut() = Some(host);
     }
 
     pub fn push_command(&self, cmd: Command) {
@@ -137,7 +137,7 @@ impl balaur_script::CallbackHost for Engine {
         callback: balaur_script::CallbackId,
         args: &[balaur_script::Value],
     ) -> anyhow::Result<balaur_script::Value> {
-        self.scripts()
+        self.script_host()
             .ok_or_else(|| anyhow::anyhow!("no script backend is running"))?
             .invoke(callback, args)
     }

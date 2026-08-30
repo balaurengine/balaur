@@ -137,10 +137,12 @@ pub const MODIFIERS: &[(&str, &str)] = &[
     ("MOD_SHIFT", "shift"),
 ];
 
-pub(crate) fn install(app: &mut App) -> Result<()> {
-    // Through App, so a scriptless app builds the plugin instead of panicking.
-    let mut module = app.script_module("ui")?;
-    let m: &mut dyn Bindings<Engine> = &mut *module;
+/// Declare `ui.*`. Takes the `App` rather than a module because it opens the
+/// module itself: through `App`, so a scriptless app builds the plugin
+/// instead of panicking.
+pub(crate) fn install_ui_api(app: &mut App) -> Result<()> {
+    let mut m = app.script_module("ui")?;
+    let m: &mut dyn Bindings<Engine> = &mut *m;
 
     for (name, value) in ANCHORS
         .iter()
@@ -170,12 +172,12 @@ pub(crate) fn install(app: &mut App) -> Result<()> {
 }
 
 pub(crate) fn text_field(
-    engine: &Engine,
+    eng: &Engine,
     id: &str,
     placeholder: &str,
     opts: &Opts,
 ) -> anyhow::Result<(String, bool, bool)> {
-    let state = engine.resource::<UiState>();
+    let state = eng.resource::<UiState>();
     let mut buffer = {
         let state = state.borrow();
         state.text_buffers.get(id).cloned().unwrap_or_default()
@@ -364,7 +366,7 @@ pub(crate) fn highlight(
 /// An editable, syntax-highlighted code editor with a line-number gutter.
 /// The buffer persists per `id` in `UiState`; returns (text, changed).
 pub(crate) fn code_editor(
-    engine: &Engine,
+    eng: &Engine,
     id: &str,
     source: &str,
     opts: &Opts,
@@ -372,12 +374,11 @@ pub(crate) fn code_editor(
     // `language` overrides; otherwise highlight whatever the project is
     // written in, so an editor shows Rune as Rune.
     let language = opts.string("language").unwrap_or_else(|| {
-        engine
-            .try_resource::<balaur_core::project::ProjectManifest>()
+        eng.try_resource::<balaur_core::project::ProjectManifest>()
             .map_or_else(|| "luau".to_string(), |m| m.borrow().language.clone())
     });
     let syntax = syntax_for(&language);
-    let state = engine.resource::<UiState>();
+    let state = eng.resource::<UiState>();
     let mut buffer = {
         let cached = state.borrow().text_buffers.get(id).cloned();
         if let Some(b) = cached {
@@ -447,14 +448,14 @@ pub(crate) fn code_editor(
 }
 
 /// Draw a PNG from the project (cached as an egui texture by path).
-pub(crate) fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> anyhow::Result<()> {
-    let state = engine.resource::<UiState>();
+pub(crate) fn draw_image(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Result<()> {
+    let state = eng.resource::<UiState>();
     let cached = state.borrow().textures.get(path).cloned();
     with_ui(|ui| {
         let texture = if let Some(t) = cached {
             t
         } else {
-            let full = match engine.try_resource::<balaur_core::project::ProjectRoot>() {
+            let full = match eng.try_resource::<balaur_core::project::ProjectRoot>() {
                 Some(root) if !std::path::Path::new(path).is_absolute() => {
                     root.borrow().0.join(path)
                 }
@@ -529,7 +530,7 @@ pub(crate) fn draw_image(engine: &Engine, path: &str, opts: &Opts) -> anyhow::Re
 // Returns Result so the widget helpers share one signature at the binding site.
 #[allow(clippy::unnecessary_wraps)]
 pub(crate) fn left_pill(
-    engine: &Engine,
+    eng: &Engine,
     ui: &mut egui::Ui,
     label: &str,
     opts: &Opts,
@@ -607,7 +608,7 @@ pub(crate) fn left_pill(
     }
     if let Some(menu) = opts.callback("menu") {
         response.context_menu(|ui| {
-            let _ = scoped(engine, ui, menu);
+            let _ = scoped(eng, ui, menu);
         });
     }
     Ok(response.clicked())

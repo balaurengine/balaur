@@ -11,7 +11,7 @@ fn registered_options(field: &str) -> Vec<String> {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: None,
+        script_backend: None,
     })
     .unwrap();
     app.add_plugin(balaur_ui::UiPlugin).unwrap();

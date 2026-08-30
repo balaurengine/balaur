@@ -16,7 +16,7 @@ fn app_in(dir: &std::path::Path) -> App {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: Some(balaur_script_rune::factory()),
+        script_backend: Some(balaur_script_rune::factory()),
     })
     .unwrap()
 }
@@ -46,7 +46,7 @@ fn instance_state_survives_between_frames() {
     )]);
     let mut app = app_in(dir.path());
     let node = spawn(&app, "Spinner");
-    let host = app.engine.scripts().unwrap();
+    let host = app.engine.script_host().unwrap();
     host.attach(balaur_core::node_id_of(node), "spin.rn")
         .unwrap();
 
@@ -80,7 +80,7 @@ fn a_typed_binding_reaches_rune() {
         m.function("scaled", |_: &Engine, (a, b): (i64, i64)| Ok(a * b));
     }
     let node = spawn(&app, "Caller");
-    let host = app.engine.scripts().unwrap();
+    let host = app.engine.script_host().unwrap();
     host.attach(balaur_core::node_id_of(node), "call.rn")
         .unwrap();
 
@@ -102,7 +102,7 @@ fn a_wrong_argument_type_is_reported_not_fatal() {
         m.function("need_int", |_: &Engine, n: i64| Ok(n));
     }
     let node = spawn(&app, "Bad");
-    let host = app.engine.scripts().unwrap();
+    let host = app.engine.script_host().unwrap();
     // init's failure is logged, not propagated: one bad script must not take
     // the frame down.
     host.attach(balaur_core::node_id_of(node), "bad.rn")
@@ -134,7 +134,7 @@ fn a_binding_can_call_the_function_it_was_passed() {
         });
     }
     let node = spawn(&app, "Cb");
-    let host = app.engine.scripts().unwrap();
+    let host = app.engine.script_host().unwrap();
     host.attach(balaur_core::node_id_of(node), "cb.rn").unwrap();
     assert_eq!(hits.get(), 2, "the binding should have called back twice");
 }
@@ -155,7 +155,7 @@ fn a_callback_does_not_outlive_its_call() {
         });
     }
     let node = spawn(&app, "Stash");
-    let host = app.engine.scripts().unwrap();
+    let host = app.engine.script_host().unwrap();
     host.attach(balaur_core::node_id_of(node), "stash.rn")
         .unwrap();
 
@@ -178,7 +178,7 @@ fn a_reload_keeps_instance_state() {
     )]);
     let mut app = app_in(dir.path());
     let node = spawn(&app, "V");
-    let host = app.engine.scripts().unwrap();
+    let host = app.engine.script_host().unwrap();
     host.attach(balaur_core::node_id_of(node), "v.rn").unwrap();
     app.tick(0.1);
 
@@ -213,7 +213,7 @@ fn the_node_api_is_available_as_methods() {
     )]);
     let mut app = app_in(dir.path());
     let node = spawn(&app, "Mover");
-    let host = app.engine.scripts().unwrap();
+    let host = app.engine.script_host().unwrap();
     host.attach(balaur_core::node_id_of(node), "move.rn")
         .unwrap();
     app.tick(0.1);
@@ -241,7 +241,7 @@ fn a_node_returned_to_a_script_is_still_a_node() {
     )]);
     let app = app_in(dir.path());
     let node = spawn(&app, "Root");
-    let host = app.engine.scripts().unwrap();
+    let host = app.engine.script_host().unwrap();
     host.attach(balaur_core::node_id_of(node), "tree.rn")
         .unwrap();
 
@@ -279,7 +279,7 @@ fn the_engine_modules_reach_rune() {
     )]);
     let app = app_in(dir.path());
     let node = spawn(&app, "Root");
-    let host = app.engine.scripts().unwrap();
+    let host = app.engine.script_host().unwrap();
     host.attach(balaur_core::node_id_of(node), "world.rn")
         .unwrap();
 
@@ -314,7 +314,7 @@ fn a_constant_is_readable_from_a_script() {
         );
     }
     let node = spawn(&app, "K");
-    let host = app.engine.scripts().unwrap();
+    let host = app.engine.script_host().unwrap();
     host.attach(balaur_core::node_id_of(node), "k.rn").unwrap();
 
     let rune = host

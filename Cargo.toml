@@ -70,7 +70,14 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
-# Local kiss3d with the macOS Command-modifier fix for egui
-# (get_egui_modifiers reported ⌘ as never pressed upstream).
+# kiss3d with the macOS Command-modifier fix for egui: upstream's
+# get_egui_modifiers reported ⌘ as never pressed. `cmd-mod` is v0.46.0 plus
+# that one commit.
+#
+# Fetched by cargo rather than expected as a sibling checkout, so a fresh clone
+# of this repo builds on its own and CI needs no second checkout. Cargo.lock
+# pins the exact commit, so the branch moving cannot change a build silently.
+# To hack on kiss3d itself, point cargo at a local copy with a `paths` override
+# in .cargo/config.toml rather than editing this.
 [patch.crates-io]
-kiss3d = { path = "../kiss3d" }
+kiss3d = { git = "https://github.com/dimforge/kiss3d.git", branch = "cmd-mod" }

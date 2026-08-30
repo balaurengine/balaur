@@ -3,7 +3,7 @@
 //! Both backends dispatch to this same list, so a bug here is a bug in every
 //! language at once — which makes it worth testing without one in the way.
 
-use balaur_core::node_api::DECLARATIONS;
+use balaur_core::node_api::NODE_OPS;
 use balaur_core::{App, AppConfig, Engine};
 use balaur_script::Value;
 
@@ -13,17 +13,17 @@ fn app() -> App {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: None,
+        script_backend: None,
     })
     .unwrap()
 }
 
-fn call(engine: &Engine, name: &str, args: &[Value]) -> anyhow::Result<Value> {
-    let decl = DECLARATIONS
+fn call(eng: &Engine, name: &str, args: &[Value]) -> anyhow::Result<Value> {
+    let decl = NODE_OPS
         .iter()
         .find(|d| d.name == name)
         .unwrap_or_else(|| panic!("`{name}` is not a declared node operation"));
-    (decl.call)(engine, args)
+    (decl.call)(eng, args)
 }
 
 fn spawn(app: &App, name: &str) -> Value {
@@ -166,7 +166,7 @@ fn a_missing_node_argument_is_an_error_not_a_panic() {
 #[test]
 fn every_declaration_rejects_a_non_node() {
     let app = app();
-    for decl in DECLARATIONS {
+    for decl in NODE_OPS {
         let out = (decl.call)(&app.engine, &[Value::Int(7)]);
         if decl.name == "is_valid" {
             assert_eq!(
@@ -187,7 +187,53 @@ fn every_declaration_rejects_a_non_node() {
 #[test]
 fn declarations_are_uniquely_named() {
     let mut seen = std::collections::BTreeSet::new();
-    for decl in DECLARATIONS {
+    for decl in NODE_OPS {
         assert!(seen.insert(decl.name), "`{}` is declared twice", decl.name);
     }
+}
+
+/// Degrees and radians are the same rotation, read two ways.
+///
+/// The pair exists because people author in degrees; the engine's unit is
+/// still radians, so the two readers must never disagree — a script mixing
+/// `set_rotation_degrees` with `rotation_euler` has to see one rotation.
+#[test]
+fn degrees_and_radians_are_two_readings_of_one_rotation() {
+    let app = app();
+    let node = spawn(&app, "N");
+    call(
+        &app.engine,
+        "set_rotation_degrees",
+        &[node.clone(), Value::Vec3([0.0, 90.0, 0.0])],
+    )
+    .unwrap();
+
+    let Value::Vec3([dx, dy, dz]) =
+        call(&app.engine, "rotation_degrees", std::slice::from_ref(&node)).unwrap()
+    else {
+        panic!("rotation_degrees is a vec3");
+    };
+    assert!(dx.abs() < 1e-3 && (dy - 90.0).abs() < 1e-3 && dz.abs() < 1e-3);
+
+    let Value::Vec3([rx, ry, rz]) =
+        call(&app.engine, "rotation_euler", std::slice::from_ref(&node)).unwrap()
+    else {
+        panic!("rotation_euler is a vec3");
+    };
+    assert!(
+        rx.abs() < 1e-5 && (ry - std::f32::consts::FRAC_PI_2).abs() < 1e-5 && rz.abs() < 1e-5,
+        "90 degrees is pi/2 radians, got {rx} {ry} {rz}"
+    );
+
+    // And back the other way: radians in, degrees out.
+    call(
+        &app.engine,
+        "set_rotation_euler",
+        &[node.clone(), Value::Vec3([std::f32::consts::PI, 0.0, 0.0])],
+    )
+    .unwrap();
+    let Value::Vec3([dx, _, _]) = call(&app.engine, "rotation_degrees", &[node]).unwrap() else {
+        panic!("rotation_degrees is a vec3");
+    };
+    assert!((dx.abs() - 180.0).abs() < 1e-3, "pi radians is 180 degrees");
 }

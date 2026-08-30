@@ -35,7 +35,7 @@ local function commands(S)
         for _, name in ref:component_names() do
             present[name] = true
         end
-        for _, name in scene.components() do
+        for _, name in scene.component_types() do
             if present[name] then
                 table.insert(list, {
                     label = `Remove {name} component`, icon = "✕", key = "",

@@ -84,7 +84,7 @@ impl Project {
 pub fn app(backend: Backend, project: &Project) -> Result<App> {
     let mut config = AppConfig::dev(project.path().to_string_lossy().as_ref());
     config.watch = false;
-    config.scripts = Some(backend.factory());
+    config.script_backend = Some(backend.factory());
     let mut app = balaur::standard_app(config)?;
     app.load_project()?;
     Ok(app)
@@ -97,7 +97,7 @@ pub fn app(backend: Backend, project: &Project) -> Result<App> {
 pub fn attach_many(app: &App, backend: Backend, count: usize) -> Result<Vec<hecs::Entity>> {
     let host = app
         .engine
-        .scripts()
+        .script_host()
         .ok_or_else(|| anyhow::anyhow!("no script backend"))?;
     let root = app.engine.root();
     let path = format!("s.{}", backend.extension());

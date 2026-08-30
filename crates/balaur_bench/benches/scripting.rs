@@ -62,7 +62,7 @@ fn update_across_nodes(c: &mut Criterion) {
                 let project = Project::new(backend, &source(backend, body)).unwrap();
                 let app = app(backend, &project).unwrap();
                 attach_many(&app, backend, count).unwrap();
-                let host = app.engine.scripts().unwrap();
+                let host = app.engine.script_host().unwrap();
                 group.bench_with_input(
                     BenchmarkId::new(format!("{}/{}", body.name(), backend.name()), count),
                     &count,
@@ -92,7 +92,7 @@ fn binding_call(c: &mut Criterion) {
             });
         }
         attach_many(&app, backend, 1).unwrap();
-        let host = app.engine.scripts().unwrap();
+        let host = app.engine.script_host().unwrap();
         group.bench_function(backend.name(), |b| b.iter(|| host.update(1.0 / 60.0)));
     }
     group.finish();
@@ -160,7 +160,7 @@ fn compile_second_script(c: &mut Criterion) {
                     app
                 },
                 |app| {
-                    let host = app.engine.scripts().unwrap();
+                    let host = app.engine.script_host().unwrap();
                     let e = balaur_core::scene::spawn_node(
                         &mut app.engine.world_mut(),
                         "second",
@@ -221,7 +221,7 @@ fn binding_arg_shapes(c: &mut Criterion) {
                 m.function_raw("take", Box::new(|_, _| Ok(balaur_script::Value::Nil)));
             }
             attach_many(&app, backend, 1).unwrap();
-            let host = app.engine.scripts().unwrap();
+            let host = app.engine.script_host().unwrap();
             group.bench_function(BenchmarkId::new(backend.name(), name), |b| {
                 b.iter(|| host.update(1.0 / 60.0));
             });

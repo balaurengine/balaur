@@ -20,7 +20,7 @@ use rapier3d::pipeline::PhysicsWorld;
 use rapier3d::prelude::{ColliderBuilder, ColliderHandle, RigidBodyBuilder, RigidBodyHandle};
 
 pub mod dim2;
-pub use dim2::Physics2DState;
+pub use dim2::PhysicsState2d;
 
 const FIXED_DT: f32 = 1.0 / 60.0;
 const MAX_SUBSTEPS: u32 = 4;
@@ -35,6 +35,10 @@ pub struct PhysicsState {
     /// While paused the simulation does not step (editors pause by default
     /// and unpause on play).
     pub paused: bool,
+    /// Whether bodies may fall asleep. Recorded here (rapier keeps it
+    /// per-body) so `physics.sleeping_allowed` can read it back and bodies
+    /// created later inherit it.
+    pub sleeping_allowed: bool,
     accumulator: f32,
 }
 
@@ -45,6 +49,7 @@ impl PhysicsState {
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
             paused: false,
+            sleeping_allowed: true,
             accumulator: 0.0,
         }
     }
@@ -75,8 +80,8 @@ impl Plugin for PhysicsPlugin {
 /// Build and insert the collider described by `params`, replacing any
 /// existing one (attached to the entity's body when it has one).
 fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let shape = params
-        .get("shape")
+    let kind = params
+        .get("kind")
         .and_then(|v| v.as_str())
         .unwrap_or("cuboid");
     let radius = params
@@ -91,10 +96,10 @@ fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<
             .and_then(balaur_core::components::as_f64)
             .unwrap_or(0.5) as f32
     };
-    let builder = match shape {
+    let builder = match kind {
         "ball" => ColliderBuilder::ball(radius.max(0.01)),
         "cuboid" => ColliderBuilder::cuboid(he(0).max(0.01), he(1).max(0.01), he(2).max(0.01)),
-        other => return Err(anyhow!("unknown collider shape '{other}'")),
+        other => return Err(anyhow!("unknown collider kind '{other}'")),
     };
     remove_colliders(eng, entity);
     add_collider(eng, entity, builder)
@@ -127,11 +132,11 @@ fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let collider = state.world.colliders.get(*handle)?;
     let mut map = toml::map::Map::new();
     if let Some(ball) = collider.shape().as_ball() {
-        map.insert("shape".into(), toml::Value::String("ball".into()));
+        map.insert("kind".into(), toml::Value::String("ball".into()));
         map.insert("radius".into(), toml::Value::Float(f64::from(ball.radius)));
     } else {
         let cuboid = collider.shape().as_cuboid()?;
-        map.insert("shape".into(), toml::Value::String("cuboid".into()));
+        map.insert("kind".into(), toml::Value::String("cuboid".into()));
         map.insert(
             "half_extents".into(),
             toml::Value::Array(vec![
@@ -158,13 +163,18 @@ fn node_pose(eng: &Engine, entity: Entity) -> Result<Pose3> {
 fn add_body(eng: &Engine, entity: Entity, kind: &str) -> Result<()> {
     let builder = match kind {
         "dynamic" => RigidBodyBuilder::dynamic(),
-        "fixed" => RigidBodyBuilder::fixed(),
+        "static" => RigidBodyBuilder::fixed(),
         "kinematic" => RigidBodyBuilder::kinematic_position_based(),
         other => return Err(anyhow!("unknown body kind '{other}'")),
     };
     let pose = node_pose(eng, entity)?;
     let state = eng.resource::<PhysicsState>();
     let mut state = state.borrow_mut();
+    let builder = if state.sleeping_allowed {
+        builder
+    } else {
+        builder.can_sleep(false)
+    };
     let handle = state.world.insert_body(builder.pose(pose));
     state.bodies.insert(entity, handle);
     Ok(())
@@ -262,28 +272,31 @@ fn step_system(eng: &Engine, dt: f32) {
     }
 }
 
-/// Pause, sleeping and gravity. These span the 3D and 2D worlds: a script
-/// treats "physics" as one simulation.
+/// Pause, sleeping and gravity.
 fn install_world_controls(m: &mut dyn Bindings<Engine>) {
-    // Pause/clear/sleep span both the 3D and the 2D world: editors and
-    // games treat "physics" as one simulation.
+    // Spans BOTH the 3D and the 2D world, unlike the rest of `physics`:
+    // editors and games treat "physics" as one simulation.
     m.function("set_paused", |eng: &Engine, paused: bool| {
         let state = eng.resource::<PhysicsState>();
         state.borrow_mut().paused = paused;
         dim2::set_paused(eng, paused);
         Ok(())
     });
+    // Spans BOTH worlds: `set_paused` pauses them together, so one answer
+    // is the truth for both.
     m.function("is_paused", |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState>();
         let v = state.borrow().paused;
         Ok(v)
     });
     // Allow or forbid bodies falling asleep (editors expose this as the
-    // "Sleep bodies" toggle).
+    // "Sleep bodies" toggle). Spans BOTH worlds, and applies to bodies
+    // added later as well as to the ones alive now.
     m.function("set_sleeping_allowed", |eng: &Engine, allowed: bool| {
         use rapier3d::prelude::RigidBodyActivation;
         let state = eng.resource::<PhysicsState>();
         let mut state = state.borrow_mut();
+        state.sleeping_allowed = allowed;
         let handles: Vec<_> = state.bodies.values().copied().collect();
         for handle in handles {
             let body = &mut state.world.bodies[handle];
@@ -298,8 +311,15 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
         dim2::set_sleeping_allowed(eng, allowed);
         Ok(())
     });
+    // Reads back what `set_sleeping_allowed` last wrote (true by default).
+    // Spans BOTH worlds, because the setter writes both.
+    m.function("sleeping_allowed", |eng: &Engine, ()| {
+        let state = eng.resource::<PhysicsState>();
+        let v = state.borrow().sleeping_allowed;
+        Ok(v)
+    });
     // Remove every body and collider (editors use this to reset a
-    // play-in-editor session).
+    // play-in-editor session). Spans BOTH worlds.
     m.function("clear", |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState>();
         let mut state = state.borrow_mut();
@@ -317,6 +337,7 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
         dim2::clear(eng);
         Ok(())
     });
+    // 3D only, unlike the four above; the 2D world has `physics2d.set_gravity`.
     m.function("set_gravity", |eng: &Engine, (x, y, z): (f32, f32, f32)| {
         let state = eng.resource::<PhysicsState>();
         state.borrow_mut().world.gravity = Vec3::new(x, y, z);
@@ -364,20 +385,14 @@ fn install_body_api(m: &mut dyn Bindings<Engine>) {
             (v.x, v.y, v.z)
         })
     });
-
-    // Components (schema-driven: addable and editable from the editor,
-    // and usable as scene-file keys). `body = "dynamic"` shorthand keeps
-    // working via the schema's shorthand marker.
 }
 
-/// Schema-driven components, so bodies and colliders are editable from the
-/// editor and usable as scene-file keys.
 /// Body kinds the 3D and 2D worlds both accept, so a script writes
 /// `physics.BODY_DYNAMIC` rather than spelling "dynamic" and finding out at
 /// runtime that "Dynamic" silently fell through to the default.
 pub const BODY_KINDS: &[(&str, &str)] = &[
     ("BODY_DYNAMIC", "dynamic"),
-    ("BODY_FIXED", "fixed"),
+    ("BODY_STATIC", "static"),
     ("BODY_KINEMATIC", "kinematic"),
 ];
 
@@ -397,12 +412,18 @@ pub(crate) fn install_constants(
     }
 }
 
+/// Schema-driven components, so bodies and colliders are addable and editable
+/// from the editor and usable as scene-file keys. The `body = "dynamic"`
+/// shorthand keeps working via the schema's `shorthand` marker.
+///
+/// Neither key is backed by a component type: both write into `PhysicsState`.
 fn register_physics_components(app: &mut App) {
     app.register_component(
         "body",
         ComponentDef {
             schema: ComponentDef::parse_schema(
-                r#"kind = { kind = "enum", default = "dynamic", options = ["dynamic", "fixed", "kinematic"], shorthand = true }"#,
+                "body",
+                r#"kind = { type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic"], shorthand = true }"#,
             ),
             apply: Box::new(|eng, entity, params| {
                 let kind = params
@@ -434,7 +455,7 @@ fn register_physics_components(app: &mut App) {
                 let handle = state.bodies.get(&entity)?;
                 let kind = match state.world.bodies[*handle].body_type() {
                     rapier3d::prelude::RigidBodyType::Dynamic => "dynamic",
-                    rapier3d::prelude::RigidBodyType::Fixed => "fixed",
+                    rapier3d::prelude::RigidBodyType::Fixed => "static",
                     _ => "kinematic",
                 };
                 Some(toml::Value::Table(toml::map::Map::from_iter([(
@@ -448,9 +469,10 @@ fn register_physics_components(app: &mut App) {
         "collider",
         ComponentDef {
             schema: ComponentDef::parse_schema(
-                r#"shape = { kind = "enum", default = "cuboid", options = ["ball", "cuboid"] }
-radius = { kind = "float", default = 0.5, min = 0.01 }
-half_extents = { kind = "vec3", default = [0.5, 0.5, 0.5] }"#,
+                "collider",
+                r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid"] }
+radius = { type = "float", default = 0.5, min = 0.01 }
+half_extents = { type = "vec3", default = [0.5, 0.5, 0.5] }"#,
             ),
             apply: Box::new(apply_collider),
             remove: Box::new(|eng, entity| {

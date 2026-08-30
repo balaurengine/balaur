@@ -65,7 +65,7 @@ function M.node_half_extents(node)
     if shape == nil then
         return nil
     end
-    if shape.kind == "circle" or shape.shape == "circle" then
+    if shape.kind == "circle" then
         local r = shape.radius or 0.5
         return r, r
     end
@@ -89,14 +89,14 @@ local function geometry(S)
     if ref == nil then
         return nil
     end
-    local x, y = ref:global_position()
+    local x, y = table.unpack(ref:global_position())
     local hx, hy = M.node_half_extents(node)
     if hx == nil then
         hx, hy = 0.6, 0.6
     end
-    local sx, sy = ref:global_scale()
+    local sx, sy = table.unpack(ref:global_scale())
     hx, hy = hx * sx, hy * sy
-    local _, _, angle = ref:global_rotation_euler()
+    local _, _, angle = table.unpack(ref:global_rotation_euler())
     local rs = HANDLE_PX * world_per_px(S)
     return {
         center = { x, y },
@@ -212,8 +212,8 @@ end
 
 local function start_drag(S, geo, part, mx, my)
     local node, ref = model.selected(S)
-    local px, py, pz = ref:position()
-    local sx, sy, sz = ref:scale()
+    local px, py, pz = table.unpack(ref:position())
+    local sx, sy, sz = table.unpack(ref:scale())
     local rot = node.rotation_euler or { 0, 0, 0 }
     local drag = {
         part = part,
@@ -312,10 +312,10 @@ local function pick(S, mx, my)
         if ref ~= nil then
             local hx, hy = M.node_half_extents(node)
             if hx ~= nil then
-                local sx, sy = ref:global_scale()
+                local sx, sy = table.unpack(ref:global_scale())
                 hx, hy = hx * sx, hy * sy
-                local x, y = ref:global_position()
-                local _, _, angle = ref:global_rotation_euler()
+                local x, y = table.unpack(ref:global_position())
+                local _, _, angle = table.unpack(ref:global_rotation_euler())
                 local lx, ly = to_local({ center = { x, y }, angle = angle }, mx, my)
                 if math.abs(lx) <= hx and math.abs(ly) <= hy then
                     local area = hx * hy
@@ -335,7 +335,7 @@ local function pick(S, mx, my)
     for i in S.doc do
         local ref = model.ref(S, i)
         if ref ~= nil then
-            local x, y = ref:global_position()
+            local x, y = table.unpack(ref:global_position())
             local dist = math.sqrt((x - mx) ^ 2 + (y - my) ^ 2)
             if dist < best_d then
                 best, best_d = i, dist
@@ -404,7 +404,7 @@ function M.update(S, vp)
     local wpp = world_per_px(S)
     local node, ref = model.selected(S)
     if S.tool == "move" and ref ~= nil then
-        local x, y, z = ref:position()
+        local x, y, z = table.unpack(ref:position())
         x += dx * wpp
         y -= dy * wpp
         if (S.chip_state.scene or {}).snap then
@@ -421,7 +421,7 @@ function M.update(S, vp)
         ref:set_rotation_euler(r[1], r[2], r[3])
         S.dirty = true
     elseif S.tool == "scale" and ref ~= nil then
-        local sx, sy, sz = ref:scale()
+        local sx, sy, sz = table.unpack(ref:scale())
         local f = math.clamp(1 - dy * 0.01, 0.2, 5)
         sx, sy = sx * f, sy * f
         ref:set_scale(sx, sy, sz)

@@ -14,7 +14,7 @@ fn registered_options(component: &str, field: &str) -> Vec<String> {
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        scripts: None,
+        script_backend: None,
     })
     .unwrap();
     app.add_plugin(PhysicsPlugin).unwrap();
