@@ -33,6 +33,7 @@ rust_2018_idioms   = { level = "warn", priority = -1 }
 
 [workspace.dependencies]
 balaur_core = { path = "crates/balaur_core", version = "0.1.0" }
+balaur_plugin = { path = "crates/balaur_plugin", version = "0.1.0" }
 balaur_script = { path = "crates/balaur_script", version = "0.1.0" }
 balaur_script_luau = { path = "crates/balaur_script_luau", version = "0.1.0" }
 balaur_script_rune = { path = "crates/balaur_script_rune", version = "0.1.0" }
@@ -41,7 +42,7 @@ balaur_render = { path = "crates/balaur_render", version = "0.1.0" }
 balaur_audio = { path = "crates/balaur_audio", version = "0.1.0" }
 balaur_input = { path = "crates/balaur_input", version = "0.1.0" }
 balaur_ui = { path = "crates/balaur_ui", version = "0.1.0" }
-balaur = { path = "crates/balaur", version = "0.1.0" }
+balaur = { path = "crates/balaur", version = "0.1.0", default-features = false }
 
 hecs = "0.11"
 mlua = { version = "0.12", features = ["luau", "error-send"] }
@@ -50,6 +51,7 @@ notify = "8"
 rapier3d = { version = "0.35", features = ["enhanced-determinism"] }
 rapier2d = { version = "0.35", features = ["enhanced-determinism"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 toml = "0.9"
 anyhow = "1"
 indexmap = "2"

@@ -14,7 +14,7 @@ fn app() -> App {
         script_backend: None,
     })
     .unwrap();
-    app.add_plugin(AudioPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
     app
 }
 

@@ -10,11 +10,14 @@ name = "balaur"
 path = "src/main.rs"
 
 [features]
+default = ["audio"]
 # Build with a real window (kiss3d/wgpu). Without it, runs are headless.
 window = ["balaur/window"]
+# Sound. Off, the build drops rodio, cpal and the platform audio stack.
+audio = ["balaur/audio"]
 
 [dependencies]
-balaur.workspace = true
+balaur = { workspace = true, default-features = false }
 anyhow.workspace = true
 clap.workspace = true
 tracing-subscriber.workspace = true

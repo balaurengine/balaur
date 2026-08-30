@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use balaur_core::project::ProjectRoot;
 use balaur_core::Engine;
-use balaur_core::{App, Plugin, Stage};
+use balaur_core::Stage;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 /// The rodio/cpal backend: every target with a real audio stack.
@@ -137,14 +137,29 @@ impl AudioState {
     }
 }
 
-pub struct AudioPlugin;
+pub struct AudioPlugin {
+    manifest: balaur_plugin::Manifest,
+}
 
-impl Plugin for AudioPlugin {
-    fn name(&self) -> &'static str {
-        "audio"
+impl Default for AudioPlugin {
+    fn default() -> Self {
+        Self {
+            manifest: balaur_plugin::Manifest::new("audio", env!("CARGO_PKG_VERSION")),
+        }
+    }
+}
+
+fn drop_finished_players_system(eng: &balaur_core::Engine, _: f32) {
+    let state = eng.resource::<AudioState>();
+    state.borrow_mut().players.retain(|p| !p.finished());
+}
+
+impl balaur_plugin::Plugin for AudioPlugin {
+    fn manifest(&self) -> &balaur_plugin::Manifest {
+        &self.manifest
     }
 
-    fn build(&mut self, app: &mut App) -> Result<()> {
+    fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         let device = match backend::open_default() {
             Ok(device) => Some(device),
             Err(err) => {
@@ -152,18 +167,14 @@ impl Plugin for AudioPlugin {
                 None
             }
         };
-        app.engine.insert_resource(AudioState {
+        reg.insert_resource(AudioState {
             device,
             players: Vec::new(),
         });
 
-        // Drop finished one-shot players so they do not accumulate.
-        app.add_system(Stage::PostUpdate, |eng, _| {
-            let state = eng.resource::<AudioState>();
-            state.borrow_mut().players.retain(|p| !p.finished());
-        });
+        reg.add_system(Stage::PostUpdate, drop_finished_players_system);
 
-        let mut m = app.script_module("audio")?;
+        let mut m = reg.script_module("audio")?;
         install_audio_api(&mut m);
         Ok(())
     }

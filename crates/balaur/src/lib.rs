@@ -8,6 +8,7 @@
 //! }
 //! ```
 
+#[cfg(feature = "audio")]
 pub use balaur_audio::AudioPlugin;
 pub use balaur_core::*;
 pub use balaur_input::InputPlugin;
@@ -15,6 +16,7 @@ pub use balaur_physics::PhysicsPlugin;
 pub use balaur_render::RenderPlugin;
 pub use balaur_ui::UiPlugin;
 
+#[cfg(feature = "audio")]
 pub use balaur_audio as audio;
 pub use balaur_input as input;
 pub use balaur_physics as physics;
@@ -88,7 +90,8 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     app.add_plugin(InputPlugin)?;
     app.add_plugin(PhysicsPlugin)?;
     app.add_plugin(RenderPlugin)?;
-    app.add_plugin(AudioPlugin)?;
+    #[cfg(feature = "audio")]
+    balaur_plugin::load(&mut app, &mut AudioPlugin::default())?;
     app.add_plugin(UiPlugin)?;
     Ok(app)
 }
