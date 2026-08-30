@@ -205,8 +205,11 @@ construct no compiler and no watcher. `balaur::boot_pack(include_bytes!(...))`
 turns a pack into a self-contained release binary; on platforms without
 JIT/codegen restrictions this is still pure interpretation of precompiled
 bytecode, so it ships everywhere (iOS included). CI cross-compiles the
-headless engine to `aarch64-apple-ios` on every run, so that last sentence is
-checked rather than asserted.
+headless engine to `aarch64-apple-ios`, `aarch64-linux-android` and
+`wasm32-unknown-emscripten` on every push to main, so that last sentence is
+checked rather than asserted. Emscripten and not `wasm32-unknown-unknown`,
+because Luau is C++ and needs a libc to compile against; audio is a stub on
+wasm because no cpal host compiles there (see `balaur_audio`).
 
 A pack is written in sorted key order, which makes exporting the same sources
 twice give the same bytes — on the same machine and on any other. CI exports

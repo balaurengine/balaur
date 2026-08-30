@@ -2,10 +2,10 @@ name: Build
 
 # Everything that produces an artifact somebody downloads.
 #
-# The editor and the runtime template are the same binary: the editor is a
-# Balaur project the binary runs, and a game is that binary with a pack
-# appended. So one compile per platform yields both, and splitting them into
-# separate jobs would only compile the identical thing twice.
+# `build-editor` is named for the artifact people download, but it emits two,
+# because they are one program: the editor is a Balaur project that the binary
+# runs, and a game is that same binary with a pack appended. Splitting them
+# into separate jobs would compile the identical thing twice.
 #
 # A push to main refreshes a rolling draft release; a `v*` tag drafts that
 # version. Publishing stays a human decision.
@@ -23,8 +23,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: build · ${{ matrix.target }}
+  build-editor:
+    name: build editor · ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -34,11 +34,11 @@ jobs:
             target: linux-x64
           - os: ubuntu-24.04-arm
             target: linux-arm64
+          # One universal binary rather than two downloads: package.sh builds
+          # both slices and lipos them, so Apple Silicon and Intel get the
+          # same file.
           - os: macos-latest
-            target: macos-arm64
-          # macos-13 is the last x86_64 image, and Intel Macs still play games.
-          - os: macos-13
-            target: macos-x64
+            target: macos-universal
           - os: windows-latest
             target: windows-x64
     steps:
@@ -71,31 +71,35 @@ jobs:
   #
   # A runtime template has to open a window, and kiss3d is desktop-bound — its
   # egui feature pulls in `rfd`, which has no mobile backend. So there is no
-  # honest iOS or Android template to build today, and claiming otherwise by
-  # publishing a headless binary would be worse than publishing nothing. What
-  # these jobs do check is that the engine and its simulation still compile for
-  # the platform, which is the half that has to work first.
+  # honest iOS, Android or web template to build today, and claiming otherwise
+  # by publishing a headless binary would be worse than publishing nothing.
+  # What these jobs do check is that the engine and its simulation still
+  # compile for the platform, which is the half that has to work first.
   #
-  # iOS is green and required. The other two are known-red and report rather
-  # than fail: android was never determined, and wasm is blocked upstream in
-  # cpal 0.17, whose emscripten backend does not compile.
-  build-platforms:
-    name: platform · ${{ matrix.target }}
+  # All three are green and required. Audio is a stub on wasm (no cpal host
+  # compiles there; see balaur_audio), and the web target is emscripten rather
+  # than wasm32-unknown-unknown because Luau is C++ and needs a libc to
+  # compile against, which only emscripten provides (mlua#23).
+  #
+  # `check`, not `build`, because it deliberately produces no artifact: the
+  # release ships desktop templates only. Beyond the window, a mobile template
+  # is not even a binary — iOS ships a signed .app/.ipa and Android an .apk, so
+  # the template is a bundle skeleton carrying the pack as a resource, signed
+  # with the developer's credentials rather than CI's. Appending a pack to an
+  # executable is a desktop trick. See docs/PLAN-mobile-export.md.
+  check-platforms:
+    name: check · ${{ matrix.target }}
     runs-on: ${{ matrix.host }}
-    continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - target: aarch64-apple-ios
             host: macos-latest
-            optional: false
           - target: aarch64-linux-android
             host: ubuntu-latest
-            optional: true
           - target: wasm32-unknown-emscripten
             host: ubuntu-latest
-            optional: true
     env:
       RUSTFLAGS: -D warnings
     steps:
@@ -106,16 +110,17 @@ jobs:
       - name: Add target
         run: rustup target add ${{ matrix.target }}
       # Luau is C++, so this needs a C++ compiler for the target, not just a
-      # Rust target.
+      # Rust target. API 26 because that is cpal's floor: its Android backend
+      # is AAudio, which the platform added in 26.
       - name: Android NDK toolchain
         if: matrix.target == 'aarch64-linux-android'
         run: |
           bin=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin
           {
-            echo "CC_aarch64_linux_android=$bin/aarch64-linux-android24-clang"
-            echo "CXX_aarch64_linux_android=$bin/aarch64-linux-android24-clang++"
+            echo "CC_aarch64_linux_android=$bin/aarch64-linux-android26-clang"
+            echo "CXX_aarch64_linux_android=$bin/aarch64-linux-android26-clang++"
             echo "AR_aarch64_linux_android=$bin/llvm-ar"
-            echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android24-clang"
+            echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android26-clang"
           } >> "$GITHUB_ENV"
       - name: Emscripten
         if: matrix.target == 'wasm32-unknown-emscripten'
@@ -132,7 +137,7 @@ jobs:
 
   draft-release:
     name: draft release
-    needs: build
+    needs: build-editor
     runs-on: ubuntu-latest
     # Drafting a release means writing to the repo's releases.
     permissions:

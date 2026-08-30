@@ -85,12 +85,31 @@ impl balaur_script::Bindings<Engine> for LuaModule {
     }
 }
 
+/// mlua's `Integer` follows the platform pointer width — i64 on desktop, i32
+/// on wasm32 — while the neutral seam is i64 everywhere. Every crossing goes
+/// through this pair rather than a bare copy at each site, which is what made
+/// the wasm build fail to compile.
+#[allow(clippy::useless_conversion)] // Identity on 64-bit targets.
+pub(crate) fn int_from_lua(i: mlua::Integer) -> i64 {
+    i64::from(i)
+}
+
+/// On 32-bit, an int that does not fit becomes a Luau number: Luau numbers
+/// are f64, so this is the value Luau itself would have held.
+#[allow(clippy::unnecessary_fallible_conversions)] // Only infallible on 64-bit.
+pub(crate) fn int_to_lua(i: i64) -> mlua::Value {
+    match mlua::Integer::try_from(i) {
+        Ok(n) => mlua::Value::Integer(n),
+        Err(_) => mlua::Value::Number(i as f64),
+    }
+}
+
 pub(crate) fn to_neutral(v: &mlua::Value) -> mlua::Result<balaur_script::Value> {
     use balaur_script::Value as N;
     Ok(match v {
         mlua::Value::Nil => N::Nil,
         mlua::Value::Boolean(b) => N::Bool(*b),
-        mlua::Value::Integer(i) => N::Int(*i),
+        mlua::Value::Integer(i) => N::Int(int_from_lua(*i)),
         mlua::Value::Number(n) => N::Num(*n),
         mlua::Value::String(s) => N::Str(s.to_str()?.to_string()),
         mlua::Value::UserData(ud) => {
@@ -153,7 +172,7 @@ pub(crate) fn from_neutral(
         // A callback never travels back out to script; it is call-scoped.
         N::Nil | N::Callback(_) => mlua::Value::Nil,
         N::Bool(b) => mlua::Value::Boolean(*b),
-        N::Int(i) => mlua::Value::Integer(*i),
+        N::Int(i) => int_to_lua(*i),
         N::Num(n) => mlua::Value::Number(*n),
         N::Str(s) => mlua::Value::String(lua.create_string(s)?),
         N::Vec2(a) => list(lua, a)?,

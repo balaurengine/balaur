@@ -148,7 +148,7 @@ still needs an engine to run it. To ship something a player can just open, fuse
 it onto a runtime template:
 
 ```bash
-balaur export my-game --target linux-x64     # or macos-arm64, windows-x64
+balaur export my-game --target linux-x64     # or macos-universal, windows-x64
 ```
 
 The result is one executable. Templates are the engine binaries published with

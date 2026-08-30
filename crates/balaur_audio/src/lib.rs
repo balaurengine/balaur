@@ -4,9 +4,11 @@
 //! warning once and every call becomes a no-op, so games and tests run
 //! unchanged. Audio never feeds back into the simulation, so it has no
 //! impact on determinism.
+//!
+//! Wasm builds are the extreme case of that rule: no audio stack compiles
+//! there at all (see the backend modules below), so the whole backend is the
+//! "no device" path and scripts calling `audio.*` still run.
 
-use std::fs::File;
-use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -14,11 +16,87 @@ use balaur_core::project::ProjectRoot;
 use balaur_core::Engine;
 use balaur_core::{App, Plugin, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
-use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player};
+
+/// The rodio/cpal backend: every target with a real audio stack.
+#[cfg(not(target_family = "wasm"))]
+mod backend {
+    use std::fs::File;
+    use std::io::BufReader;
+    use std::path::Path;
+
+    use anyhow::Result;
+    use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player};
+
+    pub(crate) struct Device(MixerDeviceSink);
+    pub(crate) struct Sound(Player);
+
+    pub(crate) fn open_default() -> Result<Device> {
+        Ok(Device(DeviceSinkBuilder::open_default_sink()?))
+    }
+
+    /// Decode a file and start it on the device's mixer. rodio has no loop
+    /// toggle on a live player, so looping is requested at decode time.
+    pub(crate) fn play(device: &Device, path: &Path, volume: f32, looped: bool) -> Result<Sound> {
+        let file = File::open(path)?;
+        if looped {
+            let decoder = rodio::Decoder::try_from(BufReader::new(file))?;
+            let player = Player::connect_new(device.0.mixer());
+            player.set_volume(volume);
+            player.append(rodio::source::Source::repeat_infinite(decoder));
+            return Ok(Sound(player));
+        }
+        let player = rodio::play(device.0.mixer(), BufReader::new(file))?;
+        player.set_volume(volume);
+        Ok(Sound(player))
+    }
+
+    impl Sound {
+        pub(crate) fn stop(&self) {
+            self.0.stop();
+        }
+
+        pub(crate) fn finished(&self) -> bool {
+            self.0.empty()
+        }
+    }
+}
+
+/// The wasm stub. cpal's emscripten host does not compile — broken upstream
+/// against current wasm-bindgen and deleted outright in cpal 0.18 — and its
+/// WebAudio host only runs inside a wasm-bindgen app, which a Luau engine on
+/// emscripten is not. Both types are uninhabited: opening always fails, the
+/// plugin warns once, and the compiler proves the rest of this module dead.
+#[cfg(target_family = "wasm")]
+mod backend {
+    use std::path::Path;
+
+    use anyhow::{bail, Result};
+
+    pub(crate) enum Device {}
+    pub(crate) enum Sound {}
+
+    pub(crate) fn open_default() -> Result<Device> {
+        bail!("no audio backend compiles for wasm")
+    }
+
+    pub(crate) fn play(device: &Device, _: &Path, _: f32, _: bool) -> Result<Sound> {
+        match *device {}
+    }
+
+    impl Sound {
+        pub(crate) fn stop(&self) {
+            match *self {}
+        }
+
+        pub(crate) fn finished(&self) -> bool {
+            match *self {}
+        }
+    }
+}
 
 pub struct AudioState {
-    device: Option<MixerDeviceSink>,
-    players: Vec<Player>,
+    device: Option<backend::Device>,
+    players: Vec<backend::Sound>,
 }
 
 /// Resolve a script-supplied sound path against the project.
@@ -53,23 +131,8 @@ impl AudioState {
         let Some(device) = &self.device else {
             return Ok(());
         };
-        let file = File::open(path)?;
-        let player = rodio::play(device.mixer(), BufReader::new(file))?;
-        player.set_volume(volume);
-        if looped {
-            // rodio has no toggle on a live player; looping is requested at
-            // decode time instead. Keep it simple: re-open with a looped
-            // decoder.
-            player.stop();
-            let file = File::open(path)?;
-            let decoder = rodio::Decoder::try_from(BufReader::new(file))?;
-            let looped_player = Player::connect_new(device.mixer());
-            looped_player.set_volume(volume);
-            looped_player.append(rodio::source::Source::repeat_infinite(decoder));
-            self.players.push(looped_player);
-            return Ok(());
-        }
-        self.players.push(player);
+        let sound = backend::play(device, path, volume, looped)?;
+        self.players.push(sound);
         Ok(())
     }
 }
@@ -82,7 +145,7 @@ impl Plugin for AudioPlugin {
     }
 
     fn build(&mut self, app: &mut App) -> Result<()> {
-        let device = match DeviceSinkBuilder::open_default_sink() {
+        let device = match backend::open_default() {
             Ok(device) => Some(device),
             Err(err) => {
                 tracing::warn!("audio disabled: {err}");
@@ -97,7 +160,7 @@ impl Plugin for AudioPlugin {
         // Drop finished one-shot players so they do not accumulate.
         app.add_system(Stage::PostUpdate, |eng, _| {
             let state = eng.resource::<AudioState>();
-            state.borrow_mut().players.retain(|p| !p.empty());
+            state.borrow_mut().players.retain(|p| !p.finished());
         });
 
         let mut m = app.script_module("audio")?;

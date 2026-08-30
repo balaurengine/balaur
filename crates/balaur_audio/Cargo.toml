@@ -11,6 +11,12 @@ balaur_core.workspace = true
 anyhow.workspace = true
 balaur_script.workspace = true
 tracing.workspace = true
+
+# rodio's playback stack is cpal, and no cpal host compiles for wasm builds:
+# the emscripten host broke upstream and was deleted in cpal 0.18, and the
+# WebAudio host needs a wasm-bindgen app. Wasm gets the stub backend in lib.rs.
+# This gate is also what keeps rand/getrandom out of the wasm tree.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
 rodio = "0.22"
 
 [lints]

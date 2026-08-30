@@ -48,8 +48,8 @@ pub const DISABLED_BUILTINS: &[&str] = &[
 fn lua_random(eng: &Engine, args: &Variadic<i64>) -> mlua::Result<Value> {
     with_rng(eng, |rng| match args.len() {
         0 => Ok(Value::Number(rng.next_f64())),
-        1 => Ok(Value::Integer(rng.next_range_i64(1, args[0]))),
-        _ => Ok(Value::Integer(rng.next_range_i64(args[0], args[1]))),
+        1 => Ok(crate::env::int_to_lua(rng.next_range_i64(1, args[0]))),
+        _ => Ok(crate::env::int_to_lua(rng.next_range_i64(args[0], args[1]))),
     })
 }
 

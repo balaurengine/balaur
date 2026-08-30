@@ -53,7 +53,7 @@ exported onto.
 ### Exporting a game
 
 ```
-balaur export my-game --target linux-x64      # or macos-arm64, windows-x64
+balaur export my-game --target linux-x64      # or macos-universal, windows-x64
 ```
 
 That fuses the compiled pack onto the runtime template and writes a single
@@ -61,6 +61,13 @@ executable your players can run directly — no engine install, no separate
 `.bpak`, no Rust. To export for a platform you are not on, put that platform's
 `balaur-runtime-*` in the `templates/` directory next to the binary (or point
 `BALAUR_TEMPLATES` at it).
+
+The macOS build is a universal binary: one download for Apple Silicon and
+Intel, and a game exported onto it stays universal.
+
+Desktop only for now — mobile and web need a render backend that can open a
+window there, and a bundle rather than a plain executable. See
+docs/PLAN-mobile-export.md.
 
 Exported macOS games are unsigned: appending the pack invalidates any
 signature, so sign or notarise after exporting, not before.
