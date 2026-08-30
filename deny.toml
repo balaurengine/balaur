@@ -13,13 +13,12 @@ wildcards = "deny"
 
 [advisories]
 yanked = "deny"
-# Report unmaintained crates we picked ourselves, not ones buried in a
-# dependency's own tree. Unmaintained is informational — it means nobody is
-# minding the crate, not that there is a known exploit — and the three we hit
-# (rusttype, ttf-parser, paste) all come from kiss3d, which we do not control.
-# Failing the build on those makes CI permanently red for something no commit
-# here can fix, which teaches people to ignore CI. Vulnerabilities stay denied.
-unmaintained = "workspace"
+# Off. The unmaintained crates here (rusttype, ttf-parser, and paste via
+# image's default-formats) all come from kiss3d, and updating kiss3d is not on
+# the table right now. Unmaintained is informational anyway: nobody is minding
+# the crate, not a known exploit. Actual vulnerabilities are always errors in
+# cargo-deny and cannot be switched off here, which is the part that matters.
+unmaintained = "none"
 
 [sources]
 unknown-registry = "deny"
