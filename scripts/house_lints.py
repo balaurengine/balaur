@@ -49,6 +49,12 @@ class Finding:
     severity: str  # ERROR | REPORT
 
 
+def is_test_file(rel):
+    """Tests and benchmarks: scaffolding, not shipped code."""
+    p = str(rel)
+    return "/tests/" in p or "/benches/" in p or rel.name.startswith("test_")
+
+
 def rust_files() -> list[Path]:
     out = []
     for p in ROOT.rglob("*.rs"):
@@ -130,7 +136,7 @@ def check_file(path: Path) -> list[Finding]:
         if re.search(r"#\[cfg\(test\)\]", line) or "#[test]" in line:
             in_test_mod = True
             test_brace_depth = depth
-        if "/tests/" in str(rel) or rel.name.startswith("test_"):
+        if is_test_file(rel):
             in_test_mod = True
 
         # --- rules on code lines ------------------------------------------
@@ -191,7 +197,7 @@ def check_file(path: Path) -> list[Finding]:
                 fn_start = None
                 fn_depth = None
             if in_test_mod and test_brace_depth is not None and depth <= test_brace_depth:
-                if "/tests/" not in str(rel):
+                if not is_test_file(rel):
                     in_test_mod = False
                     test_brace_depth = None
 

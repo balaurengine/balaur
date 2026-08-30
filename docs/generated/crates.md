@@ -26,6 +26,18 @@ Audio as a Balaur plugin, backed by rodio.
 - **public surface:** 2 struct
 - **structs:** `AudioPlugin`, `AudioState`
 
+## `balaur_bench`
+
+Benchmarks: where a frame's time goes, and what each language costs
+
+Shared setup for the benchmarks: build a project on disk, boot an app on a chosen backend, attach scripts to N nodes.
+
+- **workspace deps:** `balaur`, `balaur_core`, `balaur_physics`, `balaur_script`, `balaur_script_luau`, `balaur_script_rune`
+- **external deps:** 4 (anyhow, hecs, tempfile, toml)
+- **public surface:** 2 fn, 1 struct, 1 enum
+- **structs:** `Project`
+- **enums:** `Backend`
+
 ## `balaur_cli`
 
 The `balaur` command line tool: create, run, export, and play projects.

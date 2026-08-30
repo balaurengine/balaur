@@ -1,0 +1,34 @@
+[package]
+name = "balaur_bench"
+description = "Benchmarks: where a frame's time goes, and what each language costs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+balaur.workspace = true
+balaur_core.workspace = true
+balaur_script.workspace = true
+balaur_script_luau.workspace = true
+balaur_script_rune.workspace = true
+balaur_physics.workspace = true
+hecs.workspace = true
+anyhow.workspace = true
+tempfile = "3"
+toml.workspace = true
+
+[dev-dependencies]
+criterion = "0.8"
+
+[[bench]]
+name = "scripting"
+harness = false
+
+[[bench]]
+name = "engine"
+harness = false
+
+[lints]
+workspace = true

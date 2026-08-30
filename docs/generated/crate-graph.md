@@ -9,6 +9,7 @@ depends on a backend, which is what keeps it language-free.
 graph TD
   balaur[balaur]
   balaur_audio[balaur_audio]
+  balaur_bench[balaur_bench]
   balaur_cli[balaur_cli]
   balaur_core[balaur_core]
   balaur_input[balaur_input]
@@ -28,6 +29,12 @@ graph TD
   balaur --> balaur_ui
   balaur_audio --> balaur_core
   balaur_audio --> balaur_script
+  balaur_bench --> balaur
+  balaur_bench --> balaur_core
+  balaur_bench --> balaur_physics
+  balaur_bench --> balaur_script
+  balaur_bench --> balaur_script_luau
+  balaur_bench --> balaur_script_rune
   balaur_cli --> balaur
   balaur_core --> balaur_script
   balaur_input --> balaur_core

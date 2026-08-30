@@ -95,6 +95,21 @@ cargo run -p balaur_cli --features window -- run examples/angrynerds
 cargo run -p balaur_cli --features window -- edit examples/angrynerds
 ```
 
+## Benchmarks
+
+Headless, no window, no GPU: what a measurement shows is the engine.
+
+```bash
+python3 scripts/bench.py --quick      # ~1 min, noisier
+python3 scripts/bench.py              # full run
+python3 scripts/bench.py --no-run     # re-report the last one
+```
+
+The report gives each result as a share of one 60 fps frame, because a
+nanosecond count on its own says nothing about whether you have headroom.
+Scripting benchmarks run the same scenario on both languages, which is the
+only way to say what a language actually costs.
+
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — decisions and why, hand-written
