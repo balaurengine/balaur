@@ -76,6 +76,39 @@ impl InputState {
         self.scroll.1 += dy;
     }
 
+    /// True for the one frame a key went down.
+    pub fn just_pressed(&self, key: &str) -> bool {
+        self.just_pressed.contains(key)
+    }
+
+    /// True for the one frame a key came up.
+    pub fn just_released(&self, key: &str) -> bool {
+        self.just_released.contains(key)
+    }
+
+    pub fn is_mouse_down(&self, button: usize) -> bool {
+        self.mouse_down.get(button).copied().unwrap_or(false)
+    }
+
+    pub fn mouse_just_pressed(&self, button: usize) -> bool {
+        self.mouse_just_pressed
+            .get(button)
+            .copied()
+            .unwrap_or(false)
+    }
+
+    pub fn mouse_just_released(&self, button: usize) -> bool {
+        self.mouse_just_released
+            .get(button)
+            .copied()
+            .unwrap_or(false)
+    }
+
+    /// Movement since the last frame, not an absolute position.
+    pub const fn mouse_delta(&self) -> (f32, f32) {
+        self.mouse_delta
+    }
+
     pub fn is_down(&self, key: &str) -> bool {
         self.down.contains(key)
     }
@@ -340,19 +373,19 @@ fn register(m: &mut dyn Bindings<Engine>) {
     m.function("is_down", |eng: &Engine, key: String| {
         check_key(&key);
         let state = eng.resource::<InputState>();
-        let v = state.borrow().down.contains(&key);
+        let v = state.borrow().is_down(&key);
         Ok(v)
     });
     m.function("just_pressed", |eng: &Engine, key: String| {
         check_key(&key);
         let state = eng.resource::<InputState>();
-        let v = state.borrow().just_pressed.contains(&key);
+        let v = state.borrow().just_pressed(&key);
         Ok(v)
     });
     m.function("just_released", |eng: &Engine, key: String| {
         check_key(&key);
         let state = eng.resource::<InputState>();
-        let v = state.borrow().just_released.contains(&key);
+        let v = state.borrow().just_released(&key);
         Ok(v)
     });
     m.function("mouse_position", |eng: &Engine, ()| {
@@ -374,7 +407,7 @@ fn register(m: &mut dyn Bindings<Engine>) {
     // the engine uses internally, and the same in every language.
     m.function("is_mouse_down", |eng: &Engine, button: usize| {
         let state = eng.resource::<InputState>();
-        let v = *state.borrow().mouse_down.get(button).unwrap_or(&false);
+        let v = state.borrow().is_mouse_down(button);
         Ok(v)
     });
     m.function("mouse_just_pressed", |eng: &Engine, button: usize| {

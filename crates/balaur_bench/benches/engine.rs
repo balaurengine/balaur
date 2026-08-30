@@ -76,6 +76,29 @@ fn instantiate_scene(c: &mut Criterion) {
     group.finish();
 }
 
+/// Parsing the scene document on its own.
+///
+/// `instantiate_scene` parses and then spawns. Without the split it is not
+/// clear whether to optimise the engine or accept the TOML crate's cost.
+fn parse_scene(c: &mut Criterion) {
+    let mut group = c.benchmark_group("parse_scene_only");
+    for count in [50usize, 500] {
+        let mut doc = String::new();
+        for i in 0..count {
+            use std::fmt::Write as _;
+            let _ = write!(
+                doc,
+                "[[nodes]]\nid = \"n{i}\"\nname = \"N{i}\"\nposition = [1.0, 2.0, 3.0]\n\n"
+            );
+        }
+        group.throughput(Throughput::Elements(count as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(count), &count, |b, _| {
+            b.iter(|| toml::from_str::<toml::Value>(&doc).unwrap());
+        });
+    }
+    group.finish();
+}
+
 /// A physics step at a few body counts.
 fn physics_step(c: &mut Criterion) {
     let mut group = c.benchmark_group("physics_step");
@@ -96,5 +119,12 @@ fn physics_step(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, propagate, spawn, instantiate_scene, physics_step);
+criterion_group!(
+    benches,
+    propagate,
+    spawn,
+    parse_scene,
+    instantiate_scene,
+    physics_step
+);
 criterion_main!(benches);

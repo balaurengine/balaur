@@ -189,14 +189,28 @@ fn binding_arg_shapes(c: &mut Criterion) {
             "#{x: 1.0, y: 2.0, name: \"widget\"}",
         ),
     ];
-    for (name, luau_arg, rune_arg) in shapes {
+    // A literal is rebuilt by the script on every call, so those numbers are
+    // allocation plus conversion. `map_reused` passes one built up front, which
+    // isolates what crossing the seam actually costs.
+    let reused: [(&str, &str, &str); 1] = [("map_reused", "_G.opts", "this.opts")];
+    for (name, luau_arg, rune_arg) in shapes.into_iter().chain(reused) {
         for backend in Backend::ALL {
+            let setup_luau = if name == "map_reused" {
+                "_G.opts = {x = 1.0, y = 2.0, name = \"widget\"}"
+            } else {
+                ""
+            };
+            let setup_rune = if name == "map_reused" {
+                "this.opts = #{x: 1.0, y: 2.0, name: \"widget\"};"
+            } else {
+                ""
+            };
             let body = match backend {
                 Backend::Luau => format!(
-                    "local S = {{}}\nfunction S:init() end\nfunction S:update(dt) bench.take({luau_arg}) end\nreturn S\n"
+                    "local S = {{}}\nfunction S:init() {setup_luau} end\nfunction S:update(dt) bench.take({luau_arg}) end\nreturn S\n"
                 ),
                 Backend::Rune => format!(
-                    "pub fn init(this) {{}}\npub fn update(this, dt) {{ bench::take({rune_arg}); }}\n"
+                    "pub fn init(this) {{ {setup_rune} }}\npub fn update(this, dt) {{ bench::take({rune_arg}); }}\n"
                 ),
             };
             let project = Project::new(backend, &body).unwrap();

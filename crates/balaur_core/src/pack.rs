@@ -13,7 +13,7 @@ use anyhow::{anyhow, Context, Result};
 
 const MAGIC: &[u8; 5] = b"BPAK\x01";
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct Pack {
     /// `project.toml` source.
     pub manifest: String,

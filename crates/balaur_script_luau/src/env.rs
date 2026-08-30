@@ -77,21 +77,6 @@ impl balaur_script::Bindings<Engine> for LuaModule {
     }
 }
 
-/// True when the table's only keys are 1..=len, i.e. it is an array.
-fn is_sequence(t: &mlua::Table, len: usize) -> mlua::Result<bool> {
-    let mut count = 0usize;
-    let mut contiguous = true;
-    t.for_each(|k: mlua::Value, _: mlua::Value| {
-        count += 1;
-        match k {
-            mlua::Value::Integer(i) if i >= 1 && (i as usize) <= len => {}
-            _ => contiguous = false,
-        }
-        Ok(())
-    })?;
-    Ok(contiguous && count == len)
-}
-
 pub(crate) fn to_neutral(v: &mlua::Value) -> mlua::Result<balaur_script::Value> {
     use balaur_script::Value as N;
     Ok(match v {
@@ -106,28 +91,45 @@ pub(crate) fn to_neutral(v: &mlua::Value) -> mlua::Result<balaur_script::Value> 
         }
         mlua::Value::Function(f) => N::Callback(CallbackScope::register(f.clone())),
         mlua::Value::Table(t) => {
-            // A Lua table is both a record and an array. Treat a contiguous
-            // 1..n as a list, anything else as a map — dropping integer keys,
-            // as this used to, silently turned every array into an empty map.
+            // A Lua table is both a record and an array. A contiguous 1..n is
+            // a list, anything else a map — and dropping integer keys, as this
+            // once did, silently turned every array into an empty map.
+            //
+            // One pass: classify while collecting. Deciding first and then
+            // building walked every table twice, which a map paid on every
+            // binding call.
             let len = t.raw_len();
-            if len > 0 && is_sequence(t, len)? {
-                let mut items = Vec::with_capacity(len);
-                for i in 1..=len {
-                    items.push(to_neutral(&t.raw_get::<mlua::Value>(i)?)?);
+            let mut sequence = len > 0;
+            let mut entries: Vec<(mlua::Value, balaur_script::Value)> = Vec::with_capacity(len);
+            t.for_each(|k: mlua::Value, v: mlua::Value| {
+                if sequence
+                    && !matches!(&k, mlua::Value::Integer(i) if *i >= 1 && (*i as usize) <= len)
+                {
+                    sequence = false;
                 }
-                N::List(items)
+                entries.push((k, to_neutral(&v)?));
+                Ok(())
+            })?;
+            if sequence && entries.len() == len {
+                // for_each does not promise order, so place by index.
+                let mut items: Vec<Option<balaur_script::Value>> = (0..len).map(|_| None).collect();
+                for (k, v) in entries {
+                    if let mlua::Value::Integer(i) = k {
+                        items[(i - 1) as usize] = Some(v);
+                    }
+                }
+                N::List(items.into_iter().flatten().collect())
             } else {
-                let mut map = Vec::new();
-                t.for_each(|k: mlua::Value, v: mlua::Value| {
+                let mut map = Vec::with_capacity(entries.len());
+                for (k, v) in entries {
                     let key = match &k {
                         mlua::Value::String(k) => k.to_str()?.to_string(),
                         mlua::Value::Integer(i) => i.to_string(),
                         mlua::Value::Number(n) => n.to_string(),
-                        _ => return Ok(()),
+                        _ => continue,
                     };
-                    map.push((key, to_neutral(&v)?));
-                    Ok(())
-                })?;
+                    map.push((key, v));
+                }
                 N::Map(map)
             }
         }

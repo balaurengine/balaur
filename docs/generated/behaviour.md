@@ -5,50 +5,90 @@
 Every test in the workspace, as a sentence. A flow that is not here is a
 flow nothing checks.
 
+- a binding call stays sub microsecond
 - a binding can call the function it was passed
 - a callback does not outlive its call
+- a compile error fails the build
 - a constant is readable from a script
 - a different seed gives a different stream
 - a duplicated id is regenerated
 - a forward parent reference is rejected
+- a freed node stops being valid
 - a lua array reaches a binding as a list
+- a missing node argument is an error not a panic
 - a node returned to a script is still a node
+- a pack round trips through bytes
+- a press is just pressed for one frame only
+- a project without a manifest is an error
+- a release is just released for one frame only
 - a reload keeps instance state
 - a sparse table keeps its keys
 - a trailing optional may be omitted
+- a transform survives a write and read
 - a typed binding reaches rune
+- a vector argument and three numbers agree
 - a wrong argument type is an error not a panic
 - a wrong argument type is reported not fatal
 - an empty or inverted range does not panic
+- an out of range button does not panic
+- an unknown key is simply not down
+- an unknown path is nil rather than an error
 - anchor constants match the registered schema
+- attaching to a compiled script is cheap per node
 - body constants match the registered schema
 - compile error keeps previous version running
 - crates/balaur/src/lib.rs - (line 5)
+- declarations are uniquely named
+- declarations are uniquely named within a module
+- dispatch over a thousand nodes stays inside a frame
 - events carry their structured fields
 - every constant is screaming snake and unique
+- every declaration rejects a non node
+- every named key can actually be pressed
+- fs is rooted at the project
+- fs list is sorted and hides dotfiles
+- hierarchy reads back what it wrote
+- holding a key does not re fire
 - hot reload swaps code and preserves state
 - instance state survives between frames
+- keys are independent
 - math fastcalls are routed through the global table
 - math functions are libm backed
 - missing ids are generated not rejected
+- mouse buttons follow the same edge rules
+- mouse delta is per frame and position is absolute
 - nodes sharing a name get distinct ids
 - pack roundtrip runs from bytecode only
 - plugin components roundtrip through the registry
+- reading a missing file is nil rather than an error
+- renaming a node changes what name returns
 - renaming a parent does not break its children
 - require caches and hot reloads in place
+- rng int stays inside its range
 - rng is seeded and reproducible
+- scenes are gathered but the manifest is not one of them
 - scenes instantiate at runtime and args reach scripts
+- script args reach scripts as a list
 - simulation 2d is bitwise reproducible
 - simulation is bitwise reproducible
 - tests
+- the backend decides what a script compiles to
 - the buffer is bounded and keeps the newest
 - the engine modules reach rune
+- the mouse constants address real buttons
 - the node api is available as methods
+- the rng is reproducible from a seed
+- the scene root is a node and can be spawned under
 - the stream is pinned for a given seed
 - the two worlds share body kinds and differ on shapes
+- toml round trips through neutral values
 - toml roundtrips through lua
+- transform propagation stays linear
+- translate accumulates
+- truncated or foreign bytes do not decode
 - tuples map positionally
 - typed registration survives erasure
+- unclaimed extensions are left alone
 - watcher reloads automatically
 - widget kind constants match the registered schema
 - widgets
