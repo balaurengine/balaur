@@ -1,8 +1,11 @@
 # cargo-deny: security advisories, dependency bans, and source allowlisting.
 # Licence checking is deliberately off.
-[graph]
-all-features = false
 
+[graph]
+# Audit what we ship, which includes the optional `window` feature and its
+# kiss3d/wgpu tree. Left at the default this checked only the headless graph,
+# so CI failed on advisories `./scripts/ci.sh` could not see.
+all-features = true
 
 [bans]
 multiple-versions = "warn"
@@ -10,6 +13,13 @@ wildcards = "deny"
 
 [advisories]
 yanked = "deny"
+# Report unmaintained crates we picked ourselves, not ones buried in a
+# dependency's own tree. Unmaintained is informational — it means nobody is
+# minding the crate, not that there is a known exploit — and the three we hit
+# (rusttype, ttf-parser, paste) all come from kiss3d, which we do not control.
+# Failing the build on those makes CI permanently red for something no commit
+# here can fix, which teaches people to ignore CI. Vulnerabilities stay denied.
+unmaintained = "workspace"
 
 [sources]
 unknown-registry = "deny"
