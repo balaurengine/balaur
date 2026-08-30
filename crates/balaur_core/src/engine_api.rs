@@ -93,6 +93,56 @@ pub const DECLARATIONS: &[Decl] = &[
         name: "clear",
         call: log_clear,
     },
+    Decl {
+        module: "rng",
+        name: "seed",
+        call: rng_seed,
+    },
+    Decl {
+        module: "rng",
+        name: "random",
+        call: rng_random,
+    },
+    Decl {
+        module: "rng",
+        name: "range",
+        call: rng_range,
+    },
+    Decl {
+        module: "rng",
+        name: "int",
+        call: rng_int,
+    },
+    Decl {
+        module: "fs",
+        name: "read",
+        call: fs_read,
+    },
+    Decl {
+        module: "fs",
+        name: "write",
+        call: fs_write,
+    },
+    Decl {
+        module: "fs",
+        name: "exists",
+        call: fs_exists,
+    },
+    Decl {
+        module: "fs",
+        name: "list",
+        call: fs_list,
+    },
+    Decl {
+        module: "toml",
+        name: "parse",
+        call: toml_parse,
+    },
+    Decl {
+        module: "toml",
+        name: "encode",
+        call: toml_encode,
+    },
 ];
 
 /// Register every engine module into the host, plus the node API under `node`.
@@ -236,7 +286,122 @@ fn log_clear(_: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
+// ---- rng -------------------------------------------------------------
+
+fn rng_seed(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let seed = match args.first() {
+        Some(Value::Int(n)) => *n,
+        Some(Value::Num(n)) => *n as i64,
+        other => return Err(anyhow!("seed should be a number, got {other:?}")),
+    };
+    let rng = eng.resource::<crate::rng::DetRng>();
+    rng.borrow_mut().0 = crate::rng::Pcg32::new(seed as u64);
+    Ok(Value::Nil)
+}
+
+fn rng_random(eng: &Engine, _: &[Value]) -> Result<Value> {
+    let rng = eng.resource::<crate::rng::DetRng>();
+    let v = rng.borrow_mut().0.next_f64();
+    Ok(Value::Num(v))
+}
+
+fn rng_range(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let (lo, hi) = (number(args, 0)?, number(args, 1)?);
+    let rng = eng.resource::<crate::rng::DetRng>();
+    let v = rng.borrow_mut().0.next_f64();
+    Ok(Value::Num(v.mul_add(hi - lo, lo)))
+}
+
+fn rng_int(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let (lo, hi) = (integer(args, 0)?, integer(args, 1)?);
+    let rng = eng.resource::<crate::rng::DetRng>();
+    let v = rng.borrow_mut().0.next_range_i64(lo, hi);
+    Ok(Value::Int(v))
+}
+
+// ---- fs, rooted at the project ---------------------------------------
+
+/// Project-relative unless absolute, so a script cannot wander the disk by
+/// accident.
+fn resolve(eng: &Engine, path: &str) -> std::path::PathBuf {
+    let p = std::path::Path::new(path);
+    if p.is_absolute() {
+        return p.to_path_buf();
+    }
+    eng.try_resource::<crate::project::ProjectRoot>()
+        .map_or_else(|| p.to_path_buf(), |r| r.borrow().0.join(p))
+}
+
+fn fs_read(eng: &Engine, args: &[Value]) -> Result<Value> {
+    Ok(std::fs::read_to_string(resolve(eng, text(args, 0)?)).map_or(Value::Nil, Value::Str))
+}
+
+fn fs_write(eng: &Engine, args: &[Value]) -> Result<Value> {
+    std::fs::write(resolve(eng, text(args, 0)?), text(args, 1)?)?;
+    Ok(Value::Nil)
+}
+
+fn fs_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
+    Ok(Value::Bool(resolve(eng, text(args, 0)?).exists()))
+}
+
+fn fs_list(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let mut names: Vec<(String, bool)> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(resolve(eng, text(args, 0)?)) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.starts_with('.') {
+                continue;
+            }
+            names.push((name, entry.path().is_dir()));
+        }
+    }
+    // Sorted for stable UI and reproducible tooling runs.
+    names.sort();
+    Ok(Value::List(
+        names
+            .into_iter()
+            .map(|(name, is_dir)| {
+                Value::Map(vec![
+                    ("name".into(), Value::Str(name)),
+                    ("is_dir".into(), Value::Bool(is_dir)),
+                ])
+            })
+            .collect(),
+    ))
+}
+
+// ---- toml ------------------------------------------------------------
+
+fn toml_parse(_: &Engine, args: &[Value]) -> Result<Value> {
+    let parsed: toml::Value = toml::from_str(text(args, 0)?)?;
+    crate::node_api::from_toml(&parsed)
+}
+
+fn toml_encode(_: &Engine, args: &[Value]) -> Result<Value> {
+    let value = args.first().ok_or_else(|| anyhow!("nothing to encode"))?;
+    Ok(Value::Str(toml::to_string(&crate::node_api::to_toml(
+        value,
+    )?)?))
+}
+
 // ---- argument helpers ------------------------------------------------
+
+fn number(args: &[Value], i: usize) -> Result<f64> {
+    match args.get(i) {
+        Some(Value::Num(n)) => Ok(*n),
+        Some(Value::Int(n)) => Ok(*n as f64),
+        other => Err(anyhow!("argument {i} should be a number, got {other:?}")),
+    }
+}
+
+fn integer(args: &[Value], i: usize) -> Result<i64> {
+    match args.get(i) {
+        Some(Value::Int(n)) => Ok(*n),
+        Some(Value::Num(n)) => Ok(*n as i64),
+        other => Err(anyhow!("argument {i} should be a number, got {other:?}")),
+    }
+}
 
 fn text(args: &[Value], i: usize) -> Result<&str> {
     match args.get(i) {

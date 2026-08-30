@@ -97,3 +97,32 @@ fn scenes_instantiate_at_runtime_and_args_reach_scripts() {
     .exec()
     .unwrap();
 }
+
+/// A Lua table is both record and array. Arrays used to lose every element on
+/// the way to a binding, because only string keys were kept.
+#[test]
+fn a_lua_array_reaches_a_binding_as_a_list() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = make_app(dir.path());
+    let lua = balaur_script_luau::lua_of(&app.engine);
+    let out: String = lua
+        .load(r#"return toml.encode({ xs = {1, 2, 3}, name = "n" })"#)
+        .eval()
+        .unwrap();
+    assert!(out.contains("xs = [1, 2, 3]"), "{out}");
+    assert!(out.contains("name = \"n\""), "{out}");
+}
+
+/// A table with holes or mixed keys is a map, and the non-string keys survive
+/// rather than vanishing.
+#[test]
+fn a_sparse_table_keeps_its_keys() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = make_app(dir.path());
+    let lua = balaur_script_luau::lua_of(&app.engine);
+    let out: String = lua
+        .load(r#"return toml.encode({ [1] = "a", [3] = "c" })"#)
+        .eval()
+        .unwrap();
+    assert!(out.contains('a') && out.contains('c'), "{out}");
+}

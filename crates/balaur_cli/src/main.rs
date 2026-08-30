@@ -67,6 +67,10 @@ enum Command {
         #[arg(long)]
         frames: Option<u64>,
     },
+    /// Print the script API as JSON: every module, function and constant a
+    /// script can reach. Read from a booted engine, not from the source, so
+    /// derived constants are included and nothing can drift.
+    Api,
 }
 
 fn main() -> Result<()> {
@@ -81,6 +85,7 @@ fn main() -> Result<()> {
     };
     balaur::logbuf::install(level);
     match Cli::parse().command {
+        Command::Api => dump_api(),
         Command::New { path } => new_project(&path),
         Command::Run {
             path,
@@ -216,6 +221,29 @@ fn edit_project(
         });
     }
     balaur::run(app, "balaur editor")
+}
+
+/// Boot a standard app in a scratch project and print what scripts can reach.
+///
+/// The engine is asked, not the source: constants like `input.KEY_SPACE` are
+/// derived at registration, so parsing Rust would miss them.
+fn dump_api() -> Result<()> {
+    let dir = std::env::temp_dir().join("balaur-api-probe");
+    std::fs::create_dir_all(dir.join("scenes"))?;
+    std::fs::write(
+        dir.join("project.toml"),
+        "name = \"api\"\nmain_scene = \"scenes/main.toml\"\n",
+    )?;
+    std::fs::write(
+        dir.join("scenes/main.toml"),
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\n",
+    )?;
+
+    let mut app = balaur::standard_app(AppConfig::dev(dir.to_string_lossy().as_ref()))?;
+    app.load_project()?;
+    let lua = balaur::luau::lua_of(&app.engine);
+    println!("{}", balaur::luau::api_json(&lua)?);
+    Ok(())
 }
 
 fn new_project(path: &Path) -> Result<()> {

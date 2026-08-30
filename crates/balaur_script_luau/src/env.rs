@@ -77,6 +77,21 @@ impl balaur_script::Bindings<Engine> for LuaModule {
     }
 }
 
+/// True when the table's only keys are 1..=len, i.e. it is an array.
+fn is_sequence(t: &mlua::Table, len: usize) -> mlua::Result<bool> {
+    let mut count = 0usize;
+    let mut contiguous = true;
+    t.for_each(|k: mlua::Value, _: mlua::Value| {
+        count += 1;
+        match k {
+            mlua::Value::Integer(i) if i >= 1 && (i as usize) <= len => {}
+            _ => contiguous = false,
+        }
+        Ok(())
+    })?;
+    Ok(contiguous && count == len)
+}
+
 pub(crate) fn to_neutral(v: &mlua::Value) -> mlua::Result<balaur_script::Value> {
     use balaur_script::Value as N;
     Ok(match v {
@@ -91,14 +106,30 @@ pub(crate) fn to_neutral(v: &mlua::Value) -> mlua::Result<balaur_script::Value> 
         }
         mlua::Value::Function(f) => N::Callback(CallbackScope::register(f.clone())),
         mlua::Value::Table(t) => {
-            let mut map = Vec::new();
-            t.for_each(|k: mlua::Value, v: mlua::Value| {
-                if let mlua::Value::String(k) = k {
-                    map.push((k.to_str()?.to_string(), to_neutral(&v)?));
+            // A Lua table is both a record and an array. Treat a contiguous
+            // 1..n as a list, anything else as a map — dropping integer keys,
+            // as this used to, silently turned every array into an empty map.
+            let len = t.raw_len();
+            if len > 0 && is_sequence(t, len)? {
+                let mut items = Vec::with_capacity(len);
+                for i in 1..=len {
+                    items.push(to_neutral(&t.raw_get::<mlua::Value>(i)?)?);
                 }
-                Ok(())
-            })?;
-            N::Map(map)
+                N::List(items)
+            } else {
+                let mut map = Vec::new();
+                t.for_each(|k: mlua::Value, v: mlua::Value| {
+                    let key = match &k {
+                        mlua::Value::String(k) => k.to_str()?.to_string(),
+                        mlua::Value::Integer(i) => i.to_string(),
+                        mlua::Value::Number(n) => n.to_string(),
+                        _ => return Ok(()),
+                    };
+                    map.push((key, to_neutral(&v)?));
+                    Ok(())
+                })?;
+                N::Map(map)
+            }
         }
         other => {
             return Err(mlua::Error::runtime(format!(

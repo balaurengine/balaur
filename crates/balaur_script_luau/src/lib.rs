@@ -20,7 +20,6 @@
 pub mod det;
 pub mod env;
 mod node_api;
-pub(crate) mod tooling;
 
 pub use env::LuaModule;
 pub use mlua;
@@ -148,7 +147,6 @@ impl ScriptHost {
         };
         env::install_globals(&host.lua, &engine, &host)?;
         det::install(&host.lua, &engine)?;
-        tooling::install(&host.lua, &engine)?;
         Ok(host)
     }
 
@@ -560,4 +558,104 @@ impl balaur_script::ScriptHost<Engine> for ScriptHost {
     fn as_any(&self) -> &dyn core::any::Any {
         self
     }
+}
+
+/// The script API as JSON: every module table in the globals, the functions it
+/// holds, and the constants with their values.
+///
+/// Read from a live interpreter so derived constants are included and the
+/// answer cannot drift from what scripts actually see.
+///
+/// # Errors
+/// If the Lua state cannot be walked.
+pub fn api_json(lua: &Lua) -> Result<String> {
+    /// One module: its name, its function names, and its constants as
+    /// name/value pairs.
+    type Module = (String, Vec<String>, Vec<(String, String)>);
+
+    // Anything a bare interpreter already has is Luau's standard library, not
+    // the engine's API. Diffing against one beats a hand-kept denylist, which
+    // would silently rot as Luau grows.
+    let baseline = Lua::new();
+    let mut stdlib: Vec<String> = Vec::new();
+    for pair in baseline.globals().pairs::<String, Value>() {
+        stdlib.push(pair?.0);
+    }
+
+    let mut modules: Vec<Module> = Vec::new();
+    for pair in lua.globals().pairs::<String, Value>() {
+        let (name, value) = pair?;
+        let Value::Table(table) = value else { continue };
+        if stdlib.contains(&name) {
+            continue;
+        }
+        let mut functions = Vec::new();
+        let mut constants = Vec::new();
+        for entry in table.pairs::<String, Value>() {
+            let (key, v) = entry?;
+            match v {
+                Value::Function(_) => functions.push(key),
+                Value::String(s) => constants.push((key, s.to_string_lossy())),
+                Value::Integer(i) => constants.push((key, i.to_string())),
+                Value::Number(n) => constants.push((key, n.to_string())),
+                Value::Boolean(b) => constants.push((key, b.to_string())),
+                _ => {}
+            }
+        }
+        if functions.is_empty() && constants.is_empty() {
+            continue;
+        }
+        functions.sort();
+        constants.sort();
+        modules.push((name, functions, constants));
+    }
+    modules.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let mut out = String::from("{\n  \"modules\": [\n");
+    for (i, (name, functions, constants)) in modules.iter().enumerate() {
+        use std::fmt::Write as _;
+        let _ = write!(out, "    {{\n      \"name\": {},\n", quote(name));
+        out.push_str("      \"functions\": [");
+        out.push_str(
+            &functions
+                .iter()
+                .map(|f| quote(f))
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        out.push_str("],\n      \"constants\": [");
+        out.push_str(
+            &constants
+                .iter()
+                .map(|(k, v)| format!("{{\"name\": {}, \"value\": {}}}", quote(k), quote(v)))
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+        out.push_str("]\n    }");
+        if i + 1 < modules.len() {
+            out.push(',');
+        }
+        out.push('\n');
+    }
+    out.push_str("  ]\n}");
+    Ok(out)
+}
+
+fn quote(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            c if (c as u32) < 0x20 => {
+                use std::fmt::Write as _;
+                let _ = write!(out, "\\u{:04x}", c as u32);
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }

@@ -115,6 +115,7 @@ impl App {
         engine.insert_resource(crate::components::ComponentRegistry::default());
         engine.insert_resource(ProjectRoot(config.project_root.clone()));
         engine.insert_resource(ScriptArgs(config.script_args.clone()));
+        engine.insert_resource(crate::rng::DetRng::default());
         if let Some(make) = config.scripts.take() {
             engine.set_scripts(make(ScriptSetup {
                 engine: &engine,

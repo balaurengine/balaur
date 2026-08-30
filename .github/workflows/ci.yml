@@ -66,6 +66,22 @@ jobs:
             fi
           done
 
+  generated-docs:
+    name: generated docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: balaur
+      - uses: actions/checkout@v7
+        with:
+          repository: dimforge/kiss3d
+          ref: v0.46.0
+          path: kiss3d
+      - name: Regenerate and diff
+        working-directory: balaur
+        run: python3 scripts/gen_docs.py --check
+
   house-lints:
     name: house lints
     runs-on: ubuntu-latest

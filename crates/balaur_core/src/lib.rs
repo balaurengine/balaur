@@ -16,6 +16,7 @@ pub mod node_api;
 pub mod pack;
 pub mod project;
 pub mod resources;
+pub mod rng;
 pub mod scene;
 
 pub use app::{App, AppConfig, Plugin, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage};

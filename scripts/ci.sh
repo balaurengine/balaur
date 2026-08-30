@@ -24,6 +24,7 @@ for ex in examples/*/; do
   fi
   printf 'ok\n'
 done
+step "generated docs"; python3 scripts/gen_docs.py --check
 step "house lints"; python3 scripts/house_lints.py --fail-on-error
 if command -v cargo-deny >/dev/null 2>&1; then
   step "deny"; cargo deny check advisories bans sources

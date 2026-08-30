@@ -21,6 +21,7 @@
 use mlua::{Lua, Table, Value, Variadic};
 
 use balaur_core::engine::Engine;
+use balaur_core::rng::{DetRng, Pcg32};
 
 /// Builtins that must not be compiled to fastcalls because we replace them
 /// at runtime. `sqrt`, `abs`, `floor`, `ceil`, `fmod` & co stay native: they
@@ -41,61 +42,6 @@ pub const DISABLED_BUILTINS: &[&str] = &[
     "math.log10",
     "math.pow",
 ];
-
-/// Minimal PCG32 (Melissa O'Neill's pcg32_oneseq): integer-only, so the
-/// stream is identical on every platform.
-pub struct Pcg32 {
-    state: u64,
-}
-
-const PCG_MULT: u64 = 6_364_136_223_846_793_005;
-const PCG_INC: u64 = 1_442_695_040_888_963_407;
-
-impl Pcg32 {
-    pub const fn new(seed: u64) -> Self {
-        let mut rng = Self {
-            state: seed.wrapping_add(PCG_INC),
-        };
-        rng.next_u32();
-        rng
-    }
-
-    pub const fn next_u32(&mut self) -> u32 {
-        let old = self.state;
-        self.state = old.wrapping_mul(PCG_MULT).wrapping_add(PCG_INC);
-        let xorshifted = (((old >> 18) ^ old) >> 27) as u32;
-        let rot = (old >> 59) as u32;
-        xorshifted.rotate_right(rot)
-    }
-
-    /// Uniform in `[0, 1)` with 53 bits of precision.
-    pub fn next_f64(&mut self) -> f64 {
-        let hi = u64::from(self.next_u32() >> 6); // 26 bits
-        let lo = u64::from(self.next_u32() >> 5); // 27 bits
-        ((hi << 27) | lo) as f64 * (1.0 / (1u64 << 53) as f64)
-    }
-
-    /// Uniform integer in `[lo, hi]` (inclusive), bias negligible for game
-    /// ranges (widening-multiply bound).
-    pub fn next_range_i64(&mut self, lo: i64, hi: i64) -> i64 {
-        if hi <= lo {
-            return lo;
-        }
-        let span = (hi - lo) as u64 + 1;
-        let r = (u64::from(self.next_u32()) * span) >> 32;
-        // span fits in u32, so r < 2^32 and the cast cannot wrap.
-        lo + i64::try_from(r).unwrap_or(i64::MAX)
-    }
-}
-
-/// The engine-owned RNG stream backing `math.random` and the `rng` module.
-pub struct DetRng(pub Pcg32);
-
-impl Default for DetRng {
-    fn default() -> Self {
-        Self(Pcg32::new(0))
-    }
-}
 
 // Returns Result to match the signature mlua's create_function expects.
 #[allow(clippy::unnecessary_wraps)]
@@ -174,27 +120,5 @@ pub fn install(lua: &Lua, engine: &Engine) -> anyhow::Result<()> {
         })?,
     )?;
 
-    // The explicit engine RNG API, same stream as math.random.
-    let m = super::env::module(lua, engine, "rng")?;
-    m.function("seed", |eng, seed: i64| {
-        let rng = eng.resource::<DetRng>();
-        rng.borrow_mut().0 = Pcg32::new(seed as u64);
-        Ok(())
-    })?;
-    m.function("random", |eng, ()| {
-        let rng = eng.resource::<DetRng>();
-        let v = rng.borrow_mut().0.next_f64();
-        Ok(v)
-    })?;
-    m.function("range", |eng, (lo, hi): (f64, f64)| {
-        let rng = eng.resource::<DetRng>();
-        let v = rng.borrow_mut().0.next_f64();
-        Ok(v.mul_add(hi - lo, lo))
-    })?;
-    m.function("int", |eng, (lo, hi): (i64, i64)| {
-        let rng = eng.resource::<DetRng>();
-        let v = rng.borrow_mut().0.next_range_i64(lo, hi);
-        Ok(v)
-    })?;
     Ok(())
 }
