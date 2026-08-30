@@ -3,7 +3,7 @@
 A scriptable, node-based game engine with a Rust data plane.
 
 From a game developer's perspective, Balaur looks like Godot: a scene tree of
-named nodes, with Luau scripts attached to them. Under the hood, every node is
+named nodes, with scripts attached to them. Under the hood, every node is
 an ECS entity, every subsystem (physics, rendering, audio) is a plugin over
 the same data plane, and the editor is itself a Balaur project.
 
@@ -32,9 +32,11 @@ runs headless (tests, servers, CI). Useful dev flags: `--frames N` stops
 after N frames, `--screenshot out.png` saves the window's framebuffer to a
 PNG.
 
-A script is a class table with lifecycle methods, attached to a node:
+A script has lifecycle methods and is attached to a node. Two languages ship;
+a project picks one with `language` in its `project.toml`, defaulting to Luau.
 
 ```luau
+-- scripts/spinner.luau
 local Spinner = {}
 
 function Spinner:init()
@@ -48,6 +50,21 @@ end
 
 return Spinner
 ```
+
+```rust
+// scripts/spinner.rn        project.toml: language = "rune"
+pub fn init(this) { this.angle = 0.0; }
+
+pub fn update(this, dt) {
+    this.angle += dt;
+    this.node.set_rotation_euler(0.0, this.angle, 0.0);
+}
+```
+
+Both call the same bindings: subsystems declare them once against
+`balaur_script`, so neither language is privileged and a third costs one crate.
+Values a binding accepts are named rather than spelled — `input.KEY_SPACE`,
+`input.MOUSE_LEFT`, `physics.BODY_DYNAMIC`, `ui.ANCHOR_TOP_LEFT`.
 
 Scenes are declarative TOML; plugins extend their vocabulary:
 
@@ -82,15 +99,18 @@ cargo run -p balaur_cli --features window -- edit examples/angrynerds
 
 | Crate | Role |
 | --- | --- |
-| `balaur_core` | ECS world (hecs), scene tree, scheduler, plugin API, Luau host with hot reload and pack export |
+| `balaur_script` | The scripting seam: traits and a neutral value type, no language and no dependencies |
+| `balaur_core` | ECS world (hecs), scene tree, scheduler, plugin API, pack export. Names no scripting language |
+| `balaur_script_luau` | Luau backend (mlua): host, hot reload, `require`, bytecode packs |
+| `balaur_script_rune` | Rune backend |
 | `balaur_physics` | Rapier plugin; the reference example for wrapping a Rust crate for scripting |
-| `balaur_render` | Renderable components + `render` Lua module; kiss3d/wgpu backend behind the `kiss3d` feature |
-| `balaur_audio` | rodio-backed `audio` Lua module |
-| `balaur_input` | Backend-agnostic input state + `input` Lua module |
-| `balaur_ui` | Immediate-mode egui API for Luau (`ui` module): panels, widgets, script-defined themes |
-| `balaur` | Batteries-included facade: `standard_app`, `boot_project`, `boot_pack` |
+| `balaur_render` | Renderable components + `render` module; kiss3d/wgpu backend behind the `kiss3d` feature |
+| `balaur_audio` | rodio-backed `audio` module |
+| `balaur_input` | Backend-agnostic input state + `input` module |
+| `balaur_ui` | Immediate-mode egui API (`ui` module): panels, widgets, script-defined themes |
+| `balaur` | Batteries-included facade: `standard_app`, `boot_project`, `boot_pack`, backend selection |
 | `balaur_cli` | The `balaur` binary: `new`, `run`, `export`, `play` |
-| `editor/` | The editor: a Balaur project whose Luau scripts draw the whole shell |
+| `editor/` | The editor: a Balaur project whose scripts draw the whole shell |
 
 ## Shipping a binary
 

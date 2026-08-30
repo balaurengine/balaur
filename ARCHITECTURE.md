@@ -2,17 +2,28 @@
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  Luau scripts (game code, and the editor itself)           │
+│  scripts (game code, and the editor itself)                │
+│  .luau or .rn — one language per project                   │
+├──────────────────────────────┬─────────────────────────────┤
+│  balaur_script_luau (mlua)   │  balaur_script_rune         │
+│  host, hot reload, require   │  host, hot reload           │
+├──────────────────────────────┴─────────────────────────────┤
+│  balaur_script: the seam — Bindings, ScriptHost, Value.    │
+│  Traits only. No language, no dependencies.                │
 ├────────────────────────────────────────────────────────────┤
-│ Lua modules: scene, engine, log, rng, input, physics, ...  │
-├──────────────┬──────────────┬──────────────┬───────────────┤
-│ physics │ render  │ audio   │ input   │    your plugin     │
-│ (rapier)│ (kiss3d)│ (rodio) │ (winit) │                    │
-├──────────────┴──────────────┴──────────────┴───────────────┤
-│  balaur_core: hecs ECS + scene tree + scheduler +          │
-│               Luau host (hot reload, packs)                │
+│  modules declared once, reaching every language:           │
+│  engine, scene, log, node, rng, input, physics, render, .. │
+├──────────┬──────────┬──────────┬─────────┬─────────────────┤
+│ physics  │ render   │ audio    │ input   │  your plugin    │
+│ (rapier) │ (kiss3d) │ (rodio)  │ (winit) │                 │
+├──────────┴──────────┴──────────┴─────────┴─────────────────┤
+│  balaur_core: hecs ECS + scene tree + scheduler + packs.   │
+│  Names no scripting language.                              │
 └────────────────────────────────────────────────────────────┘
 ```
+
+Backends depend on core; core never depends on a backend. That direction is
+what keeps core language-free, and the compiler enforces it.
 
 ## Decisions and rationale
 
@@ -34,7 +45,7 @@ rendering means zero conversion layers.
 
 `Engine` is a cheaply clonable handle (`Rc`) over the world, resources,
 command queue, and script host, with interior mutability and short borrows.
-Rust systems receive it every frame; Lua binding closures capture it. Both
+Rust systems receive it every frame; script binding closures capture it. Both
 sides of the FFI see the same state with no marshalling. The engine is
 single-threaded by design for now; parallelism can later live *inside*
 systems (e.g. rapier's solver) without changing this facade.
@@ -57,15 +68,46 @@ mid-frame.
 
 ## Scripting
 
+### The seam
+
+`balaur_script` is traits and a neutral `Value`, with one dependency
+(`anyhow`) and no language in it. A subsystem declares its bindings against
+`Bindings<Engine>` and never names a language; a backend implements
+`ScriptHost<Engine>` and consumes those declarations. Adding Rune cost one
+crate and changed nothing in physics, input, render, audio or ui.
+
+Two things are declared once in `balaur_core` and reach every language:
+`node_api.rs` (the ~27 node operations) and `engine_api.rs` (the `engine`,
+`scene` and `log` modules). Each backend adds only its own call sugar, so
+`node:position()` works in Luau and `node.position()` in Rune from the same
+list. A third language costs the sugar, not the operations.
+
+`Value` carries `Nil/Bool/Int/Num/Str/Vec2/Vec3/Color/List/Map`, plus
+`Node(u64)` (entity bits, kept opaque so the crate depends on nothing) and
+`Callback(id)` for a script function valid only during the binding call that
+received it. Immediate-mode UI callbacks never outlive their call, so the
+backend registers on entry and drops on exit — no ownership question and no
+interaction with the collector.
+
+A project picks its language with `language` in `project.toml`; absent means
+Luau. One project, one language: both backends can run in a process, but a
+callback minted by one is meaningless to the other, so mixing them inside a
+project needs a shared id space first.
+
 ### Model
 
-A `.luau` file returns a class table; one instance table per attached node,
-whose metatable `__index`es the class. Lifecycle: `init`, `update(dt)`,
-`on_free`, `hot_reload`. `self.node` is the owning node handle.
+A script declares lifecycle functions — `init`, `update(dt)`, `on_free`,
+`hot_reload` — and gets one instance per attached node, with `node` on it.
+
+In Luau a `.luau` file returns a class table and each instance is a table
+whose metatable `__index`es it. In Rune a `.rn` file declares free functions
+taking the instance first (`pub fn update(this, dt)`); an object handed into a
+Rune function is mutated in place, so what a script writes to `this` is what
+the host reads next frame.
 
 ### Hot reload (core feature)
 
-The host watches the project directory (`notify`). On save:
+The host watches the project directory (`notify`). On save, in Luau:
 
 1. recompile the file with the Luau compiler (fails → keep the old class
    running, report the error once);
@@ -77,6 +119,11 @@ live instance sees the new code immediately while `self` state survives
 untouched. The swap is O(class size), microseconds in practice; measured
 save-to-live latency is file-watcher latency, a few milliseconds. The
 optional `hot_reload` hook lets scripts migrate state shapes.
+
+Rune compiles to an immutable unit, so there is no class table to swap: the
+new unit replaces the old one, instances keep their state objects, and the
+next call resolves against the new code. A compile error keeps the previous
+unit running, the same as Luau.
 
 ### Components (plugin feature)
 
@@ -123,7 +170,7 @@ overlays — see `examples/angrynerds` for a complete 2D game.
 Wrapping a Rust crate for scripting is one call per entry point:
 
 ```rust
-let m = app.lua_module("physics")?;
+let m = app.script_module("physics")?;
 m.function("apply_impulse", |eng, (node, x, y, z): (UserDataRef<NodeRef>, f32, f32, f32)| {
     ...
 })?;
@@ -157,7 +204,7 @@ The hazards, and how Balaur addresses or will address them:
 
 | Hazard | Status |
 | --- | --- |
-| `math.sin/cos/exp/pow/...` call the platform libm; results differ across OS/libc | **Done:** `balaur_core::script::det` rebinds them to pure-Rust `libm` implementations (MUSL algorithms, bit-identical everywhere). Luau's compiler turns `math.*` into fastcalls that bypass the global table, so `compiler()` also disables those builtins via `Compiler::disabled_builtins`; a test proves O2-compiled code routes through the rebound table. Remaining hole: the `^` exponent operator calls the C `pow` inside the VM and cannot be intercepted from the embedding API; simulation code must call `math.pow` instead (lintable later). |
+| `math.sin/cos/exp/pow/...` call the platform libm; results differ across OS/libc | **Done:** `balaur_script_luau::det` rebinds them to pure-Rust `libm` implementations (MUSL algorithms, bit-identical everywhere). Luau's compiler turns `math.*` into fastcalls that bypass the global table, so `compiler()` also disables those builtins via `Compiler::disabled_builtins`; a test proves O2-compiled code routes through the rebound table. Remaining hole: the `^` exponent operator calls the C `pow` inside the VM and cannot be intercepted from the embedding API; simulation code must call `math.pow` instead (lintable later). |
 | `pairs()` order on tables with table/userdata keys depends on pointer values | Rule: simulation-affecting iteration uses arrays or string/number keys. The editor can lint for this; an engine-provided ordered map is planned. |
 | `math.random` seeded from entropy | **Done:** `math.random`/`math.randomseed` are rebound to an engine-owned PCG32 stream (fixed default seed, so a fresh run is reproducible by construction), also exposed as the `rng` module (`rng.seed/random/range/int`). |
 | Wall-clock (`os.clock`, variable `dt`) leaking into simulation | Physics already steps on a fixed 60 Hz accumulator; input is captured once per frame into a snapshot (replayable). **Planned:** `fixed_update(dt)` script callback and a fixed-tick mode where `update` sees a constant dt. |
@@ -178,13 +225,13 @@ Engine-side measures already in place:
 - `crates/balaur_physics/tests/determinism.rs` asserts two runs match bit for
   bit; CI on multiple platforms should compare the same digest across OSes.
 
-## UI: egui for Luau
+## UI: egui for scripts
 
-`balaur_ui` exposes an immediate-mode `ui` Lua module rendered with egui
+`balaur_ui` exposes an immediate-mode `ui` module rendered with egui
 inside the kiss3d window. Scripts implement a `draw_ui` lifecycle method;
 the backend runs it once per frame inside the egui pass. The bridge keeps a
 stack of the `Ui` being built: panel/container calls push their child `Ui`
-around the Lua callback, so Lua composes layouts exactly like Rust egui
+around the script callback, so a script composes layouts exactly like Rust egui
 code. Widgets take colors per call, so complete themes (the editor ships
 the handoff's dark and light token sets) live in scripts and hot reload
 with them. Fonts load from `<project>/fonts/*.ttf` when present, with the
@@ -253,7 +300,7 @@ modifiers`); drop the `[patch.crates-io]` entry once that ships upstream.
 ## Input
 
 `balaur_input` owns a backend-agnostic `InputState` (keys by name, mouse,
-scroll, per-frame edges) and the `input` Lua module (`is_down`,
+scroll, per-frame edges) and the `input` module (`is_down`,
 `just_pressed`, `just_released`, `mouse_position`, `mouse_delta`,
 `is_mouse_down`, ...). The kiss3d backend pumps OS events into it once per
 frame; headless runs read neutral state. Because the whole frame's input is
