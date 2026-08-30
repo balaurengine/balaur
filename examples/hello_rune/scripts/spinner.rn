@@ -12,7 +12,7 @@ pub fn init(this) {
 }
 
 pub fn update(this, dt) {
-    if input::just_pressed("Space") {
+    if input::just_pressed(input::KEY_SPACE) {
         this.direction = -this.direction;
     }
     this.angle += dt * SPEED * this.direction;

@@ -11,7 +11,7 @@ function Spinner:init()
 end
 
 function Spinner:update(dt)
-    if input.just_pressed("Space") then
+    if input.just_pressed(input.KEY_SPACE) then
         self.direction = -self.direction
     end
     self.angle += dt * SPEED * self.direction

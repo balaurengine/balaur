@@ -101,6 +101,222 @@ impl Plugin for InputPlugin {
     }
 }
 
+/// Every key name a script may ask about.
+///
+/// This is the vocabulary, not a mirror of some backend's enum: whichever
+/// windowing backend feeds events has to produce names from this list, and
+/// `kiss3d_backend` has a test that says so. Keeping it here means a typo in
+/// a script is caught even in a headless run, where no backend is attached.
+pub const KEY_NAMES: &[&str] = &[
+    "Key1",
+    "Key2",
+    "Key3",
+    "Key4",
+    "Key5",
+    "Key6",
+    "Key7",
+    "Key8",
+    "Key9",
+    "Key0",
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I",
+    "J",
+    "K",
+    "L",
+    "M",
+    "N",
+    "O",
+    "P",
+    "Q",
+    "R",
+    "S",
+    "T",
+    "U",
+    "V",
+    "W",
+    "X",
+    "Y",
+    "Z",
+    "Escape",
+    "F1",
+    "F2",
+    "F3",
+    "F4",
+    "F5",
+    "F6",
+    "F7",
+    "F8",
+    "F9",
+    "F10",
+    "F11",
+    "F12",
+    "F13",
+    "F14",
+    "F15",
+    "F16",
+    "F17",
+    "F18",
+    "F19",
+    "F20",
+    "F21",
+    "F22",
+    "F23",
+    "F24",
+    "Snapshot",
+    "Scroll",
+    "Pause",
+    "Insert",
+    "Home",
+    "Delete",
+    "End",
+    "PageDown",
+    "PageUp",
+    "Left",
+    "Up",
+    "Right",
+    "Down",
+    "Back",
+    "Return",
+    "Space",
+    "Compose",
+    "Caret",
+    "Numlock",
+    "Numpad0",
+    "Numpad1",
+    "Numpad2",
+    "Numpad3",
+    "Numpad4",
+    "Numpad5",
+    "Numpad6",
+    "Numpad7",
+    "Numpad8",
+    "Numpad9",
+    "AbntC1",
+    "AbntC2",
+    "Add",
+    "Apostrophe",
+    "Apps",
+    "At",
+    "Ax",
+    "Backslash",
+    "Calculator",
+    "Capital",
+    "Colon",
+    "Comma",
+    "Convert",
+    "Decimal",
+    "Divide",
+    "Equals",
+    "Grave",
+    "Kana",
+    "Kanji",
+    "LAlt",
+    "LBracket",
+    "LControl",
+    "LShift",
+    "LWin",
+    "Mail",
+    "MediaSelect",
+    "MediaStop",
+    "Minus",
+    "Multiply",
+    "Mute",
+    "MyComputer",
+    "NavigateForward",
+    "NavigateBackward",
+    "NextTrack",
+    "NoConvert",
+    "NumpadComma",
+    "NumpadEnter",
+    "NumpadEquals",
+    "OEM102",
+    "Period",
+    "PlayPause",
+    "Power",
+    "PrevTrack",
+    "RAlt",
+    "RBracket",
+    "RControl",
+    "RShift",
+    "RWin",
+    "Semicolon",
+    "Slash",
+    "Sleep",
+    "Stop",
+    "Subtract",
+    "Sysrq",
+    "Tab",
+    "Underline",
+    "Unlabeled",
+    "VolumeDown",
+    "VolumeUp",
+    "Wake",
+    "WebBack",
+    "WebFavorites",
+    "WebForward",
+    "WebHome",
+    "WebRefresh",
+    "WebSearch",
+    "WebStop",
+    "Yen",
+    "Copy",
+    "Paste",
+    "Cut",
+    "Unknown",
+];
+
+/// The constant a key name is exposed as: `Space` becomes `KEY_SPACE`,
+/// `PageDown` becomes `KEY_PAGE_DOWN`, `Key1` becomes `KEY_1`.
+///
+/// Derived rather than listed, so the names and the constants cannot drift.
+fn const_name(key: &str) -> String {
+    let core = match key.strip_prefix("Key") {
+        Some(digit) if digit.len() == 1 && digit.starts_with(|c: char| c.is_ascii_digit()) => digit,
+        _ => key,
+    };
+    let mut out = String::from("KEY_");
+    let mut prev = '_';
+    for c in core.chars() {
+        if c.is_ascii_uppercase() && (prev.is_ascii_lowercase() || prev.is_ascii_digit()) {
+            out.push('_');
+        }
+        out.push(c.to_ascii_uppercase());
+        prev = c;
+    }
+    out
+}
+
+/// True when `key` is a name this engine can ever report.
+pub fn is_known_key(key: &str) -> bool {
+    KEY_NAMES.contains(&key)
+}
+
+/// Warn once per unrecognised name.
+///
+/// A query is per frame, so warning every time would bury the log; and a
+/// misspelled key is not fatal, it just never fires, which is exactly the
+/// failure that is hard to spot without being told.
+fn check_key(key: &str) {
+    if is_known_key(key) {
+        return;
+    }
+    thread_local! {
+        static WARNED: std::cell::RefCell<std::collections::BTreeSet<String>> =
+            const { std::cell::RefCell::new(std::collections::BTreeSet::new()) };
+    }
+    let fresh = WARNED.with_borrow_mut(|w| w.insert(key.to_string()));
+    if fresh {
+        tracing::warn!(key, "unknown key name; it will never match");
+    }
+}
+
 /// Mouse buttons, so scripts say `input.MOUSE_LEFT` rather than `0`.
 ///
 /// The index is the one `InputState` stores, so a constant and a raw number
@@ -113,17 +329,28 @@ fn register(m: &mut dyn Bindings<Engine>) {
     for (name, index) in MOUSE_BUTTON_CONSTANTS {
         m.constant(name, balaur_script::Value::Int(*index));
     }
+    // `input.KEY_SPACE` instead of "Space". In Rune a misspelled constant is a
+    // compile error rather than a key that quietly never fires.
+    for key in KEY_NAMES {
+        m.constant(
+            &const_name(key),
+            balaur_script::Value::Str((*key).to_string()),
+        );
+    }
     m.function("is_down", |eng: &Engine, key: String| {
+        check_key(&key);
         let state = eng.resource::<InputState>();
         let v = state.borrow().down.contains(&key);
         Ok(v)
     });
     m.function("just_pressed", |eng: &Engine, key: String| {
+        check_key(&key);
         let state = eng.resource::<InputState>();
         let v = state.borrow().just_pressed.contains(&key);
         Ok(v)
     });
     m.function("just_released", |eng: &Engine, key: String| {
+        check_key(&key);
         let state = eng.resource::<InputState>();
         let v = state.borrow().just_released.contains(&key);
         Ok(v)
@@ -159,4 +386,46 @@ fn register(m: &mut dyn Bindings<Engine>) {
             .unwrap_or(&false);
         Ok(v)
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{const_name, is_known_key, KEY_NAMES, MOUSE_BUTTON_CONSTANTS};
+
+    #[test]
+    fn constant_names_are_unique_and_well_formed() {
+        let mut seen = std::collections::BTreeMap::new();
+        for key in KEY_NAMES {
+            let name = const_name(key);
+            assert!(
+                name.chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_'),
+                "{key} mangles to {name}, which is not SCREAMING_SNAKE_CASE"
+            );
+            if let Some(other) = seen.insert(name.clone(), *key) {
+                panic!("{key} and {other} both mangle to {name}");
+            }
+        }
+        for (name, _) in MOUSE_BUTTON_CONSTANTS {
+            assert!(!seen.contains_key(*name), "{name} collides with a key");
+        }
+    }
+
+    #[test]
+    fn the_mangling_reads_the_way_a_script_author_would_guess() {
+        assert_eq!(const_name("Space"), "KEY_SPACE");
+        assert_eq!(const_name("PageDown"), "KEY_PAGE_DOWN");
+        assert_eq!(const_name("Key1"), "KEY_1");
+        assert_eq!(const_name("F12"), "KEY_F12");
+        assert_eq!(const_name("Numpad0"), "KEY_NUMPAD0");
+        assert_eq!(const_name("AbntC1"), "KEY_ABNT_C1");
+    }
+
+    #[test]
+    fn every_constant_names_a_key_the_engine_knows() {
+        for key in KEY_NAMES {
+            assert!(is_known_key(key));
+        }
+        assert!(!is_known_key("Spcae"));
+    }
 }

@@ -365,10 +365,13 @@ fn pump_input(app: &App, window: &Window) {
             }
         }
         match event.value {
-            WindowEvent::Key(key, action, _) => match action {
-                Action::Press => input.key_event(&format!("{key:?}"), true),
-                Action::Release => input.key_event(&format!("{key:?}"), false),
-            },
+            WindowEvent::Key(key, action, _) => {
+                let name = key_name(key);
+                match action {
+                    Action::Press => input.key_event(&name, true),
+                    Action::Release => input.key_event(&name, false),
+                }
+            }
             WindowEvent::MouseButton(button, action, _) => {
                 let idx = button as usize;
                 match action {
@@ -556,4 +559,70 @@ fn sync_2d(
             false
         }
     });
+}
+
+/// The name this backend reports for a key.
+///
+/// kiss3d's `Key` debug-prints as its variant name, which is where
+/// `balaur_input::KEY_NAMES` came from. If kiss3d ever renames one, the name
+/// stops matching what scripts ask for and the key silently goes dead, so say
+/// so the first time it happens.
+fn key_name(key: kiss3d::event::Key) -> String {
+    let name = format!("{key:?}");
+    if !balaur_input::is_known_key(&name) {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        static WARNED: AtomicBool = AtomicBool::new(false);
+        if !WARNED.swap(true, Ordering::Relaxed) {
+            tracing::warn!(
+                key = name,
+                "the window backend reported a key balaur_input does not know; \
+                 scripts cannot match it"
+            );
+        }
+    }
+    name
+}
+
+#[cfg(test)]
+mod key_name_tests {
+    use super::key_name;
+    use kiss3d::event::Key;
+
+    /// The vocabulary in `balaur_input` was copied from kiss3d's enum. Spot
+    /// check that the copy still matches for the keys games actually use — a
+    /// silent rename upstream would make them stop working.
+    #[test]
+    fn common_keys_are_names_scripts_can_ask_for() {
+        for key in [
+            Key::Space,
+            Key::Return,
+            Key::Escape,
+            Key::Tab,
+            Key::Left,
+            Key::Right,
+            Key::Up,
+            Key::Down,
+            Key::A,
+            Key::Z,
+            Key::Key0,
+            Key::Key9,
+            Key::LShift,
+            Key::LControl,
+            Key::F1,
+        ] {
+            let name = key_name(key);
+            assert!(
+                balaur_input::is_known_key(&name),
+                "kiss3d reports {name:?}, which balaur_input does not know"
+            );
+        }
+    }
+
+    #[test]
+    fn the_vocabulary_has_no_duplicates() {
+        let mut seen = std::collections::BTreeSet::new();
+        for name in balaur_input::KEY_NAMES {
+            assert!(seen.insert(*name), "{name} is listed twice");
+        }
+    }
 }
