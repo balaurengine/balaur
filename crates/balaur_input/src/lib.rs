@@ -101,8 +101,18 @@ impl Plugin for InputPlugin {
     }
 }
 
+/// Mouse buttons, so scripts say `input.MOUSE_LEFT` rather than `0`.
+///
+/// The index is the one `InputState` stores, so a constant and a raw number
+/// cannot disagree.
+pub const MOUSE_BUTTON_CONSTANTS: &[(&str, i64)] =
+    &[("MOUSE_LEFT", 0), ("MOUSE_RIGHT", 1), ("MOUSE_MIDDLE", 2)];
+
 /// `input.*`. Declared against the neutral seam.
 fn register(m: &mut dyn Bindings<Engine>) {
+    for (name, index) in MOUSE_BUTTON_CONSTANTS {
+        m.constant(name, balaur_script::Value::Int(*index));
+    }
     m.function("is_down", |eng: &Engine, key: String| {
         let state = eng.resource::<InputState>();
         let v = state.borrow().down.contains(&key);

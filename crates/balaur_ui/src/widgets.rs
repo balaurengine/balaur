@@ -109,11 +109,47 @@ pub(crate) fn text(
 
 // ---------------------------------------------------------------- install
 
-pub(crate) fn install(app: &mut App) -> Result<()> {
-    let host = app.engine.scripts().expect("script host present");
-    let mut module = host.module("ui")?;
-    let m: &mut dyn Bindings<Engine> = &mut module;
+/// Screen anchors for the `widget` scene component, so a script says
+/// `ui.ANCHOR_TOP_LEFT` rather than spelling the string.
+pub const ANCHORS: &[(&str, &str)] = &[
+    ("ANCHOR_TOP_LEFT", "top_left"),
+    ("ANCHOR_TOP_RIGHT", "top_right"),
+    ("ANCHOR_BOTTOM_LEFT", "bottom_left"),
+    ("ANCHOR_BOTTOM_RIGHT", "bottom_right"),
+    ("ANCHOR_CENTER", "center"),
+];
 
+/// Widget kinds the layer draws.
+pub const WIDGET_KINDS: &[(&str, &str)] = &[
+    ("WIDGET_LABEL", "label"),
+    ("WIDGET_BUTTON", "button"),
+    ("WIDGET_PANEL", "panel"),
+];
+
+/// Font families the theme registers.
+pub const FONTS: &[(&str, &str)] = &[("FONT_MONO", "mono"), ("FONT_HEADING", "heading")];
+
+/// Keyboard modifiers accepted by shortcut bindings.
+pub const MODIFIERS: &[(&str, &str)] = &[
+    ("MOD_CMD", "cmd"),
+    ("MOD_CTRL", "ctrl"),
+    ("MOD_ALT", "alt"),
+    ("MOD_SHIFT", "shift"),
+];
+
+pub(crate) fn install(app: &mut App) -> Result<()> {
+    // Through App, so a scriptless app builds the plugin instead of panicking.
+    let mut module = app.script_module("ui")?;
+    let m: &mut dyn Bindings<Engine> = &mut *module;
+
+    for (name, value) in ANCHORS
+        .iter()
+        .chain(WIDGET_KINDS)
+        .chain(FONTS)
+        .chain(MODIFIERS)
+    {
+        m.constant(name, balaur_script::Value::Str((*value).to_string()));
+    }
     crate::widget_bindings::install_theme(m);
     crate::widget_bindings::install_panels(m);
     crate::widget_bindings::install_containers(m);

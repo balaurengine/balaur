@@ -3,7 +3,7 @@
 local Ball = {}
 
 function Ball:init()
-    physics.add_body(self.node, "dynamic")
+    physics.add_body(self.node, physics.BODY_DYNAMIC)
     physics.add_ball_collider(self.node, 0.5)
     self.reported = false
 end

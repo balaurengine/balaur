@@ -294,3 +294,33 @@ fn the_engine_modules_reach_rune() {
     );
     assert_eq!(rune.number_field(node, "argc"), Some(0.0));
 }
+
+/// Constants registered through the seam must be readable as module constants,
+/// or named values are not an option for bindings.
+#[test]
+fn a_constant_is_readable_from_a_script() {
+    let dir = project(&[(
+        "k.rn",
+        "pub fn init(this) { this.n = t::MOUSE_LEFT; this.s = t::BODY_DYNAMIC; }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    {
+        let mut m = app.script_module("t").unwrap();
+        let m: &mut dyn Bindings<Engine> = &mut *m;
+        m.constant("MOUSE_LEFT", balaur_script::Value::Int(0));
+        m.constant(
+            "BODY_DYNAMIC",
+            balaur_script::Value::Str("dynamic".to_string()),
+        );
+    }
+    let node = spawn(&app, "K");
+    let host = app.engine.scripts().unwrap();
+    host.attach(balaur_core::node_id_of(node), "k.rn").unwrap();
+
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(node, "n"), Some(0.0));
+    assert_eq!(rune.text_field(node, "s").as_deref(), Some("dynamic"));
+}

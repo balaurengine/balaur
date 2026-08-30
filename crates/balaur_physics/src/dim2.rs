@@ -64,7 +64,7 @@ fn node_pose_2d(eng: &Engine, entity: Entity) -> Result<Pose2> {
 fn add_body(eng: &Engine, entity: Entity, kind: &str) -> Result<()> {
     let builder = match kind {
         "dynamic" => RigidBodyBuilder2::dynamic(),
-        "fixed" | "static" => RigidBodyBuilder2::fixed(),
+        "fixed" => RigidBodyBuilder2::fixed(),
         "kinematic" => RigidBodyBuilder2::kinematic_position_based(),
         other => return Err(anyhow!("unknown body kind '{other}'")),
     };
@@ -331,6 +331,7 @@ fn install_physics2d_api(app: &mut App) -> Result<()> {
     app.add_system(Stage::PostUpdate, step_system);
 
     let mut m = app.script_module("physics2d")?;
+    crate::install_constants(&mut *m, crate::BODY_KINDS, crate::SHAPE_KINDS_2D);
     let m = &mut m as &mut dyn Bindings<Engine>;
     m.function("set_gravity", |eng: &Engine, (x, y): (f32, f32)| {
         let state = eng.resource::<Physics2DState>();

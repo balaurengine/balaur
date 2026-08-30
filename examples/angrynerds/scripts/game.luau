@@ -146,7 +146,7 @@ function Game:update(dt)
 
     -- Slingshot: grab the parked bird, pull, release to launch.
     if not self.launched then
-        if input.mouse_just_pressed(0) then
+        if input.mouse_just_pressed(input.MOUSE_LEFT) then
             local d = math.sqrt((mx - bx) ^ 2 + (my - by) ^ 2)
             if d < 1.4 then
                 self.aiming = true
@@ -159,12 +159,12 @@ function Game:update(dt)
                 dx, dy = dx / len * MAX_PULL, dy / len * MAX_PULL
             end
             self.bird:set_position(ANCHOR[1] + dx, ANCHOR[2] + dy, 0)
-            if not input.is_mouse_down(0) then
+            if not input.is_mouse_down(input.MOUSE_LEFT) then
                 self.aiming = false
                 local px, py = self.bird:position()
                 local ix, iy = (ANCHOR[1] - px) * POWER, (ANCHOR[2] - py) * POWER
                 if math.sqrt(ix ^ 2 + iy ^ 2) > 1.0 then
-                    self.bird:set_component("body2d", { kind = "dynamic" })
+                    self.bird:set_component("body2d", { kind = physics2d.BODY_DYNAMIC })
                     physics2d.apply_impulse(self.bird, ix, iy)
                     self.launched = true
                     self.birds_left -= 1

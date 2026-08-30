@@ -30,6 +30,7 @@ use std::collections::{HashMap, HashSet};
 
 pub use theme::ThemeTokens;
 pub use widget_layer::{Widget, WidgetLayer};
+pub use widgets::{ANCHORS, FONTS, MODIFIERS, WIDGET_KINDS};
 
 /// Per-engine UI state: pending theme, persistent text-edit buffers, and
 /// the global UI scale (all widget metrics multiply by it, so scripts keep

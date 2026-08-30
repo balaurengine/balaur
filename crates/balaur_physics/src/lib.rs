@@ -62,6 +62,7 @@ impl Plugin for PhysicsPlugin {
         app.add_system(Stage::PostUpdate, step_system);
 
         let mut m = app.script_module("physics")?;
+        install_constants(&mut *m, BODY_KINDS, SHAPE_KINDS);
         install_world_controls(&mut *m);
         install_body_api(&mut *m);
         register_physics_components(app);
@@ -157,7 +158,7 @@ fn node_pose(eng: &Engine, entity: Entity) -> Result<Pose3> {
 fn add_body(eng: &Engine, entity: Entity, kind: &str) -> Result<()> {
     let builder = match kind {
         "dynamic" => RigidBodyBuilder::dynamic(),
-        "fixed" | "static" => RigidBodyBuilder::fixed(),
+        "fixed" => RigidBodyBuilder::fixed(),
         "kinematic" => RigidBodyBuilder::kinematic_position_based(),
         other => return Err(anyhow!("unknown body kind '{other}'")),
     };
@@ -371,6 +372,31 @@ fn install_body_api(m: &mut dyn Bindings<Engine>) {
 
 /// Schema-driven components, so bodies and colliders are editable from the
 /// editor and usable as scene-file keys.
+/// Body kinds the 3D and 2D worlds both accept, so a script writes
+/// `physics.BODY_DYNAMIC` rather than spelling "dynamic" and finding out at
+/// runtime that "Dynamic" silently fell through to the default.
+pub const BODY_KINDS: &[(&str, &str)] = &[
+    ("BODY_DYNAMIC", "dynamic"),
+    ("BODY_FIXED", "fixed"),
+    ("BODY_KINEMATIC", "kinematic"),
+];
+
+/// Collider shapes for the 3D world.
+pub const SHAPE_KINDS: &[(&str, &str)] = &[("SHAPE_BALL", "ball"), ("SHAPE_CUBOID", "cuboid")];
+
+/// Collider shapes for the 2D world.
+pub const SHAPE_KINDS_2D: &[(&str, &str)] = &[("SHAPE_CIRCLE", "circle"), ("SHAPE_RECT", "rect")];
+
+pub(crate) fn install_constants(
+    m: &mut dyn Bindings<Engine>,
+    bodies: &[(&str, &str)],
+    shapes: &[(&str, &str)],
+) {
+    for (name, value) in bodies.iter().chain(shapes) {
+        m.constant(name, balaur_script::Value::Str((*value).to_string()));
+    }
+}
+
 fn register_physics_components(app: &mut App) {
     app.register_component(
         "body",
