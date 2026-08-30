@@ -14,7 +14,7 @@ pub enum Command {
 /// single-threaded by design (the data plane can go parallel later behind
 /// this same facade); interior mutability keeps borrows short and explicit.
 ///
-/// `Engine` is what Rust systems receive every frame and what Lua binding
+/// `Engine` is what Rust systems receive every frame and what script binding
 /// closures capture, so both sides of the FFI see the exact same state.
 #[derive(Clone)]
 pub struct Engine {
@@ -25,7 +25,7 @@ pub struct EngineInner {
     pub world: RefCell<hecs::World>,
     pub resources: RefCell<Resources>,
     // Option because the host is installed after the engine exists (it needs
-    // an Engine clone for its Lua closures). This is a deliberate Rc cycle:
+    // an Engine clone for its binding closures). This is a deliberate Rc cycle:
     // the engine is a live-forever singleton.
     pub scripts: RefCell<Option<Rc<dyn balaur_script::ScriptHost<Engine>>>>,
     pub commands: RefCell<Vec<Command>>,

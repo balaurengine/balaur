@@ -5,7 +5,7 @@
 //! ```text
 //! project.toml          # name + main scene
 //! scenes/main.toml      # node tree
-//! scripts/*.luau        # node scripts
+//! scripts/*.luau|*.rn   # node scripts, in the project's language
 //! ```
 //!
 //! Scene files declare the node tree; behavior lives in scripts. Keys the

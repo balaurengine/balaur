@@ -1,4 +1,4 @@
-//! The `ui` Lua module: panels, containers, and the design system's widget
+//! The `ui` module: panels, containers, and the design system's widget
 //! shapes (pill, circle button, field, toggle, slider, code line, modal).
 //! Every color arrives per call from the script's token table, so themes are
 //! entirely script-defined.
@@ -16,7 +16,8 @@ use crate::UiState;
 
 /// An options table as passed from script: `{ height = 56, fill = "#20242a" }`.
 ///
-/// Reads the neutral map rather than a Lua table, so widgets name no language.
+/// Reads the neutral map rather than one language's table type, so widgets
+/// name no language.
 /// A missing or wrong-typed key falls back to the default: a typo in an options
 /// table should not stop the frame.
 pub(crate) struct Opts(pub(crate) Option<Value>);

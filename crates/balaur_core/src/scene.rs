@@ -11,7 +11,7 @@ pub struct Name(pub String);
 pub struct Parent(pub Entity);
 pub struct Children(pub Vec<Entity>);
 
-/// Which script file drives this node, if any. The live Lua instance is kept
+/// Which script file drives this node, if any. The live instance is kept
 /// by the script host, keyed by entity.
 pub struct ScriptAttachment {
     pub path: String,

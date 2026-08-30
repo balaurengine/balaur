@@ -1,7 +1,7 @@
 //! Rendering as a Balaur plugin.
 //!
 //! The plugin itself is backend-agnostic: it owns the `Renderable` component,
-//! the `render` Lua module, and the scene file vocabulary. Backends consume
+//! the `render` script module, and the scene file vocabulary. Backends consume
 //! `Renderable` + `GlobalTransform`. The kiss3d/wgpu backend (feature
 //! `kiss3d`) owns the OS event loop; headless runs just never draw, which
 //! keeps the simulation byte-for-byte identical with and without a window.

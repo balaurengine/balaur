@@ -664,7 +664,7 @@ fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
             result
         })
     });
-    // Right-aligned run of widgets (declared left to right in Lua).
+    // Right-aligned run of widgets (declared left to right in script).
     m.function("right", |eng: &Engine, cb: CallbackId| {
         with_ui(|ui| {
             let mut result = Ok(());

@@ -1,11 +1,11 @@
-//! Immediate-mode UI for Luau scripts, rendered with egui.
+//! Immediate-mode UI for scripts, rendered with egui.
 //!
-//! The plugin exposes a `ui` Lua module. Scripts implement a `draw_ui`
+//! The plugin exposes a `ui` module. Scripts implement a `draw_ui`
 //! lifecycle method; every frame the windowed backend calls [`run_pass`],
 //! which invokes `draw_ui` on every instance (in entity order) inside the
 //! frame's egui pass. The module's functions build panels and widgets
-//! against the pass's current `egui::Ui`, so Lua composes interfaces exactly
-//! the way Rust egui code does:
+//! against the pass's current `egui::Ui`, so a script composes interfaces
+//! exactly the way Rust egui code does (shown here in Luau):
 //!
 //! ```luau
 //! function Editor:draw_ui()
@@ -15,8 +15,8 @@
 //! end
 //! ```
 //!
-//! Widgets take their colors per call (usually from a Lua-side token table),
-//! so entire themes live in scripts and hot reload with them.
+//! Widgets take their colors per call (usually from a script-side token
+//! table), so entire themes live in scripts and hot reload with them.
 
 mod bridge;
 mod theme;

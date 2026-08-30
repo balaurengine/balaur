@@ -1,9 +1,9 @@
-//! The Lua ↔ egui bridge: a thread-local stack of the `Ui` currently being
+//! The script ↔ egui bridge: a thread-local stack of the `Ui` currently being
 //! built. Panels and containers push their child `Ui` before invoking the
-//! Lua callback and pop afterwards; widget calls act on the stack top.
+//! script callback and pop afterwards; widget calls act on the stack top.
 //!
 //! Raw pointers are sound here because the engine is single-threaded and the
-//! Lua callbacks run strictly inside the borrow of the `Ui` they were given
+//! script callbacks run strictly inside the borrow of the `Ui` they were given
 //! (the pointer never outlives the closure that pushed it).
 
 use balaur_core::Engine;
@@ -64,7 +64,7 @@ pub(crate) fn with_ui<R>(f: impl FnOnce(&mut egui::Ui) -> anyhow::Result<R>) -> 
     }
 }
 
-/// Push `ui`, run the Lua callback, pop. All container widgets funnel
+/// Push `ui`, run the script callback, pop. All container widgets funnel
 /// through here.
 /// Run a script callback with `ui` as the current target.
 ///

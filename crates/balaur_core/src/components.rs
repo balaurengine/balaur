@@ -6,7 +6,7 @@
 //!
 //! 1. a scene-file key (`body = { kind = "dynamic" }`) applied at
 //!    instantiation, in registration order;
-//! 2. a runtime Lua API on every node (`node:add_component`,
+//! 2. a runtime script API on every node (`node:add_component`,
 //!    `set_component`, `get_component`, `remove_component`,
 //!    `node:component_names()`), plus `scene.components()` /
 //!    `scene.component_schema(name)` for enumeration;

@@ -1,7 +1,7 @@
 //! Rapier physics as a Balaur plugin.
 //!
 //! This crate doubles as the reference for wrapping a Rust library for
-//! scripting: insert a resource, add a system, declare Lua functions, and
+//! scripting: insert a resource, add a system, declare script functions, and
 //! optionally teach scene files new keys. Nothing else is required.
 //!
 //! v0 constraint: physics-driven nodes are treated as world-space (their

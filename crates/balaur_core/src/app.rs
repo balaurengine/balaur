@@ -48,7 +48,8 @@ pub struct ScriptSetup<'a> {
 /// Builds the script host for an app.
 ///
 /// Core names no language. The crate assembling the app picks a backend and
-/// puts its factory here; `balaur::standard_app` installs Luau. An app with no
+/// puts its factory here; `balaur::standard_app` reads `language` from
+/// project.toml and installs the matching backend. An app with no
 /// factory runs without scripting: binding registrations are discarded and the
 /// per-frame script systems do nothing.
 pub type ScriptHostFactory =
@@ -92,7 +93,7 @@ impl AppConfig {
 }
 
 /// A plugin wires a subsystem into the app: resources, per-frame systems,
-/// Lua modules, scene vocabulary.
+/// script modules, scene vocabulary.
 pub trait Plugin {
     fn name(&self) -> &str;
     fn build(&mut self, app: &mut App) -> Result<()>;

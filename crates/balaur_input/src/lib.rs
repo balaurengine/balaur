@@ -133,23 +133,20 @@ fn register(m: &mut dyn Bindings<Engine>) {
         let v = state.borrow().scroll;
         Ok(v)
     });
-    // Buttons are 1-based: 1 = left, 2 = right, 3 = middle. This follows Lua's
-    // convention and is a script-visible contract, so a 0-based backend such as
-    // Rune must either keep it or the scripts change. Decide before shipping a
-    // second language, not after.
+    // Buttons are 0-based: 0 = left, 1 = right, 2 = middle. Same indexing as
+    // the engine uses internally, and the same in every language.
     m.function("is_mouse_down", |eng: &Engine, button: usize| {
         let state = eng.resource::<InputState>();
-        let v = button >= 1 && *state.borrow().mouse_down.get(button - 1).unwrap_or(&false);
+        let v = *state.borrow().mouse_down.get(button).unwrap_or(&false);
         Ok(v)
     });
     m.function("mouse_just_pressed", |eng: &Engine, button: usize| {
         let state = eng.resource::<InputState>();
-        let v = button >= 1
-            && *state
-                .borrow()
-                .mouse_just_pressed
-                .get(button - 1)
-                .unwrap_or(&false);
+        let v = *state
+            .borrow()
+            .mouse_just_pressed
+            .get(button)
+            .unwrap_or(&false);
         Ok(v)
     });
 }
