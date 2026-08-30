@@ -91,8 +91,7 @@ fn scenes_instantiate_at_runtime_and_args_reach_scripts() {
         scene.instantiate('[[nodes]]\nid = "n_a"\nname = "A"\n\n[[nodes]]\nid = "n_b"\nname = "B"\nparent = "n_a"\nposition = [0, 3, 0]\n', parent, { scripts = false })
         local b = parent:get_node("A/B")
         assert(b ~= nil, "nested instantiation failed")
-        local _, y = b:position()
-        assert(y == 3)
+        assert(b:position()[2] == 3)
         "#,
     )
     .exec()

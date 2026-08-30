@@ -1,11 +1,15 @@
 //! The `Node` userdata exposed to Luau: a handle to a scene tree entity.
+//!
+//! The operations themselves live in `balaur_core::node_api`, declared once
+//! for every language. This file is only the method-call sugar that makes
+//! `node:position()` work.
 
-use glamx::{EulerRot, Quat, Vec3};
 use hecs::Entity;
-use mlua::{MetaMethod, UserData, UserDataMethods, UserDataRef};
+use mlua::{MetaMethod, MultiValue, UserData, UserDataMethods, UserDataRef};
 
-use balaur_core::engine::{Command, Engine};
-use balaur_core::scene::{self, Name, Parent, Transform};
+use balaur_core::engine::Engine;
+use balaur_core::node_api::DECLARATIONS;
+use balaur_core::scene;
 
 #[derive(Clone)]
 pub struct NodeRef {
@@ -13,225 +17,31 @@ pub struct NodeRef {
     pub engine: Engine,
 }
 
-impl NodeRef {
-    fn with_transform<R>(&self, f: impl FnOnce(&mut Transform) -> R) -> mlua::Result<R> {
-        let world = self.engine.world();
-        let mut transform = world
-            .get::<&mut Transform>(self.entity)
-            .map_err(|_| mlua::Error::runtime("node is dead or has no transform"))?;
-        Ok(f(&mut transform))
-    }
-}
-
 impl UserData for NodeRef {
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
-        add_identity_methods(methods);
-        add_local_transform_methods(methods);
-        add_global_transform_methods(methods);
-        add_hierarchy_methods(methods);
-        add_components_methods(methods);
-        add_scripting_methods(methods);
+        for declared in DECLARATIONS {
+            let call = declared.call;
+            methods.add_method(declared.name, move |lua, this, args: MultiValue| {
+                let mut neutral = Vec::with_capacity(args.len() + 1);
+                neutral.push(balaur_script::Value::Node(
+                    balaur_core::node_id_of(this.entity).0,
+                ));
+                for v in &args {
+                    neutral.push(crate::env::to_neutral(v)?);
+                }
+                let out = call(&this.engine, &neutral).map_err(mlua::Error::external)?;
+                crate::env::from_neutral(lua, &this.engine, &out)
+            });
+        }
+
+        methods.add_meta_method(MetaMethod::Eq, |_, this, other: UserDataRef<NodeRef>| {
+            Ok(this.entity == other.entity)
+        });
+        methods.add_meta_method(MetaMethod::ToString, |_, this, ()| {
+            Ok(format!(
+                "Node({})",
+                scene::node_path(&this.engine.world(), this.entity)
+            ))
+        });
     }
-}
-
-/// Validity, name and scene path.
-fn add_identity_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
-    methods.add_method("is_valid", |_, this, ()| {
-        Ok(this.engine.world().contains(this.entity))
-    });
-    methods.add_method("name", |_, this, ()| {
-        let world = this.engine.world();
-        Ok(world
-            .get::<&Name>(this.entity)
-            .map(|n| n.0.clone())
-            .unwrap_or_default())
-    });
-    methods.add_method("set_name", |_, this, name: String| {
-        let world = this.engine.world();
-        if let Ok(mut n) = world.get::<&mut Name>(this.entity) {
-            n.0 = name;
-        }
-        Ok(())
-    });
-    methods.add_method("path", |_, this, ()| {
-        Ok(scene::node_path(&this.engine.world(), this.entity))
-    });
-}
-
-/// Position, rotation and scale in parent space.
-fn add_local_transform_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
-    methods.add_method("position", |_, this, ()| {
-        this.with_transform(|t| (t.position.x, t.position.y, t.position.z))
-    });
-    methods.add_method("set_position", |_, this, (x, y, z): (f32, f32, f32)| {
-        this.with_transform(|t| t.position = Vec3::new(x, y, z))
-    });
-    methods.add_method("translate", |_, this, (x, y, z): (f32, f32, f32)| {
-        this.with_transform(|t| t.position += Vec3::new(x, y, z))
-    });
-    methods.add_method("rotation_euler", |_, this, ()| {
-        this.with_transform(|t| {
-            let (yaw, pitch, roll) = t.rotation.to_euler(EulerRot::ZYX);
-            (roll, pitch, yaw)
-        })
-    });
-    methods.add_method(
-        "set_rotation_euler",
-        |_, this, (roll, pitch, yaw): (f32, f32, f32)| {
-            this.with_transform(|t| t.rotation = Quat::from_euler(EulerRot::ZYX, yaw, pitch, roll))
-        },
-    );
-    methods.add_method("scale", |_, this, ()| {
-        this.with_transform(|t| (t.scale.x, t.scale.y, t.scale.z))
-    });
-    methods.add_method("set_scale", |_, this, (x, y, z): (f32, f32, f32)| {
-        this.with_transform(|t| t.scale = Vec3::new(x, y, z))
-    });
-}
-
-/// Read-only world-space transform.
-fn add_global_transform_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
-    methods.add_method("global_scale", |_, this, ()| {
-        let world = this.engine.world();
-        let g = world
-            .get::<&balaur_core::scene::GlobalTransform>(this.entity)
-            .map_err(|_| mlua::Error::runtime("node is dead"))?;
-        Ok((g.scale.x, g.scale.y, g.scale.z))
-    });
-    methods.add_method("global_rotation_euler", |_, this, ()| {
-        let world = this.engine.world();
-        let g = world
-            .get::<&balaur_core::scene::GlobalTransform>(this.entity)
-            .map_err(|_| mlua::Error::runtime("node is dead"))?;
-        let (yaw, pitch, roll) = g.rotation.to_euler(glamx::EulerRot::ZYX);
-        Ok((roll, pitch, yaw))
-    });
-    methods.add_method("global_position", |_, this, ()| {
-        let world = this.engine.world();
-        let g = world
-            .get::<&balaur_core::scene::GlobalTransform>(this.entity)
-            .map_err(|_| mlua::Error::runtime("node is dead"))?;
-        Ok((g.position.x, g.position.y, g.position.z))
-    });
-}
-
-/// Lookup, parenting and children.
-fn add_hierarchy_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
-    methods.add_method("get_node", |_, this, path: String| {
-        let world = this.engine.world();
-        Ok(
-            scene::find_node(&world, this.entity, &path).map(|entity| NodeRef {
-                entity,
-                engine: this.engine.clone(),
-            }),
-        )
-    });
-    methods.add_method("add_child", |_, this, name: String| {
-        let mut world = this.engine.world_mut();
-        let entity = scene::spawn_node(&mut world, &name, this.entity);
-        Ok(NodeRef {
-            entity,
-            engine: this.engine.clone(),
-        })
-    });
-    methods.add_method("parent", |_, this, ()| {
-        let world = this.engine.world();
-        Ok(world.get::<&Parent>(this.entity).ok().map(|p| NodeRef {
-            entity: p.0,
-            engine: this.engine.clone(),
-        }))
-    });
-    methods.add_method("children", |lua, this, ()| {
-        let world = this.engine.world();
-        let out = lua.create_table()?;
-        if let Ok(children) = world.get::<&balaur_core::scene::Children>(this.entity) {
-            for (i, &child) in children.0.iter().enumerate() {
-                out.set(
-                    i + 1,
-                    NodeRef {
-                        entity: child,
-                        engine: this.engine.clone(),
-                    },
-                )?;
-            }
-        }
-        Ok(out)
-    });
-
-    // ---- components ------------------------------------------------
-    methods.add_method(
-        "add_component",
-        |_, this, (name, params): (String, Option<mlua::Value>)| {
-            let params = params
-                .map(|v| crate::tooling::lua_to_toml(&v))
-                .transpose()?;
-            balaur_core::components::add(&this.engine, this.entity, &name, params.as_ref())
-                .map_err(mlua::Error::external)
-        },
-    );
-    // Same as add_component: apply is upsert. Present for readability.
-    methods.add_method(
-        "set_component",
-        |_, this, (name, params): (String, mlua::Value)| {
-            let params = crate::tooling::lua_to_toml(&params)?;
-            balaur_core::components::add(&this.engine, this.entity, &name, Some(&params))
-                .map_err(mlua::Error::external)
-        },
-    );
-}
-
-/// Generic component add, read and remove.
-fn add_components_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
-    methods.add_method("remove_component", |_, this, name: String| {
-        balaur_core::components::remove(&this.engine, this.entity, &name)
-            .map_err(mlua::Error::external)
-    });
-    methods.add_method("get_component", |_, this, name: String| {
-        Ok(
-            balaur_core::components::get(&this.engine, this.entity, &name)
-                .map(crate::tooling::TomlToLua),
-        )
-    });
-    methods.add_method("has_component", |_, this, name: String| {
-        Ok(balaur_core::components::get(&this.engine, this.entity, &name).is_some())
-    });
-    methods.add_method("component_names", |_, this, ()| {
-        Ok(balaur_core::components::present_on(
-            &this.engine,
-            this.entity,
-        ))
-    });
-}
-
-/// Script attachment and deferred destruction.
-fn add_scripting_methods<M: UserDataMethods<NodeRef>>(methods: &mut M) {
-    methods.add_method("script_path", |_, this, ()| {
-        let world = this.engine.world();
-        Ok(world
-            .get::<&balaur_core::scene::ScriptAttachment>(this.entity)
-            .ok()
-            .map(|a| a.path.clone()))
-    });
-    methods.add_method("attach_script", |_, this, path: String| {
-        let host = this
-            .engine
-            .scripts()
-            .ok_or_else(|| mlua::Error::runtime("script host not running"))?;
-        host.attach(balaur_core::node_id_of(this.entity), &path)
-            .map_err(mlua::Error::external)
-    });
-    methods.add_method("queue_free", |_, this, ()| {
-        this.engine.push_command(Command::Free(this.entity));
-        Ok(())
-    });
-
-    methods.add_meta_method(MetaMethod::Eq, |_, this, other: UserDataRef<NodeRef>| {
-        Ok(this.entity == other.entity)
-    });
-    methods.add_meta_method(MetaMethod::ToString, |_, this, ()| {
-        Ok(format!(
-            "Node({})",
-            scene::node_path(&this.engine.world(), this.entity)
-        ))
-    });
 }

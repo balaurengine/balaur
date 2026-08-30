@@ -200,3 +200,67 @@ fn a_reload_keeps_instance_state() {
         "state should carry (1 + 1) and the new code should run (+10)"
     );
 }
+
+/// The node API reaches Rune as methods, from the same declaration list the
+/// Luau backend uses. If this passes, adding a third language costs the sugar
+/// and nothing else.
+#[test]
+fn the_node_api_is_available_as_methods() {
+    let dir = project(&[(
+        "move.rn",
+        "pub fn init(this) { this.node.set_position(1.0, 2.0, 3.0); }\n\
+         pub fn update(this, dt) { this.node.translate(1.0, 0.0, 0.0); }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    let node = spawn(&app, "Mover");
+    let host = app.engine.scripts().unwrap();
+    host.attach(balaur_core::node_id_of(node), "move.rn")
+        .unwrap();
+    app.tick(0.1);
+    app.tick(0.1);
+
+    let world = app.engine.world();
+    let t = world.get::<&balaur_core::scene::Transform>(node).unwrap();
+    assert_eq!(
+        (t.position.x, t.position.y, t.position.z),
+        (3.0, 2.0, 3.0),
+        "set_position then two translates"
+    );
+}
+
+/// Node identity survives a round trip through a script.
+#[test]
+fn a_node_returned_to_a_script_is_still_a_node() {
+    let dir = project(&[(
+        "tree.rn",
+        "pub fn init(this) {\n\
+         \x20 let child = this.node.add_child(\"Leaf\");\n\
+         \x20 child.set_name(\"Renamed\");\n\
+         \x20 this.leaf_name = child.name();\n\
+         }\n",
+    )]);
+    let app = app_in(dir.path());
+    let node = spawn(&app, "Root");
+    let host = app.engine.scripts().unwrap();
+    host.attach(balaur_core::node_id_of(node), "tree.rn")
+        .unwrap();
+
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(
+        rune.text_field(node, "leaf_name").as_deref(),
+        Some("Renamed"),
+        "the script read back the name it set through the handle"
+    );
+    let world = app.engine.world();
+    let children = world
+        .get::<&balaur_core::scene::Children>(node)
+        .expect("the script added a child");
+    assert_eq!(children.0.len(), 1);
+    let name = world
+        .get::<&balaur_core::scene::Name>(children.0[0])
+        .unwrap();
+    assert_eq!(name.0, "Renamed");
+}

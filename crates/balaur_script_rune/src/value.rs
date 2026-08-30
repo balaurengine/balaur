@@ -2,6 +2,7 @@
 
 use anyhow::{anyhow, Result};
 use balaur_script::{CallbackId, Value as Neutral};
+use rune::alloc::clone::TryClone as _;
 
 /// A node handle as scripts see it. Opaque on purpose: a script may store one
 /// and hand it back, but the bits are the engine's business.
@@ -46,12 +47,28 @@ pub struct Color {
     pub a: f64,
 }
 
-/// Register the value types every binding may see.
-pub(crate) fn install(m: &mut rune::Module) -> Result<(), rune::ContextError> {
+/// Register the value types every binding may see, and give `Node` the whole
+/// engine node API as methods.
+///
+/// The operations come from `balaur_core::node_api::DECLARATIONS`, so this is
+/// only the `node.position()` sugar — the behaviour is shared with every other
+/// language.
+pub(crate) fn install(
+    m: &mut rune::Module,
+    engine: &balaur_core::Engine,
+) -> Result<(), rune::ContextError> {
     m.ty::<Node>()?;
     m.ty::<Vec2>()?;
     m.ty::<Vec3>()?;
     m.ty::<Color>()?;
+
+    for declared in balaur_core::node_api::DECLARATIONS {
+        let call = declared.call;
+        let engine = engine.clone();
+        let handle = crate::bindings::hold_node_fn(engine, call);
+        m.raw_function(declared.name, crate::bindings::node_handler(handle))
+            .build_associated::<Node>()?;
+    }
     Ok(())
 }
 
@@ -70,22 +87,26 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
     if let Ok(s) = rune::from_value::<String>(v.clone()) {
         return Ok(Neutral::Str(s));
     }
-    if let Ok(n) = rune::from_value::<Node>(v.clone()) {
+    // Borrow rather than convert: `from_value` on a Rune `Any` moves the value
+    // out of its shared cell, so reading a node would destroy it.
+    if let Ok(n) = v.borrow_ref::<Node>() {
         return Ok(Neutral::Node(n.id));
     }
-    if let Ok(p) = rune::from_value::<Vec2>(v.clone()) {
+    if let Ok(p) = v.borrow_ref::<Vec2>() {
         return Ok(Neutral::Vec2([p.x as f32, p.y as f32]));
     }
-    if let Ok(p) = rune::from_value::<Vec3>(v.clone()) {
+    if let Ok(p) = v.borrow_ref::<Vec3>() {
         return Ok(Neutral::Vec3([p.x as f32, p.y as f32, p.z as f32]));
     }
-    if let Ok(c) = rune::from_value::<Color>(v.clone()) {
+    if let Ok(c) = v.borrow_ref::<Color>() {
         return Ok(Neutral::Color([
             c.r as f32, c.g as f32, c.b as f32, c.a as f32,
         ]));
     }
-    if let Ok(f) = rune::from_value::<rune::runtime::Function>(v.clone()) {
-        return Ok(Neutral::Callback(crate::bindings::hold_callback(f)));
+    if let Ok(f) = v.borrow_ref::<rune::runtime::Function>() {
+        return Ok(Neutral::Callback(crate::bindings::hold_callback(
+            f.try_clone()?,
+        )));
     }
     if let Ok(items) = rune::from_value::<Vec<rune::Value>>(v.clone()) {
         return Ok(Neutral::List(

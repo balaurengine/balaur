@@ -9,7 +9,7 @@ function Ball:init()
 end
 
 function Ball:update(dt)
-    local _, y, _ = self.node:position()
+    local y = self.node:position()[2]
     if y < 0.2 and not self.reported then
         self.reported = true
         print("ball touched down at t =", string.format("%.2f", engine.time()))

@@ -169,7 +169,7 @@ impl RuneHost {
         }
         let mut ctx = rune::Context::with_default_modules()?;
         let mut values = rune::Module::with_crate("balaur")?;
-        value::install(&mut values)?;
+        value::install(&mut values, &self.engine)?;
         ctx.install(values)?;
         let pending = self.state.borrow().pending.clone();
         for m in pending.borrow_mut().drain(..) {
@@ -426,6 +426,14 @@ impl RuneHost {
         rune::from_value::<f64>(field.try_clone().ok()?)
             .ok()
             .or_else(|| rune::from_value::<i64>(field).ok().map(|i| i as f64))
+    }
+
+    /// Read a string out of a node's instance state.
+    pub fn text_field(&self, entity: Entity, name: &str) -> Option<String> {
+        let state = self.state.borrow();
+        let inst = state.instances.get(&entity)?;
+        let obj: rune::runtime::Object = rune::from_value(inst.state.try_clone().ok()?).ok()?;
+        rune::from_value::<String>(obj.get(name)?.try_clone().ok()?).ok()
     }
 
     pub fn instance_count(&self) -> usize {

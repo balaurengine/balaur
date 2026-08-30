@@ -11,6 +11,7 @@ pub mod collections;
 pub mod components;
 pub mod engine;
 pub mod logbuf;
+pub mod node_api;
 pub mod pack;
 pub mod project;
 pub mod resources;

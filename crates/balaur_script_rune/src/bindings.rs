@@ -168,3 +168,49 @@ impl balaur_script::Bindings<Engine> for RuneModule {
         }
     }
 }
+
+/// Register a node operation so a Rune handler can reach it by index.
+///
+/// Same reason as `function_raw`: Rune wants `Send + Sync`, the engine is
+/// `Rc`-based, so only an index crosses into the handler.
+pub(crate) fn hold_node_fn(
+    engine: Engine,
+    call: fn(&Engine, &[Value]) -> anyhow::Result<Value>,
+) -> usize {
+    BOUND.with_borrow_mut(|b| {
+        b.push((engine, Box::new(call)));
+        b.len() - 1
+    })
+}
+
+/// The handler body shared by every node method.
+pub(crate) fn node_handler(
+    handle: usize,
+) -> impl 'static + Fn(&mut dyn Memory, InstAddress, usize, Output) -> VmResult<()> + Send + Sync {
+    move |stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output| {
+        let values = rune::vm_try!(stack.slice_at(addr, args)).to_vec();
+        let _scope = CallbackScope::enter();
+        let mut neutral = Vec::with_capacity(values.len());
+        for v in &values {
+            match crate::value::to_neutral(v) {
+                Ok(n) => neutral.push(n),
+                Err(err) => return VmResult::Err(VmError::panic(err.to_string())),
+            }
+        }
+        let called = BOUND.with_borrow(|b| b.get(handle).map(|(engine, f)| f(engine, &neutral)));
+        let result = match called {
+            Some(Ok(v)) => v,
+            Some(Err(err)) => return VmResult::Err(VmError::panic(err.to_string())),
+            None => {
+                return VmResult::Err(VmError::panic(
+                    "node method was registered on another thread",
+                ))
+            }
+        };
+        match crate::value::from_neutral(&result) {
+            Ok(v) => rune::vm_try!(out.store(stack, v)),
+            Err(err) => return VmResult::Err(VmError::panic(err.to_string())),
+        }
+        VmResult::Ok(())
+    }
+}
