@@ -230,7 +230,7 @@ b = { type = "string", default = "d" }"#,
 fn a_bad_schema_is_rejected_at_registration() {
     // (schema, what is wrong with it, words the message owes the author)
     let cases = [
-        (r#"label = 3"#, "the spec is not a table", "not a table"),
+        ("label = 3", "the spec is not a table", "not a table"),
         (
             r#"label = { default = "x" }"#,
             "no datatype",

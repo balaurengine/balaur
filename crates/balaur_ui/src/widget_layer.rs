@@ -72,7 +72,7 @@ pub(crate) fn register_widget_component(app: &mut App) {
         ComponentDef {
             schema: ComponentDef::parse_schema(
                 "widget",
-                r##"kind = { type = "enum", default = "label", options = ["label", "button", "panel"] }
+                r#"kind = { type = "enum", default = "label", options = ["label", "button", "panel"] }
 text = { type = "string", default = "label" }
 anchor = { type = "enum", default = "top_left", options = ["top_left", "top_right", "bottom_left", "bottom_right", "center"] }
 x = { type = "float", default = 16.0 }
@@ -80,7 +80,7 @@ y = { type = "float", default = 16.0 }
 font_size = { type = "float", default = 16.0, min = 6.0 }
 text_color = { type = "color", default = [0.933, 0.945, 0.957, 1.0] }
 on_click = { type = "string", default = "" }
-clicked = { type = "bool", default = false, readonly = true }"##,
+clicked = { type = "bool", default = false, readonly = true }"#,
             ),
             apply: Box::new(|eng, entity, params| {
                 let s = |key: &str, default: &str| {
