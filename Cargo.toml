@@ -1,11 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
-# An extension is built separately from the engine, by whoever writes it, and
-# the tests that load one only mean something if they exercise that. As a
-# member it shared the host's compiled rlibs, feature resolution and target
-# directory -- the one arrangement in which none of the mismatches the
-# fingerprint check exists to catch are possible.
+# Out-of-workspace on purpose: extension tests must load a separately built plugin.
 exclude = ["examples/extension_greeter"]
 
 [workspace.package]
@@ -83,17 +79,8 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
-# kiss3d from our fork's mobile line: dimforge's v0.46.0 plus the macOS
-# Command-modifier fix for egui (upstream's cmd-mod branch), and on top of it
-# iOS and Android support — the inverted iOS main loop, Android lifecycle and
-# touch input, and the downlevel-GL capability gates that Android surfaced and
-# WebGL2 shares. Verified on an Android emulator and the iOS simulator; see
-# the branch's examples/android and examples/ios.
-#
-# Fetched by cargo rather than expected as a sibling checkout, so a fresh clone
-# of this repo builds on its own and CI needs no second checkout. Cargo.lock
-# pins the exact commit, so the branch moving cannot change a build silently.
-# To hack on kiss3d itself, point cargo at a local copy with a `paths` override
-# in .cargo/config.toml rather than editing this.
+# Our kiss3d fork: v0.46.0 + the macOS Command-modifier fix for egui + iOS/Android
+# support. Cargo.lock pins the commit; to hack on kiss3d locally, use a `paths`
+# override in .cargo/config.toml rather than editing this.
 [patch.crates-io]
 kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "mobile-fixes" }

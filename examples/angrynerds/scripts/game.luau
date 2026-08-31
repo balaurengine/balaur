@@ -22,10 +22,8 @@ function Game:init()
     self.rest_timer = 0
     self.over = false
 
-    -- Capture every level node's initial state so R can rebuild the level
-    -- in place (components are re-applied, which also zeroes velocities).
-    -- Decorations (the pigs' glasses) are child nodes: each entry remembers
-    -- its top-level owner so popping a pig pops its whole subtree.
+    -- Capture initial state so R can rebuild the level in place. Each entry
+    -- remembers its top-level owner so popping a pig pops its whole subtree.
     self.level = {}
     self.pigs = {}
     local function capture(self, node, owner)

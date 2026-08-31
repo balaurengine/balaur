@@ -1,14 +1,14 @@
 //! Login and token refresh.
 //!
 //! Gamend issues a short-lived access token (`expires_in` seconds, 15
-//! minutes) and a 30-day refresh token. [`crate::rest::Client::call`]
+//! minutes) and a 30-day refresh token. [`super::rest::Client::call`]
 //! refreshes and retries once on a 401, so callers rarely touch this module
 //! after login.
 
 use anyhow::{anyhow, Result};
 use serde_json::{json, Value};
 
-use crate::rest::{required, Client};
+use super::rest::{required, Client};
 
 /// A logged-in identity: the token pair plus who it belongs to.
 ///

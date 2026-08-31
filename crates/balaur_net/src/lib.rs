@@ -37,16 +37,29 @@ mod http;
 #[cfg(not(target_family = "wasm"))]
 mod websocket;
 
-/// The real backend: a thread per request and per connection.
+/// The native backend: a thread per request and per connection.
 #[cfg(not(target_family = "wasm"))]
 mod backend {
     pub(crate) use crate::http::spawn_request;
     pub(crate) use crate::websocket::spawn_socket;
+
+    /// Threads deliver on their own; nothing to flush per tick.
+    pub(crate) fn pump() {}
 }
 
-/// The wasm stub: no networking stack compiles there, so every request and
-/// connect resolves to an error event and scripts keep running.
-#[cfg(target_family = "wasm")]
+#[cfg(all(target_family = "wasm", target_os = "emscripten"))]
+mod emscripten;
+
+/// The browser backend: emscripten fetch and websockets, no threads.
+#[cfg(all(target_family = "wasm", target_os = "emscripten"))]
+mod backend {
+    pub(crate) use crate::emscripten::{pump, spawn_request, spawn_socket};
+}
+
+/// The stub for wasm outside emscripten: no networking stack exists there
+/// yet, so every request and connect resolves to an error event and scripts
+/// keep running.
+#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
 mod backend {
     use std::sync::mpsc::{Receiver, Sender};
 
@@ -70,6 +83,8 @@ mod backend {
             reason: "no network backend compiles for wasm".into(),
         });
     }
+
+    pub(crate) fn pump() {}
 }
 
 /// One `http.request`, on its way to a worker thread.
@@ -212,6 +227,9 @@ pub struct NetSnapshot {
 /// Dispatch happens after the borrows are released, so a handler may itself
 /// request, connect, send or close.
 fn pump_net_system(eng: &Engine, _: f32) {
+    // Backends with no delivery threads (the browser) flush their queues
+    // here; the native one is a no-op.
+    backend::pump();
     let mut dispatches: Vec<(Option<Handler>, Option<u64>, Value)> = Vec::new();
     {
         let state = eng.resource::<NetState>();
@@ -415,17 +433,8 @@ fn handler_of(
 
 /// `http.*`. Declared against the neutral seam, so it works on any backend.
 fn install_http_api(m: &mut dyn Bindings<Engine>) {
-    // `http.request(self.node, url, { method = "POST", body = "...",
-    // headers = {...}, timeout = 5, on_response = "on_login" })` -> id.
-    // The response fires `on_response(response)` on that node's script —
-    // `{ request, status, headers, body }`, or `{ request, error }` when the
-    // transfer itself failed; an HTTP error status is a response, not an
-    // error. The verb lives in the options table rather than in the function
-    // name (N9); the default is GET.
-    //
-    // Without a node — `http.request(url, opts)` — nothing is dispatched and
-    // the id is a token to suspend on: `await(http.request(url))` in Luau,
-    // `task::wait(http::request(url)).await` in Rune.
+    // An HTTP error status is a response, not an error. With a nil node the
+    // returned id is a token to suspend on (`await` / `task::wait`).
     m.function(
         "request",
         |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
@@ -449,10 +458,8 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
 /// `websocket.*`. Text frames only: the value model has no bytes, and a
 /// binary frame is logged and dropped in the reader thread.
 fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
-    // `websocket.connect(self.node, url, { on_event = "on_websocket_event" })`
-    // -> id. Every connection event fires that method with one argument,
-    // `{ socket, kind, ... }` where kind is `open`, `message` (with `text`),
-    // `closed` or `error` (with `reason`). A nil node discards the events.
+    // Events fire as `{ socket, kind, ... }` with kind `open`, `message`,
+    // `closed` or `error`; a nil node discards them.
     m.function(
         "connect",
         |eng: &Engine, (node, url, opts): (Value, String, Option<Value>)| {

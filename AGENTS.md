@@ -16,18 +16,26 @@ Write a comment only when the code cannot carry the point:
   a backend put the camera, so it does not echo back what `set_camera` asked
 - **a warning** — appending to a binary invalidates a macOS signature
 
+A comment is one or two lines. State the constraint and stop: no argument
+for why the code is correct, no history of what it replaced, no essay
+defending the design. If the reason needs a paragraph, it is architecture —
+put it in ARCHITECTURE.md and leave at most one line behind.
+
 Do not write:
 
 - a restatement of the line below it
 - a divider or banner (`// ---- helpers ----`); the structure is the divider
 - commented-out code; git remembers it
 - a doc comment on a test whose name already says what it checks
+- a block of three-plus comment lines justifying a decision; that is prose
+  for a reviewer, and the reviewer is not the next reader
 
 The name is the documentation. `a_freed_node_stops_being_valid` needs no
 comment. If a comment feels necessary, first try renaming the thing.
 
 `scripts/comment_lints.py` enforces the mechanical half across every language
-in the tree, not just Rust.
+in the tree, not just Rust — including the length cap: a plain-comment block
+longer than three lines fails CI.
 
 ## Tests
 

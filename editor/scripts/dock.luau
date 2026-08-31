@@ -131,10 +131,8 @@ local function assets(S, k)
     end)
 end
 
--- The keyframe timeline over the engine's clip: scrub with the ruler (which
--- seeks the engine's player, so what the viewport shows is the engine's own
--- pose), ＋ Key snapshots the node's transform into the clip at the playhead.
--- The data is an `animation_clip` asset; scripts/anim.luau is the adapter.
+-- Keyframe timeline over the engine's clip (scripts/anim.luau is the adapter):
+-- scrubbing seeks the engine's player, so the viewport shows the engine's pose.
 local function timeline(S, k)
     local node = model.selected(S)
     local def = animlib.definition(S)
@@ -188,10 +186,8 @@ local function timeline(S, k)
         ui.add_space(6)
         ui.label(string.format("%.2f / %.2f s", S.anim_time, length), { size = 11, font = "mono", color = k.faint })
     end)
-    -- One lane per track the clip actually has, with key dots (filled before
-    -- the playhead, hollow after). A component track and a method track show
-    -- up here the same way a transform track does, because the clip is the
-    -- engine's and the engine has all three.
+    -- One lane per track, key dots filled before the playhead and hollow after;
+    -- component and method tracks render the same way transform tracks do.
     ui.scroll("timeline-tracks", nil, function()
         for index, track in animlib.tracks(def) do
             local label = animlib.track_label(track)

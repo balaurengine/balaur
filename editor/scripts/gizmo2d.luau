@@ -1,11 +1,6 @@
--- 2D selection gizmo replicating steadyum's dim2 bbox/transform gizmo:
--- the object's local AABB frame with eight scale handles floating just
--- outside it (4 corner brackets scale per-axis, 4 edge midpoints scale one
--- axis, Shift makes either uniform; the opposite corner/edge stays
--- anchored), the whole interior translates, and a center rotation disc
--- (drawn as a circle, picked as the full disc, priority over everything)
--- rotates about z. All math is 2D world space over the camera state the
--- backend publishes.
+-- 2D selection gizmo after steadyum's dim2 gizmo: eight scale handles just
+-- outside the local AABB (opposite corner/edge anchored, Shift = uniform),
+-- the interior translates, a center disc rotates about z; all 2D world space.
 local model = require("scripts/model")
 
 local ORANGE = { 1.0, 0.647, 0.0 }
@@ -138,10 +133,8 @@ local function hot_part(S)
     return S.gizmo_hover
 end
 
--- Handle marker, steadyum style: an open square of half-size
--- `geo.marker` at the handle position. Corners keep their two outer
--- edges (an L bracket opening toward the box); edge midpoints keep the
--- single outer edge parallel to the frame.
+-- Handle marker: an open square of half-size `geo.marker`. Corners keep their
+-- two outer edges (an L bracket); edge midpoints keep only the outer edge.
 local MARKER_EDGES = {
     -- face_axis, face_sign, ax, ay, bx, by (unit square edge endpoints)
     { 2, -1, -1, -1, 1, -1 }, -- bottom

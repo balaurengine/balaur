@@ -71,8 +71,6 @@ pub(crate) const C_VERSION_SYMBOL: &[u8] = b"balaur_extension_version";
 #[cfg(feature = "dylib")]
 pub(crate) const C_DECLARE_SYMBOL: &[u8] = b"balaur_extension_declare";
 
-// ---------------------------------------------------------------- value kinds
-
 pub const BALAUR_NIL: u32 = 0;
 pub const BALAUR_BOOL: u32 = 1;
 pub const BALAUR_INT: u32 = 2;
@@ -174,8 +172,6 @@ impl BalaurStr {
     }
 }
 
-// ------------------------------------------------------------------ the table
-
 /// Opaque handle to the registration a plugin is in the middle of.
 pub struct BalaurRegistry {
     _private: [u8; 0],
@@ -228,8 +224,6 @@ pub fn host_api() -> BalaurApi {
         log,
     }
 }
-
-// --------------------------------------------------------------- host entries
 
 /// A module handle is a double-boxed `Bindings`, so the pointer C holds is
 /// thin. The inner box is the trait object.
@@ -345,8 +339,6 @@ fn invoke(function: BalaurFn, user: UserData, args: &[Value]) -> Result<Value> {
     }
     returned
 }
-
-// ------------------------------------------------------------- value crossings
 
 /// Backing store for the borrowed views handed to an extension.
 ///
@@ -481,8 +473,6 @@ unsafe fn copy_list(slice: BalaurSlice) -> Result<Vec<Value>> {
     Ok(out)
 }
 
-// ------------------------------------------------------------ the plugin shim
-
 /// A library speaking the C ABI, presented as an ordinary [`Plugin`].
 ///
 /// Everything downstream -- load order, the registry, the script modules it
@@ -502,10 +492,8 @@ impl CExtension {
         version: &str,
         declare: unsafe extern "C" fn(*const BalaurApi, *mut BalaurRegistry) -> i32,
     ) -> Self {
-        // The fingerprint is the host's own, and that is correct rather than a
-        // shortcut: it exists to refuse Rust built by another compiler, and a
-        // C extension was not built by a Rust compiler at all. What stands in
-        // for it is the ABI version, checked before this type is constructed.
+        // The manifest carries the host's own compiler fingerprint: a C
+        // extension has none, and the ABI version check stands in for it.
         Self {
             manifest: Manifest::new(name, version),
             declare,

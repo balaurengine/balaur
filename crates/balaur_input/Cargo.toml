@@ -12,10 +12,8 @@ anyhow.workspace = true
 balaur_script.workspace = true
 tracing.workspace = true
 
-# Gamepads. gilrs only has desktop backends (evdev, XInput, IOKit) plus a
-# wasm-bindgen one our emscripten web target cannot use, so wasm builds skip
-# it and the gamepad snapshot just stays empty there — same neutral-answer
-# rule as a headless keyboard.
+# gilrs has no backend our emscripten target can use, so wasm builds skip it
+# and the gamepad snapshot stays empty there — the headless neutral-answer rule.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 gilrs = "0.11"
 

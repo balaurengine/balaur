@@ -266,10 +266,8 @@ fn install_prelude(lua: &Lua, _eng: &Engine, host: &super::ScriptHost) -> anyhow
         )?;
     }
 
-    // `await(token)`: park this task until the engine wakes the token, and
-    // return the wake's payload. Works in `init` and in dispatched handlers,
-    // which the host runs as coroutines; `update` is deliberately synchronous
-    // (a per-frame function that suspends piles up one task per tick).
+    // `await(token)` parks until the engine wakes the token. Works in `init`
+    // and dispatched handlers; `update` is deliberately synchronous.
     lua.load(
         r"
         function await(token)

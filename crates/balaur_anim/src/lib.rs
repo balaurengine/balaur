@@ -128,14 +128,8 @@ fn apply_animation(eng: &Engine, entity: Entity, params: &toml::Value) {
         playback.speed = speed;
         playback.active()
     };
-    // Autoplay is what the *scene* starts, so re-applying the component — an
-    // editor rebuilding its mirror, a script calling `set_component` — leaves
-    // a clip that is already running where it is rather than restarting it.
-    //
-    // A clip that will not load is a broken reference, not a broken scene: the
-    // node, its transform and the rest of this component are all fine, and
-    // failing here would take the whole scene down with one bad path. So it is
-    // warned about and the node stays unanimated.
+    // Re-applying the component must not restart a running clip, and a clip
+    // that will not load only warns — one bad reference must not kill the scene.
     if !autoplay.is_empty() && !running {
         if let Err(why) = play(eng, entity, &autoplay) {
             tracing::warn!("autoplay '{autoplay}': {why:#}");

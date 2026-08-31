@@ -317,11 +317,8 @@ impl RuneHost {
         let mut values = rune::Module::with_crate("balaur")?;
         value::install(&mut values, &self.engine)?;
         ctx.install(values)?;
-        // `task::wait(token).await`: park this async method until the engine
-        // wakes the token, and evaluate to the wake's payload. `init` and
-        // dispatched handlers may be async; `update` is deliberately
-        // synchronous (a per-frame function that suspends piles up one task
-        // per tick).
+        // `task::wait(token).await` parks until the engine wakes the token.
+        // `init` and handlers may be async; `update` is deliberately synchronous.
         let mut task = rune::Module::with_crate("task")?;
         task.function("wait", |token: i64| WaitFuture {
             token: u64::try_from(token).unwrap_or(u64::MAX),

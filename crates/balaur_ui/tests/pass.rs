@@ -46,11 +46,8 @@ fn draw(body: &str) -> (App, Vec<String>) {
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
 
-    // egui 0.36 has no all-in-one run(); drive the pass by hand.
-    //
-    // Two passes, not one: run_pass installs fonts on the first and skips
-    // drawing, so a single pass would exercise nothing and every assertion
-    // below would hold vacuously.
+    // Two passes: run_pass installs fonts on the first and skips drawing,
+    // so one pass would leave every assertion below vacuous.
     let ctx = egui::Context::default();
     for _ in 0..2 {
         ctx.begin_pass(egui::RawInput::default());

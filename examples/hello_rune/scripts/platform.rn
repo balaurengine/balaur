@@ -1,11 +1,5 @@
-// A moving platform that this script does not move.
-//
-// The motion comes from animations/platform.toml, sampled by the engine on a
-// fixed 1/60 timestep, and the platform is a kinematic body, so physics reads
-// the animated transform and anything standing on it is carried along.
-//
-// The `animation` module is declared once against the scripting seam, so this
-// is the same API the Luau twin calls, spelled the way Rune spells it.
+// A moving platform this script does not move: the engine samples the clip in
+// animations/platform.toml, and its method track calls `on_reached_end` here.
 
 pub fn init(this) {
     this.turns = 0;

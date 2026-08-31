@@ -302,10 +302,8 @@ fn parse_keys(
     for (index, item) in items.iter().enumerate() {
         keys.push(parse_key(item, property, channels).with_context(|| format!("key {index}"))?);
     }
-    // Sampling assumes ascending time. Sorting here rather than rejecting is
-    // what lets an editor insert a key without rewriting the list, and
-    // `total_cmp` is a total order, so the result does not depend on the
-    // platform's idea of how NaN compares.
+    // Sampling assumes ascending time; keys may arrive unsorted. `total_cmp`
+    // keeps NaN ordering platform-independent.
     keys.sort_by(|a, b| a.t.total_cmp(&b.t));
     Ok(keys)
 }

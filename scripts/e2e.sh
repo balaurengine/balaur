@@ -1,21 +1,12 @@
 #!/usr/bin/env bash
-# End to end over the example projects. They are Balaur projects, not cargo
-# examples, so the only way to test them is to run the engine on them.
-#
-# Four things happen to each example, because they fail independently:
-#
+# End to end over the example projects, four ways, because they fail
+# independently:
 #   run     dev mode, straight from the sources
-#   export  twice, and the two packs must come out byte-identical
+#   export  twice; the two packs must come out byte-identical
 #   play    the exported pack, with no sources and no compiler present
 #   edit    open it in the editor, which is itself a Balaur project
-#
-# `run` passing says nothing about `export`: scripts resolve their engine calls
-# at run time under Luau but at compile time under Rune, so the Rune examples
-# ran clean for months while `balaur export` rejected every one of them.
-#
-# A script error is logged rather than fatal — one bad script must not take the
-# frame down — so an exit code is not enough: an example erroring on every
-# frame would still exit 0. Read the log too.
+# A script error is logged rather than fatal, so a clean exit is not enough:
+# every step reads the log too.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -59,10 +50,8 @@ step() { # step <label> <balaur args...>
   fi
 }
 
-# The editor holds one invariant the log states but does not call an error:
-# its document and its mirror are built from the same TOML, so every document
-# node must resolve to a mirror node. When that broke, nested nodes silently
-# had no ref -- no inspector, no gizmo, no transform read -- and nothing failed.
+# An invariant the log states but does not call an error: every editor
+# document node must resolve to a node in the engine mirror.
 UNRESOLVED='did not resolve in the mirror'
 
 edit_step() { # edit_step <label> <project>

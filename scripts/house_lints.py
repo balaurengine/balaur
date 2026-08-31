@@ -398,10 +398,8 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                                         "TODO/FIXME needs an issue reference", "ERROR"))
 
             if not in_test_mod and re.search(r"\.(unwrap|expect)\s*\(", line):
-                # A descriptive .expect("..") IS the justification -- the rule
-                # exists to stop silent panics, not to mandate a comment beside
-                # a message that already explains itself. Bare .unwrap() and
-                # filler messages still need one.
+                # A descriptive .expect("..") message is itself the justification;
+                # bare .unwrap() and filler messages still need a comment.
                 msg = re.search(r"\.expect\s*\(\s*\"([^\"]*)\"", line)
                 FILLER = {"failed", "error", "should work", "unwrap", "todo", "oops", "!"}
                 self_explaining = bool(msg) and len(msg.group(1)) >= 12 \
@@ -412,10 +410,8 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                                             "unwrap/expect outside tests needs a justification comment "
                                             "or a descriptive expect message", "ERROR"))
 
-            # We emit structured events, not strings: `log` records carry no
-            # fields, so the editor's Output dock cannot filter them and an
-            # observability test cannot assert on them. tracing-log bridges
-            # dependencies that still use `log`; our own code must not.
+            # `log` records carry no fields, so nothing downstream can filter on
+            # them; tracing-log bridges dependencies, our own code uses tracing.
             if re.search(r"\blog::(info|warn|error|debug|trace)!", line):
                 findings.append(Finding(rel, i, "log-instead-of-tracing",
                                         "use tracing::* rather than log::*", "ERROR"))

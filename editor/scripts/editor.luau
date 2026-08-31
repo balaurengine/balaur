@@ -1,6 +1,5 @@
--- The balaur editor. A regular balaur project: this script drives the whole
--- shell (persona bar, node tree, viewport, inspector, dock, palette) through
--- the `ui` module, and edits the game project passed on the command line
+-- The balaur editor: a regular balaur project that drives the whole shell
+-- through the `ui` module and edits the game passed on the command line
 -- (`balaur edit <project>`). Editing this file hot reloads the editor.
 local theme = require("scripts/theme")
 local model = require("scripts/model")
@@ -162,11 +161,8 @@ function Editor:init()
         S.doc[S.sel].scale = { 3, 3, 3 }
         S.set_zoom(100)
     elseif start == "animdemo" then
-        -- Self-test state: author a clip programmatically — on the Spinner
-        -- when the mirror resolved it, and otherwise on whatever node it did
-        -- resolve. Keying a node needs a live node to read a transform off,
-        -- and `model.node_path` builds its lookup path out of `parent`, which
-        -- scene files now spell as an id, so today only roots come back.
+        -- Self-test state: author a clip on the Spinner when the mirror resolved
+        -- it, otherwise on any resolved node — keying reads a live transform.
         local pick
         for i, node in S.doc do
             if model.ref(S, i) ~= nil and (pick == nil or node.name == "Spinner") then

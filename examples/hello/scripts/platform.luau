@@ -1,11 +1,5 @@
--- A moving platform that this script does not move.
---
--- The motion comes from animations/platform.toml, sampled by the engine on a
--- fixed 1/60 timestep, and the platform is a kinematic body, so physics reads
--- the animated transform and anything standing on it is carried along.
---
--- What the script does is react: the clip's method track calls
--- `on_reached_end` when the platform arrives at the far end.
+-- A moving platform this script does not move: the engine samples the clip in
+-- animations/platform.toml, and its method track calls `on_reached_end` here.
 local Platform = {}
 
 function Platform:init()
@@ -27,11 +21,8 @@ end
 -- Called by the clip's method track, not by anything here.
 function Platform:on_reached_end()
     self.turns += 1
-    -- A tween is a clip generated on the spot: it reads the value the node
-    -- has right now and animates from it, through the same sampler and the
-    -- same fixed step a clip asset goes through. `color/rgba` is a component
-    -- property, reached through the component registry — which is why
-    -- animation can drive the renderer without depending on it.
+    -- A tween animates from the value the node has right now; `color/rgba`
+    -- reaches a component property.
     animation.tween(self.node, {
         steps = {
             { property = "color/rgba", to = { 1.0, 0.8, 0.25, 1.0 }, duration = 0.25 },

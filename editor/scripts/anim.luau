@@ -1,26 +1,6 @@
--- The Animate persona's half of the engine's animation system.
---
--- There is no editor-side clip model any more. A clip is an engine asset —
--- `animation_clip`, parsed by `balaur_anim`, sampled by the same code that
--- runs the shipped game — and this module is the adapter between the scene
--- document the editor edits and the `assets` / `animation` script modules.
--- Nothing here interpolates, wraps time or applies a pose: scrubbing seeks
--- the engine's player and the engine writes the transform.
---
--- What the editor authors, per node:
---
---     [nodes.animation]
---     autoplay = "box"           -- the clip the Timeline is editing
---     speed = 1.0
---     root = ""
---     [nodes.animation.library.clips.box]   -- inline: a table is a definition
---     length = 2.0
---     ...
---
--- `library` is a table (inline, saved with the scene) or a path (external,
--- its own file) — the asset layer's one rule, both spellings reaching the
--- same parser. Save as file and Make inline move a clip between them without
--- touching the clip itself, which is why they are exact inverses.
+-- The Animate persona's adapter between the scene document and the engine's
+-- `assets` / `animation` modules. A clip is an engine `animation_clip` asset:
+-- nothing here interpolates or applies a pose — scrubbing seeks the engine.
 local model = require("scripts/model")
 
 local M = {}
@@ -36,10 +16,8 @@ local GROUP = "clips"
 -- at 24 fps, which is the grain a person scrubbing can actually hit.
 local SAME_TIME = 0.021
 
--- The editor's engine runs the *editor's* project, so a path the edited game
--- writes relative to its own root resolves against the wrong place. Every
--- reference handed to the engine is made absolute; the document keeps the
--- relative form it will ship with.
+-- The editor's engine resolves relative paths against the *editor's* root, so
+-- references handed to it are made absolute; the document keeps the relative form.
 local function engine_path(S, rel)
     if string.sub(rel, 1, 1) == "/" then
         return rel
@@ -92,11 +70,8 @@ local function entry_of(doc, name)
     return nil
 end
 
--- The library document for the selected node, cached on `S.clip`.
---
--- Inline, it *is* the document's own table, so an edit lands in the scene
--- document with nothing to copy back. External, it is loaded once through
--- `assets` and written back by `M.save`.
+-- The library document for the selected node, cached on `S.clip`. Inline it
+-- *is* the scene document's own table; external it is written back by `M.save`.
 function M.document(S)
     local node = S.doc[S.sel]
     local comp = M.component(node)
@@ -164,12 +139,8 @@ function M.key_count(def)
     return n
 end
 
--- Put the edited clip in front of the engine and hold it at the playhead.
---
--- The component goes over as authored, so the mirror carries what will ship.
--- The definition then goes over separately through `animation.define`, so
--- what actually plays is the table the editor is holding — edits included,
--- before they have been written to the scene file or the clip file.
+-- Put the edited clip in front of the engine and hold it at the playhead:
+-- `animation.define` hands over the editor's in-memory table, edits included.
 function M.arm(S)
     local node, ref = model.selected(S)
     local comp = M.component(node)
@@ -406,14 +377,8 @@ function M.save(S)
     log.info("saved " .. clip.path)
 end
 
--- Point every animated node at a clip file the *editor's* engine can reach.
---
--- A `library` path in the edited game is relative to that game's root, and the
--- editor's engine resolves against its own — so a freshly built mirror carries
--- references that do not resolve, and warns about each once. Re-applying the
--- component with an absolute path is what makes them load, which matters for
--- every node the Timeline is not currently on: those are the ones play has to
--- animate. Run after a mirror rebuild, which is when `S.anim_rebind` is set.
+-- After a mirror rebuild, re-apply each animated `library` as an absolute
+-- path: game-relative references do not resolve in the editor's engine.
 function M.rebind(S)
     for i, node in S.doc do
         local comp = M.component(node)

@@ -1,8 +1,6 @@
--- Selection gizmo in the steadyum style: an orange padded bounding-box
--- frame whose faces translate, corner handles scale, and three axis rings
--- rotate; the element under the cursor (or being dragged) tints deep blue.
--- All hit-testing and drag math is screen-space Luau over the camera pose
--- the backend publishes; the rail tools remain as drag-anywhere fallbacks.
+-- Selection gizmo, steadyum style: an orange bbox frame (faces translate,
+-- corners scale, axis rings rotate), hover tints deep blue. All hit-testing is
+-- screen-space Luau over the camera pose the backend publishes.
 local model = require("scripts/model")
 local gizmo2d = require("scripts/gizmo2d")
 

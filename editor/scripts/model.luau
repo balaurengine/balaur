@@ -1,16 +1,10 @@
 -- The edited project: scene document model, live mirror scene, save/reset.
---
--- The document (`S.doc`) is plain data parsed from the game's scene TOML.
--- The mirror is a real node tree instantiated from the same TOML (scripts
--- not attached), so the kiss3d viewport shows the actual scene and the
--- physics plugin builds the actual bodies (kept paused until play).
+-- `S.doc` is plain data parsed from the scene TOML; the mirror is a real node
+-- tree from the same TOML (scripts not attached, physics paused until play).
 local M = {}
 
 -- A scene node's `parent` is the parent's **id**, not a path
--- (`crates/balaur_core/src/project.rs`). Everything below walks that id chain;
--- treating it as a slash path is what used to leave nested nodes with no
--- mirror ref, the tree showing only roots, and `add_child` writing a scene the
--- engine would refuse to load.
+-- (`crates/balaur_core/src/project.rs`); everything below walks that id chain.
 local function by_id(doc, id)
     for _, node in doc do
         if node.id == id then
@@ -231,10 +225,8 @@ function M.build_mirror(S)
     if unresolved > 0 then
         log.warn(`{unresolved} of {#S.doc} nodes did not resolve in the mirror`)
     end
-    -- The mirror is instantiated with the game's own `autoplay`, so every
-    -- animated node starts running the moment it exists. Hold them: an edited
-    -- scene must not animate under the inspector until play is pressed.
-    -- (`scripts/anim.luau` resumes them, and arms the selected one.)
+    -- The mirror instantiates with the game's own `autoplay`, so pause every
+    -- animated node: nothing may animate under the inspector until play is pressed.
     for i, node in S.doc do
         local ref = S.refs[i]
         if ref ~= nil and type(node.animation) == "table" then
@@ -335,19 +327,9 @@ function M.open_scene(S, rel)
     log.info("opened " .. rel)
 end
 
--- Component editing goes through the engine's component registry: the live
--- node is the source of truth, the document mirrors it for saving.
--- `readonly` properties are engine output (widget.clicked): they round-trip
--- through `get` but writing them back is meaningless, so they are stripped
--- from both the saved document and the table handed to `set_component`. The
--- schema says which, so a new one needs no editor change.
---
--- An `asset` property is the other exception, and it runs the other way: the
--- document's spelling is the authored one and the engine's is a *resolved*
--- one — a content digest for an inline definition, an absolute path for a
--- reference the editor had to rewrite to reach the edited project. Neither
--- can be written back to a scene file, so an asset property the document
--- already has keeps what the document said.
+-- The document mirrors the live node for saving, with two exceptions:
+-- `readonly` properties are stripped, and an `asset` property keeps the
+-- document's authored spelling — the engine's resolved one cannot be saved.
 local function doc_value(name, data, previous)
     local schema = scene.component_schema(name) or {}
     local out = {}

@@ -441,12 +441,8 @@ fn asset_reference(
         // The empty default means "no asset", and resolving it would be an
         // error about a reference the author never wrote.
         toml::Value::String(text) if text.trim().is_empty() => Ok(None),
-        // A reference is checked here so a typo is reported where it was
-        // written — but only warned about. One reference that does not resolve
-        // is a broken link, not a broken scene: the node and the rest of its
-        // components are fine, whoever loads the asset gets the same message
-        // again, and a tool editing someone else's project must be able to
-        // open a scene whose files it cannot reach.
+        // Checked so a typo is reported where it was written, but only warned:
+        // a tool must be able to open a scene whose files it cannot reach.
         toml::Value::String(text) => {
             if let Err(why) = crate::assets::definition(eng, text)
                 .with_context(|| format!("asset property '{prop}'"))

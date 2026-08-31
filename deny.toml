@@ -13,11 +13,8 @@ wildcards = "deny"
 
 [advisories]
 yanked = "deny"
-# Off. The unmaintained crates here (rusttype, ttf-parser, and paste via
-# image's default-formats) all come from kiss3d, and updating kiss3d is not on
-# the table right now. Unmaintained is informational anyway: nobody is minding
-# the crate, not a known exploit. Actual vulnerabilities are always errors in
-# cargo-deny and cannot be switched off here, which is the part that matters.
+# The unmaintained crates (rusttype, ttf-parser, paste) all come from kiss3d.
+# Actual vulnerabilities stay errors in cargo-deny regardless of this setting.
 unmaintained = "none"
 
 [sources]

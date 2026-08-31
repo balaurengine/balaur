@@ -1,17 +1,11 @@
 #!/usr/bin/env bash
-# Build and package the desktop artifacts for one platform.
-#
-# Two things come out, from one build, because they are the same program:
-#
-#   balaur-editor-<target>   the editor: the windowed binary plus the editor
-#                            project it drives, the examples, and a copy of the
-#                            runtime template so `balaur export --target ...`
-#                            works the moment it is unzipped
+# Build and package the desktop artifacts for one platform. One build, two
+# artifacts:
+#   balaur-editor-<target>   the windowed binary plus the editor project it
+#                            drives, the examples, and a copy of the runtime
+#                            template so `balaur export --target ...` works
+#                            the moment it is unzipped
 #   balaur-runtime-<target>  the runtime template: what a game gets fused onto
-#
-# The editor is a Balaur project rather than compiled UI, so shipping it means
-# shipping `editor/` next to the binary — the binary looks there first.
-#
 # Usage: package.sh <target>     e.g. linux-x64, macos-arm64, windows-x64
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -61,8 +55,6 @@ cp "$bin" "$dist/balaur-runtime-$target$exe"
 cp "$bin" "$bundle/templates/balaur-runtime-$target$exe"
 
 step "smoke: export a game with the template and run it"
-# Proves the artifact people download actually works, rather than that it
-# merely built. Exporting is what the template is for, so exercise exactly it.
 # The template is found next to the *executable*, not the working directory,
 # so this runs the staged binary in place and stays with absolute paths.
 smoke="$dist/.smoke"

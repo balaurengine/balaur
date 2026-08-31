@@ -1,7 +1,5 @@
-# A small angry-birds game, entirely declarative: 2D shapes, 2D physics
-# bodies and HUD widgets are all components, so the whole level is editable
-# in the balaur editor. scripts/game.luau drives the slingshot, scoring and
-# restarts.
+# An angry-birds game. The level is pure scene data, editable in the balaur
+# editor; scripts/game.luau drives the slingshot, scoring and restarts.
 
 [[nodes]]
 id = "n_game"

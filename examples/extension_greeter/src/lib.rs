@@ -39,11 +39,8 @@ impl Plugin for Greeter {
             let count = eng.resource::<GreetingCount>().borrow().0;
             Ok(i64::from(count))
         });
-        // A resource the *host* inserted, of a type defined in balaur_core.
-        // Reaching it is the real test of separate compilation: resources are
-        // keyed by TypeId, and two independently compiled copies of a crate
-        // only agree on a TypeId if cargo gave them the same metadata hash.
-        // Everything else here would work even if they disagreed.
+        // Reads a host-inserted resource across the dylib boundary: the real
+        // test that both compiled copies of balaur_core agree on the TypeId.
         m.function("project_root", |eng: &Engine, ()| {
             Ok(
                 match eng.try_resource::<balaur_core::project::ProjectRoot>() {

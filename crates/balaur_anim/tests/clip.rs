@@ -218,10 +218,8 @@ keys = [
 
 #[test]
 fn the_euler_convention_matches_the_engines_own() {
-    // The sampler converts euler keys on `libm` rather than through
-    // `Quat::from_euler`, whose sin/cos are the platform's. The two must
-    // still mean the same thing, or an authored key and an authored
-    // `rotation_euler` in a scene would disagree.
+    // The sampler's `libm` euler conversion must agree with `Quat::from_euler`,
+    // or an authored key and a scene's `rotation_euler` would disagree.
     for angles in [
         [0.0, 0.0, 0.0],
         [0.3, -1.2, 2.5],

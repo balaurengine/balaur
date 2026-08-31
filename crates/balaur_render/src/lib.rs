@@ -372,10 +372,8 @@ fn clear_debug_lines_system(eng: &Engine, _dt: f32) {
 /// The 3D camera: where it looks from, whether it takes the mouse, and the
 /// pose, matrix and picking ray it published this frame.
 fn install_camera_api(m: &mut dyn Bindings<Engine>) {
-    // Command in, truth out: this writes `CameraConfig`, while the reader
-    // `render.camera_pose` reads the backend-published `ViewportSnapshot`.
-    // Not an accessor pair — what you set is a request, what you read is
-    // what the renderer actually did with it.
+    // Writes `CameraConfig`; not an accessor pair with `render.camera_pose`,
+    // which reads what the renderer actually did with the request.
     m.function(
         "set_camera",
         |eng: &Engine, (ex, ey, ez, tx, ty, tz): (f32, f32, f32, f32, f32, f32)| {
@@ -415,13 +413,8 @@ fn install_camera_api(m: &mut dyn Bindings<Engine>) {
             cam.ray_dir[2],
         ))
     });
-    // The actual camera pose this frame: eye xyz, target xyz, fov (rad),
-    // HiDPI scale factor. All zeros with no windowed backend.
-    //
-    // Command in, truth out: this reads the published `ViewportSnapshot`,
-    // not the `CameraConfig` that `render.set_camera` writes. The two are
-    // not an accessor pair, and a backend's own controls (kiss3d's orbit
-    // drag) move the pose without touching the config.
+    // Eye xyz, target xyz, fov (rad), HiDPI scale; all zeros with no windowed
+    // backend. Reads the published snapshot, not what `set_camera` wrote.
     m.function("camera_pose", |eng: &Engine, ()| {
         let cam = eng.resource::<ViewportSnapshot>();
         let cam = cam.borrow();
@@ -441,12 +434,8 @@ fn install_camera_api(m: &mut dyn Bindings<Engine>) {
 /// The 2D camera: its target center and zoom, the state it published this
 /// frame, and the mouse unprojected through it.
 fn install_camera_2d_api(m: &mut dyn Bindings<Engine>) {
-    // 2D camera: world center + zoom in logical pixels per world unit.
-    //
-    // Command in, truth out: this writes `CameraConfig2d`, while the reader
-    // `render.camera_2d` reads the backend-published `ViewportSnapshot2d`.
-    // Not an accessor pair — `editor/scripts/editor.luau` reads-modifies-
-    // writes across the two deliberately.
+    // World center + zoom in logical pixels per world unit. Not an accessor
+    // pair with `render.camera_2d`, which reads the published snapshot.
     m.function(
         "set_camera_2d",
         |eng: &Engine, (cx, cy, zoom): (f32, f32, f32)| {
@@ -458,13 +447,8 @@ fn install_camera_2d_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
-    // The actual 2D camera state this frame: center xy, zoom. All zeros
-    // with no windowed backend, zoom included.
-    //
-    // Command in, truth out: this reads the published `ViewportSnapshot2d`,
-    // not the `CameraConfig2d` that `render.set_camera_2d` writes. The two
-    // are not an accessor pair, which is why the headless zoom here is 0.0
-    // while the config's default is 60.0.
+    // Center xy, zoom, from the published snapshot rather than the config —
+    // so headless answers all zeros, zoom included, not the config's default.
     m.function("camera_2d", |eng: &Engine, ()| {
         let vp = eng.resource::<ViewportSnapshot2d>();
         let vp = vp.borrow();
@@ -490,34 +474,20 @@ fn resolve_project_path(eng: &Engine, path: &str) -> std::path::PathBuf {
 }
 
 fn install_window_api(m: &mut dyn Bindings<Engine>) {
-    // Capture a frame to a PNG, project-relative unless absolute.
-    //
-    // The moment is the caller's to choose, which is the whole point of it
-    // being a binding: a tool screenshots when the level has finished
-    // loading or after the hit lands, not at a frame number picked in
-    // advance. Served on the next rendered frame by whichever backend is
-    // running; a run with no renderer says so rather than going quiet.
-    //
-    // Fire and forget. The capture happens inside the render pass, after the
-    // script tick that asked for it, so there is nothing to hand back here —
-    // the log line naming the file is the completion signal.
+    // PNG on the next rendered frame; a run with no renderer says so. Fire
+    // and forget — the log line naming the file is the completion signal.
     m.function("screenshot", |eng: &Engine, path: String| {
         let full = resolve_project_path(eng, &path);
         eng.insert_resource(ScreenshotRequest {
             path: full,
-            // The next frame the backend renders. There is no delay
-            // parameter on purpose: `after_frame` is an absolute frame
-            // number in the backend's own counter, which a script has no way
-            // to read, and a script that wants to wait already has `update`.
+            // The next rendered frame. No delay parameter on purpose: a
+            // script cannot read the backend's own counter anyway.
             after_frame: 0,
         });
         Ok(())
     });
-    // Set the OS application icon (dock icon on macOS) from a PNG in
-    // the project.
-    //
-    // No reader by design (N8): the `AppIconConfig` entry already holds the
-    // path a backend last applied; add `app_icon` when a caller needs it.
+    // OS application icon (dock icon on macOS) from a PNG in the project.
+    // No reader by design: add `app_icon` when a caller needs it back.
     m.function("set_app_icon", |eng: &Engine, path: String| {
         eng.insert_resource(AppIconConfig {
             path: resolve_project_path(eng, &path),

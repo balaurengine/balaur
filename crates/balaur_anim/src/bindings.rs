@@ -44,13 +44,8 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
         player::queue(eng, entity_of(node)?, &name);
         Ok(())
     });
-    // One verb for both things that can be running on a node: given a node
-    // it ends that node's clip, given a tween handle it ends that tween.
-    // `kill` would be a third destruction verb beside `node.queue_free` and
-    // `physics.clear` (`docs/NAMING.md` N1).
-    //
-    // Ending a clip is not pausing it: the clip stops being current, so
-    // `current` answers nil and `resume` has nothing to go back to.
+    // Takes a node (ends its clip) or a tween handle (ends that tween).
+    // Stopping is not pausing: `current` goes nil and `resume` cannot revive it.
     m.function("stop", |eng: &Engine, what: Value| {
         match handle_of(&what)? {
             Stoppable::Node(node) => player::stop(eng, entity_of(node)?),
@@ -78,10 +73,8 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
 
 /// Where the playhead is, and what it just did.
 fn install_playhead_api(m: &mut dyn Bindings<Engine>) {
-    // The node is posed where the playhead lands, so a seek shows even on a
-    // clip that is paused or has ended — which is what an editor timeline
-    // scrubs. Nothing between the old playhead and the new one counts as
-    // passed: a seek does not fire the method keys it skipped.
+    // Poses the node even on a paused or ended clip, and does not fire the
+    // method keys it skips over.
     m.function("seek", |eng: &Engine, (node, time): (NodeId, f32)| {
         player::seek(eng, entity_of(node)?, time);
         Ok(())

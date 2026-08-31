@@ -98,10 +98,8 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
         let mut state = state.borrow_mut();
         let state = &mut *state;
         let world = eng.world();
-        // A node can be freed while its clip is mid-flight, and both a
-        // `Playback` and a `Tween` outlive the entity because they live here
-        // rather than on it. `queue_free` defers the free to `Stage::Last`,
-        // so this is the first place either of them can notice.
+        // `Playback` and `Tween` live here, not on the entity, so this is the
+        // first place a `queue_free`d node's leftovers can be dropped.
         state.players.retain(|&entity, _| world.contains(entity));
         state.tweens.retain(|_, tween| world.contains(tween.node));
         // A frame's worth of `just_finished` expires here: the script tick

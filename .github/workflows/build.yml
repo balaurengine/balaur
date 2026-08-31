@@ -1,14 +1,8 @@
 name: Build
 
-# Everything that produces an artifact somebody downloads.
-#
-# `build-editor` is named for the artifact people download, but it emits two,
-# because they are one program: the editor is a Balaur project that the binary
-# runs, and a game is that same binary with a pack appended. Splitting them
-# into separate jobs would compile the identical thing twice.
-#
-# A push to main refreshes a rolling draft release; a `v*` tag drafts that
-# version. Publishing stays a human decision.
+# Everything that produces an artifact somebody downloads: a push to main
+# refreshes a rolling draft release, a `v*` tag drafts that version, and
+# publishing stays a human decision.
 on:
   push:
     branches: [main]
@@ -67,17 +61,9 @@ jobs:
           path: dist/balaur-*
           if-no-files-found: error
 
-  # Runtime templates for the platforms that are not desktops.
-  #
-  # A desktop template is a plain executable and a game is that file with a
-  # pack appended. None of these launch that way, so each gets the shape its OS
-  # actually starts — see scripts/package_template.sh and
-  # docs/PLAN-mobile-export.md.
-  #
-  # The web target is emscripten rather than wasm32-unknown-unknown because
-  # Luau is C++ and needs a libc to compile against, which only emscripten
-  # provides (mlua#23). Audio is a stub there (no cpal host compiles for wasm;
-  # see balaur_audio).
+  # Runtime templates for the non-desktop platforms, each packaged as the
+  # shape its OS actually starts (scripts/package_template.sh). Web is
+  # emscripten because Luau is C++ and needs a libc (mlua#23).
   build-platforms:
     name: build ${{ matrix.platform }}
     runs-on: ${{ matrix.host }}
@@ -86,18 +72,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Windowed and required: the engine renders on iOS as of the cfg
-          # gating in balaur_render for fullscreen and file-drop, which are
-          # desktop window-manager ideas kiss3d does not expose on a phone.
-          # The artifact is an unsigned .app — signing needs a certificate that
-          # belongs to whoever ships the game, never to this repo.
+          # The artifact is an unsigned .app: signing needs a certificate
+          # that belongs to whoever ships the game, never to this repo.
           - platform: ios
             target: aarch64-apple-ios
             host: macos-latest
             optional: false
-          # Compiles, but is not yet an installable app: Android launches a
-          # NativeActivity that loads a libmain.so, and nothing here defines
-          # `android_main`. Reports rather than blocks until it does.
+          # crates/balaur_android defines `android_main` and the staged layout
+          # is what an APK expects, so what ships is an unassembled skeleton:
+          # turning it into an installable app needs aapt2 and a keystore that
+          # belongs to whoever ships the game.
           - platform: android
             target: aarch64-linux-android
             host: ubuntu-latest

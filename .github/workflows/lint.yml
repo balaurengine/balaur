@@ -1,11 +1,7 @@
 name: Lint
 
-# The platform-independent gates. Formatting and the project's own naming and
-# style rules have one right answer everywhere, so they run once rather than
-# three times in the CI matrix.
-#
-# Compile-level lints (clippy) live in ci.yml instead: those genuinely differ
-# per platform, because the code they see does.
+# The platform-independent gates, run once rather than per-OS. Clippy lives
+# in ci.yml instead: what it sees genuinely differs per platform.
 on:
   push:
     branches: [main, master]

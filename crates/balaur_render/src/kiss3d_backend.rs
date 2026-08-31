@@ -86,10 +86,8 @@ impl Frontend {
         flush_debug_lines(app, window);
         flush_debug_lines_2d(app, window);
         window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
-        // The on-screen keyboard follows text-field focus: summoned when a
-        // ui widget takes keyboard input, dismissed when it lets go. Edge-
-        // detected here, after the ui pass has settled focus for the frame;
-        // a no-op on desktop, where there is nothing to summon.
+        // On-screen keyboard follows ui keyboard focus, edge-detected after
+        // the ui pass has settled focus. A no-op on desktop.
         let wants_keyboard = window.is_egui_capturing_keyboard();
         if wants_keyboard != self.keyboard_shown {
             self.keyboard_shown = wants_keyboard;
@@ -155,11 +153,8 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
     // log instead — which is where whoever is reading a CI run will look.
     tracing::info!("rendering '{title}' offscreen at {width}x{height}");
     pollster::block_on(async move {
-        // `new_headless_with_setup`, not `new_hidden_*`: a hidden window is
-        // still a real OS window that happens not to be shown, so it needs a
-        // display server. This one is surface-less — no window, no swapchain,
-        // straight into an off-screen texture — which is what lets it run on a
-        // CI box with no display at all.
+        // Not `new_hidden_*`: a hidden window still needs a display server.
+        // Surface-less rendering runs on a CI box with no display at all.
         let mut window =
             Window::new_headless_with_setup(width, height, CanvasSetup::default()).await;
         let mut f = Frontend::new();

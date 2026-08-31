@@ -2,7 +2,7 @@
 //!
 //! Deliberately generic — Gamend's API is large and uniform (JSON in, JSON
 //! out, Bearer auth), so a `(method, path, body)` caller covers all of it
-//! without a generated model layer. Typed helpers live in [`crate::auth`]
+//! without a generated model layer. Typed helpers live in [`super::auth`]
 //! and can grow beside it.
 
 use std::time::Duration;
@@ -10,7 +10,7 @@ use std::time::Duration;
 use anyhow::{anyhow, bail, Result};
 use serde_json::Value;
 
-use crate::auth::Session;
+use super::auth::Session;
 
 /// What a call produced: the status and the decoded JSON body (`Null` when
 /// the body is empty or not JSON).
@@ -69,7 +69,7 @@ impl Client {
         {
             return Ok(reply);
         }
-        let session = crate::auth::refresh(self, &self.refresh_token())?;
+        let session = super::auth::refresh(self, &self.refresh_token())?;
         self.session = Some(session);
         self.call_raw(method, path, body, true)
     }

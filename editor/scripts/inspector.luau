@@ -158,12 +158,8 @@ local function script_section(S, k, title)
     end)
 end
 
--- The engine's clip, edited in place. `library`, `autoplay`, `speed` and
--- `root` are the `animation` component's own properties; `length`, `loop` and
--- the tracks belong to the `animation_clip` asset the library holds. The two
--- buttons are what make that split legible: Save as file promotes the inline
--- definition to `animations/<node>.toml`, Make inline copies a file back onto
--- the node, and neither touches the clip itself.
+-- Save as file promotes the inline definition to `animations/<node>.toml`,
+-- Make inline copies a file back onto the node; neither touches the clip itself.
 local function clip_source_row(S, k, node)
     local path = animlib.library_path(node)
     row(k, "Source", function()
@@ -292,13 +288,8 @@ local function sorted_keys(t)
     return keys
 end
 
--- Write an inline definition out to a file of its type's own directory, and
--- point the property at it. Saved through the engine so the cache forgets what
--- it held, but recorded in the scene as the project-relative path — an
--- absolute one would not survive being opened on another machine.
---
--- The node's name is the file name because an anonymous definition carries
--- nothing else to name it by.
+-- Write an inline definition to its type's directory and point the property at
+-- the project-relative path — an absolute one would not survive another machine.
 local function promote_asset(S, comp, prop, asset_type, dir, reference)
     local node = S.doc[S.sel]
     local ok, definition = pcall(assets.load, reference)
@@ -399,11 +390,8 @@ local function prop_row(S, k, comp, prop, spec, data)
             end
         end)
     elseif datatype == "asset" then
-        -- A reference, or an inline definition the engine reports as the
-        -- digest it keyed the table under. Both buttons work for any asset
-        -- type: the schema names the type and the type's plugin says where its
-        -- files belong, which is the pair the editor needs. A type that
-        -- declares no directory cannot be promoted, so it gets no button.
+        -- A reference, or an inline definition the engine reports as a `#!` digest.
+        -- A type that declares no directory cannot be promoted, so it gets no button.
         row(k, prop, function()
             local reference = tostring(value or "")
             local inline = string.sub(reference, 1, 2) == "#!"
@@ -453,10 +441,8 @@ local function prop_row(S, k, comp, prop, spec, data)
     end
 end
 
--- A `readonly` property is engine output (widget.clicked): the component
--- declares it so `get` round-trips and the inspector can see it, but a write
--- here would be overwritten on the next frame. So it renders as a plain
--- faint value — visible, with no drag handle and nothing to focus.
+-- A `readonly` property is engine output (widget.clicked): a write here would
+-- be overwritten next frame, so it renders as a plain value with nothing to focus.
 local function readonly_text(spec, value)
     local datatype = spec.type
     if datatype == "float" then

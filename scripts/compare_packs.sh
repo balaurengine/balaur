@@ -1,15 +1,9 @@
 #!/usr/bin/env bash
-# Compare the pack digests every platform's e2e run produced.
-#
-# A pack is Luau bytecode, scene TOML and a manifest, written in sorted key
-# order — nothing in it is platform-specific, so the same sources must give the
-# same bytes on Linux, macOS and Windows alike. Disagreement means either the
-# encoder leaked an iteration order again or a script compiler is not
-# reproducible across platforms.
-#
-# This compares *packs*, not simulation output. Bit-identical physics across
-# CPU architectures is a stronger claim and is not asserted here; see
-# crates/balaur_physics/tests/determinism.rs.
+# Compare the pack digests every platform's e2e run produced. Nothing in a
+# pack is platform-specific, so the same sources must give the same bytes on
+# Linux, macOS and Windows; disagreement means the encoder leaked an iteration
+# order or a script compiler is not reproducible. Packs only — bit-identical
+# physics is asserted in crates/balaur_physics/tests/determinism.rs instead.
 #
 # Usage: compare_packs.sh <dir>   (searched recursively for digests.txt)
 set -euo pipefail

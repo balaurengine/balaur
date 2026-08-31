@@ -487,6 +487,7 @@ dependencies = [
  "balaur_core",
  "balaur_plugin",
  "balaur_script",
+ "cc",
  "tempfile",
  "tracing",
  "tungstenite",

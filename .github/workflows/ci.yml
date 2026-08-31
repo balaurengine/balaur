@@ -84,10 +84,8 @@ jobs:
           name: packs-${{ matrix.os }}
           path: target/e2e/digests.txt
 
-  # The multi-platform half of the promise in
-  # crates/balaur_physics/tests/determinism.rs, which a single-OS CI could
-  # never actually check. See scripts/compare_packs.sh for what it does and
-  # does not claim.
+  # The multi-platform half of the determinism promise; see
+  # scripts/compare_packs.sh for what it does and does not claim.
   packs-match:
     name: packs are identical across platforms
     needs: check

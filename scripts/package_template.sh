@@ -22,10 +22,8 @@ ios)
   rustup target add "$target"
   cargo build --release -p balaur_cli --features window --target "$target"
 
-  # An iOS app is an executable inside a bundle, not a bare binary. This is the
-  # smallest bundle the OS will launch: the executable, and a plist naming it.
-  # Unsigned on purpose — signing needs a developer certificate, which belongs
-  # to whoever ships the game and must never live in this repo's CI.
+  # The smallest bundle iOS will launch: the executable and a plist naming it.
+  # Unsigned on purpose — signing certificates must never live in this repo's CI.
   step "bundle (unsigned .app)"
   app="$dist/Balaur.app"
   rm -rf "$app"
@@ -105,9 +103,13 @@ web)
   step "build ($target)"
   rustup target add "$target"
   cargo build --release -p balaur_cli --target "$target"
-  # emcc emits the .wasm beside the .js loader; ship both or neither.
-  for f in "target/$target/release/balaur.wasm" "target/$target/release/balaur.js"; do
-    [ -f "$f" ] && cp "$f" "$dist/"
+  # emcc emits the .wasm beside the .js loader that instantiates it. Either one
+  # alone is unusable, and `[ -f ] && cp` in a loop exits the script with no
+  # message when the last file is missing, which is how this went unnoticed.
+  for f in balaur.wasm balaur.js; do
+    from="target/$target/release/$f"
+    [ -f "$from" ] || { printf '::error::emscripten produced no %s\n' "$f"; exit 1; }
+    cp "$from" "$dist/$f"
   done
   ;;
 
