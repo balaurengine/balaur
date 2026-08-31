@@ -292,6 +292,46 @@ local function sorted_keys(t)
     return keys
 end
 
+-- Write an inline definition out to a file of its type's own directory, and
+-- point the property at it. Saved through the engine so the cache forgets what
+-- it held, but recorded in the scene as the project-relative path — an
+-- absolute one would not survive being opened on another machine.
+--
+-- The node's name is the file name because an anonymous definition carries
+-- nothing else to name it by.
+local function promote_asset(S, comp, prop, asset_type, dir, reference)
+    local node = S.doc[S.sel]
+    local ok, definition = pcall(assets.load, reference)
+    if not ok or type(definition) ~= "table" then
+        log.warn(`cannot read the inline {asset_type}: {tostring(definition)}`)
+        return
+    end
+    definition.type = asset_type
+    local rel = `{dir}/{string.lower(node.name)}.toml`
+    local written, err = pcall(assets.save, S.game_root .. "/" .. rel, definition)
+    if not written then
+        log.warn(`cannot write {rel}: {tostring(err)}`)
+        return
+    end
+    model.set_component_prop(S, comp, prop, rel)
+    S.dirty = true
+    log.info(`saved {rel}`)
+end
+
+-- Copy a file's definition onto the node, so the scene owns it outright.
+-- `duplicate` reads past the cache, which is what makes the copy private
+-- rather than a second name for the shared one.
+local function inline_asset(S, comp, prop, reference)
+    local ok, copy = pcall(assets.duplicate, S.game_root .. "/" .. reference)
+    if not ok or type(copy) ~= "table" then
+        log.warn(`cannot inline {reference}: {tostring(copy)}`)
+        return
+    end
+    model.set_component_prop(S, comp, prop, copy)
+    S.dirty = true
+    log.info(`{reference} is now inline on {S.doc[S.sel].name}`)
+end
+
 local function prop_row(S, k, comp, prop, spec, data)
     local value = data[prop]
     if value == nil then
@@ -359,24 +399,46 @@ local function prop_row(S, k, comp, prop, spec, data)
             end
         end)
     elseif datatype == "asset" then
-        -- A reference, or an inline definition. The engine reports an inline
-        -- one as the digest it keyed the table under, which is nothing a scene
-        -- file could name — so it is shown as what it is and left alone. The
-        -- inline/external pair of buttons is per asset type, because only the
-        -- type knows where its files belong (see the Animation section).
+        -- A reference, or an inline definition the engine reports as the
+        -- digest it keyed the table under. Both buttons work for any asset
+        -- type: the schema names the type and the type's plugin says where its
+        -- files belong, which is the pair the editor needs. A type that
+        -- declares no directory cannot be promoted, so it gets no button.
         row(k, prop, function()
             local reference = tostring(value or "")
-            if string.sub(reference, 1, 2) == "#!" then
+            local inline = string.sub(reference, 1, 2) == "#!"
+            local dir = if spec.asset ~= nil then assets.directory(spec.asset) else ""
+            if inline then
                 ui.label("— inline —", { size = 11.5, font = "mono", color = k.faint })
+            else
+                local id = `asset:{comp}:{prop}:{S.sel}`
+                local width = if dir == "" then CONTROL_W else CONTROL_W - 78
+                local text, _, submitted = ui.text_field(id, reference, {
+                    size = 12, width = width, color = k.text,
+                })
+                if submitted then
+                    model.set_component_prop(S, comp, prop, text)
+                end
+            end
+            if dir == "" then
                 return
             end
-            local id = `asset:{comp}:{prop}:{S.sel}`
-            local text, _, submitted = ui.text_field(id, reference, {
-                size = 12, width = CONTROL_W, color = k.text,
-            })
-            if submitted then
-                model.set_component_prop(S, comp, prop, text)
-            end
+            ui.right(function()
+                local label = if inline then "save as file" else "make inline"
+                if ui.pill(label, {
+                    height = 20, size = 10, strong = true,
+                    tooltip = if inline
+                        then `Write this {spec.asset} to {dir}/ and reference it`
+                        else "Copy this file's definition onto the node",
+                    fill = k.sage_soft, color = k.sage,
+                }) then
+                    if inline then
+                        promote_asset(S, comp, prop, spec.asset, dir, reference)
+                    else
+                        inline_asset(S, comp, prop, reference)
+                    end
+                end
+            end)
         end)
     else -- string
         row(k, prop, function()

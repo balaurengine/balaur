@@ -134,6 +134,10 @@ pub struct AnimationState {
     /// else.
     pub(crate) next_tween: TweenId,
     pub(crate) accumulator: f32,
+    /// The asset generation these players' clips were resolved at. When the
+    /// cache moves past it — a file saved in dev mode, an editor writing a
+    /// clip — every live playback re-resolves and keeps its playhead.
+    pub(crate) asset_generation: u64,
 }
 
 /// Run `f` over one node's playback, or answer `None` when it has none.

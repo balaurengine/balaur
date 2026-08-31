@@ -20,6 +20,7 @@ flow nothing checks.
 - a clip naming a curve that does not exist is rejected
 - a clip promoted to a file poses exactly as the inline one did
 - a clip reads its length loop mode and tracks
+- a clip saved while it plays is picked up without losing the playhead
 - a clip takes its length from its last key when it declares none
 - a clip that does not loop holds its last key and stops
 - a clip that ends calls on animation finished once
@@ -43,6 +44,7 @@ flow nothing checks.
 - a duplicate name resolves the same way every time
 - a duplicated id is regenerated
 - a dynamic body falls and a static one does not
+- a failed transfer reports an error event
 - a forward parent reference is rejected
 - a freed node stops being valid
 - a headless frame empties the debug line buffers
@@ -55,6 +57,8 @@ flow nothing checks.
 - a looping clip wraps back to the start
 - a looping tween plays its sequence that many times
 - a lua array reaches a binding as a list
+- a lua script fetches over http
+- a lua script talks over a websocket
 - a luau script defines a clip of its own and plays it
 - a luau script pauses and resumes a clip
 - a luau script plays a clip and hears it finish
@@ -113,11 +117,14 @@ flow nothing checks.
 - a released mouse button reports one frame of release
 - a reload keeps instance state
 - a resource round trips and is shared not copied
+- a response arrives in the snapshot with status and body
 - a rotation crossing 180 degrees interpolates the short way
 - a rotation track is sampled as a quaternion the short way round
 - a rune project that calls the engine can be exported
 - a rune script defines a clip of its own and plays it
+- a rune script fetches over http
 - a rune script plays the same clip and hears the same signal
+- a rune script talks over a websocket
 - a rune script tweens the same node the same way
 - a saved animation node no longer warns that nothing handles it
 - a scene asset block resolves by its id from a node in that scene
@@ -160,6 +167,7 @@ flow nothing checks.
 - a tween that would run backwards forever is rejected
 - a typed binding reaches rune
 - a vector argument and three numbers agree
+- a websocket opens echoes and closes
 - a windowed backend keeps the fallback off its buffers
 - a wrong argument is reported not fatal
 - a wrong argument type is an error not a panic
@@ -171,6 +179,7 @@ flow nothing checks.
 - an app without a backend has no script host
 - an asset property given neither a string nor a table says so
 - an asset type no plugin registered says which type was asked for
+- an asset type says where its files belong
 - an autoplay that cannot load leaves the rest of the scene standing
 - an eased key bends the segment that arrives at it
 - an eased step is not where a straight one would be
@@ -183,6 +192,7 @@ flow nothing checks.
 - an entry inherits the asset type its document declares
 - an entry inside an inline definition resolves by its name
 - an euler triple survives the round trip through a quaternion
+- an http error status is a response not an error
 - an impulse starts a body moving
 - an in out curve meets in the middle
 - an inline definition survives being duplicated and reloaded
@@ -199,6 +209,7 @@ flow nothing checks.
 - an unknown path is nil rather than an error
 - an unknown scene asset id is named in a warning and the scene still loads
 - an unparseable colour is left alone
+- an unreachable websocket reports an error event
 - an unregistered name is an error that says so
 - anchor constants match the registered schema
 - animating a render component costs no dependency on the render crate
@@ -310,6 +321,8 @@ flow nothing checks.
 - require caches and hot reloads in place
 - rng int stays inside its range
 - rng is seeded and reproducible
+- saving an asset writes the file and the next load reads it
+- saving something that is not a file says which reference it was
 - scale reads back what was set
 - scenes are gathered but the manifest is not one of them
 - scenes instantiate at runtime and args reach scripts
@@ -341,6 +354,7 @@ flow nothing checks.
 - the engine modules reach rune
 - the euler convention matches the engines own
 - the four linear modes are one straight line
+- the generation moves only when a reload actually dropped something
 - the grid background and camera input are settable
 - the mouse constants address real buttons
 - the neutral value accepts anything

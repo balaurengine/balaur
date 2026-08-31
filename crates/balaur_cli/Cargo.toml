@@ -10,11 +10,14 @@ name = "balaur"
 path = "src/main.rs"
 
 [features]
-default = ["audio"]
+default = ["audio", "net"]
 # Build with a real window (kiss3d/wgpu). Without it, runs are headless.
 window = ["balaur/window"]
 # Sound. Off, the build drops rodio, cpal and the platform audio stack.
 audio = ["balaur/audio"]
+# `http.*` and `websocket.*` for scripts. Off, the build drops ureq,
+# tungstenite and the TLS stack.
+net = ["balaur/net"]
 
 [dependencies]
 balaur = { workspace = true, default-features = false }

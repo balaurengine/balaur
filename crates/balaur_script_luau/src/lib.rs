@@ -264,25 +264,38 @@ impl ScriptHost {
     /// automatically every frame in dev mode; costs one `try_recv` when idle.
     pub fn pump_reloads(&self) {
         let mut changed: Vec<String> = Vec::new();
+        let mut assets: Vec<String> = Vec::new();
         {
             let state = self.state.borrow();
             let Some(events) = &state.events else { return };
             while let Ok(event) = events.try_recv() {
                 let Ok(event) = event else { continue };
                 for path in event.paths {
-                    if path.extension().and_then(|e| e.to_str()) != Some("luau") {
-                        continue;
-                    }
                     let Ok(rel) = path.strip_prefix(&state.project_root) else {
                         continue;
                     };
                     let key = rel.to_string_lossy().replace('\\', "/");
-                    if (state.classes.contains_key(&key) || state.modules.contains_key(&key))
-                        && !changed.contains(&key)
-                    {
-                        changed.push(key);
+                    match path.extension().and_then(|e| e.to_str()) {
+                        Some("luau") => {
+                            if (state.classes.contains_key(&key)
+                                || state.modules.contains_key(&key))
+                                && !changed.contains(&key)
+                            {
+                                changed.push(key);
+                            }
+                        }
+                        // Every asset document is TOML, and so is every scene:
+                        // `reload` drops only what was actually cached, so a
+                        // saved scene costs a lookup and changes nothing.
+                        Some("toml") if !assets.contains(&key) => assets.push(key),
+                        _ => {}
                     }
                 }
+            }
+        }
+        for key in assets {
+            if let Err(err) = balaur_core::assets::reload(&self.engine, &key) {
+                tracing::warn!("could not reload asset {key}: {err}");
             }
         }
         for key in changed {

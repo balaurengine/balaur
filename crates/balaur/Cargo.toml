@@ -7,11 +7,14 @@ license.workspace = true
 authors.workspace = true
 
 [features]
-default = ["audio"]
+default = ["audio", "net"]
 # Windowed rendering (kiss3d/wgpu).
 window = ["balaur_render/kiss3d"]
 # Sound. Off, a build drops rodio, cpal and the platform audio stack.
 audio = ["dep:balaur_audio"]
+# `http.*` and `websocket.*` for scripts. Off, a build drops ureq,
+# tungstenite and the TLS stack.
+net = ["dep:balaur_net"]
 
 [dependencies]
 balaur_core.workspace = true
@@ -23,6 +26,7 @@ balaur_anim.workspace = true
 balaur_render.workspace = true
 balaur_audio = { workspace = true, optional = true }
 balaur_input.workspace = true
+balaur_net = { workspace = true, optional = true }
 balaur_ui.workspace = true
 anyhow.workspace = true
 

@@ -11,7 +11,7 @@ Balaur game engine: batteries-included facade over the core and standard plugins
 
 Batteries-included entry points for Balaur games and tools.
 
-- **workspace deps:** `balaur_anim`, `balaur_audio`, `balaur_core`, `balaur_input`, `balaur_physics`, `balaur_plugin`, `balaur_render`, `balaur_script_luau`, `balaur_script_rune`, `balaur_ui`
+- **workspace deps:** `balaur_anim`, `balaur_audio`, `balaur_core`, `balaur_input`, `balaur_net`, `balaur_physics`, `balaur_plugin`, `balaur_render`, `balaur_script_luau`, `balaur_script_rune`, `balaur_ui`
 - **external deps:** 1 (anyhow)
 - **public surface:** 5 fn
 
@@ -66,9 +66,9 @@ Balaur engine core: the Rust data plane.
 
 - **workspace deps:** `balaur_script`
 - **external deps:** 11 (anyhow, glamx, hecs, indexmap, rustc-hash, serde, serde_json, toml, …)
-- **public surface:** 44 fn, 27 struct, 3 enum, 1 trait, 4 const, 9 type
+- **public surface:** 47 fn, 28 struct, 3 enum, 1 trait, 4 const, 9 type
 - **traits:** `Plugin`
-- **structs:** `App`, `AppConfig`, `AssetState`, `AssetTypeRegistry`, `Children`, `ComponentDef`, `ComponentRegistry`, `Engine`, `EngineOp`, `GlobalTransform`, `LogEntry`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `ProjectManifest`, `ProjectRoot`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `StableId`, `Transform`
+- **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Children`, `ComponentDef`, `ComponentRegistry`, `Engine`, `EngineOp`, `GlobalTransform`, `LogEntry`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `ProjectManifest`, `ProjectRoot`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `StableId`, `Transform`
 - **enums:** `AssetRef`, `Command`, `Stage`
 
 ## `balaur_input`
@@ -81,6 +81,17 @@ Input as a Balaur plugin.
 - **external deps:** 2 (anyhow, tracing)
 - **public surface:** 1 fn, 2 struct, 2 const
 - **structs:** `InputPlugin`, `InputSnapshot`
+
+## `balaur_net`
+
+Balaur networking plugin: http requests and websocket connections for scripts
+
+Networking as a Balaur plugin: `http.*` and `websocket.*` for scripts.
+
+- **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
+- **external deps:** 4 (anyhow, tracing, tungstenite, ureq)
+- **public surface:** 4 struct
+- **structs:** `HttpCall`, `NetPlugin`, `NetSnapshot`, `NetState`
 
 ## `balaur_physics`
 

@@ -46,7 +46,7 @@ fn app_in(project_root: &std::path::Path, pack: Option<Pack>) -> App {
     })
     .unwrap();
     app.engine.insert_resource(Heard::default());
-    app.register_asset_type("note", parse_note);
+    app.register_asset_type("note", "notes", parse_note);
     // Writes nothing but the reference it was handed: the point is which
     // string reaches `apply`, not what a real plugin would build from it.
     app.register_component(
@@ -538,4 +538,91 @@ fn an_entry_an_inline_definition_does_not_have_says_so() {
     let message = format!("{err:#}");
     assert!(message.contains(&missing), "unhelpful: {message}");
     assert!(message.contains("low"), "unhelpful: {message}");
+}
+
+// ---- saving, and noticing that a save happened ------------------------
+
+/// The editor's write-back path: a tool edits a definition table and puts it
+/// back where it came from, without knowing how the file is encoded.
+#[test]
+fn saving_an_asset_writes_the_file_and_the_next_load_reads_it() {
+    let dir = project();
+    let app = app_in(dir.path(), None);
+    assert!((pitch_of(&app.engine, "notes/scale.toml#high") - 880.0).abs() < f64::EPSILON);
+
+    let mut document = assets::definition(&app.engine, "notes/scale.toml").unwrap();
+    document["entries"]["high"]["pitch"] = toml::Value::Float(1760.0);
+    assets::save(&app.engine, "notes/scale.toml", &document).unwrap();
+
+    // On disk, not just in the cache: a second app reading the same directory
+    // is what a re-run of the game is.
+    let reopened = app_in(dir.path(), None);
+    assert!((pitch_of(&reopened.engine, "notes/scale.toml#high") - 1760.0).abs() < f64::EPSILON);
+    // And the entry cut from the old text is gone from the live cache too.
+    assert!((pitch_of(&app.engine, "notes/scale.toml#high") - 1760.0).abs() < f64::EPSILON);
+}
+
+/// Only a file can be saved. An entry belongs to a document and an inline
+/// table has no file at all, so both are refused by name rather than written
+/// somewhere the caller did not ask for.
+#[test]
+fn saving_something_that_is_not_a_file_says_which_reference_it_was() {
+    let dir = project();
+    let app = app_in(dir.path(), None);
+    let body = toml::Value::Table(toml::map::Map::new());
+
+    let err = assets::save(&app.engine, "notes/scale.toml#high", &body).unwrap_err();
+    let message = format!("{err:#}");
+    assert!(
+        message.contains("notes/scale.toml#high"),
+        "unhelpful: {message}"
+    );
+
+    let inline =
+        assets::define_inline(&app.engine, "note", toml::toml! { pitch = 5.0 }.into()).unwrap();
+    let err = assets::save(&app.engine, &inline.to_string(), &body).unwrap_err();
+    assert!(
+        format!("{err:#}").contains("not a file"),
+        "unhelpful: {err:#}"
+    );
+}
+
+/// A subsystem holding a parsed asset re-resolves when this moves. It must not
+/// move for a file nothing was ever cut from, or every `.toml` the file
+/// watcher sees would cost every player a reload.
+#[test]
+fn the_generation_moves_only_when_a_reload_actually_dropped_something() {
+    let dir = project();
+    let app = app_in(dir.path(), None);
+    let untouched = assets::generation(&app.engine);
+
+    assets::reload(&app.engine, "notes/scale.toml").unwrap();
+    assert_eq!(
+        assets::generation(&app.engine),
+        untouched,
+        "nothing was cached, so nothing was dropped"
+    );
+
+    let _ = assets::load_typed::<Note>(&app.engine, "notes/scale.toml#high").unwrap();
+    assets::reload(&app.engine, "notes/scale.toml").unwrap();
+    assert_ne!(
+        assets::generation(&app.engine),
+        untouched,
+        "a cached entry was dropped and nobody was told"
+    );
+}
+
+/// Where a type's files belong is the type's own business: a tool promoting an
+/// inline definition to a file has nowhere else to learn it, because the
+/// schema carries the type name and not its home.
+#[test]
+fn an_asset_type_says_where_its_files_belong() {
+    let dir = project();
+    let app = app_in(dir.path(), None);
+    assert_eq!(assets::directory(&app.engine, "note"), "notes");
+    assert_eq!(
+        assets::directory(&app.engine, "not_registered"),
+        "",
+        "an unknown type has no home rather than a made-up one"
+    );
 }

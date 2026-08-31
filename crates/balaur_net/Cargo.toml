@@ -1,0 +1,27 @@
+[package]
+name = "balaur_net"
+description = "Balaur networking plugin: http requests and websocket connections for scripts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+balaur_core.workspace = true
+balaur_plugin.workspace = true
+balaur_script.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+
+# No networking stack compiles for wasm builds; those get the stub backend in
+# lib.rs, and every request or connect resolves to an error event instead.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+ureq.workspace = true
+tungstenite.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+balaur = { workspace = true, features = ["net"] }
+
+[lints]
+workspace = true

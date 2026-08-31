@@ -105,6 +105,16 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: assets_reload,
     },
     EngineOp {
+        module: "assets",
+        name: "save",
+        call: assets_save,
+    },
+    EngineOp {
+        module: "assets",
+        name: "directory",
+        call: assets_directory,
+    },
+    EngineOp {
         module: "log",
         name: "info",
         call: log_info,
@@ -335,6 +345,26 @@ fn assets_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn assets_reload(eng: &Engine, args: &[Value]) -> Result<Value> {
     crate::assets::reload(eng, text(args, 0)?)?;
     Ok(Value::Nil)
+}
+
+/// Write a definition table back to the file a reference names, and forget the
+/// cached copy so the next load reads what was written.
+fn assets_save(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let definition = crate::node_api::to_toml(
+        args.get(1)
+            .ok_or_else(|| anyhow!("assets.save needs the table to write"))?,
+    )?;
+    crate::assets::save(eng, text(args, 0)?, &definition)?;
+    Ok(Value::Nil)
+}
+
+/// Where files of an asset type belong, as its plugin declared it.
+///
+/// The editor promotes an inline definition to a file and has to put it
+/// somewhere; only the type knows where. Empty when the type is unknown or
+/// declared no directory, which a caller reads as "cannot promote".
+fn assets_directory(eng: &Engine, args: &[Value]) -> Result<Value> {
+    Ok(Value::Str(crate::assets::directory(eng, text(args, 0)?)))
 }
 
 /// The three writers a script has. They emit through `tracing`, so a scripted

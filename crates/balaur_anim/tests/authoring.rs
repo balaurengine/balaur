@@ -239,3 +239,66 @@ tracks = [
         .players
         .contains_key(&entity));
 }
+
+/// Saving a clip while it plays should look like saving a script: the change
+/// is live on the next frame. A `Playback` holds an `Rc<Clip>` so a reload
+/// cannot pull the clip out mid-frame — which is exactly why the player has
+/// to be told to go and fetch the new one.
+#[test]
+fn a_clip_saved_while_it_plays_is_picked_up_without_losing_the_playhead() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("animations")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "name = \"p\"\nmain_scene = \"scenes/main.toml\"\n",
+    )
+    .unwrap();
+    let clip = |top: f32| {
+        format!(
+            r#"type = "animation_clip"
+
+[clips.lift]
+length = 2.0
+tracks = [
+  {{ property = "position", keys = [
+    {{ t = 0.0, value = [0.0, 0.0, 0.0] }},
+    {{ t = 2.0, value = [0.0, {top}, 0.0] }},
+  ] }},
+]
+"#
+        )
+    };
+    let path = dir.path().join("animations/lift.toml");
+    std::fs::write(&path, clip(10.0)).unwrap();
+
+    let mut app = app_in(dir.path());
+    let entity = animated(
+        &app,
+        "Lift",
+        "library = \"animations/lift.toml\"\nautoplay = \"lift\"",
+    );
+    for _ in 0..60 {
+        app.tick(1.0 / 60.0);
+    }
+    // Half way along a two second clip that rises ten units.
+    let midway = height(&app, entity);
+    assert!((midway - 5.0).abs() < 0.05, "expected ~5.0, got {midway}");
+
+    // The clip is rewritten to rise twice as far, and the cache is told, the
+    // way the file watcher tells it in dev mode.
+    std::fs::write(&path, clip(20.0)).unwrap();
+    assets::reload(&app.engine, "animations/lift.toml").unwrap();
+
+    app.tick(1.0 / 60.0);
+    let after = height(&app, entity);
+    assert!(
+        after > 9.0,
+        "the player kept the clip it had: expected the new one's ~10.0, got {after}"
+    );
+    let playback = app.engine.resource::<AnimationState>();
+    let time = playback.borrow().players[&entity].time;
+    assert!(
+        (time - 1.0).abs() < 0.05,
+        "the playhead restarted instead of carrying over: {time}"
+    );
+}

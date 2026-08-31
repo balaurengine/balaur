@@ -245,16 +245,25 @@ impl App {
     /// The mirror of [`Self::register_component`]: core learns the name and
     /// nothing else, the parser returns an object only its plugin
     /// understands, and `assets::load_typed` hands it back downcast.
+    ///
+    /// `directory` is the project-relative folder files of this type belong in
+    /// (`animations`). A tool promoting an inline definition to a file needs
+    /// somewhere to put it and the schema does not carry that; an empty string
+    /// means the type has no home and cannot be promoted.
     pub fn register_asset_type(
         &mut self,
         name: &str,
+        directory: &str,
         parse: impl Fn(&toml::Value) -> Result<std::rc::Rc<dyn std::any::Any>> + 'static,
     ) -> &mut Self {
         let registry = self.engine.resource::<crate::assets::AssetTypeRegistry>();
-        registry
-            .borrow_mut()
-            .0
-            .push((name.to_string(), Box::new(parse)));
+        registry.borrow_mut().0.push((
+            name.to_string(),
+            crate::assets::AssetType {
+                parse: Box::new(parse),
+                directory: directory.to_string(),
+            },
+        ));
         self
     }
 

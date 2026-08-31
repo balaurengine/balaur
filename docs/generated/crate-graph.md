@@ -14,6 +14,7 @@ graph TD
   balaur_cli[balaur_cli]
   balaur_core[balaur_core]
   balaur_input[balaur_input]
+  balaur_net[balaur_net]
   balaur_physics[balaur_physics]
   balaur_plugin[balaur_plugin]
   balaur_render[balaur_render]
@@ -25,6 +26,7 @@ graph TD
   balaur --> balaur_audio
   balaur --> balaur_core
   balaur --> balaur_input
+  balaur --> balaur_net
   balaur --> balaur_physics
   balaur --> balaur_plugin
   balaur --> balaur_render
@@ -46,6 +48,9 @@ graph TD
   balaur_core --> balaur_script
   balaur_input --> balaur_core
   balaur_input --> balaur_script
+  balaur_net --> balaur_core
+  balaur_net --> balaur_plugin
+  balaur_net --> balaur_script
   balaur_physics --> balaur_core
   balaur_physics --> balaur_script
   balaur_plugin --> balaur_core

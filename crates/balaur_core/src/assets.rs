@@ -44,20 +44,46 @@ use crate::project::ProjectRoot;
 /// understands.
 pub type AssetParseFn = Box<dyn Fn(&toml::Value) -> Result<Rc<dyn Any>>>;
 
+/// What a plugin declares about one asset type.
+pub struct AssetType {
+    pub parse: AssetParseFn,
+    /// Project-relative directory where files of this type belong, e.g.
+    /// `animations`. Only the type knows this, and a tool promoting an inline
+    /// definition to a file needs it; empty means the type declares no home
+    /// and cannot be promoted.
+    pub directory: String,
+}
+
 /// Asset parsers, appended during plugin build and read-only afterwards —
 /// the same shape as `ComponentRegistry`.
 #[derive(Default)]
-pub struct AssetTypeRegistry(pub Vec<(String, AssetParseFn)>);
+pub struct AssetTypeRegistry(pub Vec<(String, AssetType)>);
 
 impl AssetTypeRegistry {
     pub fn parser(&self, type_name: &str) -> Option<&AssetParseFn> {
-        self.0.iter().find(|(n, _)| n == type_name).map(|(_, p)| p)
+        self.0
+            .iter()
+            .find(|(n, _)| n == type_name)
+            .map(|(_, t)| &t.parse)
     }
 
     /// Registered type names, in registration order, for error messages.
     pub fn names(&self) -> Vec<String> {
         self.0.iter().map(|(n, _)| n.clone()).collect()
     }
+}
+
+/// Where files of `type_name` belong, or empty when it declares no directory.
+pub fn directory(eng: &Engine, type_name: &str) -> String {
+    eng.try_resource::<AssetTypeRegistry>()
+        .map_or_else(String::new, |registry| {
+            registry
+                .borrow()
+                .0
+                .iter()
+                .find(|(n, _)| n == type_name)
+                .map_or_else(String::new, |(_, t)| t.directory.clone())
+        })
 }
 
 /// One `[[assets]]` block in a scene document: Godot's `[sub_resource]`.
@@ -126,6 +152,22 @@ pub struct AssetState {
     scopes: DetHashMap<u64, DetHashMap<String, Definition>>,
     /// The scene currently being instantiated, if any.
     current_scope: Option<u64>,
+    /// Bumped by every [`reload`]. A plugin holding a parsed asset compares
+    /// this against what it last saw to know its copy is stale: an `Rc` it
+    /// already cloned cannot be pulled out from under it, which is what keeps
+    /// a mid-frame reload safe, and is also why a counter is needed to notice.
+    generation: u64,
+}
+
+/// How many times an asset has been forgotten this run.
+///
+/// A subsystem caching a parsed asset re-resolves when this changes. Cheap
+/// enough to read every frame; it changes only on a `reload`.
+pub fn generation(eng: &Engine) -> u64 {
+    state(eng).map_or(0, |cache| {
+        let g = cache.borrow().generation;
+        g
+    })
 }
 
 impl AssetState {
@@ -265,6 +307,7 @@ pub fn reload(eng: &Engine, reference: &str) -> Result<()> {
     let key = resolve(eng, reference)?;
     let cache = state(eng)?;
     let mut state = cache.borrow_mut();
+    let before = state.definitions.len() + state.parsed.len();
     // An inline definition has no source to re-read — the cache entry is the
     // only copy of it — so only the parse is dropped.
     if !matches!(key, AssetRef::Inline(_)) {
@@ -284,7 +327,48 @@ pub fn reload(eng: &Engine, reference: &str) -> Result<()> {
         }
         _ => {}
     }
+    // Only a reload that actually dropped something is worth telling anyone
+    // about: the file watcher calls this for every `.toml` saved in the
+    // project, most of which no asset was ever cut from.
+    if state.definitions.len() + state.parsed.len() != before {
+        state.generation = state.generation.wrapping_add(1);
+    }
     Ok(())
+}
+
+/// Write a definition back to its file, then forget it so the next load reads
+/// what was written.
+///
+/// Only a file reference can be saved: an `#id` block belongs to a scene
+/// document and an inline definition has no file of its own, so both are
+/// refused by name rather than silently writing somewhere surprising. A
+/// packed run has no source tree to write to and is refused the same way.
+pub fn save(eng: &Engine, reference: &str, definition: &toml::Value) -> Result<()> {
+    let path = match resolve(eng, reference)? {
+        AssetRef::File(path) => path,
+        AssetRef::Entry(..) => {
+            return Err(anyhow!(
+                "'{reference}' names one entry inside a file; save the whole document instead"
+            ))
+        }
+        AssetRef::Scoped(..) | AssetRef::Inline(_) | AssetRef::InlineEntry(..) => {
+            return Err(anyhow!(
+                "'{reference}' is not a file, so there is nothing to save it to"
+            ))
+        }
+    };
+    let root = eng
+        .try_resource::<ProjectRoot>()
+        .ok_or_else(|| anyhow!("no project directory, so '{reference}' cannot be written"))?;
+    let full = root.borrow().0.join(&path);
+    if let Some(parent) = full.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("creating {}", parent.display()))?;
+    }
+    let text =
+        toml::to_string_pretty(definition).with_context(|| format!("encoding '{reference}'"))?;
+    std::fs::write(&full, text).with_context(|| format!("writing {}", full.display()))?;
+    reload(eng, reference)
 }
 
 /// Record a definition table written inline on a component property.

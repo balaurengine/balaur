@@ -13,6 +13,8 @@ pub use balaur_anim::AnimationPlugin;
 pub use balaur_audio::AudioPlugin;
 pub use balaur_core::*;
 pub use balaur_input::InputPlugin;
+#[cfg(feature = "net")]
+pub use balaur_net::NetPlugin;
 pub use balaur_physics::PhysicsPlugin;
 pub use balaur_render::RenderPlugin;
 pub use balaur_ui::UiPlugin;
@@ -21,6 +23,8 @@ pub use balaur_anim as animation;
 #[cfg(feature = "audio")]
 pub use balaur_audio as audio;
 pub use balaur_input as input;
+#[cfg(feature = "net")]
+pub use balaur_net as net;
 pub use balaur_physics as physics;
 pub use balaur_render as render;
 pub use balaur_script_luau as luau;
@@ -95,6 +99,8 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     app.add_plugin(RenderPlugin)?;
     #[cfg(feature = "audio")]
     balaur_plugin::load(&mut app, &mut AudioPlugin::default())?;
+    #[cfg(feature = "net")]
+    balaur_plugin::load(&mut app, &mut NetPlugin::default())?;
     app.add_plugin(UiPlugin)?;
     Ok(app)
 }

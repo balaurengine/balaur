@@ -68,7 +68,7 @@ impl Plugin for AnimationPlugin {
     fn build(&mut self, app: &mut App) -> Result<()> {
         app.engine.insert_resource(AnimationState::default());
         app.add_system(Stage::Update, system::advance_system);
-        app.register_asset_type(CLIP_ASSET_TYPE, |value| {
+        app.register_asset_type(CLIP_ASSET_TYPE, "animations", |value| {
             Ok(Rc::new(clip::parse(value)?) as Rc<dyn Any>)
         });
         register_animation_component(app);

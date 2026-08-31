@@ -39,10 +39,60 @@ pub(crate) enum Effect {
     Call { entity: Entity, method: String },
 }
 
+/// Re-resolve every live clip after an asset reload, keeping the playhead.
+///
+/// A `Playback` holds an `Rc<Clip>`, so a reload cannot pull a clip out from
+/// under a frame in progress — which is exactly why it would otherwise keep
+/// playing the old one forever. Saving a clip in the editor, or on disk in dev
+/// mode, should be visible the next frame the way saving a script is.
+///
+/// Costs one integer compare on a frame where nothing was reloaded.
+fn refresh_reloaded_clips(eng: &Engine) {
+    let Some(state) = eng.try_resource::<AnimationState>() else {
+        return;
+    };
+    let generation = balaur_core::assets::generation(eng);
+    let references: Vec<(Entity, String)> = {
+        let state = state.borrow();
+        if state.asset_generation == generation {
+            return;
+        }
+        state
+            .players
+            .iter()
+            .filter(|(_, playback)| playback.active())
+            .map(|(&entity, playback)| (entity, playback.reference(&playback.clip_name)))
+            .collect()
+    };
+    // Loading takes the asset cache's borrow and may parse, so it happens
+    // outside the animation state's.
+    let reloaded: Vec<(Entity, Option<std::rc::Rc<Clip>>)> = references
+        .into_iter()
+        .map(|(entity, reference)| {
+            let clip = balaur_core::assets::load_typed::<Clip>(eng, &reference).ok();
+            if clip.is_none() {
+                tracing::warn!("'{reference}' no longer loads; keeping the clip already playing");
+            }
+            (entity, clip)
+        })
+        .collect();
+    let mut state = state.borrow_mut();
+    for (entity, clip) in reloaded {
+        // A clip that stopped loading keeps the copy it is playing: a
+        // half-saved file must not blank the scene mid-frame.
+        if let (Some(playback), Some(clip)) = (state.players.get_mut(&entity), clip) {
+            playback.time = playback.time.min(clip.length);
+            playback.clip = Some(clip);
+        }
+    }
+    state.asset_generation = generation;
+}
+
 /// Advance every playing node by whole fixed steps.
 pub(crate) fn advance_system(eng: &Engine, dt: f32) {
     let mut effects = Vec::new();
     let mut ended: Vec<Entity> = Vec::new();
+    refresh_reloaded_clips(eng);
     {
         let state = eng.resource::<AnimationState>();
         let mut state = state.borrow_mut();

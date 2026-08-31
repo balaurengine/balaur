@@ -42,6 +42,7 @@ balaur_anim = { path = "crates/balaur_anim", version = "0.1.0" }
 balaur_render = { path = "crates/balaur_render", version = "0.1.0" }
 balaur_audio = { path = "crates/balaur_audio", version = "0.1.0" }
 balaur_input = { path = "crates/balaur_input", version = "0.1.0" }
+balaur_net = { path = "crates/balaur_net", version = "0.1.0" }
 balaur_ui = { path = "crates/balaur_ui", version = "0.1.0" }
 balaur = { path = "crates/balaur", version = "0.1.0", default-features = false }
 
@@ -65,6 +66,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 # into tracing so they land in the same buffer.
 tracing-log = "0.2"
 clap = { version = "4", features = ["derive"] }
+ureq = "3"
+tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 
 # Fast script iteration is the whole point; keep debug builds usable.
 [profile.dev]
