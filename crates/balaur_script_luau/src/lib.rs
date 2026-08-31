@@ -399,15 +399,23 @@ impl ScriptHost {
         Ok(())
     }
 
-    /// Call one node's script method — how a signal reaches its handler.
+    /// Call one node's script method — how a signal reaches its handler, and
+    /// how one script calls another. Returns the method's return value, or
+    /// `None` when it did not run to completion here (no instance, no such
+    /// method, or it suspended on an await).
     ///
     /// Missing method is not an error: a widget may name a handler the script
     /// does not implement yet, and that should not stop the frame.
-    pub fn call_on(&self, entity: Entity, method: &str, args: &[balaur_script::Value]) {
+    pub fn call_on(
+        &self,
+        entity: Entity,
+        method: &str,
+        args: &[balaur_script::Value],
+    ) -> Option<balaur_script::Value> {
         let inst = self.state.borrow().instances.get(&entity).cloned();
-        let Some(inst) = inst else { return };
+        let inst = inst?;
         let Ok(Some(func)) = inst.get::<Option<Function>>(method) else {
-            return;
+            return None;
         };
         // The instance first, so the method reads as `function C:on_x(a, b)`,
         // the same shape `update(dt)` already has.
@@ -418,11 +426,11 @@ impl ScriptHost {
                 Ok(value) => call_args.push_back(value),
                 Err(err) => {
                     self.report_error(method, &err.to_string());
-                    return;
+                    return None;
                 }
             }
         }
-        self.run_task(entity, method, func, call_args);
+        self.run_task(entity, method, func, call_args)
     }
 
     /// Call `method` on every live instance that defines it, in entity order
@@ -453,15 +461,25 @@ impl ScriptHost {
 
     /// Run a script function as a task: a coroutine that may suspend through
     /// `await(token)` and resume when [`ScriptHost::wake`] delivers that
-    /// token. A function that never awaits runs to completion right here, so
-    /// the plain path costs one coroutine and nothing else.
-    fn run_task(&self, owner: Entity, label: &str, func: Function, args: mlua::MultiValue) {
+    /// token. A function that never awaits runs to completion right here —
+    /// the plain path costs one coroutine and nothing else — and its first
+    /// return value comes back; a suspended one is filed and returns `None`.
+    fn run_task(
+        &self,
+        owner: Entity,
+        label: &str,
+        func: Function,
+        args: mlua::MultiValue,
+    ) -> Option<balaur_script::Value> {
         let thread = match self.lua.create_thread(func) {
             Ok(thread) => thread,
-            Err(err) => return self.report_error(label, &err.to_string()),
+            Err(err) => {
+                self.report_error(label, &err.to_string());
+                return None;
+            }
         };
         let outcome = thread.resume::<mlua::MultiValue>(args);
-        self.settle_task(owner, label, thread, outcome);
+        self.settle_task(owner, label, thread, outcome)
     }
 
     /// File a task that suspended, finish one that returned, report one that
@@ -472,16 +490,27 @@ impl ScriptHost {
         label: &str,
         thread: mlua::Thread,
         outcome: mlua::Result<mlua::MultiValue>,
-    ) {
+    ) -> Option<balaur_script::Value> {
         let values = match outcome {
             Ok(values) => values,
-            Err(err) => return self.report_error(label, &err.to_string()),
+            Err(err) => {
+                self.report_error(label, &err.to_string());
+                return None;
+            }
         };
         if thread.status() != mlua::prelude::LuaThreadStatus::Resumable {
-            return;
+            let returned = values.iter().next().unwrap_or(&Value::Nil);
+            return match env::to_neutral(returned) {
+                Ok(value) => Some(value),
+                Err(err) => {
+                    self.report_error(label, &err.to_string());
+                    None
+                }
+            };
         }
         let Some(token) = wait_token(&values) else {
-            return self.report_error(label, "scripts suspend only through await(token)");
+            self.report_error(label, "scripts suspend only through await(token)");
+            return None;
         };
         let key = self.attachment_path(owner).unwrap_or_default();
         self.state.borrow_mut().waiting.push(WaitingTask {
@@ -491,6 +520,7 @@ impl ScriptHost {
             label: label.to_string(),
             thread,
         });
+        None
     }
 
     /// Resume every task suspended on `token` with `payload`, in suspension
@@ -638,10 +668,14 @@ impl balaur_script::ScriptHost<Engine> for ScriptHost {
         ScriptHost::reload(self, key)
     }
 
-    fn call_on(&self, node: balaur_script::NodeId, method: &str, args: &[balaur_script::Value]) {
-        if let Ok(entity) = balaur_core::entity_of(node) {
-            ScriptHost::call_on(self, entity, method, args);
-        }
+    fn call_on(
+        &self,
+        node: balaur_script::NodeId,
+        method: &str,
+        args: &[balaur_script::Value],
+    ) -> Option<balaur_script::Value> {
+        let entity = balaur_core::entity_of(node).ok()?;
+        ScriptHost::call_on(self, entity, method, args)
     }
 
     fn call_all(&self, method: &str) {

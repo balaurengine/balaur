@@ -2,11 +2,12 @@
 # End to end over the example projects. They are Balaur projects, not cargo
 # examples, so the only way to test them is to run the engine on them.
 #
-# Three things happen to each example, because they fail independently:
+# Four things happen to each example, because they fail independently:
 #
 #   run     dev mode, straight from the sources
 #   export  twice, and the two packs must come out byte-identical
 #   play    the exported pack, with no sources and no compiler present
+#   edit    open it in the editor, which is itself a Balaur project
 #
 # `run` passing says nothing about `export`: scripts resolve their engine calls
 # at run time under Luau but at compile time under Rune, so the Rune examples
@@ -58,9 +59,43 @@ step() { # step <label> <balaur args...>
   fi
 }
 
+# The editor holds one invariant the log states but does not call an error:
+# its document and its mirror are built from the same TOML, so every document
+# node must resolve to a mirror node. When that broke, nested nodes silently
+# had no ref -- no inspector, no gizmo, no transform read -- and nothing failed.
+UNRESOLVED='did not resolve in the mirror'
+
+edit_step() { # edit_step <label> <project>
+  local label=$1 project=$2 out rc
+  set +e
+  out=$(balaur edit "$project" --frames 90 2>&1)
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    printf '%s\n' "$out" | tail -20
+    fail "$label exited $rc"
+  fi
+  if grep -q 'ERROR' <<<"$out"; then
+    grep 'ERROR' <<<"$out" | head -5
+    fail "$label logged errors"
+  fi
+  if grep -q "$UNRESOLVED" <<<"$out"; then
+    grep -E "no mirror node|$UNRESOLVED" <<<"$out" | head -5
+    fail "$label: the editor could not resolve every node of the scene"
+  fi
+}
+
 for ex in examples/*/; do
   name=$(basename "$ex")
   printf '\n== %s\n' "$name"
+
+  # A directory under examples/ that is not a Balaur project is a scaffold in
+  # progress, not a failure — but say so out loud, because an example that
+  # *lost* its project.toml would otherwise vanish from this run without a word.
+  if [ ! -f "$ex/project.toml" ]; then
+    printf '  skipped (no project.toml)\n'
+    continue
+  fi
 
   printf '  run ...    '
   step "$name: run" run "$ex" --headless --frames 120
@@ -81,6 +116,12 @@ for ex in examples/*/; do
 
   printf '  play ...   '
   step "$name: play" play "$out_dir/$name.bpak" --frames 120
+  printf 'ok\n'
+
+  # Headless, so this covers loading the game, mirroring its scene, resolving
+  # every node, and rebinding its assets -- not drawing, which needs a window.
+  printf '  edit ...   '
+  edit_step "$name: edit" "$ex"
   printf 'ok\n'
 done
 

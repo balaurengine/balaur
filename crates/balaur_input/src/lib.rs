@@ -12,10 +12,23 @@
 use anyhow::Result;
 use balaur_core::collections::DetHashSet;
 use balaur_core::Engine;
-use balaur_core::{App, Plugin};
-use balaur_script::{Bindings, BindingsExt};
+use balaur_core::{App, Plugin, Stage};
+use balaur_script::{Bindings, BindingsExt, Value};
+
+pub mod gamepad;
+
+pub use gamepad::{GamepadState, PAD_AXIS_NAMES, PAD_BUTTON_NAMES};
 
 const MOUSE_BUTTONS: usize = 8;
+
+/// What a finger did this frame, as reported by the window backend.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TouchPhase {
+    Start,
+    Move,
+    End,
+    Cancel,
+}
 
 /// One frame of input, republished by whichever backend owns the OS events.
 ///
@@ -40,6 +53,13 @@ pub struct InputSnapshot {
     mouse_pos: (f32, f32),
     mouse_delta: (f32, f32),
     scroll: (f32, f32),
+    /// Active touches in the order they began, so iteration is stable and
+    /// `touches()[0]` is the oldest finger still down.
+    touches: Vec<(u64, f32, f32)>,
+    touches_started: Vec<u64>,
+    touches_ended: Vec<u64>,
+    /// Files dropped onto the window this frame, in drop order.
+    dropped_files: Vec<String>,
 }
 
 impl InputSnapshot {
@@ -52,6 +72,58 @@ impl InputSnapshot {
         self.mouse_just_released = [false; MOUSE_BUTTONS];
         self.mouse_delta = (0.0, 0.0);
         self.scroll = (0.0, 0.0);
+        self.touches_started.clear();
+        self.touches_ended.clear();
+        self.dropped_files.clear();
+    }
+
+    /// One finger's report from the backend. `Start` and `Move` update the
+    /// active set; `End` and `Cancel` remove from it — a cancelled touch ends
+    /// without ever counting as a tap, which is a script-side distinction, so
+    /// both land in `touches_ended`.
+    pub fn touch_event(&mut self, id: u64, x: f32, y: f32, phase: TouchPhase) {
+        match phase {
+            TouchPhase::Start => {
+                if !self.touches.iter().any(|(t, _, _)| *t == id) {
+                    self.touches.push((id, x, y));
+                    self.touches_started.push(id);
+                }
+            }
+            TouchPhase::Move => {
+                if let Some(touch) = self.touches.iter_mut().find(|(t, _, _)| *t == id) {
+                    touch.1 = x;
+                    touch.2 = y;
+                }
+            }
+            TouchPhase::End | TouchPhase::Cancel => {
+                self.touches.retain(|(t, _, _)| *t != id);
+                self.touches_ended.push(id);
+            }
+        }
+    }
+
+    pub fn file_drop_event(&mut self, path: String) {
+        self.dropped_files.push(path);
+    }
+
+    /// Active touches as `(id, x, y)`, oldest finger first.
+    pub fn touches(&self) -> &[(u64, f32, f32)] {
+        &self.touches
+    }
+
+    /// Touches that began this frame.
+    pub fn touches_started(&self) -> &[u64] {
+        &self.touches_started
+    }
+
+    /// Touches that ended (or were cancelled) this frame.
+    pub fn touches_ended(&self) -> &[u64] {
+        &self.touches_ended
+    }
+
+    /// Files dropped onto the window this frame, in drop order.
+    pub fn dropped_files(&self) -> &[String] {
+        &self.dropped_files
     }
 
     pub fn key_event(&mut self, key: &str, pressed: bool) {
@@ -144,6 +216,14 @@ impl Plugin for InputPlugin {
 
     fn build(&mut self, app: &mut App) -> Result<()> {
         app.engine.insert_resource(InputSnapshot::default());
+        app.engine.insert_resource(GamepadState::default());
+
+        // Controllers are not window events, so they are polled inside the
+        // tick rather than by the windowed backend: a headless run with a pad
+        // plugged in sees it too. First, so scripts read this frame's state.
+        app.add_system(Stage::First, |eng, _| {
+            eng.resource::<GamepadState>().borrow_mut().poll();
+        });
 
         let mut m = app.script_module("input")?;
         install_input_api(&mut m);
@@ -437,6 +517,165 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
         let v = state.borrow().mouse_just_released(button);
         Ok(v)
     });
+    // Active touches as `{ id, x, y }` maps, oldest finger first. Pixel
+    // coordinates, same space as `mouse_position`.
+    m.function("touches", |eng: &Engine, ()| {
+        let state = eng.resource::<InputSnapshot>();
+        let touches = state
+            .borrow()
+            .touches()
+            .iter()
+            .map(|(id, x, y)| {
+                Value::Map(vec![
+                    ("id".to_string(), Value::Int(*id as i64)),
+                    ("x".to_string(), Value::Num(f64::from(*x))),
+                    ("y".to_string(), Value::Num(f64::from(*y))),
+                ])
+            })
+            .collect();
+        Ok(Value::List(touches))
+    });
+    m.function("touches_started", |eng: &Engine, ()| {
+        let state = eng.resource::<InputSnapshot>();
+        let ids = state
+            .borrow()
+            .touches_started()
+            .iter()
+            .map(|id| Value::Int(*id as i64))
+            .collect();
+        Ok(Value::List(ids))
+    });
+    m.function("touches_ended", |eng: &Engine, ()| {
+        let state = eng.resource::<InputSnapshot>();
+        let ids = state
+            .borrow()
+            .touches_ended()
+            .iter()
+            .map(|id| Value::Int(*id as i64))
+            .collect();
+        Ok(Value::List(ids))
+    });
+    // Files dropped onto the window this frame, absolute paths in drop order.
+    // Desktop only: browsers and phones have no window to drop onto.
+    m.function("dropped_files", |eng: &Engine, ()| {
+        let state = eng.resource::<InputSnapshot>();
+        let files = state
+            .borrow()
+            .dropped_files()
+            .iter()
+            .map(|path| Value::Str(path.clone()))
+            .collect();
+        Ok(Value::List(files))
+    });
+    install_gamepad_api(m);
+}
+
+/// `input.gamepad_*`. Ids come from `input.gamepads()`; a query about a pad
+/// that is not connected answers neutrally (false, 0.0, ""), the same
+/// convention as a headless keyboard.
+fn install_gamepad_api(m: &mut dyn Bindings<Engine>) {
+    for name in PAD_BUTTON_NAMES {
+        m.constant(&pad_const_name("PAD_", name), Value::Str((*name).to_string()));
+    }
+    for name in PAD_AXIS_NAMES {
+        m.constant(&pad_const_name("AXIS_", name), Value::Str((*name).to_string()));
+    }
+    m.function("gamepads", |eng: &Engine, ()| {
+        let state = eng.resource::<GamepadState>();
+        let ids = state
+            .borrow()
+            .pads()
+            .iter()
+            .map(|pad| Value::Int(pad.id))
+            .collect();
+        Ok(Value::List(ids))
+    });
+    m.function("gamepad_name", |eng: &Engine, id: i64| {
+        let state = eng.resource::<GamepadState>();
+        let name = state
+            .borrow()
+            .pad(id)
+            .map_or_else(String::new, |pad| pad.name.clone());
+        Ok(name)
+    });
+    m.function("gamepad_down", |eng: &Engine, (id, button): (i64, String)| {
+        check_pad_button(&button);
+        let state = eng.resource::<GamepadState>();
+        let v = state.borrow().pad(id).is_some_and(|p| p.is_down(&button));
+        Ok(v)
+    });
+    m.function(
+        "gamepad_just_pressed",
+        |eng: &Engine, (id, button): (i64, String)| {
+            check_pad_button(&button);
+            let state = eng.resource::<GamepadState>();
+            let v = state
+                .borrow()
+                .pad(id)
+                .is_some_and(|p| p.just_pressed(&button));
+            Ok(v)
+        },
+    );
+    m.function(
+        "gamepad_just_released",
+        |eng: &Engine, (id, button): (i64, String)| {
+            check_pad_button(&button);
+            let state = eng.resource::<GamepadState>();
+            let v = state
+                .borrow()
+                .pad(id)
+                .is_some_and(|p| p.just_released(&button));
+            Ok(v)
+        },
+    );
+    // -1..1; sticks idle at 0. An absent pad or axis reads 0.
+    m.function("gamepad_axis", |eng: &Engine, (id, axis): (i64, String)| {
+        check_pad_axis(&axis);
+        let state = eng.resource::<GamepadState>();
+        let v = state.borrow().pad(id).map_or(0.0, |p| p.axis(&axis));
+        Ok(v)
+    });
+}
+
+/// `PAD_SOUTH` from `South`, `AXIS_LEFT_STICK_X` from `LeftStickX` — the same
+/// camel-splitting the key constants use, with `DPad` kept as one word so
+/// scripts read `PAD_DPAD_UP` rather than `PAD_D_PAD_UP`.
+fn pad_const_name(prefix: &str, name: &str) -> String {
+    let name = name.replace("DPad", "Dpad");
+    let mut out = String::from(prefix);
+    let mut prev = '_';
+    for c in name.chars() {
+        if c.is_ascii_uppercase() && (prev.is_ascii_lowercase() || prev.is_ascii_digit()) {
+            out.push('_');
+        }
+        out.push(c.to_ascii_uppercase());
+        prev = c;
+    }
+    out
+}
+
+/// Warn once per unrecognised pad button, mirroring `check_key`.
+fn check_pad_button(button: &str) {
+    warn_unknown_once("gamepad button", button, PAD_BUTTON_NAMES);
+}
+
+/// Warn once per unrecognised pad axis, mirroring `check_key`.
+fn check_pad_axis(axis: &str) {
+    warn_unknown_once("gamepad axis", axis, PAD_AXIS_NAMES);
+}
+
+fn warn_unknown_once(what: &'static str, name: &str, known: &[&str]) {
+    if known.contains(&name) {
+        return;
+    }
+    thread_local! {
+        static WARNED: std::cell::RefCell<std::collections::BTreeSet<String>> =
+            const { std::cell::RefCell::new(std::collections::BTreeSet::new()) };
+    }
+    let fresh = WARNED.with_borrow_mut(|w| w.insert(format!("{what}:{name}")));
+    if fresh {
+        tracing::warn!(what, name, "unknown name; it will never match");
+    }
 }
 
 #[cfg(test)]

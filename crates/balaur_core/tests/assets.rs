@@ -397,7 +397,14 @@ impl balaur_script::ScriptHost<Engine> for PackedHost {
     fn reload(&self, _: &str) -> anyhow::Result<()> {
         Ok(())
     }
-    fn call_on(&self, _: balaur_script::NodeId, _: &str, _: &[balaur_script::Value]) {}
+    fn call_on(
+        &self,
+        _: balaur_script::NodeId,
+        _: &str,
+        _: &[balaur_script::Value],
+    ) -> Option<balaur_script::Value> {
+        None
+    }
     fn call_all(&self, _: &str) {}
     fn wake(&self, _: u64, _: &balaur_script::Value) {}
     fn scene_source(&self, rel: &str) -> Option<String> {

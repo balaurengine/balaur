@@ -345,7 +345,9 @@ impl RuneHost {
             .map_err(|_| anyhow!("cannot attach script to a dead node"))?;
         if let Some(init) = self.method(&key, "init") {
             match init.call::<rune::Value>((state,)) {
-                VmResult::Ok(value) => self.settle_call(entity, &key, "init", value),
+                VmResult::Ok(value) => {
+                    self.settle_call(entity, &key, "init", value);
+                }
                 VmResult::Err(err) => tracing::error!("[{key}] init: {err}"),
             }
         }
@@ -392,17 +394,24 @@ impl RuneHost {
         }
     }
 
-    pub fn call_on(&self, entity: Entity, method: &str, args: &[balaur_script::Value]) {
+    /// Call one node's script method — a signal, or one script calling
+    /// another. Returns the method's return value; `None` when the call did
+    /// not run to completion here (no instance, no such method, or an async
+    /// method that is now suspended).
+    pub fn call_on(
+        &self,
+        entity: Entity,
+        method: &str,
+        args: &[balaur_script::Value],
+    ) -> Option<balaur_script::Value> {
         let found = self
             .state
             .borrow()
             .instances
             .get(&entity)
             .and_then(|i| Some((i.key.clone(), i.state.try_clone().ok()?)));
-        let Some((key, state)) = found else { return };
-        let Some(f) = self.method(&key, method) else {
-            return;
-        };
+        let (key, state) = found?;
+        let f = self.method(&key, method)?;
         // The instance first, then the payload: `pub fn on_x(this, a, b)`,
         // the same shape `update(this, dt)` already has.
         let mut call_args = vec![state];
@@ -411,13 +420,16 @@ impl RuneHost {
                 Ok(value) => call_args.push(value),
                 Err(err) => {
                     tracing::error!("[{key}] {method}: {err}");
-                    return;
+                    return None;
                 }
             }
         }
         match f.call::<rune::Value>(call_args) {
             VmResult::Ok(value) => self.settle_call(entity, &key, method, value),
-            VmResult::Err(err) => tracing::error!("[{key}] {method}: {err}"),
+            VmResult::Err(err) => {
+                tracing::error!("[{key}] {method}: {err}");
+                None
+            }
         }
     }
 
@@ -434,7 +446,9 @@ impl RuneHost {
                 continue;
             };
             match f.call::<rune::Value>((state,)) {
-                VmResult::Ok(value) => self.settle_call(entity, &key, method, value),
+                VmResult::Ok(value) => {
+                    self.settle_call(entity, &key, method, value);
+                }
                 VmResult::Err(err) => tracing::error!("[{key}] {method}: {err}"),
             }
         }
@@ -442,13 +456,28 @@ impl RuneHost {
 
     /// File an async method's future as a task and run it to its first await.
     /// Anything but a future is a finished synchronous call — nothing to do.
-    fn settle_call(&self, owner: Entity, key: &str, label: &str, value: rune::Value) {
+    fn settle_call(
+        &self,
+        owner: Entity,
+        key: &str,
+        label: &str,
+        value: rune::Value,
+    ) -> Option<balaur_script::Value> {
         if value.type_hash() != rune::runtime::Future::HASH {
-            return;
+            return match value::to_neutral(&value) {
+                Ok(value) => Some(value),
+                Err(err) => {
+                    tracing::error!("[{key}] {label}: {err}");
+                    None
+                }
+            };
         }
         let future = match value.into_future() {
             Ok(future) => future,
-            Err(err) => return tracing::error!("[{key}] {label}: {err}"),
+            Err(err) => {
+                tracing::error!("[{key}] {label}: {err}");
+                return None;
+            }
         };
         self.state.borrow_mut().tasks.push(RuneTask {
             owner,
@@ -457,6 +486,7 @@ impl RuneHost {
             future: Box::pin(future),
         });
         self.poll_tasks();
+        None
     }
 
     /// Poll every suspended task once, in suspension order. Progress only
@@ -630,10 +660,14 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
         RuneHost::reload(self, key)
     }
 
-    fn call_on(&self, node: balaur_script::NodeId, method: &str, args: &[balaur_script::Value]) {
-        if let Ok(entity) = balaur_core::entity_of(node) {
-            RuneHost::call_on(self, entity, method, args);
-        }
+    fn call_on(
+        &self,
+        node: balaur_script::NodeId,
+        method: &str,
+        args: &[balaur_script::Value],
+    ) -> Option<balaur_script::Value> {
+        let entity = balaur_core::entity_of(node).ok()?;
+        RuneHost::call_on(self, entity, method, args)
     }
 
     fn call_all(&self, method: &str) {

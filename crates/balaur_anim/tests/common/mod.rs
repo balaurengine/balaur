@@ -69,10 +69,11 @@ impl ScriptHost<balaur_core::Engine> for Calls {
     fn reload(&self, _: &str) -> anyhow::Result<()> {
         Ok(())
     }
-    fn call_on(&self, node: NodeId, method: &str, args: &[Value]) {
+    fn call_on(&self, node: NodeId, method: &str, args: &[Value]) -> Option<Value> {
         self.0
             .borrow_mut()
             .push((node.0, method.to_string(), args.to_vec()));
+        None
     }
     fn call_all(&self, _: &str) {}
     fn wake(&self, _: u64, _: &Value) {}
