@@ -22,6 +22,7 @@ graph TD
   balaur_script_luau[balaur_script_luau]
   balaur_script_rune[balaur_script_rune]
   balaur_ui[balaur_ui]
+  extension_greeter[extension_greeter]
   balaur --> balaur_anim
   balaur --> balaur_audio
   balaur --> balaur_core
@@ -65,4 +66,7 @@ graph TD
   balaur_script_rune --> balaur_script
   balaur_ui --> balaur_core
   balaur_ui --> balaur_script
+  extension_greeter --> balaur_core
+  extension_greeter --> balaur_plugin
+  extension_greeter --> balaur_script
 ```

@@ -13,11 +13,11 @@
 )]
 
 use balaur_core::hecs::Entity;
-use balaur_script::{NodeId, ScriptHost};
+use balaur_script::{NodeId, ScriptHost, Value};
 
-/// Every `(node, method)` the engine has called, in order.
+/// Every `(node, method, args)` the engine has called, in order.
 #[derive(Default)]
-pub(crate) struct Calls(std::cell::RefCell<Vec<(u64, String)>>);
+pub(crate) struct Calls(std::cell::RefCell<Vec<(u64, String, Vec<Value>)>>);
 
 impl Calls {
     /// How many times `method` was called on `node`.
@@ -26,8 +26,19 @@ impl Calls {
         self.0
             .borrow()
             .iter()
-            .filter(|(n, m)| *n == id && m == method)
+            .filter(|(n, m, _)| *n == id && m == method)
             .count()
+    }
+
+    /// The arguments the engine passed with the first call of `method` on
+    /// `node`. `None` when it was never called.
+    pub(crate) fn args(&self, node: Entity, method: &str) -> Option<Vec<Value>> {
+        let id = balaur_core::node_id_of(node).0;
+        self.0
+            .borrow()
+            .iter()
+            .find(|(n, m, _)| *n == id && m == method)
+            .map(|(_, _, args)| args.clone())
     }
 
     /// The methods called on `node`, in the order they went out.
@@ -36,8 +47,8 @@ impl Calls {
         self.0
             .borrow()
             .iter()
-            .filter(|(n, _)| *n == id)
-            .map(|(_, m)| m.clone())
+            .filter(|(n, _, _)| *n == id)
+            .map(|(_, m, _)| m.clone())
             .collect()
     }
 }
@@ -58,8 +69,10 @@ impl ScriptHost<balaur_core::Engine> for Calls {
     fn reload(&self, _: &str) -> anyhow::Result<()> {
         Ok(())
     }
-    fn call_on(&self, node: NodeId, method: &str) {
-        self.0.borrow_mut().push((node.0, method.to_string()));
+    fn call_on(&self, node: NodeId, method: &str, args: &[Value]) {
+        self.0
+            .borrow_mut()
+            .push((node.0, method.to_string(), args.to_vec()));
     }
     fn call_all(&self, _: &str) {}
     fn scene_source(&self, _: &str) -> Option<String> {

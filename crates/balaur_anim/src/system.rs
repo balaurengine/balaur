@@ -345,7 +345,7 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
             }
             Effect::Call { entity, method } => {
                 if let Some(host) = host.as_ref() {
-                    host.call_on(balaur_core::node_id_of(*entity), method);
+                    host.call_on(balaur_core::node_id_of(*entity), method, &[]);
                 }
             }
         }
@@ -357,8 +357,9 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
 ///
 /// The signal goes out after the queue moves on, so a handler asking
 /// `animation.current(node)` sees what is playing now rather than what just
-/// stopped — and `animation.just_finished(node)` still names the clip that
-/// ended, for this frame.
+/// stopped. The clip that ended is the handler's argument —
+/// `animation.just_finished(node)` still answers for this frame, for a script
+/// that would rather poll than declare a method.
 fn settle_ended(eng: &Engine, ended: &[Entity]) {
     for &entity in ended {
         let next = {
@@ -375,8 +376,21 @@ fn settle_ended(eng: &Engine, ended: &[Entity]) {
                 tracing::warn!("queued animation '{name}': {why:#}");
             }
         }
+        let finished = {
+            let state = eng.resource::<AnimationState>();
+            let state = state.borrow();
+            state
+                .players
+                .get(&entity)
+                .map(|playback| playback.finished.clone())
+                .unwrap_or_default()
+        };
         if let Some(host) = eng.script_host() {
-            host.call_on(balaur_core::node_id_of(entity), FINISHED_METHOD);
+            host.call_on(
+                balaur_core::node_id_of(entity),
+                FINISHED_METHOD,
+                &[balaur_script::Value::Str(finished)],
+            );
         }
     }
 }

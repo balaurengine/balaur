@@ -1,19 +1,30 @@
 //! Networking as a Balaur plugin: `http.*` and `websocket.*` for scripts.
 //!
 //! All I/O runs on background threads; completions cross back over a channel
-//! and enter the simulation once per tick, at [`Stage::First`], as the frame's
-//! [`NetSnapshot`] — the same model as input. Scripts see one stable view for
-//! the whole tick, so recording the snapshot per tick is all a replay needs.
+//! and enter the simulation once per tick, at [`Stage::First`], recorded in
+//! [`NetSnapshot`] — the same model as input. Recording the snapshot per tick
+//! is all a replay needs.
+//!
+//! Scripts never poll. A request or connection names the node that handles
+//! its results, and the pump dispatches them as method calls — the same
+//! signal shape a widget's `on_click` or an animation key uses:
+//!
+//! ```lua
+//! function S:init()
+//!     self.request = http.request(self.node, "https://example.com")
+//! end
+//! function S:on_response(r) print(r.status, r.body) end
+//! ```
 //!
 //! Nothing here blocks the frame: `http.request` and `websocket.connect`
-//! return an id immediately and results arrive in a later tick's snapshot,
-//! read back with `http.responses()` and `websocket.events()`.
+//! return an id immediately, and handlers run at [`Stage::First`] of a later
+//! tick, in arrival order, never from an I/O thread.
 
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 use anyhow::{anyhow, Result};
 use balaur_core::{DetHashMap, Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 #[cfg(not(target_family = "wasm"))]
 mod http;
@@ -101,12 +112,26 @@ pub(crate) enum NetEvent {
     },
 }
 
+/// Where one request's or connection's results go: a method on one node's
+/// script, dispatched through `ScriptHost::call_on`.
+///
+/// A method name rather than a function value on purpose: `Value::Callback`
+/// is valid only during the binding call that received it, so a handler that
+/// outlives the call is named, not held.
+#[derive(Clone)]
+pub struct Handler {
+    pub node: NodeId,
+    pub method: String,
+}
+
 /// Handle tables and the channel every worker thread reports into.
 pub struct NetState {
     next_id: u64,
     events: Receiver<NetEvent>,
     report: Sender<NetEvent>,
     sockets: DetHashMap<u64, Sender<SocketCommand>>,
+    request_handlers: DetHashMap<u64, Handler>,
+    socket_handlers: DetHashMap<u64, Handler>,
 }
 
 impl Default for NetState {
@@ -117,26 +142,35 @@ impl Default for NetState {
             events,
             report,
             sockets: DetHashMap::default(),
+            request_handlers: DetHashMap::default(),
+            socket_handlers: DetHashMap::default(),
         }
     }
 }
 
 impl NetState {
-    /// Start an HTTP request; the response (or error) arrives in a later
-    /// tick's [`NetSnapshot`] carrying this id.
-    pub fn request(&mut self, mut call: HttpCall) -> u64 {
+    /// Start an HTTP request; the response (or error) reaches `handler` on a
+    /// later tick, and is recorded in that tick's [`NetSnapshot`] either way.
+    pub fn request(&mut self, mut call: HttpCall, handler: Option<Handler>) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
         call.id = id;
+        if let Some(handler) = handler {
+            self.request_handlers.insert(id, handler);
+        }
         backend::spawn_request(call, self.report.clone());
         id
     }
 
-    /// Open a websocket connection; the handshake happens off-thread, and an
-    /// `open` (or `error`) event with this id lands in a later snapshot.
-    pub fn connect(&mut self, url: &str) -> u64 {
+    /// Open a websocket connection; the handshake happens off-thread, and
+    /// every event — `open` first, `closed` or `error` last — reaches
+    /// `handler` on a later tick.
+    pub fn connect(&mut self, url: &str, handler: Option<Handler>) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
+        if let Some(handler) = handler {
+            self.socket_handlers.insert(id, handler);
+        }
         let (commands, receiver) = channel();
         backend::spawn_socket(id, url.to_string(), receiver, &self.report);
         self.sockets.insert(id, commands);
@@ -160,39 +194,65 @@ impl NetState {
     }
 }
 
-/// This tick's completions, as the neutral values scripts read. Cleared and
-/// refilled by `pump_net_system` at [`Stage::First`], so the view is stable
-/// for the whole tick.
+/// This tick's completions, as the neutral values the handlers received.
+/// Cleared and refilled by `pump_net_system` at [`Stage::First`]. Scripts
+/// never read it — it exists so Rust code can observe traffic, and so a
+/// recorder has one place to tap for replay.
 #[derive(Default)]
 pub struct NetSnapshot {
     pub http: Vec<Value>,
     pub socket: Vec<Value>,
 }
 
-/// Drain the worker threads' reports into the frame's snapshot, in arrival
-/// order. Arrival order is an input to the simulation, like a key press: not
-/// reproducible across runs, but stable for everyone reading this tick.
+/// Drain the worker threads' reports, record them in the frame's snapshot,
+/// then dispatch each to its handler — in arrival order throughout. Arrival
+/// order is an input to the simulation, like a key press: not reproducible
+/// across runs, but stable for everyone this tick.
+///
+/// Dispatch happens after the borrows are released, so a handler may itself
+/// request, connect, send or close.
 fn pump_net_system(eng: &Engine, _: f32) {
-    let state = eng.resource::<NetState>();
-    let snapshot = eng.resource::<NetSnapshot>();
-    let mut state = state.borrow_mut();
-    let mut snapshot = snapshot.borrow_mut();
-    snapshot.http.clear();
-    snapshot.socket.clear();
-    while let Ok(event) = state.events.try_recv() {
-        match &event {
-            NetEvent::SocketClosed { socket, .. } | NetEvent::SocketError { socket, .. } => {
-                // shift_remove: keeps the remaining entries in insertion
-                // order, so iteration stays deterministic.
-                state.sockets.shift_remove(socket);
+    let mut dispatches: Vec<(Handler, Value)> = Vec::new();
+    {
+        let state = eng.resource::<NetState>();
+        let snapshot = eng.resource::<NetSnapshot>();
+        let mut state = state.borrow_mut();
+        let mut snapshot = snapshot.borrow_mut();
+        snapshot.http.clear();
+        snapshot.socket.clear();
+        while let Ok(event) = state.events.try_recv() {
+            // shift_remove: keeps the remaining entries in insertion order,
+            // so iteration stays deterministic.
+            let handler = match &event {
+                NetEvent::HttpResponse { request, .. } | NetEvent::HttpError { request, .. } => {
+                    state.request_handlers.shift_remove(request)
+                }
+                NetEvent::SocketClosed { socket, .. } | NetEvent::SocketError { socket, .. } => {
+                    state.sockets.shift_remove(socket);
+                    state.socket_handlers.shift_remove(socket)
+                }
+                NetEvent::SocketOpen { socket } | NetEvent::SocketMessage { socket, .. } => {
+                    state.socket_handlers.get(socket).cloned()
+                }
+            };
+            let http = matches!(
+                event,
+                NetEvent::HttpResponse { .. } | NetEvent::HttpError { .. }
+            );
+            let value = event_value(event);
+            if let Some(handler) = handler {
+                dispatches.push((handler, value.clone()));
             }
-            _ => {}
+            if http {
+                snapshot.http.push(value);
+            } else {
+                snapshot.socket.push(value);
+            }
         }
-        match event {
-            NetEvent::HttpResponse { .. } | NetEvent::HttpError { .. } => {
-                snapshot.http.push(event_value(event));
-            }
-            _ => snapshot.socket.push(event_value(event)),
+    }
+    if let Some(host) = eng.script_host() {
+        for (handler, value) in dispatches {
+            host.call_on(handler.node, &handler.method, &[value]);
         }
     }
 }
@@ -323,38 +383,64 @@ fn call_of(url: &str, opts: Option<&Value>) -> Result<HttpCall> {
     })
 }
 
+/// The handler a binding's node-and-options arguments name, or `None` for a
+/// nil node — fire and forget.
+fn handler_of(
+    node: &Value,
+    opts: Option<&Value>,
+    key: &str,
+    default_method: &str,
+) -> Result<Option<Handler>> {
+    let node = match node {
+        Value::Node(id) => NodeId(*id),
+        Value::Nil => return Ok(None),
+        other => return Err(anyhow!("argument 0 should be a node or nil, got {other:?}")),
+    };
+    let method = match opt(opts, key) {
+        Some(Value::Str(name)) => name.clone(),
+        Some(other) => return Err(anyhow!("`{key}` should be a method name, got {other:?}")),
+        None => default_method.to_string(),
+    };
+    Ok(Some(Handler { node, method }))
+}
+
 /// `http.*`. Declared against the neutral seam, so it works on any backend.
 fn install_http_api(m: &mut dyn Bindings<Engine>) {
-    // `http.request(url, { method = "POST", body = "...", headers = {...},
-    // timeout = 5 })` -> id. The verb lives in the options table rather than
-    // in the function name (N9); the default is GET.
+    // `http.request(self.node, url, { method = "POST", body = "...",
+    // headers = {...}, timeout = 5, on_response = "on_login" })` -> id.
+    // The response fires `on_response(response)` on that node's script —
+    // `{ request, status, headers, body }`, or `{ request, error }` when the
+    // transfer itself failed; an HTTP error status is a response, not an
+    // error. A nil node is fire-and-forget. The verb lives in the options
+    // table rather than in the function name (N9); the default is GET.
     m.function(
         "request",
-        |eng: &Engine, (url, opts): (String, Option<Value>)| {
+        |eng: &Engine, (node, url, opts): (Value, String, Option<Value>)| {
+            let handler = handler_of(&node, opts.as_ref(), "on_response", "on_response")?;
             let call = call_of(&url, opts.as_ref())?;
             let state = eng.resource::<NetState>();
-            let id = state.borrow_mut().request(call);
+            let id = state.borrow_mut().request(call, handler);
             Ok(int(id))
         },
     );
-    // This tick's completed requests: `{ request, status, headers, body }`,
-    // or `{ request, error }` when the transfer itself failed. An HTTP error
-    // status is a response, not an error.
-    m.function("responses", |eng: &Engine, ()| {
-        Ok(Value::List(
-            eng.resource::<NetSnapshot>().borrow().http.clone(),
-        ))
-    });
 }
 
 /// `websocket.*`. Text frames only: the value model has no bytes, and a
 /// binary frame is logged and dropped in the reader thread.
 fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
-    m.function("connect", |eng: &Engine, url: String| {
-        let state = eng.resource::<NetState>();
-        let id = state.borrow_mut().connect(&url);
-        Ok(int(id))
-    });
+    // `websocket.connect(self.node, url, { on_event = "on_websocket_event" })`
+    // -> id. Every connection event fires that method with one argument,
+    // `{ socket, kind, ... }` where kind is `open`, `message` (with `text`),
+    // `closed` or `error` (with `reason`). A nil node discards the events.
+    m.function(
+        "connect",
+        |eng: &Engine, (node, url, opts): (Value, String, Option<Value>)| {
+            let handler = handler_of(&node, opts.as_ref(), "on_event", "on_websocket_event")?;
+            let state = eng.resource::<NetState>();
+            let id = state.borrow_mut().connect(&url, handler);
+            Ok(int(id))
+        },
+    );
     m.function("send", |eng: &Engine, (socket, text): (i64, String)| {
         let state = eng.resource::<NetState>();
         let sent = u64::try_from(socket).is_ok_and(|id| state.borrow_mut().send_text(id, &text));
@@ -364,12 +450,5 @@ fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
         let state = eng.resource::<NetState>();
         let closed = u64::try_from(socket).is_ok_and(|id| state.borrow_mut().close(id));
         Ok(Value::Bool(closed))
-    });
-    // This tick's connection events, each `{ socket, kind, ... }` where kind
-    // is `open`, `message` (with `text`), `closed` or `error` (with `reason`).
-    m.function("events", |eng: &Engine, ()| {
-        Ok(Value::List(
-            eng.resource::<NetSnapshot>().borrow().socket.clone(),
-        ))
     });
 }

@@ -271,7 +271,9 @@ fn settle_clicks(eng: &Engine, widgets: &[(Entity, Widget)], clicked: &[Entity])
     }
     if let Some(host) = eng.script_host() {
         for (entity, method) in signals {
-            host.call_on(balaur_core::node_id_of(entity), &method);
+            // No payload: the handler runs on the widget's own node, so
+            // `self.node` already is the thing that was clicked.
+            host.call_on(balaur_core::node_id_of(entity), &method, &[]);
         }
     }
 }

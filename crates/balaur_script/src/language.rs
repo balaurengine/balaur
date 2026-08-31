@@ -47,7 +47,15 @@ pub trait ScriptHost<C: ?Sized> {
 
     /// Call a method on one node's instance — how a signal reaches a handler.
     /// A missing method is not an error.
-    fn call_on(&self, node: NodeId, method: &str);
+    /// `args` reach the method as its arguments, after the instance itself.
+    /// Pass `&[]` for a bare notification.
+    ///
+    /// This is what an engine-side event carries: `Value::Callback` is valid
+    /// only during the binding call that received it, so a script cannot
+    /// register a handler and be given a payload later. A named method that
+    /// takes arguments is the seam's answer, and it costs no ownership
+    /// question and nothing for a collector to reason about.
+    fn call_on(&self, node: NodeId, method: &str, args: &[Value]);
 
     /// Call a method on every instance that defines it, in a deterministic
     /// order.

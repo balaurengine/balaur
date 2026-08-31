@@ -77,7 +77,7 @@ fn a_response_arrives_in_the_snapshot_with_status_and_body() {
     let mut app = app_with_net(dir.path());
     let id = {
         let state = app.engine.resource::<NetState>();
-        let id = state.borrow_mut().request(get_call(&url));
+        let id = state.borrow_mut().request(get_call(&url), None);
         id
     };
     let response = wait_for(&mut app, |snapshot| snapshot.http.first().cloned());
@@ -97,7 +97,7 @@ fn an_http_error_status_is_a_response_not_an_error() {
     let mut app = app_with_net(dir.path());
     {
         let state = app.engine.resource::<NetState>();
-        state.borrow_mut().request(get_call(&url));
+        state.borrow_mut().request(get_call(&url), None);
     }
     let response = wait_for(&mut app, |snapshot| snapshot.http.first().cloned());
     assert_eq!(field(&response, "status"), Some(&Value::Int(404)));
@@ -117,7 +117,7 @@ fn a_failed_transfer_reports_an_error_event() {
         let state = app.engine.resource::<NetState>();
         state
             .borrow_mut()
-            .request(get_call(&format!("http://127.0.0.1:{port}")));
+            .request(get_call(&format!("http://127.0.0.1:{port}")), None);
     }
     let response = wait_for(&mut app, |snapshot| snapshot.http.first().cloned());
     assert!(
@@ -166,7 +166,7 @@ fn a_websocket_opens_echoes_and_closes() {
     let mut app = app_with_net(dir.path());
     let id = {
         let state = app.engine.resource::<NetState>();
-        let id = state.borrow_mut().connect(&url);
+        let id = state.borrow_mut().connect(&url, None);
         id
     };
 
@@ -206,7 +206,7 @@ fn an_unreachable_websocket_reports_an_error_event() {
         let state = app.engine.resource::<NetState>();
         state
             .borrow_mut()
-            .connect(&format!("ws://127.0.0.1:{port}"));
+            .connect(&format!("ws://127.0.0.1:{port}"), None);
     }
     let event = wait_for(&mut app, |snapshot| socket_event(snapshot, "error"));
     assert!(matches!(field(&event, "reason"), Some(Value::Str(_))));

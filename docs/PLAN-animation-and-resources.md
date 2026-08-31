@@ -382,11 +382,14 @@ animation.just_finished(node)      -- clip name, this frame only
 animation.define(node, "hurt", { length = 0.4, tracks = { ... } })
 ```
 
-Finished delivery is `on_animation_finished()` via `call_on` plus the
-`just_finished` query, because `ScriptHost::call_on` takes no arguments and
-`Value::Callback` is valid only during the binding call that received it. A
-real signal system is a seam change worth doing on its own merits (it also
-serves physics contacts, UI and timers) — not smuggled in here.
+Finished delivery is `on_animation_finished(name)` via `call_on`, plus the
+`just_finished` query for a script that would rather poll than declare a
+method. When this was written `call_on` carried no arguments, so the handler
+took none and the query was the only way to learn *which* clip ended; the seam
+gained arguments afterwards (2026-08-31) and the handler now takes the name.
+`Value::Callback` is still valid only during the binding call that received
+it, so there is still no `connect`-style subscription — a named method with a
+payload is the seam's answer, and it needs no id space and no release.
 
 ### 3.4 Tweens are generated clips
 
@@ -490,11 +493,11 @@ this layer, and a `PackedScene`-style prefab is then just another asset type.
    measured cost of the alternative was ~170 compiler-caught sites to buy a
    noun. `Server`, `Manager` and `Handler` are denied as typemap suffixes at
    the same time, which is why the cache is `AssetState`.
-2. **Signals.** `call_on` carries no arguments and script callbacks are
-   call-scoped, so animation-finished and method tracks arrive as
-   zero-argument method calls plus a per-frame query. A general signal
-   mechanism in the seam is the real fix; this plan is designed to not need
-   it, and to benefit immediately if it lands.
+2. **Signals.** ~~`call_on` carries no arguments~~ — **settled 2026-08-31**:
+   `ScriptHost::call_on(node, method, args)` now carries a payload in both
+   backends, and `on_animation_finished(name)` uses it. Script callbacks are
+   still call-scoped, so subscription-style signals would still need an id
+   space with explicit release; nothing has needed one.
 3. **Animating a dynamic body fights physics** (as it does in Godot). Warn
    once, document, and let it be.
 4. **Asset hot reload touches the watcher**, which is script-only today.

@@ -316,7 +316,7 @@ impl RuneHost {
         }
     }
 
-    pub fn call_on(&self, entity: Entity, method: &str) {
+    pub fn call_on(&self, entity: Entity, method: &str, args: &[balaur_script::Value]) {
         let found = self
             .state
             .borrow()
@@ -327,7 +327,19 @@ impl RuneHost {
         let Some(f) = self.method(&key, method) else {
             return;
         };
-        if let VmResult::Err(err) = f.call::<()>((state,)) {
+        // The instance first, then the payload: `pub fn on_x(this, a, b)`,
+        // the same shape `update(this, dt)` already has.
+        let mut call_args = vec![state];
+        for arg in args {
+            match value::from_neutral(arg) {
+                Ok(value) => call_args.push(value),
+                Err(err) => {
+                    tracing::error!("[{key}] {method}: {err}");
+                    return;
+                }
+            }
+        }
+        if let VmResult::Err(err) = f.call::<()>(call_args) {
             tracing::error!("[{key}] {method}: {err}");
         }
     }
@@ -487,9 +499,9 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
         RuneHost::reload(self, key)
     }
 
-    fn call_on(&self, node: balaur_script::NodeId, method: &str) {
+    fn call_on(&self, node: balaur_script::NodeId, method: &str, args: &[balaur_script::Value]) {
         if let Ok(entity) = balaur_core::entity_of(node) {
-            RuneHost::call_on(self, entity, method);
+            RuneHost::call_on(self, entity, method, args);
         }
     }
 

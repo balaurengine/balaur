@@ -12,7 +12,7 @@ Balaur game engine: batteries-included facade over the core and standard plugins
 Batteries-included entry points for Balaur games and tools.
 
 - **workspace deps:** `balaur_anim`, `balaur_audio`, `balaur_core`, `balaur_input`, `balaur_net`, `balaur_physics`, `balaur_plugin`, `balaur_render`, `balaur_script_luau`, `balaur_script_rune`, `balaur_ui`
-- **external deps:** 1 (anyhow)
+- **external deps:** 2 (anyhow, tracing)
 - **public surface:** 5 fn
 
 ## `balaur_anim`
@@ -90,8 +90,8 @@ Networking as a Balaur plugin: `http.*` and `websocket.*` for scripts.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
 - **external deps:** 4 (anyhow, tracing, tungstenite, ureq)
-- **public surface:** 4 struct
-- **structs:** `HttpCall`, `NetPlugin`, `NetSnapshot`, `NetState`
+- **public surface:** 5 struct
+- **structs:** `Handler`, `HttpCall`, `NetPlugin`, `NetSnapshot`, `NetState`
 
 ## `balaur_physics`
 
@@ -111,10 +111,10 @@ What a module or an extension implements to register itself with the engine
 What a module or an extension implements to register itself.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
-- **external deps:** 1 (anyhow)
-- **public surface:** 2 fn, 3 struct, 1 trait, 2 const
+- **external deps:** 2 (anyhow, libloading)
+- **public surface:** 5 fn, 5 struct, 1 trait, 3 const
 - **traits:** `Plugin`
-- **structs:** `Fingerprint`, `Manifest`, `Registry`
+- **structs:** `AbiTag`, `Extension`, `Fingerprint`, `Manifest`, `Registry`
 
 ## `balaur_render`
 
@@ -169,4 +169,15 @@ Immediate-mode UI for scripts, rendered with egui.
 - **external deps:** 5 (anyhow, egui, image, toml, tracing)
 - **public surface:** 1 fn, 6 struct, 4 const
 - **structs:** `ThemeTokens`, `UiConfig`, `UiPlugin`, `UiState`, `Widget`, `WidgetLayerConfig`
+
+## `extension_greeter`
+
+An extension built outside the engine, loaded at run time
+
+An extension: the same `Plugin` a module implements, built as a cdylib and loaded at run time rather than linked in.
+
+- **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
+- **external deps:** 1 (anyhow)
+- **public surface:** 2 struct
+- **structs:** `Greeter`, `GreetingCount`
 

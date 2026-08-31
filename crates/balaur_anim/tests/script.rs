@@ -44,8 +44,13 @@ local M = {}
 function M:init()
   animation.play(self.node, "hop", { speed = 1.0 })
 end
-function M:on_animation_finished()
-  animation.play(self.node, "wave")
+function M:on_animation_finished(name)
+  -- The clip that ended is the argument, so the handler branches on it
+  -- rather than asking. Anything but `hop` would leave the node idle and
+  -- fail the assertion.
+  if name == "hop" then
+    animation.play(self.node, "wave")
+  end
 end
 return M
 "#;
@@ -54,8 +59,10 @@ const HERO_RUNE: &str = r#"
 pub fn init(this) {
     animation::play(this.node, "hop", #{ "speed": 1.0 });
 }
-pub fn on_animation_finished(this) {
-    animation::play(this.node, "wave");
+pub fn on_animation_finished(this, name) {
+    if name == "hop" {
+        animation::play(this.node, "wave");
+    }
 }
 "#;
 
@@ -141,7 +148,8 @@ fn a_script_drives_a_clip(dir: &tempfile::TempDir, backend: ScriptHostFactory, s
     assert_eq!(
         balaur_anim::current(&app.engine, entity).as_deref(),
         Some("wave"),
-        "`on_animation_finished` did not reach the script"
+        "`on_animation_finished` did not reach the script with the name of the \
+         clip that ended"
     );
     assert!(
         balaur_anim::is_playing(&app.engine, entity),

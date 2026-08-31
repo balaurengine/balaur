@@ -376,13 +376,26 @@ impl ScriptHost {
     ///
     /// Missing method is not an error: a widget may name a handler the script
     /// does not implement yet, and that should not stop the frame.
-    pub fn call_on(&self, entity: Entity, method: &str) {
+    pub fn call_on(&self, entity: Entity, method: &str, args: &[balaur_script::Value]) {
         let inst = self.state.borrow().instances.get(&entity).cloned();
         let Some(inst) = inst else { return };
         let Ok(Some(func)) = inst.get::<Option<Function>>(method) else {
             return;
         };
-        if let Err(err) = func.call::<()>(inst) {
+        // The instance first, so the method reads as `function C:on_x(a, b)`,
+        // the same shape `update(dt)` already has.
+        let mut call_args = mlua::MultiValue::new();
+        call_args.push_back(mlua::Value::Table(inst));
+        for arg in args {
+            match env::from_neutral(&self.lua, &self.engine, arg) {
+                Ok(value) => call_args.push_back(value),
+                Err(err) => {
+                    self.report_error(method, &err.to_string());
+                    return;
+                }
+            }
+        }
+        if let Err(err) = func.call::<()>(call_args) {
             self.report_error(method, &err.to_string());
         }
     }
@@ -535,9 +548,9 @@ impl balaur_script::ScriptHost<Engine> for ScriptHost {
         ScriptHost::reload(self, key)
     }
 
-    fn call_on(&self, node: balaur_script::NodeId, method: &str) {
+    fn call_on(&self, node: balaur_script::NodeId, method: &str, args: &[balaur_script::Value]) {
         if let Ok(entity) = balaur_core::entity_of(node) {
-            ScriptHost::call_on(self, entity, method);
+            ScriptHost::call_on(self, entity, method, args);
         }
     }
 

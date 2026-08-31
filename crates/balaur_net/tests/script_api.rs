@@ -99,13 +99,11 @@ fn a_lua_script_fetches_over_http() {
         r#"
 local S = {{}}
 function S:init()
-    self.request = http.request("{url}")
+    self.request = http.request(self.node, "{url}", {{ on_response = "on_login" }})
 end
-function S:update()
-    for _, r in ipairs(http.responses()) do
-        if r.request == self.request then
-            log.info("lua-http " .. r.status .. " " .. r.body)
-        end
+function S:on_login(r)
+    if r.request == self.request then
+        log.info("lua-http " .. r.status .. " " .. r.body)
     end
 end
 return S
@@ -121,18 +119,16 @@ fn a_lua_script_talks_over_a_websocket() {
         r#"
 local S = {{}}
 function S:init()
-    self.socket = websocket.connect("{url}")
+    self.socket = websocket.connect(self.node, "{url}")
 end
-function S:update()
-    for _, e in ipairs(websocket.events()) do
-        if e.kind == "open" then
-            websocket.send(self.socket, "ping")
-        elseif e.kind == "message" then
-            log.info("lua-websocket " .. e.text)
-            websocket.close(self.socket)
-        elseif e.kind == "closed" then
-            log.info("lua-websocket-closed")
-        end
+function S:on_websocket_event(e)
+    if e.kind == "open" then
+        websocket.send(self.socket, "ping")
+    elseif e.kind == "message" then
+        log.info("lua-websocket " .. e.text)
+        websocket.close(self.socket)
+    elseif e.kind == "closed" then
+        log.info("lua-websocket-closed")
     end
 end
 return S
@@ -147,14 +143,12 @@ fn a_rune_script_fetches_over_http() {
     let source = format!(
         r#"
 pub fn init(this) {{
-    this.request = http::request("{url}");
+    this.request = http::request(this.node, "{url}");
 }}
 
-pub fn update(this, dt) {{
-    for r in http::responses() {{
-        if r["request"] == this.request {{
-            log::info(`rune-http ${{r["status"]}} ${{r["body"]}}`);
-        }}
+pub fn on_response(this, r) {{
+    if r["request"] == this.request {{
+        log::info(`rune-http ${{r["status"]}} ${{r["body"]}}`);
     }}
 }}
 "#
@@ -168,19 +162,17 @@ fn a_rune_script_talks_over_a_websocket() {
     let source = format!(
         r#"
 pub fn init(this) {{
-    this.socket = websocket::connect("{url}");
+    this.socket = websocket::connect(this.node, "{url}");
 }}
 
-pub fn update(this, dt) {{
-    for e in websocket::events() {{
-        if e["kind"] == "open" {{
-            websocket::send(this.socket, "ping");
-        }} else if e["kind"] == "message" {{
-            log::info(`rune-websocket ${{e["text"]}}`);
-            websocket::close(this.socket);
-        }} else if e["kind"] == "closed" {{
-            log::info("rune-websocket-closed");
-        }}
+pub fn on_websocket_event(this, e) {{
+    if e["kind"] == "open" {{
+        websocket::send(this.socket, "ping");
+    }} else if e["kind"] == "message" {{
+        log::info(`rune-websocket ${{e["text"]}}`);
+        websocket::close(this.socket);
+    }} else if e["kind"] == "closed" {{
+        log::info("rune-websocket-closed");
     }}
 }}
 "#

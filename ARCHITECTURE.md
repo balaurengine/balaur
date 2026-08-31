@@ -89,7 +89,20 @@ sugar, not the operations.
 `Callback(id)` for a script function valid only during the binding call that
 received it. Immediate-mode UI callbacks never outlive their call, so the
 backend registers on entry and drops on exit — no ownership question and no
-interaction with the collector. One more variant is load-bearing at call
+interaction with the collector.
+
+That call-scoped lifetime is why the engine has no `connect`-style signals: a
+script cannot register a handler and be handed a payload three frames later.
+Events go the other way instead. `ScriptHost::call_on(node, method, args)`
+calls a method the engine knows by name, with arguments, on one node's
+instance — `on_animation_finished(name)`, a widget's `on_click`, an animation
+method track. A backend puts the instance first, so a handler reads exactly
+like `update(dt)` does in that language. Most such events also ship a polling
+twin for scripts that would rather ask than declare a method
+(`animation.just_finished(node)`, `input.just_pressed(key)`,
+`http.responses()`), which is the same shape the whole engine uses: an event
+is a frame-scoped snapshot, not a subscription. Persistent callbacks would
+need an id space with explicit release, and nothing has needed one yet. One more variant is load-bearing at call
 sites: `Many` is *several return values*, not a list of one, so
 `local text, changed = ui.text_field(...)` reads the way the widget is meant
 to. A `Vec3` is one value and arrives as a table, which is why
