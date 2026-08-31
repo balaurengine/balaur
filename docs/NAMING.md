@@ -12,11 +12,13 @@
 > where `ARCHITECTURE.md`, `README.md` or a plan file disagrees with it,
 > this file wins.
 >
-> Two things §4 called for are not done: an e2e step that boots `editor/`
-> headless (prerequisite 1 — every `script-api` and `scene-file` rename
-> below landed with no CI coverage of the editor, and `balaur edit <project>
-> --frames N` is the one-line fix), and the `--update-baseline` sequencing in
-> §6, which only matters once the rules exist.
+> §4's prerequisite 1 — an e2e step that boots `editor/` headless — **landed
+> on 2026-08-31**: `scripts/e2e.sh` now opens every example in the editor and
+> fails on a logged ERROR *or* on any scene node the editor cannot resolve in
+> its mirror. It came a commit too late to guard the renames below, and it
+> immediately caught a live defect (see §4's note). Still open: the
+> `--update-baseline` sequencing in §6, which only matters once the rules
+> gather debt.
 
 # Balaur naming
 
@@ -276,13 +278,16 @@ and touches no project file; do it in one pass before anything in B or C.
 
 Two prerequisites, both from things this audit turned up:
 
-1. **Nothing in CI exercises `editor/`.** `scripts/e2e.sh` loops
-   `for ex in examples/*/`, and the editor is a Balaur project outside that
-   directory. `scripts/house_lints.py` reads `*.rs` only. A missing Luau
-   function is logged, not fatal. Every `script-api` and `scene-file` rename
-   below therefore lands untested today. **Add an e2e step that boots
-   `editor/` headless against `examples/hello` for N frames and fails on any
-   logged ERROR — before Table B or C, not after.**
+1. ~~**Nothing in CI exercises `editor/`.**~~ **Done 2026-08-31**, after the
+   renames rather than before them. `scripts/e2e.sh` now runs a fourth pass
+   per example — `edit` — booting the editor headless against that project.
+   It fails on a logged ERROR and on `did not resolve in the mirror`, an
+   invariant the editor states at WARN: the document and the mirror are built
+   from the same TOML, so every document node must resolve to a mirror node.
+   That second check is the one that earns its keep — when it broke, nested
+   nodes silently had no ref, so no inspector, no gizmo and no transform read,
+   and nothing failed. Headless means this covers loading, mirroring,
+   resolution and asset rebinding, but not drawing, which needs a window.
 2. `ARCHITECTURE.md` and `README.md` name script functions by hand and nothing
    regenerates or `--check`s them (`scripts/gen_docs.py` only writes
    `docs/generated/`). `ARCHITECTURE.md:136`, `:288`, `:289`, `:328` and

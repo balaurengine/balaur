@@ -54,9 +54,21 @@ jobs:
         run: cargo clippy -p balaur_cli --features window --all-targets -- -D warnings
       - name: Test
         run: cargo test --workspace
+      # Extensions are off by default, so `--workspace` above never builds the
+      # dlopen path, the cdylib, or the tests that load one at run time.
+      - name: Clippy (extensions)
+        run: cargo clippy -p balaur_plugin -p balaur --features balaur/extensions --all-targets -- -D warnings
+      - name: Test (extensions)
+        run: |
+          cargo test -p balaur_plugin --features dylib
+          cargo test -p balaur --features extensions
+      # A build with a subsystem switched off is the point of having features;
+      # nothing else checks that one still compiles.
+      - name: Build without the optional subsystems
+        run: cargo build -p balaur_cli --no-default-features
       # examples/ are Balaur projects, not cargo examples: run, export and play
       # each one. See scripts/e2e.sh for why all three are needed.
-      - name: E2E — run, export and play every example project
+      - name: E2E — run, export, play and edit every example project
         shell: bash
         run: ./scripts/e2e.sh
       - name: Upload pack digests

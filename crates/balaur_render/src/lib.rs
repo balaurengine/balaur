@@ -36,6 +36,17 @@ pub struct AppIconConfig {
     pub changed: bool,
 }
 
+/// Fullscreen and cursor state scripts asked for, applied by windowed
+/// backends when changed. Headless runs hold the values and touch nothing,
+/// so a game that grabs the cursor still ticks identically in CI.
+#[derive(Default)]
+pub struct WindowConfig {
+    pub fullscreen: bool,
+    pub cursor_grabbed: bool,
+    pub cursor_hidden: bool,
+    pub changed: bool,
+}
+
 /// Viewport clear color, applied by windowed backends when changed.
 pub struct ClearColorConfig {
     pub color: [f32; 3],
@@ -286,6 +297,7 @@ impl Plugin for RenderPlugin {
             color: [0.09, 0.098, 0.11],
             changed: true,
         });
+        app.engine.insert_resource(WindowConfig::default());
         app.engine.insert_resource(GridConfig::default());
         app.engine.insert_resource(DebugLineBuffer::default());
         app.engine.insert_resource(DebugLineBuffer2d::default());
@@ -452,6 +464,31 @@ fn install_window_api(m: &mut dyn Bindings<Engine>) {
             path: full,
             changed: true,
         });
+        Ok(())
+    });
+    // Borderless fullscreen on the current monitor. No readers by design
+    // (N8): `WindowConfig` already holds what a backend last applied.
+    m.function("set_fullscreen", |eng: &Engine, fullscreen: bool| {
+        let config = eng.resource::<WindowConfig>();
+        let mut config = config.borrow_mut();
+        config.fullscreen = fullscreen;
+        config.changed = true;
+        Ok(())
+    });
+    // Confine the cursor to the window — FPS-style mouse capture, usually
+    // paired with `set_cursor_hidden` and `input.mouse_delta`.
+    m.function("set_cursor_grab", |eng: &Engine, grab: bool| {
+        let config = eng.resource::<WindowConfig>();
+        let mut config = config.borrow_mut();
+        config.cursor_grabbed = grab;
+        config.changed = true;
+        Ok(())
+    });
+    m.function("set_cursor_hidden", |eng: &Engine, hidden: bool| {
+        let config = eng.resource::<WindowConfig>();
+        let mut config = config.borrow_mut();
+        config.cursor_hidden = hidden;
+        config.changed = true;
         Ok(())
     });
 }

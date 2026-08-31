@@ -50,6 +50,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: reload_script,
     },
     EngineOp {
+        module: "engine",
+        name: "user_data_dir",
+        call: user_data_dir,
+    },
+    EngineOp {
         module: "scene",
         name: "root",
         call: root,
@@ -250,6 +255,44 @@ fn args(eng: &Engine, _: &[Value]) -> Result<Value> {
         .map(|a| a.borrow().0.clone())
         .unwrap_or_default();
     Ok(Value::List(list.into_iter().map(Value::Str).collect()))
+}
+
+/// A writable per-user directory for saves and settings, created on first
+/// call: `<platform data dir>/balaur/<project name>` — Application Support on
+/// macOS and iOS, AppData on Windows, XDG data on Linux. Platforms with no
+/// such notion (Android today) fall back to `user_data/` inside the project
+/// root so a game always has somewhere to write. The project directory itself
+/// is deliberately not the default: a shipped game may live somewhere
+/// read-only.
+fn user_data_dir(eng: &Engine, _: &[Value]) -> Result<Value> {
+    let name = eng
+        .try_resource::<crate::project::ProjectManifest>()
+        .map(|m| m.borrow().name.clone())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| "project".to_string());
+    // A manifest name is free text; keep only what every filesystem accepts.
+    let name: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | ' ') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let base = dirs::data_dir().map_or_else(
+        || {
+            eng.resource::<crate::project::ProjectRoot>()
+                .borrow()
+                .0
+                .join("user_data")
+        },
+        |dir| dir.join("balaur"),
+    );
+    let dir = base.join(name);
+    std::fs::create_dir_all(&dir)?;
+    Ok(Value::Str(dir.to_string_lossy().into_owned()))
 }
 
 fn reload_script(eng: &Engine, args: &[Value]) -> Result<Value> {

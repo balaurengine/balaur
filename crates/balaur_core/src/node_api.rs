@@ -130,6 +130,10 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: script_path,
     },
     NodeOp {
+        name: "call",
+        call: call,
+    },
+    NodeOp {
         name: "attach_script",
         call: attach_script,
     },
@@ -405,6 +409,22 @@ fn script_path(eng: &Engine, args: &[Value]) -> Result<Value> {
         .get::<&ScriptAttachment>(e)
         .ok()
         .map_or(Value::Nil, |a| Value::Str(a.path.clone())))
+}
+
+/// `node:call("method", ...)` — one script calling another's method, with
+/// the target's return value coming back. Nil when the node has no script,
+/// no such method (handlers are opt-in), or the method suspended on an
+/// await; the call itself runs to completion before this returns, so a
+/// handler may spawn, free or call further nodes.
+fn call(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let method = text(args, 1)?;
+    let host = eng
+        .script_host()
+        .ok_or_else(|| anyhow!("no script backend is running"))?;
+    Ok(host
+        .call_on(crate::node_id_of(e), method, args.get(2..).unwrap_or(&[]))
+        .unwrap_or(Value::Nil))
 }
 
 fn attach_script(eng: &Engine, args: &[Value]) -> Result<Value> {

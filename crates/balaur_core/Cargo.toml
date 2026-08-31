@@ -19,6 +19,8 @@ balaur_script.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-log.workspace = true
+# Platform-standard user-data locations for `engine.user_data_dir`.
+dirs = "6"
 
 [dev-dependencies]
 tempfile = "3"

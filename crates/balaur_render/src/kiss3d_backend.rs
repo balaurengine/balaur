@@ -15,7 +15,7 @@ use kiss3d::prelude::*;
 use crate::{
     AppIconConfig, CameraConfig, CameraConfig2d, CameraInputConfig, ClearColorConfig,
     DebugLineBuffer, DebugLineBuffer2d, GridConfig, Renderable, Renderable2d, ScreenshotRequest,
-    Shape, Shape2d, ViewportSnapshot, ViewportSnapshot2d, WindowedBackend,
+    Shape, Shape2d, ViewportSnapshot, ViewportSnapshot2d, WindowConfig, WindowedBackend,
 };
 
 struct Slot {
@@ -63,6 +63,7 @@ pub fn run_windowed(mut app: App, title: &str) -> anyhow::Result<()> {
             apply_camera(&app, &mut camera);
             apply_camera_2d(&app, &mut camera_2d, &window);
             apply_app_icon(&app);
+            apply_window_config(&app, &window);
             publish_camera(&app, &camera, &window);
             publish_camera_2d(&app, &camera_2d, &window);
             apply_clear_color(&app, &mut window);
@@ -227,6 +228,21 @@ fn flush_debug_lines(app: &App, window: &mut Window) {
     }
 }
 
+/// Apply fullscreen and cursor state scripts asked for since the last frame.
+fn apply_window_config(app: &App, window: &Window) {
+    let Some(config) = app.engine.try_resource::<WindowConfig>() else {
+        return;
+    };
+    let mut config = config.borrow_mut();
+    if !config.changed {
+        return;
+    }
+    config.changed = false;
+    window.set_fullscreen(config.fullscreen);
+    window.set_cursor_grab(config.cursor_grabbed);
+    window.hide_cursor(config.cursor_hidden);
+}
+
 /// Apply a requested dock/application icon (macOS only for now).
 fn apply_app_icon(app: &App) {
     let Some(icon) = app.engine.try_resource::<AppIconConfig>() else {
@@ -386,9 +402,21 @@ fn pump_input(app: &App, window: &Window) {
             }
             WindowEvent::CursorPos(x, y, _) => input.set_mouse_pos(x as f32, y as f32),
             WindowEvent::Scroll(dx, dy, _) => input.add_scroll(dx as f32, dy as f32),
+            WindowEvent::Touch(id, x, y, action, _) => {
+                let phase = match action {
+                    TouchAction::Start => balaur_input::TouchPhase::Start,
+                    TouchAction::Move => balaur_input::TouchPhase::Move,
+                    TouchAction::End => balaur_input::TouchPhase::End,
+                    TouchAction::Cancel => balaur_input::TouchPhase::Cancel,
+                };
+                input.touch_event(id, x as f32, y as f32, phase);
+            }
             WindowEvent::Close => app.engine.request_quit(),
             _ => {}
         }
+    }
+    for path in window.dropped_files() {
+        input.file_drop_event(path.to_string_lossy().into_owned());
     }
 }
 
