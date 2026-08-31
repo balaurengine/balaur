@@ -2,21 +2,36 @@
 //! languages, through `balaur::standard_app` — the same wiring a shipped
 //! game boots.
 //!
-//! Scripts report through `log.info`, so one helper serves both languages:
-//! run the app until the expected marker (or any error) shows up in the log.
+//! One app boot per language, covering the callback path, the await path and
+//! a websocket round trip in a single script — booting an app dominates the
+//! cost, so scenarios share one.
 
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::time::{Duration, Instant};
 
 use balaur::{standard_app, AppConfig};
+
+/// These tests boot full apps and speak real sockets: CI's job. A plain
+/// local `cargo test` skips them so iteration stays fast; `BALAUR_E2E=1`
+/// (what `scripts/e2e_tests.sh` and CI set) runs them.
+fn e2e_enabled() -> bool {
+    if std::env::var_os("BALAUR_E2E").is_some() {
+        return true;
+    }
+    eprintln!("skipped: e2e suite; run scripts/e2e_tests.sh or set BALAUR_E2E=1");
+    false
+}
 
 /// The log buffer is global and tests run in parallel, so one test's lines
 /// would surface in another's assertions.
 static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-/// Boot a one-node project whose script is `source`, then tick until the log
-/// contains `marker`. Panics on any logged error or on timeout.
-fn run_until(script_name: &str, language: &str, source: &str, marker: &str) {
+/// Boot a one-node project whose script is `source`, then tick until every
+/// marker shows up in the log. No sleeps: ticking full-tilt costs little and
+/// the sockets answer in milliseconds. Panics on any logged error or on the
+/// deadline.
+fn run_until(script_name: &str, language: &str, source: &str, markers: &[&str]) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -38,7 +53,8 @@ fn run_until(script_name: &str, language: &str, source: &str, marker: &str) {
     balaur_core::logbuf::clear();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
-    for _ in 0..1000 {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while Instant::now() < deadline {
         app.tick(1.0 / 60.0);
         let recent = balaur_core::logbuf::recent(50);
         let errors: Vec<_> = recent
@@ -46,12 +62,14 @@ fn run_until(script_name: &str, language: &str, source: &str, marker: &str) {
             .filter(|e| e.level.eq_ignore_ascii_case("error"))
             .collect();
         assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
-        if recent.iter().any(|e| e.message.contains(marker)) {
+        if markers
+            .iter()
+            .all(|m| recent.iter().any(|e| e.message.contains(m)))
+        {
             return;
         }
-        std::thread::sleep(std::time::Duration::from_millis(5));
     }
-    panic!("the script never logged `{marker}`");
+    panic!("the script never logged all of {markers:?}");
 }
 
 /// Serve one canned HTTP/1.1 response on a fresh port, returning the url.
@@ -93,33 +111,26 @@ fn serve_echo() -> String {
 }
 
 #[test]
-fn a_lua_script_fetches_over_http() {
-    let url = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nhello");
+fn a_lua_script_fetches_awaits_and_echoes() {
+    if !e2e_enabled() {
+        return;
+    }
+    let awaited = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nquail");
+    let handled = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nhello");
+    let echo = serve_echo();
     let source = format!(
         r#"
 local S = {{}}
 function S:init()
-    self.request = http.request(self.node, "{url}", {{ on_response = "on_login" }})
+    local r = await(http.request("{awaited}"))
+    log.info("lua-await " .. r.status .. " " .. r.body)
+    self.request = http.request(self.node, "{handled}", {{ on_response = "on_login" }})
+    self.socket = websocket.connect(self.node, "{echo}")
 end
 function S:on_login(r)
     if r.request == self.request then
         log.info("lua-http " .. r.status .. " " .. r.body)
     end
-end
-return S
-"#
-    );
-    run_until("s.luau", "luau", &source, "lua-http 200 hello");
-}
-
-#[test]
-fn a_lua_script_talks_over_a_websocket() {
-    let url = serve_echo();
-    let source = format!(
-        r#"
-local S = {{}}
-function S:init()
-    self.socket = websocket.connect(self.node, "{url}")
 end
 function S:on_websocket_event(e)
     if e.kind == "open" then
@@ -134,65 +145,40 @@ end
 return S
 "#
     );
-    run_until("s.luau", "luau", &source, "lua-websocket-closed");
-}
-
-#[test]
-fn a_lua_script_awaits_a_fetch() {
-    let url = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nquail");
-    let source = format!(
-        r#"
-local S = {{}}
-function S:init()
-    local r = await(http.request("{url}"))
-    log.info("lua-await " .. r.status .. " " .. r.body)
-end
-return S
-"#
+    run_until(
+        "s.luau",
+        "luau",
+        &source,
+        &[
+            "lua-await 200 quail",
+            "lua-http 200 hello",
+            "lua-websocket ping",
+            "lua-websocket-closed",
+        ],
     );
-    run_until("s.luau", "luau", &source, "lua-await 200 quail");
 }
 
 #[test]
-fn a_rune_script_awaits_a_fetch() {
-    let url = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nraven");
+fn a_rune_script_fetches_awaits_and_echoes() {
+    if !e2e_enabled() {
+        return;
+    }
+    let awaited = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nraven");
+    let handled = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nrhino");
+    let echo = serve_echo();
     let source = format!(
         r#"
 pub async fn init(this) {{
-    let r = task::wait(http::request("{url}")).await;
+    let r = task::wait(http::request("{awaited}")).await;
     log::info(`rune-await ${{r["status"]}} ${{r["body"]}}`);
-}}
-"#
-    );
-    run_until("s.rn", "rune", &source, "rune-await 200 raven");
-}
-
-#[test]
-fn a_rune_script_fetches_over_http() {
-    let url = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nrhino");
-    let source = format!(
-        r#"
-pub fn init(this) {{
-    this.request = http::request(this.node, "{url}");
+    this.request = http::request(this.node, "{handled}");
+    this.socket = websocket::connect(this.node, "{echo}");
 }}
 
 pub fn on_response(this, r) {{
     if r["request"] == this.request {{
         log::info(`rune-http ${{r["status"]}} ${{r["body"]}}`);
     }}
-}}
-"#
-    );
-    run_until("s.rn", "rune", &source, "rune-http 200 rhino");
-}
-
-#[test]
-fn a_rune_script_talks_over_a_websocket() {
-    let url = serve_echo();
-    let source = format!(
-        r#"
-pub fn init(this) {{
-    this.socket = websocket::connect(this.node, "{url}");
 }}
 
 pub fn on_websocket_event(this, e) {{
@@ -207,5 +193,15 @@ pub fn on_websocket_event(this, e) {{
 }}
 "#
     );
-    run_until("s.rn", "rune", &source, "rune-websocket-closed");
+    run_until(
+        "s.rn",
+        "rune",
+        &source,
+        &[
+            "rune-await 200 raven",
+            "rune-http 200 rhino",
+            "rune-websocket ping",
+            "rune-websocket-closed",
+        ],
+    );
 }

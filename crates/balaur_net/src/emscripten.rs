@@ -150,7 +150,10 @@ extern "C" fn ws_opened(user: *mut c_void) {
 extern "C" fn ws_received(user: *mut c_void, data: *const c_char, len: c_int, is_text: c_int) {
     let state = unsafe { &*user.cast::<SocketState>() };
     if is_text == 0 {
-        tracing::warn!("websocket {}: binary frame dropped (text only)", state.socket);
+        tracing::warn!(
+            "websocket {}: binary frame dropped (text only)",
+            state.socket
+        );
         return;
     }
     let bytes = if data.is_null() || len <= 0 {

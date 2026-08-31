@@ -16,6 +16,17 @@ use serde_json::{json, Value};
 /// would surface in another's assertions.
 static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+/// These tests boot full apps and speak real sockets: CI's job. A plain
+/// local `cargo test` skips them so iteration stays fast; `BALAUR_E2E=1`
+/// (what `scripts/e2e_tests.sh` and CI set) runs them.
+fn e2e_enabled() -> bool {
+    if std::env::var_os("BALAUR_E2E").is_some() {
+        return true;
+    }
+    eprintln!("skipped: e2e suite; run scripts/e2e_tests.sh or set BALAUR_E2E=1");
+    false
+}
+
 /// Boot a one-node project whose script is `source`, then tick until the log
 /// contains `marker`. Panics on any logged error or on timeout.
 fn run_until(script_name: &str, language: &str, source: &str, marker: &str) {
@@ -40,7 +51,8 @@ fn run_until(script_name: &str, language: &str, source: &str, marker: &str) {
     balaur_core::logbuf::clear();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
-    for _ in 0..2000 {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while std::time::Instant::now() < deadline {
         app.tick(1.0 / 60.0);
         let recent = balaur_core::logbuf::recent(50);
         let errors: Vec<_> = recent
@@ -51,7 +63,6 @@ fn run_until(script_name: &str, language: &str, source: &str, marker: &str) {
         if recent.iter().any(|e| e.message.contains(marker)) {
             return;
         }
-        std::thread::sleep(std::time::Duration::from_millis(5));
     }
     panic!("the script never logged `{marker}`");
 }
@@ -147,7 +158,10 @@ fn serve_socket(stream: TcpStream) {
 }
 
 #[test]
-fn a_lua_script_logs_in_and_calls_a_hook() {
+fn a_lua_script_logs_in_calls_a_hook_and_rests() {
+    if !e2e_enabled() {
+        return;
+    }
     let url = serve_gamend();
     let source = format!(
         r#"
@@ -156,6 +170,8 @@ function S:init()
     gamend.configure("{url}")
     local login = await(gamend.login({{ device_id = "dev-1" }}))
     log.info("gamend-login " .. login.username)
+    local r = await(gamend.rest(nil, "GET", "/api/v1/ping"))
+    log.info("gamend-rest " .. r.status .. " " .. tostring(r.body.data.pong))
     self.socket = gamend.connect(self.node)
 end
 function S:on_gamend_event(e)
@@ -171,25 +187,10 @@ return S
 }
 
 #[test]
-fn a_lua_script_awaits_a_rest_call() {
-    let url = serve_gamend();
-    let source = format!(
-        r#"
-local S = {{}}
-function S:init()
-    gamend.configure("{url}")
-    await(gamend.login({{ device_id = "dev-2" }}))
-    local r = await(gamend.rest(nil, "GET", "/api/v1/ping"))
-    log.info("gamend-rest " .. r.status .. " " .. tostring(r.body.data.pong))
-end
-return S
-"#
-    );
-    run_until("s.luau", "luau", &source, "gamend-rest 200 true");
-}
-
-#[test]
 fn a_rune_script_logs_in_and_calls_a_hook() {
+    if !e2e_enabled() {
+        return;
+    }
     let url = serve_gamend();
     let source = format!(
         r#"

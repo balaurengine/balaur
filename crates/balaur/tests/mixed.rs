@@ -6,6 +6,17 @@ use balaur::{standard_app, AppConfig};
 
 static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+/// These tests boot full apps: CI's job. A plain local `cargo test` skips
+/// them so iteration stays fast; `BALAUR_E2E=1` (what `scripts/e2e_tests.sh`
+/// and CI set) runs them.
+fn e2e_enabled() -> bool {
+    if std::env::var_os("BALAUR_E2E").is_some() {
+        return true;
+    }
+    eprintln!("skipped: e2e suite; run scripts/e2e_tests.sh or set BALAUR_E2E=1");
+    false
+}
+
 /// Boot a mixed project from `files`, tick until every `markers` entry shows
 /// up in the log. Panics on any logged error or on timeout.
 fn run_until(files: &[(&str, &str)], markers: &[&str]) {
@@ -27,7 +38,8 @@ fn run_until(files: &[(&str, &str)], markers: &[&str]) {
     balaur_core::logbuf::clear();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
-    for _ in 0..400 {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while std::time::Instant::now() < deadline {
         app.tick(1.0 / 60.0);
         let recent = balaur_core::logbuf::recent(50);
         let errors: Vec<_> = recent
@@ -47,6 +59,9 @@ fn run_until(files: &[(&str, &str)], markers: &[&str]) {
 
 #[test]
 fn lua_and_rune_scripts_call_each_other_in_one_scene() {
+    if !e2e_enabled() {
+        return;
+    }
     run_until(
         &[
             (
