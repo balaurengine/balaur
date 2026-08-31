@@ -15,6 +15,8 @@ default = ["audio", "net"]
 window = ["balaur/window"]
 # Sound. Off, the build drops rodio, cpal and the platform audio stack.
 audio = ["balaur/audio"]
+# Load extensions from a project's extensions/ directory.
+extensions = ["balaur/extensions"]
 # `http.*` and `websocket.*` for scripts. Off, the build drops ureq,
 # tungstenite and the TLS stack.
 net = ["balaur/net"]

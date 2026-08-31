@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = ["crates/*", "examples/extension_greeter"]
 
 [workspace.package]
 version = "0.1.0"

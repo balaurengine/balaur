@@ -6,13 +6,21 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+default = []
+# Load extensions from shared libraries at run time.
+dylib = ["dep:libloading"]
+
 [dependencies]
 balaur_core.workspace = true
 balaur_script.workspace = true
 anyhow.workspace = true
+libloading = { version = "0.8", optional = true }
 
 [dev-dependencies]
 balaur_script.workspace = true
+balaur_script_luau.workspace = true
+tempfile = "3"
 
 [lints]
 workspace = true

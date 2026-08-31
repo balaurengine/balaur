@@ -1,0 +1,15 @@
+[package]
+name = "extension_greeter"
+description = "An extension built outside the engine, loaded at run time"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+balaur_plugin = { path = "../../crates/balaur_plugin" }
+balaur_core = { path = "../../crates/balaur_core" }
+balaur_script = { path = "../../crates/balaur_script" }
+anyhow = "1"

@@ -14,7 +14,7 @@ pub const REGISTRY_ABI: u32 = 1;
 /// identical compiler and flags on both sides, and a mismatch is undefined
 /// behaviour rather than a clean error. So the check happens before the call,
 /// not after the crash.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Fingerprint {
     pub rustc: String,
     pub engine: String,
@@ -75,7 +75,7 @@ fn rustc_version() -> &'static str {
 }
 
 /// Who a plugin is, and what it needs loaded before it.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Manifest {
     pub name: String,
     pub version: String,

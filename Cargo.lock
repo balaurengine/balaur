@@ -361,6 +361,7 @@ dependencies = [
  "balaur_ui",
  "tempfile",
  "toml",
+ "tracing",
 ]
 
 [[package]]
@@ -486,6 +487,9 @@ dependencies = [
  "anyhow",
  "balaur_core",
  "balaur_script",
+ "balaur_script_luau",
+ "libloading",
+ "tempfile",
 ]
 
 [[package]]
@@ -1435,6 +1439,16 @@ name = "extended"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af9673d8203fcb076b19dfd17e38b3d4ae9f44959416ea532ce72415a6020365"
+
+[[package]]
+name = "extension_greeter"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "balaur_core",
+ "balaur_plugin",
+ "balaur_script",
+]
 
 [[package]]
 name = "fastrand"

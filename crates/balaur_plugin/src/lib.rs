@@ -4,9 +4,15 @@
 //! **extension** is the same trait built as a dylib and loaded at run time.
 //! One trait, so the same source ships either way.
 
+mod dylib;
+#[cfg(feature = "dylib")]
+mod loader;
 mod manifest;
 mod registry;
 
+pub use dylib::{library_suffix, AbiTag};
+#[cfg(feature = "dylib")]
+pub use loader::{load_extension, load_extensions_in, refuse_mismatch, Extension};
 pub use manifest::{Fingerprint, Manifest, ENGINE_VERSION, REGISTRY_ABI};
 pub use registry::Registry;
 

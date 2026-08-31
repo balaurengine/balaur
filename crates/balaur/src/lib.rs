@@ -102,8 +102,40 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     #[cfg(feature = "net")]
     balaur_plugin::load(&mut app, &mut NetPlugin::default())?;
     app.add_plugin(UiPlugin)?;
+    #[cfg(feature = "extensions")]
+    load_project_extensions(&mut app)?;
     Ok(app)
 }
+
+/// Load every extension in the project's `extensions/` directory.
+///
+/// # Errors
+/// If a library fails to load, disagrees about the build, or requires
+/// something absent.
+#[cfg(feature = "extensions")]
+fn load_project_extensions(app: &mut App) -> Result<()> {
+    let dir = app.project_root().join("extensions");
+    // Safety: opening a library runs its initialisers, and the fingerprint
+    // check inside refuses a build that cannot share this process.
+    let mut loaded = unsafe { balaur_plugin::load_extensions_in(&dir) }?;
+    for extension in &mut loaded {
+        let name = extension.manifest().name.clone();
+        balaur_plugin::load(app, extension.plugin_mut())
+            .with_context(|| format!("extension `{name}`"))?;
+        tracing::info!(extension = %name, "loaded");
+    }
+    // The libraries have to outlive every plugin they produced.
+    app.engine.insert_resource(LoadedExtensions(loaded));
+    Ok(())
+}
+
+/// Keeps the shared libraries mapped for as long as the app runs. Unloading
+/// one while its code is still reachable would leave a dangling vtable.
+#[cfg(feature = "extensions")]
+struct LoadedExtensions(
+    #[allow(dead_code, reason = "held only to keep the libraries mapped")]
+    Vec<balaur_plugin::Extension>,
+);
 
 /// Run the app with the best available frontend: a kiss3d window when the
 /// `window` feature is enabled, the headless fixed-rate loop otherwise.

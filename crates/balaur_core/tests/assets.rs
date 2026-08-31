@@ -397,7 +397,7 @@ impl balaur_script::ScriptHost<Engine> for PackedHost {
     fn reload(&self, _: &str) -> anyhow::Result<()> {
         Ok(())
     }
-    fn call_on(&self, _: balaur_script::NodeId, _: &str) {}
+    fn call_on(&self, _: balaur_script::NodeId, _: &str, _: &[balaur_script::Value]) {}
     fn call_all(&self, _: &str) {}
     fn scene_source(&self, rel: &str) -> Option<String> {
         self.pack.scenes.get(rel).cloned()
@@ -539,8 +539,6 @@ fn an_entry_an_inline_definition_does_not_have_says_so() {
     assert!(message.contains(&missing), "unhelpful: {message}");
     assert!(message.contains("low"), "unhelpful: {message}");
 }
-
-// ---- saving, and noticing that a save happened ------------------------
 
 /// The editor's write-back path: a tool edits a definition table and puts it
 /// back where it came from, without knowing how the file is encoded.

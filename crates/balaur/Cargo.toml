@@ -12,6 +12,8 @@ default = ["audio", "net"]
 window = ["balaur_render/kiss3d"]
 # Sound. Off, a build drops rodio, cpal and the platform audio stack.
 audio = ["dep:balaur_audio"]
+# Load extensions from a project's extensions/ directory at run time.
+extensions = ["balaur_plugin/dylib"]
 # `http.*` and `websocket.*` for scripts. Off, a build drops ureq,
 # tungstenite and the TLS stack.
 net = ["dep:balaur_net"]
@@ -29,6 +31,7 @@ balaur_input.workspace = true
 balaur_net = { workspace = true, optional = true }
 balaur_ui.workspace = true
 anyhow.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
