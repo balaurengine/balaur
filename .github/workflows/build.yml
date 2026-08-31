@@ -78,14 +78,16 @@ jobs:
             target: aarch64-apple-ios
             host: macos-latest
             optional: false
-          # crates/balaur_android defines `android_main` and the staged layout
-          # is what an APK expects, so what ships is an unassembled skeleton:
-          # turning it into an installable app needs aapt2 and a keystore that
-          # belongs to whoever ships the game.
+          # crates/balaur_android defines `android_main`, and the script both
+          # stages the APK layout (for games to assemble with their own
+          # keystore) and assembles a debug-signed APK from it with the
+          # runner's SDK build-tools, so the shipped template is installable
+          # with nothing but `adb install`. The debug keystore is Android's
+          # try-it identity, not a shipping credential.
           - platform: android
             target: aarch64-linux-android
             host: ubuntu-latest
-            optional: true
+            optional: false
           - platform: web
             target: wasm32-unknown-emscripten
             host: ubuntu-latest
