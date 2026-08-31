@@ -438,11 +438,24 @@ fn log_recent(_: &Engine, args: &[Value]) -> Result<Value> {
         crate::logbuf::recent(n)
             .into_iter()
             .map(|e| {
+                // The structured fields ride along: a viewer that drops them
+                // shows a message the event deliberately did not put there.
+                let fields = e
+                    .fields
+                    .iter()
+                    .map(|(name, value)| {
+                        Value::Map(vec![
+                            ("name".into(), Value::Str(name.clone())),
+                            ("value".into(), Value::Str(value.clone())),
+                        ])
+                    })
+                    .collect();
                 Value::Map(vec![
                     ("time".into(), Value::Num(e.time)),
                     ("level".into(), Value::Str(e.level.clone())),
                     ("tag".into(), Value::Str(e.tag.clone())),
                     ("message".into(), Value::Str(e.message.clone())),
+                    ("fields".into(), Value::List(fields)),
                 ])
             })
             .collect(),

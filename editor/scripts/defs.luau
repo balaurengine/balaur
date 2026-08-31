@@ -9,27 +9,23 @@ M.personas = {
     { id = "ui", name = "Interface", icon = "▤" },
 }
 
+-- Only tools something reads: a button that sets `S.tool` and is then ignored
+-- advertises an editor that does not exist. Re-add each on its `gizmo` handler.
 M.tools = {
-    scene = { "select", "move", "rotate", "scale", "rect", "tile", "zoom" },
-    script = { "select", "code", "link", "eye", "zoom" },
-    anim = { "select", "move", "bone", "key", "zoom" },
-    phys = { "select", "collide", "poly", "body", "zoom" },
-    ui = { "select", "layout", "anchor", "rect", "zoom" },
+    scene = { "select", "move", "rotate", "scale", "zoom" },
+    script = {},
+    anim = { "select", "move", "key", "zoom" },
+    phys = { "select", "move", "zoom" },
+    ui = { "select", "move", "zoom" },
 }
 
 M.tool_names = {
     select = "Select", move = "Translate", rotate = "Rotate", scale = "Scale",
-    rect = "Draw shape", tile = "Paint tiles", zoom = "Zoom",
-    code = "Edit script", link = "Bind event", eye = "Watch value",
-    bone = "Rig bone", key = "Key frame", collide = "Collider",
-    poly = "Polygon", body = "Body type", layout = "Container", anchor = "Anchors",
+    zoom = "Zoom", key = "Key frame",
 }
 
 M.tool_icons = {
-    select = "⌖", move = "✥", rotate = "⟳", scale = "⤢", rect = "▭",
-    tile = "▦", zoom = "⌕", code = "✎", link = "⚯", eye = "◉",
-    bone = "⌇", key = "◆", collide = "▣", poly = "⬠", body = "●",
-    layout = "▢", anchor = "⚓",
+    select = "⌖", move = "✥", rotate = "⟳", scale = "⤢", zoom = "⌕", key = "◆",
 }
 
 -- Viewport overlay chips per persona: { key, label, default_on }. A chip that
@@ -37,7 +33,7 @@ M.tool_icons = {
 M.chips = {
     scene = { { "proj", "3D · Perspective", true }, { "snap", "Snap 8 px", false }, { "guides", "Guides", false } },
     script = {},
-    anim = { { "onion", "Onion skin", true }, { "snap", "Snap 8 px", false } },
+    anim = { { "path", "Motion path", true }, { "snap", "Snap 8 px", false } },
     phys = { { "colliders", "Show colliders", true }, { "sleep", "Sleep bodies" } },
     ui = { { "safe", "Safe area", true }, { "res", "1920 × 1080", false } },
 }

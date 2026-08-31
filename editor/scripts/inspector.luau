@@ -1,7 +1,6 @@
 -- Inspector (308 px): live node properties, editable, per-persona sections.
 local theme = require("scripts/theme")
 local model = require("scripts/model")
-local highlight = require("scripts/highlight")
 local animlib = require("scripts/anim")
 
 local M = {}
@@ -202,8 +201,10 @@ local function animation_section(S, k)
     local comp = animlib.component(node)
     row(k, "Clip", function()
         local id = `clipname:{S.sel}`
-        local text, _, submitted = ui.text_field(id, animlib.clip_name(node), {
-            size = 12, width = CONTROL_W, color = k.text,
+        local text, _, submitted = ui.text_field(id, "unnamed", {
+            value = animlib.clip_name(node),
+            size = 11.5, font = "mono", width = CONTROL_W, height = 28,
+            fill = k.sunken, stroke = k.line_soft, color = k.text,
         })
         if submitted then
             -- The name is `autoplay`: what the scene starts is what the
@@ -255,11 +256,7 @@ end
 local function interface_section(S, k)
     local node = model.selected(S)
     section(k, "Interface")
-    local draws = false
-    if node.script ~= nil then
-        local src = fs.read(S.game_root .. "/" .. node.script) or ""
-        draws = string.find(src, "draw_ui", 1, true) ~= nil
-    end
+    local draws = model.draws_ui(S, node)
     row(k, "Draws UI", function()
         ui.label(if draws then "yes · draw_ui()" else "no", { size = 11.5, font = "mono", color = if draws then k.sage else k.faint })
     end)
@@ -401,8 +398,10 @@ local function prop_row(S, k, comp, prop, spec, data)
             else
                 local id = `asset:{comp}:{prop}:{S.sel}`
                 local width = if dir == "" then CONTROL_W else CONTROL_W - 78
-                local text, _, submitted = ui.text_field(id, reference, {
-                    size = 12, width = width, color = k.text,
+                local text, _, submitted = ui.text_field(id, "— none —", {
+                    value = reference,
+                    size = 11.5, font = "mono", width = width, height = 28,
+                    fill = k.sunken, stroke = k.line_soft, color = k.text,
                 })
                 if submitted then
                     model.set_component_prop(S, comp, prop, text)
@@ -431,8 +430,10 @@ local function prop_row(S, k, comp, prop, spec, data)
     else -- string
         row(k, prop, function()
             local id = `comp:{comp}:{prop}:{S.sel}`
-            local text, _, submitted = ui.text_field(id, tostring(value or ""), {
-                size = 12, width = CONTROL_W, color = k.text,
+            local text, _, submitted = ui.text_field(id, "— empty —", {
+                value = tostring(value or ""),
+                size = 11.5, font = "mono", width = CONTROL_W, height = 28,
+                fill = k.sunken, stroke = k.line_soft, color = k.text,
             })
             if submitted then
                 model.set_component_prop(S, comp, prop, text)
@@ -523,9 +524,7 @@ local function events_section(S, k)
         end)
         return
     end
-    local src = fs.read(S.game_root .. "/" .. node.script) or ""
-    local _, hooks = highlight.analyze(src)
-    for _, hook in hooks do
+    for _, hook in model.hooks(S, node.script) do
         ui.horizontal({ height = 30 }, function()
             ui.add_space(8)
             ui.frame({ fill = k.sunken, radius = 15, padding_x = 11 }, function()

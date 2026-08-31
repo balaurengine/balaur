@@ -7,6 +7,18 @@ local highlight = require("scripts/highlight")
 
 local M = {}
 
+-- The viewport's design-px rect, published on `S` for the gizmo, the widget
+-- layer and the overlay: three readers, one derivation, computed where layout is.
+local function viewport_rect(S)
+    local sw, sh = S.screen_w or 1280, S.screen_h or 800
+    local dock_h = if S.dock == "timeline" then 212 else 150
+    local rail_w = if S.rail_visible then 46 else 0
+    return {
+        x = 262 + rail_w, y = 56 + 38,
+        w = sw - 308 - 262 - rail_w, h = sh - 28 - dock_h - 56 - 38,
+    }
+end
+
 local function rail(S, k)
     ui.left_panel("rail", { width = 46, fill = k.bg, padding_y = 8 }, function()
         ui.vertical(function()
@@ -102,9 +114,14 @@ local function chip(S, k, key, label, default_on)
 end
 
 local function viewport(S, k)
-    ui.central_panel({ transparent = true, padding_x = 12, padding_y = 12 }, function()
-        local vw = ui.available_width()
-        local vh = ui.available_height()
+    -- The central panel is a transparent hole for the 3D scene; the chrome on
+    -- top of it goes in the overlay layer, which is the only thing that draws
+    -- above a previewed widget (panels all share egui's background layer).
+    ui.central_panel({ transparent = true }, function() end)
+    local vp = S.viewport
+    ui.overlay("viewport", { x = vp.x + 12, y = vp.y + 12, w = vp.w - 24, h = vp.h - 24 }, function()
+        local vw = vp.w - 24
+        local vh = vp.h - 24
         -- Interface persona overlays: safe-area inset and 16:9 frame.
         local chips_ui = S.chip_state[S.persona] or {}
         if S.persona == "ui" and chips_ui.safe ~= false then
@@ -171,14 +188,20 @@ local function script_editor(S, k)
             return
         end
         local path = S.game_root .. "/" .. node.script
-        local src = fs.read(path)
+        local src = model.source(S, node.script)
         if src == nil then
             ui.label("missing file: " .. node.script, { size = 12, font = "mono", color = k.faint })
             return
         end
-        -- Hooks come from the live buffer, so they update while typing.
+        -- Hooks come from the live buffer, so they update while typing —
+        -- re-analysed only when that buffer actually changed.
         local current = S.script_buffers[path] or src
-        local _, hooks = highlight.analyze(current)
+        if S.hooks_src ~= current then
+            S.hooks_src = current
+            local _, parsed = highlight.analyze(current)
+            S.hooks_live = parsed
+        end
+        local hooks = S.hooks_live
         ui.right_panel("hooks", { width = 172, fill = k.panel, padding_x = 12 }, function()
             ui.add_space(11)
             ui.label("HOOKS IN FILE", { size = 10, font = "heading", strong = true, color = k.dim })
@@ -225,9 +248,7 @@ local function events_view(S, k)
         ui.add_space(8)
         for i, node in S.doc do
             if node.script ~= nil then
-                local src = fs.read(S.game_root .. "/" .. node.script) or ""
-                local _, hooks = highlight.analyze(src)
-                for _, hook in hooks do
+                for _, hook in model.hooks(S, node.script) do
                     ui.horizontal({ height = 30 }, function()
                         ui.frame({ fill = k.sunken, radius = 15, padding_x = 11 }, function()
                             ui.horizontal({ height = 30 }, function()
@@ -249,11 +270,19 @@ end
 
 function M.draw(S)
     local k = theme.current
-    rail(S, k)
+    local code = S.persona == "script" or S.doctab == "script"
+    local document = S.doctab == "events" or code
+    -- Viewport tools belong to the viewport: with a document open the rail is
+    -- 46 px of dead column, and the code editor is the panel starved for it.
+    S.rail_visible = not document and #defs.tools[S.persona] > 0
+    S.viewport = viewport_rect(S)
+    if S.rail_visible then
+        rail(S, k)
+    end
     doc_tabs(S, k)
     if S.doctab == "events" then
         events_view(S, k)
-    elseif S.persona == "script" or S.doctab == "script" then
+    elseif code then
         script_editor(S, k)
     else
         viewport(S, k)

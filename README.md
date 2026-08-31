@@ -194,16 +194,34 @@ balaur export my-game --target linux-x64     # or macos-universal, windows-x64
 
 The result is one executable. Templates are the engine binaries published with
 each release; the editor download ships with the one for its own platform in
-`templates/`, so exporting for your own machine works out of the box. To export
-for another platform, drop that platform's `balaur-runtime-*` into `templates/`
-(or point `BALAUR_TEMPLATES` at a directory of them), or pass `--template
-<file>` outright.
+`templates/`, so exporting for your own machine works out of the box. For
+another platform, `balaur export` offers to download the template from the
+engine's own release tag — verified against the release's `SHA256SUMS` — into
+the per-user cache (`<data dir>/balaur/templates/<version>`, never inside a
+project). `--download` skips the prompt, `--no-download` forbids it (CI), and
+the manual routes still work: drop a `balaur-runtime-*` into `templates/`,
+point `BALAUR_TEMPLATES` at a directory, or pass `--template <file>`.
 
 Fusing appends the pack to the binary and marks the end of the file; on startup
 the engine reads its own executable, finds the pack, and boots it instead of
 parsing a command line. Every desktop executable format ignores trailing bytes,
 so nothing about the binary breaks. It also means a fused macOS game is
 unsigned — appending invalidates a signature, so sign after exporting.
+
+Mobile is the same command but a different shape of output, because neither
+mobile OS runs a bare executable:
+
+```bash
+balaur export my-game --target ios       # -> my-game.app
+balaur export my-game --target android   # -> my-game-android/ (an APK layout)
+```
+
+There the pack rides inside the bundle as a resource — `game.bpak` beside the
+executable in an `.app`, `assets/game.bpak` in an APK — and the engine reads it
+from there instead of out of its own file. Both come out unsigned: signing
+needs a certificate or keystore that is yours, not the engine's.
+`scripts/assemble_apk.sh` shows the sequence that turns an Android layout into
+an installable APK.
 
 Without `--target`, `balaur export` still writes a plain `.bpak`, which is what
 you want for `balaur play game.bpak` or for embedding yourself:

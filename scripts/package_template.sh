@@ -97,34 +97,10 @@ MANIFEST
   (cd "$dist" && tar -czf balaur-template-android.tar.gz balaur-template-android)
 
   step "assemble (debug apk)"
-  # The skeleton assembled into an `adb install`-able APK, signed with the
-  # SDK's debug keystore (a shipped game uses its own). Hard-required: a
+  # The skeleton assembled into an `adb install`-able APK. Hard-required: a
   # silent skip would read as "template works" while shipping uninstallable.
-  sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}
-  bt=$(ls -d "$sdk"/build-tools/* 2>/dev/null | sort -V | tail -1 || true)
-  platform_jar=$(ls "$sdk"/platforms/*/android.jar 2>/dev/null | sort -V | tail -1 || true)
-  if [ -z "$bt" ] || [ -z "$platform_jar" ]; then
-    printf '::error::no Android build-tools/platform under %s\n' "$sdk"
-    exit 1
-  fi
-  keystore=${DEBUG_KEYSTORE:-$HOME/.android/debug.keystore}
-  if [ ! -f "$keystore" ]; then
-    mkdir -p "$(dirname "$keystore")"
-    keytool -genkeypair -keystore "$keystore" -storepass android -keypass android \
-      -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" \
-      -keyalg RSA -validity 10000
-  fi
-  apkdir="$dist/apk-work"
-  rm -rf "$apkdir"
-  mkdir -p "$apkdir"
-  "$bt/aapt2" link -o "$apkdir/base.apk" \
-    --manifest "$skeleton/AndroidManifest.xml" -I "$platform_jar"
-  (cd "$skeleton" && zip -q -u "$apkdir/base.apk" lib/arm64-v8a/libmain.so assets/README)
-  "$bt/zipalign" -f 4 "$apkdir/base.apk" "$apkdir/aligned.apk"
-  "$bt/apksigner" sign \
-    --ks "$keystore" --ks-pass pass:android --key-pass pass:android \
-    --out "$dist/balaur-template-debug.apk" "$apkdir/aligned.apk"
-  rm -rf "$apkdir" "$skeleton"
+  ./scripts/assemble_apk.sh "$skeleton" "$dist/balaur-template-debug.apk"
+  rm -rf "$skeleton"
   ;;
 
 web)

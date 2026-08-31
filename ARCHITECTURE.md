@@ -467,6 +467,15 @@ finding nothing means it is the CLI. One binary is therefore the editor, the
 CLI, and every game's runtime, which is why the release builds one artifact and
 ship it twice.
 
+Templates resolve from `BALAUR_TEMPLATES`, then `templates/` beside the
+executable (where the editor download ships its own platform's), then the
+per-user cache `<data dir>/balaur/templates/<version>`. A missing desktop
+template is offered for download into that cache from the engine's *own*
+version tag, verified against the release's `SHA256SUMS` — version-pinned
+because a pack must only ever meet the runtime its compiler shipped with. The
+prompt requires a terminal or `--download`, so CI never fetches by surprise;
+`--no-download` forbids it outright.
+
 The alternative — `include_bytes!` and a rebuild per game — needs Rust on the
 machine doing the shipping, which rules out anyone who downloaded the editor.
 That route still exists for people building their own binary.

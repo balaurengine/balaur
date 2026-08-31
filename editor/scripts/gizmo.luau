@@ -76,12 +76,14 @@ local function local_point(geo, ox, oy, oz)
     }
 end
 
--- The 3D viewport rectangle in design px (matches the panel layout).
--- Uses the screen size cached by draw_ui (ui.* is pass-scoped).
+-- The viewport rectangle in design px, published by `center.draw`. Update runs
+-- before the first draw, hence the one-frame fallback.
 function M.viewport_rect(S)
+    if S.viewport ~= nil then
+        return S.viewport
+    end
     local sw, sh = S.screen_w or 1280, S.screen_h or 800
-    local dock_h = if S.dock == "timeline" then 212 else 150
-    return { x = 262 + 46, y = 56 + 38, w = sw - 308 - 262 - 46, h = sh - 28 - dock_h - 56 - 38 }
+    return { x = 308, y = 94, w = sw - 616, h = sh - 272 }
 end
 
 -- Camera basis + world-units-per-design-px at the target's depth. The 3D

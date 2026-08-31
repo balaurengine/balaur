@@ -1,30 +1,50 @@
-# Exporting for mobile and web — what is missing
+# Exporting for mobile and web
 
-Status: **not started**. The release ships desktop templates only
-(`linux-x64`, `linux-arm64`, `macos-universal`, `windows-x64`), and
-`check-platforms` in `build.yml` compiles the engine for iOS, Android and
-emscripten without producing an artifact.
+Status: **mobile export works, unsigned.** `balaur export --target ios` writes
+an `.app` and `--target android` an APK layout, both carrying the pack as a
+bundle resource; `scripts/export_mobile.sh` proves the path in CI on every
+build. What is left is signing (which is the developer's, not CI's) and web.
 
-This is not a CI gap. Two things have to exist first, and neither is a
-workflow change.
+The reasoning below is kept because it is what shaped the design, and because
+the web half is still open.
 
-## 1. A window
+## 1. A window — cleared
 
-`balaur export --target <platform>` fuses a pack onto a runtime template, and a
-runtime template has to be able to render. kiss3d is desktop-bound: its `egui`
-feature pulls in `rfd`, which has no mobile backend, and behind that there is
-no UIKit or `android-activity` lifecycle at all. A phone build compiles the
-simulation and can step it — it cannot show it.
+This was the blocker: kiss3d was desktop-bound, its `egui` feature pulling in
+`rfd`, which has no mobile backend, and behind that no UIKit or
+`android-activity` lifecycle at all. A phone build compiled the simulation and
+could step it, but could not show it.
 
-Options, roughly in order of cost:
+The kiss3d patch closed both halves: `rfd` is cfg'd out on iOS and Android, and
+`winit`'s `android-native-activity` glue is in, with `kiss3d::window::init_android`
+taking the handle that `android_main` receives. `crates/balaur_android` is the
+entry point on this side.
 
-- **Patch kiss3d.** The workspace already patches it (`cmd-mod`), so cfg'ing
-  `rfd` out for mobile is reachable. That clears the first wall, not the
-  lifecycle one — winit supports both platforms, but kiss3d's own window setup
-  assumes it owns `main`, which is not how an iOS or Android app starts.
-- **A second render backend** behind a feature, the way `kiss3d` already is.
-  `balaur_render` was built for exactly this: the backend is optional and the
-  components are not. This is the honest long answer.
+Caveat worth keeping in view: compiling and rendering are different claims.
+Nothing in CI runs a frame on a real device or simulator — the export check
+stops at "a device would install this". First run on hardware is still ahead.
+
+## What CI checks, and what it cannot
+
+The desktop builds prove their template by exporting a game with it and running
+that game. Mobile cannot run one on a runner — that needs a device or a
+simulator — so `scripts/export_mobile.sh` proves everything up to the point a
+device takes over:
+
+- the export produces the bundle shape the OS installs
+- the pack is inside it where the engine looks for it (`game.bpak` beside the
+  executable on iOS, `assets/game.bpak` on Android)
+- the iOS executable was built *for iOS* — `file` cannot tell that from a host
+  binary, both being arm64 Mach-O, so the check reads the platform load command
+  with `vtool`
+- the Android layout assembles into a signed APK that still contains the pack
+
+Exporting is file work, so the host need not be the target; what has to be real
+is the template, which is why the job consumes the artifacts the template build
+uploaded rather than rebuilding them.
+
+What none of it proves is that a frame renders on a phone. That is the next
+thing, and it needs hardware.
 
 ## 2. A bundle, not a binary
 

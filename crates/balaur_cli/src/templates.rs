@@ -1,0 +1,234 @@
+//! The per-user template cache, and downloading a missing template into it.
+
+use std::path::PathBuf;
+
+/// Downloaded templates live per user, never inside a project:
+/// `<platform data dir>/balaur/templates/<engine version>`. Versioned because
+/// a template must match the engine that compiled the pack.
+#[cfg(not(target_family = "wasm"))]
+pub(crate) fn cache_dir() -> Option<PathBuf> {
+    dirs::data_dir().map(|d| {
+        d.join("balaur")
+            .join("templates")
+            .join(env!("CARGO_PKG_VERSION"))
+    })
+}
+
+#[cfg(target_family = "wasm")]
+pub(crate) fn cache_dir() -> Option<PathBuf> {
+    None
+}
+
+#[cfg(target_family = "wasm")]
+pub(crate) fn obtain(_target: &str, _assume_yes: bool) -> anyhow::Result<PathBuf> {
+    anyhow::bail!("template download is not available in this build")
+}
+
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use fetch::obtain;
+
+#[cfg(not(target_family = "wasm"))]
+mod fetch {
+    use std::io::{IsTerminal, Read, Write};
+    use std::path::{Path, PathBuf};
+
+    use anyhow::{bail, Context, Result};
+    use sha2::Digest;
+
+    const RELEASE_BASE: &str = "https://github.com/balaurengine/balaur/releases/download";
+
+    /// The engine's own version tag, so a pack only ever meets the runtime
+    /// its compiler shipped with. BALAUR_TEMPLATE_TAG overrides for nightlies.
+    fn release_tag() -> String {
+        std::env::var("BALAUR_TEMPLATE_TAG")
+            .unwrap_or_else(|_| concat!("v", env!("CARGO_PKG_VERSION")).to_string())
+    }
+
+    fn asset_name(target: &str) -> String {
+        if target.starts_with("windows-") {
+            format!("balaur-runtime-{target}.exe")
+        } else {
+            format!("balaur-runtime-{target}")
+        }
+    }
+
+    /// Download the template for `target` into the cache and return its path.
+    /// Asks first on a terminal; without one it refuses unless `assume_yes`
+    /// (`--download`), so CI never fetches by surprise.
+    pub(crate) fn obtain(target: &str, assume_yes: bool) -> Result<PathBuf> {
+        let name = asset_name(target);
+        let tag = release_tag();
+        let url = format!("{RELEASE_BASE}/{tag}/{name}");
+        let dir = super::cache_dir().context("no user data directory on this platform")?;
+        confirm(&name, &url, &dir, assume_yes)?;
+        std::fs::create_dir_all(&dir)?;
+        let expected = expected_sha256(&format!("{RELEASE_BASE}/{tag}/SHA256SUMS"), &name)?;
+        if expected.is_none() {
+            tracing::warn!("release {tag} publishes no SHA256SUMS; skipping verification");
+        }
+        let path = dir.join(&name);
+        download(&url, &path, expected.as_deref())?;
+        tracing::info!("downloaded {name} -> {}", path.display());
+        Ok(path)
+    }
+
+    fn confirm(name: &str, url: &str, dir: &Path, assume_yes: bool) -> Result<()> {
+        if assume_yes {
+            return Ok(());
+        }
+        if !std::io::stdin().is_terminal() {
+            bail!(
+                "template {name} is not installed; pass --download to fetch it \
+                 from {url} into {}",
+                dir.display()
+            );
+        }
+        eprint!(
+            "Template {name} is not installed. Download it from\n{url}\ninto {}? [y/N] ",
+            dir.display()
+        );
+        std::io::stderr().flush()?;
+        let mut answer = String::new();
+        std::io::stdin().read_line(&mut answer)?;
+        if !matches!(answer.trim(), "y" | "Y" | "yes") {
+            bail!("not downloading; install the template manually or pass --template <file>");
+        }
+        Ok(())
+    }
+
+    fn agent() -> ureq::Agent {
+        // A 404 needs its own message (no release for this tag), so statuses
+        // are handled here rather than surfacing as transport errors.
+        ureq::Agent::config_builder()
+            .http_status_as_error(false)
+            .build()
+            .into()
+    }
+
+    /// The hash for `name` out of the release's SHA256SUMS, or None when the
+    /// release predates checksums.
+    fn expected_sha256(sums_url: &str, name: &str) -> Result<Option<String>> {
+        let mut response = agent().get(sums_url).call()?;
+        if response.status().as_u16() == 404 {
+            return Ok(None);
+        }
+        if !response.status().is_success() {
+            bail!("fetching {sums_url}: HTTP {}", response.status());
+        }
+        let sums = response.body_mut().read_to_string()?;
+        Ok(sums.lines().find_map(|line| {
+            let mut parts = line.split_whitespace();
+            let hash = parts.next()?;
+            (parts.next()? == name).then(|| hash.to_ascii_lowercase())
+        }))
+    }
+
+    /// Stream `url` to `path`, verified against `expected` when given. The
+    /// bytes land in a sibling `.partial` first, so an interrupted or
+    /// rejected download never looks installed.
+    fn download(url: &str, path: &Path, expected: Option<&str>) -> Result<()> {
+        let mut response = agent().get(url).call()?;
+        if response.status().as_u16() == 404 {
+            bail!("{url} does not exist — is this engine version published as a release?");
+        }
+        if !response.status().is_success() {
+            bail!("fetching {url}: HTTP {}", response.status());
+        }
+        let partial = path.with_extension("partial");
+        let mut file = std::fs::File::create(&partial)
+            .with_context(|| format!("creating {}", partial.display()))?;
+        let mut reader = response.body_mut().as_reader();
+        let mut hasher = sha2::Sha256::new();
+        let mut buf = vec![0u8; 64 * 1024];
+        loop {
+            let n = reader.read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            hasher.update(&buf[..n]);
+            file.write_all(&buf[..n])?;
+        }
+        drop(file);
+        let got = format!("{:x}", hasher.finalize());
+        if let Some(expected) = expected {
+            if got != expected {
+                std::fs::remove_file(&partial).ok();
+                bail!("checksum mismatch for {url}: expected {expected}, got {got}");
+            }
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&partial, std::fs::Permissions::from_mode(0o755))?;
+        }
+        std::fs::rename(&partial, path)?;
+        Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use std::io::{Read, Write};
+
+        fn serve_once(body: &'static [u8]) -> String {
+            let listener =
+                std::net::TcpListener::bind("127.0.0.1:0").expect("an ephemeral local port binds");
+            let addr = listener
+                .local_addr()
+                .expect("a bound listener has an address");
+            std::thread::spawn(move || {
+                if let Ok((mut stream, _)) = listener.accept() {
+                    let mut buf = [0u8; 1024];
+                    let _ = stream.read(&mut buf);
+                    let head = format!(
+                        "HTTP/1.1 200 OK\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                        body.len()
+                    );
+                    let _ = stream.write_all(head.as_bytes());
+                    let _ = stream.write_all(body);
+                }
+            });
+            format!("http://{addr}/asset")
+        }
+
+        const HELLO_SHA256: &str =
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+
+        #[test]
+        fn a_windows_target_downloads_the_exe_asset() {
+            assert_eq!(
+                super::asset_name("windows-x64"),
+                "balaur-runtime-windows-x64.exe"
+            );
+            assert_eq!(super::asset_name("linux-x64"), "balaur-runtime-linux-x64");
+        }
+
+        #[test]
+        fn the_cache_is_versioned_by_the_engine_version() {
+            let dir = crate::templates::cache_dir().expect("desktop platforms have a data dir");
+            assert!(dir.ends_with(format!("balaur/templates/{}", env!("CARGO_PKG_VERSION"))));
+        }
+
+        #[test]
+        fn a_verified_download_lands_at_the_final_path() {
+            let dir = tempfile::tempdir().expect("a temp directory is creatable");
+            let path = dir.path().join("balaur-runtime-test");
+            super::download(&serve_once(b"hello"), &path, Some(HELLO_SHA256))
+                .expect("a matching checksum accepts the download");
+            let body = std::fs::read(&path).expect("the downloaded file is readable");
+            assert_eq!(body, b"hello");
+        }
+
+        #[test]
+        fn a_checksum_mismatch_rejects_the_download_and_leaves_no_file() {
+            let dir = tempfile::tempdir().expect("a temp directory is creatable");
+            let path = dir.path().join("balaur-runtime-test");
+            let Err(err) = super::download(&serve_once(b"tampered"), &path, Some(HELLO_SHA256))
+            else {
+                panic!("a wrong checksum must be rejected")
+            };
+            assert!(err.to_string().contains("checksum mismatch"), "{err}");
+            assert!(!path.exists());
+            assert!(!path.with_extension("partial").exists());
+        }
+    }
+}

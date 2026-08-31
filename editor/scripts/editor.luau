@@ -126,6 +126,7 @@ function Editor:init()
                 .. ":init()\nend\n\nfunction " .. node.name
                 .. ":update(dt)\nend\n\nreturn " .. node.name .. "\n")
         end
+        model.forget()
         node.script = path
         S.dirty = true
         log.info("attached " .. path)
@@ -271,6 +272,48 @@ local function draw_guides(S)
     render.draw_line(x, y, z - 4, x, y, z + 4, dr, dg, db, 1)
 end
 
+-- The selected clip's position keys, joined in order, with a marker on each
+-- (Motion path chip, anim persona). The chip used to toggle nothing at all.
+local function draw_motion_path(S)
+    local def = anim.definition(S)
+    if def == nil then
+        return
+    end
+    local keys
+    for _, track in anim.tracks(def) do
+        if (track.target or "") == "" and track.property == "position" then
+            keys = track.keys
+        end
+    end
+    if keys == nil or #keys < 1 then
+        return
+    end
+    local k = theme.current
+    local r, g, b = theme.hex_to_rgb(k.accent)
+    local is2d = model.is_2d(S)
+    local previous
+    for _, key in keys do
+        local v = key.value or { 0, 0, 0 }
+        local x, y, z = v[1] or 0, v[2] or 0, v[3] or 0
+        if previous ~= nil then
+            if is2d then
+                render.draw_line_2d(previous[1], previous[2], x, y, r, g, b, 1)
+            else
+                render.draw_line(previous[1], previous[2], previous[3], x, y, z, r, g, b, 1)
+            end
+        end
+        local d = 0.15
+        if is2d then
+            render.draw_line_2d(x - d, y, x + d, y, r, g, b, 2)
+            render.draw_line_2d(x, y - d, x, y + d, r, g, b, 2)
+        else
+            render.draw_line(x - d, y, z, x + d, y, z, r, g, b, 2)
+            render.draw_line(x, y - d, z, x, y + d, z, r, g, b, 2)
+        end
+        previous = { x, y, z }
+    end
+end
+
 -- 2D collider outlines (Show colliders chip, phys persona).
 local function draw_colliders2d(S)
     local k = theme.current
@@ -354,6 +397,10 @@ end
 
 function Editor:update(dt)
     local S = self.S
+    -- Smoothed frame rate for the status bar; a raw 1/dt reads as noise.
+    if dt > 0 then
+        S.fps = (S.fps or 1 / dt) * 0.9 + (1 / dt) * 0.1
+    end
     if S.refs ~= nil and S.refs[S.sel] == nil then
         -- Mirror was rebuilt last frame; re-resolve node handles.
         for i, node in S.doc do
@@ -385,6 +432,9 @@ function Editor:update(dt)
     if S.persona == "scene" and chips.guides then
         draw_guides(S)
     end
+    if S.persona == "anim" and chips.path ~= false then
+        draw_motion_path(S)
+    end
     if S.persona == "phys" and chips.colliders ~= false then
         if S.mode2d then
             draw_colliders2d(S)
@@ -404,6 +454,7 @@ local function save_active(S)
         local buffer = S.script_buffers[abs]
         if buffer ~= nil then
             fs.write(abs, buffer)
+            model.forget(node.script)
             S.script_dirty[abs] = nil
             -- Reload only matters when the script is live (playing); outside
             -- of that it was never loaded, which is fine.

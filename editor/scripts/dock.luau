@@ -20,13 +20,47 @@ local function tab_row(S, k)
                 S.dock = tab
             end
         end
-        if not S.compact then
+        -- Output owns the right side of its own tab row: filter, search and
+        -- clear are the controls a log is unusable without.
+        if S.dock == "output" then
+            ui.right(function()
+                ui.add_space(8)
+                if ui.pill("clear", {
+                    height = 22, size = 11, strong = true, tooltip = "Empty the log buffer",
+                    fill = k.sunken, color = k.dim,
+                }) then
+                    log.clear()
+                end
+                for _, level in { "error", "warn", "all" } do
+                    local active = (S.log_level or "all") == level
+                    if ui.pill(level, {
+                        height = 22, size = 11, strong = true,
+                        tooltip = `Show {level} and above`,
+                        fill = if active then k.accent_soft else k.sunken,
+                        color = if active then k.accent else k.dim,
+                    }) then
+                        S.log_level = level
+                    end
+                end
+                if S.compact then
+                    -- No field on screen, so no invisible filter hiding rows.
+                    S.log_query = ""
+                else
+                    S.log_query = ui.text_field("log-search", "filter…", {
+                        size = 11, font = "mono", width = 130, height = 22,
+                        fill = k.sunken, stroke = k.line_soft, color = k.text,
+                    })
+                end
+            end)
+        elseif not S.compact then
             ui.right(function()
                 ui.add_space(8)
                 local hint
                 if S.dock == "assets" then
-                    hint = S.game_root
-                elseif S.dock == "timeline" then
+                    -- A project-relative path: the absolute one is this
+                    -- machine's, and lands in every screenshot.
+                    hint = `res:// · {S.game_name}`
+                else
                     local node = model.selected(S)
                     local def = animlib.definition(S)
                     if def == nil then
@@ -38,8 +72,6 @@ local function tab_row(S, k)
                             if name == "" then "unnamed" else name,
                             animlib.library_path(node) or "inline")
                     end
-                else
-                    hint = `balaur-core {S.version}`
                 end
                 ui.label(hint, { size = 11, font = "mono", color = k.faint })
             end)
@@ -48,85 +80,163 @@ local function tab_row(S, k)
     ui.separator(k.line_soft)
 end
 
+-- How loud an entry is, so `error` and `warn` stop looking identical.
+local SEVERITY = { error = 3, warn = 2, info = 1, debug = 0, trace = 0 }
+local FLOOR = { all = 0, warn = 2, error = 3 }
+
 local function output(S, k)
-    ui.scroll("output", nil, function()
+    local floor = FLOOR[S.log_level or "all"] or 0
+    local query = string.lower(S.log_query or "")
+    local shown, hidden = 0, 0
+    -- The buffer holds 500; asking for 60 threw away most of the session.
+    local entries = log.recent(500)
+    ui.scroll("output", { stick_to_bottom = true }, function()
         ui.spacing(4, 2)
-        for _, entry in log.recent(60) do
+        for _, entry in entries do
+            local level = SEVERITY[entry.level] or 1
+            local matches = query == ""
+                or string.find(string.lower(entry.message), query, 1, true) ~= nil
+                or string.find(string.lower(entry.tag), query, 1, true) ~= nil
+            if level < floor or not matches then
+                hidden += 1
+                continue
+            end
+            shown += 1
             ui.horizontal(nil, function()
                 ui.add_space(6)
-                local color = k.dim
-                if entry.level == "warn" then
-                    color = k.accent
-                elseif entry.level == "error" then
-                    color = k.accent
+                local color, marker = k.dim, " "
+                if entry.level == "error" then
+                    color, marker = k.accent, "✕"
+                elseif entry.level == "warn" then
+                    color, marker = k.accent, "!"
                 elseif entry.tag == "env" then
                     color = k.sage
                 end
+                ui.label(marker, { size = 11.5, font = "mono", strong = true, color = color })
                 ui.label(string.format("%6.1fs", entry.time), { size = 11.5, font = "mono", color = k.faint })
                 ui.add_space(6)
                 local tag = string.sub(entry.tag, 1, 9)
-                ui.label(tag .. string.rep(" ", math.max(0, 9 - #tag)), { size = 11.5, font = "mono", strong = true, color = color })
+                ui.label(tag .. string.rep(" ", math.max(0, 9 - #tag)), {
+                    size = 11.5, font = "mono", strong = true,
+                    color = if entry.level == "error" then k.accent else color,
+                })
                 ui.add_space(6)
-                ui.label(entry.message, { size = 11.5, font = "mono", color = k.dim })
+                ui.label(entry.message, {
+                    size = 11.5, font = "mono",
+                    strong = entry.level == "error",
+                    color = if entry.level == "error" then k.text else k.dim,
+                })
+                -- Structured fields the event carried, which the message text
+                -- deliberately does not repeat.
+                for _, field in (entry.fields or {}) do
+                    ui.add_space(8)
+                    ui.label(`{field.name}={field.value}`, { size = 11, font = "mono", color = k.faint })
+                end
+            end)
+        end
+        if shown == 0 then
+            ui.horizontal(nil, function()
+                ui.add_space(6)
+                local why = if hidden > 0 then `{hidden} entries hidden by the filter` else "nothing logged yet"
+                ui.label(why, { size = 11.5, font = "mono", color = k.faint })
             end)
         end
     end)
 end
 
+local CARD_W, CARD_H = 96, 66
+
+-- Icon and tint by extension, so a directory of assets reads at a glance.
+local function asset_look(name, is_dir)
+    if is_dir then
+        return "▸", "sunken"
+    elseif string.match(name, "%.luau$") or string.match(name, "%.rn$") then
+        return "‹›", "sage_soft"
+    elseif string.match(name, "%.toml$") then
+        return "◇", "accent_soft"
+    elseif string.match(name, "%.png$") or string.match(name, "%.jpg$") then
+        return "▧", "accent_soft"
+    end
+    return "▫", "sunken"
+end
+
+-- Opening a file means the thing the editor can actually do with it: jump to
+-- the node running a script, or open a scene. Anything else just selects.
+local function open_asset(S, rel)
+    if string.match(rel, "%.toml$") and string.sub(rel, 1, 7) == "scenes/" then
+        if S.scene_rel ~= rel then
+            model.open_scene(S, rel)
+        end
+        return
+    end
+    for i, node in S.doc do
+        if node.script == rel then
+            S.select(i)
+            S.set_persona("script")
+            return
+        end
+    end
+    log.info(`{rel} is not attached to any node`)
+end
+
 local function assets(S, k)
-    ui.add_space(8)
-    ui.horizontal(nil, function()
-        ui.spacing(12, 0)
+    local dir = S.asset_dir or ""
+    local files = model.list(S, dir)
+    -- Breadcrumb: where we are, and the way back up.
+    ui.horizontal({ height = 24 }, function()
         ui.add_space(12)
-        local function card(icon, name, tint, on_click)
-            ui.vertical(function()
-                if ui.pill(icon, {
-                    height = 66, min_width = 96, size = 20,
-                    fill = tint, color = k.dim,
-                    tooltip = name,
-                }) and on_click ~= nil then
-                    on_click()
-                end
-                ui.label(string.sub(name, 1, 14), { size = 11, font = "mono", color = k.dim })
-            end)
+        if dir ~= "" then
+            if ui.pill("↑", { height = 20, size = 11, strong = true, fill = k.sunken, color = k.dim, tooltip = "Up one folder" }) then
+                S.asset_dir = string.match(dir, "^(.*)/[^/]+$") or ""
+            end
+            ui.add_space(6)
         end
-        local count = 0
-        for _, f in fs.list(S.game_root) do
-            if count >= 8 then
-                break
-            end
-            if f.is_dir then
-                card("▸", f.name, k.sunken)
-                count += 1
-            end
-        end
-        for _, f in fs.list(S.game_root .. "/scripts") do
-            if count >= 8 then
-                break
-            end
-            local rel = "scripts/" .. f.name
-            card("‹›", f.name, k.sage_soft, function()
-                for i, node in S.doc do
-                    if node.script == rel then
-                        S.select(i)
-                        S.set_persona("script")
+        ui.label(`res://{dir}`, { size = 11, font = "mono", color = k.faint })
+        ui.right(function()
+            ui.add_space(12)
+            ui.label(`{#files} items`, { size = 11, font = "mono", color = k.faint })
+        end)
+    end)
+    -- Cards wrap into rows: the row count is what the dock's height scrolls.
+    local per_row = math.max(1, math.floor((ui.available_width() - 24) / (CARD_W + 12)))
+    ui.scroll("assets", nil, function()
+        ui.add_space(6)
+        local index = 0
+        while index < #files do
+            ui.horizontal(nil, function()
+                ui.spacing(12, 0)
+                ui.add_space(12)
+                for _ = 1, per_row do
+                    index += 1
+                    local f = files[index]
+                    if f == nil then
                         break
                     end
+                    local rel = if dir == "" then f.name else `{dir}/{f.name}`
+                    local icon, tint = asset_look(f.name, f.is_dir)
+                    ui.vertical(function()
+                        if ui.pill(icon, {
+                            height = CARD_H, min_width = CARD_W, size = 20, radius = 12,
+                            fill = k[tint], color = k.dim,
+                            tooltip = rel,
+                        }) then
+                            if f.is_dir then
+                                S.asset_dir = rel
+                            else
+                                open_asset(S, rel)
+                            end
+                        end
+                        ui.label(string.sub(f.name, 1, 14), { size = 11, font = "mono", color = k.dim })
+                    end)
                 end
             end)
-            count += 1
+            ui.add_space(8)
         end
-        for _, f in fs.list(S.game_root .. "/scenes") do
-            if count >= 8 then
-                break
-            end
-            local rel = "scenes/" .. f.name
-            card("◇", f.name, k.accent_soft, function()
-                if S.scene_rel ~= rel then
-                    model.open_scene(S, rel)
-                end
+        if #files == 0 then
+            ui.horizontal(nil, function()
+                ui.add_space(12)
+                ui.label("empty folder", { size = 11.5, font = "mono", color = k.faint })
             end)
-            count += 1
         end
     end)
 end

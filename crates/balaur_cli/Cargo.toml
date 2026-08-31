@@ -31,5 +31,14 @@ tracing-subscriber.workspace = true
 tracing-log.workspace = true
 tracing.workspace = true
 
+# Template download; the web build exports nothing, so wasm skips the stack.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+ureq.workspace = true
+sha2 = "0.10"
+dirs = "6"
+
+[dev-dependencies]
+tempfile = "3"
+
 [lints]
 workspace = true

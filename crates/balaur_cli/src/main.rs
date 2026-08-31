@@ -6,6 +6,8 @@ use anyhow::{Context, Result};
 use balaur::{AppConfig, Pack};
 use clap::{Parser, Subcommand};
 
+mod templates;
+
 #[derive(Parser)]
 #[command(name = "balaur", version, about = "The Balaur game engine")]
 struct Cli {
@@ -51,6 +53,12 @@ enum Command {
         /// Runtime template to append to, bypassing template lookup.
         #[arg(long)]
         template: Option<PathBuf>,
+        /// Download a missing runtime template without asking.
+        #[arg(long, conflicts_with = "no_download")]
+        download: bool,
+        /// Never download a missing runtime template; fail instead.
+        #[arg(long)]
+        no_download: bool,
     },
     /// Open a project in the balaur editor (the editor itself is a balaur
     /// project; see the `editor/` directory).
@@ -137,7 +145,16 @@ fn main() -> Result<()> {
             output,
             target,
             template,
-        } => export_project(&path, output, target.as_deref(), template),
+            download,
+            no_download,
+        } => export_project(
+            &path,
+            output,
+            target.as_deref(),
+            template,
+            download,
+            no_download,
+        ),
         Command::Play { pack, frames } => {
             let bytes =
                 std::fs::read(&pack).with_context(|| format!("reading {}", pack.display()))?;
@@ -166,6 +183,8 @@ fn export_project(
     output: Option<PathBuf>,
     target: Option<&str>,
     template: Option<PathBuf>,
+    download: bool,
+    no_download: bool,
 ) -> Result<()> {
     let pack = balaur::build_pack(path)?;
     let name = path
@@ -173,9 +192,24 @@ fn export_project(
         .ok()
         .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
         .unwrap_or_else(|| "game".to_string());
+    // Mobile ships a bundle, not an executable: the pack goes inside it as a
+    // resource rather than onto the end of a binary.
+    if let Some(kind) = target.and_then(Bundle::for_target) {
+        let template = match template {
+            Some(explicit) => explicit,
+            None => find_bundle_template(kind)?,
+        };
+        return export_bundle(kind, &template, &pack.encode(), &name, output);
+    }
     let template = match (template, target) {
         (Some(explicit), _) => Some(explicit),
-        (None, Some(target)) => Some(find_template(target)?),
+        (None, Some(target)) => Some(match find_template(target) {
+            Ok(found) => found,
+            Err(missing) if !no_download => {
+                templates::obtain(target, download).with_context(|| missing.to_string())?
+            }
+            Err(missing) => return Err(missing),
+        }),
         (None, None) => None,
     };
     let Some(template) = template else {
@@ -213,12 +247,10 @@ fn export_project(
     Ok(())
 }
 
-/// Find the runtime template for `target`.
-///
-/// Templates are what CI publishes per platform, unpacked next to the binary
-/// (or wherever BALAUR_TEMPLATES points). Exporting for a platform you have no
-/// template for has to say so plainly — it is the most common way this fails.
-fn find_template(target: &str) -> Result<PathBuf> {
+/// Where templates are looked for: an explicit directory first, then the one
+/// that ships beside the binary in the editor download, then the per-user
+/// cache downloads land in.
+fn template_roots() -> Vec<PathBuf> {
     let mut roots = Vec::new();
     if let Ok(dir) = std::env::var("BALAUR_TEMPLATES") {
         roots.push(PathBuf::from(dir));
@@ -228,6 +260,164 @@ fn find_template(target: &str) -> Result<PathBuf> {
             roots.push(dir.join("templates"));
         }
     }
+    if let Some(cache) = templates::cache_dir() {
+        roots.push(cache);
+    }
+    roots
+}
+
+fn roots_for_message() -> String {
+    template_roots()
+        .iter()
+        .map(|r| r.display().to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// A platform whose game is a directory the OS launches, not a file it runs.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Bundle {
+    /// An `.app`, with the pack beside the executable inside it.
+    Ios,
+    /// An APK layout, with the pack under `assets/`.
+    Android,
+}
+
+impl Bundle {
+    fn for_target(target: &str) -> Option<Self> {
+        match target {
+            "ios" => Some(Self::Ios),
+            "android" => Some(Self::Android),
+            _ => None,
+        }
+    }
+
+    /// The template directory `package_template.sh` produces.
+    const fn template_dir(self) -> &'static str {
+        match self {
+            Self::Ios => "Balaur.app",
+            Self::Android => "balaur-template-android",
+        }
+    }
+
+    const fn platform(self) -> &'static str {
+        match self {
+            Self::Ios => "ios",
+            Self::Android => "android",
+        }
+    }
+}
+
+/// Copy a bundle template and put the pack where that platform looks for it.
+fn export_bundle(
+    kind: Bundle,
+    template: &Path,
+    pack: &[u8],
+    name: &str,
+    output: Option<PathBuf>,
+) -> Result<()> {
+    let output = output.unwrap_or_else(|| match kind {
+        Bundle::Ios => PathBuf::from(format!("{name}.app")),
+        Bundle::Android => PathBuf::from(format!("{name}-android")),
+    });
+    if output.exists() {
+        std::fs::remove_dir_all(&output)
+            .with_context(|| format!("replacing {}", output.display()))?;
+    }
+    copy_dir(template, &output)?;
+    let pack_path = match kind {
+        Bundle::Ios => output.join(balaur::standalone::BUNDLED_PACK),
+        Bundle::Android => {
+            let assets = output.join("assets");
+            std::fs::create_dir_all(&assets)?;
+            assets.join(balaur::standalone::BUNDLED_PACK)
+        }
+    };
+    std::fs::write(&pack_path, pack).with_context(|| format!("writing {}", pack_path.display()))?;
+    if kind == Bundle::Ios {
+        name_the_app(&output.join("Info.plist"), name)?;
+    }
+    tracing::info!(
+        "exported for {} -> {} (unsigned; sign it before installing)",
+        kind.platform(),
+        output.display()
+    );
+    Ok(())
+}
+
+/// Put the project's name on the bundle, so the home screen does not say
+/// "Balaur" for every game exported from it.
+fn name_the_app(plist: &Path, name: &str) -> Result<()> {
+    let Ok(text) = std::fs::read_to_string(plist) else {
+        return Ok(());
+    };
+    let renamed = text
+        .replace(
+            "<key>CFBundleName</key><string>Balaur</string>",
+            &format!("<key>CFBundleName</key><string>{name}</string>"),
+        )
+        .replace(
+            "<key>CFBundleIdentifier</key><string>org.balaur.template</string>",
+            &format!("<key>CFBundleIdentifier</key><string>org.balaur.{name}</string>"),
+        );
+    std::fs::write(plist, renamed).with_context(|| format!("writing {}", plist.display()))
+}
+
+fn copy_dir(from: &Path, to: &Path) -> Result<()> {
+    std::fs::create_dir_all(to).with_context(|| format!("creating {}", to.display()))?;
+    for entry in
+        std::fs::read_dir(from).with_context(|| format!("reading template {}", from.display()))?
+    {
+        let entry = entry?;
+        let target = to.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir(&entry.path(), &target)?;
+        } else {
+            std::fs::copy(entry.path(), &target)?;
+            // The executable inside an .app has to stay executable, and a
+            // template that came through an artifact store has already lost
+            // the bit once.
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = std::fs::metadata(entry.path())?.permissions().mode();
+                if mode & 0o111 != 0 {
+                    std::fs::set_permissions(
+                        &target,
+                        std::fs::Permissions::from_mode(mode | 0o755),
+                    )?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Find the bundle template for a mobile platform.
+fn find_bundle_template(kind: Bundle) -> Result<PathBuf> {
+    for root in template_roots() {
+        let candidate = root.join(kind.template_dir());
+        if candidate.is_dir() {
+            return Ok(candidate);
+        }
+    }
+    anyhow::bail!(
+        "no {} template (looked for {} in: {}). Unpack balaur-template-{} from the \
+         release into the templates directory, or pass --template <dir>.",
+        kind.platform(),
+        kind.template_dir(),
+        roots_for_message(),
+        kind.platform(),
+    )
+}
+
+/// Find the runtime template for `target`.
+///
+/// Templates are what CI publishes per platform, unpacked next to the binary
+/// (or wherever BALAUR_TEMPLATES points). Exporting for a platform you have no
+/// template for has to say so plainly — it is the most common way this fails.
+fn find_template(target: &str) -> Result<PathBuf> {
+    let roots = template_roots();
     for root in &roots {
         for name in [
             format!("balaur-runtime-{target}.exe"),
@@ -239,11 +429,7 @@ fn find_template(target: &str) -> Result<PathBuf> {
             }
         }
     }
-    let looked = roots
-        .iter()
-        .map(|r| r.display().to_string())
-        .collect::<Vec<_>>()
-        .join(", ");
+    let looked = roots_for_message();
     anyhow::bail!(
         "no runtime template for \"{target}\" (looked in: {looked}). \
          Download the templates for this release, or pass --template <file>."

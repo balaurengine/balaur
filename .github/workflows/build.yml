@@ -129,9 +129,46 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  # Exports a game with each mobile template and checks the bundle is what the
+  # OS installs — the half the template build cannot check. See scripts/.
+  export-mobile:
+    name: export ${{ matrix.platform }}
+    needs: build-platforms
+    runs-on: ${{ matrix.host }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS for `vtool`, which tells an iOS binary from a host one.
+          - platform: ios
+            host: macos-latest
+          # Ubuntu for the SDK build-tools that assemble and sign the APK.
+          - platform: android
+            host: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Linux build deps
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
+      - uses: actions/download-artifact@v4
+        with:
+          name: balaur-template-${{ matrix.platform }}
+          path: dist
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: export-${{ matrix.platform }}
+      - name: Export a game with the template
+        shell: bash
+        run: ./scripts/export_mobile.sh ${{ matrix.platform }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: balaur-example-${{ matrix.platform }}
+          path: dist/balaur-example-*
+          if-no-files-found: error
+
   draft-release:
     name: draft release
-    needs: [build-editor, build-platforms]
+    needs: [build-editor, build-platforms, export-mobile]
     runs-on: ubuntu-latest
     # Drafting a release means writing to the repo's releases.
     permissions:

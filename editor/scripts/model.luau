@@ -1,7 +1,74 @@
 -- The edited project: scene document model, live mirror scene, save/reset.
 -- `S.doc` is plain data parsed from the scene TOML; the mirror is a real node
 -- tree from the same TOML (scripts not attached, physics paused until play).
+local highlight = require("scripts/highlight")
+
 local M = {}
+
+-- Project reads, cached: four panels read the disk while drawing, so uncached
+-- that is a read per node per frame. `fs` has no mtime, hence interval + drop.
+local TTL = 0.5
+local sources = {}
+local listings = {}
+
+-- The text of a project-relative file, or nil when there is no such file —
+-- the caller that wants to say "missing" needs to tell that from "empty".
+function M.source(S, rel)
+    if rel == nil then
+        return nil
+    end
+    local entry = sources[rel]
+    local now = engine.time()
+    if entry == nil or now - entry.at >= TTL then
+        entry = { text = fs.read(S.game_root .. "/" .. rel), at = now }
+        sources[rel] = entry
+    end
+    return entry.text
+end
+
+-- The script's engine-facing hooks, analysed once per cached read.
+function M.hooks(S, rel)
+    local text = M.source(S, rel)
+    if text == nil then
+        return {}
+    end
+    local entry = sources[rel]
+    if entry.hooks == nil then
+        local _, hooks = highlight.analyze(text)
+        entry.hooks = hooks
+    end
+    return entry.hooks
+end
+
+function M.list(S, rel)
+    local entry = listings[rel]
+    local now = engine.time()
+    if entry == nil or now - entry.at >= TTL then
+        entry = { files = fs.list(S.game_root .. "/" .. rel), at = now }
+        listings[rel] = entry
+    end
+    return entry.files
+end
+
+-- Drop a cached read (nil drops everything): what the editor just wrote must
+-- be visible on the next frame, not on the next interval.
+function M.forget(rel)
+    if rel == nil then
+        sources = {}
+        listings = {}
+    else
+        sources[rel] = nil
+    end
+end
+
+-- Whether the node's script draws its own interface, as opposed to carrying a
+-- `widget` component.
+function M.draws_ui(S, node)
+    if node.script == nil then
+        return false
+    end
+    return string.find(M.source(S, node.script) or "", "draw_ui", 1, true) ~= nil
+end
 
 -- A scene node's `parent` is the parent's **id**, not a path
 -- (`crates/balaur_core/src/project.rs`); everything below walks that id chain.
@@ -261,6 +328,7 @@ function M.save(S)
         nodes[i] = node
     end
     fs.write(S.scene_path, toml.encode({ nodes = nodes }))
+    M.forget()
     S.dirty = false
     log.info("saved " .. S.scene_rel)
 end

@@ -60,10 +60,30 @@ pub fn extract(bytes: &[u8]) -> Option<&[u8]> {
     head.len().checked_sub(len).map(|start| &head[start..])
 }
 
+/// Where a bundled game keeps its pack, next to the executable.
+pub const BUNDLED_PACK: &str = "game.bpak";
+
 /// The pack carried by the running executable, if this is a shipped game.
+///
+/// Desktop games carry it appended. iOS cannot: the executable lives in a
+/// signed bundle, and appending is exactly what invalidates a signature — so
+/// there the pack is a bundle resource beside the executable. The lookup is
+/// cfg'd to iOS rather than tried everywhere, because on a desktop a stray
+/// `game.bpak` next to the binary would silently turn the CLI into a game.
 pub fn own_pack() -> Result<Option<Vec<u8>>> {
     let exe = std::env::current_exe().context("locating the running executable")?;
-    extract_from(&exe)
+    if let Some(pack) = extract_from(&exe)? {
+        return Ok(Some(pack));
+    }
+    #[cfg(target_os = "ios")]
+    if let Some(beside) = exe.parent().map(|dir| dir.join(BUNDLED_PACK)) {
+        if beside.is_file() {
+            return Ok(Some(std::fs::read(&beside).with_context(|| {
+                format!("reading the bundled pack {}", beside.display())
+            })?));
+        }
+    }
+    Ok(None)
 }
 
 /// `own_pack`, against a named file — the same logic a test can drive.

@@ -91,6 +91,32 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
             })
         },
     );
+    // Chrome above the widget layer: panels share egui's background layer,
+    // which every widget Area draws over, so overlays need a layer of their own.
+    m.function(
+        "overlay",
+        |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
+            let opts = Opts(opts);
+            with_ctx(|ctx| {
+                let x = opts.px("x", 0.0);
+                let y = opts.px("y", 0.0);
+                let w = opts.px("w", 0.0);
+                let h = opts.px("h", 0.0);
+                let mut result = Ok(());
+                egui::Area::new(egui::Id::new(id))
+                    .order(egui::Order::Foreground)
+                    .fixed_pos(pos2(x, y))
+                    .show(ctx, |ui| {
+                        if w > 0.0 && h > 0.0 {
+                            ui.set_min_size(vec2(w, h));
+                            ui.set_max_size(vec2(w, h));
+                        }
+                        result = scoped(eng, ui, cb);
+                    });
+                result
+            })
+        },
+    );
 }
 
 /// `ui.*` bindings: containers.
@@ -152,6 +178,9 @@ pub(crate) fn install_text_input(m: &mut dyn Bindings<Engine>) {
         m.function("set_text", |eng: &Engine, (id, value): (String, String)| {
             let state = eng.resource::<UiState>();
             let mut state = state.borrow_mut();
+            // The seed is left alone on purpose: it records what the *source*
+            // last was, which this write does not change, so the override
+            // survives until the source itself moves.
             state.text_buffers.insert(id.clone(), value);
             state.focused_once.remove(&id);
             Ok(())
@@ -728,6 +757,11 @@ fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
                 if max_h > 0.0 {
                     area = area.max_height(max_h);
                 }
+                // A log follows what is arriving unless the reader has scrolled
+                // away from the end, which egui tracks for us.
+                if opts.boolean("stick_to_bottom", false) {
+                    area = area.stick_to_bottom(true);
+                }
                 area.show(ui, |ui| {
                     result = scoped(eng, ui, cb);
                 });
@@ -793,9 +827,17 @@ fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                     opts.boolean("strong", false),
                 );
                 let fill = opts.color("fill", Color32::TRANSPARENT);
+                // Default rounding is fully-round, which is what a pill is;
+                // `radius` is for the shapes that are tiles, not pills.
+                let radius = opts.px("radius", 0.0);
+                let corner = if radius > 0.0 {
+                    pill_radius(radius * 2.0)
+                } else {
+                    pill_radius(h)
+                };
                 let mut button = egui::Button::new(rt)
                     .fill(fill)
-                    .corner_radius(pill_radius(h))
+                    .corner_radius(corner)
                     .min_size(vec2(opts.px("min_width", 0.0), h));
                 button = match opts.opt_color("stroke") {
                     Some(color) => button.stroke(Stroke::new(1.0, color)),

@@ -53,6 +53,10 @@ fn run_until(script_name: &str, language: &str, source: &str, markers: &[&str]) 
     balaur_core::logbuf::clear();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
+    // Markers accumulate across ticks: dependency debug logging (ureq's
+    // pool chatter) floods the bounded buffer, so all four are never in one
+    // window together.
+    let mut seen: Vec<bool> = markers.iter().map(|_| false).collect();
     let deadline = Instant::now() + Duration::from_secs(20);
     while Instant::now() < deadline {
         app.tick(1.0 / 60.0);
@@ -62,14 +66,21 @@ fn run_until(script_name: &str, language: &str, source: &str, markers: &[&str]) 
             .filter(|e| e.level.eq_ignore_ascii_case("error"))
             .collect();
         assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
-        if markers
-            .iter()
-            .all(|m| recent.iter().any(|e| e.message.contains(m)))
-        {
+        for entry in &recent {
+            for (at, marker) in markers.iter().enumerate() {
+                if entry.message.contains(marker) {
+                    seen[at] = true;
+                }
+            }
+        }
+        if seen.iter().all(|s| *s) {
             return;
         }
     }
-    panic!("the script never logged all of {markers:?}");
+    panic!(
+        "the script never logged all of {markers:?}; log: {:#?}",
+        balaur_core::logbuf::recent(50)
+    );
 }
 
 /// Serve one canned HTTP/1.1 response on a fresh port, returning the url.
@@ -115,8 +126,10 @@ fn a_lua_script_fetches_awaits_and_echoes() {
     if !e2e_enabled() {
         return;
     }
-    let awaited = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nquail");
-    let handled = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nhello");
+    let awaited =
+        serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nquail");
+    let handled =
+        serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nhello");
     let echo = serve_echo();
     let source = format!(
         r#"
@@ -163,8 +176,10 @@ fn a_rune_script_fetches_awaits_and_echoes() {
     if !e2e_enabled() {
         return;
     }
-    let awaited = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nraven");
-    let handled = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nrhino");
+    let awaited =
+        serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nraven");
+    let handled =
+        serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nrhino");
     let echo = serve_echo();
     let source = format!(
         r#"

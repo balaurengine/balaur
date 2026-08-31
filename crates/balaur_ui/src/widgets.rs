@@ -174,8 +174,18 @@ pub(crate) fn text_field(
     opts: &Opts,
 ) -> anyhow::Result<(String, bool, bool)> {
     let state = eng.resource::<UiState>();
+    // `value` makes the field show what it edits: the buffer is seeded from it
+    // and re-seeded whenever the source changes underneath. Without it the
+    // buffer is the only truth, which is what a search box wants.
+    let seed = opts.string("value");
     let mut buffer = {
-        let state = state.borrow();
+        let mut state = state.borrow_mut();
+        if let Some(value) = seed {
+            if state.text_seeds.get(id) != Some(&value) {
+                state.text_seeds.insert(id.to_string(), value.clone());
+                state.text_buffers.insert(id.to_string(), value);
+            }
+        }
         state.text_buffers.get(id).cloned().unwrap_or_default()
     };
     let autofocus = opts.boolean("autofocus", false) && {
@@ -185,19 +195,42 @@ pub(crate) fn text_field(
     let id_owned = id.to_string();
     let result = with_ui(|ui| {
         let size = opts.px("size", 13.0);
+        let family = opts
+            .string("font")
+            .map_or_else(|| theme::family("ui"), |name| theme::family(&name));
         let mut edit = egui::TextEdit::singleline(&mut buffer)
             .id(egui::Id::new(id_owned.clone()))
             .frame(egui::Frame::NONE)
             .hint_text(placeholder)
-            .font(FontId::new(size, theme::family("ui")));
+            .font(FontId::new(size, family));
         if let Some(color) = opts.opt_color("color") {
             edit = edit.text_color(color);
         }
+        // A `height` asks for the pill shell every other inspector control
+        // wears; its padding comes out of the width the caller asked for.
+        let h = opts.px("height", 0.0);
+        let pad = if h > 0.0 { sc(11.0) } else { 0.0 };
         let w = opts.px("width", 0.0);
         if w > 0.0 {
-            edit = edit.desired_width(w);
+            edit = edit.desired_width((w - pad * 2.0).max(sc(8.0)));
         }
-        let response = ui.add(edit);
+        let response = if h > 0.0 {
+            egui::Frame::new()
+                .fill(opts.color("fill", Color32::TRANSPARENT))
+                .stroke(Stroke::new(
+                    1.0,
+                    opts.color("stroke", Color32::TRANSPARENT),
+                ))
+                .corner_radius(pill_radius(h))
+                .inner_margin(Margin::symmetric(pad as i8, 0))
+                .show(ui, |ui| {
+                    ui.set_min_height(h);
+                    ui.add(edit)
+                })
+                .inner
+        } else {
+            ui.add(edit)
+        };
         if autofocus {
             response.request_focus();
         }

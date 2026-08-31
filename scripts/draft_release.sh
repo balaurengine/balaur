@@ -15,6 +15,7 @@ assets=(
   "$dist"/balaur-editor-*
   "$dist"/balaur-runtime-*
   "$dist"/balaur-template-*
+  "$dist"/balaur-example-*
   "$dist"/balaur.wasm
   "$dist"/balaur.js
 )
@@ -22,6 +23,10 @@ if [ ${#assets[@]} -eq 0 ]; then
   printf '::error::no artifacts in %s — did the desktop builds upload theirs?\n' "$dist"
   exit 1
 fi
+
+# What `balaur export` verifies a downloaded template against.
+(cd "$dist" && sha256sum "${assets[@]/#"$dist"\//}" >SHA256SUMS)
+assets+=("$dist/SHA256SUMS")
 
 if [[ ${GITHUB_REF:-} == refs/tags/* ]]; then
   tag=${GITHUB_REF#refs/tags/}
@@ -53,8 +58,11 @@ exported onto.
 - **`balaur-editor-<platform>`** — the editor. Unpack it and run `balaur edit
   <your-project>`. The `editor/` project ships inside and the binary finds it
   automatically; `templates/` is in there too, so exporting works immediately.
-- **`balaur-runtime-<platform>`** — the runtime template on its own. You only
-  need this to export *for another platform* than the one you are on.
+- **`balaur-runtime-<platform>`** — the runtime template on its own, for
+  exporting *for another platform* than the one you are on. `balaur export
+  --target` offers to download a missing one automatically (verified against
+  `SHA256SUMS`, into the per-user template cache); these files exist for
+  offline installs.
 
 Writing an addon? The editor download carries `include/balaur_extension.h`, the
 header the engine loads C extensions against. It ships with the binary so the
@@ -75,19 +83,35 @@ executable your players can run directly — no engine install, no separate
 The macOS build is a universal binary: one download for Apple Silicon and
 Intel, and a game exported onto it stays universal.
 
-### Other platforms
+### Mobile
 
-- **`balaur-template-ios`** — an unsigned `Balaur.app`. The engine renders on
-  iOS, but an app has to be signed with your own certificate before a device
-  will install it, and fusing a pack is a desktop trick: on iOS the pack ships
-  as a bundle resource. Treat this as the runtime, not a finished export path.
-- **`balaur-runtime-android-arm64`** — the engine compiled for Android. Not yet
-  an installable app: Android launches a NativeActivity that loads a
-  `libmain.so`, and the `android_main` entry point does not exist yet.
-- **`balaur.wasm` / `balaur.js`** — the web build. No canvas surface yet.
+```
+balaur export my-game --target ios       # -> my-game.app
+balaur export my-game --target android   # -> my-game-android/ (an APK layout)
+```
 
-`balaur export --target` covers the desktop platforms. The rest are published
-so the work is visible and testable, not because they are finished — see
+Mobile ships a bundle rather than a single executable, so the pack travels
+inside it as a resource instead of being appended to a binary. Unpack
+`balaur-template-ios` or `balaur-template-android` into `templates/` first.
+
+Both come out **unsigned**, and that is deliberate: signing needs a certificate
+or keystore that belongs to whoever ships the game.
+
+- **iOS** — sign `my-game.app` with your certificate and install it the way you
+  install any development build.
+- **Android** — the export is an APK *layout*. Assemble and sign it with your
+  own keystore (`scripts/assemble_apk.sh` shows the aapt2 / zipalign /
+  apksigner sequence, using Android's debug identity).
+
+`balaur-template-debug.apk` and `balaur-example-debug.apk` are debug-signed and
+installable with `adb install` — the first is the bare template, the second a
+game exported with it. They exist so you can try the runtime on a device
+without setting up signing; ship neither.
+
+### Web
+
+**`balaur.wasm` / `balaur.js`** — the web build. No canvas surface yet, so it
+is published to make the work visible, not because it is finished. See
 docs/PLAN-mobile-export.md.
 
 Exported macOS games are unsigned: appending the pack invalidates any

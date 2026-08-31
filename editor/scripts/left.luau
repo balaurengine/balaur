@@ -81,7 +81,7 @@ local function tree_row(S, k, i, depth, rails, is_last, has_kids)
     end)
 end
 
-local function tree(S, k)
+local function tree(S, k, reserve)
     ui.horizontal({ height = 36 }, function()
         ui.add_space(10)
         ui.label("NODE TREE", { size = 10, font = "heading", strong = true, color = k.dim })
@@ -99,7 +99,7 @@ local function tree(S, k)
         kids[parent] = kids[parent] or {}
         table.insert(kids[parent], i)
     end
-    ui.scroll("tree", { max_height = ui.available_height() - 200 }, function()
+    ui.scroll("tree", { max_height = ui.available_height() - reserve }, function()
         ui.spacing(4, 1)
         -- `kids` is bucketed by the parent's **id**, so the recursion carries
         -- an id too. Descending by name path is what used to make every nested
@@ -125,34 +125,37 @@ local function tree(S, k)
 end
 
 -- row = { icon, name, meta, on_click? }
-local function secondary_rows(S, k, title, rows)
+local function secondary_rows(S, k, title, rows, height)
     ui.separator(k.line_soft)
     section_label(title, k)
-    ui.spacing(4, 4)
-    for _, row in rows do
-        ui.horizontal({ height = 29 }, function()
-            ui.add_space(8)
-            if ui.pill(row[2], {
-                height = 29, size = 12, min_width = 238, align = "left",
-                icon = row[1], icon_size = 12, icon_color = k.dim,
-                fill = k.sunken, color = k.text,
-                trailing = row[3], trailing_color = k.faint,
-            }) and row[4] ~= nil then
-                row[4]()
-            end
-        end)
-    end
+    ui.scroll("secondary", { max_height = height }, function()
+        ui.spacing(4, 4)
+        for _, row in rows do
+            ui.horizontal({ height = 29 }, function()
+                ui.add_space(8)
+                if ui.pill(row[2], {
+                    height = 29, size = 12, min_width = 238, align = "left",
+                    icon = row[1], icon_size = 12, icon_color = k.dim,
+                    fill = k.sunken, color = k.text,
+                    trailing = row[3], trailing_color = k.faint,
+                }) and row[4] ~= nil then
+                    row[4]()
+                end
+            end)
+        end
+    end)
 end
 
 -- Per-persona secondary contents, from real project data where it exists.
-local function secondary(S, k)
+-- Returns the section title and its rows; drawing is the caller's, so the
+-- tree above can size itself to what this actually holds.
+local function secondary_content(S)
     if S.persona == "script" then
         local rows = {}
-        for _, f in fs.list(S.game_root .. "/scripts") do
+        for _, f in model.list(S, "scripts") do
             if not f.is_dir and string.match(f.name, "%.luau$") then
-                local src = fs.read(S.game_root .. "/scripts/" .. f.name) or ""
-                local _, n = string.gsub(src, "\n", "")
                 local rel = "scripts/" .. f.name
+                local _, n = string.gsub(model.source(S, rel) or "", "\n", "")
                 table.insert(rows, { "‹›", f.name, `{n + 1} L`, function()
                     -- Jump to the node using this script.
                     for i, node in S.doc do
@@ -164,18 +167,26 @@ local function secondary(S, k)
                 end })
             end
         end
-        secondary_rows(S, k, "Luau modules", rows)
+        return "Luau modules", rows
     elseif S.persona == "phys" then
+        -- A 2D scene carries `body2d`/`collider2d`; reading `body` alone left
+        -- this panel empty for every 2D project.
         local rows = {}
         for i, node in S.doc do
-            if node.body ~= nil then
+            local kind = model.body_kind(node) or model.body2d_kind(node)
+            local collider = node.collider ~= nil or node.collider2d ~= nil
+            if kind ~= nil or collider then
                 local idx = i
-                table.insert(rows, { "▣", node.name, node.body, function()
+                local dim = if node.body2d ~= nil or node.collider2d ~= nil then "2D" else "3D"
+                table.insert(rows, { "▣", node.name, `{kind or "collider"} · {dim}`, function()
                     S.select(idx)
                 end })
             end
         end
-        secondary_rows(S, k, "Collision", rows)
+        if #rows == 0 then
+            rows = { { "▣", "no bodies or colliders", "" } }
+        end
+        return "Collision", rows
     elseif S.persona == "anim" then
         local rows = {}
         for i, node in S.doc do
@@ -194,27 +205,32 @@ local function secondary(S, k)
         if #rows == 0 then
             rows = { { "◷", "no clips — ＋ Key in Timeline", "" } }
         end
-        secondary_rows(S, k, "Clips", rows)
+        return "Clips", rows
     elseif S.persona == "ui" then
+        -- Two ways a node puts something on screen: a `widget` component in the
+        -- scene, or a script with a `draw_ui` hook. Listing only the second
+        -- said "no UI scripts" over a viewport full of widgets.
         local rows = {}
         for i, node in S.doc do
-            if node.script ~= nil then
-                local src = fs.read(S.game_root .. "/" .. node.script) or ""
-                if string.find(src, "draw_ui", 1, true) ~= nil then
-                    local idx = i
-                    table.insert(rows, { "▤", node.name, "draw_ui", function()
-                        S.select(idx)
-                    end })
-                end
+            local idx = i
+            if node.widget ~= nil then
+                local kind = if type(node.widget) == "table" then node.widget.kind else node.widget
+                table.insert(rows, { "▤", node.name, tostring(kind or "widget"), function()
+                    S.select(idx)
+                end })
+            elseif node.script ~= nil and model.draws_ui(S, node) then
+                table.insert(rows, { "‹›", node.name, "draw_ui", function()
+                    S.select(idx)
+                end })
             end
         end
         if #rows == 0 then
-            rows = { { "▤", "no UI scripts", "" } }
+            rows = { { "▤", "no widgets or draw_ui scripts", "" } }
         end
-        secondary_rows(S, k, "UI scripts", rows)
+        return "Interface", rows
     else
         local rows = {}
-        for _, f in fs.list(S.game_root .. "/scenes") do
+        for _, f in model.list(S, "scenes") do
             if not f.is_dir then
                 local rel = "scenes/" .. f.name
                 table.insert(rows, { "◇", f.name,
@@ -226,15 +242,19 @@ local function secondary(S, k)
                     end })
             end
         end
-        secondary_rows(S, k, "Scenes", rows)
+        return "Scenes", rows
     end
 end
 
 function M.draw(S)
     local k = theme.current
     ui.left_panel("tree", { width = 262, fill = k.bg, padding_x = 8 }, function()
-        tree(S, k)
-        secondary(S, k)
+        local title, rows = secondary_content(S)
+        -- The secondary panel takes what it needs, capped: a flat 200 px left
+        -- a band of dead space under a one-row list and clipped a long one.
+        local reserve = math.clamp(50 + #rows * 33, 83, 280)
+        tree(S, k, reserve)
+        secondary_rows(S, k, title, rows, reserve - 50)
     end)
 end
 

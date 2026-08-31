@@ -66,6 +66,9 @@ impl Default for UiConfig {
 pub struct UiState {
     pub fonts_installed: bool,
     pub text_buffers: HashMap<String, String>,
+    /// The value each seeded field was last filled from, so a field re-seeds
+    /// when its source changes but not while someone is typing into it.
+    pub text_seeds: HashMap<String, String>,
     pub focused_once: HashSet<String>,
     pub textures: HashMap<String, egui::TextureHandle>,
 }

@@ -5,6 +5,10 @@ local model = require("scripts/model")
 
 local M = {}
 
+local function plural(n, word)
+    return if n == 1 then word else word .. "s"
+end
+
 function M.persona_bar(S)
     local k = theme.current
     ui.top_panel("persona", { height = 56, fill = k.panel, padding_x = 12 }, function()
@@ -88,10 +92,13 @@ function M.status_bar(S)
         ui.horizontal({ height = 28 }, function()
             ui.spacing(16, 0)
             ui.dot(if S.playing then k.sage else k.faint, 6)
-            local mode = if S.playing then "playing · 60 fps" else "editing"
+            -- Measured, not asserted: the bar used to claim 60 fps whatever
+            -- the frame actually cost.
+            local mode = if S.playing then `playing · {math.floor(S.fps or 0)} fps` else "editing"
             ui.label(mode, { size = 11, font = "mono", color = k.dim })
             local nodes, scripts = model.stats(S)
-            ui.label(`{nodes} nodes · {scripts} scripts`, { size = 11, font = "mono", color = k.dim })
+            ui.label(`{nodes} {plural(nodes, "node")} · {scripts} {plural(scripts, "script")}`,
+                { size = 11, font = "mono", color = k.dim })
             ui.dot(k.sage, 6)
             ui.label("Luau VM warm", { size = 11, font = "mono", color = k.dim })
             ui.label("kiss3d · wgpu", { size = 11, font = "mono", color = k.dim })
@@ -102,7 +109,7 @@ function M.status_bar(S)
                         pname = p.name
                     end
                 end
-                ui.label(`{pname} persona · {defs.tool_names[S.tool]}`, { size = 11, font = "mono", color = k.dim })
+                ui.label(`{pname} persona · {defs.tool_names[S.tool] or S.tool}`, { size = 11, font = "mono", color = k.dim })
             end)
         end)
     end)

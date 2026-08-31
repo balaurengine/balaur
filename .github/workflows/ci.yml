@@ -13,6 +13,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
+  # The cargo e2e suites (full app boots over real sockets) gate on this so
+  # a plain local `cargo test` skips them; CI always runs everything.
+  BALAUR_E2E: "1"
   # The e2e suites (full app boots over real sockets) gate on this so a
   # plain local `cargo test` skips them; CI always runs everything.
   BALAUR_E2E: "1" 

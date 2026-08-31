@@ -246,7 +246,7 @@ pub(crate) fn pump() {
                         }
                     }
                     Ok(SocketCommand::Close) | Err(TryRecvError::Disconnected) => {
-                        let reason = CString::new("bye").expect("static text");
+                        let reason = CString::new("bye").expect("a literal without NUL bytes");
                         unsafe { balaur_ws_close(entry.handle, 1000, reason.as_ptr()) };
                         // Kept until the close event marks it finished.
                         return true;
