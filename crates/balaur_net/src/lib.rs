@@ -16,9 +16,15 @@
 //! function S:on_response(r) print(r.status, r.body) end
 //! ```
 //!
+//! Or, sequentially: an http request made without a node is a token the
+//! script suspends on until the pump wakes it —
+//! `local r = await(http.request(url))` in Luau,
+//! `let r = task::wait(http::request(url)).await` in Rune.
+//!
 //! Nothing here blocks the frame: `http.request` and `websocket.connect`
-//! return an id immediately, and handlers run at [`Stage::First`] of a later
-//! tick, in arrival order, never from an I/O thread.
+//! return an id immediately, and handlers and resumptions run at
+//! [`Stage::First`] of a later tick, in arrival order, never from an I/O
+//! thread.
 
 use std::sync::mpsc::{channel, Receiver, Sender};
 
@@ -212,7 +218,7 @@ pub struct NetSnapshot {
 /// Dispatch happens after the borrows are released, so a handler may itself
 /// request, connect, send or close.
 fn pump_net_system(eng: &Engine, _: f32) {
-    let mut dispatches: Vec<(Handler, Value)> = Vec::new();
+    let mut dispatches: Vec<(Option<Handler>, Option<u64>, Value)> = Vec::new();
     {
         let state = eng.resource::<NetState>();
         let snapshot = eng.resource::<NetSnapshot>();
@@ -235,15 +241,19 @@ fn pump_net_system(eng: &Engine, _: f32) {
                     state.socket_handlers.get(socket).cloned()
                 }
             };
-            let http = matches!(
-                event,
-                NetEvent::HttpResponse { .. } | NetEvent::HttpError { .. }
-            );
+            // An http completion also wakes its request id, so a script that
+            // chose `await` over a handler resumes here.
+            let wake = match &event {
+                NetEvent::HttpResponse { request, .. } | NetEvent::HttpError { request, .. } => {
+                    Some(*request)
+                }
+                _ => None,
+            };
             let value = event_value(event);
-            if let Some(handler) = handler {
-                dispatches.push((handler, value.clone()));
+            if handler.is_some() || wake.is_some() {
+                dispatches.push((handler, wake, value.clone()));
             }
-            if http {
+            if wake.is_some() {
                 snapshot.http.push(value);
             } else {
                 snapshot.socket.push(value);
@@ -251,8 +261,13 @@ fn pump_net_system(eng: &Engine, _: f32) {
         }
     }
     if let Some(host) = eng.script_host() {
-        for (handler, value) in dispatches {
-            host.call_on(handler.node, &handler.method, &[value]);
+        for (handler, wake, value) in dispatches {
+            if let Some(handler) = handler {
+                host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
+            }
+            if let Some(token) = wake {
+                host.wake(token, &value);
+            }
         }
     }
 }
@@ -411,11 +426,22 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
     // The response fires `on_response(response)` on that node's script —
     // `{ request, status, headers, body }`, or `{ request, error }` when the
     // transfer itself failed; an HTTP error status is a response, not an
-    // error. A nil node is fire-and-forget. The verb lives in the options
-    // table rather than in the function name (N9); the default is GET.
+    // error. The verb lives in the options table rather than in the function
+    // name (N9); the default is GET.
+    //
+    // Without a node — `http.request(url, opts)` — nothing is dispatched and
+    // the id is a token to suspend on: `await(http.request(url))` in Luau,
+    // `task::wait(http::request(url)).await` in Rune.
     m.function(
         "request",
-        |eng: &Engine, (node, url, opts): (Value, String, Option<Value>)| {
+        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
+            let (node, url, opts) = match &first {
+                Value::Str(url) => (Value::Nil, url.clone(), second),
+                _ => match second {
+                    Some(Value::Str(url)) => (first, url, third),
+                    other => return Err(anyhow!("argument 1 should be a url, got {other:?}")),
+                },
+            };
             let handler = handler_of(&node, opts.as_ref(), "on_response", "on_response")?;
             let call = call_of(&url, opts.as_ref())?;
             let state = eng.resource::<NetState>();

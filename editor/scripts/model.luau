@@ -6,21 +6,100 @@
 -- physics plugin builds the actual bodies (kept paused until play).
 local M = {}
 
-local function node_path(doc, node)
-    if node.parent == nil or node.parent == "" then
-        return node.name
+-- A scene node's `parent` is the parent's **id**, not a path
+-- (`crates/balaur_core/src/project.rs`). Everything below walks that id chain;
+-- treating it as a slash path is what used to leave nested nodes with no
+-- mirror ref, the tree showing only roots, and `add_child` writing a scene the
+-- engine would refuse to load.
+local function by_id(doc, id)
+    for _, node in doc do
+        if node.id == id then
+            return node
+        end
     end
-    return node.parent .. "/" .. node.name
+    return nil
+end
+M.by_id = by_id
+
+-- A hand-edited file can name a parent that names it back. Every walk is
+-- bounded so a cycle costs a wrong answer, not a hung editor.
+local MAX_DEPTH = 256
+
+-- The name path `scene.get_node` resolves, built by walking ids to the root.
+local function node_path(doc, node)
+    local names = { node.name }
+    local current = node
+    for _ = 1, MAX_DEPTH do
+        if current.parent == nil or current.parent == "" then
+            break
+        end
+        local parent = by_id(doc, current.parent)
+        if parent == nil then
+            break
+        end
+        table.insert(names, 1, parent.name)
+        current = parent
+    end
+    return table.concat(names, "/")
 end
 M.node_path = node_path
 
-function M.depth(node)
-    if node.parent == nil or node.parent == "" then
-        return 0
+-- Whether `id` is an ancestor of `node`, for subtree operations.
+local function has_ancestor(doc, node, id)
+    local current = node
+    for _ = 1, MAX_DEPTH do
+        if current.parent == nil or current.parent == "" then
+            return false
+        end
+        if current.parent == id then
+            return true
+        end
+        current = by_id(doc, current.parent)
+        if current == nil then
+            return false
+        end
     end
-    local _, slashes = string.gsub(node.parent, "/", "")
-    return slashes + 1
+    return false
 end
+M.has_ancestor = has_ancestor
+
+-- The engine's own id rule (`slug` in project.rs), so an id the editor
+-- generates is the one the engine would have generated for that name.
+local function slug(name)
+    local out = "n_"
+    local gap = true
+    for i = 1, #name do
+        local c = string.sub(name, i, i)
+        if string.match(c, "^[%a%d]$") ~= nil and string.byte(c) < 128 then
+            out ..= string.lower(c)
+            gap = false
+        elseif not gap then
+            out ..= "_"
+            gap = true
+        end
+    end
+    out = string.gsub(out, "_+$", "")
+    return if #out > 2 then out else "n_node"
+end
+
+-- An id no node in `doc` is using, derived from `name`.
+local function fresh_id(doc, name)
+    local taken = {}
+    for _, node in doc do
+        if node.id ~= nil then
+            taken[node.id] = true
+        end
+    end
+    local base = slug(name)
+    local candidate = base
+    local n = 2
+    while taken[candidate] do
+        candidate = `{base}_{n}`
+        n += 1
+    end
+    return candidate
+end
+M.fresh_id = fresh_id
 
 -- A friendly type name derived from the node's components.
 function M.node_type(node)
@@ -114,6 +193,11 @@ function M.load(S)
         if node.parent == nil then
             node.parent = ""
         end
+        -- The engine repairs a missing id at load; the editor has to arrive at
+        -- the same one or its refs point at nothing.
+        if node.id == nil or node.id == "" then
+            node.id = fresh_id(S.doc, node.name)
+        end
     end
     S.sel = 1
     S.dirty = false
@@ -132,8 +216,20 @@ function M.build_mirror(S)
     physics.set_paused(true)
     S.playing = false
     S.refs = {}
+    local unresolved = 0
     for i, node in S.doc do
-        S.refs[i] = S.mirror:get_node(node_path(S.doc, node))
+        local path = node_path(S.doc, node)
+        S.refs[i] = S.mirror:get_node(path)
+        if S.refs[i] == nil then
+            unresolved += 1
+            log.warn(`no mirror node at '{path}' for '{node.name}'`)
+        end
+    end
+    -- A node with no ref is invisible to the inspector, the gizmo and every
+    -- transform read. Silence here is what let a whole class of nested nodes
+    -- go missing unnoticed, so it says so now.
+    if unresolved > 0 then
+        log.warn(`{unresolved} of {#S.doc} nodes did not resolve in the mirror`)
     end
     -- The mirror is instantiated with the game's own `autoplay`, so every
     -- animated node starts running the moment it exists. Hold them: an edited
@@ -195,8 +291,12 @@ function M.add_child(S)
         n += 1
         name = base .. n
     end
-    local parent_path = node_path(S.doc, parent)
-    local entry = { name = name, parent = parent_path, position = { 0, 0, 0 } }
+    local entry = {
+        id = fresh_id(S.doc, name),
+        name = name,
+        parent = parent.id or "",
+        position = { 0, 0, 0 },
+    }
     table.insert(S.doc, entry)
     local ref = M.ref(S, S.sel)
     if ref ~= nil then
@@ -355,15 +455,13 @@ function M.delete_selected(S)
         return
     end
     local victim = S.doc[S.sel]
-    local victim_path = node_path(S.doc, victim)
     local ref = M.ref(S, S.sel)
     if ref ~= nil then
         ref:queue_free()
     end
     local kept = {}
     for _, node in S.doc do
-        local p = node_path(S.doc, node)
-        if p ~= victim_path and string.sub(p, 1, #victim_path + 1) ~= victim_path .. "/" then
+        if node ~= victim and not has_ancestor(S.doc, node, victim.id) then
             table.insert(kept, node)
         end
     end

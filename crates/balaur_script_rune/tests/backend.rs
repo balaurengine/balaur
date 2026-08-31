@@ -110,6 +110,69 @@ fn json_round_trips_through_rune() {
 }
 
 #[test]
+fn an_async_init_suspends_and_resumes_with_the_payload() {
+    let dir = project(&[(
+        "a.rn",
+        "pub async fn init(this) { this.out = task::wait(41).await; }\n",
+    )]);
+    let app = app_in(dir.path());
+    let node = spawn(&app, "Waiter");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "a.rn").unwrap();
+
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(
+        rune.number_field(node, "out"),
+        None,
+        "init should be suspended"
+    );
+
+    // A wake no one is waiting on is dropped, not an error.
+    host.wake(99, &balaur_script::Value::Num(0.0));
+    host.wake(41, &balaur_script::Value::Num(2.5));
+    assert_eq!(rune.number_field(node, "out"), Some(2.5));
+}
+
+#[test]
+fn a_suspended_task_dies_with_its_node() {
+    let dir = project(&[(
+        "a.rn",
+        "pub async fn init(this) { this.out = task::wait(41).await; }\n",
+    )]);
+    let app = app_in(dir.path());
+    let node = spawn(&app, "Waiter");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "a.rn").unwrap();
+    host.detach(balaur_core::node_id_of(node));
+    // Resuming a freed node's task would be a use of dead state; the wake
+    // must find no one.
+    host.wake(41, &balaur_script::Value::Num(2.5));
+    assert_eq!(host.instance_count(), 0);
+}
+
+#[test]
+fn an_async_update_is_an_error_not_a_pileup() {
+    let dir = project(&[("a.rn", "pub async fn update(this, dt) {}\n")]);
+    let mut app = app_in(dir.path());
+    let node = spawn(&app, "Ticker");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "a.rn").unwrap();
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    app.tick(1.0 / 60.0);
+    let logged = balaur_core::logbuf::recent(20);
+    assert!(
+        logged
+            .iter()
+            .any(|e| e.level.eq_ignore_ascii_case("error") && e.message.contains("async")),
+        "an async update should be refused: {logged:#?}"
+    );
+}
+
+#[test]
 fn a_wrong_argument_type_is_reported_not_fatal() {
     let dir = project(&[("bad.rn", "pub fn init(this) { t::need_int(\"nope\"); }\n")]);
     let mut app = app_in(dir.path());

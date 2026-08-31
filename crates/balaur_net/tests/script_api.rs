@@ -138,6 +138,36 @@ return S
 }
 
 #[test]
+fn a_lua_script_awaits_a_fetch() {
+    let url = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nquail");
+    let source = format!(
+        r#"
+local S = {{}}
+function S:init()
+    local r = await(http.request("{url}"))
+    log.info("lua-await " .. r.status .. " " .. r.body)
+end
+return S
+"#
+    );
+    run_until("s.luau", "luau", &source, "lua-await 200 quail");
+}
+
+#[test]
+fn a_rune_script_awaits_a_fetch() {
+    let url = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nraven");
+    let source = format!(
+        r#"
+pub async fn init(this) {{
+    let r = task::wait(http::request("{url}")).await;
+    log::info(`rune-await ${{r["status"]}} ${{r["body"]}}`);
+}}
+"#
+    );
+    run_until("s.rn", "rune", &source, "rune-await 200 raven");
+}
+
+#[test]
 fn a_rune_script_fetches_over_http() {
     let url = serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nrhino");
     let source = format!(

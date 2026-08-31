@@ -47,6 +47,7 @@ flow nothing checks.
 - a failed transfer reports an error event
 - a forward parent reference is rejected
 - a freed node stops being valid
+- a handler can await and await again
 - a headless frame empties the debug line buffers
 - a hex colour reaches apply expanded through patch as well as add
 - a hex string is a colour wherever a colour is taken
@@ -57,6 +58,7 @@ flow nothing checks.
 - a looping clip wraps back to the start
 - a looping tween plays its sequence that many times
 - a lua array reaches a binding as a list
+- a lua script awaits a fetch
 - a lua script fetches over http
 - a lua script talks over a websocket
 - a luau script defines a clip of its own and plays it
@@ -121,6 +123,7 @@ flow nothing checks.
 - a rotation crossing 180 degrees interpolates the short way
 - a rotation track is sampled as a quaternion the short way round
 - a rune project that calls the engine can be exported
+- a rune script awaits a fetch
 - a rune script defines a clip of its own and plays it
 - a rune script fetches over http
 - a rune script plays the same clip and hears the same signal
@@ -148,6 +151,7 @@ flow nothing checks.
 - a step that goes both to and by is rejected
 - a step that says nothing is rejected
 - a subtree is collected parent first
+- a suspended task dies with its node
 - a theme can be set from a script
 - a track can name a component property
 - a track naming a component nothing registered leaves the node alone
@@ -167,6 +171,7 @@ flow nothing checks.
 - a tween that would run backwards forever is rejected
 - a typed binding reaches rune
 - a vector argument and three numbers agree
+- a waiting task dies with its node
 - a websocket opens echoes and closes
 - a windowed backend keeps the fallback off its buffers
 - a wrong argument is reported not fatal
@@ -180,7 +185,10 @@ flow nothing checks.
 - an asset property given neither a string nor a table says so
 - an asset type no plugin registered says which type was asked for
 - an asset type says where its files belong
+- an async init suspends and resumes with the payload
+- an async update is an error not a pileup
 - an autoplay that cannot load leaves the rest of the scene standing
+- an await in update is an error not a hang
 - an eased key bends the segment that arrives at it
 - an eased step is not where a straight one would be
 - an easing curve can carry a value past the key it is heading for
@@ -268,6 +276,7 @@ flow nothing checks.
 - holding a key does not re fire
 - hot reload swaps code and preserves state
 - independent plugins load in name order
+- init suspends on await and resumes with the payload
 - inserting a resource twice replaces it
 - instance state survives between frames
 - interactive widgets report no interaction without input

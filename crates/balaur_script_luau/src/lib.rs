@@ -100,6 +100,22 @@ struct HostState {
     /// Last reported error per script, to avoid re-logging the same failure
     /// every frame.
     last_errors: HashMap<String, String>,
+    /// Script tasks suspended through `await(token)`, in suspension order —
+    /// which is resume order when one wake serves several waiters.
+    waiting: Vec<WaitingTask>,
+}
+
+/// One suspended script task: a coroutine parked until its token wakes.
+struct WaitingTask {
+    token: u64,
+    /// The node whose script suspended; freeing it cancels the task.
+    owner: Entity,
+    /// The script key, so reloading the script cancels its tasks rather than
+    /// resuming code that no longer exists.
+    key: String,
+    /// What to blame in an error report when the resumed code fails.
+    label: String,
+    thread: mlua::Thread,
 }
 
 impl ScriptHost {
@@ -143,6 +159,7 @@ impl ScriptHost {
                 _watcher: watcher,
                 events,
                 last_errors: HashMap::new(),
+                waiting: Vec::new(),
             })),
         };
         env::install_globals(&host.lua, &engine, &host)?;
@@ -220,16 +237,21 @@ impl ScriptHost {
             .insert_one(entity, ScriptAttachment { path: key.clone() })
             .map_err(|_| anyhow!("cannot attach script to a dead node"))?;
         if let Some(init) = class.get::<Option<Function>>("init")? {
-            if let Err(err) = init.call::<()>(inst) {
-                tracing::error!("[{key}] init: {err}");
-            }
+            let mut args = mlua::MultiValue::new();
+            args.push_back(Value::Table(inst));
+            self.run_task(entity, &format!("{key} init"), init, args);
         }
         Ok(())
     }
 
     /// Remove the instance for a despawned node, calling `on_free` first.
+    /// Tasks the node's script left suspended die with it.
     pub fn detach(&self, entity: Entity) {
-        let inst = self.state.borrow_mut().instances.remove(&entity);
+        let inst = {
+            let mut state = self.state.borrow_mut();
+            state.waiting.retain(|t| t.owner != entity);
+            state.instances.remove(&entity)
+        };
         if let Some(inst) = inst {
             if let Ok(Some(on_free)) = inst.get::<Option<Function>>("on_free") {
                 if let Err(err) = on_free.call::<()>(inst) {
@@ -323,7 +345,12 @@ impl ScriptHost {
         old.clear()?;
         fresh.for_each(|k: Value, v: Value| old.set(k, v))?;
         old.set_metatable(fresh.metatable())?;
-        self.state.borrow_mut().last_errors.remove(&key);
+        {
+            let mut state = self.state.borrow_mut();
+            state.last_errors.remove(&key);
+            // A task suspended in the old code must not resume into it.
+            state.waiting.retain(|t| t.key != key);
+        }
         // Give scripts a chance to migrate state.
         let instances: Vec<(Entity, Table)> = {
             let state = self.state.borrow();
@@ -395,9 +422,7 @@ impl ScriptHost {
                 }
             }
         }
-        if let Err(err) = func.call::<()>(call_args) {
-            self.report_error(method, &err.to_string());
-        }
+        self.run_task(entity, method, func, call_args);
     }
 
     /// Call `method` on every live instance that defines it, in entity order
@@ -413,7 +438,7 @@ impl ScriptHost {
             .map(|(e, t)| (*e, t.clone()))
             .collect();
         batch.sort_by_key(|(e, _)| *e);
-        for (_, inst) in batch {
+        for (entity, inst) in batch {
             let Ok(Some(func)) = inst.get::<Option<Function>>(method) else {
                 continue;
             };
@@ -422,9 +447,74 @@ impl ScriptHost {
             if let Ok(extra) = args.clone().into_lua_multi(&self.lua) {
                 call_args.extend(extra);
             }
-            if let Err(err) = func.call::<()>(call_args) {
-                self.report_error(method, &err.to_string());
-            }
+            self.run_task(entity, method, func, call_args);
+        }
+    }
+
+    /// Run a script function as a task: a coroutine that may suspend through
+    /// `await(token)` and resume when [`ScriptHost::wake`] delivers that
+    /// token. A function that never awaits runs to completion right here, so
+    /// the plain path costs one coroutine and nothing else.
+    fn run_task(&self, owner: Entity, label: &str, func: Function, args: mlua::MultiValue) {
+        let thread = match self.lua.create_thread(func) {
+            Ok(thread) => thread,
+            Err(err) => return self.report_error(label, &err.to_string()),
+        };
+        let outcome = thread.resume::<mlua::MultiValue>(args);
+        self.settle_task(owner, label, thread, outcome);
+    }
+
+    /// File a task that suspended, finish one that returned, report one that
+    /// failed.
+    fn settle_task(
+        &self,
+        owner: Entity,
+        label: &str,
+        thread: mlua::Thread,
+        outcome: mlua::Result<mlua::MultiValue>,
+    ) {
+        let values = match outcome {
+            Ok(values) => values,
+            Err(err) => return self.report_error(label, &err.to_string()),
+        };
+        if thread.status() != mlua::prelude::LuaThreadStatus::Resumable {
+            return;
+        }
+        let Some(token) = wait_token(&values) else {
+            return self.report_error(label, "scripts suspend only through await(token)");
+        };
+        let key = self.attachment_path(owner).unwrap_or_default();
+        self.state.borrow_mut().waiting.push(WaitingTask {
+            token,
+            owner,
+            key,
+            label: label.to_string(),
+            thread,
+        });
+    }
+
+    /// Resume every task suspended on `token` with `payload`, in suspension
+    /// order. No waiter, no effect.
+    pub fn wake(&self, token: u64, payload: &balaur_script::Value) {
+        // Take the ready tasks out before resuming: resumed code may await
+        // again or spawn new tasks, and the list must not be borrowed then.
+        let ready: Vec<WaitingTask> = {
+            let mut state = self.state.borrow_mut();
+            let (ready, kept): (Vec<WaitingTask>, Vec<WaitingTask>) =
+                state.waiting.drain(..).partition(|t| t.token == token);
+            state.waiting = kept;
+            ready
+        };
+        for task in ready {
+            let value = match env::from_neutral(&self.lua, &self.engine, payload) {
+                Ok(value) => value,
+                Err(err) => {
+                    self.report_error(&task.label, &err.to_string());
+                    continue;
+                }
+            };
+            let outcome = task.thread.resume::<mlua::MultiValue>(value);
+            self.settle_task(task.owner, &task.label, task.thread, outcome);
         }
     }
 
@@ -558,6 +648,10 @@ impl balaur_script::ScriptHost<Engine> for ScriptHost {
         ScriptHost::call_all(self, method, ());
     }
 
+    fn wake(&self, token: u64, payload: &balaur_script::Value) {
+        ScriptHost::wake(self, token, payload);
+    }
+
     fn scene_source(&self, rel: &str) -> Option<String> {
         ScriptHost::scene_source(self, rel)
     }
@@ -583,6 +677,18 @@ impl balaur_script::ScriptHost<Engine> for ScriptHost {
     fn as_any(&self) -> &dyn core::any::Any {
         self
     }
+}
+
+/// The token `await` yielded, if these are its sentinel values.
+///
+/// Any other yield reaching the host is a script driving coroutines by hand
+/// on the host's thread, which the caller reports as an error.
+fn wait_token(values: &mlua::MultiValue) -> Option<u64> {
+    let Some(Value::Table(table)) = values.iter().next() else {
+        return None;
+    };
+    let token: i64 = table.get("__balaur_wait").ok()?;
+    u64::try_from(token).ok()
 }
 
 /// The script API as JSON: every module table in the globals, the functions it

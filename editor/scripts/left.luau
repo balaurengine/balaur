@@ -26,12 +26,15 @@ local function tree_row(S, k, i, depth, rails, is_last, has_kids)
             ui.label(connector, { size = 11, font = "mono", color = k.line })
         end
         if has_kids then
-            local path = model.node_path(S.doc, node)
-            local open = not S.collapsed[path]
+            -- Keyed by id, which is what the walk buckets on and what survives
+            -- a rename: collapsing a node should not reopen it when it is
+            -- renamed.
+            local id = node.id or ""
+            local open = not S.collapsed[id]
             if ui.pill(if open then "▾" else "▸", {
                 height = 18, size = 9, color = k.faint, tooltip = "Collapse",
             }) then
-                S.collapsed[path] = if open then true else nil
+                S.collapsed[id] = if open then true else nil
             end
         else
             ui.add_space(22)
@@ -98,19 +101,22 @@ local function tree(S, k)
     end
     ui.scroll("tree", { max_height = ui.available_height() - 200 }, function()
         ui.spacing(4, 1)
-        local function walk(parent_path, depth, rails)
-            local children = kids[parent_path] or {}
+        -- `kids` is bucketed by the parent's **id**, so the recursion carries
+        -- an id too. Descending by name path is what used to make every nested
+        -- node invisible: no bucket is ever keyed by a path.
+        local function walk(parent_id, depth, rails)
+            local children = kids[parent_id] or {}
             for j, i in children do
                 local node = S.doc[i]
-                local path = model.node_path(S.doc, node)
+                local id = node.id or ""
                 local is_last = j == #children
-                local has_kids = kids[path] ~= nil
+                local has_kids = kids[id] ~= nil
                 tree_row(S, k, i, depth, rails, is_last, has_kids)
-                if has_kids and not S.collapsed[path] then
+                if has_kids and not S.collapsed[id] then
                     local extend = if depth == 0 then ""
                         elseif is_last then rails .. "  "
                         else rails .. "│ "
-                    walk(path, depth + 1, extend)
+                    walk(id, depth + 1, extend)
                 end
             end
         end

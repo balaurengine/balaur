@@ -61,6 +61,18 @@ pub trait ScriptHost<C: ?Sized> {
     /// order.
     fn call_all(&self, method: &str);
 
+    /// Resume every script task suspended on `token`, giving each `payload`.
+    /// No waiter is not an error — the wake is simply dropped.
+    ///
+    /// This is the other half of awaiting: a binding hands a script a token
+    /// (an id it minted), the script suspends on it — `await(token)` in Luau,
+    /// `task::wait(token).await` in Rune — and the subsystem wakes the token
+    /// when the work completes. Wakes must come from the frame loop at a
+    /// deterministic point, in a deterministic order, never from an I/O
+    /// thread; delivered that way, suspension adds nothing a replay has to
+    /// account for beyond the payloads themselves.
+    fn wake(&self, token: u64, payload: &Value);
+
     /// Scene source by project-relative path, from the pack or from disk.
     fn scene_source(&self, rel: &str) -> Option<String>;
 

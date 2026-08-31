@@ -28,9 +28,11 @@ use balaur_core::scene::ScriptAttachment;
 use balaur_core::{Engine, Pack};
 use hecs::Entity;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+use std::future::Future as _;
+
 use rune::alloc::clone::TryClone as _;
 use rune::runtime::{Function, RuntimeContext, Unit, VmResult};
-use rune::{Diagnostics, Source, Sources, Vm};
+use rune::{Diagnostics, Source, Sources, TypeHash as _, Vm};
 
 pub use bindings::RuneModule;
 pub use value::{Color, Node, Vec2, Vec3};
@@ -92,6 +94,56 @@ struct Instance {
     state: rune::Value,
 }
 
+/// One suspended async method: a VM future parked until `task::wait` finds
+/// its wake, polled again on every wake.
+struct RuneTask {
+    /// The node whose script suspended; freeing it cancels the task.
+    owner: Entity,
+    /// The script key, so reloading the script cancels its tasks rather than
+    /// resuming code that no longer exists.
+    key: String,
+    /// What to blame in an error report when the resumed code fails.
+    label: String,
+    future: std::pin::Pin<Box<rune::runtime::Future>>,
+}
+
+thread_local! {
+    /// Wake payloads not yet claimed by a `task::wait` future. Entries live
+    /// only for the duration of one `wake` call: delivered or dropped.
+    static WAKES: RefCell<Vec<(u64, balaur_script::Value)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// The future behind `task::wait(token)`: pending until its token's wake
+/// payload appears, ready with that payload converted for the script.
+struct WaitFuture {
+    token: u64,
+}
+
+impl std::future::Future for WaitFuture {
+    type Output = rune::Value;
+
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<rune::Value> {
+        let taken = WAKES.with(|wakes| {
+            let mut wakes = wakes.borrow_mut();
+            let at = wakes.iter().position(|(t, _)| *t == self.token)?;
+            Some(wakes.remove(at).1)
+        });
+        let Some(payload) = taken else {
+            return std::task::Poll::Pending;
+        };
+        match value::from_neutral(&payload) {
+            Ok(value) => std::task::Poll::Ready(value),
+            Err(err) => {
+                tracing::error!("task::wait({}): {err}", self.token);
+                std::task::Poll::Ready(rune::to_value(()).expect("unit always converts"))
+            }
+        }
+    }
+}
+
 struct State {
     project_root: PathBuf,
     pack: Option<Pack>,
@@ -103,6 +155,8 @@ struct State {
     scripts: HashMap<String, Script>,
     /// Insertion-ordered so `update` visits nodes the same way every run.
     instances: indexmap::IndexMap<Entity, Instance>,
+    /// Suspended async methods, in suspension order — resume order on a wake.
+    tasks: Vec<RuneTask>,
     events: Option<Receiver<notify::Result<notify::Event>>>,
     _watcher: Option<RecommendedWatcher>,
 }
@@ -144,6 +198,7 @@ impl RuneHost {
                 context: None,
                 scripts: HashMap::new(),
                 instances: indexmap::IndexMap::new(),
+                tasks: Vec::new(),
                 events,
                 _watcher: watcher,
             })),
@@ -166,6 +221,17 @@ impl RuneHost {
         let mut values = rune::Module::with_crate("balaur")?;
         value::install(&mut values, &self.engine)?;
         ctx.install(values)?;
+        // `task::wait(token).await`: park this async method until the engine
+        // wakes the token, and evaluate to the wake's payload. `init` and
+        // dispatched handlers may be async; `update` is deliberately
+        // synchronous (a per-frame function that suspends piles up one task
+        // per tick).
+        let mut task = rune::Module::with_crate("task")?;
+        task.function("wait", |token: i64| WaitFuture {
+            token: u64::try_from(token).unwrap_or(u64::MAX),
+        })
+        .build()?;
+        ctx.install(task)?;
         let pending = self.state.borrow().pending.clone();
         for m in pending.borrow_mut().drain(..) {
             ctx.install(m)?;
@@ -278,14 +344,17 @@ impl RuneHost {
             .insert_one(entity, ScriptAttachment { path: key.clone() })
             .map_err(|_| anyhow!("cannot attach script to a dead node"))?;
         if let Some(init) = self.method(&key, "init") {
-            if let VmResult::Err(err) = init.call::<()>((state,)) {
-                tracing::error!("[{key}] init: {err}");
+            match init.call::<rune::Value>((state,)) {
+                VmResult::Ok(value) => self.settle_call(entity, &key, "init", value),
+                VmResult::Err(err) => tracing::error!("[{key}] init: {err}"),
             }
         }
         Ok(())
     }
 
+    /// Tasks the node's script left suspended die with it.
     pub fn detach(&self, entity: Entity) {
+        self.state.borrow_mut().tasks.retain(|t| t.owner != entity);
         let inst = self.state.borrow_mut().instances.shift_remove(&entity);
         if let Some(inst) = inst {
             if let Some(on_free) = self.method(&inst.key, "on_free") {
@@ -310,8 +379,15 @@ impl RuneHost {
             let Some(update) = self.method(&key, "update") else {
                 continue;
             };
-            if let VmResult::Err(err) = update.call::<()>((state, f64::from(dt))) {
-                tracing::error!("[{key}] update: {err}");
+            match update.call::<rune::Value>((state, f64::from(dt))) {
+                VmResult::Ok(value) => {
+                    if value.type_hash() == rune::runtime::Future::HASH {
+                        tracing::error!(
+                            "[{key}] update cannot be async; suspend in init or a handler instead"
+                        );
+                    }
+                }
+                VmResult::Err(err) => tracing::error!("[{key}] update: {err}"),
             }
         }
     }
@@ -339,27 +415,80 @@ impl RuneHost {
                 }
             }
         }
-        if let VmResult::Err(err) = f.call::<()>(call_args) {
-            tracing::error!("[{key}] {method}: {err}");
+        match f.call::<rune::Value>(call_args) {
+            VmResult::Ok(value) => self.settle_call(entity, &key, method, value),
+            VmResult::Err(err) => tracing::error!("[{key}] {method}: {err}"),
         }
     }
 
     pub fn call_all(&self, method: &str) {
-        let batch: Vec<(String, rune::Value)> = self
+        let batch: Vec<(Entity, String, rune::Value)> = self
             .state
             .borrow()
             .instances
-            .values()
-            .filter_map(|i| Some((i.key.clone(), i.state.try_clone().ok()?)))
+            .iter()
+            .filter_map(|(e, i)| Some((*e, i.key.clone(), i.state.try_clone().ok()?)))
             .collect();
-        for (key, state) in batch {
+        for (entity, key, state) in batch {
             let Some(f) = self.method(&key, method) else {
                 continue;
             };
-            if let VmResult::Err(err) = f.call::<()>((state,)) {
-                tracing::error!("[{key}] {method}: {err}");
+            match f.call::<rune::Value>((state,)) {
+                VmResult::Ok(value) => self.settle_call(entity, &key, method, value),
+                VmResult::Err(err) => tracing::error!("[{key}] {method}: {err}"),
             }
         }
+    }
+
+    /// File an async method's future as a task and run it to its first await.
+    /// Anything but a future is a finished synchronous call — nothing to do.
+    fn settle_call(&self, owner: Entity, key: &str, label: &str, value: rune::Value) {
+        if value.type_hash() != rune::runtime::Future::HASH {
+            return;
+        }
+        let future = match value.into_future() {
+            Ok(future) => future,
+            Err(err) => return tracing::error!("[{key}] {label}: {err}"),
+        };
+        self.state.borrow_mut().tasks.push(RuneTask {
+            owner,
+            key: key.to_string(),
+            label: label.to_string(),
+            future: Box::pin(future),
+        });
+        self.poll_tasks();
+    }
+
+    /// Poll every suspended task once, in suspension order. Progress only
+    /// happens when a wake has put a payload where some `task::wait` looks,
+    /// so a poll with nothing delivered is a cheap no-op.
+    fn poll_tasks(&self) {
+        // Taken out before polling: resumed code may spawn new tasks or call
+        // back into the host, and the list must not be borrowed then.
+        let tasks = std::mem::take(&mut self.state.borrow_mut().tasks);
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        let mut kept = Vec::new();
+        for mut task in tasks {
+            match task.future.as_mut().poll(&mut context) {
+                std::task::Poll::Ready(VmResult::Ok(_)) => {}
+                std::task::Poll::Ready(VmResult::Err(err)) => {
+                    tracing::error!("[{}] {}: {err}", task.key, task.label);
+                }
+                std::task::Poll::Pending => kept.push(task),
+            }
+        }
+        let mut state = self.state.borrow_mut();
+        // Tasks spawned while polling queue up behind the survivors.
+        kept.append(&mut state.tasks);
+        state.tasks = kept;
+    }
+
+    /// Resume every task suspended on `token` with `payload`, in suspension
+    /// order. An unclaimed wake is dropped, not stored.
+    pub fn wake(&self, token: u64, payload: &balaur_script::Value) {
+        WAKES.with(|wakes| wakes.borrow_mut().push((token, payload.clone())));
+        self.poll_tasks();
+        WAKES.with(|wakes| wakes.borrow_mut().retain(|(t, _)| *t != token));
     }
 
     /// Drain watcher events and reload changed scripts.
@@ -423,6 +552,8 @@ impl RuneHost {
         }
         let unit = self.compile_unit(key, &source)?;
         let mut state = self.state.borrow_mut();
+        // A task suspended in the old unit must not resume into it.
+        state.tasks.retain(|t| t.key != key);
         state.scripts.insert(
             key.to_string(),
             Script {
@@ -507,6 +638,10 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
 
     fn call_all(&self, method: &str) {
         RuneHost::call_all(self, method);
+    }
+
+    fn wake(&self, token: u64, payload: &balaur_script::Value) {
+        RuneHost::wake(self, token, payload);
     }
 
     fn scene_source(&self, rel: &str) -> Option<String> {
