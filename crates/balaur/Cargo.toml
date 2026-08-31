@@ -19,6 +19,7 @@ balaur_plugin.workspace = true
 balaur_script_luau.workspace = true
 balaur_script_rune.workspace = true
 balaur_physics.workspace = true
+balaur_anim.workspace = true
 balaur_render.workspace = true
 balaur_audio = { workspace = true, optional = true }
 balaur_input.workspace = true

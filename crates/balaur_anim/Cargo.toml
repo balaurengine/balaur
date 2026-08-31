@@ -1,0 +1,29 @@
+[package]
+name = "balaur_anim"
+description = "Balaur animation plugin: clips, sampling and fixed-step playback"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+balaur_core.workspace = true
+balaur_script.workspace = true
+anyhow.workspace = true
+glamx.workspace = true
+toml.workspace = true
+tracing.workspace = true
+# Transcendental math has to be the same on every platform: `f32::sin` and
+# `Quat::from_euler` route to the platform libm and differ across operating
+# systems, which would put per-platform drift into every animated transform.
+libm.workspace = true
+
+[dev-dependencies]
+# The facade, for the two things a test needs and the crate must not: a render
+# plugin whose `color` component an animation drives without depending on it,
+# and the two script backends the `animation` module has to reach alike.
+balaur.workspace = true
+tempfile = "3"
+
+[lints]
+workspace = true

@@ -24,6 +24,8 @@ local function commands(S)
         { label = "Delete selected node", icon = "✕", key = "", run = function() model.delete_selected(S) end },
         { label = "Create animation clip", icon = "◷", key = "", run = function() animlib.ensure_clip(S) end },
         { label = "Insert keyframe at playhead", icon = "◆", key = "K", run = function() animlib.add_key(S, S.anim_time) end },
+        { label = "Save clip as file", icon = "◷", key = "", run = function() animlib.promote(S) end },
+        { label = "Make clip inline", icon = "◷", key = "", run = function() animlib.make_inline(S) end },
         { label = "UI scale +", icon = "＋", key = "⌘=", run = function() S.set_ui_scale(S.ui_scale + 0.125) end },
         { label = "UI scale −", icon = "−", key = "⌘-", run = function() S.set_ui_scale(S.ui_scale - 0.125) end },
     }

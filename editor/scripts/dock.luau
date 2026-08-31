@@ -27,8 +27,17 @@ local function tab_row(S, k)
                 if S.dock == "assets" then
                     hint = S.game_root
                 elseif S.dock == "timeline" then
-                    local anim = animlib.clip(model.selected(S))
-                    hint = if anim then string.format("0.00 – %.2f s · %s", anim.length, anim.clip) else "no clip"
+                    local node = model.selected(S)
+                    local def = animlib.definition(S)
+                    if def == nil then
+                        hint = "no clip"
+                    else
+                        local name = animlib.clip_name(node)
+                        hint = string.format("0.00 – %.2f s · %s · %s",
+                            animlib.length(def),
+                            if name == "" then "unnamed" else name,
+                            animlib.library_path(node) or "inline")
+                    end
                 else
                     hint = `balaur-core {S.version}`
                 end
@@ -122,16 +131,21 @@ local function assets(S, k)
     end)
 end
 
--- The real keyframe timeline: scrub with the ruler, ＋ Key inserts a key at
--- the playhead from the node's current transform (see scripts/anim.luau).
+-- The keyframe timeline over the engine's clip: scrub with the ruler (which
+-- seeks the engine's player, so what the viewport shows is the engine's own
+-- pose), ＋ Key snapshots the node's transform into the clip at the playhead.
+-- The data is an `animation_clip` asset; scripts/anim.luau is the adapter.
 local function timeline(S, k)
     local node = model.selected(S)
-    local anim = animlib.clip(node)
+    local def = animlib.definition(S)
     ui.add_space(4)
-    if anim == nil then
+    if def == nil then
         ui.horizontal({ height = 30 }, function()
             ui.add_space(12)
-            ui.label(node.name .. " has no clip", { size = 12, font = "mono", color = k.faint })
+            local missing = if animlib.component(node) == nil
+                then node.name .. " has no clip"
+                else node.name .. ": clip '" .. animlib.clip_name(node) .. "' is not in its library"
+            ui.label(missing, { size = 12, font = "mono", color = k.faint })
             ui.add_space(12)
             if ui.pill("＋ Create clip", {
                 height = 24, size = 11.5, strong = true,
@@ -142,6 +156,7 @@ local function timeline(S, k)
         end)
         return
     end
+    local length = animlib.length(def)
     local name_w = 186
     local lane_w = math.max(120, ui.available_width() - name_w - 60)
     -- Ruler row: playhead scrubber + key controls. The name column and the
@@ -163,47 +178,50 @@ local function timeline(S, k)
                 animlib.delete_key_at(S, S.anim_time)
             end
         end)
-        local t, scrubbed = ui.slider(S.anim_time, 0, anim.length, {
+        local t, scrubbed = ui.slider(S.anim_time, 0, length, {
             width = lane_w,
             rail = k.sunken, fill = k.accent_fill, knob = k.bg,
         })
         if scrubbed then
-            S.anim_time = t
-            animlib.apply_playhead(S)
+            animlib.seek(S, t)
         end
         ui.add_space(6)
-        ui.label(string.format("%.2f / %.2f s", S.anim_time, anim.length), { size = 11, font = "mono", color = k.faint })
+        ui.label(string.format("%.2f / %.2f s", S.anim_time, length), { size = 11, font = "mono", color = k.faint })
     end)
-    -- Track lanes with key dots (filled before the playhead, hollow after).
-    for _, track in { "position", "rotation" } do
-        ui.horizontal({ height = 30 }, function()
-            ui.add_space(8)
-            ui.horizontal({ height = 30, width = name_w - 12 }, function()
-                ui.frame({ fill = k.sunken, radius = 15, padding_x = 10 }, function()
-                    ui.horizontal({ height = 30, tight = true }, function()
-                        ui.dot(if track == "position" then k.accent else k.sage, 7)
-                        ui.add_space(4)
-                        ui.label(track, { size = 12, font = "mono", color = k.text })
+    -- One lane per track the clip actually has, with key dots (filled before
+    -- the playhead, hollow after). A component track and a method track show
+    -- up here the same way a transform track does, because the clip is the
+    -- engine's and the engine has all three.
+    ui.scroll("timeline-tracks", nil, function()
+        for index, track in animlib.tracks(def) do
+            local label = animlib.track_label(track)
+            local color = if index % 2 == 1 then k.accent else k.sage
+            ui.horizontal({ height = 30 }, function()
+                ui.add_space(8)
+                ui.horizontal({ height = 30, width = name_w - 12 }, function()
+                    ui.frame({ fill = k.sunken, radius = 15, padding_x = 10 }, function()
+                        ui.horizontal({ height = 30, tight = true }, function()
+                            ui.dot(color, 7)
+                            ui.add_space(4)
+                            ui.label(label, { size = 12, font = "mono", color = k.text })
+                        end)
                     end)
                 end)
-            end)
-            local cursor = 0
-            for _, key in anim.keys do
-                local x = math.max(0, (key.t / math.max(anim.length, 1e-6)) * lane_w - 5)
-                local gap = x - cursor
-                if gap > 0 then
-                    ui.add_space(gap)
-                    cursor = x
+                local cursor = 0
+                for _, key in (track.keys or {}) do
+                    local x = math.max(0, ((key.t or 0) / length) * lane_w - 5)
+                    local gap = x - cursor
+                    if gap > 0 then
+                        ui.add_space(gap)
+                        cursor = x
+                    end
+                    local before = (key.t or 0) <= S.anim_time + 1e-4
+                    ui.label(if before then "●" else "○", { size = 11, color = color })
+                    cursor += 14
                 end
-                local before = key.t <= S.anim_time + 1e-4
-                ui.label(if before then "●" else "○", {
-                    size = 11,
-                    color = if track == "position" then k.accent else k.sage,
-                })
-                cursor += 14
-            end
-        end)
-    end
+            end)
+        end
+    end)
 end
 
 function M.draw(S)

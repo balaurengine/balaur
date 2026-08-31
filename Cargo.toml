@@ -38,6 +38,7 @@ balaur_script = { path = "crates/balaur_script", version = "0.1.0" }
 balaur_script_luau = { path = "crates/balaur_script_luau", version = "0.1.0" }
 balaur_script_rune = { path = "crates/balaur_script_rune", version = "0.1.0" }
 balaur_physics = { path = "crates/balaur_physics", version = "0.1.0" }
+balaur_anim = { path = "crates/balaur_anim", version = "0.1.0" }
 balaur_render = { path = "crates/balaur_render", version = "0.1.0" }
 balaur_audio = { path = "crates/balaur_audio", version = "0.1.0" }
 balaur_input = { path = "crates/balaur_input", version = "0.1.0" }

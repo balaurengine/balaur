@@ -1,0 +1,23 @@
+# A clip library: one document, several named clips. A scene addresses one of
+# them as `animations/hero.toml#idle`; the entry inherits this document's
+# `type`, which is what makes a library file work with no library asset type.
+type = "animation_clip"
+
+[clips.idle]
+length = 1.0
+loop = "loop"
+tracks = [
+  { property = "position", keys = [
+    { t = 0.0, value = [0.0, 0.0, 0.0] },
+    { t = 1.0, value = [0.0, 10.0, 0.0] },
+  ] },
+]
+
+[clips.spin]
+length = 1.0
+tracks = [
+  { property = "rotation_euler", keys = [
+    { t = 0.0, value = [0.0, 0.0, 0.0] },
+    { t = 1.0, value = [0.0, 0.0, 1.5707963] },
+  ] },
+]

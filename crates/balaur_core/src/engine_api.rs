@@ -85,6 +85,26 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: component_schema,
     },
     EngineOp {
+        module: "assets",
+        name: "load",
+        call: assets_load,
+    },
+    EngineOp {
+        module: "assets",
+        name: "duplicate",
+        call: assets_duplicate,
+    },
+    EngineOp {
+        module: "assets",
+        name: "exists",
+        call: assets_exists,
+    },
+    EngineOp {
+        module: "assets",
+        name: "reload",
+        call: assets_reload,
+    },
+    EngineOp {
         module: "log",
         name: "info",
         call: log_info,
@@ -158,6 +178,16 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         module: "toml",
         name: "encode",
         call: toml_encode,
+    },
+    EngineOp {
+        module: "json",
+        name: "parse",
+        call: json_parse,
+    },
+    EngineOp {
+        module: "json",
+        name: "encode",
+        call: json_encode,
     },
 ];
 
@@ -279,6 +309,34 @@ fn component_schema(eng: &Engine, args: &[Value]) -> Result<Value> {
     })
 }
 
+/// An asset's definition table, from any of the three reference forms.
+///
+/// A script gets the data, not the engine's parsed object: a table is what a
+/// script can read, edit and hand to `toml.encode`. The parsed side belongs to
+/// the plugin that registered the type.
+fn assets_load(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let definition = crate::assets::definition(eng, text(args, 0)?)?;
+    crate::node_api::from_toml(&definition)
+}
+
+/// A private copy: read past the cache, so editing it cannot disturb what
+/// every other holder of that reference sees.
+fn assets_duplicate(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let definition = crate::assets::duplicate_definition(eng, text(args, 0)?)?;
+    crate::node_api::from_toml(&definition)
+}
+
+fn assets_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
+    Ok(Value::Bool(crate::assets::exists(eng, text(args, 0)?)))
+}
+
+/// Forget a reference, so the next load re-reads its source. What the editor
+/// calls after writing an asset file.
+fn assets_reload(eng: &Engine, args: &[Value]) -> Result<Value> {
+    crate::assets::reload(eng, text(args, 0)?)?;
+    Ok(Value::Nil)
+}
+
 /// The three writers a script has. They emit through `tracing`, so a scripted
 /// line lands in the same stream, and the same `logbuf`, as an engine one --
 /// which is what makes `log.recent` able to show both.
@@ -365,8 +423,16 @@ fn fs_read(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(std::fs::read_to_string(resolve(eng, text(args, 0)?)).map_or(Value::Nil, Value::Str))
 }
 
+/// Write a file, making the directory it goes in.
+///
+/// Creating the parent is part of writing: a tool that saves an asset into
+/// `animations/` should not fail because the project has never had one.
 fn fs_write(eng: &Engine, args: &[Value]) -> Result<Value> {
-    std::fs::write(resolve(eng, text(args, 0)?), text(args, 1)?)?;
+    let path = resolve(eng, text(args, 0)?);
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, text(args, 1)?)?;
     Ok(Value::Nil)
 }
 
@@ -410,6 +476,81 @@ fn toml_encode(_: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Str(toml::to_string(&crate::node_api::to_toml(
         value,
     )?)?))
+}
+
+fn json_parse(_: &Engine, args: &[Value]) -> Result<Value> {
+    let parsed: serde_json::Value = serde_json::from_str(text(args, 0)?)?;
+    from_json(&parsed)
+}
+
+fn json_encode(_: &Engine, args: &[Value]) -> Result<Value> {
+    let value = args.first().ok_or_else(|| anyhow!("nothing to encode"))?;
+    Ok(Value::Str(serde_json::to_string(&to_json(value)?)?))
+}
+
+/// Unlike TOML, JSON has null, so nil survives a round trip.
+pub fn from_json(v: &serde_json::Value) -> Result<Value> {
+    Ok(match v {
+        serde_json::Value::Null => Value::Nil,
+        serde_json::Value::Bool(b) => Value::Bool(*b),
+        serde_json::Value::Number(n) => match n.as_i64() {
+            Some(i) => Value::Int(i),
+            None => Value::Num(
+                n.as_f64()
+                    .ok_or_else(|| anyhow!("{n} does not fit a script number"))?,
+            ),
+        },
+        serde_json::Value::String(s) => Value::Str(s.clone()),
+        serde_json::Value::Array(items) => {
+            Value::List(items.iter().map(from_json).collect::<Result<_>>()?)
+        }
+        serde_json::Value::Object(map) => Value::Map(
+            map.iter()
+                .map(|(k, val)| Ok((k.clone(), from_json(val)?)))
+                .collect::<Result<_>>()?,
+        ),
+    })
+}
+
+pub fn to_json(v: &Value) -> Result<serde_json::Value> {
+    Ok(match v {
+        Value::Nil => serde_json::Value::Null,
+        Value::Bool(b) => serde_json::Value::Bool(*b),
+        Value::Int(i) => serde_json::Value::Number((*i).into()),
+        // JSON has no NaN or infinity, so those error instead of encoding.
+        Value::Num(n) => serde_json::Number::from_f64(*n)
+            .map(serde_json::Value::Number)
+            .ok_or_else(|| anyhow!("{n} has no JSON representation"))?,
+        Value::Str(s) => serde_json::Value::String(s.clone()),
+        Value::Node(_) | Value::Callback(_) => {
+            return Err(anyhow!("a node or callback is not JSON data"))
+        }
+        Value::Many(_) => return Err(anyhow!("several values are not one JSON document")),
+        Value::Vec2(a) => json_number_list(a)?,
+        Value::Vec3(a) => json_number_list(a)?,
+        Value::Color(a) => json_number_list(a)?,
+        Value::List(items) => {
+            serde_json::Value::Array(items.iter().map(to_json).collect::<Result<_>>()?)
+        }
+        Value::Map(pairs) => serde_json::Value::Object(
+            pairs
+                .iter()
+                .map(|(k, val)| Ok((k.clone(), to_json(val)?)))
+                .collect::<Result<_>>()?,
+        ),
+    })
+}
+
+fn json_number_list(a: &[f32]) -> Result<serde_json::Value> {
+    Ok(serde_json::Value::Array(
+        a.iter()
+            .map(|n| {
+                serde_json::Number::from_f64(f64::from(*n))
+                    .map(serde_json::Value::Number)
+                    .ok_or_else(|| anyhow!("{n} has no JSON representation"))
+            })
+            .collect::<Result<_>>()?,
+    ))
 }
 
 fn number(args: &[Value], i: usize) -> Result<f64> {

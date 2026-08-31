@@ -1,5 +1,6 @@
-//! Tests for the tooling layer the editor is built on: `toml` roundtrip,
-//! `require` with module hot reload, and runtime scene instantiation.
+//! Tests for the tooling layer the editor is built on: `toml` and `json`
+//! roundtrips, `require` with module hot reload, and runtime scene
+//! instantiation.
 
 use balaur_core::{App, AppConfig};
 
@@ -41,6 +42,28 @@ fn toml_roundtrips_through_lua() {
         .unwrap();
     assert!(out.contains("name = \"B\""), "{out}");
     assert!(out.contains("[[nodes]]"), "{out}");
+}
+
+#[test]
+fn json_roundtrips_through_lua() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = make_app(dir.path());
+    let lua = balaur_script_luau::lua_of(&app.engine);
+    let out: String = lua
+        .load(
+            r#"
+            local doc = json.parse('{"name": "A", "values": [1, 2, 3], "nested": {"flag": true}}')
+            assert(doc.name == "A")
+            assert(doc.values[2] == 2)
+            assert(doc.nested.flag == true)
+            doc.name = "B"
+            return json.encode(doc)
+            "#,
+        )
+        .eval()
+        .unwrap();
+    assert!(out.contains("\"name\":\"B\""), "{out}");
+    assert!(out.contains("\"values\":[1,2,3]"), "{out}");
 }
 
 #[test]

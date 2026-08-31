@@ -46,7 +46,8 @@ RESOURCE_DENY_SUFFIXES = ("Manager", "Info", "Data", "Settings", "Server", "Enab
 # chosen by a human. A type not on this list is a REPORT, not an error: the
 # lint's job is to make the choice happen, not to make it.
 KNOWN_RESOURCES = {
-    "AppIconConfig", "AudioState", "CameraConfig", "CameraConfig2d", "CameraInputConfig",
+    "AnimationState", "AppIconConfig", "AssetState", "AssetTypeRegistry",
+    "AudioState", "CameraConfig", "CameraConfig2d", "CameraInputConfig",
     "ClearColorConfig", "ComponentRegistry", "DebugLineBuffer", "DebugLineBuffer2d",
     "GridConfig", "InputSnapshot", "PhysicsState", "PhysicsState2d", "ProjectRoot",
     "RngState", "SceneKeyRegistry", "ScreenshotRequest", "ScriptArgs", "UiConfig",

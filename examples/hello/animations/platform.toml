@@ -1,0 +1,29 @@
+# An animation clip, living in its own file rather than inline in the scene:
+# `library = "animations/platform.toml"` on a node is a reference, and every
+# node naming it shares one parsed clip.
+#
+# This document is a *library* — entries under `[clips.<name>]` are addressed
+# `animations/platform.toml#patrol`, which is what the `animation` component's
+# `autoplay = "patrol"` asks for.
+type = "animation_clip"
+
+[clips.patrol]
+length = 4.0
+loop = "pingpong"          # none | loop | pingpong
+
+# Slide along z and back. `ease` shapes the segment that *arrives* at the key
+# it is written on, so the platform eases into the far end instead of
+# stopping dead. The twelve transitions and four modes are Godot's, computed
+# on `libm` so the curve is the same on every platform.
+[[clips.patrol.tracks]]
+property = "position"      # position | rotation_euler | scale | <component>/<property>
+interp = "linear"          # step | linear | cubic
+keys = [
+  { t = 0.0, value = [-2.5, 0.25, -2.0] },
+  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = "in_out_sine" },
+]
+
+# A track with no `property` is a method track: its keys call a method on the
+# script of the node the track targets.
+[[clips.patrol.tracks]]
+keys = [{ t = 4.0, call = "on_reached_end" }]

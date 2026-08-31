@@ -1,6 +1,92 @@
-> **Status:** draft for review. Nothing here is built yet. Written after
-> reading Godot's and Unity's models (sources at the end) and the current
-> tree.
+> **Status:** built. All six phases landed on 2026-08-31 —
+> `crates/balaur_core/src/assets.rs` and the whole `crates/balaur_anim` crate,
+> the `assets` and `animation` script modules (`balaur api`: 16 modules, 167
+> functions), the editor's Animate persona rewired onto them, an animated
+> platform in `examples/hello` and `examples/hello_rune`, and the
+> ARCHITECTURE sections "Assets (core feature)" and "Animation (plugin
+> feature)". Kept as written for the record; it is a plan, not a description
+> of the code. See [generated/behaviour.md](generated/behaviour.md) for what
+> the code actually does — roughly 150 of those sentences are this plan.
+>
+> **What §3.7 deferred stayed deferred**, deliberately and with nothing
+> precluded: blend trees and state machines (the sampler is pure —
+> `(clip, time) -> pose`, reachable with no `Engine` — so a blender composes
+> samples later without the data model moving); skinning, rigs and
+> retargeting (they need skinned meshes in the render backend first, and the
+> track model already fits `bone/3/rotation`); and stable asset ids
+> (`uid://`, GUIDs) — paths until renames actually hurt. Also not built:
+> `tween_method` / `tween_subtween`, the `loop_finished` / `step_finished`
+> signals, and asset hot reload through the file watcher (open question 4 —
+> `assets.reload` is the mechanism a watcher would call, and wiring the
+> watcher is a separate diff in a crate core does not own).
+>
+> **Where the implementation decided differently.** Twelve things, and each
+> is argued at the code:
+>
+> 1. **No `animation_library` asset type.** §3.1 implied a second type for
+>    named entries; instead a library file is addressed `hero.toml#idle` and
+>    phase 1's entry resolution cuts the entry out, inheriting the document's
+>    `type`. Core never learns the word `clips`. The cost is that a library
+>    document is not itself a valid clip, which nothing needs it to be.
+> 2. **A fourth reference form exists, written by nobody.** An inline
+>    definition is keyed by a digest of its content and rewritten to
+>    `#!<hex>`, so re-applying a component is idempotent rather than leaking
+>    a cache entry per frame. It takes a `#entry` suffix (`#!<hex>#idle`) for
+>    the same reason a file does — without it an inline library could not
+>    autoplay, and the editor's **Make inline** could not be the inverse of
+>    **Save as file**.
+> 3. **`assets.load` returns the definition table, not the parsed object.**
+>    `Value` has no variant for an opaque `Rc<dyn Any>` and adding one would
+>    mean per-backend userdata in Luau and Rune — exactly what the seam
+>    exists to avoid. The Rust `assets::load` still returns the shared `Rc`.
+> 4. **`assets.save` was not built.** §2 listed it as the editor's write-back
+>    path; the editor uses `fs.write` + `assets.reload`, which is already how
+>    `model.save` writes a scene, and which has an answer for a packed run
+>    (there is no writable source) where a core writer would not.
+> 5. **An unresolvable reference warns rather than failing.** Component
+>    `apply` errors are fatal to `instantiate_scene`, so one bad clip path
+>    took a whole scene down. Godot logs a missing resource and loads the
+>    scene; so does this. A definition *table* that will not parse is still
+>    an error, reported where it was written.
+> 6. **A method track is a `[[tracks]]` block with no `property`.** §3.1 gave
+>    the key shape (`{ t = 0.8, call = "on_footstep" }`) but not the track.
+>    Every candidate spelling puts a fake property into the closed set the
+>    inspector reads; absence is honest, and a key that neither calls nor
+>    carries a value is rejected naming which it needs.
+> 7. **A key's `value` is one to four numbers, not always three.**
+>    `shape/radius` is one and `color/rgba` is four, and the plan asks for
+>    both. The track's width comes from its first key; transform tracks are
+>    still fixed at three.
+> 8. **`stop` ends a clip, `pause` holds it.** The plan lists both without
+>    distinguishing them. `pause`/`resume` are meaningless unless one verb is
+>    recoverable and the other is not — Godot's split.
+> 9. **`seek` poses the node.** Phases 3 and 4 shipped it as playhead-only
+>    and phase 5 made it pose, because scrubbing a *paused* clip otherwise
+>    shows a moving ruler and a motionless node. It travels no span, so a
+>    seek still cannot fire the method keys it skipped.
+> 10. **`ease` bends the segment that arrives at its key**, and the 49th
+>     spelling is bare `linear` (all 48 transition×mode names resolve too,
+>     `in_linear` included, so a Godot port does not trip). Every curve maps
+>     0→0 and 1→1 exactly, not to a tolerance.
+> 11. **Tween start values are captured at the call**, not on the next frame
+>     as Godot does, which makes a malformed spec an error where it was
+>     written. A step's track holds its captured start value from t = 0 —
+>     that is what "a tween is a generated clip" actually costs, and paying it
+>     is what keeps the sampler with one set of semantics. `loops = 0` is
+>     forever; repetition is the tween's business, not the generated clip's,
+>     because a clip that never ends is a tween that never gets removed.
+> 12. **Rust names:** `AnimationState` rather than `AnimState` (the crate name
+>     is the only abbreviation §3.3 grants), and `tween::start` /
+>     `tween::start_to` in Rust because `balaur_anim::stop` already exists.
+>     The script API is `animation.tween` / `animation.tween_to` as specified.
+>
+> Two things the plan did not anticipate that the work required:
+> `components::patch` grew a sibling for the merge (`defaults_of` + `overlay`,
+> so `add` and `patch` share one implementation of shorthand and `#rrggbb`
+> expansion), and the pose write had to become *deferred effects* — a
+> component's `apply` may want the world mutably and a script handler may
+> free its own node, so a step records `Patch`/`Call` and the frame carries
+> them out once the borrows are gone.
 >
 > **`docs/NAMING.md` governs every name below.** This plan predates it, and
 > the naming rules landed on 2026-08-30 with four rows aimed squarely at

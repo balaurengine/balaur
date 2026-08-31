@@ -16,8 +16,10 @@
 //!
 //! Property specs (`schema` is a TOML table of `name = { ... }`):
 //!   type = "float" | "bool" | "string" | "enum" | "vec2" | "vec3" | "color"
+//!          | "asset"
 //!   default = ...          (required, and of the declared type)
 //!   options = [...]        (enum only, and required there)
+//!   asset = "clip_type"    (asset only, and required there)
 //!   min/max/step/decimals  (float, optional)
 //!   shorthand/readonly     (bool, optional)
 //!
@@ -30,6 +32,18 @@
 //! A `color` property may be written either as `[r, g, b]` / `[r, g, b, a]`
 //! floats or as a `#rrggbb` / `#rrggbbaa` string; the string form is expanded
 //! to the array form before any `apply` hook sees it, so hooks read one shape.
+//!
+//! An `asset` property obeys the asset layer's one rule — *a string is a
+//! reference, a table is a definition* (`crate::assets`). [`properties`]
+//! applies it to every asset-typed property before any `apply` hook runs, so
+//! a hook always receives a reference string and reaches the object with one
+//! `assets::load_typed` call, and every asset type registered from now on
+//! inherits the rule without writing a line for it.
+//!
+//! Two ways in: [`add`] describes a component whole, starting from the schema
+//! defaults, which is what a scene file means; [`patch`] writes over what the
+//! component currently reports, which is what anything driving one property
+//! over time means.
 
 use anyhow::{anyhow, Context, Result};
 use hecs::Entity;
@@ -67,7 +81,9 @@ pub struct ComponentDef {
 /// The datatypes a schema property may declare (rule N6). Closed: a plugin
 /// that wants another one adds it here, so the editor's inspector and the
 /// scene format learn about it at the same moment.
-pub const PROPERTY_TYPES: [&str; 7] = ["float", "bool", "string", "enum", "vec2", "vec3", "color"];
+pub const PROPERTY_TYPES: [&str; 8] = [
+    "float", "bool", "string", "enum", "vec2", "vec3", "color", "asset",
+];
 
 impl ComponentDef {
     /// Parse and validate a schema from TOML text.
@@ -130,6 +146,24 @@ fn validate_property(spec: &toml::Value) -> Result<(), String> {
         }
         _ => {}
     }
+    // `type` is the datatype key, so the asset's own type name needs a second
+    // key rather than reusing it (N6): `{ type = "asset", asset = "clip" }`.
+    match (declared == "asset", spec.get("asset")) {
+        (true, None) => {
+            return Err(
+                "`type = \"asset\"` needs an `asset` key naming the asset type it takes".into(),
+            )
+        }
+        (true, Some(name)) if name.as_str().is_none() => {
+            return Err(format!("`asset` is {}, not a type name", name.type_str()))
+        }
+        (false, Some(_)) => {
+            return Err(format!(
+                "`asset` belongs to `type = \"asset\"`, not `type = \"{declared}\"`"
+            ))
+        }
+        _ => {}
+    }
     let default = spec
         .get("default")
         .ok_or_else(|| format!("no `default`; every property needs one, of type `{declared}`"))?;
@@ -145,7 +179,8 @@ fn check_default(
     let (ok, wanted) = match declared {
         "float" => (as_f64(default).is_some(), "a number"),
         "bool" => (default.as_bool().is_some(), "true or false"),
-        "string" => (default.as_str().is_some(), "a string"),
+        // An asset default is a reference, and a reference is a path string.
+        "string" | "asset" => (default.as_str().is_some(), "a string"),
         "enum" => return check_enum_default(default, options),
         "vec2" => return check_numbers(declared, default, &[2]),
         "vec3" => return check_numbers(declared, default, &[3]),
@@ -291,6 +326,14 @@ fn expand_colors(schema: &toml::Value, out: &mut toml::map::Map<String, toml::Va
 }
 
 pub fn merge_defaults(schema: &toml::Value, params: Option<&toml::Value>) -> toml::Value {
+    let mut out = defaults_of(schema);
+    overlay(schema, &mut out, params);
+    expand_colors(schema, &mut out);
+    toml::Value::Table(out)
+}
+
+/// Every property the schema declares, at its declared default.
+fn defaults_of(schema: &toml::Value) -> toml::map::Map<String, toml::Value> {
     let mut out = toml::map::Map::new();
     if let Some(table) = schema.as_table() {
         for (prop, spec) in table {
@@ -299,6 +342,16 @@ pub fn merge_defaults(schema: &toml::Value, params: Option<&toml::Value>) -> tom
             }
         }
     }
+    out
+}
+
+/// Write `params` over whatever `out` already holds, leaving every property
+/// `params` does not mention alone.
+fn overlay(
+    schema: &toml::Value,
+    out: &mut toml::map::Map<String, toml::Value>,
+    params: Option<&toml::Value>,
+) {
     match params {
         Some(toml::Value::Table(params)) => {
             for (k, v) in params {
@@ -319,11 +372,147 @@ pub fn merge_defaults(schema: &toml::Value, params: Option<&toml::Value>) -> tom
         }
         None => {}
     }
-    expand_colors(schema, &mut out);
-    toml::Value::Table(out)
+}
+
+/// The full property table an `apply` hook receives: schema defaults, the
+/// scene's or script's own values merged over them, and every asset-typed
+/// property resolved to a reference.
+///
+/// [`merge_defaults`] is the half that needs no engine; this is the whole
+/// thing, and it is what both entry points into `apply` call.
+pub fn properties(
+    eng: &Engine,
+    schema: &toml::Value,
+    params: Option<&toml::Value>,
+) -> Result<toml::Value> {
+    resolved(eng, schema, merge_defaults(schema, params))
+}
+
+/// Every asset-typed property of an already-merged table turned into a
+/// reference, which is the last thing that happens before `apply` sees it.
+fn resolved(eng: &Engine, schema: &toml::Value, mut full: toml::Value) -> Result<toml::Value> {
+    if let Some(table) = full.as_table_mut() {
+        resolve_assets(eng, schema, table)?;
+    }
+    Ok(full)
+}
+
+/// A string is a reference; a table is a definition.
+///
+/// Done here once, so every asset type any plugin ever registers accepts both
+/// spellings with no code of its own. An inline table is recorded in the asset
+/// cache and replaced by the reference that now names it, which leaves the
+/// property table pure TOML and every `apply` hook reading one shape.
+fn resolve_assets(
+    eng: &Engine,
+    schema: &toml::Value,
+    out: &mut toml::map::Map<String, toml::Value>,
+) -> Result<()> {
+    let Some(table) = schema.as_table() else {
+        return Ok(());
+    };
+    for (prop, spec) in table {
+        if spec.get("type").and_then(toml::Value::as_str) != Some("asset") {
+            continue;
+        }
+        let Some(value) = out.get(prop).cloned() else {
+            continue;
+        };
+        let type_name = spec
+            .get("asset")
+            .and_then(toml::Value::as_str)
+            .unwrap_or("");
+        if let Some(reference) = asset_reference(eng, prop, type_name, &value)? {
+            out.insert(prop.clone(), toml::Value::String(reference));
+        }
+    }
+    Ok(())
+}
+
+/// The reference an asset property should carry, or `None` when what it
+/// already carries is one.
+fn asset_reference(
+    eng: &Engine,
+    prop: &str,
+    type_name: &str,
+    value: &toml::Value,
+) -> Result<Option<String>> {
+    match value {
+        // The empty default means "no asset", and resolving it would be an
+        // error about a reference the author never wrote.
+        toml::Value::String(text) if text.trim().is_empty() => Ok(None),
+        // A reference is checked here so a typo is reported where it was
+        // written — but only warned about. One reference that does not resolve
+        // is a broken link, not a broken scene: the node and the rest of its
+        // components are fine, whoever loads the asset gets the same message
+        // again, and a tool editing someone else's project must be able to
+        // open a scene whose files it cannot reach.
+        toml::Value::String(text) => {
+            if let Err(why) = crate::assets::definition(eng, text)
+                .with_context(|| format!("asset property '{prop}'"))
+            {
+                tracing::warn!("{why:#}");
+            }
+            Ok(None)
+        }
+        toml::Value::Table(_) => Ok(Some(
+            crate::assets::define_inline(eng, type_name, value.clone())?.to_string(),
+        )),
+        other => Err(anyhow!(
+            "property '{prop}' is {}; an asset property takes either a reference string or a \
+             definition table",
+            other.type_str()
+        )),
+    }
 }
 
 pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value>) -> Result<()> {
+    // Resolving assets can read files and reach the asset cache, so the
+    // schema is cloned and the registry borrow dropped first: a parser is free
+    // to look things up.
+    let schema = schema_of(eng, name)?;
+    let full = properties(eng, &schema, params)?;
+    apply_full(eng, entity, name, &full)
+}
+
+/// Write `params` over what the component currently holds, rather than over
+/// the schema defaults.
+///
+/// [`add`] describes a component *whole*: it starts from the defaults, so
+/// setting one property puts every other one back where the schema says. That
+/// is right for a scene file and wrong for anything driving a single property
+/// over time — animating `shape/radius` through [`add`] would reset
+/// `half_extents` sixty times a second. `patch` starts from the component's
+/// own `get` instead, so the properties it does not mention survive.
+///
+/// On a node that does not have the component yet there is nothing to read
+/// back, so the schema defaults are its current value and `patch` adds it.
+pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> Result<()> {
+    let schema = schema_of(eng, name)?;
+    let current = get(eng, entity, name);
+    let mut out = defaults_of(&schema);
+    overlay(&schema, &mut out, current.as_ref());
+    overlay(&schema, &mut out, Some(params));
+    expand_colors(&schema, &mut out);
+    let full = resolved(eng, &schema, toml::Value::Table(out))?;
+    apply_full(eng, entity, name, &full)
+}
+
+/// A registered component's schema, cloned so the registry borrow ends here.
+fn schema_of(eng: &Engine, name: &str) -> Result<toml::Value> {
+    let registry = eng
+        .try_resource::<ComponentRegistry>()
+        .ok_or_else(|| anyhow!("component registry missing"))?;
+    let registry = registry.borrow();
+    Ok(registry
+        .def(name)
+        .ok_or_else(|| anyhow!("unknown component '{name}'"))?
+        .schema
+        .clone())
+}
+
+/// Hand a finished property table to the component's `apply` hook.
+fn apply_full(eng: &Engine, entity: Entity, name: &str, full: &toml::Value) -> Result<()> {
     let registry = eng
         .try_resource::<ComponentRegistry>()
         .ok_or_else(|| anyhow!("component registry missing"))?;
@@ -331,8 +520,7 @@ pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value
     let def = registry
         .def(name)
         .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-    let full = merge_defaults(&def.schema, params);
-    (def.apply)(eng, entity, &full).with_context(|| format!("applying component '{name}'"))
+    (def.apply)(eng, entity, full).with_context(|| format!("applying component '{name}'"))
 }
 
 pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {

@@ -46,6 +46,29 @@ half_extents = [0.5, 0.5, 0.5]
 kind = "cuboid"
 
 [[nodes]]
+body = "kinematic"
+id = "n_platform"
+name = "Platform"
+parent = "n_world"
+position = [-2.5, 0.25, -2]
+script = "scripts/platform.rn"
+
+[nodes.animation]
+autoplay = "patrol"
+library = "animations/platform.toml"
+
+[nodes.collider]
+half_extents = [1, 0.25, 1]
+kind = "cuboid"
+
+[nodes.color]
+rgba = [0.55, 0.35, 0.8, 1]
+
+[nodes.shape]
+half_extents = [1, 0.25, 1]
+kind = "cuboid"
+
+[[nodes]]
 id = "n_hud"
 name = "Hud"
 parent = ""

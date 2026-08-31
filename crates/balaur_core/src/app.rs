@@ -126,6 +126,8 @@ impl App {
         let engine = Engine::new();
         engine.insert_resource(SceneKeyRegistry::default());
         engine.insert_resource(crate::components::ComponentRegistry::default());
+        engine.insert_resource(crate::assets::AssetTypeRegistry::default());
+        engine.insert_resource(crate::assets::AssetState::default());
         engine.insert_resource(ProjectRoot(config.project_root.clone()));
         engine.insert_resource(ScriptArgs(config.script_args.clone()));
         engine.insert_resource(crate::rng::RngState::default());
@@ -227,7 +229,7 @@ impl App {
         }
         let component = name.to_string();
         self.scene_key_handler(name, move |eng, entity, value| {
-            let full = crate::components::merge_defaults(&schema, Some(value));
+            let full = crate::components::properties(eng, &schema, Some(value))?;
             let registry = eng.resource::<crate::components::ComponentRegistry>();
             let registry = registry.borrow();
             let def = registry
@@ -235,6 +237,24 @@ impl App {
                 .ok_or_else(|| anyhow::anyhow!("unknown component '{component}'"))?;
             (def.apply)(eng, entity, &full)
         });
+        self
+    }
+
+    /// Register a parser for one asset type (see `balaur_core::assets`).
+    ///
+    /// The mirror of [`Self::register_component`]: core learns the name and
+    /// nothing else, the parser returns an object only its plugin
+    /// understands, and `assets::load_typed` hands it back downcast.
+    pub fn register_asset_type(
+        &mut self,
+        name: &str,
+        parse: impl Fn(&toml::Value) -> Result<std::rc::Rc<dyn std::any::Any>> + 'static,
+    ) -> &mut Self {
+        let registry = self.engine.resource::<crate::assets::AssetTypeRegistry>();
+        registry
+            .borrow_mut()
+            .0
+            .push((name.to_string(), Box::new(parse)));
         self
     }
 

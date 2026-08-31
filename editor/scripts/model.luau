@@ -135,6 +135,21 @@ function M.build_mirror(S)
     for i, node in S.doc do
         S.refs[i] = S.mirror:get_node(node_path(S.doc, node))
     end
+    -- The mirror is instantiated with the game's own `autoplay`, so every
+    -- animated node starts running the moment it exists. Hold them: an edited
+    -- scene must not animate under the inspector until play is pressed.
+    -- (`scripts/anim.luau` resumes them, and arms the selected one.)
+    for i, node in S.doc do
+        local ref = S.refs[i]
+        if ref ~= nil and type(node.animation) == "table" then
+            animation.pause(ref)
+        end
+    end
+    -- The clip cache belongs to the mirror that is gone, and every clip file
+    -- the new mirror names has to be pointed at the edited project before it
+    -- can load (`anim.rebind`, next frame).
+    S.clip = nil
+    S.anim_rebind = true
 end
 
 -- The live node for a doc index (may be nil right after a rebuild).
@@ -226,12 +241,22 @@ end
 -- through `get` but writing them back is meaningless, so they are stripped
 -- from both the saved document and the table handed to `set_component`. The
 -- schema says which, so a new one needs no editor change.
-local function doc_value(name, data)
+--
+-- An `asset` property is the other exception, and it runs the other way: the
+-- document's spelling is the authored one and the engine's is a *resolved*
+-- one — a content digest for an inline definition, an absolute path for a
+-- reference the editor had to rewrite to reach the edited project. Neither
+-- can be written back to a scene file, so an asset property the document
+-- already has keeps what the document said.
+local function doc_value(name, data, previous)
     local schema = scene.component_schema(name) or {}
     local out = {}
     for key, value in data do
         local spec = schema[key]
-        if spec == nil or not spec.readonly then
+        local authored = if previous ~= nil then previous[key] else nil
+        if spec ~= nil and spec.type == "asset" and authored ~= nil then
+            out[key] = authored
+        elseif spec == nil or not spec.readonly then
             out[key] = value
         end
     end
@@ -245,7 +270,7 @@ function M.sync_component_doc(S, name)
         return
     end
     local data = ref:get_component(name)
-    node[name] = if data ~= nil then doc_value(name, data) else nil
+    node[name] = if data ~= nil then doc_value(name, data, node[name]) else nil
     S.dirty = true
 end
 
@@ -274,10 +299,19 @@ function M.set_component_prop(S, name, prop, value)
     if ref == nil then
         return
     end
+    local node = S.doc[S.sel]
     local data = ref:get_component(name) or {}
-    data[prop] = value
-    ref:set_component(name, doc_value(name, data))
+    local params = doc_value(name, data, node[name])
+    params[prop] = value
+    ref:set_component(name, params)
     M.sync_component_doc(S, name)
+    -- `doc_value` keeps the document's spelling of an asset property, which is
+    -- exactly wrong for the one property that was just retyped, so it is
+    -- stamped back over afterwards.
+    local spec = (scene.component_schema(name) or {})[prop]
+    if spec ~= nil and spec.type == "asset" and node[name] ~= nil then
+        node[name][prop] = value
+    end
 end
 
 -- Duplicate the selected node (without children), then rebuild the mirror.

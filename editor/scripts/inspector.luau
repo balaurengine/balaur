@@ -158,12 +158,40 @@ local function script_section(S, k, title)
     end)
 end
 
--- Real clip properties (scripts/anim.luau owns the data model).
+-- The engine's clip, edited in place. `library`, `autoplay`, `speed` and
+-- `root` are the `animation` component's own properties; `length`, `loop` and
+-- the tracks belong to the `animation_clip` asset the library holds. The two
+-- buttons are what make that split legible: Save as file promotes the inline
+-- definition to `animations/<node>.toml`, Make inline copies a file back onto
+-- the node, and neither touches the clip itself.
+local function clip_source_row(S, k, node)
+    local path = animlib.library_path(node)
+    row(k, "Source", function()
+        ui.label(path or "— inline —", { size = 11.5, font = "mono", color = k.faint })
+        ui.right(function()
+            local label = if path == nil then "save as file" else "make inline"
+            if ui.pill(label, {
+                height = 20, size = 10, strong = true,
+                tooltip = if path == nil
+                    then "Write this clip to animations/ and reference it"
+                    else "Copy this file's clip onto the node",
+                fill = k.sage_soft, color = k.sage,
+            }) then
+                if path == nil then
+                    animlib.promote(S)
+                else
+                    animlib.make_inline(S)
+                end
+            end
+        end)
+    end)
+end
+
 local function animation_section(S, k)
     local node = model.selected(S)
-    local anim = animlib.clip(node)
+    local def = animlib.definition(S)
     section(k, "Animation")
-    if anim == nil then
+    if def == nil then
         row(k, "Clip", function()
             if ui.pill("＋ Create clip", {
                 height = 28, size = 12, strong = true,
@@ -175,38 +203,55 @@ local function animation_section(S, k)
         end)
         return
     end
-    select_row(k, "Clip", anim.clip)
+    local comp = animlib.component(node)
+    row(k, "Clip", function()
+        local id = `clipname:{S.sel}`
+        local text, _, submitted = ui.text_field(id, animlib.clip_name(node), {
+            size = 12, width = CONTROL_W, color = k.text,
+        })
+        if submitted then
+            -- The name is `autoplay`: what the scene starts is what the
+            -- Timeline edits, so there is one clip to get wrong instead of two.
+            comp.autoplay = text
+            S.clip = nil
+            S.dirty = true
+            animlib.arm(S)
+        end
+    end)
+    clip_source_row(S, k, node)
     row(k, "Speed", function()
-        local v, ch = ui.slider(anim.speed or 1.0, 0.1, 3.0, {
+        local v, ch = ui.slider(comp.speed or 1.0, 0.1, 3.0, {
             width = CONTROL_W - 44,
             rail = k.sunken, fill = k.accent_fill, knob = k.bg,
         })
         ui.add_space(6)
         ui.label(string.format("%.2f", v), { size = 11.5, font = "mono", color = k.text })
         if ch then
-            anim.speed = v
-            S.dirty = true
+            comp.speed = v
+            animlib.touch(S)
         end
     end)
     row(k, "Length", function()
-        local v, ch = value_field(k, anim.length, { speed = 0.01, suffix = " s" })
+        local v, ch = value_field(k, animlib.length(def), { speed = 0.01, suffix = " s" })
         if ch then
-            anim.length = math.max(0.1, v)
-            S.dirty = true
+            def.length = math.max(0.1, v)
+            animlib.touch(S)
         end
     end)
     row(k, "Loop", function()
-        local on, ch = ui.toggle(anim.loop == true, {
-            on_fill = k.accent_fill, off_fill = k.sunken,
-            on_knob = k.on_accent, off_knob = k.faint,
+        -- The engine's own vocabulary, not a boolean: pingpong is a third
+        -- answer and a toggle cannot say it.
+        local v, ch = ui.select(`loop:{S.sel}`, def.loop or "none", { "none", "loop", "pingpong" }, {
+            width = CONTROL_W, size = 12, height = 28, color = k.text,
         })
         if ch then
-            anim.loop = on
-            S.dirty = true
+            def.loop = v
+            animlib.touch(S)
         end
     end)
     row(k, "Keys", function()
-        ui.label(`{#anim.keys}`, { size = 11.5, font = "mono", color = k.text })
+        ui.label(`{animlib.key_count(def)} on {#animlib.tracks(def)} tracks`,
+            { size = 11.5, font = "mono", color = k.text })
     end)
 end
 
@@ -311,6 +356,26 @@ local function prop_row(S, k, comp, prop, spec, data)
             end
             if changed then
                 model.set_component_prop(S, comp, prop, out)
+            end
+        end)
+    elseif datatype == "asset" then
+        -- A reference, or an inline definition. The engine reports an inline
+        -- one as the digest it keyed the table under, which is nothing a scene
+        -- file could name — so it is shown as what it is and left alone. The
+        -- inline/external pair of buttons is per asset type, because only the
+        -- type knows where its files belong (see the Animation section).
+        row(k, prop, function()
+            local reference = tostring(value or "")
+            if string.sub(reference, 1, 2) == "#!" then
+                ui.label("— inline —", { size = 11.5, font = "mono", color = k.faint })
+                return
+            end
+            local id = `asset:{comp}:{prop}:{S.sel}`
+            local text, _, submitted = ui.text_field(id, reference, {
+                size = 12, width = CONTROL_W, color = k.text,
+            })
+            if submitted then
+                model.set_component_prop(S, comp, prop, text)
             end
         end)
     else -- string

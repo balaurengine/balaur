@@ -14,6 +14,7 @@
 
 use std::collections::HashMap;
 
+use crate::assets::SceneAsset;
 use crate::collections::DetHashMap;
 use crate::components::StableId;
 use anyhow::{anyhow, Context, Result};
@@ -46,6 +47,10 @@ impl ProjectManifest {
 
 #[derive(Deserialize)]
 struct SceneDoc {
+    /// Assets this scene owns, addressable as `#id` from any node in it —
+    /// Godot's `[sub_resource]`. See `crate::assets`.
+    #[serde(default)]
+    assets: Vec<SceneAsset>,
     #[serde(default)]
     nodes: Vec<SceneNode>,
 }
@@ -102,6 +107,20 @@ pub fn instantiate_scene(
     attach_scripts: bool,
 ) -> Result<()> {
     let doc: SceneDoc = toml::from_str(source).context("parsing scene")?;
+    // The scene's own `[[assets]]` are in scope for every node in it, and only
+    // while it is being built, so `#id` never resolves against a sibling scene.
+    let previous = crate::assets::enter_scene_scope(eng, source, &doc.assets)?;
+    let built = instantiate_nodes(eng, &doc, base, attach_scripts);
+    crate::assets::leave_scene_scope(eng, previous);
+    built
+}
+
+fn instantiate_nodes(
+    eng: &Engine,
+    doc: &SceneDoc,
+    base: Entity,
+    attach_scripts: bool,
+) -> Result<()> {
     let registry = eng
         .try_resource::<SceneKeyRegistry>()
         .ok_or_else(|| anyhow!("scene key registry resource missing"))?;

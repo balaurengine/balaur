@@ -1,6 +1,7 @@
 -- Left column (262 px): node tree + per-persona secondary panel.
 local theme = require("scripts/theme")
 local model = require("scripts/model")
+local animlib = require("scripts/anim")
 
 local M = {}
 
@@ -172,11 +173,12 @@ local function secondary(S, k)
     elseif S.persona == "anim" then
         local rows = {}
         for i, node in S.doc do
-            if node.animation ~= nil then
+            if animlib.component(node) ~= nil then
                 local idx = i
+                local name = animlib.clip_name(node)
                 table.insert(rows, {
-                    "◷", node.animation.clip,
-                    string.format("%.1f s", node.animation.length),
+                    "◷", if name == "" then node.name else name,
+                    animlib.library_path(node) or "inline",
                     function()
                         S.select(idx)
                     end,

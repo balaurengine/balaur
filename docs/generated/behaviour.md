@@ -10,13 +10,35 @@ flow nothing checks.
 - a binding call stays sub microsecond
 - a binding can call the function it was passed
 - a broken rune script fails the export
+- a build from another engine version is refused by name
+- a call on a track that animates a value is rejected
+- a call step takes no time of its own
 - a callback does not outlive its call
+- a clip animates a component the animation crate does not depend on
+- a clip defined at run time plays by the name it was given
+- a clip drives a nodes position over time
+- a clip naming a curve that does not exist is rejected
+- a clip promoted to a file poses exactly as the inline one did
+- a clip reads its length loop mode and tracks
+- a clip takes its length from its last key when it declares none
+- a clip that does not loop holds its last key and stops
+- a clip that ends calls on animation finished once
+- a clip the library does not have fails with the reference it asked for
+- a clip with no positive length is rejected
 - a colour may be set without alpha
 - a colour property accepts hex as well as floats
 - a colour reads back as it was set
 - a colour set from a script reads back
 - a compile error fails the build
+- a component track can drive a child node
+- a component track is as wide as its keys
 - a constant is readable from a script
+- a curve matches the shape godot gives that name
+- a curve name nothing defines is rejected naming it
+- a curve reads its own name back as a transition and a mode
+- a curve returns exactly the same bits twice
+- a definition that is not a clip is refused where it was written
+- a definition with no type cannot choose a parser and says so
 - a different seed gives a different stream
 - a duplicate name resolves the same way every time
 - a duplicated id is regenerated
@@ -24,16 +46,40 @@ flow nothing checks.
 - a forward parent reference is rejected
 - a freed node stops being valid
 - a headless frame empties the debug line buffers
+- a hex colour reaches apply expanded through patch as well as add
 - a hex string is a colour wherever a colour is taken
+- a key that neither calls nor carries a value says which it needs
 - a leaf subtree is just itself
+- a library file addresses its clips by name
+- a looping clip never ends and a plain one does
+- a looping clip wraps back to the start
+- a looping tween plays its sequence that many times
 - a lua array reaches a binding as a list
+- a luau script defines a clip of its own and plays it
+- a luau script pauses and resumes a clip
+- a luau script plays a clip and hears it finish
+- a luau script queues a clip behind the one playing
+- a luau script reaches for the shorter spelling
+- a luau script reads a tween handle back and stops by it
+- a luau script reads the playhead back through the module
+- a luau script stops a clip and nothing is current afterwards
+- a luau script tweens a node and hears the call at the end
 - a lying trailer is refused rather than panicking
+- a malformed reference fails with a message naming the reference
+- a matching fingerprint reports no differences
+- a method key fires on the node its track targets
+- a method key fires once per loop
+- a method key is passed once per loop and never by a seek
 - a missing app icon does not take the frame down
 - a missing argument is an error not a default
+- a missing entry fails with a message naming the reference
+- a missing file fails with a message naming the reference
 - a missing image does not stop the pass
 - a missing node argument is an error not a panic
+- a missing requirement names what is absent
 - a missing resource is none rather than a panic
 - a modal runs its body
+- a node is not json data
 - a node path round trips through find
 - a node returned to a script is still a node
 - a node starts with no components
@@ -43,31 +89,75 @@ flow nothing checks.
 - a pack round trips through bytes
 - a pack writes its entries in sorted order
 - a packed project boots without its sources
+- a packed run resolves an asset exactly as a dev run does
+- a parallel group runs together and the next step waits for all of it
 - a pass with no widgets is quiet
 - a path finds a descendant and missing ones are none
+- a pingpong clip folds time back on itself
+- a pingpong clip reverses at the end
+- a pingpong return leg passes a key the other way round
 - a plain binary has no pack
+- a plugin registers its resources and systems
+- a plugin with no requirements still loads
 - a press is just pressed for one frame only
 - a project with no manifest fails to load
 - a project without a language runs on luau
 - a project without a manifest is an error
+- a property that is neither a transform nor a path is rejected
+- a property the component never reports still survives a patch
+- a queued clip starts when the one before it ends
+- a reference to a named entry resolves to the entry inside the file
+- a reference to a whole file resolves to that file
 - a registered component is listed and has a schema
 - a release is just released for one frame only
 - a released mouse button reports one frame of release
 - a reload keeps instance state
 - a resource round trips and is shared not copied
+- a rotation crossing 180 degrees interpolates the short way
+- a rotation track is sampled as a quaternion the short way round
 - a rune project that calls the engine can be exported
+- a rune script defines a clip of its own and plays it
+- a rune script plays the same clip and hears the same signal
+- a rune script tweens the same node the same way
+- a saved animation node no longer warns that nothing handles it
+- a scene asset block resolves by its id from a node in that scene
+- a scene document holding an inline clip encodes and parses back
+- a schema declaring an asset property without naming its type is rejected
 - a script can attach another script and read it back
 - a script can write to the log it reads back
 - a script error inside a pass is logged not fatal
+- a scrub moves nothing but the playhead
+- a scrub poses a paused clip where the playhead lands
+- a seek does not fire the keys it skipped
+- a sequential tween lands its steps in order
 - a shape component puts a renderable on the node
 - a sparse table keeps its keys
 - a spawned node is named parented and has a transform
 - a standalone binary gives the pack back
 - a standalone file is read back from disk
+- a step can tween another node from the same call
+- a step over the whole clip passes every key exactly once
+- a step targeting a node that is not there says which one
+- a step that goes both to and by is rejected
+- a step that says nothing is rejected
 - a subtree is collected parent first
 - a theme can be set from a script
+- a track can name a component property
+- a track naming a component nothing registered leaves the node alone
+- a track says which of its keys is malformed
+- a track targets a child node by path
+- a track with no property is a method track
+- a track without keys is rejected
 - a trailing optional may be omitted
+- a transform step given the wrong number of channels says how many it wanted
 - a transform survives a write and read
+- a tween captures the component value it starts from
+- a tween dies with the node it was made on
+- a tween drives a component property the animation crate does not depend on
+- a tween of a component the node does not have says so
+- a tween rotates from the rotation the node already had
+- a tween that reaches its end stops being a tween
+- a tween that would run backwards forever is rejected
 - a typed binding reaches rune
 - a vector argument and three numbers agree
 - a windowed backend keeps the fallback off its buffers
@@ -75,68 +165,113 @@ flow nothing checks.
 - a wrong argument type is an error not a panic
 - a wrong argument type is reported not fatal
 - a wrong type says what it expected
+- add rewrites the whole component where patch does not
 - add then get returns what was set
 - adding twice updates rather than duplicating
 - an app without a backend has no script host
+- an asset property given neither a string nor a table says so
+- an asset type no plugin registered says which type was asked for
+- an autoplay that cannot load leaves the rest of the scene standing
+- an eased key bends the segment that arrives at it
+- an eased step is not where a straight one would be
+- an easing curve can carry a value past the key it is heading for
+- an empty asset property is no asset rather than a broken reference
 - an empty or inverted range does not panic
 - an empty pack still round trips
 - an engine has a root node from the start
+- an entry an inline definition does not have says so
+- an entry inherits the asset type its document declares
+- an entry inside an inline definition resolves by its name
+- an euler triple survives the round trip through a quaternion
 - an impulse starts a body moving
+- an in out curve meets in the middle
+- an inline definition survives being duplicated and reloaded
+- an inline library autoplays the entry it names
+- an inline table is a definition and a string is a reference
 - an integer is accepted where a float is wanted
+- an interval and a call sequence among the property steps
+- an out curve is its in curve reflected
 - an out of range button does not panic
 - an unknown body kind is rejected with its name
 - an unknown key is simply not down
 - an unknown language is a named error
+- an unknown loop mode is rejected naming it
 - an unknown path is nil rather than an error
+- an unknown scene asset id is named in a warning and the scene still loads
 - an unparseable colour is left alone
 - an unregistered name is an error that says so
 - anchor constants match the registered schema
+- animating a render component costs no dependency on the render crate
+- animating one property leaves the rest of its component alone
 - attaching a script without a backend is a clear error
 - attaching to a compiled script is cheap per node
+- autoplay starts the named clip when the scene loads
+- back and elastic overshoot where quad does not
 - bad options are reported rather than fatal
 - bindings forward through references and boxes
 - body constants match the registered schema
 - build pack uses the compiler the project asks for
+- by is relative to the value at the start of its step
+- by on its own offsets where the node already is
 - camera input can be switched off
 - colliders can be added in every shape the api offers
 - commands queue and drain once
 - compile error keeps previous version running
 - crates/balaur/src/lib.rs - (line 5)
+- cubic interpolation still passes through every key
 - debug lines accumulate and can be cleared
 - debug lines can be drawn in both dimensions
 - declarations are uniquely named
 - declarations are uniquely named within a module
 - defaults fill in what was not given
 - degrees and radians are two readings of one rotation
+- dependencies load before the plugins that need them
 - det
 - dispatch over a thousand nodes stays inside a frame
 - draw ui is actually called
+- duplicate hands back a private copy rather than the shared one
+- each part of a fingerprint is reported separately
 - events carry their structured fields
 - every component emits only keys its schema declares
 - every component round trips through get and apply
 - every constant is screaming snake and unique
+- every curve starts at zero and ends at one
 - every declaration rejects a non node
 - every declared body kind is accepted
 - every declared shape is accepted
 - every enum option a schema offers round trips
+- every named curve is reachable by name
 - every named key can actually be pressed
+- every player advances in the same order on every run
 - every shape kind the schema offers is accepted
+- exists answers for all three reference forms
 - expect arity names the function and both counts
 - extra arguments are ignored like lua does
 - freeing a node frees its children
 - freeing a subtree removes all of it and unlinks the parent
+- from states the start outright
 - fs is rooted at the project
 - fs list is sorted and hides dotfiles
 - gravity and clear are callable
 - hierarchy reads back what it wrote
 - holding a key does not re fire
 - hot reload swaps code and preserves state
+- independent plugins load in name order
 - inserting a resource twice replaces it
 - instance state survives between frames
 - interactive widgets report no interaction without input
+- json keeps integers and floats apart
+- json null and nil are the same value
+- json round trips through neutral values
+- json round trips through rune
+- json roundtrips through lua
+- just finished answers for one frame and names the clip
 - keys are independent
+- keys are sorted by time however they were authored
 - language rune runs on rune
+- linear interpolation walks evenly between two keys
 - linear velocity is set and read back
+- malformed json is an error rather than a crash
 - math fastcalls are routed through the global table
 - math functions are libm backed
 - merge defaults prefers what was given
@@ -149,18 +284,27 @@ flow nothing checks.
 - node and callback handles survive a round trip
 - nodes sharing a name get distinct ids
 - numbers convert in both directions
+- one inline definition written twice is cached once
 - pack roundtrip runs from bytecode only
 - panels and containers nest
+- patch writes one property and leaves the others where they were
+- patching a component nothing registered says which one
+- patching a node without the component adds it over the defaults
 - pause and sleeping are readable after being set
+- pause holds the playhead and resume carries on from it
 - pausing stops the simulation and resuming continues it
+- play can pick the current clip back up where it left off
 - playing a missing file does not take the frame down
 - plugin components roundtrip through the registry
+- plugins that require each other are refused
 - quit is off until asked for
 - reading a missing file is nil rather than an error
+- reload forgets a file so the next load reads it again
 - reload script picks up a rewritten file
 - remove takes it off the node
 - removing a body stops it being simulated
 - removing a shape takes the renderable with it
+- removing the component stops the node being animated
 - renaming a node changes what name returns
 - renaming a parent does not break its children
 - require caches and hot reloads in place
@@ -178,30 +322,40 @@ flow nothing checks.
 - siblings keep their order
 - simulation 2d is bitwise reproducible
 - simulation is bitwise reproducible
+- speed scales the whole sequence
+- step interpolation holds a key until the next one
+- stop ends the clip where pause only holds it
+- stop takes a tween handle as readily as a node
 - stopping when nothing plays is harmless
 - strings and bools convert
 - tests
 - text and layout helpers run
 - the 2d camera reports its centre and zoom
 - the 2d world has the same shape of api
+- the asset key belongs only to an asset property
 - the backend decides what a script compiles to
 - the buffer is bounded and keeps the newest
 - the camera can be aimed and its pose read
 - the clock advances and reports the last step
 - the code editor returns its buffer unchanged
 - the engine modules reach rune
+- the euler convention matches the engines own
+- the four linear modes are one straight line
 - the grid background and camera input are settable
 - the mouse constants address real buttons
 - the neutral value accepts anything
 - the node api is available as methods
+- the order does not depend on how the plugins were listed
 - the plugin builds without an output device
 - the plugin inserts the resources a frame reads
 - the plugin registers its components
 - the remaining widgets are callable
 - the rng is reproducible from a seed
+- the same setup animates identically twice
 - the same setup simulates identically twice
 - the scale factor is readable and settable
 - the scene root is a node and can be spawned under
+- the speed property scales playback
 - the standard app has every plugin registered
 - the stream is pinned for a given seed
 - the two worlds share body kinds and differ on shapes
@@ -216,10 +370,15 @@ flow nothing checks.
 - translate accumulates
 - truncated or foreign bytes do not decode
 - tuples map positionally
+- tween to is the same tween spelled shorter
+- two identical tweens produce bit identical results
+- two nodes naming one path share one parsed object
 - typed registration survives erasure
 - unclaimed extensions are left alone
 - vectors and colors carry their components
+- vectors encode as json number arrays
 - watcher reloads automatically
+- what the component reports back is what the scene set
 - widget kind constants match the registered schema
 - widgets
 - world transforms compose down the chain

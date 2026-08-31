@@ -8,10 +8,13 @@ cannot drift from what scripts actually see.
 
 | Module | Functions | Constants | Available in |
 | --- | ---: | ---: | --- |
+| [`animation`](#animation) | 14 | 0 | every language |
+| [`assets`](#assets) | 4 | 0 | every language |
 | [`audio`](#audio) | 2 | 0 | every language |
 | [`engine`](#engine) | 5 | 0 | every language |
 | [`fs`](#fs) | 4 | 0 | every language |
 | [`input`](#input) | 9 | 165 | every language |
+| [`json`](#json) | 2 | 0 | every language |
 | [`log`](#log) | 5 | 0 | every language |
 | [`node`](#node) | 28 | 0 | every language |
 | [`physics`](#physics) | 12 | 5 | every language |
@@ -21,6 +24,14 @@ cannot drift from what scripts actually see.
 | [`scene`](#scene) | 7 | 0 | every language |
 | [`toml`](#toml) | 2 | 0 | every language |
 | [`ui`](#ui) | 38 | 14 | every language |
+
+## `animation`
+
+**Functions:** `current`, `define`, `is_playing`, `is_running`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `stop`, `time`, `tween`, `tween_to`
+
+## `assets`
+
+**Functions:** `duplicate`, `exists`, `load`, `reload`
 
 ## `audio`
 
@@ -68,6 +79,10 @@ cannot drift from what scripts actually see.
 | `KEY_CAPITAL` | `Capital` |
 
 …and 141 more.
+
+## `json`
+
+**Functions:** `encode`, `parse`
 
 ## `log`
 

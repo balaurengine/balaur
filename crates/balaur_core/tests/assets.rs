@@ -294,20 +294,27 @@ fn a_malformed_reference_fails_with_a_message_naming_the_reference() {
     }
 }
 
+/// A reference that resolves to nothing is a broken link, not a broken scene:
+/// the node still loads and the message still names the reference, so a tool
+/// can open a project whose files it cannot reach and show what is missing.
 #[test]
-fn an_unknown_scene_asset_id_fails_with_a_message_naming_the_reference() {
+fn an_unknown_scene_asset_id_is_named_in_a_warning_and_the_scene_still_loads() {
+    balaur_core::logbuf::capture_for_test();
     let dir = project();
     let app = app_in(dir.path(), None);
     let root = app.engine.root();
-    let error = balaur_core::project::instantiate_scene(
+    balaur_core::project::instantiate_scene(
         &app.engine,
         "[[nodes]]\nid = \"n\"\nname = \"N\"\ninstrument = { song = \"#nope\" }\n",
         root,
         false,
     )
-    .unwrap_err();
-    let error = format!("{error:#}");
-    assert!(error.contains("#nope"), "unhelpful: {error}");
+    .unwrap();
+    assert!(scene::find_node(&app.engine.world(), root, "N").is_some());
+    let complained = balaur_core::logbuf::recent(200)
+        .into_iter()
+        .any(|entry| entry.message.contains("#nope"));
+    assert!(complained, "nothing said which reference was missing");
 }
 
 #[test]
@@ -494,4 +501,41 @@ fn an_inline_definition_survives_being_duplicated_and_reloaded() {
     );
     assets::reload(&app.engine, &reference).unwrap();
     assert!((pitch_of(&app.engine, &reference) - 330.0).abs() < f64::EPSILON);
+}
+
+/// An inline table is as free to be a *library* of named assets as a file is.
+/// Without this an inline clip could never be named — and so never be what a
+/// component's `autoplay` starts.
+#[test]
+fn an_entry_inside_an_inline_definition_resolves_by_its_name() {
+    let dir = project();
+    let app = app_in(dir.path(), None);
+    let root = app.engine.root();
+    let node = scene::spawn_node(&mut app.engine.world_mut(), "N", root);
+    let table: toml::Value =
+        toml::from_str("song = { entries = { high = { pitch = 440.0 } } }").unwrap();
+    components::add(&app.engine, node, "instrument", Some(&table)).unwrap();
+    let reference = heard(&app).remove(0);
+
+    let entry = format!("{reference}#high");
+    assert!((pitch_of(&app.engine, &entry) - 440.0).abs() < f64::EPSILON);
+    assert!(assets::exists(&app.engine, &entry));
+}
+
+#[test]
+fn an_entry_an_inline_definition_does_not_have_says_so() {
+    let dir = project();
+    let app = app_in(dir.path(), None);
+    let root = app.engine.root();
+    let node = scene::spawn_node(&mut app.engine.world_mut(), "N", root);
+    let table: toml::Value =
+        toml::from_str("song = { entries = { high = { pitch = 440.0 } } }").unwrap();
+    components::add(&app.engine, node, "instrument", Some(&table)).unwrap();
+    let reference = heard(&app).remove(0);
+
+    let missing = format!("{reference}#low");
+    let err = assets::load_typed::<Note>(&app.engine, &missing).unwrap_err();
+    let message = format!("{err:#}");
+    assert!(message.contains(&missing), "unhelpful: {message}");
+    assert!(message.contains("low"), "unhelpful: {message}");
 }

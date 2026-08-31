@@ -88,6 +88,28 @@ fn a_typed_binding_reaches_rune() {
 }
 
 #[test]
+fn json_round_trips_through_rune() {
+    let dir = project(&[(
+        "j.rn",
+        r#"pub fn init(this) {
+            let doc = json::parse("{\"points\": [1.5, 2.5]}");
+            let again = json::parse(json::encode(doc));
+            this.out = again["points"][1];
+        }"#,
+    )]);
+    let app = app_in(dir.path());
+    let node = spawn(&app, "Parser");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "j.rn").unwrap();
+
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(node, "out"), Some(2.5));
+}
+
+#[test]
 fn a_wrong_argument_type_is_reported_not_fatal() {
     let dir = project(&[("bad.rn", "pub fn init(this) { t::need_int(\"nope\"); }\n")]);
     let mut app = app_in(dir.path());

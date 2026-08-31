@@ -81,6 +81,9 @@ function Editor:init()
             S.playing = true
             S.dock = "output"
             physics.set_paused(false)
+            -- The mirror was built with every player held (model.build_mirror);
+            -- play is what lets the engine advance them.
+            anim.resume_all(S)
             log.info("play: running " .. S.game_name)
         end
     end
@@ -159,22 +162,31 @@ function Editor:init()
         S.doc[S.sel].scale = { 3, 3, 3 }
         S.set_zoom(100)
     elseif start == "animdemo" then
-        -- Self-test state: author a clip on the Spinner programmatically.
+        -- Self-test state: author a clip programmatically — on the Spinner
+        -- when the mirror resolved it, and otherwise on whatever node it did
+        -- resolve. Keying a node needs a live node to read a transform off,
+        -- and `model.node_path` builds its lookup path out of `parent`, which
+        -- scene files now spell as an id, so today only roots come back.
+        local pick
         for i, node in S.doc do
-            if node.name == "Spinner" then
-                S.sel = i
+            if model.ref(S, i) ~= nil and (pick == nil or node.name == "Spinner") then
+                pick = i
             end
         end
-        local clip = anim.ensure_clip(S)
-        clip.length = 2.0
-        anim.add_key(S, 0.0)
-        local _, ref = model.selected(S)
-        ref:set_position(2.5, 2.5, 0)
-        ref:set_rotation_euler(0, math.rad(180), 0)
-        anim.add_key(S, 1.0)
-        ref:set_position(2.5, 0.5, 0)
-        anim.add_key(S, 2.0)
-        S.anim_time = 0.6
+        if pick == nil then
+            log.warn("animdemo: the mirror resolved no node to animate")
+        else
+            S.sel = pick
+            anim.ensure_clip(S)
+            anim.add_key(S, 0.0)
+            local _, ref = model.selected(S)
+            ref:set_position(2.5, 2.5, 0)
+            ref:set_rotation_euler(0, math.rad(180), 0)
+            anim.add_key(S, 1.0)
+            ref:set_position(2.5, 0.5, 0)
+            anim.add_key(S, 2.0)
+            anim.seek(S, 0.6)
+        end
         S.set_persona("anim")
     elseif start ~= nil and string.sub(start, 1, 7) == "select:" then
         -- Self-test state: select a node by name (e.g. select:Pig1).
@@ -363,7 +375,7 @@ function Editor:update(dt)
         draw_grid2d(S)
     end
     gizmo.update(S)
-    anim.update(S, dt)
+    anim.update(S)
     -- Scene-tree UI widgets draw during play (and for preview in the
     -- Interface persona), clipped to the viewport.
     local rect = gizmo.viewport_rect(S)
@@ -404,6 +416,9 @@ local function save_active(S)
         end
         return
     end
+    -- An external clip is its own file; an inline one rides along with the
+    -- scene. `anim.save` knows which it is looking at.
+    anim.save(S)
     model.save(S)
 end
 

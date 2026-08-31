@@ -1,5 +1,6 @@
-//! The engine-level modules — engine, scene, log, rng, fs, toml — called
-//! directly. Every language reaches these through the same declarations.
+//! The engine-level modules — engine, scene, log, rng, fs, toml, json —
+//! called directly. Every language reaches these through the same
+//! declarations.
 
 use balaur_core::engine_api::ENGINE_OPS;
 use balaur_core::{App, AppConfig, Engine};
@@ -202,6 +203,83 @@ fn toml_round_trips_through_neutral_values() {
     };
     let again = call(&app.engine, "toml", "parse", &[Value::Str(text.clone())]).unwrap();
     assert_eq!(parsed, again, "a round trip changed the document");
+}
+
+#[test]
+fn json_round_trips_through_neutral_values() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let parsed = call(
+        &app.engine,
+        "json",
+        "parse",
+        &[Value::Str(
+            "{\"name\": \"x\", \"values\": [1, 2.5], \"nested\": {\"flag\": true}}".into(),
+        )],
+    )
+    .unwrap();
+    let encoded = call(&app.engine, "json", "encode", std::slice::from_ref(&parsed)).unwrap();
+    let Value::Str(text) = &encoded else {
+        panic!("encode should return a string");
+    };
+    let again = call(&app.engine, "json", "parse", &[Value::Str(text.clone())]).unwrap();
+    assert_eq!(parsed, again, "a round trip changed the document");
+}
+
+#[test]
+fn json_keeps_integers_and_floats_apart() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let parsed = call(
+        &app.engine,
+        "json",
+        "parse",
+        &[Value::Str("[1, 1.5]".into())],
+    )
+    .unwrap();
+    assert_eq!(
+        parsed,
+        Value::List(vec![Value::Int(1), Value::Num(1.5)]),
+        "1 should stay an integer and 1.5 a float"
+    );
+}
+
+#[test]
+fn json_null_and_nil_are_the_same_value() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    assert_eq!(
+        call(&app.engine, "json", "parse", &[Value::Str("null".into())]).unwrap(),
+        Value::Nil
+    );
+    assert_eq!(
+        call(&app.engine, "json", "encode", &[Value::Nil]).unwrap(),
+        Value::Str("null".into())
+    );
+}
+
+#[test]
+fn a_node_is_not_json_data() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    assert!(call(&app.engine, "json", "encode", &[Value::Node(1)]).is_err());
+}
+
+#[test]
+fn malformed_json_is_an_error_rather_than_a_crash() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    assert!(call(&app.engine, "json", "parse", &[Value::Str("{".into())]).is_err());
+}
+
+#[test]
+fn vectors_encode_as_json_number_arrays() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    assert_eq!(
+        call(&app.engine, "json", "encode", &[Value::Vec2([1.0, 2.0])]).unwrap(),
+        Value::Str("[1.0,2.0]".into())
+    );
 }
 
 #[test]

@@ -84,7 +84,15 @@ fn the_standard_app_has_every_plugin_registered() {
     project(dir.path(), None, LUAU);
     let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     let names = balaur_core::components::names(&app.engine);
-    for expected in ["body", "collider", "body2d", "shape", "color", "widget"] {
+    for expected in [
+        "body",
+        "collider",
+        "body2d",
+        "shape",
+        "color",
+        "widget",
+        "animation",
+    ] {
         assert!(
             names.contains(&expected.to_string()),
             "`{expected}` is missing"

@@ -7,6 +7,7 @@
 //! plugin and every game built on Balaur gets them for free.
 
 pub mod app;
+pub mod assets;
 pub mod collections;
 pub mod components;
 pub mod engine;
@@ -21,6 +22,7 @@ pub mod scene;
 pub mod standalone;
 
 pub use app::{App, AppConfig, Plugin, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage};
+pub use assets::{AssetRef, AssetState, AssetTypeRegistry};
 pub use collections::{DetHashMap, DetHashSet};
 pub use components::{ComponentDef, ComponentRegistry};
 pub use engine::{Command, Engine};

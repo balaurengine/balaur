@@ -81,7 +81,8 @@ shape = { kind = "ball", radius = 0.5 }         # from balaur_render
 Try the demo: `cargo run -p balaur_cli -- run examples/hello --headless`,
 then edit `examples/hello/scripts/spinner.luau` while it runs. Scripts also
 get `input` (keys/mouse), `rng` (seeded, deterministic), `audio`, `physics`,
-`render` (shapes, colors, `render.set_camera`), and deterministic `math.*`
+`render` (shapes, colors, `render.set_camera`), `animation` (clips and
+tweens), `assets` (shared content by reference), and deterministic `math.*`
 replacements out of the box.
 
 2D is first-class: `shape2d`, `body2d` and `collider2d` components (rapier2d
@@ -94,6 +95,43 @@ slingshot game:
 cargo run -p balaur_cli --features window -- run examples/angrynerds
 cargo run -p balaur_cli --features window -- edit examples/angrynerds
 ```
+
+## Animation and shared assets
+
+Content several nodes want to share lives in its own file and is referenced by
+path, or is written inline in the scene — **a string is a reference, a table is
+a definition**, one rule for every asset type a plugin registers. Animation
+clips are the first of them:
+
+```toml
+[nodes.animation]
+library = "animations/platform.toml"   # or the clip table, written inline
+autoplay = "patrol"
+```
+
+A clip's tracks drive the transform (`position`, `rotation_euler`, `scale`) or
+any registered component's property (`color/rgba`, `shape/radius`,
+`widget/x`) through the component registry, so third-party components animate
+with no code. A track with no property is a method track: its keys call a
+method on the node's script.
+
+A tween is the same thing built on the spot, from the values the node has now:
+
+```luau
+animation.tween(self.node, {
+    steps = {
+        { property = "position",   to = { 0, 3, 0 },    duration = 0.5, ease = "out_back" },
+        { property = "color/rgba", to = { 1, 0, 0, 1 }, duration = 0.5, parallel = true },
+        { call = "on_landed" },
+    },
+})
+```
+
+Steps run in order; `parallel = true` joins one to the step before it. Playback
+advances on a fixed 1/60 timestep and the easing curves (twelve transitions,
+four modes, Godot's names) are computed on `libm`, so an animation is the same
+on every platform. `examples/hello` has a moving platform driven by a clip
+asset; the editor's Animate persona edits that same clip.
 
 ## Benchmarks
 
@@ -133,6 +171,7 @@ The generated ones come from `python3 scripts/gen_docs.py`; CI fails on drift.
 | `balaur_script_rune` | Rune backend |
 | `balaur_physics` | Rapier plugin; the reference example for wrapping a Rust crate for scripting |
 | `balaur_render` | Renderable components + `render` module; kiss3d/wgpu backend behind the `kiss3d` feature |
+| `balaur_anim` | Animation clips, the pure sampler, tweens, easing; the `animation` module |
 | `balaur_audio` | rodio-backed `audio` module |
 | `balaur_input` | Backend-agnostic input snapshot + `input` module |
 | `balaur_ui` | Immediate-mode egui API (`ui` module): panels, widgets, script-defined themes |

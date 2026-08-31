@@ -50,7 +50,7 @@ GETTER_ALLOW = {
 # D2. A module is plural only when it is a keyed store of many things.
 PLURAL_ALLOW = {"assets": "a keyed store of many things"}
 
-# Singular words that happen to end in `s`. D2 lists all 13 existing modules as
+# Singular words that happen to end in `s`. D2 lists all 14 existing modules as
 # singular; these two are why the rule cannot just look at the last letter.
 SINGULAR_IN_S = {
     "fs": "an initialism for the file system, not a plural",
