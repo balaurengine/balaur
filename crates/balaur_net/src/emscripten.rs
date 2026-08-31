@@ -7,7 +7,8 @@
 //! outbound sends flush from [`pump`] once per tick. The browser owns the
 //! transport, so TLS, proxies and HTTP/2 or /3 negotiation are its problem.
 //!
-//! The final web binary links with `-sFETCH -lwebsocket.js`; see `build.rs`.
+//! The final web binary links with `-sFETCH -lwebsocket.js`, from
+//! `.cargo/config.toml`; see `build.rs`.
 
 use std::cell::{Cell, RefCell};
 use std::ffi::{c_char, c_int, c_void, CString};

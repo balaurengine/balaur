@@ -15,8 +15,9 @@
 //! same binary is the CLI when nothing is appended and the game when something
 //! is.
 //!
-//! Appending invalidates a macOS code signature, so a standalone game has to
-//! be signed (or notarised) after export, not before.
+//! A signature can never cover appended bytes (codesign rewrites the file and
+//! fails strict validation), so a *signed* macOS game is a `.app` bundle with
+//! the pack in Contents/Resources — `balaur export --app`.
 
 use std::path::Path;
 
@@ -65,25 +66,45 @@ pub const BUNDLED_PACK: &str = "game.bpak";
 
 /// The pack carried by the running executable, if this is a shipped game.
 ///
-/// Desktop games carry it appended. iOS cannot: the executable lives in a
-/// signed bundle, and appending is exactly what invalidates a signature — so
-/// there the pack is a bundle resource beside the executable. The lookup is
-/// cfg'd to iOS rather than tried everywhere, because on a desktop a stray
-/// `game.bpak` next to the binary would silently turn the CLI into a game.
+/// Desktop games carry it appended. A signed bundle cannot: appending is
+/// exactly what invalidates a signature — so on iOS, and on macOS when the
+/// executable lives inside a `.app`, the pack is a resource beside the
+/// executable. A flat desktop binary never looks beside itself, because a
+/// stray `game.bpak` next to the CLI must not silently turn it into a game.
 pub fn own_pack() -> Result<Option<Vec<u8>>> {
     let exe = std::env::current_exe().context("locating the running executable")?;
     if let Some(pack) = extract_from(&exe)? {
         return Ok(Some(pack));
     }
+    // An iOS bundle is flat: the pack sits beside the executable. A macOS
+    // .app keeps it in Contents/Resources, where codesign seals data files.
     #[cfg(target_os = "ios")]
-    if let Some(beside) = exe.parent().map(|dir| dir.join(BUNDLED_PACK)) {
-        if beside.is_file() {
-            return Ok(Some(std::fs::read(&beside).with_context(|| {
-                format!("reading the bundled pack {}", beside.display())
-            })?));
-        }
+    let bundled = exe.parent().map(|dir| dir.join(BUNDLED_PACK));
+    #[cfg(target_os = "macos")]
+    let bundled = macos_bundled_pack(&exe);
+    #[cfg(any(target_os = "ios", target_os = "macos"))]
+    if let Some(pack) = bundled.filter(|p| p.is_file()) {
+        return Ok(Some(std::fs::read(&pack).with_context(|| {
+            format!("reading the bundled pack {}", pack.display())
+        })?));
     }
     Ok(None)
+}
+
+/// `Contents/Resources/game.bpak`, but only for an executable that really is
+/// inside `<Name>.app/Contents/MacOS/`.
+#[cfg(target_os = "macos")]
+fn macos_bundled_pack(exe: &Path) -> Option<std::path::PathBuf> {
+    let macos_dir = exe
+        .parent()
+        .filter(|d| d.file_name() == Some("MacOS".as_ref()))?;
+    let contents = macos_dir
+        .parent()
+        .filter(|d| d.file_name() == Some("Contents".as_ref()))?;
+    contents
+        .parent()
+        .filter(|d| d.extension() == Some("app".as_ref()))?;
+    Some(contents.join("Resources").join(BUNDLED_PACK))
 }
 
 /// `own_pack`, against a named file — the same logic a test can drive.

@@ -3,6 +3,7 @@
 -- screen-space Luau over the camera pose the backend publishes.
 local model = require("scripts/model")
 local gizmo2d = require("scripts/gizmo2d")
+local history = require("scripts/history")
 
 local M = {}
 
@@ -454,6 +455,7 @@ local function screen_dir(S, cam, center, dir)
 end
 
 local function start_gizmo_drag(S, cam, geo, part, mx, my)
+    history.record(S, `{part.kind} handle`)
     local node, ref = model.selected(S)
     local px, py, pz = table.unpack(ref:position())
     local sx, sy, sz = table.unpack(ref:scale())
@@ -494,7 +496,6 @@ local function apply_gizmo_drag(S, cam, mx, my)
         local sx, sy, sz = d.scale[1] * f, d.scale[2] * f, d.scale[3] * f
         ref:set_scale(sx, sy, sz)
         node.scale = { sx, sy, sz }
-        S.dirty = true
     elseif d.part.kind == "ring" then
         -- Screen-angle delta around the projected center, applied about the
         -- node's LOCAL axis (the rings rotate with the object), signed by
@@ -507,7 +508,6 @@ local function apply_gizmo_drag(S, cam, mx, my)
         local rot = euler_from_basis(rotate_basis_local(basis_from_euler(d.rot), d.part.axis, delta))
         node.rotation_euler = rot
         ref:set_rotation_euler(rot[1], rot[2], rot[3])
-        S.dirty = true
     elseif d.part.kind == "facerect" then
         -- Scale along the face's (rotated) normal: mouse movement projected
         -- onto its screen direction, converted to world units.
@@ -523,8 +523,7 @@ local function apply_gizmo_drag(S, cam, mx, my)
                 sc[axis] *= f
                 ref:set_scale(sc[1], sc[2], sc[3])
                 node.scale = { sc[1], sc[2], sc[3] }
-                S.dirty = true
-            end
+                    end
         end
     elseif d.part.kind == "face" then
         -- Slide the object in the face's plane: the world-space delta
@@ -541,8 +540,7 @@ local function apply_gizmo_drag(S, cam, mx, my)
                 end
                 ref:set_position(pos[1], pos[2], pos[3])
                 node.position = { pos[1], pos[2], pos[3] }
-                S.dirty = true
-            end
+                    end
         end
     end
 end
@@ -617,6 +615,9 @@ function M.update(S)
         return
     end
     local node, ref = model.selected(S)
+    if ref ~= nil and (S.tool == "move" or S.tool == "rotate" or S.tool == "scale") then
+        history.record(S, `{S.tool} node`, `tool:{S.tool}:{S.sel}`)
+    end
     if S.tool == "move" and ref ~= nil then
         local x, y, z = table.unpack(ref:position())
         if input.is_down("LShift") or input.is_down("RShift") then
@@ -634,20 +635,17 @@ function M.update(S)
         end
         ref:set_position(x, y, z)
         node.position = { x, y, z }
-        S.dirty = true
     elseif S.tool == "rotate" and ref ~= nil then
         local r = node.rotation_euler or { 0, 0, 0 }
         r[2] += dx * 0.01
         node.rotation_euler = r
         ref:set_rotation_euler(r[1], r[2], r[3])
-        S.dirty = true
     elseif S.tool == "scale" and ref ~= nil then
         local sx, sy, sz = table.unpack(ref:scale())
         local f = math.clamp(1 - dy * 0.01, 0.2, 5)
         sx, sy, sz = sx * f, sy * f, sz * f
         ref:set_scale(sx, sy, sz)
         node.scale = { sx, sy, sz }
-        S.dirty = true
     elseif S.tool == "zoom" then
         S.set_zoom(S.zoom - dy * 0.5)
     end

@@ -481,13 +481,18 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
                 let Some(key) = egui::Key::from_name(&key) else {
                     return Ok(false);
                 };
-                let modifiers = match mods.as_str() {
-                    "cmd" => egui::Modifiers::COMMAND,
-                    "ctrl" => egui::Modifiers::CTRL,
-                    "alt" => egui::Modifiers::ALT,
-                    "shift" => egui::Modifiers::SHIFT,
-                    _ => egui::Modifiers::NONE,
-                };
+                // "shift+cmd" is one chord, not an unknown name: an unrecognised
+                // string used to silently become the unmodified key.
+                let mut modifiers = egui::Modifiers::NONE;
+                for part in mods.split('+') {
+                    modifiers |= match part.trim() {
+                        "cmd" => egui::Modifiers::COMMAND,
+                        "ctrl" => egui::Modifiers::CTRL,
+                        "alt" => egui::Modifiers::ALT,
+                        "shift" => egui::Modifiers::SHIFT,
+                        _ => egui::Modifiers::NONE,
+                    };
+                }
                 Ok(ctx.input_mut(|i| i.consume_key(modifiers, key)))
             })
         },

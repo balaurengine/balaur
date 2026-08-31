@@ -205,8 +205,11 @@ point `BALAUR_TEMPLATES` at a directory, or pass `--template <file>`.
 Fusing appends the pack to the binary and marks the end of the file; on startup
 the engine reads its own executable, finds the pack, and boots it instead of
 parsing a command line. Every desktop executable format ignores trailing bytes,
-so nothing about the binary breaks. It also means a fused macOS game is
-unsigned — appending invalidates a signature, so sign after exporting.
+so nothing about the binary breaks. A flat fused game cannot be validly
+signed, though: for a signed macOS game, `balaur export --app` builds a
+`.app` with the pack as a sealed resource, ad-hoc signed (or with your
+identity via `--sign`). `balaur update` keeps an installed editor current
+from the published releases; `balaur --version` names the exact build.
 
 Mobile is the same command but a different shape of output, because neither
 mobile OS runs a bare executable:

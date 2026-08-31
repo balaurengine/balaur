@@ -39,12 +39,13 @@ ios)
   [ -x "$app/Balaur" ] || fail "the .app's executable is missing or not executable"
   grep -q '<string>project</string>' "$app/Info.plist" ||
     fail "Info.plist still names the template, not the game"
-  # The binary has to be built *for iOS*, not for whatever host ran the
-  # exporter. `file` cannot tell those apart — both say arm64 Mach-O — so ask
-  # the load command that actually records the platform.
+  # `file` says arm64 Mach-O for host and iOS alike, so ask the load command.
+  # Which one it is depends on the deployment target: LC_BUILD_VERSION names a
+  # platform, LC_VERSION_MIN_IPHONEOS names iOS by existing at all.
   if command -v vtool >/dev/null 2>&1; then
-    vtool -show-build "$app/Balaur" 2>/dev/null | grep -qi 'platform *IOS' ||
-      fail "the .app executable was not built for iOS"
+    build=$(vtool -show-build "$app/Balaur" 2>/dev/null || true)
+    grep -qiE 'platform +IOS|LC_VERSION_MIN_IPHONEOS' <<<"$build" ||
+      fail "the .app executable was not built for iOS: $(tr '\n' ' ' <<<"$build")"
   fi
   printf '\nexported %s\n' "$app"
   (cd "$work" && tar -czf "$dist/balaur-example-ios.tar.gz" "project.app")

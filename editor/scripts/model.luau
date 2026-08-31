@@ -2,6 +2,7 @@
 -- `S.doc` is plain data parsed from the scene TOML; the mirror is a real node
 -- tree from the same TOML (scripts not attached, physics paused until play).
 local highlight = require("scripts/highlight")
+local history = require("scripts/history")
 
 local M = {}
 
@@ -261,7 +262,7 @@ function M.load(S)
         end
     end
     S.sel = 1
-    S.dirty = false
+    history.reset(S)
     M.build_mirror(S)
 end
 
@@ -272,8 +273,9 @@ function M.build_mirror(S)
     end
     physics.clear()
     S.mirror = scene.spawn("Edited")
-    local src = fs.read(S.scene_path)
-    scene.instantiate(src, S.mirror, { scripts = false })
+    -- The document, not the file: a mirror read from disk cannot hold an
+    -- unsaved edit, which left a duplicated node with no live node at all.
+    scene.instantiate(toml.encode({ nodes = S.doc }), S.mirror, { scripts = false })
     physics.set_paused(true)
     S.playing = false
     S.refs = {}
@@ -329,12 +331,13 @@ function M.save(S)
     end
     fs.write(S.scene_path, toml.encode({ nodes = nodes }))
     M.forget()
-    S.dirty = false
+    history.mark_saved(S)
     log.info("saved " .. S.scene_rel)
 end
 
 -- Add a child under the selected node, in both document and mirror.
 function M.add_child(S)
+    history.record(S, "add node")
     local parent = S.doc[S.sel]
     local base = "Node"
     local name = base
@@ -363,7 +366,6 @@ function M.add_child(S)
         S.refs[#S.doc] = ref:add_child(name)
     end
     S.sel = #S.doc
-    S.dirty = true
 end
 
 -- Attach the game's scripts to the mirrored nodes (absolute paths, so the
@@ -388,9 +390,12 @@ function M.open_scene(S, rel)
         if node.parent == nil then
             node.parent = ""
         end
+        if node.id == nil or node.id == "" then
+            node.id = fresh_id(S.doc, node.name)
+        end
     end
     S.sel = 1
-    S.dirty = false
+    history.reset(S)
     M.build_mirror(S)
     log.info("opened " .. rel)
 end
@@ -421,7 +426,6 @@ function M.sync_component_doc(S, name)
     end
     local data = ref:get_component(name)
     node[name] = if data ~= nil then doc_value(name, data, node[name]) else nil
-    S.dirty = true
 end
 
 function M.add_component(S, name)
@@ -429,6 +433,7 @@ function M.add_component(S, name)
     if ref == nil then
         return
     end
+    history.record(S, `add {name}`)
     ref:set_component(name)
     M.sync_component_doc(S, name)
     log.info("added " .. name .. " to " .. S.doc[S.sel].name)
@@ -439,9 +444,9 @@ function M.remove_component(S, name)
     if ref == nil then
         return
     end
+    history.record(S, `remove {name}`)
     ref:remove_component(name)
     S.doc[S.sel][name] = nil
-    S.dirty = true
 end
 
 function M.set_component_prop(S, name, prop, value)
@@ -449,6 +454,7 @@ function M.set_component_prop(S, name, prop, value)
     if ref == nil then
         return
     end
+    history.record(S, `set {name}.{prop}`, `prop:{name}:{prop}:{S.sel}`)
     local node = S.doc[S.sel]
     local data = ref:get_component(name) or {}
     local params = doc_value(name, data, node[name])
@@ -466,6 +472,7 @@ end
 
 -- Duplicate the selected node (without children), then rebuild the mirror.
 function M.duplicate_selected(S)
+    history.record(S, "duplicate node")
     local src = S.doc[S.sel]
     local copy = {}
     for key, value in src do
@@ -493,9 +500,11 @@ function M.duplicate_selected(S)
         n += 1
     end
     copy.name = base .. n
+    -- The copy carried the original's id, which the engine then had to
+    -- regenerate for itself; children address a parent by id, so it is ours.
+    copy.id = fresh_id(S.doc, copy.name)
     table.insert(S.doc, S.sel + 1, copy)
     S.sel += 1
-    S.dirty = true
     M.build_mirror(S)
 end
 
@@ -504,6 +513,7 @@ function M.delete_selected(S)
         log.warn("cannot delete the last node")
         return
     end
+    history.record(S, `delete {S.doc[S.sel].name}`)
     local victim = S.doc[S.sel]
     local ref = M.ref(S, S.sel)
     if ref ~= nil then
@@ -517,7 +527,6 @@ function M.delete_selected(S)
     end
     S.doc = kept
     S.sel = math.clamp(S.sel, 1, #S.doc)
-    S.dirty = true
     M.build_mirror(S)
     log.info("deleted " .. victim.name)
 end

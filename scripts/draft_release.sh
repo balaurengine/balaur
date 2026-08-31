@@ -24,10 +24,6 @@ if [ ${#assets[@]} -eq 0 ]; then
   exit 1
 fi
 
-# What `balaur export` verifies a downloaded template against.
-(cd "$dist" && sha256sum "${assets[@]/#"$dist"\//}" >SHA256SUMS)
-assets+=("$dist/SHA256SUMS")
-
 if [[ ${GITHUB_REF:-} == refs/tags/* ]]; then
   tag=${GITHUB_REF#refs/tags/}
   rolling=false
@@ -35,6 +31,26 @@ else
   tag=${TAG:-nightly}
   rolling=true
 fi
+
+# The VERSION asset names the build this release holds; binaries compare it
+# to their own baked id (see balaur_cli/src/version.rs). A v* tag must match
+# the workspace version, or the id the binaries baked disagrees with the tag.
+if [ "$rolling" = true ]; then
+  build_id="nightly-$(git rev-parse --short=7 HEAD)"
+else
+  build_id=$tag
+  version=$(sed -n 's/^version = "\(.*\)"/v\1/p' Cargo.toml | head -1)
+  if [ "$tag" != "$version" ]; then
+    printf '::error::tag %s but Cargo.toml says %s\n' "$tag" "$version"
+    exit 1
+  fi
+fi
+printf '%s\n' "$build_id" >"$dist/VERSION"
+assets+=("$dist/VERSION")
+
+# What `balaur export` and `balaur update` verify downloads against.
+(cd "$dist" && sha256sum "${assets[@]/#"$dist"\//}" >SHA256SUMS)
+assets+=("$dist/SHA256SUMS")
 
 printf 'drafting %s with %s asset(s):\n' "$tag" "${#assets[@]}"
 printf '  %s\n' "${assets[@]}"
@@ -73,6 +89,10 @@ two always match.
 ```
 balaur export my-game --target linux-x64      # or macos-universal, windows-x64
 ```
+
+On macOS, add `--app` for a signed `.app` bundle (ad-hoc, or your identity
+via `--sign`); a flat fused binary cannot be validly signed. `balaur update`
+brings an installed editor to the latest published build.
 
 That fuses the compiled pack onto the runtime template and writes a single
 executable your players can run directly — no engine install, no separate

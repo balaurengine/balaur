@@ -220,7 +220,7 @@ mod tests {
     /// The script-facing vocabulary and the gilrs mapping are two lists; this
     /// is what keeps them from drifting apart.
     #[test]
-    fn the_vocabulary_and_the_gilrs_mapping_agree() {
+    fn the_pad_vocabulary_and_the_gilrs_mapping_agree() {
         let button_names: Vec<&str> = BUTTONS.iter().map(|(name, _)| *name).collect();
         assert_eq!(button_names, PAD_BUTTON_NAMES);
         let axis_names: Vec<&str> = AXES.iter().map(|(name, _)| *name).collect();

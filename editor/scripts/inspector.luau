@@ -2,6 +2,7 @@
 local theme = require("scripts/theme")
 local model = require("scripts/model")
 local animlib = require("scripts/anim")
+local history = require("scripts/history")
 
 local M = {}
 
@@ -52,8 +53,8 @@ local function vec3_row(S, k, label, getter, setter)
             end
         end
         if changed then
+            history.record(S, `set {string.lower(label)}`, `xform:{label}:{S.sel}`)
             setter(node, ref, v)
-            S.dirty = true
         end
     end)
 end
@@ -209,9 +210,9 @@ local function animation_section(S, k)
         if submitted then
             -- The name is `autoplay`: what the scene starts is what the
             -- Timeline edits, so there is one clip to get wrong instead of two.
+            history.record(S, "rename clip")
             comp.autoplay = text
             S.clip = nil
-            S.dirty = true
             animlib.arm(S)
         end
     end)
@@ -302,7 +303,6 @@ local function promote_asset(S, comp, prop, asset_type, dir, reference)
         return
     end
     model.set_component_prop(S, comp, prop, rel)
-    S.dirty = true
     log.info(`saved {rel}`)
 end
 
@@ -316,7 +316,6 @@ local function inline_asset(S, comp, prop, reference)
         return
     end
     model.set_component_prop(S, comp, prop, copy)
-    S.dirty = true
     log.info(`{reference} is now inline on {S.doc[S.sel].name}`)
 end
 

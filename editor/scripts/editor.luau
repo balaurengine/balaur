@@ -11,6 +11,8 @@ local dock = require("scripts/dock")
 local palette = require("scripts/palette")
 local gizmo = require("scripts/gizmo")
 local anim = require("scripts/anim")
+local history = require("scripts/history")
+local selftest = require("scripts/selftest")
 
 local Editor = {}
 
@@ -40,7 +42,37 @@ function Editor:init()
     _G.ED = S
 
     function S.select(i)
+        if i ~= S.sel then
+            history.commit(S)
+        end
         S.sel = i
+    end
+
+    -- History owns the document; the mirror is rebuilt from it here, because
+    -- history must not depend on `model` (model records into history).
+    local function step(label, moved)
+        if moved == nil then
+            log.info(`nothing to {label}`)
+            return
+        end
+        -- Rebuilding stops play, so read the flag before it is cleared: a
+        -- keystroke aimed at the document should not silently kill the game.
+        local was_playing = S.playing
+        model.build_mirror(S)
+        if was_playing then
+            log.info(`{label} stopped the running scene`)
+        end
+        theme.apply()
+        Editor.apply_camera(S)
+        log.info(`{label}: {moved}`)
+    end
+
+    function S.undo()
+        step("undo", history.undo(S))
+    end
+
+    function S.redo()
+        step("redo", history.redo(S))
     end
 
     function S.set_persona(id)
@@ -126,10 +158,10 @@ function Editor:init()
                 .. ":init()\nend\n\nfunction " .. node.name
                 .. ":update(dt)\nend\n\nreturn " .. node.name .. "\n")
         end
+        history.record(S, "attach script")
         model.forget()
         node.script = path
-        S.dirty = true
-        log.info("attached " .. path)
+        log.info("attached " .. path .. " (undo detaches it; the file stays)")
     end
 
     model.load(S)
@@ -185,6 +217,8 @@ function Editor:init()
             anim.seek(S, 0.6)
         end
         S.set_persona("anim")
+    elseif start == "undodemo" then
+        selftest.undo(S)
     elseif start ~= nil and string.sub(start, 1, 7) == "select:" then
         -- Self-test state: select a node by name (e.g. select:Pig1).
         local name = string.sub(start, 8)
@@ -500,6 +534,13 @@ function Editor:draw_ui()
         end
         if ui.shortcut("shift", "A") then
             model.add_child(S)
+        end
+        -- Gated with the rest, so typing in the code editor keeps egui's own
+        -- per-widget undo; redo first, to claim the shifted chord.
+        if ui.shortcut("shift+cmd", "Z") or ui.shortcut("cmd", "Y") then
+            S.redo()
+        elseif ui.shortcut("cmd", "Z") then
+            S.undo()
         end
         if ui.shortcut("alt", "L") then
             theme.set_dark(not theme.current.dark)

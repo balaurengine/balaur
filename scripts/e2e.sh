@@ -54,10 +54,14 @@ step() { # step <label> <balaur args...>
 # document node must resolve to a node in the engine mirror.
 UNRESOLVED='did not resolve in the mirror'
 
-edit_step() { # edit_step <label> <project>
-  local label=$1 project=$2 out rc
+edit_step() { # edit_step <label> <project> [state]
+  local label=$1 project=$2 state=${3:-} out rc
   set +e
-  out=$(balaur edit "$project" --frames 90 2>&1)
+  if [ -n "$state" ]; then
+    out=$(balaur edit "$project" --frames 90 --state "$state" 2>&1)
+  else
+    out=$(balaur edit "$project" --frames 90 2>&1)
+  fi
   rc=$?
   set -e
   if [ "$rc" -ne 0 ]; then
@@ -111,6 +115,12 @@ for ex in examples/*/; do
   # every node, and rebinding its assets -- not drawing, which needs a window.
   printf '  edit ...   '
   edit_step "$name: edit" "$ex"
+  printf 'ok\n'
+
+  # The editor's own assertions, which log an ERROR on failure and so fail
+  # the run above. Mutation coverage: edit alone only ever checks frame 0.
+  printf '  undo ...   '
+  edit_step "$name: undo" "$ex" undodemo
   printf 'ok\n'
 done
 

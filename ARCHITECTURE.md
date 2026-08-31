@@ -469,12 +469,27 @@ ship it twice.
 
 Templates resolve from `BALAUR_TEMPLATES`, then `templates/` beside the
 executable (where the editor download ships its own platform's), then the
-per-user cache `<data dir>/balaur/templates/<version>`. A missing desktop
-template is offered for download into that cache from the engine's *own*
-version tag, verified against the release's `SHA256SUMS` — version-pinned
-because a pack must only ever meet the runtime its compiler shipped with. The
-prompt requires a terminal or `--download`, so CI never fetches by surprise;
-`--no-download` forbids it outright.
+per-user cache `<data dir>/balaur/templates/<build id>`. A missing desktop
+template is offered for download into that cache from the release this build
+came from, verified against the release's `SHA256SUMS` — pinned to the exact
+build because a pack must only ever meet the runtime its compiler shipped
+with. The prompt requires a terminal or `--download`, so CI never fetches by
+surprise; `--no-download` forbids it outright.
+
+The build knows which release it came from because `scripts/package.sh` bakes
+an id into the binary (`v0.1.0`, or `nightly-<sha>`; `--version` prints it),
+and every release carries a VERSION asset naming the build it holds. That
+pair is what catches a Monday nightly meeting Wednesday's template, and what
+drives `balaur update`: one command replacing the whole install — binary,
+bundled editor, template, header, which only work as a set — from the
+published releases. A tagged build follows the latest release, a nightly the
+rolling tag, and a source build refuses and points at git.
+
+A *signed* macOS game is `export --app`: a `.app` bundle with the pack in
+`Contents/Resources`, because codesign seals resources but can never cover
+bytes appended to a flat binary (measured: it rewrites the file and still
+fails strict validation). Ad-hoc by default; `--sign <identity>` for a real
+certificate.
 
 The alternative — `include_bytes!` and a rebuild per game — needs Rust on the
 machine doing the shipping, which rules out anyone who downloaded the editor.

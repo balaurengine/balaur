@@ -128,7 +128,7 @@ mod tests {
     /// never got an `RngState`. `math.random` must still work there:
     /// `with_rng` seeds the default stream on first use.
     #[test]
-    fn math_random_works_on_an_engine_built_without_app() {
+    fn math_random_works_on_an_engine_built_without_an_app() {
         let eng = Engine::new();
         assert!(
             eng.try_resource::<RngState>().is_none(),

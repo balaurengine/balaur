@@ -2,6 +2,7 @@
 -- outside the local AABB (opposite corner/edge anchored, Shift = uniform),
 -- the interior translates, a center disc rotates about z; all 2D world space.
 local model = require("scripts/model")
+local history = require("scripts/history")
 
 local ORANGE = { 1.0, 0.647, 0.0 }
 local HOVER = { 0.118, 0.314, 0.784 }
@@ -204,6 +205,7 @@ function M.draw(S)
 end
 
 local function start_drag(S, geo, part, mx, my)
+    history.record(S, `{part.kind} handle`)
     local node, ref = model.selected(S)
     local px, py, pz = table.unpack(ref:position())
     local sx, sy, sz = table.unpack(ref:scale())
@@ -241,13 +243,11 @@ local function apply_drag(S, mx, my)
         end
         ref:set_position(x, y, d.pos[3])
         node.position = { x, y, d.pos[3] }
-        S.dirty = true
     elseif d.part.kind == "ring" then
         local a1 = math.atan(my - d.center[2], mx - d.center[1])
         local rot = { d.rot[1], d.rot[2], d.rot[3] + (a1 - d.angle0) }
         node.rotation_euler = rot
         ref:set_rotation_euler(rot[1], rot[2], rot[3])
-        S.dirty = true
     elseif d.part.kind == "handle" then
         -- steadyum drive_single_drag: per-axis factor from the cursor's
         -- world travel projected on the box's (rotated) axes; Shift applies
@@ -292,7 +292,6 @@ local function apply_drag(S, mx, my)
         local y = d.pos[2] + (ncy - d.center[2])
         ref:set_position(x, y, d.pos[3])
         node.position = { x, y, d.pos[3] }
-        S.dirty = true
     end
 end
 
@@ -396,6 +395,9 @@ function M.update(S, vp)
     end
     local wpp = world_per_px(S)
     local node, ref = model.selected(S)
+    if ref ~= nil and (S.tool == "move" or S.tool == "rotate" or S.tool == "scale") then
+        history.record(S, `{S.tool} node`, `tool:{S.tool}:{S.sel}`)
+    end
     if S.tool == "move" and ref ~= nil then
         local x, y, z = table.unpack(ref:position())
         x += dx * wpp
@@ -406,20 +408,17 @@ function M.update(S, vp)
         end
         ref:set_position(x, y, z)
         node.position = { x, y, z }
-        S.dirty = true
     elseif S.tool == "rotate" and ref ~= nil then
         local r = node.rotation_euler or { 0, 0, 0 }
         r[3] -= dx * 0.01
         node.rotation_euler = r
         ref:set_rotation_euler(r[1], r[2], r[3])
-        S.dirty = true
     elseif S.tool == "scale" and ref ~= nil then
         local sx, sy, sz = table.unpack(ref:scale())
         local f = math.clamp(1 - dy * 0.01, 0.2, 5)
         sx, sy = sx * f, sy * f
         ref:set_scale(sx, sy, sz)
         node.scale = { sx, sy, sz }
-        S.dirty = true
     elseif S.tool == "zoom" then
         S.set_zoom(S.zoom - dy * 0.5)
     end

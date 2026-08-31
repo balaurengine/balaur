@@ -3,6 +3,7 @@
 local theme = require("scripts/theme")
 local model = require("scripts/model")
 local animlib = require("scripts/anim")
+local history = require("scripts/history")
 
 local M = {}
 
@@ -13,6 +14,10 @@ local function commands(S)
         { label = "Animate persona", icon = "◷", key = "⌥3", run = function() S.set_persona("anim") end },
         { label = "Physics persona", icon = "▣", key = "⌥4", run = function() S.set_persona("phys") end },
         { label = "Interface persona", icon = "▤", key = "⌥5", run = function() S.set_persona("ui") end },
+        { label = if history.can_undo(S) then `Undo {history.undo_label(S)}` else "Undo",
+          icon = "⟲", key = "⌘Z", run = function() S.undo() end },
+        { label = if history.can_redo(S) then `Redo {history.redo_label(S)}` else "Redo",
+          icon = "⟳", key = "⇧⌘Z", run = function() S.redo() end },
         { label = "Add child node…", icon = "＋", key = "⇧A", run = function() model.add_child(S) end },
         { label = "Attach Luau script to selection", icon = "‹›", key = "⌥S", run = function() S.attach_script() end },
         { label = "Run scene", icon = "▶", key = "F5", run = function() S.toggle_play() end },

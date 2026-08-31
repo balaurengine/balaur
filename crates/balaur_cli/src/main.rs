@@ -7,9 +7,11 @@ use balaur::{AppConfig, Pack};
 use clap::{Parser, Subcommand};
 
 mod templates;
+mod update;
+mod version;
 
 #[derive(Parser)]
-#[command(name = "balaur", version, about = "The Balaur game engine")]
+#[command(name = "balaur", version = version::long(), about = "The Balaur game engine")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -59,6 +61,25 @@ enum Command {
         /// Never download a missing runtime template; fail instead.
         #[arg(long)]
         no_download: bool,
+        /// Produce a macOS `.app` bundle instead of a flat executable — the
+        /// shape that can be code-signed.
+        #[arg(long)]
+        app: bool,
+        /// Code-sign the `.app` with this identity (implies `--app`);
+        /// without it the bundle is signed ad-hoc.
+        #[arg(long)]
+        sign: Option<String>,
+    },
+    /// Update this install — the binary, the bundled editor and its runtime
+    /// template — to the latest published build.
+    Update {
+        /// Release tag to update to. Defaults to the latest release, or to
+        /// the rolling nightly for a nightly build.
+        #[arg(long)]
+        tag: Option<String>,
+        /// Only report whether an update exists.
+        #[arg(long)]
+        check: bool,
     },
     /// Open a project in the balaur editor (the editor itself is a balaur
     /// project; see the `editor/` directory).
@@ -147,14 +168,19 @@ fn main() -> Result<()> {
             template,
             download,
             no_download,
-        } => export_project(
-            &path,
+            app,
+            sign,
+        } => export_project(&ExportOpts {
+            path,
             output,
-            target.as_deref(),
+            target,
             template,
             download,
             no_download,
-        ),
+            app,
+            sign,
+        }),
+        Command::Update { tag, check } => update::run(tag.as_deref(), check),
         Command::Play { pack, frames } => {
             let bytes =
                 std::fs::read(&pack).with_context(|| format!("reading {}", pack.display()))?;
@@ -177,41 +203,64 @@ fn frame_budget() -> Option<u64> {
     std::env::var("BALAUR_FRAMES").ok()?.parse().ok()
 }
 
-/// Write a `.bpak`, or a standalone game when a template is in play.
-fn export_project(
-    path: &Path,
+/// Everything `balaur export` was asked for.
+struct ExportOpts {
+    path: PathBuf,
     output: Option<PathBuf>,
-    target: Option<&str>,
+    target: Option<String>,
     template: Option<PathBuf>,
     download: bool,
     no_download: bool,
-) -> Result<()> {
-    let pack = balaur::build_pack(path)?;
-    let name = path
+    app: bool,
+    sign: Option<String>,
+}
+
+/// Write a `.bpak`, or a standalone game when a template is in play.
+fn export_project(opts: &ExportOpts) -> Result<()> {
+    let pack = balaur::build_pack(&opts.path)?;
+    let name = opts
+        .path
         .canonicalize()
         .ok()
         .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
         .unwrap_or_else(|| "game".to_string());
+    let target = opts.target.as_deref();
+    let output = opts.output.clone();
     // Mobile ships a bundle, not an executable: the pack goes inside it as a
     // resource rather than onto the end of a binary.
     if let Some(kind) = target.and_then(Bundle::for_target) {
-        let template = match template {
+        let template = match opts.template.clone() {
             Some(explicit) => explicit,
             None => find_bundle_template(kind)?,
         };
         return export_bundle(kind, &template, &pack.encode(), &name, output);
     }
-    let template = match (template, target) {
+    let template = match (opts.template.clone(), target) {
         (Some(explicit), _) => Some(explicit),
         (None, Some(target)) => Some(match find_template(target) {
             Ok(found) => found,
-            Err(missing) if !no_download => {
-                templates::obtain(target, download).with_context(|| missing.to_string())?
+            Err(missing) if !opts.no_download => {
+                templates::obtain(target, opts.download).with_context(|| missing.to_string())?
             }
             Err(missing) => return Err(missing),
         }),
         (None, None) => None,
     };
+    // A macOS game that will be signed has to be a .app: appending to a flat
+    // binary is exactly what a signature cannot cover.
+    if opts.app || opts.sign.is_some() {
+        let template = template.context("--app needs --target or --template")?;
+        if let Some(t) = target.filter(|t| !t.starts_with("macos")) {
+            anyhow::bail!("--app builds a macOS bundle, but the target is {t}");
+        }
+        return export_macos_app(
+            &template,
+            &pack.encode(),
+            &name,
+            output,
+            opts.sign.as_deref(),
+        );
+    }
     let Some(template) = template else {
         let output = output.unwrap_or_else(|| PathBuf::from(format!("{name}.bpak")));
         std::fs::write(&output, pack.encode())?;
@@ -390,6 +439,83 @@ fn copy_dir(from: &Path, to: &Path) -> Result<()> {
             }
         }
     }
+    Ok(())
+}
+
+/// A macOS game as a signable `.app`: the template binary untouched, the
+/// pack a resource beside it (`standalone::own_pack` looks there inside a
+/// bundle), and `codesign` run over the result.
+fn export_macos_app(
+    template: &Path,
+    pack: &[u8],
+    name: &str,
+    output: Option<PathBuf>,
+    sign: Option<&str>,
+) -> Result<()> {
+    let app = output.unwrap_or_else(|| PathBuf::from(format!("{name}.app")));
+    let macos_dir = app.join("Contents").join("MacOS");
+    let resources = app.join("Contents").join("Resources");
+    std::fs::remove_dir_all(&app).ok();
+    std::fs::create_dir_all(&macos_dir)?;
+    std::fs::create_dir_all(&resources)?;
+    let bytes = std::fs::read(template)
+        .with_context(|| format!("reading template {}", template.display()))?;
+    balaur::standalone::write_executable(&macos_dir.join(name), &bytes, template)?;
+    std::fs::write(resources.join(balaur::standalone::BUNDLED_PACK), pack)?;
+    std::fs::write(app.join("Contents").join("Info.plist"), info_plist(name))?;
+    codesign(&app, sign)?;
+    tracing::info!(
+        "exported {} ({} signature)",
+        app.display(),
+        match sign {
+            Some(identity) => identity,
+            None if cfg!(target_os = "macos") => "ad-hoc",
+            None => "no",
+        }
+    );
+    Ok(())
+}
+
+fn info_plist(name: &str) -> String {
+    // The identifier keeps only what a bundle id accepts.
+    let id: String = name
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key><string>{name}</string>
+  <key>CFBundleIdentifier</key><string>org.balaur.{id}</string>
+  <key>CFBundleName</key><string>{name}</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundleVersion</key><string>1</string>
+</dict>
+</plist>
+"#
+    )
+}
+
+/// Ad-hoc unless an identity is given. Signing needs Apple's `codesign`, so
+/// off macOS the bundle is written unsigned and says so.
+fn codesign(app: &Path, sign: Option<&str>) -> Result<()> {
+    if !cfg!(target_os = "macos") {
+        if sign.is_some() {
+            anyhow::bail!("--sign runs codesign, which needs macOS");
+        }
+        tracing::warn!("unsigned .app: run codesign over it on a Mac");
+        return Ok(());
+    }
+    let status = std::process::Command::new("codesign")
+        .args(["--force", "--sign", sign.unwrap_or("-")])
+        .arg(app)
+        .status()
+        .context("running codesign")?;
+    anyhow::ensure!(status.success(), "codesign failed");
     Ok(())
 }
 

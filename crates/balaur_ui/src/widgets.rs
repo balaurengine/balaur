@@ -217,10 +217,7 @@ pub(crate) fn text_field(
         let response = if h > 0.0 {
             egui::Frame::new()
                 .fill(opts.color("fill", Color32::TRANSPARENT))
-                .stroke(Stroke::new(
-                    1.0,
-                    opts.color("stroke", Color32::TRANSPARENT),
-                ))
+                .stroke(Stroke::new(1.0, opts.color("stroke", Color32::TRANSPARENT)))
                 .corner_radius(pill_radius(h))
                 .inner_margin(Margin::symmetric(pad as i8, 0))
                 .show(ui, |ui| {

@@ -11,6 +11,14 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 target=${1:?usage: package.sh <target>}
+
+# The build id baked into the binary (balaur_cli/src/version.rs): the tag on
+# a tagged build, nightly-<sha> otherwise.
+if [[ ${GITHUB_REF:-} == refs/tags/* ]]; then
+  export BALAUR_BUILD=${GITHUB_REF#refs/tags/}
+else
+  export BALAUR_BUILD="nightly-$(git rev-parse --short=7 HEAD)"
+fi
 # Absolute, so nothing downstream depends on which directory we are standing in.
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
 exe=""

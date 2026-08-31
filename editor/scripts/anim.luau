@@ -2,6 +2,7 @@
 -- `assets` / `animation` modules. A clip is an engine `animation_clip` asset:
 -- nothing here interpolates or applies a pose — scrubbing seeks the engine.
 local model = require("scripts/model")
+local history = require("scripts/history")
 
 local M = {}
 
@@ -198,7 +199,6 @@ end
 -- The clip changed: the scene needs saving, an external clip needs writing,
 -- and the engine needs the new table.
 function M.touch(S)
-    S.dirty = true
     if S.clip ~= nil then
         S.clip.dirty = true
     end
@@ -211,6 +211,7 @@ function M.ensure_clip(S)
     if M.component(node) ~= nil then
         return M.definition(S)
     end
+    history.record(S, "create clip")
     local name = string.lower(node.name)
     node.animation = {
         library = { type = CLIP_TYPE, [GROUP] = { [name] = { length = 2.0, loop = "loop" } } },
@@ -219,7 +220,6 @@ function M.ensure_clip(S)
         root = "",
     }
     S.clip = nil
-    S.dirty = true
     M.arm(S)
     log.info(`created clip '{name}' on {node.name}`)
     return M.definition(S)
@@ -267,6 +267,7 @@ function M.add_key(S, t)
         log.warn(`{node.name}: the library has no clip called '{M.clip_name(node)}'`)
         return
     end
+    history.record(S, "insert keyframe")
     local px, py, pz = table.unpack(ref:position())
     local rx, ry, rz = table.unpack(ref:rotation_euler())
     put_key(track_for(def, "position"), t, { px, py, pz })
@@ -283,6 +284,7 @@ function M.delete_key_at(S, t)
     if def == nil then
         return
     end
+    history.record(S, "delete keyframe")
     local kept = {}
     for _, track in M.tracks(def) do
         local keys = {}
@@ -319,6 +321,7 @@ function M.promote(S)
     if comp == nil or doc == nil then
         return
     end
+    history.record(S, "save clip as file")
     if type(comp.library) ~= "table" then
         log.warn("this clip is already a file")
         return
@@ -329,9 +332,8 @@ function M.promote(S)
     pcall(assets.reload, engine_path(S, rel))
     comp.library = rel
     S.clip = nil
-    S.dirty = true
     M.arm(S)
-    log.info("saved " .. rel)
+    log.info("saved " .. rel .. " (undo detaches it; the file stays)")
 end
 
 -- External → inline: a private copy of the document, owned by this node.
@@ -343,6 +345,7 @@ function M.make_inline(S)
         log.warn("this clip is already inline")
         return
     end
+    history.record(S, "make clip inline")
     local ok, copy = pcall(assets.duplicate, engine_path(S, rel))
     if not ok or type(copy) ~= "table" then
         log.warn(`cannot inline {rel}: {tostring(copy)}`)
@@ -359,7 +362,6 @@ function M.make_inline(S)
     copy.type = CLIP_TYPE
     comp.library = copy
     S.clip = nil
-    S.dirty = true
     M.arm(S)
     log.info(`clip is now inline on {node.name}`)
 end

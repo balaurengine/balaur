@@ -18,9 +18,13 @@ step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 case "$platform" in
 ios)
   target=aarch64-apple-ios
-  step "build ($target, windowed)"
+  # Stated once; the plist below declares it too. Below 12.0 the linker emits
+  # the pre-LC_BUILD_VERSION load command, which records no platform at all.
+  ios_min=13.0
+  step "build ($target, windowed, min iOS $ios_min)"
   rustup target add "$target"
-  cargo build --release -p balaur_cli --features window --target "$target"
+  IPHONEOS_DEPLOYMENT_TARGET=$ios_min \
+    cargo build --release -p balaur_cli --features window --target "$target"
 
   # The smallest bundle iOS will launch: the executable and a plist naming it.
   # Unsigned on purpose — signing certificates must never live in this repo's CI.
@@ -30,7 +34,7 @@ ios)
   mkdir -p "$app"
   cp "target/$target/release/balaur" "$app/Balaur"
   chmod +x "$app/Balaur"
-  cat >"$app/Info.plist" <<'PLIST'
+  cat >"$app/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -44,7 +48,7 @@ ios)
   <key>CFBundleVersion</key><string>1</string>
   <key>LSRequiresIPhoneOS</key><true/>
   <key>UILaunchScreen</key><dict/>
-  <key>MinimumOSVersion</key><string>13.0</string>
+  <key>MinimumOSVersion</key><string>$ios_min</string>
 </dict>
 </plist>
 PLIST

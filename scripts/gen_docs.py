@@ -107,8 +107,10 @@ def module_owners():
 def test_names():
     """Every test, as a sentence. An undocumented flow is an untested one."""
     out = run("cargo", "test", "--workspace", "--", "--list")
-    names = sorted({line.split(":")[0] for line in out.splitlines() if line.endswith(": test")})
-    return [n.rsplit("::", 1)[-1] for n in names]
+    # Split off the trailing ": test", not the first colon: a name like
+    # `det::tests::a_flow` would otherwise be reported as the module `det`.
+    paths = [line.rsplit(":", 1)[0] for line in out.splitlines() if line.endswith(": test")]
+    return sorted({p.rsplit("::", 1)[-1] for p in paths})
 
 
 def write(name, body):

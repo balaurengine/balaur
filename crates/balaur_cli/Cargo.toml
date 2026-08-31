@@ -31,11 +31,19 @@ tracing-subscriber.workspace = true
 tracing-log.workspace = true
 tracing.workspace = true
 
-# Template download; the web build exports nothing, so wasm skips the stack.
+# Template download and self-update; the web build has neither, so wasm
+# skips the whole stack.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 ureq.workspace = true
 sha2 = "0.10"
 dirs = "6"
+
+[target.'cfg(all(not(target_family = "wasm"), not(windows)))'.dependencies]
+flate2 = "1"
+tar = "0.4"
+
+[target.'cfg(windows)'.dependencies]
+zip = { version = "5", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 tempfile = "3"

@@ -4,6 +4,7 @@ local theme = require("scripts/theme")
 local defs = require("scripts/defs")
 local model = require("scripts/model")
 local highlight = require("scripts/highlight")
+local history = require("scripts/history")
 
 local M = {}
 
@@ -48,7 +49,10 @@ local function doc_tabs(S, k)
             ui.spacing(6, 0)
             local scene_name = string.match(S.scene_rel, "([^/]+)$")
             local tabs = {
-                { id = "scene", icon = "◇", label = scene_name },
+                {
+                    id = "scene", icon = "◇",
+                    label = scene_name .. (if history.dirty(S) then " ●" else ""),
+                },
                 {
                     id = "script",
                     icon = "‹›",

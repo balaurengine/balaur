@@ -3,14 +3,14 @@
 use std::path::PathBuf;
 
 /// Downloaded templates live per user, never inside a project:
-/// `<platform data dir>/balaur/templates/<engine version>`. Versioned because
-/// a template must match the engine that compiled the pack.
+/// `<platform data dir>/balaur/templates/<build id>`. Keyed by the exact
+/// build because a template must match the engine that compiled the pack.
 #[cfg(not(target_family = "wasm"))]
 pub(crate) fn cache_dir() -> Option<PathBuf> {
     dirs::data_dir().map(|d| {
         d.join("balaur")
             .join("templates")
-            .join(env!("CARGO_PKG_VERSION"))
+            .join(crate::version::build_id().unwrap_or("dev"))
     })
 }
 
@@ -25,7 +25,7 @@ pub(crate) fn obtain(_target: &str, _assume_yes: bool) -> anyhow::Result<PathBuf
 }
 
 #[cfg(not(target_family = "wasm"))]
-pub(crate) use fetch::obtain;
+pub(crate) use fetch::{download, expected_sha256, fetch_text, obtain};
 
 #[cfg(not(target_family = "wasm"))]
 mod fetch {
@@ -37,11 +37,17 @@ mod fetch {
 
     const RELEASE_BASE: &str = "https://github.com/balaurengine/balaur/releases/download";
 
-    /// The engine's own version tag, so a pack only ever meets the runtime
-    /// its compiler shipped with. BALAUR_TEMPLATE_TAG overrides for nightlies.
-    fn release_tag() -> String {
-        std::env::var("BALAUR_TEMPLATE_TAG")
-            .unwrap_or_else(|_| concat!("v", env!("CARGO_PKG_VERSION")).to_string())
+    /// The tag this build's own assets live under, so a pack only ever meets
+    /// the runtime its compiler shipped with. BALAUR_TEMPLATE_TAG overrides.
+    fn release_tag() -> Result<String> {
+        if let Ok(tag) = std::env::var("BALAUR_TEMPLATE_TAG") {
+            return Ok(tag);
+        }
+        crate::version::release_tag().map(str::to_string).context(
+            "this is a source build with no release to download from; build the \
+             template yourself (cargo build --release -p balaur_cli), pass \
+             --template <file>, or set BALAUR_TEMPLATE_TAG",
+        )
     }
 
     fn asset_name(target: &str) -> String {
@@ -57,10 +63,11 @@ mod fetch {
     /// (`--download`), so CI never fetches by surprise.
     pub(crate) fn obtain(target: &str, assume_yes: bool) -> Result<PathBuf> {
         let name = asset_name(target);
-        let tag = release_tag();
+        let tag = release_tag()?;
         let url = format!("{RELEASE_BASE}/{tag}/{name}");
         let dir = super::cache_dir().context("no user data directory on this platform")?;
         confirm(&name, &url, &dir, assume_yes)?;
+        refuse_a_stale_nightly(&tag)?;
         std::fs::create_dir_all(&dir)?;
         let expected = expected_sha256(&format!("{RELEASE_BASE}/{tag}/SHA256SUMS"), &name)?;
         if expected.is_none() {
@@ -96,6 +103,36 @@ mod fetch {
         Ok(())
     }
 
+    /// The rolling `nightly` tag moves: a template published after this
+    /// binary was built comes from a different compiler, and fusing the two
+    /// is undefined. The release's VERSION asset names the build it holds.
+    fn refuse_a_stale_nightly(tag: &str) -> Result<()> {
+        let Some(own) = crate::version::build_id().filter(|id| !id.starts_with('v')) else {
+            return Ok(());
+        };
+        match fetch_text(&format!("{RELEASE_BASE}/{tag}/VERSION"))? {
+            Some(published) if published.trim() != own => bail!(
+                "this build is {own} but the published {tag} release is {}; \
+                 run `balaur update` first",
+                published.trim()
+            ),
+            _ => Ok(()),
+        }
+    }
+
+    /// A small text asset from the release, or None when the release does
+    /// not carry it.
+    pub(crate) fn fetch_text(url: &str) -> Result<Option<String>> {
+        let mut response = agent().get(url).call()?;
+        if response.status().as_u16() == 404 {
+            return Ok(None);
+        }
+        if !response.status().is_success() {
+            bail!("fetching {url}: HTTP {}", response.status());
+        }
+        Ok(Some(response.body_mut().read_to_string()?))
+    }
+
     fn agent() -> ureq::Agent {
         // A 404 needs its own message (no release for this tag), so statuses
         // are handled here rather than surfacing as transport errors.
@@ -107,15 +144,10 @@ mod fetch {
 
     /// The hash for `name` out of the release's SHA256SUMS, or None when the
     /// release predates checksums.
-    fn expected_sha256(sums_url: &str, name: &str) -> Result<Option<String>> {
-        let mut response = agent().get(sums_url).call()?;
-        if response.status().as_u16() == 404 {
+    pub(crate) fn expected_sha256(sums_url: &str, name: &str) -> Result<Option<String>> {
+        let Some(sums) = fetch_text(sums_url)? else {
             return Ok(None);
-        }
-        if !response.status().is_success() {
-            bail!("fetching {sums_url}: HTTP {}", response.status());
-        }
-        let sums = response.body_mut().read_to_string()?;
+        };
         Ok(sums.lines().find_map(|line| {
             let mut parts = line.split_whitespace();
             let hash = parts.next()?;
@@ -126,7 +158,7 @@ mod fetch {
     /// Stream `url` to `path`, verified against `expected` when given. The
     /// bytes land in a sibling `.partial` first, so an interrupted or
     /// rejected download never looks installed.
-    fn download(url: &str, path: &Path, expected: Option<&str>) -> Result<()> {
+    pub(crate) fn download(url: &str, path: &Path, expected: Option<&str>) -> Result<()> {
         let mut response = agent().get(url).call()?;
         if response.status().as_u16() == 404 {
             bail!("{url} does not exist — is this engine version published as a release?");
@@ -203,9 +235,10 @@ mod fetch {
         }
 
         #[test]
-        fn the_cache_is_versioned_by_the_engine_version() {
+        fn the_cache_is_keyed_by_the_build_id() {
+            // Under cargo no build id is baked in, so the cache says `dev`.
             let dir = crate::templates::cache_dir().expect("desktop platforms have a data dir");
-            assert!(dir.ends_with(format!("balaur/templates/{}", env!("CARGO_PKG_VERSION"))));
+            assert!(dir.ends_with("balaur/templates/dev"));
         }
 
         #[test]
