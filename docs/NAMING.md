@@ -105,9 +105,9 @@ kiss3d owns the OS event loop outside the map. Fix that doc line.
 
 ### D2 — Module names are the noun for what the module owns.
 
-All 16 script modules besides `assets` are singular: `audio`, `engine`, `fs`,
-`http`, `input`, `json`, `log`, `node`, `physics`, `physics2d`, `render`,
-`rng`, `scene`, `toml`, `ui`, `websocket`.
+All 17 script modules besides `assets` are singular: `audio`, `engine`, `fs`,
+`gamend`, `http`, `input`, `json`, `log`, `node`, `physics`, `physics2d`,
+`render`, `rng`, `scene`, `toml`, `ui`, `websocket`.
 `assets` is the one plural, and that is deliberate: a module is plural
 only when it is a **keyed store** of many things. `assets` qualifies; nothing
 else does today. Do not add a second plural without adding a line here.

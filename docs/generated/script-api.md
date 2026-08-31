@@ -13,6 +13,7 @@ cannot drift from what scripts actually see.
 | [`audio`](#audio) | 2 | 0 | every language |
 | [`engine`](#engine) | 5 | 0 | every language |
 | [`fs`](#fs) | 4 | 0 | every language |
+| [`gamend`](#gamend) | 9 | 0 | every language |
 | [`http`](#http) | 1 | 0 | every language |
 | [`input`](#input) | 9 | 165 | every language |
 | [`json`](#json) | 2 | 0 | every language |
@@ -46,6 +47,10 @@ cannot drift from what scripts actually see.
 ## `fs`
 
 **Functions:** `exists`, `list`, `read`, `write`
+
+## `gamend`
+
+**Functions:** `call_hook`, `close`, `configure`, `connect`, `join`, `leave`, `login`, `push`, `rest`
 
 ## `http`
 

@@ -13,6 +13,7 @@ graph TD
   balaur_bench[balaur_bench]
   balaur_cli[balaur_cli]
   balaur_core[balaur_core]
+  balaur_gamend[balaur_gamend]
   balaur_input[balaur_input]
   balaur_net[balaur_net]
   balaur_physics[balaur_physics]
@@ -23,9 +24,11 @@ graph TD
   balaur_script_rune[balaur_script_rune]
   balaur_ui[balaur_ui]
   extension_greeter[extension_greeter]
+  gamend_client[gamend_client]
   balaur --> balaur_anim
   balaur --> balaur_audio
   balaur --> balaur_core
+  balaur --> balaur_gamend
   balaur --> balaur_input
   balaur --> balaur_net
   balaur --> balaur_physics
@@ -47,6 +50,9 @@ graph TD
   balaur_bench --> balaur_script_rune
   balaur_cli --> balaur
   balaur_core --> balaur_script
+  balaur_gamend --> balaur_core
+  balaur_gamend --> balaur_plugin
+  balaur_gamend --> balaur_script
   balaur_input --> balaur_core
   balaur_input --> balaur_script
   balaur_net --> balaur_core

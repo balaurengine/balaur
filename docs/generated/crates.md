@@ -11,7 +11,7 @@ Balaur game engine: batteries-included facade over the core and standard plugins
 
 Batteries-included entry points for Balaur games and tools.
 
-- **workspace deps:** `balaur_anim`, `balaur_audio`, `balaur_core`, `balaur_input`, `balaur_net`, `balaur_physics`, `balaur_plugin`, `balaur_render`, `balaur_script_luau`, `balaur_script_rune`, `balaur_ui`
+- **workspace deps:** `balaur_anim`, `balaur_audio`, `balaur_core`, `balaur_gamend`, `balaur_input`, `balaur_net`, `balaur_physics`, `balaur_plugin`, `balaur_render`, `balaur_script_luau`, `balaur_script_rune`, `balaur_ui`
 - **external deps:** 2 (anyhow, tracing)
 - **public surface:** 5 fn
 
@@ -70,6 +70,18 @@ Balaur engine core: the Rust data plane.
 - **traits:** `Plugin`
 - **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Children`, `ComponentDef`, `ComponentRegistry`, `Engine`, `EngineOp`, `GlobalTransform`, `LogEntry`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `ProjectManifest`, `ProjectRoot`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `StableId`, `Transform`
 - **enums:** `AssetRef`, `Command`, `Stage`
+
+## `balaur_gamend`
+
+Balaur plugin for the Gamend backend: login, REST, realtime and server hooks for scripts
+
+The Gamend backend as a Balaur plugin: `gamend.*` for scripts.
+
+- **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
+- **external deps:** 4 (anyhow, gamend_client, serde_json, tracing)
+- **public surface:** 4 struct, 1 enum
+- **structs:** `GamendPlugin`, `GamendSnapshot`, `GamendState`, `Handler`
+- **enums:** `LoginCredentials`
 
 ## `balaur_input`
 
@@ -180,4 +192,16 @@ An extension: the same `Plugin` a module implements, built as a cdylib and loade
 - **external deps:** 1 (anyhow)
 - **public surface:** 2 struct
 - **structs:** `Greeter`, `GreetingCount`
+
+## `gamend_client`
+
+Gamend backend client: auth, REST and Phoenix Channels realtime, engine-agnostic
+
+A Gamend backend client for Rust games: auth, REST and realtime.
+
+- **workspace deps:** none
+- **external deps:** 5 (anyhow, serde_json, tracing, tungstenite, ureq)
+- **public surface:** 2 fn, 4 struct, 2 enum
+- **structs:** `Client`, `Reply`, `Session`, `Socket`
+- **enums:** `Credentials`, `SocketEvent`
 

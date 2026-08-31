@@ -43,6 +43,8 @@ balaur_render = { path = "crates/balaur_render", version = "0.1.0" }
 balaur_audio = { path = "crates/balaur_audio", version = "0.1.0" }
 balaur_input = { path = "crates/balaur_input", version = "0.1.0" }
 balaur_net = { path = "crates/balaur_net", version = "0.1.0" }
+gamend_client = { path = "crates/gamend_client", version = "0.1.0" }
+balaur_gamend = { path = "crates/balaur_gamend", version = "0.1.0" }
 balaur_ui = { path = "crates/balaur_ui", version = "0.1.0" }
 balaur = { path = "crates/balaur", version = "0.1.0", default-features = false }
 
@@ -76,9 +78,12 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
-# kiss3d with the macOS Command-modifier fix for egui: upstream's
-# get_egui_modifiers reported ⌘ as never pressed. `cmd-mod` is v0.46.0 plus
-# that one commit.
+# kiss3d from our fork's mobile line: dimforge's v0.46.0 plus the macOS
+# Command-modifier fix for egui (upstream's cmd-mod branch), and on top of it
+# iOS and Android support — the inverted iOS main loop, Android lifecycle and
+# touch input, and the downlevel-GL capability gates that Android surfaced and
+# WebGL2 shares. Verified on an Android emulator and the iOS simulator; see
+# the branch's examples/android and examples/ios.
 #
 # Fetched by cargo rather than expected as a sibling checkout, so a fresh clone
 # of this repo builds on its own and CI needs no second checkout. Cargo.lock
@@ -86,4 +91,4 @@ opt-level = 3
 # To hack on kiss3d itself, point cargo at a local copy with a `paths` override
 # in .cargo/config.toml rather than editing this.
 [patch.crates-io]
-kiss3d = { git = "https://github.com/dimforge/kiss3d.git", branch = "cmd-mod" }
+kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "mobile-fixes" }

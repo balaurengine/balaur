@@ -10,7 +10,7 @@ name = "balaur"
 path = "src/main.rs"
 
 [features]
-default = ["audio", "net"]
+default = ["audio", "net", "gamend"]
 # Build with a real window (kiss3d/wgpu). Without it, runs are headless.
 window = ["balaur/window"]
 # Sound. Off, the build drops rodio, cpal and the platform audio stack.
@@ -20,6 +20,8 @@ extensions = ["balaur/extensions"]
 # `http.*` and `websocket.*` for scripts. Off, the build drops ureq,
 # tungstenite and the TLS stack.
 net = ["balaur/net"]
+# `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks).
+gamend = ["balaur/gamend"]
 
 [dependencies]
 balaur = { workspace = true, default-features = false }

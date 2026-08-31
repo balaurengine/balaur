@@ -1,0 +1,28 @@
+[package]
+name = "balaur_gamend"
+description = "Balaur plugin for the Gamend backend: login, REST, realtime and server hooks for scripts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+balaur_core.workspace = true
+balaur_plugin.workspace = true
+balaur_script.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+# The client's networking stack does not compile for wasm; those builds get
+# the stub backend in lib.rs and every call resolves to an error event.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+gamend_client.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+tungstenite.workspace = true
+balaur = { workspace = true, features = ["gamend"] }
+
+[lints]
+workspace = true

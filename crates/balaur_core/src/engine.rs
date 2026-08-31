@@ -33,6 +33,10 @@ pub(crate) struct EngineInner {
     pub(crate) time: Cell<f64>,
     pub(crate) delta: Cell<f32>,
     pub(crate) quit: Cell<bool>,
+    /// One engine-wide counter behind [`Engine::next_token`], so every
+    /// subsystem's awaitable ids share a namespace and a wake can never
+    /// resume the wrong task.
+    pub(crate) tokens: Cell<u64>,
 }
 
 impl Engine {
@@ -49,6 +53,7 @@ impl Engine {
                 time: Cell::new(0.0),
                 delta: Cell::new(0.0),
                 quit: Cell::new(false),
+                tokens: Cell::new(1),
             }),
         }
     }
@@ -74,6 +79,15 @@ impl Engine {
 
     pub fn try_resource<T: 'static>(&self) -> Option<Rc<RefCell<T>>> {
         self.inner.resources.borrow().get::<T>()
+    }
+
+    /// A fresh engine-wide id for anything a script can wait on — an http
+    /// request, a connection, a backend call. One counter for every
+    /// subsystem, so a `ScriptHost::wake` token names exactly one operation.
+    pub fn next_token(&self) -> u64 {
+        let id = self.inner.tokens.get();
+        self.inner.tokens.set(id + 1);
+        id
     }
 
     pub fn remove_resource<T: 'static>(&self) {

@@ -59,7 +59,9 @@ flow nothing checks.
 - a looping tween plays its sequence that many times
 - a lua array reaches a binding as a list
 - a lua script awaits a fetch
+- a lua script awaits a rest call
 - a lua script fetches over http
+- a lua script logs in and calls a hook
 - a lua script talks over a websocket
 - a luau script defines a clip of its own and plays it
 - a luau script pauses and resumes a clip
@@ -126,6 +128,7 @@ flow nothing checks.
 - a rune script awaits a fetch
 - a rune script defines a clip of its own and plays it
 - a rune script fetches over http
+- a rune script logs in and calls a hook
 - a rune script plays the same clip and hears the same signal
 - a rune script talks over a websocket
 - a rune script tweens the same node the same way
@@ -211,6 +214,7 @@ flow nothing checks.
 - an out curve is its in curve reflected
 - an out of range button does not panic
 - an unknown body kind is rejected with its name
+- an unknown event reply carries the error status
 - an unknown key is simply not down
 - an unknown language is a named error
 - an unknown loop mode is rejected naming it
@@ -280,6 +284,7 @@ flow nothing checks.
 - inserting a resource twice replaces it
 - instance state survives between frames
 - interactive widgets report no interaction without input
+- join reply push and leave round trip
 - json keeps integers and floats apart
 - json null and nil are the same value
 - json round trips through neutral values
@@ -291,6 +296,8 @@ flow nothing checks.
 - language rune runs on rune
 - linear interpolation walks evenly between two keys
 - linear velocity is set and read back
+- live a lua script talks to a real server
+- login me refresh and realtime against a live server
 - malformed json is an error rather than a crash
 - math fastcalls are routed through the global table
 - math functions are libm backed

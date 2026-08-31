@@ -12,6 +12,8 @@ pub use balaur_anim::AnimationPlugin;
 #[cfg(feature = "audio")]
 pub use balaur_audio::AudioPlugin;
 pub use balaur_core::*;
+#[cfg(feature = "gamend")]
+pub use balaur_gamend::GamendPlugin;
 pub use balaur_input::InputPlugin;
 #[cfg(feature = "net")]
 pub use balaur_net::NetPlugin;
@@ -22,6 +24,8 @@ pub use balaur_ui::UiPlugin;
 pub use balaur_anim as animation;
 #[cfg(feature = "audio")]
 pub use balaur_audio as audio;
+#[cfg(feature = "gamend")]
+pub use balaur_gamend as gamend;
 pub use balaur_input as input;
 #[cfg(feature = "net")]
 pub use balaur_net as net;
@@ -101,6 +105,8 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     balaur_plugin::load(&mut app, &mut AudioPlugin::default())?;
     #[cfg(feature = "net")]
     balaur_plugin::load(&mut app, &mut NetPlugin::default())?;
+    #[cfg(feature = "gamend")]
+    balaur_plugin::load(&mut app, &mut GamendPlugin::default())?;
     app.add_plugin(UiPlugin)?;
     #[cfg(feature = "extensions")]
     load_project_extensions(&mut app)?;

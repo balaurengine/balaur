@@ -1,0 +1,21 @@
+[package]
+name = "gamend_client"
+description = "Gamend backend client: auth, REST and Phoenix Channels realtime, engine-agnostic"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+# Deliberately independent of every balaur crate: this is the SDK any Rust
+# game can use against a Gamend server; `balaur_gamend` is the engine plugin
+# built on top of it. Blocking I/O throughout — the caller owns the thread.
+
+[dependencies]
+anyhow.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+ureq.workspace = true
+tungstenite.workspace = true
+
+[lints]
+workspace = true

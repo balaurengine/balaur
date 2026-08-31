@@ -132,7 +132,6 @@ pub struct Handler {
 
 /// Handle tables and the channel every worker thread reports into.
 pub struct NetState {
-    next_id: u64,
     events: Receiver<NetEvent>,
     report: Sender<NetEvent>,
     sockets: DetHashMap<u64, Sender<SocketCommand>>,
@@ -144,7 +143,6 @@ impl Default for NetState {
     fn default() -> Self {
         let (report, events) = channel();
         Self {
-            next_id: 1,
             events,
             report,
             sockets: DetHashMap::default(),
@@ -155,32 +153,28 @@ impl Default for NetState {
 }
 
 impl NetState {
-    /// Start an HTTP request; the response (or error) reaches `handler` on a
-    /// later tick, and is recorded in that tick's [`NetSnapshot`] either way.
-    pub fn request(&mut self, mut call: HttpCall, handler: Option<Handler>) -> u64 {
-        let id = self.next_id;
-        self.next_id += 1;
+    /// Start an HTTP request under `id` — an [`Engine::next_token`] value, so
+    /// awaiting it can never collide with another subsystem's ids. The
+    /// response (or error) reaches `handler` on a later tick, and is recorded
+    /// in that tick's [`NetSnapshot`] either way.
+    pub fn request(&mut self, id: u64, mut call: HttpCall, handler: Option<Handler>) {
         call.id = id;
         if let Some(handler) = handler {
             self.request_handlers.insert(id, handler);
         }
         backend::spawn_request(call, self.report.clone());
-        id
     }
 
-    /// Open a websocket connection; the handshake happens off-thread, and
-    /// every event — `open` first, `closed` or `error` last — reaches
-    /// `handler` on a later tick.
-    pub fn connect(&mut self, url: &str, handler: Option<Handler>) -> u64 {
-        let id = self.next_id;
-        self.next_id += 1;
+    /// Open a websocket connection under `id` (an [`Engine::next_token`]
+    /// value); the handshake happens off-thread, and every event — `open`
+    /// first, `closed` or `error` last — reaches `handler` on a later tick.
+    pub fn connect(&mut self, id: u64, url: &str, handler: Option<Handler>) {
         if let Some(handler) = handler {
             self.socket_handlers.insert(id, handler);
         }
         let (commands, receiver) = channel();
         backend::spawn_socket(id, url.to_string(), receiver, &self.report);
         self.sockets.insert(id, commands);
-        id
     }
 
     /// Queue a text frame. False when the connection is gone — a script
@@ -444,8 +438,9 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
             };
             let handler = handler_of(&node, opts.as_ref(), "on_response", "on_response")?;
             let call = call_of(&url, opts.as_ref())?;
+            let id = eng.next_token();
             let state = eng.resource::<NetState>();
-            let id = state.borrow_mut().request(call, handler);
+            state.borrow_mut().request(id, call, handler);
             Ok(int(id))
         },
     );
@@ -462,8 +457,9 @@ fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
         "connect",
         |eng: &Engine, (node, url, opts): (Value, String, Option<Value>)| {
             let handler = handler_of(&node, opts.as_ref(), "on_event", "on_websocket_event")?;
+            let id = eng.next_token();
             let state = eng.resource::<NetState>();
-            let id = state.borrow_mut().connect(&url, handler);
+            state.borrow_mut().connect(id, &url, handler);
             Ok(int(id))
         },
     );
