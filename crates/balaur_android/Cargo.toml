@@ -1,0 +1,26 @@
+[package]
+name = "balaur_android"
+description = "The Android entry point: a NativeActivity library that boots a packed game"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+# Android's NativeActivity dlopens `libmain.so` and calls `android_main` in it,
+# so the Android template is a shared library rather than an executable.
+[lib]
+name = "main"
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+# Target-gated on purpose. As plain dependencies these would switch the window
+# feature on for every workspace build, dragging kiss3d and wgpu into jobs that
+# are meant to be headless. Off Android this crate has no dependencies and
+# compiles to nothing.
+[target.'cfg(target_os = "android")'.dependencies]
+balaur = { workspace = true, features = ["window"] }
+kiss3d = "0.46"
+tracing = { workspace = true }
+
+[lints]
+workspace = true

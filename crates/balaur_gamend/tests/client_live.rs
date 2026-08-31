@@ -1,10 +1,10 @@
 //! The whole client against a real Gamend server.
 //!
 //! Ignored by default: run a server with `mix dev.start` in the gamend
-//! checkout, then `cargo test -p gamend_client -- --ignored`. Device login
+//! checkout, then `cargo test -p balaur_gamend -- --ignored`. Device login
 //! creates its own throwaway account, so a fresh dev database is enough.
 
-use gamend_client::{auth, Client, Credentials, Socket, SocketEvent};
+use balaur_gamend::client::{auth, Client, Credentials, Socket, SocketEvent};
 use serde_json::json;
 
 const SERVER: &str = "http://localhost:4000";

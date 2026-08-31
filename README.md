@@ -28,9 +28,11 @@ cargo run -p balaur_cli --features window -- edit my-game   # open in the editor
 
 Build with `--features window` for the kiss3d/wgpu window (`cargo run -p
 balaur_cli --features window -- run examples/hello`); without it everything
-runs headless (tests, servers, CI). Useful dev flags: `--frames N` stops
-after N frames, `--screenshot out.png` saves the window's framebuffer to a
-PNG.
+runs headless (tests, servers, CI). Three run modes: a window by default,
+`--headless` for no renderer at all, and `--offscreen` for a real GPU with no
+window — what an automation client or a visual CI job wants. `--frames N`
+stops after N frames. To capture a frame, the game or tool calls
+`render.screenshot("out.png")` at the moment worth capturing.
 
 A script has lifecycle methods and is attached to a node. Two languages ship;
 a project picks one with `language` in its `project.toml`, defaulting to Luau.

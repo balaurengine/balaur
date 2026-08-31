@@ -23,6 +23,7 @@ gamend = ["dep:balaur_gamend"]
 [dependencies]
 balaur_core.workspace = true
 balaur_plugin.workspace = true
+balaur_script.workspace = true
 balaur_script_luau.workspace = true
 balaur_script_rune.workspace = true
 balaur_physics.workspace = true

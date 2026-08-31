@@ -368,6 +368,65 @@ file keys (`app.scene_key_handler("collider", ...)`), which are applied in
 plugin registration order (deterministic, and plugins know the right order
 for their own keys). `balaur_physics` is the reference implementation.
 
+### Modules and extensions (plugin feature)
+
+A **module** is a plugin linked into the binary and switched on by a cargo
+feature; an **extension** is a plugin loaded from a shared library at run time.
+They implement the same `balaur_plugin::Plugin` trait — `manifest()` and
+`declare(&mut Registry)` — so one source ships either way. `Registry` is
+deliberately narrow (resources, systems, components, script modules) and free
+of generics and trait objects in its signatures, because a `fn` pointer crosses
+an ABI boundary where an `impl Trait` does not. Nothing in tree uses its
+`app()` escape hatch, which is the evidence those four operations are the right
+ones.
+
+Load order is sorted by name and then by declared requirements, never by
+directory iteration: load order decides registration order, which decides the
+simulation.
+
+**Two boundaries, because Rust has no stable ABI.** A dylib passing Rust types
+across `dlopen` needs the identical compiler on both sides, and a mismatch is
+undefined behaviour rather than a version error. So an extension comes in one
+of two shapes, and `load_extension` picks by which symbols it exports:
+
+| | Rust extension | C extension |
+| --- | --- | --- |
+| Exports | `balaur_plugin_abi`, `balaur_plugin_create` | `balaur_extension_abi` + three more |
+| Crosses | `Box<dyn Plugin>`, `Registry`, `anyhow::Result` | `#[repr(C)]` only |
+| Checked by | rustc + engine version + registry abi | one ABI version number |
+| Written in | Rust, that exact rustc | anything: C, Odin, Zig, C++ |
+
+The Rust path is checked by a `#[repr(C)]` fixed-size tag read *before*
+anything Rust-shaped crosses, because reading a `String` out of a library built
+by another compiler is the undefined behaviour the check exists to prevent. The
+fingerprint is stamped by `balaur_plugin`'s build script, separately for the
+host and for every plugin — the only moment either can observe which compiler
+is building it.
+
+**The Rust path has a ceiling.** Resources are keyed by `TypeId`, and a
+`TypeId` hashes the crate's identity as cargo compiled it — package, features,
+profile, and its dependencies' metadata. The host and an out-of-tree extension
+each compile their own `balaur_core`, so `ProjectRoot` is one type to a reader
+and two different keys to the resource map (measured, in
+`crates/balaur_plugin/tests/extension.rs`). An extension may own state; it may
+not reach state the engine owns.
+
+**The C path does not have that ceiling**, because it computes no `TypeId` and
+keeps its state behind its own `void*`. An extension exports four symbols,
+receives a table of host function pointers (rather than resolving symbols back
+into the executable, which is not portable), and speaks only `#[repr(C)]`
+types. The header is hand-written and committed, with `_Static_assert`s on
+every size and offset and a Rust test asserting the same numbers, so a layout
+change fails both compiles.
+
+The rule that makes the C boundary small: **no allocation crosses it.** Every
+`BalaurValue` is a borrowed view valid only for the call it appears in, and the
+host copies before returning — the same discipline `Value::Callback` already
+used for script functions, generalised. There is no free function and no
+allocator question. Today it reaches Tier 1 of `docs/PLAN-c-api.md`: script
+modules of functions and constants. Components, systems and calling back into
+script are not in it yet.
+
 ### Precompiled packs (core feature)
 
 `balaur export` compiles every script (optimization level 2, the same
@@ -559,9 +618,50 @@ one snapshot, recording it per tick is all a replay system needs.
 
 The `render` module exposes `render.set_camera(ex, ey, ez, tx, ty, tz)`
 backed by a `CameraConfig` resource; the kiss3d backend applies changes and
-keeps its interactive orbit controls in between. `ScreenshotRequest` (CLI:
-`balaur run --screenshot out.png`) saves a frame's framebuffer to PNG, for
-debugging, CI golden images, and editor thumbnails later.
+keeps its interactive orbit controls in between. `render.screenshot(path)`
+saves a frame's framebuffer to PNG, for debugging, CI golden images, and
+editor thumbnails later.
+
+Capture is a binding rather than a CLI flag because *when* to capture is the
+caller's business: a tool screenshots once the level has finished loading or
+after the hit lands, not at a frame number chosen before the game started.
+The flag it replaced could only say "frame 60". The `ScreenshotRequest`
+resource behind it stays public, so a Rust embedding can insert one directly.
+
+### Three run modes, not two
+
+| Mode | GPU | Window | What it is for |
+| --- | --- | --- | --- |
+| headless | no | no | tests, CI, servers, determinism runs |
+| offscreen | yes | no | screenshots, automation, visual CI |
+| windowed | yes | yes | playing and editing |
+
+Headless builds no renderer at all. That is the point of it: `cargo test` and
+`scripts/e2e.sh` stay fast, and the engine runs where there is no GPU adapter
+to be had. It is also what makes the determinism claim checkable — a headless
+run computes exactly what a windowed run computes, and the pack digests in
+e2e prove it.
+
+Offscreen (`--offscreen`, `balaur::run_offscreen`) is the same renderer
+against a hidden window: kiss3d opens a surface-less wgpu context, so there is
+no OS window and no display server, but there is real GPU output and
+`snap_image` can read it back. It shares one frame body with the windowed
+loop rather than keeping a second copy in step, and it advances at a fixed
+1/60 step — there is nothing to pace against without a display, and an
+automation client asking for frame 90 should get the same frame every time.
+
+A screenshot needs a GPU, not a window, so both rendering modes serve one.
+Headless cannot, and says so: a request nobody consumed used to leave no
+file, no message and a zero exit code, which reads as success to a script.
+
+Which mode runs is a *launch* decision — the loop is built before any script
+executes — so it stays a CLI flag (`--headless`, `--offscreen`) while what to
+capture stays an API. Nothing at runtime can promote a headless run to a
+rendering one.
+
+Rendering stays a pure observer in every mode. Nothing a backend draws, and
+nothing a screenshot reads, may feed back into simulation state — that is
+what lets the three modes agree bit for bit.
 
 ## Roadmap
 

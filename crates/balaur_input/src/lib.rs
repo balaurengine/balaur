@@ -517,6 +517,13 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
         let v = state.borrow().mouse_just_released(button);
         Ok(v)
     });
+    install_touch_api(m);
+    install_gamepad_api(m);
+}
+
+/// `input.touches*` and `input.dropped_files` — the per-frame lists the
+/// window backend feeds.
+fn install_touch_api(m: &mut dyn Bindings<Engine>) {
     // Active touches as `{ id, x, y }` maps, oldest finger first. Pixel
     // coordinates, same space as `mouse_position`.
     m.function("touches", |eng: &Engine, ()| {
@@ -527,7 +534,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
             .iter()
             .map(|(id, x, y)| {
                 Value::Map(vec![
-                    ("id".to_string(), Value::Int(*id as i64)),
+                    ("id".to_string(), Value::Int(id.cast_signed())),
                     ("x".to_string(), Value::Num(f64::from(*x))),
                     ("y".to_string(), Value::Num(f64::from(*y))),
                 ])
@@ -541,7 +548,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
             .borrow()
             .touches_started()
             .iter()
-            .map(|id| Value::Int(*id as i64))
+            .map(|id| Value::Int(id.cast_signed()))
             .collect();
         Ok(Value::List(ids))
     });
@@ -551,7 +558,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
             .borrow()
             .touches_ended()
             .iter()
-            .map(|id| Value::Int(*id as i64))
+            .map(|id| Value::Int(id.cast_signed()))
             .collect();
         Ok(Value::List(ids))
     });
@@ -567,7 +574,6 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
             .collect();
         Ok(Value::List(files))
     });
-    install_gamepad_api(m);
 }
 
 /// `input.gamepad_*`. Ids come from `input.gamepads()`; a query about a pad
@@ -575,10 +581,16 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
 /// convention as a headless keyboard.
 fn install_gamepad_api(m: &mut dyn Bindings<Engine>) {
     for name in PAD_BUTTON_NAMES {
-        m.constant(&pad_const_name("PAD_", name), Value::Str((*name).to_string()));
+        m.constant(
+            &pad_const_name("PAD_", name),
+            Value::Str((*name).to_string()),
+        );
     }
     for name in PAD_AXIS_NAMES {
-        m.constant(&pad_const_name("AXIS_", name), Value::Str((*name).to_string()));
+        m.constant(
+            &pad_const_name("AXIS_", name),
+            Value::Str((*name).to_string()),
+        );
     }
     m.function("gamepads", |eng: &Engine, ()| {
         let state = eng.resource::<GamepadState>();
@@ -598,12 +610,15 @@ fn install_gamepad_api(m: &mut dyn Bindings<Engine>) {
             .map_or_else(String::new, |pad| pad.name.clone());
         Ok(name)
     });
-    m.function("gamepad_down", |eng: &Engine, (id, button): (i64, String)| {
-        check_pad_button(&button);
-        let state = eng.resource::<GamepadState>();
-        let v = state.borrow().pad(id).is_some_and(|p| p.is_down(&button));
-        Ok(v)
-    });
+    m.function(
+        "gamepad_down",
+        |eng: &Engine, (id, button): (i64, String)| {
+            check_pad_button(&button);
+            let state = eng.resource::<GamepadState>();
+            let v = state.borrow().pad(id).is_some_and(|p| p.is_down(&button));
+            Ok(v)
+        },
+    );
     m.function(
         "gamepad_just_pressed",
         |eng: &Engine, (id, button): (i64, String)| {

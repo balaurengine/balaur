@@ -96,6 +96,43 @@ struct Runtime {
     gilrs: Option<gilrs::Gilrs>,
 }
 
+/// The gilrs mapping behind [`PAD_BUTTON_NAMES`]; one entry per name, in the
+/// same order, so the two lists cannot drift apart silently (the test below
+/// says so).
+#[cfg(not(target_family = "wasm"))]
+const BUTTONS: &[(&str, gilrs::Button)] = &[
+    ("South", gilrs::Button::South),
+    ("East", gilrs::Button::East),
+    ("North", gilrs::Button::North),
+    ("West", gilrs::Button::West),
+    ("LeftTrigger", gilrs::Button::LeftTrigger),
+    ("LeftTrigger2", gilrs::Button::LeftTrigger2),
+    ("RightTrigger", gilrs::Button::RightTrigger),
+    ("RightTrigger2", gilrs::Button::RightTrigger2),
+    ("Select", gilrs::Button::Select),
+    ("Start", gilrs::Button::Start),
+    ("Mode", gilrs::Button::Mode),
+    ("LeftThumb", gilrs::Button::LeftThumb),
+    ("RightThumb", gilrs::Button::RightThumb),
+    ("DPadUp", gilrs::Button::DPadUp),
+    ("DPadDown", gilrs::Button::DPadDown),
+    ("DPadLeft", gilrs::Button::DPadLeft),
+    ("DPadRight", gilrs::Button::DPadRight),
+];
+
+/// The gilrs mapping behind [`PAD_AXIS_NAMES`], same contract as [`BUTTONS`].
+#[cfg(not(target_family = "wasm"))]
+const AXES: &[(&str, gilrs::Axis)] = &[
+    ("LeftStickX", gilrs::Axis::LeftStickX),
+    ("LeftStickY", gilrs::Axis::LeftStickY),
+    ("LeftZ", gilrs::Axis::LeftZ),
+    ("RightStickX", gilrs::Axis::RightStickX),
+    ("RightStickY", gilrs::Axis::RightStickY),
+    ("RightZ", gilrs::Axis::RightZ),
+    ("DPadX", gilrs::Axis::DPadX),
+    ("DPadY", gilrs::Axis::DPadY),
+];
+
 impl GamepadState {
     pub fn pads(&self) -> &[Pad] {
         &self.pads
@@ -118,11 +155,13 @@ impl GamepadState {
     /// and answer neutrally, so the same game runs regardless.
     #[cfg(not(target_family = "wasm"))]
     fn poll_gilrs(&mut self) {
-        use gilrs::{Axis, Button, Gilrs};
+        use gilrs::Gilrs;
 
         if self.runtime.is_none() {
             let gilrs = match Gilrs::new() {
                 Ok(gilrs) => Some(gilrs),
+                // The dummy backend (iOS, Android): expected, not news.
+                Err(gilrs::Error::NotImplemented(_)) => None,
                 Err(err) => {
                     tracing::warn!("gamepads disabled: {err}");
                     None
@@ -137,39 +176,9 @@ impl GamepadState {
         // gilrs updates its cached state while events are drained.
         while gilrs.next_event().is_some() {}
 
-        const BUTTONS: &[(&str, Button)] = &[
-            ("South", Button::South),
-            ("East", Button::East),
-            ("North", Button::North),
-            ("West", Button::West),
-            ("LeftTrigger", Button::LeftTrigger),
-            ("LeftTrigger2", Button::LeftTrigger2),
-            ("RightTrigger", Button::RightTrigger),
-            ("RightTrigger2", Button::RightTrigger2),
-            ("Select", Button::Select),
-            ("Start", Button::Start),
-            ("Mode", Button::Mode),
-            ("LeftThumb", Button::LeftThumb),
-            ("RightThumb", Button::RightThumb),
-            ("DPadUp", Button::DPadUp),
-            ("DPadDown", Button::DPadDown),
-            ("DPadLeft", Button::DPadLeft),
-            ("DPadRight", Button::DPadRight),
-        ];
-        const AXES: &[(&str, Axis)] = &[
-            ("LeftStickX", Axis::LeftStickX),
-            ("LeftStickY", Axis::LeftStickY),
-            ("LeftZ", Axis::LeftZ),
-            ("RightStickX", Axis::RightStickX),
-            ("RightStickY", Axis::RightStickY),
-            ("RightZ", Axis::RightZ),
-            ("DPadX", Axis::DPadX),
-            ("DPadY", Axis::DPadY),
-        ];
-
         let mut fresh: Vec<Pad> = Vec::new();
         for (id, gamepad) in gilrs.gamepads() {
-            let id = usize::from(id) as i64;
+            let id = i64::try_from(usize::from(id)).unwrap_or(i64::MAX);
             let previous = self.pads.iter().find(|p| p.id == id);
             let mut pad = Pad {
                 id,
@@ -192,12 +201,29 @@ impl GamepadState {
                 }
             }
             for (name, axis) in AXES {
-                let value = gamepad.axis_data(*axis).map_or(0.0, |a| a.value());
+                let value = gamepad
+                    .axis_data(*axis)
+                    .map_or(0.0, gilrs::ev::state::AxisData::value);
                 pad.axes.push((name, value));
             }
             fresh.push(pad);
         }
         fresh.sort_by_key(|p| p.id);
         self.pads = fresh;
+    }
+}
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod tests {
+    use super::{AXES, BUTTONS, PAD_AXIS_NAMES, PAD_BUTTON_NAMES};
+
+    /// The script-facing vocabulary and the gilrs mapping are two lists; this
+    /// is what keeps them from drifting apart.
+    #[test]
+    fn the_vocabulary_and_the_gilrs_mapping_agree() {
+        let button_names: Vec<&str> = BUTTONS.iter().map(|(name, _)| *name).collect();
+        assert_eq!(button_names, PAD_BUTTON_NAMES);
+        let axis_names: Vec<&str> = AXES.iter().map(|(name, _)| *name).collect();
+        assert_eq!(axis_names, PAD_AXIS_NAMES);
     }
 }

@@ -1,4 +1,4 @@
-//! The worker threads driving [`gamend_client`].
+//! The worker threads driving [`crate::client`].
 //!
 //! REST operations get a short-lived thread each; the realtime connection
 //! gets one long-lived thread that alternates between the engine's commands
@@ -8,7 +8,7 @@
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 
-use gamend_client::{auth, Client, Credentials, Socket, SocketEvent};
+use crate::client::{auth, Client, Credentials, Socket, SocketEvent};
 use serde_json::Value as Json;
 
 use crate::{GamendEvent, LoginCredentials, SocketCommand};

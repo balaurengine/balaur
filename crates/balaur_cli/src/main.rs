@@ -27,9 +27,11 @@ enum Command {
         /// Stop after N frames (useful for smoke tests and CI).
         #[arg(long)]
         frames: Option<u64>,
-        /// Save a PNG of the window after ~1s (windowed builds only).
+        /// Render to a hidden window: real GPU, no OS window. What an
+        /// automation client or a visual CI job wants. Capture frames with
+        /// `render.screenshot(path)` from the game or tool itself.
         #[arg(long)]
-        screenshot: Option<PathBuf>,
+        offscreen: bool,
     },
     /// Export the project as a pack: every script precompiled to Luau
     /// bytecode, scenes and manifest bundled.
@@ -63,9 +65,11 @@ enum Command {
         /// Stop after N frames (smoke tests).
         #[arg(long)]
         frames: Option<u64>,
-        /// Save a PNG of the editor window after ~1s.
+        /// Render the editor to a hidden window: real GPU, no OS window.
+        /// What a visual CI job wants, and the only way to capture the
+        /// editor without one popping up.
         #[arg(long)]
-        screenshot: Option<PathBuf>,
+        offscreen: bool,
         /// Start-up state for the editor scripts (persona id, "palette",
         /// "light", "play"), mirroring the design prototype's startPersona.
         #[arg(long)]
@@ -119,15 +123,15 @@ fn main() -> Result<()> {
             path,
             headless,
             frames,
-            screenshot,
-        } => run_project(&path, headless, frames, screenshot),
+            offscreen,
+        } => run_project(&path, headless, frames, offscreen),
         Command::Edit {
             path,
             editor,
             frames,
-            screenshot,
+            offscreen,
             state,
-        } => edit_project(&path, editor, frames, screenshot, state),
+        } => edit_project(&path, editor, frames, offscreen, state),
         Command::Export {
             path,
             output,
@@ -246,25 +250,13 @@ fn find_template(target: &str) -> Result<PathBuf> {
     )
 }
 
-fn run_project(
-    path: &Path,
-    headless: bool,
-    frames: Option<u64>,
-    screenshot: Option<PathBuf>,
-) -> Result<()> {
+fn run_project(path: &Path, headless: bool, frames: Option<u64>, offscreen: bool) -> Result<()> {
     let mut app = balaur::standard_app(AppConfig::dev(path.to_string_lossy().as_ref()))?;
     app.load_project()?;
     let title = app
         .manifest()
         .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
-    if let Some(path) = screenshot {
-        app.engine
-            .insert_resource(balaur::render::ScreenshotRequest {
-                path,
-                after_frame: 60,
-            });
-    }
-    if headless {
+    if headless && !offscreen {
         match frames {
             Some(frames) => {
                 for _ in 0..frames {
@@ -275,8 +267,9 @@ fn run_project(
         }
         return Ok(());
     }
-    // Windowed (or headless fallback when built without the window feature):
-    // a frame budget becomes a quit-after-N system so it works in both loops.
+    // Windowed, offscreen, or the headless fallback when built without the
+    // window feature: a frame budget becomes a quit-after-N system, so it
+    // works the same in every loop.
     if let Some(frames) = frames {
         let mut count = 0u64;
         app.add_system(balaur::Stage::Last, move |eng, _| {
@@ -286,14 +279,21 @@ fn run_project(
             }
         });
     }
+    if offscreen {
+        return balaur::run_offscreen(app, &title, OFFSCREEN_SIZE.0, OFFSCREEN_SIZE.1);
+    }
     balaur::run(app, &title)
 }
+
+/// The offscreen framebuffer, matching the windowed default's aspect so a
+/// screenshot frames the scene the way the window would.
+const OFFSCREEN_SIZE: (u32, u32) = (1600, 1000);
 
 fn edit_project(
     path: &Path,
     editor: Option<PathBuf>,
     frames: Option<u64>,
-    screenshot: Option<PathBuf>,
+    offscreen: bool,
     state: Option<String>,
 ) -> Result<()> {
     let game = path
@@ -321,13 +321,6 @@ fn edit_project(
     }
     let mut app = balaur::standard_app(config)?;
     app.load_project()?;
-    if let Some(path) = screenshot {
-        app.engine
-            .insert_resource(balaur::render::ScreenshotRequest {
-                path,
-                after_frame: 60,
-            });
-    }
     if let Some(frames) = frames {
         let mut count = 0u64;
         app.add_system(balaur::Stage::Last, move |eng, _| {
@@ -336,6 +329,9 @@ fn edit_project(
                 eng.request_quit();
             }
         });
+    }
+    if offscreen {
+        return balaur::run_offscreen(app, "balaur editor", OFFSCREEN_SIZE.0, OFFSCREEN_SIZE.1);
     }
     balaur::run(app, "balaur editor")
 }

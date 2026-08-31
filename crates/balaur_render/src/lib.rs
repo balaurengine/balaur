@@ -16,13 +16,38 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 #[cfg(feature = "kiss3d")]
 pub mod kiss3d_backend;
 
-/// Ask the windowed backend to save one frame as a PNG once `after_frame`
+/// Ask a rendering backend to save one frame as a PNG once `after_frame`
 /// frames have been rendered (debugging, CI golden images, editor
 /// thumbnails). Insert as an engine resource; the backend removes it after
 /// taking the shot.
+///
+/// Usually inserted by `render.screenshot(path)`; public so a Rust embedding
+/// can insert one directly. Served by the windowed backend and by the
+/// offscreen one — a screenshot needs a GPU, not a window. It is *not* served
+/// by a headless run, which builds no renderer at all; see
+/// [`warn_if_unserved`], which is why asking for one there says so instead of
+/// exiting cleanly with no file.
 pub struct ScreenshotRequest {
     pub path: std::path::PathBuf,
     pub after_frame: u64,
+}
+
+/// Complain about a screenshot nobody could take.
+///
+/// A request that no backend consumes used to leave no file, no message and a
+/// zero exit code, which reads exactly like success to a script. Called by the
+/// headless runner once the frame budget is spent — the one path where a
+/// `render.screenshot` call can go unanswered.
+pub fn warn_if_unserved(eng: &Engine) {
+    let Some(request) = eng.try_resource::<ScreenshotRequest>() else {
+        return;
+    };
+    let path = request.borrow().path.clone();
+    tracing::error!(
+        "no screenshot written to {}: this run has no renderer. Use --offscreen \
+         (or a windowed build) — a screenshot needs a GPU, not a window.",
+        path.display()
+    );
 }
 
 /// Inserted by a windowed backend at startup to claim the debug-line
@@ -39,6 +64,9 @@ pub struct AppIconConfig {
 /// Fullscreen and cursor state scripts asked for, applied by windowed
 /// backends when changed. Headless runs hold the values and touch nothing,
 /// so a game that grabs the cursor still ticks identically in CI.
+// Three independent switches plus the dirty flag — a state enum would invent
+// coupling these do not have.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Default)]
 pub struct WindowConfig {
     pub fullscreen: bool,
@@ -451,17 +479,48 @@ fn install_camera_2d_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// The OS window and its desktop presence.
+/// A script-supplied path against the project, absolute paths left alone.
+fn resolve_project_path(eng: &Engine, path: &str) -> std::path::PathBuf {
+    let p = std::path::Path::new(path);
+    if p.is_absolute() {
+        return p.to_path_buf();
+    }
+    eng.try_resource::<balaur_core::project::ProjectRoot>()
+        .map_or_else(|| p.to_path_buf(), |root| root.borrow().0.join(p))
+}
+
 fn install_window_api(m: &mut dyn Bindings<Engine>) {
+    // Capture a frame to a PNG, project-relative unless absolute.
+    //
+    // The moment is the caller's to choose, which is the whole point of it
+    // being a binding: a tool screenshots when the level has finished
+    // loading or after the hit lands, not at a frame number picked in
+    // advance. Served on the next rendered frame by whichever backend is
+    // running; a run with no renderer says so rather than going quiet.
+    //
+    // Fire and forget. The capture happens inside the render pass, after the
+    // script tick that asked for it, so there is nothing to hand back here —
+    // the log line naming the file is the completion signal.
+    m.function("screenshot", |eng: &Engine, path: String| {
+        let full = resolve_project_path(eng, &path);
+        eng.insert_resource(ScreenshotRequest {
+            path: full,
+            // The next frame the backend renders. There is no delay
+            // parameter on purpose: `after_frame` is an absolute frame
+            // number in the backend's own counter, which a script has no way
+            // to read, and a script that wants to wait already has `update`.
+            after_frame: 0,
+        });
+        Ok(())
+    });
     // Set the OS application icon (dock icon on macOS) from a PNG in
     // the project.
     //
     // No reader by design (N8): the `AppIconConfig` entry already holds the
     // path a backend last applied; add `app_icon` when a caller needs it.
     m.function("set_app_icon", |eng: &Engine, path: String| {
-        let root = eng.resource::<balaur_core::project::ProjectRoot>();
-        let full = root.borrow().0.join(path);
         eng.insert_resource(AppIconConfig {
-            path: full,
+            path: resolve_project_path(eng, &path),
             changed: true,
         });
         Ok(())

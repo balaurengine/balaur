@@ -161,3 +161,29 @@ fn a_plugin_with_no_requirements_still_loads() {
     assert_eq!(load_order(&[Manifest::new("solo", "1")]).unwrap(), ["solo"]);
     assert!(load_order(&[]).unwrap().is_empty());
 }
+
+/// The check that decides whether loading foreign code is safe is only worth
+/// something if it knows which compiler built this. It used to fall back to a
+/// placeholder both sides agreed on, which made every comparison pass.
+#[test]
+fn the_fingerprint_names_a_real_compiler() {
+    let rustc = &Fingerprint::current().rustc;
+    assert_ne!(rustc, "unknown", "the build script did not stamp a version");
+    assert!(!rustc.is_empty(), "the compiler version is empty");
+    assert!(
+        rustc.starts_with(|c: char| c.is_ascii_digit()),
+        "does not look like a rustc version: {rustc}"
+    );
+}
+
+/// `AbiTag` carries the fingerprint in fixed-size fields, and a value too long
+/// for one is silently cut short — two compilers differing only past the cut
+/// would compare equal. The round trip is what proves this build fits.
+#[test]
+fn the_fingerprint_survives_the_fixed_size_abi_tag() {
+    assert_eq!(
+        balaur_plugin::AbiTag::current().fingerprint(),
+        Fingerprint::current(),
+        "a field was truncated on the way into the tag"
+    );
+}

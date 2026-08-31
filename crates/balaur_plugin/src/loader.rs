@@ -5,6 +5,10 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context, Result};
 
+use crate::capi::{
+    static_text, BalaurApi, BalaurRegistry, CExtension, BALAUR_ABI_VERSION, C_ABI_SYMBOL,
+    C_DECLARE_SYMBOL, C_NAME_SYMBOL, C_VERSION_SYMBOL,
+};
 use crate::dylib::{AbiTag, CREATE_SYMBOL, TAG_SYMBOL};
 use crate::{library_suffix, Fingerprint, Manifest, Plugin};
 
@@ -36,26 +40,53 @@ impl Extension {
 
 /// Open a shared library and take the plugin out of it.
 ///
+/// Two kinds of library are accepted, distinguished by which symbols they
+/// export. A Rust extension exports `balaur_plugin_abi` and hands over a
+/// `Box<dyn Plugin>`, which requires the identical compiler on both sides. A
+/// C extension exports `balaur_extension_abi` and speaks only `#[repr(C)]`,
+/// which any language can produce -- see [`crate::capi`].
+///
 /// # Errors
-/// If the library will not open, lacks either symbol, or was built against a
-/// different compiler, engine version or registry.
+/// If the library will not open, exports neither entry point, or disagrees
+/// about the build (Rust) or the ABI version (C).
 ///
 /// # Safety
 /// Loading any shared library runs its initialisers. This one additionally
-/// trusts the two symbols to have the signatures `export_plugin!` gives them,
-/// which the tag check is what makes reasonable.
+/// trusts the symbols to have the signatures their macro or header gives
+/// them, which the version check is what makes reasonable.
 pub unsafe fn load_extension(path: &Path) -> Result<Extension> {
     let library = unsafe { libloading::Library::new(path) }
         .with_context(|| format!("opening {}", path.display()))?;
 
-    let tag_fn: libloading::Symbol<'_, unsafe extern "C" fn() -> AbiTag> =
-        unsafe { library.get(TAG_SYMBOL) }.map_err(|_| {
-            anyhow!(
-                "{} is not a balaur extension: no {} symbol",
-                path.display(),
-                String::from_utf8_lossy(TAG_SYMBOL)
-            )
-        })?;
+    let plugin = if let Ok(tag_fn) =
+        unsafe { library.get::<unsafe extern "C" fn() -> AbiTag>(TAG_SYMBOL) }
+    {
+        unsafe { rust_plugin(path, &library, &tag_fn) }?
+    } else if let Ok(abi_fn) = unsafe { library.get::<unsafe extern "C" fn() -> u32>(C_ABI_SYMBOL) }
+    {
+        unsafe { c_plugin(path, &library, &abi_fn) }?
+    } else {
+        bail!(
+            "{} is not a balaur extension: it exports neither {} nor {}",
+            path.display(),
+            String::from_utf8_lossy(TAG_SYMBOL),
+            String::from_utf8_lossy(C_ABI_SYMBOL),
+        );
+    };
+
+    Ok(Extension {
+        plugin,
+        path: path.to_path_buf(),
+        _library: library,
+    })
+}
+
+/// The Rust path: refuse the build before anything Rust-shaped crosses.
+unsafe fn rust_plugin(
+    path: &Path,
+    library: &libloading::Library,
+    tag_fn: &unsafe extern "C" fn() -> AbiTag,
+) -> Result<Box<dyn Plugin>> {
     refuse_mismatch(path, &unsafe { tag_fn() }.fingerprint())?;
 
     let create: libloading::Symbol<'_, unsafe extern "C" fn() -> *mut Box<dyn Plugin>> =
@@ -65,12 +96,58 @@ pub unsafe fn load_extension(path: &Path) -> Result<Extension> {
     if raw.is_null() {
         bail!("{} returned no plugin", path.display());
     }
-    let plugin = *unsafe { Box::from_raw(raw) };
+    Ok(*unsafe { Box::from_raw(raw) })
+}
 
-    Ok(Extension {
-        plugin,
-        path: path.to_path_buf(),
-        _library: library,
+/// The C path: one version number, then four symbols and no Rust types.
+unsafe fn c_plugin(
+    path: &Path,
+    library: &libloading::Library,
+    abi_fn: &unsafe extern "C" fn() -> u32,
+) -> Result<Box<dyn Plugin>> {
+    let declared = unsafe { abi_fn() };
+    if declared != BALAUR_ABI_VERSION {
+        bail!(
+            "cannot load {}: built against balaur c abi {declared}, host speaks {}",
+            path.display(),
+            BALAUR_ABI_VERSION
+        );
+    }
+
+    let name = unsafe { c_string(library, path, C_NAME_SYMBOL) }?;
+    let version = unsafe { c_string(library, path, C_VERSION_SYMBOL) }?;
+
+    let declare: libloading::Symbol<
+        '_,
+        unsafe extern "C" fn(*const BalaurApi, *mut BalaurRegistry) -> i32,
+    > = unsafe { library.get(C_DECLARE_SYMBOL) }.map_err(|_| {
+        anyhow!(
+            "{} declares a c abi version but no {}",
+            path.display(),
+            String::from_utf8_lossy(C_DECLARE_SYMBOL)
+        )
+    })?;
+
+    Ok(Box::new(unsafe {
+        CExtension::new(&name, &version, *declare)
+    }))
+}
+
+unsafe fn c_string(library: &libloading::Library, path: &Path, symbol: &[u8]) -> Result<String> {
+    let getter: libloading::Symbol<'_, unsafe extern "C" fn() -> *const std::ffi::c_char> =
+        unsafe { library.get(symbol) }.map_err(|_| {
+            anyhow!(
+                "{} is missing {}",
+                path.display(),
+                String::from_utf8_lossy(symbol)
+            )
+        })?;
+    unsafe { static_text(getter()) }.ok_or_else(|| {
+        anyhow!(
+            "{} returned an unreadable {}",
+            path.display(),
+            String::from_utf8_lossy(symbol)
+        )
     })
 }
 

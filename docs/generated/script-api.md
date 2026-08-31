@@ -11,17 +11,17 @@ cannot drift from what scripts actually see.
 | [`animation`](#animation) | 14 | 0 | every language |
 | [`assets`](#assets) | 6 | 0 | every language |
 | [`audio`](#audio) | 2 | 0 | every language |
-| [`engine`](#engine) | 5 | 0 | every language |
+| [`engine`](#engine) | 6 | 0 | every language |
 | [`fs`](#fs) | 4 | 0 | every language |
 | [`gamend`](#gamend) | 9 | 0 | every language |
 | [`http`](#http) | 1 | 0 | every language |
-| [`input`](#input) | 9 | 165 | every language |
+| [`input`](#input) | 19 | 190 | every language |
 | [`json`](#json) | 2 | 0 | every language |
 | [`log`](#log) | 5 | 0 | every language |
-| [`node`](#node) | 28 | 0 | every language |
+| [`node`](#node) | 29 | 0 | every language |
 | [`physics`](#physics) | 12 | 5 | every language |
 | [`physics2d`](#physics2d) | 9 | 5 | every language |
-| [`render`](#render) | 22 | 0 | every language |
+| [`render`](#render) | 25 | 0 | every language |
 | [`rng`](#rng) | 4 | 0 | every language |
 | [`scene`](#scene) | 7 | 0 | every language |
 | [`toml`](#toml) | 2 | 0 | every language |
@@ -42,7 +42,7 @@ cannot drift from what scripts actually see.
 
 ## `engine`
 
-**Functions:** `args`, `delta`, `quit`, `reload_script`, `time`
+**Functions:** `args`, `delta`, `quit`, `reload_script`, `time`, `user_data_dir`
 
 ## `fs`
 
@@ -58,12 +58,20 @@ cannot drift from what scripts actually see.
 
 ## `input`
 
-**Functions:** `is_down`, `is_mouse_down`, `just_pressed`, `just_released`, `mouse_delta`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `scroll_delta`
+**Functions:** `dropped_files`, `gamepad_axis`, `gamepad_down`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepads`, `is_down`, `is_mouse_down`, `just_pressed`, `just_released`, `mouse_delta`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `scroll_delta`, `touches`, `touches_ended`, `touches_started`
 
-**Constants** (165):
+**Constants** (190):
 
 | Name | Value |
 | --- | --- |
+| `AXIS_DPAD_X` | `DPadX` |
+| `AXIS_DPAD_Y` | `DPadY` |
+| `AXIS_LEFT_STICK_X` | `LeftStickX` |
+| `AXIS_LEFT_STICK_Y` | `LeftStickY` |
+| `AXIS_LEFT_Z` | `LeftZ` |
+| `AXIS_RIGHT_STICK_X` | `RightStickX` |
+| `AXIS_RIGHT_STICK_Y` | `RightStickY` |
+| `AXIS_RIGHT_Z` | `RightZ` |
 | `KEY_0` | `Key0` |
 | `KEY_1` | `Key1` |
 | `KEY_2` | `Key2` |
@@ -80,16 +88,8 @@ cannot drift from what scripts actually see.
 | `KEY_ADD` | `Add` |
 | `KEY_APOSTROPHE` | `Apostrophe` |
 | `KEY_APPS` | `Apps` |
-| `KEY_AT` | `At` |
-| `KEY_AX` | `Ax` |
-| `KEY_B` | `B` |
-| `KEY_BACK` | `Back` |
-| `KEY_BACKSLASH` | `Backslash` |
-| `KEY_C` | `C` |
-| `KEY_CALCULATOR` | `Calculator` |
-| `KEY_CAPITAL` | `Capital` |
 
-…and 141 more.
+…and 166 more.
 
 ## `json`
 
@@ -101,7 +101,7 @@ cannot drift from what scripts actually see.
 
 ## `node`
 
-**Functions:** `add_child`, `attach_script`, `children`, `component_names`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `is_valid`, `name`, `parent`, `path`, `position`, `queue_free`, `remove_component`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `translate`
+**Functions:** `add_child`, `attach_script`, `call`, `children`, `component_names`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `is_valid`, `name`, `parent`, `path`, `position`, `queue_free`, `remove_component`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `translate`
 
 ## `physics`
 
@@ -133,7 +133,7 @@ cannot drift from what scripts actually see.
 
 ## `render`
 
-**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `color`, `draw_line`, `draw_line_2d`, `mouse_ray`, `mouse_world_2d`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_circle`, `set_color`, `set_cuboid`, `set_grid`, `set_grid_colors`, `set_rect`, `shape`, `shape2d`
+**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `color`, `draw_line`, `draw_line_2d`, `mouse_ray`, `mouse_world_2d`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_rect`, `shape`, `shape2d`
 
 ## `rng`
 

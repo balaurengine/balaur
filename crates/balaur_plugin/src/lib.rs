@@ -4,12 +4,17 @@
 //! **extension** is the same trait built as a dylib and loaded at run time.
 //! One trait, so the same source ships either way.
 
+pub mod capi;
 mod dylib;
 #[cfg(feature = "dylib")]
 mod loader;
 mod manifest;
 mod registry;
 
+pub use capi::{
+    host_api, BalaurApi, BalaurEntry, BalaurFn, BalaurModule, BalaurRegistry, BalaurSlice,
+    BalaurStr, BalaurValue, CExtension, BALAUR_ABI_VERSION,
+};
 pub use dylib::{library_suffix, AbiTag};
 #[cfg(feature = "dylib")]
 pub use loader::{load_extension, load_extensions_in, refuse_mismatch, Extension};

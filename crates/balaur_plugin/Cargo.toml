@@ -15,6 +15,7 @@ dylib = ["dep:libloading"]
 balaur_core.workspace = true
 balaur_script.workspace = true
 anyhow.workspace = true
+tracing.workspace = true
 libloading = { version = "0.8", optional = true }
 
 [dev-dependencies]

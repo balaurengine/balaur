@@ -3,7 +3,7 @@
 
 use std::net::TcpListener;
 
-use gamend_client::{Socket, SocketEvent};
+use balaur_gamend::client::{Socket, SocketEvent};
 use serde_json::{json, Value};
 
 /// A one-connection Phoenix-ish server: acks joins, echoes `echo` pushes

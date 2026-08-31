@@ -357,11 +357,21 @@ dependencies = [
  "balaur_physics",
  "balaur_plugin",
  "balaur_render",
+ "balaur_script",
  "balaur_script_luau",
  "balaur_script_rune",
  "balaur_ui",
  "tempfile",
  "toml",
+ "tracing",
+]
+
+[[package]]
+name = "balaur_android"
+version = "0.1.0"
+dependencies = [
+ "balaur",
+ "kiss3d",
  "tracing",
 ]
 
@@ -450,11 +460,11 @@ dependencies = [
  "balaur_core",
  "balaur_plugin",
  "balaur_script",
- "gamend_client",
  "serde_json",
  "tempfile",
  "tracing",
  "tungstenite",
+ "ureq",
 ]
 
 [[package]]
@@ -509,6 +519,7 @@ dependencies = [
  "balaur_script_luau",
  "libloading",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -1481,16 +1492,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af9673d8203fcb076b19dfd17e38b3d4ae9f44959416ea532ce72415a6020365"
 
 [[package]]
-name = "extension_greeter"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "balaur_core",
- "balaur_plugin",
- "balaur_script",
-]
-
-[[package]]
 name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1625,17 +1626,6 @@ dependencies = [
  "futures-task",
  "pin-project-lite",
  "slab",
-]
-
-[[package]]
-name = "gamend_client"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "serde_json",
- "tracing",
- "tungstenite",
- "ureq",
 ]
 
 [[package]]

@@ -14,10 +14,11 @@ anyhow.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 
-# The client's networking stack does not compile for wasm; those builds get
-# the stub backend in lib.rs and every call resolves to an error event.
+# The wire client's networking stack does not compile for wasm; those builds
+# get the stub backend in lib.rs and every call resolves to an error event.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-gamend_client.workspace = true
+ureq.workspace = true
+tungstenite.workspace = true
 
 [dev-dependencies]
 tempfile = "3"

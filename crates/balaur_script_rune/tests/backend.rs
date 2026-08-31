@@ -110,6 +110,75 @@ fn json_round_trips_through_rune() {
 }
 
 #[test]
+fn a_script_calls_another_and_gets_the_return_value() {
+    let dir = project(&[
+        ("service.rn", "pub fn scaled(this, n) { n * 3 }\n"),
+        (
+            "consumer.rn",
+            r#"pub fn init(this) {
+                this.out = scene::get_node("Service").call("scaled", 7);
+            }"#,
+        ),
+    ]);
+    let app = app_in(dir.path());
+    let service = spawn(&app, "Service");
+    let consumer = spawn(&app, "Consumer");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(service), "service.rn")
+        .unwrap();
+    host.attach(balaur_core::node_id_of(consumer), "consumer.rn")
+        .unwrap();
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(rune.number_field(consumer, "out"), Some(21.0));
+}
+
+#[test]
+fn a_required_module_shares_functions_and_hot_reloads_in_place() {
+    let dir = project(&[
+        ("lib.rn", "pub fn double(n) { n * 2 }\n"),
+        (
+            "user.rn",
+            r#"pub fn init(this) {
+                this.lib = script::require("lib.rn");
+                let double = this.lib["double"];
+                this.out = double(4);
+            }
+
+            pub fn again(this) {
+                let double = this.lib["double"];
+                this.out = double(4);
+            }"#,
+        ),
+    ]);
+    let app = app_in(dir.path());
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let node = spawn(&app, "User");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "user.rn")
+        .unwrap();
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(
+        rune.number_field(node, "out"),
+        Some(8.0),
+        "log: {:#?}",
+        balaur_core::logbuf::recent(10)
+    );
+
+    // The module object held from init sees the new code after a reload.
+    std::fs::write(dir.path().join("lib.rn"), "pub fn double(n) { n * 3 }\n").unwrap();
+    host.reload("lib.rn").unwrap();
+    host.call_on(balaur_core::node_id_of(node), "again", &[]);
+    assert_eq!(rune.number_field(node, "out"), Some(12.0));
+}
+
+#[test]
 fn an_async_init_suspends_and_resumes_with_the_payload() {
     let dir = project(&[(
         "a.rn",

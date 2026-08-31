@@ -19,6 +19,10 @@ impl Default for Greeter {
 
 pub struct GreetingCount(pub u32);
 
+/// What `project_root` answers when the host's resources are keyed by a
+/// `TypeId` this build does not compute the same way.
+pub const NOT_VISIBLE: &str = "<not visible from the extension>";
+
 impl Plugin for Greeter {
     fn manifest(&self) -> &Manifest {
         &self.manifest
@@ -34,6 +38,19 @@ impl Plugin for Greeter {
         m.function("greetings", |eng: &Engine, ()| {
             let count = eng.resource::<GreetingCount>().borrow().0;
             Ok(i64::from(count))
+        });
+        // A resource the *host* inserted, of a type defined in balaur_core.
+        // Reaching it is the real test of separate compilation: resources are
+        // keyed by TypeId, and two independently compiled copies of a crate
+        // only agree on a TypeId if cargo gave them the same metadata hash.
+        // Everything else here would work even if they disagreed.
+        m.function("project_root", |eng: &Engine, ()| {
+            Ok(
+                match eng.try_resource::<balaur_core::project::ProjectRoot>() {
+                    Some(root) => root.borrow().0.display().to_string(),
+                    None => NOT_VISIBLE.to_string(),
+                },
+            )
         });
         m.constant(
             "VERSION",

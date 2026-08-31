@@ -129,10 +129,7 @@ pub const NODE_OPS: &[NodeOp] = &[
         name: "script_path",
         call: script_path,
     },
-    NodeOp {
-        name: "call",
-        call: call,
-    },
+    NodeOp { name: "call", call },
     NodeOp {
         name: "attach_script",
         call: attach_script,

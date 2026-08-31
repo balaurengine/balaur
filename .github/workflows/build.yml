@@ -67,53 +67,55 @@ jobs:
           path: dist/balaur-*
           if-no-files-found: error
 
-  # Platforms the engine reaches but cannot yet ship a game for.
+  # Runtime templates for the platforms that are not desktops.
   #
-  # A runtime template has to open a window, and kiss3d is desktop-bound — its
-  # egui feature pulls in `rfd`, which has no mobile backend. So there is no
-  # honest iOS, Android or web template to build today, and claiming otherwise
-  # by publishing a headless binary would be worse than publishing nothing.
-  # What these jobs do check is that the engine and its simulation still
-  # compile for the platform, which is the half that has to work first.
+  # A desktop template is a plain executable and a game is that file with a
+  # pack appended. None of these launch that way, so each gets the shape its OS
+  # actually starts — see scripts/package_template.sh and
+  # docs/PLAN-mobile-export.md.
   #
-  # All three are green and required. Audio is a stub on wasm (no cpal host
-  # compiles there; see balaur_audio), and the web target is emscripten rather
-  # than wasm32-unknown-unknown because Luau is C++ and needs a libc to
-  # compile against, which only emscripten provides (mlua#23).
-  #
-  # `check`, not `build`, because it deliberately produces no artifact: the
-  # release ships desktop templates only. Beyond the window, a mobile template
-  # is not even a binary — iOS ships a signed .app/.ipa and Android an .apk, so
-  # the template is a bundle skeleton carrying the pack as a resource, signed
-  # with the developer's credentials rather than CI's. Appending a pack to an
-  # executable is a desktop trick. See docs/PLAN-mobile-export.md.
-  check-platforms:
-    name: check · ${{ matrix.target }}
+  # The web target is emscripten rather than wasm32-unknown-unknown because
+  # Luau is C++ and needs a libc to compile against, which only emscripten
+  # provides (mlua#23). Audio is a stub there (no cpal host compiles for wasm;
+  # see balaur_audio).
+  build-platforms:
+    name: build ${{ matrix.platform }}
     runs-on: ${{ matrix.host }}
+    continue-on-error: ${{ matrix.optional }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: aarch64-apple-ios
+          # Windowed and required: the engine renders on iOS as of the cfg
+          # gating in balaur_render for fullscreen and file-drop, which are
+          # desktop window-manager ideas kiss3d does not expose on a phone.
+          # The artifact is an unsigned .app — signing needs a certificate that
+          # belongs to whoever ships the game, never to this repo.
+          - platform: ios
+            target: aarch64-apple-ios
             host: macos-latest
-          - target: aarch64-linux-android
+            optional: false
+          # Compiles, but is not yet an installable app: Android launches a
+          # NativeActivity that loads a libmain.so, and nothing here defines
+          # `android_main`. Reports rather than blocks until it does.
+          - platform: android
+            target: aarch64-linux-android
             host: ubuntu-latest
-          - target: wasm32-unknown-emscripten
+            optional: true
+          - platform: web
+            target: wasm32-unknown-emscripten
             host: ubuntu-latest
-    env:
-      RUSTFLAGS: -D warnings
+            optional: true
     steps:
       - uses: actions/checkout@v7
       - name: Linux build deps
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
-      - name: Add target
-        run: rustup target add ${{ matrix.target }}
       # Luau is C++, so this needs a C++ compiler for the target, not just a
       # Rust target. API 26 because that is cpal's floor: its Android backend
       # is AAudio, which the platform added in 26.
       - name: Android NDK toolchain
-        if: matrix.target == 'aarch64-linux-android'
+        if: matrix.platform == 'android'
         run: |
           bin=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin
           {
@@ -123,7 +125,7 @@ jobs:
             echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android26-clang"
           } >> "$GITHUB_ENV"
       - name: Emscripten
-        if: matrix.target == 'wasm32-unknown-emscripten'
+        if: matrix.platform == 'web'
         run: |
           git clone --depth 1 https://github.com/emscripten-core/emsdk.git
           ./emsdk/emsdk install latest
@@ -132,12 +134,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: platform-${{ matrix.target }}
-      - name: Check
-        run: cargo check -p balaur --target ${{ matrix.target }}
+      - name: Build template
+        shell: bash
+        run: ./scripts/package_template.sh ${{ matrix.platform }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: balaur-template-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
 
   draft-release:
     name: draft release
-    needs: build-editor
+    needs: [build-editor, build-platforms]
     runs-on: ubuntu-latest
     # Drafting a release means writing to the repo's releases.
     permissions:

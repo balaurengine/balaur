@@ -11,7 +11,13 @@ set -euo pipefail
 
 dist=${1:-dist}
 shopt -s nullglob
-assets=("$dist"/balaur-editor-* "$dist"/balaur-runtime-*)
+assets=(
+  "$dist"/balaur-editor-*
+  "$dist"/balaur-runtime-*
+  "$dist"/balaur-template-*
+  "$dist"/balaur.wasm
+  "$dist"/balaur.js
+)
 if [ ${#assets[@]} -eq 0 ]; then
   printf '::error::no artifacts in %s — did the desktop builds upload theirs?\n' "$dist"
   exit 1
@@ -50,6 +56,10 @@ exported onto.
 - **`balaur-runtime-<platform>`** — the runtime template on its own. You only
   need this to export *for another platform* than the one you are on.
 
+Writing an addon? The editor download carries `include/balaur_extension.h`, the
+header the engine loads C extensions against. It ships with the binary so the
+two always match.
+
 ### Exporting a game
 
 ```
@@ -65,8 +75,19 @@ executable your players can run directly — no engine install, no separate
 The macOS build is a universal binary: one download for Apple Silicon and
 Intel, and a game exported onto it stays universal.
 
-Desktop only for now — mobile and web need a render backend that can open a
-window there, and a bundle rather than a plain executable. See
+### Other platforms
+
+- **`balaur-template-ios`** — an unsigned `Balaur.app`. The engine renders on
+  iOS, but an app has to be signed with your own certificate before a device
+  will install it, and fusing a pack is a desktop trick: on iOS the pack ships
+  as a bundle resource. Treat this as the runtime, not a finished export path.
+- **`balaur-runtime-android-arm64`** — the engine compiled for Android. Not yet
+  an installable app: Android launches a NativeActivity that loads a
+  `libmain.so`, and the `android_main` entry point does not exist yet.
+- **`balaur.wasm` / `balaur.js`** — the web build. No canvas surface yet.
+
+`balaur export --target` covers the desktop platforms. The rest are published
+so the work is visible and testable, not because they are finished — see
 docs/PLAN-mobile-export.md.
 
 Exported macOS games are unsigned: appending the pack invalidates any

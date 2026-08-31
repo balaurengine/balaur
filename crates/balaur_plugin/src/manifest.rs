@@ -68,10 +68,16 @@ impl fmt::Display for Fingerprint {
     }
 }
 
-/// Baked in at compile time by `build.rs`; falls back to the version the host
-/// crate was built with when a plugin does not set it.
+/// Baked in at compile time by `build.rs`, separately for the host and for
+/// every plugin, because that is the only moment either can observe which
+/// compiler is building it.
+///
+/// `env!` rather than `option_env!` on purpose: if the build script ever stops
+/// setting this, the crate must fail to compile. The fallback it replaced made
+/// both sides report the same placeholder, so the mismatch check silently
+/// passed for every build it existed to refuse.
 fn rustc_version() -> &'static str {
-    option_env!("BALAUR_RUSTC_VERSION").unwrap_or("unknown")
+    env!("BALAUR_RUSTC_VERSION")
 }
 
 /// Who a plugin is, and what it needs loaded before it.

@@ -8,6 +8,8 @@
 //! }
 //! ```
 
+pub mod multi;
+
 pub use balaur_anim::AnimationPlugin;
 #[cfg(feature = "audio")]
 pub use balaur_audio::AudioPlugin;
@@ -56,8 +58,11 @@ fn backend_for(config: &AppConfig) -> Result<balaur_core::ScriptHostFactory> {
     match language.as_str() {
         "luau" | "lua" => Ok(balaur_script_luau::factory()),
         "rune" => Ok(balaur_script_rune::factory()),
+        // Both hosts at once, routed by file extension: .luau and .rn
+        // scripts in one scene, calling each other by node and method name.
+        "mixed" => Ok(multi::factory()),
         other => Err(anyhow::anyhow!(
-            "project.toml asks for language \"{other}\"; this build has luau and rune"
+            "project.toml asks for language \"{other}\"; this build has luau, rune and mixed"
         )),
     }
 }
@@ -86,6 +91,20 @@ pub fn build_pack(project_root: &std::path::Path) -> Result<Pack> {
                 .as_any()
                 .downcast_ref::<balaur_script_rune::RuneHost>()
                 .context("expected the rune backend for a rune project")?;
+            Pack::build(project_root, host)
+        }
+        // Mixed exports compile each script with its own language's compiler,
+        // through the booted host for the same reason rune does.
+        "mixed" => {
+            let app = standard_app(AppConfig::export(project_root))?;
+            let host = app
+                .engine
+                .script_host()
+                .context("no script backend for a mixed project")?;
+            let host = host
+                .as_any()
+                .downcast_ref::<multi::MultiHost>()
+                .context("expected the mixed backend for a mixed project")?;
             Pack::build(project_root, host)
         }
         _ => Pack::build(project_root, &balaur_script_luau::Compiler),
@@ -155,7 +174,33 @@ pub fn run(mut app: App, title: &str) -> Result<()> {
     {
         let _ = title;
         app.run();
+        balaur_render::warn_if_unserved(&app.engine);
         Ok(())
+    }
+}
+
+/// Render to a hidden window: a real GPU, no OS window, a fixed frame step.
+///
+/// The mode an automation client or a visual CI job wants — screenshots that
+/// match what a player sees, on a machine with no display. Distinct from
+/// headless, which runs no renderer at all and is what keeps tests fast and
+/// portable to machines with no adapter.
+///
+/// # Errors
+/// If this build has no renderer (the `window` feature is off), or no GPU
+/// adapter is available.
+#[allow(unused_variables, unused_mut)] // Both are used only by the windowed build.
+pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> Result<()> {
+    #[cfg(feature = "window")]
+    {
+        return balaur_render::kiss3d_backend::run_offscreen(app, title, width, height);
+    }
+    #[allow(unreachable_code)] // The windowed path above returns when the feature is on.
+    {
+        Err(anyhow::anyhow!(
+            "this build has no renderer, so it cannot render offscreen; \
+             build with --features window"
+        ))
     }
 }
 

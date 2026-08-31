@@ -62,6 +62,13 @@ jobs:
         run: |
           cargo test -p balaur_plugin --features dylib
           cargo test -p balaur --features extensions
+      # extension_greeter is deliberately outside the workspace, so the clippy
+      # and test steps above never reach it. It is the only thing proving an
+      # extension builds without the engine's build tree.
+      - name: Clippy (out-of-tree extension)
+        run: |
+          cargo clippy --manifest-path examples/extension_greeter/Cargo.toml \
+            --target-dir target/extension_greeter --all-targets -- -D warnings
       # A build with a subsystem switched off is the point of having features;
       # nothing else checks that one still compiles.
       - name: Build without the optional subsystems

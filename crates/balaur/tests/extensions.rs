@@ -4,24 +4,37 @@ use std::path::{Path, PathBuf};
 
 use balaur::{standard_app, AppConfig};
 
+/// Build the out-of-tree extension and return the library cargo produced.
+///
+/// Built through its own manifest into its own target directory, because that
+/// is what an extension is: compiled separately, by someone who does not have
+/// the engine's build tree. As a workspace member it shared the host's rlibs,
+/// feature resolution and artifacts, which is the one arrangement where the
+/// mismatches the fingerprint exists to catch cannot arise.
 fn greeter() -> PathBuf {
     static BUILT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
     BUILT
         .get_or_init(|| {
             let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+            let target = root.join("target/extension_greeter");
             let built = std::process::Command::new(env!("CARGO"))
                 .current_dir(&root)
-                .args(["build", "-p", "extension_greeter"])
+                .arg("build")
+                .arg("--manifest-path")
+                .arg(root.join("examples/extension_greeter/Cargo.toml"))
+                .arg("--target-dir")
+                .arg(&target)
                 .status()
                 .expect("cargo should run");
             assert!(built.success(), "the extension did not build");
+
             let suffix = balaur_plugin::library_suffix();
-            let target = root.join("target/debug");
-            let unix = target.join(format!("libextension_greeter.{suffix}"));
+            let out = target.join("debug");
+            let unix = out.join(format!("libextension_greeter.{suffix}"));
             if unix.exists() {
                 unix
             } else {
-                target.join(format!("extension_greeter.{suffix}"))
+                out.join(format!("extension_greeter.{suffix}"))
             }
         })
         .clone()

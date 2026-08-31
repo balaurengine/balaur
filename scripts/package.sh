@@ -50,6 +50,11 @@ cp "$bin" "$bundle/balaur$exe"
 cp -R editor "$bundle/editor"
 cp -R examples "$bundle/examples"
 cp README.md LICENSE "$bundle/"
+# Addons are C shared libraries the engine loads, so what an addon author needs
+# from a download is the header to compile against. Shipping it here means it
+# always matches the engine that will load them.
+mkdir -p "$bundle/include"
+cp crates/balaur_plugin/include/balaur_extension.h "$bundle/include/"
 # The runtime template is the same binary: a game is this program with a pack
 # appended, so there is nothing to build twice.
 cp "$bin" "$dist/balaur-runtime-$target$exe"

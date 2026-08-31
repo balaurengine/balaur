@@ -120,6 +120,7 @@ flow nothing checks.
 - a release is just released for one frame only
 - a released mouse button reports one frame of release
 - a reload keeps instance state
+- a required module shares functions and hot reloads in place
 - a resource round trips and is shared not copied
 - a response arrives in the snapshot with status and body
 - a rotation crossing 180 degrees interpolates the short way
@@ -136,6 +137,7 @@ flow nothing checks.
 - a scene asset block resolves by its id from a node in that scene
 - a scene document holding an inline clip encodes and parses back
 - a schema declaring an asset property without naming its type is rejected
+- a script calls another and gets the return value
 - a script can attach another script and read it back
 - a script can write to the log it reads back
 - a script error inside a pass is logged not fatal
@@ -275,6 +277,7 @@ flow nothing checks.
 - from states the start outright
 - fs is rooted at the project
 - fs list is sorted and hides dotfiles
+- gamepad
 - gravity and clear are callable
 - hierarchy reads back what it wrote
 - holding a key does not re fire
@@ -298,6 +301,7 @@ flow nothing checks.
 - linear velocity is set and read back
 - live a lua script talks to a real server
 - login me refresh and realtime against a live server
+- lua and rune scripts call each other in one scene
 - malformed json is an error rather than a crash
 - math fastcalls are routed through the global table
 - math functions are libm backed
@@ -369,6 +373,8 @@ flow nothing checks.
 - the code editor returns its buffer unchanged
 - the engine modules reach rune
 - the euler convention matches the engines own
+- the fingerprint names a real compiler
+- the fingerprint survives the fixed size abi tag
 - the four linear modes are one straight line
 - the generation moves only when a reload actually dropped something
 - the grid background and camera input are settable

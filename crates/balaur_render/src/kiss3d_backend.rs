@@ -28,6 +28,79 @@ struct Slot2d {
     version: u64,
 }
 
+/// Everything one frame of the render loop reads and writes, so the windowed
+/// and offscreen runners share a body instead of keeping two copies in step.
+struct Frontend {
+    camera: OrbitCamera3d,
+    camera_2d: PanZoomCamera2d,
+    scene: SceneNode3d,
+    scene_2d: SceneNode2d,
+    slots: HashMap<Entity, Slot>,
+    slots_2d: HashMap<Entity, Slot2d>,
+    order_2d: Vec<Entity>,
+    frame: u64,
+    /// Whether the on-screen keyboard was summoned last frame, so it is
+    /// shown/hidden on the edge rather than re-requested every frame.
+    keyboard_shown: bool,
+}
+
+impl Frontend {
+    fn new() -> Self {
+        let mut scene = SceneNode3d::empty();
+        scene
+            .add_light(Light::directional(Vec3::new(-1.0, -1.0, -0.5)))
+            .set_position(Vec3::new(5.0, 10.0, 5.0));
+        Self {
+            camera: OrbitCamera3d::default(),
+            camera_2d: PanZoomCamera2d::default(),
+            scene,
+            scene_2d: SceneNode2d::empty(),
+            slots: HashMap::new(),
+            slots_2d: HashMap::new(),
+            order_2d: Vec::new(),
+            frame: 0,
+            keyboard_shown: false,
+        }
+    }
+
+    /// One frame: apply what scripts asked for, tick, mirror the world into
+    /// the scene graph, draw the overlays. Answers whether to keep going.
+    fn step(&mut self, app: &mut App, window: &mut Window, dt: f32) -> bool {
+        apply_camera(app, &mut self.camera);
+        apply_camera_2d(app, &mut self.camera_2d, window);
+        apply_app_icon(app);
+        apply_window_config(app, window);
+        publish_camera(app, &self.camera, window);
+        publish_camera_2d(app, &self.camera_2d, window);
+        apply_clear_color(app, window);
+        pump_input(app, window);
+        app.tick(dt);
+        sync(app, &mut self.scene, &mut self.slots);
+        sync_2d(
+            app,
+            &mut self.scene_2d,
+            &mut self.slots_2d,
+            &mut self.order_2d,
+        );
+        draw_grid(app, window);
+        flush_debug_lines(app, window);
+        flush_debug_lines_2d(app, window);
+        window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
+        // The on-screen keyboard follows text-field focus: summoned when a
+        // ui widget takes keyboard input, dismissed when it lets go. Edge-
+        // detected here, after the ui pass has settled focus for the frame;
+        // a no-op on desktop, where there is nothing to summon.
+        let wants_keyboard = window.is_egui_capturing_keyboard();
+        if wants_keyboard != self.keyboard_shown {
+            self.keyboard_shown = wants_keyboard;
+            window.set_keyboard_visible(wants_keyboard);
+        }
+        self.frame += 1;
+        take_screenshot_if_due(app, window, self.frame);
+        !app.engine.quit_requested()
+    }
+}
+
 /// Run the app inside a kiss3d window until the window closes or the game
 /// requests quit.
 pub fn run_windowed(mut app: App, title: &str) -> anyhow::Result<()> {
@@ -37,56 +110,84 @@ pub fn run_windowed(mut app: App, title: &str) -> anyhow::Result<()> {
     let title = title.to_string();
     pollster::block_on(async move {
         let mut window = Window::new_with_size(&title, 1600, 1000).await;
-        let mut camera = OrbitCamera3d::default();
-        let mut camera_2d = PanZoomCamera2d::default();
-        let mut scene = SceneNode3d::empty();
-        scene
-            .add_light(Light::directional(Vec3::new(-1.0, -1.0, -0.5)))
-            .set_position(Vec3::new(5.0, 10.0, 5.0));
-        let mut scene_2d = SceneNode2d::empty();
-        let mut slots: HashMap<Entity, Slot> = HashMap::new();
-        let mut slots_2d: HashMap<Entity, Slot2d> = HashMap::new();
-        let mut order_2d: Vec<Entity> = Vec::new();
+        let mut f = Frontend::new();
         let mut last = Instant::now();
-        let mut frame: u64 = 0;
         while window
             .render(
-                Some(&mut scene),
-                Some(&mut scene_2d),
-                Some(&mut camera),
-                Some(&mut camera_2d),
+                Some(&mut f.scene),
+                Some(&mut f.scene_2d),
+                Some(&mut f.camera),
+                Some(&mut f.camera_2d),
                 None,
                 None,
             )
             .await
         {
-            apply_camera(&app, &mut camera);
-            apply_camera_2d(&app, &mut camera_2d, &window);
-            apply_app_icon(&app);
-            apply_window_config(&app, &window);
-            publish_camera(&app, &camera, &window);
-            publish_camera_2d(&app, &camera_2d, &window);
-            apply_clear_color(&app, &mut window);
-            pump_input(&app, &window);
             let now = Instant::now();
             let dt = (now - last).as_secs_f32().min(0.1);
             last = now;
-            app.tick(dt);
-            sync(&app, &mut scene, &mut slots);
-            sync_2d(&app, &mut scene_2d, &mut slots_2d, &mut order_2d);
-            draw_grid(&app, &mut window);
-            flush_debug_lines(&app, &mut window);
-            flush_debug_lines_2d(&app, &mut window);
-            window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
-            frame += 1;
-            take_screenshot_if_due(&app, &window, frame);
-            if app.engine.quit_requested() {
+            if !f.step(&mut app, &mut window, dt) {
                 break;
             }
         }
     });
     Ok(())
 }
+
+/// Run the app against a hidden window: real GPU rendering, no OS window.
+///
+/// The third mode, and the reason it is separate from headless: headless runs
+/// no renderer at all, which is what keeps tests fast and lets the engine run
+/// where there is no adapter. This one renders exactly as the windowed path
+/// does — same loop body — so a screenshot taken here is what a player would
+/// have seen. What it does not have is an OS window, input, or vsync.
+///
+/// Frames advance at a fixed `dt` rather than wall clock. There is nothing to
+/// pace against without a display, and an automation client asking for frame
+/// 90 should get the same frame every time it asks.
+///
+/// # Errors
+/// If no GPU adapter is available. Offscreen still needs a device — it is a
+/// window that is missing, not the GPU.
+pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyhow::Result<()> {
+    app.engine.insert_resource(WindowedBackend);
+    // A surface-less target has no title bar to put this in, so it goes to the
+    // log instead — which is where whoever is reading a CI run will look.
+    tracing::info!("rendering '{title}' offscreen at {width}x{height}");
+    pollster::block_on(async move {
+        // `new_headless_with_setup`, not `new_hidden_*`: a hidden window is
+        // still a real OS window that happens not to be shown, so it needs a
+        // display server. This one is surface-less — no window, no swapchain,
+        // straight into an off-screen texture — which is what lets it run on a
+        // CI box with no display at all.
+        let mut window =
+            Window::new_headless_with_setup(width, height, CanvasSetup::default()).await;
+        let mut f = Frontend::new();
+        // Nothing can close a target that was never shown, and there is no
+        // vsync to block on, so the loop runs until the app asks to stop --
+        // which `--frames` arranges by inserting a quit-after-N system.
+        while window
+            .render(
+                Some(&mut f.scene),
+                Some(&mut f.scene_2d),
+                Some(&mut f.camera),
+                Some(&mut f.camera_2d),
+                None,
+                None,
+            )
+            .await
+        {
+            if !f.step(&mut app, &mut window, OFFSCREEN_DT) {
+                break;
+            }
+        }
+    });
+    Ok(())
+}
+
+/// The fixed step offscreen frames advance by: 60 Hz, matching the physics and
+/// animation tick so a screenshot lands on a whole number of simulation steps.
+const OFFSCREEN_DT: f32 = 1.0 / 60.0;
 
 /// Apply script-driven camera changes (interactive orbit controls keep
 /// working in between).
@@ -238,6 +339,9 @@ fn apply_window_config(app: &App, window: &Window) {
         return;
     }
     config.changed = false;
+    // Fullscreen is a window-manager idea: on a phone the app already owns the
+    // screen, and kiss3d exposes no toggle there.
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
     window.set_fullscreen(config.fullscreen);
     window.set_cursor_grab(config.cursor_grabbed);
     window.hide_cursor(config.cursor_hidden);
@@ -415,6 +519,9 @@ fn pump_input(app: &App, window: &Window) {
             _ => {}
         }
     }
+    // Dragging a file onto the window needs a desktop with a file manager;
+    // kiss3d has no such event on mobile.
+    #[cfg(not(any(target_os = "ios", target_os = "android")))]
     for path in window.dropped_files() {
         input.file_drop_event(path.to_string_lossy().into_owned());
     }

@@ -1,8 +1,9 @@
-//! A Gamend backend client for Rust games: auth, REST and realtime.
+//! The Gamend wire client: auth, REST and realtime, engine-free.
 //!
-//! Blocking on purpose — the caller owns the thread and the pacing, which is
-//! exactly what a game engine pumping a frame loop (or a worker thread beside
-//! one) wants. No async runtime anywhere.
+//! Blocking on purpose — the worker threads own the pacing. Nothing in this
+//! module knows about nodes, values or the frame loop; it is the layer that
+//! could ship as a standalone Rust SDK, kept as a sealed submodule so the
+//! protocol code stays separable from the engine glue around it.
 //!
 //! Three layers, each usable alone:
 //! - [`rest`]: an authenticated JSON caller for `/api/v1/*`.

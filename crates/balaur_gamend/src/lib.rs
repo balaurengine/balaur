@@ -1,6 +1,6 @@
 //! The Gamend backend as a Balaur plugin: `gamend.*` for scripts.
 //!
-//! Built on [`gamend_client`], with the same delivery contract as the net
+//! Built on the [`client`] wire layer, with the same delivery contract as the net
 //! plugin: all I/O runs on worker threads, completions cross a channel and
 //! enter the simulation once per tick at [`Stage::First`] — recorded in
 //! [`GamendSnapshot`], dispatched to handler methods, and waking await
@@ -33,6 +33,8 @@ use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 use serde_json::Value as Json;
 
+#[cfg(not(target_family = "wasm"))]
+pub mod client;
 #[cfg(not(target_family = "wasm"))]
 mod worker;
 
@@ -98,8 +100,8 @@ mod backend {
     }
 }
 
-/// Login input, mirrored from [`gamend_client::Credentials`] so the wasm
-/// stub compiles without the client crate.
+/// Login input, mirrored from [`client::auth::Credentials`] so the wasm
+/// stub compiles without the wire layer.
 pub enum LoginCredentials {
     EmailPassword { email: String, password: String },
     Device { device_id: String },

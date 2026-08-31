@@ -11,9 +11,10 @@ Balaur game engine: batteries-included facade over the core and standard plugins
 
 Batteries-included entry points for Balaur games and tools.
 
-- **workspace deps:** `balaur_anim`, `balaur_audio`, `balaur_core`, `balaur_gamend`, `balaur_input`, `balaur_net`, `balaur_physics`, `balaur_plugin`, `balaur_render`, `balaur_script_luau`, `balaur_script_rune`, `balaur_ui`
+- **workspace deps:** `balaur_anim`, `balaur_audio`, `balaur_core`, `balaur_gamend`, `balaur_input`, `balaur_net`, `balaur_physics`, `balaur_plugin`, `balaur_render`, `balaur_script`, `balaur_script_luau`, `balaur_script_rune`, `balaur_ui`
 - **external deps:** 2 (anyhow, tracing)
-- **public surface:** 5 fn
+- **public surface:** 7 fn, 1 struct
+- **structs:** `MultiHost`
 
 ## `balaur_anim`
 
@@ -65,7 +66,7 @@ Balaur engine core: ECS data plane, scene tree, frame scheduler, plugin API
 Balaur engine core: the Rust data plane.
 
 - **workspace deps:** `balaur_script`
-- **external deps:** 11 (anyhow, glamx, hecs, indexmap, rustc-hash, serde, serde_json, toml, …)
+- **external deps:** 12 (anyhow, dirs, glamx, hecs, indexmap, rustc-hash, serde, serde_json, …)
 - **public surface:** 47 fn, 28 struct, 3 enum, 1 trait, 4 const, 9 type
 - **traits:** `Plugin`
 - **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Children`, `ComponentDef`, `ComponentRegistry`, `Engine`, `EngineOp`, `GlobalTransform`, `LogEntry`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `ProjectManifest`, `ProjectRoot`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `StableId`, `Transform`
@@ -90,9 +91,10 @@ Balaur input plugin: backend-agnostic input state and the `input` Lua module
 Input as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
-- **external deps:** 2 (anyhow, tracing)
-- **public surface:** 1 fn, 2 struct, 2 const
-- **structs:** `InputPlugin`, `InputSnapshot`
+- **external deps:** 3 (anyhow, gilrs, tracing)
+- **public surface:** 1 fn, 4 struct, 1 enum, 4 const
+- **structs:** `GamepadState`, `InputPlugin`, `InputSnapshot`, `Pad`
+- **enums:** `TouchPhase`
 
 ## `balaur_net`
 
@@ -123,10 +125,10 @@ What a module or an extension implements to register itself with the engine
 What a module or an extension implements to register itself.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
-- **external deps:** 2 (anyhow, libloading)
-- **public surface:** 5 fn, 5 struct, 1 trait, 3 const
+- **external deps:** 3 (anyhow, libloading, tracing)
+- **public surface:** 6 fn, 14 struct, 1 trait, 17 const, 1 type
 - **traits:** `Plugin`
-- **structs:** `AbiTag`, `Extension`, `Fingerprint`, `Manifest`, `Registry`
+- **structs:** `AbiTag`, `BalaurApi`, `BalaurEntry`, `BalaurMapRef`, `BalaurModule`, `BalaurRegistry`, `BalaurSlice`, `BalaurStr`, `BalaurValue`, `CExtension`, `Extension`, `Fingerprint`, `Manifest`, `Registry`
 
 ## `balaur_render`
 
@@ -136,8 +138,8 @@ Rendering as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_input`, `balaur_script`, `balaur_ui`
 - **external deps:** 10 (anyhow, glamx, image, kiss3d, objc2, objc2-app-kit, objc2-foundation, pollster, …)
-- **public surface:** 1 fn, 15 struct, 2 enum, 2 type
-- **structs:** `AppIconConfig`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ClearColorConfig`, `DebugLineBuffer`, `DebugLineBuffer2d`, `GridConfig`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowedBackend`
+- **public surface:** 3 fn, 16 struct, 2 enum, 2 type
+- **structs:** `AppIconConfig`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ClearColorConfig`, `DebugLineBuffer`, `DebugLineBuffer2d`, `GridConfig`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
 - **enums:** `Shape`, `Shape2d`
 
 ## `balaur_script`
@@ -181,17 +183,6 @@ Immediate-mode UI for scripts, rendered with egui.
 - **external deps:** 5 (anyhow, egui, image, toml, tracing)
 - **public surface:** 1 fn, 6 struct, 4 const
 - **structs:** `ThemeTokens`, `UiConfig`, `UiPlugin`, `UiState`, `Widget`, `WidgetLayerConfig`
-
-## `extension_greeter`
-
-An extension built outside the engine, loaded at run time
-
-An extension: the same `Plugin` a module implements, built as a cdylib and loaded at run time rather than linked in.
-
-- **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
-- **external deps:** 1 (anyhow)
-- **public surface:** 2 struct
-- **structs:** `Greeter`, `GreetingCount`
 
 ## `gamend_client`
 

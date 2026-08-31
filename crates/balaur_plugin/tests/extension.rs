@@ -18,26 +18,35 @@ fn app() -> App {
 
 /// Build the out-of-tree extension and return the library cargo produced.
 ///
-/// Built here rather than assumed present: nothing makes cargo compile a
-/// cdylib before a test that only reads it off disk.
+/// Built through its own manifest into its own target directory, because that
+/// is what an extension is: compiled separately, by someone who does not have
+/// the engine's build tree. As a workspace member it shared the host's rlibs,
+/// feature resolution and artifacts, which is the one arrangement where the
+/// mismatches the fingerprint exists to catch cannot arise.
 fn greeter() -> PathBuf {
     static BUILT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
     BUILT
         .get_or_init(|| {
             let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+            let target = root.join("target/extension_greeter");
             let built = std::process::Command::new(env!("CARGO"))
                 .current_dir(&root)
-                .args(["build", "-p", "extension_greeter"])
+                .arg("build")
+                .arg("--manifest-path")
+                .arg(root.join("examples/extension_greeter/Cargo.toml"))
+                .arg("--target-dir")
+                .arg(&target)
                 .status()
                 .expect("cargo should run");
             assert!(built.success(), "the extension did not build");
 
-            let target = root.join("target/debug");
-            let unix = target.join(format!("libextension_greeter.{}", library_suffix()));
+            let suffix = library_suffix();
+            let out = target.join("debug");
+            let unix = out.join(format!("libextension_greeter.{suffix}"));
             if unix.exists() {
                 unix
             } else {
-                target.join(format!("extension_greeter.{}", library_suffix()))
+                out.join(format!("extension_greeter.{suffix}"))
             }
         })
         .clone()
@@ -56,6 +65,41 @@ fn an_extension_declares_itself_into_a_running_app() {
     assert_eq!(greeting, "hello, world");
     let version: String = lua.load("return greeter.VERSION").eval().unwrap();
     assert_eq!(version, "0.1.0");
+}
+
+/// What a separately compiled extension cannot do, recorded because it is not
+/// obvious and it fails silently.
+///
+/// Resources are keyed by `TypeId`, and a `TypeId` is a hash over the crate's
+/// identity as cargo compiled it -- package, features, profile, and the
+/// metadata of everything it depends on. The host and an out-of-tree extension
+/// each compile their own `balaur_core`, so `ProjectRoot` is one type to a
+/// reader and two different keys to the resource map. Measured: the host
+/// computes `TypeId(0x50b788f9...)` and the extension `TypeId(0x10770dfb...)`
+/// for the same type.
+///
+/// So an extension may own state (the test above) but may not reach state the
+/// engine owns, and `Engine::resource` would panic with "missing resource"
+/// rather than name the cause. This is the ceiling on the Rust-ABI extension
+/// path, and the reason a C ABI is the one that generalises: a C extension
+/// reaches the engine through function pointers and never computes a `TypeId`
+/// at all.
+///
+/// Asserting today's behaviour on purpose. If this starts failing, resource
+/// keying was made stable across compilations and the limitation is gone --
+/// delete the test rather than repair it.
+#[test]
+fn an_extension_cannot_reach_a_resource_the_host_inserted() {
+    let mut app = app();
+    let mut extension = unsafe { load_extension(&greeter()) }.unwrap();
+    balaur_plugin::load(&mut app, extension.plugin_mut()).unwrap();
+
+    let lua = balaur_script_luau::lua_of(&app.engine);
+    let seen: String = lua.load("return greeter.project_root()").eval().unwrap();
+    assert_eq!(
+        seen, "<not visible from the extension>",
+        "an out-of-tree extension can now see the host's resources"
+    );
 }
 
 /// The extension owns state the engine now holds, which is the whole point of
