@@ -7,6 +7,7 @@
 //! needs no compiler, no source files, and no file watcher.
 
 use std::collections::BTreeMap;
+use std::fmt::Write;
 use std::path::Path;
 
 use anyhow::{anyhow, Context, Result};
@@ -16,10 +17,8 @@ const MAGIC: &[u8; 5] = b"BPAK\x02";
 /// File extensions that ship inside a pack. A game's textures, sounds and
 /// fonts have to travel with it; source art and notes do not.
 pub const ASSET_EXTENSIONS: &[&str] = &[
-    "png", "jpg", "jpeg", "webp", "bmp", "tga",
-    "ogg", "wav", "mp3", "flac",
-    "ttf", "otf",
-    "glb", "gltf", "obj",
+    "png", "jpg", "jpeg", "webp", "bmp", "tga", "ogg", "wav", "mp3", "flac", "ttf", "otf", "glb",
+    "gltf", "obj",
 ];
 
 /// A content hash, so a decoded pack can prove an entry arrived intact and a
@@ -29,11 +28,11 @@ pub fn content_hash(bytes: &[u8]) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(bytes);
-    hasher
-        .finalize()
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
+    // Folded rather than mapped into Strings: one allocation, not one per byte.
+    hasher.finalize().iter().fold(String::new(), |mut out, b| {
+        let _ = write!(out, "{b:02x}");
+        out
+    })
 }
 
 #[derive(Default, Clone, Debug)]
@@ -142,7 +141,9 @@ impl Pack {
             let v = read_bytes(&mut cursor)?.to_vec();
             let got = content_hash(&v);
             if got != want {
-                return Err(anyhow!("pack asset '{k}' is corrupt: expected {want}, got {got}"));
+                return Err(anyhow!(
+                    "pack asset '{k}' is corrupt: expected {want}, got {got}"
+                ));
             }
             pack.assets.insert(k, v);
         }

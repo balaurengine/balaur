@@ -30,7 +30,14 @@ fn node(app: &App) -> balaur_core::hecs::Entity {
 fn the_plugin_registers_its_components() {
     let app = app();
     let names = components::names(&app.engine);
-    for expected in ["shape", "shape2d", "color", "camera"] {
+    for expected in [
+        "shape",
+        "shape2d",
+        "color",
+        "camera",
+        "tilemap",
+        "particles",
+    ] {
         assert!(
             names.contains(&expected.to_string()),
             "`{expected}` is not registered"
@@ -220,4 +227,111 @@ fn ticking_a_headless_app_with_render_does_not_panic() {
     for _ in 0..10 {
         app.tick(1.0 / 60.0);
     }
+}
+
+/// Every 3D kind the schema offers has to survive `add`, land the right
+/// variant, and come back out of `get` — a shape you can write but not read
+/// is a shape the editor loses.
+#[test]
+fn every_3d_shape_kind_round_trips() {
+    for (source, expected) in [
+        ("kind = \"ball\"\nradius = 2.0", "ball"),
+        ("kind = \"cuboid\"", "cuboid"),
+        ("kind = \"capsule\"\nradius = 0.5\nheight = 2.0", "capsule"),
+        ("kind = \"cylinder\"\nradius = 0.5\nheight = 2.0", "cylinder"),
+        ("kind = \"cone\"\nradius = 0.5\nheight = 2.0", "cone"),
+        ("kind = \"plane\"", "plane"),
+    ] {
+        let app = app();
+        let e = node(&app);
+        let params: toml::Value = toml::from_str(source).unwrap();
+        components::add(&app.engine, e, "shape", Some(&params))
+            .unwrap_or_else(|why| panic!("{expected} did not apply: {why:#}"));
+        let back = components::get(&app.engine, e, "shape")
+            .unwrap_or_else(|| panic!("{expected} produced nothing to read back"));
+        assert_eq!(
+            back.get("kind").and_then(toml::Value::as_str),
+            Some(expected),
+            "{expected} read back as something else"
+        );
+    }
+}
+
+/// The straight part and the caps are separate: a capsule is `height` long
+/// plus a radius at each end, and the schema must not quietly halve it.
+#[test]
+fn a_capsule_keeps_the_height_it_was_given() {
+    let app = app();
+    let e = node(&app);
+    let params: toml::Value = toml::from_str("kind = \"capsule\"\nradius = 0.25\nheight = 3.0")
+        .unwrap();
+    components::add(&app.engine, e, "shape", Some(&params)).unwrap();
+    let back = components::get(&app.engine, e, "shape").unwrap();
+    let height = back.get("height").and_then(balaur_core::components::as_f64);
+    assert!(
+        height.is_some_and(|h| (h - 3.0).abs() < 1e-6),
+        "expected the height back unchanged, got {height:?}"
+    );
+}
+
+#[test]
+fn every_2d_shape_kind_round_trips() {
+    for (source, expected) in [
+        ("kind = \"circle\"\nradius = 1.0", "circle"),
+        ("kind = \"rect\"", "rect"),
+        ("kind = \"capsule\"\nradius = 0.5\nheight = 2.0", "capsule"),
+    ] {
+        let app = app();
+        let e = node(&app);
+        let params: toml::Value = toml::from_str(source).unwrap();
+        components::add(&app.engine, e, "shape2d", Some(&params))
+            .unwrap_or_else(|why| panic!("{expected} did not apply: {why:#}"));
+        let back = components::get(&app.engine, e, "shape2d")
+            .unwrap_or_else(|| panic!("{expected} produced nothing to read back"));
+        assert_eq!(
+            back.get("kind").and_then(toml::Value::as_str),
+            Some(expected)
+        );
+    }
+}
+
+/// A polyline is a `Shape2d` like any other, with its points in the sibling
+/// field — the arrangement `sprite` uses, and the reason the enum stays `Copy`.
+#[test]
+fn a_polyline_is_a_shape2d_that_keeps_its_reference() {
+    let app = app();
+    let e = node(&app);
+    let params: toml::Value =
+        toml::from_str("kind = \"polyline\"\nmesh = \"outline\"\nwidth = 0.5\nclosed = true")
+            .unwrap();
+    components::add(&app.engine, e, "shape2d", Some(&params)).unwrap();
+
+    {
+        let world = app.engine.world();
+        let r = world.get::<&Renderable2d>(e).expect("no Renderable2d");
+        assert!(matches!(
+            r.shape,
+            balaur_render::Shape2d::Polyline { closed: true, .. }
+        ));
+        assert_eq!(r.polyline.as_deref(), Some("outline"));
+    }
+
+    let back = components::get(&app.engine, e, "shape2d").expect("nothing read back");
+    assert_eq!(
+        back.get("mesh").and_then(toml::Value::as_str),
+        Some("outline"),
+        "the reference has to survive the round trip, or a save loses the points"
+    );
+}
+
+/// An unknown kind names itself rather than silently drawing a cuboid.
+#[test]
+fn an_unknown_shape_kind_is_refused_by_name() {
+    let app = app();
+    let e = node(&app);
+    let params: toml::Value = toml::from_str("kind = \"dodecahedron\"").unwrap();
+    let err = components::add(&app.engine, e, "shape", Some(&params))
+        .expect_err("an unknown kind must not apply")
+        .to_string();
+    assert!(err.contains("dodecahedron"), "{err}");
 }

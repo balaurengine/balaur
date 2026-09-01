@@ -22,6 +22,8 @@ flip_y = { type = "bool", default = false, description = "Mirror vertically" }
 pixels_per_unit = { type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit" }
 half_extents = { type = "vec2", default = [0.0, 0.0], description = "Size override in world units; [0, 0] sizes from the texture" }"#,
             ),
+            tags: &["2d", "render"],
+            expects: &[],
             apply: Box::new(|eng, entity, params| {
                 let num = |key: &str| {
                     params

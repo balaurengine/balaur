@@ -1,13 +1,12 @@
 //! Determinism is a core engine feature: identical inputs must produce
 //! bit-for-bit identical simulations. This test guards the same-platform half.
 //!
-//! The cross-platform half is not asserted anywhere yet. CI's matrix does
-//! compare exported pack bytes across Linux, macOS and Windows, but a pack is
-//! bytecode and TOML — agreeing on it says nothing about whether two CPUs step
-//! the same physics. Closing that gap means emitting this digest as an
-//! artifact and diffing it across the matrix, and being ready for the answer
-//! on x86_64 versus aarch64.
+//! The cross-platform half is `scripts/determinism_trace.sh`, which writes the
+//! same per-tick digest these tests compare and hands it to CI as an artifact
+//! to diff across the matrix. What is still unproven is aarch64 against
+//! x86_64, where FMA contraction is the thing to expect.
 
+use balaur_core::digest::{self, Digest};
 use balaur_core::{App, AppConfig, Transform};
 use balaur_physics::PhysicsPlugin;
 
@@ -46,7 +45,7 @@ collider = { kind = "ball", radius = 0.5 }
     .unwrap();
 }
 
-fn simulate(root: &std::path::Path, frames: u32) -> Vec<[u32; 3]> {
+fn boot(root: &std::path::Path) -> App {
     let mut app = App::new(AppConfig {
         project_root: root.to_path_buf(),
         pack: None,
@@ -57,8 +56,25 @@ fn simulate(root: &std::path::Path, frames: u32) -> Vec<[u32; 3]> {
     .unwrap();
     app.add_plugin(PhysicsPlugin).unwrap();
     app.load_project().unwrap();
+    app
+}
+
+/// One digest per tick. Comparing the whole chain rather than the end state
+/// is what names *when* two runs parted, not just that they did.
+fn trace(root: &std::path::Path, frames: u32) -> Vec<Digest> {
+    let mut app = boot(root);
+    (0..frames)
+        .map(|_| {
+            app.tick(balaur_core::FIXED_DT);
+            digest::digest(&app.engine)
+        })
+        .collect()
+}
+
+fn simulate(root: &std::path::Path, frames: u32) -> Vec<[u32; 3]> {
+    let mut app = boot(root);
     for _ in 0..frames {
-        app.tick(1.0 / 60.0);
+        app.tick(balaur_core::FIXED_DT);
     }
     // Collect exact float bits of every node position, in tree order.
     let engine = app.engine.clone();
@@ -140,4 +156,55 @@ fn simulation_2d_is_bitwise_reproducible() {
         (y - 0.5).abs() < 0.2
     });
     assert!(resting, "ball should rest on the ground: {a:?}");
+}
+
+/// The end state agreeing is weaker than every tick agreeing: two runs can
+/// part in the middle and land on the same rest position.
+#[test]
+fn two_runs_agree_on_every_tick_not_just_the_last() {
+    let dir = tempfile::tempdir().unwrap();
+    write_project(dir.path());
+    let a = trace(dir.path(), 300);
+    let b = trace(dir.path(), 300);
+    assert_eq!(a.len(), 300);
+    let parted = a.iter().zip(&b).position(|(x, y)| x != y);
+    assert_eq!(parted, None, "the two runs parted at tick {parted:?}");
+}
+
+#[test]
+fn the_digest_moves_while_the_simulation_does() {
+    let dir = tempfile::tempdir().unwrap();
+    write_project(dir.path());
+    let a = trace(dir.path(), 60);
+    assert_ne!(
+        a[0], a[30],
+        "a digest that never changes is hashing nothing that moves"
+    );
+}
+
+#[test]
+fn a_divergence_report_names_the_node_and_the_slice() {
+    let dir = tempfile::tempdir().unwrap();
+    write_project(dir.path());
+    let mut app = boot(dir.path());
+    for _ in 0..30 {
+        app.tick(balaur_core::FIXED_DT);
+    }
+    let before = digest::entries(&app.engine);
+
+    let ball = balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "BallA")
+        .expect("the scene has a BallA");
+    app.engine
+        .world_mut()
+        .get::<&mut Transform>(ball)
+        .unwrap()
+        .position
+        .x += 1.0;
+
+    let report = digest::first_divergence(&before, &digest::entries(&app.engine))
+        .expect("moving a ball is a divergence");
+    assert!(
+        report.starts_with("n_balla/transform:"),
+        "the report has to name the stable id, got {report}"
+    );
 }

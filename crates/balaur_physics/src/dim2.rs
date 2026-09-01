@@ -19,7 +19,9 @@ use rapier2d::prelude::{
     RigidBodyBuilder as RigidBodyBuilder2, RigidBodyHandle as RigidBodyHandle2,
 };
 
-const FIXED_DT: f32 = 1.0 / 60.0;
+use balaur_core::digest::{node_label, Entry, Hasher};
+use balaur_core::FIXED_DT;
+
 const MAX_SUBSTEPS: u32 = 4;
 
 pub struct PhysicsState2d {
@@ -152,9 +154,13 @@ fn collider_builder(params: &toml::Value) -> Result<ColliderBuilder2> {
             .and_then(balaur_core::components::as_f64)
             .unwrap_or(0.5) as f32
     };
+    let radius = f("radius", 0.5).max(0.01);
+    // `height` is the straight part, caps excluded, as it is in 3D.
+    let half_height = (f("height", 1.0).max(0.01)) / 2.0;
     let builder = match kind {
-        "circle" => ColliderBuilder2::ball(f("radius", 0.5).max(0.01)),
+        "circle" => ColliderBuilder2::ball(radius),
         "rect" => ColliderBuilder2::cuboid(he(0).max(0.01), he(1).max(0.01)),
+        "capsule" => ColliderBuilder2::capsule_y(half_height, radius),
         other => return Err(anyhow!("unknown collider2d kind '{other}'")),
     };
     Ok(builder
@@ -375,6 +381,23 @@ pub fn build(app: &mut App) -> Result<()> {
     install_physics2d_api(&mut *m);
     register_physics2d_components(app);
 
+    app.register_preset(
+        "rigid_body2d",
+        balaur_core::presets::preset(
+            "A 2D body physics simulates, with a rect collider",
+            &["2d", "physics"],
+            &[("body2d", Some("kind = \"dynamic\"")), ("collider2d", None)],
+        )?,
+    );
+    app.register_preset(
+        "static_body2d",
+        balaur_core::presets::preset(
+            "An immovable 2D body with a rect collider: ground, walls",
+            &["2d", "physics"],
+            &[("body2d", Some("kind = \"static\"")), ("collider2d", None)],
+        )?,
+    );
+
     Ok(())
 }
 
@@ -382,6 +405,32 @@ pub fn build(app: &mut App) -> Result<()> {
 fn build_physics2d(app: &mut App) {
     app.engine.insert_resource(PhysicsState2d::new());
     app.add_system(Stage::PostUpdate, step_system);
+    build_physics2d_digest(app);
+}
+
+/// The 2D twin of the 3D source: velocity and sleep state, which no
+/// component `get` reports.
+fn build_physics2d_digest(app: &mut App) {
+    app.add_digest_source("physics2d", |eng, out| {
+        let Some(state) = eng.try_resource::<PhysicsState2d>() else {
+            return;
+        };
+        let state = state.borrow();
+        let world = eng.world();
+        for (&entity, &handle) in &state.bodies {
+            let body = &state.world.bodies[handle];
+            let v = body.linvel();
+            let mut h = Hasher::new();
+            for value in [v.x, v.y, body.angvel()] {
+                h.write_f32(value);
+            }
+            h.write(&[u8::from(body.is_sleeping())]);
+            out.push(Entry {
+                label: node_label(&world, entity),
+                digest: h.finish(),
+            });
+        }
+    });
 }
 
 /// `physics2d`: bodies, colliders, gravity, velocities, contact impulse and
@@ -469,6 +518,8 @@ fn register_physics2d_components(app: &mut App) {
                 "body2d",
                 r#"kind = { type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic"], shorthand = true, description = "How 2D physics drives the node: simulated, immovable, or moved by script" }"#,
             ),
+            tags: &["2d", "physics"],
+            expects: &[],
             apply: Box::new(|eng, entity, params| {
                 let kind = params
                     .get("kind")
@@ -514,7 +565,8 @@ fn register_physics2d_components(app: &mut App) {
         ComponentDef {
             schema: ComponentDef::parse_schema(
                 "collider2d",
-                r#"kind = { type = "enum", default = "rect", options = ["circle", "rect"], description = "Collision shape" }
+                r#"kind = { type = "enum", default = "rect", options = ["circle", "rect", "capsule"], description = "Collision shape" }
+height = { type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, when kind is capsule" }
 radius = { type = "float", default = 0.5, min = 0.01, description = "Circle radius, when kind is circle" }
 half_extents = { type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }
 restitution = { type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness: 0 is a dead stop, 1 a full rebound" }
@@ -522,6 +574,8 @@ friction = { type = "float", default = 0.5, min = 0.0, description = "Surface fr
 density = { type = "float", default = 1.0, min = 0.001, description = "Mass per area, so the shape's size sets its mass" }
 sensor = { type = "bool", default = false, description = "Detects overlaps without colliding: bodies pass through and are reported" }"#,
             ),
+            tags: &["2d", "physics"],
+            expects: &[],
             apply: Box::new(apply_collider),
             remove: Box::new(|eng, entity| {
                 remove_colliders(eng, entity);

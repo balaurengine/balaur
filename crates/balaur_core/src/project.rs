@@ -172,8 +172,7 @@ impl ProjectFiles {
     pub fn read(&self, path: &str) -> Result<Vec<u8>> {
         let p = std::path::Path::new(path);
         if p.is_absolute() {
-            return std::fs::read(p)
-                .with_context(|| format!("reading '{}'", p.display()));
+            return std::fs::read(p).with_context(|| format!("reading '{}'", p.display()));
         }
         // Separators are normalised because a pack is keyed the way it was
         // built, which is always with forward slashes.

@@ -5,7 +5,9 @@
 Every test in the workspace, as a sentence. A flow that is not here is a
 flow nothing checks.
 
+- a 2d camera component drives center and zoom
 - a 2d shape component puts a 2d renderable on the node
+- a 3d collider takes friction restitution and density
 - a bad schema is rejected at registration
 - a binding call stays sub microsecond
 - a binding can call the function it was passed
@@ -14,6 +16,7 @@ flow nothing checks.
 - a call on a track that animates a value is rejected
 - a call step takes no time of its own
 - a callback does not outlive its call
+- a camera that is not current leaves the config alone
 - a checksum mismatch rejects the download and leaves no file
 - a clip animates a component the animation crate does not depend on
 - a clip defined at run time plays by the name it was given
@@ -35,6 +38,8 @@ flow nothing checks.
 - a component track can drive a child node
 - a component track is as wide as its keys
 - a constant is readable from a script
+- a corrupted asset is caught by its hash
+- a current camera component drives the camera config
 - a curve matches the shape godot gives that name
 - a curve name nothing defines is rejected naming it
 - a curve reads its own name back as a transition and a mode
@@ -45,13 +50,16 @@ flow nothing checks.
 - a duplicate name resolves the same way every time
 - a duplicated id is regenerated
 - a dynamic body falls and a static one does not
+- a face naming a vertex that does not exist is an error
 - a failed transfer reports an error event
+- a file with no faces is an error rather than an empty mesh
 - a forward parent reference is rejected
 - a freed node stops being valid
 - a handler can await and await again
 - a headless frame empties the debug line buffers
 - a hex colour reaches apply expanded through patch as well as add
 - a hex string is a colour wherever a colour is taken
+- a hidden widget draws nothing and takes no clicks
 - a key that neither calls nor carries a value says which it needs
 - a language selects its own tokens
 - a leaf subtree is just itself
@@ -79,6 +87,7 @@ flow nothing checks.
 - a method key is passed once per loop and never by a seek
 - a missing app icon does not take the frame down
 - a missing argument is an error not a default
+- a missing asset names where it looked
 - a missing entry fails with a message naming the reference
 - a missing file fails with a message naming the reference
 - a missing image does not stop the pass
@@ -87,6 +96,7 @@ flow nothing checks.
 - a missing resource is none rather than a panic
 - a missing texture is an error
 - a modal runs its body
+- a negative index counts back from the newest vertex
 - a node is not json data
 - a node path round trips through find
 - a node returned to a script is still a node
@@ -98,7 +108,9 @@ flow nothing checks.
 - a pack writes its entries in sorted order
 - a packed project boots without its sources
 - a packed run resolves an asset exactly as a dev run does
+- a panel takes an explicit size
 - a parallel group runs together and the next step waits for all of it
+- a particles component round trips and stays out of the simulation
 - a pass with no widgets is quiet
 - a path finds a descendant and missing ones are none
 - a pingpong clip folds time back on itself
@@ -113,6 +125,7 @@ flow nothing checks.
 - a project without a manifest is an error
 - a property that is neither a transform nor a path is rejected
 - a property the component never reports still survives a patch
+- a quad is triangulated as a fan
 - a queued clip starts when the one before it ends
 - a reference to a named entry resolves to the entry inside the file
 - a reference to a whole file resolves to that file
@@ -142,13 +155,16 @@ flow nothing checks.
 - a scrub moves nothing but the playhead
 - a scrub poses a paused clip where the playhead lands
 - a seek does not fire the keys it skipped
+- a sensor reports overlap without collision response
 - a sequential tween lands its steps in order
 - a shape component puts a renderable on the node
 - a sheet is sized to one frame
+- a sound component autoplays and stop on silences it
 - a source build prints that it is one
 - a sparse table keeps its keys
 - a spawned node is named parented and has a transform
 - a sprite is sized from its image
+- a sprite with no texture is a placeholder
 - a standalone binary gives the pack back
 - a standalone file is read back from disk
 - a step can tween another node from the same call
@@ -160,6 +176,8 @@ flow nothing checks.
 - a suspended task dies with its node
 - a tagged build updates to the latest release
 - a theme can be set from a script
+- a tilemap parses cells and round trips
+- a tileset that declares no grid is refused
 - a track can name a component property
 - a track naming a component nothing registered leaves the node alone
 - a track says which of its keys is malformed
@@ -169,6 +187,7 @@ flow nothing checks.
 - a trailing optional may be omitted
 - a transform step given the wrong number of channels says how many it wanted
 - a transform survives a write and read
+- a triangle becomes three vertices and one face
 - a tween captures the component value it starts from
 - a tween dies with the node it was made on
 - a tween drives a component property the animation crate does not depend on
@@ -201,6 +220,7 @@ flow nothing checks.
 - an eased key bends the segment that arrives at it
 - an eased step is not where a straight one would be
 - an easing curve can carry a value past the key it is heading for
+- an embedded game will not read a file beside it
 - an empty asset property is no asset rather than a broken reference
 - an empty or inverted range does not panic
 - an empty pack still round trips
@@ -221,12 +241,15 @@ flow nothing checks.
 - an out of range button does not panic
 - an unknown body kind is rejected with its name
 - an unknown event reply carries the error status
+- an unknown extension names what is supported
+- an unknown handle answers not playing and its setters no op
 - an unknown key is simply not down
 - an unknown language falls back to luau
 - an unknown language is a named error
 - an unknown loop mode is rejected naming it
 - an unknown path is nil rather than an error
 - an unknown scene asset id is named in a warning and the scene still loads
+- an unmoved camera does not reassert itself
 - an unparseable colour is left alone
 - an unreachable websocket reports an error event
 - an unregistered name is an error that says so
@@ -238,8 +261,10 @@ flow nothing checks.
 - autoplay starts the named clip when the scene loads
 - back and elastic overshoot where quad does not
 - bad options are reported rather than fatal
+- binary assets travel inside the pack
 - bindings forward through references and boxes
 - body constants match the registered schema
+- bounds cover every vertex
 - build pack uses the compiler the project asks for
 - by is relative to the value at the start of its step
 - by on its own offsets where the node already is
@@ -248,8 +273,10 @@ flow nothing checks.
 - changing the texture forces a rebuild
 - colliders can be added in every shape the api offers
 - commands queue and drain once
+- comments materials and groups are read past
 - compile error keeps previous version running
 - constant names are unique and well formed
+- corners sharing a position but not a uv become separate vertices
 - crates/balaur/src/lib.rs - (line 5)
 - cubic interpolation still passes through every key
 - debug lines accumulate and can be cleared
@@ -281,6 +308,8 @@ flow nothing checks.
 - expect arity names the function and both counts
 - explicit half extents win over the image
 - extra arguments are ignored like lua does
+- flips round trip and do not force a rebuild
+- freeing a node drops its sound on the next sweep
 - freeing a node frees its children
 - freeing a subtree removes all of it and unlinks the parent
 - from states the start outright
@@ -320,11 +349,14 @@ flow nothing checks.
 - mouse delta is per frame and position is absolute
 - mouse position is readable without a window
 - moving a parent moves the subtree
+- naming another file swaps the playback to it
 - no bindings accepts registrations and discards them
 - node and callback handles survive a round trip
 - nodes sharing a name get distinct ids
+- normals and uvs survive when the file declares them
 - numbers convert in both directions
 - one inline definition written twice is cached once
+- overlaps returns an empty list for a node touching nothing
 - pack roundtrip runs from bytecode only
 - panels and containers nest
 - patch writes one property and leaves the others where they were
@@ -335,16 +367,20 @@ flow nothing checks.
 - pausing stops the simulation and resuming continues it
 - pixels per unit scales the result
 - play can pick the current clip back up where it left off
-- playing a missing file does not take the frame down
+- play on restarts the nodes sound with a fresh handle
 - plugin components roundtrip through the registry
 - plugins that require each other are refused
+- project files serve a packed asset without touching disk
 - quit is off until asked for
 - reading a missing file is nil rather than an error
+- reapplying the same file does not restart playback
+- reapplying the same tilemap does not bump the version
 - reload forgets a file so the next load reads it again
 - reload script picks up a rewritten file
 - remove takes it off the node
 - removing a body stops it being simulated
 - removing a shape takes the renderable with it
+- removing the component stops and forgets the sound
 - removing the component stops the node being animated
 - renaming a node changes what name returns
 - renaming a parent does not break its children
@@ -426,6 +462,7 @@ flow nothing checks.
 - two nodes naming one path share one parsed object
 - typed registration survives erasure
 - unclaimed extensions are left alone
+- undecodable bytes hand out a silent handle instead of erroring
 - vectors and colors carry their components
 - vectors encode as json number arrays
 - watcher reloads automatically

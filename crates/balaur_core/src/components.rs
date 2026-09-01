@@ -71,6 +71,23 @@ pub type GetFn = Box<dyn Fn(&Engine, Entity) -> Option<toml::Value>>;
 pub struct ComponentDef {
     /// TOML table of property specs (see module docs).
     pub schema: toml::Value,
+    /// Facets this component belongs to, for browsing: `2d`, `3d`, `physics`,
+    /// `render`, `audio`, `ui`. Several apply at once on purpose -- a
+    /// `collider2d` is both `2d` and `physics`, and a single category path
+    /// would bury one of those.
+    pub tags: &'static [&'static str],
+    /// Components this one needs *something* from, any one of which will do.
+    ///
+    /// Not a requirement: a script may add the missing piece on a later tick,
+    /// and nothing here blocks or reorders anything -- the editor warns, the
+    /// runtime does not care.
+    ///
+    /// No built-in component declares one today, and that is a finding rather
+    /// than an oversight: every candidate turned out to be either already an
+    /// error (`color` refuses a node with nothing to tint) or perfectly valid
+    /// (a `collider2d` with no `body2d` is standalone static geometry). It is
+    /// here for plugins, and for the case where an error would be too strict.
+    pub expects: &'static [&'static str],
     /// Insert-or-update the component from a full property table.
     pub apply: ApplyFn,
     pub remove: RemoveFn,

@@ -10,21 +10,28 @@ pub mod app;
 pub mod assets;
 pub mod collections;
 pub mod components;
+pub mod digest;
 pub mod engine;
 pub mod engine_api;
+pub mod heightfield;
 pub mod logbuf;
+pub mod mesh;
 pub mod node_api;
 pub mod pack;
+pub mod presets;
 pub mod project;
 pub mod resources;
 pub mod rng;
 pub mod scene;
 pub mod standalone;
 
-pub use app::{App, AppConfig, Plugin, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage};
+pub use app::{
+    App, AppConfig, Plugin, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage, FIXED_DT, TICK_HZ,
+};
 pub use assets::{AssetRef, AssetState, AssetTypeRegistry};
 pub use collections::{DetHashMap, DetHashSet};
-pub use components::{ComponentDef, ComponentRegistry};
+pub use components::{ComponentDef, ComponentRegistry, StableId};
+pub use digest::{Digest, DigestRegistry};
 pub use engine::{Command, Engine};
 pub use pack::Pack;
 pub use resources::Resources;

@@ -90,50 +90,11 @@ text_color = { type = "color", default = [0.933, 0.945, 0.957, 1.0], description
 on_click = { type = "string", default = "", description = "Script method called on this node when the button is clicked" }
 clicked = { type = "bool", default = false, readonly = true, description = "True on the frame the button was clicked" }"#,
             ),
+            tags: &["ui"],
+            expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let s = |key: &str, default: &str| {
-                    params
-                        .get(key)
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(default)
-                        .to_string()
-                };
-                let f = |key: &str, default: f64| {
-                    params.get(key).and_then(balaur_core::components::as_f64).unwrap_or(default) as f32
-                };
-                // Hex strings were expanded to floats by `merge_defaults`.
-                let channel = |i: usize, default: f64| {
-                    params
-                        .get("text_color")
-                        .and_then(|v| v.as_array())
-                        .and_then(|a| a.get(i))
-                        .and_then(balaur_core::components::as_f64)
-                        .unwrap_or(default) as f32
-                };
-                let widget = Widget {
-                    kind: s("kind", "label"),
-                    text: s("text", "label"),
-                    visible: params
-                        .get("visible")
-                        .and_then(toml::Value::as_bool)
-                        .unwrap_or(true),
-                    anchor: s("anchor", "top_left"),
-                    x: f("x", 16.0),
-                    y: f("y", 16.0),
-                    width: f("width", 0.0),
-                    height: f("height", 0.0),
-                    font_size: f("font_size", 16.0),
-                    text_color: [
-                        channel(0, 0.933),
-                        channel(1, 0.945),
-                        channel(2, 0.957),
-                        channel(3, 1.0),
-                    ],
-                    on_click: s("on_click", ""),
-                    clicked: false,
-                };
                 eng.world_mut()
-                    .insert_one(entity, widget)
+                    .insert_one(entity, widget_from(params))
                     .map_err(|_| anyhow::anyhow!("node is dead"))
             }),
             remove: Box::new(|eng, entity| {
@@ -175,6 +136,54 @@ clicked = { type = "bool", default = false, readonly = true, description = "True
             }),
         },
     );
+}
+
+/// A `Widget` built from a full property table (defaults already merged).
+fn widget_from(params: &toml::Value) -> Widget {
+    let s = |key: &str, default: &str| {
+        params
+            .get(key)
+            .and_then(|v| v.as_str())
+            .unwrap_or(default)
+            .to_string()
+    };
+    let f = |key: &str, default: f64| {
+        params
+            .get(key)
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or(default) as f32
+    };
+    // Hex strings were expanded to floats by `merge_defaults`.
+    let channel = |i: usize, default: f64| {
+        params
+            .get("text_color")
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.get(i))
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or(default) as f32
+    };
+    Widget {
+        kind: s("kind", "label"),
+        text: s("text", "label"),
+        visible: params
+            .get("visible")
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(true),
+        anchor: s("anchor", "top_left"),
+        x: f("x", 16.0),
+        y: f("y", 16.0),
+        width: f("width", 0.0),
+        height: f("height", 0.0),
+        font_size: f("font_size", 16.0),
+        text_color: [
+            channel(0, 0.933),
+            channel(1, 0.945),
+            channel(2, 0.957),
+            channel(3, 1.0),
+        ],
+        on_click: s("on_click", ""),
+        clicked: false,
+    }
 }
 
 /// Draw every widget entity. Runs inside the frame's egui pass, after the

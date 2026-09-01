@@ -31,6 +31,12 @@ impl Pcg32 {
         xorshifted.rotate_right(rot)
     }
 
+    /// The whole generator: one `u64` is the entire stream position, which
+    /// is what lets a digest fold the RNG in and a replay resume mid-session.
+    pub const fn state(&self) -> u64 {
+        self.state
+    }
+
     /// Uniform in `[0, 1)` with 53 bits of precision.
     pub fn next_f64(&mut self) -> f64 {
         let hi = u64::from(self.next_u32() >> 6); // 26 bits

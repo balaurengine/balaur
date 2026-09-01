@@ -45,9 +45,9 @@ Balaur audio plugin backed by rodio
 Audio as a Balaur plugin, backed by rodio.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
-- **external deps:** 3 (anyhow, rodio, tracing)
-- **public surface:** 2 struct
-- **structs:** `AudioPlugin`, `AudioState`
+- **external deps:** 4 (anyhow, rodio, toml, tracing)
+- **public surface:** 2 fn, 3 struct
+- **structs:** `AudioPlugin`, `AudioState`, `Sound`
 
 ## `balaur_bench`
 
@@ -76,11 +76,11 @@ Balaur engine core: ECS data plane, scene tree, frame scheduler, plugin API
 Balaur engine core: the Rust data plane.
 
 - **workspace deps:** `balaur_script`
-- **external deps:** 12 (anyhow, dirs, glamx, hecs, indexmap, rustc-hash, serde, serde_json, …)
-- **public surface:** 48 fn, 28 struct, 3 enum, 1 trait, 5 const, 9 type
+- **external deps:** 13 (anyhow, dirs, glamx, hecs, indexmap, rustc-hash, serde, serde_json, …)
+- **public surface:** 49 fn, 29 struct, 4 enum, 1 trait, 6 const, 9 type
 - **traits:** `Plugin`
-- **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Children`, `ComponentDef`, `ComponentRegistry`, `Engine`, `EngineOp`, `GlobalTransform`, `LogEntry`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `ProjectManifest`, `ProjectRoot`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `StableId`, `Transform`
-- **enums:** `AssetRef`, `Command`, `Stage`
+- **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Children`, `ComponentDef`, `ComponentRegistry`, `Engine`, `EngineOp`, `GlobalTransform`, `LogEntry`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `StableId`, `Transform`
+- **enums:** `AssetRef`, `AssetSource`, `Command`, `Stage`
 
 ## `balaur_gamend`
 
@@ -125,7 +125,7 @@ Rapier physics as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
 - **external deps:** 6 (anyhow, glamx, rapier2d, rapier3d, toml, tracing)
-- **public surface:** 4 fn, 3 struct, 3 const
+- **public surface:** 5 fn, 3 struct, 3 const
 - **structs:** `PhysicsPlugin`, `PhysicsState`, `PhysicsState2d`
 
 ## `balaur_plugin`
@@ -148,9 +148,9 @@ Rendering as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_input`, `balaur_script`, `balaur_ui`
 - **external deps:** 10 (anyhow, glamx, image, kiss3d, objc2, objc2-app-kit, objc2-foundation, pollster, …)
-- **public surface:** 3 fn, 18 struct, 2 enum, 1 const, 2 type
-- **structs:** `AppIconConfig`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ClearColorConfig`, `DebugLineBuffer`, `DebugLineBuffer2d`, `GridConfig`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `SpriteSheet2d`, `SpriteTexture`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
-- **enums:** `Shape`, `Shape2d`
+- **public surface:** 5 fn, 23 struct, 3 enum, 2 const, 2 type
+- **structs:** `AppIconConfig`, `Camera`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ClearColorConfig`, `DebugLineBuffer`, `DebugLineBuffer2d`, `GridConfig`, `MeshData`, `Particles`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `SpriteSheet2d`, `SpriteTexture`, `Tilemap`, `Tileset`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
+- **enums:** `CameraKind`, `Shape`, `Shape2d`
 
 ## `balaur_script`
 

@@ -53,6 +53,8 @@ fn app_in(project_root: &std::path::Path, pack: Option<Pack>) -> App {
         "instrument",
         ComponentDef {
             schema: ComponentDef::parse_schema("instrument", INSTRUMENT_SCHEMA),
+            tags: &[],
+            expects: &[],
             apply: Box::new(|eng: &Engine, _, value: &toml::Value| {
                 let reference = value
                     .get("song")

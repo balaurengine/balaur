@@ -268,3 +268,79 @@ fn the_same_setup_simulates_identically_twice() {
     };
     assert_eq!(run(), run());
 }
+
+fn node_at(app: &App) -> Entity {
+    let root = app.engine.root();
+    scene::spawn_node(&mut app.engine.world_mut(), "N", root)
+}
+
+/// Every parametric collider kind the schema offers has to build. rapier
+/// measures capsules, cylinders and cones from the centre while the schema
+/// states the whole straight part, so a wrong conversion halves the shape
+/// silently — applying without error is the floor, not the ceiling.
+#[test]
+fn every_parametric_collider_kind_applies() {
+    for source in [
+        "kind = \"ball\"\nradius = 0.5",
+        "kind = \"cuboid\"",
+        "kind = \"capsule\"\nradius = 0.4\nheight = 2.0",
+        "kind = \"cylinder\"\nradius = 0.4\nheight = 2.0",
+        "kind = \"cone\"\nradius = 0.4\nheight = 2.0",
+        "kind = \"triangle\"",
+    ] {
+        let app = app();
+        let e = node_at(&app);
+        let params: toml::Value = toml::from_str(source).unwrap();
+        components::add(&app.engine, e, "collider", Some(&params))
+            .unwrap_or_else(|why| panic!("{source} did not apply: {why:#}"));
+    }
+}
+
+#[test]
+fn a_2d_capsule_collider_applies() {
+    let app = app();
+    let e = node_at(&app);
+    let params: toml::Value =
+        toml::from_str("kind = \"capsule\"\nradius = 0.4\nheight = 2.0").unwrap();
+    components::add(&app.engine, e, "collider2d", Some(&params)).unwrap();
+}
+
+/// A mesh-backed collider without its asset says which asset it wanted,
+/// rather than failing somewhere later with no name attached.
+#[test]
+fn a_mesh_collider_without_its_asset_says_so() {
+    for kind in ["trimesh", "convex_hull", "polyline"] {
+        let app = app();
+        let e = node_at(&app);
+        let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
+        let err = components::add(&app.engine, e, "collider", Some(&params))
+            .expect_err("a mesh collider with no mesh must not apply")
+            .to_string();
+        assert!(
+            err.contains("mesh"),
+            "{kind} should name the missing asset: {err}"
+        );
+    }
+}
+
+#[test]
+fn a_heightfield_collider_without_its_asset_says_so() {
+    let app = app();
+    let e = node_at(&app);
+    let params: toml::Value = toml::from_str("kind = \"heightfield\"").unwrap();
+    let err = components::add(&app.engine, e, "collider", Some(&params))
+        .expect_err("a heightfield with no grid must not apply")
+        .to_string();
+    assert!(err.contains("heightfield"), "{err}");
+}
+
+#[test]
+fn an_unknown_collider_kind_is_refused_by_name() {
+    let app = app();
+    let e = node_at(&app);
+    let params: toml::Value = toml::from_str("kind = \"blancmange\"").unwrap();
+    let err = components::add(&app.engine, e, "collider", Some(&params))
+        .expect_err("an unknown kind must not apply")
+        .to_string();
+    assert!(err.contains("blancmange"), "{err}");
+}

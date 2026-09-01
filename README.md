@@ -14,7 +14,18 @@ Two features are load-bearing and non-negotiable:
   dev mode, and provided by the core, not by frameworks or per-game glue.
 - **Cross-platform determinism.** Identical inputs produce bit-for-bit
   identical simulations across platforms. Every subsystem decision is vetted
-  against this (see [ARCHITECTURE.md](ARCHITECTURE.md#determinism)).
+  against this, and it is measured rather than asserted: `--fixed-tick` steps
+  the simulation at a constant 60 Hz, `--trace-digest` writes one hash per
+  tick, and CI diffs those traces across Linux, macOS and Windows (see
+  [ARCHITECTURE.md](ARCHITECTURE.md#determinism)).
+
+```bash
+balaur run my-game --fixed-tick --trace-digest run-a.txt
+```
+
+  Two traces that differ parted at the first differing line; the digest is
+  built from labelled slices, so `balaur_core::digest::first_divergence`
+  names the node and component rather than just the tick.
 
 ## Quickstart
 
@@ -157,6 +168,8 @@ only way to say what a language actually costs.
   ones follow; it governs the other docs
 - [docs/generated/script-api.md](docs/generated/script-api.md) — every module,
   function and constant a script can reach
+- [docs/generated/components.md](docs/generated/components.md) — every scene
+  component and asset type, with its properties
 - [docs/generated/crates.md](docs/generated/crates.md) — what each crate is for
 - [docs/generated/crate-graph.md](docs/generated/crate-graph.md) — the dependency graph
 - [docs/generated/behaviour.md](docs/generated/behaviour.md) — every test as a sentence

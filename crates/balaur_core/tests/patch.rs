@@ -31,6 +31,8 @@ radius = { type = "float", default = 0.5 }
 half_extents = { type = "vec3", default = [0.5, 0.5, 0.5] }
 label = { type = "string", default = "none" }"#,
             ),
+            tags: &[],
+            expects: &[],
             apply: Box::new(|eng: &Engine, entity, params| {
                 eng.world_mut()
                     .insert_one(entity, Dial(params.clone()))
@@ -186,6 +188,8 @@ fn a_hex_colour_reaches_apply_expanded_through_patch_as_well_as_add() {
                 "tint",
                 r#"rgba = { type = "color", default = [0.0, 0.0, 0.0, 1.0] }"#,
             ),
+            tags: &[],
+            expects: &[],
             apply: Box::new(|eng: &Engine, entity, params| {
                 eng.world_mut()
                     .insert_one(entity, Dial(params.clone()))

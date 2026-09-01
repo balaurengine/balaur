@@ -356,6 +356,8 @@ volume = { type = "float", default = 1.0, min = 0.0, description = "Linear gain;
 pitch = { type = "float", default = 1.0, min = 0.01, description = "Playback speed multiplier" }
 loop = { type = "bool", default = false, description = "Restart the sound when it ends" }"#,
             ),
+            tags: &["audio"],
+            expects: &[],
             apply: Box::new(|eng, entity, params| {
                 apply_sound(eng, entity, params);
                 Ok(())

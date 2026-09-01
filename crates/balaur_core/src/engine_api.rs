@@ -86,6 +86,31 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "scene",
+        name: "component_tags",
+        call: component_tags,
+    },
+    EngineOp {
+        module: "scene",
+        name: "presets",
+        call: presets,
+    },
+    EngineOp {
+        module: "scene",
+        name: "preset_info",
+        call: preset_info,
+    },
+    EngineOp {
+        module: "scene",
+        name: "apply_preset",
+        call: apply_preset,
+    },
+    EngineOp {
+        module: "scene",
+        name: "unmet_expectations",
+        call: unmet_expectations,
+    },
+    EngineOp {
+        module: "scene",
         name: "component_schema",
         call: component_schema,
     },
@@ -350,6 +375,84 @@ fn component_types(eng: &Engine, _: &[Value]) -> Result<Value> {
         crate::components::names(eng)
             .into_iter()
             .map(Value::Str)
+            .collect(),
+    ))
+}
+
+/// The facets a component belongs to, for filtering the palette.
+fn component_tags(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let registry = eng.resource::<crate::components::ComponentRegistry>();
+    let registry = registry.borrow();
+    Ok(registry.def(text(args, 0)?).map_or(Value::Nil, |def| {
+        Value::List(
+            def.tags
+                .iter()
+                .map(|t| Value::Str((*t).to_string()))
+                .collect(),
+        )
+    }))
+}
+
+fn presets(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::List(
+        crate::presets::names(eng)
+            .into_iter()
+            .map(Value::Str)
+            .collect(),
+    ))
+}
+
+/// A preset's description, tags and the components it adds.
+fn preset_info(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let name = text(args, 0)?;
+    let registry = eng.resource::<crate::presets::PresetRegistry>();
+    let registry = registry.borrow();
+    Ok(registry.0.get(name).map_or(Value::Nil, |def| {
+        Value::Map(vec![
+            (
+                "description".to_string(),
+                Value::Str(def.description.clone()),
+            ),
+            (
+                "tags".to_string(),
+                Value::List(def.tags.iter().cloned().map(Value::Str).collect()),
+            ),
+            (
+                "components".to_string(),
+                Value::List(
+                    def.parts
+                        .iter()
+                        .map(|p| Value::Str(p.component.clone()))
+                        .collect(),
+                ),
+            ),
+        ])
+    }))
+}
+
+fn apply_preset(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let entity = optional_node(args, 0)?.ok_or_else(|| anyhow!("apply_preset needs a node"))?;
+    crate::presets::apply(eng, entity, text(args, 1)?)?;
+    Ok(Value::Nil)
+}
+
+/// Components on this node whose expectations nothing satisfies, as a list of
+/// `{ component, expects }`. Advisory: the editor warns, nothing blocks.
+fn unmet_expectations(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let entity =
+        optional_node(args, 0)?.ok_or_else(|| anyhow!("unmet_expectations needs a node"))?;
+    Ok(Value::List(
+        crate::presets::unmet_expectations(eng, entity)
+            .into_iter()
+            .map(|(component, expects)| {
+                Value::Map(vec![
+                    ("component".to_string(), Value::Str(component)),
+                    (
+                        "expects".to_string(),
+                        Value::List(expects.into_iter().map(Value::Str).collect()),
+                    ),
+                ])
+            })
             .collect(),
     ))
 }

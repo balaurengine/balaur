@@ -11,6 +11,7 @@ use balaur_core::{App, GlobalTransform};
 use balaur_input::InputSnapshot;
 use glamx::Pose3;
 use kiss3d::prelude::*;
+use kiss3d::resource::GpuMesh3d;
 
 use crate::{
     AppIconConfig, CameraConfig, CameraConfig2d, CameraInputConfig, ClearColorConfig,
@@ -41,6 +42,8 @@ struct Frontend {
     scene_2d: SceneNode2d,
     slots: HashMap<Entity, Slot>,
     slots_2d: HashMap<Entity, Slot2d>,
+    tilemap_slots: HashMap<Entity, crate::tilemap::TilemapSlot>,
+    emitter_slots: HashMap<Entity, crate::particles::EmitterSlot>,
     order_2d: Vec<Entity>,
     frame: u64,
     /// Whether the on-screen keyboard was summoned last frame, so it is
@@ -61,6 +64,8 @@ impl Frontend {
             scene_2d: SceneNode2d::empty(),
             slots: HashMap::new(),
             slots_2d: HashMap::new(),
+            tilemap_slots: HashMap::new(),
+            emitter_slots: HashMap::new(),
             order_2d: Vec::new(),
             frame: 0,
             keyboard_shown: false,
@@ -78,7 +83,7 @@ impl Frontend {
         publish_camera_2d(app, &self.camera_2d, window);
         apply_clear_color(app, window);
         pump_input(app, window);
-        app.tick(dt);
+        app.advance(dt);
         sync(app, &mut self.scene, &mut self.slots);
         sync_2d(
             app,
@@ -86,6 +91,11 @@ impl Frontend {
             &mut self.slots_2d,
             &mut self.order_2d,
         );
+        crate::tilemap::sync_tilemaps(app, &mut self.scene_2d, &mut self.tilemap_slots);
+        // The step the frame actually ran, which under --fixed-tick is not
+        // the measured one.
+        let dt = app.engine.delta();
+        crate::particles::sync_particles(app, window, &mut self.emitter_slots, dt);
         draw_grid(app, window);
         flush_debug_lines(app, window);
         flush_debug_lines_2d(app, window);
@@ -184,9 +194,9 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
     Ok(())
 }
 
-/// The fixed step offscreen frames advance by: 60 Hz, matching the physics and
+/// The fixed step offscreen frames advance by, matching the physics and
 /// animation tick so a screenshot lands on a whole number of simulation steps.
-const OFFSCREEN_DT: f32 = 1.0 / 60.0;
+const OFFSCREEN_DT: f32 = balaur_core::FIXED_DT;
 
 /// Apply script-driven camera changes (interactive orbit controls keep
 /// working in between).
@@ -574,6 +584,17 @@ fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
             let node = match renderable.shape {
                 Shape::Ball { radius } => scene.add_sphere(radius),
                 Shape::Cuboid { hx, hy, hz } => scene.add_cube(2.0 * hx, 2.0 * hy, 2.0 * hz),
+                Shape::Capsule { radius, height } => scene.add_capsule(radius, height),
+                Shape::Cylinder { radius, height } => scene.add_cylinder(radius, height),
+                Shape::Cone { radius, height } => scene.add_cone(radius, height),
+                // One quad, no subdivisions: a flat plane needs no interior
+                // vertices, and fewer of them is fewer to transform.
+                Shape::Plane { hx, hz } => scene.add_quad(2.0 * hx, 2.0 * hz, 1, 1),
+                Shape::Mesh => match upload_mesh(app, scene, renderable.mesh.as_deref()) {
+                    Some(node) => node,
+                    // Nothing to draw yet, and `upload_mesh` said why.
+                    None => continue,
+                },
             };
             slots.insert(
                 entity,
@@ -591,6 +612,15 @@ fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
         let size = match renderable.shape {
             Shape::Ball { radius } => Vec3::splat(2.0 * radius),
             Shape::Cuboid { hx, hy, hz } => Vec3::new(2.0 * hx, 2.0 * hy, 2.0 * hz),
+            // kiss3d builds its capsule as real geometry at Vec3::ONE, unlike
+            // the others: sizing it here as well would double it.
+            Shape::Capsule { .. } => Vec3::ONE,
+            Shape::Cylinder { radius, height } | Shape::Cone { radius, height } => {
+                Vec3::new(2.0 * radius, height, 2.0 * radius)
+            }
+            // add_quad and a mesh both build real geometry, like the capsule:
+            // their dimensions are in the vertices, not in a scale.
+            Shape::Plane { .. } | Shape::Mesh => Vec3::ONE,
         };
         let scale = size * global.scale;
         slot.node
@@ -606,6 +636,108 @@ fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
             false
         }
     });
+}
+
+/// Resolve a `mesh` asset and hand its triangles to kiss3d. `None` when the
+/// asset is missing or unreadable, which is logged rather than fatal: one bad
+/// model must not stop the frame.
+fn upload_mesh(
+    app: &App,
+    scene: &mut SceneNode3d,
+    reference: Option<&str>,
+) -> Option<SceneNode3d> {
+    let reference = reference.filter(|r| !r.is_empty())?;
+    let definition = match balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(
+        &app.engine,
+        reference,
+    ) {
+        Ok(definition) => definition,
+        Err(err) => {
+            tracing::error!("mesh '{reference}': {err:#}");
+            return None;
+        }
+    };
+    let data = match balaur_core::mesh::load_from(&app.engine, &definition) {
+        Ok(data) => data,
+        Err(err) => {
+            tracing::error!("mesh '{reference}': {err:#}");
+            return None;
+        }
+    };
+    let coords: Vec<Vec3> = data
+        .positions
+        .iter()
+        .map(|p| Vec3::new(p[0], p[1], p[2]))
+        .collect();
+    let faces: Vec<[u32; 3]> = data.indices.clone();
+    // Normals and UVs are optional in the format; kiss3d computes normals from
+    // the faces when they are absent, which is the right answer for a bare OBJ.
+    let normals = data
+        .normals
+        .as_ref()
+        .map(|ns| ns.iter().map(|n| Vec3::new(n[0], n[1], n[2])).collect());
+    let uvs = data
+        .uvs
+        .as_ref()
+        .map(|us| us.iter().map(|u| Vec2::new(u[0], u[1])).collect());
+    // Static draw: the geometry is uploaded once per rebuild, not per frame.
+    let gpu = GpuMesh3d::new(coords, faces, normals, uvs, false);
+    Some(scene.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(gpu)), Vec3::ONE))
+}
+
+
+/// The kiss3d node a 2D shape needs. `None` when a polyline names no usable
+/// points, which is the one shape that can fail to have any.
+fn build_2d_node(
+    app: &App,
+    scene: &mut SceneNode2d,
+    renderable: &Renderable2d,
+) -> Option<SceneNode2d> {
+    // Unit primitives: like the 3D path, dimensions live in the node's local
+    // scale, which the caller updates every frame.
+    Some(match renderable.shape {
+        Shape2d::Circle { .. } => scene.add_circle(0.5),
+        Shape2d::Capsule { radius, height } => scene.add_capsule(radius, height),
+        Shape2d::Polyline { width, closed } => {
+            // The points come from the same mesh asset physics reads, flattened
+            // to xy: a 2D chain is a 3D one seen from above.
+            let points = polyline_points(app, renderable.polyline.as_deref(), closed);
+            if points.len() < 2 {
+                return None;
+            }
+            scene.add_polyline(points, None, width)
+        }
+        Shape2d::Rect { .. } | Shape2d::Sprite { .. } => scene.add_rectangle(1.0, 1.0),
+    })
+}
+
+/// A polyline's points from its `mesh` asset, flattened to xy. Empty when the
+/// asset is missing or unreadable, which the caller treats as nothing to draw.
+fn polyline_points(app: &App, reference: Option<&str>, closed: bool) -> Vec<Vec2> {
+    let Some(reference) = reference.filter(|r| !r.is_empty()) else {
+        return Vec::new();
+    };
+    let loaded =
+        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(&app.engine, reference)
+            .and_then(|definition| balaur_core::mesh::load_from(&app.engine, &definition));
+    let data = match loaded {
+        Ok(data) => data,
+        Err(err) => {
+            tracing::error!("polyline '{reference}': {err:#}");
+            return Vec::new();
+        }
+    };
+    let mut points: Vec<Vec2> = data
+        .positions
+        .iter()
+        .map(|p| Vec2::new(p[0], p[1]))
+        .collect();
+    // A closed chain repeats its first point rather than carrying a flag: the
+    // renderer draws segments, and the join is just one more of them.
+    if closed && points.len() > 2 {
+        points.push(points[0]);
+    }
+    points
 }
 
 /// Mirror `Renderable2d` + `GlobalTransform` into the kiss3d 2D scene graph
@@ -659,11 +791,8 @@ fn sync_2d(
             if let Some(mut old) = slots.remove(&entity) {
                 old.node.detach();
             }
-            // Unit primitives: like the 3D path, dimensions live in the
-            // node's local scale, updated every frame below.
-            let mut node = match renderable.shape {
-                Shape2d::Circle { .. } => scene.add_circle(0.5),
-                Shape2d::Rect { .. } | Shape2d::Sprite { .. } => scene.add_rectangle(1.0, 1.0),
+            let Some(mut node) = build_2d_node(app, scene, &renderable) else {
+                continue;
             };
             // Attached once per rebuild: kiss3d's TextureManager caches by
             // name, so the decode happens on the first node to ask for it.
@@ -679,7 +808,9 @@ fn sync_2d(
                         .borrow()
                         .read(&sprite.path)
                     {
-                        Ok(bytes) => node.set_texture_from_memory(&bytes, &sprite.path),
+                        Ok(bytes) => {
+                            node.set_texture_from_memory(&bytes, &sprite.path);
+                        }
                         // A frame is not the place to abort: say which asset
                         // is missing and keep drawing the rest of the scene.
                         Err(err) => tracing::error!("{err:#}"),
@@ -700,6 +831,10 @@ fn sync_2d(
         let [r, g, b, a] = renderable.color;
         let size = match renderable.shape {
             Shape2d::Circle { radius } => Vec2::splat(2.0 * radius),
+            // kiss3d's 2D capsule is real geometry like its 3D one, and a
+            // polyline's points are already in world units: neither is a unit
+            // primitive waiting to be scaled.
+            Shape2d::Capsule { .. } | Shape2d::Polyline { .. } => Vec2::ONE,
             Shape2d::Rect { hx, hy } | Shape2d::Sprite { hx, hy } => Vec2::new(2.0 * hx, 2.0 * hy),
         };
         // Every sync, not just on rebuild: frames and flips are UV changes, so

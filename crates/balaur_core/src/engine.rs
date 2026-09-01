@@ -32,6 +32,7 @@ pub(crate) struct EngineInner {
     pub(crate) root: Cell<hecs::Entity>,
     pub(crate) time: Cell<f64>,
     pub(crate) delta: Cell<f32>,
+    pub(crate) tick: Cell<u64>,
     pub(crate) quit: Cell<bool>,
     /// One engine-wide counter behind [`Engine::next_token`], so every
     /// subsystem's awaitable ids share a namespace and a wake can never
@@ -52,6 +53,7 @@ impl Engine {
                 root: Cell::new(root),
                 time: Cell::new(0.0),
                 delta: Cell::new(0.0),
+                tick: Cell::new(0),
                 quit: Cell::new(false),
                 tokens: Cell::new(1),
             }),
@@ -124,9 +126,18 @@ impl Engine {
         self.inner.delta.get()
     }
 
+    /// How many frames have run. `App::tick` runs one; this reports which.
+    ///
+    /// A replay, a digest trace and a networked peer all key off this rather
+    /// than off [`Engine::time`], which accumulates float error.
+    pub fn tick(&self) -> u64 {
+        self.inner.tick.get()
+    }
+
     pub fn advance_time(&self, dt: f32) {
         self.inner.delta.set(dt);
         self.inner.time.set(self.inner.time.get() + f64::from(dt));
+        self.inner.tick.set(self.inner.tick.get() + 1);
     }
 
     pub fn request_quit(&self) {

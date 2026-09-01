@@ -10,7 +10,7 @@ cannot drift from what scripts actually see.
 | --- | ---: | ---: | --- |
 | [`animation`](#animation) | 14 | 0 | every language |
 | [`assets`](#assets) | 6 | 0 | every language |
-| [`audio`](#audio) | 2 | 0 | every language |
+| [`audio`](#audio) | 8 | 0 | every language |
 | [`engine`](#engine) | 6 | 0 | every language |
 | [`fs`](#fs) | 4 | 0 | every language |
 | [`gamend`](#gamend) | 9 | 0 | every language |
@@ -19,8 +19,8 @@ cannot drift from what scripts actually see.
 | [`json`](#json) | 2 | 0 | every language |
 | [`log`](#log) | 5 | 0 | every language |
 | [`node`](#node) | 29 | 0 | every language |
-| [`physics`](#physics) | 12 | 5 | every language |
-| [`physics2d`](#physics2d) | 9 | 5 | every language |
+| [`physics`](#physics) | 13 | 5 | every language |
+| [`physics2d`](#physics2d) | 10 | 5 | every language |
 | [`render`](#render) | 31 | 0 | every language |
 | [`rng`](#rng) | 4 | 0 | every language |
 | [`scene`](#scene) | 7 | 0 | every language |
@@ -38,7 +38,7 @@ cannot drift from what scripts actually see.
 
 ## `audio`
 
-**Functions:** `play`, `stop_all`
+**Functions:** `is_playing`, `play`, `play_on`, `set_pitch`, `set_volume`, `stop`, `stop_all`, `stop_on`
 
 ## `engine`
 
@@ -105,7 +105,7 @@ cannot drift from what scripts actually see.
 
 ## `physics`
 
-**Functions:** `add_ball_collider`, `add_body`, `add_cuboid_collider`, `apply_impulse`, `clear`, `is_paused`, `linear_velocity`, `set_gravity`, `set_linear_velocity`, `set_paused`, `set_sleeping_allowed`, `sleeping_allowed`
+**Functions:** `add_ball_collider`, `add_body`, `add_cuboid_collider`, `apply_impulse`, `clear`, `is_paused`, `linear_velocity`, `overlaps`, `set_gravity`, `set_linear_velocity`, `set_paused`, `set_sleeping_allowed`, `sleeping_allowed`
 
 **Constants** (5):
 
@@ -119,7 +119,7 @@ cannot drift from what scripts actually see.
 
 ## `physics2d`
 
-**Functions:** `add_body`, `add_collider`, `angular_velocity`, `apply_impulse`, `linear_velocity`, `max_contact_impulse`, `set_angular_velocity`, `set_gravity`, `set_linear_velocity`
+**Functions:** `add_body`, `add_collider`, `angular_velocity`, `apply_impulse`, `linear_velocity`, `max_contact_impulse`, `overlaps`, `set_angular_velocity`, `set_gravity`, `set_linear_velocity`
 
 **Constants** (5):
 

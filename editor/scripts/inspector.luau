@@ -481,6 +481,12 @@ local function component_sections(S, k, filter)
     if ref == nil then
         return
     end
+    -- Advisory only: the component is applied and working as far as the
+    -- engine is concerned, but it has nothing to act on yet.
+    local unmet = {}
+    for _, warning in scene.unmet_expectations(ref) do
+        unmet[warning.component] = table.concat(warning.expects, ", ")
+    end
     for _, comp in ref:component_names() do
         if filter == nil or filter[comp] then
             -- Section header with a right-aligned remove button.
@@ -497,6 +503,12 @@ local function component_sections(S, k, filter)
                 end)
             end)
             ui.separator(k.line_soft)
+            if unmet[comp] ~= nil then
+                ui.add_space(4)
+                ui.label(`⚠ needs one of: {unmet[comp]}`, {
+                    size = 11, color = k.warn or k.faint, wrap = true,
+                })
+            end
             ui.add_space(8)
             local schema = scene.component_schema(comp) or {}
             local data = ref:get_component(comp) or {}

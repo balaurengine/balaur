@@ -93,6 +93,8 @@ current = { type = "bool", default = true, description = "Whether this camera dr
 look_at = { type = "vec3", default = [0.0, 0.0, 0.0], description = "World point the 3D camera looks at" }
 zoom = { type = "float", default = 60.0, min = 1.0, description = "2D zoom in logical pixels per world unit" }"#,
             ),
+            tags: &["3d", "render"],
+            expects: &[],
             apply: Box::new(|eng, entity, params| {
                 let kind = match params.get("kind").and_then(|v| v.as_str()).unwrap_or("3d") {
                     "3d" => CameraKind::Perspective,

@@ -336,7 +336,9 @@ function M.save(S)
 end
 
 -- Add a child under the selected node, in both document and mirror.
-function M.add_child(S)
+-- Add a node, optionally applying a preset to it. A preset is a recipe: the
+-- components land on the node and nothing records which one put them there.
+function M.add_child(S, preset)
     history.record(S, "add node")
     local parent = S.doc[S.sel]
     local base = "Node"
@@ -363,7 +365,16 @@ function M.add_child(S)
     table.insert(S.doc, entry)
     local ref = M.ref(S, S.sel)
     if ref ~= nil then
-        S.refs[#S.doc] = ref:add_child(name)
+        local child = ref:add_child(name)
+        S.refs[#S.doc] = child
+        if preset ~= nil then
+            scene.apply_preset(child, preset)
+            -- Mirror what landed back into the document, so the saved scene
+            -- carries the components rather than only the live node.
+            for _, component in child:component_names() do
+                entry[component] = child:get_component(component)
+            end
+        end
     end
     S.sel = #S.doc
 end

@@ -17,7 +17,7 @@ use crate::clip::Clip;
 use crate::tween::{Tween, TweenId};
 
 /// The simulation tick animation advances on, matching physics.
-pub(crate) const FIXED_DT: f32 = 1.0 / 60.0;
+pub(crate) use balaur_core::FIXED_DT;
 /// How far behind a frame is allowed to fall before time is dropped rather
 /// than caught up on. Without it a stalled frame spends its recovery in a
 /// spiral of catch-up steps.

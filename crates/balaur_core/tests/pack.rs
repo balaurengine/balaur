@@ -88,7 +88,10 @@ fn binary_assets_travel_inside_the_pack() {
         "only shippable extensions travel"
     );
     let decoded = Pack::decode(&pack.encode()).unwrap();
-    assert_eq!(decoded.assets.get("art/hero.png").map(Vec::as_slice), Some(PNG));
+    assert_eq!(
+        decoded.assets.get("art/hero.png").map(Vec::as_slice),
+        Some(PNG)
+    );
 }
 
 #[test]

@@ -32,6 +32,14 @@ pub enum Stage {
 
 const STAGE_COUNT: usize = 7;
 
+/// The simulation's tick rate. One declaration, because two independently
+/// written 60ths of a second are equal today and a desync the day one moves.
+pub const TICK_HZ: u32 = 60;
+
+/// The fixed simulation step. Physics, animation and `App::set_fixed_dt` all
+/// take their step from here.
+pub const FIXED_DT: f32 = 1.0 / TICK_HZ as f32;
+
 pub type SystemFn = Box<dyn FnMut(&Engine, f32)>;
 
 /// CLI arguments exposed to scripts through `engine.args()`.
@@ -119,6 +127,7 @@ pub struct App {
     pack: Option<Pack>,
     project_root: PathBuf,
     manifest: Option<ProjectManifest>,
+    fixed_dt: Option<f32>,
 }
 
 impl App {
@@ -126,6 +135,7 @@ impl App {
         let engine = Engine::new();
         engine.insert_resource(SceneKeyRegistry::default());
         engine.insert_resource(crate::components::ComponentRegistry::default());
+        engine.insert_resource(crate::presets::PresetRegistry::default());
         engine.insert_resource(crate::assets::AssetTypeRegistry::default());
         engine.insert_resource(crate::assets::AssetState::default());
         engine.insert_resource(ProjectRoot(config.project_root.clone()));
@@ -143,6 +153,7 @@ impl App {
         });
         engine.insert_resource(ScriptArgs(config.script_args.clone()));
         engine.insert_resource(crate::rng::RngState::default());
+        engine.insert_resource(crate::digest::DigestRegistry::default());
         if let Some(make) = config.script_backend.take() {
             engine.set_script_host(make(ScriptSetup {
                 engine: &engine,
@@ -161,7 +172,13 @@ impl App {
             pack: config.pack,
             project_root: config.project_root,
             manifest: None,
+            fixed_dt: None,
         };
+        // Geometry is core content, not a rendering concern: physics reads
+        // the same asset for its trimesh and convex-hull colliders, and it
+        // does not depend on the render crate.
+        crate::mesh::register_mesh_asset(&mut app);
+        crate::heightfield::register_heightfield_asset(&mut app);
         app.add_system(Stage::PreUpdate, |eng, _| {
             if let Some(host) = eng.script_host() {
                 host.pump_reloads();
@@ -200,6 +217,34 @@ impl App {
             .with_context(|| format!("building plugin {}", plugin.name()))?;
         self.plugins.push(plugin.name().to_string());
         Ok(self)
+    }
+
+    /// Run the simulation at a fixed step, ignoring wall-clock jitter.
+    ///
+    /// The deterministic mode: a slow frame makes the simulation fall behind
+    /// real time rather than take a bigger step, because a bigger step is a
+    /// different simulation. Off by default — a variable step is smoother
+    /// for a single-player game that never records or networks anything.
+    pub fn set_fixed_dt(&mut self, dt: Option<f32>) -> &mut Self {
+        self.fixed_dt = dt;
+        self
+    }
+
+    /// Fold plugin-owned state into the per-tick digest.
+    ///
+    /// Components report what a scene author set; a step computes more than
+    /// that, and what it computes is what diverges first.
+    pub fn add_digest_source(
+        &mut self,
+        name: &str,
+        source: impl Fn(&Engine, &mut Vec<crate::digest::Entry>) + 'static,
+    ) -> &mut Self {
+        let sources = self.engine.resource::<crate::digest::DigestRegistry>();
+        sources
+            .borrow_mut()
+            .0
+            .push((name.to_string(), Box::new(source)));
+        self
     }
 
     pub fn add_system(
@@ -249,6 +294,17 @@ impl App {
                 .ok_or_else(|| anyhow::anyhow!("unknown component '{component}'"))?;
             (def.apply)(eng, entity, &full)
         });
+        self
+    }
+
+    /// Register a preset: a named set of components applied to one node.
+    ///
+    /// A recipe, not a type -- see `balaur_core::presets`. Plugins register
+    /// the presets for the components they own, so the physics plugin ships
+    /// the body ones and a headless build offers neither.
+    pub fn register_preset(&mut self, name: &str, def: crate::presets::PresetDef) -> &mut Self {
+        let registry = self.engine.resource::<crate::presets::PresetRegistry>();
+        registry.borrow_mut().0.insert(name.to_string(), def);
         self
     }
 
@@ -320,9 +376,32 @@ impl App {
         if let Some(manifest) = &self.manifest {
             self.engine.insert_resource(manifest.clone());
         }
+        self.load_project_presets()?;
         let root = self.engine.root();
         project::instantiate_scene(&self.engine, &scene_src, root, true)?;
         Ok(self)
+    }
+
+    /// Load `presets.toml`, letting a project name its own recipes.
+    ///
+    /// Read through `ProjectFiles`, so a packed game gets the same presets a
+    /// dev run does. Absent is the normal case, not an error; malformed is an
+    /// error, because silently ignoring it hides a typo forever.
+    fn load_project_presets(&mut self) -> Result<()> {
+        let files = self.engine.resource::<project::ProjectFiles>();
+        let Ok(bytes) = files.borrow().read("presets.toml") else {
+            return Ok(());
+        };
+        let text = String::from_utf8(bytes).context("presets.toml is not UTF-8")?;
+        let table: toml::Value = toml::from_str(&text).context("parsing presets.toml")?;
+        let table = table
+            .as_table()
+            .ok_or_else(|| anyhow::anyhow!("presets.toml should be a table of presets"))?;
+        for (name, body) in table {
+            let def = crate::presets::from_toml(name, body)?;
+            self.register_preset(name, def);
+        }
+        Ok(())
     }
 
     pub const fn manifest(&self) -> Option<&ProjectManifest> {
@@ -333,7 +412,17 @@ impl App {
         &self.project_root
     }
 
-    /// Run one frame.
+    /// Run one frame from a *measured* frame time, applying the fixed-step
+    /// policy.
+    ///
+    /// Backends with their own main loop call this rather than [`App::tick`],
+    /// so `set_fixed_dt` reaches every run mode instead of only the one whose
+    /// loop lives here.
+    pub fn advance(&mut self, measured_dt: f32) {
+        self.tick(self.fixed_dt.unwrap_or(measured_dt));
+    }
+
+    /// Run one frame at exactly `dt`, whatever the fixed-step policy says.
     pub fn tick(&mut self, dt: f32) {
         self.engine.advance_time(dt);
         for stage in 0..STAGE_COUNT {
@@ -346,18 +435,22 @@ impl App {
     /// Fixed-cadence main loop (60 Hz), until quit is requested. Rendering
     /// backends may block on vsync inside their Render-stage system; the
     /// sleep below only tops up whatever time is left.
+    ///
+    /// Under [`App::set_fixed_dt`] the step fed to systems is that constant
+    /// rather than the measured frame time, which is what makes an
+    /// interactive run reproduce a headless one tick for tick.
     pub fn run(&mut self) {
-        const TARGET: Duration = Duration::from_micros(16_667);
+        let target = Duration::from_secs_f32(self.fixed_dt.unwrap_or(FIXED_DT));
         let mut last = Instant::now();
         while !self.engine.quit_requested() {
             let now = Instant::now();
-            let dt = (now - last).as_secs_f32().min(0.1);
+            let measured = (now - last).as_secs_f32().min(0.1);
             last = now;
-            self.tick(dt);
+            self.advance(measured);
             let elapsed = last.elapsed();
-            if elapsed < TARGET {
-                // elapsed < TARGET was just checked, so the subtraction cannot underflow.
-                std::thread::sleep(TARGET.checked_sub(elapsed).unwrap());
+            if elapsed < target {
+                // elapsed < target was just checked, so the subtraction cannot underflow.
+                std::thread::sleep(target.checked_sub(elapsed).unwrap());
             }
         }
     }

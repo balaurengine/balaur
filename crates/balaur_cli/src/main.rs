@@ -1,9 +1,10 @@
 //! The `balaur` command line tool: create, run, export, and play projects.
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use balaur::{AppConfig, Pack};
+use balaur::{App, AppConfig, Pack};
 use clap::{Parser, Subcommand};
 
 mod templates;
@@ -36,6 +37,14 @@ enum Command {
         /// `render.screenshot(path)` from the game or tool itself.
         #[arg(long)]
         offscreen: bool,
+        /// Step the simulation at a fixed 60 Hz instead of at the measured
+        /// frame time: the mode a replay or a networked peer reproduces.
+        #[arg(long)]
+        fixed_tick: bool,
+        /// Write one `<tick> <digest>` line per frame. Two runs whose traces
+        /// differ diverged at the first differing line.
+        #[arg(long, value_name = "PATH")]
+        trace_digest: Option<PathBuf>,
     },
     /// Export the project as a pack: every script precompiled to Luau
     /// bytecode, scenes and manifest bundled.
@@ -139,7 +148,7 @@ fn main() -> Result<()> {
             let mut app = balaur::standard_app(AppConfig::packed(Pack::decode(&pack)?))?;
             app.load_project()?;
             for _ in 0..frames {
-                app.tick(1.0 / 60.0);
+                app.tick(balaur::FIXED_DT);
             }
             return Ok(());
         }
@@ -153,7 +162,16 @@ fn main() -> Result<()> {
             headless,
             frames,
             offscreen,
-        } => run_project(&path, headless, frames, offscreen),
+            fixed_tick,
+            trace_digest,
+        } => run_project(&RunOpts {
+            path,
+            headless,
+            frames,
+            offscreen,
+            fixed_tick,
+            trace_digest,
+        }),
         Command::Edit {
             path,
             editor,
@@ -189,7 +207,7 @@ fn main() -> Result<()> {
                 let mut app = balaur::standard_app(AppConfig::packed(pack))?;
                 app.load_project()?;
                 for _ in 0..frames {
-                    app.tick(1.0 / 60.0);
+                    app.tick(balaur::FIXED_DT);
                 }
                 return Ok(());
             }
@@ -562,9 +580,48 @@ fn find_template(target: &str) -> Result<PathBuf> {
     )
 }
 
-fn run_project(path: &Path, headless: bool, frames: Option<u64>, offscreen: bool) -> Result<()> {
+struct RunOpts {
+    path: PathBuf,
+    headless: bool,
+    frames: Option<u64>,
+    offscreen: bool,
+    fixed_tick: bool,
+    trace_digest: Option<PathBuf>,
+}
+
+/// Append `<tick> <digest>` per frame, at the end of the frame.
+///
+/// `Stage::Last` is after deferred destruction, so the line describes the
+/// world the next tick starts from — the state a peer would be compared on.
+fn trace_digest_to(app: &mut App, path: &Path) -> Result<()> {
+    let mut out = std::fs::File::create(path)
+        .with_context(|| format!("creating {}", path.display()))?;
+    app.add_system(balaur::Stage::Last, move |eng, _| {
+        if let Err(e) = writeln!(out, "{} {}", eng.tick(), balaur::digest::digest(eng)) {
+            tracing::error!(error = %e, "writing digest trace");
+        }
+    });
+    Ok(())
+}
+
+fn run_project(opts: &RunOpts) -> Result<()> {
+    let RunOpts {
+        path,
+        headless,
+        frames,
+        offscreen,
+        fixed_tick,
+        trace_digest,
+    } = opts;
+    let (headless, frames, offscreen) = (*headless, *frames, *offscreen);
     let mut app = balaur::standard_app(AppConfig::dev(path.to_string_lossy().as_ref()))?;
     app.load_project()?;
+    if *fixed_tick {
+        app.set_fixed_dt(Some(balaur::FIXED_DT));
+    }
+    if let Some(trace) = trace_digest {
+        trace_digest_to(&mut app, trace)?;
+    }
     let title = app
         .manifest()
         .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
@@ -572,7 +629,7 @@ fn run_project(path: &Path, headless: bool, frames: Option<u64>, offscreen: bool
         match frames {
             Some(frames) => {
                 for _ in 0..frames {
-                    app.tick(1.0 / 60.0);
+                    app.tick(balaur::FIXED_DT);
                 }
             }
             None => app.run(),

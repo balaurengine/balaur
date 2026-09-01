@@ -8,7 +8,7 @@
 //! simulated pose is written to the local transform). Nest them under
 //! non-moving parents only.
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use balaur_core::collections::DetHashMap;
 use balaur_core::components::ComponentDef;
 use balaur_core::entity_of;
@@ -16,13 +16,16 @@ use balaur_core::hecs::Entity;
 use balaur_core::{App, Engine, Plugin, Stage, Transform};
 use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Pose3, Vec3};
+use rapier3d::math::Vector;
 use rapier3d::pipeline::PhysicsWorld;
 use rapier3d::prelude::{ColliderBuilder, ColliderHandle, RigidBodyBuilder, RigidBodyHandle};
 
 pub mod dim2;
 pub use dim2::PhysicsState2d;
 
-const FIXED_DT: f32 = 1.0 / 60.0;
+use balaur_core::digest::{node_label, Entry, Hasher};
+use balaur_core::FIXED_DT;
+
 const MAX_SUBSTEPS: u32 = 4;
 
 pub struct PhysicsState {
@@ -65,21 +68,82 @@ impl Plugin for PhysicsPlugin {
     fn build(&mut self, app: &mut App) -> Result<()> {
         app.engine.insert_resource(PhysicsState::new());
         app.add_system(Stage::PostUpdate, step_system);
+        build_physics_digest(app);
 
         let mut m = app.script_module("physics")?;
         install_constants(&mut *m, BODY_KINDS, SHAPE_KINDS);
         install_world_controls(&mut *m);
         install_body_api(&mut *m);
         register_physics_components(app);
+        register_physics_presets(app)?;
 
         dim2::build(app)?;
         Ok(())
     }
 }
 
+/// Velocity and sleep state, which no component `get` reports: two peers
+/// can agree on every position and still be about to diverge.
+fn build_physics_digest(app: &mut App) {
+    app.add_digest_source("physics", |eng, out| {
+        let Some(state) = eng.try_resource::<PhysicsState>() else {
+            return;
+        };
+        let state = state.borrow();
+        let world = eng.world();
+        for (&entity, &handle) in &state.bodies {
+            let body = &state.world.bodies[handle];
+            let (v, w) = (body.linvel(), body.angvel());
+            let mut h = Hasher::new();
+            for value in [v.x, v.y, v.z, w.x, w.y, w.z] {
+                h.write_f32(value);
+            }
+            h.write(&[u8::from(body.is_sleeping())]);
+            out.push(Entry {
+                label: node_label(&world, entity),
+                digest: h.finish(),
+            });
+        }
+    });
+}
+
+/// The 3D body presets. Dimension is unmarked on 3D names (N/D5).
+fn register_physics_presets(app: &mut App) -> Result<()> {
+    app.register_preset(
+        "rigid_body",
+        balaur_core::presets::preset(
+            "A body physics simulates, with a box collider",
+            &["3d", "physics"],
+            &[("body", Some("kind = \"dynamic\"")), ("collider", None)],
+        )?,
+    );
+    app.register_preset(
+        "static_body",
+        balaur_core::presets::preset(
+            "An immovable body with a box collider: ground, walls",
+            &["3d", "physics"],
+            &[("body", Some("kind = \"static\"")), ("collider", None)],
+        )?,
+    );
+    Ok(())
+}
+
+/// The geometry a mesh-backed collider names, through the same asset the
+/// renderer uses.
+fn collider_mesh(eng: &Engine, params: &toml::Value) -> Result<balaur_core::mesh::MeshData> {
+    let reference = params
+        .get("mesh")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow!("a trimesh or convex_hull collider needs a `mesh` asset"))?;
+    let definition =
+        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, reference)?;
+    balaur_core::mesh::load_from(eng, &definition)
+}
+
 /// The collider described by `params`, in the `collider` schema's own
 /// vocabulary — so a script table and a scene-file entry build the same thing.
-fn collider_builder(params: &toml::Value) -> Result<ColliderBuilder> {
+fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder> {
     let kind = params
         .get("kind")
         .and_then(|v| v.as_str())
@@ -98,9 +162,107 @@ fn collider_builder(params: &toml::Value) -> Result<ColliderBuilder> {
             .and_then(balaur_core::components::as_f64)
             .unwrap_or(0.5) as f32
     };
+    let point = |key: &str, fallback: [f32; 3]| {
+        let read = |i: usize| {
+            params
+                .get(key)
+                .and_then(|v| v.as_array())
+                .and_then(|a| a.get(i))
+                .and_then(balaur_core::components::as_f64)
+                .map(|v| v as f32)
+        };
+        Vector::new(
+            read(0).unwrap_or(fallback[0]),
+            read(1).unwrap_or(fallback[1]),
+            read(2).unwrap_or(fallback[2]),
+        )
+    };
+    let radius = f("radius", 0.5).max(0.01);
+    // rapier measures these from the centre; `height` is the whole straight
+    // part, matching what the `shape` component means by it.
+    let half_height = (f("height", 1.0).max(0.01)) / 2.0;
     let builder = match kind {
-        "ball" => ColliderBuilder::ball(f("radius", 0.5).max(0.01)),
+        "ball" => ColliderBuilder::ball(radius),
         "cuboid" => ColliderBuilder::cuboid(he(0).max(0.01), he(1).max(0.01), he(2).max(0.01)),
+        "capsule" => ColliderBuilder::capsule_y(half_height, radius),
+        "cylinder" => ColliderBuilder::cylinder(half_height, radius),
+        "cone" => ColliderBuilder::cone(half_height, radius),
+        "triangle" => ColliderBuilder::triangle(
+            point("a", [0.0, 0.0, 0.0]),
+            point("b", [1.0, 0.0, 0.0]),
+            point("c", [0.0, 1.0, 0.0]),
+        ),
+        // The same `mesh` asset the renderer draws, so a model and the shape
+        // it collides with are one authored thing that cannot drift apart.
+        "trimesh" => {
+            let mesh = collider_mesh(eng, params)?;
+            let points = mesh
+                .positions
+                .iter()
+                .map(|p| Vector::new(p[0], p[1], p[2]))
+                .collect();
+            ColliderBuilder::trimesh(points, mesh.indices.clone())
+                .map_err(|e| anyhow!("that mesh cannot be a trimesh collider: {e}"))?
+        }
+        "convex_hull" => {
+            let mesh = collider_mesh(eng, params)?;
+            let points: Vec<Vector> = mesh
+                .positions
+                .iter()
+                .map(|p| Vector::new(p[0], p[1], p[2]))
+                .collect();
+            // Degenerate input (every point on one line or plane) has no hull.
+            // The node keeps a collider rather than losing one silently.
+            ColliderBuilder::convex_hull(&points).unwrap_or_else(|| {
+                let (min, max) = mesh.bounds().unwrap_or(([-0.5; 3], [0.5; 3]));
+                tracing::warn!(
+                    "convex_hull: those {} points are degenerate; using their bounding box",
+                    points.len()
+                );
+                ColliderBuilder::cuboid(
+                    ((max[0] - min[0]) / 2.0).max(0.01),
+                    ((max[1] - min[1]) / 2.0).max(0.01),
+                    ((max[2] - min[2]) / 2.0).max(0.01),
+                )
+            })
+        }
+        "polyline" => {
+            let mesh = collider_mesh(eng, params)?;
+            let points: Vec<Vector> = mesh
+                .positions
+                .iter()
+                .map(|p| Vector::new(p[0], p[1], p[2]))
+                .collect();
+            if points.len() < 2 {
+                bail!(
+                    "a polyline collider needs at least two points, not {}",
+                    points.len()
+                );
+            }
+            // `None` chains the points in order, which is what a mesh's vertex
+            // list means; a closed loop repeats the first point at the end.
+            ColliderBuilder::polyline(points, None)
+        }
+        "heightfield" => {
+            let reference = params
+                .get("heightfield")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| anyhow!("a heightfield collider needs a `heightfield` asset"))?;
+            let field = balaur_core::assets::load_typed::<balaur_core::heightfield::HeightfieldData>(
+                eng, reference,
+            )?;
+            // The asset checked its own shape, so Array2's assert cannot fire.
+            // Through rapier's own re-export, so parry cannot drift to a
+            // different version than the one rapier was built against.
+            let grid = rapier3d::parry::utils::Array2::new(
+                field.rows,
+                field.columns,
+                field.heights.clone(),
+            );
+            let extent = point("scale", [1.0, 1.0, 1.0]);
+            ColliderBuilder::heightfield(grid, extent)
+        }
         other => return Err(anyhow!("unknown collider kind '{other}'")),
     };
     Ok(builder
@@ -118,7 +280,7 @@ fn collider_builder(params: &toml::Value) -> Result<ColliderBuilder> {
 /// Build and insert the collider described by `params`, replacing any
 /// existing one (attached to the entity's body when it has one).
 fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let builder = collider_builder(params)?;
+    let builder = collider_builder(eng, params)?;
     remove_colliders(eng, entity);
     add_collider(eng, entity, builder)
 }
@@ -217,6 +379,26 @@ fn add_collider(eng: &Engine, entity: Entity, builder: ColliderBuilder) -> Resul
         let state = eng.resource::<PhysicsState>();
         let mut state = state.borrow_mut();
         if let Some(body) = state.bodies.get(&entity).copied() {
+            // A hollow shape has no interior, so rapier cannot derive an
+            // inertia tensor for it. The body still simulates, badly; saying so
+            // beats leaving someone to wonder why it tumbles.
+            if state
+                .world
+                .bodies
+                .get(body)
+                .is_some_and(rapier3d::prelude::RigidBody::is_dynamic)
+                && matches!(
+                    builder.shape.as_typed_shape(),
+                    rapier3d::prelude::TypedShape::TriMesh(_)
+                        | rapier3d::prelude::TypedShape::Polyline(_)
+                        | rapier3d::prelude::TypedShape::HeightField(_)
+                )
+            {
+                tracing::warn!(
+                    "a dynamic body with a trimesh, polyline or heightfield collider has no \
+                     well-defined mass; give it a convex_hull or a primitive, or make it static"
+                );
+            }
             handle = state.world.insert_collider(builder, Some(body));
         } else {
             // No body: static world geometry at the node's current pose.
@@ -491,6 +673,8 @@ fn register_physics_components(app: &mut App) {
                 "body",
                 r#"kind = { type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic"], shorthand = true, description = "How physics drives the node: simulated, immovable, or moved by script" }"#,
             ),
+            tags: &["3d", "physics"],
+            expects: &[],
             apply: Box::new(|eng, entity, params| {
                 let kind = params
                     .get("kind")
@@ -536,14 +720,23 @@ fn register_physics_components(app: &mut App) {
         ComponentDef {
             schema: ComponentDef::parse_schema(
                 "collider",
-                r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid"], description = "Collision shape" }
-radius = { type = "float", default = 0.5, min = 0.01, description = "Ball radius, when kind is ball" }
+                r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid", "capsule", "cylinder", "cone", "triangle", "trimesh", "convex_hull", "polyline", "heightfield"], description = "Collision shape" }
+radius = { type = "float", default = 0.5, min = 0.01, description = "Radius, for ball, capsule, cylinder and cone" }
+height = { type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, for capsule, cylinder and cone" }
 half_extents = { type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }
+a = { type = "vec3", default = [0.0, 0.0, 0.0], description = "First corner, when kind is triangle" }
+b = { type = "vec3", default = [1.0, 0.0, 0.0], description = "Second corner, when kind is triangle" }
+c = { type = "vec3", default = [0.0, 1.0, 0.0], description = "Third corner, when kind is triangle" }
+mesh = { type = "asset", asset = "mesh", default = "", description = "Geometry for a trimesh, convex_hull or polyline collider" }
+heightfield = { type = "asset", asset = "heightfield", default = "", description = "Terrain grid, when kind is heightfield" }
+scale = { type = "vec3", default = [1.0, 1.0, 1.0], description = "Cell size and height scale of a heightfield" }
 restitution = { type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness: 0 is a dead stop, 1 a full rebound" }
 friction = { type = "float", default = 0.5, min = 0.0, description = "Surface friction; 0 is ice" }
-density = { type = "float", default = 1.0, min = 0.001, description = "Mass per area, so the shape's size sets its mass" }
+density = { type = "float", default = 1.0, min = 0.001, description = "Mass per volume, so the shape's size sets its mass" }
 sensor = { type = "bool", default = false, description = "Detects overlaps without colliding: bodies pass through and are reported" }"#,
             ),
+            tags: &["3d", "physics"],
+            expects: &[],
             apply: Box::new(apply_collider),
             remove: Box::new(|eng, entity| {
                 remove_colliders(eng, entity);

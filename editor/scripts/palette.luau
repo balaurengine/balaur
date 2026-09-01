@@ -37,6 +37,20 @@ local function commands(S)
     -- Component commands come from the engine's registry, so third-party
     -- plugin components are addable without touching the editor.
     local _, ref = model.selected(S)
+    -- Presets first: they are the shortcut most edits actually want, and
+    -- each is just the components it names.
+    for _, preset in scene.presets() do
+        local info = scene.preset_info(preset)
+        local tags = info ~= nil and table.concat(info.tags, " ") or ""
+        table.insert(list, {
+            label = `Add {preset} node`,
+            icon = "＋",
+            key = "",
+            hint = info ~= nil and info.description or "",
+            tags = tags,
+            run = function() model.add_child(S, preset) end,
+        })
+    end
     if ref ~= nil then
         local present = {}
         for _, name in ref:component_names() do
@@ -51,6 +65,8 @@ local function commands(S)
             else
                 table.insert(list, {
                     label = `Add {name} component`, icon = "＋", key = "",
+                    -- Facets, so typing "physics" or "2d" narrows the list.
+                    tags = table.concat(scene.component_tags(name) or {}, " "),
                     run = function() model.add_component(S, name) end,
                 })
             end
@@ -94,7 +110,10 @@ function M.draw(S)
             local first = true
             local matched = 0
             for _, cmd in commands(S) do
-                if query == "" or string.find(string.lower(cmd.label), query, 1, true) ~= nil then
+                -- Match the facets too, so "physics" or "2d" narrows the
+                -- list even though neither word is in the label.
+                local haystack = string.lower(cmd.label .. " " .. (cmd.tags or ""))
+                if query == "" or string.find(haystack, query, 1, true) ~= nil then
                     matched += 1
                     local run = false
                     ui.horizontal({ height = 40 }, function()

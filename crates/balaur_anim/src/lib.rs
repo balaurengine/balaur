@@ -95,6 +95,8 @@ autoplay = { type = "string", default = "", description = "Clip to start when th
 speed = { type = "float", default = 1.0, description = "Playback rate for every clip on this node" }
 root = { type = "string", default = "", description = "Node path the clip's tracks resolve against; empty means this node" }"#,
             ),
+            tags: &["animation"],
+            expects: &[],
             apply: Box::new(|eng, entity, params| {
                 apply_animation(eng, entity, params);
                 Ok(())

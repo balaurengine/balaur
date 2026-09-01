@@ -21,6 +21,8 @@ fn app_with_marker() -> App {
                 r#"label = { type = "string", default = "none" }
 size = { type = "float", default = 1.0 }"#,
             ),
+            tags: &[],
+            expects: &[],
             apply: Box::new(|eng: &Engine, entity, params| {
                 eng.world_mut()
                     .insert_one(entity, Marker(params.clone()))

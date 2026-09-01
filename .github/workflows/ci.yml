@@ -86,6 +86,17 @@ jobs:
         with:
           name: packs-${{ matrix.os }}
           path: target/e2e/digests.txt
+      # A pack agreeing across platforms says the encoder is reproducible. It
+      # says nothing about whether two CPUs stepped the same physics, which is
+      # what this records and the simulation-matches job diffs.
+      - name: Determinism — record the per-tick digest trace
+        shell: bash
+        run: ./scripts/determinism_trace.sh record target/determinism
+      - name: Upload determinism traces
+        uses: actions/upload-artifact@v4
+        with:
+          name: traces-${{ matrix.os }}
+          path: target/determinism/traces.txt
 
   # The multi-platform half of the determinism promise; see
   # scripts/compare_packs.sh for what it does and does not claim.
@@ -101,6 +112,21 @@ jobs:
           path: digests
       - name: Compare
         run: ./scripts/compare_packs.sh digests
+
+  # The other multi-platform half: same sources, same simulation. A failure
+  # here names the tick two platforms parted on.
+  simulation-matches:
+    name: every platform steps the same simulation
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: traces-*
+          path: traces
+      - name: Compare
+        run: ./scripts/determinism_trace.sh compare traces
 
   supply-chain:
     name: advisories · bans

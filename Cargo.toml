@@ -75,11 +75,10 @@ ureq = "3"
 tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 
 # Fast script iteration is the whole point; keep debug builds usable.
+# Dev trades runtime speed for iteration speed: opt 0 everywhere, minimal
+# debuginfo. Play at full speed with --release.
 [profile.dev]
-opt-level = 1
-
-[profile.dev.package."*"]
-opt-level = 3
+debug = "line-tables-only"
 
 # Our kiss3d fork: v0.46.0 + the macOS Command-modifier fix for egui + iOS/Android
 # support. Cargo.lock pins the commit; to hack on kiss3d locally, use a `paths`

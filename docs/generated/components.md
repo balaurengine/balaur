@@ -3,9 +3,17 @@
 # Components
 
 Balaur has no node classes and no inheritance tree: every node is the
-same entity, and capability comes from the components on it. What a
-`Node2D`, `RigidBody` or `Label` is elsewhere is here a plain node
-plus `shape2d`, `body` or `widget` — freely combined.
+same entity, and capability comes from the components on it.
+
+In the terms other engines use: a specialized node type there (a
+`RigidBody2D`, a `Sprite2D`, a `Label`) is here a plain node plus a
+component, and a content resource there (an animation library, say)
+is here an [asset](#asset-types), referenced from an `asset`-typed
+property or defined inline in the scene. Some things that are
+resources elsewhere are neither here: a collider's shape is plain
+data on the `collider` component itself. And similar component names
+are siblings by convention, never inheritance — `body2d` shares
+nothing with `body`; each component is independent and complete.
 
 Each component is registered by a plugin with the schema below; one
 registration provides the scene-file key, the runtime
@@ -14,12 +22,12 @@ registration provides the scene-file key, the runtime
 <details>
 <summary><code>animation</code> · 4 properties</summary>
 <table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>notes</th></tr></thead>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>autoplay</code></td><td>string</td><td><code></code></td><td></td></tr>
-<tr><td><code>library</code></td><td>asset</td><td><code></code></td><td></td></tr>
-<tr><td><code>root</code></td><td>string</td><td><code></code></td><td></td></tr>
-<tr><td><code>speed</code></td><td>float</td><td><code>1.0</code></td><td></td></tr>
+<tr><td><code>autoplay</code></td><td>string</td><td>—</td><td>Clip to start when the scene loads; empty starts nothing</td></tr>
+<tr><td><code>library</code></td><td>asset · <code>animation_clip</code></td><td>—</td><td>The clip library this node plays from</td></tr>
+<tr><td><code>root</code></td><td>string</td><td>—</td><td>Node path the clip&#x27;s tracks resolve against; empty means this node</td></tr>
+<tr><td><code>speed</code></td><td>float</td><td><code>1.0</code></td><td>Playback rate for every clip on this node</td></tr>
 </tbody>
 </table>
 </details>
@@ -27,9 +35,9 @@ registration provides the scene-file key, the runtime
 <details>
 <summary><code>body</code> · 1 property</summary>
 <table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>notes</th></tr></thead>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>kind</code></td><td>enum</td><td><code>dynamic</code></td><td>one of <code>dynamic</code>, <code>static</code>, <code>kinematic</code>; scene shorthand: the key takes this value directly</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>dynamic</code></td><td>How physics drives the node: simulated, immovable, or moved by script One of <code>dynamic</code>, <code>static</code>, <code>kinematic</code>. Scene shorthand: <code>kind</code>'s value can be given as the component's whole value.</td></tr>
 </tbody>
 </table>
 </details>
@@ -37,36 +45,54 @@ registration provides the scene-file key, the runtime
 <details>
 <summary><code>body2d</code> · 1 property</summary>
 <table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>notes</th></tr></thead>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>kind</code></td><td>enum</td><td><code>dynamic</code></td><td>one of <code>dynamic</code>, <code>static</code>, <code>kinematic</code>; scene shorthand: the key takes this value directly</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>dynamic</code></td><td>How 2D physics drives the node: simulated, immovable, or moved by script One of <code>dynamic</code>, <code>static</code>, <code>kinematic</code>. Scene shorthand: <code>kind</code>'s value can be given as the component's whole value.</td></tr>
 </tbody>
 </table>
 </details>
 
 <details>
-<summary><code>collider</code> · 3 properties</summary>
+<summary><code>camera</code> · 4 properties</summary>
 <table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>notes</th></tr></thead>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td></td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>cuboid</code></td><td>one of <code>ball</code>, <code>cuboid</code></td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td></td></tr>
+<tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>3d</code></td><td>Which camera this node drives One of <code>3d</code>, <code>2d</code>.</td></tr>
+<tr><td><code>look_at</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>World point the 3D camera looks at</td></tr>
+<tr><td><code>zoom</code></td><td>float</td><td><code>60.0</code></td><td>2D zoom in logical pixels per world unit At least 1.0.</td></tr>
 </tbody>
 </table>
 </details>
 
 <details>
-<summary><code>collider2d</code> · 6 properties</summary>
+<summary><code>collider</code> · 7 properties</summary>
 <table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>notes</th></tr></thead>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td></td></tr>
-<tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td></td></tr>
-<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td></td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>rect</code></td><td>one of <code>circle</code>, <code>rect</code></td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td></td></tr>
-<tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td></td></tr>
+<tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per volume, so the shape&#x27;s size sets its mass At least 0.001.</td></tr>
+<tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction; 0 is ice At least 0.0.</td></tr>
+<tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td>Half-sizes of the cuboid, when kind is cuboid</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>cuboid</code></td><td>Collision shape One of <code>ball</code>, <code>cuboid</code>.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Ball radius, when kind is ball At least 0.01.</td></tr>
+<tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness: 0 is a dead stop, 1 a full rebound Range 0.0–1.0.</td></tr>
+<tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
+</tbody>
+</table>
+</details>
+
+<details>
+<summary><code>collider2d</code> · 7 properties</summary>
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per area, so the shape&#x27;s size sets its mass At least 0.001.</td></tr>
+<tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction; 0 is ice At least 0.0.</td></tr>
+<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>Half-sizes of the rect, when kind is rect</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>rect</code></td><td>Collision shape One of <code>circle</code>, <code>rect</code>.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Circle radius, when kind is circle At least 0.01.</td></tr>
+<tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness: 0 is a dead stop, 1 a full rebound Range 0.0–1.0.</td></tr>
+<tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 </tbody>
 </table>
 </details>
@@ -74,9 +100,26 @@ registration provides the scene-file key, the runtime
 <details>
 <summary><code>color</code> · 1 property</summary>
 <table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>notes</th></tr></thead>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>rgba</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>scene shorthand: the key takes this value directly</td></tr>
+<tr><td><code>rgba</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>The node&#x27;s tint, as channel floats or #rrggbb / #rrggbbaa Scene shorthand: <code>rgba</code>'s value can be given as the component's whole value.</td></tr>
+</tbody>
+</table>
+</details>
+
+<details>
+<summary><code>particles</code> · 8 properties</summary>
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>angle</code></td><td>float</td><td><code>90.0</code></td><td>Emission direction in degrees; 90 is straight up</td></tr>
+<tr><td><code>emitting</code></td><td>bool</td><td><code>true</code></td><td>Whether new particles are born; live ones finish either way</td></tr>
+<tr><td><code>gravity</code></td><td>vec2</td><td><code>[0.0, -3.0]</code></td><td>Acceleration applied over a particle&#x27;s life</td></tr>
+<tr><td><code>lifetime</code></td><td>float</td><td><code>1.0</code></td><td>Seconds a particle lives At least 0.05.</td></tr>
+<tr><td><code>rate</code></td><td>float</td><td><code>20.0</code></td><td>Particles born per second At least 0.0.</td></tr>
+<tr><td><code>size</code></td><td>float</td><td><code>4.0</code></td><td>Particle size in logical pixels At least 0.5.</td></tr>
+<tr><td><code>speed</code></td><td>float</td><td><code>2.0</code></td><td>Initial speed in world units per second At least 0.0.</td></tr>
+<tr><td><code>spread</code></td><td>float</td><td><code>30.0</code></td><td>Half-angle of the emission cone in degrees At least 0.0.</td></tr>
 </tbody>
 </table>
 </details>
@@ -84,11 +127,11 @@ registration provides the scene-file key, the runtime
 <details>
 <summary><code>shape</code> · 3 properties</summary>
 <table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>notes</th></tr></thead>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td></td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>cuboid</code></td><td>one of <code>ball</code>, <code>cuboid</code></td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td></td></tr>
+<tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td>Half-sizes of the cuboid, when kind is cuboid</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>cuboid</code></td><td>Rendered 3D shape One of <code>ball</code>, <code>cuboid</code>.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Ball radius, when kind is ball At least 0.01.</td></tr>
 </tbody>
 </table>
 </details>
@@ -96,45 +139,86 @@ registration provides the scene-file key, the runtime
 <details>
 <summary><code>shape2d</code> · 3 properties</summary>
 <table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>notes</th></tr></thead>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td></td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>rect</code></td><td>one of <code>circle</code>, <code>rect</code></td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td></td></tr>
+<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>Half-sizes of the rect, when kind is rect</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>rect</code></td><td>Rendered 2D shape One of <code>circle</code>, <code>rect</code>.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Circle radius, when kind is circle At least 0.01.</td></tr>
 </tbody>
 </table>
 </details>
 
 <details>
-<summary><code>sprite</code> · 6 properties</summary>
+<summary><code>sound</code> · 5 properties</summary>
 <table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>notes</th></tr></thead>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>columns</code></td><td>float</td><td><code>0.0</code></td><td></td></tr>
-<tr><td><code>frame</code></td><td>float</td><td><code>0.0</code></td><td></td></tr>
-<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td></td></tr>
-<tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td></td></tr>
-<tr><td><code>rows</code></td><td>float</td><td><code>0.0</code></td><td></td></tr>
-<tr><td><code>texture</code></td><td>string</td><td><code></code></td><td></td></tr>
+<tr><td><code>autoplay</code></td><td>bool</td><td><code>false</code></td><td>Start playing when the node enters the scene</td></tr>
+<tr><td><code>file</code></td><td>string</td><td>—</td><td>Audio file, project-relative; required to play</td></tr>
+<tr><td><code>loop</code></td><td>bool</td><td><code>false</code></td><td>Restart the sound when it ends</td></tr>
+<tr><td><code>pitch</code></td><td>float</td><td><code>1.0</code></td><td>Playback speed multiplier At least 0.01.</td></tr>
+<tr><td><code>volume</code></td><td>float</td><td><code>1.0</code></td><td>Linear gain; 1 is the file&#x27;s own level At least 0.0.</td></tr>
 </tbody>
 </table>
 </details>
 
 <details>
-<summary><code>widget</code> · 9 properties</summary>
+<summary><code>sprite</code> · 8 properties</summary>
 <table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>notes</th></tr></thead>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>one of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code></td></tr>
-<tr><td><code>clicked</code></td><td>bool</td><td><code>false</code></td><td>read-only: engine output the inspector shows but never writes</td></tr>
-<tr><td><code>font_size</code></td><td>float</td><td><code>16.0</code></td><td></td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>one of <code>label</code>, <code>button</code>, <code>panel</code></td></tr>
-<tr><td><code>on_click</code></td><td>string</td><td><code></code></td><td></td></tr>
-<tr><td><code>text</code></td><td>string</td><td><code>label</code></td><td></td></tr>
-<tr><td><code>text_color</code></td><td>color</td><td><code>[0.933, 0.945, 0.957, 1.0]</code></td><td></td></tr>
-<tr><td><code>x</code></td><td>float</td><td><code>16.0</code></td><td></td></tr>
-<tr><td><code>y</code></td><td>float</td><td><code>16.0</code></td><td></td></tr>
+<tr><td><code>columns</code></td><td>float</td><td><code>0.0</code></td><td>Sheet grid columns for flipbook sprites; 0 means a single image At least 0.0.</td></tr>
+<tr><td><code>flip_x</code></td><td>bool</td><td><code>false</code></td><td>Mirror horizontally</td></tr>
+<tr><td><code>flip_y</code></td><td>bool</td><td><code>false</code></td><td>Mirror vertically</td></tr>
+<tr><td><code>frame</code></td><td>float</td><td><code>0.0</code></td><td>Current sheet cell, counted left-to-right then top-to-bottom At least 0.0.</td></tr>
+<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Size override in world units; [0, 0] sizes from the texture</td></tr>
+<tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Texture pixels per world unit At least 0.01.</td></tr>
+<tr><td><code>rows</code></td><td>float</td><td><code>0.0</code></td><td>Sheet grid rows for flipbook sprites; 0 means a single image At least 0.0.</td></tr>
+<tr><td><code>texture</code></td><td>string</td><td>—</td><td>Image file, project-relative; required</td></tr>
 </tbody>
 </table>
 </details>
 
+<details>
+<summary><code>tilemap</code> · 3 properties</summary>
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>cells</code></td><td>string</td><td>—</td><td>Rows of tile characters, one row per line: . is empty, 0-9 then a-z index into the tileset</td></tr>
+<tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Tile-texture pixels per world unit At least 0.01.</td></tr>
+<tr><td><code>tileset</code></td><td>asset · <code>tileset</code></td><td>—</td><td>The tileset naming the texture and tile grid</td></tr>
+</tbody>
+</table>
+</details>
+
+<details>
+<summary><code>widget</code> · 12 properties</summary>
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Screen corner or center the offset is measured from One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>.</td></tr>
+<tr><td><code>clicked</code></td><td>bool</td><td><code>false</code></td><td>True on the frame the button was clicked Read-only: engine output the inspector shows but never writes.</td></tr>
+<tr><td><code>font_size</code></td><td>float</td><td><code>16.0</code></td><td>Text size in design pixels At least 6.0.</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>0.0</code></td><td>Panel height in design pixels; 0 sizes to content At least 0.0.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>.</td></tr>
+<tr><td><code>on_click</code></td><td>string</td><td>—</td><td>Script method called on this node when the button is clicked</td></tr>
+<tr><td><code>text</code></td><td>string</td><td><code>label</code></td><td>Label or button caption</td></tr>
+<tr><td><code>text_color</code></td><td>color</td><td><code>[0.933, 0.945, 0.957, 1.0]</code></td><td>Text color</td></tr>
+<tr><td><code>visible</code></td><td>bool</td><td><code>true</code></td><td>Draw the widget; hidden widgets keep their state</td></tr>
+<tr><td><code>width</code></td><td>float</td><td><code>0.0</code></td><td>Panel width in design pixels; 0 sizes to content At least 0.0.</td></tr>
+<tr><td><code>x</code></td><td>float</td><td><code>16.0</code></td><td>Horizontal offset from the anchor, in design pixels</td></tr>
+<tr><td><code>y</code></td><td>float</td><td><code>16.0</code></td><td>Vertical offset from the anchor, in design pixels</td></tr>
+</tbody>
+</table>
+</details>
+
+## Asset types
+
+Content that lives in files (or inline in a scene) rather than on a
+node, registered by plugins the same way components are. An
+`asset`-typed component property names which of these it takes.
+
+| type | project directory |
+| --- | --- |
+| `animation_clip` | `animations/` |
+| `tileset` | `tilesets/` |

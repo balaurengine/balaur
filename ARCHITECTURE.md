@@ -178,6 +178,35 @@ button / panel, anchored to the screen) that live as scene-tree nodes and
 draw through the widget layer (`ui.set_widget_layer` scopes/toggles it —
 the editor previews widgets in its viewport).
 
+### Browsing components: tags, presets, expectations
+
+The component list is flat by design -- a node is exactly the components on
+it, and there is no type to inherit from. Three pieces of metadata make that
+list navigable without adding one back:
+
+**Tags** are facets, and several apply at once: `collider2d` is `2d` *and*
+`physics`. A single category path would force a choice and bury whichever
+lost, so the palette filters on tags and one component appears under both.
+3D components are tagged `3d` even though their names carry no marker (D5).
+
+**Presets** are named recipes over components, applied to one node:
+`rigid_body2d` adds `body2d { kind = "dynamic" }` and `collider2d`. A preset
+is not a type -- nothing records which one was used, so every component stays
+free to add or remove afterwards, and an engine that recorded "this is a
+RigidBody2D" would have to defend that claim forever. Plugins register the
+presets for the components they own, and a project adds its own in
+`presets.toml`. Anything spanning more than one node is a scene, which
+`scene.instantiate` already covers.
+
+**Expectations** are advisory: a component names others it needs *something*
+from, any one of which will do, and the editor warns while none is present.
+Nothing blocks, because a script may add the missing piece on a later tick.
+No built-in component declares one, which is a finding rather than an
+oversight: every candidate turned out to be either already an error (`color`
+refuses a node with nothing to tint) or perfectly valid (a `collider2d` with
+no `body2d` is standalone static geometry). The mechanism is there for
+plugins, and for cases where erroring would be too strict.
+
 ### 2D (core feature)
 
 2D is not a separate engine; it is a second set of components over the same
@@ -538,7 +567,7 @@ The hazards, and how Balaur addresses or will address them:
 | `math.sin/cos/exp/pow/...` call the platform libm; results differ across OS/libc | **Done:** `balaur_script_luau::det` rebinds them to pure-Rust `libm` implementations (MUSL algorithms, bit-identical everywhere). Luau's compiler turns `math.*` into fastcalls that bypass the global table, so `compiler()` also disables those builtins via `Compiler::disabled_builtins`; a test proves O2-compiled code routes through the rebound table. Remaining hole: the `^` exponent operator calls the C `pow` inside the VM and cannot be intercepted from the embedding API; simulation code must call `math.pow` instead (lintable later). |
 | `pairs()` order on tables with table/userdata keys depends on pointer values | Rule: simulation-affecting iteration uses arrays or string/number keys. The editor can lint for this; an engine-provided ordered map is planned. |
 | `math.random` seeded from entropy | **Done:** `math.random`/`math.randomseed` are rebound to an engine-owned PCG32 stream (fixed default seed, so a fresh run is reproducible by construction), also exposed as the `rng` module (`rng.seed/random/range/int`). |
-| Wall-clock (`os.clock`, variable `dt`) leaking into simulation | Physics and animation each step on their own fixed 60 Hz accumulator; input is captured once per frame into a snapshot (replayable). **Planned:** `fixed_update(dt)` script callback and a fixed-tick mode where `update` sees a constant dt. |
+| Wall-clock (`os.clock`, variable `dt`) leaking into simulation | **Done, for the engine's own step:** `App::set_fixed_dt` (`balaur run --fixed-tick`) feeds `FIXED_DT` to every system instead of the measured frame time, so an interactive run reproduces a headless one tick for tick. Physics and animation take that same constant from `balaur_core::FIXED_DT` rather than each declaring their own 60th of a second. Input is captured once per frame into a snapshot (replayable). **Remaining:** a `fixed_update(dt)` script callback, so gameplay code cannot read the variable `dt` at all. |
 | Luau native codegen (JIT) may change float behavior | Not enabled; deterministic builds keep it off. |
 
 Engine-side measures already in place:
@@ -561,7 +590,148 @@ Engine-side measures already in place:
   away from the animated one.
 - Dev-mode and shipped bytecode come from one compiler configuration.
 - `crates/balaur_physics/tests/determinism.rs` asserts two runs match bit for
-  bit; CI on multiple platforms should compare the same digest across OSes.
+  bit, per tick rather than only at the end.
+- CI records a per-tick digest on Linux, macOS and Windows and diffs the three
+  (`scripts/determinism_trace.sh`, the `simulation-matches` job). aarch64 is
+  not in that matrix yet and is where divergence is most likely: rustc may
+  contract `a*b+c` into a single FMA there and not on x86-64 SSE2.
+
+### The digest
+
+A determinism claim nobody measures is a wish, and comparing whole worlds is
+impractical. `balaur_core::digest` folds the simulation into one 64-bit number
+per tick, and that one number is what a test asserts, what CI diffs across
+platforms and what a networked peer would exchange to detect desync.
+
+`entries` hashes in labelled slices rather than as one opaque blob, so a
+mismatch is a *location*: `n_ball_7/body2d` and not "the digest changed".
+`first_divergence` reports the first slice two runs disagree on, including a
+node present on one side only. Floats enter as `to_bits`, because a digest that
+compared them numerically would call two runs equal after they had already
+drifted an ulp — which is exactly the drift that becomes a desync ten seconds
+later.
+
+Two design points carry the weight:
+
+- **Labels are stable ids, not paths.** A slice is named by the node's
+  `StableId`, which survives rename and reparent, so two peers agree on the
+  name of the thing that diverged. This is the structural difference from
+  Godot's `MultiplayerSynchronizer`, which resolves replicated properties by
+  `NodePath` relative to the synchronizer and therefore needs a negotiated
+  path cache, breaks on reparent, and fails to resolve for nodes spawned at
+  run time.
+- **Components are not the whole simulation.** A component's `get` reports
+  what a scene author set: `body` reports its kind and nothing about velocity.
+  Two peers can agree on every position and still be one tick from parting.
+  Plugins therefore contribute what a step computes through
+  `App::add_digest_source`; physics adds linear and angular velocity and sleep
+  state for every body, in both dimensions.
+
+The walk is scene-tree order, not sorted-by-id: two peers that agree have the
+same tree, and a reparent is itself simulation state worth catching.
+
+### What determinism is still missing
+
+Ordered by what would break a networked session first:
+
+1. **`fixed_update`.** Scripts still see a variable `dt` in `update`.
+   `--fixed-tick` makes it constant, but nothing *stops* a game from being
+   written against the variable one.
+2. **Hot reload is a determinism hazard.** Swapping code mid-session changes
+   behaviour by design. A verified or networked run has to either disable it
+   or record the reload as an event in the input trace.
+3. **Run-time-spawned nodes have no `StableId`.** They hash under a name and
+   an entity index, which is reproducible across runs of one binary but is not
+   an identity two peers can negotiate. Replication needs an authority-scoped
+   allocator (`<peer>:<counter>`).
+4. **No record/replay file.** `InputSnapshot`, `NetSnapshot` and
+   `GamendSnapshot` are each captured per tick already and documented as the
+   replay tap; nothing yet writes them to a file and plays them back.
+
+## Networking and state sync (planned)
+
+Nothing here is built. It is written down because the determinism work above
+was done *for* it, and because the shape of the engine already decides most of
+the answers.
+
+### What the engine already gives a replication layer
+
+Three of the four primitives exist and were not built for networking:
+
+| Primitive | Where |
+| --- | --- |
+| Cross-machine identity | `StableId` — survives rename, reparent, reload |
+| Generic property read/write | `ComponentRegistry`'s `get` / `patch` hooks |
+| A wire schema | Component schemas: every property already declares a `type` from the closed `PROPERTY_TYPES` set, with defaults |
+| A tick clock | `Engine::tick`, `FIXED_DT`, `App::set_fixed_dt` |
+
+The third is the one worth noticing. Godot ships a separate
+`SceneReplicationConfig` resource because its nodes have no property schema to
+replicate against; Balaur's schemas are already a description of every
+replicable property and its datatype, and the editor's inspector is already
+generated from them. A delta encoder generated off the registry replicates
+third-party plugin components with no code in the plugin — the same way those
+components already get inspector rows for free.
+
+### Which architecture
+
+Two, and the engine should not have to choose for the game:
+
+- **Deterministic lockstep / rollback.** Only inputs cross the wire, so cost is
+  O(players) and independent of world size — an RTS with 2000 units costs what
+  pong costs. Needs the digest for desync detection and full state save/restore
+  for rollback; rapier's `serde-serialize` feature snapshots a whole physics
+  world, which is the hard half. Any nondeterminism is total desync, and every
+  client simulates everything, so hidden information cannot be hidden.
+- **Server-authoritative delta replication.** The server simulates and sends
+  state deltas; clients predict and reconcile. Tolerates nondeterminism,
+  supports join-in-progress, resists cheating, and costs bandwidth that scales
+  with the world.
+
+Build the second, factored so the first falls out: both need the same identity,
+the same property access and the same clock. Determinism is not wasted on the
+authoritative model — it is what makes its corrections rare and small.
+
+### Delta encoding
+
+`components::patch` writes through hooks and nothing tracks that it did, so
+change detection is the missing piece: a generation counter per
+`(entity, component)`, following the pattern `sprite` already uses to avoid
+rebuilding a renderable when only its UVs moved. Per tick and per observer,
+send the `(StableId, component, changed properties)` set since that observer's
+last acked tick, against a ring of recent states as baselines. Quantisation
+comes off the schema, where a `float` property already declares its range.
+
+### Transport
+
+Today: HTTP and WebSocket (`balaur_net`), plus the Gamend backend. WebSocket
+runs over TCP, so one lost packet stalls every update behind it — fine for
+turn-based play and for lockstep at low tick rates, wrong for anything
+twitchy.
+
+The target is QUIC/WebTransport as the *single* transport (`wtransport` or
+`web-transport-quinn`): reliable-ordered streams and unreliable datagrams in
+one protocol, native and in-browser, TLS included. The point is not raw
+performance over raw UDP; it is not maintaining a native UDP path and a
+separate browser WebRTC path. WebRTC data channels stay a fallback for browser
+P2P without a relay. Note the wasm shape this has to fit: the emscripten
+backend is thread-free and the non-emscripten wasm backend is a stub that
+errors, so a browser transport is a JS bridge like `shim/emscripten_net.c`.
+
+### The script-facing shape
+
+Replication is declarative in the scene file and signal-shaped in scripts,
+matching how components, widgets and `http.request` already work:
+
+```toml
+[[nodes]]
+name = "Player"
+id = "n_player"
+replicate = { authority = "owner", components = ["transform", "body2d"], mode = "on_change" }
+```
+
+RPCs address a node by `StableId`, never by path — which is the whole reason
+the identity work came first.
 
 ## UI: egui for scripts
 
@@ -717,5 +887,14 @@ what lets the three modes agree bit for bit.
    needs a second section and a hash per entry.
 5. Editor: selection, inspector (reflect components to Lua), gizmos, scene
    saving (world → TOML serialization).
-6. `fixed_update` script callback + fixed-tick mode (determinism table).
-7. Parallel system execution inside the data plane once profiling demands it.
+6. `fixed_update` script callback, so gameplay cannot read the variable `dt`
+   at all. Fixed-tick mode itself landed (`--fixed-tick`), as did the per-tick
+   digest and its cross-platform CI diff.
+7. Record/replay: write the per-tick input snapshots and the seed to a file,
+   replay them with `--verify` against the digest chain, and report the first
+   divergent tick and slice. The determinism debugger, and the prerequisite
+   for rollback netcode.
+8. Networking, in the order the section above argues for: `StableId` lookup
+   and a run-time id allocator, change detection on components, a
+   QUIC/WebTransport transport, then the `replicate` scene key.
+9. Parallel system execution inside the data plane once profiling demands it.
