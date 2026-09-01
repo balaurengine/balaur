@@ -244,8 +244,43 @@ pub struct Renderable {
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Shape2d {
-    Circle { radius: f32 },
-    Rect { hx: f32, hy: f32 },
+    Circle {
+        radius: f32,
+    },
+    Rect {
+        hx: f32,
+        hy: f32,
+    },
+    /// A textured quad. Its half-extents are resolved when the sprite is set,
+    /// so they are simulation state a script can read back, the same as a rect.
+    Sprite {
+        hx: f32,
+        hy: f32,
+    },
+}
+
+/// Pixels of texture per world unit when a sprite is sized from its image.
+///
+/// The 2D camera's zoom is logical pixels per world unit, so this is the other
+/// half of that conversion: at the default, a 100px image is one unit across.
+pub const DEFAULT_PIXELS_PER_UNIT: f32 = 100.0;
+
+/// A grid of equally sized frames packed into one texture.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct SpriteSheet2d {
+    pub columns: u32,
+    pub rows: u32,
+}
+
+/// What a `Shape2d::Sprite` draws.
+#[derive(Clone, PartialEq, Eq)]
+pub struct SpriteTexture {
+    /// Project-relative (or absolute) path to the image.
+    pub path: String,
+    /// Set when the texture holds a grid of frames rather than one image.
+    pub sheet: Option<SpriteSheet2d>,
+    /// Which frame of `sheet` to draw. Ignored without a sheet.
+    pub frame: u32,
 }
 
 /// 2D renderable, mirrored into the backend's 2D scene. The node's regular
@@ -253,6 +288,8 @@ pub enum Shape2d {
 pub struct Renderable2d {
     pub shape: Shape2d,
     pub color: [f32; 4],
+    /// Present exactly when `shape` is a sprite.
+    pub sprite: Option<SpriteTexture>,
     pub version: u64,
 }
 
@@ -288,6 +325,76 @@ fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Result<()> {
             Renderable2d {
                 shape,
                 color: [0.8, 0.8, 0.8, 1.0],
+                sprite: None,
+                version: 0,
+            },
+        )
+        .map_err(|_| anyhow!("node is dead"))
+}
+
+/// Half-extents of one frame of `path`, read from the image header.
+///
+/// Not behind the windowed feature: the size lands in a component a script can
+/// read, so a headless run has to compute the same number a windowed one does.
+fn natural_half_extents(
+    path: &std::path::Path,
+    sheet: Option<SpriteSheet2d>,
+    ppu: f32,
+) -> Result<(f32, f32)> {
+    let (w, h) = image::image_dimensions(path)
+        .map_err(|e| anyhow!("reading the size of {}: {e}", path.display()))?;
+    let (cols, rows) = sheet.map_or((1, 1), |s| (s.columns.max(1), s.rows.max(1)));
+    let ppu = if ppu > 0.0 {
+        ppu
+    } else {
+        DEFAULT_PIXELS_PER_UNIT
+    };
+    Ok((
+        (w as f32 / cols as f32) / ppu / 2.0,
+        (h as f32 / rows as f32) / ppu / 2.0,
+    ))
+}
+
+/// Point a node at a texture, sizing the quad unless the caller said otherwise.
+fn set_sprite(
+    eng: &Engine,
+    entity: Entity,
+    texture: SpriteTexture,
+    half_extents: Option<(f32, f32)>,
+    ppu: f32,
+) -> Result<()> {
+    let (hx, hy) = if let Some(explicit) = half_extents {
+        explicit
+    } else {
+        let full = resolve_project_path(eng, &texture.path);
+        natural_half_extents(&full, texture.sheet, ppu)?
+    };
+    let shape = Shape2d::Sprite {
+        hx: hx.max(f32::EPSILON),
+        hy: hy.max(f32::EPSILON),
+    };
+    let mut world = eng.world_mut();
+    if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
+        // The frame alone changes UVs, which the backend re-applies every
+        // sync; anything else means the backend's node has to be rebuilt.
+        let rebuild = r.shape != shape
+            || r.sprite
+                .as_ref()
+                .is_none_or(|s| s.path != texture.path || s.sheet != texture.sheet);
+        r.shape = shape;
+        r.sprite = Some(texture);
+        if rebuild {
+            r.version += 1;
+        }
+        return Ok(());
+    }
+    world
+        .insert_one(
+            entity,
+            Renderable2d {
+                shape,
+                color: [1.0, 1.0, 1.0, 1.0],
+                sprite: Some(texture),
                 version: 0,
             },
         )
@@ -340,8 +447,11 @@ impl Plugin for RenderPlugin {
         install_window_api(&mut *m);
         install_backdrop_api(&mut *m);
         install_shape_api(&mut *m);
+        install_sprite_api(&mut *m);
+        install_sprite_state_api(&mut *m);
         register_shape_component(app);
         register_shape2d_component(app);
+        register_sprite_component(app);
         register_color_component(app);
         app.add_system(Stage::Render, clear_debug_lines_system);
 
@@ -612,22 +722,101 @@ fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Shape and colour on a node, 3D and 2D.
-fn install_shape_api(m: &mut dyn Bindings<Engine>) {
-    m.function("set_ball", |eng: &Engine, (node, radius): (NodeId, f32)| {
-        set_shape(eng, entity_of(node)?, Shape::Ball { radius })
-    });
+/// The `sprite` bindings: a textured 2D quad, its sheet and its frame.
+fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
+    // Sized from the image unless `set_sprite_size` says otherwise, so the
+    // common case is one call and art keeps its authored proportions.
     m.function(
-        "set_cuboid",
-        |eng: &Engine, (node, hx, hy, hz): (NodeId, f32, f32, f32)| {
-            set_shape(eng, entity_of(node)?, Shape::Cuboid { hx, hy, hz })
+        "set_sprite",
+        |eng: &Engine, (node, path): (NodeId, String)| {
+            set_sprite(
+                eng,
+                entity_of(node)?,
+                SpriteTexture {
+                    path,
+                    sheet: None,
+                    frame: 0,
+                },
+                None,
+                DEFAULT_PIXELS_PER_UNIT,
+            )
         },
     );
+    // One texture holding a `columns` x `rows` grid; the quad is sized to a
+    // single frame, not to the whole sheet.
     m.function(
-        "set_rect",
+        "set_sprite_sheet",
+        |eng: &Engine, (node, path, columns, rows): (NodeId, String, u32, u32)| {
+            set_sprite(
+                eng,
+                entity_of(node)?,
+                SpriteTexture {
+                    path,
+                    sheet: Some(SpriteSheet2d {
+                        columns: columns.max(1),
+                        rows: rows.max(1),
+                    }),
+                    frame: 0,
+                },
+                None,
+                DEFAULT_PIXELS_PER_UNIT,
+            )
+        },
+    );
+}
+
+/// Adjusting a sprite a node already has, and reading it back.
+fn install_sprite_state_api(m: &mut dyn Bindings<Engine>) {
+    // Frames are numbered left to right, top to bottom. Changing one only
+    // moves UVs, so this is cheap enough to call every frame.
+    m.function(
+        "set_sprite_frame",
+        |eng: &Engine, (node, frame): (NodeId, u32)| {
+            let world = eng.world_mut();
+            let mut r = world
+                .get::<&mut Renderable2d>(entity_of(node)?)
+                .map_err(|_| anyhow!("node has no sprite"))?;
+            let Some(sprite) = r.sprite.as_mut() else {
+                return Err(anyhow!("node has no sprite"));
+            };
+            sprite.frame = frame;
+            Ok(())
+        },
+    );
+    // Override the size read off the image, in half-extents like set_rect.
+    m.function(
+        "set_sprite_size",
         |eng: &Engine, (node, hx, hy): (NodeId, f32, f32)| {
-            set_shape2d(eng, entity_of(node)?, Shape2d::Rect { hx, hy })
+            let world = eng.world_mut();
+            let mut r = world
+                .get::<&mut Renderable2d>(entity_of(node)?)
+                .map_err(|_| anyhow!("node has no sprite"))?;
+            if r.sprite.is_none() {
+                return Err(anyhow!("node has no sprite"));
+            }
+            r.shape = Shape2d::Sprite {
+                hx: hx.max(f32::EPSILON),
+                hy: hy.max(f32::EPSILON),
+            };
+            r.version += 1;
+            Ok(())
         },
     );
+    // Returns ("", 0, 0, 0) when the node has no sprite.
+    m.function("sprite", |eng: &Engine, node: NodeId| {
+        let world = eng.world();
+        let result = match world.get::<&Renderable2d>(entity_of(node)?) {
+            Ok(r) => r.sprite.as_ref().map_or_else(
+                || (String::new(), 0, 0, 0),
+                |s| {
+                    let (c, rows) = s.sheet.map_or((0, 0), |sh| (sh.columns, sh.rows));
+                    (s.path.clone(), c, rows, s.frame)
+                },
+            ),
+            Err(_) => (String::new(), 0, 0, 0),
+        };
+        Ok(result)
+    });
     m.function(
         "set_circle",
         |eng: &Engine, (node, radius): (NodeId, f32)| {
@@ -659,11 +848,30 @@ fn install_shape_api(m: &mut dyn Bindings<Engine>) {
             Ok(r) => match r.shape {
                 Shape2d::Circle { radius } => ("circle".to_string(), radius, radius),
                 Shape2d::Rect { hx, hy } => ("rect".to_string(), hx, hy),
+                Shape2d::Sprite { hx, hy } => ("sprite".to_string(), hx, hy),
             },
             Err(_) => (String::new(), 0.0, 0.0),
         };
         Ok(result)
     });
+}
+
+fn install_shape_api(m: &mut dyn Bindings<Engine>) {
+    m.function("set_ball", |eng: &Engine, (node, radius): (NodeId, f32)| {
+        set_shape(eng, entity_of(node)?, Shape::Ball { radius })
+    });
+    m.function(
+        "set_cuboid",
+        |eng: &Engine, (node, hx, hy, hz): (NodeId, f32, f32, f32)| {
+            set_shape(eng, entity_of(node)?, Shape::Cuboid { hx, hy, hz })
+        },
+    );
+    m.function(
+        "set_rect",
+        |eng: &Engine, (node, hx, hy): (NodeId, f32, f32)| {
+            set_shape2d(eng, entity_of(node)?, Shape2d::Rect { hx, hy })
+        },
+    );
     m.function("color", |eng: &Engine, node: NodeId| {
         let world = eng.world();
         let result = if let Ok(r) = world.get::<&Renderable>(entity_of(node)?) {
@@ -686,9 +894,9 @@ fn register_shape_component(app: &mut App) {
         ComponentDef {
             schema: ComponentDef::parse_schema(
                 "shape",
-                r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid"] }
-radius = { type = "float", default = 0.5, min = 0.01 }
-half_extents = { type = "vec3", default = [0.5, 0.5, 0.5] }"#,
+                r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid"], description = "Rendered 3D shape" }
+radius = { type = "float", default = 0.5, min = 0.01, description = "Ball radius, when kind is ball" }
+half_extents = { type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }"#,
             ),
             apply: Box::new(|eng, entity, params| {
                 let kind = params
@@ -759,9 +967,9 @@ fn register_shape2d_component(app: &mut App) {
         ComponentDef {
             schema: ComponentDef::parse_schema(
                 "shape2d",
-                r#"kind = { type = "enum", default = "rect", options = ["circle", "rect"] }
-radius = { type = "float", default = 0.5, min = 0.01 }
-half_extents = { type = "vec2", default = [0.5, 0.5] }"#,
+                r#"kind = { type = "enum", default = "rect", options = ["circle", "rect"], description = "Rendered 2D shape" }
+radius = { type = "float", default = 0.5, min = 0.01, description = "Circle radius, when kind is circle" }
+half_extents = { type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }"#,
             ),
             apply: Box::new(|eng, entity, params| {
                 let kind = params
@@ -802,6 +1010,8 @@ half_extents = { type = "vec2", default = [0.5, 0.5] }"#,
                 let renderable = world.get::<&Renderable2d>(entity).ok()?;
                 let mut map = toml::map::Map::new();
                 match renderable.shape {
+                    // A sprite is saved by the `sprite` component, not this one.
+                    Shape2d::Sprite { .. } => return None,
                     Shape2d::Circle { radius } => {
                         map.insert("kind".into(), toml::Value::String("circle".into()));
                         map.insert("radius".into(), toml::Value::Float(f64::from(radius)));
@@ -823,6 +1033,103 @@ half_extents = { type = "vec2", default = [0.5, 0.5] }"#,
     );
 }
 
+/// The `sprite` component: a textured 2D quad.
+fn register_sprite_component(app: &mut App) {
+    app.register_component(
+        "sprite",
+        ComponentDef {
+            schema: ComponentDef::parse_schema(
+                "sprite",
+                r#"texture = { type = "string", default = "", description = "Image file, project-relative; required" }
+columns = { type = "float", default = 0.0, min = 0.0, description = "Sheet grid columns for flipbook sprites; 0 means a single image" }
+rows = { type = "float", default = 0.0, min = 0.0, description = "Sheet grid rows for flipbook sprites; 0 means a single image" }
+frame = { type = "float", default = 0.0, min = 0.0, description = "Current sheet cell, counted left-to-right then top-to-bottom" }
+pixels_per_unit = { type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit" }
+half_extents = { type = "vec2", default = [0.0, 0.0], description = "Size override in world units; [0, 0] sizes from the texture" }"#,
+            ),
+            apply: Box::new(|eng, entity, params| {
+                let num = |key: &str| {
+                    params
+                        .get(key)
+                        .and_then(balaur_core::components::as_f64)
+                        .unwrap_or(0.0)
+                };
+                let texture = params
+                    .get("texture")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                if texture.is_empty() {
+                    return Err(anyhow!("sprite needs a texture"));
+                }
+                let columns = num("columns") as u32;
+                let rows = num("rows") as u32;
+                // A sheet needs both counts; one alone is a typo, not a grid.
+                let sheet = (columns > 0 && rows > 0).then_some(SpriteSheet2d { columns, rows });
+                let he = |i: usize| {
+                    params
+                        .get("half_extents")
+                        .and_then(|v| v.as_array())
+                        .and_then(|a| a.get(i))
+                        .and_then(balaur_core::components::as_f64)
+                        .unwrap_or(0.0) as f32
+                };
+                // Absent (or zero) half-extents mean "size it from the image".
+                let explicit = (he(0) > 0.0 && he(1) > 0.0).then(|| (he(0), he(1)));
+                let ppu = num("pixels_per_unit") as f32;
+                set_sprite(
+                    eng,
+                    entity,
+                    SpriteTexture {
+                        path: texture,
+                        sheet,
+                        frame: num("frame") as u32,
+                    },
+                    explicit,
+                    if ppu > 0.0 {
+                        ppu
+                    } else {
+                        DEFAULT_PIXELS_PER_UNIT
+                    },
+                )
+            }),
+            remove: Box::new(|eng, entity| {
+                let mut world = eng.world_mut();
+                let _ = world.remove_one::<Renderable2d>(entity);
+                Ok(())
+            }),
+            get: Box::new(|eng, entity| {
+                let world = eng.world();
+                let renderable = world.get::<&Renderable2d>(entity).ok()?;
+                let sprite = renderable.sprite.as_ref()?;
+                let Shape2d::Sprite { hx, hy } = renderable.shape else {
+                    return None;
+                };
+                let mut map = toml::map::Map::new();
+                map.insert("texture".into(), toml::Value::String(sprite.path.clone()));
+                if let Some(sheet) = sprite.sheet {
+                    map.insert(
+                        "columns".into(),
+                        toml::Value::Float(f64::from(sheet.columns)),
+                    );
+                    map.insert("rows".into(), toml::Value::Float(f64::from(sheet.rows)));
+                }
+                map.insert("frame".into(), toml::Value::Float(f64::from(sprite.frame)));
+                // Written out resolved: a saved scene reloads to the same size
+                // even if the image on disk is replaced with a different one.
+                map.insert(
+                    "half_extents".into(),
+                    toml::Value::Array(vec![
+                        toml::Value::Float(f64::from(hx)),
+                        toml::Value::Float(f64::from(hy)),
+                    ]),
+                );
+                Some(toml::Value::Table(map))
+            }),
+        },
+    );
+}
+
 /// The `color` component, shared by 2D and 3D renderables.
 fn register_color_component(app: &mut App) {
     app.register_component(
@@ -830,7 +1137,7 @@ fn register_color_component(app: &mut App) {
         ComponentDef {
             schema: ComponentDef::parse_schema(
                 "color",
-                r#"rgba = { type = "color", default = [0.8, 0.8, 0.8, 1.0], shorthand = true }"#,
+                r#"rgba = { type = "color", default = [0.8, 0.8, 0.8, 1.0], shorthand = true, description = "The node's tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
             ),
             apply: Box::new(|eng, entity, params| {
                 let c = |i: usize, default: f64| {

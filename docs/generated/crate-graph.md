@@ -8,6 +8,7 @@ depends on a backend, which is what keeps it language-free.
 ```mermaid
 graph TD
   balaur[balaur]
+  balaur_android[balaur_android]
   balaur_anim[balaur_anim]
   balaur_audio[balaur_audio]
   balaur_bench[balaur_bench]
@@ -23,7 +24,6 @@ graph TD
   balaur_script_luau[balaur_script_luau]
   balaur_script_rune[balaur_script_rune]
   balaur_ui[balaur_ui]
-  gamend_client[gamend_client]
   balaur --> balaur_anim
   balaur --> balaur_audio
   balaur --> balaur_core
@@ -37,6 +37,7 @@ graph TD
   balaur --> balaur_script_luau
   balaur --> balaur_script_rune
   balaur --> balaur_ui
+  balaur_android --> balaur
   balaur_anim --> balaur_core
   balaur_anim --> balaur_script
   balaur_audio --> balaur_core

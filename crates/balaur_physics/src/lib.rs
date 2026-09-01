@@ -424,7 +424,7 @@ fn register_physics_components(app: &mut App) {
         ComponentDef {
             schema: ComponentDef::parse_schema(
                 "body",
-                r#"kind = { type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic"], shorthand = true }"#,
+                r#"kind = { type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic"], shorthand = true, description = "How physics drives the node: simulated, immovable, or moved by script" }"#,
             ),
             apply: Box::new(|eng, entity, params| {
                 let kind = params
@@ -471,9 +471,9 @@ fn register_physics_components(app: &mut App) {
         ComponentDef {
             schema: ComponentDef::parse_schema(
                 "collider",
-                r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid"] }
-radius = { type = "float", default = 0.5, min = 0.01 }
-half_extents = { type = "vec3", default = [0.5, 0.5, 0.5] }"#,
+                r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid"], description = "Collision shape" }
+radius = { type = "float", default = 0.5, min = 0.01, description = "Ball radius, when kind is ball" }
+half_extents = { type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }"#,
             ),
             apply: Box::new(apply_collider),
             remove: Box::new(|eng, entity| {

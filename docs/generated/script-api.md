@@ -21,11 +21,11 @@ cannot drift from what scripts actually see.
 | [`node`](#node) | 29 | 0 | every language |
 | [`physics`](#physics) | 12 | 5 | every language |
 | [`physics2d`](#physics2d) | 9 | 5 | every language |
-| [`render`](#render) | 25 | 0 | every language |
+| [`render`](#render) | 31 | 0 | every language |
 | [`rng`](#rng) | 4 | 0 | every language |
 | [`scene`](#scene) | 7 | 0 | every language |
 | [`toml`](#toml) | 2 | 0 | every language |
-| [`ui`](#ui) | 38 | 14 | every language |
+| [`ui`](#ui) | 39 | 14 | every language |
 | [`websocket`](#websocket) | 3 | 0 | every language |
 
 ## `animation`
@@ -133,7 +133,7 @@ cannot drift from what scripts actually see.
 
 ## `render`
 
-**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `color`, `draw_line`, `draw_line_2d`, `mouse_ray`, `mouse_world_2d`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_rect`, `shape`, `shape2d`
+**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `color`, `draw_line`, `draw_line_2d`, `mouse_ray`, `mouse_world_2d`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_rect`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `shape`, `shape2d`, `sprite`
 
 ## `rng`
 
@@ -149,7 +149,7 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `circle_button`, `code_editor`, `code_line`, `dot`, `drag_value`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `select`, `separator`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`
+**Functions:** `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `circle_button`, `code_editor`, `code_line`, `dot`, `drag_value`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `select`, `separator`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`
 
 **Constants** (14):
 

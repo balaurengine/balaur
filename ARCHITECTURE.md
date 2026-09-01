@@ -182,8 +182,9 @@ the editor previews widgets in its viewport).
 
 2D is not a separate engine; it is a second set of components over the same
 scene tree. A 2D node uses the regular `Transform`: x/y translate, the
-z-axis rotation spins it, x/y scale. `shape2d` (`rect`/`circle`) mirrors
-into kiss3d's 2D scene graph and renders through a pan/zoom orthographic
+z-axis rotation spins it, x/y scale. `shape2d` (`rect`/`circle`) and
+`sprite` (a textured quad) mirror
+into kiss3d's 2D scene graph and render through a pan/zoom orthographic
 camera (`render.set_camera_2d(cx, cy, zoom)` — zoom in logical px per world
 unit; `render.camera_2d()`, `render.mouse_world_2d()` and
 `render.draw_line_2d(...)` cover picking and overlays). `body2d`/`collider2d`
@@ -192,6 +193,18 @@ run in a rapier2d world that lives alongside the 3D one, with the same
 collections; the `physics2d` module adds bodies and colliders
 (`physics2d.add_body`, `physics2d.add_collider`), impulses, velocities and
 `physics2d.max_contact_impulse(node)` for impact-driven gameplay.
+A sprite is sized from its own image unless the author says otherwise:
+`pixels_per_unit` (default 100) converts image pixels to world units, and a
+`columns`/`rows` sheet sizes the quad to one cell rather than the whole
+texture. That size is resolved when the sprite is set, not at draw time, so it
+lands in the component a script reads back — which is why the image header is
+read in every build, windowed or not. A headless run that computed a different
+size from a windowed one would be a determinism bug, not a rendering detail.
+
+Changing the frame moves UVs only and deliberately does not bump the
+renderable's version, so an animation flipping frames never makes the backend
+tear down and rebuild its node; changing the texture or the sheet does.
+
 `physics.set_paused`, `is_paused`, `clear`, `set_sleeping_allowed` and
 `sleeping_allowed` span both worlds, so editors treat "physics" as one
 simulation. The editor detects a 2D scene from its

@@ -425,7 +425,7 @@ fn register_physics2d_components(app: &mut App) {
         ComponentDef {
             schema: ComponentDef::parse_schema(
                 "body2d",
-                r#"kind = { type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic"], shorthand = true }"#,
+                r#"kind = { type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic"], shorthand = true, description = "How 2D physics drives the node: simulated, immovable, or moved by script" }"#,
             ),
             apply: Box::new(|eng, entity, params| {
                 let kind = params
@@ -472,12 +472,12 @@ fn register_physics2d_components(app: &mut App) {
         ComponentDef {
             schema: ComponentDef::parse_schema(
                 "collider2d",
-                r#"kind = { type = "enum", default = "rect", options = ["circle", "rect"] }
-radius = { type = "float", default = 0.5, min = 0.01 }
-half_extents = { type = "vec2", default = [0.5, 0.5] }
-restitution = { type = "float", default = 0.0, min = 0.0, max = 1.0 }
-friction = { type = "float", default = 0.5, min = 0.0 }
-density = { type = "float", default = 1.0, min = 0.001 }"#,
+                r#"kind = { type = "enum", default = "rect", options = ["circle", "rect"], description = "Collision shape" }
+radius = { type = "float", default = 0.5, min = 0.01, description = "Circle radius, when kind is circle" }
+half_extents = { type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }
+restitution = { type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness: 0 is a dead stop, 1 a full rebound" }
+friction = { type = "float", default = 0.5, min = 0.0, description = "Surface friction; 0 is ice" }
+density = { type = "float", default = 1.0, min = 0.001, description = "Mass per area, so the shape's size sets its mass" }"#,
             ),
             apply: Box::new(apply_collider),
             remove: Box::new(|eng, entity| {

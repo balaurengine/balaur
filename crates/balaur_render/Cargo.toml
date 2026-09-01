@@ -10,7 +10,7 @@ authors.workspace = true
 default = []
 # The windowed kiss3d/wgpu backend. Off by default so headless tools, tests,
 # and servers build without a graphics stack.
-kiss3d = ["dep:kiss3d", "dep:pollster", "dep:balaur_input", "dep:balaur_ui", "dep:image", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation"]
+kiss3d = ["dep:kiss3d", "dep:pollster", "dep:balaur_input", "dep:balaur_ui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation"]
 
 [dependencies]
 balaur_core.workspace = true
@@ -23,7 +23,9 @@ kiss3d = { version = "0.46", optional = true, features = ["egui"] }
 pollster = { version = "1", optional = true }
 balaur_input = { workspace = true, optional = true }
 balaur_ui = { workspace = true, optional = true }
-image = { version = "0.25", default-features = false, features = ["png"], optional = true }
+# Not optional: a sprite sized from its image puts that size in a component
+# scripts read, so a headless build has to compute it too.
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6", optional = true }

@@ -72,15 +72,15 @@ pub(crate) fn register_widget_component(app: &mut App) {
         ComponentDef {
             schema: ComponentDef::parse_schema(
                 "widget",
-                r#"kind = { type = "enum", default = "label", options = ["label", "button", "panel"] }
-text = { type = "string", default = "label" }
-anchor = { type = "enum", default = "top_left", options = ["top_left", "top_right", "bottom_left", "bottom_right", "center"] }
-x = { type = "float", default = 16.0 }
-y = { type = "float", default = 16.0 }
-font_size = { type = "float", default = 16.0, min = 6.0 }
-text_color = { type = "color", default = [0.933, 0.945, 0.957, 1.0] }
-on_click = { type = "string", default = "" }
-clicked = { type = "bool", default = false, readonly = true }"#,
+                r#"kind = { type = "enum", default = "label", options = ["label", "button", "panel"], description = "The HUD element the widget layer draws" }
+text = { type = "string", default = "label", description = "Label or button caption" }
+anchor = { type = "enum", default = "top_left", options = ["top_left", "top_right", "bottom_left", "bottom_right", "center"], description = "Screen corner or center the offset is measured from" }
+x = { type = "float", default = 16.0, description = "Horizontal offset from the anchor, in design pixels" }
+y = { type = "float", default = 16.0, description = "Vertical offset from the anchor, in design pixels" }
+font_size = { type = "float", default = 16.0, min = 6.0, description = "Text size in design pixels" }
+text_color = { type = "color", default = [0.933, 0.945, 0.957, 1.0], description = "Text color" }
+on_click = { type = "string", default = "", description = "Script method called on this node when the button is clicked" }
+clicked = { type = "bool", default = false, readonly = true, description = "True on the frame the button was clicked" }"#,
             ),
             apply: Box::new(|eng, entity, params| {
                 let s = |key: &str, default: &str| {

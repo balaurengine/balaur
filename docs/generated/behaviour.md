@@ -85,6 +85,7 @@ flow nothing checks.
 - a missing node argument is an error not a panic
 - a missing requirement names what is absent
 - a missing resource is none rather than a panic
+- a missing texture is an error
 - a modal runs its body
 - a node is not json data
 - a node path round trips through find
@@ -143,9 +144,11 @@ flow nothing checks.
 - a seek does not fire the keys it skipped
 - a sequential tween lands its steps in order
 - a shape component puts a renderable on the node
+- a sheet is sized to one frame
 - a source build prints that it is one
 - a sparse table keeps its keys
 - a spawned node is named parented and has a transform
+- a sprite is sized from its image
 - a standalone binary gives the pack back
 - a standalone file is read back from disk
 - a step can tween another node from the same call
@@ -241,6 +244,8 @@ flow nothing checks.
 - by is relative to the value at the start of its step
 - by on its own offsets where the node already is
 - camera input can be switched off
+- changing only the frame does not force a rebuild
+- changing the texture forces a rebuild
 - colliders can be added in every shape the api offers
 - commands queue and drain once
 - compile error keeps previous version running
@@ -274,6 +279,7 @@ flow nothing checks.
 - every shape kind the schema offers is accepted
 - exists answers for all three reference forms
 - expect arity names the function and both counts
+- explicit half extents win over the image
 - extra arguments are ignored like lua does
 - freeing a node frees its children
 - freeing a subtree removes all of it and unlinks the parent
@@ -327,6 +333,7 @@ flow nothing checks.
 - pause and sleeping are readable after being set
 - pause holds the playhead and resume carries on from it
 - pausing stops the simulation and resuming continues it
+- pixels per unit scales the result
 - play can pick the current clip back up where it left off
 - playing a missing file does not take the frame down
 - plugin components roundtrip through the registry
@@ -353,6 +360,7 @@ flow nothing checks.
 - script module works without a backend
 - scroll accumulates within a frame and resets between
 - set text replaces a field buffer
+- shape2d does not claim a sprite
 - shapes can be set from a script in both dimensions
 - shortcuts report no press without input
 - siblings keep their order
@@ -375,6 +383,7 @@ flow nothing checks.
 - the camera can be aimed and its pose read
 - the clock advances and reports the last step
 - the code editor returns its buffer unchanged
+- the component round trips
 - the engine modules reach rune
 - the euler convention matches the engines own
 - the fingerprint names a real compiler

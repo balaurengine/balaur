@@ -90,10 +90,10 @@ fn register_animation_component(app: &mut App) {
         ComponentDef {
             schema: ComponentDef::parse_schema(
                 "animation",
-                r#"library = { type = "asset", asset = "animation_clip", default = "" }
-autoplay = { type = "string", default = "" }
-speed = { type = "float", default = 1.0 }
-root = { type = "string", default = "" }"#,
+                r#"library = { type = "asset", asset = "animation_clip", default = "", description = "The clip library this node plays from" }
+autoplay = { type = "string", default = "", description = "Clip to start when the scene loads; empty starts nothing" }
+speed = { type = "float", default = 1.0, description = "Playback rate for every clip on this node" }
+root = { type = "string", default = "", description = "Node path the clip's tracks resolve against; empty means this node" }"#,
             ),
             apply: Box::new(|eng, entity, params| {
                 apply_animation(eng, entity, params);

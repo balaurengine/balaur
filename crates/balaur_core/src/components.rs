@@ -164,6 +164,14 @@ fn validate_property(spec: &toml::Value) -> Result<(), String> {
         }
         _ => {}
     }
+    if let Some(description) = spec.get("description") {
+        if description.as_str().is_none() {
+            return Err(format!(
+                "`description` is {}, not a string",
+                description.type_str()
+            ));
+        }
+    }
     let default = spec
         .get("default")
         .ok_or_else(|| format!("no `default`; every property needs one, of type `{declared}`"))?;
@@ -539,6 +547,19 @@ pub fn get(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {
 pub fn names(eng: &Engine) -> Vec<String> {
     eng.try_resource::<ComponentRegistry>()
         .map(|r| r.borrow().0.iter().map(|(n, _)| n.clone()).collect())
+        .unwrap_or_default()
+}
+
+/// Every registered component's name and schema, for tooling and docs.
+pub fn schemas(eng: &Engine) -> Vec<(String, toml::Value)> {
+    eng.try_resource::<ComponentRegistry>()
+        .map(|r| {
+            r.borrow()
+                .0
+                .iter()
+                .map(|(n, d)| (n.clone(), d.schema.clone()))
+                .collect()
+        })
         .unwrap_or_default()
 }
 

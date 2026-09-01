@@ -16,6 +16,16 @@ Batteries-included entry points for Balaur games and tools.
 - **public surface:** 7 fn, 1 struct
 - **structs:** `MultiHost`
 
+## `balaur_android`
+
+The Android entry point: a NativeActivity library that boots a packed game
+
+The Android entry point.
+
+- **workspace deps:** `balaur`
+- **external deps:** 2 (kiss3d, tracing)
+- **public surface:** nothing public
+
 ## `balaur_anim`
 
 Balaur animation plugin: clips, sampling and fixed-step playback
@@ -56,7 +66,7 @@ Shared setup for the benchmarks: build a project on disk, boot an app on a chose
 The `balaur` command line tool: create, run, export, and play projects.
 
 - **workspace deps:** `balaur`
-- **external deps:** 5 (anyhow, clap, tracing, tracing-log, tracing-subscriber)
+- **external deps:** 12 (anyhow, clap, dirs, flate2, serde_json, sha2, tar, tracing, …)
 - **public surface:** nothing public
 
 ## `balaur_core`
@@ -67,7 +77,7 @@ Balaur engine core: the Rust data plane.
 
 - **workspace deps:** `balaur_script`
 - **external deps:** 12 (anyhow, dirs, glamx, hecs, indexmap, rustc-hash, serde, serde_json, …)
-- **public surface:** 47 fn, 28 struct, 3 enum, 1 trait, 4 const, 9 type
+- **public surface:** 48 fn, 28 struct, 3 enum, 1 trait, 5 const, 9 type
 - **traits:** `Plugin`
 - **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Children`, `ComponentDef`, `ComponentRegistry`, `Engine`, `EngineOp`, `GlobalTransform`, `LogEntry`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `ProjectManifest`, `ProjectRoot`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `StableId`, `Transform`
 - **enums:** `AssetRef`, `Command`, `Stage`
@@ -79,10 +89,10 @@ Balaur plugin for the Gamend backend: login, REST, realtime and server hooks for
 The Gamend backend as a Balaur plugin: `gamend.*` for scripts.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
-- **external deps:** 4 (anyhow, gamend_client, serde_json, tracing)
-- **public surface:** 4 struct, 1 enum
-- **structs:** `GamendPlugin`, `GamendSnapshot`, `GamendState`, `Handler`
-- **enums:** `LoginCredentials`
+- **external deps:** 5 (anyhow, serde_json, tracing, tungstenite, ureq)
+- **public surface:** 2 fn, 8 struct, 3 enum
+- **structs:** `Client`, `GamendPlugin`, `GamendSnapshot`, `GamendState`, `Handler`, `Reply`, `Session`, `Socket`
+- **enums:** `Credentials`, `LoginCredentials`, `SocketEvent`
 
 ## `balaur_input`
 
@@ -138,8 +148,8 @@ Rendering as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_input`, `balaur_script`, `balaur_ui`
 - **external deps:** 10 (anyhow, glamx, image, kiss3d, objc2, objc2-app-kit, objc2-foundation, pollster, …)
-- **public surface:** 3 fn, 16 struct, 2 enum, 2 type
-- **structs:** `AppIconConfig`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ClearColorConfig`, `DebugLineBuffer`, `DebugLineBuffer2d`, `GridConfig`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
+- **public surface:** 3 fn, 18 struct, 2 enum, 1 const, 2 type
+- **structs:** `AppIconConfig`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ClearColorConfig`, `DebugLineBuffer`, `DebugLineBuffer2d`, `GridConfig`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `SpriteSheet2d`, `SpriteTexture`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
 - **enums:** `Shape`, `Shape2d`
 
 ## `balaur_script`
@@ -183,16 +193,4 @@ Immediate-mode UI for scripts, rendered with egui.
 - **external deps:** 5 (anyhow, egui, image, toml, tracing)
 - **public surface:** 1 fn, 6 struct, 4 const
 - **structs:** `ThemeTokens`, `UiConfig`, `UiPlugin`, `UiState`, `Widget`, `WidgetLayerConfig`
-
-## `gamend_client`
-
-Gamend backend client: auth, REST and Phoenix Channels realtime, engine-agnostic
-
-A Gamend backend client for Rust games: auth, REST and realtime.
-
-- **workspace deps:** none
-- **external deps:** 5 (anyhow, serde_json, tracing, tungstenite, ureq)
-- **public surface:** 2 fn, 4 struct, 2 enum
-- **structs:** `Client`, `Reply`, `Session`, `Socket`
-- **enums:** `Credentials`, `SocketEvent`
 

@@ -27,6 +27,7 @@ gamend = ["balaur/gamend"]
 balaur = { workspace = true, default-features = false }
 anyhow.workspace = true
 clap.workspace = true
+serde_json.workspace = true
 tracing-subscriber.workspace = true
 tracing-log.workspace = true
 tracing.workspace = true

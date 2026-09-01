@@ -667,7 +667,28 @@ fn dump_api() -> Result<()> {
     let mut app = balaur::standard_app(AppConfig::dev(dir.to_string_lossy().as_ref()))?;
     app.load_project()?;
     let lua = balaur::luau::lua_of(&app.engine);
-    println!("{}", balaur::luau::api_json(&lua)?);
+    let mut api: serde_json::Value = serde_json::from_str(&balaur::luau::api_json(&lua)?)?;
+    // Component schemas ride along, so docs and tools read one probe.
+    let components: std::collections::BTreeMap<String, serde_json::Value> =
+        balaur::components::schemas(&app.engine)
+            .into_iter()
+            .map(|(name, schema)| Ok((name, serde_json::to_value(schema)?)))
+            .collect::<Result<_>>()?;
+    api["components"] = serde_json::to_value(components)?;
+    let asset_types: std::collections::BTreeMap<String, String> = app
+        .engine
+        .try_resource::<balaur::assets::AssetTypeRegistry>()
+        .map(|registry| {
+            registry
+                .borrow()
+                .0
+                .iter()
+                .map(|(name, t)| (name.clone(), t.directory.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+    api["asset_types"] = serde_json::to_value(asset_types)?;
+    println!("{}", serde_json::to_string_pretty(&api)?);
     Ok(())
 }
 

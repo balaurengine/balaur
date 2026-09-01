@@ -657,10 +657,16 @@ fn sync_2d(
             }
             // Unit primitives: like the 3D path, dimensions live in the
             // node's local scale, updated every frame below.
-            let node = match renderable.shape {
+            let mut node = match renderable.shape {
                 Shape2d::Circle { .. } => scene.add_circle(0.5),
-                Shape2d::Rect { .. } => scene.add_rectangle(1.0, 1.0),
+                Shape2d::Rect { .. } | Shape2d::Sprite { .. } => scene.add_rectangle(1.0, 1.0),
             };
+            // Attached once per rebuild: kiss3d's TextureManager caches by
+            // name, so the decode happens on the first node to ask for it.
+            if let Some(sprite) = &renderable.sprite {
+                let full = crate::resolve_project_path(&app.engine, &sprite.path);
+                node.set_texture_from_file(&full, &sprite.path);
+            }
             slots.insert(
                 entity,
                 Slot2d {
@@ -674,8 +680,16 @@ fn sync_2d(
         let [r, g, b, a] = renderable.color;
         let size = match renderable.shape {
             Shape2d::Circle { radius } => Vec2::splat(2.0 * radius),
-            Shape2d::Rect { hx, hy } => Vec2::new(2.0 * hx, 2.0 * hy),
+            Shape2d::Rect { hx, hy } | Shape2d::Sprite { hx, hy } => Vec2::new(2.0 * hx, 2.0 * hy),
         };
+        // Every sync, not just on rebuild: picking a frame is a UV change, so
+        // an animation that flips frames must not rebuild the node.
+        if let Some(sprite) = &renderable.sprite {
+            if let Some(sheet) = sprite.sheet {
+                let sheet = kiss3d::scene::SpriteSheet::new(sheet.columns, sheet.rows);
+                slot.node.set_sprite_frame(&sheet, sprite.frame);
+            }
+        }
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
         slot.node
             .set_position(Vec2::new(global.position.x, global.position.y))

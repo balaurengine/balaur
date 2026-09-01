@@ -5,6 +5,7 @@ Hand-written docs go stale. These are derived, and CI runs --check, so they
 are correct or the build is red.
 """
 import argparse
+import html
 import json
 import re
 import subprocess
@@ -178,6 +179,77 @@ def gen_script_api(api, owners):
     return body
 
 
+def component_row(prop, spec):
+    """One <tr>. HTML rather than a markdown table because the row lives
+    inside <details>, where CommonMark leaves markdown unrendered."""
+    notes = [html.escape(spec.get("description", ""))]
+    if "options" in spec:
+        notes.append("One of " + ", ".join(f"<code>{html.escape(o)}</code>" for o in spec["options"]) + ".")
+    if "min" in spec or "max" in spec:
+        low, high = spec.get("min", ""), spec.get("max", "")
+        notes.append(f"Range {low}–{high}." if high != "" else f"At least {low}.")
+    if spec.get("shorthand"):
+        notes.append(f"Scene shorthand: <code>{html.escape(prop)}</code>'s value can be given as the component's whole value.")
+    if spec.get("readonly"):
+        notes.append("Read-only: engine output the inspector shows but never writes.")
+    kind = spec.get("type", "")
+    if kind == "asset":
+        kind = f"asset · <code>{html.escape(spec.get('asset', ''))}</code>"
+    else:
+        kind = html.escape(kind)
+    default = json.dumps(spec.get("default", "")).strip('"')
+    cells = (
+        f"<code>{html.escape(prop)}</code>",
+        kind,
+        f"<code>{html.escape(default)}</code>" if default else "—",
+        " ".join(n for n in notes if n),
+    )
+    return "<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>"
+
+
+def gen_components(components, asset_types):
+    out = [
+        "# Components\n\n",
+        "Balaur has no node classes and no inheritance tree: every node is the\n"
+        "same entity, and capability comes from the components on it.\n\n"
+        "In the terms other engines use: a specialized node type there (a\n"
+        "`RigidBody2D`, a `Sprite2D`, a `Label`) is here a plain node plus a\n"
+        "component, and a content resource there (an animation library, say)\n"
+        "is here an [asset](#asset-types), referenced from an `asset`-typed\n"
+        "property or defined inline in the scene. Some things that are\n"
+        "resources elsewhere are neither here: a collider's shape is plain\n"
+        "data on the `collider` component itself. And similar component names\n"
+        "are siblings by convention, never inheritance — `body2d` shares\n"
+        "nothing with `body`; each component is independent and complete.\n\n"
+        "Each component is registered by a plugin with the schema below; one\n"
+        "registration provides the scene-file key, the runtime\n"
+        "`node:set_component` family, and the editor's inspector rows.\n\n",
+    ]
+    for name in sorted(components):
+        schema = components[name]
+        props = sorted(schema)
+        rows = "\n".join(component_row(p, schema[p]) for p in props)
+        out.append(
+            f"<details>\n<summary><code>{html.escape(name)}</code> · "
+            f"{len(props)} propert{'y' if len(props) == 1 else 'ies'}</summary>\n"
+            "<table>\n<thead><tr><th>property</th><th>type</th><th>default</th>"
+            f"<th>description</th></tr></thead>\n<tbody>\n{rows}\n</tbody>\n</table>\n"
+            "</details>\n\n"
+        )
+    out.append(
+        "## Asset types\n\n"
+        "Content that lives in files (or inline in a scene) rather than on a\n"
+        "node, registered by plugins the same way components are. An\n"
+        "`asset`-typed component property names which of these it takes.\n\n"
+        "| type | project directory |\n| --- | --- |\n"
+    )
+    for name in sorted(asset_types):
+        directory = asset_types[name]
+        home = f"`{directory}/`" if directory else "— (not promotable to a file)"
+        out.append(f"| `{name}` | {home} |\n")
+    return "".join(out)
+
+
 def gen_flows(names):
     body = "# Behaviour covered by tests\n\nEvery test in the workspace, as a sentence. A flow that is not here is a\nflow nothing checks.\n\n"
     for n in names:
@@ -198,6 +270,7 @@ def main():
         "crates.md": gen_crates(crates),
         "crate-graph.md": gen_graph(crates),
         "script-api.md": gen_script_api(api, owners),
+        "components.md": gen_components(api.get("components", {}), api.get("asset_types", {})),
         "behaviour.md": gen_flows(test_names()),
     }
     files["README.md"] = (
