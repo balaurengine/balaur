@@ -129,6 +129,18 @@ impl App {
         engine.insert_resource(crate::assets::AssetTypeRegistry::default());
         engine.insert_resource(crate::assets::AssetState::default());
         engine.insert_resource(ProjectRoot(config.project_root.clone()));
+        // A packed game serves its textures, sounds and fonts from the pack;
+        // a dev run serves them from the source tree.
+        engine.insert_resource(match config.pack.as_ref() {
+            Some(pack) => crate::project::ProjectFiles::packed(
+                config.project_root.clone(),
+                pack.assets.clone(),
+                crate::project::ProjectManifest::parse(&pack.manifest)
+                    .map(|m| m.assets)
+                    .unwrap_or_default(),
+            ),
+            None => crate::project::ProjectFiles::directory(config.project_root.clone()),
+        });
         engine.insert_resource(ScriptArgs(config.script_args.clone()));
         engine.insert_resource(crate::rng::RngState::default());
         if let Some(make) = config.script_backend.take() {

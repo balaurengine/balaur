@@ -15,7 +15,8 @@ use kiss3d::prelude::*;
 use crate::{
     AppIconConfig, CameraConfig, CameraConfig2d, CameraInputConfig, ClearColorConfig,
     DebugLineBuffer, DebugLineBuffer2d, GridConfig, Renderable, Renderable2d, ScreenshotRequest,
-    Shape, Shape2d, ViewportSnapshot, ViewportSnapshot2d, WindowConfig, WindowedBackend,
+    Shape, Shape2d, SpriteTexture, ViewportSnapshot, ViewportSnapshot2d, WindowConfig,
+    WindowedBackend,
 };
 
 struct Slot {
@@ -26,6 +27,9 @@ struct Slot {
 struct Slot2d {
     node: SceneNode2d,
     version: u64,
+    /// The flip pair last written into the node's UVs: sheetless sprites only
+    /// touch UVs when it changes, so un-flipping writes the identity rect once.
+    flip: (bool, bool),
 }
 
 /// Everything one frame of the render loop reads and writes, so the windowed
@@ -347,21 +351,21 @@ fn apply_app_icon(app: &App) {
     let Some(icon) = app.engine.try_resource::<AppIconConfig>() else {
         return;
     };
-    let path = {
+    let (source, name) = {
         let mut icon = icon.borrow_mut();
         if !icon.changed {
             return;
         }
         icon.changed = false;
-        icon.path.clone()
+        (icon.bytes.clone(), icon.name.clone())
     };
     #[cfg(target_os = "macos")]
     {
         use objc2::AnyThread;
         use objc2_app_kit::{NSApplication, NSImage};
         use objc2_foundation::{MainThreadMarker, NSData};
-        let Some(bytes) = dock_icon_png(&path) else {
-            tracing::warn!("app icon not usable: {}", path.display());
+        let Some(bytes) = dock_icon_png(&source) else {
+            tracing::warn!("app icon not usable: {name}");
             return;
         };
         if let Ok(dump) = std::env::var("BALAUR_ICON_DUMP") {
@@ -372,12 +376,12 @@ fn apply_app_icon(app: &App) {
         if let (Some(image), Some(mtm)) = (image, MainThreadMarker::new()) {
             let ns_app = NSApplication::sharedApplication(mtm);
             unsafe { ns_app.setApplicationIconImage(Some(&image)) };
-            tracing::info!("app icon set from {}", path.display());
+            tracing::info!("app icon set from {name}");
         }
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = path;
+        let _ = (&source, &name);
     }
 }
 
@@ -385,14 +389,14 @@ fn apply_app_icon(app: &App) {
 /// rounded-rect plate (Big Sur proportions: 824-of-1024 plate, ~185 corner
 /// radius) with transparent margins.
 #[cfg(target_os = "macos")]
-fn dock_icon_png(path: &std::path::Path) -> Option<Vec<u8>> {
+fn dock_icon_png(source: &[u8]) -> Option<Vec<u8>> {
     use image::ImageEncoder;
 
     const CANVAS: u32 = 1024;
     const PLATE: u32 = 824;
     const RADIUS: f32 = 185.0;
     const LOGO: u32 = 660;
-    let source = image::open(path).ok()?.to_rgba8();
+    let source = image::load_from_memory(source).ok()?.to_rgba8();
     let logo =
         image::imageops::resize(&source, LOGO, LOGO, image::imageops::FilterType::CatmullRom);
     let mut canvas = image::RgbaImage::new(CANVAS, CANVAS);
@@ -664,14 +668,30 @@ fn sync_2d(
             // Attached once per rebuild: kiss3d's TextureManager caches by
             // name, so the decode happens on the first node to ask for it.
             if let Some(sprite) = &renderable.sprite {
-                let full = crate::resolve_project_path(&app.engine, &sprite.path);
-                node.set_texture_from_file(&full, &sprite.path);
+                // An empty path is a sprite whose image has not been chosen
+                // yet; kiss3d's default white texture is the right stand-in.
+                if !sprite.path.is_empty() {
+                    // Bytes rather than a path: a packed game carries its
+                    // textures inside the pack, with nothing beside it on disk.
+                    match app
+                        .engine
+                        .resource::<balaur_core::project::ProjectFiles>()
+                        .borrow()
+                        .read(&sprite.path)
+                    {
+                        Ok(bytes) => node.set_texture_from_memory(&bytes, &sprite.path),
+                        // A frame is not the place to abort: say which asset
+                        // is missing and keep drawing the rest of the scene.
+                        Err(err) => tracing::error!("{err:#}"),
+                    }
+                }
             }
             slots.insert(
                 entity,
                 Slot2d {
                     node,
                     version: renderable.version,
+                    flip: (false, false),
                 },
             );
         }
@@ -682,13 +702,14 @@ fn sync_2d(
             Shape2d::Circle { radius } => Vec2::splat(2.0 * radius),
             Shape2d::Rect { hx, hy } | Shape2d::Sprite { hx, hy } => Vec2::new(2.0 * hx, 2.0 * hy),
         };
-        // Every sync, not just on rebuild: picking a frame is a UV change, so
+        // Every sync, not just on rebuild: frames and flips are UV changes, so
         // an animation that flips frames must not rebuild the node.
         if let Some(sprite) = &renderable.sprite {
-            if let Some(sheet) = sprite.sheet {
-                let sheet = kiss3d::scene::SpriteSheet::new(sheet.columns, sheet.rows);
-                slot.node.set_sprite_frame(&sheet, sprite.frame);
+            let flip = (sprite.flip_x, sprite.flip_y);
+            if sprite.sheet.is_some() || flip != slot.flip {
+                sync_sprite_uvs(&mut slot.node, sprite);
             }
+            slot.flip = flip;
         }
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
         slot.node
@@ -705,6 +726,34 @@ fn sync_2d(
             false
         }
     });
+}
+
+/// Remap the node's UVs to the sprite's sheet frame, with the U or V extents
+/// swapped for flips.
+fn sync_sprite_uvs(node: &mut SceneNode2d, sprite: &SpriteTexture) {
+    let sheet = sprite
+        .sheet
+        .map(|s| kiss3d::scene::SpriteSheet::new(s.columns, s.rows));
+    let (mut min, mut max) = sheet.map_or((Vec2::ZERO, Vec2::ONE), |s| s.frame_uv(sprite.frame));
+    if sheet.is_some() {
+        // The sliver keeps a nearest-sampled edge fragment from rounding into
+        // the neighbouring frame, matching kiss3d's own `set_sprite_frame`.
+        let size = node.data().object().map(|o| o.data().texture().size);
+        if let Some((w, h)) = size {
+            if w > 1 && h > 1 {
+                let inset = Vec2::new(0.05 / w as f32, 0.05 / h as f32);
+                min += inset;
+                max -= inset;
+            }
+        }
+    }
+    if sprite.flip_x {
+        std::mem::swap(&mut min.x, &mut max.x);
+    }
+    if sprite.flip_y {
+        std::mem::swap(&mut min.y, &mut max.y);
+    }
+    node.set_uv_rect(min, max);
 }
 
 /// The name this backend reports for a key.

@@ -11,7 +11,11 @@ balaur_core.workspace = true
 balaur_plugin.workspace = true
 anyhow.workspace = true
 balaur_script.workspace = true
+toml.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
 
 # No cpal host compiles for wasm (cpal 0.18 dropped emscripten), so wasm gets
 # the stub backend in lib.rs; the gate also keeps getrandom out of the wasm tree.

@@ -154,6 +154,108 @@ fn removing_a_body_stops_it_being_simulated() {
 }
 
 #[test]
+fn a_3d_collider_takes_friction_restitution_and_density() {
+    let mut app = app();
+    let root = app.engine.root();
+    let ground = scene::spawn_node(&mut app.engine.world_mut(), "Ground", root);
+    let flat: toml::Value = toml::from_str("kind = \"cuboid\"\nhalf_extents = [10.0, 0.5, 10.0]")
+        .expect("literal collider params parse");
+    components::add(&app.engine, ground, "collider", Some(&flat)).unwrap();
+
+    let ball = scene::spawn_node(&mut app.engine.world_mut(), "Ball", root);
+    app.engine
+        .world()
+        .get::<&mut Transform>(ball)
+        .unwrap()
+        .position
+        .y = 2.0;
+    let body: toml::Value =
+        toml::from_str("kind = \"dynamic\"").expect("literal body params parse");
+    components::add(&app.engine, ball, "body", Some(&body)).unwrap();
+    let bouncy: toml::Value = toml::from_str(
+        "kind = \"ball\"\nradius = 0.5\nrestitution = 0.9\nfriction = 0.2\ndensity = 3.0",
+    )
+    .expect("literal collider params parse");
+    components::add(&app.engine, ball, "collider", Some(&bouncy)).unwrap();
+
+    // Read back through the live rapier collider, not stored params.
+    let got = components::get(&app.engine, ball, "collider").unwrap();
+    let f = |key: &str| {
+        got.get(key)
+            .and_then(components::as_f64)
+            .unwrap_or_else(|| panic!("collider reports no `{key}`: {got:?}"))
+    };
+    assert!((f("restitution") - 0.9).abs() < 1e-6);
+    assert!((f("friction") - 0.2).abs() < 1e-6);
+    assert!((f("density") - 3.0).abs() < 1e-6);
+
+    let mut min_y = f32::MAX;
+    let mut rebounded = false;
+    for _ in 0..180 {
+        app.tick(1.0 / 60.0);
+        let y = app
+            .engine
+            .world()
+            .get::<&Transform>(ball)
+            .unwrap()
+            .position
+            .y;
+        min_y = min_y.min(y);
+        if y > min_y + 0.05 {
+            rebounded = true;
+        }
+    }
+    assert!(min_y < 1.9, "the ball never fell");
+    assert!(rebounded, "a restitution 0.9 ball did not bounce");
+}
+
+#[test]
+fn a_sensor_reports_overlap_without_collision_response() {
+    let mut app = app();
+    let root = app.engine.root();
+    let sensor = scene::spawn_node(&mut app.engine.world_mut(), "Sensor", root);
+    let gate: toml::Value =
+        toml::from_str("kind = \"rect\"\nhalf_extents = [2.0, 0.5]\nsensor = true")
+            .expect("literal collider params parse");
+    components::add(&app.engine, sensor, "collider2d", Some(&gate)).unwrap();
+
+    let ball = scene::spawn_node(&mut app.engine.world_mut(), "Ball", root);
+    app.engine
+        .world()
+        .get::<&mut Transform>(ball)
+        .unwrap()
+        .position
+        .y = 3.0;
+    let body: toml::Value =
+        toml::from_str("kind = \"dynamic\"").expect("literal body params parse");
+    components::add(&app.engine, ball, "body2d", Some(&body)).unwrap();
+    let shape: toml::Value =
+        toml::from_str("kind = \"circle\"\nradius = 0.5").expect("literal collider params parse");
+    components::add(&app.engine, ball, "collider2d", Some(&shape)).unwrap();
+
+    let mut seen_from_ball = false;
+    let mut seen_from_sensor = false;
+    for _ in 0..240 {
+        app.tick(1.0 / 60.0);
+        seen_from_ball |= balaur_physics::dim2::overlaps(&app.engine, ball).contains(&sensor);
+        seen_from_sensor |= balaur_physics::dim2::overlaps(&app.engine, sensor).contains(&ball);
+    }
+    let final_y = app
+        .engine
+        .world()
+        .get::<&Transform>(ball)
+        .unwrap()
+        .position
+        .y;
+    assert!(
+        final_y < -1.0,
+        "the ball did not pass through the sensor: {final_y}"
+    );
+    assert!(seen_from_ball, "overlaps(ball) never reported the sensor");
+    assert!(seen_from_sensor, "overlaps(sensor) never reported the ball");
+}
+
+#[test]
 fn the_same_setup_simulates_identically_twice() {
     let run = || {
         let mut app = app();

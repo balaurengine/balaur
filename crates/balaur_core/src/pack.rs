@@ -1,5 +1,5 @@
-//! Exported game packs: the whole project (manifest, scenes, scripts) in one
-//! binary blob, with every script precompiled by its backend.
+//! Exported game packs: the whole project (manifest, scenes, scripts and
+//! binary assets) in one blob, with every script precompiled by its backend.
 //!
 //! A pack is what `balaur export` produces and what a shipped game runs
 //! from, either as a standalone file (`balaur play game.bpak`) or embedded
@@ -11,7 +11,30 @@ use std::path::Path;
 
 use anyhow::{anyhow, Context, Result};
 
-const MAGIC: &[u8; 5] = b"BPAK\x01";
+const MAGIC: &[u8; 5] = b"BPAK\x02";
+
+/// File extensions that ship inside a pack. A game's textures, sounds and
+/// fonts have to travel with it; source art and notes do not.
+pub const ASSET_EXTENSIONS: &[&str] = &[
+    "png", "jpg", "jpeg", "webp", "bmp", "tga",
+    "ogg", "wav", "mp3", "flac",
+    "ttf", "otf",
+    "glb", "gltf", "obj",
+];
+
+/// A content hash, so a decoded pack can prove an entry arrived intact and a
+/// materialised file can be cached under a name that changes with its bytes.
+#[must_use]
+pub fn content_hash(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
 
 #[derive(Default, Clone, Debug)]
 pub struct Pack {
@@ -25,6 +48,10 @@ pub struct Pack {
     /// Compiled script bytes keyed by project-relative path. The format is
     /// the backend's business; the pack only stores and ships them.
     pub scripts: BTreeMap<String, Vec<u8>>,
+    /// Textures, audio, fonts and models keyed by project-relative path.
+    /// Without these a shipped game is only a single file when it is silent
+    /// and untextured.
+    pub assets: BTreeMap<String, Vec<u8>>,
 }
 
 impl Pack {
@@ -54,6 +81,9 @@ impl Pack {
                 Some("toml") if rel != "project.toml" => {
                     pack.scenes.insert(rel, std::fs::read_to_string(&path)?);
                 }
+                Some(ext) if ASSET_EXTENSIONS.contains(&ext) => {
+                    pack.assets.insert(rel, std::fs::read(&path)?);
+                }
                 _ => {}
             }
         }
@@ -72,6 +102,14 @@ impl Pack {
         write_u32(&mut out, self.scripts.len() as u32);
         for (k, v) in &self.scripts {
             write_bytes(&mut out, k.as_bytes());
+            write_bytes(&mut out, v);
+        }
+        // Each asset carries its hash, so decode can tell a truncated or
+        // altered entry from a good one rather than handing on bad bytes.
+        write_u32(&mut out, self.assets.len() as u32);
+        for (k, v) in &self.assets {
+            write_bytes(&mut out, k.as_bytes());
+            write_bytes(&mut out, content_hash(v).as_bytes());
             write_bytes(&mut out, v);
         }
         out
@@ -97,6 +135,16 @@ impl Pack {
             let k = String::from_utf8(read_bytes(&mut cursor)?.to_vec())?;
             let v = read_bytes(&mut cursor)?.to_vec();
             pack.scripts.insert(k, v);
+        }
+        for _ in 0..read_u32(&mut cursor)? {
+            let k = String::from_utf8(read_bytes(&mut cursor)?.to_vec())?;
+            let want = String::from_utf8(read_bytes(&mut cursor)?.to_vec())?;
+            let v = read_bytes(&mut cursor)?.to_vec();
+            let got = content_hash(&v);
+            if got != want {
+                return Err(anyhow!("pack asset '{k}' is corrupt: expected {want}, got {got}"));
+            }
+            pack.assets.insert(k, v);
         }
         Ok(pack)
     }

@@ -33,6 +33,10 @@ pub struct ProjectManifest {
     /// crate maps the name to a backend; core does not know the set.
     #[serde(default = "default_language")]
     pub language: String,
+    /// Where a shipped game may read assets from. Only bites once packed;
+    /// a dev run always reads the source tree.
+    #[serde(default)]
+    pub assets: AssetSource,
 }
 
 fn default_language() -> String {
@@ -94,6 +98,144 @@ pub struct SceneKeyRegistry(pub Vec<(String, SceneKeyHandler)>);
 /// The project directory, as an engine resource (used by `fs`, audio, and
 /// any plugin resolving project-relative paths).
 pub struct ProjectRoot(pub std::path::PathBuf);
+
+/// Where a project is allowed to read its bytes from, set by `assets` in
+/// `project.toml`. The default is deliberately the strict one: a shipped game
+/// that quietly falls back to the working directory runs on the machine that
+/// built it and nowhere else.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AssetSource {
+    /// The pack only. A miss is an error naming the file.
+    #[default]
+    Embedded,
+    /// The project directory only, ignoring anything packed.
+    Files,
+    /// The pack first, then the directory — loose DLC, mods, or an override
+    /// folder shipped beside the executable.
+    #[serde(rename = "embedded+files")]
+    EmbeddedThenFiles,
+}
+
+/// Where a project's bytes come from: the source tree while developing, the
+/// pack itself in a shipped game. Every reader of a binary asset goes through
+/// this, which is what lets a packed game ship as one file.
+pub struct ProjectFiles {
+    root: std::path::PathBuf,
+    packed: std::collections::BTreeMap<String, Vec<u8>>,
+    source: AssetSource,
+}
+
+impl ProjectFiles {
+    /// Reads from the source tree. Nothing is packed, so `assets` cannot
+    /// forbid the only source there is.
+    #[must_use]
+    pub fn directory(root: std::path::PathBuf) -> Self {
+        Self {
+            root,
+            packed: std::collections::BTreeMap::new(),
+            source: AssetSource::Files,
+        }
+    }
+
+    /// Serves a pack's assets under the project's `assets` rule.
+    #[must_use]
+    pub fn packed(
+        root: std::path::PathBuf,
+        assets: std::collections::BTreeMap<String, Vec<u8>>,
+        source: AssetSource,
+    ) -> Self {
+        Self {
+            root,
+            packed: assets,
+            source,
+        }
+    }
+
+    #[must_use]
+    pub const fn source(&self) -> AssetSource {
+        self.source
+    }
+
+    #[must_use]
+    pub fn root(&self) -> &std::path::Path {
+        &self.root
+    }
+
+    /// The bytes for a project-relative path. An absolute path is read from
+    /// disk as given, so a tool pointing outside the project still works.
+    ///
+    /// # Errors
+    /// If no permitted source has the file. The message names every place
+    /// that was tried, because "asset not found" without a location is the
+    /// least useful sentence a shipped game can print.
+    pub fn read(&self, path: &str) -> Result<Vec<u8>> {
+        let p = std::path::Path::new(path);
+        if p.is_absolute() {
+            return std::fs::read(p)
+                .with_context(|| format!("reading '{}'", p.display()));
+        }
+        // Separators are normalised because a pack is keyed the way it was
+        // built, which is always with forward slashes.
+        let key = path.replace('\\', "/");
+        let embedded = matches!(
+            self.source,
+            AssetSource::Embedded | AssetSource::EmbeddedThenFiles
+        );
+        if embedded {
+            if let Some(bytes) = self.packed.get(&key) {
+                return Ok(bytes.clone());
+            }
+        }
+        if self.source != AssetSource::Embedded {
+            let full = self.root.join(p);
+            if let Ok(bytes) = std::fs::read(&full) {
+                return Ok(bytes);
+            }
+            if embedded {
+                return Err(anyhow!(
+                    "no asset '{path}': not in the pack, and not at {}",
+                    full.display()
+                ));
+            }
+            return Err(anyhow!("no asset '{path}': nothing at {}", full.display()));
+        }
+        Err(anyhow!(
+            "no asset '{path}' in the pack. It ships only what `balaur export` \
+             collected; set `assets = \"embedded+files\"` in project.toml to also \
+             read files beside the game."
+        ))
+    }
+
+    /// Project-relative paths directly under `dir`, from the pack and from
+    /// disk, sorted and deduplicated. A packed game has no directory to walk,
+    /// so anything that discovers files by scanning one asks here instead.
+    #[must_use]
+    pub fn list(&self, dir: &str) -> Vec<String> {
+        let prefix = format!("{}/", dir.trim_end_matches('/'));
+        let mut out: Vec<String> = if self.source == AssetSource::Files {
+            Vec::new()
+        } else {
+            self.packed
+                .keys()
+                .filter(|k| k.starts_with(&prefix) && !k[prefix.len()..].contains('/'))
+                .cloned()
+                .collect()
+        };
+        if self.source != AssetSource::Embedded {
+            if let Ok(entries) = std::fs::read_dir(self.root.join(dir)) {
+                for entry in entries.flatten() {
+                    if entry.path().is_file() {
+                        out.push(format!("{prefix}{}", entry.file_name().to_string_lossy()));
+                    }
+                }
+            }
+        }
+        out.sort();
+        out.dedup();
+        out
+    }
+}
 
 /// Instantiate a scene document under `base`. Nodes are created in
 /// declaration order; scripts are attached (and `init` runs) after the whole

@@ -77,17 +77,19 @@ impl Plugin for PhysicsPlugin {
     }
 }
 
-/// Build and insert the collider described by `params`, replacing any
-/// existing one (attached to the entity's body when it has one).
-fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
+/// The collider described by `params`, in the `collider` schema's own
+/// vocabulary — so a script table and a scene-file entry build the same thing.
+fn collider_builder(params: &toml::Value) -> Result<ColliderBuilder> {
     let kind = params
         .get("kind")
         .and_then(|v| v.as_str())
         .unwrap_or("cuboid");
-    let radius = params
-        .get("radius")
-        .and_then(balaur_core::components::as_f64)
-        .unwrap_or(0.5) as f32;
+    let f = |key: &str, default: f64| {
+        params
+            .get(key)
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or(default) as f32
+    };
     let he = |i: usize| {
         params
             .get("half_extents")
@@ -97,10 +99,26 @@ fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<
             .unwrap_or(0.5) as f32
     };
     let builder = match kind {
-        "ball" => ColliderBuilder::ball(radius.max(0.01)),
+        "ball" => ColliderBuilder::ball(f("radius", 0.5).max(0.01)),
         "cuboid" => ColliderBuilder::cuboid(he(0).max(0.01), he(1).max(0.01), he(2).max(0.01)),
         other => return Err(anyhow!("unknown collider kind '{other}'")),
     };
+    Ok(builder
+        .restitution(f("restitution", 0.0))
+        .friction(f("friction", 0.5))
+        .density(f("density", 1.0).max(0.001))
+        .sensor(
+            params
+                .get("sensor")
+                .and_then(toml::Value::as_bool)
+                .unwrap_or(false),
+        ))
+}
+
+/// Build and insert the collider described by `params`, replacing any
+/// existing one (attached to the entity's body when it has one).
+fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
+    let builder = collider_builder(params)?;
     remove_colliders(eng, entity);
     add_collider(eng, entity, builder)
 }
@@ -146,6 +164,19 @@ fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
             ]),
         );
     }
+    map.insert(
+        "restitution".into(),
+        toml::Value::Float(f64::from(collider.restitution())),
+    );
+    map.insert(
+        "friction".into(),
+        toml::Value::Float(f64::from(collider.friction())),
+    );
+    map.insert(
+        "density".into(),
+        toml::Value::Float(f64::from(collider.density())),
+    );
+    map.insert("sensor".into(), toml::Value::Boolean(collider.is_sensor()));
     Some(toml::Value::Table(map))
 }
 
@@ -221,6 +252,32 @@ fn with_body<R>(
         .copied()
         .ok_or_else(|| anyhow!("node has no rigid body"))?;
     Ok(f(&mut state, handle))
+}
+
+/// Nodes whose colliders intersect this node's, sorted by entity bits so the
+/// order is deterministic. Rapier tracks pairs only when one side is a sensor.
+pub fn overlaps(eng: &Engine, entity: Entity) -> Vec<Entity> {
+    let state = eng.resource::<PhysicsState>();
+    let state = state.borrow();
+    let Some(handles) = state.colliders.get(&entity) else {
+        return Vec::new();
+    };
+    let mut others: Vec<ColliderHandle> = Vec::new();
+    for &handle in handles {
+        for (h1, _, h2, _, intersecting) in state.world.intersection_pairs_with(handle) {
+            if intersecting {
+                others.push(if h1 == handle { h2 } else { h1 });
+            }
+        }
+    }
+    let mut hits: Vec<Entity> = state
+        .colliders
+        .iter()
+        .filter(|&(&e, hs)| e != entity && hs.iter().any(|h| others.contains(h)))
+        .map(|(&e, _)| e)
+        .collect();
+    hits.sort_unstable_by_key(|e| e.to_bits());
+    hits
 }
 
 fn step_system(eng: &Engine, dt: f32) {
@@ -346,7 +403,7 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-/// Body and collider creation, impulses, and velocity access.
+/// Body and collider creation, impulses, velocity access and overlap queries.
 fn install_body_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "add_body",
@@ -385,6 +442,14 @@ fn install_body_api(m: &mut dyn Bindings<Engine>) {
             let v = state.world.bodies[handle].linvel();
             (v.x, v.y, v.z)
         })
+    });
+    // Sensor pairs only: rapier's narrow phase reports an intersection only
+    // when at least one of the two colliders is a sensor.
+    m.function("overlaps", |eng: &Engine, node: NodeId| {
+        Ok(overlaps(eng, entity_of(node)?)
+            .into_iter()
+            .map(balaur_core::node_id_of)
+            .collect::<Vec<_>>())
     });
 }
 
@@ -473,7 +538,11 @@ fn register_physics_components(app: &mut App) {
                 "collider",
                 r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid"], description = "Collision shape" }
 radius = { type = "float", default = 0.5, min = 0.01, description = "Ball radius, when kind is ball" }
-half_extents = { type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }"#,
+half_extents = { type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }
+restitution = { type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness: 0 is a dead stop, 1 a full rebound" }
+friction = { type = "float", default = 0.5, min = 0.0, description = "Surface friction; 0 is ice" }
+density = { type = "float", default = 1.0, min = 0.001, description = "Mass per area, so the shape's size sets its mass" }
+sensor = { type = "bool", default = false, description = "Detects overlaps without colliding: bodies pass through and are reported" }"#,
             ),
             apply: Box::new(apply_collider),
             remove: Box::new(|eng, entity| {

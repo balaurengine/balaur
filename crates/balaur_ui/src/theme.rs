@@ -8,7 +8,7 @@
 
 use std::collections::HashMap;
 
-use balaur_core::project::ProjectRoot;
+use balaur_core::project::ProjectFiles;
 use balaur_core::Engine;
 use egui::{Color32, CornerRadius, FontFamily, Shadow, Stroke};
 
@@ -129,20 +129,25 @@ pub(crate) fn load_fonts(eng: &Engine, ctx: &egui::Context) {
     let mut ui_chain: Vec<String> = Vec::new();
     let mut mono_chain: Vec<String> = Vec::new();
 
-    if let Some(root) = eng.try_resource::<ProjectRoot>() {
-        let dir = root.borrow().0.join("fonts");
-        if let Ok(entries) = std::fs::read_dir(&dir) {
-            let mut files: Vec<_> = entries
-                .flatten()
-                .map(|e| e.path())
-                .filter(|p| matches!(p.extension().and_then(|e| e.to_str()), Some("ttf" | "otf")))
+    if let Some(files) = eng.try_resource::<ProjectFiles>() {
+        let files = files.borrow();
+        {
+            let paths: Vec<String> = files
+                .list("fonts")
+                .into_iter()
+                .filter(|p| {
+                    matches!(
+                        std::path::Path::new(p).extension().and_then(|e| e.to_str()),
+                        Some("ttf" | "otf")
+                    )
+                })
                 .collect();
-            files.sort();
-            for path in files {
+            for rel in paths {
+                let path = std::path::PathBuf::from(&rel);
                 let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
                     continue;
                 };
-                let Ok(bytes) = std::fs::read(&path) else {
+                let Ok(bytes) = files.read(&rel) else {
                     continue;
                 };
                 let name = stem.to_string();

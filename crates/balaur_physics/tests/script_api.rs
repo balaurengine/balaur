@@ -137,6 +137,23 @@ fn the_2d_world_has_the_same_shape_of_api() {
 }
 
 #[test]
+fn overlaps_returns_an_empty_list_for_a_node_touching_nothing() {
+    run_clean(
+        r#"
+        physics.add_body(self.node, physics.BODY_DYNAMIC)
+        physics.add_ball_collider(self.node, 0.5)
+        local hits = physics.overlaps(self.node)
+        assert(type(hits) == "table" and #hits == 0, "3D overlaps should be empty")
+
+        physics2d.add_body(self.node, physics2d.BODY_DYNAMIC)
+        physics2d.add_collider(self.node, { kind = physics2d.SHAPE_CIRCLE, radius = 0.5, sensor = true })
+        local hits2 = physics2d.overlaps(self.node)
+        assert(type(hits2) == "table" and #hits2 == 0, "2D overlaps should be empty")
+        "#,
+    );
+}
+
+#[test]
 fn a_wrong_argument_is_reported_not_fatal() {
     let errors = run(r"physics.add_body(self.node, 42)");
     assert!(!errors.is_empty(), "a number was accepted as a body kind");

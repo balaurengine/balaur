@@ -43,8 +43,21 @@ fn project() -> tempfile::TempDir {
     )
     .unwrap();
     std::fs::write(dir.path().join("s.txt"), "abc").unwrap();
+    // A texture that has to travel, and a note that must not.
+    std::fs::create_dir_all(dir.path().join("art")).unwrap();
+    std::fs::write(dir.path().join("art/hero.png"), PNG).unwrap();
+    std::fs::write(dir.path().join("art/notes.md"), "not shippable").unwrap();
     dir
 }
+
+/// The smallest valid PNG: one transparent pixel.
+const PNG: &[u8] = &[
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+    0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+    0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
+    0x42, 0x60, 0x82,
+];
 
 #[test]
 fn a_pack_round_trips_through_bytes() {
@@ -55,6 +68,106 @@ fn a_pack_round_trips_through_bytes() {
     assert_eq!(decoded.manifest, pack.manifest);
     assert_eq!(decoded.scenes, pack.scenes);
     assert_eq!(decoded.scripts, pack.scripts);
+    assert_eq!(decoded.assets, pack.assets);
+}
+
+/// The gap this section closes: before it, a shipped game's textures and
+/// sounds stayed behind on the build machine.
+#[test]
+fn binary_assets_travel_inside_the_pack() {
+    let dir = project();
+    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+
+    assert_eq!(
+        pack.assets.get("art/hero.png").map(Vec::as_slice),
+        Some(PNG),
+        "the texture should be in the pack byte for byte"
+    );
+    assert!(
+        !pack.assets.contains_key("art/notes.md"),
+        "only shippable extensions travel"
+    );
+    let decoded = Pack::decode(&pack.encode()).unwrap();
+    assert_eq!(decoded.assets.get("art/hero.png").map(Vec::as_slice), Some(PNG));
+}
+
+#[test]
+fn a_corrupted_asset_is_caught_by_its_hash() {
+    let dir = project();
+    let mut bytes = Pack::build(dir.path(), &Reversing).unwrap().encode();
+    // Flip the last byte of the payload, which is inside the asset section.
+    let last = bytes.len() - 1;
+    bytes[last] ^= 0xff;
+
+    let err = Pack::decode(&bytes).expect_err("a corrupted asset must not decode");
+    assert!(
+        err.to_string().contains("art/hero.png"),
+        "the error should name the file that failed: {err}"
+    );
+}
+
+#[test]
+fn project_files_serve_a_packed_asset_without_touching_disk() {
+    use balaur_core::project::{AssetSource, ProjectFiles};
+    let dir = project();
+    let pack = Pack::build(dir.path(), &Reversing).unwrap();
+    // A root that does not exist: anything found had to come from the pack.
+    let files = ProjectFiles::packed(
+        "/nonexistent".into(),
+        pack.assets.clone(),
+        AssetSource::Embedded,
+    );
+
+    assert_eq!(files.read("art/hero.png").unwrap(), PNG);
+    assert_eq!(files.list("art"), vec!["art/hero.png".to_string()]);
+    assert!(files.read("art/missing.png").is_err());
+}
+
+/// The default is strict on purpose: a shipped game that quietly reads the
+/// working directory works on the machine that built it and nowhere else.
+#[test]
+fn an_embedded_game_will_not_read_a_file_beside_it() {
+    use balaur_core::project::{AssetSource, ProjectFiles};
+    let dir = project();
+    // Packed with nothing, pointed at a real directory that has the file.
+    let strict = ProjectFiles::packed(
+        dir.path().to_path_buf(),
+        std::collections::BTreeMap::new(),
+        AssetSource::Embedded,
+    );
+    let err = strict
+        .read("art/hero.png")
+        .expect_err("embedded must not fall through to disk");
+    assert!(
+        err.to_string().contains("embedded+files"),
+        "the error should say how to allow it: {err}"
+    );
+
+    let permissive = ProjectFiles::packed(
+        dir.path().to_path_buf(),
+        std::collections::BTreeMap::new(),
+        AssetSource::EmbeddedThenFiles,
+    );
+    assert_eq!(
+        permissive.read("art/hero.png").unwrap(),
+        PNG,
+        "embedded+files falls through to the directory"
+    );
+}
+
+/// A missing asset has to say where it looked; "not found" alone is the least
+/// useful sentence a shipped game can print.
+#[test]
+fn a_missing_asset_names_where_it_looked() {
+    use balaur_core::project::{AssetSource, ProjectFiles};
+    let files = ProjectFiles::packed(
+        "/some/root".into(),
+        std::collections::BTreeMap::new(),
+        AssetSource::EmbeddedThenFiles,
+    );
+    let err = files.read("art/gone.png").unwrap_err().to_string();
+    assert!(err.contains("art/gone.png"), "names the asset: {err}");
+    assert!(err.contains("/some/root"), "names the directory: {err}");
 }
 
 #[test]

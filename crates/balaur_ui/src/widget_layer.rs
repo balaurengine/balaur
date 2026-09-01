@@ -29,9 +29,14 @@ fn rgba_color(rgba: [f32; 4]) -> Color32 {
 pub struct Widget {
     pub kind: String,
     pub text: String,
+    /// Hidden widgets draw nothing and take no clicks, but keep their state.
+    pub visible: bool,
     pub anchor: String,
     pub x: f32,
     pub y: f32,
+    /// Panel size in design pixels; 0 sizes to content. A minimum on buttons.
+    pub width: f32,
+    pub height: f32,
     /// Height of the widget's text, in design pixels.
     pub font_size: f32,
     /// The text's colour as `[r, g, b, a]` in 0..=1, the same representation
@@ -74,9 +79,12 @@ pub(crate) fn register_widget_component(app: &mut App) {
                 "widget",
                 r#"kind = { type = "enum", default = "label", options = ["label", "button", "panel"], description = "The HUD element the widget layer draws" }
 text = { type = "string", default = "label", description = "Label or button caption" }
+visible = { type = "bool", default = true, description = "Draw the widget; hidden widgets keep their state" }
 anchor = { type = "enum", default = "top_left", options = ["top_left", "top_right", "bottom_left", "bottom_right", "center"], description = "Screen corner or center the offset is measured from" }
 x = { type = "float", default = 16.0, description = "Horizontal offset from the anchor, in design pixels" }
 y = { type = "float", default = 16.0, description = "Vertical offset from the anchor, in design pixels" }
+width = { type = "float", default = 0.0, min = 0.0, description = "Panel width in design pixels; 0 sizes to content" }
+height = { type = "float", default = 0.0, min = 0.0, description = "Panel height in design pixels; 0 sizes to content" }
 font_size = { type = "float", default = 16.0, min = 6.0, description = "Text size in design pixels" }
 text_color = { type = "color", default = [0.933, 0.945, 0.957, 1.0], description = "Text color" }
 on_click = { type = "string", default = "", description = "Script method called on this node when the button is clicked" }
@@ -105,9 +113,15 @@ clicked = { type = "bool", default = false, readonly = true, description = "True
                 let widget = Widget {
                     kind: s("kind", "label"),
                     text: s("text", "label"),
+                    visible: params
+                        .get("visible")
+                        .and_then(toml::Value::as_bool)
+                        .unwrap_or(true),
                     anchor: s("anchor", "top_left"),
                     x: f("x", 16.0),
                     y: f("y", 16.0),
+                    width: f("width", 0.0),
+                    height: f("height", 0.0),
                     font_size: f("font_size", 16.0),
                     text_color: [
                         channel(0, 0.933),
@@ -132,9 +146,12 @@ clicked = { type = "bool", default = false, readonly = true, description = "True
                 let mut map = toml::map::Map::new();
                 map.insert("kind".into(), toml::Value::String(widget.kind.clone()));
                 map.insert("text".into(), toml::Value::String(widget.text.clone()));
+                map.insert("visible".into(), toml::Value::Boolean(widget.visible));
                 map.insert("anchor".into(), toml::Value::String(widget.anchor.clone()));
                 map.insert("x".into(), toml::Value::Float(f64::from(widget.x)));
                 map.insert("y".into(), toml::Value::Float(f64::from(widget.y)));
+                map.insert("width".into(), toml::Value::Float(f64::from(widget.width)));
+                map.insert("height".into(), toml::Value::Float(f64::from(widget.height)));
                 map.insert(
                     "font_size".into(),
                     toml::Value::Float(f64::from(widget.font_size)),
@@ -188,6 +205,9 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
     };
     let mut clicked: Vec<Entity> = Vec::new();
     for (entity, widget) in &widgets {
+        if !widget.visible {
+            continue;
+        }
         let ox = widget.x * scale;
         let oy = widget.y * scale;
         let pos = match widget.anchor.as_str() {
@@ -221,18 +241,23 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
                         .corner_radius(egui::CornerRadius::same(
                             (widget.font_size * scale).min(120.0) as u8,
                         ))
-                        .stroke(Stroke::new(1.0, color)),
+                        .stroke(Stroke::new(1.0, color))
+                        .min_size(vec2(widget.width, widget.height) * scale),
                     );
                     if response.clicked() {
                         clicked.push(*entity);
                     }
                 }
                 "panel" => {
+                    let margin = egui::Margin::same(8);
                     egui::Frame::new()
                         .fill(Color32::from_black_alpha(96))
                         .corner_radius(egui::CornerRadius::same(8))
-                        .inner_margin(egui::Margin::same(8))
+                        .inner_margin(margin)
                         .show(ui, |ui| {
+                            // `width`/`height` size the frame, margins included.
+                            let min = vec2(widget.width, widget.height) * scale - margin.sum();
+                            ui.set_min_size(min.max(egui::Vec2::ZERO));
                             ui.label(
                                 egui::RichText::new(&widget.text)
                                     .font(font.clone())

@@ -34,6 +34,8 @@ unreachable_pub    = "warn"
 rust_2018_idioms   = { level = "warn", priority = -1 }
 
 [workspace.dependencies]
+# Content hashes for packed binary assets, and the release checksums.
+sha2 = "0.10"
 balaur_core = { path = "crates/balaur_core", version = "0.1.0" }
 balaur_plugin = { path = "crates/balaur_plugin", version = "0.1.0" }
 balaur_script = { path = "crates/balaur_script", version = "0.1.0" }

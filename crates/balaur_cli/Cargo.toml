@@ -36,7 +36,7 @@ tracing.workspace = true
 # skips the whole stack.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 ureq.workspace = true
-sha2 = "0.10"
+sha2.workspace = true
 dirs = "6"
 
 [target.'cfg(all(not(target_family = "wasm"), not(windows)))'.dependencies]

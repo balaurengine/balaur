@@ -13,6 +13,10 @@ use balaur_core::hecs::Entity;
 use balaur_core::{App, Engine, Plugin, Stage};
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
+mod camera;
+mod sprite;
+pub use camera::{Camera, CameraKind};
+
 #[cfg(feature = "kiss3d")]
 pub mod kiss3d_backend;
 
@@ -57,7 +61,10 @@ pub struct WindowedBackend;
 
 /// The application (dock/taskbar) icon, applied by windowed backends.
 pub struct AppIconConfig {
-    pub path: std::path::PathBuf,
+    /// The image itself, not a path: a packed game's icon ships in the pack.
+    pub bytes: Vec<u8>,
+    /// What the script asked for, kept for the log line.
+    pub name: String,
     pub changed: bool,
 }
 
@@ -281,6 +288,10 @@ pub struct SpriteTexture {
     pub sheet: Option<SpriteSheet2d>,
     /// Which frame of `sheet` to draw. Ignored without a sheet.
     pub frame: u32,
+    /// Mirror the image horizontally / vertically. Like `frame`, a UV-only
+    /// change: backends re-apply it without rebuilding their node.
+    pub flip_x: bool,
+    pub flip_y: bool,
 }
 
 /// 2D renderable, mirrored into the backend's 2D scene. The node's regular
@@ -337,12 +348,14 @@ fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Result<()> {
 /// Not behind the windowed feature: the size lands in a component a script can
 /// read, so a headless run has to compute the same number a windowed one does.
 fn natural_half_extents(
-    path: &std::path::Path,
+    bytes: &[u8],
+    name: &str,
     sheet: Option<SpriteSheet2d>,
     ppu: f32,
 ) -> Result<(f32, f32)> {
-    let (w, h) = image::image_dimensions(path)
-        .map_err(|e| anyhow!("reading the size of {}: {e}", path.display()))?;
+    let (w, h) = image::load_from_memory(bytes)
+        .map(|image| (image.width(), image.height()))
+        .map_err(|e| anyhow!("reading the size of {name}: {e}"))?;
     let (cols, rows) = sheet.map_or((1, 1), |s| (s.columns.max(1), s.rows.max(1)));
     let ppu = if ppu > 0.0 {
         ppu
@@ -365,9 +378,17 @@ fn set_sprite(
 ) -> Result<()> {
     let (hx, hy) = if let Some(explicit) = half_extents {
         explicit
+    } else if texture.path.is_empty() {
+        // A sprite with no texture yet: the editor adds the component first
+        // and picks the image after. It draws an untextured quad rather than
+        // refusing to exist, at the same default size as a `rect`.
+        (0.5, 0.5)
     } else {
-        let full = resolve_project_path(eng, &texture.path);
-        natural_half_extents(&full, texture.sheet, ppu)?
+        let bytes = eng
+            .resource::<balaur_core::project::ProjectFiles>()
+            .borrow()
+            .read(&texture.path)?;
+        natural_half_extents(&bytes, &texture.path, texture.sheet, ppu)?
     };
     let shape = Shape2d::Sprite {
         hx: hx.max(f32::EPSILON),
@@ -451,8 +472,12 @@ impl Plugin for RenderPlugin {
         install_sprite_state_api(&mut *m);
         register_shape_component(app);
         register_shape2d_component(app);
-        register_sprite_component(app);
+        sprite::register_sprite_component(app);
         register_color_component(app);
+        camera::register_camera_component(app);
+        // SceneSync, and after the core propagation system registered at
+        // `App::new`: the camera follows the node's settled global pose.
+        app.add_system(Stage::SceneSync, camera::drive_camera_system);
         app.add_system(Stage::Render, clear_debug_lines_system);
 
         Ok(())
@@ -599,8 +624,13 @@ fn install_window_api(m: &mut dyn Bindings<Engine>) {
     // OS application icon (dock icon on macOS) from a PNG in the project.
     // No reader by design: add `app_icon` when a caller needs it back.
     m.function("set_app_icon", |eng: &Engine, path: String| {
+        let bytes = eng
+            .resource::<balaur_core::project::ProjectFiles>()
+            .borrow()
+            .read(&path)?;
         eng.insert_resource(AppIconConfig {
-            path: resolve_project_path(eng, &path),
+            bytes,
+            name: path,
             changed: true,
         });
         Ok(())
@@ -736,6 +766,8 @@ fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
                     path,
                     sheet: None,
                     frame: 0,
+                    flip_x: false,
+                    flip_y: false,
                 },
                 None,
                 DEFAULT_PIXELS_PER_UNIT,
@@ -757,6 +789,8 @@ fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
                         rows: rows.max(1),
                     }),
                     frame: 0,
+                    flip_x: false,
+                    flip_y: false,
                 },
                 None,
                 DEFAULT_PIXELS_PER_UNIT,
@@ -1027,103 +1061,6 @@ half_extents = { type = "vec2", default = [0.5, 0.5], description = "Half-sizes 
                         );
                     }
                 }
-                Some(toml::Value::Table(map))
-            }),
-        },
-    );
-}
-
-/// The `sprite` component: a textured 2D quad.
-fn register_sprite_component(app: &mut App) {
-    app.register_component(
-        "sprite",
-        ComponentDef {
-            schema: ComponentDef::parse_schema(
-                "sprite",
-                r#"texture = { type = "string", default = "", description = "Image file, project-relative; required" }
-columns = { type = "float", default = 0.0, min = 0.0, description = "Sheet grid columns for flipbook sprites; 0 means a single image" }
-rows = { type = "float", default = 0.0, min = 0.0, description = "Sheet grid rows for flipbook sprites; 0 means a single image" }
-frame = { type = "float", default = 0.0, min = 0.0, description = "Current sheet cell, counted left-to-right then top-to-bottom" }
-pixels_per_unit = { type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit" }
-half_extents = { type = "vec2", default = [0.0, 0.0], description = "Size override in world units; [0, 0] sizes from the texture" }"#,
-            ),
-            apply: Box::new(|eng, entity, params| {
-                let num = |key: &str| {
-                    params
-                        .get(key)
-                        .and_then(balaur_core::components::as_f64)
-                        .unwrap_or(0.0)
-                };
-                let texture = params
-                    .get("texture")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .to_string();
-                if texture.is_empty() {
-                    return Err(anyhow!("sprite needs a texture"));
-                }
-                let columns = num("columns") as u32;
-                let rows = num("rows") as u32;
-                // A sheet needs both counts; one alone is a typo, not a grid.
-                let sheet = (columns > 0 && rows > 0).then_some(SpriteSheet2d { columns, rows });
-                let he = |i: usize| {
-                    params
-                        .get("half_extents")
-                        .and_then(|v| v.as_array())
-                        .and_then(|a| a.get(i))
-                        .and_then(balaur_core::components::as_f64)
-                        .unwrap_or(0.0) as f32
-                };
-                // Absent (or zero) half-extents mean "size it from the image".
-                let explicit = (he(0) > 0.0 && he(1) > 0.0).then(|| (he(0), he(1)));
-                let ppu = num("pixels_per_unit") as f32;
-                set_sprite(
-                    eng,
-                    entity,
-                    SpriteTexture {
-                        path: texture,
-                        sheet,
-                        frame: num("frame") as u32,
-                    },
-                    explicit,
-                    if ppu > 0.0 {
-                        ppu
-                    } else {
-                        DEFAULT_PIXELS_PER_UNIT
-                    },
-                )
-            }),
-            remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Renderable2d>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let renderable = world.get::<&Renderable2d>(entity).ok()?;
-                let sprite = renderable.sprite.as_ref()?;
-                let Shape2d::Sprite { hx, hy } = renderable.shape else {
-                    return None;
-                };
-                let mut map = toml::map::Map::new();
-                map.insert("texture".into(), toml::Value::String(sprite.path.clone()));
-                if let Some(sheet) = sprite.sheet {
-                    map.insert(
-                        "columns".into(),
-                        toml::Value::Float(f64::from(sheet.columns)),
-                    );
-                    map.insert("rows".into(), toml::Value::Float(f64::from(sheet.rows)));
-                }
-                map.insert("frame".into(), toml::Value::Float(f64::from(sprite.frame)));
-                // Written out resolved: a saved scene reloads to the same size
-                // even if the image on disk is replaced with a different one.
-                map.insert(
-                    "half_extents".into(),
-                    toml::Value::Array(vec![
-                        toml::Value::Float(f64::from(hx)),
-                        toml::Value::Float(f64::from(hy)),
-                    ]),
-                );
                 Some(toml::Value::Table(map))
             }),
         },

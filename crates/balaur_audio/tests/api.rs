@@ -33,12 +33,27 @@ fn ticking_with_audio_does_not_panic() {
 }
 
 #[test]
-fn playing_a_missing_file_does_not_take_the_frame_down() {
+fn undecodable_bytes_hand_out_a_silent_handle_instead_of_erroring() {
     let app = app();
     let state = app.engine.resource::<AudioState>();
-    let missing = std::path::Path::new("no/such/sound.ogg");
-    let _ = state.borrow_mut().play(missing, 1.0, false);
-    let _ = state.borrow_mut().play(std::path::Path::new(""), 1.0, true);
+    let mut state = state.borrow_mut();
+    let first = state.play(b"not audio".to_vec(), 1.0, 1.0, false);
+    let second = state.play(Vec::new(), 1.0, 1.0, true);
+    assert!(first > 0, "handles count up from one");
+    assert_ne!(first, second, "every play hands out a fresh handle");
+    assert!(!state.is_playing(first));
+}
+
+#[test]
+fn an_unknown_handle_answers_not_playing_and_its_setters_no_op() {
+    let app = app();
+    let state = app.engine.resource::<AudioState>();
+    let mut state = state.borrow_mut();
+    assert!(!state.is_playing(0));
+    assert!(!state.is_playing(9_999));
+    state.set_volume(9_999, 0.5);
+    state.set_pitch(9_999, 2.0);
+    state.stop(9_999);
 }
 
 #[test]

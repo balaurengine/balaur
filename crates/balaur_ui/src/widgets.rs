@@ -512,13 +512,13 @@ pub(crate) fn draw_image(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Resul
         let texture = if let Some(t) = cached {
             t
         } else {
-            let full = match eng.try_resource::<balaur_core::project::ProjectRoot>() {
-                Some(root) if !std::path::Path::new(path).is_absolute() => {
-                    root.borrow().0.join(path)
-                }
-                _ => std::path::PathBuf::from(path),
-            };
-            let dynamic = image::open(&full)?;
+            // Through ProjectFiles, so an image in a packed game loads from
+            // the pack rather than from a file that is not shipped.
+            let bytes = eng
+                .resource::<balaur_core::project::ProjectFiles>()
+                .borrow()
+                .read(path)?;
+            let dynamic = image::load_from_memory(&bytes)?;
             let rgba = dynamic.to_rgba8();
             let size = [rgba.width() as usize, rgba.height() as usize];
             let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());

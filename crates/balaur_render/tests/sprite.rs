@@ -183,6 +183,34 @@ fn a_missing_texture_is_an_error() {
     );
 }
 
+/// Like the frame, a flip only moves UVs, so it must ride along without
+/// forcing the backend to rebuild the node.
+#[test]
+fn flips_round_trip_and_do_not_force_a_rebuild() {
+    let app = app();
+    let entity = node(&app);
+    apply(&app, entity, "");
+    let before = app
+        .engine
+        .world()
+        .get::<&Renderable2d>(entity)
+        .unwrap()
+        .version;
+    apply(&app, entity, "flip_x = true\n");
+    {
+        let world = app.engine.world();
+        let r = world.get::<&Renderable2d>(entity).unwrap();
+        assert_eq!(r.version, before, "a flip change must not rebuild");
+        let sprite = r.sprite.as_ref().unwrap();
+        assert!(sprite.flip_x);
+        assert!(!sprite.flip_y);
+    }
+    let saved = components::get(&app.engine, entity, "sprite").unwrap();
+    let table = saved.as_table().unwrap();
+    assert!(table["flip_x"].as_bool().unwrap());
+    assert!(!table["flip_y"].as_bool().unwrap());
+}
+
 /// `shape2d` describes primitives; a sprite belongs to the `sprite` component,
 /// and saving it under both would write it into a scene twice.
 #[test]
@@ -192,4 +220,19 @@ fn shape2d_does_not_claim_a_sprite() {
     apply(&app, entity, "");
     assert!(components::get(&app.engine, entity, "shape2d").is_none());
     assert!(components::get(&app.engine, entity, "sprite").is_some());
+}
+
+/// The editor adds the component before anyone picks an image, and every
+/// component has to apply with its own defaults on a bare node. So a sprite
+/// with no texture is a placeholder, not an error.
+#[test]
+fn a_sprite_with_no_texture_is_a_placeholder() {
+    let app = app();
+    let entity = node(&app);
+    components::add(&app.engine, entity, "sprite", None).unwrap();
+    let (hx, hy) = half_extents(&app, entity);
+    assert_close(hx, 0.5);
+    assert_close(hy, 0.5);
+    let saved = components::get(&app.engine, entity, "sprite").unwrap();
+    assert_eq!(saved.as_table().unwrap()["texture"].as_str().unwrap(), "");
 }

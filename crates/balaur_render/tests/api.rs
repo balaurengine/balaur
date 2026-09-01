@@ -30,7 +30,7 @@ fn node(app: &App) -> balaur_core::hecs::Entity {
 fn the_plugin_registers_its_components() {
     let app = app();
     let names = components::names(&app.engine);
-    for expected in ["shape", "shape2d", "color"] {
+    for expected in ["shape", "shape2d", "color", "camera"] {
         assert!(
             names.contains(&expected.to_string()),
             "`{expected}` is not registered"

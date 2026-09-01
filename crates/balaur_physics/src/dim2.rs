@@ -160,7 +160,13 @@ fn collider_builder(params: &toml::Value) -> Result<ColliderBuilder2> {
     Ok(builder
         .restitution(f("restitution", 0.0))
         .friction(f("friction", 0.5))
-        .density(f("density", 1.0).max(0.001)))
+        .density(f("density", 1.0).max(0.001))
+        .sensor(
+            params
+                .get("sensor")
+                .and_then(toml::Value::as_bool)
+                .unwrap_or(false),
+        ))
 }
 
 /// Build and insert the collider described by `params`, replacing any
@@ -203,6 +209,7 @@ fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
         "density".into(),
         toml::Value::Float(f64::from(collider.density())),
     );
+    map.insert("sensor".into(), toml::Value::Boolean(collider.is_sensor()));
     Some(toml::Value::Table(map))
 }
 
@@ -240,6 +247,32 @@ fn max_contact_impulse(eng: &Engine, entity: Entity) -> f32 {
         }
     }
     max
+}
+
+/// Nodes whose colliders intersect this node's, sorted by entity bits so the
+/// order is deterministic. Rapier tracks pairs only when one side is a sensor.
+pub fn overlaps(eng: &Engine, entity: Entity) -> Vec<Entity> {
+    let state = eng.resource::<PhysicsState2d>();
+    let state = state.borrow();
+    let Some(handles) = state.colliders.get(&entity) else {
+        return Vec::new();
+    };
+    let mut others: Vec<ColliderHandle2> = Vec::new();
+    for &handle in handles {
+        for (h1, _, h2, _, intersecting) in state.world.intersection_pairs_with(handle) {
+            if intersecting {
+                others.push(if h1 == handle { h2 } else { h1 });
+            }
+        }
+    }
+    let mut hits: Vec<Entity> = state
+        .colliders
+        .iter()
+        .filter(|&(&e, hs)| e != entity && hs.iter().any(|h| others.contains(h)))
+        .map(|(&e, _)| e)
+        .collect();
+    hits.sort_unstable_by_key(|e| e.to_bits());
+    hits
 }
 
 fn step_system(eng: &Engine, dt: f32) {
@@ -351,7 +384,8 @@ fn build_physics2d(app: &mut App) {
     app.add_system(Stage::PostUpdate, step_system);
 }
 
-/// `physics2d`: bodies, colliders, gravity, velocities and contact impulse.
+/// `physics2d`: bodies, colliders, gravity, velocities, contact impulse and
+/// overlap queries.
 fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
     // Constructors, so a 2D body can be built from script rather than only
     // declared in a scene file.
@@ -415,6 +449,14 @@ fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
     m.function("max_contact_impulse", |eng: &Engine, node: NodeId| {
         Ok(max_contact_impulse(eng, entity_of(node)?))
     });
+    // Sensor pairs only: rapier's narrow phase reports an intersection only
+    // when at least one of the two colliders is a sensor.
+    m.function("overlaps", |eng: &Engine, node: NodeId| {
+        Ok(overlaps(eng, entity_of(node)?)
+            .into_iter()
+            .map(balaur_core::node_id_of)
+            .collect::<Vec<_>>())
+    });
 }
 
 /// The `body2d` and `collider2d` component keys. Neither is backed by a
@@ -477,7 +519,8 @@ radius = { type = "float", default = 0.5, min = 0.01, description = "Circle radi
 half_extents = { type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }
 restitution = { type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness: 0 is a dead stop, 1 a full rebound" }
 friction = { type = "float", default = 0.5, min = 0.0, description = "Surface friction; 0 is ice" }
-density = { type = "float", default = 1.0, min = 0.001, description = "Mass per area, so the shape's size sets its mass" }"#,
+density = { type = "float", default = 1.0, min = 0.001, description = "Mass per area, so the shape's size sets its mass" }
+sensor = { type = "bool", default = false, description = "Detects overlaps without colliding: bodies pass through and are reported" }"#,
             ),
             apply: Box::new(apply_collider),
             remove: Box::new(|eng, entity| {
