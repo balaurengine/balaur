@@ -21,5 +21,5 @@ unmaintained = "none"
 unknown-registry = "deny"
 unknown-git = "deny"
 # The kiss3d patch (see the root Cargo.toml): v0.46.0 plus the macOS
-# Command-modifier fix, which is not on crates.io.
-allow-git = ["https://github.com/dimforge/kiss3d"]
+# Command-modifier fix and iOS/Android support, none of it on crates.io.
+allow-git = ["https://github.com/Ughuuu/kiss3d"]

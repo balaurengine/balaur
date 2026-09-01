@@ -111,7 +111,18 @@ web)
   target=wasm32-unknown-emscripten
   step "build ($target)"
   rustup target add "$target"
-  cargo build --release -p balaur_cli --target "$target"
+  # The link tolerates undefined symbols (.cargo/config.toml) because egui's
+  # web-sys dependency leaves wasm-bindgen intrinsics unresolved on emscripten.
+  # So the link no longer catches a missing symbol of ours; this does.
+  build_log=$(mktemp)
+  cargo build --release -p balaur_cli --target "$target" 2>&1 | tee "$build_log"
+  stray=$(grep -oE 'undefined symbol: [A-Za-z0-9_]+' "$build_log" |
+    sed 's/undefined symbol: //' | grep -vE '^__wb(indgen|g_)' | sort -u || true)
+  rm -f "$build_log"
+  if [ -n "$stray" ]; then
+    printf '::error::undefined symbols that are not wasm-bindgen intrinsics: %s\n' "$(tr '\n' ' ' <<<"$stray")"
+    exit 1
+  fi
   # emcc emits the .wasm beside the .js loader that instantiates it. Either one
   # alone is unusable, and `[ -f ] && cp` in a loop exits the script with no
   # message when the last file is missing, which is how this went unnoticed.

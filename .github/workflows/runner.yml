@@ -23,10 +23,8 @@ jobs:
   ci:
     uses: ./.github/workflows/ci.yml
 
-  # Runs on pull requests too — a build that only runs after merge tells you
-  # nothing. What it must not do there is publish; build.yml gates that itself.
-  # The token stays writable because a called workflow cannot grant itself more
-  # than its caller holds, and the one job that uses it is skipped on a PR.
+  # Runs on pull requests too; build.yml skips the one job that publishes.
+  # The token stays writable because a called workflow cannot grant itself more.
   build:
     permissions:
       contents: write
