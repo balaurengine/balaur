@@ -483,6 +483,15 @@ impl RuneHost {
     }
 
     pub fn update(&self, dt: f32) {
+        self.tick_lifecycle("update", dt);
+    }
+
+    pub fn fixed_update(&self, dt: f32) {
+        self.tick_lifecycle("fixed_update", dt);
+    }
+
+    /// Call `method(dt)` on every live instance that defines it.
+    fn tick_lifecycle(&self, method: &str, dt: f32) {
         // Collect first so a script may attach, detach or spawn during its own
         // update without the host state being borrowed.
         let batch: Vec<(String, rune::Value)> = self
@@ -493,18 +502,18 @@ impl RuneHost {
             .filter_map(|i| Some((i.key.clone(), i.state.try_clone().ok()?)))
             .collect();
         for (key, state) in batch {
-            let Some(update) = self.method(&key, "update") else {
+            let Some(f) = self.method(&key, method) else {
                 continue;
             };
-            match update.call::<rune::Value>((state, f64::from(dt))) {
+            match f.call::<rune::Value>((state, f64::from(dt))) {
                 VmResult::Ok(value) => {
                     if value.type_hash() == rune::runtime::Future::HASH {
                         tracing::error!(
-                            "[{key}] update cannot be async; suspend in init or a handler instead"
+                            "[{key}] {method} cannot be async; suspend in init or a handler instead"
                         );
                     }
                 }
-                VmResult::Err(err) => tracing::error!("[{key}] update: {err}"),
+                VmResult::Err(err) => tracing::error!("[{key}] {method}: {err}"),
             }
         }
     }
@@ -840,6 +849,10 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
 
     fn update(&self, dt: f32) {
         RuneHost::update(self, dt);
+    }
+
+    fn fixed_update(&self, dt: f32) {
+        RuneHost::fixed_update(self, dt);
     }
 
     fn pump_reloads(&self) {

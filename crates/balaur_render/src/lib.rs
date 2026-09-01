@@ -1048,6 +1048,98 @@ fn install_shape_api(m: &mut dyn Bindings<Engine>) {
 // Components below are schema-driven, and each key doubles as a scene key.
 
 /// The `shape` component: 3D primitives, editable from the editor.
+/// The `Shape` a `shape` component's params describe.
+fn shape_from_params(params: &toml::Value) -> Result<Shape> {
+            let kind = params
+                .get("kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or("cuboid");
+            let radius = params
+                .get("radius")
+                .and_then(balaur_core::components::as_f64)
+                .unwrap_or(0.5) as f32;
+            let he = |i: usize| {
+                params
+                    .get("half_extents")
+                    .and_then(|v| v.as_array())
+                    .and_then(|a| a.get(i))
+                    .and_then(balaur_core::components::as_f64)
+                    .unwrap_or(0.5) as f32
+            };
+            let height = params
+                .get("height")
+                .and_then(balaur_core::components::as_f64)
+                .unwrap_or(1.0) as f32;
+            let radius = radius.max(0.01);
+            let height = height.max(0.01);
+            let shape = match kind {
+                "ball" => Shape::Ball { radius },
+                "cuboid" => Shape::Cuboid {
+                    hx: he(0).max(0.01),
+                    hy: he(1).max(0.01),
+                    hz: he(2).max(0.01),
+                },
+                "capsule" => Shape::Capsule { radius, height },
+                "cylinder" => Shape::Cylinder { radius, height },
+                "cone" => Shape::Cone { radius, height },
+                "plane" => Shape::Plane {
+                    hx: he(0).max(0.01),
+                    hz: he(2).max(0.01),
+                },
+                other => return Err(anyhow!("unknown shape kind '{other}'")),
+            };
+    Ok(shape)
+}
+
+/// A `shape` component's params for `shape`, or `None` when another
+/// component owns it.
+fn shape_to_params(shape: Shape) -> Option<toml::Value> {
+            let mut map = toml::map::Map::new();
+            match shape {
+                Shape::Ball { radius } => {
+                    map.insert("kind".into(), toml::Value::String("ball".into()));
+                    map.insert("radius".into(), toml::Value::Float(f64::from(radius)));
+                }
+                Shape::Capsule { radius, height }
+                | Shape::Cylinder { radius, height }
+                | Shape::Cone { radius, height } => {
+                    let name = match shape {
+                        Shape::Capsule { .. } => "capsule",
+                        Shape::Cylinder { .. } => "cylinder",
+                        _ => "cone",
+                    };
+                    map.insert("kind".into(), toml::Value::String(name.into()));
+                    map.insert("radius".into(), toml::Value::Float(f64::from(radius)));
+                    map.insert("height".into(), toml::Value::Float(f64::from(height)));
+                }
+                // A mesh is saved by the `mesh` component, not this one.
+                Shape::Mesh => return None,
+                Shape::Plane { hx, hz } => {
+                    map.insert("kind".into(), toml::Value::String("plane".into()));
+                    map.insert(
+                        "half_extents".into(),
+                        toml::Value::Array(vec![
+                            toml::Value::Float(f64::from(hx)),
+                            toml::Value::Float(0.0),
+                            toml::Value::Float(f64::from(hz)),
+                        ]),
+                    );
+                }
+                Shape::Cuboid { hx, hy, hz } => {
+                    map.insert("kind".into(), toml::Value::String("cuboid".into()));
+                    map.insert(
+                        "half_extents".into(),
+                        toml::Value::Array(vec![
+                            toml::Value::Float(f64::from(hx)),
+                            toml::Value::Float(f64::from(hy)),
+                            toml::Value::Float(f64::from(hz)),
+                        ]),
+                    );
+                }
+            }
+    Some(toml::Value::Table(map))
+}
+
 fn register_shape_component(app: &mut App) {
     app.register_component(
         "shape",
@@ -1062,45 +1154,7 @@ half_extents = { type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-s
             tags: &["3d", "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let kind = params
-                    .get("kind")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("cuboid");
-                let radius = params
-                    .get("radius")
-                    .and_then(balaur_core::components::as_f64)
-                    .unwrap_or(0.5) as f32;
-                let he = |i: usize| {
-                    params
-                        .get("half_extents")
-                        .and_then(|v| v.as_array())
-                        .and_then(|a| a.get(i))
-                        .and_then(balaur_core::components::as_f64)
-                        .unwrap_or(0.5) as f32
-                };
-                let height = params
-                    .get("height")
-                    .and_then(balaur_core::components::as_f64)
-                    .unwrap_or(1.0) as f32;
-                let radius = radius.max(0.01);
-                let height = height.max(0.01);
-                let shape = match kind {
-                    "ball" => Shape::Ball { radius },
-                    "cuboid" => Shape::Cuboid {
-                        hx: he(0).max(0.01),
-                        hy: he(1).max(0.01),
-                        hz: he(2).max(0.01),
-                    },
-                    "capsule" => Shape::Capsule { radius, height },
-                    "cylinder" => Shape::Cylinder { radius, height },
-                    "cone" => Shape::Cone { radius, height },
-                    "plane" => Shape::Plane {
-                        hx: he(0).max(0.01),
-                        hz: he(2).max(0.01),
-                    },
-                    other => return Err(anyhow!("unknown shape kind '{other}'")),
-                };
-                set_shape(eng, entity, shape)
+                set_shape(eng, entity, shape_from_params(params)?)
             }),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
@@ -1110,50 +1164,7 @@ half_extents = { type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-s
             get: Box::new(|eng, entity| {
                 let world = eng.world();
                 let renderable = world.get::<&Renderable>(entity).ok()?;
-                let mut map = toml::map::Map::new();
-                match renderable.shape {
-                    Shape::Ball { radius } => {
-                        map.insert("kind".into(), toml::Value::String("ball".into()));
-                        map.insert("radius".into(), toml::Value::Float(f64::from(radius)));
-                    }
-                    Shape::Capsule { radius, height }
-                    | Shape::Cylinder { radius, height }
-                    | Shape::Cone { radius, height } => {
-                        let name = match renderable.shape {
-                            Shape::Capsule { .. } => "capsule",
-                            Shape::Cylinder { .. } => "cylinder",
-                            _ => "cone",
-                        };
-                        map.insert("kind".into(), toml::Value::String(name.into()));
-                        map.insert("radius".into(), toml::Value::Float(f64::from(radius)));
-                        map.insert("height".into(), toml::Value::Float(f64::from(height)));
-                    }
-                    // A mesh is saved by the `mesh` component, not this one.
-                    Shape::Mesh => return None,
-                    Shape::Plane { hx, hz } => {
-                        map.insert("kind".into(), toml::Value::String("plane".into()));
-                        map.insert(
-                            "half_extents".into(),
-                            toml::Value::Array(vec![
-                                toml::Value::Float(f64::from(hx)),
-                                toml::Value::Float(0.0),
-                                toml::Value::Float(f64::from(hz)),
-                            ]),
-                        );
-                    }
-                    Shape::Cuboid { hx, hy, hz } => {
-                        map.insert("kind".into(), toml::Value::String("cuboid".into()));
-                        map.insert(
-                            "half_extents".into(),
-                            toml::Value::Array(vec![
-                                toml::Value::Float(f64::from(hx)),
-                                toml::Value::Float(f64::from(hy)),
-                                toml::Value::Float(f64::from(hz)),
-                            ]),
-                        );
-                    }
-                }
-                Some(toml::Value::Table(map))
+                shape_to_params(renderable.shape)
             }),
         },
     );

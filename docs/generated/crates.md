@@ -77,9 +77,9 @@ Balaur engine core: the Rust data plane.
 
 - **workspace deps:** `balaur_script`
 - **external deps:** 13 (anyhow, dirs, glamx, hecs, indexmap, rustc-hash, serde, serde_json, …)
-- **public surface:** 49 fn, 29 struct, 4 enum, 1 trait, 6 const, 9 type
+- **public surface:** 60 fn, 38 struct, 4 enum, 1 trait, 11 const, 10 type
 - **traits:** `Plugin`
-- **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Children`, `ComponentDef`, `ComponentRegistry`, `Engine`, `EngineOp`, `GlobalTransform`, `LogEntry`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `StableId`, `Transform`
+- **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Children`, `ComponentDef`, `ComponentRegistry`, `Digest`, `DigestRegistry`, `Engine`, `EngineOp`, `Entry`, `GlobalTransform`, `Hasher`, `HeightfieldData`, `LogEntry`, `MeshData`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `StableId`, `Transform`
 - **enums:** `AssetRef`, `AssetSource`, `Command`, `Stage`
 
 ## `balaur_gamend`
@@ -148,8 +148,8 @@ Rendering as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_input`, `balaur_script`, `balaur_ui`
 - **external deps:** 10 (anyhow, glamx, image, kiss3d, objc2, objc2-app-kit, objc2-foundation, pollster, …)
-- **public surface:** 5 fn, 23 struct, 3 enum, 2 const, 2 type
-- **structs:** `AppIconConfig`, `Camera`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ClearColorConfig`, `DebugLineBuffer`, `DebugLineBuffer2d`, `GridConfig`, `MeshData`, `Particles`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `SpriteSheet2d`, `SpriteTexture`, `Tilemap`, `Tileset`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
+- **public surface:** 3 fn, 22 struct, 3 enum, 2 const, 2 type
+- **structs:** `AppIconConfig`, `Camera`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ClearColorConfig`, `DebugLineBuffer`, `DebugLineBuffer2d`, `GridConfig`, `Particles`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `SpriteSheet2d`, `SpriteTexture`, `Tilemap`, `Tileset`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
 - **enums:** `CameraKind`, `Shape`, `Shape2d`
 
 ## `balaur_script`

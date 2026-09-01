@@ -65,6 +65,7 @@ impl ScriptHost<balaur_core::Engine> for Calls {
     }
     fn detach(&self, _: NodeId) {}
     fn update(&self, _: f32) {}
+    fn fixed_update(&self, _: f32) {}
     fn pump_reloads(&self) {}
     fn reload(&self, _: &str) -> anyhow::Result<()> {
         Ok(())

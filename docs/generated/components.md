@@ -8,7 +8,7 @@ same entity, and capability comes from the components on it.
 In the terms other engines use: a specialized node type there (a
 `RigidBody2D`, a `Sprite2D`, a `Label`) is here a plain node plus a
 component, and a content resource there (an animation library, say)
-is here an [asset](#asset-types), referenced from an `asset`-typed
+is here an [asset](./assets.md), referenced from an `asset`-typed
 property or defined inline in the scene. Some things that are
 resources elsewhere are neither here: a collider's shape is plain
 data on the `collider` component itself. And similar component names
@@ -66,30 +66,38 @@ registration provides the scene-file key, the runtime
 </details>
 
 <details>
-<summary><code>collider</code> · 7 properties</summary>
+<summary><code>collider</code> · 14 properties</summary>
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>a</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>First corner, when kind is triangle</td></tr>
+<tr><td><code>b</code></td><td>vec3</td><td><code>[1.0, 0.0, 0.0]</code></td><td>Second corner, when kind is triangle</td></tr>
+<tr><td><code>c</code></td><td>vec3</td><td><code>[0.0, 1.0, 0.0]</code></td><td>Third corner, when kind is triangle</td></tr>
 <tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per volume, so the shape&#x27;s size sets its mass At least 0.001.</td></tr>
 <tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction; 0 is ice At least 0.0.</td></tr>
 <tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td>Half-sizes of the cuboid, when kind is cuboid</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>cuboid</code></td><td>Collision shape One of <code>ball</code>, <code>cuboid</code>.</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Ball radius, when kind is ball At least 0.01.</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y of the straight part, for capsule, cylinder and cone At least 0.01.</td></tr>
+<tr><td><code>heightfield</code></td><td>asset · <code>heightfield</code></td><td>—</td><td>Terrain grid, when kind is heightfield</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>cuboid</code></td><td>Collision shape One of <code>ball</code>, <code>cuboid</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>triangle</code>, <code>trimesh</code>, <code>convex_hull</code>, <code>polyline</code>, <code>heightfield</code>.</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Geometry for a trimesh, convex_hull or polyline collider</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for ball, capsule, cylinder and cone At least 0.01.</td></tr>
 <tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness: 0 is a dead stop, 1 a full rebound Range 0.0–1.0.</td></tr>
+<tr><td><code>scale</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Cell size and height scale of a heightfield</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 </tbody>
 </table>
 </details>
 
 <details>
-<summary><code>collider2d</code> · 7 properties</summary>
+<summary><code>collider2d</code> · 8 properties</summary>
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>density</code></td><td>float</td><td><code>1.0</code></td><td>Mass per area, so the shape&#x27;s size sets its mass At least 0.001.</td></tr>
 <tr><td><code>friction</code></td><td>float</td><td><code>0.5</code></td><td>Surface friction; 0 is ice At least 0.0.</td></tr>
 <tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>Half-sizes of the rect, when kind is rect</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>rect</code></td><td>Collision shape One of <code>circle</code>, <code>rect</code>.</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y of the straight part, when kind is capsule At least 0.01.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>rect</code></td><td>Collision shape One of <code>circle</code>, <code>rect</code>, <code>capsule</code>.</td></tr>
 <tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Circle radius, when kind is circle At least 0.01.</td></tr>
 <tr><td><code>restitution</code></td><td>float</td><td><code>0.0</code></td><td>Bounciness: 0 is a dead stop, 1 a full rebound Range 0.0–1.0.</td></tr>
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
@@ -103,6 +111,16 @@ registration provides the scene-file key, the runtime
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>rgba</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>The node&#x27;s tint, as channel floats or #rrggbb / #rrggbbaa Scene shorthand: <code>rgba</code>'s value can be given as the component's whole value.</td></tr>
+</tbody>
+</table>
+</details>
+
+<details>
+<summary><code>mesh</code> · 1 property</summary>
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>source</code></td><td>asset · <code>mesh</code></td><td>—</td><td>The mesh asset this node draws</td></tr>
 </tbody>
 </table>
 </details>
@@ -125,25 +143,30 @@ registration provides the scene-file key, the runtime
 </details>
 
 <details>
-<summary><code>shape</code> · 3 properties</summary>
+<summary><code>shape</code> · 4 properties</summary>
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td>Half-sizes of the cuboid, when kind is cuboid</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>cuboid</code></td><td>Rendered 3D shape One of <code>ball</code>, <code>cuboid</code>.</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Ball radius, when kind is ball At least 0.01.</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y, for capsule, cylinder and cone At least 0.01.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>cuboid</code></td><td>Rendered 3D shape One of <code>ball</code>, <code>cuboid</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>plane</code>.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for every kind but cuboid At least 0.01.</td></tr>
 </tbody>
 </table>
 </details>
 
 <details>
-<summary><code>shape2d</code> · 3 properties</summary>
+<summary><code>shape2d</code> · 7 properties</summary>
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>closed</code></td><td>bool</td><td><code>false</code></td><td>Join the last point back to the first, making a polygon outline</td></tr>
 <tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>Half-sizes of the rect, when kind is rect</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>rect</code></td><td>Rendered 2D shape One of <code>circle</code>, <code>rect</code>.</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Circle radius, when kind is circle At least 0.01.</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y of the straight part, when kind is capsule At least 0.01.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>rect</code></td><td>Rendered 2D shape One of <code>circle</code>, <code>rect</code>, <code>capsule</code>, <code>polyline</code>.</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points of a polyline, taken from a mesh asset&#x27;s vertices</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, when kind is circle or capsule At least 0.01.</td></tr>
+<tr><td><code>width</code></td><td>float</td><td><code>0.02</code></td><td>Line thickness in world units, when kind is polyline At least 0.001.</td></tr>
 </tbody>
 </table>
 </details>
@@ -212,13 +235,3 @@ registration provides the scene-file key, the runtime
 </table>
 </details>
 
-## Asset types
-
-Content that lives in files (or inline in a scene) rather than on a
-node, registered by plugins the same way components are. An
-`asset`-typed component property names which of these it takes.
-
-| type | project directory |
-| --- | --- |
-| `animation_clip` | `animations/` |
-| `tileset` | `tilesets/` |

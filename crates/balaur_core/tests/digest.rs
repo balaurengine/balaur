@@ -37,7 +37,7 @@ fn moving_a_node_by_one_ulp_changes_the_digest() {
     let entity = spawn(&app, "n_ball", "Ball", 1.0);
     let before = digest::digest(&app.engine);
     {
-        let mut world = app.engine.world_mut();
+        let world = app.engine.world_mut();
         let mut t = world.get::<&mut Transform>(entity).unwrap();
         t.position.x = f32::from_bits(1.0f32.to_bits() + 1);
     }
@@ -55,7 +55,7 @@ fn first_divergence_names_the_node_that_moved() {
     let ball = spawn(&app, "n_ball", "Ball", 1.0);
     let before = digest::entries(&app.engine);
     {
-        let mut world = app.engine.world_mut();
+        let world = app.engine.world_mut();
         world.get::<&mut Transform>(ball).unwrap().position.x = 2.0;
     }
     let after = digest::entries(&app.engine);
@@ -107,7 +107,7 @@ fn a_node_present_on_one_side_only_is_reported_as_missing() {
 fn the_rng_stream_position_is_part_of_the_digest() {
     let app = app();
     let before = digest::digest(&app.engine);
-    balaur_core::rng::with_rng(&app.engine, |rng| rng.next_u32());
+    balaur_core::rng::with_rng(&app.engine, balaur_core::rng::Pcg32::next_u32);
     assert_ne!(
         before,
         digest::digest(&app.engine),

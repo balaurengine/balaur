@@ -60,11 +60,24 @@ structure with a cost.
 
 ### Frame schedule
 
-Fixed stage order: `First → PreUpdate (reload pump) → Update (scripts) →
-PostUpdate (physics, audio) → SceneSync (transform propagation) → Render →
-Last (deferred destruction)`. Structural changes requested by scripts
-(`queue_free`) are deferred to `Last` so iteration is never invalidated
-mid-frame.
+Fixed stage order: `First → PreUpdate (reload pump) → Update (scripts,
+animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSync
+(transform propagation) → Render → Last (deferred destruction)`. Structural
+changes requested by scripts (`queue_free`) are deferred to `Last` so
+iteration is never invalidated mid-frame.
+
+`FixedUpdate` is the odd one: the app drains one accumulator into whole
+`FIXED_DT` steps and runs the whole stage once per step, so it may run zero
+times in a fast frame and up to `MAX_SUBSTEPS` in a slow one. Everything that
+decides the simulation lives there and is handed `FIXED_DT`, never the frame's
+measured time. One accumulator rather than one per plugin is the point: when
+physics kept its own, the number of steps it took in a given frame depended on
+wall-clock jitter, so a force a script applied in `update` landed before a
+different number of steps on every machine.
+
+Order inside the stage is registration order, and core registers the script
+callback first, so `fixed_update` always runs before the physics step that
+frame — a force applied there lands on the step it was meant for.
 
 ## Scripting
 
@@ -567,7 +580,7 @@ The hazards, and how Balaur addresses or will address them:
 | `math.sin/cos/exp/pow/...` call the platform libm; results differ across OS/libc | **Done:** `balaur_script_luau::det` rebinds them to pure-Rust `libm` implementations (MUSL algorithms, bit-identical everywhere). Luau's compiler turns `math.*` into fastcalls that bypass the global table, so `compiler()` also disables those builtins via `Compiler::disabled_builtins`; a test proves O2-compiled code routes through the rebound table. Remaining hole: the `^` exponent operator calls the C `pow` inside the VM and cannot be intercepted from the embedding API; simulation code must call `math.pow` instead (lintable later). |
 | `pairs()` order on tables with table/userdata keys depends on pointer values | Rule: simulation-affecting iteration uses arrays or string/number keys. The editor can lint for this; an engine-provided ordered map is planned. |
 | `math.random` seeded from entropy | **Done:** `math.random`/`math.randomseed` are rebound to an engine-owned PCG32 stream (fixed default seed, so a fresh run is reproducible by construction), also exposed as the `rng` module (`rng.seed/random/range/int`). |
-| Wall-clock (`os.clock`, variable `dt`) leaking into simulation | **Done, for the engine's own step:** `App::set_fixed_dt` (`balaur run --fixed-tick`) feeds `FIXED_DT` to every system instead of the measured frame time, so an interactive run reproduces a headless one tick for tick. Physics and animation take that same constant from `balaur_core::FIXED_DT` rather than each declaring their own 60th of a second. Input is captured once per frame into a snapshot (replayable). **Remaining:** a `fixed_update(dt)` script callback, so gameplay code cannot read the variable `dt` at all. |
+| Wall-clock (`os.clock`, variable `dt`) leaking into simulation | **Done.** `Stage::FixedUpdate` runs on one app-owned accumulator at `FIXED_DT`; scripts get a `fixed_update(dt)` callback there and physics steps there, so simulation code never sees the frame's measured time. `App::set_fixed_dt` (`balaur run --fixed-tick`) additionally pins the frame itself, making an interactive run reproduce a headless one tick for tick given the same inputs. Physics and animation take the constant from `balaur_core::FIXED_DT` rather than each declaring their own 60th of a second. Input is captured once per frame into a snapshot (replayable). |
 | Luau native codegen (JIT) may change float behavior | Not enabled; deterministic builds keep it off. |
 
 Engine-side measures already in place:
@@ -634,9 +647,9 @@ same tree, and a reparent is itself simulation state worth catching.
 
 Ordered by what would break a networked session first:
 
-1. **`fixed_update`.** Scripts still see a variable `dt` in `update`.
-   `--fixed-tick` makes it constant, but nothing *stops* a game from being
-   written against the variable one.
+1. **Nothing forces gameplay into `fixed_update`.** The callback exists and
+   physics shares its accumulator, but a game is still free to simulate from
+   `update` and see a variable `dt`. A lint is the likely answer.
 2. **Hot reload is a determinism hazard.** Swapping code mid-session changes
    behaviour by design. A verified or networked run has to either disable it
    or record the reload as an event in the input trace.
@@ -887,9 +900,10 @@ what lets the three modes agree bit for bit.
    needs a second section and a hash per entry.
 5. Editor: selection, inspector (reflect components to Lua), gizmos, scene
    saving (world → TOML serialization).
-6. `fixed_update` script callback, so gameplay cannot read the variable `dt`
-   at all. Fixed-tick mode itself landed (`--fixed-tick`), as did the per-tick
-   digest and its cross-platform CI diff.
+6. A lint that catches simulation written against `update`'s variable `dt`.
+   The `fixed_update` callback, the shared `FixedUpdate` accumulator,
+   `--fixed-tick` and the per-tick digest with its cross-platform CI diff all
+   landed; what is left is stopping a game from opting out by accident.
 7. Record/replay: write the per-tick input snapshots and the seed to a file,
    replay them with `--verify` against the digest chain, and report the first
    divergent tick and slice. The determinism debugger, and the prerequisite

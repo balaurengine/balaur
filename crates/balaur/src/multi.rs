@@ -77,6 +77,11 @@ impl ScriptHost<Engine> for MultiHost {
         ScriptHost::update(&self.rune, dt);
     }
 
+    fn fixed_update(&self, dt: f32) {
+        ScriptHost::fixed_update(&self.luau, dt);
+        ScriptHost::fixed_update(&self.rune, dt);
+    }
+
     fn pump_reloads(&self) {
         ScriptHost::pump_reloads(&self.luau);
         ScriptHost::pump_reloads(&self.rune);

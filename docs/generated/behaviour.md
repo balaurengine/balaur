@@ -6,6 +6,7 @@ Every test in the workspace, as a sentence. A flow that is not here is a
 flow nothing checks.
 
 - a 2d camera component drives center and zoom
+- a 2d capsule collider applies
 - a 2d shape component puts a 2d renderable on the node
 - a 3d collider takes friction restitution and density
 - a bad schema is rejected at registration
@@ -17,6 +18,7 @@ flow nothing checks.
 - a call step takes no time of its own
 - a callback does not outlive its call
 - a camera that is not current leaves the config alone
+- a capsule keeps the height it was given
 - a checksum mismatch rejects the download and leaves no file
 - a clip animates a component the animation crate does not depend on
 - a clip defined at run time plays by the name it was given
@@ -35,8 +37,10 @@ flow nothing checks.
 - a colour reads back as it was set
 - a colour set from a script reads back
 - a compile error fails the build
+- a component can carry several tags
 - a component track can drive a child node
 - a component track is as wide as its keys
+- a component with no expectations never warns
 - a constant is readable from a script
 - a corrupted asset is caught by its hash
 - a current camera component drives the camera config
@@ -44,19 +48,30 @@ flow nothing checks.
 - a curve name nothing defines is rejected naming it
 - a curve reads its own name back as a transition and a mode
 - a curve returns exactly the same bits twice
+- a definition may carry its vertices instead
+- a definition may name a file to import
+- a definition missing its shape says so
 - a definition that is not a clip is refused where it was written
 - a definition with no type cannot choose a parser and says so
 - a different seed gives a different stream
+- a divergence report names the node and the slice
 - a duplicate name resolves the same way every time
 - a duplicated id is regenerated
 - a dynamic body falls and a static one does not
 - a face naming a vertex that does not exist is an error
+- a face naming a vertex the definition never gave is refused
 - a failed transfer reports an error event
 - a file with no faces is an error rather than an empty mesh
 - a forward parent reference is rejected
+- a frame of exactly one step runs the stage once
+- a frame shorter than a step ticks update but not fixed update
 - a freed node stops being valid
+- a grid parses row major
+- a grid thinner than one cell is refused
+- a grid whose count does not match its shape is refused
 - a handler can await and await again
 - a headless frame empties the debug line buffers
+- a heightfield collider without its asset says so
 - a hex colour reaches apply expanded through patch as well as add
 - a hex string is a colour wherever a colour is taken
 - a hidden widget draws nothing and takes no clicks
@@ -64,6 +79,7 @@ flow nothing checks.
 - a language selects its own tokens
 - a leaf subtree is just itself
 - a library file addresses its clips by name
+- a long frame runs several steps all at the fixed dt
 - a looping clip never ends and a plain one does
 - a looping clip wraps back to the start
 - a looping tween plays its sequence that many times
@@ -82,6 +98,7 @@ flow nothing checks.
 - a lying trailer is refused rather than panicking
 - a malformed reference fails with a message naming the reference
 - a matching fingerprint reports no differences
+- a mesh collider without its asset says so
 - a method key fires on the node its track targets
 - a method key fires once per loop
 - a method key is passed once per loop and never by a seek
@@ -97,8 +114,10 @@ flow nothing checks.
 - a missing texture is an error
 - a modal runs its body
 - a negative index counts back from the newest vertex
+- a node does not remember its preset
 - a node is not json data
 - a node path round trips through find
+- a node present on one side only is reported as missing
 - a node returned to a script is still a node
 - a node starts with no components
 - a node with no shape answers with an empty kind
@@ -119,7 +138,11 @@ flow nothing checks.
 - a plain binary has no pack
 - a plugin registers its resources and systems
 - a plugin with no requirements still loads
+- a polyline is a shape2d that keeps its reference
+- a preset applies every component it names
 - a press is just pressed for one frame only
+- a project preset is parsed from toml
+- a project preset without components is an error
 - a project with no manifest fails to load
 - a project without a language runs on luau
 - a project without a manifest is an error
@@ -159,6 +182,7 @@ flow nothing checks.
 - a sequential tween lands its steps in order
 - a shape component puts a renderable on the node
 - a sheet is sized to one frame
+- a short frame runs no steps and carries the remainder
 - a sound component autoplays and stop on silences it
 - a source build prints that it is one
 - a sparse table keeps its keys
@@ -222,6 +246,7 @@ flow nothing checks.
 - an easing curve can carry a value past the key it is heading for
 - an embedded game will not read a file beside it
 - an empty asset property is no asset rather than a broken reference
+- an empty definition says what it needs
 - an empty or inverted range does not panic
 - an empty pack still round trips
 - an engine has a root node from the start
@@ -229,6 +254,7 @@ flow nothing checks.
 - an entry inherits the asset type its document declares
 - an entry inside an inline definition resolves by its name
 - an euler triple survives the round trip through a quaternion
+- an expectation warns while unmet and clears when met
 - an http error status is a response not an error
 - an impulse starts a body moving
 - an in out curve meets in the middle
@@ -240,6 +266,7 @@ flow nothing checks.
 - an out curve is its in curve reflected
 - an out of range button does not panic
 - an unknown body kind is rejected with its name
+- an unknown collider kind is refused by name
 - an unknown event reply carries the error status
 - an unknown extension names what is supported
 - an unknown handle answers not playing and its setters no op
@@ -248,11 +275,14 @@ flow nothing checks.
 - an unknown language is a named error
 - an unknown loop mode is rejected naming it
 - an unknown path is nil rather than an error
+- an unknown preset is an error
 - an unknown scene asset id is named in a warning and the scene still loads
+- an unknown shape kind is refused by name
 - an unmoved camera does not reassert itself
 - an unparseable colour is left alone
 - an unreachable websocket reports an error event
 - an unregistered name is an error that says so
+- an untouched world hashes the same twice
 - anchor constants match the registered schema
 - animating a render component costs no dependency on the render crate
 - animating one property leaves the rest of its component alone
@@ -286,11 +316,14 @@ flow nothing checks.
 - defaults fill in what was not given
 - degrees and radians are two readings of one rotation
 - dependencies load before the plugins that need them
+- dimension tags separate the two worlds
 - dispatch over a thousand nodes stays inside a frame
 - draw ui is actually called
 - duplicate hands back a private copy rather than the shared one
 - each part of a fingerprint is reported separately
 - events carry their structured fields
+- every 2d shape kind round trips
+- every 3d shape kind round trips
 - every component emits only keys its schema declares
 - every component round trips through get and apply
 - every constant is screaming snake and unique
@@ -302,12 +335,16 @@ flow nothing checks.
 - every enum option a schema offers round trips
 - every named curve is reachable by name
 - every named key can actually be pressed
+- every parametric collider kind applies
 - every player advances in the same order on every run
+- every registered component is tagged
 - every shape kind the schema offers is accepted
 - exists answers for all three reference forms
 - expect arity names the function and both counts
 - explicit half extents win over the image
 - extra arguments are ignored like lua does
+- first divergence names the node that moved
+- fixed update ignores the frame time that update follows
 - flips round trip and do not force a rebuild
 - freeing a node drops its sound on the next sweep
 - freeing a node frees its children
@@ -348,7 +385,9 @@ flow nothing checks.
 - mouse buttons follow the same edge rules
 - mouse delta is per frame and position is absolute
 - mouse position is readable without a window
+- moving a node by one ulp changes the digest
 - moving a parent moves the subtree
+- naming a source and vertices at once is refused
 - naming another file swaps the playback to it
 - no bindings accepts registrations and discards them
 - node and callback handles survive a round trip
@@ -370,6 +409,7 @@ flow nothing checks.
 - play on restarts the nodes sound with a fresh handle
 - plugin components roundtrip through the registry
 - plugins that require each other are refused
+- presets carry the parameters that distinguish them
 - project files serve a packed asset without touching disk
 - quit is off until asked for
 - reading a missing file is nil rather than an error
@@ -383,6 +423,7 @@ flow nothing checks.
 - removing the component stops and forgets the sound
 - removing the component stops the node being animated
 - renaming a node changes what name returns
+- renaming a node does not change its digest label
 - renaming a parent does not break its children
 - require caches and hot reloads in place
 - rng int stays inside its range
@@ -420,10 +461,12 @@ flow nothing checks.
 - the clock advances and reports the last step
 - the code editor returns its buffer unchanged
 - the component round trips
+- the digest moves while the simulation does
 - the engine modules reach rune
 - the euler convention matches the engines own
 - the fingerprint names a real compiler
 - the fingerprint survives the fixed size abi tag
+- the fixed stage runs after update and before post update
 - the four linear modes are one straight line
 - the generation moves only when a reload actually dropped something
 - the grid background and camera input are settable
@@ -436,20 +479,25 @@ flow nothing checks.
 - the plugin builds without an output device
 - the plugin inserts the resources a frame reads
 - the plugin registers its components
+- the range covers every height
 - the remaining widgets are callable
 - the rng is reproducible from a seed
+- the rng stream position is part of the digest
 - the same setup animates identically twice
 - the same setup simulates identically twice
 - the scale factor is readable and settable
 - the scene root is a node and can be spawned under
+- the script api exposes tags presets and warnings
 - the speed property scales playback
 - the standard app has every plugin registered
 - the stream is pinned for a given seed
 - the two worlds share body kinds and differ on shapes
+- the update stage still sees the measured frame time
 - the widget layer can be placed and turned off
 - ticking a headless app with render does not panic
 - ticking advances the clock by the step given
 - ticking with audio does not panic
+- time past the substep cap is dropped rather than caught up on
 - toml round trips through neutral values
 - toml roundtrips through lua
 - too few arguments for a tuple is an error
@@ -460,11 +508,13 @@ flow nothing checks.
 - tween to is the same tween spelled shorter
 - two identical tweens produce bit identical results
 - two nodes naming one path share one parsed object
+- two runs agree on every tick not just the last
 - typed registration survives erasure
 - unclaimed extensions are left alone
 - undecodable bytes hand out a silent handle instead of erroring
 - vectors and colors carry their components
 - vectors encode as json number arrays
+- vertices without faces are refused
 - watcher reloads automatically
 - what the component reports back is what the scene set
 - widget kind constants match the registered schema

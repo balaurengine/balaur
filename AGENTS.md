@@ -50,6 +50,12 @@ Feature tests and performance tests stay apart. Budgets live in
 `crates/balaur_bench/tests/` and assert orders of magnitude, never percentages:
 CI runners are shared and a gate that cries wolf gets ignored.
 
+## Changelog
+
+`CHANGELOG.md` gets one line per feature, under Added, Fixed or Known issues.
+Name what changed and stop: no rationale, no commit hashes, no prose. The
+commit message and the code carry the reasoning.
+
 ## Before committing
 
     ./scripts/lint.sh

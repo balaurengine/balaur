@@ -1,15 +1,8 @@
 #!/usr/bin/env bash
-# The cross-platform half of the determinism promise.
-#
-# `record` runs each example headless at a fixed 60 Hz and writes one
-# `<tick> <digest>` line per frame; `compare` diffs what every platform
-# recorded. Packs agreeing (scripts/compare_packs.sh) says the encoder is
-# reproducible; this says two CPUs stepped the same simulation.
-#
-# The first line that differs is the tick the platforms parted on. To see
-# *what* parted, run that project to that tick locally on both and diff
-# balaur_core::digest::entries — the trace is deliberately one number per
-# tick so it stays diffable in CI.
+# The cross-platform half of the determinism promise: `record` traces one
+# digest per tick per example, `compare` diffs what every platform recorded.
+# The first differing line is the tick they parted on; ARCHITECTURE.md
+# ("The digest") says how to find out what parted.
 #
 # Usage: determinism_trace.sh record  [outdir]
 #        determinism_trace.sh compare <dir>

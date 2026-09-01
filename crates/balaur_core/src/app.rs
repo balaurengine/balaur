@@ -18,9 +18,16 @@ pub enum Stage {
     First,
     /// Core: hot reload pump.
     PreUpdate,
-    /// Core: script `update(dt)`. Gameplay systems.
+    /// Core: script `update(dt)`. Presentation and gameplay systems that
+    /// tolerate a variable step.
     Update,
-    /// Simulation reacting to gameplay (physics step, audio sync).
+    /// The simulation: script `fixed_update(dt)`, then the physics step.
+    ///
+    /// Runs zero or more times per frame, always at [`FIXED_DT`], driven by
+    /// one accumulator the app owns. A system here must never read the
+    /// frame's measured time — that is what makes the tick reproducible.
+    FixedUpdate,
+    /// Reacting to the simulation (audio sync).
     PostUpdate,
     /// Core: global transform propagation.
     SceneSync,
@@ -30,7 +37,7 @@ pub enum Stage {
     Last,
 }
 
-const STAGE_COUNT: usize = 7;
+const STAGE_COUNT: usize = 8;
 
 /// The simulation's tick rate. One declaration, because two independently
 /// written 60ths of a second are equal today and a desync the day one moves.
@@ -39,6 +46,11 @@ pub const TICK_HZ: u32 = 60;
 /// The fixed simulation step. Physics, animation and `App::set_fixed_dt` all
 /// take their step from here.
 pub const FIXED_DT: f32 = 1.0 / TICK_HZ as f32;
+
+/// How far behind a frame may fall before time is dropped rather than caught
+/// up on. Without it a stalled frame spends its recovery in a spiral of
+/// catch-up steps.
+pub const MAX_SUBSTEPS: u32 = 4;
 
 pub type SystemFn = Box<dyn FnMut(&Engine, f32)>;
 
@@ -128,6 +140,7 @@ pub struct App {
     project_root: PathBuf,
     manifest: Option<ProjectManifest>,
     fixed_dt: Option<f32>,
+    accumulator: f32,
 }
 
 impl App {
@@ -173,6 +186,7 @@ impl App {
             project_root: config.project_root,
             manifest: None,
             fixed_dt: None,
+            accumulator: 0.0,
         };
         // Geometry is core content, not a rendering concern: physics reads
         // the same asset for its trimesh and convex-hull colliders, and it
@@ -187,6 +201,13 @@ impl App {
         app.add_system(Stage::Update, |eng, dt| {
             if let Some(host) = eng.script_host() {
                 host.update(dt);
+            }
+        });
+        // First in the stage, so a force a script applies lands on the step
+        // that physics is about to take.
+        app.add_system(Stage::FixedUpdate, |eng, dt| {
+            if let Some(host) = eng.script_host() {
+                host.fixed_update(dt);
             }
         });
         app.add_system(Stage::SceneSync, |eng, _| {
@@ -426,9 +447,28 @@ impl App {
     pub fn tick(&mut self, dt: f32) {
         self.engine.advance_time(dt);
         for stage in 0..STAGE_COUNT {
+            if stage == Stage::FixedUpdate as usize {
+                self.run_fixed_steps(dt);
+                continue;
+            }
             for system in &mut self.systems[stage] {
                 system(&self.engine, dt);
             }
+        }
+    }
+
+    /// Drain the accumulator into whole [`FIXED_DT`] steps.
+    ///
+    /// One accumulator for the whole simulation, so scripts and physics take
+    /// the same number of steps in the same order every frame. Time past
+    /// [`MAX_SUBSTEPS`] is dropped rather than caught up on.
+    fn run_fixed_steps(&mut self, dt: f32) {
+        self.accumulator = (self.accumulator + dt).min(FIXED_DT * MAX_SUBSTEPS as f32);
+        while self.accumulator >= FIXED_DT {
+            for system in &mut self.systems[Stage::FixedUpdate as usize] {
+                system(&self.engine, FIXED_DT);
+            }
+            self.accumulator -= FIXED_DT;
         }
     }
 
@@ -437,8 +477,9 @@ impl App {
     /// sleep below only tops up whatever time is left.
     ///
     /// Under [`App::set_fixed_dt`] the step fed to systems is that constant
-    /// rather than the measured frame time, which is what makes an
-    /// interactive run reproduce a headless one tick for tick.
+    /// rather than the measured frame time, so an interactive run reproduces
+    /// a headless one tick for tick — given the same inputs, which is what a
+    /// replay file supplies.
     pub fn run(&mut self) {
         let target = Duration::from_secs_f32(self.fixed_dt.unwrap_or(FIXED_DT));
         let mut last = Instant::now();

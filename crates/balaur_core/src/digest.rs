@@ -194,7 +194,10 @@ pub fn first_divergence(a: &[Entry], b: &[Entry]) -> Option<String> {
             ));
         }
         if left.digest != right.digest {
-            return Some(format!("{}: {} vs {}", left.label, left.digest, right.digest));
+            return Some(format!(
+                "{}: {} vs {}",
+                left.label, left.digest, right.digest
+            ));
         }
     }
     match a.len().cmp(&b.len()) {

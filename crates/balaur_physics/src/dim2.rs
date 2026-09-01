@@ -22,8 +22,6 @@ use rapier2d::prelude::{
 use balaur_core::digest::{node_label, Entry, Hasher};
 use balaur_core::FIXED_DT;
 
-const MAX_SUBSTEPS: u32 = 4;
-
 pub struct PhysicsState2d {
     pub world: PhysicsWorld2,
     pub bodies: DetHashMap<Entity, RigidBodyHandle2>,
@@ -32,7 +30,6 @@ pub struct PhysicsState2d {
     /// Mirrors `PhysicsState::sleeping_allowed`; `physics.set_sleeping_allowed`
     /// writes both worlds.
     pub sleeping_allowed: bool,
-    accumulator: f32,
 }
 
 impl PhysicsState2d {
@@ -47,7 +44,6 @@ impl PhysicsState2d {
             colliders: DetHashMap::default(),
             paused: false,
             sleeping_allowed: true,
-            accumulator: 0.0,
         }
     }
 }
@@ -281,7 +277,7 @@ pub fn overlaps(eng: &Engine, entity: Entity) -> Vec<Entity> {
     hits
 }
 
-fn step_system(eng: &Engine, dt: f32) {
+fn step_system(eng: &Engine, _dt: f32) {
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     let state = &mut *state;
@@ -313,12 +309,10 @@ fn step_system(eng: &Engine, dt: f32) {
         }
     }
 
-    state.accumulator = (state.accumulator + dt).min(FIXED_DT * MAX_SUBSTEPS as f32);
+    // Exactly one step: Stage::FixedUpdate already repeats at FIXED_DT, and a
+    // second accumulator here would drift out of step with the scripts.
     state.world.integration_parameters.dt = FIXED_DT;
-    while state.accumulator >= FIXED_DT {
-        state.world.step();
-        state.accumulator -= FIXED_DT;
-    }
+    state.world.step();
 
     // Write simulated poses back (x, y and the rotation about z).
     let world = eng.world();
@@ -404,7 +398,7 @@ pub fn build(app: &mut App) -> Result<()> {
 /// The 2D world and the system that steps it, mirroring `PhysicsPlugin::build`.
 fn build_physics2d(app: &mut App) {
     app.engine.insert_resource(PhysicsState2d::new());
-    app.add_system(Stage::PostUpdate, step_system);
+    app.add_system(Stage::FixedUpdate, step_system);
     build_physics2d_digest(app);
 }
 

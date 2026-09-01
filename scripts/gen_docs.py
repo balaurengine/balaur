@@ -207,7 +207,7 @@ def component_row(prop, spec):
     return "<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>"
 
 
-def gen_components(components, asset_types):
+def gen_components(components):
     out = [
         "# Components\n\n",
         "Balaur has no node classes and no inheritance tree: every node is the\n"
@@ -215,7 +215,7 @@ def gen_components(components, asset_types):
         "In the terms other engines use: a specialized node type there (a\n"
         "`RigidBody2D`, a `Sprite2D`, a `Label`) is here a plain node plus a\n"
         "component, and a content resource there (an animation library, say)\n"
-        "is here an [asset](#asset-types), referenced from an `asset`-typed\n"
+        "is here an [asset](./assets.md), referenced from an `asset`-typed\n"
         "property or defined inline in the scene. Some things that are\n"
         "resources elsewhere are neither here: a collider's shape is plain\n"
         "data on the `collider` component itself. And similar component names\n"
@@ -236,17 +236,65 @@ def gen_components(components, asset_types):
             f"<th>description</th></tr></thead>\n<tbody>\n{rows}\n</tbody>\n</table>\n"
             "</details>\n\n"
         )
-    out.append(
-        "## Asset types\n\n"
-        "Content that lives in files (or inline in a scene) rather than on a\n"
-        "node, registered by plugins the same way components are. An\n"
-        "`asset`-typed component property names which of these it takes.\n\n"
-        "| type | project directory |\n| --- | --- |\n"
-    )
+    return "".join(out)
+
+
+def gen_assets(asset_types, functions):
+    """The asset reference: what an asset is, and every type plugins register."""
+    out = [
+        "# Assets\n\n",
+        "An asset is game content several nodes share, or that is too big to\n"
+        "inline in a scene node. This is what Godot calls a Resource.\n\n"
+        "Content lives in files (or inline in a scene) rather than on a node,\n"
+        "and plugins register asset types the same way they register\n"
+        "components. An `asset`-typed component property names which type it\n"
+        "takes, which is also what gives it an inspector row.\n\n"
+        "## One rule\n\n"
+        "**A string is a reference, a table is a definition.** Every\n"
+        "asset-typed property accepts either:\n\n"
+        "```toml\n"
+        "[nodes.animation]\n"
+        "library = \"animations/platform.toml\"   # a reference: every node naming it shares one parsed asset\n\n"
+        "# or, inline:\n"
+        "[nodes.animation.library]\n"
+        "type = \"animation_clip\"\n"
+        "# ... the definition, written in place\n"
+        "```\n\n"
+        "An author writes three reference forms and no more:\n\n"
+        "| Form | Meaning |\n| --- | --- |\n"
+        "| `\"animations/hero.toml\"` | The whole file |\n"
+        "| `\"animations/hero.toml#run\"` | The entry named `run` inside it |\n"
+        "| `\"#hero_idle\"` | An `[[assets]]` block in the same scene document |\n\n"
+        "Sharing is the default; `assets.duplicate` opts out with a private\n"
+        "copy. A reference that does not resolve warns and the rest of the\n"
+        "scene loads, so one bad path does not take a whole scene down. A\n"
+        "definition table that does not parse is an error, reported where it\n"
+        "was written.\n\n"
+        "## Types\n\n"
+        "Registered by plugins, so this list is whatever the build contains.\n\n"
+        "| type | project directory |\n| --- | --- |\n",
+    ]
     for name in sorted(asset_types):
         directory = asset_types[name]
         home = f"`{directory}/`" if directory else "— (not promotable to a file)"
         out.append(f"| `{name}` | {home} |\n")
+    if functions:
+        listed = ", ".join(f"`{f}`" for f in sorted(functions))
+        out.append(
+            "\n## The `assets` script module\n\n"
+            f"{listed}.\n\n"
+        )
+    out.append(
+        "## Plugins define asset types\n\n"
+        "Core never learns what an asset *is*. A plugin registers a parser\n"
+        "with `App::register_asset_type(name, parse)` and downcasts the parsed\n"
+        "object itself.\n\n"
+        "## Assets ship in packs\n\n"
+        "`balaur export` bundles them, so a shipped game resolves an asset\n"
+        "exactly as a dev run does. Binary assets (textures, audio, fonts)\n"
+        "travel in the pack too, each carrying a content hash so a truncated\n"
+        "entry is caught rather than handed on.\n"
+    )
     return "".join(out)
 
 
@@ -270,7 +318,15 @@ def main():
         "crates.md": gen_crates(crates),
         "crate-graph.md": gen_graph(crates),
         "script-api.md": gen_script_api(api, owners),
-        "components.md": gen_components(api.get("components", {}), api.get("asset_types", {})),
+        "components.md": gen_components(api.get("components", {})),
+        "assets.md": gen_assets(
+            api.get("asset_types", {}),
+            # `modules` is a list of {name, functions, constants}.
+            next(
+                (m["functions"] for m in api.get("modules", []) if m["name"] == "assets"),
+                [],
+            ),
+        ),
         "behaviour.md": gen_flows(test_names()),
     }
     files["README.md"] = (

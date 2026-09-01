@@ -26,8 +26,6 @@ pub use dim2::PhysicsState2d;
 use balaur_core::digest::{node_label, Entry, Hasher};
 use balaur_core::FIXED_DT;
 
-const MAX_SUBSTEPS: u32 = 4;
-
 pub struct PhysicsState {
     pub world: PhysicsWorld,
     /// Insertion-ordered with an unseeded hasher: iteration order must be
@@ -42,7 +40,6 @@ pub struct PhysicsState {
     /// per-body) so `physics.sleeping_allowed` can read it back and bodies
     /// created later inherit it.
     pub sleeping_allowed: bool,
-    accumulator: f32,
 }
 
 impl PhysicsState {
@@ -53,7 +50,6 @@ impl PhysicsState {
             colliders: DetHashMap::default(),
             paused: false,
             sleeping_allowed: true,
-            accumulator: 0.0,
         }
     }
 }
@@ -67,7 +63,7 @@ impl Plugin for PhysicsPlugin {
 
     fn build(&mut self, app: &mut App) -> Result<()> {
         app.engine.insert_resource(PhysicsState::new());
-        app.add_system(Stage::PostUpdate, step_system);
+        app.add_system(Stage::FixedUpdate, step_system);
         build_physics_digest(app);
 
         let mut m = app.script_module("physics")?;
@@ -141,6 +137,68 @@ fn collider_mesh(eng: &Engine, params: &toml::Value) -> Result<balaur_core::mesh
     balaur_core::mesh::load_from(eng, &definition)
 }
 
+/// The collider kinds built from a `mesh` asset, so the model the renderer
+/// draws and the shape it collides with stay one authored thing.
+fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<ColliderBuilder> {
+    let mesh = collider_mesh(eng, params)?;
+    let points: Vec<Vector> = mesh
+        .positions
+        .iter()
+        .map(|p| Vector::new(p[0], p[1], p[2]))
+        .collect();
+    match kind {
+        "trimesh" => ColliderBuilder::trimesh(points, mesh.indices.clone())
+            .map_err(|e| anyhow!("that mesh cannot be a trimesh collider: {e}")),
+        "convex_hull" => Ok(ColliderBuilder::convex_hull(&points).unwrap_or_else(|| {
+            // Degenerate input (every point on one line or plane) has no hull.
+            // The node keeps a collider rather than losing one silently.
+            let (min, max) = mesh.bounds().unwrap_or(([-0.5; 3], [0.5; 3]));
+            tracing::warn!(
+                "convex_hull: those {} points are degenerate; using their bounding box",
+                points.len()
+            );
+            ColliderBuilder::cuboid(
+                ((max[0] - min[0]) / 2.0).max(0.01),
+                ((max[1] - min[1]) / 2.0).max(0.01),
+                ((max[2] - min[2]) / 2.0).max(0.01),
+            )
+        })),
+        _ => {
+            if points.len() < 2 {
+                bail!(
+                    "a polyline collider needs at least two points, not {}",
+                    points.len()
+                );
+            }
+            // `None` chains the points in order, which is what a mesh's vertex
+            // list means; a closed loop repeats the first point at the end.
+            Ok(ColliderBuilder::polyline(points, None))
+        }
+    }
+}
+
+/// Terrain from a `heightfield` asset. The extent belongs to the collider, so
+/// one grid can be placed at several sizes.
+fn heightfield_collider(
+    eng: &Engine,
+    params: &toml::Value,
+    extent: Vector,
+) -> Result<ColliderBuilder> {
+    let reference = params
+        .get("heightfield")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow!("a heightfield collider needs a `heightfield` asset"))?;
+    let field = balaur_core::assets::load_typed::<balaur_core::heightfield::HeightfieldData>(
+        eng, reference,
+    )?;
+    // The asset checked its own shape, so Array2's assert cannot fire. Through
+    // rapier's re-export, so parry cannot drift from rapier's own version.
+    let grid =
+        rapier3d::parry::utils::Array2::new(field.rows, field.columns, field.heights.clone());
+    Ok(ColliderBuilder::heightfield(grid, extent))
+}
+
 /// The collider described by `params`, in the `collider` schema's own
 /// vocabulary — so a script table and a scene-file entry build the same thing.
 fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder> {
@@ -192,77 +250,8 @@ fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilde
             point("b", [1.0, 0.0, 0.0]),
             point("c", [0.0, 1.0, 0.0]),
         ),
-        // The same `mesh` asset the renderer draws, so a model and the shape
-        // it collides with are one authored thing that cannot drift apart.
-        "trimesh" => {
-            let mesh = collider_mesh(eng, params)?;
-            let points = mesh
-                .positions
-                .iter()
-                .map(|p| Vector::new(p[0], p[1], p[2]))
-                .collect();
-            ColliderBuilder::trimesh(points, mesh.indices.clone())
-                .map_err(|e| anyhow!("that mesh cannot be a trimesh collider: {e}"))?
-        }
-        "convex_hull" => {
-            let mesh = collider_mesh(eng, params)?;
-            let points: Vec<Vector> = mesh
-                .positions
-                .iter()
-                .map(|p| Vector::new(p[0], p[1], p[2]))
-                .collect();
-            // Degenerate input (every point on one line or plane) has no hull.
-            // The node keeps a collider rather than losing one silently.
-            ColliderBuilder::convex_hull(&points).unwrap_or_else(|| {
-                let (min, max) = mesh.bounds().unwrap_or(([-0.5; 3], [0.5; 3]));
-                tracing::warn!(
-                    "convex_hull: those {} points are degenerate; using their bounding box",
-                    points.len()
-                );
-                ColliderBuilder::cuboid(
-                    ((max[0] - min[0]) / 2.0).max(0.01),
-                    ((max[1] - min[1]) / 2.0).max(0.01),
-                    ((max[2] - min[2]) / 2.0).max(0.01),
-                )
-            })
-        }
-        "polyline" => {
-            let mesh = collider_mesh(eng, params)?;
-            let points: Vec<Vector> = mesh
-                .positions
-                .iter()
-                .map(|p| Vector::new(p[0], p[1], p[2]))
-                .collect();
-            if points.len() < 2 {
-                bail!(
-                    "a polyline collider needs at least two points, not {}",
-                    points.len()
-                );
-            }
-            // `None` chains the points in order, which is what a mesh's vertex
-            // list means; a closed loop repeats the first point at the end.
-            ColliderBuilder::polyline(points, None)
-        }
-        "heightfield" => {
-            let reference = params
-                .get("heightfield")
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .ok_or_else(|| anyhow!("a heightfield collider needs a `heightfield` asset"))?;
-            let field = balaur_core::assets::load_typed::<balaur_core::heightfield::HeightfieldData>(
-                eng, reference,
-            )?;
-            // The asset checked its own shape, so Array2's assert cannot fire.
-            // Through rapier's own re-export, so parry cannot drift to a
-            // different version than the one rapier was built against.
-            let grid = rapier3d::parry::utils::Array2::new(
-                field.rows,
-                field.columns,
-                field.heights.clone(),
-            );
-            let extent = point("scale", [1.0, 1.0, 1.0]);
-            ColliderBuilder::heightfield(grid, extent)
-        }
+        "trimesh" | "convex_hull" | "polyline" => mesh_collider(eng, params, kind)?,
+        "heightfield" => heightfield_collider(eng, params, point("scale", [1.0, 1.0, 1.0]))?,
         other => return Err(anyhow!("unknown collider kind '{other}'")),
     };
     Ok(builder
@@ -462,7 +451,7 @@ pub fn overlaps(eng: &Engine, entity: Entity) -> Vec<Entity> {
     hits
 }
 
-fn step_system(eng: &Engine, dt: f32) {
+fn step_system(eng: &Engine, _dt: f32) {
     let state = eng.resource::<PhysicsState>();
     let mut state = state.borrow_mut();
     let state = &mut *state;
@@ -490,12 +479,10 @@ fn step_system(eng: &Engine, dt: f32) {
         }
     }
 
-    state.accumulator = (state.accumulator + dt).min(FIXED_DT * MAX_SUBSTEPS as f32);
+    // Exactly one step: Stage::FixedUpdate already repeats at FIXED_DT, and a
+    // second accumulator here would drift out of step with the scripts.
     state.world.integration_parameters.dt = FIXED_DT;
-    while state.accumulator >= FIXED_DT {
-        state.world.step();
-        state.accumulator -= FIXED_DT;
-    }
+    state.world.step();
 
     // Write simulated poses back to the scene tree.
     let world = eng.world();

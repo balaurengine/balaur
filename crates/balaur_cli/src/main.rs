@@ -594,8 +594,8 @@ struct RunOpts {
 /// `Stage::Last` is after deferred destruction, so the line describes the
 /// world the next tick starts from — the state a peer would be compared on.
 fn trace_digest_to(app: &mut App, path: &Path) -> Result<()> {
-    let mut out = std::fs::File::create(path)
-        .with_context(|| format!("creating {}", path.display()))?;
+    let mut out =
+        std::fs::File::create(path).with_context(|| format!("creating {}", path.display()))?;
     app.add_system(balaur::Stage::Last, move |eng, _| {
         if let Err(e) = writeln!(out, "{} {}", eng.tick(), balaur::digest::digest(eng)) {
             tracing::error!(error = %e, "writing digest trace");
@@ -620,6 +620,9 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         app.set_fixed_dt(Some(balaur::FIXED_DT));
     }
     if let Some(trace) = trace_digest {
+        if !*fixed_tick {
+            tracing::warn!("--trace-digest without --fixed-tick: the trace follows wall-clock frame times and will not match another machine's");
+        }
         trace_digest_to(&mut app, trace)?;
     }
     let title = app

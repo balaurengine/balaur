@@ -26,7 +26,8 @@ pub mod scene;
 pub mod standalone;
 
 pub use app::{
-    App, AppConfig, Plugin, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage, FIXED_DT, TICK_HZ,
+    App, AppConfig, Plugin, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage, FIXED_DT,
+    MAX_SUBSTEPS, TICK_HZ,
 };
 pub use assets::{AssetRef, AssetState, AssetTypeRegistry};
 pub use collections::{DetHashMap, DetHashSet};

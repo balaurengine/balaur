@@ -612,15 +612,12 @@ fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
         let size = match renderable.shape {
             Shape::Ball { radius } => Vec3::splat(2.0 * radius),
             Shape::Cuboid { hx, hy, hz } => Vec3::new(2.0 * hx, 2.0 * hy, 2.0 * hz),
-            // kiss3d builds its capsule as real geometry at Vec3::ONE, unlike
-            // the others: sizing it here as well would double it.
-            Shape::Capsule { .. } => Vec3::ONE,
             Shape::Cylinder { radius, height } | Shape::Cone { radius, height } => {
                 Vec3::new(2.0 * radius, height, 2.0 * radius)
             }
-            // add_quad and a mesh both build real geometry, like the capsule:
-            // their dimensions are in the vertices, not in a scale.
-            Shape::Plane { .. } | Shape::Mesh => Vec3::ONE,
+            // Capsule, quad and mesh are real geometry built at unit size,
+            // unlike the primitives above: scaling them would double them.
+            Shape::Capsule { .. } | Shape::Plane { .. } | Shape::Mesh => Vec3::ONE,
         };
         let scale = size * global.scale;
         slot.node
@@ -641,11 +638,7 @@ fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
 /// Resolve a `mesh` asset and hand its triangles to kiss3d. `None` when the
 /// asset is missing or unreadable, which is logged rather than fatal: one bad
 /// model must not stop the frame.
-fn upload_mesh(
-    app: &App,
-    scene: &mut SceneNode3d,
-    reference: Option<&str>,
-) -> Option<SceneNode3d> {
+fn upload_mesh(app: &App, scene: &mut SceneNode3d, reference: Option<&str>) -> Option<SceneNode3d> {
     let reference = reference.filter(|r| !r.is_empty())?;
     let definition = match balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(
         &app.engine,
@@ -684,7 +677,6 @@ fn upload_mesh(
     let gpu = GpuMesh3d::new(coords, faces, normals, uvs, false);
     Some(scene.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(gpu)), Vec3::ONE))
 }
-
 
 /// The kiss3d node a 2D shape needs. `None` when a polyline names no usable
 /// points, which is the one shape that can fail to have any.

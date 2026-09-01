@@ -74,6 +74,14 @@ pub fn update(this, dt) {
 }
 ```
 
+There are two tick callbacks and the difference matters. `update(dt)` runs
+once per frame with the measured frame time — presentation, and anything a
+dropped frame may safely skip. `fixed_update(dt)` runs on the engine's fixed
+60 Hz accumulator, zero or more times per frame, always with the same `dt`,
+and immediately before physics steps. Simulation goes there: it is the half
+that reproduces exactly on every machine, and a force applied there lands on
+the step it was meant for.
+
 Both call the same bindings: subsystems declare them once against
 `balaur_script`, so neither language is privileged and a third costs one crate.
 Values a binding accepts are named rather than spelled — `input.KEY_SPACE`,

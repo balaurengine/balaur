@@ -263,6 +263,15 @@ impl ScriptHost {
 
     /// Call `update(dt)` on every live instance.
     pub fn update(&self, dt: f32) {
+        self.tick_lifecycle("update", dt);
+    }
+
+    pub fn fixed_update(&self, dt: f32) {
+        self.tick_lifecycle("fixed_update", dt);
+    }
+
+    /// Call `method(dt)` on every live instance that defines it.
+    fn tick_lifecycle(&self, method: &str, dt: f32) {
         // Collect first so scripts can attach/detach/spawn during their own
         // update without the host state being borrowed.
         let batch: Vec<(Entity, Table)> = self
@@ -273,11 +282,11 @@ impl ScriptHost {
             .map(|(e, t)| (*e, t.clone()))
             .collect();
         for (entity, inst) in batch {
-            let Ok(Some(update)) = inst.get::<Option<Function>>("update") else {
+            let Ok(Some(f)) = inst.get::<Option<Function>>(method) else {
                 continue;
             };
-            if let Err(err) = update.call::<()>((inst, dt)) {
-                self.report_error(&format!("update({entity:?})"), &err.to_string());
+            if let Err(err) = f.call::<()>((inst, dt)) {
+                self.report_error(&format!("{method}({entity:?})"), &err.to_string());
             }
         }
     }
@@ -658,6 +667,10 @@ impl balaur_script::ScriptHost<Engine> for ScriptHost {
 
     fn update(&self, dt: f32) {
         ScriptHost::update(self, dt);
+    }
+
+    fn fixed_update(&self, dt: f32) {
+        ScriptHost::fixed_update(self, dt);
     }
 
     fn pump_reloads(&self) {

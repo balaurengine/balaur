@@ -34,8 +34,16 @@ pub trait ScriptHost<C: ?Sized> {
     /// Detach and run `on_free`. Not an error for a node without a script.
     fn detach(&self, node: NodeId);
 
-    /// Per-frame tick of every live instance.
+    /// Per-frame tick of every live instance, at the measured frame time.
+    /// Presentation: anything a dropped or doubled frame may safely skip.
     fn update(&self, dt: f32);
+
+    /// Fixed-step tick of every live instance, at the engine's constant step.
+    ///
+    /// Simulation goes here. It runs zero or more times per frame, always
+    /// with the same `dt`, and before physics steps — so a force applied
+    /// here lands on the step it was meant for, on every machine.
+    fn fixed_update(&self, dt: f32);
 
     /// Apply reloads the watcher has queued. Called at a point in the frame
     /// where swapping code is safe.

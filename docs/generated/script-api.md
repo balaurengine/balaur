@@ -23,7 +23,7 @@ cannot drift from what scripts actually see.
 | [`physics2d`](#physics2d) | 10 | 5 | every language |
 | [`render`](#render) | 31 | 0 | every language |
 | [`rng`](#rng) | 4 | 0 | every language |
-| [`scene`](#scene) | 7 | 0 | every language |
+| [`scene`](#scene) | 12 | 0 | every language |
 | [`toml`](#toml) | 2 | 0 | every language |
 | [`ui`](#ui) | 39 | 14 | every language |
 | [`websocket`](#websocket) | 3 | 0 | every language |
@@ -141,7 +141,7 @@ cannot drift from what scripts actually see.
 
 ## `scene`
 
-**Functions:** `component_schema`, `component_types`, `get_node`, `instantiate`, `root`, `source`, `spawn`
+**Functions:** `apply_preset`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `preset_info`, `presets`, `root`, `source`, `spawn`, `unmet_expectations`
 
 ## `toml`
 

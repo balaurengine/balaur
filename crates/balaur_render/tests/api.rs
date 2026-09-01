@@ -238,7 +238,10 @@ fn every_3d_shape_kind_round_trips() {
         ("kind = \"ball\"\nradius = 2.0", "ball"),
         ("kind = \"cuboid\"", "cuboid"),
         ("kind = \"capsule\"\nradius = 0.5\nheight = 2.0", "capsule"),
-        ("kind = \"cylinder\"\nradius = 0.5\nheight = 2.0", "cylinder"),
+        (
+            "kind = \"cylinder\"\nradius = 0.5\nheight = 2.0",
+            "cylinder",
+        ),
         ("kind = \"cone\"\nradius = 0.5\nheight = 2.0", "cone"),
         ("kind = \"plane\"", "plane"),
     ] {
@@ -263,8 +266,8 @@ fn every_3d_shape_kind_round_trips() {
 fn a_capsule_keeps_the_height_it_was_given() {
     let app = app();
     let e = node(&app);
-    let params: toml::Value = toml::from_str("kind = \"capsule\"\nradius = 0.25\nheight = 3.0")
-        .unwrap();
+    let params: toml::Value =
+        toml::from_str("kind = \"capsule\"\nradius = 0.25\nheight = 3.0").unwrap();
     components::add(&app.engine, e, "shape", Some(&params)).unwrap();
     let back = components::get(&app.engine, e, "shape").unwrap();
     let height = back.get("height").and_then(balaur_core::components::as_f64);
