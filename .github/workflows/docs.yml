@@ -4,9 +4,9 @@ name: Docs
 # scripts/gen_docs.py generates into docs/generated/ and must not drift from.
 # Neither is platform-specific, so both run once.
 on:
-  push:
-    branches: [main, master]
-  pull_request:
+  # Runs from .github/workflows/runner.yml, which owns the triggers; kept
+  # dispatchable so it can still be run on its own from the Actions tab.
+  workflow_call:
   workflow_dispatch:
 
 env:

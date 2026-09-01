@@ -3,9 +3,9 @@ name: Lint
 # The platform-independent gates, run once rather than per-OS. Clippy lives
 # in ci.yml instead: what it sees genuinely differs per platform.
 on:
-  push:
-    branches: [main, master]
-  pull_request:
+  # Runs from .github/workflows/runner.yml, which owns the triggers; kept
+  # dispatchable so it can still be run on its own from the Actions tab.
+  workflow_call:
   workflow_dispatch:
 
 env:

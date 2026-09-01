@@ -1,0 +1,33 @@
+name: All
+
+# The one entry point: the other four are reusable workflows now, called from
+# here rather than each subscribing to pushes itself.
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: all-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+
+  docs:
+    uses: ./.github/workflows/docs.yml
+
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  # Runs on pull requests too — a build that only runs after merge tells you
+  # nothing. What it must not do there is publish; build.yml gates that itself.
+  # The token stays writable because a called workflow cannot grant itself more
+  # than its caller holds, and the one job that uses it is skipped on a PR.
+  build:
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build.yml
