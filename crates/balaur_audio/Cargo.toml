@@ -22,5 +22,9 @@ tempfile = "3"
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 rodio = "0.22"
 
+# For the COM keep-alive in the backend; see `keep_com_alive` in lib.rs.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Com"] }
+
 [lints]
 workspace = true

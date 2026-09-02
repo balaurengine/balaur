@@ -32,7 +32,29 @@ mod backend {
     pub(crate) struct Sound(Player);
 
     pub(crate) fn open_default() -> Result<Device> {
+        #[cfg(windows)]
+        keep_com_alive();
         Ok(Device(DeviceSinkBuilder::open_default_sink()?))
+    }
+
+    /// cpal caches its WASAPI device enumerator process-wide but initialises
+    /// COM per thread, and uninitialises it when that thread exits. Once the
+    /// last such thread is gone COM unloads the audio DLLs and the cached
+    /// enumerator dangles: the next open crashes with an access violation.
+    /// Holding an MTA reference for the life of the process keeps COM up.
+    #[cfg(windows)]
+    fn keep_com_alive() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            let mut cookie = std::ptr::null_mut();
+            // SAFETY: a plain FFI call taking a valid out-pointer; the cookie
+            // is deliberately never returned to `CoDecrementMTAUsage`.
+            let result =
+                unsafe { windows_sys::Win32::System::Com::CoIncrementMTAUsage(&raw mut cookie) };
+            if result < 0 {
+                tracing::warn!("could not keep COM alive for audio: HRESULT {result:#x}");
+            }
+        });
     }
 
     /// Decode sound bytes and start them on the device's mixer. Bytes, not a
