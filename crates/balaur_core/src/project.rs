@@ -346,9 +346,9 @@ fn build_scene(eng: &Engine, source: &str, base: Entity, build: &mut Build) -> R
     // A prefab's blocks are in scope for the prefab, and go out of scope with
     // it, which is why this nests rather than accumulating.
     let previous = crate::assets::enter_scene_scope(eng, source, &doc.assets)?;
-    let built = instantiate_nodes(eng, &doc, base, build);
+    let outcome = instantiate_nodes(eng, &doc, base, build);
     crate::assets::leave_scene_scope(eng, previous);
-    built
+    outcome
 }
 
 /// A scene file's text: from the pack in a packed run, from disk otherwise —
@@ -466,10 +466,10 @@ fn build_instance(
     let inner = format!("{}{}/", build.prefix, id);
     let outer = std::mem::replace(&mut build.prefix, inner);
     build.open.push(prefab.to_string());
-    let built = build_scene(eng, &source, entity, build);
+    let outcome = build_scene(eng, &source, entity, build);
     build.open.pop();
     build.prefix = outer;
-    built
+    outcome
 }
 
 /// Apply this node's `overrides` to the instance it just built.

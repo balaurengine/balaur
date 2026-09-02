@@ -4,6 +4,7 @@
 use crate::anim;
 use crate::dock;
 use crate::history;
+use crate::lint;
 use crate::model;
 use crate::polygon;
 use crate::rig;
@@ -429,4 +430,62 @@ pub fn script_props(S) {
         "undo brings the override back");
     check(mirror_resolves(S), "the mirror still resolves after editing properties");
     log::info("selftest props: done");
+}
+
+// The first script the scene attaches, which is what a lint sweep starts from.
+fn first_script(S) {
+    for node in S.doc {
+        match model::script_rel(node) {
+            Some(rel) => return Some(rel),
+            None => (),
+        }
+    }
+    None
+}
+
+// Findings for one file at one severity.
+fn found_in(S, rel, severity) {
+    let out = [];
+    for f in S.lint.found {
+        if f.file == rel && f.severity == severity {
+            out.push(f);
+        }
+    }
+    out
+}
+
+/// `--state lintdemo`: a broken buffer is found at the line it broke on, and
+/// a good one leaves nothing behind. The buffer, not the file — a check is
+/// about what is on screen, and the test must not write a broken script out.
+pub fn linting(S) {
+    let script = first_script(S);
+    if !check(script.is_some(), "the scene attaches a script to lint") {
+        return;
+    }
+    let rel = script.unwrap();
+    let abs = S.game_root + "/" + rel;
+    let original = model::source(S, rel).unwrap_or("");
+
+    S.script_buffers[abs] = "pub fn init(this) {\n    input::just_pressd(\"jump\");\n}\n";
+    lint::run(S);
+    let errors = found_in(S, rel, "error");
+    if check(errors.len() > 0, "a misspelled engine call is an error") {
+        check(errors[0].line == 2, format!("the error is on line 2, not {}", errors[0].line));
+        check(errors[0].message.contains("just_pressd"),
+            format!("the message names the call: {}", errors[0].message));
+        check(util::vec(lint::lines(S, rel, "error")).contains(2),
+            "the gutter is given line 2");
+    }
+
+    // Rune's own warnings ride along with the same call.
+    S.script_buffers[abs] = "pub fn init(this) {\n    let unused = 1;\n}\n";
+    lint::run(S);
+    check(found_in(S, rel, "error").len() == 0, "a script that compiles has no errors");
+
+    S.script_buffers[abs] = original;
+    lint::run(S);
+    check(found_in(S, rel, "error").len() == 0, "restoring the buffer clears the findings");
+    S.script_buffers.remove(abs);
+    S.dock = "problems";
+    log::info("selftest lint: done");
 }

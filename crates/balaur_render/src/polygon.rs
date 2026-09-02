@@ -62,6 +62,7 @@ pub(crate) fn register_polygon_component(app: &mut App) {
     app.register_component(
         "polygon",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema("polygon", POLYGON_SCHEMA),
             tags: &["2d", "render", "animation"],
             expects: &[],

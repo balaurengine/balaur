@@ -50,6 +50,7 @@ pub(crate) fn register_particles_component(app: &mut App) {
     app.register_component(
         "particles",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema(
                 "particles",
                 r#"emitting = { type = "bool", default = true, description = "Whether new particles are born; live ones finish either way" }

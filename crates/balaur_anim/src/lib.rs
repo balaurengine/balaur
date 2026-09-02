@@ -119,6 +119,7 @@ fn register_animation_component(app: &mut App) {
     app.register_component(
         "animation",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema(
                 "animation",
                 r#"library = { type = "asset", asset = "animation_clip", default = "", description = "The clip library this node plays from" }

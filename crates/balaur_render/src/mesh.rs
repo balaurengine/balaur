@@ -17,6 +17,7 @@ pub(crate) fn register_mesh_component(app: &mut App) {
     app.register_component(
         MESH_ASSET_TYPE,
         balaur_core::components::ComponentDef {
+            doc: "",
             schema: balaur_core::components::ComponentDef::parse_schema(
                 MESH_ASSET_TYPE,
                 r#"source = { type = "asset", asset = "mesh", default = "", description = "The mesh asset this node draws" }

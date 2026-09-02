@@ -687,6 +687,37 @@ import package::sprite::{VertexInput, VertexOutput, vertex};
         assert_eq!(compiled.params.len(), 32);
     }
 
+    /// The 3D counterpart: lights and fog come from the contract too.
+    const PROJECT_SHADER_3D: &str = r"
+import package::mesh::{VertexInput, VertexOutput, vertex, shade, diffuse, sample_albedo, tint, apply_fog, time};
+
+struct Params { pulse: f32 }
+@group(3) @binding(0) var<uniform> params: Params;
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput {
+    return vertex(in);
+}
+
+@fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let base = shade(in);
+    return base * (1.0 + params.pulse * sin(time()));
+}
+";
+
+    #[test]
+    fn a_project_shader_links_against_the_mesh_contract() {
+        let material = parse(&table(
+            "shader = \"shaders/rock.wesl\"\nparams = { pulse = 0.2 }",
+        ))
+        .unwrap();
+        let compiled = compile(&material, PROJECT_SHADER_3D).unwrap();
+        assert!(compiled.wgsl.contains("fn vs_main"), "{}", compiled.wgsl);
+        assert!(!compiled.wgsl.contains("import "), "{}", compiled.wgsl);
+        // The lighting loop came in with `shade`.
+        assert!(compiled.wgsl.contains("ambient_count"), "{}", compiled.wgsl);
+        assert_eq!(compiled.params.len(), 16);
+    }
+
     #[test]
     fn a_param_the_shader_does_not_read_is_dropped_not_fatal() {
         let fields = params_of(WITH_PARAMS);

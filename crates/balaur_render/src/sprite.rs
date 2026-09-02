@@ -11,6 +11,7 @@ pub(crate) fn register_sprite_component(app: &mut App) {
     app.register_component(
         "sprite",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema(
                 "sprite",
                 r#"texture = { type = "string", default = "", description = "Image file, project-relative; required" }

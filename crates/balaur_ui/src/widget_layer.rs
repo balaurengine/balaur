@@ -75,6 +75,7 @@ pub(crate) fn register_widget_component(app: &mut App) {
     app.register_component(
         "widget",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema(
                 "widget",
                 r#"kind = { type = "enum", default = "label", options = ["label", "button", "panel"], description = "The HUD element the widget layer draws" }

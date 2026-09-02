@@ -48,7 +48,7 @@ cannot drift from what scripts actually see.
 
 ## `debugger`
 
-**Functions:** `break_on_error`, `breakpoints`, `paused`, `resume`, `scope`, `set_break_on_error`, `set_breakpoints`, `set_scope`
+**Functions:** `break_on_error`, `breakpoints`, `paused`, `request_break`, `resume`, `scope`, `set_break_on_error`, `set_breakpoints`, `set_scope`
 
 **Constants** (4):
 

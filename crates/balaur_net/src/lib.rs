@@ -239,6 +239,14 @@ impl NetState {
         if let Some(handler) = handler {
             self.request_handlers.insert(id, handler);
         }
+        // The outbound side, which no source records: a reply is captured
+        // with the id it answers, and nothing else says the request went out.
+        balaur_core::replay::event(
+            eng,
+            "net.request",
+            format!("{} {}", call.method, call.url),
+            Some(serde_json::json!({ "id": id, "method": call.method, "url": call.url })),
+        );
         self.io
             .start(eng, |report| backend::spawn_request(call, report.clone()));
     }
@@ -257,6 +265,12 @@ impl NetState {
         if let Some(handler) = handler {
             self.socket_handlers.insert(id, handler);
         }
+        balaur_core::replay::event(
+            eng,
+            "net.request",
+            format!("connect {url}"),
+            Some(serde_json::json!({ "id": id, "method": "connect", "url": url })),
+        );
         let (commands, receiver) = channel();
         let started = self.io.start(eng, |report| {
             backend::spawn_socket(id, url.to_string(), options, receiver, report);

@@ -1,6 +1,6 @@
 //! The replay file and the source registry it is built from.
 
-use balaur_core::replay::{self, Frame, Header, Recorder, Session};
+use balaur_core::replay::{self, Frame, Header, PlayState, Recorder, ReplayPlayer, Session, Trailer};
 use balaur_core::{App, AppConfig, Engine};
 
 fn app() -> App {
@@ -37,6 +37,7 @@ fn header() -> Header {
         format: replay::FORMAT,
         project: String::from("."),
         seed: 7,
+        ..Header::default()
     }
 }
 
@@ -70,7 +71,7 @@ fn a_recording_round_trips_through_the_file() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("s.blr");
 
-    let mut recorder = Recorder::create(&path, &header()).unwrap();
+    let mut recorder = Recorder::create(&path, &header(), true).unwrap();
     for tick in 1..=3u64 {
         recorder
             .write(&Frame {
@@ -80,18 +81,26 @@ fn a_recording_round_trips_through_the_file() {
                     String::from("dial"),
                     serde_json::json!(tick),
                 )]),
-                digest: tick * 1000,
+                digest: Some(tick * 1000),
+                events: Vec::new(),
             })
             .unwrap();
     }
-    drop(recorder);
+    recorder
+        .finish(&Trailer {
+            reason: String::from("stop"),
+            tick: 3,
+            digest: Some(3000),
+        })
+        .unwrap();
 
     let session = Session::read(&path).unwrap();
     assert_eq!(session.header.seed, 7);
     assert_eq!(session.frames.len(), 3);
     assert_eq!(session.frames[2].tick, 3);
-    assert_eq!(session.frames[2].digest, 3000);
+    assert_eq!(session.frames[2].digest, Some(3000));
     assert!((session.frames[0].step() - 1.0 / 60.0).abs() < 1e-9);
+    assert_eq!(session.trailer.map(|t| t.reason).as_deref(), Some("stop"));
 }
 
 #[test]
@@ -100,7 +109,7 @@ fn a_recording_from_a_future_format_is_refused_by_name() {
     let path = dir.path().join("s.blr");
     let mut future = header();
     future.format = replay::FORMAT + 1;
-    Recorder::create(&path, &future).unwrap();
+    drop(Recorder::create(&path, &future, false).unwrap());
 
     let err = Session::read(&path).unwrap_err().to_string();
     assert!(
@@ -115,4 +124,226 @@ fn an_empty_file_is_refused_rather_than_replayed_as_nothing() {
     let path = dir.path().join("s.blr");
     std::fs::write(&path, "").unwrap();
     assert!(Session::read(&path).is_err());
+}
+
+/// A dial that counts up on its own, so the world it produces depends on
+/// what it was fed and nothing else.
+fn ratchet(app: &mut App) {
+    app.add_system(balaur_core::Stage::Update, |eng: &Engine, _| {
+        let dial = eng.resource::<Dial>();
+        let n = dial.borrow().0;
+        dial.borrow_mut().0 = n + 1;
+    });
+}
+
+/// The whole point of the session recorder: a recording made in a live
+/// process replays in that same process, with the counters it started from.
+#[test]
+fn a_session_records_and_replays_in_one_process() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    // Ticks and tokens the session did not start at, which is the case the
+    // editor is: it has been running long before Play is pressed.
+    for _ in 0..5 {
+        app.advance(1.0 / 60.0);
+    }
+    let started_at = app.engine.tick();
+    let token_at = app.engine.next_token();
+
+    replay::start_recording(&app.engine, &path, ".", "hash", true).unwrap();
+    for _ in 0..4 {
+        app.advance(1.0 / 60.0);
+    }
+    let live_dial = app.engine.resource::<Dial>().borrow().0;
+    let live_token = app.engine.next_token();
+    replay::stop_recording(&app.engine, "stop").unwrap();
+
+    let session = Session::read(&path).unwrap();
+    assert_eq!(session.frames.len(), 4);
+    assert_eq!(session.header.scripts, "hash");
+    assert_eq!(session.header.origin.tokens, token_at + 1);
+
+    // A fresh app, as the editor's rebuilt mirror is: same code, same start.
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    replay::begin(&app.engine, session);
+    assert_eq!(app.engine.tick(), started_at);
+    assert_eq!(
+        app.engine.next_token(),
+        token_at + 1,
+        "a replay hands out the ids the recording did"
+    );
+    app.engine.set_tokens(token_at + 1);
+
+    replay::play(&app.engine);
+    while replay::is_running(&app.engine) {
+        app.advance(1.0 / 60.0);
+    }
+    assert_eq!(app.engine.tick(), started_at + 4);
+    assert_eq!(app.engine.resource::<Dial>().borrow().0, live_dial);
+    assert_eq!(app.engine.next_token(), live_token);
+    assert!(
+        app.engine
+            .resource::<ReplayPlayer>()
+            .borrow()
+            .diverged
+            .is_none(),
+        "every recorded digest should have been reproduced"
+    );
+}
+
+/// A replay that no longer reproduces the recording names the tick it parted
+/// on rather than failing silently.
+#[test]
+fn a_diverging_replay_names_the_tick() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    replay::start_recording(&app.engine, &path, ".", "", true).unwrap();
+    for _ in 0..3 {
+        app.advance(1.0 / 60.0);
+    }
+    replay::stop_recording(&app.engine, "stop").unwrap();
+
+    // The same session against a world that counts by two: the code changed
+    // under the recording, which is what a hot reload does.
+    let mut app = app_with_dial();
+    app.add_system(balaur_core::Stage::Update, |eng: &Engine, _| {
+        let dial = eng.resource::<Dial>();
+        let n = dial.borrow().0;
+        dial.borrow_mut().0 = n + 2;
+    });
+    app.add_digest_source("dial", |eng: &Engine, out| {
+        let mut h = balaur_core::digest::Hasher::new();
+        h.write_u64(eng.resource::<Dial>().borrow().0 as u64);
+        out.push(balaur_core::digest::Entry {
+            label: String::from("value"),
+            digest: h.finish(),
+        });
+    });
+    replay::begin(&app.engine, Session::read(&path).unwrap());
+    replay::play(&app.engine);
+    while replay::is_running(&app.engine) {
+        app.advance(1.0 / 60.0);
+    }
+    let player = app.engine.resource::<ReplayPlayer>();
+    let diverged = player.borrow().diverged;
+    assert!(diverged.is_some(), "a changed world has to be caught");
+}
+
+/// Pausing holds the simulation and stops feeding, so the world stands still
+/// while the frame loop keeps running.
+#[test]
+fn a_paused_replay_holds_the_world_still() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    replay::start_recording(&app.engine, &path, ".", "", false).unwrap();
+    for _ in 0..6 {
+        app.advance(1.0 / 60.0);
+    }
+    replay::stop_recording(&app.engine, "stop").unwrap();
+
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    replay::begin(&app.engine, Session::read(&path).unwrap());
+    replay::play(&app.engine);
+    app.advance(1.0 / 60.0);
+    app.advance(1.0 / 60.0);
+    let held = app.engine.resource::<Dial>().borrow().0;
+
+    app.engine.resource::<ReplayPlayer>().borrow_mut().state = PlayState::Paused;
+    for _ in 0..5 {
+        app.advance(1.0 / 60.0);
+    }
+    assert_eq!(
+        app.engine.resource::<Dial>().borrow().0,
+        held,
+        "a paused replay must not advance the world"
+    );
+    assert!(app.engine.frozen_root().is_some());
+}
+
+/// Seeking runs many recorded frames in one call, and stops on the tick asked
+/// for rather than running to the end.
+#[test]
+fn seeking_runs_to_the_tick_and_stops() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    replay::start_recording(&app.engine, &path, ".", "", false).unwrap();
+    for _ in 0..40 {
+        app.advance(1.0 / 60.0);
+    }
+    replay::stop_recording(&app.engine, "stop").unwrap();
+
+    let session = Session::read(&path).unwrap();
+    let target = session.first_tick() + 20;
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    replay::begin(&app.engine, session);
+    app.engine.resource::<ReplayPlayer>().borrow_mut().seek(target);
+    app.advance(1.0 / 60.0);
+
+    let player = app.engine.resource::<ReplayPlayer>();
+    assert_eq!(player.borrow().position(), target);
+    assert_eq!(player.borrow().state, PlayState::Paused);
+    assert_eq!(app.engine.tick(), target);
+}
+
+/// The events a tick produced ride along with it, and are cleared afterwards
+/// so the next tick starts empty.
+#[test]
+fn events_are_recorded_against_the_tick_that_made_them() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+
+    let mut app = app_with_dial();
+    app.add_system(balaur_core::Stage::Update, |eng: &Engine, _| {
+        if eng.tick() % 2 == 0 {
+            replay::event(eng, "net.request", "GET /score", None);
+        }
+    });
+    replay::start_recording(&app.engine, &path, ".", "", false).unwrap();
+    for _ in 0..4 {
+        app.advance(1.0 / 60.0);
+    }
+    replay::stop_recording(&app.engine, "stop").unwrap();
+
+    let session = Session::read(&path).unwrap();
+    let requests: Vec<_> = session
+        .frames
+        .iter()
+        .filter(|f| f.events.iter().any(|e| e.kind == "net.request"))
+        .map(|f| f.tick)
+        .collect();
+    assert_eq!(requests.len(), 2, "one event per even tick, and no repeats");
+    assert!(requests.iter().all(|t| t % 2 == 0));
+}
+
+/// A recording that was never stopped still says so: no trailer means the
+/// session did not get to finish.
+#[test]
+fn a_session_carries_why_it_ended() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+    let mut app = app_with_dial();
+    replay::start_recording(&app.engine, &path, ".", "", false).unwrap();
+    app.advance(1.0 / 60.0);
+    replay::stop_recording(&app.engine, "reload").unwrap();
+
+    let session = Session::read(&path).unwrap();
+    assert_eq!(
+        session.trailer.as_ref().map(|t| t.reason.as_str()),
+        Some("reload")
+    );
 }

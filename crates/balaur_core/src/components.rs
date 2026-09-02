@@ -16,9 +16,9 @@
 //!
 //! Property specs (`schema` is a TOML table of `name = { ... }`):
 //!   type = "float" | "bool" | "string" | "enum" | "vec2" | "vec3" | "color"
-//!          | "asset"
+//!          | "asset" | "flags" | "node"
 //!   default = ...          (required, and of the declared type)
-//!   options = [...]        (enum only, and required there)
+//!   options = [...]        (enum and flags only, and required there)
 //!   asset = "clip_type"    (asset only, and required there)
 //!   min/max/step/decimals  (float, optional)
 //!   shorthand/readonly     (bool, optional)
@@ -39,6 +39,17 @@
 //! a hook always receives a reference string and reaches the object with one
 //! `assets::load_typed` call, and every asset type registered from now on
 //! inherits the rule without writing a line for it.
+//!
+//! A `flags` property is a *set* drawn from its `options`, written as an array
+//! of those strings (`lock_rotation = ["x", "z"]`). It is the answer to a
+//! property that is neither one choice from a list (`enum`) nor a fixed-length
+//! vector: an empty array is a legal, and usually the default, value.
+//!
+//! A `node` property holds a scene-relative path to another node
+//! (`body = "../Cart"`), resolved with [`crate::scene::find_node`] by the hook
+//! that reads it — a joint's other end, a camera's target. The empty string
+//! means "no node", so a component carrying one is still addable before its
+//! partner exists.
 //!
 //! Two ways in: [`add`] describes a component whole, starting from the schema
 //! defaults, which is what a scene file means; [`patch`] writes over what the
@@ -61,6 +72,44 @@ pub const fn as_f64(value: &toml::Value) -> Option<f64> {
     }
 }
 
+/// The names a `flags`-typed property holds, in the order they were written.
+///
+/// Anything that is not a string is dropped rather than refused: a schema
+/// validated its `default`, and a scene may carry a name a newer version of
+/// the component added.
+pub fn as_flags(value: Option<&toml::Value>) -> Vec<&str> {
+    value
+        .and_then(toml::Value::as_array)
+        .map(|a| a.iter().filter_map(toml::Value::as_str).collect())
+        .unwrap_or_default()
+}
+
+/// Whether a `flags`-typed property holds `name`.
+pub fn has_flag(value: Option<&toml::Value>, name: &str) -> bool {
+    as_flags(value).contains(&name)
+}
+
+/// The node a `node`-typed property names, resolved relative to the node that
+/// carries the component (Godot's NodePath rules, via [`crate::scene::find_node`]).
+///
+/// `None` for the empty default and for a path that resolves to nothing — a
+/// component with an unset or dangling partner is inert, not an error, because
+/// the partner may be spawned a tick later.
+pub fn as_node(eng: &Engine, from: Entity, value: Option<&toml::Value>) -> Option<Entity> {
+    let path = value.and_then(toml::Value::as_str)?;
+    if path.trim().is_empty() {
+        return None;
+    }
+    // A leading `/` walks from the scene root, as it does in Godot; the
+    // editor's node picker writes that form because it is the one spelling
+    // that does not change when the node carrying it moves.
+    let (from, path) = match path.strip_prefix('/') {
+        Some(rest) => (eng.root(), rest),
+        None => (from, path),
+    };
+    crate::scene::find_node(&eng.world(), from, path)
+}
+
 /// Insert-or-update a component from a full property table.
 pub type ApplyFn = Box<dyn Fn(&Engine, Entity, &toml::Value) -> Result<()>>;
 /// Remove a component from an entity.
@@ -71,6 +120,9 @@ pub type GetFn = Box<dyn Fn(&Engine, Entity) -> Option<toml::Value>>;
 pub struct ComponentDef {
     /// TOML table of property specs (see module docs).
     pub schema: toml::Value,
+    /// What the component gives a node, in one or two sentences, for the
+    /// generated reference. `scripts/api_lints.py` fails an empty one.
+    pub doc: &'static str,
     /// Facets this component belongs to, for browsing: `2d`, `3d`, `physics`,
     /// `render`, `audio`, `ui`. Several apply at once on purpose -- a
     /// `collider2d` is both `2d` and `physics`, and a single category path
@@ -98,8 +150,8 @@ pub struct ComponentDef {
 /// The datatypes a schema property may declare (rule N6). Closed: a plugin
 /// that wants another one adds it here, so the editor's inspector and the
 /// scene format learn about it at the same moment.
-pub const PROPERTY_TYPES: [&str; 8] = [
-    "float", "bool", "string", "enum", "vec2", "vec3", "color", "asset",
+pub const PROPERTY_TYPES: [&str; 10] = [
+    "float", "bool", "string", "enum", "vec2", "vec3", "color", "asset", "flags", "node",
 ];
 
 impl ComponentDef {
@@ -154,11 +206,13 @@ fn validate_property(spec: &toml::Value) -> Result<(), String> {
         ));
     }
     let options = spec.get("options");
-    match (declared == "enum", options) {
-        (true, None) => return Err("`type = \"enum\"` needs an `options` list".into()),
+    let takes_options = declared == "enum" || declared == "flags";
+    match (takes_options, options) {
+        (true, None) => return Err(format!("`type = \"{declared}\"` needs an `options` list")),
         (false, Some(_)) => {
             return Err(format!(
-                "`options` belongs to `type = \"enum\"`, not `type = \"{declared}\"`"
+                "`options` belongs to `type = \"enum\"` and `type = \"flags\"`, not `type = \
+                 \"{declared}\"`"
             ))
         }
         _ => {}
@@ -205,8 +259,10 @@ fn check_default(
         "float" => (as_f64(default).is_some(), "a number"),
         "bool" => (default.as_bool().is_some(), "true or false"),
         // An asset default is a reference, and a reference is a path string.
-        "string" | "asset" => (default.as_str().is_some(), "a string"),
+        // A node default is a scene-relative path, and a path is a string.
+        "string" | "asset" | "node" => (default.as_str().is_some(), "a string"),
         "enum" => return check_enum_default(default, options),
+        "flags" => return check_flags_default(default, options),
         "vec2" => return check_numbers(declared, default, &[2]),
         "vec3" => return check_numbers(declared, default, &[3]),
         "color" => return check_color_default(default),
@@ -243,6 +299,38 @@ fn check_enum_default(default: &toml::Value, options: Option<&toml::Value>) -> R
     Err(format!(
         "`default = \"{default}\"` is not in `options` {choices:?}"
     ))
+}
+
+/// A `flags` default: an array, each entry one of the `options` strings. The
+/// empty array is legal and is what most flag properties default to.
+fn check_flags_default(default: &toml::Value, options: Option<&toml::Value>) -> Result<(), String> {
+    let choices = options
+        .and_then(toml::Value::as_array)
+        .ok_or_else(|| "`options` is not a list of strings".to_string())?;
+    let choices: Vec<&str> = choices.iter().filter_map(toml::Value::as_str).collect();
+    if choices.is_empty() {
+        return Err("`options` is empty, so the property can hold nothing".into());
+    }
+    let default = default.as_array().ok_or_else(|| {
+        format!(
+            "`default` is {}, but `type = \"flags\"` wants an array of `options` strings",
+            default.type_str()
+        )
+    })?;
+    for entry in default {
+        let Some(name) = entry.as_str() else {
+            return Err(format!(
+                "`default` holds {}, but `type = \"flags\"` wants `options` strings",
+                entry.type_str()
+            ));
+        };
+        if !choices.contains(&name) {
+            return Err(format!(
+                "`default` holds \"{name}\", which is not in `options` {choices:?}"
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// A `vec2`/`vec3` default: an array of numbers of exactly the right length.

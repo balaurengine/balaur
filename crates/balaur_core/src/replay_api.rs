@@ -272,7 +272,7 @@ fn events(eng: &Engine, args: &[Value]) -> Result<Value> {
             .events_between(from, to)
             .into_iter()
             .map(|(tick, event)| {
-                Value::Map(vec![
+                Ok(Value::Map(vec![
                     ("tick".into(), count(tick)),
                     ("kind".into(), Value::Str(event.kind.clone())),
                     ("label".into(), Value::Str(event.label.clone())),
@@ -283,7 +283,7 @@ fn events(eng: &Engine, args: &[Value]) -> Result<Value> {
                             .as_ref()
                             .map_or(Ok(Value::Nil), crate::engine_api::from_json)?,
                     ),
-                ])
+                ]))
             })
             .collect::<Result<Vec<_>>>()?,
     ))

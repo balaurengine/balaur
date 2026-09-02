@@ -1,7 +1,7 @@
-// Spins in place; press Space (windowed runs) to reverse direction. `speed`
-// and `clockwise` are exported, so the scene tunes them per node and the
-// inspector edits them — the file's defaults are what a node that says
-// nothing gets.
+// Spins in place; the `reverse` action (Space, or the pad's south button)
+// flips it. `speed` and `clockwise` are exported, so the scene tunes them per
+// node and the inspector edits them — the file's defaults are what a node
+// that says nothing gets.
 
 pub fn exports() {
     #{ speed: 2.0, clockwise: true }
@@ -13,9 +13,11 @@ pub fn init(this) {
 }
 
 pub fn update(this, dt) {
-    if input::just_pressed(input::KEY_SPACE) {
+    if input::action_just_pressed("reverse") {
         this.direction = -this.direction;
     }
-    this.angle += dt * this.speed * this.direction;
+    // `spin` is an axis: A/D or the left stick nudge the speed either way.
+    let nudge = input::action_value("spin");
+    this.angle += dt * (this.speed + nudge * 3.0) * this.direction;
     this.node.set_rotation_euler(0.0, this.angle, 0.0);
 }

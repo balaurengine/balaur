@@ -16,6 +16,7 @@ fn app_with_marker() -> App {
     app.register_component(
         "marker",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema(
                 "marker",
                 r#"label = { type = "string", default = "none" }

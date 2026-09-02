@@ -1,6 +1,33 @@
-> **Status:** not started. Written 2026-09-02. Three pieces on the asset
-> layer that `docs/PLAN-animation-and-resources.md` §3.7 deferred or never
-> covered: prefabs, stable ids with hot reload, and sprite-sheet import.
+> **Status:** phase 1 built on 2026-09-02 — the `instance` scene key,
+> `overrides`, prefixed stable ids, cycle detection, and `examples/hello`'s
+> two crates. Phase 4 turned out to be half built already: the Rune host's
+> watcher reloads `.toml` assets on save (`pump_reloads`), so what is left
+> there is the binary types — a re-saved PNG or `.glb` is not noticed.
+> Phases 2 (the editor), 3 (rename refactoring), 5 (`.aseprite`) and 6 (the
+> id index) are not started.
+>
+> **Where the implementation decided differently:**
+>
+> 1. **A prefab's roots become the instance node's children.** §"Prefabs"
+>    implies the instance node *is* the prefab's root, which is Godot's shape
+>    — `overrides."Arm/Hand"` reads as if `Arm` were the root's child. The
+>    engine already had a verb for building a scene under a node
+>    (`scene::instantiate`, roots become children of the base) and having two
+>    rules for the same sentence is worse than the extra path segment. So an
+>    override addresses `"Crate/Lid"`, naming the prefab's own root first.
+> 2. **Overrides reach the transform, not only components.** The plan says
+>    "component keys"; `position`, `rotation_euler` and `scale` are the keys
+>    every node has, and placing a child differently per instance is the
+>    second thing anyone asks for after recolouring one.
+> 3. **Scripts inside a prefab attach with the outermost scene.** The rule
+>    that `init` runs after the whole tree exists has to mean the whole tree,
+>    or a prefab's `init` could not look up a sibling the scene declares.
+> 4. **A prefab that contains itself is an error naming the cycle.** Not in
+>    the plan, and the first thing anyone does by accident.
+> 5. **The editor needed nothing to show one.** `absolute_files` already
+>    rewrites any string naming a file, `instance` included, so the mirror
+>    builds prefabs as-is. The tree marks an instance row; editing inside one
+>    is phase 2.
 
 # Plan: prefabs, stable asset ids, sprite sheets
 

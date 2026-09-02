@@ -543,8 +543,61 @@ fn write(S, comp, prop, value) {
     if comp == SCRIPT_PROPS {
         model::set_script_prop(S, prop, value);
     } else {
-        write(S, comp, prop, value);
+        model::set_component_prop(S, comp, prop, value);
     }
+}
+
+// A set drawn from the schema's `options`: one pill per option, filled when
+// held. A checkbox grid in everything but the shape of the control.
+fn edit_flags(S, k, comp, prop, spec, value) {
+    let held = util::vec(value);
+    row(k, prop, || {
+        for name in util::vec(spec.get("options").unwrap_or([])) {
+            let on = util::contains(held, name);
+            if ui::pill(name, #{
+                height: 20, size: 10, strong: on,
+                fill: if on { k.accent_fill } else { k.sunken },
+                color: if on { k.on_accent } else { k.dim },
+            }) {
+                let next = [];
+                for other in held {
+                    if other != name {
+                        next.push(other);
+                    }
+                }
+                if !on {
+                    next.push(name);
+                }
+                write(S, comp, prop, next);
+            }
+        }
+    });
+}
+
+// Another node, by path. The field takes what a scene file takes; the
+// dropdown lists every node in the document as an absolute path, which is
+// what a leading `/` means to the engine's resolver.
+fn edit_node(S, k, comp, prop, spec, value) {
+    row(k, prop, || {
+        let id = format!("node:{}:{}:{}", comp, prop, S.sel);
+        let (text, _, submitted) = ui::text_field(id, "— none —",
+            util::merge(style::field(k, CONTROL_W - 78.0), #{ value: as_text(value) }));
+        if submitted {
+            write(S, comp, prop, text);
+        }
+        let paths = ["— none —"];
+        for node in S.doc {
+            paths.push("/" + model::node_path(S.doc, node));
+        }
+        ui::right(|| {
+            let (picked, changed) = ui::dropdown(format!("pick:{}", id), "pick", paths, #{
+                width: 74, size: 10, height: 20, color: k.text,
+            });
+            if changed {
+                write(S, comp, prop, if picked == "— none —" { "" } else { picked });
+            }
+        });
+    });
 }
 
 // One editor per schema datatype, looked up rather than branched on, so a
@@ -558,6 +611,8 @@ fn editors() {
         "vec3": edit_vector,
         "color": edit_color,
         "asset": edit_asset,
+        "flags": edit_flags,
+        "node": edit_node,
     }
 }
 

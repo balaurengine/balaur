@@ -32,6 +32,7 @@ fn register_pair(app: &mut App) {
     app.register_component(
         "lonely",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema(
                 "lonely",
                 r#"on = { type = "bool", default = true }"#,
@@ -57,6 +58,7 @@ fn register_pair(app: &mut App) {
     app.register_component(
         "partner",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema(
                 "partner",
                 r#"on = { type = "bool", default = true }"#,

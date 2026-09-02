@@ -31,6 +31,7 @@ fn def(app: &App, name: &str) -> components::ComponentDef {
     let registry = registry.borrow();
     let d = registry.def(name).unwrap_or_else(|| panic!("no `{name}`"));
     components::ComponentDef {
+        doc: "",
         schema: d.schema.clone(),
         tags: d.tags,
         expects: d.expects,

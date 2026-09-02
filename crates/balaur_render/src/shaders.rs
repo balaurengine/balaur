@@ -20,10 +20,15 @@ pub static SKINNED_2D: &str = include_str!("shaders/skinned_2d.wesl");
 /// every such shader would otherwise repeat.
 static SPRITE: &str = include_str!("shaders/sprite.wesl");
 
+/// The 3D counterpart, mounted as `package::mesh`: the same uniforms in three
+/// dimensions, plus the scene's lights and fog.
+static MESH: &str = include_str!("shaders/mesh.wesl");
+
 /// Composes `(module path, source)` pairs into one WGSL translation unit,
 /// starting from `root` and keeping only what its entry points reach.
 ///
-/// `package::common` and `package::sprite` are mounted for free.
+/// `package::common`, `package::sprite` and `package::mesh` are mounted for
+/// free.
 /// `features` toggles `@if(name)`.
 /// Errors name the line the author wrote rather than the linked output's, so
 /// a project's shader can say where it broke. The result carries the syntax
@@ -34,7 +39,11 @@ pub fn link(
     features: &[(&str, bool)],
 ) -> Result<wesl::CompileResult> {
     let mut resolver = wesl::VirtualResolver::new();
-    let mounted = [("package::common", COMMON), ("package::sprite", SPRITE)];
+    let mounted = [
+        ("package::common", COMMON),
+        ("package::sprite", SPRITE),
+        ("package::mesh", MESH),
+    ];
     for (path, source) in mounted.iter().chain(modules) {
         let parsed = path
             .parse()

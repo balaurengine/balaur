@@ -140,6 +140,38 @@ pub const MATH_OPS: &[EngineOp] = &[
 
 /// Declare the module's functions and its constants.
 pub fn install_math_api(m: &mut dyn Bindings<Engine>) {
+    m.module_doc(
+        "Deterministic float maths, backed by pure-Rust `libm`: the same \
+         inputs give the same bits on every platform. A script uses these \
+         rather than the language's own float methods, which reach for the \
+         platform's libm and drift between machines.",
+    );
+    m.describe(&[
+        ("sin", &[], "The sine of an angle in radians."),
+        ("cos", &[], "The cosine of an angle in radians."),
+        ("tan", &[], "The tangent of an angle in radians."),
+        ("asin", &[], "The angle in radians whose sine is the argument, from -PI/2 to PI/2; NaN outside -1..1."),
+        ("acos", &[], "The angle in radians whose cosine is the argument, from 0 to PI; NaN outside -1..1."),
+        ("atan", &[], "The angle in radians whose tangent is the argument; with two arguments, the y-then-x form instead."),
+        ("atan2", &[], "The angle in radians from the positive x axis to the point, taking y first and x second."),
+        ("sinh", &[], "The hyperbolic sine."),
+        ("cosh", &[], "The hyperbolic cosine."),
+        ("tanh", &[], "The hyperbolic tangent, between -1 and 1."),
+        ("exp", &[], "e raised to the given power."),
+        ("log", &[], "The natural logarithm, or the logarithm in the base given as a second argument."),
+        ("log10", &[], "The base-10 logarithm; -INF at zero and NaN below it."),
+        ("pow", &[], "The first argument raised to the power of the second."),
+        ("sqrt", &[], "The square root; NaN for a negative argument."),
+        ("abs", &[], "The magnitude, with the sign dropped."),
+        ("floor", &[], "The largest whole number at or below the argument, still a float."),
+        ("ceil", &[], "The smallest whole number at or above the argument, still a float."),
+        ("round", &[], "The nearest whole number, with halfway cases going away from zero."),
+        ("min", &[], "The smaller of two numbers."),
+        ("max", &[], "The larger of two numbers."),
+        ("clamp", &[], "The first argument held inside the range given by the second (low) and third (high)."),
+        ("rad", &[], "Degrees converted to radians."),
+        ("deg", &[], "Radians converted to degrees."),
+    ]);
     for d in MATH_OPS {
         m.function_raw(d.name, Box::new(d.call));
     }

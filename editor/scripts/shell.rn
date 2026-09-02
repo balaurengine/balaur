@@ -283,6 +283,7 @@ fn states() {
         "assetdemo": crate::selftest::assets,
         "pickdemo": crate::selftest::picking,
         "propsdemo": crate::selftest::script_props,
+        "lintdemo": crate::selftest::linting,
     }
 }
 

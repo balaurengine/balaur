@@ -138,6 +138,7 @@ pub(crate) fn register_tilemap_component(app: &mut App) {
     app.register_component(
         "tilemap",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema(
                 "tilemap",
                 r#"tileset = { type = "asset", asset = "tileset", default = "", description = "The tileset naming the texture and tile grid" }

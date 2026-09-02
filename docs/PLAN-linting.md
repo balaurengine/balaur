@@ -3,6 +3,36 @@
 > the line; before phase 0 none of them had a caller in the editor. The
 > measurements below are from a debug build of the tree at that date.
 >
+> **What was built.** Phases 0 to 6. `script::check(path, source)` compiles a
+> root through the live host with warnings on and answers `[#{ file, line,
+> column, severity, message }]`; the editor's `lint.rn` sweeps every script
+> the scene attaches plus the scene itself, holds the sweep off until typing
+> stops, and shows the result in a Problems dock tab, as a bar in the code
+> editor's gutter and as an underline on the line. `render::check_material`
+> links a material's shader, which the asset layer deliberately does not do.
+> `balaur check` runs the script half headless for CI.
+>
+> **Where the implementation decided differently:**
+>
+> 1. **The scene lint does not flag unknown scene keys.** The engine warns
+>    about one at load, but the registered key list (`SceneKeyRegistry`) is
+>    not bound to scripts, and guessing from `scene::component_types` would
+>    flag every key an alias or a handler owns. Left out rather than made
+>    noisy; binding the registry is the fix.
+> 2. **`balaur check` checks scripts, not scenes.** The editor's scene half
+>    reads its live document — which is the point, since it must see unsaved
+>    edits — and the CLI has files. Rather than write the scene rules twice,
+>    the CLI does the half that is genuinely shared (the host's own compile).
+>    Moving the scene rules into Rust and binding them to both is the fix,
+>    and until then `balaur check` is honest about being narrower.
+> 3. **A material finding has no line.** WESL's spans point into the linked
+>    output; `link` already asks for a sourcemap, but mapping a span back
+>    through it is its own piece of work. A material finding names the file.
+> 4. **The idle sweep re-checks everything, not just what changed.** The
+>    editor's projects are small — the whole of `examples/hello` is four
+>    scripts — and a dependency graph across `mod` and `script::require` is
+>    more machinery than the saving is worth at this size.
+>
 > **What phase 0 showed.** A save that does not compile now prints Rune's
 > caret diagram to Output. Routing it through `script::attempt` costs three
 > cosmetic repairs the editor has to make on a string: the project root is
@@ -137,20 +167,21 @@ with no expansions.
 
 ## Phases
 
-| | Work | Depends on |
-|---|---|---|
-| 0 | **Done.** Stop discarding the error we already have: `save_active` reads `script::attempt`'s tuple and logs the diagnostic instead of `saved` | — |
-| 1 | `script::check`; the Problems dock tab; gutter dots and squiggles | 0 |
-| 2 | Warnings on, as a severity the Problems tab can filter | 1 |
-| 3 | Idle re-check of the roots that reach the edited file, one per frame | 1 |
-| 4 | The scene lint, in Rune: unknown keys, unresolved assets, unmet expectations, a `script` that names a missing file | 1 |
-| 5 | `render::check_shader`, once a material can name a shader (`PLAN-shaders.md` phase 3) | 1, `PLAN-shaders` |
-| 6 | `balaur check`: the same rules headless, so CI and `scripts/e2e.sh` fail on what the editor underlines | 1, 4 |
-| 7 | Serve the same diagnostics over LSP, next to the DAP server that just landed in `crates/balaur_core/src/dap.rs` | 6 |
+| | Work | Depends on | |
+|---|---|---|---|
+| 0 | Stop discarding the error we already have: `save_active` reads `script::attempt`'s tuple and logs the diagnostic instead of `saved` | — | **done** |
+| 1 | `script::check`; the Problems dock tab; gutter bars and underlines | 0 | **done** |
+| 2 | Warnings on, as a severity the Problems tab separates | 1 | **done** |
+| 3 | Idle re-check, held off until typing stops | 1 | **done** |
+| 4 | The scene lint: unresolved assets, unmet expectations, a `script` or `instance` that names a missing file | 1 | **done** |
+| 5 | `render::check_material`, now that a material names a shader | 1, `PLAN-shaders` | **done** |
+| 6 | `balaur check`: the same script rules headless, so CI fails on what the editor underlines | 1, 4 | **done** |
+| 7 | Serve the same diagnostics over LSP, next to the DAP server in `crates/balaur_core/src/dap.rs` | 6 | not started |
 
-Phase 0 is a dozen lines and landed with the investigation. It cannot be
-covered by a self-test state: `scripts/e2e.sh` fails any editor run that
-logs an `ERROR`, which is exactly what the pass being tested produces.
+Phase 0 cannot be covered by a self-test state: `scripts/e2e.sh` fails any
+editor run that logs an `ERROR`, which is exactly what the pass being tested
+produces. Phases 1 to 5 are covered by `--state lintdemo`, which asserts on
+the finding list rather than on the log.
 
 ## What this is not
 

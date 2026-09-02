@@ -139,6 +139,7 @@ pub(crate) fn register_shape_component(app: &mut App) {
     app.register_component(
         "shape3d",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema(
                 "shape3d",
                 r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid", "capsule", "cylinder", "cone", "plane"], description = "Rendered 3D shape" }
@@ -235,6 +236,7 @@ pub(crate) fn register_shape2d_component(app: &mut App) {
     app.register_component(
         "shape2d",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema(
                 "shape2d",
                 r#"kind = { type = "enum", default = "rect", options = ["circle", "rect", "capsule", "polyline"], description = "Rendered 2D shape" }

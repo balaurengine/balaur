@@ -315,6 +315,9 @@ pub struct Recorder {
     /// The log buffer's timestamp of the last line already recorded.
     log_cursor: f64,
     finished: bool,
+    /// Whether a script was stopped at the end of the last frame, so a pause
+    /// is recorded once rather than on every frame it lasts.
+    was_paused: bool,
 }
 
 impl Recorder {
@@ -335,6 +338,7 @@ impl Recorder {
             frames: 0,
             log_cursor: crate::logbuf::recent(1).first().map_or(0.0, |e| e.time),
             finished: false,
+            was_paused: false,
         })
     }
 
@@ -373,6 +377,27 @@ impl Recorder {
         self.out.write_all(b"\n")?;
         self.out.flush()?;
         Ok(())
+    }
+
+    /// A debugger pause that arrived since the last frame, as one event.
+    fn fresh_pause(&mut self, eng: &Engine) -> Option<Event> {
+        let pause = eng.script_host().and_then(|host| host.paused());
+        let was = std::mem::replace(&mut self.was_paused, pause.is_some());
+        let pause = pause.filter(|_| !was)?;
+        Some(Event {
+            kind: "debug.pause".into(),
+            label: format!(
+                "{} paused at {}:{}",
+                pause.reason.name(),
+                pause.path,
+                pause.line
+            ),
+            data: Some(serde_json::json!({
+                "reason": pause.reason.name(),
+                "path": pause.path,
+                "line": pause.line,
+            })),
+        })
     }
 
     /// Log lines written since the last frame, as events.
@@ -503,6 +528,7 @@ pub(crate) fn record_frame(eng: &Engine, dt: f32) {
     if let Some(recorder) = recording.borrow_mut().0.as_mut() {
         let mut events = std::mem::take(&mut eng.resource::<EventLog>().borrow_mut().0);
         events.extend(recorder.fresh_logs());
+        events.extend(recorder.fresh_pause(eng));
         let frame = Frame {
             tick: eng.tick(),
             dt: dt.to_bits(),

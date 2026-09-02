@@ -24,6 +24,7 @@ fn app_with_dial() -> App {
     app.register_component(
         "dial",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema(
                 "dial",
                 r#"kind = { type = "enum", default = "round", options = ["round", "square"] }
@@ -184,6 +185,7 @@ fn a_hex_colour_reaches_apply_expanded_through_patch_as_well_as_add() {
     app.register_component(
         "tint",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema(
                 "tint",
                 r#"rgba = { type = "color", default = [0.0, 0.0, 0.0, 1.0] }"#,

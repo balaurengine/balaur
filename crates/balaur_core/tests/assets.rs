@@ -52,6 +52,7 @@ fn app_in(project_root: &std::path::Path, pack: Option<Pack>) -> App {
     app.register_component(
         "instrument",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema("instrument", INSTRUMENT_SCHEMA),
             tags: &[],
             expects: &[],

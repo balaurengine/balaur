@@ -32,6 +32,8 @@ pub mod kiss3d_backend;
 #[cfg(feature = "kiss3d")]
 mod shader_material;
 #[cfg(feature = "kiss3d")]
+mod shader_material_3d;
+#[cfg(feature = "kiss3d")]
 mod skinned_2d;
 
 /// Ask a rendering backend to save one frame as a PNG once `after_frame`
@@ -143,28 +145,11 @@ type DrawLineArgs = (
     Option<bool>,
 );
 
-/// (a, b, color, pixel width, perspective-correct width, always-on-top)
-pub type DebugLine = ([f32; 3], [f32; 3], [f32; 3], f32, bool, bool);
-
-/// Scripts append with `render.draw_line`; the windowed backend drains it as
-/// it draws, and with no window [`RenderPlugin`]'s Render-stage system
-/// clears it instead, so it is empty at the start of every frame either way.
-#[derive(Default)]
-pub struct DebugLineBuffer {
-    pub lines: Vec<DebugLine>,
-}
-
-/// 2D counterpart of [`DebugLineBuffer`]: world-space 2D segments rendered
-/// with the 2D camera.
-/// (a, b, color, pixel width)
-pub type DebugLine2d = ([f32; 2], [f32; 2], [f32; 3], f32);
-
-/// Appended by `render.draw_line_2d`, drained on the same terms as
-/// [`DebugLineBuffer`].
-#[derive(Default)]
-pub struct DebugLineBuffer2d {
-    pub lines: Vec<DebugLine2d>,
-}
+// The buffers themselves live in `balaur_core::debug_lines`: physics and the
+// editor fill them too, and a producer must not have to depend on the
+// renderer to draw a line. Re-exported because `balaur::render::DebugLineBuffer`
+// is published API.
+pub use balaur_core::debug_lines::{DebugLine, DebugLine2d, DebugLineBuffer, DebugLineBuffer2d};
 
 /// Where the 2D camera looks (world center) and its zoom in logical pixels
 /// per world unit. Backends apply it when changed and keep their own

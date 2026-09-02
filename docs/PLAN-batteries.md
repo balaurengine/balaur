@@ -1,6 +1,38 @@
-> **Status:** not started. Written 2026-09-02. The pieces every game writes
-> for itself when the engine has none: a UI toolkit for menus, input
-> actions, save games, localization, audio buses.
+> **Status:** phase 1 (input actions) built on 2026-09-02 —
+> `crates/balaur_input/src/actions.rs`, the `[input.actions]` table, the
+> `input.action_*` calls, rebinding saved to the user data directory, and a
+> test that the same keys produce the same actions every run. Phases 2-6
+> (audio buses, save games, the widget tree, localization) are not started.
+>
+> **Where the implementation decided differently:**
+>
+> 1. **Bindings are spelled the way the constants are.** The sketch wrote
+>    `"gamepad:a"`, `"axis:left_x"`; the engine already names these things
+>    `input.PAD_SOUTH` / `"South"` and `input.AXIS_LEFT_STICK_X` /
+>    `"LeftStickX"`, and a binding string that disagreed with the constant
+>    for the same button would be a second vocabulary to learn. So:
+>    `"Space"`, `"mouse:left"`, `"gamepad:South"`, `"axis:LeftStickX"`,
+>    `"keys:A,D"`.
+> 2. **Half-axes exist.** `"axis:LeftStickY+"` binds one direction of a
+>    stick, because without it a stick cannot drive an action that is only
+>    ever pressed or not.
+> 3. **Actions read every pad, not one.** A single-player game does not care
+>    which controller a value came from, and per-pad actions can be added
+>    without moving anything.
+> 4. **Edges compare values, not bindings.** Keeping last frame's value per
+>    action is what lets a stick pushed past the threshold fire
+>    `just_pressed` the way a key does. It is derived from the recorded raw
+>    input each frame, so a replay reproduces it.
+> 5. **Open question 2 is still open.** A replay reproduces actions from
+>    keys, which is phase 1's bar, but the *binding table* is not in the
+>    recording's header yet: replaying a session against a project whose
+>    bindings changed derives different actions, and nothing says so. That
+>    wants the header work the question describes.
+> 6. **`ManifestSource` had to exist.** A plugin reading its own table out of
+>    `project.toml` through `ProjectFiles` finds nothing in a packed game —
+>    a pack carries the manifest beside the assets, not among them. The raw
+>    manifest text is now an engine resource, which is also the bug
+>    `NetConfig` still has.
 
 # Plan: batteries
 

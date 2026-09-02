@@ -46,6 +46,7 @@ pub(crate) fn register_modifier2d_component(app: &mut App) {
     app.register_component(
         "modifier2d",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema("modifier2d", SCHEMA),
             tags: &["2d", "animation"],
             expects: &[],

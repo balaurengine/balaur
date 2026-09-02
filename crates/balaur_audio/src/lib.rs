@@ -370,6 +370,7 @@ fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
     reg.register_component(
         "sound",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema(
                 "sound",
                 r#"file = { type = "string", default = "", description = "Audio file, project-relative; required to play" }

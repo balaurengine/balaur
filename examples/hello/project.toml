@@ -1,2 +1,8 @@
 name = "hello"
 main_scene = "scenes/main.toml"
+
+# Actions a script asks for by name. Every binding form the engine knows is
+# here: a key, a gamepad button, a key pair read as an axis, and a stick.
+[input.actions]
+reverse = ["Space", "gamepad:South"]
+spin = ["keys:A,D", "axis:LeftStickX"]

@@ -941,6 +941,21 @@ fn dump_api() -> Result<()> {
             .map(|(name, schema)| Ok((name, serde_json::to_value(schema)?)))
             .collect::<Result<_>>()?;
     api["components"] = serde_json::to_value(components)?;
+    // What each component is for, and the facets it belongs to, so the
+    // reference can describe and group them.
+    let component_docs: std::collections::BTreeMap<String, &'static str> = app
+        .engine
+        .try_resource::<balaur::components::ComponentRegistry>()
+        .map(|registry| {
+            registry
+                .borrow()
+                .0
+                .iter()
+                .map(|(name, def)| (name.clone(), def.doc))
+                .collect()
+        })
+        .unwrap_or_default();
+    api["component_docs"] = serde_json::to_value(component_docs)?;
     // Facet tags per component, so the reference can group them.
     let component_tags: std::collections::BTreeMap<String, Vec<&'static str>> = app
         .engine

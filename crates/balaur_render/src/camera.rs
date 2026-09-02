@@ -86,6 +86,7 @@ pub(crate) fn register_camera_component(app: &mut App) {
     app.register_component(
         "camera",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema(
                 "camera",
                 r#"kind = { type = "enum", default = "3d", options = ["3d", "2d"], description = "Which camera this node drives" }

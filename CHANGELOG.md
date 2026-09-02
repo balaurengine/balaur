@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Prefabs: a node names another scene file with `instance`, whose roots become its children. `[nodes.overrides."Path/Inside"]` edits one node of the instance, ids inside are prefixed by the instance's own (`n_crate_b/n_lid`), and a prefab that contains itself is an error naming the cycle.
+- Input actions: `[input.actions]` in `project.toml` binds a name to keys, mouse buttons, gamepad buttons, axes and key pairs; scripts read `input.action_value` / `action_pressed` / `action_just_pressed` / `action_just_released`. `input.bind` rebinds and saves to the user data directory, `input.reset_bindings` undoes it. Actions are derived from the recorded raw input each frame, so a replay reproduces them.
 - Editor: inspector sections (Transform, each component, Script, Events) fold on a click of their heading.
 - Component handles: `node.body2d.apply_impulse(x, y)` is `physics2d::apply_impulse(node, x, y)` with the node bound, and every handle has `get()`, `set(table)`, `has()` and `remove()`. A module declares the components it drives with `Bindings::drives`, typed bindings record their signatures, and `balaur api` prints both, so the reference lists a component's functions on its own page.
 - Shaders are written in WESL (WGSL plus imports, `@if` variants and dead-code elimination) and linked to WGSL at run time; the 2D skinning shader moved out of Rust into `shaders/skinned_2d.wesl`.

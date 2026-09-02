@@ -19,6 +19,11 @@ use crate::{UiConfig, UiState};
 
 /// `ui.*` bindings: theme.
 pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[(
+        "set_theme",
+        &[],
+        "Replace the colour tokens from a table of `name = \"#rrggbb\"` entries, plus `dark = true|false`.",
+    )]);
     {
         // No reader by design (N8): `UiConfig::theme` already holds every
         // token the caller wrote, and scripts keep their own palette table;
@@ -49,6 +54,14 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: panels.
 pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("top_panel", &[], "Dock a strip across the top of the window and draw the callback inside it; `height` is in design pixels."),
+        ("bottom_panel", &[], "Dock a strip across the bottom of the window and draw the callback inside it; `height` is in design pixels."),
+        ("left_panel", &[], "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels."),
+        ("right_panel", &[], "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels."),
+        ("central_panel", &[], "Draw the callback into whatever room the docked panels left over."),
+        ("overlay", &[], "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer."),
+    ]);
     macro_rules! panel {
         ($name:literal, $ctor:ident, $size_key:literal) => {
             m.function(
@@ -127,6 +140,11 @@ pub(crate) fn install_containers(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: text.
 pub(crate) fn install_text(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[(
+        "label",
+        &[],
+        "Draw a line of text; `size`, `font`, `color`, `strong` and `wrap` style it.",
+    )]);
     m.function(
         "label",
         |_eng: &Engine, (s, opts): (String, Option<Value>)| {
@@ -165,6 +183,10 @@ pub(crate) fn install_controls(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: text input.
 pub(crate) fn install_text_input(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("text_field", &[], "Draw a single-line text box keyed by `id`; returns its text, whether it changed, and whether Enter was pressed."),
+        ("set_text", &[], "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone."),
+    ]);
     {
         m.function(
             "text_field",
@@ -190,6 +212,11 @@ pub(crate) fn install_text_input(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: code.
 pub(crate) fn install_code(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[(
+        "code_line",
+        &[],
+        "Draw one read-only code row from a list of `{ text, color, strong }` spans, with a gutter label on the left.",
+    )]);
     m.function(
         "code_line",
         |_eng: &Engine, (gutter, spans, opts): (String, Value, Option<Value>)| {
@@ -259,6 +286,11 @@ pub(crate) fn install_code(m: &mut dyn Bindings<Engine>) {
 // `overlay` it is dragged and resized by the user, and egui remembers where
 // each `id` was left.
 pub(crate) fn install_window(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[(
+        "window",
+        &[],
+        "Draw the callback in a floating window the user drags and resizes; false once its close button is used.",
+    )]);
     m.function(
         "window",
         |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
@@ -294,6 +326,11 @@ pub(crate) fn install_window(m: &mut dyn Bindings<Engine>) {
 }
 
 pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[(
+        "modal",
+        &[],
+        "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked.",
+    )]);
     m.function(
         "modal",
         |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
@@ -337,6 +374,11 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: widget layer.
 pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[(
+        "set_widget_layer",
+        &[],
+        "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
+    )]);
     {
         // No reader by design (N8): the `WidgetLayerConfig` entry already
         // holds the flag and the rect; add `ui.widget_layer` when a caller
@@ -365,6 +407,10 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: scale.
 pub(crate) fn install_scale(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("scale", &[], "The global UI scale: real pixels per design pixel."),
+        ("set_scale", &[], "Set the global UI scale, clamped to between 0.5 and 3.0 real pixels per design pixel."),
+    ]);
     m.function("scale", |eng: &Engine, ()| {
         let config = eng.resource::<UiConfig>();
         let v = config.borrow().scale;
@@ -379,6 +425,11 @@ pub(crate) fn install_scale(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: code editor.
 pub(crate) fn install_code_editor(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[(
+        "code_editor",
+        &[],
+        "Draw an editable, highlighted buffer with a gutter; returns the text, whether it changed, and any line clicked.",
+    )]);
     {
         m.function(
             "code_editor",
@@ -392,6 +443,11 @@ pub(crate) fn install_code_editor(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: drop-down select.
 pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[(
+        "dropdown",
+        &[],
+        "Draw a pill-shaped select over a list of strings; returns the selection and whether it changed this frame.",
+    )]);
     m.function(
         "dropdown",
         |_eng: &Engine, (id, current, options, opts): (String, String, Value, Option<Value>)| {
@@ -449,6 +505,10 @@ pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: images and overlay shapes.
 pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("image", &[], "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path."),
+        ("rect_stroke", &[], "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked."),
+    ]);
     {
         m.function(
             "image",

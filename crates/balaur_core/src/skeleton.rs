@@ -434,6 +434,7 @@ pub(crate) fn register_bone2d_component(app: &mut App) {
     app.register_component(
         "bone2d",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema("bone2d", BONE2D_SCHEMA),
             tags: &["2d", "animation"],
             expects: &[],
@@ -481,6 +482,7 @@ pub(crate) fn register_bone3d_component(app: &mut App) {
     app.register_component(
         "bone3d",
         ComponentDef {
+            doc: "",
             schema: ComponentDef::parse_schema("bone3d", BONE3D_SCHEMA),
             tags: &["3d", "animation"],
             expects: &[],

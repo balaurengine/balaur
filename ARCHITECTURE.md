@@ -182,6 +182,42 @@ Everything here is scene data — the pack carries it, a digest covers what it
 changed, and a replay reproduces it. `node:attach_script(path, props)` is the
 same thing at run time, so a spawned node is tuned the way an authored one is.
 
+### Prefabs (core feature)
+
+A prefab is a scene file; a node instantiates one with the `instance` key.
+
+```toml
+[[nodes]]
+id = "n_crate_b"
+name = "CrateB"
+instance = "scenes/crate.toml"
+position = [-0.5, 5, 1.5]
+
+[nodes.overrides."Crate/Lid"]
+color = [0.9, 0.3, 0.25]
+```
+
+The prefab's roots become the node's children — the same thing
+`scene::instantiate` does from a script, so there is one rule for building a
+scene under a node rather than two. The node keeps its own name, transform
+and components: those are the instance's, and its position moves the whole
+prefab.
+
+`overrides` is keyed by path from the instance node and holds scene keys —
+components and the transform both — applied once the prefab is built. A path
+that names nothing is reported and kept rather than dropped: the prefab may
+have moved the node, and the edit is still in the file.
+
+Identity is what makes two instances of one file distinguishable: every
+`StableId` inside an instance is prefixed by the instance's own id, so the
+crate lid above is `n_crate_b/n_lid` and its twin is `n_crate_a/n_lid`. The
+prefix nests, so a prefab inside a prefab prefixes twice. That is the name a
+replay's `--entries-at` prints and the one a replication layer will address.
+
+A prefab that contains itself is an error naming the cycle, not a hang.
+Scripts inside an instance attach when the *outermost* scene is finished, so
+`init` can still look up anything the whole tree declares.
+
 ### Hot reload (core feature)
 
 The host watches the project directory (`notify`). On save, the file is
@@ -742,7 +778,7 @@ is fixed. The hazards, and how Balaur addresses or will address them:
 
 | Hazard | Status |
 | --- | --- |
-| `f64::sin/cos/exp/pow/...` call the platform libm; results differ across OS/libc | **Done:** the engine's `math` module (`math::sin`, `math::pow`, `math::PI`, ... — `docs/generated/script-api.md` has the list) is implemented on pure-Rust `libm` (MUSL algorithms, bit-identical everywhere). Simulation code calls `math::*`; Rune's own float methods stay the platform's and are not rebound. Rune has no transcendentals to rebind — its `f64` module stops at `sqrt`, `abs`, `floor`, `ceil`, `round`, `min`, `max`, `powf` and `powi`, and only the last two are inexact. `scripts/house_lints.py` rejects those two. |
+| `f64::sin/cos/exp/pow/...` call the platform libm; results differ across OS/libc | **Done:** the engine's `math` module (`math::sin`, `math::pow`, `math::PI`, ... — `docs/generated/script-api.md` has the list) is implemented on pure-Rust `libm` (MUSL algorithms, bit-identical everywhere). Rune has no transcendentals of its own — its `f64` module stops at `sqrt`, `abs`, `floor`, `ceil`, `round`, `min`, `max`, `powf` and `powi`, and only the last two are inexact. Rune installs its stdlib wholesale and a function cannot be overridden from outside, so **our fork puts both on libm** (`patch.crates-io`); `crates/balaur_script_rune/tests/pow.rs` asserts the bits. |
 | Iteration order over an object (`for (k, v) in obj`) is the hash map's, not insertion order | Rule: simulation-affecting iteration uses vectors or sorted keys. The editor can lint for this; an engine-provided ordered map is planned. |
 | A random source seeded from entropy | **Done:** Rune has no random of its own; the `rng` module (`rng::seed/random/range/int`) is an engine-owned PCG32 stream with a fixed default seed, so a fresh run is reproducible by construction. |
 | Wall-clock (`engine::time()`, variable `dt`) leaking into simulation | **Done.** `Stage::FixedUpdate` runs on one app-owned accumulator at `FIXED_DT`; scripts get a `fixed_update(dt)` callback there and physics steps there, so simulation code never sees the frame's measured time. `App::set_fixed_dt` (`balaur run --fixed-tick`) additionally pins the frame itself, making an interactive run reproduce a headless one tick for tick given the same inputs. Physics and animation take the constant from `balaur_core::FIXED_DT` rather than each declaring their own 60th of a second. Input is captured once per frame into a snapshot (replayable). |
@@ -764,8 +800,9 @@ Engine-side measures already in place:
   and glam's are libm's too because the workspace pins `glamx/libm` and
   `glamx/scalar-math`. That closes the hole `Quat::from_euler` at scene load
   (`project.rs`, `node_api.rs`) used to leave open. `scripts/house_lints.py`
-  fails the build on a bare `.sin()`/`.powf()` in Rust, or `.powf()`/`.powi()`
-  in a Rune script.
+  fails the build on a bare `.sin()` or `f32::sin(x)` in Rust; on the script
+  side the rune fork puts `f64::powf`/`powi` on libm, so there is nothing left
+  for a script to reach for.
 - Dev-mode and shipped bytecode come from one compiler configuration.
 - `crates/balaur_physics/tests/determinism.rs` asserts two runs match bit for
   bit, per tick rather than only at the end.
@@ -1112,6 +1149,45 @@ scroll, per-frame edges) and the `input` module (`is_down`,
 frame; headless runs read neutral state. Because the whole frame's input is
 one snapshot, recording it per tick is all a replay system needs.
 
+### Actions
+
+A game asks for `"jump"`, not for `Space`. Actions are declared in
+`project.toml`:
+
+```toml
+[input.actions]
+jump = ["Space", "gamepad:South"]
+move_x = ["keys:A,D", "axis:LeftStickX"]
+fire = ["mouse:left"]
+```
+
+Five binding forms, each spelled the way the constants are: a bare key name
+(`input.KEY_SPACE` is `"Space"`), `mouse:left`, `gamepad:South`,
+`axis:LeftStickX` — with `axis:LeftStickY+` and `-` for one direction of a
+stick — and `keys:A,D`, two keys as one axis with the first negative.
+
+Scripts read `input.action_value` (-1..1), `action_pressed`,
+`action_just_pressed` and `action_just_released`. One action serves a key, a
+stick and a d-pad at once: every binding contributes a value and the action
+takes the one furthest from rest, so a keyboard reads ±1 through the same
+call that reads a stick's 0.4. An axis has a deadzone; past half throw an
+action counts as pressed, and the edges come from comparing this frame's
+value with the last, so a stick pushed past the threshold fires
+`just_pressed` exactly as a key does.
+
+**The raw snapshot stays underneath, and that is the point.** Actions are
+recomputed in `Stage::First` from the snapshot and the pads — after the
+gamepad poll, and after a replay has restored the recording's own snapshot —
+so a recording holds the keys that were pressed and the actions are derived
+from them again on the way back. Nothing about an action is recorded, and
+nothing about it is state a rollback has to carry.
+
+`input.bind("jump", "gamepad:North")` rebinds one action and saves every
+rebinding to `input.toml` in the user data directory, where the next boot
+reads it; `input.reset_bindings()` goes back to the project's. An action
+nobody declared reads 0 and warns once, the same neutral answer a headless
+run gives, so a script asking for one is never the thing that fails.
+
 ## Camera and screenshots
 
 The `render` module exposes `render.set_camera(ex, ey, ez, tx, ty, tz)`
@@ -1171,14 +1247,15 @@ website's roadmap is the short form of this list.
 | Tilemap editor, curve editor and onion skin, profiler | `docs/PLAN-editor.md` §6 |
 | Debugger over the Debug Adapter Protocol | `docs/PLAN-debugger.md` phase 6 |
 | `#[export]` on a script constant, in place of the `exports` table | `docs/PLAN-scripting.md` phase 3 |
-| Prefabs, stable asset ids and asset hot reload, sprite-sheet import | `docs/PLAN-scenes-and-assets.md` |
+| Stable asset ids, rename refactoring, sprite-sheet import | `docs/PLAN-scenes-and-assets.md` phases 3, 5, 6 |
+| Prefabs in the editor: instance rows, open-in-place, overrides from the inspector | `docs/PLAN-scenes-and-assets.md` phase 2 |
 | Extensions tier two: components, systems, calling back into scripts | `docs/PLAN-c-api.md` "What Tier 1 does not do" |
 | Joints, character controller, queries, collision events, voxels — the rest of Rapier's current API | `docs/PLAN-rapier.md` |
 | Soft bodies, tearing, fluids, granular materials | `docs/PLAN-physics.md` |
 | Animation blending, blend trees, state machines, 3D IK | `docs/PLAN-animation-and-resources.md` §6 |
 | 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |
 | Custom shaders and materials, written in WESL | `docs/PLAN-shaders.md` |
-| Game UI toolkit, input actions, save games, localization, audio buses | `docs/PLAN-batteries.md` |
+| Game UI toolkit, save games, localization, audio buses | `docs/PLAN-batteries.md` phases 2-6 |
 | Rollback netcode, state replication, QUIC transport | `docs/PLAN-networking.md` |
 | Signed binary releases, published benchmarks | `docs/PLAN-release.md` |
 | Web export | `docs/PLAN-mobile-export.md` "Web" |
