@@ -62,13 +62,17 @@ jobs:
       - name: Clippy (extensions)
         run: cargo clippy -p balaur_plugin -p balaur --features balaur/extensions --all-targets -- -D warnings
       - name: Test (extensions)
+        shell: bash
         run: |
           cargo test -p balaur_plugin --features dylib
           cargo test -p balaur --features extensions
       # extension_greeter is deliberately outside the workspace, so the clippy
       # and test steps above never reach it. It is the only thing proving an
       # extension builds without the engine's build tree.
+      # bash on every OS: PowerShell has no backslash continuation and only
+      # reports the last command's exit code.
       - name: Clippy (out-of-tree extension)
+        shell: bash
         run: |
           cargo clippy --manifest-path examples/extension_greeter/Cargo.toml \
             --target-dir target/extension_greeter --all-targets -- -D warnings
