@@ -1173,6 +1173,7 @@ website's roadmap is the short form of this list.
 | `#[export]` on a script constant, in place of the `exports` table | `docs/PLAN-scripting.md` phase 3 |
 | Prefabs, stable asset ids and asset hot reload, sprite-sheet import | `docs/PLAN-scenes-and-assets.md` |
 | Extensions tier two: components, systems, calling back into scripts | `docs/PLAN-c-api.md` "What Tier 1 does not do" |
+| Joints, character controller, queries, collision events, voxels — the rest of Rapier's current API | `docs/PLAN-rapier.md` |
 | Soft bodies, tearing, fluids, granular materials | `docs/PLAN-physics.md` |
 | Animation blending, blend trees, state machines, 3D IK | `docs/PLAN-animation-and-resources.md` §6 |
 | 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |

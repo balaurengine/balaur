@@ -95,15 +95,11 @@ impl Client {
 
     /// Let both sides move: one frame for the adapter, one read for us.
     fn drive(&mut self, app: &mut App) {
-        let t0 = std::time::Instant::now();
         app.tick(FIXED_DT);
-        let ticked = t0.elapsed();
-        let t1 = std::time::Instant::now();
         let mut chunk = [0u8; 4096];
         if let Ok(read) = self.stream.read(&mut chunk) {
             self.buffer.extend_from_slice(&chunk[..read]);
         }
-        eprintln!("drive: tick {:?} read {:?}", ticked, t1.elapsed());
     }
 
     /// Take one whole message out of the buffer, if one has arrived.

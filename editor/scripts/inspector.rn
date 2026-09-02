@@ -13,14 +13,30 @@ const LABEL_W = 84.0;
 // Control area width: 308 panel − 24 padding − 84 label − spacing.
 const CONTROL_W = 186.0;
 
-fn section(k, title) {
+// A section heading that folds its rows away on click. Returns whether the
+// caller should draw them; the fold state lives on `S.collapsed` beside the
+// tree's, under an `inspector/` key so the two never collide.
+fn section(S, k, title) {
+    let key = format!("inspector/{}", title);
+    let open = !S.collapsed.contains_key(key);
     ui::add_space(12);
     ui::horizontal((), || {
-        ui::label(title.to_uppercase(), style::heading(k));
+        if ui::pill(title.to_uppercase(), util::merge(style::heading(k), #{
+            icon: if open { "▾" } else { "▸" }, height: 18,
+        })) {
+            if open {
+                S.collapsed[key] = true;
+            } else {
+                S.collapsed.remove(key);
+            }
+        }
         ui::add_space(8);
         ui::separator(k.line_soft);
     });
-    ui::add_space(8);
+    if open {
+        ui::add_space(8);
+    }
+    open
 }
 
 fn row(k, label, body) {
@@ -84,7 +100,9 @@ fn select_row(k, label, value) {
 }
 
 fn transform_section(S, k) {
-    section(k, "Transform");
+    if !section(S, k, "Transform") {
+        return;
+    }
     vec3_row(S, k, "Position", |node, found| {
         match found {
             Some(found) => {
@@ -129,7 +147,9 @@ fn transform_section(S, k) {
 
 fn script_section(S, k, title) {
     let node = model::selected_node(S);
-    section(k, title);
+    if !section(S, k, title) {
+        return;
+    }
     row(k, "Script", || {
         ui::frame(#{ fill: k.sage_soft, stroke: k.sage, radius: 14, padding_x: 11 }, || {
             ui::horizontal(#{ height: 28 }, || {
@@ -241,7 +261,9 @@ fn skeleton_section(S, k) {
     if count == 0 && S.mode2d {
         return;
     }
-    section(k, "Skeleton");
+    if !section(S, k, "Skeleton") {
+        return;
+    }
     row(k, "Bones", || {
         let what = if rig::is_bone(node) { "this bone and below" } else { format!("under {}", node.name) };
         ui::label(format!("{} · {}", count, what), style::mono(k.text));
@@ -287,7 +309,9 @@ fn polygon_section(S, k) {
     if polygon::component(node).is_none() {
         return;
     }
-    section(k, "Polygon");
+    if !section(S, k, "Polygon") {
+        return;
+    }
     let mesh = match polygon::mesh(S) {
         Some(mesh) => mesh,
         None => {
@@ -371,7 +395,9 @@ fn polygon_section(S, k) {
 // ancestor, so a bone shows the character's clip, not one of its own.
 fn animation_section(S, k) {
     let (node, _, _) = anim::player(S);
-    section(k, "Animation");
+    if !section(S, k, "Animation") {
+        return;
+    }
     let def = match anim::definition(S) {
         Some(def) => def,
         None => {
@@ -441,7 +467,9 @@ fn animation_section(S, k) {
 // Interface persona: the real surface is the `ui` scripting module.
 fn interface_section(S, k) {
     let node = model::selected_node(S);
-    section(k, "Interface");
+    if !section(S, k, "Interface") {
+        return;
+    }
     let draws = model::draws_ui(S, node);
     row(k, "Draws UI", || {
         ui::label(if draws { "yes · draw_ui()" } else { "no" }, style::mono(if draws { k.sage } else { k.faint }));
@@ -765,10 +793,20 @@ fn component_sections(S, k, filter) {
         if !shown {
             continue;
         }
-        // Section header with a right-aligned remove button.
+        // Section header: a fold toggle with a right-aligned remove button.
+        let key = format!("inspector/{}", comp);
+        let open = !S.collapsed.contains_key(key);
         ui::add_space(12);
         ui::horizontal(#{ height: 20 }, || {
-            ui::label(comp.to_uppercase(), style::heading(k));
+            if ui::pill(comp.to_uppercase(), util::merge(style::heading(k), #{
+                icon: if open { "▾" } else { "▸" }, height: 18,
+            })) {
+                if open {
+                    S.collapsed[key] = true;
+                } else {
+                    S.collapsed.remove(key);
+                }
+            }
             ui::right(|| {
                 if ui::pill("✕", #{
                     height: 18, size: 10, strong: true, tooltip: "Remove component",
@@ -779,6 +817,9 @@ fn component_sections(S, k, filter) {
             });
         });
         ui::separator(k.line_soft);
+        if !open {
+            continue;
+        }
         if let Some(needs) = unmet.get(comp) {
             ui::add_space(4);
             ui::label(format!("⚠ needs one of: {}", needs), #{
@@ -802,7 +843,9 @@ fn component_sections(S, k, filter) {
 // Hooks defined by the attached script, shown as the events surface.
 fn events_section(S, k) {
     let node = model::selected_node(S);
-    section(k, "Events");
+    if !section(S, k, "Events") {
+        return;
+    }
     let script = match model::script_rel(node) {
         Some(script) => script,
         None => {

@@ -170,6 +170,9 @@ impl App {
         engine.insert_resource(crate::replay::ReplayRegistry::default());
         engine.insert_resource(crate::replay::ReplayFeed::default());
         engine.insert_resource(crate::replay::ReplayMode::default());
+        engine.insert_resource(crate::replay::Recording::default());
+        engine.insert_resource(crate::replay::ReplayPlayer::default());
+        engine.insert_resource(crate::replay::EventLog::default());
         engine.insert_resource(crate::snapshot::SnapshotRegistry::default());
         if let Some(make) = config.script_backend.take() {
             engine.set_script_host(make(ScriptSetup {
@@ -247,6 +250,10 @@ impl App {
                 }
             }
         });
+        // After deferred destruction, so a recorded digest describes the
+        // world the next tick starts from, and after every plugin's Last work
+        // so nothing this frame produced is left out of the events.
+        app.add_system(Stage::Last, crate::replay::record_frame);
         Ok(app)
     }
 
@@ -528,7 +535,45 @@ impl App {
     /// so `set_fixed_dt` reaches every run mode instead of only the one whose
     /// loop lives here.
     pub fn advance(&mut self, measured_dt: f32) {
-        self.tick(self.fixed_dt.unwrap_or(measured_dt));
+        match self.engine.resource::<crate::replay::ReplayPlayer>().borrow().plan() {
+            crate::replay::Step::Live => {
+                self.engine.set_replay_hold(false);
+                self.tick(self.fixed_dt.unwrap_or(measured_dt));
+            }
+            crate::replay::Step::Hold => {
+                self.engine.set_replay_hold(true);
+                self.tick(measured_dt);
+            }
+            crate::replay::Step::Frames(count) => {
+                self.engine.set_replay_hold(false);
+                self.replay_frames(count);
+            }
+        }
+    }
+
+    /// Feed and run `count` recorded frames.
+    ///
+    /// A seek runs many in one call, which is why this is here and not in a
+    /// system: only the app can both put a frame in the feed and tick it, and
+    /// the fixed-step accumulator it owns has to start where the recording's
+    /// did.
+    fn replay_frames(&mut self, count: usize) {
+        if std::mem::take(
+            &mut self
+                .engine
+                .resource::<crate::replay::ReplayPlayer>()
+                .borrow_mut()
+                .restart,
+        ) {
+            self.accumulator = 0.0;
+        }
+        for _ in 0..count {
+            let Some(dt) = crate::replay::feed_next(&self.engine) else {
+                break;
+            };
+            self.tick(dt);
+            crate::replay::after_frame(&self.engine);
+        }
     }
 
     /// Run one frame at exactly `dt`, whatever the fixed-step policy says.

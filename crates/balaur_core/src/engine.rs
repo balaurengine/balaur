@@ -41,6 +41,9 @@ pub(crate) struct EngineInner {
     /// The subtree a debugger treats as the game. `None` means the whole tree.
     pub(crate) debug_scope: Cell<Option<hecs::Entity>>,
     pub(crate) frozen: Cell<bool>,
+    /// A paused replay, held apart from `frozen` so releasing one does not
+    /// release the other: a breakpoint inside a replay is both at once.
+    pub(crate) replay_hold: Cell<bool>,
 }
 
 impl Engine {
@@ -61,6 +64,7 @@ impl Engine {
                 tokens: Cell::new(1),
                 debug_scope: Cell::new(None),
                 frozen: Cell::new(false),
+                replay_hold: Cell::new(false),
             }),
         }
     }
@@ -95,6 +99,20 @@ impl Engine {
         let id = self.inner.tokens.get();
         self.inner.tokens.set(id + 1);
         id
+    }
+
+    /// What [`Engine::next_token`] will hand out next.
+    pub fn tokens(&self) -> u64 {
+        self.inner.tokens.get()
+    }
+
+    /// Put the token counter back to where a recorded session started.
+    ///
+    /// For [`crate::replay`] and nothing else: a replay's http replies are
+    /// keyed by the id the request took, so the ids have to come out the
+    /// same. Anything else calling this hands two live operations one id.
+    pub fn set_tokens(&self, next: u64) {
+        self.inner.tokens.set(next);
     }
 
     pub fn remove_resource<T: 'static>(&self) {
@@ -145,6 +163,17 @@ impl Engine {
         self.inner.tick.set(self.inner.tick.get() + 1);
     }
 
+    /// Put the clock back to where a recorded session started, so a replay
+    /// reports the tick and time the recording did.
+    ///
+    /// The counters keep running across an editor's play sessions; a script
+    /// that branches on `engine::tick()` would otherwise see different
+    /// numbers on the replay than it saw when the session was recorded.
+    pub fn set_clock(&self, tick: u64, time: f64) {
+        self.inner.tick.set(tick);
+        self.inner.time.set(time);
+    }
+
     pub fn request_quit(&self) {
         self.inner.quit.set(true);
     }
@@ -165,13 +194,17 @@ impl Engine {
         self.inner.frozen.set(frozen);
     }
 
-    /// The subtree a debugger pause holds still: no fixed step runs, and the
-    /// script hosts skip every instance under it. `None` while nothing is
-    /// paused.
+    /// Hold the simulation for a paused replay. Independent of
+    /// [`Engine::set_frozen`], which is the debugger's.
+    pub fn set_replay_hold(&self, held: bool) {
+        self.inner.replay_hold.set(held);
+    }
+
+    /// The subtree a debugger pause or a paused replay holds still: no fixed
+    /// step runs, and the script hosts skip every instance under it. `None`
+    /// while nothing holds it.
     pub fn frozen_root(&self) -> Option<hecs::Entity> {
-        self.inner
-            .frozen
-            .get()
+        (self.inner.frozen.get() || self.inner.replay_hold.get())
             .then(|| self.inner.debug_scope.get().unwrap_or_else(|| self.root()))
     }
 

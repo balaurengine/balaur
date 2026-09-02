@@ -256,7 +256,7 @@ material = { type = "asset", asset = "material", default = "", description = "Th
                     None => set_shape2d(eng, entity, shape)?,
                 }
                 set_color(eng, entity, color_from_params(params))?;
-                crate::set_material_2d(
+                crate::material::set_material_2d(
                     eng,
                     entity,
                     params

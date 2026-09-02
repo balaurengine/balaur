@@ -671,84 +671,59 @@ fn trace_digest_to(app: &mut App, path: &Path) -> Result<()> {
 
 /// Record every tick's external input and the digest it produced.
 ///
-/// `Stage::Last` is late enough that the frame is over and early enough that
-/// nothing has cleared the input yet — a backend calls `begin_frame` before
-/// the *next* tick, so the snapshot still holds what this tick was fed.
-fn record_to(app: &mut App, path: &Path, project: &Path) -> Result<()> {
-    let seed = balaur::rng::with_rng(&app.engine, |rng| rng.state());
-    let header = balaur::replay::Header {
-        format: balaur::replay::FORMAT,
-        project: project.to_string_lossy().into_owned(),
-        seed,
-    };
-    let mut recorder = balaur::replay::Recorder::create(path, &header)?;
-    app.add_system(balaur::Stage::Last, move |eng, dt| {
-        let frame = balaur::replay::Frame {
-            tick: eng.tick(),
-            dt: dt.to_bits(),
-            sources: balaur::replay::capture(eng),
-            digest: balaur::digest::digest(eng).0,
-        };
-        if let Err(e) = recorder.write(&frame) {
-            tracing::error!(error = %e, "writing the recording");
-        }
-    });
-    Ok(())
+/// The engine writes the frames itself, at the end of every tick; this only
+/// opens the file. Per-tick digests are on here and off in the editor: a run
+/// recorded from the command line is a run someone means to `--verify`.
+fn record_to(app: &App, path: &Path, project: &Path) -> Result<()> {
+    balaur::replay::start_recording(
+        &app.engine,
+        path,
+        project.to_string_lossy().as_ref(),
+        "",
+        true,
+    )
 }
 
 fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<()> {
     let session = balaur::replay::Session::read(file)?;
+    let frames = session.frames.len();
     let mut app = balaur::standard_app(AppConfig::dev(&session.header.project))?;
     // Before load_project: a script's `init` can open a socket, and that must
-    // not reach the network either.
-    *app.engine
-        .resource::<balaur::replay::ReplayMode>()
-        .borrow_mut() = balaur::replay::ReplayMode::Playing;
+    // not reach the network either. It can also take an await token, and the
+    // recorded replies are keyed by the ids it took.
+    balaur::replay::begin(&app.engine, session);
     app.load_project()?;
-    balaur::rng::with_rng(&app.engine, |rng| {
-        *rng = balaur::rng::Pcg32::from_state(session.header.seed);
-    });
+    balaur::replay::play(&app.engine);
 
-    let feed = app.engine.resource::<balaur::replay::ReplayFeed>();
-    for frame in &session.frames {
-        // Set before the tick: core restores it at the very top of First,
-        // ahead of every plugin, and `is_playing` reads it to keep outbound
-        // I/O switched off for the whole tick.
-        feed.borrow_mut().0 = Some(frame.sources.clone());
-        app.tick(frame.step());
-
+    while balaur::replay::is_running(&app.engine) {
+        app.advance(balaur::FIXED_DT);
         if let Some(at) = entries_at {
-            if frame.tick == at {
+            if app.engine.tick() >= at {
                 for entry in balaur::digest::entries(&app.engine) {
                     println!("{} {}", entry.label, entry.digest);
                 }
                 return Ok(());
             }
-            continue;
         }
         if verify {
-            let live = balaur::digest::digest(&app.engine);
-            if live.0 != frame.digest {
+            if let Some(d) = app.engine.resource::<balaur::replay::ReplayPlayer>().borrow().diverged {
                 anyhow::bail!(
                     "tick {}: recorded {} but replayed {}\n\
                      run `balaur replay <file> --entries-at {}` on both machines and diff",
-                    frame.tick,
-                    balaur::digest::Digest(frame.digest),
-                    live,
-                    frame.tick
+                    d.tick,
+                    balaur::digest::Digest(d.recorded),
+                    balaur::digest::Digest(d.replayed),
+                    d.tick
                 );
             }
         }
     }
 
-    if let Some(at) = entries_at {
-        anyhow::bail!("the recording stops before tick {at}");
+    if entries_at.is_some() {
+        anyhow::bail!("the recording stops before that tick");
     }
     if verify {
-        println!(
-            "{} ticks replayed, every digest matched",
-            session.frames.len()
-        );
+        println!("{frames} ticks replayed, every digest matched");
     }
     Ok(())
 }
@@ -786,7 +761,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         app.set_fixed_dt(Some(balaur::FIXED_DT));
     }
     if let Some(out) = record {
-        record_to(&mut app, out, path)?;
+        record_to(&app, out, path)?;
     }
     if let Some(trace) = trace_digest {
         if !*fixed_tick {

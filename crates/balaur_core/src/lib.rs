@@ -26,6 +26,7 @@ pub mod pack;
 pub mod presets;
 pub mod project;
 pub mod replay;
+pub mod replay_api;
 pub mod resources;
 pub mod rng;
 pub mod scene;

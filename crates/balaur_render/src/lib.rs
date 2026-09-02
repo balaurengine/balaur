@@ -677,24 +677,6 @@ pub(crate) fn color_to_toml(color: [f32; 4]) -> toml::Value {
 }
 
 /// Tint whichever renderable(s) the node carries (3D, 2D and/or particles).
-/// Point `entity` at the `material` asset it draws with; empty is the
-/// built-in material.
-///
-/// A change bumps `version`, which rebuilds the backend's node: a material
-/// owns its pipeline, so it cannot be swapped onto a node already built
-/// against a different one.
-pub(crate) fn set_material_2d(eng: &Engine, entity: Entity, reference: &str) -> Result<()> {
-    let world = eng.world_mut();
-    let mut renderable = world
-        .get::<&mut Renderable2d>(entity)
-        .map_err(|_| anyhow!("node has no 2D shape yet"))?;
-    if renderable.material != reference {
-        renderable.material = reference.to_string();
-        renderable.version += 1;
-    }
-    Ok(())
-}
-
 pub(crate) fn set_color(eng: &Engine, entity: Entity, color: [f32; 4]) -> Result<()> {
     let world = eng.world_mut();
     let mut any = false;

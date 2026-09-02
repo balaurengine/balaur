@@ -8,7 +8,11 @@
 //! shader that grows a field needs no edit anywhere else.
 
 use anyhow::{anyhow, bail, Result};
+use balaur_core::hecs::Entity;
 use balaur_core::App;
+use balaur_script::BindingsExt as _;
+use balaur_core::Engine;
+use balaur_script::{Bindings, BindingsExt};
 use wesl::syntax::{GlobalDeclaration, TranslationUnit};
 
 /// The asset type name, and what an `asset`-typed property asks for.
@@ -156,6 +160,24 @@ pub fn parse(value: &toml::Value) -> Result<Material> {
     })
 }
 
+/// Point `entity` at the `material` asset it draws with; empty is the
+/// built-in material.
+///
+/// A change bumps `version`, which rebuilds the backend's node: a material
+/// owns its pipeline, so it cannot be swapped onto a node already built
+/// against a different one.
+pub(crate) fn set_material_2d(eng: &Engine, entity: Entity, reference: &str) -> Result<()> {
+    let world = eng.world_mut();
+    let mut renderable = world
+        .get::<&mut crate::Renderable2d>(entity)
+        .map_err(|_| anyhow!("node has no 2D shape yet"))?;
+    if renderable.material != reference {
+        renderable.material = reference.to_string();
+        renderable.version += 1;
+    }
+    Ok(())
+}
+
 /// The `material` asset type: files live in `materials/`.
 pub(crate) fn register_material_asset(app: &mut App) {
     app.register_asset_type(
@@ -173,7 +195,7 @@ pub(crate) fn register_material_asset(app: &mut App) {
 /// editor and in CI. The asset layer deliberately parses a material without
 /// linking it — a scene must load on a machine that cannot draw — which is
 /// why a broken shader needs asking about rather than waiting for.
-pub(crate) fn install_material_check(m: &mut dyn balaur_script::Bindings<balaur_core::Engine>) {
+pub(crate) fn install_material_check(m: &mut dyn Bindings<balaur_core::Engine>) {
     m.function(
         "check_material",
         |eng: &balaur_core::Engine, path: String| {
@@ -196,16 +218,31 @@ fn check_material(eng: &balaur_core::Engine, path: &str) -> Result<()> {
     compile(&material, &source).map(|_| ())
 }
 
+/// The `--> file:line:column` a WESL diagnostic carries, if it has one.
+///
+/// `compile` rewrites the module path in a span to the shader file, so what
+/// comes out here is a place an editor can put a marker.
+fn span_of(message: &str) -> Option<(String, i64, i64)> {
+    let head = message.split("--> ").nth(1)?.split_whitespace().next()?;
+    let mut parts = head.rsplitn(3, ':');
+    let column = parts.next()?.parse().ok()?;
+    let line = parts.next()?.parse().ok()?;
+    Some((parts.next()?.to_string(), line, column))
+}
+
 /// One finding, in the shape `script::check` answers in, so the editor's
 /// Problems list takes both without knowing which produced which.
+///
+/// A link error names the shader and the line in it; anything else — a
+/// material that will not parse, a file that is not there — is about the
+/// material, which is what `path` is.
 fn finding(path: &str, message: &str) -> balaur_script::Value {
     use balaur_script::Value;
+    let (file, line, column) = span_of(message).unwrap_or_else(|| (path.to_string(), 0, 0));
     Value::Map(vec![
-        ("file".to_string(), Value::Str(path.to_string())),
-        // WESL spans point into the linked output; until they are mapped
-        // back, the finding is about the file rather than a line in it.
-        ("line".to_string(), Value::Int(0)),
-        ("column".to_string(), Value::Int(0)),
+        ("file".to_string(), Value::Str(file)),
+        ("line".to_string(), Value::Int(line)),
+        ("column".to_string(), Value::Int(column)),
         ("severity".to_string(), Value::Str("error".to_string())),
         ("message".to_string(), Value::Str(message.to_string())),
     ])
@@ -596,6 +633,28 @@ import package::sprite::{VertexInput, VertexOutput, vertex};
         let err = format!("{:#}", compile(&material, broken).err().unwrap());
         assert!(err.contains("shaders/water.wesl:6"), "{err}");
         assert!(!err.contains("package::material"), "{err}");
+    }
+
+    #[test]
+    fn a_finding_takes_its_place_from_the_diagnostic() {
+        let material = parse(&table("shader = \"shaders/water.wesl\"")).unwrap();
+        let broken = r"
+import package::sprite::{VertexInput, VertexOutput, vertex};
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput {
+    return vertex(in)
+}
+";
+        let message = format!("{:#}", compile(&material, broken).err().unwrap());
+        assert_eq!(
+            span_of(&message),
+            Some(("shaders/water.wesl".to_string(), 6, 1))
+        );
+    }
+
+    #[test]
+    fn a_message_with_no_span_places_nothing() {
+        assert_eq!(span_of("materials/x.toml: no such file"), None);
     }
 
     #[test]

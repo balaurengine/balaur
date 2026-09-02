@@ -300,6 +300,8 @@ pub fn install_engine_api(eng: &Engine) -> Result<()> {
     crate::node_api::install_node_api(&mut *node);
     let mut debugger = host.module("debugger")?;
     crate::debugger_api::install_debugger_api(&mut *debugger);
+    let mut replay = host.module("replay")?;
+    crate::replay_api::install_replay_api(&mut *replay);
     let mut math = host.module("math")?;
     crate::math_api::install_math_api(&mut *math);
     Ok(())
@@ -656,7 +658,7 @@ fn rng_int(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 /// Project-relative unless absolute, so a script cannot wander the disk by
 /// accident.
-fn resolve(eng: &Engine, path: &str) -> std::path::PathBuf {
+pub(crate) fn resolve(eng: &Engine, path: &str) -> std::path::PathBuf {
     let p = std::path::Path::new(path);
     if p.is_absolute() {
         return p.to_path_buf();

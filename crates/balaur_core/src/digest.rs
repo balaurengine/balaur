@@ -110,7 +110,9 @@ pub fn entries(eng: &Engine) -> Vec<Entry> {
     let mut out = Vec::new();
     let nodes: Vec<(Entity, String, Option<Transform>)> = {
         let world = eng.world();
-        collect_subtree(&world, eng.root())
+        // The debug scope when there is one: inside an editor the game is a
+        // subtree, and the editor's own nodes are not the run being checked.
+        collect_subtree(&world, eng.debug_scope().unwrap_or_else(|| eng.root()))
             .into_iter()
             .map(|e| {
                 let transform = world.get::<&Transform>(e).ok().map(|t| *t);

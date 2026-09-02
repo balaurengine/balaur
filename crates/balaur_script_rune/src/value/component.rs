@@ -17,7 +17,9 @@ use balaur_script::Value as Neutral;
 use rune::runtime::{InstAddress, Memory, Output, Protocol, VmError, VmResult};
 
 use super::{from_neutral, to_neutral, Node};
-use crate::bindings::{api_drives, api_entries, bound_handle, call_bound, hold_node_fn, CallbackScope};
+use crate::bindings::{
+    api_drives, api_entries, bound_handle, call_bound, hold_node_fn, CallbackScope,
+};
 
 /// A component on a node, as scripts see it.
 #[derive(rune::Any, Clone)]
@@ -59,10 +61,7 @@ const GENERIC: &[(&str, &str)] = &[
 ];
 
 /// Give `Node` a field per registered component, and the handle its methods.
-pub(crate) fn install(
-    m: &mut rune::Module,
-    eng: &Engine,
-) -> Result<(), rune::ContextError> {
+pub(crate) fn install(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::ContextError> {
     m.ty::<Component>()?;
 
     for (component, _) in balaur_core::components::schemas(eng) {
@@ -108,7 +107,12 @@ pub(crate) fn install(
             continue;
         };
         if GENERIC.iter().any(|(g, _)| *g == entry.name) {
-            tracing::warn!("{}::{} hides the handle's own `{}`", entry.module, entry.name, entry.name);
+            tracing::warn!(
+                "{}::{} hides the handle's own `{}`",
+                entry.module,
+                entry.name,
+                entry.name
+            );
             continue;
         }
         let targets = methods.entry(entry.name.clone()).or_default();
@@ -132,10 +136,7 @@ fn fail(message: impl std::fmt::Display) -> VmResult<()> {
 
 /// The receiver and the converted arguments of a handle method call, the
 /// node first and, when `with_name`, the component name second.
-fn receive(
-    values: &[rune::Value],
-    with_name: bool,
-) -> Result<(String, Vec<Neutral>), String> {
+fn receive(values: &[rune::Value], with_name: bool) -> Result<(String, Vec<Neutral>), String> {
     let Some(this) = values.first() else {
         return Err("component method called without a receiver".into());
     };
@@ -197,7 +198,9 @@ fn method_handler(
             Err(err) => return fail(err),
         };
         let Some(&handle) = targets.get(&name) else {
-            return fail(format!("`{name}` has no `{method}`; no module driving it declares one"));
+            return fail(format!(
+                "`{name}` has no `{method}`; no module driving it declares one"
+            ));
         };
         finish(call_bound(handle, &neutral), stack, out)
     }

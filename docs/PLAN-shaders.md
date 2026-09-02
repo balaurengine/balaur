@@ -2,7 +2,11 @@
 > WESL, linked through `balaur_render::shaders`; the `material` asset parses,
 > links and packs its values (`balaur_render::material`); `sprite` takes a
 > `material`, and `balaur_render::shader_material` draws it as a kiss3d
-> `Material2d`. Phase 3 (3D) and phase 4 (the editor) are not started.
+> `Material2d`. Phase 4 has its first half: saving a shader relinks it, and a
+> link error names the file, line and column the author wrote, which
+> `render::check_material` hands to the editor's Problems list. Phase 3 (3D)
+> and the rest of phase 4 (param rows, WGSL in the code editor) are not
+> started.
 >
 > **Where the implementation decided differently:**
 >
@@ -28,6 +32,14 @@
 > 6. **Shader files ride in the pack's text map.** `scenes` was already
 >    holding asset documents as well as scenes; `.wesl` joins them rather
 >    than growing a fourth map for one file type.
+> 7. **Hot reload rides the asset generation, not a second watcher.**
+>    `assets::generation` already exists for exactly this, so a saved `.wesl`
+>    bumps it (`assets::invalidate`) and the backend's material cache clears
+>    on the change — one signal, not a watcher per subsystem.
+> 8. **Errors name the file, not the module.** WESL spans point at the module
+>    path the linker was handed, which is a name this code invented;
+>    `compile` rewrites it to the shader path so a span is somewhere an
+>    editor can put a marker.
 
 # Plan: shaders and materials
 
