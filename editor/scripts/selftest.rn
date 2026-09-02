@@ -130,14 +130,13 @@ pub fn undo(S) {
     check(mirror_resolves(S), "the restored node resolves in the mirror");
 
     // A transform write, the way the inspector's vector rows make one.
-    let (node, found) = model::selected(S);
+    let (_, found) = model::selected(S);
     let found_some = found;
     if let Some(found) = found_some {
         let p = found.position();
         history::record(S, "move node", Some("selftest:move"));
         history::commit(S);
-        node.position = [p.x + 5.0, p.y, p.z];
-        found.set_position(p.x + 5.0, p.y, p.z);
+        model::set_transform(S, S.sel, #{ position: [p.x + 5.0, p.y, p.z] });
         shell::undo(S);
         let restored = util::vec3(model::selected_node(S).get("position").unwrap_or(()), [0.0, 0.0, 0.0]);
         check(util::abs(restored[0] - p.x) < 1e-6, format!("undo restores the position ({} vs {})", restored[0], p.x));

@@ -251,7 +251,7 @@ fn start_drag(S, geo, part, mx, my) {
 
 fn apply_drag(S, mx, my) {
     let d = S.gizmo_drag.unwrap();
-    let (node, found) = model::selected(S);
+    let (_, found) = model::selected(S);
     let found = match found {
         Some(found) => found,
         None => return,
@@ -263,13 +263,11 @@ fn apply_drag(S, mx, my) {
             x = math::round(x * 2.0) / 2.0;
             y = math::round(y * 2.0) / 2.0;
         }
-        found.set_position(x, y, d.pos[2]);
-        node.position = [x, y, d.pos[2]];
+        model::set_transform(S, S.sel, #{ position: [x, y, d.pos[2]] });
     } else if d.part.kind == "ring" {
         let a1 = math::atan(my - d.center[1], mx - d.center[0]);
         let rot = [d.rot[0], d.rot[1], d.rot[2] + (a1 - d.angle0)];
-        node.rotation_euler = rot;
-        found.set_rotation_euler(rot[0], rot[1], rot[2]);
+        model::set_transform(S, S.sel, #{ rotation_euler: rot });
     } else if d.part.kind == "handle" {
         // steadyum drive_single_drag: per-axis factor from the cursor's
         // world travel projected on the box's (rotated) axes; Shift applies
@@ -305,8 +303,7 @@ fn apply_drag(S, mx, my) {
         }
         let sx = d.scale[0] * factors[0];
         let sy = d.scale[1] * factors[1];
-        found.set_scale(sx, sy, d.scale[2]);
-        node.scale = [sx, sy, d.scale[2]];
+        model::set_transform(S, S.sel, #{ scale: [sx, sy, d.scale[2]] });
         // Keep the anchor (opposite corner/edge) fixed: recompute the box
         // center from the anchor and the scaled half extents.
         let off_x = d.part.signs[0] * d.he[0] * factors[0];
@@ -315,8 +312,7 @@ fn apply_drag(S, mx, my) {
         let ncy = d.anchor[1] + s * off_x + c * off_y;
         let x = d.pos[0] + (ncx - d.center[0]);
         let y = d.pos[1] + (ncy - d.center[1]);
-        found.set_position(x, y, d.pos[2]);
-        node.position = [x, y, d.pos[2]];
+        model::set_transform(S, S.sel, #{ position: [x, y, d.pos[2]] });
     }
 }
 
@@ -446,7 +442,7 @@ pub fn update(S, vp) {
         return;
     }
     let wpp = viewport::world_per_px(S);
-    let (node, found) = model::selected(S);
+    let (_, found) = model::selected(S);
     if found.is_some() && (S.tool == "move" || S.tool == "rotate" || S.tool == "scale") {
         history::record(S, format!("{} node", S.tool), Some(format!("tool:{}:{}", S.tool, S.sel)));
     }
@@ -467,20 +463,16 @@ pub fn update(S, vp) {
             x = math::round(x * 2.0) / 2.0;
             y = math::round(y * 2.0) / 2.0;
         }
-        found.set_position(x, y, p.z);
-        node.position = [x, y, p.z];
+        model::set_transform(S, S.sel, #{ position: [x, y, p.z] });
     } else if S.tool == "rotate" {
-        let r = util::vec3(node.get("rotation_euler").unwrap_or(()), [0.0, 0.0, 0.0]);
+        // The live node, like every other writer here.
+        let r = util::xyz(found.rotation_euler());
         r[2] = r[2] - dx * 0.01;
-        node.rotation_euler = r;
-        found.set_rotation_euler(r[0], r[1], r[2]);
+        model::set_transform(S, S.sel, #{ rotation_euler: r });
     } else if S.tool == "scale" {
         let s = found.scale();
         let f = util::clamp(1.0 - dy * 0.01, 0.2, 5.0);
-        let sx = s.x * f;
-        let sy = s.y * f;
-        found.set_scale(sx, sy, s.z);
-        node.scale = [sx, sy, s.z];
+        model::set_transform(S, S.sel, #{ scale: [s.x * f, s.y * f, s.z] });
     } else if S.tool == "zoom" {
         shell::set_zoom(S, S.zoom - dy * 0.5);
     }

@@ -56,7 +56,7 @@ fn vec3_row(S, k, label, getter, setter) {
         }
         if cell.changed {
             history::record(S, format!("set {}", label.to_lowercase()), Some(format!("xform:{}:{}", label, S.sel)));
-            setter(node, found, cell.v);
+            setter(cell.v);
         }
     });
 }
@@ -93,12 +93,8 @@ fn transform_section(S, k) {
             }
             None => util::vec3(node.get("position").unwrap_or(()), [0.0, 0.0, 0.0]),
         }
-    }, |node, found, v| {
-        node.position = [v[0], v[1], v[2]];
-        let found_some = found;
-        if let Some(found) = found_some {
-            found.set_position(v[0], v[1], v[2]);
-        }
+    }, |v| {
+        model::set_transform(S, S.sel, #{ position: [v[0], v[1], v[2]] });
     });
     // The row is in degrees and the engine takes them directly. The scene doc
     // still stores radians, which is the scene-file unit, so the doc write is
@@ -114,12 +110,9 @@ fn transform_section(S, k) {
                 [math::deg(r[0]), math::deg(r[1]), math::deg(r[2])]
             }
         }
-    }, |node, found, v| {
-        node.rotation_euler = [math::rad(v[0]), math::rad(v[1]), math::rad(v[2])];
-        let found_some = found;
-        if let Some(found) = found_some {
-            found.set_rotation_degrees(v[0], v[1], v[2]);
-        }
+    }, |v| {
+        let r = [math::rad(v[0]), math::rad(v[1]), math::rad(v[2])];
+        model::set_transform(S, S.sel, #{ rotation_euler: r });
     });
     vec3_row(S, k, "Scale", |node, found| {
         match found {
@@ -129,12 +122,8 @@ fn transform_section(S, k) {
             }
             None => util::vec3(node.get("scale").unwrap_or(()), [1.0, 1.0, 1.0]),
         }
-    }, |node, found, v| {
-        node.scale = [v[0], v[1], v[2]];
-        let found_some = found;
-        if let Some(found) = found_some {
-            found.set_scale(v[0], v[1], v[2]);
-        }
+    }, |v| {
+        model::set_transform(S, S.sel, #{ scale: [v[0], v[1], v[2]] });
     });
 }
 

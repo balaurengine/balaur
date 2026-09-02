@@ -259,14 +259,10 @@ pub fn apply_start_state(S, start) {
         toggle_play(S);
     } else if start == "rotdemo" {
         select_named(S, "Spinner");
-        let (node, found) = model::selected(S);
-        let found_some = found;
-        if let Some(found) = found_some {
-            found.set_rotation_euler(math::rad(15.0), math::rad(30.0), 0.0);
-            node.rotation_euler = [math::rad(15.0), math::rad(30.0), 0.0];
-            found.set_scale(3.0, 3.0, 3.0);
-            node.scale = [3.0, 3.0, 3.0];
-        }
+        model::set_transform(S, S.sel, #{
+            rotation_euler: [math::rad(15.0), math::rad(30.0), 0.0],
+            scale: [3.0, 3.0, 3.0],
+        });
         set_zoom(S, 100.0);
     } else if start == "animdemo" {
         // Self-test state: author a clip on the Spinner when the mirror

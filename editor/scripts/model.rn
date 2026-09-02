@@ -418,6 +418,39 @@ pub fn live(S, i) {
     None
 }
 
+/// Write a node's transform to the document and the live node together.
+///
+/// The only place that spells the pair. `parts` carries any of `position`,
+/// `rotation_euler` and `scale`; what it leaves out is left alone. History is
+/// the caller's, because a drag records once at its start and then writes
+/// every frame.
+pub fn set_transform(S, i, parts) {
+    let node = S.doc[i];
+    let target = live(S, i);
+    for key in ["position", "rotation_euler", "scale"] {
+        match parts.get(key) {
+            Some(v) => {
+                node[key] = v;
+                match target {
+                    Some(t) => apply_transform(t, key, v),
+                    None => (),
+                }
+            }
+            None => (),
+        }
+    }
+}
+
+fn apply_transform(t, key, v) {
+    if key == "position" {
+        t.set_position(v[0], v[1], v[2]);
+    } else if key == "rotation_euler" {
+        t.set_rotation_euler(v[0], v[1], v[2]);
+    } else {
+        t.set_scale(v[0], v[1], v[2]);
+    }
+}
+
 pub fn selected(S) {
     (S.doc[S.sel], live(S, S.sel))
 }

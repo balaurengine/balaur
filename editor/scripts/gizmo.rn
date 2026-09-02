@@ -514,7 +514,7 @@ fn start_gizmo_drag(S, cam, geo, part, mx, my) {
 
 fn apply_gizmo_drag(S, cam, mx, my) {
     let d = S.gizmo_drag.unwrap();
-    let (node, found) = model::selected(S);
+    let (_, found) = model::selected(S);
     let found = match found {
         Some(found) => found,
         None => return,
@@ -527,8 +527,7 @@ fn apply_gizmo_drag(S, cam, mx, my) {
         let sx = d.scale[0] * f;
         let sy = d.scale[1] * f;
         let sz = d.scale[2] * f;
-        found.set_scale(sx, sy, sz);
-        node.scale = [sx, sy, sz];
+        model::set_transform(S, S.sel, #{ scale: [sx, sy, sz] });
     } else if d.part.kind == "ring" {
         // Screen-angle delta around the projected center, applied about the
         // node's LOCAL axis (the rings rotate with the object), signed by
@@ -539,8 +538,7 @@ fn apply_gizmo_drag(S, cam, mx, my) {
         let toward = util::vdot(axis_dir, util::vsub(cam.eye, d.world_center));
         let delta = (a1 - a0) * (if toward >= 0.0 { -1.0 } else { 1.0 });
         let rot = euler_from_basis(rotate_basis_local(basis_from_euler(d.rot), d.part.axis, delta));
-        node.rotation_euler = rot;
-        found.set_rotation_euler(rot[0], rot[1], rot[2]);
+        model::set_transform(S, S.sel, #{ rotation_euler: rot });
     } else if d.part.kind == "facerect" {
         // Scale along the face's (rotated) normal: mouse movement projected
         // onto its screen direction, converted to world units.
@@ -553,8 +551,7 @@ fn apply_gizmo_drag(S, cam, mx, my) {
                 let f = util::clamp((ext0 + moved * d.part.sign) / ext0, 0.05, 20.0);
                 let sc = [d.scale[0], d.scale[1], d.scale[2]];
                 sc[axis] = sc[axis] * f;
-                found.set_scale(sc[0], sc[1], sc[2]);
-                node.scale = [sc[0], sc[1], sc[2]];
+                model::set_transform(S, S.sel, #{ scale: sc });
             }
         }
     } else if d.part.kind == "face" {
@@ -570,8 +567,7 @@ fn apply_gizmo_drag(S, cam, mx, my) {
                         pos[axis] = math::round(pos[axis] * 2.0) / 2.0;
                     }
                 }
-                found.set_position(pos[0], pos[1], pos[2]);
-                node.position = [pos[0], pos[1], pos[2]];
+                model::set_transform(S, S.sel, #{ position: pos });
             }
         }
     }
@@ -680,7 +676,7 @@ pub fn update(S) {
     if dx == 0.0 && dy == 0.0 {
         return;
     }
-    let (node, found) = model::selected(S);
+    let (_, found) = model::selected(S);
     if found.is_some() && (S.tool == "move" || S.tool == "rotate" || S.tool == "scale") {
         history::record(S, format!("{} node", S.tool), Some(format!("tool:{}:{}", S.tool, S.sel)));
     }
@@ -711,21 +707,17 @@ pub fn update(S) {
             y = math::round(y * 2.0) / 2.0;
             z = math::round(z * 2.0) / 2.0;
         }
-        found.set_position(x, y, z);
-        node.position = [x, y, z];
+        model::set_transform(S, S.sel, #{ position: [x, y, z] });
     } else if S.tool == "rotate" {
-        let r = util::vec3(node.get("rotation_euler").unwrap_or(()), [0.0, 0.0, 0.0]);
+        // The live node, like every other writer here; the document copy
+        // drifted when a rotation reached the node any other way.
+        let r = util::xyz(found.rotation_euler());
         r[1] = r[1] + dx * 0.01;
-        node.rotation_euler = r;
-        found.set_rotation_euler(r[0], r[1], r[2]);
+        model::set_transform(S, S.sel, #{ rotation_euler: r });
     } else if S.tool == "scale" {
         let s = found.scale();
         let f = util::clamp(1.0 - dy * 0.01, 0.2, 5.0);
-        let sx = s.x * f;
-        let sy = s.y * f;
-        let sz = s.z * f;
-        found.set_scale(sx, sy, sz);
-        node.scale = [sx, sy, sz];
+        model::set_transform(S, S.sel, #{ scale: [s.x * f, s.y * f, s.z * f] });
     } else if S.tool == "zoom" {
         shell::set_zoom(S, S.zoom - dy * 0.5);
     }
