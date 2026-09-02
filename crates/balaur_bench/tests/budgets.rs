@@ -5,7 +5,7 @@
 //! have nothing to do with the commit — and a gate that cries wolf gets
 //! ignored, which is worse than no gate.
 //!
-//! Every budget here is roughly 10x the measured cost on a developer machine.
+//! Every budget here is at least 10x the measured cost on a developer machine.
 //! They catch an accidental O(n^2), a lock held across a frame, or a compile
 //! moved into the hot path. For real numbers use the benchmarks:
 //!
@@ -13,9 +13,19 @@
 //! python3 scripts/bench.py --quick
 //! ```
 
+use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use balaur_bench::{app, attach_many, Backend, Project};
+
+/// One measurement at a time: four spinning tests on a four-vCPU runner
+/// measure each other, not the engine.
+fn alone() -> MutexGuard<'static, ()> {
+    static SERIAL: Mutex<()> = Mutex::new(());
+    SERIAL
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
 
 /// Run `f` until it has taken at least `min`, and report the per-iteration
 /// cost. Timing one pass of a fast operation measures the clock.
@@ -48,22 +58,25 @@ const EMPTY: [(Backend, &str); 1] = [(
 
 #[test]
 fn dispatch_over_a_thousand_nodes_stays_inside_a_frame() {
+    let _alone = alone();
     for (backend, source) in EMPTY {
         let project = Project::new(backend, source).unwrap();
         let app = app(backend, &project).unwrap();
         attach_many(&app, backend, 1000).unwrap();
         let host = app.engine.script_host().unwrap();
         let each = per_iteration(Duration::from_millis(120), || host.update(1.0 / 60.0));
+        // 4ms held on a developer machine; a shared runner has measured 5ms.
         assert_under(
             &format!("{}: update over 1000 nodes", backend.name()),
             each,
-            Duration::from_millis(4),
+            Duration::from_millis(8),
         );
     }
 }
 
 #[test]
 fn attaching_to_a_compiled_script_is_cheap_per_node() {
+    let _alone = alone();
     for (backend, source) in EMPTY {
         let project = Project::new(backend, source).unwrap();
         let app = app(backend, &project).unwrap();
@@ -81,6 +94,7 @@ fn attaching_to_a_compiled_script_is_cheap_per_node() {
 
 #[test]
 fn transform_propagation_stays_linear() {
+    let _alone = alone();
     // Wide and shallow, the shape a real scene has: propagation recurses per
     // level, so one long chain overflows the stack instead of measuring.
     const DEPTH: usize = 50;
@@ -116,6 +130,7 @@ fn transform_propagation_stays_linear() {
 
 #[test]
 fn a_binding_call_stays_sub_microsecond() {
+    let _alone = alone();
     for backend in Backend::ALL {
         let source = match backend {
             Backend::Rune => "pub fn init(this) {}\npub fn update(this, dt) { bench::noop(1); }\n",

@@ -1,6 +1,7 @@
 //! Opening a shared library and taking the plugin out of it.
 
 use std::ffi::OsStr;
+use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context, Result};
@@ -14,12 +15,13 @@ use crate::{library_suffix, Fingerprint, Manifest, Plugin};
 
 /// A plugin and the library it came from.
 ///
-/// The library is dropped last: unloading it while its code is still reachable
-/// would leave the plugin's vtable pointing into unmapped memory.
+/// The library is never unloaded. Its closures and vtables outlive this
+/// value in the engine and the script host's thread-locals, and Linux really
+/// unmaps a closed library where macOS only pretends to.
 pub struct Extension {
     plugin: Box<dyn Plugin>,
     path: PathBuf,
-    _library: libloading::Library,
+    _library: ManuallyDrop<libloading::Library>,
 }
 
 impl Extension {
@@ -77,7 +79,7 @@ pub unsafe fn load_extension(path: &Path) -> Result<Extension> {
     Ok(Extension {
         plugin,
         path: path.to_path_buf(),
-        _library: library,
+        _library: ManuallyDrop::new(library),
     })
 }
 
