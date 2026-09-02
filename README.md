@@ -1,11 +1,11 @@
 # Balaur
 
-A scriptable, node-based game engine with a Rust data plane.
+A node-based game engine in Rust: fast to run, fast to iterate, easy to use.
 
 From a game developer's perspective, Balaur looks like Godot: a scene tree of
 named nodes, with scripts attached to them. Under the hood, every node is
 an ECS entity, every subsystem (physics, rendering, audio) is a plugin over
-the same data plane, and the editor is itself a Balaur project.
+one shared ECS world, and the editor is itself a Balaur project.
 
 Two features are load-bearing and non-negotiable:
 
@@ -298,3 +298,7 @@ fn main() -> anyhow::Result<()> {
 No file watcher and no editor exist in the shipped build; every script was
 checked by the exact compiler configuration used during development, and the
 pack loads with nothing read from disk.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).

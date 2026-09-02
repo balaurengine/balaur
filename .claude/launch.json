@@ -14,10 +14,10 @@
       "port": 3001
     },
     {
-      "name": "scratch",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "3999", "--bind", "127.0.0.1", "--directory", "/private/tmp/claude-501/-Users-dragosdaian-Documents-appsinacup-balaur/71dc2028-fac6-45fe-a57e-f6c5a3bdb3a8/scratchpad"],
-      "port": 3999
+      "name": "website-build",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/dragosdaian/Documents/appsinacup/balaur-website && exec node_modules/.bin/docusaurus serve --port 3111 --no-open"],
+      "port": 3111
     }
   ]
 }

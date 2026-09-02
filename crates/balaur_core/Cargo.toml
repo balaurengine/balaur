@@ -1,6 +1,6 @@
 [package]
 name = "balaur_core"
-description = "Balaur engine core: ECS data plane, scene tree, frame scheduler, plugin API"
+description = "Balaur engine core: ECS world, scene tree, frame scheduler, plugin API"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

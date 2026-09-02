@@ -70,9 +70,9 @@ The `balaur` command line tool: create, run, export, and play projects.
 
 ## `balaur_core`
 
-Balaur engine core: ECS data plane, scene tree, frame scheduler, plugin API
+Balaur engine core: ECS world, scene tree, frame scheduler, plugin API
 
-Balaur engine core: the Rust data plane.
+Balaur engine core: the ECS world every plugin builds on.
 
 - **workspace deps:** `balaur_script`
 - **external deps:** 15 (anyhow, dirs, glamx, gltf, hecs, indexmap, libm, rustc-hash, …)

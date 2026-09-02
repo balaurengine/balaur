@@ -1,4 +1,4 @@
-//! Balaur engine core: the Rust data plane.
+//! Balaur engine core: the ECS world every plugin builds on.
 //!
 //! The core owns the ECS world (hecs), the Godot-like scene tree layered on
 //! top of it, the frame scheduler, and the plugin API. Scripting lives
