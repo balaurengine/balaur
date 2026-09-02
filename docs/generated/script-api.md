@@ -6,33 +6,33 @@ Every module, function and constant a script can reach. Read from a booted
 engine rather than the source, so derived constants are included and this
 cannot drift from what scripts actually see.
 
-| Module | Functions | Constants | Available in |
+| Module | Functions | Constants | Declared by |
 | --- | ---: | ---: | --- |
-| [`animation`](#animation) | 14 | 0 | every language |
-| [`assets`](#assets) | 6 | 0 | every language |
-| [`audio`](#audio) | 8 | 0 | every language |
-| [`debugger`](#debugger) | 6 | 4 | every language |
-| [`engine`](#engine) | 7 | 0 | every language |
-| [`fs`](#fs) | 4 | 0 | every language |
-| [`gamend`](#gamend) | 9 | 0 | every language |
-| [`http`](#http) | 1 | 0 | every language |
-| [`input`](#input) | 19 | 190 | every language |
-| [`json`](#json) | 2 | 0 | every language |
-| [`log`](#log) | 5 | 0 | every language |
-| [`math`](#math) | 24 | 3 | every language |
-| [`node`](#node) | 30 | 0 | every language |
-| [`physics`](#physics) | 5 | 0 | every language |
-| [`physics2d`](#physics2d) | 10 | 5 | every language |
-| [`physics3d`](#physics3d) | 8 | 5 | every language |
-| [`render`](#render) | 32 | 0 | every language |
-| [`rng`](#rng) | 4 | 0 | every language |
-| [`scene`](#scene) | 12 | 0 | every language |
-| [`script`](#script) | 2 | 0 | every language |
-| [`skeleton`](#skeleton) | 3 | 0 | every language |
-| [`task`](#task) | 1 | 0 | every language |
-| [`toml`](#toml) | 2 | 0 | every language |
-| [`ui`](#ui) | 39 | 14 | every language |
-| [`websocket`](#websocket) | 3 | 0 | every language |
+| [`animation`](#animation) | 14 | 0 | the engine |
+| [`assets`](#assets) | 6 | 0 | the engine |
+| [`audio`](#audio) | 8 | 0 | the engine |
+| [`debugger`](#debugger) | 6 | 4 | the engine |
+| [`engine`](#engine) | 7 | 0 | the engine |
+| [`fs`](#fs) | 4 | 0 | the engine |
+| [`gamend`](#gamend) | 9 | 0 | the engine |
+| [`http`](#http) | 1 | 0 | the engine |
+| [`input`](#input) | 19 | 190 | the engine |
+| [`json`](#json) | 2 | 0 | the engine |
+| [`log`](#log) | 5 | 0 | the engine |
+| [`math`](#math) | 24 | 3 | the engine |
+| [`node`](#node) | 30 | 0 | the engine |
+| [`physics`](#physics) | 5 | 0 | the engine |
+| [`physics2d`](#physics2d) | 10 | 5 | the engine |
+| [`physics3d`](#physics3d) | 8 | 5 | the engine |
+| [`render`](#render) | 32 | 0 | the engine |
+| [`rng`](#rng) | 4 | 0 | the engine |
+| [`scene`](#scene) | 12 | 0 | the engine |
+| [`script`](#script) | 2 | 0 | the engine |
+| [`skeleton`](#skeleton) | 3 | 0 | the engine |
+| [`task`](#task) | 1 | 0 | the engine |
+| [`toml`](#toml) | 2 | 0 | the engine |
+| [`ui`](#ui) | 39 | 14 | the engine |
+| [`websocket`](#websocket) | 3 | 0 | the engine |
 
 ## `animation`
 
@@ -196,7 +196,7 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `circle_button`, `code_editor`, `code_line`, `dot`, `drag_value`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `select`, `separator`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`
+**Functions:** `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `circle_button`, `code_editor`, `code_line`, `dot`, `drag_value`, `dropdown`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`
 
 **Constants** (14):
 

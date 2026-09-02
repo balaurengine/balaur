@@ -152,7 +152,7 @@ def identifiers(line: str) -> list[str]:
     dropped: the naming rules are about names, and a scene key or a project
     name quoted in a literal is neither ours to spell nor a declaration."""
     code = re.sub(r'"(?:\\.|[^"\\])*"', '""', line)
-    return re.findall(r"[A-Za-z_][A-Za-z0-9_]*", code.split("//")[0])
+    return re.findall(r"\b[A-Za-z_][A-Za-z0-9_]*", code.split("//")[0])
 
 
 def dimension_rules(rel, i, line, ctx) -> list[Finding]:
@@ -339,6 +339,7 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
 
     in_test_mod = False
     test_brace_depth = None
+    test_attr_line = 0
     depth = 0
     fn_start = None
     fn_depth = None
@@ -378,9 +379,10 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                 comment_run_start = None
                 comment_run = []
 
-        if re.search(r"#\[cfg\(test\)\]", line) or "#[test]" in line:
+        if (re.search(r"#\[cfg\(test\)\]", line) or "#[test]" in line) and not in_test_mod:
             in_test_mod = True
             test_brace_depth = depth
+            test_attr_line = i
         if is_test_file(rel):
             in_test_mod = True
 
@@ -453,7 +455,10 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                                             f"{length} lines, limit {MAX_FN_LINES}", "ERROR"))
                 fn_start = None
                 fn_depth = None
-            if in_test_mod and test_brace_depth is not None and depth <= test_brace_depth:
+            # The body opens on a later line than its attribute, so the scope
+            # cannot end on the attribute line or on attributes stacked after it.
+            if in_test_mod and test_brace_depth is not None and depth <= test_brace_depth \
+                    and i > test_attr_line and not line.startswith("#["):
                 if not is_test_file(rel):
                     in_test_mod = False
                     test_brace_depth = None

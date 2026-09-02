@@ -11,10 +11,9 @@ Balaur game engine: batteries-included facade over the core and standard plugins
 
 Batteries-included entry points for Balaur games and tools.
 
-- **workspace deps:** `balaur_anim`, `balaur_audio`, `balaur_core`, `balaur_gamend`, `balaur_input`, `balaur_net`, `balaur_physics`, `balaur_plugin`, `balaur_render`, `balaur_script`, `balaur_script_luau`, `balaur_script_rune`, `balaur_ui`
+- **workspace deps:** `balaur_anim`, `balaur_audio`, `balaur_core`, `balaur_gamend`, `balaur_input`, `balaur_net`, `balaur_physics`, `balaur_plugin`, `balaur_render`, `balaur_script`, `balaur_script_rune`, `balaur_ui`
 - **external deps:** 2 (anyhow, tracing)
-- **public surface:** 7 fn, 1 struct
-- **structs:** `MultiHost`
+- **public surface:** 6 fn
 
 ## `balaur_android`
 
@@ -55,7 +54,7 @@ Benchmarks: where a frame's time goes, and what each language costs
 
 Shared setup for the benchmarks: build a project on disk, boot an app on a chosen backend, attach scripts to N nodes.
 
-- **workspace deps:** `balaur`, `balaur_core`, `balaur_physics`, `balaur_script`, `balaur_script_luau`, `balaur_script_rune`
+- **workspace deps:** `balaur`, `balaur_core`, `balaur_physics`, `balaur_script`, `balaur_script_rune`
 - **external deps:** 4 (anyhow, hecs, tempfile, toml)
 - **public surface:** 2 fn, 1 struct, 1 enum
 - **structs:** `Project`
@@ -165,15 +164,6 @@ The scripting seam: traits only, no backend.
 - **structs:** `CallbackId`, `Frame`, `NoBindings`, `NodeId`, `Pause`
 - **enums:** `PauseReason`, `StepMode`, `Value`
 
-## `balaur_script_luau`
-
-The Luau script host: loading, instancing, hot reload, precompiled packs.
-
-- **workspace deps:** `balaur_core`, `balaur_script`
-- **external deps:** 8 (anyhow, glamx, hecs, libm, mlua, notify, toml, tracing)
-- **public surface:** 5 fn, 4 struct, 1 const
-- **structs:** `Compiler`, `LuaModule`, `NodeRef`, `ScriptHost`
-
 ## `balaur_script_rune`
 
 The Rune script host: loading, instancing, hot reload, precompiled packs.
@@ -185,7 +175,7 @@ The Rune script host: loading, instancing, hot reload, precompiled packs.
 
 ## `balaur_ui`
 
-Balaur UI plugin: an immediate-mode egui API for Luau scripts
+Balaur UI plugin: an immediate-mode egui API for scripts
 
 Immediate-mode UI for scripts, rendered with egui.
 

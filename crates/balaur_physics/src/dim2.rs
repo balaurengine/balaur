@@ -423,7 +423,7 @@ struct PhysicsFrame2d {
 }
 
 #[derive(serde::Serialize)]
-struct PhysicsFrame2dRef<'a> {
+struct PhysicsFrameRef2d<'a> {
     world: &'a PhysicsWorld2,
     bodies: Vec<(u64, RigidBodyHandle2)>,
     colliders: Vec<(u64, Vec<ColliderHandle2>)>,
@@ -437,7 +437,7 @@ fn build_physics2d_snapshot(app: &mut App) {
         |eng| {
             let state = eng.resource::<PhysicsState2d>();
             let state = state.borrow();
-            let frame = PhysicsFrame2dRef {
+            let frame = PhysicsFrameRef2d {
                 world: &state.world,
                 bodies: state
                     .bodies

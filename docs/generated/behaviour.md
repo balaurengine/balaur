@@ -16,7 +16,6 @@ flow nothing checks.
 - a bone reports only the key that wrote it
 - a breakpoint lands on the next line with code
 - a breakpoint pauses update on its line with the arguments as locals
-- a breakpoint pauses update on its line with the locals in scope
 - a broken rune script fails the export
 - a build from another engine version is refused by name
 - a call on a track that animates a value is rejected
@@ -83,14 +82,12 @@ flow nothing checks.
 - a grid parses row major
 - a grid thinner than one cell is refused
 - a grid whose count does not match its shape is refused
-- a handler can await and await again
 - a headless frame empties the debug line buffers
 - a heightfield collider without its asset says so
 - a hex colour reaches apply expanded through patch as well as add
 - a hex string is a colour wherever a colour is taken
 - a hidden widget draws nothing and takes no clicks
 - a key that neither calls nor carries a value says which it needs
-- a language selects its own tokens
 - a leaf subtree is just itself
 - a library file addresses its clips by name
 - a long frame runs several steps all at the fixed dt
@@ -98,18 +95,6 @@ flow nothing checks.
 - a looping clip never ends and a plain one does
 - a looping clip wraps back to the start
 - a looping tween plays its sequence that many times
-- a lua array reaches a binding as a list
-- a lua script fetches awaits and echoes
-- a lua script logs in calls a hook and rests
-- a luau script defines a clip of its own and plays it
-- a luau script pauses and resumes a clip
-- a luau script plays a clip and hears it finish
-- a luau script queues a clip behind the one playing
-- a luau script reaches for the shorter spelling
-- a luau script reads a tween handle back and stops by it
-- a luau script reads the playhead back through the module
-- a luau script stops a clip and nothing is current afterwards
-- a luau script tweens a node and hears the call at the end
 - a lying trailer is refused rather than panicking
 - a malformed reference fails with a message naming the reference
 - a matching fingerprint reports no differences
@@ -166,7 +151,7 @@ flow nothing checks.
 - a project preset is parsed from toml
 - a project preset without components is an error
 - a project with no manifest fails to load
-- a project without a language runs on luau
+- a project without a language runs on rune
 - a project without a manifest is an error
 - a property that is neither a transform nor a path is rejected
 - a property the component never reports still survives a patch
@@ -194,11 +179,8 @@ flow nothing checks.
 - a rotation track is sampled as a quaternion the short way round
 - a rotation track takes quaternion keys and slerps between them
 - a rune project that calls the engine can be exported
-- a rune script defines a clip of its own and plays it
 - a rune script fetches awaits and echoes
 - a rune script logs in and calls a hook
-- a rune script plays the same clip and hears the same signal
-- a rune script tweens the same node the same way
 - a saved animation node no longer warns that nothing handles it
 - a scaled rig scales the rest pose with it
 - a scene asset block resolves by its id from a node in that scene
@@ -207,9 +189,18 @@ flow nothing checks.
 - a script calls another and gets the return value
 - a script can attach another script and read it back
 - a script can write to the log it reads back
+- a script defines a clip of its own and plays it
 - a script error inside a pass is logged not fatal
-- a script with save and load state is asked
-- a script without them has its plain fields captured and restored
+- a script fetches awaits and echoes through a named handler
+- a script logs in rests and calls a hook
+- a script pauses and resumes a clip
+- a script plays a clip and hears it finish
+- a script queues a clip behind the one playing
+- a script reaches for the shorter spelling
+- a script reads a tween handle back and stops by it
+- a script reads the playhead back through the module
+- a script stops a clip and nothing is current afterwards
+- a script tweens a node and hears the call at the end
 - a scrub moves nothing but the playhead
 - a scrub poses a paused clip where the playhead lands
 - a seek does not fire the keys it skipped
@@ -226,7 +217,6 @@ flow nothing checks.
 - a sound component autoplays and stop on silences it
 - a source build prints that it is one
 - a source missing from the recording is left alone
-- a sparse table keeps its keys
 - a spawned node is named parented and has a transform
 - a sprite is sized from its image
 - a sprite with no texture is a placeholder
@@ -264,7 +254,6 @@ flow nothing checks.
 - a typed binding reaches rune
 - a vector argument and three numbers agree
 - a verified download lands at the final path
-- a waiting task dies with its node
 - a websocket opens echoes and closes
 - a windowed backend keeps the fallback off its buffers
 - a windows target downloads the exe asset
@@ -283,7 +272,6 @@ flow nothing checks.
 - an async init suspends and resumes with the payload
 - an async update is an error not a pileup
 - an autoplay that cannot load leaves the rest of the scene standing
-- an await in update is an error not a hang
 - an eased key bends the segment that arrives at it
 - an eased step is not where a straight one would be
 - an easing curve can carry a value past the key it is heading for
@@ -319,7 +307,7 @@ flow nothing checks.
 - an unknown extension names what is supported
 - an unknown handle answers not playing and its setters no op
 - an unknown key is simply not down
-- an unknown language falls back to luau
+- an unknown language falls back to rune
 - an unknown language is a named error
 - an unknown loop mode is rejected naming it
 - an unknown path is nil rather than an error
@@ -351,7 +339,7 @@ flow nothing checks.
 - bones are listed in tree order with the root first when it is one
 - bounds cover every vertex
 - breakpoints survive a hot reload
-- build pack uses the compiler the project asks for
+- build pack compiles with or without a language line
 - by is relative to the value at the start of its step
 - by on its own offsets where the node already is
 - camera input can be switched off
@@ -361,7 +349,6 @@ flow nothing checks.
 - colliders can be added in every shape the api offers
 - commands queue and drain once
 - comments materials and groups are read past
-- compile error keeps previous version running
 - constant names are unique and well formed
 - corners sharing a position but not a uv become separate vertices
 - crates/balaur/src/lib.rs - (line 5)
@@ -416,10 +403,8 @@ flow nothing checks.
 - gravity and clear are callable
 - hierarchy reads back what it wrote
 - holding a key does not re fire
-- hot reload swaps code and preserves state
 - independent plugins load in name order
 - indices and polygons together are a contradiction
-- init suspends on await and resumes with the payload
 - inserting a resource twice replaces it
 - instance state survives between frames
 - interactive widgets report no interaction without input
@@ -429,21 +414,16 @@ flow nothing checks.
 - json null and nil are the same value
 - json round trips through neutral values
 - json round trips through rune
-- json roundtrips through lua
 - just finished answers for one frame and names the clip
 - keys are independent
 - keys are sorted by time however they were authored
 - language rune runs on rune
 - linear interpolation walks evenly between two keys
 - linear velocity is set and read back
-- live a lua script talks to a real server
+- live a script talks to a real server
 - login me refresh and realtime against a live server
 - look at turns the bone toward the target
-- lua and rune scripts call each other in one scene
 - malformed json is an error rather than a crash
-- math fastcalls are routed through the global table
-- math functions are libm backed
-- math random works on an engine built without an app
 - merge defaults prefers what was given
 - missing ids are generated not rejected
 - more than four influences keep the heaviest four renormalised
@@ -463,7 +443,6 @@ flow nothing checks.
 - one inline definition written twice is cached once
 - overlaps returns an empty list for a node touching nothing
 - overwrite then apply is the identity bit for bit
-- pack roundtrip runs from bytecode only
 - pairs are 2d positions and the outline fills itself
 - panels and containers nest
 - patch writes one property and leaves the others where they were
@@ -497,17 +476,15 @@ flow nothing checks.
 - reparenting keeps the world pose and moves the child
 - replaying does not reach the network
 - replaying without the recorded input diverges
-- require caches and hot reloads in place
 - restore does not respawn or free nodes
 - retinting does not rebuild but new geometry does
 - rng int stays inside its range
-- rng is seeded and reproducible
 - rotating a bone moves the vertices it weights and leaves the rest
+- rune selects its own tokens
 - saving an asset writes the file and the next load reads it
 - saving something that is not a file says which reference it was
 - scale reads back what was set
 - scenes are gathered but the manifest is not one of them
-- scenes instantiate at runtime and args reach scripts
 - script args reach scripts as a list
 - script module works without a backend
 - scroll accumulates within a frame and resets between
@@ -581,7 +558,6 @@ flow nothing checks.
 - ticking with audio does not panic
 - time past the substep cap is dropped rather than caught up on
 - toml round trips through neutral values
-- toml roundtrips through lua
 - too few arguments for a tuple is an error
 - transform propagation stays linear
 - translate accumulates
@@ -602,7 +578,6 @@ flow nothing checks.
 - vectors and colors carry their components
 - vectors encode as json number arrays
 - vertices without faces are filled as one outline
-- watcher reloads automatically
 - what the component reports back is what the scene set
 - widget kind constants match the registered schema
 - world transforms compose down the chain

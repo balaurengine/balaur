@@ -21,7 +21,6 @@ graph TD
   balaur_plugin[balaur_plugin]
   balaur_render[balaur_render]
   balaur_script[balaur_script]
-  balaur_script_luau[balaur_script_luau]
   balaur_script_rune[balaur_script_rune]
   balaur_ui[balaur_ui]
   balaur --> balaur_anim
@@ -34,7 +33,6 @@ graph TD
   balaur --> balaur_plugin
   balaur --> balaur_render
   balaur --> balaur_script
-  balaur --> balaur_script_luau
   balaur --> balaur_script_rune
   balaur --> balaur_ui
   balaur_android --> balaur
@@ -47,7 +45,6 @@ graph TD
   balaur_bench --> balaur_core
   balaur_bench --> balaur_physics
   balaur_bench --> balaur_script
-  balaur_bench --> balaur_script_luau
   balaur_bench --> balaur_script_rune
   balaur_cli --> balaur
   balaur_core --> balaur_script
@@ -67,8 +64,6 @@ graph TD
   balaur_render --> balaur_input
   balaur_render --> balaur_script
   balaur_render --> balaur_ui
-  balaur_script_luau --> balaur_core
-  balaur_script_luau --> balaur_script
   balaur_script_rune --> balaur_core
   balaur_script_rune --> balaur_script
   balaur_ui --> balaur_core

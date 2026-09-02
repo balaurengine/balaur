@@ -62,8 +62,8 @@ fn shapes_can_be_set_from_a_script_in_both_dimensions() {
 
         render::set_circle(this.node, 0.25);
         render::set_rect(this.node, 1.0, 2.0);
-        let (kind2d, _, _) = render::shape2d(this.node);
-        assert!(kind2d == "rect", "the last 2D shape set should win, got {}", kind2d);
+        let (kind_2d, _, _) = render::shape2d(this.node);
+        assert!(kind_2d == "rect", "the last 2D shape set should win, got {}", kind_2d);
         "#,
     );
 }
