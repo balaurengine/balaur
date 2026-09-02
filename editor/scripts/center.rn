@@ -10,17 +10,12 @@ use crate::shell;
 use crate::style;
 use crate::util;
 
-// The viewport's design-px rect, published on `S` for the gizmo, the widget
-// layer and the overlay: three readers, one derivation, computed where layout is.
-fn viewport_rect(S) {
-    let sw = S.screen_w;
-    let sh = S.screen_h;
-    let dock_h = if S.dock == "timeline" || S.dock == "debugger" { 212.0 } else { 150.0 };
-    let rail_w = if S.rail_visible { 46.0 } else { 0.0 };
-    #{
-        x: 262.0 + rail_w, y: 56.0 + 38.0,
-        w: sw - 308.0 - 262.0 - rail_w, h: sh - 28.0 - dock_h - 56.0 - 38.0,
-    }
+// The central hole, measured rather than re-derived: it is published on `S`
+// for the gizmo, the widget layer and the overlay, and a panel of a size this
+// module does not know about used to break all three.
+fn publish_viewport(S) {
+    let (x, y, w, h) = ui::central_rect();
+    S.viewport = #{ x: x, y: y, w: w, h: h };
 }
 
 fn rail(S, k) {
@@ -123,7 +118,9 @@ fn viewport(S, k) {
     // The central panel is a transparent hole for the 3D scene; the chrome on
     // top of it goes in the overlay layer, which is the only thing that draws
     // above a previewed widget (panels all share egui's background layer).
-    ui::central_panel(#{ transparent: true }, || {});
+    ui::central_panel(#{ transparent: true }, || {
+        publish_viewport(S);
+    });
     let vp = S.viewport;
     ui::overlay("viewport", #{ x: vp.x + 12.0, y: vp.y + 12.0, w: vp.w - 24.0, h: vp.h - 24.0 }, || {
         let vw = vp.w - 24.0;
@@ -298,7 +295,6 @@ pub fn draw(S) {
     // Viewport tools belong to the viewport: with a document open the rail is
     // 46 px of dead column, and the code editor is the panel starved for it.
     S.rail_visible = !document && defs::tools(S.persona).len() > 0;
-    S.viewport = viewport_rect(S);
     if S.rail_visible {
         rail(S, k);
     }

@@ -468,6 +468,21 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
     m.function("available_height", |_eng: &Engine, ()| {
         with_ui(|ui| Ok(ui.available_height() / scale()))
     });
+    // The rect of the surface being drawn into, in design px. Called inside
+    // `central_panel` it is the hole the panels left, which the alternative
+    // re-adds from every panel's size by hand.
+    m.function("central_rect", |_eng: &Engine, ()| {
+        with_ui(|ui| {
+            let rect = ui.max_rect();
+            let scale = scale();
+            Ok((
+                rect.min.x / scale,
+                rect.min.y / scale,
+                rect.width() / scale,
+                rect.height() / scale,
+            ))
+        })
+    });
     m.function("screen_size", |_eng: &Engine, ()| {
         with_ctx(|ctx| {
             let rect = ctx.viewport_rect();
