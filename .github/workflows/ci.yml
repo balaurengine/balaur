@@ -69,8 +69,6 @@ jobs:
       # extension_greeter is deliberately outside the workspace, so the clippy
       # and test steps above never reach it. It is the only thing proving an
       # extension builds without the engine's build tree.
-      # bash on every OS: PowerShell has no backslash continuation and only
-      # reports the last command's exit code.
       - name: Clippy (out-of-tree extension)
         shell: bash
         run: |
