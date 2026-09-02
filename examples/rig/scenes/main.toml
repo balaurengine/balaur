@@ -58,6 +58,23 @@ keys = [
   { t = 2.0, value = [0, 0, 0.4], ease = "in_out_sine" },
 ]
 
+# The arm reaches for this point; `modifier2d` on Hero does the reaching.
+[[nodes.animation.library.clips.wave.tracks]]
+target = "Target"
+property = "position"
+keys = [
+  { t = 0.0, value = [2.0, 1.4, 0] },
+  { t = 0.5, value = [1.7, 2.3, 0], ease = "in_out_sine" },
+  { t = 1.0, value = [1.0, 2.5, 0], ease = "in_out_sine" },
+  { t = 1.5, value = [1.4, 1.6, 0], ease = "in_out_sine" },
+  { t = 2.0, value = [2.0, 1.4, 0], ease = "in_out_sine" },
+]
+
+[nodes.modifier2d]
+kind = "two_bone_ik"
+bone = "Shoulder"
+target = "Target"
+
 [[nodes]]
 id = "n_hip"
 name = "Hip"
@@ -118,6 +135,72 @@ path = "Hip/Thigh/Shin"
 weights = [0, 0, 0, 0.5, 1, 1, 0.5, 0]
 
 [[nodes]]
+id = "n_shoulder"
+name = "Shoulder"
+parent = "n_hero"
+position = [0.4, 2.1, 0]
+bone2d = { rest_position = [0.4, 2.1], rest_rotation = 0.0 }
+
+[[nodes]]
+id = "n_elbow"
+name = "Elbow"
+parent = "n_shoulder"
+position = [0.7, 0, 0]
+bone2d = { rest_position = [0.7, 0], rest_rotation = 0.0 }
+
+[[nodes]]
+id = "n_hand"
+name = "Hand"
+parent = "n_elbow"
+position = [0.7, 0, 0]
+bone2d = { rest_position = [0.7, 0], rest_rotation = 0.0, length = 0.25 }
+
+[[nodes]]
+id = "n_target"
+name = "Target"
+parent = "n_hero"
+position = [2.0, 1.4, 0]
+
+[nodes.shape2d]
+kind = "circle"
+radius = 0.06
+color = [0.9, 0.35, 0.3, 1.0]
+
+[[nodes]]
+id = "n_sleeve"
+name = "Sleeve"
+parent = "n_hero"
+position = [0.4, 2.1, 0]
+
+[nodes.polygon]
+texture = "art/limb.png"
+skeleton = ".."
+pixels_per_unit = 100.0
+
+[nodes.polygon.mesh]
+positions = [
+  [0.0, -0.18], [0.7, -0.18], [1.4, -0.18], [1.65, -0.18],
+  [1.65, 0.18], [1.4, 0.18], [0.7, 0.18], [0.0, 0.18],
+]
+polygons = [[0, 1, 6, 7], [1, 2, 5, 6], [2, 3, 4, 5]]
+uvs = [
+  [0, 1], [0, 0.55], [0, 0.12], [0, 0],
+  [1, 0], [1, 0.12], [1, 0.55], [1, 1],
+]
+
+[[nodes.polygon.mesh.skin.bones]]
+path = "Shoulder"
+weights = [1, 0.5, 0, 0, 0, 0, 0.5, 1]
+
+[[nodes.polygon.mesh.skin.bones]]
+path = "Shoulder/Elbow"
+weights = [0, 0.5, 0.5, 0, 0, 0.5, 0.5, 0]
+
+[[nodes.polygon.mesh.skin.bones]]
+path = "Shoulder/Elbow/Hand"
+weights = [0, 0, 0.5, 1, 1, 0.5, 0, 0]
+
+[[nodes]]
 id = "n_hud"
 name = "Hud"
 parent = ""
@@ -126,7 +209,7 @@ parent = ""
 anchor = "top_left"
 kind = "label"
 font_size = 16
-text = "rig · three bones, one skinned polygon"
+text = "rig · a skinned leg on a clip, a skinned arm on two-bone IK"
 text_color = "#f9f4ed"
 x = 16
 y = 16

@@ -100,9 +100,7 @@ pub fn parse_with(bytes: &[u8], name: &str, side: crate::glb::SideReader<'_>) ->
     match ext.as_str() {
         "obj" => parse_obj(bytes, name),
         "glb" | "gltf" => crate::glb::parse_gltf(bytes, name, side),
-        other => bail!(
-            "no mesh parser for '.{other}' ({name}); balaur reads .obj, .glb and .gltf"
-        ),
+        other => bail!("no mesh parser for '.{other}' ({name}); balaur reads .obj, .glb and .gltf"),
     }
 }
 
