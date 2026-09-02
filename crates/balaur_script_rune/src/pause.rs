@@ -47,7 +47,9 @@ impl RuneHost {
                 .get(key)
                 .and_then(|s| s.functions.iter().find(|f| f.name == name))
                 .is_some_and(|f| !f.is_async);
-            has_breakpoints && sync
+            // Breaking where a script threw needs the instruction it threw
+            // on, which only the stepping executor still has.
+            sync && (has_breakpoints || state.break_on_error)
         };
         if stepping {
             return self.invoke_stepping(owner, key, name, args);
@@ -127,11 +129,18 @@ impl RuneHost {
             Outcome::Finished(value) => {
                 self.settle_call(callee.owner, callee.key, callee.label, value)
             }
-            Outcome::Failed(err) => {
-                tracing::error!("[{}] {}: {err}", callee.key, callee.label);
+            Outcome::Failed { error, line } => {
+                tracing::error!("[{}] {}: {error}", callee.key, callee.label);
+                if self.state.borrow().break_on_error {
+                    let hit = Hit {
+                        line,
+                        reason: balaur_script::PauseReason::Error,
+                    };
+                    return self.park(callee, exec, lines, hit, error.to_string());
+                }
                 None
             }
-            Outcome::Broke(hit) => self.park(callee, exec, lines, hit),
+            Outcome::Broke(hit) => self.park(callee, exec, lines, hit, String::new()),
         }
     }
 
@@ -143,6 +152,7 @@ impl RuneHost {
         exec: VmExecution<Vm>,
         lines: &Rc<Lines>,
         hit: Hit,
+        message: String,
     ) -> Option<balaur_script::Value> {
         let ip = exec.vm().ip();
         if self.state.borrow().paused.is_some() {
@@ -156,6 +166,7 @@ impl RuneHost {
             line: hit.line,
             reason: hit.reason,
             frames,
+            message,
         };
         tracing::info!(
             "[{key}] paused at {}:{} ({})",
@@ -183,6 +194,17 @@ impl RuneHost {
         self.engine.set_frozen(false);
     }
 
+    /// Stop where a script threw. Every synchronous call then runs through
+    /// the stepping executor, which is what keeps the failing instruction.
+    pub fn set_break_on_error(&self, on: bool) {
+        self.state.borrow_mut().break_on_error = on;
+    }
+
+    #[must_use]
+    pub fn break_on_error(&self) -> bool {
+        self.state.borrow().break_on_error
+    }
+
     /// Where a script is stopped, while one is.
     pub fn paused(&self) -> Option<Pause> {
         self.state.borrow().paused.as_ref().map(|p| p.pause.clone())
@@ -205,6 +227,14 @@ impl RuneHost {
             remaining,
             method,
         } = paused;
+        // A throw ended the call: there is no instruction to go on from, so
+        // letting go drops it and finishes the tick it interrupted.
+        if pause.reason == balaur_script::PauseReason::Error {
+            if let Some((method, dt)) = method {
+                self.run_batch(&method, dt, remaining);
+            }
+            return;
+        }
         let plan = (mode != StepMode::Continue).then(|| StepPlan {
             mode,
             depth: exec.vm().call_frames().len(),

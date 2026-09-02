@@ -209,6 +209,7 @@ flow nothing checks.
 - a sensor reports overlap without collision response
 - a sequential tween lands its steps in order
 - a shape component puts a renderable on the node
+- a shared closure is callable from another unit
 - a sheet is sized to one frame
 - a short frame runs no steps and carries the remainder
 - a skin that is not under the rig still deforms in its own space
@@ -233,6 +234,7 @@ flow nothing checks.
 - a suspended task dies with its node
 - a tagged build updates to the latest release
 - a theme can be set from a script
+- a throw is logged and passed over unless break on error is on
 - a tilemap parses cells and round trips
 - a tileset that declares no grid is refused
 - a track can name a component property
@@ -341,6 +343,7 @@ flow nothing checks.
 - bone weights fold to per vertex joints that sum to one
 - bones are listed in tree order with the root first when it is one
 - bounds cover every vertex
+- break on error stops where the script threw
 - breakpoints survive a hot reload
 - build pack compiles with or without a language line
 - by is relative to the value at the start of its step
@@ -531,6 +534,7 @@ flow nothing checks.
 - the frozen root is the debug scope or the whole tree
 - the generation moves only when a reload actually dropped something
 - the grid background and camera input are settable
+- the host reports a scripts public functions
 - the mangling reads the way a script author would guess
 - the mouse constants address real buttons
 - the net table of the manifest sets the defaults

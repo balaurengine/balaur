@@ -1,0 +1,77 @@
+// A worked example of an editor plugin, and the editor's own check that the
+// plugin seam holds: how many nodes carry a script, as a dock tab, a palette
+// command, a floating window and a start-up state that asserts the count.
+
+/// A plugin's own state, kept at `S.plugins.counter`.
+pub fn state() {
+    #{ shown: -1 }
+}
+
+/// What this plugin adds. Every list is optional.
+pub fn register() {
+    #{
+        docks: [#{ id: "counter", name: "Counter", draw: draw }],
+        windows: [#{ id: "counter-window", title: "Counter", draw: draw }],
+        commands: [#{ label: "Count scripted nodes", icon: "Σ", key: "", run: count }],
+        sections: [section],
+        states: #{ "counterdemo": selftest },
+    }
+}
+
+fn scripted(S) {
+    let n = 0;
+    for node in S.doc {
+        if node.contains_key("script") {
+            n += 1;
+        }
+    }
+    n
+}
+
+pub fn count(S) {
+    S.plugins.counter.shown = scripted(S);
+    log::info(format!("{} scripted nodes", S.plugins.counter.shown));
+}
+
+/// The dock tab and the window draw the same thing; `k` is the active theme.
+pub fn draw(S, k) {
+    ui::add_space(8);
+    let shown = S.plugins.counter.shown;
+    let text = if shown < 0 {
+        "run “Count scripted nodes” from the palette"
+    } else {
+        format!("{} scripted nodes", shown)
+    };
+    ui::label(text, #{ size: 11.5, font: "mono", color: k.dim });
+}
+
+/// An inspector section, drawn after the built-in ones.
+pub fn section(S, k, node) {
+    if S.plugins.counter.shown < 0 {
+        return;
+    }
+    ui::add_space(8);
+    ui::label(format!("counter: {}", S.plugins.counter.shown), #{
+        size: 11, font: "mono", color: k.faint,
+    });
+}
+
+/// `--state counterdemo`: the plugin seam, asserted the way the editor's own
+/// self-tests are. `log::error` is what fails the run.
+pub fn selftest(S) {
+    let expected = scripted(S);
+    count(S);
+    if S.plugins.counter.shown == expected {
+        log::info(format!("selftest ok: a plugin keeps its own state ({})", expected));
+    } else {
+        log::error("selftest FAILED: a plugin's state did not stick");
+    }
+    if S.registry.loaded.len() > 0 {
+        log::info(format!("selftest ok: the registry lists {} plugin(s)", S.registry.loaded.len()));
+    } else {
+        log::error("selftest FAILED: the registry lists no plugin");
+    }
+    S.dock = "counter";
+    S.registry.open["counter-window"] = true;
+    log::info("selftest plugin: done");
+}

@@ -341,3 +341,51 @@ fn clearing_the_breakpoints_lets_update_run_through() {
     assert!(host.paused().is_none());
     assert_eq!(field(&app, node, "ran"), Some(2.0));
 }
+
+/// Line 3 divides by a string, which the VM refuses.
+const THROWER: &str = "pub fn init(this) { this.ran = 0; }\n\
+pub fn update(this, dt) {\n    let bad = 1 + \"two\";\n    this.ran = 1;\n}\n";
+
+#[test]
+fn break_on_error_stops_where_the_script_threw() {
+    let dir = project(&[("s.rn", THROWER)]);
+    let app = app_in(dir.path());
+    let node = attach(&app, app.engine.root(), "Holder", "s.rn");
+    let host = app.engine.script_host().unwrap();
+    assert!(!host.break_on_error(), "off unless asked for");
+    host.set_break_on_error(true);
+
+    host.update(0.5);
+    let pause = host.paused().expect("the throw should stop update");
+    assert_eq!(pause.reason, PauseReason::Error);
+    assert_eq!(pause.line, 3, "the line that threw, not the one after");
+    assert!(
+        !pause.message.is_empty(),
+        "an error pause carries what threw"
+    );
+    assert_eq!(
+        app.engine.frozen_root(),
+        Some(app.engine.root()),
+        "a pause holds the simulation still, however it was reached"
+    );
+    // The statement after the throw never ran.
+    assert_eq!(field(&app, node, "ran"), Some(0.0));
+
+    // An errored execution has nowhere to go on from: letting go drops it.
+    host.resume(StepMode::Continue);
+    assert!(host.paused().is_none());
+    assert_eq!(app.engine.frozen_root(), None);
+}
+
+#[test]
+fn a_throw_is_logged_and_passed_over_unless_break_on_error_is_on() {
+    let dir = project(&[("s.rn", THROWER)]);
+    let app = app_in(dir.path());
+    let node = attach(&app, app.engine.root(), "Holder", "s.rn");
+    let host = app.engine.script_host().unwrap();
+
+    host.update(0.5);
+    assert!(host.paused().is_none(), "the default is not to stop");
+    assert_eq!(app.engine.frozen_root(), None);
+    assert_eq!(field(&app, node, "ran"), Some(0.0));
+}

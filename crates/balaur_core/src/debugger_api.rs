@@ -38,6 +38,16 @@ pub const DEBUGGER_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "debugger",
+        name: "set_break_on_error",
+        call: set_break_on_error,
+    },
+    EngineOp {
+        module: "debugger",
+        name: "break_on_error",
+        call: break_on_error,
+    },
+    EngineOp {
+        module: "debugger",
         name: "set_scope",
         call: set_scope,
     },
@@ -120,6 +130,18 @@ fn resume(eng: &Engine, args: &[Value]) -> Result<Value> {
     };
     host(eng)?.resume(mode);
     Ok(Value::Nil)
+}
+
+/// `debugger.set_break_on_error(true)`: stop where a script throws, instead
+/// of logging it and moving on. Off by default, because it puts every
+/// synchronous call through the stepping executor.
+fn set_break_on_error(eng: &Engine, args: &[Value]) -> Result<Value> {
+    host(eng)?.set_break_on_error(matches!(args.first(), Some(Value::Bool(true))));
+    Ok(Value::Nil)
+}
+
+fn break_on_error(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::Bool(host(eng)?.break_on_error()))
 }
 
 /// The subtree a pause holds still, so an editor can keep its own scripts

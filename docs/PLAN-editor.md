@@ -1,8 +1,39 @@
-> **Status:** written 2026-09-02, the day the editor finished its port to
-> Rune (21 modules, 7,400 lines). Nothing below is built yet. Phase 0 is the
-> refactor the port made visible; phases 1–3 are what turns the editor from a
-> closed shell into one a project can extend. See [generated/](generated/)
-> for what the code actually does.
+> **Status:** phase 0 and the plugin seam built on 2026-09-02. Every §1
+> refactor landed except the two that needed engine surface, which landed
+> with it: `util` vector helpers, `style.rn`, `viewport.rn`,
+> `model::set_transform`, module-owned state, the property-editor and
+> start-state tables, the schema cache, and `ui::central_rect` in place of
+> `center::viewport_rect`'s arithmetic. Plugins load from `editor/plugins/`
+> and `<game>/editor/`, and `editor/plugins/counter.rn` is the worked example
+> the e2e suite runs as `--state counterdemo`. Phase 3 is not started. See
+> [generated/](generated/) for what the code actually does.
+>
+> **Where the implementation decided differently:**
+>
+> 1. **A plugin returns a description; it is not handed an `api` object.**
+>    In Rune `api.dock(..)` is an instance-function call, not a call of a
+>    closure stored on a field, so the `api.*` shape in §4 cannot work as
+>    written. `pub fn register()` returns `#{ docks, windows, commands,
+>    sections, overlays, editors, states }` instead, which is also
+>    inspectable before anything runs.
+> 2. **`script::shared(f, arity)` takes the arity.** A native wrapper is
+>    typed and a `Function` value does not carry its own. Rune's
+>    `Function::new` stops at five arguments, so a property editor receives
+>    the component and property it edits as one `#{ comp, prop }` rather than
+>    as the six arguments §1 assumed.
+> 3. **`ui::central_rect()` measures the surface being drawn into**, not the
+>    context's leftover rect: egui 0.36 has no public accessor for the
+>    latter. Called inside `central_panel` it is the hole the panels left,
+>    which is what the editor needed. It is 0.8 design px taller than the
+>    arithmetic it replaced.
+> 4. **`model::set_transform` does not record history.** A drag records once
+>    at its start and then writes every frame, so recording inside the writer
+>    would either duplicate or depend on the coalescing window.
+> 5. **`script::functions` did not replace `highlight::analyze`.** The
+>    editor's host is rooted at the editor project and the sources it shows
+>    belong to the game, so the parser stays for those; `script::functions`
+>    is what the plugin loader uses to check a file declares `register`
+>    before requiring it.
 
 # Plan: the editor after the port
 

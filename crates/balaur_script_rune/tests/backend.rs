@@ -462,3 +462,76 @@ fn a_constant_is_readable_from_a_script() {
     assert_eq!(rune.number_field(node, "n"), Some(0.0));
     assert_eq!(rune.text_field(node, "s").as_deref(), Some("dynamic"));
 }
+
+/// What a tool asks the host rather than parsing the source for itself.
+#[test]
+fn the_host_reports_a_scripts_public_functions() {
+    let dir = project(&[
+        (
+            "lib.rn",
+            "// a comment\npub fn double(n) { n * 2 }\n\nfn private(x) { x }\n\npub async fn later(a, b) { a + b }\n",
+        ),
+        (
+            "user.rn",
+            r#"pub fn init(this) {
+                let fns = script::functions("lib.rn");
+                this.count = fns.len();
+                this.first = fns[0]["name"];
+                this.first_line = fns[0]["line"];
+                this.first_arity = fns[0]["arity"];
+                this.second_async = if fns[1]["is_async"] { 1.0 } else { 0.0 };
+                this.second_line = fns[1]["line"];
+            }"#,
+        ),
+    ]);
+    let app = app_in(dir.path());
+    let node = spawn(&app, "User");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "user.rn")
+        .unwrap();
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    // The private one is not reported.
+    assert_eq!(rune.number_field(node, "count"), Some(2.0));
+    assert_eq!(rune.number_field(node, "first_line"), Some(2.0));
+    assert_eq!(rune.number_field(node, "first_arity"), Some(1.0));
+    assert_eq!(rune.number_field(node, "second_async"), Some(1.0));
+    assert_eq!(rune.number_field(node, "second_line"), Some(6.0));
+}
+
+/// A closure crosses into another unit's VM only through the Rust relay, so
+/// `script::shared` is what lets one script hand a callback to another.
+#[test]
+fn a_shared_closure_is_callable_from_another_unit() {
+    let dir = project(&[
+        ("registry.rn", "pub fn run(f, n) { f(n) }\n"),
+        (
+            "user.rn",
+            r#"pub fn init(this) {
+                let registry = script::require("registry.rn");
+                let run = registry["run"];
+                let bare = |n| n * 2.0;
+                this.out = run(script::shared(bare, 1), 21.0);
+            }"#,
+        ),
+    ]);
+    let app = app_in(dir.path());
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let node = spawn(&app, "User");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "user.rn")
+        .unwrap();
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(
+        rune.number_field(node, "out"),
+        Some(42.0),
+        "log: {:#?}",
+        balaur_core::logbuf::recent(10)
+    );
+}

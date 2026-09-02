@@ -255,6 +255,44 @@ pub(crate) fn install_code(m: &mut dyn Bindings<Engine>) {
 }
 
 /// `ui.*` bindings: modal.
+// A floating window: the surface a plugin gets when it asks for one. Unlike
+// `overlay` it is dragged and resized by the user, and egui remembers where
+// each `id` was left.
+pub(crate) fn install_window(m: &mut dyn Bindings<Engine>) {
+    m.function(
+        "window",
+        |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
+            let opts = Opts(opts);
+            with_ctx(|ctx| {
+                let mut open = true;
+                let mut window =
+                    egui::Window::new(opts.string("title").unwrap_or_else(|| id.clone()))
+                        .id(egui::Id::new(&id))
+                        .resizable(opts.boolean("resizable", true))
+                        .collapsible(opts.boolean("collapsible", false));
+                if opts.boolean("closable", true) {
+                    window = window.open(&mut open);
+                }
+                if let (Some(x), Some(y)) = (opts.opt_px("x"), opts.opt_px("y")) {
+                    window = window.default_pos(pos2(x, y));
+                }
+                if let Some(width) = opts.opt_px("width") {
+                    window = window.default_width(width);
+                }
+                if let Some(height) = opts.opt_px("height") {
+                    window = window.default_height(height);
+                }
+                let mut result = Ok(());
+                window.show(ctx, |ui| {
+                    result = scoped(eng, ui, cb);
+                });
+                result?;
+                Ok(open)
+            })
+        },
+    );
+}
+
 pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
     m.function(
         "modal",

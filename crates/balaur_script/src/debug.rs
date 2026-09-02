@@ -38,6 +38,9 @@ impl StepMode {
 pub enum PauseReason {
     Breakpoint,
     Step,
+    /// The script threw. Its execution is over: a pause here can be looked
+    /// at and dismissed, not continued.
+    Error,
 }
 
 impl PauseReason {
@@ -45,6 +48,7 @@ impl PauseReason {
         match self {
             Self::Breakpoint => "breakpoint",
             Self::Step => "step",
+            Self::Error => "error",
         }
     }
 }
@@ -71,6 +75,8 @@ pub struct Pause {
     pub line: usize,
     pub reason: PauseReason,
     pub frames: Vec<Frame>,
+    /// What threw, when the reason is `Error`; empty otherwise.
+    pub message: String,
 }
 
 impl Pause {
@@ -100,6 +106,7 @@ impl Pause {
                 Value::Int(i64::try_from(self.line).unwrap_or(i64::MAX)),
             ),
             ("reason".into(), Value::Str(self.reason.name().into())),
+            ("message".into(), Value::Str(self.message.clone())),
             ("frames".into(), Value::List(frames)),
         ])
     }

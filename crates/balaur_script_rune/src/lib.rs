@@ -85,11 +85,13 @@ struct PublicSignature {
     name: String,
     arity: usize,
     is_async: bool,
+    /// 1-based, so a gutter can point at it.
+    line: usize,
 }
 
 fn public_functions(source: &str) -> Vec<PublicSignature> {
     let mut out = Vec::new();
-    for line in source.lines() {
+    for (at, line) in source.lines().enumerate() {
         let mut rest = line.trim_start();
         rest = match rest.strip_prefix("pub ") {
             Some(rest) => rest.trim_start(),
@@ -119,6 +121,7 @@ fn public_functions(source: &str) -> Vec<PublicSignature> {
                 name,
                 arity,
                 is_async,
+                line: at + 1,
             });
         }
     }
@@ -330,6 +333,8 @@ impl std::future::Future for WaitFuture {
 }
 
 struct State {
+    /// Stop where a script threw instead of logging it past.
+    break_on_error: bool,
     project_root: PathBuf,
     pack: Option<Pack>,
     /// Registered by plugins at startup, folded into the context on first use.
@@ -383,6 +388,7 @@ impl RuneHost {
         Ok(Self {
             engine,
             state: Rc::new(RefCell::new(State {
+                break_on_error: false,
                 project_root,
                 pack,
                 pending: Rc::new(RefCell::new(Vec::new())),
@@ -442,6 +448,37 @@ impl RuneHost {
                         rune::to_value(()).expect("unit always converts")
                     }
                 }
+            })
+            .build()?;
+        // `script::functions("scripts/lib.rn")` — what that script declares,
+        // so a tool reads the host's own signatures instead of parsing.
+        script
+            .function("functions", move |path: &str| {
+                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+                match host.public_signatures(path) {
+                    Ok(value) => value,
+                    Err(err) => {
+                        tracing::error!("script::functions({path}): {err}");
+                        rune::to_value(()).expect("unit always converts")
+                    }
+                }
+            })
+            .build()?;
+        // `script::shared(f, arity)` — a callback made in this unit, callable
+        // from another unit's VM. Arity is explicit: a wrapper is typed.
+        script
+            .function("shared", |f: Function, arity: i64| -> rune::Value {
+                let arity = usize::try_from(arity).unwrap_or(usize::MAX);
+                let wrapped = SHARED_FNS.with(|shared| {
+                    let mut shared = shared.borrow_mut();
+                    shared.push(f);
+                    trampoline(shared.len() - 1, arity)
+                });
+                if let Some(function) = wrapped {
+                    return rune::to_value(function).expect("a function always converts");
+                }
+                tracing::error!("script::shared: arity {arity} is past the five rune allows");
+                rune::to_value(()).expect("unit always converts")
             })
             .build()?;
         // `let (ok, value) = script::attempt(|| risky())`: the closure's
@@ -918,6 +955,47 @@ impl RuneHost {
         Ok(value)
     }
 
+    /// `script::functions`: what a script declares, as `[#{ name, arity,
+    /// is_async, line }]`. The host already reads every signature to build a
+    /// module object; a tool asking for the same thing should not re-parse
+    /// the source.
+    ///
+    /// # Errors
+    /// If the script will not load.
+    pub fn public_signatures(&self, path: &str) -> Result<rune::Value> {
+        let key = Self::normalize_key(path);
+        self.load(&key)?;
+        let functions = self
+            .state
+            .borrow()
+            .scripts
+            .get(&key)
+            .map(|s| s.functions.clone())
+            .ok_or_else(|| anyhow!("{key} did not load"))?;
+        let mut out = rune::runtime::Vec::new();
+        for declared in functions {
+            let mut entry = rune::runtime::Object::new();
+            entry.insert(
+                rune::alloc::String::try_from("name")?,
+                rune::to_value(declared.name)?,
+            )?;
+            entry.insert(
+                rune::alloc::String::try_from("arity")?,
+                rune::to_value(i64::try_from(declared.arity).unwrap_or(i64::MAX))?,
+            )?;
+            entry.insert(
+                rune::alloc::String::try_from("is_async")?,
+                rune::to_value(declared.is_async)?,
+            )?;
+            entry.insert(
+                rune::alloc::String::try_from("line")?,
+                rune::to_value(i64::try_from(declared.line).unwrap_or(i64::MAX))?,
+            )?;
+            out.push(rune::to_value(entry)?)?;
+        }
+        Ok(rune::to_value(out)?)
+    }
+
     /// Build the export object for one script: its `pub fn`s by name, each
     /// wrapped in a Rust-routed trampoline (see `SHARED_FNS`).
     fn module_object(&self, key: &str) -> Result<rune::runtime::Object> {
@@ -1091,6 +1169,14 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
 
     fn breakpoints(&self, path: &str) -> Vec<usize> {
         RuneHost::breakpoints(self, path)
+    }
+
+    fn set_break_on_error(&self, on: bool) {
+        Self::set_break_on_error(self, on);
+    }
+
+    fn break_on_error(&self) -> bool {
+        Self::break_on_error(self)
     }
 
     fn paused(&self) -> Option<Pause> {

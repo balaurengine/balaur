@@ -11,9 +11,16 @@ fn tab_row(S, k) {
     ui::horizontal(#{ height: 34 }, || {
         ui::spacing(6, 0);
         ui::add_space(6);
-        for tab in ["output", "assets", "timeline", "debugger"] {
+        let tabs = ["output", "assets", "timeline", "debugger"];
+        for entry in S.registry.docks {
+            tabs.push(entry.id);
+        }
+        for tab in tabs {
             let active = S.dock == tab;
-            let label = tab[..1].to_uppercase() + tab[1..];
+            let label = match crate::plugins::dock(S, tab) {
+                Some(entry) => entry.name,
+                None => tab[..1].to_uppercase() + tab[1..],
+            };
             if ui::pill(label, #{
                 height: 24, size: 11.5, strong: true,
                 fill: if active { k.accent_fill } else { k.sunken },
@@ -383,6 +390,20 @@ fn value_text(v) {
 }
 
 // The pause: transport, then the frames with the chosen one's locals open.
+// Stopping where a script threw costs every synchronous call a trip through
+// the stepping executor, so it is opt-in and says so.
+fn break_on_error_pill(k) {
+    let on = debugger::break_on_error();
+    if ui::pill("break on error", #{
+        height: 20, size: 10, strong: true,
+        tooltip: "Stop at the line a script throws on, instead of logging it",
+        fill: if on { k.accent_fill } else { k.sunken },
+        color: if on { k.on_accent } else { k.faint },
+    }) {
+        debugger::set_break_on_error(!on);
+    }
+}
+
 fn debugger_view(S, k) {
     let p = S.debug.paused;
     if !(p is Object) {
@@ -394,6 +415,10 @@ fn debugger_view(S, k) {
                 "set breakpoints in the script gutter, then run the scene"
             };
             ui::label(hint, style::mono(k.faint));
+            ui::right(|| {
+                ui::add_space(8);
+                break_on_error_pill(k);
+            });
         });
         return;
     }
@@ -415,6 +440,15 @@ fn debugger_view(S, k) {
         }
         ui::add_space(12);
         ui::label(format!("{} · {}:{}", p.reason, S.debug.paused_rel, p.line), style::mono(k.dim));
+        let threw = p.get("message").unwrap_or("");
+        if threw != "" {
+            ui::add_space(8);
+            ui::label(threw, style::mono(k.accent));
+        }
+        ui::right(|| {
+            ui::add_space(8);
+            break_on_error_pill(k);
+        });
     });
     ui::scroll("debug-frames", (), || {
         ui::spacing(4, 2);
@@ -465,7 +499,13 @@ pub fn draw(S) {
         } else if S.dock == "debugger" {
             debugger_view(S, k);
         } else {
-            output(S, k);
+            match crate::plugins::dock(S, S.dock) {
+                Some(entry) => {
+                    let draw = entry.draw;
+                    draw(S, k);
+                }
+                None => output(S, k),
+            }
         }
     });
 }

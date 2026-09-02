@@ -15,6 +15,7 @@ mod left;
 mod model;
 mod overlays;
 mod palette;
+mod plugins;
 mod polygon;
 mod rig;
 mod selftest;
@@ -69,10 +70,12 @@ pub fn init(this) {
         debug: shell::debug_state(),
         // Where an editor plugin keeps its own state, by id.
         plugins: #{},
+        registry: plugins::state(),
     };
     this.S = S;
 
     model::load(S);
+    plugins::load(S);
     theme::apply(S);
     render::set_app_icon("assets/balaur-logo.png");
     ui::set_scale(S.ui_scale);
@@ -147,6 +150,7 @@ pub fn update(this, dt) {
         anim::add_key(S, S.anim.time);
     }
     gizmo::draw(S);
+    plugins::draw_overlays(S);
     rig::draw(S);
     polygon::idle(S);
     polygon::draw(S);
@@ -240,6 +244,7 @@ pub fn draw_ui(this) {
     inspector::draw(S);
     dock::draw(S);
     center::draw(S);
+    plugins::draw_windows(S, S.theme);
     palette::draw(S);
 }
 

@@ -46,6 +46,16 @@ fn commands(S) {
         command("UI scale +", "＋", "⌘=", || shell::set_ui_scale(S, S.ui_scale + 0.125)),
         command("UI scale −", "−", "⌘-", || shell::set_ui_scale(S, S.ui_scale - 0.125)),
     ];
+    for entry in S.registry.commands {
+        let run = entry.run;
+        list.push(command(entry.label, entry.icon, entry.key, || run(S)));
+    }
+    for entry in S.registry.windows {
+        let wid = entry.id;
+        list.push(command(format!("Open {}", entry.title), "▭", "", || {
+            S.registry.open[wid] = true;
+        }));
+    }
     // Component commands come from the engine's registry, so third-party
     // plugin components are addable without touching the editor.
     let (_, found) = model::selected(S);

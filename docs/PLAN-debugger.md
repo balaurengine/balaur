@@ -3,8 +3,9 @@
 > call frames with named locals, and the editor's gutter, dock and
 > shortcuts. Luau left the tree the same day, so the Rune host is the one
 > implementation; the Luau design below stays as the record of what was
-> built first. Phases 5–6 (break-on-error, a Debug Adapter Protocol server)
-> are not started. See [generated/](generated/) for what the code actually
+> built first. Phase 5 (break on error) landed on 2026-09-02 as
+> `debugger::set_break_on_error`. Phase 6 (a Debug Adapter Protocol server)
+> is not started. See [generated/](generated/) for what the code actually
 > does.
 >
 > **Where the implementation decided differently:**
@@ -122,7 +123,22 @@ the mixed host to play a Rune game. **Built** in
 Luau's `debugprotectederror` fires only for errors a protected call in the
 coroutine will catch. Breaking at the throw site for an uncaught error means
 running each task under an `xpcall` wrapper and re-raising with
-`lua_resumeerror` on resume. Designed, not built.
+`lua_resumeerror` on resume. Designed, never built: Luau left the tree.
+
+**Rune needed none of that.** The stepping executor already holds the
+instruction pointer when `VmExecution::step` returns an error, so the line
+that threw and the call frames are still there to read; `Outcome::Failed`
+carries the line, and the host parks it as a pause with reason `error` and
+the message on it. Two consequences fall out of that mechanism:
+
+1. **It is opt-in, and turning it on changes how scripts run.** The failing
+   instruction only survives under the stepping executor, which otherwise
+   runs only for a unit that has breakpoints. `debugger::set_break_on_error`
+   therefore puts *every* synchronous call through it. Off by default.
+2. **An error pause cannot be continued.** The call is over; there is no
+   instruction to go on from. `resume` in any mode drops the pause, unfreezes
+   the engine, and finishes the tick the throw interrupted, so the four step
+   buttons all behave as Continue on one.
 
 ### Outside the editor (phase 6)
 

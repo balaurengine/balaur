@@ -87,7 +87,11 @@ pub(crate) struct Hit {
 pub(crate) enum Outcome {
     Finished(rune::Value),
     Broke(Hit),
-    Failed(VmError),
+    /// It threw. The line is where, so a pause can point at it.
+    Failed {
+        error: VmError,
+        line: usize,
+    },
 }
 
 #[derive(Clone, Copy)]
@@ -139,7 +143,12 @@ pub(crate) fn run(
         match exec.step() {
             VmResult::Ok(None) => {}
             VmResult::Ok(Some(value)) => return Outcome::Finished(value),
-            VmResult::Err(err) => return Outcome::Failed(err),
+            VmResult::Err(err) => {
+                return Outcome::Failed {
+                    error: err,
+                    line: lines.line(ip),
+                }
+            }
         }
     }
 }

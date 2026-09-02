@@ -1,0 +1,207 @@
+// Editor plugins: unsandboxed Rune modules adding docks, windows, commands,
+// inspector sections, property editors, overlays and start-up states.
+
+use crate::util;
+
+/// The registries, before any plugin has been seen.
+pub fn state() {
+    #{
+        docks: [],
+        windows: [],
+        commands: [],
+        sections: [],
+        overlays: [],
+        editors: #{},
+        states: #{},
+        // Which registered windows are open, by id.
+        open: #{},
+        loaded: [],
+    }
+}
+
+/// How many arguments the editor calls each kind of callback with. A callback
+/// made in a plugin's unit reaches the editor's VM only through
+/// `script::shared`, which needs the arity because a native wrapper is typed.
+fn arity(kind) {
+    match kind {
+        "dock" => 2,
+        "window" => 2,
+        "command" => 1,
+        "section" => 3,
+        "overlay" => 1,
+        // (S, k, #{ comp, prop }, spec, value): five, which is Rune's limit,
+        // so the component and property it edits arrive as one object.
+        "editor" => 5,
+        _ => 1,
+    }
+}
+
+/// The two places a plugin lives: the editor's own, on for every project, and
+/// the game's, on only there.
+fn roots(S) {
+    ["plugins", S.game_root + "/editor"]
+}
+
+/// Load every plugin in both directories, in name order so registration order
+/// does not depend on the filesystem's.
+///
+/// A plugin declares `register()` returning what it adds, and optionally
+/// `state()` for its slice at `S.plugins[<id>]`. It returns a description
+/// rather than taking an `api` object because in Rune `api.dock(..)` is a
+/// method call, not a call of a stored closure.
+pub fn load(S) {
+    for root in roots(S) {
+        let names = [];
+        for entry in util::vec(fs::list(root)) {
+            let name = entry.name;
+            if !entry.is_dir && name.ends_with(".rn") {
+                names.push(name);
+            }
+        }
+        names.sort();
+        for name in names {
+            load_one(S, root + "/" + name, name[..name.len() - 3]);
+        }
+    }
+    if S.registry.loaded.len() > 0 {
+        log::info(format!("editor plugins: {}", util::join(S.registry.loaded, ", ")));
+    }
+}
+
+fn load_one(S, path, id) {
+    // The host's own signatures, so a file that is not a plugin is skipped
+    // with a reason rather than failing inside `require`.
+    let has_register = false;
+    let has_state = false;
+    for f in util::vec(script::functions(path)) {
+        if f.name == "register" {
+            has_register = true;
+        }
+        if f.name == "state" {
+            has_state = true;
+        }
+    }
+    if !has_register {
+        log::warn(format!("{}: no register(); skipped", path));
+        return;
+    }
+    let module = script::require(path);
+    if !(module is Object) {
+        log::warn(format!("{}: did not load", path));
+        return;
+    }
+    if has_state {
+        let make = module["state"];
+        S.plugins[id] = make();
+    } else {
+        S.plugins[id] = #{};
+    }
+    let register = module["register"];
+    let (ok, declared) = script::attempt(|| register());
+    if !ok {
+        log::error(format!("{}: register() failed: {}", path, declared));
+        return;
+    }
+    if !(declared is Object) {
+        log::error(format!("{}: register() returned no object", path));
+        return;
+    }
+    add_all(S, id, declared);
+    S.registry.loaded.push(id);
+}
+
+// Every list is optional: a plugin declares only what it adds.
+fn add_all(S, id, declared) {
+    for entry in util::vec(declared.get("docks").unwrap_or([])) {
+        S.registry.docks.push(#{
+            id: entry.id, name: entry.name,
+            draw: script::shared(entry.draw, arity("dock")), owner: id,
+        });
+    }
+    for entry in util::vec(declared.get("windows").unwrap_or([])) {
+        S.registry.windows.push(#{
+            id: entry.id, title: entry.title,
+            draw: script::shared(entry.draw, arity("window")), owner: id,
+        });
+    }
+    for entry in util::vec(declared.get("commands").unwrap_or([])) {
+        S.registry.commands.push(#{
+            label: entry.label,
+            icon: entry.get("icon").unwrap_or("·"),
+            key: entry.get("key").unwrap_or(""),
+            run: script::shared(entry.run, arity("command")), owner: id,
+        });
+    }
+    for draw in util::vec(declared.get("sections").unwrap_or([])) {
+        S.registry.sections.push(#{ draw: script::shared(draw, arity("section")), owner: id });
+    }
+    for draw in util::vec(declared.get("overlays").unwrap_or([])) {
+        S.registry.overlays.push(#{ draw: script::shared(draw, arity("overlay")), owner: id });
+    }
+    let editors = util::obj(declared.get("editors").unwrap_or(#{}));
+    for (datatype, draw) in editors.iter() {
+        S.registry.editors[datatype] = #{ draw: script::shared(draw, arity("editor")), owner: id };
+    }
+    let states = util::obj(declared.get("states").unwrap_or(#{}));
+    for (name, run) in states.iter() {
+        S.registry.states[name] = #{ run: script::shared(run, 1), owner: id };
+    }
+}
+
+/// A registered dock's entry, or `None`.
+pub fn dock(S, id) {
+    for entry in S.registry.docks {
+        if entry.id == id {
+            return Some(entry);
+        }
+    }
+    None
+}
+
+/// Whatever a plugin registered for the inspector, drawn after the built-ins.
+pub fn draw_sections(S, k, node) {
+    for entry in S.registry.sections {
+        let draw = entry.draw;
+        draw(S, k, node);
+    }
+}
+
+/// Viewport lines a plugin draws, each frame.
+pub fn draw_overlays(S) {
+    for entry in S.registry.overlays {
+        let draw = entry.draw;
+        draw(S);
+    }
+}
+
+/// Every open plugin window, drawn as a floating surface.
+pub fn draw_windows(S, k) {
+    for entry in S.registry.windows {
+        if S.registry.open.get(entry.id).unwrap_or(false) != true {
+            continue;
+        }
+        let draw = entry.draw;
+        let still_open = ui::window(entry.id, #{ title: entry.title, width: 260 }, || {
+            draw(S, k);
+        });
+        if !still_open {
+            S.registry.open[entry.id] = false;
+        }
+    }
+}
+
+/// A property editor a plugin registered for `datatype`, or `None`.
+pub fn editor(S, datatype) {
+    match S.registry.editors.get(datatype) {
+        Some(entry) => Some(entry.draw),
+        None => None,
+    }
+}
+
+/// A start-up state a plugin registered, or `None`.
+pub fn start_state(S, name) {
+    match S.registry.states.get(name) {
+        Some(entry) => Some(entry.run),
+        None => None,
+    }
+}

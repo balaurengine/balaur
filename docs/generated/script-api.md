@@ -11,7 +11,7 @@ cannot drift from what scripts actually see.
 | [`animation`](#animation) | 14 | 0 | the engine |
 | [`assets`](#assets) | 6 | 0 | the engine |
 | [`audio`](#audio) | 8 | 0 | the engine |
-| [`debugger`](#debugger) | 6 | 4 | the engine |
+| [`debugger`](#debugger) | 8 | 4 | the engine |
 | [`engine`](#engine) | 7 | 0 | the engine |
 | [`fs`](#fs) | 4 | 0 | the engine |
 | [`gamend`](#gamend) | 9 | 0 | the engine |
@@ -31,7 +31,7 @@ cannot drift from what scripts actually see.
 | [`skeleton`](#skeleton) | 3 | 0 | the engine |
 | [`task`](#task) | 1 | 0 | the engine |
 | [`toml`](#toml) | 2 | 0 | the engine |
-| [`ui`](#ui) | 39 | 14 | the engine |
+| [`ui`](#ui) | 41 | 14 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
 ## `animation`
@@ -48,7 +48,7 @@ cannot drift from what scripts actually see.
 
 ## `debugger`
 
-**Functions:** `breakpoints`, `paused`, `resume`, `scope`, `set_breakpoints`, `set_scope`
+**Functions:** `break_on_error`, `breakpoints`, `paused`, `resume`, `scope`, `set_break_on_error`, `set_breakpoints`, `set_scope`
 
 **Constants** (4):
 
@@ -196,7 +196,7 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `circle_button`, `code_editor`, `code_line`, `dot`, `drag_value`, `dropdown`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`
+**Functions:** `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `code_editor`, `code_line`, `dot`, `drag_value`, `dropdown`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `window`
 
 **Constants** (14):
 

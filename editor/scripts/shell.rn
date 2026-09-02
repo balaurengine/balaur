@@ -287,10 +287,15 @@ pub fn apply_start_state(S, start) {
         }
     }
     match states().get(start) {
-        Some(run) => run(S),
-        None => if start != "" {
-            state_persona(S, start);
-        },
+        Some(run) => return run(S),
+        None => (),
+    }
+    match crate::plugins::start_state(S, start) {
+        Some(run) => return run(S),
+        None => (),
+    }
+    if start != "" {
+        state_persona(S, start);
     }
 }
 

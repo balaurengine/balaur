@@ -133,6 +133,12 @@ for ex in examples/*/; do
   printf '  poly ...   '
   edit_step "$name: polygon" "$ex" polydemo
   printf 'ok\n'
+
+  # The editor plugin seam, from editor/plugins/counter.rn: a dock tab, a
+  # window, a palette command, an inspector section and this state itself.
+  printf '  plugin ... '
+  edit_step "$name: plugin" "$ex" counterdemo
+  printf 'ok\n'
 done
 
 printf '\npack digests (compared across platforms in CI):\n'

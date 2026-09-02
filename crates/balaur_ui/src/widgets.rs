@@ -34,6 +34,15 @@ impl Opts {
             _ => default,
         }
     }
+    /// A dimension in design pixels when the caller gave one, so a window can
+    /// tell "put it here" apart from "wherever you left it".
+    pub(crate) fn opt_px(&self, key: &str) -> Option<f32> {
+        match self.get(key) {
+            Some(Value::Num(n)) => Some(*n as f32 * scale()),
+            Some(Value::Int(i)) => Some(*i as f32 * scale()),
+            _ => None,
+        }
+    }
     pub(crate) fn boolean(&self, key: &str, default: bool) -> bool {
         matches!(self.get(key), Some(Value::Bool(b)) if *b) || {
             !matches!(self.get(key), Some(Value::Bool(_))) && default
@@ -171,6 +180,7 @@ pub(crate) fn install_ui_api(app: &mut App) -> Result<()> {
     crate::widget_bindings::install_text_input(m);
     crate::widget_bindings::install_code(m);
     crate::widget_bindings::install_modal(m);
+    crate::widget_bindings::install_window(m);
     crate::widget_bindings::install_widget_layer(m);
     crate::widget_bindings::install_scale(m);
     crate::widget_bindings::install_code_editor(m);

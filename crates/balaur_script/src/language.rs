@@ -127,6 +127,16 @@ pub trait ScriptHost<C: ?Sized> {
     }
 
     /// Where a script is stopped, while one is.
+    /// Stop at the instruction that threw, rather than logging and moving
+    /// on. Off by default: it puts every call through the stepping executor.
+    fn set_break_on_error(&self, on: bool) {
+        let _ = on;
+    }
+
+    fn break_on_error(&self) -> bool {
+        false
+    }
+
     fn paused(&self) -> Option<Pause> {
         None
     }

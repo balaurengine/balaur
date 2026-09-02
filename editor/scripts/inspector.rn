@@ -474,6 +474,15 @@ fn prop_row(S, k, comp, prop, spec, data) {
         Some(value) => value,
         None => spec.get("default").unwrap_or(()),
     };
+    // A plugin's editor for this datatype wins over the built-in, which is
+    // what lets a project draw a curve or a colour ramp its own way.
+    match crate::plugins::editor(S, spec["type"]) {
+        Some(draw) => {
+            draw(S, k, #{ comp: comp, prop: prop }, spec, value);
+            return;
+        }
+        None => (),
+    }
     let editor = match editors().get(spec["type"]) {
         Some(editor) => editor,
         None => edit_text,
@@ -788,6 +797,7 @@ pub fn draw(S) {
                 script_section(S, k, "Script");
             }
             events_section(S, k);
+            crate::plugins::draw_sections(S, k, node);
             ui::add_space(12);
         });
 
