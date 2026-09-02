@@ -254,7 +254,7 @@ fn one_based(field: Option<&str>, len: usize, at: &str, what: &str) -> Result<Op
 pub const MESH_ASSET_TYPE: &str = "mesh";
 
 /// What a definition table holds, for the generated reference.
-const MESH_ASSET_DOC: &str = r##"Geometry for `mesh`-typed properties. A definition either names a `source`
+const MESH_ASSET_DOC: &str = r#"Geometry for `mesh`-typed properties. A definition either names a `source`
 model file to import or carries the vertices itself as `positions` and
 `indices`, which is what lets a script build one at run time; naming both is
 refused. A `skin` table adds bone weights for skeletal animation.
@@ -267,7 +267,7 @@ source = "models/blade.obj"      # imported...
 # ...or, instead of `source`:
 positions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
 indices = [[0, 1, 2]]
-```"##;
+```"#;
 
 /// Register `mesh` so scenes, components and scripts all name geometry the
 /// same way. A definition is either a reference to a model file or the

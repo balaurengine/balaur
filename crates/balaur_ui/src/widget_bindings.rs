@@ -579,7 +579,8 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
         let opts = Opts(value);
         let start = opts.unit_rgba("value");
         with_ui(|ui| {
-            let mut rgba = egui::Rgba::from_rgba_unmultiplied(start[0], start[1], start[2], start[3]);
+            let mut rgba =
+                egui::Rgba::from_rgba_unmultiplied(start[0], start[1], start[2], start[3]);
             let response = egui::color_picker::color_edit_button_rgba(
                 ui,
                 &mut rgba,

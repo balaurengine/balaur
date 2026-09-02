@@ -334,7 +334,13 @@ fn a_file_can_be_made_moved_and_deleted() {
     call(eng, "fs", "mkdir", &[s("sprites/enemies")]).unwrap();
     assert!(dir.path().join("sprites/enemies").is_dir());
 
-    call(eng, "fs", "write", &[s("sprites/enemies/pig.toml"), s("a = 1\n")]).unwrap();
+    call(
+        eng,
+        "fs",
+        "write",
+        &[s("sprites/enemies/pig.toml"), s("a = 1\n")],
+    )
+    .unwrap();
     call(
         eng,
         "fs",
@@ -360,7 +366,13 @@ fn a_file_can_be_made_moved_and_deleted() {
     );
 
     // A directory goes with everything under it.
-    call(eng, "fs", "write", &[s("sprites/enemies/a.toml"), s("x = 1\n")]).unwrap();
+    call(
+        eng,
+        "fs",
+        "write",
+        &[s("sprites/enemies/a.toml"), s("x = 1\n")],
+    )
+    .unwrap();
     assert_eq!(
         call(eng, "fs", "remove", &[s("sprites/enemies")]).unwrap(),
         Value::Bool(true)
@@ -376,7 +388,10 @@ fn a_files_modification_time_is_readable_and_absent_for_one_that_is_not_there() 
     let eng = &app.engine;
     let s = |t: &str| Value::Str(t.into());
 
-    assert_eq!(call(eng, "fs", "mtime", &[s("nothing.toml")]).unwrap(), Value::Nil);
+    assert_eq!(
+        call(eng, "fs", "mtime", &[s("nothing.toml")]).unwrap(),
+        Value::Nil
+    );
     call(eng, "fs", "write", &[s("thing.toml"), s("a = 1\n")]).unwrap();
     let Value::Num(at) = call(eng, "fs", "mtime", &[s("thing.toml")]).unwrap() else {
         panic!("a written file has a modification time");

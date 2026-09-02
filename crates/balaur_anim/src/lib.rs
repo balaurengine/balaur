@@ -62,7 +62,7 @@ pub use crate::tween::{Tween, TweenId};
 pub struct AnimationPlugin;
 
 /// What a definition table holds, for the generated reference.
-const CLIP_ASSET_DOC: &str = r##"A clip keys node properties over time. `length` is in seconds and may be
+const CLIP_ASSET_DOC: &str = r#"A clip keys node properties over time. `length` is in seconds and may be
 left out to end at the last key; `loop` is `none` (hold the last key),
 `loop` or `pingpong`. Each track names a `target` node path relative to the
 playing node (empty means that node), a `property` (`position`,
@@ -86,7 +86,7 @@ keys = [
   { t = 0.0, value = [-2.5, 0.25, -2.0] },
   { t = 4.0, value = [-2.5, 0.25, 2.0], ease = "in_out_sine" },
 ]
-```"##;
+```"#;
 
 impl Plugin for AnimationPlugin {
     fn name(&self) -> &'static str {

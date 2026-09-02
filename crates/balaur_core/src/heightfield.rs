@@ -41,7 +41,7 @@ impl HeightfieldData {
 }
 
 /// What a definition table holds, for the generated reference.
-const HEIGHTFIELD_ASSET_DOC: &str = r##"A grid of heights for terrain: `rows` by `columns` samples in `heights`,
+const HEIGHTFIELD_ASSET_DOC: &str = r#"A grid of heights for terrain: `rows` by `columns` samples in `heights`,
 row-major, one value per grid point. The count has to match the grid.
 
 ```toml
@@ -51,7 +51,7 @@ type = "heightfield"
 rows = 3
 columns = 3
 heights = [0, 0, 0, 0, -1, 0, 0, 0, 0]
-```"##;
+```"#;
 
 /// Register `heightfield` so a scene, a component or a script can all name
 /// terrain the same way:
@@ -65,9 +65,12 @@ heights = [0, 0, 0, 0, -1, 0, 0, 0, 0]
 /// heights = [0, 0, 0, 0, -1, 0, 0, 0, 0]
 /// ```
 pub(crate) fn register_heightfield_asset(app: &mut App) {
-    app.register_asset_type(HEIGHTFIELD_ASSET_TYPE, "terrain", HEIGHTFIELD_ASSET_DOC, |value| {
-        Ok(std::rc::Rc::new(parse_definition(value)?) as std::rc::Rc<dyn std::any::Any>)
-    });
+    app.register_asset_type(
+        HEIGHTFIELD_ASSET_TYPE,
+        "terrain",
+        HEIGHTFIELD_ASSET_DOC,
+        |value| Ok(std::rc::Rc::new(parse_definition(value)?) as std::rc::Rc<dyn std::any::Any>),
+    );
 }
 
 /// A `heightfield` definition. The count is checked here because the physics
