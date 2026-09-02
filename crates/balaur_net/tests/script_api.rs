@@ -1,8 +1,7 @@
-//! The net bindings called the way a game calls them: from a script, in both
-//! languages, through `balaur::standard_app` — the same wiring a shipped
-//! game boots.
+//! The net bindings called the way a game calls them: from a script, through
+//! `balaur::standard_app` — the same wiring a shipped game boots.
 //!
-//! One app boot per language, covering the callback path, the await path and
+//! One app boot per scenario, covering the callback path, the await path and
 //! a websocket round trip in a single script — booting an app dominates the
 //! cost, so scenarios share one.
 
@@ -31,7 +30,7 @@ static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// marker shows up in the log. No sleeps: ticking full-tilt costs little and
 /// the sockets answer in milliseconds. Panics on any logged error or on the
 /// deadline.
-fn run_until(script_name: &str, language: &str, source: &str, markers: &[&str]) {
+fn run_until(source: &str, markers: &[&str]) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -39,15 +38,15 @@ fn run_until(script_name: &str, language: &str, source: &str, markers: &[&str]) 
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        format!("name = \"n\"\nmain_scene = \"main.toml\"\nlanguage = \"{language}\"\n"),
+        "name = \"n\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        format!("[[nodes]]\nid = \"n\"\nname = \"Node\"\nscript = \"scripts/{script_name}\"\n"),
+        "[[nodes]]\nid = \"n\"\nname = \"Node\"\nscript = \"scripts/s.rn\"\n",
     )
     .unwrap();
-    std::fs::write(dir.path().join("scripts").join(script_name), source).unwrap();
+    std::fs::write(dir.path().join("scripts/s.rn"), source).unwrap();
 
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
@@ -121,8 +120,10 @@ fn serve_echo() -> String {
     format!("ws://{addr}")
 }
 
+/// The response handler named through `on_response`, rather than the
+/// default `on_response` method.
 #[test]
-fn a_lua_script_fetches_awaits_and_echoes() {
+fn a_script_fetches_awaits_and_echoes_through_a_named_handler() {
     if !e2e_enabled() {
         return;
     }
@@ -133,40 +134,38 @@ fn a_lua_script_fetches_awaits_and_echoes() {
     let echo = serve_echo();
     let source = format!(
         r#"
-local S = {{}}
-function S:init()
-    local r = await(http.request("{awaited}"))
-    log.info("lua-await " .. r.status .. " " .. r.body)
-    self.request = http.request(self.node, "{handled}", {{ on_response = "on_login" }})
-    self.socket = websocket.connect(self.node, "{echo}")
-end
-function S:on_login(r)
-    if r.request == self.request then
-        log.info("lua-http " .. r.status .. " " .. r.body)
-    end
-end
-function S:on_websocket_event(e)
-    if e.kind == "open" then
-        websocket.send(self.socket, "ping")
-    elseif e.kind == "message" then
-        log.info("lua-websocket " .. e.text)
-        websocket.close(self.socket)
-    elseif e.kind == "closed" then
-        log.info("lua-websocket-closed")
-    end
-end
-return S
+pub async fn init(this) {{
+    let r = task::wait(http::request("{awaited}")).await;
+    log::info(format!("named-await {{}} {{}}", r["status"], r["body"]));
+    this.request = http::request(this.node, "{handled}", #{{ on_response: "on_login" }});
+    this.socket = websocket::connect(this.node, "{echo}");
+}}
+
+pub fn on_login(this, r) {{
+    if r["request"] == this.request {{
+        log::info(format!("named-http {{}} {{}}", r["status"], r["body"]));
+    }}
+}}
+
+pub fn on_websocket_event(this, e) {{
+    if e["kind"] == "open" {{
+        websocket::send(this.socket, "ping");
+    }} else if e["kind"] == "message" {{
+        log::info(format!("named-websocket {{}}", e["text"]));
+        websocket::close(this.socket);
+    }} else if e["kind"] == "closed" {{
+        log::info("named-websocket-closed");
+    }}
+}}
 "#
     );
     run_until(
-        "s.luau",
-        "luau",
         &source,
         &[
-            "lua-await 200 quail",
-            "lua-http 200 hello",
-            "lua-websocket ping",
-            "lua-websocket-closed",
+            "named-await 200 quail",
+            "named-http 200 hello",
+            "named-websocket ping",
+            "named-websocket-closed",
         ],
     );
 }
@@ -209,8 +208,6 @@ pub fn on_websocket_event(this, e) {{
 "#
     );
     run_until(
-        "s.rn",
-        "rune",
         &source,
         &[
             "rune-await 200 raven",

@@ -1,0 +1,166 @@
+// Small helpers the rest of the editor leans on. Rune has no nil: the engine
+// returns `()` for nothing, and a document's optional field comes back as
+// `None` from `get`.
+
+pub fn join(parts, sep) {
+    let out = "";
+    for (i, part) in parts.iter().enumerate() {
+        if i > 0 {
+            out += sep;
+        }
+        out += format!("{}", part);
+    }
+    out
+}
+
+pub fn last_segment(path) {
+    let parts = path.split('/').collect::<Vec>();
+    parts[parts.len() - 1]
+}
+
+pub fn is_nil(v) {
+    v is Tuple
+}
+
+pub fn obj(v) {
+    if v is Object { v } else { #{} }
+}
+
+pub fn vec(v) {
+    if v is Vec { v } else { [] }
+}
+
+pub fn f(v) {
+    v as f64
+}
+
+pub fn i(v) {
+    v as i64
+}
+
+pub fn clamp(x, lo, hi) {
+    if x < lo { lo } else if x > hi { hi } else { x }
+}
+
+pub fn max(a, b) {
+    if a > b { a } else { b }
+}
+
+pub fn min(a, b) {
+    if a < b { a } else { b }
+}
+
+pub fn abs(x) {
+    if x < 0.0 { -x } else { x }
+}
+
+/// Three floats from a document vector, or `default`.
+pub fn vec3(v, fallback) {
+    if v is Vec && v.len() >= 3 {
+        [f(v[0]), f(v[1]), f(v[2])]
+    } else {
+        fallback
+    }
+}
+
+pub fn vec2(v, fallback) {
+    if v is Vec && v.len() >= 2 {
+        [f(v[0]), f(v[1])]
+    } else {
+        fallback
+    }
+}
+
+pub fn contains(items, x) {
+    for it in items {
+        if it == x {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn position(items, x) {
+    for (i, it) in items.iter().enumerate() {
+        if it == x {
+            return Some(i);
+        }
+    }
+    None
+}
+
+pub fn keys_sorted(o) {
+    let keys = o.keys().collect::<Vec>();
+    keys.sort();
+    keys
+}
+
+pub fn count_lines(text) {
+    text.split('\n').collect::<Vec>().len()
+}
+
+pub fn repeat(s, n) {
+    let out = "";
+    for _ in 0..n {
+        out += s;
+    }
+    out
+}
+
+/// A shallow copy of an object or vector; anything else is a value already.
+pub fn copy(v) {
+    if v is Object {
+        let out = #{};
+        for (k, x) in v.iter() {
+            out[k] = x;
+        }
+        out
+    } else if v is Vec {
+        v.clone()
+    } else {
+        v
+    }
+}
+
+/// A copy all the way down.
+pub fn deep(v) {
+    if v is Object {
+        let out = #{};
+        for (k, x) in v.iter() {
+            out[k] = deep(x);
+        }
+        out
+    } else if v is Vec {
+        let out = [];
+        for x in v {
+            out.push(deep(x));
+        }
+        out
+    } else {
+        v
+    }
+}
+
+/// `#rrggbb` to unit floats.
+pub fn hex_to_rgb(hex) {
+    (hex_pair(hex, 1), hex_pair(hex, 3), hex_pair(hex, 5))
+}
+
+fn hex_pair(hex, at) {
+    let digits = "0123456789abcdef";
+    let value = 0;
+    for c in hex[at..at + 2].to_lowercase().chars() {
+        for (i, d) in digits.chars().enumerate() {
+            if d == c {
+                value = value * 16 + i;
+            }
+        }
+    }
+    (value as f64) / 255.0
+}
+
+/// A colour as the `[r, g, b]` the draw calls take.
+pub fn rgb(hex) {
+    let (r, g, b) = hex_to_rgb(hex);
+    [r, g, b]
+}

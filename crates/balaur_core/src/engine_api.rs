@@ -280,6 +280,8 @@ pub fn install_engine_api(eng: &Engine) -> Result<()> {
     crate::node_api::install_node_api(&mut *node);
     let mut debugger = host.module("debugger")?;
     crate::debugger_api::install_debugger_api(&mut *debugger);
+    let mut math = host.module("math")?;
+    crate::math_api::install_math_api(&mut *math);
     Ok(())
 }
 
@@ -770,7 +772,7 @@ fn json_number_list(a: &[f32]) -> Result<serde_json::Value> {
     ))
 }
 
-fn number(args: &[Value], i: usize) -> Result<f64> {
+pub(crate) fn number(args: &[Value], i: usize) -> Result<f64> {
     match args.get(i) {
         Some(Value::Num(n)) => Ok(*n),
         Some(Value::Int(n)) => Ok(*n as f64),

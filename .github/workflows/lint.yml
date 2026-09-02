@@ -36,7 +36,7 @@ jobs:
       # the rules in docs/NAMING.md that no compiler enforces.
       - name: Project lints
         run: python3 scripts/house_lints.py --fail-on-error
-      # Every language in the tree, not just Rust: Luau, Rune, the workflows
+      # Every language in the tree, not just Rust: Rune, the workflows
       # and the scripts themselves. Generated files are skipped by their banner.
       - name: Comment lints
         run: python3 scripts/comment_lints.py --fail-on-error

@@ -4,16 +4,21 @@ use std::path::{Path, PathBuf};
 
 use balaur_core::{App, AppConfig, Engine};
 use balaur_plugin::{library_suffix, load_extension, load_extensions_in, AbiTag, Fingerprint};
+use balaur_script::{NodeId, Value};
 
-fn app() -> App {
+fn app_in(dir: &Path) -> App {
     App::new(AppConfig {
-        project_root: PathBuf::from("."),
+        project_root: dir.to_path_buf(),
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        script_backend: Some(balaur_script_luau::factory()),
+        script_backend: Some(balaur_script_rune::factory()),
     })
     .unwrap()
+}
+
+fn app() -> App {
+    app_in(Path::new("."))
 }
 
 /// Build the out-of-tree extension and return the library cargo produced.
@@ -52,19 +57,59 @@ fn greeter() -> PathBuf {
         .clone()
 }
 
-#[test]
-fn an_extension_declares_itself_into_a_running_app() {
-    let mut app = app();
+/// The greeter loaded into a fresh app, with `probe.rn` attached to a node.
+///
+/// Rune runs code from files, not strings, so each test's expressions are
+/// `pub fn`s of that script and `call` runs one by name.
+struct Loaded {
+    app: App,
+    _library: balaur_plugin::Extension,
+    _dir: tempfile::TempDir,
+    probe: NodeId,
+}
+
+fn loaded(script: &str) -> Loaded {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("project.toml"), "[project]\nname = \"t\"\n").unwrap();
+    std::fs::write(dir.path().join("probe.rn"), script).unwrap();
+    let mut app = app_in(dir.path());
     let mut extension = unsafe { load_extension(&greeter()) }.expect("the extension should load");
     assert_eq!(extension.manifest().name, "greeter");
-
     balaur_plugin::load(&mut app, extension.plugin_mut()).unwrap();
 
-    let lua = balaur_script_luau::lua_of(&app.engine);
-    let greeting: String = lua.load("return greeter.greet('world')").eval().unwrap();
-    assert_eq!(greeting, "hello, world");
-    let version: String = lua.load("return greeter.VERSION").eval().unwrap();
-    assert_eq!(version, "0.1.0");
+    let root = app.engine.root();
+    let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Probe", root);
+    let probe = balaur_core::node_id_of(node);
+    let host = app.engine.script_host().unwrap();
+    host.attach(probe, "probe.rn").unwrap();
+    Loaded {
+        app,
+        _library: extension,
+        _dir: dir,
+        probe,
+    }
+}
+
+impl Loaded {
+    /// Run `pub fn name(this)` from `probe.rn` and hand back what it returned.
+    fn call(&self, name: &str) -> Value {
+        self.app
+            .engine
+            .script_host()
+            .unwrap()
+            .call_on(self.probe, name, &[])
+            .unwrap_or_else(|| panic!("`{name}` did not run to completion"))
+    }
+}
+
+#[test]
+fn an_extension_declares_itself_into_a_running_app() {
+    let probe = loaded(
+        "pub fn greet(this) { greeter::greet(\"world\") }\n\
+         pub fn version(this) { greeter::VERSION }\n",
+    );
+    assert_eq!(probe.call("greet"), Value::Str("hello, world".into()));
+    assert_eq!(probe.call("version"), Value::Str("0.1.0".into()));
 }
 
 /// What a separately compiled extension cannot do, recorded because it is not
@@ -90,14 +135,10 @@ fn an_extension_declares_itself_into_a_running_app() {
 /// delete the test rather than repair it.
 #[test]
 fn an_extension_cannot_reach_a_resource_the_host_inserted() {
-    let mut app = app();
-    let mut extension = unsafe { load_extension(&greeter()) }.unwrap();
-    balaur_plugin::load(&mut app, extension.plugin_mut()).unwrap();
-
-    let lua = balaur_script_luau::lua_of(&app.engine);
-    let seen: String = lua.load("return greeter.project_root()").eval().unwrap();
+    let probe = loaded("pub fn root(this) { greeter::project_root() }\n");
     assert_eq!(
-        seen, "<not visible from the extension>",
+        probe.call("root"),
+        Value::Str("<not visible from the extension>".into()),
         "an out-of-tree extension can now see the host's resources"
     );
 }
@@ -106,25 +147,17 @@ fn an_extension_cannot_reach_a_resource_the_host_inserted() {
 /// loading one rather than calling into it.
 #[test]
 fn an_extension_owns_a_resource_the_engine_keeps() {
-    let mut app = app();
-    let mut extension = unsafe { load_extension(&greeter()) }.unwrap();
-    balaur_plugin::load(&mut app, extension.plugin_mut()).unwrap();
-
-    let lua = balaur_script_luau::lua_of(&app.engine);
-    assert_eq!(
-        lua.load("return greeter.greetings()")
-            .eval::<i64>()
-            .unwrap(),
-        0
+    let probe = loaded(
+        "pub fn greetings(this) { greeter::greetings() }\n\
+         pub fn greet(this) { greeter::greet(\"again\"); }\n",
     );
+    assert_eq!(probe.call("greetings"), Value::Int(0));
     for _ in 0..3 {
-        lua.load("greeter.greet('again')").exec().unwrap();
+        probe.call("greet");
     }
     assert_eq!(
-        lua.load("return greeter.greetings()")
-            .eval::<i64>()
-            .unwrap(),
-        3,
+        probe.call("greetings"),
+        Value::Int(3),
         "the extension's own state did not survive the calls"
     );
 }

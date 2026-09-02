@@ -20,6 +20,32 @@ thread_local! {
     static CALLBACKS: RefCell<Vec<(u64, rune::runtime::Function)>> =
         const { RefCell::new(Vec::new()) };
     static NEXT_CALLBACK: Cell<u64> = const { Cell::new(1) };
+    /// Every function and constant declared through the seam, for the API
+    /// dump: Rune's context cannot be walked from outside.
+    static API: RefCell<Vec<ApiEntry>> = const { RefCell::new(Vec::new()) };
+}
+
+/// One declared script-facing name.
+#[derive(Clone, Debug)]
+pub struct ApiEntry {
+    pub module: String,
+    pub name: String,
+    /// The constant's value as text; `None` for a function.
+    pub constant: Option<String>,
+}
+
+pub(crate) fn api_entries() -> Vec<ApiEntry> {
+    API.with_borrow(Clone::clone)
+}
+
+fn record(module: &str, name: &str, constant: Option<String>) {
+    API.with_borrow_mut(|api| {
+        api.push(ApiEntry {
+            module: module.to_string(),
+            name: name.to_string(),
+            constant,
+        });
+    });
 }
 
 /// Register a script function for the duration of one binding call.
@@ -102,6 +128,7 @@ impl Drop for RuneModule {
 
 impl balaur_script::Bindings<Engine> for RuneModule {
     fn function_raw(&mut self, name: &str, f: BoundFn<Engine>) {
+        record(&self.name, name, None);
         let handle = BOUND.with_borrow_mut(|b| {
             b.push((self.engine.clone(), f));
             b.len() - 1
@@ -145,6 +172,14 @@ impl balaur_script::Bindings<Engine> for RuneModule {
     }
 
     fn constant(&mut self, name: &str, value: Value) {
+        let shown = match &value {
+            Value::Bool(b) => b.to_string(),
+            Value::Int(i) => i.to_string(),
+            Value::Num(n) => n.to_string(),
+            Value::Str(s) => s.clone(),
+            other => format!("{other:?}"),
+        };
+        record(&self.name, name, Some(shown));
         let Some(module) = self.module.as_mut() else {
             return;
         };

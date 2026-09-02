@@ -21,7 +21,7 @@ libloading = { version = "0.8", optional = true }
 
 [dev-dependencies]
 balaur_script.workspace = true
-balaur_script_luau.workspace = true
+balaur_script_rune.workspace = true
 tempfile = "3"
 
 [lints]

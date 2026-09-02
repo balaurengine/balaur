@@ -39,7 +39,6 @@ sha2 = "0.10"
 balaur_core = { path = "crates/balaur_core", version = "0.1.0" }
 balaur_plugin = { path = "crates/balaur_plugin", version = "0.1.0" }
 balaur_script = { path = "crates/balaur_script", version = "0.1.0" }
-balaur_script_luau = { path = "crates/balaur_script_luau", version = "0.1.0" }
 balaur_script_rune = { path = "crates/balaur_script_rune", version = "0.1.0" }
 balaur_physics = { path = "crates/balaur_physics", version = "0.1.0" }
 balaur_anim = { path = "crates/balaur_anim", version = "0.1.0" }
@@ -52,7 +51,6 @@ balaur_ui = { path = "crates/balaur_ui", version = "0.1.0" }
 balaur = { path = "crates/balaur", version = "0.1.0", default-features = false }
 
 hecs = "0.11"
-mlua = { version = "0.12", features = ["luau", "error-send"] }
 glamx = "0.3"
 notify = "8"
 rapier3d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize"] }

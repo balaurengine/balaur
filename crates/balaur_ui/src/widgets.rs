@@ -285,41 +285,10 @@ impl SyntaxColors {
 pub(crate) struct Syntax {
     line_comment: &'static str,
     keywords: &'static [&'static str],
-    /// Every script module (the 13 in `docs/generated/script-api.md`) plus
-    /// the language's own globals. The module half is the same for every
-    /// language — it drifted once, with `node` missing from Luau and `fs` /
-    /// `toml` from Rune — so add a new module to both lists at once.
+    /// Every script module (`docs/generated/script-api.md`) plus the
+    /// language's own globals.
     builtins: &'static [&'static str],
 }
-
-const LUAU: Syntax = Syntax {
-    line_comment: "--",
-    keywords: &[
-        "local", "function", "end", "if", "then", "else", "elseif", "while", "for", "in", "do",
-        "return", "and", "or", "not", "true", "false", "nil", "break", "continue", "repeat",
-        "until", "type", "export",
-    ],
-    builtins: &[
-        "engine",
-        "scene",
-        "input",
-        "physics",
-        "physics2d",
-        "render",
-        "audio",
-        "rng",
-        "ui",
-        "log",
-        "node",
-        "fs",
-        "toml",
-        "math",
-        "string",
-        "table",
-        "self",
-        "require",
-    ],
-};
 
 const RUNE: Syntax = Syntax {
     line_comment: "//",
@@ -347,14 +316,11 @@ const RUNE: Syntax = Syntax {
     ],
 };
 
-/// The highlighter for a language name, falling back to Luau.
+/// The highlighter for a language name. Rune is the one language, so an
+/// unknown name still highlights rather than rendering plain punctuation.
 pub(crate) const fn syntax_for(language: &str) -> &'static Syntax {
-    // A const fn cannot match on &str, so compare the bytes.
-    if matches!(language.as_bytes(), b"rune") {
-        &RUNE
-    } else {
-        &LUAU
-    }
+    let _ = language;
+    &RUNE
 }
 
 /// Line-based highlighting into a LayoutJob (used by the editable code
@@ -517,7 +483,7 @@ pub(crate) fn code_editor(
     // written in, so an editor shows Rune as Rune.
     let language = opts.string("language").unwrap_or_else(|| {
         eng.try_resource::<balaur_core::project::ProjectManifest>()
-            .map_or_else(|| "luau".to_string(), |m| m.borrow().language.clone())
+            .map_or_else(|| "rune".to_string(), |m| m.borrow().language.clone())
     });
     let syntax = syntax_for(&language);
     let state = eng.resource::<UiState>();
@@ -743,26 +709,21 @@ pub(crate) fn left_pill(
 
 #[cfg(test)]
 mod tests {
-    use super::{syntax_for, LUAU, RUNE};
+    use super::{syntax_for, RUNE};
 
     #[test]
-    fn a_language_selects_its_own_tokens() {
+    fn rune_selects_its_own_tokens() {
         let rune = syntax_for("rune");
         assert_eq!(rune.line_comment, "//");
         assert!(rune.keywords.contains(&"fn"));
-        assert!(!rune.keywords.contains(&"local"));
-
-        let luau = syntax_for("luau");
-        assert_eq!(luau.line_comment, "--");
-        assert!(luau.keywords.contains(&"local"));
+        assert!(rune.builtins.contains(&"this"));
     }
 
     /// An unknown or absent language must still highlight something rather
     /// than render the editor as plain punctuation.
     #[test]
-    fn an_unknown_language_falls_back_to_luau() {
-        assert_eq!(syntax_for("wesl").line_comment, LUAU.line_comment);
-        assert_eq!(syntax_for("").line_comment, LUAU.line_comment);
-        assert_ne!(LUAU.line_comment, RUNE.line_comment);
+    fn an_unknown_language_falls_back_to_rune() {
+        assert_eq!(syntax_for("wesl").line_comment, RUNE.line_comment);
+        assert_eq!(syntax_for("").line_comment, RUNE.line_comment);
     }
 }

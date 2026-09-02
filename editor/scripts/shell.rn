@@ -1,0 +1,349 @@
+// The editor's verbs on its state `S`: selection, personas, play, the
+// palette, breakpoints, the pause, and the start-up states.
+
+use crate::anim;
+use crate::history;
+use crate::model;
+use crate::theme;
+use crate::util;
+
+pub fn choose(S, i) {
+    if i != S.sel {
+        history::commit(S);
+    }
+    S.sel = i;
+}
+
+// History owns the document; the mirror is rebuilt from it here, because
+// history must not depend on `model` (model records into history).
+fn step(S, label, moved) {
+    let moved = match moved {
+        Some(moved) => moved,
+        None => {
+            log::info(format!("nothing to {}", label));
+            return;
+        }
+    };
+    // Rebuilding stops play, so read the flag before it is cleared: a
+    // keystroke aimed at the document should not silently kill the game.
+    let was_playing = S.playing;
+    model::build_mirror(S);
+    if was_playing {
+        log::info(format!("{} stopped the running scene", label));
+    }
+    theme::apply(S);
+    apply_camera(S);
+    log::info(format!("{}: {}", label, moved));
+}
+
+pub fn undo(S) {
+    step(S, "undo", history::undo(S));
+}
+
+pub fn redo(S) {
+    step(S, "redo", history::redo(S));
+}
+
+pub fn set_persona(S, id) {
+    S.persona = id;
+    S.tool = "select";
+    S.doctab = if id == "script" { "script" } else { "scene" };
+    S.dock = if id == "anim" { "timeline" } else { "output" };
+}
+
+pub fn set_zoom(S, z) {
+    S.zoom = util::clamp(z, 25.0, 400.0);
+    apply_camera(S);
+}
+
+pub fn open_palette(S, query) {
+    S.palette = true;
+    S.palette_query = query;
+    ui::set_text("palette-query", query);
+}
+
+pub fn set_ui_scale(S, f) {
+    S.ui_scale = util::clamp(f, 0.75, 2.5);
+    ui::set_scale(S.ui_scale);
+}
+
+pub fn close_palette(S) {
+    S.palette = false;
+}
+
+pub fn toggle_play(S) {
+    if S.playing {
+        stop_play(S);
+    } else {
+        // Real play-in-editor: attach the game's scripts to the mirrored
+        // nodes (their init sets up physics etc.), then run.
+        model::attach_game_scripts(S);
+        S.playing = true;
+        S.dock = "output";
+        physics::set_paused(false);
+        // The mirror was built with every player held (model::build_mirror);
+        // play is what lets the engine advance them.
+        anim::resume_all(S);
+        log::info("play: running " + S.game_name);
+    }
+}
+
+pub fn stop_play(S) {
+    if S.playing {
+        log::info("stop: scene reset");
+    }
+    model::build_mirror(S);
+    // The game may have restyled the viewport (background, camera).
+    theme::apply(S);
+    apply_camera(S);
+}
+
+// Viewport chip side effects (chips themselves live in center.rn).
+pub fn on_chip(S, persona, key, value) {
+    if persona == "phys" && key == "sleep" {
+        physics::set_sleeping_allowed(value);
+    }
+}
+
+// The other half of the pair: chips that command the engine read their
+// state back from it, so nothing is mirrored in `S.chip_state`. `None` for a
+// chip the editor owns outright.
+pub fn chip_value(S, persona, key) {
+    if persona == "phys" && key == "sleep" {
+        return Some(physics::sleeping_allowed());
+    }
+    None
+}
+
+// Breakpoints are kept per game-relative script path; the host keys the
+// same file by the absolute path play attaches it under.
+pub fn breakpoint_lines(S, rel) {
+    let lines = util::vec(S.breakpoints.get(rel).unwrap_or([]));
+    lines.sort();
+    lines
+}
+
+pub fn toggle_breakpoint(S, rel, line) {
+    let lines = breakpoint_lines(S, rel);
+    let kept = [];
+    let had = false;
+    for l in lines {
+        if l == line {
+            had = true;
+        } else {
+            kept.push(l);
+        }
+    }
+    if !had {
+        kept.push(line);
+    }
+    // The host reports where each request landed: a blank line moves to the
+    // next line with code.
+    S.breakpoints[rel] = util::vec(debugger::set_breakpoints(S.game_root + "/" + rel, kept));
+}
+
+// Game-relative path of a script the host reports by absolute key.
+pub fn script_rel(S, path) {
+    let prefix = S.game_root + "/";
+    if path.starts_with(prefix) {
+        return path[prefix.len()..];
+    }
+    path
+}
+
+// The pause is over the moment it is asked to go; the poll would only
+// notice next frame, and a pause that follows at once must read as new.
+pub fn resume(S, mode) {
+    debugger::resume(mode);
+    S.paused = ();
+}
+
+// A fresh pause: show the script and the frame it stopped in.
+pub fn on_pause(S, p) {
+    S.paused_rel = script_rel(S, p.path);
+    S.debug_frame = 0;
+    let stopped = p.node.path();
+    for (i, node) in S.doc.iter().enumerate() {
+        let same = match model::live(S, i) {
+            Some(found) => found.path() == stopped,
+            None => false,
+        };
+        if same || node.get("script") == Some(S.paused_rel) {
+            choose(S, i);
+            break;
+        }
+    }
+    set_persona(S, "script");
+    S.dock = "debugger";
+    log::info(format!("paused at {}:{} ({})", S.paused_rel, p.line, p.reason));
+}
+
+pub fn attach_script(S) {
+    let node = S.doc[S.sel];
+    if node.contains_key("script") {
+        return;
+    }
+    let path = "scripts/" + node.name.to_lowercase() + ".rn";
+    let abs = S.game_root + "/" + path;
+    if !fs::exists(abs) {
+        fs::write(abs, "pub fn init(this) {\n}\n\npub fn update(this, dt) {\n}\n");
+    }
+    history::record(S, "attach script", None);
+    model::forget(S, None);
+    node.script = path;
+    log::info("attached " + path + " (undo detaches it; the file stays)");
+}
+
+const BASE_EYE = [9.0, 6.0, 13.0];
+const TARGET = [0.0, 1.0, 0.0];
+
+pub fn apply_camera(S) {
+    if model::is_2d(S) {
+        // Keep the current pan; zoom in logical px per world unit.
+        let (cx, cy, _) = render::camera_2d();
+        render::set_camera_2d(cx, cy, 55.0 * S.zoom / 100.0);
+        return;
+    }
+    let scale = 100.0 / S.zoom;
+    render::set_camera(
+        TARGET[0] + (BASE_EYE[0] - TARGET[0]) * scale,
+        TARGET[1] + (BASE_EYE[1] - TARGET[1]) * scale,
+        TARGET[2] + (BASE_EYE[2] - TARGET[2]) * scale,
+        TARGET[0], TARGET[1], TARGET[2],
+    );
+}
+
+// cmd+S saves the visible script buffer when the code editor is open, the
+// scene document otherwise.
+pub fn save_active(S) {
+    let node = S.doc[S.sel];
+    let in_script = (S.persona == "script" || S.doctab == "script") && node.contains_key("script");
+    if in_script {
+        let abs = S.game_root + "/" + node.script;
+        if let Some(buffer) = S.script_buffers.get(abs) {
+            fs::write(abs, buffer);
+            model::forget(S, Some(node.script));
+            S.script_dirty.remove(abs);
+            // Reload only matters when the script is live (playing); outside
+            // of that it was never loaded, which is fine.
+            script::attempt(|| engine::reload_script(abs));
+            log::info("saved " + node.script);
+        }
+        return;
+    }
+    // An external clip is its own file; an inline one rides along with the
+    // scene. `anim::save` knows which it is looking at.
+    anim::save(S);
+    model::save(S);
+}
+
+fn select_named(S, name) {
+    for (i, node) in S.doc.iter().enumerate() {
+        if node.name == name {
+            S.sel = i;
+        }
+    }
+}
+
+// One start-up state, mirroring the design prototype's startPersona prop.
+pub fn apply_start_state(S, start) {
+    if start.starts_with("shot=") {
+        // Screenshot the shell once the first frames have laid it out, for
+        // a visual check of an editor state a headless run cannot show.
+        S.shot = Some(start[5..]);
+    } else if start == "palette" {
+        open_palette(S, "");
+    } else if start == "light" {
+        theme::set_dark(S, false);
+    } else if start == "play" {
+        toggle_play(S);
+    } else if start == "rotdemo" {
+        select_named(S, "Spinner");
+        let (node, found) = model::selected(S);
+        let found_some = found;
+        if let Some(found) = found_some {
+            found.set_rotation_euler(math::rad(15.0), math::rad(30.0), 0.0);
+            node.rotation_euler = [math::rad(15.0), math::rad(30.0), 0.0];
+            found.set_scale(3.0, 3.0, 3.0);
+            node.scale = [3.0, 3.0, 3.0];
+        }
+        set_zoom(S, 100.0);
+    } else if start == "animdemo" {
+        // Self-test state: author a clip on the Spinner when the mirror
+        // resolved it, otherwise on any resolved node — keying reads a live
+        // transform.
+        let pick = None;
+        for (i, node) in S.doc.iter().enumerate() {
+            if model::live(S, i).is_some() && (pick.is_none() || node.name == "Spinner") {
+                pick = Some(i);
+            }
+        }
+        match pick {
+            None => log::warn("animdemo: the mirror resolved no node to animate"),
+            Some(i) => {
+                S.sel = i;
+                anim::ensure_clip(S);
+                anim::add_key(S, 0.0);
+                let (_, found) = model::selected(S);
+                let found_some = found;
+                if let Some(found) = found_some {
+                    found.set_position(2.5, 2.5, 0.0);
+                    found.set_rotation_euler(0.0, math::rad(180.0), 0.0);
+                    anim::add_key(S, 1.0);
+                    found.set_position(2.5, 0.5, 0.0);
+                    anim::add_key(S, 2.0);
+                    anim::seek(S, 0.6);
+                }
+            }
+        }
+        set_persona(S, "anim");
+    } else if start == "undodemo" {
+        crate::selftest::undo(S);
+    } else if start == "breakdemo" {
+        break_demo(S);
+    } else if start == "rigdemo" {
+        crate::selftest::rigging(S);
+    } else if start == "polydemo" {
+        crate::selftest::polygons(S);
+    } else if start.starts_with("tool:") {
+        S.tool = start[5..];
+    } else if start.starts_with("dock:") {
+        S.dock = start[5..];
+    } else if start.starts_with("mode:") {
+        crate::polygon::set_mode(S, start[5..]);
+    } else if start.starts_with("select:") {
+        // Self-test state: select a node by name (e.g. select:Pig1).
+        select_named(S, start[7..]);
+    } else if start != "" {
+        set_persona(S, start);
+        if start == "script" {
+            for (i, node) in S.doc.iter().enumerate() {
+                if node.contains_key("script") {
+                    S.sel = i;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+// Self-test state: a breakpoint on the first scripted node's update, then
+// play; `update` alternates a step and a continue on every pause.
+pub fn break_demo(S) {
+    for (i, node) in S.doc.iter().enumerate() {
+        let script_some = node.get("script");
+        if let Some(script) = script_some {
+            S.sel = i;
+            let text = model::source(S, script).unwrap_or("");
+            let (_, hooks) = crate::highlight::analyze(text);
+            for hook in hooks {
+                if hook.name == "update" {
+                    toggle_breakpoint(S, script, hook.line + 1);
+                }
+            }
+            break;
+        }
+    }
+    S.breakdemo = Some(0);
+    toggle_play(S);
+}

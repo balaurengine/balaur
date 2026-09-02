@@ -20,10 +20,18 @@
 - Node paths accept `..`; `render.texture_size(path)`.
 - Editor: Rig bone tool, bone gizmos, rest-pose buttons; Polygon tool with Points / Polygons / UV / Weights modes; keying writes to the nearest animated ancestor; game-relative texture paths resolve in the editor; `--state` takes a comma list and `shot=<png>`.
 - `examples/rig`: a three-bone limb under a looping clip.
-- Script debugger (Luau): breakpoints, continue and step over / into / out, call frames with named locals; the `debugger` script module; the editor's gutter markers, Debugger dock and `F5` / `F10` / `F11` / `Shift+F11`.
-- 3D: `bone3d`; `mesh` reads self-contained `.glb` files (positions, normals, UVs, skin) and gains `skeleton` and `texture`; CPU skinning in the backend; `balaur import model.glb` writes the rig, mesh node and clips as TOML; `examples/rig3d`.
+- Script debugger: breakpoints, continue and step over / into / out, call frames with named locals; the `debugger` script module; the editor's gutter markers, Debugger dock and `F5` / `F10` / `F11` / `Shift+F11`.
+- 3D: `bone3d`; `mesh` reads `.glb` and `.gltf` files (positions, normals, UVs, skin; side `.bin` files and `data:` URIs) and gains `skeleton` and `texture`; CPU skinning in the backend; `balaur import model.glb` writes the rig, mesh node, clips, side files and base colour texture; `.bin` ships in packs; `examples/rig3d`.
+- `modifier2d`: `look_at` and `two_bone_ik` rig modifiers, run after the clip each frame.
+- Editor: bones pick and grow in the 3D viewport too.
+- `rotation` clip tracks take quaternion keys; `balaur import` keeps a file's rotations as they are.
+- `node:set_parent(other)`: move a node under another, keeping its world pose.
+- Rune: a deterministic `math` module (`libm`-backed, with `PI` / `TAU` / `INF`), `script.attempt`, `mod` files that load from disk and from packs, and `balaur api` on the Rune host.
+- Editor: skinned polygons deform live again (a `..` skeleton path was taken for a file); `--state dock:<name>`.
 
 ### Breaking
 
+- Luau is removed: Rune is the one scripting language. `.luau` scripts, `language = "luau"` / `"mixed"`, `balaur_script_luau` and the `balaur::luau` alias are gone; the editor and every example are Rune.
+- `ui.select` is `ui.dropdown`.
 - `shape`/`body`/`collider` are now `shape3d`/`body3d`/`collider3d`; body/collider script APIs moved to `physics3d`.
 - `color` is a property of `shape3d`, `shape2d`, `sprite` and `particles`, not a component.

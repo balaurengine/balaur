@@ -1,9 +1,8 @@
 //! The Rune script host: loading, instancing, hot reload, precompiled packs.
 //!
-//! Scripting model, matching the Luau backend: a `.rn` file declares free
-//! functions taking the instance as their first argument. One instance object
-//! is created per node the script is attached to, and the host hands it back
-//! on every call.
+//! Scripting model: a `.rn` file declares free functions taking the instance
+//! as their first argument. One instance object is created per node the
+//! script is attached to, and the host hands it back on every call.
 //!
 //! ```rune
 //! pub fn init(this) { this.angle = 0.0; }
@@ -13,11 +12,14 @@
 //! A Rune object handed into a function is mutated in place, so what a script
 //! writes to `this` is what the host sees on the next frame.
 
+mod api;
 mod bindings;
+mod debugger;
+mod pause;
 mod value;
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
@@ -26,15 +28,17 @@ use std::sync::Arc;
 use anyhow::{anyhow, Context as _, Result};
 use balaur_core::scene::ScriptAttachment;
 use balaur_core::{Engine, Pack};
+use balaur_script::{Pause, StepMode};
 use hecs::Entity;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use std::future::Future as _;
 
 use rune::alloc::clone::TryClone as _;
-use rune::runtime::{Function, RuntimeContext, Unit, VmResult};
+use rune::runtime::{Function, RuntimeContext, Unit, VmExecution, VmResult};
 use rune::{Diagnostics, Source, Sources, TypeHash as _, Vm};
 
-pub use bindings::RuneModule;
+pub use api::{api_json, rune_of};
+pub use bindings::{ApiEntry, RuneModule};
 pub use value::{Color, Node, Vec2, Vec3};
 
 /// The Rune backend, as an `AppConfig::script_backend` factory.
@@ -73,17 +77,25 @@ impl balaur_script::ScriptCompiler for RuneHost {
     }
 }
 
-/// The names and arities a required script exports. Read from the source
-/// text — the host owns it, and a `pub fn` starting a line, signature on
-/// that line, is the whole public surface of the script model.
-fn public_functions(source: &str) -> Vec<(String, usize)> {
-    let mut names = Vec::new();
+/// A `pub fn` a script declares, read off its source text. The host owns
+/// the text, and a `pub fn` starting a line, signature on that line, is the
+/// whole public surface of the script model.
+#[derive(Clone, Debug)]
+struct PublicSignature {
+    name: String,
+    arity: usize,
+    is_async: bool,
+}
+
+fn public_functions(source: &str) -> Vec<PublicSignature> {
+    let mut out = Vec::new();
     for line in source.lines() {
         let mut rest = line.trim_start();
         rest = match rest.strip_prefix("pub ") {
             Some(rest) => rest.trim_start(),
             None => continue,
         };
+        let is_async = rest.starts_with("async ");
         if let Some(after) = rest.strip_prefix("async ") {
             rest = after.trim_start();
         }
@@ -98,15 +110,19 @@ fn public_functions(source: &str) -> Vec<(String, usize)> {
         let Some(close) = rest.find(')') else {
             continue;
         };
-        let parameters = rest[open + 1..close]
+        let arity = rest[open + 1..close]
             .split(',')
             .filter(|p| !p.trim().is_empty())
             .count();
         if !name.is_empty() {
-            names.push((name, parameters));
+            out.push(PublicSignature {
+                name,
+                arity,
+                is_async,
+            });
         }
     }
-    names
+    out
 }
 
 fn render(diagnostics: &Diagnostics, sources: &Sources) -> String {
@@ -123,6 +139,22 @@ struct Script {
     /// Resolved lifecycle and signal handlers. A miss is cached too: most
     /// scripts define none of `on_free`, and asking every frame is not free.
     methods: HashMap<String, Option<Function>>,
+    lines: Rc<debugger::Lines>,
+    functions: Vec<PublicSignature>,
+}
+
+impl Script {
+    fn new(unit: Arc<Unit>, source: String) -> Self {
+        let lines = Rc::new(debugger::Lines::of(&unit, &source));
+        let functions = public_functions(&source);
+        Self {
+            unit,
+            source,
+            methods: HashMap::new(),
+            lines,
+            functions,
+        }
+    }
 }
 
 struct Instance {
@@ -141,6 +173,30 @@ struct RuneTask {
     /// What to blame in an error report when the resumed code fails.
     label: String,
     future: std::pin::Pin<Box<rune::runtime::Future>>,
+}
+
+/// One file's breakpoints: the lines asked for, where they landed on the
+/// unit currently loaded, and the instructions that stop it.
+#[derive(Default)]
+struct Breakpoints {
+    requested: Vec<usize>,
+    landed: Vec<usize>,
+    ips: HashSet<usize>,
+}
+
+/// An execution the debugger parked, with the rest of the tick it cut short.
+struct Paused {
+    owner: Entity,
+    key: String,
+    label: String,
+    exec: VmExecution<Vm>,
+    /// The instruction it is parked on, run without breaking again on resume.
+    ip: usize,
+    lines: Rc<debugger::Lines>,
+    pause: Pause,
+    /// Instances the interrupted tick had not reached, run on resume.
+    remaining: Vec<(Entity, String, rune::Value)>,
+    method: Option<(String, f32)>,
 }
 
 thread_local! {
@@ -204,6 +260,44 @@ fn trampoline(slot: usize, arity: usize) -> Option<Function> {
     })
 }
 
+/// `mod name;` in a packed script: `name.rn` or `name/mod.rn` beside the
+/// requesting file, looked up in the pack.
+struct PackSourceLoader {
+    scripts: std::collections::BTreeMap<String, Vec<u8>>,
+}
+
+impl rune::compile::SourceLoader for PackSourceLoader {
+    fn load(
+        &mut self,
+        root: &Path,
+        item: &rune::Item,
+        span: &dyn rune::ast::Spanned,
+    ) -> rune::compile::Result<Source> {
+        let not_found = |path: PathBuf| {
+            rune::compile::Error::msg(
+                span,
+                format!("module {} is not in the pack", path.display()),
+            )
+        };
+        let mut base = root.to_path_buf();
+        base.pop();
+        for component in item {
+            match component {
+                rune::item::ComponentRef::Str(name) => base.push(name),
+                _ => return Err(not_found(base)),
+            }
+        }
+        for candidate in [base.join("mod.rn"), base.with_extension("rn")] {
+            let key = candidate.to_string_lossy().replace('\\', "/");
+            if let Some(bytes) = self.scripts.get(&key) {
+                let text = String::from_utf8_lossy(bytes);
+                return Ok(Source::with_path(key.as_str(), text.as_ref(), &candidate)?);
+            }
+        }
+        Err(not_found(base))
+    }
+}
+
 /// The future behind `task::wait(token)`: pending until its token's wake
 /// payload appears, ready with that payload converted for the script.
 struct WaitFuture {
@@ -246,7 +340,7 @@ struct State {
     scripts: HashMap<String, Script>,
     /// `script::require` results: an object of the script's public functions
     /// per key. The object's contents swap in place on hot reload, so every
-    /// requirer sees the new code — the Luau `require` contract.
+    /// requirer sees the new code.
     modules: HashMap<String, rune::Value>,
     /// Insertion-ordered so `update` visits nodes the same way every run.
     instances: indexmap::IndexMap<Entity, Instance>,
@@ -254,6 +348,8 @@ struct State {
     tasks: Vec<RuneTask>,
     events: Option<Receiver<notify::Result<notify::Event>>>,
     _watcher: Option<RecommendedWatcher>,
+    breakpoints: HashMap<String, Breakpoints>,
+    paused: Option<Paused>,
 }
 
 #[derive(Clone)]
@@ -297,6 +393,8 @@ impl RuneHost {
                 tasks: Vec::new(),
                 events,
                 _watcher: watcher,
+                breakpoints: HashMap::new(),
+                paused: None,
             })),
         })
     }
@@ -346,6 +444,18 @@ impl RuneHost {
                 }
             })
             .build()?;
+        // `let (ok, value) = script::attempt(|| risky())`: the closure's
+        // error becomes a value instead of ending the caller, which is what
+        // a tool wants from a call that may legitimately fail.
+        script
+            .function("attempt", |f: Function| -> rune::Value {
+                let outcome = match f.call::<rune::Value>(()).into_result() {
+                    Ok(value) => rune::to_value((true, value)),
+                    Err(err) => rune::to_value((false, err.to_string())),
+                };
+                outcome.expect("a tuple always converts")
+            })
+            .build()?;
         ctx.install(script)?;
         let pending = self.state.borrow().pending.clone();
         for m in pending.borrow_mut().drain(..) {
@@ -383,15 +493,34 @@ impl RuneHost {
             .with_context(|| format!("reading {key}"))
     }
 
+    /// The source carries its on-disk path so `mod name;` finds `name.rn`
+    /// beside it.
     fn compile_unit(&self, key: &str, source: &str) -> Result<Arc<Unit>> {
         let (ctx, _) = self.context()?;
+        // A packed script's `mod` resolves inside the pack, keyed the way
+        // `Pack::build` keyed it; a dev run reads beside the file on disk.
+        let (path, packed) = {
+            let state = self.state.borrow();
+            match &state.pack {
+                Some(pack) => (PathBuf::from(key), Some(pack.scripts.clone())),
+                None => (state.project_root.join(key), None),
+            }
+        };
         let mut sources = Sources::new();
-        sources.insert(Source::new(key, source)?)?;
-        let mut diagnostics = Diagnostics::new();
-        let built = rune::prepare(&mut sources)
+        sources.insert(Source::with_path(key, source, path)?)?;
+        // Warnings are the language server's business; an error report
+        // should be the error.
+        let mut diagnostics = Diagnostics::without_warnings();
+        let mut loader = PackSourceLoader {
+            scripts: packed.clone().unwrap_or_default(),
+        };
+        let mut prepared = rune::prepare(&mut sources)
             .with_context(&ctx)
-            .with_diagnostics(&mut diagnostics)
-            .build();
+            .with_diagnostics(&mut diagnostics);
+        if packed.is_some() {
+            prepared = prepared.with_source_loader(&mut loader);
+        }
+        let built = prepared.build();
         match built {
             Ok(unit) => Ok(Arc::new(unit)),
             Err(_) => Err(anyhow!("{}", render(&diagnostics, &sources))),
@@ -404,14 +533,11 @@ impl RuneHost {
         }
         let source = self.source_of(key)?;
         let unit = self.compile_unit(key, &source)?;
-        self.state.borrow_mut().scripts.insert(
-            key.to_string(),
-            Script {
-                unit: unit.clone(),
-                source,
-                methods: HashMap::new(),
-            },
-        );
+        self.state
+            .borrow_mut()
+            .scripts
+            .insert(key.to_string(), Script::new(unit.clone(), source));
+        self.apply_breakpoints(key);
         Ok(unit)
     }
 
@@ -451,28 +577,28 @@ impl RuneHost {
             entity,
             Instance {
                 key: key.clone(),
-                state: state.clone(),
+                state: state.try_clone()?,
             },
         );
         self.engine
             .world_mut()
             .insert_one(entity, ScriptAttachment { path: key.clone() })
             .map_err(|_| anyhow!("cannot attach script to a dead node"))?;
-        if let Some(init) = self.method(&key, "init") {
-            match init.call::<rune::Value>((state,)) {
-                VmResult::Ok(value) => {
-                    self.settle_call(entity, &key, "init", value);
-                }
-                VmResult::Err(err) => tracing::error!("[{key}] init: {err}"),
-            }
-        }
+        self.invoke(entity, &key, "init", vec![state], true);
         Ok(())
     }
 
-    /// Tasks the node's script left suspended die with it.
+    /// Tasks the node's script left suspended die with it, a pause included.
     pub fn detach(&self, entity: Entity) {
-        self.state.borrow_mut().tasks.retain(|t| t.owner != entity);
-        let inst = self.state.borrow_mut().instances.shift_remove(&entity);
+        let (inst, paused) = {
+            let mut state = self.state.borrow_mut();
+            state.tasks.retain(|t| t.owner != entity);
+            let paused = state.paused.take_if(|p| p.owner == entity);
+            (state.instances.shift_remove(&entity), paused)
+        };
+        if let Some(paused) = paused {
+            self.drop_pause(&paused);
+        }
         if let Some(inst) = inst {
             if let Some(on_free) = self.method(&inst.key, "on_free") {
                 if let VmResult::Err(err) = on_free.call::<()>((inst.state,)) {
@@ -492,30 +618,8 @@ impl RuneHost {
 
     /// Call `method(dt)` on every live instance that defines it.
     fn tick_lifecycle(&self, method: &str, dt: f32) {
-        // Collect first so a script may attach, detach or spawn during its own
-        // update without the host state being borrowed.
-        let batch: Vec<(String, rune::Value)> = self
-            .state
-            .borrow()
-            .instances
-            .values()
-            .filter_map(|i| Some((i.key.clone(), i.state.try_clone().ok()?)))
-            .collect();
-        for (key, state) in batch {
-            let Some(f) = self.method(&key, method) else {
-                continue;
-            };
-            match f.call::<rune::Value>((state, f64::from(dt))) {
-                VmResult::Ok(value) => {
-                    if value.type_hash() == rune::runtime::Future::HASH {
-                        tracing::error!(
-                            "[{key}] {method} cannot be async; suspend in init or a handler instead"
-                        );
-                    }
-                }
-                VmResult::Err(err) => tracing::error!("[{key}] {method}: {err}"),
-            }
-        }
+        let batch = self.live_batch();
+        self.run_batch(method, dt, batch);
     }
 
     /// Every instance's state, for a rollback snapshot: a script that
@@ -609,22 +713,25 @@ impl RuneHost {
 
     /// Call one node's script method — a signal, or one script calling
     /// another. Returns the method's return value; `None` when the call did
-    /// not run to completion here (no instance, no such method, or an async
-    /// method that is now suspended).
+    /// not run to completion here (no instance, no such method, an async
+    /// method that is now suspended, or a node the debugger holds).
     pub fn call_on(
         &self,
         entity: Entity,
         method: &str,
         args: &[balaur_script::Value],
     ) -> Option<balaur_script::Value> {
-        let found = self
-            .state
-            .borrow()
-            .instances
-            .get(&entity)
-            .and_then(|i| Some((i.key.clone(), i.state.try_clone().ok()?)));
+        let found = {
+            let state = self.state.borrow();
+            if self.is_held(entity, &state) {
+                return None;
+            }
+            state
+                .instances
+                .get(&entity)
+                .and_then(|i| Some((i.key.clone(), i.state.try_clone().ok()?)))
+        };
         let (key, state) = found?;
-        let f = self.method(&key, method)?;
         // The instance first, then the payload: `pub fn on_x(this, a, b)`,
         // the same shape `update(this, dt)` already has.
         let mut call_args = vec![state];
@@ -637,33 +744,12 @@ impl RuneHost {
                 }
             }
         }
-        match f.call::<rune::Value>(call_args) {
-            VmResult::Ok(value) => self.settle_call(entity, &key, method, value),
-            VmResult::Err(err) => {
-                tracing::error!("[{key}] {method}: {err}");
-                None
-            }
-        }
+        self.invoke(entity, &key, method, call_args, true)
     }
 
     pub fn call_all(&self, method: &str) {
-        let batch: Vec<(Entity, String, rune::Value)> = self
-            .state
-            .borrow()
-            .instances
-            .iter()
-            .filter_map(|(e, i)| Some((*e, i.key.clone(), i.state.try_clone().ok()?)))
-            .collect();
-        for (entity, key, state) in batch {
-            let Some(f) = self.method(&key, method) else {
-                continue;
-            };
-            match f.call::<rune::Value>((state,)) {
-                VmResult::Ok(value) => {
-                    self.settle_call(entity, &key, method, value);
-                }
-                VmResult::Err(err) => tracing::error!("[{key}] {method}: {err}"),
-            }
+        for (entity, key, state) in self.live_batch() {
+            self.invoke(entity, &key, method, vec![state], true);
         }
     }
 
@@ -777,10 +863,10 @@ impl RuneHost {
 
     /// Recompile a script and rebind its live instances.
     ///
-    /// Rune compiles to an immutable unit, so unlike Luau there is no class
-    /// table to swap in place: the instances keep their state objects and the
-    /// next call resolves against the new unit. A compile error leaves the
-    /// previous unit running.
+    /// Rune compiles to an immutable unit, so there is no class table to swap
+    /// in place: the instances keep their state objects and the next call
+    /// resolves against the new unit. A compile error leaves the previous
+    /// unit running.
     pub fn reload(&self, key: &str) -> Result<()> {
         let source = self.source_of(key)?;
         if self
@@ -794,19 +880,19 @@ impl RuneHost {
             return Ok(());
         }
         let unit = self.compile_unit(key, &source)?;
-        {
+        let paused = {
             let mut state = self.state.borrow_mut();
             // A task suspended in the old unit must not resume into it.
             state.tasks.retain(|t| t.key != key);
-            state.scripts.insert(
-                key.to_string(),
-                Script {
-                    unit,
-                    source,
-                    methods: HashMap::new(),
-                },
-            );
+            state
+                .scripts
+                .insert(key.to_string(), Script::new(unit, source));
+            state.paused.take_if(|p| p.key == key)
+        };
+        if let Some(paused) = paused {
+            self.drop_pause(&paused);
         }
+        self.apply_breakpoints(key);
         self.refresh_module(key)
     }
 
@@ -836,28 +922,31 @@ impl RuneHost {
     /// wrapped in a Rust-routed trampoline (see `SHARED_FNS`).
     fn module_object(&self, key: &str) -> Result<rune::runtime::Object> {
         self.load(key)?;
-        let source = self
+        let functions = self
             .state
             .borrow()
             .scripts
             .get(key)
-            .map(|s| s.source.clone())
+            .map(|s| s.functions.clone())
             .ok_or_else(|| anyhow!("{key} did not load"))?;
         let mut object = rune::runtime::Object::new();
-        for (name, arity) in public_functions(&source) {
-            let Some(function) = self.method(key, &name) else {
+        for declared in functions {
+            let Some(function) = self.method(key, &declared.name) else {
                 continue;
             };
             let Some(wrapper) = SHARED_FNS.with(|shared| {
                 let mut shared = shared.borrow_mut();
                 shared.push(function);
-                trampoline(shared.len() - 1, arity)
+                trampoline(shared.len() - 1, declared.arity)
             }) else {
-                tracing::warn!("{key}: `{name}` takes too many parameters to require");
+                tracing::warn!(
+                    "{key}: `{}` takes too many parameters to require",
+                    declared.name
+                );
                 continue;
             };
             object.insert(
-                rune::alloc::String::try_from(name.as_str())?,
+                rune::alloc::String::try_from(declared.name.as_str())?,
                 rune::to_value(wrapper)?,
             )?;
         }
@@ -994,6 +1083,22 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
         let args: Result<Vec<rune::Value>> = args.iter().map(value::from_neutral).collect();
         let out = func.call::<rune::Value>(args?).into_result()?;
         value::to_neutral(&out)
+    }
+
+    fn set_breakpoints(&self, path: &str, lines: &[usize]) -> Result<Vec<usize>> {
+        RuneHost::set_breakpoints(self, path, lines)
+    }
+
+    fn breakpoints(&self, path: &str) -> Vec<usize> {
+        RuneHost::breakpoints(self, path)
+    }
+
+    fn paused(&self) -> Option<Pause> {
+        RuneHost::paused(self)
+    }
+
+    fn resume(&self, mode: StepMode) {
+        RuneHost::resume(self, mode);
     }
 
     fn as_any(&self) -> &dyn core::any::Any {

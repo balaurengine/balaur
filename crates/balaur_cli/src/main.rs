@@ -50,8 +50,8 @@ enum Command {
         #[arg(long, value_name = "PATH")]
         record: Option<PathBuf>,
     },
-    /// Export the project as a pack: every script precompiled to Luau
-    /// bytecode, scenes and manifest bundled.
+    /// Export the project as a pack: every script checked, scenes and
+    /// manifest bundled.
     ///
     /// With `--target` or `--template` the pack is carried inside a runtime
     /// binary instead, producing a game the player can just run.
@@ -853,8 +853,8 @@ fn dump_api() -> Result<()> {
 
     let mut app = balaur::standard_app(AppConfig::dev(dir.to_string_lossy().as_ref()))?;
     app.load_project()?;
-    let lua = balaur::luau::lua_of(&app.engine);
-    let mut api: serde_json::Value = serde_json::from_str(&balaur::luau::api_json(&lua)?)?;
+    let host = balaur::rune::rune_of(&app.engine);
+    let mut api: serde_json::Value = serde_json::from_str(&balaur::rune::api_json(&host)?)?;
     // Component schemas ride along, so docs and tools read one probe.
     let components: std::collections::BTreeMap<String, serde_json::Value> =
         balaur::components::schemas(&app.engine)
@@ -943,23 +943,19 @@ fn new_project(path: &Path) -> Result<()> {
         path.join("scenes/main.toml"),
         r#"[[nodes]]
 name = "Hello"
-script = "scripts/hello.luau"
+script = "scripts/hello.rn"
 "#,
     )?;
     std::fs::write(
-        path.join("scripts/hello.luau"),
-        r#"local Hello = {}
+        path.join("scripts/hello.rn"),
+        r#"pub fn init(this) {
+    println!("hello from {}", this.node.name());
+    this.elapsed = 0.0;
+}
 
-function Hello:init()
-    print("hello from", self.node:name())
-    self.elapsed = 0
-end
-
-function Hello:update(dt)
-    self.elapsed += dt
-end
-
-return Hello
+pub fn update(this, dt) {
+    this.elapsed += dt;
+}
 "#,
     )?;
     tracing::info!("created project '{name}' at {}", path.display());

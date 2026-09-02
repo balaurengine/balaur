@@ -4,4 +4,4 @@
 [[nodes]]
 id = "n_editor"
 name = "Editor"
-script = "scripts/editor.luau"
+script = "scripts/editor.rn"

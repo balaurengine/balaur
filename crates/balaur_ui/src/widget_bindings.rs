@@ -355,7 +355,7 @@ pub(crate) fn install_code_editor(m: &mut dyn Bindings<Engine>) {
 /// `ui.*` bindings: drop-down select.
 pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
     m.function(
-        "select",
+        "dropdown",
         |_eng: &Engine, (id, current, options, opts): (String, String, Value, Option<Value>)| {
             let opts = Opts(opts);
             with_ui(|ui| {

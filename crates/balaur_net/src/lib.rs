@@ -17,9 +17,8 @@
 //! ```
 //!
 //! Or, sequentially: an http request made without a node is a token the
-//! script suspends on until the pump wakes it —
-//! `local r = await(http.request(url))` in Luau,
-//! `let r = task::wait(http::request(url)).await` in Rune.
+//! script suspends on until the pump wakes it:
+//! `let r = task::wait(http::request(url)).await`.
 //!
 //! Nothing here blocks the frame: `http.request` and `websocket.connect`
 //! return an id immediately, and handlers and resumptions run at

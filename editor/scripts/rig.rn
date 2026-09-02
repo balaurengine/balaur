@@ -1,0 +1,393 @@
+// Rigging: bones drawn as diamonds (2D) or octahedra (3D), the Rig bone tool
+// that grows a chain, and the two rest-pose verbs. A bone is a node with
+// `bone2d` or `bone3d`; this module only reads and writes those.
+
+use crate::history;
+use crate::model;
+use crate::util;
+
+const W = 2.4;
+// A tip bone with no length set still needs a diamond to pick.
+const TIP_LENGTH = 0.35;
+const PICK_PX = 10.0;
+
+fn hover_color() {
+    [0.118, 0.314, 0.784]
+}
+
+fn world_per_px(S) {
+    let (_, _, zoom) = render::camera_2d();
+    S.ui_scale / util::max(zoom, 0.01)
+}
+
+fn has_object(node, key) {
+    match node.get(key) {
+        Some(v) => v is Object,
+        None => false,
+    }
+}
+
+pub fn is_bone(node) {
+    has_object(node, "bone2d") || has_object(node, "bone3d")
+}
+
+fn bone_data(node) {
+    if has_object(node, "bone2d") { node.bone2d } else { util::obj(node.get("bone3d").unwrap_or(#{})) }
+}
+
+// Doc index of the first child bone of doc node `i`, or `None`.
+fn first_child_bone(S, i) {
+    let id = S.doc[i].id;
+    for (j, node) in S.doc.iter().enumerate() {
+        if node.parent == id && is_bone(node) {
+            return Some(j);
+        }
+    }
+    None
+}
+
+// A bone's world geometry: its origin and the tip its diamond points at —
+// the first child bone, or `length` along `angle` for a tip bone.
+pub fn geometry(S, i) {
+    let node = S.doc[i];
+    let found = match model::live(S, i) {
+        Some(found) => found,
+        None => return None,
+    };
+    if !is_bone(node) {
+        return None;
+    }
+    let o = found.global_position();
+    let child_ref = match first_child_bone(S, i) {
+        Some(child) => model::live(S, child),
+        None => None,
+    };
+    let tip = match child_ref {
+        Some(child) => {
+            let t = child.global_position();
+            [t.x, t.y, t.z]
+        }
+        None => {
+            let bone = bone_data(node);
+            let length = util::f(bone.get("length").unwrap_or(0.0));
+            if length <= 0.0 {
+                length = TIP_LENGTH;
+            }
+            let angle = found.global_rotation_euler().z + util::f(bone.get("angle").unwrap_or(0.0));
+            let sx = found.global_scale().x;
+            // A 3D tip bone points along its own y, the way an imported joint
+            // chain grows; a 2D one along `angle`.
+            if node.contains_key("bone3d") {
+                [o.x, o.y + length * sx, o.z]
+            } else {
+                [o.x + math::cos(angle) * length * sx, o.y + math::sin(angle) * length * sx, o.z]
+            }
+        }
+    };
+    Some(#{ origin: [o.x, o.y, o.z], tip: tip })
+}
+
+fn segment_distance(p, a, b) {
+    let abx = b[0] - a[0];
+    let aby = b[1] - a[1];
+    let len2 = abx * abx + aby * aby;
+    let t = 0.0;
+    if len2 > 1e-9 {
+        t = util::clamp(((p[0] - a[0]) * abx + (p[1] - a[1]) * aby) / len2, 0.0, 1.0);
+    }
+    let cx = a[0] + abx * t;
+    let cy = a[1] + aby * t;
+    math::sqrt((p[0] - cx) * (p[0] - cx) + (p[1] - cy) * (p[1] - cy))
+}
+
+// The bone under the cursor: the one whose diamond's spine is nearest,
+// within a screen-space radius.
+pub fn pick(S, mx, my) {
+    let best = None;
+    let best_d = PICK_PX * world_per_px(S);
+    for (i, node) in S.doc.iter().enumerate() {
+        if is_bone(node) {
+            if let Some(g) = geometry(S, i) {
+                let d = segment_distance([mx, my], g.origin, g.tip);
+                if d < best_d {
+                    best = Some(i);
+                    best_d = d;
+                }
+            }
+        }
+    }
+    best
+}
+
+// The bone under the cursor in a 3D viewport: nearest projected spine, in
+// design px. `project(point)` is the 3D gizmo's, handed in so this module
+// stays free of camera math.
+pub fn pick_3d(S, mx, my, project) {
+    let best = None;
+    let best_d = PICK_PX;
+    for (i, node) in S.doc.iter().enumerate() {
+        if is_bone(node) {
+            if let Some(g) = geometry(S, i) {
+                if let Some((ax, ay)) = project(g.origin) {
+                    if let Some((bx, by)) = project(g.tip) {
+                        let d = segment_distance([mx, my], [ax, ay], [bx, by]);
+                        if d < best_d {
+                            best = Some(i);
+                            best_d = d;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    best
+}
+
+fn line(a, b, color) {
+    render::draw_line_2d(a[0], a[1], b[0], b[1], color[0], color[1], color[2], W);
+}
+
+// Godot's bone: a diamond from origin to tip, widest a fifth of the way.
+fn draw_bone(S, g, color) {
+    let dx = g.tip[0] - g.origin[0];
+    let dy = g.tip[1] - g.origin[1];
+    let len = math::sqrt(dx * dx + dy * dy);
+    if len < 1e-6 {
+        return;
+    }
+    let nx = -dy / len;
+    let ny = dx / len;
+    let half = util::min(0.12 * len, 6.0 * world_per_px(S));
+    let jx = g.origin[0] + dx * 0.2;
+    let jy = g.origin[1] + dy * 0.2;
+    let a = [jx + nx * half, jy + ny * half];
+    let b = [jx - nx * half, jy - ny * half];
+    line(g.origin, a, color);
+    line(a, g.tip, color);
+    line(g.tip, b, color);
+    line(b, g.origin, color);
+}
+
+// A 3D bone: an octahedron from origin to tip, its waist a fifth of the way.
+fn draw_bone_3d(g, color) {
+    let dx = g.tip[0] - g.origin[0];
+    let dy = g.tip[1] - g.origin[1];
+    let dz = g.tip[2] - g.origin[2];
+    let len = math::sqrt(dx * dx + dy * dy + dz * dz);
+    if len < 1e-6 {
+        return;
+    }
+    // Two directions across the bone: any vector not along it, crossed.
+    let ax = 0.0;
+    let ay = 0.0;
+    let az = 1.0;
+    if util::abs(dz) > 0.9 * len {
+        ax = 1.0;
+        az = 0.0;
+    }
+    let ux = dy * az - dz * ay;
+    let uy = dz * ax - dx * az;
+    let uz = dx * ay - dy * ax;
+    let ul = math::sqrt(ux * ux + uy * uy + uz * uz);
+    ux = ux / ul;
+    uy = uy / ul;
+    uz = uz / ul;
+    let vx = dy * uz - dz * uy;
+    let vy = dz * ux - dx * uz;
+    let vz = dx * uy - dy * ux;
+    let vl = math::sqrt(vx * vx + vy * vy + vz * vz);
+    vx = vx / vl;
+    vy = vy / vl;
+    vz = vz / vl;
+    let half = 0.1 * len;
+    let jx = g.origin[0] + dx * 0.2;
+    let jy = g.origin[1] + dy * 0.2;
+    let jz = g.origin[2] + dz * 0.2;
+    let waist = [
+        [jx + ux * half, jy + uy * half, jz + uz * half],
+        [jx + vx * half, jy + vy * half, jz + vz * half],
+        [jx - ux * half, jy - uy * half, jz - uz * half],
+        [jx - vx * half, jy - vy * half, jz - vz * half],
+    ];
+    for (i, w) in waist.iter().enumerate() {
+        let n = waist[(i + 1) % 4];
+        render::draw_line(g.origin[0], g.origin[1], g.origin[2], w[0], w[1], w[2], color[0], color[1], color[2], W);
+        render::draw_line(w[0], w[1], w[2], g.tip[0], g.tip[1], g.tip[2], color[0], color[1], color[2], W);
+        render::draw_line(w[0], w[1], w[2], n[0], n[1], n[2], color[0], color[1], color[2], W);
+    }
+}
+
+// Every bone, whenever rigging is what the user is doing: the Animate
+// persona, the tool, or a selected bone.
+pub fn draw(S) {
+    let show = S.persona == "anim" || S.tool == "bone" || is_bone(S.doc[S.sel]);
+    if !show {
+        return;
+    }
+    let k = S.theme;
+    let sage = util::rgb(k.sage);
+    let accent = util::rgb(k.accent);
+    for (i, node) in S.doc.iter().enumerate() {
+        if is_bone(node) {
+            if let Some(g) = geometry(S, i) {
+                let color = if S.rig_hover == Some(i) {
+                    hover_color()
+                } else if i == S.sel {
+                    accent
+                } else {
+                    sage
+                };
+                if S.mode2d {
+                    draw_bone(S, g, color);
+                } else {
+                    draw_bone_3d(g, color);
+                }
+            }
+        }
+    }
+}
+
+// A bone name no node has yet.
+fn fresh_name(S) {
+    let taken = #{};
+    for node in S.doc {
+        taken[node.name] = true;
+    }
+    let name = "Bone";
+    let n = 1;
+    while taken.contains_key(name) {
+        n += 1;
+        name = format!("Bone{}", n);
+    }
+    name
+}
+
+// A new bone under doc node `parent_i`, at world point (wx, wy), posed at
+// its rest there. Returns the new doc index.
+pub fn add_bone(S, parent_i, wx, wy) {
+    let parent = S.doc[parent_i];
+    let pref = match model::live(S, parent_i) {
+        Some(pref) => pref,
+        None => {
+            log::warn(format!("{}: no live node to hang a bone on", parent.name));
+            return None;
+        }
+    };
+    history::record(S, "add bone", None);
+    let lx = 0.0;
+    let ly = 1.0;
+    if S.mode2d {
+        // The click, in the parent's own frame.
+        let p = pref.global_position();
+        let angle = pref.global_rotation_euler().z;
+        let s = pref.global_scale();
+        let dx = wx - p.x;
+        let dy = wy - p.y;
+        let c = math::cos(angle);
+        let sn = math::sin(angle);
+        lx = (c * dx + sn * dy) / (if util::abs(s.x) > 1e-6 { s.x } else { 1.0 });
+        ly = (-sn * dx + c * dy) / (if util::abs(s.y) > 1e-6 { s.y } else { 1.0 });
+    }
+    let name = fresh_name(S);
+    let child = pref.add_child(name);
+    child.set_position(lx, ly, 0.0);
+    // A 3D rig has no click to place a bone by, so it grows one unit up.
+    let component = if S.mode2d { "bone2d" } else { "bone3d" };
+    if S.mode2d {
+        child.set_component(component, #{ rest_position: [lx, ly], rest_rotation: 0.0 });
+    } else {
+        child.set_component(component, #{ rest_position: [lx, ly, 0.0] });
+    }
+    let entry = #{
+        id: model::fresh_id(S.doc, name),
+        name: name,
+        parent: parent.get("id").unwrap_or(""),
+        position: [lx, ly, 0.0],
+    };
+    entry[component] = child.get_component(component);
+    S.doc.push(entry);
+    S.refs.push(child);
+    S.sel = S.doc.len() - 1;
+    log::info(format!("bone {} under {}", name, parent.name));
+    Some(S.doc.len() - 1)
+}
+
+// Runs from the 2D gizmo while the Rig bone tool is active: a click on a bone
+// selects it, a click anywhere else grows a bone under the selection.
+pub fn update(S, over_viewport, mx, my) {
+    // No 3D picking: a 3D rig is selected in the tree and grown from the
+    // inspector's Skeleton section.
+    if !S.mode2d {
+        S.rig_hover = None;
+        return;
+    }
+    S.rig_hover = if over_viewport { pick(S, mx, my) } else { None };
+    if !(over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT)) {
+        return;
+    }
+    if let Some(hover) = S.rig_hover {
+        crate::shell::choose(S, hover);
+        return;
+    }
+    add_bone(S, S.sel, mx, my);
+}
+
+// How many bones the selection's subtree holds (itself included).
+pub fn bone_count(S, i) {
+    match model::live(S, i) {
+        Some(found) => util::vec(skeleton::bones(found)).len(),
+        None => 0,
+    }
+}
+
+// Mirror the live bones under doc node `root_i` back into the document,
+// either their transforms or their `bone2d`, after a rest verb moved one.
+fn sync_bones(S, root_i, transforms) {
+    let root = match model::live(S, root_i) {
+        Some(root) => root,
+        None => return,
+    };
+    for bone in util::vec(skeleton::bones(root)) {
+        let bone_path = bone.path();
+        for i in 0..S.doc.len() {
+            if let Some(found) = model::live(S, i) {
+                if found.path() == bone_path {
+                    if transforms {
+                        let p = found.position();
+                        let r = found.rotation_euler();
+                        let s = found.scale();
+                        S.doc[i].position = [p.x, p.y, p.z];
+                        S.doc[i].rotation_euler = [r.x, r.y, r.z];
+                        S.doc[i].scale = [s.x, s.y, s.z];
+                    } else {
+                        let component = if S.doc[i].contains_key("bone3d") { "bone3d" } else { "bone2d" };
+                        S.doc[i][component] = found.get_component(component);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Reset to Rest Pose, for every bone under the selection.
+pub fn apply_rest(S) {
+    let found = match model::live(S, S.sel) {
+        Some(found) => found,
+        None => return,
+    };
+    history::record(S, "reset to rest pose", None);
+    skeleton::apply_rest(found);
+    sync_bones(S, S.sel, true);
+}
+
+// Overwrite Rest Pose: the pose every bone under the selection is in now
+// becomes the one it returns to.
+pub fn overwrite_rest(S) {
+    let found = match model::live(S, S.sel) {
+        Some(found) => found,
+        None => return,
+    };
+    history::record(S, "overwrite rest pose", None);
+    skeleton::overwrite_rest(found);
+    sync_bones(S, S.sel, false);
+}

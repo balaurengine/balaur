@@ -41,16 +41,10 @@ fn assert_under(what: &str, actual: Duration, budget: Duration) {
     );
 }
 
-const EMPTY: [(Backend, &str); 2] = [
-    (
-        Backend::Luau,
-        "local S = {}\nfunction S:init() end\nfunction S:update(dt) end\nreturn S\n",
-    ),
-    (
-        Backend::Rune,
-        "pub fn init(this) {}\npub fn update(this, dt) {}\n",
-    ),
-];
+const EMPTY: [(Backend, &str); 1] = [(
+    Backend::Rune,
+    "pub fn init(this) {}\npub fn update(this, dt) {}\n",
+)];
 
 #[test]
 fn dispatch_over_a_thousand_nodes_stays_inside_a_frame() {
@@ -87,13 +81,13 @@ fn attaching_to_a_compiled_script_is_cheap_per_node() {
 
 #[test]
 fn transform_propagation_stays_linear() {
-    let project = Project::new(Backend::Luau, EMPTY[0].1).unwrap();
-    let app = app(Backend::Luau, &project).unwrap();
-    let root = app.engine.root();
-    let mut cost = Vec::new();
     // Wide and shallow, the shape a real scene has: propagation recurses per
     // level, so one long chain overflows the stack instead of measuring.
     const DEPTH: usize = 50;
+    let project = Project::new(Backend::Rune, EMPTY[0].1).unwrap();
+    let app = app(Backend::Rune, &project).unwrap();
+    let root = app.engine.root();
+    let mut cost = Vec::new();
     for count in [500usize, 5000] {
         {
             let mut world = app.engine.world_mut();
@@ -124,7 +118,6 @@ fn transform_propagation_stays_linear() {
 fn a_binding_call_stays_sub_microsecond() {
     for backend in Backend::ALL {
         let source = match backend {
-            Backend::Luau => "local S = {}\nfunction S:init() end\nfunction S:update(dt) bench.noop(1) end\nreturn S\n",
             Backend::Rune => "pub fn init(this) {}\npub fn update(this, dt) { bench::noop(1); }\n",
         };
         let project = Project::new(backend, source).unwrap();

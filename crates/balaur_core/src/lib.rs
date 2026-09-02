@@ -17,6 +17,7 @@ pub mod engine_api;
 pub mod glb;
 pub mod heightfield;
 pub mod logbuf;
+pub mod math_api;
 pub mod mesh;
 pub mod node_api;
 pub mod pack;

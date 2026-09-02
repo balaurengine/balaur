@@ -1,9 +1,11 @@
-> **Status:** phases 1–3 built on 2026-09-02 — the `debugger` script module,
-> the engine freeze, Luau breakpoints with continue and step over / into /
-> out, call frames with named locals, and the editor's gutter, dock and
-> shortcuts. Phases 4–6 (Rune, break-on-error, a Debug Adapter Protocol
-> server) are not started. See [generated/](generated/) for what the code
-> actually does.
+> **Status:** phases 1–4 built on 2026-09-02 — the `debugger` script module,
+> the engine freeze, breakpoints with continue and step over / into / out,
+> call frames with named locals, and the editor's gutter, dock and
+> shortcuts. Luau left the tree the same day, so the Rune host is the one
+> implementation; the Luau design below stays as the record of what was
+> built first. Phases 5–6 (break-on-error, a Debug Adapter Protocol server)
+> are not started. See [generated/](generated/) for what the code actually
+> does.
 >
 > **Where the implementation decided differently:**
 >
@@ -20,6 +22,11 @@
 >    bytecode that differs from what ships.
 > 3. **The module is `debugger`**, because `debug` is Luau's own library
 >    and the host folds a module of that name into it.
+> 4. **Rune parks an owned execution.** `VmExecution::into_owned` drops the
+>    instruction pointer, so the host sets it back by hand. Frames are read
+>    from the execution's call stack and the unit's debug info; locals are
+>    the frame's named arguments. An async entry point (`task::wait`) runs
+>    as a future and is not parked.
 
 # Plan: a script debugger
 
@@ -107,7 +114,8 @@ breakpoint set after each step; units without breakpoints keep the
 run-to-completion path. Pause holds the owned execution in host state.
 Frames come from `call_frames` and the unit's debug info; locals show
 `this`, the named arguments and the rest by slot index. The editor must boot
-the mixed host to play a Rune game.
+the mixed host to play a Rune game. **Built** in
+`crates/balaur_script_rune/src/pause.rs` and `debugger.rs`, on the plain host.
 
 ### Break on error (phase 5)
 

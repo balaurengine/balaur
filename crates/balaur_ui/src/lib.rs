@@ -5,14 +5,14 @@
 //! which invokes `draw_ui` on every instance (in entity order) inside the
 //! frame's egui pass. The module's functions build panels and widgets
 //! against the pass's current `egui::Ui`, so a script composes interfaces
-//! exactly the way Rust egui code does (shown here in Luau):
+//! exactly the way Rust egui code does:
 //!
-//! ```luau
-//! function Editor:draw_ui()
-//!     ui.top_panel("bar", { height = 56, fill = "#20242a" }, function()
-//!         if ui.pill("Scene", { active = true }) then ... end
-//!     end)
-//! end
+//! ```rune
+//! pub fn draw_ui(this) {
+//!     ui::top_panel("bar", #{ height: 56.0, fill: "#20242a" }, || {
+//!         if ui::pill("Scene", #{ active: true }) { /* ... */ }
+//!     });
+//! }
 //! ```
 //!
 //! Widgets take their colors per call (usually from a script-side token

@@ -27,17 +27,12 @@ fn draw(body: &str) -> (App, Vec<String>) {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = \"scripts/s.luau\"\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = \"scripts/s.rn\"\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.luau"),
-        format!(
-            "local S = {{}}\n\
-             function S:init() end\n\
-             function S:draw_ui()\n{body}\nend\n\
-             return S\n"
-        ),
+        dir.path().join("scripts/s.rn"),
+        format!("pub fn init(this) {{}}\npub fn draw_ui(this) {{\n{body}\n}}\n"),
     )
     .unwrap();
 
@@ -69,6 +64,13 @@ fn draw_clean(body: &str) {
     assert!(errors.is_empty(), "the pass logged errors: {errors:#?}");
 }
 
+/// A number the script left on `this`, read back from Rust.
+fn field(app: &App, name: &str) -> Option<f64> {
+    let root = balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "Root")
+        .expect("the scene has a Root node");
+    balaur::rune::rune_of(&app.engine).number_field(root, name)
+}
+
 #[test]
 fn a_pass_with_no_widgets_is_quiet() {
     draw_clean("");
@@ -78,17 +80,17 @@ fn a_pass_with_no_widgets_is_quiet() {
 fn panels_and_containers_nest() {
     draw_clean(
         r#"
-        ui.top_panel("bar", { height = 40 }, function()
-            ui.horizontal({}, function() ui.label("across") end)
-        end)
-        ui.bottom_panel("status", { height = 20 }, function() ui.label("bottom") end)
-        ui.left_panel("side", { width = 60 }, function() ui.label("left") end)
-        ui.right_panel("props", { width = 60 }, function() ui.label("right") end)
-        ui.central_panel({}, function()
-            ui.vertical(function() ui.label("down") end)
-            ui.scroll("sc", {}, function() ui.label("scrolled") end)
-            ui.frame({}, function() ui.label("framed") end)
-        end)
+        ui::top_panel("bar", #{ height: 40 }, || {
+            ui::horizontal(#{}, || { ui::label("across"); });
+        });
+        ui::bottom_panel("status", #{ height: 20 }, || { ui::label("bottom"); });
+        ui::left_panel("side", #{ width: 60 }, || { ui::label("left"); });
+        ui::right_panel("props", #{ width: 60 }, || { ui::label("right"); });
+        ui::central_panel(#{}, || {
+            ui::vertical(|| { ui::label("down"); });
+            ui::scroll("sc", #{}, || { ui::label("scrolled"); });
+            ui::frame(#{}, || { ui::label("framed"); });
+        });
         "#,
     );
 }
@@ -97,19 +99,19 @@ fn panels_and_containers_nest() {
 fn text_and_layout_helpers_run() {
     draw_clean(
         r##"
-        ui.central_panel({}, function()
-            ui.label("plain")
-            ui.code_line("local x = 1")
-            ui.separator()
-            ui.add_space(4)
-            ui.spacing(2, 2)
-            ui.dot("#ffffff", 4)
-            assert(type(ui.available_width()) == "number")
-            assert(type(ui.available_height()) == "number")
-            local w, h = ui.screen_size()
-            assert(type(w) == "number" and type(h) == "number")
-            assert(type(ui.wants_keyboard()) == "boolean")
-        end)
+        ui::central_panel(#{}, || {
+            ui::label("plain");
+            ui::code_line("1", [#{ text: "let x = 1;" }]);
+            ui::separator();
+            ui::add_space(4);
+            ui::spacing(2, 2);
+            ui::dot("#ffffff", 4);
+            assert!(ui::available_width() is f64);
+            assert!(ui::available_height() is f64);
+            let (w, h) = ui::screen_size();
+            assert!(w is f64 && h is f64);
+            assert!(ui::wants_keyboard() is bool);
+        });
         "##,
     );
 }
@@ -118,17 +120,17 @@ fn text_and_layout_helpers_run() {
 fn interactive_widgets_report_no_interaction_without_input() {
     draw_clean(
         r#"
-        ui.central_panel({}, function()
-            assert(ui.pill("a pill", { active = true }) == false)
-            assert(ui.circle_button("x") == false)
-            local on, clicked = ui.toggle(false, {})
-            assert(on == false and clicked == false, "a toggle flipped with no input")
-            local text, changed = ui.text_field("field", "type here")
-            assert(type(text) == "string", "text_field returns its buffer")
-            assert(changed == false, "nothing typed, yet it reported a change")
-            local v = ui.slider(0.5, 0.0, 1.0, {})
-            assert(type(v) == "number")
-        end)
+        ui::central_panel(#{}, || {
+            assert!(!ui::pill("a pill", #{ active: true }));
+            assert!(!ui::circle_button("x"));
+            let (on, clicked) = ui::toggle(false, #{});
+            assert!(!on && !clicked, "a toggle flipped with no input");
+            let (text, changed, _) = ui::text_field("field", "type here");
+            assert!(text is String, "text_field returns its buffer");
+            assert!(!changed, "nothing typed, yet it reported a change");
+            let (v, _) = ui::slider(0.5, 0.0, 1.0, #{});
+            assert!(v is f64);
+        });
         "#,
     );
 }
@@ -137,31 +139,34 @@ fn interactive_widgets_report_no_interaction_without_input() {
 fn the_code_editor_returns_its_buffer_unchanged() {
     let (app, errors) = draw(
         r#"
-        _G.drawn = _G.drawn or 0
-        _G.edits = _G.edits or 0
-        ui.central_panel({}, function()
-            local text, changed = ui.code_editor("ed", "local x = 1\nreturn x")
-            _G.drawn += 1
-            if changed then _G.edits += 1 end
-            assert(#text > 0, "the editor lost its buffer")
-        end)
+        this.drawn = this.get("drawn").unwrap_or(0);
+        this.edits = this.get("edits").unwrap_or(0);
+        ui::central_panel(#{}, || {
+            let (text, changed, hit) = ui::code_editor("ed", "let x = 1;\nx");
+            this.drawn = this.drawn + 1;
+            if changed { this.edits = this.edits + 1; }
+            assert!(hit is Tuple, "a gutter line was clicked with no input");
+            assert!(text.len() > 0, "the editor lost its buffer");
+        });
         "#,
     );
     assert!(errors.is_empty(), "{errors:#?}");
-    let lua = balaur::luau::lua_of(&app.engine);
-    let drawn: i64 = lua.globals().get("drawn").expect("the editor never drew");
-    let edits: i64 = lua.globals().get("edits").expect("no edit count recorded");
-    assert!(drawn > 0, "the editor never drew");
-    assert_eq!(edits, 0, "the editor reported {edits} edits with no input");
+    let drawn = field(&app, "drawn").expect("the editor never drew");
+    let edits = field(&app, "edits").expect("no edit count recorded");
+    assert!(drawn > 0.0, "the editor never drew");
+    assert!(
+        edits == 0.0,
+        "the editor reported {edits} edits with no input"
+    );
 }
 
 #[test]
 fn bad_options_are_reported_rather_than_fatal() {
     let (_app, errors) = draw(
         r#"
-        ui.central_panel({}, function()
-            ui.label("still drawn")
-        end)
+        ui::central_panel(#{}, || {
+            ui::label("still drawn");
+        });
         "#,
     );
     assert!(errors.is_empty());
@@ -171,9 +176,9 @@ fn bad_options_are_reported_rather_than_fatal() {
 fn a_script_error_inside_a_pass_is_logged_not_fatal() {
     let (_app, errors) = draw(
         r#"
-        ui.central_panel({}, function()
-            error("deliberate")
-        end)
+        ui::central_panel(#{}, || {
+            panic!("deliberate");
+        });
         "#,
     );
     assert!(
@@ -186,12 +191,12 @@ fn a_script_error_inside_a_pass_is_logged_not_fatal() {
 fn the_scale_factor_is_readable_and_settable() {
     draw_clean(
         r"
-        ui.central_panel({}, function()
-            local before = ui.scale()
-            ui.set_scale(1.25)
-            assert(math.abs(ui.scale() - 1.25) < 1e-6)
-            ui.set_scale(before)
-        end)
+        ui::central_panel(#{}, || {
+            let before = ui::scale();
+            ui::set_scale(1.25);
+            assert!(math::abs(ui::scale() - 1.25) < 1e-6);
+            ui::set_scale(before);
+        });
         ",
     );
 }
@@ -201,11 +206,10 @@ fn the_scale_factor_is_readable_and_settable() {
 /// checks from Rust that the pass really called it.
 #[test]
 fn draw_ui_is_actually_called() {
-    let (app, _) = draw(r"_G.passes = (_G.passes or 0) + 1");
-    let lua = balaur::luau::lua_of(&app.engine);
-    let passes: i64 = lua.globals().get("passes").unwrap_or(0);
+    let (app, _) = draw(r#"this.passes = this.get("passes").unwrap_or(0) + 1;"#);
+    let passes = field(&app, "passes").unwrap_or(0.0);
     assert!(
-        passes > 0,
+        passes > 0.0,
         "draw_ui never ran, so these tests prove nothing"
     );
 }
@@ -214,17 +218,17 @@ fn draw_ui_is_actually_called() {
 fn the_remaining_widgets_are_callable() {
     draw_clean(
         r#"
-        ui.central_panel({}, function()
-            local v = ui.drag_value(1.5, {})
-            assert(type(v) == "number", "drag_value should return a number")
+        ui::central_panel(#{}, || {
+            let (v, _) = ui::drag_value(1.5, #{});
+            assert!(v is f64, "drag_value should return a number");
 
-            local choice, changed = ui.select("sel", "b", {"a", "b", "c"}, {})
-            assert(choice == "b", "select changed with no input")
-            assert(changed == false)
+            let (choice, changed) = ui::dropdown("sel", "b", ["a", "b", "c"], #{});
+            assert!(choice == "b", "dropdown changed with no input");
+            assert!(!changed);
 
-            assert(ui.menu_item("Open", {}) == false)
-            ui.rect_stroke(0, 0, 10, 10, {})
-        end)
+            assert!(!ui::menu_item("Open", #{}));
+            ui::rect_stroke(0, 0, 10, 10, #{});
+        });
         "#,
     );
 }
@@ -233,15 +237,14 @@ fn the_remaining_widgets_are_callable() {
 fn a_modal_runs_its_body() {
     let (app, errors) = draw(
         r#"
-        _G.in_modal = false
-        ui.central_panel({}, function()
-            ui.modal("m", {}, function() _G.in_modal = true end)
-        end)
+        this.in_modal = 0;
+        ui::central_panel(#{}, || {
+            ui::modal("m", #{}, || { this.in_modal = 1; });
+        });
         "#,
     );
     assert!(errors.is_empty(), "{errors:#?}");
-    let lua = balaur::luau::lua_of(&app.engine);
-    let ran: bool = lua.globals().get("in_modal").unwrap_or(false);
+    let ran = field(&app, "in_modal").unwrap_or(0.0) > 0.0;
     assert!(ran, "the modal never ran its body");
 }
 
@@ -249,12 +252,12 @@ fn a_modal_runs_its_body() {
 fn set_text_replaces_a_field_buffer() {
     draw_clean(
         r#"
-        ui.central_panel({}, function()
-            ui.text_field("f", "placeholder")
-            ui.set_text("f", "written from outside")
-            local shown = ui.text_field("f", "placeholder")
-            assert(shown == "written from outside", "set_text did not take: " .. tostring(shown))
-        end)
+        ui::central_panel(#{}, || {
+            ui::text_field("f", "placeholder");
+            ui::set_text("f", "written from outside");
+            let (shown, _, _) = ui::text_field("f", "placeholder");
+            assert!(shown == "written from outside", "set_text did not take: {}", shown);
+        });
         "#,
     );
 }
@@ -263,10 +266,10 @@ fn set_text_replaces_a_field_buffer() {
 fn a_missing_image_does_not_stop_the_pass() {
     let (_app, errors) = draw(
         r#"
-        ui.central_panel({}, function()
-            ui.image("no/such/picture.png", {})
-            ui.label("drawn after the bad image")
-        end)
+        ui::central_panel(#{}, || {
+            ui::image("no/such/picture.png", #{});
+            ui::label("drawn after the bad image");
+        });
         "#,
     );
     assert!(
@@ -279,8 +282,8 @@ fn a_missing_image_does_not_stop_the_pass() {
 fn a_theme_can_be_set_from_a_script() {
     draw_clean(
         r##"
-        ui.set_theme({ panel = "#101418", text = "#f0f0f0", accent = "#d5814e" })
-        ui.central_panel({}, function() ui.label("themed") end)
+        ui::set_theme(#{ panel: "#101418", text: "#f0f0f0", accent: "#d5814e" });
+        ui::central_panel(#{}, || { ui::label("themed"); });
         "##,
     );
 }
@@ -289,9 +292,9 @@ fn a_theme_can_be_set_from_a_script() {
 fn the_widget_layer_can_be_placed_and_turned_off() {
     draw_clean(
         r#"
-        ui.set_widget_layer(true, 0, 0, 320, 240)
-        ui.set_widget_layer(false, 0, 0, 0, 0)
-        ui.central_panel({}, function() ui.label("after") end)
+        ui::set_widget_layer(true, 0, 0, 320, 240);
+        ui::set_widget_layer(false, 0, 0, 0, 0);
+        ui::central_panel(#{}, || { ui::label("after"); });
         "#,
     );
 }
@@ -300,11 +303,11 @@ fn the_widget_layer_can_be_placed_and_turned_off() {
 fn shortcuts_report_no_press_without_input() {
     draw_clean(
         r#"
-        ui.central_panel({}, function()
-            assert(ui.shortcut("cmd", "S") == false)
-            assert(ui.shortcut("ctrl", "Z") == false)
-            assert(ui.shortcut("", "A") == false)
-        end)
+        ui::central_panel(#{}, || {
+            assert!(!ui::shortcut("cmd", "S"));
+            assert!(!ui::shortcut("ctrl", "Z"));
+            assert!(!ui::shortcut("", "A"));
+        });
         "#,
     );
 }

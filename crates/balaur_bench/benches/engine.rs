@@ -11,8 +11,8 @@ const EMPTY: &str = "local S = {}\nfunction S:init() end\nreturn S\n";
 fn propagate(c: &mut Criterion) {
     let mut group = c.benchmark_group("propagate_transforms");
     for count in [100usize, 1000, 10_000] {
-        let project = Project::new(Backend::Luau, EMPTY).unwrap();
-        let app = app(Backend::Luau, &project).unwrap();
+        let project = Project::new(Backend::Rune, EMPTY).unwrap();
+        let app = app(Backend::Rune, &project).unwrap();
         let root = app.engine.root();
         {
             let mut world = app.engine.world_mut();
@@ -34,8 +34,8 @@ fn propagate(c: &mut Criterion) {
 fn spawn(c: &mut Criterion) {
     let mut group = c.benchmark_group("spawn_nodes");
     for count in [100usize, 1000] {
-        let project = Project::new(Backend::Luau, EMPTY).unwrap();
-        let app = app(Backend::Luau, &project).unwrap();
+        let project = Project::new(Backend::Rune, EMPTY).unwrap();
+        let app = app(Backend::Rune, &project).unwrap();
         let root = app.engine.root();
         group.throughput(Throughput::Elements(count as u64));
         group.bench_with_input(BenchmarkId::from_parameter(count), &count, |b, _| {
@@ -63,8 +63,8 @@ fn instantiate_scene(c: &mut Criterion) {
                 "[[nodes]]\nid = \"n{i}\"\nname = \"N{i}\"\nposition = [1.0, 2.0, 3.0]\n\n"
             );
         }
-        let project = Project::new(Backend::Luau, EMPTY).unwrap();
-        let app = app(Backend::Luau, &project).unwrap();
+        let project = Project::new(Backend::Rune, EMPTY).unwrap();
+        let app = app(Backend::Rune, &project).unwrap();
         let root = app.engine.root();
         group.throughput(Throughput::Elements(count as u64));
         group.bench_with_input(BenchmarkId::from_parameter(count), &count, |b, _| {
@@ -103,8 +103,8 @@ fn parse_scene(c: &mut Criterion) {
 fn physics_step(c: &mut Criterion) {
     let mut group = c.benchmark_group("physics_step");
     for count in [100usize, 1000] {
-        let project = Project::new(Backend::Luau, EMPTY).unwrap();
-        let mut app = app(Backend::Luau, &project).unwrap();
+        let project = Project::new(Backend::Rune, EMPTY).unwrap();
+        let mut app = app(Backend::Rune, &project).unwrap();
         let root = app.engine.root();
         for i in 0..count {
             let e = scene::spawn_node(&mut app.engine.world_mut(), &format!("b{i}"), root);

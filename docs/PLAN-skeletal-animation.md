@@ -6,6 +6,12 @@
 > "Skeletons and skins". Kept as written for the record; see
 > [generated/](generated/) for what the code actually does.
 >
+> **Built after the plan**, from §7's open questions: `modifier2d` with
+> `look_at` and `two_bone_ik` (§7.5), 3D bone picking in the viewport,
+> `.gltf` with side files and `data:` URIs, `rotation` tracks with quaternion
+> keys (§7.2, what the importer now writes) and `node:set_parent` (§7.4,
+> `scene::reparent` keeps the world pose and refuses cycles).
+>
 > **Where the implementation decided differently:**
 >
 > 0. **3D skins on the CPU, not through the fork.** §5.3 asked kiss3d for a

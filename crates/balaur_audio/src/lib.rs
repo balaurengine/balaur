@@ -78,7 +78,7 @@ mod backend {
 
 /// The wasm stub. cpal's emscripten host does not compile — broken upstream
 /// against current wasm-bindgen and deleted outright in cpal 0.18 — and its
-/// WebAudio host only runs inside a wasm-bindgen app, which a Luau engine on
+/// WebAudio host only runs inside a wasm-bindgen app, which an engine on
 /// emscripten is not. Both types are uninhabited: opening always fails, the
 /// plugin warns once, and the compiler proves the rest of this module dead.
 #[cfg(target_family = "wasm")]

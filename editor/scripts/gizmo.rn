@@ -1,0 +1,790 @@
+// Selection gizmo, steadyum style: an orange bbox frame (faces translate,
+// corners scale, axis rings rotate), hover tints deep blue. All hit-testing is
+// screen-space Rune over the camera pose the backend publishes.
+
+use crate::gizmo2d;
+use crate::history;
+use crate::model;
+use crate::rig;
+use crate::shell;
+use crate::util;
+
+// steadyum's selection palette: orange frame, deep-blue hover.
+fn orange() {
+    [1.0, 0.647, 0.0]
+}
+
+fn hover_color() {
+    [0.118, 0.314, 0.784]
+}
+
+fn vsub(a, b) {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn vadd(a, b) {
+    [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+}
+
+fn vscale(a, s) {
+    [a[0] * s, a[1] * s, a[2] * s]
+}
+
+fn vdot(a, b) {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+fn vcross(a, b) {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+fn vnorm(a) {
+    let l = math::sqrt(vdot(a, a));
+    if l < 1e-6 {
+        return ([0.0, 0.0, 0.0], 0.0);
+    }
+    (vscale(a, 1.0 / l), l)
+}
+
+// Rotation basis from the engine's ZYX euler (roll=x, pitch=y, yaw=z):
+// R = Rz(yaw) * Ry(pitch) * Rx(roll). Returns the world-space directions of
+// the node's local axes (the matrix columns).
+fn basis_from_euler(r) {
+    let cr = math::cos(r[0]);
+    let sr = math::sin(r[0]);
+    let cp = math::cos(r[1]);
+    let sp = math::sin(r[1]);
+    let cy = math::cos(r[2]);
+    let sy = math::sin(r[2]);
+    [
+        [cy * cp, sy * cp, -sp],
+        [cy * sp * sr - sy * cr, sy * sp * sr + cy * cr, cp * sr],
+        [cy * sp * cr + sy * sr, sy * sp * cr - cy * sr, cp * cr],
+    ]
+}
+
+// Euler (roll, pitch, yaw) back from a basis (columns bx, by, bz).
+fn euler_from_basis(b) {
+    let pitch = math::asin(util::clamp(-b[0][2], -1.0, 1.0));
+    let yaw = math::atan(b[0][1], b[0][0]);
+    let roll = math::atan(b[1][2], b[2][2]);
+    [roll, pitch, yaw]
+}
+
+// basis * elementary rotation about local axis `axis` by `angle`.
+fn rotate_basis_local(b, axis, angle) {
+    let c = math::cos(angle);
+    let s = math::sin(angle);
+    let i = (axis + 1) % 3;
+    let j = (axis + 2) % 3;
+    // Columns i and j rotate into each other around column `axis`.
+    let bi = b[i];
+    let bj = b[j];
+    let out = [b[0], b[1], b[2]];
+    out[i] = [bi[0] * c + bj[0] * s, bi[1] * c + bj[1] * s, bi[2] * c + bj[2] * s];
+    out[j] = [bj[0] * c - bi[0] * s, bj[1] * c - bi[1] * s, bj[2] * c - bi[2] * s];
+    out
+}
+
+// center + basis-space offset -> world point.
+fn local_point(geo, ox, oy, oz) {
+    let b = geo.basis;
+    [
+        geo.center[0] + b[0][0] * ox + b[1][0] * oy + b[2][0] * oz,
+        geo.center[1] + b[0][1] * ox + b[1][1] * oy + b[2][1] * oz,
+        geo.center[2] + b[0][2] * ox + b[1][2] * oy + b[2][2] * oz,
+    ]
+}
+
+// The viewport rectangle in design px, published by `center::draw`.
+pub fn viewport_rect(S) {
+    S.viewport
+}
+
+// Camera basis + world-units-per-design-px at the target's depth. The 3D
+// scene renders across the whole window (panels overlay it), so projection
+// maps NDC to the full screen, not the visible viewport region.
+fn camera_frame(S) {
+    let (ex, ey, ez, tx, ty, tz, fov, dpi) = render::camera_pose();
+    let eye = [ex, ey, ez];
+    let (forward, dist) = vnorm(vsub([tx, ty, tz], eye));
+    let (right, _) = vnorm(vcross(forward, [0.0, 1.0, 0.0]));
+    let up = vcross(right, forward);
+    let sw = S.screen_w;
+    let sh = S.screen_h;
+    let wpp = 2.0 * dist * math::tan(fov / 2.0) / util::max(sh, 1.0);
+    let (rox, roy, roz, rdx, rdy, rdz) = render::mouse_ray();
+    #{
+        eye: eye, forward: forward, right: right, up: up,
+        dist: dist, fov: fov, dpi: dpi, wpp: wpp,
+        // The renderer's exact projection*view (column-major).
+        m: util::vec(render::camera_matrix()),
+        ray_o: [rox, roy, roz],
+        ray_d: [rdx, rdy, rdz],
+        rect: #{ x: 0.0, y: 0.0, w: sw, h: sh },
+        vp: viewport_rect(S),
+    }
+}
+
+// Intersect the current mouse ray with a plane (point p, normal n).
+fn ray_plane(cam, p, n) {
+    let denom = vdot(cam.ray_d, n);
+    if util::abs(denom) < 1e-6 {
+        return None;
+    }
+    let t = vdot(vsub(p, cam.ray_o), n) / denom;
+    if t < 0.0 {
+        return None;
+    }
+    Some(vadd(cam.ray_o, vscale(cam.ray_d, t)))
+}
+
+fn mouse_design_px(S, cam) {
+    let (mx, my) = input::mouse_position();
+    (mx / cam.dpi / S.ui_scale, my / cam.dpi / S.ui_scale)
+}
+
+fn in_viewport(cam, mx, my) {
+    let r = cam.vp;
+    // Leave the chip row and the bottom pill row to egui.
+    mx > r.x && mx < r.x + r.w && my > r.y + 44.0 && my < r.y + r.h - 40.0
+}
+
+// Project a world point to design-px screen coordinates using the
+// renderer's exact projection*view matrix (`None` if behind the camera).
+pub fn project(cam, p) {
+    let m = cam.m;
+    let x = p[0];
+    let y = p[1];
+    let z = p[2];
+    let cw = m[3] * x + m[7] * y + m[11] * z + m[15];
+    if cw < 1e-4 {
+        return None;
+    }
+    let cx = (m[0] * x + m[4] * y + m[8] * z + m[12]) / cw;
+    let cy = (m[1] * x + m[5] * y + m[9] * z + m[13]) / cw;
+    let r = cam.rect;
+    Some((r.w * (0.5 + cx * 0.5), r.h * (0.5 - cy * 0.5)))
+}
+
+// Selection geometry: center, padded half-extents, handle size, ring radius.
+fn geometry(S) {
+    let (node, found) = model::selected(S);
+    let found = match found {
+        Some(found) => found,
+        None => return None,
+    };
+    let p = found.global_position();
+    let hx = 0.6;
+    let hy = 0.6;
+    let hz = 0.6;
+    let shape = match node.get("shape3d") {
+        Some(shape) => Some(shape),
+        None => node.get("collider3d"),
+    };
+    let shape_some = shape;
+    if let Some(shape) = shape_some {
+        if shape is Object {
+            if shape.contains_key("radius") && shape.get("kind") == Some("ball") {
+                let r = util::f(shape.radius);
+                hx = r;
+                hy = r;
+                hz = r;
+            } else if let Some(he) = shape.get("half_extents") {
+                let he = util::vec3(he, [0.5, 0.5, 0.5]);
+                hx = he[0];
+                hy = he[1];
+                hz = he[2];
+            }
+        }
+    }
+    // The renderer sizes and orients by the GLOBAL transform (parents may
+    // carry scale/rotation), so the gizmo must too.
+    let s = found.global_scale();
+    hx = hx * s.x + 0.06;
+    hy = hy * s.y + 0.06;
+    hz = hz * s.z + 0.06;
+    let min_he = util::min(hx, util::min(hy, hz));
+    // steadyum: handle size scales with camera distance (constant on
+    // screen), rings sit at 75% of the smallest extent.
+    let (ex, ey, ez, _, _, _, _, _) = render::camera_pose();
+    let dist = math::sqrt((p.x - ex) * (p.x - ex) + (p.y - ey) * (p.y - ey) + (p.z - ez) * (p.z - ez));
+    let marker = 0.6 * dist * 0.0144;
+    let r = found.global_rotation_euler();
+    Some(#{
+        center: [p.x, p.y, p.z],
+        basis: basis_from_euler([r.x, r.y, r.z]),
+        he: [hx, hy, hz],
+        // The rotation ball tracks the selection but never grows past a
+        // fraction of the camera distance (or shrinks below pickability).
+        ring: util::clamp(min_he * 0.75, marker * 2.5, dist * 0.14),
+        marker: marker,
+    })
+}
+
+fn corners(geo) {
+    let out = [];
+    for sx in [-1.0, 1.0] {
+        for sy in [-1.0, 1.0] {
+            for sz in [-1.0, 1.0] {
+                out.push(#{
+                    p: local_point(geo, sx * geo.he[0], sy * geo.he[1], sz * geo.he[2]),
+                    signs: [sx, sy, sz],
+                });
+            }
+        }
+    }
+    out
+}
+
+// The two axes spanning the face normal to each axis.
+fn face_axes(axis) {
+    match axis {
+        0 => (1, 2),
+        1 => (0, 2),
+        _ => (0, 1),
+    }
+}
+
+fn faces(geo) {
+    let out = [];
+    for axis in 0..3 {
+        for sign in [-1.0, 1.0] {
+            let offset = [0.0, 0.0, 0.0];
+            offset[axis] = sign * geo.he[axis];
+            let (u_axis, v_axis) = face_axes(axis);
+            let quad = [];
+            for uv in [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]] {
+                let o = [offset[0], offset[1], offset[2]];
+                o[u_axis] = o[u_axis] + uv[0] * geo.he[u_axis];
+                o[v_axis] = o[v_axis] + uv[1] * geo.he[v_axis];
+                quad.push(local_point(geo, o[0], o[1], o[2]));
+            }
+            out.push(#{
+                pos: local_point(geo, offset[0], offset[1], offset[2]),
+                axis: axis, sign: sign, quad: quad,
+            });
+        }
+    }
+    out
+}
+
+// Point-in-quad (screen space) via consistent cross-product winding.
+fn quad_contains(cam, quad, mx, my) {
+    let pts = [];
+    for c in quad {
+        match project(cam, c) {
+            Some((sx, sy)) => pts.push([sx, sy]),
+            None => return false,
+        }
+    }
+    let sign = None;
+    for i in 0..4 {
+        let a = pts[i];
+        let b = pts[(i + 1) % 4];
+        let cross = (b[0] - a[0]) * (my - a[1]) - (b[1] - a[1]) * (mx - a[0]);
+        if util::abs(cross) > 1e-6 {
+            let positive = cross > 0.0;
+            match sign {
+                None => {
+                    sign = Some(positive);
+                }
+                Some(seen) => {
+                    if seen != positive {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    true
+}
+
+// The small floating rectangle at a face's center (scale along the normal).
+fn face_rect_points(geo, face) {
+    let (u_axis, v_axis) = face_axes(face.axis);
+    let h = geo.marker * 0.9;
+    let out = [];
+    for uv in [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]] {
+        let o = [0.0, 0.0, 0.0];
+        // Float slightly off the face so it never z-fights the surface.
+        o[face.axis] = face.sign * (geo.he[face.axis] + geo.marker * 0.25);
+        o[u_axis] = o[u_axis] + uv[0] * h;
+        o[v_axis] = o[v_axis] + uv[1] * h;
+        out.push(local_point(geo, o[0], o[1], o[2]));
+    }
+    out
+}
+
+fn ring_point(geo, axis, t) {
+    let angle = t * math::PI * 2.0;
+    let o = [0.0, 0.0, 0.0];
+    o[(axis + 1) % 3] = math::cos(angle) * geo.ring;
+    o[(axis + 2) % 3] = math::sin(angle) * geo.ring;
+    local_point(geo, o[0], o[1], o[2])
+}
+
+fn face_normal(geo, face) {
+    vscale(geo.basis[face.axis], face.sign)
+}
+
+fn face_front_facing(cam, geo, face) {
+    vdot(face_normal(geo, face), vsub(cam.eye, face.pos)) > 0.0
+}
+
+fn near(cam, p, mx, my, radius) {
+    match project(cam, p) {
+        Some((sx, sy)) => (sx - mx) * (sx - mx) + (sy - my) * (sy - my) < radius * radius,
+        None => false,
+    }
+}
+
+// What the cursor is over. Priority mirrors steadyum: the rotation ball
+// always wins over the face behind it, then the face-center scale rects,
+// then corner brackets, and finally the face surfaces (plane translate).
+fn hit_test(cam, geo, mx, my) {
+    // The rotation ball wins over everything behind it.
+    for axis in 0..3 {
+        for t in 0..48 {
+            if near(cam, ring_point(geo, axis, (t as f64) / 48.0), mx, my, 12.0) {
+                return Some(#{ kind: "ring", axis: axis });
+            }
+        }
+    }
+    // Face-center scale rects and corner brackets: only front-facing /
+    // generous radii so the hotspot is at least as big as the visual.
+    let all_faces = faces(geo);
+    for (i, face) in all_faces.iter().enumerate() {
+        if face_front_facing(cam, geo, face) {
+            if quad_contains(cam, face_rect_points(geo, face), mx, my) || near(cam, face.pos, mx, my, 16.0) {
+                return Some(#{ kind: "facerect", index: i, axis: face.axis, sign: face.sign });
+            }
+        }
+    }
+    for (i, corner) in corners(geo).iter().enumerate() {
+        if near(cam, corner.p, mx, my, 18.0) {
+            return Some(#{ kind: "handle", index: i });
+        }
+    }
+    // Face surfaces (plane translate): only the faces looking at the
+    // camera; front faces tile the silhouette, so the hit is unambiguous.
+    for (i, face) in all_faces.iter().enumerate() {
+        if face_front_facing(cam, geo, face) && quad_contains(cam, face.quad, mx, my) {
+            return Some(#{ kind: "face", index: i, axis: face.axis, sign: face.sign });
+        }
+    }
+    None
+}
+
+// steadyum's 6px stroke, 30% thinner per taste.
+const W = 4.2;
+
+fn line(a, b, color, width, on_top) {
+    render::draw_line(a[0], a[1], a[2], b[0], b[1], b[2], color[0], color[1], color[2], width, false, on_top);
+}
+
+// Corner marker in steadyum's open-bracket style: of the mini-cube's 12
+// edges, draw only those with at least one outward face (faces whose sign
+// matches the handle's corner sign), leaving an open bracket.
+fn draw_handle_marker(geo, signs, half, color) {
+    // Corner offset in the box's local frame.
+    let base = [signs[0] * geo.he[0], signs[1] * geo.he[1], signs[2] * geo.he[2]];
+    for axis in 0..3 {
+        let (b_axis, c_axis) = face_axes(axis);
+        for b_sign in [-1.0, 1.0] {
+            for c_sign in [-1.0, 1.0] {
+                let b_inner = b_sign == -signs[b_axis];
+                let c_inner = c_sign == -signs[c_axis];
+                if !(b_inner && c_inner) {
+                    let a = [base[0], base[1], base[2]];
+                    let b = [base[0], base[1], base[2]];
+                    a[axis] = a[axis] - half;
+                    b[axis] = b[axis] + half;
+                    a[b_axis] = a[b_axis] + b_sign * half;
+                    b[b_axis] = b[b_axis] + b_sign * half;
+                    a[c_axis] = a[c_axis] + c_sign * half;
+                    b[c_axis] = b[c_axis] + c_sign * half;
+                    line(
+                        local_point(geo, a[0], a[1], a[2]),
+                        local_point(geo, b[0], b[1], b[2]),
+                        color,
+                        W,
+                        false,
+                    );
+                }
+            }
+        }
+    }
+}
+
+// Which gizmo part is "hot" (dragged part wins over hover).
+fn hot_part(S) {
+    match S.gizmo_drag {
+        Some(drag) => Some(drag.part),
+        None => S.gizmo_hover,
+    }
+}
+
+fn hot_is(hot, kind) {
+    match hot {
+        Some(part) => part.kind == kind,
+        None => false,
+    }
+}
+
+// Draw the frame, handles and rings (steadyum: orange, hot element blue).
+pub fn draw(S) {
+    if model::is_2d(S) {
+        gizmo2d::draw(S);
+        return;
+    }
+    let geo = match geometry(S) {
+        Some(geo) => geo,
+        None => return,
+    };
+    if S.persona == "script" {
+        return;
+    }
+    let hot = hot_part(S);
+    let he = geo.he;
+    let hot_face = if hot_is(hot, "face") { hot } else { None };
+    // The 12 box edges, in the node's rotated frame. An edge bounds the
+    // hovered face when its fixed position on the face's normal axis
+    // matches the face's sign.
+    for axis in 0..3 {
+        let (b_axis, c_axis) = face_axes(axis);
+        for sb in [-1.0, 1.0] {
+            for sc2 in [-1.0, 1.0] {
+                let color = orange();
+                if let Some(face) = hot_face {
+                    if (b_axis == face.axis && sb == face.sign) || (c_axis == face.axis && sc2 == face.sign) {
+                        color = hover_color();
+                    }
+                }
+                let a_off = [0.0, 0.0, 0.0];
+                let b_off = [0.0, 0.0, 0.0];
+                a_off[axis] = -he[axis];
+                b_off[axis] = he[axis];
+                for o in [a_off, b_off] {
+                    o[b_axis] = sb * he[b_axis];
+                    o[c_axis] = sc2 * he[c_axis];
+                }
+                line(
+                    local_point(geo, a_off[0], a_off[1], a_off[2]),
+                    local_point(geo, b_off[0], b_off[1], b_off[2]),
+                    color,
+                    W,
+                    false,
+                );
+            }
+        }
+    }
+    for (i, corner) in corners(geo).iter().enumerate() {
+        let hot_handle = match hot {
+            Some(part) => part.kind == "handle" && part.index == i,
+            None => false,
+        };
+        draw_handle_marker(geo, corner.signs, geo.marker, if hot_handle { hover_color() } else { orange() });
+    }
+    // Face-center scale rectangles (drag = scale along the face normal).
+    for (i, face) in faces(geo).iter().enumerate() {
+        let hot_rect = match hot {
+            Some(part) => part.kind == "facerect" && part.index == i,
+            None => false,
+        };
+        let color = if hot_rect { hover_color() } else { orange() };
+        let pts = face_rect_points(geo, face);
+        for j in 0..4 {
+            line(pts[j], pts[(j + 1) % 4], color, W, false);
+        }
+    }
+    // The rotation ball renders on top of everything.
+    for axis in 0..3 {
+        let hot_ring = match hot {
+            Some(part) => part.kind == "ring" && part.axis == axis,
+            None => false,
+        };
+        let color = if hot_ring { hover_color() } else { orange() };
+        let prev = ring_point(geo, axis, 0.0);
+        for t in 1..49 {
+            let next = ring_point(geo, axis, (t as f64) / 48.0);
+            line(prev, next, color, W, true);
+            prev = next;
+        }
+    }
+}
+
+// Screen direction (design px per world unit) of a world direction at a point.
+fn screen_dir(cam, center, dir) {
+    match (project(cam, center), project(cam, vadd(center, dir))) {
+        (Some((ax, ay)), Some((bx, by))) => Some([bx - ax, by - ay]),
+        _ => None,
+    }
+}
+
+fn start_gizmo_drag(S, cam, geo, part, mx, my) {
+    history::record(S, format!("{} handle", part.kind), None);
+    let (node, found) = model::selected(S);
+    let found = found.unwrap();
+    let p = found.position();
+    let s = found.scale();
+    let rot = util::vec3(node.get("rotation_euler").unwrap_or(()), [0.0, 0.0, 0.0]);
+    let (cx, cy) = project(cam, geo.center).unwrap_or((0.0, 0.0));
+    let axis = part.get("axis").unwrap_or(0);
+    let drag = #{
+        part: part,
+        pos: [p.x, p.y, p.z],
+        scale: [s.x, s.y, s.z],
+        rot: [rot[0], rot[1], rot[2]],
+        basis: geo.basis,
+        mouse: [mx, my],
+        center: [cx, cy],
+        extent: geo.he[axis],
+        world_center: [geo.center[0], geo.center[1], geo.center[2]],
+        plane_n: [0.0, 0.0, 1.0],
+        plane_p: [0.0, 0.0, 0.0],
+        anchor: None,
+    };
+    if part.kind == "face" {
+        // Anchor: where the mouse ray first hits the face's plane.
+        let n = vscale(geo.basis[part.axis], part.sign);
+        drag.plane_n = n;
+        drag.plane_p = [geo.center[0], geo.center[1], geo.center[2]];
+        drag.anchor = ray_plane(cam, drag.plane_p, n);
+    }
+    S.gizmo_drag = Some(drag);
+}
+
+fn snapping(S) {
+    match S.chip_state.get("scene") {
+        Some(chips) => chips.get("snap").unwrap_or(false) == true,
+        None => false,
+    }
+}
+
+fn apply_gizmo_drag(S, cam, mx, my) {
+    let d = S.gizmo_drag.unwrap();
+    let (node, found) = model::selected(S);
+    let found = match found {
+        Some(found) => found,
+        None => return,
+    };
+    if d.part.kind == "handle" {
+        // Uniform scale by radial distance from the projected center.
+        let d0 = util::max(8.0, math::sqrt((d.mouse[0] - d.center[0]) * (d.mouse[0] - d.center[0]) + (d.mouse[1] - d.center[1]) * (d.mouse[1] - d.center[1])));
+        let d1 = math::sqrt((mx - d.center[0]) * (mx - d.center[0]) + (my - d.center[1]) * (my - d.center[1]));
+        let f = util::clamp(d1 / d0, 0.05, 20.0);
+        let sx = d.scale[0] * f;
+        let sy = d.scale[1] * f;
+        let sz = d.scale[2] * f;
+        found.set_scale(sx, sy, sz);
+        node.scale = [sx, sy, sz];
+    } else if d.part.kind == "ring" {
+        // Screen-angle delta around the projected center, applied about the
+        // node's LOCAL axis (the rings rotate with the object), signed by
+        // whether that axis points toward the camera.
+        let a0 = math::atan(d.mouse[1] - d.center[1], d.mouse[0] - d.center[0]);
+        let a1 = math::atan(my - d.center[1], mx - d.center[0]);
+        let axis_dir = d.basis[d.part.axis];
+        let toward = vdot(axis_dir, vsub(cam.eye, d.world_center));
+        let delta = (a1 - a0) * (if toward >= 0.0 { -1.0 } else { 1.0 });
+        let rot = euler_from_basis(rotate_basis_local(basis_from_euler(d.rot), d.part.axis, delta));
+        node.rotation_euler = rot;
+        found.set_rotation_euler(rot[0], rot[1], rot[2]);
+    } else if d.part.kind == "facerect" {
+        // Scale along the face's (rotated) normal: mouse movement projected
+        // onto its screen direction, converted to world units.
+        let axis = d.part.axis;
+        if let Some(dir) = screen_dir(cam, d.world_center, d.basis[axis]) {
+            let len2 = dir[0] * dir[0] + dir[1] * dir[1];
+            if len2 > 1e-6 {
+                let moved = ((mx - d.mouse[0]) * dir[0] + (my - d.mouse[1]) * dir[1]) / len2;
+                let ext0 = util::max(d.extent, 1e-3);
+                let f = util::clamp((ext0 + moved * d.part.sign) / ext0, 0.05, 20.0);
+                let sc = [d.scale[0], d.scale[1], d.scale[2]];
+                sc[axis] = sc[axis] * f;
+                found.set_scale(sc[0], sc[1], sc[2]);
+                node.scale = [sc[0], sc[1], sc[2]];
+            }
+        }
+    } else if d.part.kind == "face" {
+        // Slide the object in the face's plane: the world-space delta
+        // between where the mouse ray hits that plane now vs at drag start.
+        let anchor_some = d.anchor;
+        if let Some(anchor) = anchor_some {
+            if let Some(hit) = ray_plane(cam, d.plane_p, d.plane_n) {
+                let delta = vsub(hit, anchor);
+                let pos = vadd([d.pos[0], d.pos[1], d.pos[2]], delta);
+                if snapping(S) {
+                    for axis in 0..3 {
+                        pos[axis] = math::round(pos[axis] * 2.0) / 2.0;
+                    }
+                }
+                found.set_position(pos[0], pos[1], pos[2]);
+                node.position = [pos[0], pos[1], pos[2]];
+            }
+        }
+    }
+}
+
+fn manipulates(tool) {
+    tool == "move" || tool == "rotate" || tool == "scale" || tool == "zoom"
+}
+
+// Runs every frame from the root's `update`.
+pub fn update(S) {
+    if model::is_2d(S) {
+        gizmo2d::update(S, viewport_rect(S));
+        return;
+    }
+    let cam = camera_frame(S);
+    let (mx, my) = mouse_design_px(S, cam);
+    let geo = geometry(S);
+    let over_viewport = in_viewport(cam, mx, my);
+
+    let on_screen = |p| project(cam, p);
+    // The Rig bone tool owns the click in 3D too: a bone under the cursor is
+    // selected, anywhere else grows one under the selection.
+    if S.tool == "bone" {
+        S.gizmo_hover = None;
+        S.gizmo_drag = None;
+        render::set_camera_input(false);
+        S.rig_hover = if over_viewport { rig::pick_3d(S, mx, my, on_screen) } else { None };
+        if over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT) {
+            match S.rig_hover {
+                Some(hover) => shell::choose(S, hover),
+                None => {
+                    rig::add_bone(S, S.sel, 0.0, 0.0);
+                }
+            }
+        }
+        return;
+    }
+    S.rig_hover = None;
+
+    // Hover state (skipped while a drag is latched).
+    if S.gizmo_drag.is_none() {
+        S.gizmo_hover = match geo {
+            Some(geo) => if over_viewport && S.persona != "script" { hit_test(cam, geo, mx, my) } else { None },
+            None => None,
+        };
+    }
+
+    // The camera keeps the pointer unless a manipulation tool is active or
+    // the gizmo itself is hot.
+    render::set_camera_input(!manipulates(S.tool) && S.gizmo_hover.is_none() && S.gizmo_drag.is_none());
+
+    if input::mouse_just_pressed(input::MOUSE_LEFT) && over_viewport {
+        let hovered = match (S.gizmo_hover, geo) {
+            (Some(part), Some(geo)) => Some((part, geo)),
+            _ => None,
+        };
+        match hovered {
+            Some((part, geo)) => start_gizmo_drag(S, cam, geo, part, mx, my),
+            None => {
+                S.drag_in_viewport = true;
+                if S.tool == "select" {
+                    // Rigging: a bone's thin octahedron loses to any origin
+                    // near it, so in the Animate persona bones are tried first.
+                    let bone = if S.persona == "anim" { rig::pick_3d(S, mx, my, on_screen) } else { None };
+                    let bone_some = bone;
+                    if let Some(bone) = bone_some {
+                        shell::choose(S, bone);
+                        return;
+                    }
+                    let best = None;
+                    let best_d = 40.0;
+                    for i in 0..S.doc.len() {
+                        if let Some(found) = model::live(S, i) {
+                            let p = found.global_position();
+                            if let Some((px, py)) = project(cam, [p.x, p.y, p.z]) {
+                                let dist = math::sqrt((px - mx) * (px - mx) + (py - my) * (py - my));
+                                if dist < best_d {
+                                    best = Some(i);
+                                    best_d = dist;
+                                }
+                            }
+                        }
+                    }
+                    let best_some = best;
+                    if let Some(best) = best_some {
+                        shell::choose(S, best);
+                    }
+                }
+            }
+        }
+    }
+    if !input::is_mouse_down(input::MOUSE_LEFT) {
+        S.gizmo_drag = None;
+        S.drag_in_viewport = false;
+    }
+
+    if S.gizmo_drag.is_some() {
+        apply_gizmo_drag(S, cam, mx, my);
+        return;
+    }
+    if !S.drag_in_viewport {
+        return;
+    }
+
+    // Rail-tool fallbacks: drag anywhere in the viewport.
+    let (dx, dy) = input::mouse_delta();
+    dx = dx / (cam.dpi * S.ui_scale);
+    dy = dy / (cam.dpi * S.ui_scale);
+    if dx == 0.0 && dy == 0.0 {
+        return;
+    }
+    let (node, found) = model::selected(S);
+    if found.is_some() && (S.tool == "move" || S.tool == "rotate" || S.tool == "scale") {
+        history::record(S, format!("{} node", S.tool), Some(format!("tool:{}:{}", S.tool, S.sel)));
+    }
+    let found = match found {
+        Some(found) => found,
+        None => {
+            if S.tool == "zoom" {
+                shell::set_zoom(S, S.zoom - dy * 0.5);
+            }
+            return;
+        }
+    };
+    if S.tool == "move" {
+        let p = found.position();
+        let x = p.x;
+        let y = p.y;
+        let z = p.z;
+        if input::is_down("LShift") || input::is_down("RShift") {
+            y -= dy * cam.wpp;
+        } else {
+            let (flat, _) = vnorm([cam.forward[0], 0.0, cam.forward[2]]);
+            let d = vadd(vscale(cam.right, dx * cam.wpp), vscale(flat, -dy * cam.wpp));
+            x += d[0];
+            z += d[2];
+        }
+        if snapping(S) {
+            x = math::round(x * 2.0) / 2.0;
+            y = math::round(y * 2.0) / 2.0;
+            z = math::round(z * 2.0) / 2.0;
+        }
+        found.set_position(x, y, z);
+        node.position = [x, y, z];
+    } else if S.tool == "rotate" {
+        let r = util::vec3(node.get("rotation_euler").unwrap_or(()), [0.0, 0.0, 0.0]);
+        r[1] = r[1] + dx * 0.01;
+        node.rotation_euler = r;
+        found.set_rotation_euler(r[0], r[1], r[2]);
+    } else if S.tool == "scale" {
+        let s = found.scale();
+        let f = util::clamp(1.0 - dy * 0.01, 0.2, 5.0);
+        let sx = s.x * f;
+        let sy = s.y * f;
+        let sz = s.z * f;
+        found.set_scale(sx, sy, sz);
+        node.scale = [sx, sy, sz];
+    } else if S.tool == "zoom" {
+        shell::set_zoom(S, S.zoom - dy * 0.5);
+    }
+}

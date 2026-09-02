@@ -1,4 +1,4 @@
-//! What scripting costs, measured the same way on both backends.
+//! What scripting costs, measured the same way on every backend.
 //!
 //! The interesting number is per node per frame: a game's budget is 16.6 ms,
 //! and `update` runs on every scripted node in it. Everything here is headless.
@@ -11,20 +11,11 @@ use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criteri
 /// Bodies that do the same work in each language.
 fn source(backend: Backend, body: Body) -> String {
     match (backend, body) {
-        (Backend::Luau, Body::Empty) => {
-            "local S = {}\nfunction S:init() end\nfunction S:update(dt) end\nreturn S\n".into()
-        }
         (Backend::Rune, Body::Empty) => {
             "pub fn init(this) {}\npub fn update(this, dt) {}\n".into()
         }
-        (Backend::Luau, Body::State) => {
-            "local S = {}\nfunction S:init() self.n = 0 end\nfunction S:update(dt) self.n = self.n + dt end\nreturn S\n".into()
-        }
         (Backend::Rune, Body::State) => {
             "pub fn init(this) { this.n = 0.0; }\npub fn update(this, dt) { this.n = this.n + dt; }\n".into()
-        }
-        (Backend::Luau, Body::NodeApi) => {
-            "local S = {}\nfunction S:init() end\nfunction S:update(dt) self.node:translate(dt, 0, 0) end\nreturn S\n".into()
         }
         (Backend::Rune, Body::NodeApi) => {
             "pub fn init(this) {}\npub fn update(this, dt) { this.node.translate(dt, 0.0, 0.0); }\n".into()
@@ -79,7 +70,6 @@ fn binding_call(c: &mut Criterion) {
     let mut group = c.benchmark_group("binding_call");
     for backend in Backend::ALL {
         let body = match backend {
-            Backend::Luau => "local S = {}\nfunction S:init() end\nfunction S:update(dt) bench.noop(1, 2.0, \"three\") end\nreturn S\n",
             Backend::Rune => "pub fn init(this) {}\npub fn update(this, dt) { bench::noop(1, 2.0, \"three\"); }\n",
         };
         let project = Project::new(backend, body).unwrap();
@@ -179,38 +169,26 @@ fn compile_second_script(c: &mut Criterion) {
 /// is converted to a neutral value and back, so a map is not a free parameter.
 fn binding_arg_shapes(c: &mut Criterion) {
     let mut group = c.benchmark_group("binding_arg");
-    let shapes: [(&str, &str, &str); 4] = [
-        ("int", "42", "42"),
-        ("str", "\"a moderate string\"", "\"a moderate string\""),
-        ("list", "{1, 2, 3}", "[1, 2, 3]"),
-        (
-            "map",
-            "{x = 1.0, y = 2.0, name = \"widget\"}",
-            "#{x: 1.0, y: 2.0, name: \"widget\"}",
-        ),
+    let shapes: [(&str, &str); 4] = [
+        ("int", "42"),
+        ("str", "\"a moderate string\""),
+        ("list", "[1, 2, 3]"),
+        ("map", "#{x: 1.0, y: 2.0, name: \"widget\"}"),
     ];
     // A literal is rebuilt by the script on every call, so those numbers are
     // allocation plus conversion. `map_reused` passes one built up front, which
     // isolates what crossing the seam actually costs.
-    let reused: [(&str, &str, &str); 1] = [("map_reused", "_G.opts", "this.opts")];
-    for (name, luau_arg, rune_arg) in shapes.into_iter().chain(reused) {
+    let reused: [(&str, &str); 1] = [("map_reused", "this.opts")];
+    for (name, arg) in shapes.into_iter().chain(reused) {
         for backend in Backend::ALL {
-            let setup_luau = if name == "map_reused" {
-                "_G.opts = {x = 1.0, y = 2.0, name = \"widget\"}"
-            } else {
-                ""
-            };
-            let setup_rune = if name == "map_reused" {
+            let setup = if name == "map_reused" {
                 "this.opts = #{x: 1.0, y: 2.0, name: \"widget\"};"
             } else {
                 ""
             };
             let body = match backend {
-                Backend::Luau => format!(
-                    "local S = {{}}\nfunction S:init() {setup_luau} end\nfunction S:update(dt) bench.take({luau_arg}) end\nreturn S\n"
-                ),
                 Backend::Rune => format!(
-                    "pub fn init(this) {{ {setup_rune} }}\npub fn update(this, dt) {{ bench::take({rune_arg}); }}\n"
+                    "pub fn init(this) {{ {setup} }}\npub fn update(this, dt) {{ bench::take({arg}); }}\n"
                 ),
             };
             let project = Project::new(backend, &body).unwrap();

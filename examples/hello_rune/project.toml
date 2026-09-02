@@ -1,3 +1,0 @@
-name = "hello_rune"
-main_scene = "scenes/main.toml"
-language = "rune"

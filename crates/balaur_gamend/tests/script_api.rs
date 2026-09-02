@@ -1,5 +1,5 @@
-//! The gamend bindings called the way a game calls them: from a script, in
-//! both languages, through `balaur::standard_app`.
+//! The gamend bindings called the way a game calls them: from a script,
+//! through `balaur::standard_app`.
 //!
 //! Most tests speak to a miniature in-process Gamend — one port serving the
 //! login REST call and a Phoenix-ish websocket — so CI needs no Elixir. The
@@ -29,7 +29,7 @@ fn e2e_enabled() -> bool {
 
 /// Boot a one-node project whose script is `source`, then tick until the log
 /// contains `marker`. Panics on any logged error or on timeout.
-fn run_until(script_name: &str, language: &str, source: &str, marker: &str) {
+fn run_until(source: &str, marker: &str) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -37,15 +37,15 @@ fn run_until(script_name: &str, language: &str, source: &str, marker: &str) {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        format!("name = \"g\"\nmain_scene = \"main.toml\"\nlanguage = \"{language}\"\n"),
+        "name = \"g\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        format!("[[nodes]]\nid = \"n\"\nname = \"Node\"\nscript = \"scripts/{script_name}\"\n"),
+        "[[nodes]]\nid = \"n\"\nname = \"Node\"\nscript = \"scripts/s.rn\"\n",
     )
     .unwrap();
-    std::fs::write(dir.path().join("scripts").join(script_name), source).unwrap();
+    std::fs::write(dir.path().join("scripts/s.rn"), source).unwrap();
 
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
@@ -158,32 +158,31 @@ fn serve_socket(stream: TcpStream) {
 }
 
 #[test]
-fn a_lua_script_logs_in_calls_a_hook_and_rests() {
+fn a_script_logs_in_rests_and_calls_a_hook() {
     if !e2e_enabled() {
         return;
     }
     let url = serve_gamend();
     let source = format!(
         r#"
-local S = {{}}
-function S:init()
-    gamend.configure("{url}")
-    local login = await(gamend.login({{ device_id = "dev-1" }}))
-    log.info("gamend-login " .. login.username)
-    local r = await(gamend.rest(nil, "GET", "/api/v1/ping"))
-    log.info("gamend-rest " .. r.status .. " " .. tostring(r.body.data.pong))
-    self.socket = gamend.connect(self.node)
-end
-function S:on_gamend_event(e)
-    if e.kind == "open" then
-        local reply = await(gamend.call_hook(self.socket, "arena", "echo", {{"hi"}}))
-        log.info("gamend-hook " .. reply.status .. " " .. reply.response.data)
-    end
-end
-return S
+pub async fn init(this) {{
+    gamend::configure("{url}");
+    let login = task::wait(gamend::login(#{{ device_id: "dev-1" }})).await;
+    log::info(format!("gamend-login {{}}", login["username"]));
+    let r = task::wait(gamend::rest((), "GET", "/api/v1/ping")).await;
+    log::info(format!("gamend-rest {{}} {{}}", r["status"], r["body"]["data"]["pong"]));
+    this.socket = gamend::connect(this.node);
+}}
+
+pub async fn on_gamend_event(this, e) {{
+    if e["kind"] == "open" {{
+        let reply = task::wait(gamend::call_hook(this.socket, "arena", "echo", ["hi"])).await;
+        log::info(format!("gamend-hook {{}} {{}}", reply["status"], reply["response"]["data"]));
+    }}
+}}
 "#
     );
-    run_until("s.luau", "luau", &source, "gamend-hook ok hi");
+    run_until(&source, "gamend-hook ok hi");
 }
 
 #[test]
@@ -209,33 +208,32 @@ pub async fn on_gamend_event(this, e) {{
 }}
 "#
     );
-    run_until("s.rn", "rune", &source, "gamend-hook ok hi");
+    run_until(&source, "gamend-hook ok hi");
 }
 
 #[test]
 #[ignore = "needs a running gamend server on localhost:4000"]
-fn live_a_lua_script_talks_to_a_real_server() {
+fn live_a_script_talks_to_a_real_server() {
     let source = r#"
-local S = {}
-function S:init()
-    gamend.configure("http://localhost:4000")
-    local login = await(gamend.login({ device_id = "balaur-plugin-live-test" }))
-    if login.error then
-        log.info("gamend-live login failed: " .. login.error)
-        return
-    end
-    self.socket = gamend.connect(self.node)
-end
-function S:on_gamend_event(e)
-    if e.kind == "open" then
-        local me = await(gamend.rest(nil, "GET", "/api/v1/me"))
-        local hook = await(gamend.call_hook(self.socket, "sdk_probe", "echo", {"hi"}))
-        log.info("gamend-live " .. me.status .. " " .. hook.status)
-    end
-end
-return S
+pub async fn init(this) {
+    gamend::configure("http://localhost:4000");
+    let login = task::wait(gamend::login(#{ device_id: "balaur-plugin-live-test" })).await;
+    if login.contains_key("error") {
+        log::info(format!("gamend-live login failed: {}", login["error"]));
+        return;
+    }
+    this.socket = gamend::connect(this.node);
+}
+
+pub async fn on_gamend_event(this, e) {
+    if e["kind"] == "open" {
+        let me = task::wait(gamend::rest((), "GET", "/api/v1/me")).await;
+        let hook = task::wait(gamend::call_hook(this.socket, "sdk_probe", "echo", ["hi"])).await;
+        log::info(format!("gamend-live {} {}", me["status"], hook["status"]));
+    }
+}
 "#;
     // The hook has no plugin behind it on a stock server, so its reply is an
     // error — which still proves the whole path.
-    run_until("s.luau", "luau", source, "gamend-live 200 error");
+    run_until(source, "gamend-live 200 error");
 }

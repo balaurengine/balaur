@@ -1,0 +1,107 @@
+// Undo/redo over the scene document. `model::build_mirror` rebuilds the live
+// scene from the document, so restoring a document restores everything.
+
+// Whole documents rather than inverse commands: an inverse per property would
+// put per-type knowledge back where the schema-driven inspector removed it.
+const MAX = 100;
+// A drag reports a change every frame; records sharing a key inside this many
+// seconds are one step. `engine::time()` advances once per frame, which is
+// the resolution this wants.
+const COALESCE = 0.4;
+
+fn frame(S, label) {
+    #{ doc: crate::util::deep(S.doc), sel: S.sel, label: label }
+}
+
+pub fn reset(S) {
+    S.history = #{ past: [], future: [], saved: 0, key: None, at: -1.0 };
+}
+
+// Called by every mutator *before* it mutates. `key` coalesces a continuing
+// drag into the step it started; pass `None` for a discrete action.
+pub fn record(S, label, key) {
+    if !S.contains_key("history") {
+        return;
+    }
+    let h = S.history;
+    let now = engine::time();
+    if key.is_some() && h.key == key && now - h.at < COALESCE {
+        h.at = now;
+        return;
+    }
+    h.key = key;
+    h.at = now;
+    h.past.push(frame(S, label));
+    if h.past.len() > MAX {
+        h.past.remove(0);
+        // The saved point scrolled off the end: nothing can reach it again.
+        h.saved = if h.saved > 0 { h.saved - 1 } else { -1 };
+    }
+    h.future = [];
+}
+
+// Break any open coalescing run, so the next edit starts its own step. Called
+// when the selection moves or a drag ends.
+pub fn commit(S) {
+    if S.contains_key("history") {
+        S.history.key = None;
+    }
+}
+
+fn restore(S, into, from) {
+    let top = match from.pop() {
+        Some(top) => top,
+        None => return None,
+    };
+    into.push(frame(S, top.label));
+    S.doc = top.doc;
+    S.sel = crate::util::clamp(top.sel, 0, top.doc.len() - 1);
+    S.history.key = None;
+    Some(top.label)
+}
+
+// Both return the label of the step they moved through, or `None` when the
+// stack is empty. The caller rebuilds the mirror: history owns data, not the
+// engine.
+pub fn undo(S) {
+    restore(S, S.history.future, S.history.past)
+}
+
+pub fn redo(S) {
+    restore(S, S.history.past, S.history.future)
+}
+
+pub fn can_undo(S) {
+    S.contains_key("history") && S.history.past.len() > 0
+}
+
+pub fn can_redo(S) {
+    S.contains_key("history") && S.history.future.len() > 0
+}
+
+// What ⌘Z would undo, for a menu or palette label.
+pub fn undo_label(S) {
+    let past = S.history.past;
+    if past.len() > 0 { Some(past[past.len() - 1].label) } else { None }
+}
+
+pub fn redo_label(S) {
+    let future = S.history.future;
+    if future.len() > 0 { Some(future[future.len() - 1].label) } else { None }
+}
+
+pub fn mark_saved(S) {
+    if S.contains_key("history") {
+        S.history.saved = S.history.past.len();
+    }
+}
+
+// Position in the stack, not a latch: undoing back to the last save is clean
+// again, which a boolean set by every mutator could never say.
+pub fn dirty(S) {
+    if !S.contains_key("history") {
+        return false;
+    }
+    let h = S.history;
+    h.saved < 0 || h.past.len() != h.saved
+}

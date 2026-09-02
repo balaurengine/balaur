@@ -1,0 +1,205 @@
+// Viewport overlays drawn as per-frame lines: the 2D grid, axis guides, the
+// selected clip's motion path, and collider outlines.
+
+use crate::anim;
+use crate::model;
+use crate::util;
+
+// 2D grid, drawn as per-frame world-space lines over the visible extents.
+pub fn grid2d(S) {
+    let k = S.theme;
+    let (cx, cy, zoom) = render::camera_2d();
+    let sw = S.screen_w * S.ui_scale;
+    let sh = S.screen_h * S.ui_scale;
+    let half_w = sw / zoom / 2.0 + 1.0;
+    let half_h = sh / zoom / 2.0 + 1.0;
+    if half_w > 200.0 || half_h > 200.0 {
+        return;
+    }
+    let minor = util::rgb(k.grid);
+    let major = util::rgb(k.grid_major);
+    let x0 = math::floor(cx - half_w) as i64;
+    let x1 = math::ceil(cx + half_w) as i64;
+    for x in x0..x1 + 1 {
+        let c = if x % 5 == 0 { major } else { minor };
+        let xf = x as f64;
+        render::draw_line_2d(xf, cy - half_h, xf, cy + half_h, c[0], c[1], c[2], if x == 0 { 2.0 } else { 1.0 });
+    }
+    let y0 = math::floor(cy - half_h) as i64;
+    let y1 = math::ceil(cy + half_h) as i64;
+    for y in y0..y1 + 1 {
+        let c = if y % 5 == 0 { major } else { minor };
+        let yf = y as f64;
+        render::draw_line_2d(cx - half_w, yf, cx + half_w, yf, c[0], c[1], c[2], if y == 0 { 2.0 } else { 1.0 });
+    }
+}
+
+// Axis guide lines through the selection (Guides chip).
+pub fn guides(S) {
+    let found = match model::live(S, S.sel) {
+        Some(found) => found,
+        None => return,
+    };
+    let p = found.global_position();
+    let k = S.theme;
+    let a = util::rgb(k.accent);
+    let s = util::rgb(k.sage);
+    if model::is_2d(S) {
+        render::draw_line_2d(p.x - 4.0, p.y, p.x + 4.0, p.y, a[0], a[1], a[2], 1.0);
+        render::draw_line_2d(p.x, p.y - 4.0, p.x, p.y + 4.0, s[0], s[1], s[2], 1.0);
+        return;
+    }
+    let d = util::rgb(k.dim);
+    render::draw_line(p.x - 4.0, p.y, p.z, p.x + 4.0, p.y, p.z, a[0], a[1], a[2], 1.0);
+    render::draw_line(p.x, p.y - 4.0, p.z, p.x, p.y + 4.0, p.z, s[0], s[1], s[2], 1.0);
+    render::draw_line(p.x, p.y, p.z - 4.0, p.x, p.y, p.z + 4.0, d[0], d[1], d[2], 1.0);
+}
+
+// The selected clip's position keys, joined in order, with a marker on each
+// (Motion path chip, anim persona).
+pub fn motion_path(S) {
+    let def = match anim::definition(S) {
+        Some(def) => def,
+        None => return,
+    };
+    let keys = None;
+    for track in anim::tracks(def) {
+        if track.get("target").unwrap_or("") == "" && track.get("property") == Some("position") {
+            keys = Some(util::vec(track.get("keys").unwrap_or([])));
+        }
+    }
+    let keys = match keys {
+        Some(keys) => keys,
+        None => return,
+    };
+    if keys.len() < 1 {
+        return;
+    }
+    let k = S.theme;
+    let c = util::rgb(k.accent);
+    let is2d = model::is_2d(S);
+    let previous = None;
+    for key in keys {
+        let v = util::vec3(key.get("value").unwrap_or(()), [0.0, 0.0, 0.0]);
+        let x = v[0];
+        let y = v[1];
+        let z = v[2];
+        if let Some(prev) = previous {
+            if is2d {
+                render::draw_line_2d(prev[0], prev[1], x, y, c[0], c[1], c[2], 1.0);
+            } else {
+                render::draw_line(prev[0], prev[1], prev[2], x, y, z, c[0], c[1], c[2], 1.0);
+            }
+        }
+        let d = 0.15;
+        if is2d {
+            render::draw_line_2d(x - d, y, x + d, y, c[0], c[1], c[2], 2.0);
+            render::draw_line_2d(x, y - d, x, y + d, c[0], c[1], c[2], 2.0);
+        } else {
+            render::draw_line(x - d, y, z, x + d, y, z, c[0], c[1], c[2], 2.0);
+            render::draw_line(x, y - d, z, x, y + d, z, c[0], c[1], c[2], 2.0);
+        }
+        previous = Some([x, y, z]);
+    }
+}
+
+// 2D collider outlines (Show colliders chip, phys persona).
+pub fn colliders2d(S) {
+    let k = S.theme;
+    let c = util::rgb(k.sage);
+    for (i, node) in S.doc.iter().enumerate() {
+        let collider = match node.get("collider2d") {
+            Some(collider) => if collider is Object { collider } else { continue },
+            None => continue,
+        };
+        let found = match model::live(S, i) {
+            Some(found) => found,
+            None => continue,
+        };
+        let p = found.global_position();
+        let angle = found.global_rotation_euler().z;
+        let s = found.global_scale();
+        let ca = math::cos(angle);
+        let sa = math::sin(angle);
+        let pt = |ox, oy| (p.x + ca * ox - sa * oy, p.y + sa * ox + ca * oy);
+        if collider.get("kind") == Some("circle") {
+            let radius = util::f(collider.get("radius").unwrap_or(0.5)) * s.x;
+            let (px, py) = pt(radius, 0.0);
+            for t in 1..33 {
+                let a = (t as f64) / 32.0 * math::PI * 2.0;
+                let (nx, ny) = pt(math::cos(a) * radius, math::sin(a) * radius);
+                render::draw_line_2d(px, py, nx, ny, c[0], c[1], c[2], 1.0);
+                px = nx;
+                py = ny;
+            }
+        } else {
+            let he = util::vec2(collider.get("half_extents").unwrap_or(()), [0.5, 0.5]);
+            let hx = he[0] * s.x;
+            let hy = he[1] * s.y;
+            let (x1, y1) = pt(-hx, -hy);
+            let (x2, y2) = pt(hx, -hy);
+            let (x3, y3) = pt(hx, hy);
+            let (x4, y4) = pt(-hx, hy);
+            render::draw_line_2d(x1, y1, x2, y2, c[0], c[1], c[2], 1.0);
+            render::draw_line_2d(x2, y2, x3, y3, c[0], c[1], c[2], 1.0);
+            render::draw_line_2d(x3, y3, x4, y4, c[0], c[1], c[2], 1.0);
+            render::draw_line_2d(x4, y4, x1, y1, c[0], c[1], c[2], 1.0);
+        }
+        // Center of mass.
+        render::draw_line_2d(p.x - 0.1, p.y, p.x + 0.1, p.y, c[0], c[1], c[2], 3.0);
+        render::draw_line_2d(p.x, p.y - 0.1, p.x, p.y + 0.1, c[0], c[1], c[2], 3.0);
+    }
+}
+
+// Collider wireboxes + center-of-mass dots (Show colliders chip).
+pub fn colliders(S) {
+    let k = S.theme;
+    let c = util::rgb(k.sage);
+    for (i, node) in S.doc.iter().enumerate() {
+        let collider = match node.get("collider3d") {
+            Some(collider) => if collider is Object { collider } else { continue },
+            None => continue,
+        };
+        let found = match model::live(S, i) {
+            Some(found) => found,
+            None => continue,
+        };
+        let p = found.global_position();
+        let hx = 0.5;
+        let hy = 0.5;
+        let hz = 0.5;
+        let radius_some = collider.get("radius");
+        if let Some(radius) = radius_some {
+            let r = util::f(radius);
+            hx = r;
+            hy = r;
+            hz = r;
+        } else if let Some(he) = collider.get("half_extents") {
+            let he = util::vec3(he, [0.5, 0.5, 0.5]);
+            hx = he[0];
+            hy = he[1];
+            hz = he[2];
+        }
+        let xs = [p.x - hx, p.x + hx];
+        let ys = [p.y - hy, p.y + hy];
+        let zs = [p.z - hz, p.z + hz];
+        for yy in ys {
+            for zz in zs {
+                render::draw_line(xs[0], yy, zz, xs[1], yy, zz, c[0], c[1], c[2], 1.0);
+            }
+        }
+        for xx in xs {
+            for zz in zs {
+                render::draw_line(xx, ys[0], zz, xx, ys[1], zz, c[0], c[1], c[2], 1.0);
+            }
+        }
+        for xx in xs {
+            for yy in ys {
+                render::draw_line(xx, yy, zs[0], xx, yy, zs[1], c[0], c[1], c[2], 1.0);
+            }
+        }
+        // Center of mass.
+        render::draw_line(p.x - 0.15, p.y, p.z, p.x + 0.15, p.y, p.z, c[0], c[1], c[2], 3.0);
+        render::draw_line(p.x, p.y - 0.15, p.z, p.x, p.y + 0.15, p.z, c[0], c[1], c[2], 3.0);
+    }
+}

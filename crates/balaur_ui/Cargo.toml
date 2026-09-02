@@ -1,6 +1,6 @@
 [package]
 name = "balaur_ui"
-description = "Balaur UI plugin: an immediate-mode egui API for Luau scripts"
+description = "Balaur UI plugin: an immediate-mode egui API for scripts"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

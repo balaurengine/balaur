@@ -50,27 +50,10 @@ window — what an automation client or a visual CI job wants. `--frames N`
 stops after N frames. To capture a frame, the game or tool calls
 `render.screenshot("out.png")` at the moment worth capturing.
 
-A script has lifecycle methods and is attached to a node. Two languages ship;
-a project picks one with `language` in its `project.toml`, defaulting to Luau.
-
-```luau
--- scripts/spinner.luau
-local Spinner = {}
-
-function Spinner:init()
-    self.angle = 0
-end
-
-function Spinner:update(dt)
-    self.angle += dt
-    self.node:set_rotation_euler(0, self.angle, 0)
-end
-
-return Spinner
-```
+A script has lifecycle methods and is attached to a node. Scripts are Rune:
 
 ```rust
-// scripts/spinner.rn        project.toml: language = "rune"
+// scripts/spinner.rn
 pub fn init(this) { this.angle = 0.0; }
 
 pub fn update(this, dt) {
@@ -88,7 +71,7 @@ that reproduces exactly on every machine, and a force applied there lands on
 the step it was meant for.
 
 Both call the same bindings: subsystems declare them once against
-`balaur_script`, so neither language is privileged and a third costs one crate.
+`balaur_script`, which names no language, so a second language costs one crate.
 Values a binding accepts are named rather than spelled — `input.KEY_SPACE`,
 `input.MOUSE_LEFT`, `physics3d.BODY_DYNAMIC`, `ui.ANCHOR_TOP_LEFT`.
 
@@ -98,20 +81,20 @@ Scenes are declarative TOML; plugins extend their vocabulary:
 [[nodes]]
 name = "Ball"
 position = [0.0, 6.0, 0.0]
-script = "scripts/ball.luau"
+script = "scripts/ball.rn"
 body3d = "dynamic"                                # from balaur_physics
 collider3d = { kind = "ball", radius = 0.5 }      # from balaur_physics
 shape3d = { kind = "ball", radius = 0.5 }         # from balaur_render
 ```
 
 Try the demo: `cargo run -p balaur_cli -- run examples/hello --headless`,
-then edit `examples/hello/scripts/spinner.luau` while it runs. Scripts also
+then edit `examples/hello/scripts/spinner.rn` while it runs. Scripts also
 get `input` (keys/mouse), `rng` (seeded, deterministic), `audio`, `physics`/`physics3d`/`physics2d`,
 `render` (shapes, colors, `render.set_camera`), `animation` (clips and
 tweens), `skeleton` (rest poses of a rig), `assets` (shared content by
 reference), and deterministic `math.*` replacements out of the box.
 
-The editor has a debugger for Luau scripts: click a line number to set a
+The editor has a script debugger: click a line number to set a
 breakpoint, run the scene, and the Debugger dock shows the call stack and
 locals, with continue and step over / into / out on `F5` / `F10` / `F11` /
 `Shift+F11`.
@@ -140,7 +123,7 @@ library = "animations/platform.toml"   # or the clip table, written inline
 autoplay = "patrol"
 ```
 
-A clip's tracks drive the transform (`position`, `rotation_euler`, `scale`) or
+A clip's tracks drive the transform (`position`, `rotation_euler`, `rotation`, `scale`) or
 any registered component's property (`color/rgba`, `shape/radius`,
 `widget/x`) through the component registry, so third-party components animate
 with no code. A track with no property is a method track: its keys call a
@@ -148,17 +131,17 @@ method on the node's script.
 
 A tween is the same thing built on the spot, from the values the node has now:
 
-```luau
-animation.tween(self.node, {
-    steps = {
-        { property = "position",   to = { 0, 3, 0 },    duration = 0.5, ease = "out_back" },
-        { property = "color/rgba", to = { 1, 0, 0, 1 }, duration = 0.5, parallel = true },
-        { call = "on_landed" },
-    },
-})
+```rust
+animation::tween(this.node, #{
+    steps: [
+        #{ property: "position",   to: [0.0, 3.0, 0.0],      duration: 0.5, ease: "out_back" },
+        #{ property: "color/rgba", to: [1.0, 0.0, 0.0, 1.0], duration: 0.5, parallel: true },
+        #{ call: "on_landed" },
+    ],
+});
 ```
 
-Steps run in order; `parallel = true` joins one to the step before it. Playback
+Steps run in order; `parallel: true` joins one to the step before it. Playback
 advances on a fixed 1/60 timestep and the easing curves (twelve transitions,
 four modes, Godot's names) are computed on `libm`, so an animation is the same
 on every platform. `examples/hello` has a moving platform driven by a clip
@@ -197,10 +180,13 @@ so bones stay inside the determinism digest. `skeleton.apply_rest(node)` and
 Animate persona has a **Rig bone** tool, bone gizmos, the rest-pose buttons,
 and a **Polygon** tool with Points / Polygons / UV / Weights modes; keying a
 bone writes a track on its character's clip. `examples/rig` is a three-bone
-limb bending under a looping clip.
+leg bending under a looping clip, and an arm that reaches for a moving
+target through `modifier2d` — `look_at` aims one bone, `two_bone_ik` solves
+a root, middle, tip chain, both running after the clip every frame.
 
 3D rigs come from files rather than tracing: `balaur import model.glb
---project game` copies the model under `models/`, writes its joint hierarchy
+--project game` (or a `.gltf` with its `.bin` and texture beside it) copies
+the model under `models/`, writes its joint hierarchy
 as a scene with `bone3d` rest poses and one `mesh` node, and its animations
 as a clip library — all TOML. The mesh is CPU-skinned every frame from the
 same scene tree, so it animates through the same clips, and the same rest
@@ -244,8 +230,7 @@ The generated ones come from `python3 scripts/gen_docs.py`; CI fails on drift.
 | --- | --- |
 | `balaur_script` | The scripting seam: traits and a neutral value type, no language and no dependencies |
 | `balaur_core` | ECS world (hecs), scene tree, scheduler, plugin API, pack export. Names no scripting language |
-| `balaur_script_luau` | Luau backend (mlua): host, hot reload, `require`, bytecode packs |
-| `balaur_script_rune` | Rune backend |
+| `balaur_script_rune` | Rune backend: host, hot reload, `mod` files, the debugger, export |
 | `balaur_physics` | Rapier plugin; the reference example for wrapping a Rust crate for scripting |
 | `balaur_render` | Renderable components + `render` module; kiss3d/wgpu backend behind the `kiss3d` feature |
 | `balaur_anim` | Animation clips, the pure sampler, tweens, easing; the `animation` module |
@@ -258,8 +243,8 @@ The generated ones come from `python3 scripts/gen_docs.py`; CI fails on drift.
 
 ## Shipping a game
 
-`balaur export` compiles every script to Luau bytecode and bundles it with
-scenes and the manifest into a single `.bpak`. That pack is data, though — it
+`balaur export` compiles every script against the modules the game will have
+and bundles the scripts with scenes and the manifest into a single `.bpak`. That pack is data, though — it
 still needs an engine to run it. To ship something a player can just open, fuse
 it onto a runtime template:
 
@@ -310,6 +295,6 @@ fn main() -> anyhow::Result<()> {
 }
 ```
 
-No Luau compiler, no file watcher, and no script sources exist in the shipped
-build; the bytecode was produced by the exact compiler configuration used
-during development.
+No file watcher and no editor exist in the shipped build; every script was
+checked by the exact compiler configuration used during development, and the
+pack loads with nothing read from disk.

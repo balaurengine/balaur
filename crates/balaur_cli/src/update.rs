@@ -186,13 +186,13 @@ mod imp {
             std::fs::create_dir(install.join("editor")).expect("the old editor dir writes");
             std::fs::write(bundle.join("balaur"), b"new").expect("the new binary writes");
             std::fs::create_dir(bundle.join("editor")).expect("the new editor dir writes");
-            std::fs::write(bundle.join("editor").join("a.luau"), b"x")
+            std::fs::write(bundle.join("editor").join("a.rn"), b"x")
                 .expect("the new editor file writes");
 
             super::swap_install(&bundle, &install, &install.join("balaur"))
                 .expect("the swap succeeds");
             assert_eq!(super::read_all(&install.join("balaur")), b"new");
-            assert!(install.join("editor").join("a.luau").is_file());
+            assert!(install.join("editor").join("a.rn").is_file());
         }
     }
 }

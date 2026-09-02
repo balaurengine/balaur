@@ -212,9 +212,14 @@ pub(crate) fn from_neutral(v: &Neutral) -> Result<rune::Value> {
             b: f64::from(*b),
             a: f64::from(*a),
         })?,
-        // Rune returns several values as a tuple; nested, a vector is the
-        // closest thing, same as a list.
-        Neutral::Many(items) | Neutral::List(items) => {
+        Neutral::Many(items) => {
+            let mut out = Vec::with_capacity(items.len());
+            for it in items {
+                out.push(from_neutral(it)?);
+            }
+            rune::to_value(rune::runtime::OwnedTuple::try_from(out)?)?
+        }
+        Neutral::List(items) => {
             let mut out = rune::runtime::Vec::new();
             for it in items {
                 out.push(from_neutral(it)?)?;

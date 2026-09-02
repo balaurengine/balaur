@@ -67,7 +67,7 @@ fn a_clip_animates_a_component_the_animation_crate_does_not_depend_on() {
         &app,
         entity,
         "shape3d",
-        &format!("kind = \"cuboid\"\ncolor = [0.0, 0.0, 0.0, 1.0]"),
+        "kind = \"cuboid\"\ncolor = [0.0, 0.0, 0.0, 1.0]",
     );
     set(
         &app,
@@ -545,4 +545,44 @@ fn animating_a_render_component_costs_no_dependency_on_the_render_crate() {
              design being given up, not a build fix."
         );
     }
+}
+
+#[test]
+fn a_rotation_track_takes_quaternion_keys_and_slerps_between_them() {
+    let mut app = app();
+    let entity = spawn(&app, "Turn");
+    let half = std::f32::consts::FRAC_1_SQRT_2;
+    set(
+        &app,
+        entity,
+        "animation",
+        &format!(
+            r#"
+[library]
+length = 1.0
+
+[[library.tracks]]
+property = "rotation"
+keys = [
+  {{ t = 0.0, value = [0, 0, 0, 1] }},
+  {{ t = 1.0, value = [0, 0, {half}, {half}] }},
+]
+"#
+        ),
+    );
+    balaur_anim::play(&app.engine, entity, "").unwrap();
+
+    tick(&mut app, 31);
+
+    let rotation = app
+        .engine
+        .world()
+        .get::<&scene::Transform>(entity)
+        .unwrap()
+        .rotation;
+    let angle = balaur_core::skeleton::angle_about_z(rotation);
+    assert!(
+        (angle - std::f32::consts::FRAC_PI_4).abs() < 0.03,
+        "half way to a quarter turn is an eighth, not {angle}"
+    );
 }

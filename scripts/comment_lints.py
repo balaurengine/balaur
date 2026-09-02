@@ -3,7 +3,7 @@
 
 A comment that repeats the line under it is worse than none: it doubles what
 has to be kept true, and it goes stale silently. Names carry that weight
-better. This flags the mechanical cases in Rust, Luau, Rune, Python, shell,
+better. This flags the mechanical cases in Rust, Rune, Python, shell,
 YAML and TOML alike.
 
   ERROR   fails CI. No judgement needed.
@@ -27,7 +27,7 @@ MAX_RUN = 3
 MAX_RUN_SH_HEADER = 8
 
 MARKERS = {
-    ".rs": "//", ".rn": "//", ".luau": "--", ".lua": "--",
+    ".rs": "//", ".rn": "//",
     ".py": "#", ".sh": "#", ".yml": "#", ".yaml": "#", ".toml": "#",
 }
 DOC_PREFIXES = {"//": ("///", "//!"), "--": ("---",), "#": ("#!",)}

@@ -21,7 +21,7 @@ libm.workspace = true
 [dev-dependencies]
 # The facade, for the two things a test needs and the crate must not: a render
 # plugin whose `color` component an animation drives without depending on it,
-# and the two script backends the `animation` module has to reach alike.
+# and the script backend the `animation` module has to reach.
 balaur.workspace = true
 tempfile = "3"
 

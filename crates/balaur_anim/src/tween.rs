@@ -9,18 +9,18 @@
 //! crate and a tween does not add another — which also means a tween is
 //! serialisable, so an editor can author one and it can hot reload.
 //!
-//! ```luau
-//! local id = animation.tween(self.node, {
-//!   loops = 1, speed = 1.0,
-//!   steps = {
-//!     { property = "position",   to = {0, 3, 0},    duration = 0.5, ease = "out_back" },
-//!     { property = "color/rgba", to = {1, 0, 0, 1}, duration = 0.5, parallel = true },
-//!     { interval = 0.2 },
-//!     { call = "on_landed" },
-//!     { property = "position", by = {0, -3, 0}, duration = 0.4, ease = "in_quad" },
-//!   },
-//! })
-//! animation.stop(id);  animation.is_running(id)
+//! ```rune
+//! let id = animation::tween(this.node, #{
+//!   loops: 1, speed: 1.0,
+//!   steps: [
+//!     #{ property: "position",   to: [0.0, 3.0, 0.0],      duration: 0.5, ease: "out_back" },
+//!     #{ property: "color/rgba", to: [1.0, 0.0, 0.0, 1.0], duration: 0.5, parallel: true },
+//!     #{ interval: 0.2 },
+//!     #{ call: "on_landed" },
+//!     #{ property: "position", by: [0.0, -3.0, 0.0], duration: 0.4, ease: "in_quad" },
+//!   ],
+//! });
+//! animation::stop(id);  animation::is_running(id)
 //! ```
 //!
 //! Steps run one after another; `parallel = true` joins a step to the one
@@ -521,6 +521,7 @@ fn current_value(
         // Rotation keys are euler, so the rotation a tween starts from has to
         // be read back as one.
         Property::RotationEuler => euler_from_quat(transform.rotation).extend(0.0),
+        Property::Rotation => Vec4::from(transform.rotation),
         Property::Component { .. } | Property::Call => Vec4::ZERO,
     })
 }

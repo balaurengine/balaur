@@ -1,0 +1,279 @@
+// Start-up states that exercise the editor and assert the result. `log::error`
+// is the failure channel: `scripts/e2e.sh` fails any run that logs one.
+
+use crate::anim;
+use crate::history;
+use crate::model;
+use crate::polygon;
+use crate::rig;
+use crate::shell;
+use crate::util;
+
+fn check(ok, what) {
+    if ok {
+        log::info(format!("selftest ok: {}", what));
+    } else {
+        log::error(format!("selftest FAILED: {}", what));
+    }
+    ok
+}
+
+// Every document node must resolve to a live node — the invariant e2e already
+// checks at start-up, asserted here after each mutation instead.
+fn mirror_resolves(S) {
+    for i in 0..S.doc.len() {
+        if model::live(S, i).is_none() {
+            return false;
+        }
+    }
+    true
+}
+
+fn name_at(S, i) {
+    match S.doc.get(i) {
+        Some(node) => node.name,
+        None => "<none>",
+    }
+}
+
+fn undo_all(S) {
+    let guard = 0;
+    while history::can_undo(S) && guard < 200 {
+        shell::undo(S);
+        guard += 1;
+    }
+}
+
+// The first writable float on any component of the selection, so the test
+// exercises `set_component_prop` on whatever the scene actually has.
+fn writable_float(found) {
+    for comp in found.component_names() {
+        let schema = util::obj(scene::component_schema(comp));
+        for prop in util::keys_sorted(schema) {
+            let spec = schema[prop];
+            if spec["type"] == "float" && spec.get("readonly").unwrap_or(false) != true {
+                return Some((comp, prop, spec));
+            }
+        }
+    }
+    None
+}
+
+fn float_prop(found, comp, prop) {
+    match util::obj(found.get_component(comp)).get(prop) {
+        Some(v) => Some(util::f(v)),
+        None => None,
+    }
+}
+
+pub fn component_write(S) {
+    let found = match model::live(S, S.sel) {
+        Some(found) => found,
+        None => return,
+    };
+    let (comp, prop, spec) = match writable_float(found) {
+        Some(hit) => hit,
+        None => {
+            log::info("selftest: the selection has no writable float; skipped");
+            return;
+        }
+    };
+    let was = match float_prop(found, comp, prop) {
+        Some(v) => v,
+        None => util::f(spec.get("default").unwrap_or(0.0)),
+    };
+    model::set_component_prop(S, comp, prop, was + 3.0);
+    let now = float_prop(model::live(S, S.sel).unwrap(), comp, prop).unwrap_or(-1.0);
+    check(util::abs(now - (was + 3.0)) < 1e-6, format!("{}.{} took the write ({})", comp, prop, now));
+    shell::undo(S);
+    let back = float_prop(model::live(S, S.sel).unwrap(), comp, prop).unwrap_or(-1.0);
+    check(util::abs(back - was) < 1e-6, format!("undo restores {}.{} ({} vs {})", comp, prop, back, was));
+}
+
+// Mutate, undo, redo; assert the document, the mirror and the selection all
+// come back. Runs headless, so it is CI's only view of the editor's Rune.
+pub fn undo(S) {
+    let start = S.doc.len();
+    check(history::dirty(S) == false, "a freshly loaded scene is clean");
+    check(history::can_undo(S) == false, "nothing to undo on load");
+
+    // Duplicate: the case that used to leave a node with no live node at all.
+    for (i, node) in S.doc.iter().enumerate() {
+        if node.name == "Bird" {
+            shell::choose(S, i);
+        }
+    }
+    let picked = name_at(S, S.sel);
+    model::duplicate_selected(S);
+    check(S.doc.len() == start + 1, format!("duplicate adds a node ({})", S.doc.len()));
+    check(mirror_resolves(S), "duplicate resolves every node in the mirror");
+    check(history::dirty(S), "duplicating marks the scene dirty");
+    let copy = name_at(S, S.sel);
+
+    shell::undo(S);
+    check(S.doc.len() == start, format!("undo removes it again ({})", S.doc.len()));
+    check(mirror_resolves(S), "undo resolves every node in the mirror");
+    check(name_at(S, S.sel) == picked, format!("undo restores the selection ({})", name_at(S, S.sel)));
+    check(history::dirty(S) == false, "undo back to the load point is clean");
+
+    shell::redo(S);
+    check(S.doc.len() == start + 1, format!("redo adds it back ({})", S.doc.len()));
+    check(name_at(S, S.sel) == copy, format!("redo restores the selection ({})", name_at(S, S.sel)));
+    check(mirror_resolves(S), "redo resolves every node in the mirror");
+
+    // Delete: the destructive one, and the one that moves the selection.
+    let before_delete = S.doc.len();
+    model::delete_selected(S);
+    check(S.doc.len() == before_delete - 1, format!("delete removes a node ({})", S.doc.len()));
+    shell::undo(S);
+    check(S.doc.len() == before_delete, format!("undo restores the deleted node ({})", S.doc.len()));
+    check(mirror_resolves(S), "the restored node resolves in the mirror");
+
+    // A transform write, the way the inspector's vector rows make one.
+    let (node, found) = model::selected(S);
+    let found_some = found;
+    if let Some(found) = found_some {
+        let p = found.position();
+        history::record(S, "move node", Some("selftest:move"));
+        history::commit(S);
+        node.position = [p.x + 5.0, p.y, p.z];
+        found.set_position(p.x + 5.0, p.y, p.z);
+        shell::undo(S);
+        let restored = util::vec3(model::selected_node(S).get("position").unwrap_or(()), [0.0, 0.0, 0.0]);
+        check(util::abs(restored[0] - p.x) < 1e-6, format!("undo restores the position ({} vs {})", restored[0], p.x));
+    }
+
+    // A component property, discovered rather than named: every scene has
+    // different components, and a 3D one has no `shape2d` to write to.
+    component_write(S);
+
+    // The stack is finite and ordered: undo everything, then nothing is left.
+    undo_all(S);
+    check(S.doc.len() == start, format!("undoing everything returns the original scene ({})", S.doc.len()));
+    check(history::dirty(S) == false, "the fully-undone scene is clean again");
+    check(mirror_resolves(S), "the fully-undone scene resolves in the mirror");
+    log::info("selftest undo: done");
+}
+
+// Grow a bone, round-trip the rest pose, key the bone on its player's clip
+// by path, then undo it all. Skips scenes with no rig.
+pub fn rigging(S) {
+    let first = None;
+    for (i, node) in S.doc.iter().enumerate() {
+        if rig::is_bone(node) {
+            first = Some(i);
+            break;
+        }
+    }
+    let first = match first {
+        Some(first) => first,
+        None => {
+            log::info("selftest rig: no bones; skipped");
+            return;
+        }
+    };
+    let start = S.doc.len();
+    shell::choose(S, first);
+    let bone_name = name_at(S, first);
+
+    let added = rig::add_bone(S, first, 1.0, 2.0);
+    check(added.is_some() && S.doc.len() == start + 1, format!("rig bone adds a node ({})", S.doc.len()));
+    check(mirror_resolves(S), "the new bone resolves in the mirror");
+    check(rig::is_bone(S.doc[S.doc.len() - 1]), "the new node carries a bone component");
+    check(S.doc[S.doc.len() - 1].parent == S.doc[first].id, format!("the new bone hangs under {}", bone_name));
+
+    // Rest round trip: record the pose, move, reset, and it is back.
+    shell::choose(S, first);
+    let found = model::live(S, first).unwrap();
+    let p = found.position();
+    rig::overwrite_rest(S);
+    found.set_position(p.x + 1.0, p.y, p.z);
+    rig::apply_rest(S);
+    let bx = model::live(S, first).unwrap().position().x;
+    check(util::abs(bx - p.x) < 1e-5, format!("reset to rest pose puts {} back ({} vs {})", bone_name, bx, p.x));
+    let doc_pos = util::vec3(S.doc[first].get("position").unwrap_or(()), [0.0, 0.0, 0.0]);
+    check(util::abs(doc_pos[0] - p.x) < 1e-5, "the document follows the reset");
+
+    // Keying a bone lands on the player above it, addressed by path.
+    let player_i = anim::player_index(S);
+    let target = anim::target_path(S, player_i);
+    anim::add_key(S, 0.0);
+    let found_rotation = false;
+    let positioned = false;
+    if let Some(def) = anim::definition(S) {
+        for track in anim::tracks(def) {
+            if track.get("target").unwrap_or("") == target {
+                found_rotation = found_rotation || track.get("property") == Some("rotation_euler");
+                positioned = positioned || track.get("property") == Some("position");
+            }
+        }
+    }
+    check(found_rotation, format!("keying {} writes a rotation track at '{}'", bone_name, target));
+    check(!positioned, "a bone keys no position track");
+
+    undo_all(S);
+    check(S.doc.len() == start, format!("undoing everything returns the original scene ({})", S.doc.len()));
+    check(mirror_resolves(S), "the fully-undone scene resolves in the mirror");
+    log::info("selftest rig: done");
+}
+
+// Trace a vertex onto a polygon, sync its bones from the rig, paint one,
+// draw a polygon, remove a vertex, then undo it all. Skips scenes with no
+// inline polygon.
+pub fn polygons(S) {
+    let picked = None;
+    for (i, node) in S.doc.iter().enumerate() {
+        if let Some(comp) = polygon::component(node) {
+            if comp.get("mesh").unwrap_or(()) is Object {
+                picked = Some(i);
+                break;
+            }
+        }
+    }
+    let picked = match picked {
+        Some(picked) => picked,
+        None => {
+            log::info("selftest polygon: no inline polygon; skipped");
+            return;
+        }
+    };
+    shell::choose(S, picked);
+    let name = name_at(S, picked);
+    let mesh = polygon::mesh(S).unwrap();
+    let vertices = mesh.positions.len();
+    let internal = polygon::internal_count(mesh);
+
+    let at = polygon::add_vertex(S, 3.0, 3.0, false).unwrap_or(-1);
+    check(at == vertices - internal, format!("an outline vertex goes after the last outline one ({})", at));
+    check(polygon::mesh(S).unwrap().positions.len() == vertices + 1, "add vertex grows the mesh");
+    let live = model::live(S, picked).unwrap().get_component("polygon");
+    let inline = live is Object && live.get("mesh").unwrap_or("") is String && live.mesh.starts_with("#!");
+    check(inline, "the live polygon re-read its inline mesh");
+
+    polygon::sync_bones(S);
+    let bones = polygon::bones(S);
+    check(bones.len() > 0, format!("sync bones lists the rig's bones ({})", bones.len()));
+    check(bones.len() == 0 || util::vec(bones[0].get("weights").unwrap_or([])).len() == vertices + 1, "every bone has one weight per vertex");
+    if bones.len() > 0 {
+        S.paint_bone = Some(0);
+        polygon::paint(S, at, 1.0);
+        check(util::f(bones[0].weights[at]) == 1.0, "painting sets the vertex's weight");
+    }
+
+    let internal_at = polygon::add_vertex(S, 0.1, 0.1, true).unwrap_or(-1);
+    check(polygon::internal_count(polygon::mesh(S).unwrap()) == internal + 1, "an alt-click adds an internal vertex");
+    S.polygon_loop = Some([0, 1, internal_at]);
+    polygon::close_loop(S);
+    let polygons = util::vec(polygon::mesh(S).unwrap().get("polygons").unwrap_or([]));
+    check(polygons.len() >= 1, format!("closing a loop draws a polygon ({})", polygons.len()));
+
+    polygon::remove_vertex(S, at);
+    check(polygon::mesh(S).unwrap().positions.len() == vertices + 1, "removing the traced vertex shrinks the mesh");
+    check(mirror_resolves(S), "the polygon node still resolves");
+
+    undo_all(S);
+    let back = polygon::mesh(S).unwrap();
+    check(back.positions.len() == vertices, format!("undoing everything restores {}'s vertices ({})", name, back.positions.len()));
+    check(polygon::internal_count(back) == internal, "and its internal count");
+    log::info("selftest polygon: done");
+}

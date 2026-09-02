@@ -108,7 +108,7 @@ fn modifier2d_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
 
 /// A node's world pose composed from local transforms, so a bone this frame
 /// has already moved sees the move.
-fn pose_2d(world: &World, entity: Entity) -> Option<Mat3> {
+fn pose_2d(world: &World, entity: Entity) -> Mat3 {
     let mut chain = vec![entity];
     let mut current = entity;
     while let Ok(parent) = world.get::<&Parent>(current) {
@@ -121,7 +121,7 @@ fn pose_2d(world: &World, entity: Entity) -> Option<Mat3> {
             matrix *= affine_2d(t.position, t.rotation, t.scale);
         }
     }
-    Some(matrix)
+    matrix
 }
 
 fn angle_of(m: &Mat3) -> f32 {
@@ -161,8 +161,7 @@ fn aim_at_angle(world: &World, bone: Entity, wanted: f32) {
     let parent_angle = world
         .get::<&Parent>(bone)
         .ok()
-        .and_then(|p| pose_2d(world, p.0))
-        .map_or(0.0, |m| angle_of(&m));
+        .map_or(0.0, |p| angle_of(&pose_2d(world, p.0)));
     let local = wanted - aim_local(world, bone) - parent_angle;
     if let Ok(mut t) = world.get::<&mut Transform>(bone) {
         t.rotation = quat_about_z(local);
@@ -170,10 +169,7 @@ fn aim_at_angle(world: &World, bone: Entity, wanted: f32) {
 }
 
 fn look_at(world: &World, bone: Entity, target: Vec2) {
-    let Some(pose) = pose_2d(world, bone) else {
-        return;
-    };
-    let to = target - origin_of(&pose);
+    let to = target - origin_of(&pose_2d(world, bone));
     aim_at_angle(world, bone, libm::atan2f(to.y, to.x));
 }
 
@@ -188,13 +184,11 @@ fn two_bone_ik(world: &World, root: Entity, target: Vec2, flip: bool) {
         tracing::debug!("two_bone_ik needs a root, middle and tip bone");
         return;
     };
-    let (Some(r), Some(m), Some(t)) = (
-        pose_2d(world, root).map(|p| origin_of(&p)),
-        pose_2d(world, mid).map(|p| origin_of(&p)),
-        pose_2d(world, tip).map(|p| origin_of(&p)),
-    ) else {
-        return;
-    };
+    let (r, m, t) = (
+        origin_of(&pose_2d(world, root)),
+        origin_of(&pose_2d(world, mid)),
+        origin_of(&pose_2d(world, tip)),
+    );
     let l1 = (m - r).length();
     let l2 = (t - m).length();
     if l1 <= 1e-6 || l2 <= 1e-6 {
@@ -238,9 +232,7 @@ pub(crate) fn modify_system(eng: &Engine, _dt: f32) {
             tracing::debug!(bone = m.bone, "modifier2d bone names no node");
             continue;
         };
-        let Some(point) = pose_2d(&world, target).map(|p| origin_of(&p)) else {
-            continue;
-        };
+        let point = origin_of(&pose_2d(&world, target));
         match m.kind {
             Kind::LookAt => look_at(&world, bone, point),
             Kind::TwoBoneIk => two_bone_ik(&world, bone, point, m.flip),
@@ -254,5 +246,5 @@ pub fn target_of(eng: &Engine, entity: Entity) -> Option<Vec2> {
     let world = eng.world();
     let m = world.get::<&Modifier2d>(entity).ok()?;
     let target = scene::find_node(&world, entity, &m.target)?;
-    pose_2d(&world, target).map(|p| origin_of(&p))
+    Some(origin_of(&pose_2d(&world, target)))
 }

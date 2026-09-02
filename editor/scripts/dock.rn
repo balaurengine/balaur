@@ -1,0 +1,473 @@
+// Bottom dock (150 px, 212 px for Timeline and Debugger): Output / Assets /
+// Timeline / Debugger.
+
+use crate::anim;
+use crate::model;
+use crate::shell;
+use crate::util;
+
+fn tab_row(S, k) {
+    ui::horizontal(#{ height: 34 }, || {
+        ui::spacing(6, 0);
+        ui::add_space(6);
+        for tab in ["output", "assets", "timeline", "debugger"] {
+            let active = S.dock == tab;
+            let label = tab[..1].to_uppercase() + tab[1..];
+            if ui::pill(label, #{
+                height: 24, size: 11.5, strong: true,
+                fill: if active { k.accent_fill } else { k.sunken },
+                color: if active { k.on_accent } else { k.dim },
+            }) {
+                S.dock = tab;
+            }
+        }
+        // Output owns the right side of its own tab row: filter, search and
+        // clear are the controls a log is unusable without.
+        if S.dock == "output" {
+            ui::right(|| {
+                ui::add_space(8);
+                if ui::pill("clear", #{
+                    height: 22, size: 11, strong: true, tooltip: "Empty the log buffer",
+                    fill: k.sunken, color: k.dim,
+                }) {
+                    log::clear();
+                }
+                for level in ["error", "warn", "all"] {
+                    let active = S.log_level == level;
+                    if ui::pill(level, #{
+                        height: 22, size: 11, strong: true,
+                        tooltip: format!("Show {} and above", level),
+                        fill: if active { k.accent_soft } else { k.sunken },
+                        color: if active { k.accent } else { k.dim },
+                    }) {
+                        S.log_level = level;
+                    }
+                }
+                if S.compact {
+                    // No field on screen, so no invisible filter hiding rows.
+                    S.log_query = "";
+                } else {
+                    let (query, _, _) = ui::text_field("log-search", "filter…", #{
+                        size: 11, font: "mono", width: 130, height: 22,
+                        fill: k.sunken, stroke: k.line_soft, color: k.text,
+                    });
+                    S.log_query = query;
+                }
+            });
+        } else if !S.compact {
+            ui::right(|| {
+                ui::add_space(8);
+                let hint = if S.dock == "assets" {
+                    // A project-relative path: the absolute one is this
+                    // machine's, and lands in every screenshot.
+                    format!("res:// · {}", S.game_name)
+                } else if S.dock == "debugger" {
+                    if S.paused is Object { S.paused.reason } else { "F5 run · F10 over · F11 into · ⇧F11 out" }
+                } else {
+                    let (node, _, _) = anim::player(S);
+                    match anim::definition(S) {
+                        None => "no clip",
+                        Some(def) => {
+                            let name = anim::clip_name(node);
+                            format!("0.00 – {:.2} s · {} · {}",
+                                anim::length(def),
+                                if name == "" { "unnamed" } else { name },
+                                anim::library_path(node).unwrap_or("inline"))
+                        }
+                    }
+                };
+                ui::label(hint, #{ size: 11, font: "mono", color: k.faint });
+            });
+        }
+    });
+    ui::separator(k.line_soft);
+}
+
+// How loud an entry is, so `error` and `warn` stop looking identical.
+fn severity(level) {
+    match level {
+        "error" => 3,
+        "warn" => 2,
+        "info" => 1,
+        _ => 0,
+    }
+}
+
+fn floor_of(level) {
+    match level {
+        "warn" => 2,
+        "error" => 3,
+        _ => 0,
+    }
+}
+
+fn output(S, k) {
+    let floor = floor_of(S.log_level);
+    let query = S.log_query.to_lowercase();
+    let counts = #{ shown: 0, hidden: 0 };
+    // The buffer holds 500; asking for 60 threw away most of the session.
+    let entries = util::vec(log::recent(500));
+    ui::scroll("output", #{ stick_to_bottom: true }, || {
+        ui::spacing(4, 2);
+        for entry in entries {
+            let level = severity(entry.level);
+            let matches = query == ""
+                || entry.message.to_lowercase().contains(query)
+                || entry.tag.to_lowercase().contains(query);
+            if level < floor || !matches {
+                counts.hidden += 1;
+                continue;
+            }
+            counts.shown += 1;
+            ui::horizontal((), || {
+                ui::add_space(6);
+                let color = k.dim;
+                let marker = " ";
+                if entry.level == "error" {
+                    color = k.accent;
+                    marker = "✕";
+                } else if entry.level == "warn" {
+                    color = k.accent;
+                    marker = "!";
+                } else if entry.tag == "env" {
+                    color = k.sage;
+                }
+                ui::label(marker, #{ size: 11.5, font: "mono", strong: true, color: color });
+                ui::label(format!("{:6.1}s", util::f(entry.time)), #{ size: 11.5, font: "mono", color: k.faint });
+                ui::add_space(6);
+                let tag = if entry.tag.len() > 9 { entry.tag[..9] } else { entry.tag };
+                ui::label(tag + util::repeat(" ", 9 - tag.len()), #{
+                    size: 11.5, font: "mono", strong: true,
+                    color: if entry.level == "error" { k.accent } else { color },
+                });
+                ui::add_space(6);
+                ui::label(entry.message, #{
+                    size: 11.5, font: "mono",
+                    strong: entry.level == "error",
+                    color: if entry.level == "error" { k.text } else { k.dim },
+                });
+                // Structured fields the event carried, which the message text
+                // deliberately does not repeat.
+                for field in util::vec(entry.get("fields").unwrap_or([])) {
+                    ui::add_space(8);
+                    ui::label(format!("{}={}", field.name, field.value), #{ size: 11, font: "mono", color: k.faint });
+                }
+            });
+        }
+        if counts.shown == 0 {
+            ui::horizontal((), || {
+                ui::add_space(6);
+                let why = if counts.hidden > 0 {
+                    format!("{} entries hidden by the filter", counts.hidden)
+                } else {
+                    "nothing logged yet"
+                };
+                ui::label(why, #{ size: 11.5, font: "mono", color: k.faint });
+            });
+        }
+    });
+}
+
+const CARD_W = 96.0;
+const CARD_H = 66.0;
+
+// Icon and tint by extension, so a directory of assets reads at a glance.
+fn asset_look(name, is_dir) {
+    if is_dir {
+        ("▸", "sunken")
+    } else if name.ends_with(".rn") {
+        ("‹›", "sage_soft")
+    } else if name.ends_with(".toml") {
+        ("◇", "accent_soft")
+    } else if name.ends_with(".png") || name.ends_with(".jpg") {
+        ("▧", "accent_soft")
+    } else {
+        ("▫", "sunken")
+    }
+}
+
+// Opening a file means the thing the editor can actually do with it: jump to
+// the node running a script, or open a scene. Anything else just selects.
+fn open_asset(S, rel) {
+    if rel.ends_with(".toml") && rel.starts_with("scenes/") {
+        if S.scene_rel != rel {
+            model::open_scene(S, rel);
+        }
+        return;
+    }
+    for (i, node) in S.doc.iter().enumerate() {
+        if node.get("script") == Some(rel) {
+            shell::choose(S, i);
+            shell::set_persona(S, "script");
+            return;
+        }
+    }
+    log::info(format!("{} is not attached to any node", rel));
+}
+
+fn parent_dir(dir) {
+    let parts = dir.split('/').collect::<Vec>();
+    if parts.len() <= 1 {
+        return "";
+    }
+    parts.pop();
+    util::join(parts, "/")
+}
+
+fn assets(S, k) {
+    let dir = S.asset_dir;
+    let files = model::list(S, dir);
+    // Breadcrumb: where we are, and the way back up.
+    ui::horizontal(#{ height: 24 }, || {
+        ui::add_space(12);
+        if dir != "" {
+            if ui::pill("↑", #{ height: 20, size: 11, strong: true, fill: k.sunken, color: k.dim, tooltip: "Up one folder" }) {
+                S.asset_dir = parent_dir(dir);
+            }
+            ui::add_space(6);
+        }
+        ui::label(format!("res://{}", dir), #{ size: 11, font: "mono", color: k.faint });
+        ui::right(|| {
+            ui::add_space(12);
+            ui::label(format!("{} items", files.len()), #{ size: 11, font: "mono", color: k.faint });
+        });
+    });
+    // Cards wrap into rows: the row count is what the dock's height scrolls.
+    let per_row = util::max(1, ((ui::available_width() - 24.0) / (CARD_W + 12.0)) as i64);
+    ui::scroll("assets", (), || {
+        ui::add_space(6);
+        let index = 0;
+        while index < files.len() {
+            let start = index;
+            ui::horizontal((), || {
+                ui::spacing(12, 0);
+                ui::add_space(12);
+                for n in 0..per_row {
+                    let f = match files.get(start + n) {
+                        Some(f) => f,
+                        None => break,
+                    };
+                    let rel = if dir == "" { f.name } else { format!("{}/{}", dir, f.name) };
+                    let (icon, tint) = asset_look(f.name, f.is_dir);
+                    ui::vertical(|| {
+                        if ui::pill(icon, #{
+                            height: CARD_H, min_width: CARD_W, size: 20, radius: 12,
+                            fill: k[tint], color: k.dim,
+                            tooltip: rel,
+                        }) {
+                            if f.is_dir {
+                                S.asset_dir = rel;
+                            } else {
+                                open_asset(S, rel);
+                            }
+                        }
+                        let short = if f.name.len() > 14 { f.name[..14] } else { f.name };
+                        ui::label(short, #{ size: 11, font: "mono", color: k.dim });
+                    });
+                }
+            });
+            index += per_row;
+            ui::add_space(8);
+        }
+        if files.len() == 0 {
+            ui::horizontal((), || {
+                ui::add_space(12);
+                ui::label("empty folder", #{ size: 11.5, font: "mono", color: k.faint });
+            });
+        }
+    });
+}
+
+// Keyframe timeline over the engine's clip (scripts/anim.rn is the adapter):
+// scrubbing seeks the engine's player, so the viewport shows the engine's pose.
+fn timeline(S, k) {
+    let (node, _, _) = anim::player(S);
+    ui::add_space(4);
+    let def = match anim::definition(S) {
+        Some(def) => def,
+        None => {
+            ui::horizontal(#{ height: 30 }, || {
+                ui::add_space(12);
+                let missing = if anim::component(node).is_none() {
+                    node.name + " has no clip"
+                } else {
+                    format!("{}: clip '{}' is not in its library", node.name, anim::clip_name(node))
+                };
+                ui::label(missing, #{ size: 12, font: "mono", color: k.faint });
+                ui::add_space(12);
+                if ui::pill("＋ Create clip", #{
+                    height: 24, size: 11.5, strong: true,
+                    fill: k.accent_fill, color: k.on_accent,
+                }) {
+                    anim::ensure_clip(S);
+                }
+            });
+            return;
+        }
+    };
+    let length = anim::length(def);
+    let name_w = 186.0;
+    let lane_w = util::max(120.0, ui::available_width() - name_w - 60.0);
+    // Ruler row: playhead scrubber + key controls. The name column and the
+    // lane share their origin with the track rows below so keys line up
+    // with the scrubber.
+    ui::horizontal(#{ height: 26 }, || {
+        ui::add_space(8);
+        ui::horizontal(#{ height: 26, width: name_w - 12.0 }, || {
+            if ui::pill("＋ Key", #{
+                height: 22, size: 11, strong: true, tooltip: "Insert keyframe at playhead (or press K)",
+                fill: k.accent_soft, color: k.accent,
+            }) {
+                anim::add_key(S, S.anim_time);
+            }
+            if ui::pill("− Key", #{
+                height: 22, size: 11, strong: true, tooltip: "Delete keyframe at playhead",
+                fill: k.sunken, color: k.dim,
+            }) {
+                anim::delete_key_at(S, S.anim_time);
+            }
+        });
+        let (t, scrubbed) = ui::slider(S.anim_time, 0.0, length, #{
+            width: lane_w,
+            rail: k.sunken, fill: k.accent_fill, knob: k.bg,
+        });
+        if scrubbed {
+            anim::seek(S, t);
+        }
+        ui::add_space(6);
+        ui::label(format!("{:.2} / {:.2} s", S.anim_time, length), #{ size: 11, font: "mono", color: k.faint });
+    });
+    // One lane per track, key dots filled before the playhead and hollow after;
+    // component and method tracks render the same way transform tracks do.
+    ui::scroll("timeline-tracks", (), || {
+        for (index, track) in anim::tracks(def).iter().enumerate() {
+            let label = anim::track_label(track);
+            let color = if index % 2 == 0 { k.accent } else { k.sage };
+            ui::horizontal(#{ height: 30 }, || {
+                ui::add_space(8);
+                ui::horizontal(#{ height: 30, width: name_w - 12.0 }, || {
+                    ui::frame(#{ fill: k.sunken, radius: 15, padding_x: 10 }, || {
+                        ui::horizontal(#{ height: 30, tight: true }, || {
+                            ui::dot(color, 7);
+                            ui::add_space(4);
+                            ui::label(label, #{ size: 12, font: "mono", color: k.text });
+                        });
+                    });
+                });
+                let cursor = 0.0;
+                for key in util::vec(track.get("keys").unwrap_or([])) {
+                    let t = util::f(key.get("t").unwrap_or(0.0));
+                    let x = util::max(0.0, (t / length) * lane_w - 5.0);
+                    let gap = x - cursor;
+                    if gap > 0.0 {
+                        ui::add_space(gap);
+                        cursor = x;
+                    }
+                    let before = t <= S.anim_time + 1e-4;
+                    ui::label(if before { "●" } else { "○" }, #{ size: 11, color: color });
+                    cursor += 14.0;
+                }
+            });
+        }
+    });
+}
+
+// A local as one line; a table is its JSON, cut short.
+fn value_text(v) {
+    if v is Object || v is Vec {
+        let text = json::encode(v);
+        if text.len() > 96 { text[..93] + "…" } else { text }
+    } else if v is String {
+        v
+    } else {
+        format!("{:?}", v)
+    }
+}
+
+// The pause: transport, then the frames with the chosen one's locals open.
+fn debugger_view(S, k) {
+    let p = S.paused;
+    if !(p is Object) {
+        ui::horizontal(#{ height: 30 }, || {
+            ui::add_space(12);
+            let hint = if S.playing {
+                "running · click a line number in the script to set a breakpoint"
+            } else {
+                "set breakpoints in the script gutter, then run the scene"
+            };
+            ui::label(hint, #{ size: 11.5, font: "mono", color: k.faint });
+        });
+        return;
+    }
+    ui::horizontal(#{ height: 30 }, || {
+        ui::add_space(8);
+        let steps = [
+            ["▶ Continue", debugger::CONTINUE, "F5"],
+            ["⤼ Over", debugger::STEP_OVER, "F10"],
+            ["⤵ Into", debugger::STEP_INTO, "F11"],
+            ["⤴ Out", debugger::STEP_OUT, "⇧F11"],
+        ];
+        for step in steps {
+            if ui::pill(step[0], #{
+                height: 24, size: 11.5, strong: true, tooltip: step[2],
+                fill: k.accent_soft, color: k.accent,
+            }) {
+                shell::resume(S, step[1]);
+            }
+        }
+        ui::add_space(12);
+        ui::label(format!("{} · {}:{}", p.reason, S.paused_rel, p.line), #{ size: 11.5, font: "mono", color: k.dim });
+    });
+    ui::scroll("debug-frames", (), || {
+        ui::spacing(4, 2);
+        for (i, frame) in p.frames.iter().enumerate() {
+            let chosen = i == S.debug_frame;
+            ui::horizontal(#{ height: 24 }, || {
+                ui::add_space(6);
+                if ui::pill(frame["function"], #{
+                    height: 20, size: 11, strong: true,
+                    fill: if chosen { k.accent_fill } else { k.sunken },
+                    color: if chosen { k.on_accent } else { k.dim },
+                }) {
+                    S.debug_frame = i;
+                }
+                ui::add_space(6);
+                ui::label(format!("{}:{}", shell::script_rel(S, frame.path), frame.line), #{ size: 11.5, font: "mono", color: k.faint });
+            });
+            if chosen {
+                let names = util::keys_sorted(frame.locals);
+                for name in names {
+                    ui::horizontal((), || {
+                        ui::add_space(24);
+                        ui::label(name, #{ size: 11.5, font: "mono", strong: true, color: k.text });
+                        ui::add_space(6);
+                        ui::label(value_text(frame.locals[name]), #{ size: 11.5, font: "mono", color: k.dim });
+                    });
+                }
+                if names.len() == 0 {
+                    ui::horizontal((), || {
+                        ui::add_space(24);
+                        ui::label("no locals", #{ size: 11.5, font: "mono", color: k.faint });
+                    });
+                }
+            }
+        }
+    });
+}
+
+pub fn draw(S) {
+    let k = S.theme;
+    let height = if S.dock == "timeline" || S.dock == "debugger" { 212 } else { 150 };
+    ui::bottom_panel("dock", #{ height: height, fill: k.panel }, || {
+        tab_row(S, k);
+        if S.dock == "assets" {
+            assets(S, k);
+        } else if S.dock == "timeline" {
+            timeline(S, k);
+        } else if S.dock == "debugger" {
+            debugger_view(S, k);
+        } else {
+            output(S, k);
+        }
+    });
+}

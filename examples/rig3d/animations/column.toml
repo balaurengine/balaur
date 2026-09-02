@@ -6,34 +6,34 @@ loop = "loop"
 
 [[clips.sway.tracks]]
 interp = "linear"
-property = "rotation_euler"
+property = "rotation"
 target = "Root/Mid"
 
 [[clips.sway.tracks.keys]]
 t = 0.0
-value = [0.0, 0.0, -0.4000000059604645]
+value = [0.0, 0.0, -0.19866932928562164, 0.9800665974617004]
 
 [[clips.sway.tracks.keys]]
 t = 1.0
-value = [0.0, 0.0, 0.4000000059604645]
+value = [0.0, 0.0, 0.19866932928562164, 0.9800665974617004]
 
 [[clips.sway.tracks.keys]]
 t = 2.0
-value = [0.0, 0.0, -0.4000000059604645]
+value = [0.0, 0.0, -0.19866932928562164, 0.9800665974617004]
 
 [[clips.sway.tracks]]
 interp = "linear"
-property = "rotation_euler"
+property = "rotation"
 target = "Root/Mid/Top"
 
 [[clips.sway.tracks.keys]]
 t = 0.0
-value = [0.29999998211860657, 0.0, 0.0]
+value = [0.14943812787532806, 0.0, 0.0, 0.9887710809707642]
 
 [[clips.sway.tracks.keys]]
 t = 1.0
-value = [-0.29999998211860657, 0.0, 0.0]
+value = [-0.14943812787532806, 0.0, 0.0, 0.9887710809707642]
 
 [[clips.sway.tracks.keys]]
 t = 2.0
-value = [0.29999998211860657, 0.0, 0.0]
+value = [0.14943812787532806, 0.0, 0.0, 0.9887710809707642]

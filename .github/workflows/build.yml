@@ -63,7 +63,7 @@ jobs:
 
   # Runtime templates for the non-desktop platforms, each packaged as the
   # shape its OS actually starts (scripts/package_template.sh). Web is
-  # emscripten because Luau is C++ and needs a libc (mlua#23).
+  # emscripten: the template was built and tested against it.
   build-platforms:
     name: build ${{ matrix.platform }}
     runs-on: ${{ matrix.host }}
@@ -90,9 +90,9 @@ jobs:
       - name: Linux build deps
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
-      # Luau is C++, so this needs a C++ compiler for the target, not just a
-      # Rust target. API 26 because that is cpal's floor: its Android backend
-      # is AAudio, which the platform added in 26.
+      # oboe (cpal's Android backend) is C++, so this needs a C++ compiler for
+      # the target, not just a Rust target. API 26 because that is cpal's
+      # floor: AAudio, which the platform added in 26.
       - name: Android NDK toolchain
         if: matrix.platform == 'android'
         run: |

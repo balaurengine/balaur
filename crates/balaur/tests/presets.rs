@@ -134,56 +134,78 @@ fn an_unknown_preset_is_an_error() {
 fn the_script_api_exposes_tags_presets_and_warnings() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
+    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
         "name = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), "").unwrap();
+    std::fs::write(
+        dir.path().join("scripts/t.rn"),
+        r#"
+        fn has(list, item) {
+            for x in list {
+                if x == item {
+                    return true;
+                }
+            }
+            false
+        }
+
+        pub fn init(this) {
+            // Tags are what the palette filters on.
+            let tags = scene::component_tags("collider2d");
+            assert!(has(tags, "2d"), "collider2d should be tagged 2d");
+            assert!(has(tags, "physics"), "collider2d should be tagged physics");
+            assert!(scene::component_tags("nope") is Tuple, "unknown component has no tags");
+
+            // Presets are listed and described for the picker.
+            let names = scene::presets();
+            assert!(has(names, "rigid_body2d"), "rigid_body2d missing");
+            assert!(has(names, "static_body2d"), "static_body2d missing");
+            // Both dimensions are marked (D5): there is no bare `rigid_body`.
+            assert!(has(names, "rigid_body3d"), "rigid_body3d missing");
+            assert!(has(names, "static_body3d"), "static_body3d missing");
+            assert!(!has(names, "rigid_body"), "the unmarked 3D name is gone");
+            assert!(has(names, "sprite2d"), "sprite2d missing");
+
+            let info = scene::preset_info("rigid_body2d");
+            assert!(!(info is Tuple), "no info for rigid_body2d");
+            assert!(info.components.len() == 2, "rigid_body2d adds two components");
+            assert!(info.description != "", "a preset needs a description");
+
+            // Applying one puts the components on the node, and nothing records
+            // that a preset was used.
+            let n = scene::spawn("Thing");
+            scene::apply_preset(n, "rigid_body2d");
+            let present = n.component_names();
+            assert!(has(present, "body2d"), "body2d not applied");
+            assert!(has(present, "collider2d"), "collider2d not applied");
+            assert!(n.get_component("body2d").kind == "dynamic", "wrong body kind");
+
+            // Warnings are a list, empty when there is nothing to say.
+            assert!(scene::unmet_expectations(n).len() == 0, "nothing should warn here");
+            this.done = 1;
+        }
+        "#,
+    )
+    .unwrap();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
     config.watch = false;
     let app = balaur::standard_app(config).unwrap();
-    let lua = balaur_script_luau::lua_of(&app.engine);
-    lua.load(
-        r#"
-        -- Tags are what the palette filters on.
-        local tags = scene.component_tags("collider2d")
-        local set = {}
-        for _, t in tags do set[t] = true end
-        assert(set["2d"], "collider2d should be tagged 2d")
-        assert(set["physics"], "collider2d should be tagged physics")
-        assert(scene.component_tags("nope") == nil, "unknown component has no tags")
-
-        -- Presets are listed and described for the picker.
-        local names = {}
-        for _, p in scene.presets() do names[p] = true end
-        assert(names["rigid_body2d"], "rigid_body2d missing")
-        assert(names["static_body2d"], "static_body2d missing")
-        -- Both dimensions are marked (D5): there is no bare `rigid_body`.
-        assert(names["rigid_body3d"], "rigid_body3d missing")
-        assert(names["static_body3d"], "static_body3d missing")
-        assert(not names["rigid_body"], "the unmarked 3D name is gone")
-        assert(names["sprite2d"], "sprite2d missing")
-
-        local info = scene.preset_info("rigid_body2d")
-        assert(info ~= nil, "no info for rigid_body2d")
-        assert(#info.components == 2, "rigid_body2d adds two components")
-        assert(info.description ~= "", "a preset needs a description")
-
-        -- Applying one puts the components on the node, and nothing records
-        -- that a preset was used.
-        local n = scene.spawn("Thing")
-        scene.apply_preset(n, "rigid_body2d")
-        local present = {}
-        for _, c in n:component_names() do present[c] = true end
-        assert(present["body2d"], "body2d not applied")
-        assert(present["collider2d"], "collider2d not applied")
-        assert(n:get_component("body2d").kind == "dynamic", "wrong body kind")
-
-        -- Warnings are a list, empty when there is nothing to say.
-        assert(#scene.unmet_expectations(n) == 0, "nothing should warn here")
-        "#,
-    )
-    .exec()
-    .unwrap();
+    balaur::logbuf::capture_for_test();
+    balaur::logbuf::clear();
+    let entity = node(&app);
+    app.engine
+        .script_host()
+        .unwrap()
+        .attach(balaur::node_id_of(entity), "scripts/t.rn")
+        .unwrap();
+    assert_eq!(
+        balaur::rune::rune_of(&app.engine).number_field(entity, "done"),
+        Some(1.0),
+        "the script did not run to its end: {:#?}",
+        balaur::logbuf::recent(10)
+    );
 }

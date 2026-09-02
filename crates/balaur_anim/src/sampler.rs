@@ -191,7 +191,12 @@ fn sample_track(track: &Track, time: f32) -> TrackValue {
     match track.property {
         Property::Position => TrackValue::Position(sample_channels(track, time).truncate()),
         Property::Scale => TrackValue::Scale(sample_channels(track, time).truncate()),
-        Property::RotationEuler => TrackValue::Rotation(sample_rotation(track, time)),
+        Property::RotationEuler => TrackValue::Rotation(sample_rotation(track, time, |key| {
+            quat_from_euler(key.value.truncate())
+        })),
+        Property::Rotation => TrackValue::Rotation(sample_rotation(track, time, |key| {
+            Quat::from_vec4(key.value).normalize()
+        })),
         Property::Component { .. } => TrackValue::Property {
             value: sample_channels(track, time),
             channels: track.channels,
@@ -256,16 +261,18 @@ fn sample_channels(track: &Track, time: f32) -> Vec4 {
     }
 }
 
-fn sample_rotation(track: &Track, time: f32) -> Quat {
+/// A rotation track at `time`, whichever spelling its keys use: `quat` is
+/// how one key becomes a quaternion.
+fn sample_rotation(track: &Track, time: f32, quat: impl Fn(&Key) -> Quat) -> Quat {
     let keys = &track.keys;
     let (index, raw) = segment(keys, time);
-    let euler = |i: usize| quat_from_euler(keys[i].value.truncate());
-    let before = euler(index);
+    let at = |i: usize| quat(&keys[i]);
+    let before = at(index);
     if raw <= 0.0 {
         return before;
     }
     let u = eased(keys, index, raw);
-    let after = euler(index + 1);
+    let after = at(index + 1);
     match track.interp {
         Interp::Step => before,
         Interp::Linear => slerp(before, after, u),
@@ -273,8 +280,8 @@ fn sample_rotation(track: &Track, time: f32) -> Quat {
         // flipped into `before`'s hemisphere so the curve takes the same short
         // way slerp does, then renormalised back onto the unit sphere.
         Interp::Cubic => {
-            let earlier = euler(index.saturating_sub(1));
-            let later = euler((index + 2).min(keys.len() - 1));
+            let earlier = at(index.saturating_sub(1));
+            let later = at((index + 2).min(keys.len() - 1));
             catmull_rom_quat(
                 align(earlier, before),
                 before,

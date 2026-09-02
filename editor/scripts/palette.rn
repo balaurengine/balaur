@@ -1,0 +1,160 @@
+// Command palette: the single modal overlay. ⌘K opens; Esc, scrim click, or
+// running a command closes. Substring filter, first result pre-highlighted.
+
+use crate::anim;
+use crate::history;
+use crate::model;
+use crate::shell;
+use crate::theme;
+use crate::util;
+
+fn command(label, icon, key, run) {
+    #{ label: label, icon: icon, key: key, tags: "", run: run }
+}
+
+fn commands(S) {
+    let undo_label = match history::undo_label(S) {
+        Some(label) => format!("Undo {}", label),
+        None => "Undo",
+    };
+    let redo_label = match history::redo_label(S) {
+        Some(label) => format!("Redo {}", label),
+        None => "Redo",
+    };
+    let list = [
+        command("Scene persona", "⌖", "⌥1", || shell::set_persona(S, "scene")),
+        command("Script persona", "‹›", "⌥2", || shell::set_persona(S, "script")),
+        command("Animate persona", "◷", "⌥3", || shell::set_persona(S, "anim")),
+        command("Physics persona", "▣", "⌥4", || shell::set_persona(S, "phys")),
+        command("Interface persona", "▤", "⌥5", || shell::set_persona(S, "ui")),
+        command(undo_label, "⟲", "⌘Z", || shell::undo(S)),
+        command(redo_label, "⟳", "⇧⌘Z", || shell::redo(S)),
+        command("Add child node…", "＋", "⇧A", || model::add_child(S, None)),
+        command("Attach Rune script to selection", "‹›", "⌥S", || shell::attach_script(S)),
+        command("Run scene", "▶", "F5", || shell::toggle_play(S)),
+        command("Save scene", "◇", "⌘S", || model::save(S)),
+        command("Reload scripts", "⟳", "⇧R", || log::info("scripts hot reload on save")),
+        command("Toggle dark chrome", "☾", "⌥L", || theme::set_dark(S, !S.theme.dark)),
+        command("Open animation timeline", "◷", "⌥3", || { S.dock = "timeline"; }),
+        command("Duplicate selected node", "⧉", "", || model::duplicate_selected(S)),
+        command("Delete selected node", "✕", "", || model::delete_selected(S)),
+        command("Create animation clip", "◷", "", || { anim::ensure_clip(S); }),
+        command("Insert keyframe at playhead", "◆", "K", || anim::add_key(S, S.anim_time)),
+        command("Save clip as file", "◷", "", || anim::promote(S)),
+        command("Make clip inline", "◷", "", || anim::make_inline(S)),
+        command("UI scale +", "＋", "⌘=", || shell::set_ui_scale(S, S.ui_scale + 0.125)),
+        command("UI scale −", "−", "⌘-", || shell::set_ui_scale(S, S.ui_scale - 0.125)),
+    ];
+    // Component commands come from the engine's registry, so third-party
+    // plugin components are addable without touching the editor.
+    let (_, found) = model::selected(S);
+    // Presets first: they are the shortcut most edits actually want, and
+    // each is just the components it names.
+    for preset in scene::presets() {
+        let info = scene::preset_info(preset);
+        let tags = if info is Object { util::join(util::vec(info.tags), " ") } else { "" };
+        let entry = command(format!("Add {} node", preset), "＋", "", || model::add_child(S, Some(preset)));
+        entry.tags = tags;
+        list.push(entry);
+    }
+    let found_some = found;
+    if let Some(found) = found_some {
+        let present = #{};
+        for name in found.component_names() {
+            present[name] = true;
+        }
+        for name in scene::component_types() {
+            if present.contains_key(name) {
+                list.push(command(format!("Remove {} component", name), "✕", "", || model::remove_component(S, name)));
+            } else {
+                let entry = command(format!("Add {} component", name), "＋", "", || model::add_component(S, name));
+                // Facets, so typing "physics" or "2d" narrows the list.
+                entry.tags = util::join(util::vec(scene::component_tags(name)), " ");
+                list.push(entry);
+            }
+        }
+    }
+    list
+}
+
+pub fn draw(S) {
+    if !S.palette {
+        return;
+    }
+    let k = S.theme;
+    let scrim_clicked = ui::modal("palette", #{
+        width: 560, top: 0.11, fill: k.panel, stroke: k.line,
+        scrim: "#17191c6b",
+    }, || {
+        // Search row.
+        ui::frame(#{ padding_x: 16, padding_y: 12 }, || {
+            ui::horizontal(#{ height: 24 }, || {
+                ui::label("⌕", #{ size: 16, color: k.accent });
+                ui::add_space(4);
+                let (text, _, submitted) = ui::text_field("palette-query", "Nodes, commands, personas…", #{
+                    size: 15, width: 440, autofocus: true, color: k.text,
+                });
+                S.palette_query = text;
+                ui::right(|| {
+                    ui::pill("esc", #{ height: 20, size: 11, strong: true, fill: k.sunken, color: k.faint });
+                });
+                if submitted {
+                    S.palette_submit = true;
+                }
+            });
+        });
+        ui::separator(k.line_soft);
+        // Results.
+        ui::scroll("palette-results", #{ max_height: 326 }, || {
+            ui::spacing(4, 4);
+            ui::add_space(8);
+            let query = S.palette_query.to_lowercase();
+            let first = true;
+            let matched = 0;
+            for cmd in commands(S) {
+                // Match the facets too, so "physics" or "2d" narrows the
+                // list even though neither word is in the label.
+                let haystack = (cmd.label + " " + cmd.tags).to_lowercase();
+                if query == "" || haystack.contains(query) {
+                    matched += 1;
+                    let hit = #{ run: false };
+                    let highlighted = first;
+                    ui::horizontal(#{ height: 40 }, || {
+                        ui::add_space(8);
+                        if ui::pill(cmd.label, #{
+                            height: 40, size: 13.5, align: "left",
+                            min_width: 430,
+                            icon: cmd.icon, icon_size: 14, icon_color: k.accent,
+                            fill: if highlighted { k.sunken } else { "#00000000" },
+                            hover_fill: k.sunken,
+                            color: k.text,
+                            tooltip: cmd.key,
+                        }) {
+                            hit.run = true;
+                        }
+                        ui::right(|| {
+                            ui::add_space(10);
+                            ui::label(cmd.key, #{ size: 11, font: "mono", color: k.faint });
+                        });
+                    });
+                    if hit.run || (S.palette_submit && first) {
+                        (cmd.run)();
+                        shell::close_palette(S);
+                    }
+                    first = false;
+                }
+            }
+            if matched == 0 {
+                ui::horizontal(#{ height: 40 }, || {
+                    ui::add_space(16);
+                    ui::label("no matches", #{ size: 12, font: "mono", color: k.faint });
+                });
+            }
+            ui::add_space(8);
+        });
+    });
+    S.palette_submit = false;
+    if scrim_clicked || ui::shortcut("none", "Escape") {
+        shell::close_palette(S);
+    }
+}

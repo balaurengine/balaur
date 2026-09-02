@@ -156,9 +156,9 @@ def gen_graph(crates):
 def gen_script_api(api, owners):
     body = "# Script API\n\nEvery module, function and constant a script can reach. Read from a booted\nengine rather than the source, so derived constants are included and this\ncannot drift from what scripts actually see.\n\n"
     backend_only = {m: o for m, o in owners.items() if o.startswith("balaur_script_")}
-    body += "| Module | Functions | Constants | Available in |\n| --- | ---: | ---: | --- |\n"
+    body += "| Module | Functions | Constants | Declared by |\n| --- | ---: | ---: | --- |\n"
     for m in api["modules"]:
-        where = "Luau only" if m["name"] in backend_only else "every language"
+        where = "the backend" if m["name"] in backend_only else "the engine"
         body += f"| [`{m['name']}`](#{m['name']}) | {len(m['functions'])} | {len(m['constants'])} | {where} |\n"
     body += "\n"
     for m in api["modules"]:

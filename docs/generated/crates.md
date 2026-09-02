@@ -34,8 +34,8 @@ Animation as a Balaur plugin: clips, a pure sampler, and playback.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
 - **external deps:** 5 (anyhow, glamx, libm, toml, tracing)
-- **public surface:** 26 fn, 8 struct, 6 enum, 1 const, 2 type
-- **structs:** `AnimationPlugin`, `AnimationState`, `Clip`, `Easing`, `Key`, `Playback`, `Track`, `Tween`
+- **public surface:** 27 fn, 9 struct, 6 enum, 1 const, 2 type
+- **structs:** `AnimationPlugin`, `AnimationState`, `Clip`, `Easing`, `Key`, `Modifier2d`, `Playback`, `Track`, `Tween`
 - **enums:** `Interp`, `Mode`, `Property`, `TrackValue`, `Transition`, `Wrap`
 
 ## `balaur_audio`
@@ -67,7 +67,7 @@ The `balaur` command line tool: create, run, export, and play projects.
 
 - **workspace deps:** `balaur`
 - **external deps:** 12 (anyhow, clap, dirs, flate2, serde_json, sha2, tar, tracing, …)
-- **public surface:** nothing public
+- **public surface:** 1 fn
 
 ## `balaur_core`
 
@@ -77,7 +77,7 @@ Balaur engine core: the Rust data plane.
 
 - **workspace deps:** `balaur_script`
 - **external deps:** 15 (anyhow, dirs, glamx, gltf, hecs, indexmap, libm, rustc-hash, …)
-- **public surface:** 81 fn, 51 struct, 5 enum, 1 trait, 14 const, 14 type
+- **public surface:** 86 fn, 51 struct, 5 enum, 1 trait, 15 const, 15 type
 - **traits:** `Plugin`
 - **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Bone`, `Children`, `ComponentDef`, `ComponentRegistry`, `Digest`, `DigestRegistry`, `Engine`, `EngineOp`, `Entry`, `ExternalIo`, `Frame`, `GlbImport`, `GlobalTransform`, `Hasher`, `Header`, `HeightfieldData`, `LogEntry`, `MeshData`, `MeshSkin`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Recorder`, `ReplayFeed`, `ReplayRegistry`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `Session`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `Transform`
 - **enums:** `AssetRef`, `AssetSource`, `Command`, `ReplayMode`, `Stage`
@@ -180,8 +180,8 @@ The Rune script host: loading, instancing, hot reload, precompiled packs.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
 - **external deps:** 6 (anyhow, hecs, indexmap, notify, rune, tracing)
-- **public surface:** 1 fn, 6 struct
-- **structs:** `Color`, `Node`, `RuneHost`, `RuneModule`, `Vec2`, `Vec3`
+- **public surface:** 3 fn, 7 struct
+- **structs:** `ApiEntry`, `Color`, `Node`, `RuneHost`, `RuneModule`, `Vec2`, `Vec3`
 
 ## `balaur_ui`
 

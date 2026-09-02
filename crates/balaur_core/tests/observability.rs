@@ -10,7 +10,7 @@ fn events_carry_their_structured_fields() {
     logbuf::capture_for_test();
     logbuf::clear();
 
-    tracing::info!(script = "pig.luau", nodes = 24, "reloaded");
+    tracing::info!(script = "pig.rn", nodes = 24, "reloaded");
 
     let entry = logbuf::recent(10)
         .into_iter()
@@ -18,7 +18,7 @@ fn events_carry_their_structured_fields() {
         .expect("the reload event should have been captured");
 
     assert_eq!(entry.level, "info");
-    assert_eq!(entry.field("script"), Some("pig.luau"));
+    assert_eq!(entry.field("script"), Some("pig.rn"));
     assert_eq!(entry.field("nodes"), Some("24"));
 }
 

@@ -1,7 +1,7 @@
 //! The `animation` script module, declared against the neutral seam.
 //!
 //! One declaration list, no language named, so every function here reaches
-//! Luau and Rune alike — and a third language the day its backend lands. The
+//! Rune and a second language the day its backend lands. The
 //! module is `animation` rather than `anim` because the script API spells
 //! words out (`docs/NAMING.md` D4), and the readers are named for what they
 //! return with `is_` kept for the one that answers a boolean (N7).

@@ -1,0 +1,792 @@
+// Inspector (308 px): live node properties, editable, per-persona sections.
+
+use crate::anim;
+use crate::history;
+use crate::model;
+use crate::polygon;
+use crate::rig;
+use crate::shell;
+use crate::util;
+
+const LABEL_W = 84.0;
+// Control area width: 308 panel − 24 padding − 84 label − spacing.
+const CONTROL_W = 186.0;
+
+fn section(k, title) {
+    ui::add_space(12);
+    ui::horizontal((), || {
+        ui::label(title.to_uppercase(), #{ size: 10, font: "heading", strong: true, color: k.dim });
+        ui::add_space(8);
+        ui::separator(k.line_soft);
+    });
+    ui::add_space(8);
+}
+
+fn row(k, label, body) {
+    ui::horizontal(#{ height: 28 }, || {
+        ui::spacing(8, 0);
+        // Fixed label column so control widths stay inside the panel
+        // regardless of the label's length.
+        ui::horizontal(#{ height: 28, width: LABEL_W }, || {
+            ui::label(label, #{ size: 12, color: k.dim });
+        });
+        body();
+    });
+    ui::add_space(4);
+}
+
+// A draggable vector field writing straight back to doc + live node.
+fn vec3_row(S, k, label, getter, setter) {
+    let (node, found) = model::selected(S);
+    let cell = #{ v: getter(node, found), changed: false };
+    row(k, label, || {
+        let axes = ["x", "y", "z"];
+        let w = CONTROL_W / 3.0 - 5.0;
+        for i in 0..3 {
+            let (nv, ch) = ui::drag_value(cell.v[i], #{
+                width: w, speed: 0.02, decimals: 2,
+                prefix: axes[i], prefix_color: k.accent,
+                fill: k.sunken, stroke: k.line_soft, color: k.text,
+            });
+            if ch {
+                cell.v[i] = nv;
+                cell.changed = true;
+            }
+        }
+        if cell.changed {
+            history::record(S, format!("set {}", label.to_lowercase()), Some(format!("xform:{}:{}", label, S.sel)));
+            setter(node, found, cell.v);
+        }
+    });
+}
+
+fn value_field(k, value, opts) {
+    ui::drag_value(value, #{
+        width: opts.get("width").unwrap_or(CONTROL_W),
+        speed: opts.get("speed").unwrap_or(0.02),
+        decimals: opts.get("decimals").unwrap_or(2),
+        suffix: opts.get("suffix").unwrap_or(()),
+        fill: k.sunken, stroke: k.line_soft, color: k.text,
+    })
+}
+
+// A select shell: a value the user cannot change here yet.
+fn select_row(k, label, value) {
+    row(k, label, || {
+        ui::pill(value, #{
+            height: 28, size: 12, align: "left",
+            min_width: CONTROL_W,
+            fill: k.sunken, stroke: k.line_soft, color: k.text,
+            trailing: "▼", trailing_color: k.faint, trailing_size: 10,
+        });
+    });
+}
+
+fn transform_section(S, k) {
+    section(k, "Transform");
+    vec3_row(S, k, "Position", |node, found| {
+        match found {
+            Some(found) => {
+                let p = found.position();
+                [p.x, p.y, p.z]
+            }
+            None => util::vec3(node.get("position").unwrap_or(()), [0.0, 0.0, 0.0]),
+        }
+    }, |node, found, v| {
+        node.position = [v[0], v[1], v[2]];
+        let found_some = found;
+        if let Some(found) = found_some {
+            found.set_position(v[0], v[1], v[2]);
+        }
+    });
+    // The row is in degrees and the engine takes them directly. The scene doc
+    // still stores radians, which is the scene-file unit, so the doc write is
+    // the only conversion left.
+    vec3_row(S, k, "Rotation", |node, found| {
+        match found {
+            Some(found) => {
+                let r = found.rotation_degrees();
+                [r.x, r.y, r.z]
+            }
+            None => {
+                let r = util::vec3(node.get("rotation_euler").unwrap_or(()), [0.0, 0.0, 0.0]);
+                [math::deg(r[0]), math::deg(r[1]), math::deg(r[2])]
+            }
+        }
+    }, |node, found, v| {
+        node.rotation_euler = [math::rad(v[0]), math::rad(v[1]), math::rad(v[2])];
+        let found_some = found;
+        if let Some(found) = found_some {
+            found.set_rotation_degrees(v[0], v[1], v[2]);
+        }
+    });
+    vec3_row(S, k, "Scale", |node, found| {
+        match found {
+            Some(found) => {
+                let s = found.scale();
+                [s.x, s.y, s.z]
+            }
+            None => util::vec3(node.get("scale").unwrap_or(()), [1.0, 1.0, 1.0]),
+        }
+    }, |node, found, v| {
+        node.scale = [v[0], v[1], v[2]];
+        let found_some = found;
+        if let Some(found) = found_some {
+            found.set_scale(v[0], v[1], v[2]);
+        }
+    });
+}
+
+fn script_section(S, k, title) {
+    let node = model::selected_node(S);
+    section(k, title);
+    row(k, "Script", || {
+        ui::frame(#{ fill: k.sage_soft, stroke: k.sage, radius: 14, padding_x: 11 }, || {
+            ui::horizontal(#{ height: 28 }, || {
+                let name = node.get("script").unwrap_or("— none —");
+                ui::label(name, #{ size: 11.5, font: "mono", color: k.sage });
+                ui::right(|| {
+                    let has = node.contains_key("script");
+                    let action = if has { "open" } else { "add" };
+                    if ui::pill(action, #{
+                        height: 20, size: 10, strong: true,
+                        fill: k.panel, color: k.dim,
+                    }) {
+                        if has {
+                            shell::set_persona(S, "script");
+                        } else {
+                            shell::attach_script(S);
+                        }
+                    }
+                });
+            });
+        });
+    });
+}
+
+// Save as file promotes the inline definition to `animations/<node>.toml`,
+// Make inline copies a file back onto the node; neither touches the clip itself.
+fn clip_source_row(S, k, node) {
+    let path = anim::library_path(node);
+    row(k, "Source", || {
+        ui::label(path.unwrap_or("— inline —"), #{ size: 11.5, font: "mono", color: k.faint });
+        ui::right(|| {
+            let inline = path.is_none();
+            let label = if inline { "save as file" } else { "make inline" };
+            if ui::pill(label, #{
+                height: 20, size: 10, strong: true,
+                tooltip: if inline {
+                    "Write this clip to animations/ and reference it"
+                } else {
+                    "Copy this file's clip onto the node"
+                },
+                fill: k.sage_soft, color: k.sage,
+            }) {
+                if inline {
+                    anim::promote(S);
+                } else {
+                    anim::make_inline(S);
+                }
+            }
+        });
+    });
+}
+
+// Godot's two rest-pose verbs, for a node with bones under it (or a bone).
+fn skeleton_section(S, k) {
+    let (node, found) = model::selected(S);
+    if found.is_none() {
+        return;
+    }
+    let count = rig::bone_count(S, S.sel);
+    if count == 0 && S.mode2d {
+        return;
+    }
+    section(k, "Skeleton");
+    row(k, "Bones", || {
+        let what = if rig::is_bone(node) { "this bone and below" } else { format!("under {}", node.name) };
+        ui::label(format!("{} · {}", count, what), #{ size: 11.5, font: "mono", color: k.text });
+        ui::right(|| {
+            if ui::pill("＋ bone", #{
+                height: 20, size: 10, strong: true,
+                tooltip: "Grow a bone under this node (in 2D, the Rig bone tool places one by clicking)",
+                fill: k.accent_soft, color: k.accent,
+            }) {
+                if let Some(found) = model::live(S, S.sel) {
+                    let p = found.global_position();
+                    rig::add_bone(S, S.sel, p.x, p.y + 1.0);
+                }
+            }
+        });
+    });
+    if count == 0 {
+        return;
+    }
+    row(k, "Rest pose", || {
+        if ui::pill("reset", #{
+            height: 24, size: 11, strong: true,
+            tooltip: "Reset to Rest Pose: pose every bone here at its rest",
+            fill: k.sunken, color: k.dim,
+        }) {
+            rig::apply_rest(S);
+        }
+        ui::add_space(6);
+        if ui::pill("overwrite", #{
+            height: 24, size: 11, strong: true,
+            tooltip: "Overwrite Rest Pose: the pose every bone is in now becomes its rest",
+            fill: k.sage_soft, color: k.sage,
+        }) {
+            rig::overwrite_rest(S);
+        }
+    });
+}
+
+// What the Polygon tool works on: the vertex and polygon counts, the rig's
+// bones to paint with, and the brush.
+fn polygon_section(S, k) {
+    let node = model::selected_node(S);
+    if polygon::component(node).is_none() {
+        return;
+    }
+    section(k, "Polygon");
+    let mesh = match polygon::mesh(S) {
+        Some(mesh) => mesh,
+        None => {
+            row(k, "Mesh", || {
+                let text = if polygon::editable(S) {
+                    "empty — trace it with the Polygon tool"
+                } else {
+                    "a file; make it inline to edit"
+                };
+                ui::label(text, #{ size: 11, font: "mono", color: k.faint });
+            });
+            return;
+        }
+    };
+    let positions = util::vec(mesh.get("positions").unwrap_or([]));
+    let internal = polygon::internal_count(mesh);
+    row(k, "Vertices", || {
+        ui::label(format!("{} · {} internal", positions.len(), internal), #{ size: 11.5, font: "mono", color: k.text });
+    });
+    row(k, "Polygons", || {
+        let count = util::vec(mesh.get("polygons").unwrap_or([])).len();
+        ui::label(if count == 0 { "outline, automatic" } else { format!("{} drawn", count) },
+            #{ size: 11.5, font: "mono", color: k.text });
+        if count > 0 {
+            ui::right(|| {
+                if ui::pill("clear", #{
+                    height: 20, size: 10, strong: true,
+                    tooltip: "Back to filling the outline automatically",
+                    fill: k.sunken, color: k.dim,
+                }) {
+                    polygon::clear_polygons(S);
+                }
+            });
+        }
+    });
+    row(k, "Bones", || {
+        if ui::pill("sync to rig", #{
+            height: 24, size: 11, strong: true,
+            tooltip: "Sync Bones to Polygon: list the rig's bones, keeping weights already painted",
+            fill: k.sage_soft, color: k.sage,
+        }) {
+            polygon::sync_bones(S);
+        }
+    });
+    for (i, bone) in polygon::bones(S).iter().enumerate() {
+        let active = S.paint_bone == Some(i);
+        ui::horizontal(#{ height: 24 }, || {
+            ui::spacing(8, 0);
+            ui::add_space(LABEL_W);
+            if ui::pill(bone.path, #{
+                height: 22, size: 11, align: "left", min_width: CONTROL_W,
+                icon: "⋈", icon_size: 11,
+                fill: if active { k.accent_soft } else { k.sunken },
+                color: if active { k.accent } else { k.text },
+                tooltip: "Paint this bone's weights in the Weights mode",
+            }) {
+                S.paint_bone = Some(i);
+            }
+        });
+    }
+    row(k, "Brush", || {
+        let w = CONTROL_W / 2.0 - 5.0;
+        let (radius, ch) = ui::drag_value(S.paint_radius, #{
+            width: w, speed: 0.5, decimals: 0, prefix: "px", prefix_color: k.accent,
+            fill: k.sunken, stroke: k.line_soft, color: k.text,
+        });
+        if ch {
+            S.paint_radius = util::clamp(radius, 2.0, 400.0);
+        }
+        let (strength, ch2) = ui::drag_value(S.paint_strength, #{
+            width: w, speed: 0.01, decimals: 2, prefix: "×", prefix_color: k.accent,
+            fill: k.sunken, stroke: k.line_soft, color: k.text,
+        });
+        if ch2 {
+            S.paint_strength = util::clamp(strength, 0.01, 2.0);
+        }
+    });
+}
+
+// The clip belongs to the player: the selection or its nearest animated
+// ancestor, so a bone shows the character's clip, not one of its own.
+fn animation_section(S, k) {
+    let (node, _, _) = anim::player(S);
+    section(k, "Animation");
+    let def = match anim::definition(S) {
+        Some(def) => def,
+        None => {
+            row(k, "Clip", || {
+                if ui::pill("＋ Create clip", #{
+                    height: 28, size: 12, strong: true,
+                    min_width: CONTROL_W,
+                    fill: k.accent_soft, color: k.accent,
+                }) {
+                    anim::ensure_clip(S);
+                }
+            });
+            return;
+        }
+    };
+    let comp = util::obj(anim::component(node).unwrap_or(#{}));
+    row(k, "Clip", || {
+        let id = format!("clipname:{}", S.sel);
+        let (text, _, submitted) = ui::text_field(id, "unnamed", #{
+            value: anim::clip_name(node),
+            size: 11.5, font: "mono", width: CONTROL_W, height: 28,
+            fill: k.sunken, stroke: k.line_soft, color: k.text,
+        });
+        if submitted {
+            // The name is `autoplay`: what the scene starts is what the
+            // Timeline edits, so there is one clip to get wrong instead of two.
+            history::record(S, "rename clip", None);
+            comp.autoplay = text;
+            S.clip = None;
+            anim::arm(S);
+        }
+    });
+    clip_source_row(S, k, node);
+    row(k, "Speed", || {
+        let (v, ch) = ui::slider(util::f(comp.get("speed").unwrap_or(1.0)), 0.1, 3.0, #{
+            width: CONTROL_W - 44.0,
+            rail: k.sunken, fill: k.accent_fill, knob: k.bg,
+        });
+        ui::add_space(6);
+        ui::label(format!("{:.2}", v), #{ size: 11.5, font: "mono", color: k.text });
+        if ch {
+            comp.speed = v;
+            anim::touch(S);
+        }
+    });
+    row(k, "Length", || {
+        let (v, ch) = value_field(k, anim::length(def), #{ speed: 0.01, suffix: " s" });
+        if ch {
+            def.length = util::max(0.1, v);
+            anim::touch(S);
+        }
+    });
+    row(k, "Loop", || {
+        // The engine's own vocabulary, not a boolean: pingpong is a third
+        // answer and a toggle cannot say it.
+        let (v, ch) = ui::dropdown(format!("loop:{}", S.sel), def.get("loop").unwrap_or("none"), ["none", "loop", "pingpong"], #{
+            width: CONTROL_W, size: 12, height: 28, color: k.text,
+        });
+        if ch {
+            def["loop"] = v;
+            anim::touch(S);
+        }
+    });
+    row(k, "Keys", || {
+        ui::label(format!("{} on {} tracks", anim::key_count(def), anim::tracks(def).len()),
+            #{ size: 11.5, font: "mono", color: k.text });
+    });
+}
+
+// Interface persona: the real surface is the `ui` scripting module.
+fn interface_section(S, k) {
+    let node = model::selected_node(S);
+    section(k, "Interface");
+    let draws = model::draws_ui(S, node);
+    row(k, "Draws UI", || {
+        ui::label(if draws { "yes · draw_ui()" } else { "no" }, #{ size: 11.5, font: "mono", color: if draws { k.sage } else { k.faint } });
+    });
+    row(k, "Safe area", || {
+        if !S.chip_state.contains_key("ui") {
+            S.chip_state["ui"] = #{};
+        }
+        let chips = S.chip_state["ui"];
+        let (on, ch) = ui::toggle(chips.get("safe").unwrap_or(false) == true, #{
+            on_fill: k.accent_fill, off_fill: k.sunken,
+            on_knob: k.on_accent, off_knob: k.faint,
+        });
+        if ch {
+            chips.safe = on;
+        }
+    });
+}
+
+// Write an inline definition to its type's directory and point the property at
+// the project-relative path — an absolute one would not survive another machine.
+fn promote_asset(S, comp, prop, asset_type, dir, reference) {
+    let node = S.doc[S.sel];
+    let (ok, definition) = script::attempt(|| assets::load(reference));
+    if !ok || !(definition is Object) {
+        log::warn(format!("cannot read the inline {}: {:?}", asset_type, definition));
+        return;
+    }
+    definition["type"] = asset_type;
+    let rel = format!("{}/{}.toml", dir, node.name.to_lowercase());
+    let (written, err) = script::attempt(|| assets::save(S.game_root + "/" + rel, definition));
+    if !written {
+        log::warn(format!("cannot write {}: {:?}", rel, err));
+        return;
+    }
+    model::set_component_prop(S, comp, prop, rel);
+    log::info(format!("saved {}", rel));
+}
+
+// Copy a file's definition onto the node, so the scene owns it outright.
+// `duplicate` reads past the cache, which is what makes the copy private
+// rather than a second name for the shared one.
+fn inline_asset(S, comp, prop, reference) {
+    let (ok, copy) = script::attempt(|| assets::duplicate(S.game_root + "/" + reference));
+    if !ok || !(copy is Object) {
+        log::warn(format!("cannot inline {}: {:?}", reference, copy));
+        return;
+    }
+    model::set_component_prop(S, comp, prop, copy);
+    log::info(format!("{} is now inline on {}", reference, S.doc[S.sel].name));
+}
+
+fn as_text(value) {
+    if value is String {
+        value
+    } else if value is Tuple {
+        ""
+    } else {
+        format!("{}", value)
+    }
+}
+
+fn prop_row(S, k, comp, prop, spec, data) {
+    let value = match data.get(prop) {
+        Some(value) => value,
+        None => spec.get("default").unwrap_or(()),
+    };
+    let datatype = spec["type"];
+    if datatype == "float" {
+        row(k, prop, || {
+            let (v, ch) = value_field(k, if value is Tuple { 0.0 } else { util::f(value) }, #{
+                speed: spec.get("step").unwrap_or(0.02),
+                decimals: spec.get("decimals").unwrap_or(2),
+            });
+            if ch {
+                let min_some = spec.get("min");
+                if let Some(min) = min_some {
+                    v = util::max(util::f(min), v);
+                }
+                let max_some = spec.get("max");
+                if let Some(max) = max_some {
+                    v = util::min(util::f(max), v);
+                }
+                model::set_component_prop(S, comp, prop, v);
+            }
+        });
+    } else if datatype == "bool" {
+        row(k, prop, || {
+            let (on, ch) = ui::toggle(value == true, #{
+                on_fill: k.accent_fill, off_fill: k.sunken,
+                on_knob: k.on_accent, off_knob: k.faint,
+            });
+            if ch {
+                model::set_component_prop(S, comp, prop, on);
+            }
+        });
+    } else if datatype == "enum" {
+        row(k, prop, || {
+            let (v, changed) = ui::dropdown(format!("sel:{}:{}:{}", comp, prop, S.sel), as_text(value), util::vec(spec.get("options").unwrap_or([])), #{
+                width: CONTROL_W, size: 12, height: 28, color: k.text,
+            });
+            if changed {
+                model::set_component_prop(S, comp, prop, v);
+            }
+        });
+    } else if datatype == "vec2" || datatype == "vec3" || datatype == "color" {
+        row(k, prop, || {
+            let v = util::vec(value);
+            let count = if datatype == "color" { 4 } else if datatype == "vec2" { 2 } else { 3 };
+            let letters = if datatype == "color" { ["r", "g", "b", "a"] } else { ["x", "y", "z"] };
+            let w = CONTROL_W / (count as f64) - 5.0;
+            let cell = #{ changed: false, out: [] };
+            for i in 0..count {
+                let fallback = if datatype == "color" { 1.0 } else { 0.0 };
+                cell.out.push(match v.get(i) { Some(x) => util::f(x), None => fallback });
+                let (nv, ch) = ui::drag_value(cell.out[i], #{
+                    width: w, speed: if datatype == "color" { 0.005 } else { 0.02 },
+                    decimals: 2,
+                    prefix: letters[i], prefix_color: k.accent,
+                    fill: k.sunken, stroke: k.line_soft, color: k.text,
+                });
+                if ch {
+                    cell.out[i] = if datatype == "color" { util::clamp(nv, 0.0, 1.0) } else { nv };
+                    cell.changed = true;
+                }
+            }
+            if cell.changed {
+                model::set_component_prop(S, comp, prop, cell.out);
+            }
+        });
+    } else if datatype == "asset" {
+        // A reference, or an inline definition the engine reports as a `#!`
+        // digest. A type that declares no directory cannot be promoted, so
+        // it gets no button.
+        row(k, prop, || {
+            let reference = model::relative_file(S, as_text(value));
+            let inline = reference.starts_with("#!");
+            let asset_type = spec.get("asset").unwrap_or("");
+            let dir = if asset_type != "" { assets::directory(asset_type) } else { "" };
+            if inline {
+                ui::label("— inline —", #{ size: 11.5, font: "mono", color: k.faint });
+            } else {
+                let id = format!("asset:{}:{}:{}", comp, prop, S.sel);
+                let width = if dir == "" { CONTROL_W } else { CONTROL_W - 78.0 };
+                let (text, _, submitted) = ui::text_field(id, "— none —", #{
+                    value: reference,
+                    size: 11.5, font: "mono", width: width, height: 28,
+                    fill: k.sunken, stroke: k.line_soft, color: k.text,
+                });
+                if submitted {
+                    model::set_component_prop(S, comp, prop, text);
+                }
+            }
+            if dir == "" {
+                return;
+            }
+            ui::right(|| {
+                let label = if inline { "save as file" } else { "make inline" };
+                if ui::pill(label, #{
+                    height: 20, size: 10, strong: true,
+                    tooltip: if inline {
+                        format!("Write this {} to {}/ and reference it", asset_type, dir)
+                    } else {
+                        "Copy this file's definition onto the node"
+                    },
+                    fill: k.sage_soft, color: k.sage,
+                }) {
+                    if inline {
+                        promote_asset(S, comp, prop, asset_type, dir, reference);
+                    } else {
+                        inline_asset(S, comp, prop, reference);
+                    }
+                }
+            });
+        });
+    } else {
+        row(k, prop, || {
+            let id = format!("comp:{}:{}:{}", comp, prop, S.sel);
+            let (text, _, submitted) = ui::text_field(id, "— empty —", #{
+                value: model::relative_file(S, as_text(value)),
+                size: 11.5, font: "mono", width: CONTROL_W, height: 28,
+                fill: k.sunken, stroke: k.line_soft, color: k.text,
+            });
+            if submitted {
+                model::set_component_prop(S, comp, prop, text);
+            }
+        });
+    }
+}
+
+fn fixed(v, decimals) {
+    match decimals {
+        0 => format!("{:.0}", v),
+        1 => format!("{:.1}", v),
+        3 => format!("{:.3}", v),
+        4 => format!("{:.4}", v),
+        _ => format!("{:.2}", v),
+    }
+}
+
+// A `readonly` property is engine output (widget.clicked): a write here would
+// be overwritten next frame, so it renders as a plain value with nothing to
+// focus.
+fn readonly_text(spec, value) {
+    let datatype = spec["type"];
+    if datatype == "float" {
+        fixed(if value is Tuple { 0.0 } else { util::f(value) }, util::i(spec.get("decimals").unwrap_or(2)))
+    } else if datatype == "bool" {
+        if value == true { "true" } else { "false" }
+    } else if datatype == "vec2" || datatype == "vec3" || datatype == "color" {
+        let count = if datatype == "color" { 4 } else if datatype == "vec2" { 2 } else { 3 };
+        let v = util::vec(value);
+        let parts = [];
+        for i in 0..count {
+            let fallback = if datatype == "color" { 1.0 } else { 0.0 };
+            parts.push(format!("{:.2}", match v.get(i) { Some(x) => util::f(x), None => fallback }));
+        }
+        util::join(parts, ", ")
+    } else {
+        as_text(value)
+    }
+}
+
+fn readonly_row(k, prop, spec, data) {
+    let value = match data.get(prop) {
+        Some(value) => value,
+        None => spec.get("default").unwrap_or(()),
+    };
+    row(k, prop, || {
+        ui::label(readonly_text(spec, value), #{ size: 11.5, font: "mono", color: k.faint });
+        ui::right(|| {
+            ui::label("read-only", #{ size: 10, color: k.faint });
+        });
+    });
+}
+
+// One auto-generated section per component present on the node.
+// `filter` limits which components a persona shows (`None` = all).
+fn component_sections(S, k, filter) {
+    let found = match model::live(S, S.sel) {
+        Some(found) => found,
+        None => return,
+    };
+    // Advisory only: the component is applied and working as far as the
+    // engine is concerned, but it has nothing to act on yet.
+    let unmet = #{};
+    for warning in util::vec(scene::unmet_expectations(found)) {
+        unmet[warning.component] = util::join(util::vec(warning.expects), ", ");
+    }
+    for comp in found.component_names() {
+        let shown = match filter {
+            Some(filter) => util::contains(filter, comp),
+            None => true,
+        };
+        if !shown {
+            continue;
+        }
+        // Section header with a right-aligned remove button.
+        ui::add_space(12);
+        ui::horizontal(#{ height: 20 }, || {
+            ui::label(comp.to_uppercase(), #{ size: 10, font: "heading", strong: true, color: k.dim });
+            ui::right(|| {
+                if ui::pill("✕", #{
+                    height: 18, size: 10, strong: true, tooltip: "Remove component",
+                    fill: k.sunken, color: k.faint,
+                }) {
+                    model::remove_component(S, comp);
+                }
+            });
+        });
+        ui::separator(k.line_soft);
+        if let Some(needs) = unmet.get(comp) {
+            ui::add_space(4);
+            ui::label(format!("⚠ needs one of: {}", needs), #{
+                size: 11, color: k.get("warn").unwrap_or(k.faint), wrap: true,
+            });
+        }
+        ui::add_space(8);
+        let schema = util::obj(scene::component_schema(comp));
+        let data = util::obj(found.get_component(comp));
+        for prop in util::keys_sorted(schema) {
+            let spec = schema[prop];
+            if spec.get("readonly").unwrap_or(false) == true {
+                readonly_row(k, prop, spec, data);
+            } else {
+                prop_row(S, k, comp, prop, spec, data);
+            }
+        }
+    }
+}
+
+// Hooks defined by the attached script, shown as the events surface.
+fn events_section(S, k) {
+    let node = model::selected_node(S);
+    section(k, "Events");
+    let script = match node.get("script") {
+        Some(script) => script,
+        None => {
+            ui::horizontal((), || {
+                ui::add_space(8);
+                ui::label("no script attached", #{ size: 11, font: "mono", color: k.faint });
+            });
+            return;
+        }
+    };
+    for hook in model::hooks(S, script) {
+        ui::horizontal(#{ height: 30 }, || {
+            ui::add_space(8);
+            ui::frame(#{ fill: k.sunken, radius: 15, padding_x: 11 }, || {
+                ui::horizontal(#{ height: 30 }, || {
+                    let color = if hook.name == "init" || hook.name == "update" { k.accent } else { k.sage };
+                    ui::dot(color, 6);
+                    ui::add_space(4);
+                    ui::label(hook.name + "()", #{ size: 11.5, font: "mono", color: k.text });
+                    ui::right(|| {
+                        ui::label("→ engine", #{ size: 11, font: "mono", color: k.faint });
+                    });
+                });
+            });
+        });
+    }
+}
+
+pub fn draw(S) {
+    let k = S.theme;
+    let node = model::selected_node(S);
+    ui::right_panel("inspector", #{ width: 308, fill: k.bg, padding_x: 12 }, || {
+        // Header.
+        ui::add_space(12);
+        ui::horizontal(#{ height: 34 }, || {
+            let (icon, _) = model::node_icon(node);
+            ui::circle_button(icon, #{ d: 30, size: 15, fill: k.accent_soft, color: k.accent });
+            ui::add_space(6);
+            ui::vertical(|| {
+                ui::spacing(4, 1);
+                ui::label(node.name, #{ size: 16, font: "heading", strong: true, color: k.text });
+                ui::label(model::node_type(node), #{ size: 11, font: "mono", color: k.faint });
+            });
+        });
+
+        ui::scroll("inspector-scroll", #{ max_height: ui::available_height() - 50.0 }, || {
+            if S.persona == "phys" {
+                component_sections(S, k, Some(["body", "collider", "body2d", "collider2d"]));
+                polygon_section(S, k);
+                script_section(S, k, "Script");
+            } else if S.persona == "script" {
+                script_section(S, k, "Attached script");
+                select_row(k, "Language", "Rune");
+                select_row(k, "Hot reload", "on save");
+            } else if S.persona == "anim" {
+                skeleton_section(S, k);
+                polygon_section(S, k);
+                animation_section(S, k);
+                transform_section(S, k);
+                component_sections(S, k, Some(["bone2d", "bone3d", "polygon"]));
+                script_section(S, k, "Script");
+            } else if S.persona == "ui" {
+                component_sections(S, k, Some(["widget"]));
+                interface_section(S, k);
+                script_section(S, k, "Script");
+            } else {
+                transform_section(S, k);
+                skeleton_section(S, k);
+                polygon_section(S, k);
+                component_sections(S, k, None);
+                script_section(S, k, "Script");
+            }
+            events_section(S, k);
+            ui::add_space(12);
+        });
+
+        // Footer: full-width accent button.
+        ui::separator(k.line_soft);
+        ui::add_space(6);
+        if ui::pill("＋  Add component", #{
+            height: 34, size: 13, font: "heading", strong: true,
+            min_width: 282,
+            fill: k.accent_fill, color: k.on_accent,
+        }) {
+            shell::open_palette(S, "add ");
+        }
+        ui::add_space(6);
+    });
+}

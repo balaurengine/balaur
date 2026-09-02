@@ -144,6 +144,20 @@ registration provides the scene-file key, the runtime
 </details>
 
 <details>
+<summary><code>modifier2d</code> · 5 properties</summary>
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>bone</code></td><td>string</td><td>—</td><td>Node path to the driven bone, relative to this node; empty means this node. For two_bone_ik, the root of the chain</td></tr>
+<tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether the modifier runs; off leaves the clip&#x27;s pose alone</td></tr>
+<tr><td><code>flip</code></td><td>bool</td><td><code>false</code></td><td>Bend the two-bone chain the other way</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, or bend a root, middle, tip chain so the tip reaches it One of <code>look_at</code>, <code>two_bone_ik</code>.</td></tr>
+<tr><td><code>target</code></td><td>string</td><td>—</td><td>Node path to the point to aim at, relative to this node</td></tr>
+</tbody>
+</table>
+</details>
+
+<details>
 <summary><code>particles</code> · 9 properties</summary>
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>

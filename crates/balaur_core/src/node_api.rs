@@ -106,6 +106,10 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: children,
     },
     NodeOp {
+        name: "set_parent",
+        call: set_parent,
+    },
+    NodeOp {
         name: "set_component",
         call: set_component,
     },
@@ -340,6 +344,18 @@ fn parent(eng: &Engine, args: &[Value]) -> Result<Value> {
         .get::<&Parent>(e)
         .ok()
         .map_or(Value::Nil, |p| Value::Node(crate::node_id_of(p.0).0)))
+}
+
+/// `node:set_parent(other)`: move the node under another, keeping where it
+/// is in the world.
+fn set_parent(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let parent = match args.get(1) {
+        Some(Value::Node(id)) => crate::entity_of(balaur_script::NodeId(*id))?,
+        other => return Err(anyhow!("argument 1 should be a node, got {other:?}")),
+    };
+    scene::reparent(&mut eng.world_mut(), e, parent)?;
+    Ok(Value::Nil)
 }
 
 fn children(eng: &Engine, args: &[Value]) -> Result<Value> {

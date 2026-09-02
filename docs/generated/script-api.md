@@ -19,14 +19,17 @@ cannot drift from what scripts actually see.
 | [`input`](#input) | 19 | 190 | every language |
 | [`json`](#json) | 2 | 0 | every language |
 | [`log`](#log) | 5 | 0 | every language |
-| [`node`](#node) | 29 | 0 | every language |
+| [`math`](#math) | 24 | 3 | every language |
+| [`node`](#node) | 30 | 0 | every language |
 | [`physics`](#physics) | 5 | 0 | every language |
 | [`physics2d`](#physics2d) | 10 | 5 | every language |
 | [`physics3d`](#physics3d) | 8 | 5 | every language |
 | [`render`](#render) | 32 | 0 | every language |
 | [`rng`](#rng) | 4 | 0 | every language |
 | [`scene`](#scene) | 12 | 0 | every language |
+| [`script`](#script) | 2 | 0 | every language |
 | [`skeleton`](#skeleton) | 3 | 0 | every language |
+| [`task`](#task) | 1 | 0 | every language |
 | [`toml`](#toml) | 2 | 0 | every language |
 | [`ui`](#ui) | 39 | 14 | every language |
 | [`websocket`](#websocket) | 3 | 0 | every language |
@@ -115,9 +118,21 @@ cannot drift from what scripts actually see.
 
 **Functions:** `clear`, `error`, `info`, `recent`, `warn`
 
+## `math`
+
+**Functions:** `abs`, `acos`, `asin`, `atan`, `atan2`, `ceil`, `clamp`, `cos`, `cosh`, `deg`, `exp`, `floor`, `log`, `log10`, `max`, `min`, `pow`, `rad`, `round`, `sin`, `sinh`, `sqrt`, `tan`, `tanh`
+
+**Constants** (3):
+
+| Name | Value |
+| --- | --- |
+| `INF` | `inf` |
+| `PI` | `3.141592653589793` |
+| `TAU` | `6.283185307179586` |
+
 ## `node`
 
-**Functions:** `add_child`, `attach_script`, `call`, `children`, `component_names`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `is_valid`, `name`, `parent`, `path`, `position`, `queue_free`, `remove_component`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `translate`
+**Functions:** `add_child`, `attach_script`, `call`, `children`, `component_names`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `is_valid`, `name`, `parent`, `path`, `position`, `queue_free`, `remove_component`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_parent`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `translate`
 
 ## `physics`
 
@@ -163,9 +178,17 @@ cannot drift from what scripts actually see.
 
 **Functions:** `apply_preset`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `preset_info`, `presets`, `root`, `source`, `spawn`, `unmet_expectations`
 
+## `script`
+
+**Functions:** `attempt`, `require`
+
 ## `skeleton`
 
 **Functions:** `apply_rest`, `bones`, `overwrite_rest`
+
+## `task`
+
+**Functions:** `wait`
 
 ## `toml`
 

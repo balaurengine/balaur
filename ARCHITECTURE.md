@@ -3,11 +3,10 @@
 ```
 ┌────────────────────────────────────────────────────────────┐
 │  scripts (game code, and the editor itself)                │
-│  .luau or .rn — one language per project                   │
-├──────────────────────────────┬─────────────────────────────┤
-│  balaur_script_luau (mlua)   │  balaur_script_rune         │
-│  host, hot reload, require   │  host, hot reload           │
-├──────────────────────────────┴─────────────────────────────┤
+│  .rn — Rune                                                │
+├────────────────────────────────────────────────────────────┤
+│  balaur_script_rune: host, hot reload, mod files, debugger │
+├────────────────────────────────────────────────────────────┤
 │  balaur_script: the seam — Bindings, ScriptHost, Value.    │
 │  Traits only. No language, no dependencies.                │
 ├────────────────────────────────────────────────────────────┤
@@ -93,9 +92,8 @@ Two things are declared once in `balaur_core` and reach every language:
 `node_api.rs` (`NODE_OPS`, the 28 node operations) and `engine_api.rs`
 (`ENGINE_OPS`, the `engine`, `scene`, `log` and `assets` modules). Each
 backend adds
-only its own call sugar, so `node:position()` works in Luau and
-`node.position()` in Rune from the same list. A third language costs the
-sugar, not the operations.
+only its own call sugar, so `node.position()` in Rune comes from the same
+list. A second language costs the sugar, not the operations.
 
 `Value` carries `Nil/Bool/Int/Num/Str/Vec2/Vec3/Color/List/Map`, plus
 `Node(u64)` (entity bits, kept opaque so the crate depends on nothing) and
@@ -117,46 +115,34 @@ twin for scripts that would rather ask than declare a method
 is a frame-scoped snapshot, not a subscription. Persistent callbacks would
 need an id space with explicit release, and nothing has needed one yet. One more variant is load-bearing at call
 sites: `Many` is *several return values*, not a list of one, so
-`local text, changed = ui.text_field(...)` reads the way the widget is meant
-to. A `Vec3` is one value and arrives as a table, which is why
-`node:position()` is indexed or unpacked rather than destructured into three
-names.
+`let (text, changed) = ui::text_field(...)` reads the way the widget is meant
+to. A `Vec3` is one value with `x`, `y`, `z`, which is why `node.position()`
+is read by field or unpacked rather than destructured into three names.
 
-A project picks its language with `language` in `project.toml`; absent means
-Luau. One project, one language: both backends can run in a process, but a
-callback minted by one is meaningless to the other, so mixing them inside a
-project needs a shared id space first.
+A project states its language with `language` in `project.toml`; absent
+means Rune, and Rune is the one language this build ships. The seam is what
+keeps a second one to one crate.
 
 ### Model
 
 A script declares lifecycle functions — `init`, `update(dt)`, `on_free`,
 `hot_reload` — and gets one instance per attached node, with `node` on it.
 
-In Luau a `.luau` file returns a class table and each instance is a table
-whose metatable `__index`es it. In Rune a `.rn` file declares free functions
-taking the instance first (`pub fn update(this, dt)`); an object handed into a
-Rune function is mutated in place, so what a script writes to `this` is what
-the host reads next frame.
+A `.rn` file declares free functions taking the instance first
+(`pub fn update(this, dt)`); an object handed into a Rune function is mutated
+in place, so what a script writes to `this` is what the host reads next
+frame. `mod name;` pulls in `name.rn` beside the file: from disk in a dev
+run, from the pack when shipped.
 
 ### Hot reload (core feature)
 
-The host watches the project directory (`notify`). On save, in Luau:
-
-1. recompile the file with the Luau compiler (fails → keep the old class
-   running, report the error once);
-2. evaluate the new chunk into a fresh class table;
-3. swap the *contents* of the existing class table in place (clear + copy).
-
-Because instances reference the class only through their metatable, every
-live instance sees the new code immediately while `self` state survives
-untouched. The swap is O(class size), microseconds in practice; measured
-save-to-live latency is file-watcher latency, a few milliseconds. The
-optional `hot_reload` hook lets scripts migrate state shapes.
-
-Rune compiles to an immutable unit, so there is no class table to swap: the
+The host watches the project directory (`notify`). On save, the file is
+recompiled; a compile error keeps the previous unit running and is reported
+once. Rune compiles to an immutable unit, so there is nothing to patch: the
 new unit replaces the old one, instances keep their state objects, and the
-next call resolves against the new code. A compile error keeps the previous
-unit running, the same as Luau.
+next call resolves against the new code. Measured save-to-live latency is
+file-watcher latency, a few milliseconds. The optional `hot_reload` hook
+lets scripts migrate state shapes.
 
 ### Debugger (core feature)
 
@@ -164,8 +150,8 @@ Breakpoints, stepping and a call stack with locals, for scripts running in
 the editor. `docs/PLAN-debugger.md` has the design; this is the shape.
 
 A pause is a parked coroutine plus an engine flag, never a blocked thread:
-play-in-editor runs the game in the same process and the same Luau state as
-the editor, so the frame loop has to keep going. `Engine::set_debug_scope`
+play-in-editor runs the game in the same process and the same script host
+as the editor, so the frame loop has to keep going. `Engine::set_debug_scope`
 names the subtree that is the game — the editor's mirror during play, the
 whole tree under `balaur run`. While a script is paused the engine is
 *frozen*: `Stage::FixedUpdate` does not run, so physics holds, and every
@@ -177,28 +163,21 @@ them on resume, before the next tick.
 The seam carries four methods — `set_breakpoints`, `breakpoints`, `paused`,
 `resume(StepMode)` — defaulted, so a backend without a debugger compiles
 unchanged. The `debugger` script module exposes them plus `set_scope`, so
-the editor's dock is plain Luau. (`debug` is Luau's own library; the module
-could not take that name.)
+the editor's dock is plain script.
 
-Luau: `lua_breakpoint` patches an opcode on the file's chunk function and
-recurses into nested functions, so an unhit breakpoint costs nothing. The
-host keeps that function per file and re-applies the requested lines after a
-hot reload. The `debugbreak` hook records the hit and calls `lua_break`,
-which returns the coroutine from `lua_resume` with its stack intact; `mlua`
-maps that status to an error, so the host resumes coroutines itself, and
-while any breakpoint is set `update` runs through a coroutine like every
-other entry point — with none set the plain call stays. Frames and locals
-are gathered inside the hook, the one place Luau has adjusted the frame's pc
-to the instruction it stopped on; asked afterwards, `lua_getinfo` and
-`lua_getlocal` answer for the instruction before. Step over, into and out
-arm `lua_singlestep` and compare `lua_stackdepth` and the line in the
-`debugstep` hook. Debug level 2 keeps local names and changes no semantics,
-so dev and export share it. Two limits worth knowing: O2 inlines plain
-local functions, so stepping into one steps over it and a breakpoint inside
-it never fires — methods on the class table are not inlined; and a script
-running under a plain call from Rust (`on_free`, a module's top level)
-cannot be parked, so a breakpoint there is let through. Rune has the
-primitives (`VmExecution::step`, the unit's debug info) and no debugger yet.
+Rune: a unit with breakpoints is entered through `Vm::execute` and driven
+one instruction at a time with `VmExecution::step`; a unit with none keeps
+the plain call, so the no-debugger cost is unchanged. A requested line lands
+on the first instruction of the next line with code, found through the
+unit's debug info, and the host re-applies the requested lines after a hot
+reload. A hit parks the owned execution in host state together with its
+instruction pointer, which `into_owned` drops and the host restores by hand.
+Step over, into and out compare the call-frame depth and the line against
+those at the pause. Frames come from the execution's call stack and the
+unit's function table; locals are the frame's named arguments, since Rune
+keeps no names for its other slots. One limit worth knowing: an async entry
+point (`task::wait`) runs as a future and cannot be parked, so a breakpoint
+inside one is let through.
 
 ### Components (plugin feature)
 
@@ -359,7 +338,7 @@ buys a reference row in the generated inspector for every asset type anyone
 registers. The `assets` script module is `load`, `duplicate`, `exists` and
 `reload`. `assets.load` hands a script the resolved *definition table*, not
 the parsed object: `Value` has no variant for an opaque `Rc<dyn Any>` and
-adding one would mean per-backend userdata in Luau and in Rune, which is
+adding one would mean per-backend userdata in every backend, which is
 exactly what the seam exists to avoid. The parsed side belongs to the plugin
 that registered the type.
 
@@ -394,7 +373,10 @@ alternative puts a fake property into the closed set the inspector reads.
 
 Rotation keys are authored as euler radians — the same spelling as
 `set_rotation_euler`, and readable in a diff — and interpolated as
-quaternions, which is the only way past ±180° that takes the short way.
+quaternions, which is the only way past ±180° that takes the short way. A
+`rotation` track takes the quaternion itself (`[x, y, z, w]`): that is what
+an imported `.glb` clip holds, and keeping it means a re-export gives the
+file's numbers back.
 
 The sampler is `(clip, time) -> pose`, pure and reachable with no `Engine` at
 all, so blend trees and state machines can compose samples later without the
@@ -430,7 +412,7 @@ and `elastic` land a float short of where the tween was sent.
 reaches simulation, and animation keeps that the same way physics does:
 playback advances on its own 1/60 accumulator inside `AnimationState`, capped
 at four catch-up steps, and the sampler only ever sees `FIXED_DT` — never
-`engine.time()`, which is what the editor's Luau prototype did. Time folding
+`engine.time()`, which is what the editor's first prototype did. Time folding
 is floor-and-subtract rather than `%`, and span decomposition uses only
 `floor`, `f32` arithmetic and `i32` parity, all IEEE-exact. Every
 transcendental — the easing curves, euler↔quaternion, slerp — is `libm`'s
@@ -523,7 +505,24 @@ rather than through kiss3d's own `Skin3d`, whose constructor is crate-private
 and whose GPU path is native-only; a few thousand vertices a frame is
 nothing, it runs on the web, and it is the same arithmetic the headless test
 asserts. `examples/rig3d` is a column imported this way, swaying on the clip
-its file carried.
+its file carried. A `.gltf` reads the same way: its buffers come from the
+files beside it through a `SideReader` the caller supplies (the project
+reader at load, the file system at import) or from a `data:` URI decoded in
+core, and `balaur import` carries the `.bin` and the base colour texture
+along under `models/`.
+
+**Modifiers have the last word.** `modifier2d` (`balaur_anim::modifier`) is
+Godot's `SkeletonModification2D` as one component: `look_at` turns a bone so
+its child points at a node, `two_bone_ik` bends a root, middle, tip chain so
+the tip reaches one — the analytic solve, `flip` choosing the elbow's side,
+a target out of reach straightening the chain toward it. It runs in
+`Stage::Update` after the animation system, so a clip poses the rig and the
+modifier corrects it every frame, from poses composed out of the local
+transforms as they are now rather than last frame's globals. Modifiers run in
+entity order, so two on one bone land the same way twice; every
+transcendental is `libm`'s. The rig example's arm reaches for a target the
+clip moves, which is the whole pattern: animate the target, let the solver
+pose the limb.
 
 ### Binding API (plugin feature)
 
@@ -611,8 +610,8 @@ JIT/codegen restrictions this is still pure interpretation of precompiled
 bytecode, so it ships everywhere (iOS included). CI cross-compiles the
 headless engine to `aarch64-apple-ios`, `aarch64-linux-android` and
 `wasm32-unknown-emscripten` on every push to main, so that last sentence is
-checked rather than asserted. Emscripten and not `wasm32-unknown-unknown`,
-because Luau is C++ and needs a libc to compile against; audio is a stub on
+checked rather than asserted. Emscripten rather than `wasm32-unknown-unknown`
+is what the web template was built and tested against; audio is a stub on
 wasm because no cpal host compiles there (see `balaur_audio`).
 
 A pack is written in sorted key order, which makes exporting the same sources
@@ -674,9 +673,8 @@ zip or a CI artifact store has usually lost its executable bit, so the exporter
 sets the execute bits on its output rather than inheriting them — inheriting
 produces a game that cannot be launched.
 
-Export is also where a statically-resolved language differs from a dynamic
-one. Luau resolves `input.just_pressed` at run time, so a file compiles on its
-own. Rune resolves `input::just_pressed` while compiling, so validating an
+Export is also where a statically-resolved language shows. Rune resolves
+`input::just_pressed` while compiling, so validating an
 export needs the modules the plugins register: `balaur::build_pack` boots the
 app the game would boot (`AppConfig::export`) and compiles through its host.
 Compiling against a bare `rune::Context` instead — which is what it used to do
@@ -687,19 +685,18 @@ Compiling against a bare `rune::Context` instead — which is what it used to do
 Cross-platform determinism is a core feature: identical inputs must produce
 bit-for-bit identical simulation on every platform.
 
-**Is Luau compatible with that? Yes, with specific measures.** Luau numbers
-are IEEE-754 doubles; `+ - * / sqrt floor` are exactly specified by IEEE-754
-and reproducible everywhere. The VM is single-threaded and, as configured
-here (no `luau-jit` feature), interpreted, so evaluation order is fixed.
-The hazards, and how Balaur addresses or will address them:
+**Is Rune compatible with that? Yes, with specific measures.** Rune numbers
+are IEEE-754 doubles and 64-bit integers that never mix; `+ - * /` and
+`sqrt` are exactly specified by IEEE-754 and reproducible everywhere. The VM
+is a single-threaded interpreter with no native codegen, so evaluation order
+is fixed. The hazards, and how Balaur addresses or will address them:
 
 | Hazard | Status |
 | --- | --- |
-| `math.sin/cos/exp/pow/...` call the platform libm; results differ across OS/libc | **Done:** `balaur_script_luau::det` rebinds them to pure-Rust `libm` implementations (MUSL algorithms, bit-identical everywhere). Luau's compiler turns `math.*` into fastcalls that bypass the global table, so `compiler()` also disables those builtins via `Compiler::disabled_builtins`; a test proves O2-compiled code routes through the rebound table. Remaining hole: the `^` exponent operator calls the C `pow` inside the VM and cannot be intercepted from the embedding API; simulation code must call `math.pow` instead (lintable later). |
-| `pairs()` order on tables with table/userdata keys depends on pointer values | Rule: simulation-affecting iteration uses arrays or string/number keys. The editor can lint for this; an engine-provided ordered map is planned. |
-| `math.random` seeded from entropy | **Done:** `math.random`/`math.randomseed` are rebound to an engine-owned PCG32 stream (fixed default seed, so a fresh run is reproducible by construction), also exposed as the `rng` module (`rng.seed/random/range/int`). |
+| `f64::sin/cos/exp/pow/...` call the platform libm; results differ across OS/libc | **Done:** the engine's `math` module (`math::sin`, `math::pow`, `math::PI`, ... — `docs/generated/script-api.md` has the list) is implemented on pure-Rust `libm` (MUSL algorithms, bit-identical everywhere). Simulation code calls `math::*`; Rune's own float methods stay the platform's and are not rebound (lintable later). |
+| Iteration order over an object (`for (k, v) in obj`) is the hash map's, not insertion order | Rule: simulation-affecting iteration uses vectors or sorted keys. The editor can lint for this; an engine-provided ordered map is planned. |
+| A random source seeded from entropy | **Done:** Rune has no random of its own; the `rng` module (`rng::seed/random/range/int`) is an engine-owned PCG32 stream with a fixed default seed, so a fresh run is reproducible by construction. |
 | Wall-clock (`os.clock`, variable `dt`) leaking into simulation | **Done.** `Stage::FixedUpdate` runs on one app-owned accumulator at `FIXED_DT`; scripts get a `fixed_update(dt)` callback there and physics steps there, so simulation code never sees the frame's measured time. `App::set_fixed_dt` (`balaur run --fixed-tick`) additionally pins the frame itself, making an interactive run reproduce a headless one tick for tick given the same inputs. Physics and animation take the constant from `balaur_core::FIXED_DT` rather than each declaring their own 60th of a second. Input is captured once per frame into a snapshot (replayable). |
-| Luau native codegen (JIT) may change float behavior | Not enabled; deterministic builds keep it off. |
 
 Engine-side measures already in place:
 
@@ -967,7 +964,7 @@ metric (fonts, heights, panels) and the query functions divide back, so
 scripts author against the design's pixel values at any zoom. HiDPI is
 separate and automatic (egui pixels-per-point from the window scale
 factor); `set_scale` is comfort zoom on top, ⌘+/⌘− in the editor. The
-`ui.code_editor` widget is an editable, Luau-syntax-highlighted buffer
+`ui.code_editor` widget is an editable, syntax-highlighted buffer
 (persistent per id) used by the editor's Script persona.
 
 ## The editor is a game
@@ -1003,7 +1000,7 @@ face normal; corner brackets scale uniformly; and the rotation ball — three
 axis rings, radius capped relative to camera distance, rendered always on
 top via depth-biased lines — rotates and wins the pick over the face behind
 it. The hot element tints deep blue. Hit-testing and drag math are
-screen-space Luau in `editor/scripts/gizmo.luau`, and the backend inhibits
+screen-space script in `editor/scripts/gizmo.rn`, and the backend inhibits
 the orbit camera while the gizmo is hot. The rail tools remain as
 drag-anywhere fallbacks.
 The scene tree draws connector rails with collapse arrows and colored
@@ -1011,7 +1008,7 @@ type icons, and every row has a right-click context menu (add child,
 attach script, duplicate, delete) via `ui.pill`'s `menu` callback and
 `ui.menu_item`.
 
-The Animate persona edits an engine clip. `editor/scripts/anim.luau` is an
+The Animate persona edits an engine clip. `editor/scripts/anim.rn` is an
 adapter, not a second animation system: it maps the scene document's
 `[nodes.animation]` onto the `assets` and `animation` script modules, and the
 Timeline dock's ruler scrubs by seeking the node's actual player, so what the
@@ -1028,10 +1025,10 @@ The clip belongs to the *player*: the selection, or its nearest ancestor
 carrying `animation` (`anim.player`). Keying a bone three levels under a
 character therefore writes a track on the character's clip, addressed by the
 bone's path, and a bone keys its rotation alone. Rigging is
-`editor/scripts/rig.luau`: bones draw as Godot's diamonds (to the first
+`editor/scripts/rig.rn`: bones draw as Godot's diamonds (to the first
 child bone, or `length` along `angle` for a tip), the **Rig bone** tool grows
 a chain by clicking, and the inspector's Skeleton section carries the two
-rest-pose verbs. Skins are `editor/scripts/polygon.luau`: Godot's UV editor
+rest-pose verbs. Skins are `editor/scripts/polygon.rn`: Godot's UV editor
 window became four viewport modes — Points (click adds an outline vertex,
 ⌥-click an interior one, drag moves, right-click removes), Polygons (click
 vertices to close a loop), UV (the points over a translucent copy of the
@@ -1134,8 +1131,8 @@ what lets the three modes agree bit for bit.
 7. State snapshots, for rollback. Replay re-simulates from inputs; rollback
    also has to *rewind*, which needs real state: the ECS, rapier's world
    (`serde-serialize`) and every script's instance. The last one is a contract
-   question rather than an implementation one — a Luau `self` can hold
-   closures, userdata and cycles. **Decided: hybrid.** Plain fields are
+   question rather than an implementation one — a script's `this` can hold
+   closures, engine handles and cycles. **Decided: hybrid.** Plain fields are
    serialized automatically; a script that needs more overrides with
    `save_state`/`load_state`. Constraining `self` to plain data would break
    working games, and making the callbacks mandatory would turn a forgotten

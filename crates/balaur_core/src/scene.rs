@@ -153,6 +153,70 @@ fn propagate_recursive(world: &mut World, entity: Entity, parent_global: &Global
     }
 }
 
+/// A node's world transform composed from local ones, current this instant
+/// rather than as of the last scene sync.
+#[must_use]
+pub fn composed_global(world: &World, entity: Entity) -> GlobalTransform {
+    let mut chain = vec![entity];
+    let mut current = entity;
+    while let Ok(parent) = world.get::<&Parent>(current) {
+        current = parent.0;
+        chain.push(current);
+    }
+    let mut global = GlobalTransform::identity();
+    for e in chain.into_iter().rev() {
+        if let Ok(local) = world.get::<&Transform>(e) {
+            global = global.mul(&local);
+        }
+    }
+    global
+}
+
+/// Move `entity` under `new_parent`, keeping where it is in the world: the
+/// local transform is rewritten so nothing on screen moves. Refused when
+/// the new parent is the node itself or one of its descendants.
+///
+/// # Errors
+/// If either node is dead, or the move would make a cycle.
+pub fn reparent(world: &mut World, entity: Entity, new_parent: Entity) -> anyhow::Result<()> {
+    if entity == new_parent || collect_subtree(world, entity).contains(&new_parent) {
+        anyhow::bail!("a node cannot be moved under itself");
+    }
+    if !world.contains(new_parent) {
+        anyhow::bail!("the new parent is dead");
+    }
+    let child_global = composed_global(world, entity);
+    let parent_global = composed_global(world, new_parent);
+    let safe = |s: f32| if s.abs() > f32::EPSILON { s } else { 1.0 };
+    let inverse_rotation = parent_global.rotation.inverse();
+    let offset = inverse_rotation * (child_global.position - parent_global.position);
+    let local = Transform {
+        position: Vec3::new(
+            offset.x / safe(parent_global.scale.x),
+            offset.y / safe(parent_global.scale.y),
+            offset.z / safe(parent_global.scale.z),
+        ),
+        rotation: inverse_rotation * child_global.rotation,
+        scale: Vec3::new(
+            child_global.scale.x / safe(parent_global.scale.x),
+            child_global.scale.y / safe(parent_global.scale.y),
+            child_global.scale.z / safe(parent_global.scale.z),
+        ),
+    };
+    if let Ok(old_parent) = world.get::<&Parent>(entity).map(|p| p.0) {
+        if let Ok(mut children) = world.get::<&mut Children>(old_parent) {
+            children.0.retain(|&c| c != entity);
+        }
+    }
+    if let Ok(mut children) = world.get::<&mut Children>(new_parent) {
+        children.0.push(entity);
+    }
+    world
+        .insert(entity, (Parent(new_parent), local))
+        .map_err(|_| anyhow::anyhow!("node is dead"))?;
+    Ok(())
+}
+
 /// Collect a subtree in despawn order (children before parents is not
 /// required by hecs, but callers also use this to tear down script
 /// instances and plugin state).

@@ -364,7 +364,6 @@ dependencies = [
  "balaur_plugin",
  "balaur_render",
  "balaur_script",
- "balaur_script_luau",
  "balaur_script_rune",
  "balaur_ui",
  "serde_json",
@@ -420,7 +419,6 @@ dependencies = [
  "balaur_core",
  "balaur_physics",
  "balaur_script",
- "balaur_script_luau",
  "balaur_script_rune",
  "criterion",
  "hecs",
@@ -544,7 +542,7 @@ dependencies = [
  "anyhow",
  "balaur_core",
  "balaur_script",
- "balaur_script_luau",
+ "balaur_script_rune",
  "libloading",
  "serde_json",
  "tempfile",
@@ -581,23 +579,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "serde",
-]
-
-[[package]]
-name = "balaur_script_luau"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "balaur_core",
- "balaur_script",
- "glamx",
- "hecs",
- "libm",
- "mlua",
- "notify",
- "tempfile",
- "toml",
- "tracing",
 ]
 
 [[package]]
@@ -730,16 +711,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdeb9d870516001442e364c5220d3574d2da8dc765554b4a617230d33fa58ef5"
 dependencies = [
  "objc2 0.6.4",
-]
-
-[[package]]
-name = "bstr"
-version = "1.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bb31b46c14244e20ee9984b11bf5c992b91fb6939fea616e3512c8baecdbe5f"
-dependencies = [
- "memchr",
- "serde_core",
 ]
 
 [[package]]
@@ -2666,15 +2637,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "luau0-src"
-version = "0.21.0+luau736"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1972fd3b00746262c87b771f20ab6586f959385d66d484e15cb5182bb09e038b"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "mach2"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2756,34 +2718,6 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "mlua"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d96e5d00f19d8c46c71ceaced99593b90c31c57aa1fe2cb3e93a8b1698eedba9"
-dependencies = [
- "bstr",
- "either",
- "libc",
- "mlua-sys",
- "num-traits",
- "parking_lot",
- "rustc-hash 2.1.3",
-]
-
-[[package]]
-name = "mlua-sys"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b806d7ade031f5d6607eae3e283fb034cb795a76247dd0d1ba753c8c42debccf"
-dependencies = [
- "cc",
- "cfg-if",
- "libc",
- "luau0-src",
- "pkg-config",
 ]
 
 [[package]]

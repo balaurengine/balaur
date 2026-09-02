@@ -1,0 +1,312 @@
+// Center region: tool rail (46 px), document tabs (38 px), then either the
+// 3D viewport overlays or the script editor.
+
+use crate::defs;
+use crate::highlight;
+use crate::history;
+use crate::model;
+use crate::polygon;
+use crate::shell;
+use crate::util;
+
+// The viewport's design-px rect, published on `S` for the gizmo, the widget
+// layer and the overlay: three readers, one derivation, computed where layout is.
+fn viewport_rect(S) {
+    let sw = S.screen_w;
+    let sh = S.screen_h;
+    let dock_h = if S.dock == "timeline" || S.dock == "debugger" { 212.0 } else { 150.0 };
+    let rail_w = if S.rail_visible { 46.0 } else { 0.0 };
+    #{
+        x: 262.0 + rail_w, y: 56.0 + 38.0,
+        w: sw - 308.0 - 262.0 - rail_w, h: sh - 28.0 - dock_h - 56.0 - 38.0,
+    }
+}
+
+fn rail(S, k) {
+    ui::left_panel("rail", #{ width: 46, fill: k.bg, padding_y: 8 }, || {
+        ui::vertical(|| {
+            ui::spacing(4, 3);
+            for tool in defs::tools(S.persona) {
+                ui::horizontal((), || {
+                    ui::add_space(3);
+                    let active = S.tool == tool;
+                    if ui::circle_button(defs::tool_icon(tool), #{
+                        d: 32, size: 15,
+                        fill: if active { k.accent_soft } else { "#00000000" },
+                        color: if active { k.accent } else { k.dim },
+                        tooltip: defs::tool_name(tool),
+                    }) {
+                        S.tool = tool;
+                    }
+                });
+            }
+        });
+    });
+}
+
+fn doc_tabs(S, k) {
+    let node = model::selected_node(S);
+    ui::top_panel("tabs", #{ height: 38, fill: k.panel, padding_x: 12 }, || {
+        ui::horizontal(#{ height: 38 }, || {
+            ui::spacing(6, 0);
+            let scene_name = util::last_segment(S.scene_rel);
+            let script_label = match node.get("script") {
+                Some(script) => {
+                    let dirty = S.script_dirty.contains_key(S.game_root + "/" + script);
+                    util::last_segment(script) + (if dirty { " ●" } else { "" })
+                }
+                None => "no script",
+            };
+            let tabs = [
+                #{ id: "scene", icon: "◇", label: scene_name + (if history::dirty(S) { " ●" } else { "" }) },
+                #{ id: "script", icon: "‹›", label: script_label },
+                #{ id: "events", icon: "⚯", label: "events" },
+            ];
+            for tab in tabs {
+                let active = S.doctab == tab.id;
+                if ui::pill(tab.label, #{
+                    height: 27, size: 12, icon: tab.icon,
+                    fill: if active { k.accent_soft } else { "#00000000" },
+                    color: if active { k.accent } else { k.dim },
+                }) {
+                    S.doctab = tab.id;
+                    if tab.id == "script" {
+                        shell::set_persona(S, "script");
+                    }
+                }
+            }
+            if !S.compact {
+                ui::right(|| {
+                    let hint = if S.doctab == "script" && node.contains_key("script") {
+                        "Rune · " + node.script
+                    } else {
+                        let (nodes, _) = model::stats(S);
+                        format!("{} · {} nodes", S.game_name, nodes)
+                    };
+                    ui::label(hint, #{ size: 11, font: "mono", color: k.faint });
+                });
+            }
+        });
+    });
+}
+
+fn chip(S, k, key, label, default_on) {
+    if !S.chip_state.contains_key(S.persona) {
+        S.chip_state[S.persona] = #{};
+    }
+    let state = S.chip_state[S.persona];
+    // Engine-backed chips (no declared default, see defs::chips) read their
+    // value back from the engine every frame; the rest live in `chip_state`.
+    let live = shell::chip_value(S, S.persona, key);
+    if live.is_none() && !state.contains_key(key) {
+        state[key] = default_on.unwrap_or(false);
+    }
+    let on = match live {
+        Some(live) => live,
+        None => state.get(key).unwrap_or(false),
+    };
+    if ui::pill(label, #{
+        height: 26, size: 11, strong: true,
+        fill: if on { k.accent_soft } else { k.panel },
+        stroke: k.line_soft,
+        color: if on { k.accent } else { k.dim },
+    }) {
+        if live.is_none() {
+            state[key] = !on;
+        }
+        shell::on_chip(S, S.persona, key, !on);
+    }
+}
+
+fn viewport(S, k) {
+    // The central panel is a transparent hole for the 3D scene; the chrome on
+    // top of it goes in the overlay layer, which is the only thing that draws
+    // above a previewed widget (panels all share egui's background layer).
+    ui::central_panel(#{ transparent: true }, || {});
+    let vp = S.viewport;
+    ui::overlay("viewport", #{ x: vp.x + 12.0, y: vp.y + 12.0, w: vp.w - 24.0, h: vp.h - 24.0 }, || {
+        let vw = vp.w - 24.0;
+        let vh = vp.h - 24.0;
+        // Interface persona overlays: safe-area inset and 16:9 frame.
+        let chips_ui = util::obj(S.chip_state.get(S.persona).unwrap_or(#{}));
+        if S.persona == "ui" && chips_ui.get("safe").unwrap_or(true) {
+            ui::rect_stroke(34.0, 34.0, vw - 68.0, vh - 68.0, #{ color: k.accent_fill, dashed: true });
+        }
+        if S.persona == "ui" && chips_ui.get("res").unwrap_or(false) {
+            let target = 16.0 / 9.0;
+            let w = vw;
+            let h = vw / target;
+            if h > vh {
+                h = vh;
+                w = vh * target;
+            }
+            ui::rect_stroke((vw - w) / 2.0, (vh - h) / 2.0, w, h, #{ color: k.line, dashed: true });
+        }
+        // Overlay chips, top-left.
+        ui::horizontal((), || {
+            ui::spacing(6, 0);
+            for c in defs::chips(S.persona) {
+                let label = c[1];
+                if c[0] == "proj" && S.mode2d {
+                    label = "2D · Orthographic";
+                }
+                chip(S, k, c[0], label, if c.len() > 2 { Some(c[2]) } else { None });
+            }
+            // The Polygon tool's modes sit with the chips: Godot's UV editor
+            // tabs, in the viewport rather than a window.
+            if S.tool == "polygon" {
+                ui::add_space(8);
+                polygon::mode_chips(S, k);
+            }
+        });
+        // Bottom row: axis pill (left), zoom pill (right).
+        ui::add_space(vh - 26.0 - 34.0);
+        ui::horizontal(#{ height: 28 }, || {
+            ui::frame(#{ fill: k.panel, stroke: k.line_soft, radius: 14, padding_x: 10 }, || {
+                ui::horizontal(#{ height: 28, tight: true }, || {
+                    ui::label("x →", #{ size: 11, font: "mono", color: k.accent });
+                    ui::add_space(6);
+                    ui::label("y ↑", #{ size: 11, font: "mono", color: k.sage });
+                    ui::add_space(6);
+                    ui::label("z ↓", #{ size: 11, font: "mono", color: k.dim });
+                });
+            });
+            ui::right(|| {
+                ui::frame(#{ fill: k.panel, stroke: k.line_soft, radius: 14, padding_x: 3, padding_y: 3 }, || {
+                    ui::horizontal(#{ height: 22, width: 116 }, || {
+                        if ui::pill("−", #{ height: 22, size: 12, color: k.dim }) {
+                            shell::set_zoom(S, S.zoom - 25.0);
+                        }
+                        ui::label(format!("{} %", S.zoom as i64), #{ size: 11, font: "mono", color: k.text });
+                        if ui::pill("＋", #{ height: 22, size: 12, color: k.dim }) {
+                            shell::set_zoom(S, S.zoom + 25.0);
+                        }
+                    });
+                });
+            });
+        });
+    });
+}
+
+fn script_editor(S, k) {
+    let node = model::selected_node(S);
+    ui::central_panel(#{ fill: k.code_bg }, || {
+        if !node.contains_key("script") {
+            ui::add_space(24);
+            ui::horizontal((), || {
+                ui::add_space(24);
+                ui::label("no script attached to " + node.name, #{ size: 12, font: "mono", color: k.faint });
+            });
+            return;
+        }
+        let path = S.game_root + "/" + node.script;
+        let src = match model::source(S, node.script) {
+            Some(src) => src,
+            None => {
+                ui::label("missing file: " + node.script, #{ size: 12, font: "mono", color: k.faint });
+                return;
+            }
+        };
+        // Hooks come from the live buffer, so they update while typing —
+        // re-analysed only when that buffer actually changed.
+        let current = S.script_buffers.get(path).unwrap_or(src);
+        if S.hooks_src != current {
+            S.hooks_src = current;
+            let (_, parsed) = highlight::analyze(current);
+            S.hooks_live = parsed;
+        }
+        let hooks = S.hooks_live;
+        ui::right_panel("hooks", #{ width: 172, fill: k.panel, padding_x: 12 }, || {
+            ui::add_space(11);
+            ui::label("HOOKS IN FILE", #{ size: 10, font: "heading", strong: true, color: k.dim });
+            ui::add_space(9);
+            for hook in hooks {
+                ui::frame(#{ fill: k.sunken, radius: 14, padding_x: 10 }, || {
+                    ui::horizontal(#{ height: 27 }, || {
+                        let color = if hook.name == "init" || hook.name == "update" { k.accent } else { k.sage };
+                        ui::dot(color, 6);
+                        ui::add_space(4);
+                        ui::label(hook.name, #{ size: 11, font: "mono", color: k.text });
+                    });
+                });
+                ui::add_space(4);
+            }
+            if S.script_dirty.contains_key(path) {
+                ui::add_space(8);
+                ui::label("● unsaved · ⌘S", #{ size: 10, font: "mono", color: k.accent });
+            }
+        });
+        // Editable, syntax-highlighted buffer (persists per file; ⌘S saves
+        // and hot reloads the game code).
+        ui::scroll("code", (), || {
+            ui::add_space(12);
+            let stopped_here = S.paused is Object && S.paused_rel == node.script;
+            let (text, changed, hit) = ui::code_editor("edit:" + path, src, #{
+                size: 12.5, gutter_width: 34, gutter_color: k.faint,
+                k_key: k.k_key, k_str: k.k_str, k_num: k.k_num,
+                k_com: k.k_com, k_fn: k.k_fn, k_type: k.k_type,
+                k_punc: k.k_punc,
+                breakpoints: shell::breakpoint_lines(S, node.script),
+                current_line: if stopped_here { S.paused.line } else { () },
+                breakpoint_color: k.accent, current_fill: k.accent_soft,
+            });
+            S.script_buffers[path] = text;
+            if changed {
+                S.script_dirty[path] = true;
+            }
+            if hit is i64 {
+                shell::toggle_breakpoint(S, node.script, hit);
+            }
+            ui::add_space(12);
+        });
+    });
+}
+
+// The `events` document tab: every script's engine-facing hooks, per node.
+fn events_view(S, k) {
+    ui::central_panel(#{ fill: k.bg, padding_x: 24, padding_y: 16 }, || {
+        ui::label("EVENT BINDINGS", #{ size: 10, font: "heading", strong: true, color: k.dim });
+        ui::add_space(8);
+        for node in S.doc {
+            let script_some = node.get("script");
+            if let Some(script) = script_some {
+                for hook in model::hooks(S, script) {
+                    ui::horizontal(#{ height: 30 }, || {
+                        ui::frame(#{ fill: k.sunken, radius: 15, padding_x: 11 }, || {
+                            ui::horizontal(#{ height: 30 }, || {
+                                let color = if hook.name == "init" || hook.name == "update" { k.accent } else { k.sage };
+                                ui::dot(color, 6);
+                                ui::add_space(4);
+                                ui::label(format!("{}.{}()", node.name, hook.name), #{ size: 11.5, font: "mono", color: k.text });
+                                ui::right(|| {
+                                    ui::label(format!("{}:{}", script, hook.line), #{ size: 11, font: "mono", color: k.faint });
+                                });
+                            });
+                        });
+                    });
+                }
+            }
+        }
+    });
+}
+
+pub fn draw(S) {
+    let k = S.theme;
+    let code = S.persona == "script" || S.doctab == "script";
+    let document = S.doctab == "events" || code;
+    // Viewport tools belong to the viewport: with a document open the rail is
+    // 46 px of dead column, and the code editor is the panel starved for it.
+    S.rail_visible = !document && defs::tools(S.persona).len() > 0;
+    S.viewport = viewport_rect(S);
+    if S.rail_visible {
+        rail(S, k);
+    }
+    doc_tabs(S, k);
+    if S.doctab == "events" {
+        events_view(S, k);
+    } else if code {
+        script_editor(S, k);
+    } else {
+        viewport(S, k);
+    }
+}

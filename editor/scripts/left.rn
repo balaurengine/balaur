@@ -1,0 +1,272 @@
+// Left column (262 px): node tree + per-persona secondary panel.
+
+use crate::anim;
+use crate::model;
+use crate::shell;
+use crate::util;
+
+fn section_label(text, k) {
+    ui::add_space(11);
+    ui::horizontal((), || {
+        ui::add_space(10);
+        ui::label(text.to_uppercase(), #{ size: 10, font: "heading", strong: true, color: k.dim });
+    });
+    ui::add_space(9);
+}
+
+// One tree row: connector rails, collapse arrow, coloured type icon, name,
+// script glyph; right-click opens the node's context menu.
+fn tree_row(S, k, row) {
+    let i = row.index;
+    let depth = row.depth;
+    let node = S.doc[i];
+    let selected = i == S.sel;
+    ui::horizontal(#{ height: 27 }, || {
+        ui::add_space(4);
+        if depth > 0 {
+            let connector = row.rails + (if row.is_last { "└─" } else { "├─" });
+            ui::label(connector, #{ size: 11, font: "mono", color: k.line });
+        }
+        if row.has_kids {
+            // Keyed by id, which is what the walk buckets on and what survives
+            // a rename: collapsing a node should not reopen it when it is
+            // renamed.
+            let id = node.get("id").unwrap_or("");
+            let open = !S.collapsed.contains_key(id);
+            if ui::pill(if open { "▾" } else { "▸" }, #{
+                height: 18, size: 9, color: k.faint, tooltip: "Collapse",
+            }) {
+                if open {
+                    S.collapsed[id] = true;
+                } else {
+                    S.collapsed.remove(id);
+                }
+            }
+        } else {
+            ui::add_space(22);
+        }
+        let (icon, role) = model::node_icon(node);
+        let icon_color = match role {
+            "sage" => k.sage,
+            "accent" => k.accent,
+            "dim" => k.dim,
+            _ => k.faint,
+        };
+        // Row spans the rest of the panel, content left-aligned.
+        let used = 12.0 + (if depth > 0 { (depth as f64) * 13.0 + 14.0 } else { 0.0 }) + 26.0;
+        if ui::pill(node.name, #{
+            height: 27, size: 12, align: "left",
+            strong: depth == 0,
+            min_width: util::max(120.0, 246.0 - used),
+            icon: icon, icon_size: 12,
+            icon_color: if selected { k.on_accent } else { icon_color },
+            fill: if selected { k.accent_fill } else { "#00000000" },
+            hover_fill: k.raised,
+            color: if selected { k.on_accent } else { k.text },
+            trailing: if node.contains_key("script") { "‹›" } else { () },
+            trailing_color: if selected { k.on_accent } else { k.sage },
+            menu: || {
+                if ui::menu_item("＋  Add child", #{ color: k.text }) {
+                    shell::choose(S, i);
+                    model::add_child(S, None);
+                }
+                if ui::menu_item("‹›  Attach script", #{ color: k.text }) {
+                    shell::choose(S, i);
+                    shell::attach_script(S);
+                }
+                if ui::menu_item("⧉  Duplicate", #{ color: k.text }) {
+                    shell::choose(S, i);
+                    model::duplicate_selected(S);
+                }
+                if ui::menu_item("✕  Delete", #{ color: k.accent }) {
+                    shell::choose(S, i);
+                    model::delete_selected(S);
+                }
+            },
+        }) {
+            shell::choose(S, i);
+        }
+    });
+}
+
+// `kids` is bucketed by the parent's **id**, so the recursion carries an id
+// too. Descending by name path is what used to make every nested node
+// invisible: no bucket is ever keyed by a path.
+fn walk(S, k, kids, parent_id, depth, rails) {
+    let children = kids.get(parent_id).unwrap_or([]);
+    for (j, i) in children.iter().enumerate() {
+        let node = S.doc[i];
+        let id = node.get("id").unwrap_or("");
+        let is_last = j == children.len() - 1;
+        let has_kids = kids.contains_key(id);
+        tree_row(S, k, #{ index: i, depth: depth, rails: rails, is_last: is_last, has_kids: has_kids });
+        if has_kids && !S.collapsed.contains_key(id) {
+            let extend = if depth == 0 {
+                ""
+            } else if is_last {
+                rails + "  "
+            } else {
+                rails + "│ "
+            };
+            walk(S, k, kids, id, depth + 1, extend);
+        }
+    }
+}
+
+fn tree(S, k, reserve) {
+    ui::horizontal(#{ height: 36 }, || {
+        ui::add_space(10);
+        ui::label("NODE TREE", #{ size: 10, font: "heading", strong: true, color: k.dim });
+        ui::right(|| {
+            ui::add_space(9);
+            if ui::circle_button("＋", #{ d: 21, size: 12, fill: k.accent_soft, color: k.accent, tooltip: "Add child node" }) {
+                model::add_child(S, None);
+            }
+        });
+    });
+    // Children in document order, drawn depth-first with connector rails.
+    let kids = #{};
+    for (i, node) in S.doc.iter().enumerate() {
+        let parent = node.get("parent").unwrap_or("");
+        if !kids.contains_key(parent) {
+            kids[parent] = [];
+        }
+        kids[parent].push(i);
+    }
+    ui::scroll("tree", #{ max_height: ui::available_height() - reserve }, || {
+        ui::spacing(4, 1);
+        walk(S, k, kids, "", 0, "");
+    });
+}
+
+// A row: `#{ icon, name, meta, run }`.
+fn secondary_rows(S, k, title, rows, height) {
+    ui::separator(k.line_soft);
+    section_label(title, k);
+    ui::scroll("secondary", #{ max_height: height }, || {
+        ui::spacing(4, 4);
+        for row in rows {
+            ui::horizontal(#{ height: 29 }, || {
+                ui::add_space(8);
+                if ui::pill(row.name, #{
+                    height: 29, size: 12, min_width: 238, align: "left",
+                    icon: row.icon, icon_size: 12, icon_color: k.dim,
+                    fill: k.sunken, color: k.text,
+                    trailing: row.meta, trailing_color: k.faint,
+                }) {
+                    (row.run)();
+                }
+            });
+        }
+    });
+}
+
+fn row(icon, name, meta, run) {
+    #{ icon: icon, name: name, meta: meta, run: run }
+}
+
+// Per-persona secondary contents, from real project data where it exists.
+// Returns the section title and its rows; drawing is the caller's, so the
+// tree above can size itself to what this actually holds.
+fn secondary_content(S) {
+    if S.persona == "script" {
+        let rows = [];
+        for f in model::list(S, "scripts") {
+            if !f.is_dir && f.name.ends_with(".rn") {
+                let rel = "scripts/" + f.name;
+                let n = util::count_lines(model::source(S, rel).unwrap_or(""));
+                rows.push(row("‹›", f.name, format!("{} L", n), || {
+                    // Jump to the node using this script.
+                    for (i, node) in S.doc.iter().enumerate() {
+                        if node.get("script") == Some(rel) {
+                            shell::choose(S, i);
+                            break;
+                        }
+                    }
+                }));
+            }
+        }
+        ("Rune modules", rows)
+    } else if S.persona == "phys" {
+        // A 2D scene carries `body2d`/`collider2d`; reading `body` alone left
+        // this panel empty for every 2D project.
+        let rows = [];
+        for (i, node) in S.doc.iter().enumerate() {
+            let kind = match model::body_kind(node) {
+                Some(kind) => Some(kind),
+                None => model::body2d_kind(node),
+            };
+            let collider = node.contains_key("collider3d") || node.contains_key("collider2d");
+            if kind.is_some() || collider {
+                let dim = if node.contains_key("body2d") || node.contains_key("collider2d") { "2D" } else { "3D" };
+                rows.push(row("▣", node.name, format!("{} · {}", kind.unwrap_or("collider3d"), dim), || {
+                    shell::choose(S, i);
+                }));
+            }
+        }
+        if rows.len() == 0 {
+            rows.push(row("▣", "no bodies or colliders", "", || {}));
+        }
+        ("Collision", rows)
+    } else if S.persona == "anim" {
+        let rows = [];
+        for (i, node) in S.doc.iter().enumerate() {
+            if anim::component(node).is_some() {
+                let name = anim::clip_name(node);
+                rows.push(row(
+                    "◷",
+                    if name == "" { node.name } else { name },
+                    anim::library_path(node).unwrap_or("inline"),
+                    || { shell::choose(S, i); },
+                ));
+            }
+        }
+        if rows.len() == 0 {
+            rows.push(row("◷", "no clips — ＋ Key in Timeline", "", || {}));
+        }
+        ("Clips", rows)
+    } else if S.persona == "ui" {
+        // Two ways a node puts something on screen: a `widget` component in the
+        // scene, or a script with a `draw_ui` hook. Listing only the second
+        // said "no UI scripts" over a viewport full of widgets.
+        let rows = [];
+        for (i, node) in S.doc.iter().enumerate() {
+            let widget_some = node.get("widget");
+            if let Some(widget) = widget_some {
+                let kind = if widget is Object { widget.get("kind").unwrap_or("widget") } else { widget };
+                rows.push(row("▤", node.name, format!("{}", kind), || { shell::choose(S, i); }));
+            } else if node.contains_key("script") && model::draws_ui(S, node) {
+                rows.push(row("‹›", node.name, "draw_ui", || { shell::choose(S, i); }));
+            }
+        }
+        if rows.len() == 0 {
+            rows.push(row("▤", "no widgets or draw_ui scripts", "", || {}));
+        }
+        ("Interface", rows)
+    } else {
+        let rows = [];
+        for f in model::list(S, "scenes") {
+            if !f.is_dir {
+                let rel = "scenes/" + f.name;
+                rows.push(row("◇", f.name, if S.scene_rel == rel { "open" } else { "" }, || {
+                    if S.scene_rel != rel {
+                        model::open_scene(S, rel);
+                    }
+                }));
+            }
+        }
+        ("Scenes", rows)
+    }
+}
+
+pub fn draw(S) {
+    let k = S.theme;
+    ui::left_panel("tree", #{ width: 262, fill: k.bg, padding_x: 8 }, || {
+        let (title, rows) = secondary_content(S);
+        // The secondary panel takes what it needs, capped: a flat 200 px left
+        // a band of dead space under a one-row list and clipped a long one.
+        let reserve = util::clamp(50.0 + (rows.len() as f64) * 33.0, 83.0, 280.0);
+        tree(S, k, reserve);
+        secondary_rows(S, k, title, rows, reserve - 50.0);
+    });
+}

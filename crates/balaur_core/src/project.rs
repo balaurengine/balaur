@@ -5,7 +5,7 @@
 //! ```text
 //! project.toml          # name + main scene
 //! scenes/main.toml      # node tree
-//! scripts/*.luau|*.rn   # node scripts, in the project's language
+//! scripts/*.rn          # node scripts
 //! ```
 //!
 //! Scene files declare the node tree; behavior lives in scripts. Keys the
@@ -40,7 +40,7 @@ pub struct ProjectManifest {
 }
 
 fn default_language() -> String {
-    "luau".to_string()
+    "rune".to_string()
 }
 
 impl ProjectManifest {

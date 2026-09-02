@@ -1,11 +1,11 @@
 # An angry-birds game. The level is pure scene data, editable in the balaur
-# editor; scripts/game.luau drives the slingshot, scoring and restarts.
+# editor; scripts/game.rn drives the slingshot, scoring and restarts.
 
 [[nodes]]
 id = "n_game"
 name = "Game"
 parent = ""
-script = "scripts/game.luau"
+script = "scripts/game.rn"
 
 [[nodes]]
 id = "n_score"

@@ -323,13 +323,19 @@ fn an_import_writes_bones_a_mesh_node_and_a_clip_keyed_by_path() {
     assert_eq!(tracks[0].get("target").unwrap().as_str(), Some("Rig/Tip"));
     assert_eq!(
         tracks[0].get("property").unwrap().as_str(),
-        Some("rotation_euler")
+        Some("rotation")
     );
     let keys = tracks[0].get("keys").unwrap().as_array().unwrap();
     let last = keys[1].get("value").unwrap().as_array().unwrap();
+    // The quaternion the file held, as it was: [0, 0, sin 45°, cos 45°].
+    assert_eq!(last.len(), 4);
     assert!(close(
         last[2].as_float().unwrap() as f32,
-        std::f32::consts::FRAC_PI_2
+        std::f32::consts::FRAC_1_SQRT_2
+    ));
+    assert!(close(
+        last[3].as_float().unwrap() as f32,
+        std::f32::consts::FRAC_1_SQRT_2
     ));
     // Both documents are TOML a scene loader reads.
     toml::to_string(&imported.scene).unwrap();

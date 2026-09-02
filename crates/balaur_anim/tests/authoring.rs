@@ -1,7 +1,7 @@
 //! What an editing tool stands on: scrubbing, named inline clips, and the
 //! promotion of an inline clip to a file.
 //!
-//! The editor's Timeline is Luau and nothing in CI runs it, so the engine
+//! The editor's Timeline is Rune and nothing in CI runs it, so the engine
 //! behaviour it depends on is pinned here instead — headless, from Rust, with
 //! no editor in the picture.
 

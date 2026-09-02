@@ -80,7 +80,7 @@ impl Default for RngState {
 /// owner and nobody is tempted to insert a second.
 ///
 /// An `Engine` built by hand rather than through `App::new` has no stream, and
-/// `balaur_script_luau::ScriptHost::new` is `pub` and takes a raw `Engine`, so
+/// `balaur_script_rune::RuneHost::new` is `pub` and takes a raw `Engine`, so
 /// that case is reachable from outside the workspace. Rather than panic, seed
 /// the default stream here on first use: it is the same seed `App::new`
 /// inserts, so the first draw is identical either way, and there is still

@@ -93,8 +93,8 @@ pub trait ScriptHost<C: ?Sized> {
     /// No waiter is not an error — the wake is simply dropped.
     ///
     /// This is the other half of awaiting: a binding hands a script a token
-    /// (an id it minted), the script suspends on it — `await(token)` in Luau,
-    /// `task::wait(token).await` in Rune — and the subsystem wakes the token
+    /// (an id it minted), the script suspends on it (`task::wait(token).await`)
+    /// and the subsystem wakes the token
     /// when the work completes. Wakes must come from the frame loop at a
     /// deterministic point, in a deterministic order, never from an I/O
     /// thread; delivered that way, suspension adds nothing a replay has to

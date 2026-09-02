@@ -1,0 +1,3 @@
+pub fn init(this) {}
+
+pub fn update(this, dt) {}

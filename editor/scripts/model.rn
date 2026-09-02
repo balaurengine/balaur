@@ -1,0 +1,681 @@
+// The edited project: scene document model, live mirror scene, save/reset.
+// `S.doc` is plain data parsed from the scene TOML; the mirror is a real node
+// tree from the same TOML (scripts not attached, physics paused until play).
+
+use crate::history;
+use crate::util;
+
+// Project reads, cached on `S`: four panels read the disk while drawing, so
+// uncached that is a read per node per frame. `fs` has no mtime, hence
+// interval + drop.
+const TTL = 0.5;
+
+// A hand-edited file can name a parent that names it back. Every walk is
+// bounded so a cycle costs a wrong answer, not a hung editor.
+const MAX_DEPTH = 256;
+
+// The text of a project-relative file, or `None` when there is no such file —
+// the caller that wants to say "missing" needs to tell that from "empty".
+pub fn source(S, rel) {
+    let now = engine::time();
+    if let Some(entry) = S.sources.get(rel) {
+        if now - entry.at < TTL {
+            return entry.text;
+        }
+    }
+    let text = fs::read(S.game_root + "/" + rel);
+    let entry = #{ text: if text is String { Some(text) } else { None }, at: now, hooks: None };
+    S.sources[rel] = entry;
+    entry.text
+}
+
+// The script's engine-facing hooks, analysed once per cached read.
+pub fn hooks(S, rel) {
+    let text = match source(S, rel) {
+        Some(text) => text,
+        None => return [],
+    };
+    let entry = S.sources[rel];
+    if entry.hooks.is_none() {
+        let (_, hooks) = crate::highlight::analyze(text);
+        entry.hooks = Some(hooks);
+    }
+    entry.hooks.unwrap()
+}
+
+pub fn list(S, rel) {
+    let now = engine::time();
+    if let Some(entry) = S.listings.get(rel) {
+        if now - entry.at < TTL {
+            return entry.files;
+        }
+    }
+    let entry = #{ files: util::vec(fs::list(S.game_root + "/" + rel)), at: now };
+    S.listings[rel] = entry;
+    entry.files
+}
+
+// Drop a cached read (`None` drops everything): what the editor just wrote
+// must be visible on the next frame, not on the next interval.
+pub fn forget(S, rel) {
+    match rel {
+        Some(rel) => {
+            S.sources.remove(rel);
+        }
+        None => {
+            S.sources = #{};
+            S.listings = #{};
+        }
+    }
+}
+
+// Whether the node's script draws its own interface, as opposed to carrying a
+// `widget` component.
+pub fn draws_ui(S, node) {
+    if !node.contains_key("script") {
+        return false;
+    }
+    match source(S, node.script) {
+        Some(text) => text.contains("draw_ui"),
+        None => false,
+    }
+}
+
+// A scene node's `parent` is the parent's **id**, not a path
+// (`crates/balaur_core/src/project.rs`); everything below walks that id chain.
+pub fn by_id(doc, id) {
+    for node in doc {
+        if node.id == id {
+            return Some(node);
+        }
+    }
+    None
+}
+
+// The name path `scene::get_node` resolves, built by walking ids to the root.
+pub fn node_path(doc, node) {
+    let names = [node.name];
+    let current = node;
+    for _ in 0..MAX_DEPTH {
+        if current.parent == "" {
+            break;
+        }
+        let parent = match by_id(doc, current.parent) {
+            Some(parent) => parent,
+            None => break,
+        };
+        names.insert(0, parent.name);
+        current = parent;
+    }
+    util::join(names, "/")
+}
+
+// Whether `id` is an ancestor of `node`, for subtree operations.
+pub fn has_ancestor(doc, node, id) {
+    let current = node;
+    for _ in 0..MAX_DEPTH {
+        if current.parent == "" {
+            return false;
+        }
+        if current.parent == id {
+            return true;
+        }
+        current = match by_id(doc, current.parent) {
+            Some(parent) => parent,
+            None => return false,
+        };
+    }
+    false
+}
+
+// The engine's own id rule (`slug` in project.rs), so an id the editor
+// generates is the one the engine would have generated for that name.
+fn slug(name) {
+    let alnum = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let out = "n_";
+    let gap = true;
+    for c in name.to_lowercase().chars() {
+        let s = format!("{}", c);
+        if alnum.contains(s) {
+            out += s;
+            gap = false;
+        } else if !gap {
+            out += "_";
+            gap = true;
+        }
+    }
+    while out.ends_with("_") {
+        out = out[..out.len() - 1];
+    }
+    if out.len() > 2 { out } else { "n_node" }
+}
+
+// An id no node in `doc` is using, derived from `name`.
+pub fn fresh_id(doc, name) {
+    let taken = #{};
+    for node in doc {
+        let id_some = node.get("id");
+        if let Some(id) = id_some {
+            taken[id] = true;
+        }
+    }
+    let base = slug(name);
+    let candidate = base;
+    let n = 2;
+    while taken.contains_key(candidate) {
+        candidate = format!("{}_{}", base, n);
+        n += 1;
+    }
+    candidate
+}
+
+// A friendly type name derived from the node's components.
+pub fn node_type(node) {
+    let kind = body_kind(node);
+    let kind2d = body2d_kind(node);
+    if kind == Some("dynamic") {
+        "RigidBody3D"
+    } else if kind == Some("static") {
+        "StaticBody3D"
+    } else if kind == Some("kinematic") {
+        "KinematicBody3D"
+    } else if kind2d == Some("dynamic") {
+        "RigidBody2D"
+    } else if kind2d == Some("static") {
+        "StaticBody2D"
+    } else if kind2d == Some("kinematic") {
+        "KinematicBody2D"
+    } else if node.contains_key("widget") {
+        "Widget"
+    } else if node.contains_key("bone2d") {
+        "Bone2D"
+    } else if node.contains_key("bone3d") {
+        "Bone3D"
+    } else if node.contains_key("polygon") {
+        "Polygon2D"
+    } else if node.contains_key("shape3d") {
+        "MeshInstance3D"
+    } else if node.contains_key("shape2d") {
+        "MeshInstance2D"
+    } else {
+        "Node"
+    }
+}
+
+fn kind_of(body) {
+    match body {
+        Some(body) => {
+            if body is Object {
+                body.get("kind")
+            } else {
+                Some(body)
+            }
+        }
+        None => None,
+    }
+}
+
+pub fn body_kind(node) {
+    kind_of(node.get("body3d"))
+}
+
+pub fn body2d_kind(node) {
+    kind_of(node.get("body2d"))
+}
+
+// True when the edited scene is 2D (any node carries a 2D component). The
+// editor switches camera, grid and gizmo accordingly.
+pub fn is_2d(S) {
+    for node in S.doc {
+        if node.contains_key("shape2d") || node.contains_key("body2d") || node.contains_key("collider2d")
+            || node.contains_key("polygon") || node.contains_key("bone2d") {
+            return true;
+        }
+    }
+    false
+}
+
+// Icon glyph + colour role ("sage" physics, "accent" render/ui, "dim" other).
+pub fn node_icon(node) {
+    let kind = match body_kind(node) {
+        Some(kind) => Some(kind),
+        None => body2d_kind(node),
+    };
+    if node.contains_key("widget") {
+        ("▤", "accent")
+    } else if kind == Some("dynamic") {
+        ("●", "sage")
+    } else if kind == Some("kinematic") {
+        ("◐", "sage")
+    } else if kind.is_some() {
+        ("▣", "sage")
+    } else if node.contains_key("bone2d") || node.contains_key("bone3d") {
+        ("⋈", "dim")
+    } else if node.contains_key("polygon") {
+        ("⬟", "accent")
+    } else if node.contains_key("shape3d") {
+        if util::obj(node.shape3d).get("kind") == Some("ball") {
+            ("◯", "accent")
+        } else {
+            ("◆", "accent")
+        }
+    } else if node.contains_key("shape2d") {
+        if util::obj(node.shape2d).get("kind") == Some("circle") {
+            ("◯", "accent")
+        } else {
+            ("▭", "accent")
+        }
+    } else if node.contains_key("script") {
+        ("⚙", "dim")
+    } else {
+        ("○", "faint")
+    }
+}
+
+// The engine repairs a missing id at load; the editor has to arrive at the
+// same one or its refs point at nothing.
+fn normalize(doc) {
+    for node in doc {
+        if !node.contains_key("parent") {
+            node.parent = "";
+        }
+        if node.get("id").unwrap_or("") == "" {
+            node.id = fresh_id(doc, node.name);
+        }
+    }
+}
+
+// Load the game project pointed at by `engine::args()[0]`.
+pub fn load(S) {
+    let root = engine::args()[0];
+    S.game_root = root;
+    let manifest = toml::parse(fs::read(root + "/project.toml"));
+    S.game_name = manifest.name;
+    S.scene_rel = manifest.main_scene;
+    S.scene_path = root + "/" + manifest.main_scene;
+    let doc = toml::parse(fs::read(S.scene_path));
+    S.doc = util::vec(doc.get("nodes").unwrap_or([]));
+    normalize(S.doc);
+    S.sel = 0;
+    history::reset(S);
+    build_mirror(S);
+}
+
+// Only a value that reads as a file name is a file candidate: `..` and
+// `../Rig` are node paths, and the game's parent directory exists too.
+fn names_a_file(value) {
+    if value == "" || value.starts_with("/") {
+        return false;
+    }
+    let last = "";
+    for segment in value.split('/') {
+        if segment == "." || segment == ".." {
+            return false;
+        }
+        last = segment;
+    }
+    match last.split_once('.') {
+        Some((_, ext)) => ext != "" && ext.chars().all(|c| c.is_alphanumeric()),
+        None => false,
+    }
+}
+
+// Game-relative file paths (a texture) are made absolute for the mirror,
+// whose engine resolves against the editor's root; `doc_value` undoes it on
+// the way back.
+fn absolute_files(S, value) {
+    if value is String {
+        if names_a_file(value) && fs::exists(S.game_root + "/" + value) {
+            return S.game_root + "/" + value;
+        }
+        value
+    } else if value is Object {
+        let out = #{};
+        for (key, inner) in value.iter() {
+            out[key] = absolute_files(S, inner);
+        }
+        out
+    } else if value is Vec {
+        let out = [];
+        for inner in value {
+            out.push(absolute_files(S, inner));
+        }
+        out
+    } else {
+        value
+    }
+}
+
+pub fn relative_file(S, value) {
+    let prefix = S.game_root + "/";
+    if value is String && value.starts_with(prefix) {
+        return value[prefix.len()..];
+    }
+    value
+}
+
+pub fn absolute(S, value) {
+    absolute_files(S, value)
+}
+
+// (Re)build the live mirror under a fresh container node.
+pub fn build_mirror(S) {
+    if S.mirror is balaur::Node && S.mirror.is_valid() {
+        S.mirror.queue_free();
+    }
+    physics::clear();
+    S.mirror = scene::spawn("Edited");
+    debugger::set_scope(S.mirror);
+    // The document, not the file: a mirror read from disk cannot hold an
+    // unsaved edit, which left a duplicated node with no live node at all.
+    scene::instantiate(toml::encode(#{ nodes: absolute_files(S, S.doc) }), S.mirror, #{ scripts: false });
+    physics::set_paused(true);
+    S.playing = false;
+    S.refs = [];
+    let unresolved = 0;
+    for node in S.doc {
+        let path = node_path(S.doc, node);
+        let found = S.mirror.get_node(path);
+        S.refs.push(found);
+        if !(found is balaur::Node) {
+            unresolved += 1;
+            log::warn(format!("no mirror node at '{}' for '{}'", path, node.name));
+        }
+    }
+    // A node with no ref is invisible to the inspector, the gizmo and every
+    // transform read. Silence here is what let a whole class of nested nodes
+    // go missing unnoticed, so it says so now.
+    if unresolved > 0 {
+        log::warn(format!("{} of {} nodes did not resolve in the mirror", unresolved, S.doc.len()));
+    }
+    // The mirror instantiates with the game's own `autoplay`, so pause every
+    // animated node: nothing may animate under the inspector until play is
+    // pressed.
+    for (i, node) in S.doc.iter().enumerate() {
+        if let Some(found) = live(S, i) {
+            let animation_some = node.get("animation");
+            if let Some(animation) = animation_some {
+                if animation is Object {
+                    animation::pause(found);
+                }
+            }
+        }
+    }
+    // The clip cache belongs to the mirror that is gone, and every clip file
+    // the new mirror names has to be pointed at the edited project before it
+    // can load (`anim::rebind`, next frame).
+    S.clip = None;
+    S.anim_rebind = true;
+}
+
+// The live node for a doc index (`None` right after a rebuild).
+pub fn live(S, i) {
+    if let Some(found) = S.refs.get(i) {
+        if found is balaur::Node && found.is_valid() {
+            return Some(found);
+        }
+    }
+    None
+}
+
+pub fn selected(S) {
+    (S.doc[S.sel], live(S, S.sel))
+}
+
+pub fn selected_node(S) {
+    S.doc[S.sel]
+}
+
+// Write the document back to the scene file (hot reload on the game side is
+// the game's watcher's business; the editor is a plain writer).
+pub fn save(S) {
+    fs::write(S.scene_path, toml::encode(#{ nodes: S.doc }));
+    forget(S, None);
+    history::mark_saved(S);
+    log::info("saved " + S.scene_rel);
+}
+
+fn name_taken(doc, candidate) {
+    for node in doc {
+        if node.name == candidate {
+            return true;
+        }
+    }
+    false
+}
+
+// Add a node under the selected one, in both document and mirror, optionally
+// applying a preset. A preset is a recipe: the components land on the node
+// and nothing records which one put them there.
+pub fn add_child(S, preset) {
+    history::record(S, "add node", None);
+    let parent = S.doc[S.sel];
+    let base = "Node";
+    let name = base;
+    let n = 1;
+    while name_taken(S.doc, name) {
+        n += 1;
+        name = format!("{}{}", base, n);
+    }
+    let entry = #{
+        id: fresh_id(S.doc, name),
+        name: name,
+        parent: parent.get("id").unwrap_or(""),
+        position: [0.0, 0.0, 0.0],
+    };
+    S.doc.push(entry);
+    if let Some(found) = live(S, S.sel) {
+        let child = found.add_child(name);
+        S.refs.push(child);
+        let preset_some = preset;
+        if let Some(preset) = preset_some {
+            scene::apply_preset(child, preset);
+            // Mirror what landed back into the document, so the saved scene
+            // carries the components rather than only the live node.
+            for component in child.component_names() {
+                entry[component] = child.get_component(component);
+            }
+        }
+    } else {
+        S.refs.push(());
+    }
+    S.sel = S.doc.len() - 1;
+}
+
+// Attach the game's scripts to the mirrored nodes (absolute paths, so the
+// editor's script host loads them from the game project). This is what play
+// runs: the actual game code against the actual scene.
+pub fn attach_game_scripts(S) {
+    for (i, node) in S.doc.iter().enumerate() {
+        if let Some(found) = live(S, i) {
+            let script_some = node.get("script");
+            if let Some(script) = script_some {
+                found.attach_script(S.game_root + "/" + script);
+            }
+        }
+    }
+}
+
+// Open another scene file from the game project.
+pub fn open_scene(S, rel) {
+    S.scene_rel = rel;
+    S.scene_path = S.game_root + "/" + rel;
+    let doc = toml::parse(fs::read(S.scene_path));
+    S.doc = util::vec(doc.get("nodes").unwrap_or([]));
+    normalize(S.doc);
+    S.sel = 0;
+    history::reset(S);
+    build_mirror(S);
+    log::info("opened " + rel);
+}
+
+// The document mirrors the live node for saving, with two exceptions:
+// `readonly` properties are stripped, and an `asset` property keeps the
+// document's authored spelling — the engine's resolved one cannot be saved.
+fn doc_value(S, name, data, previous) {
+    let schema = util::obj(scene::component_schema(name));
+    let out = #{};
+    for (key, value) in data.iter() {
+        let spec = schema.get(key);
+        let authored = match previous {
+            Some(previous) => if previous is Object { previous.get(key) } else { None },
+            None => None,
+        };
+        let is_asset = match spec {
+            Some(spec) => spec["type"] == "asset",
+            None => false,
+        };
+        let readonly = match spec {
+            Some(spec) => spec.get("readonly").unwrap_or(false) == true,
+            None => false,
+        };
+        if is_asset && authored.is_some() {
+            out[key] = authored.unwrap();
+        } else if !readonly {
+            out[key] = relative_file(S, value);
+        }
+    }
+    out
+}
+
+pub fn sync_component_doc(S, name) {
+    let node = S.doc[S.sel];
+    let found = match live(S, S.sel) {
+        Some(found) => found,
+        None => return,
+    };
+    let data = found.get_component(name);
+    if data is Object {
+        node[name] = doc_value(S, name, data, node.get(name));
+    } else {
+        node.remove(name);
+    }
+}
+
+pub fn add_component(S, name) {
+    let found = match live(S, S.sel) {
+        Some(found) => found,
+        None => return,
+    };
+    history::record(S, format!("add {}", name), None);
+    found.set_component(name);
+    sync_component_doc(S, name);
+    log::info(format!("added {} to {}", name, S.doc[S.sel].name));
+}
+
+pub fn remove_component(S, name) {
+    let found = match live(S, S.sel) {
+        Some(found) => found,
+        None => return,
+    };
+    history::record(S, format!("remove {}", name), None);
+    found.remove_component(name);
+    S.doc[S.sel].remove(name);
+}
+
+// Push the document's component onto the live node, for a tool that edited
+// the document in place and recorded history itself.
+pub fn apply_component(S, name) {
+    let node = S.doc[S.sel];
+    let found = match live(S, S.sel) {
+        Some(found) => found,
+        None => return,
+    };
+    let authored = match node.get(name) {
+        Some(authored) => authored,
+        None => return,
+    };
+    found.set_component(name, absolute_files(S, authored));
+    sync_component_doc(S, name);
+    // `doc_value` keeps an asset's authored spelling only when it is a
+    // reference; an inline table is the authored form, so it goes back whole.
+    let schema = util::obj(scene::component_schema(name));
+    for (key, spec) in schema.iter() {
+        if spec["type"] == "asset" && authored is Object {
+            if let Some(inline) = authored.get(key) {
+                if inline is Object && node.contains_key(name) {
+                    node[name][key] = inline;
+                }
+            }
+        }
+    }
+}
+
+pub fn set_component_prop(S, name, prop, value) {
+    let found = match live(S, S.sel) {
+        Some(found) => found,
+        None => return,
+    };
+    history::record(S, format!("set {}.{}", name, prop), Some(format!("prop:{}:{}:{}", name, prop, S.sel)));
+    let node = S.doc[S.sel];
+    let data = util::obj(found.get_component(name));
+    let params = doc_value(S, name, data, node.get(name));
+    params[prop] = value;
+    found.set_component(name, absolute_files(S, params));
+    sync_component_doc(S, name);
+    // `doc_value` keeps the document's spelling of an asset property, which is
+    // exactly wrong for the one property that was just retyped, so it is
+    // stamped back over afterwards.
+    let spec = util::obj(scene::component_schema(name)).get(prop);
+    let spec_some = spec;
+    if let Some(spec) = spec_some {
+        if spec["type"] == "asset" && node.contains_key(name) {
+            node[name][prop] = value;
+        }
+    }
+}
+
+// Duplicate the selected node (without children), then rebuild the mirror.
+pub fn duplicate_selected(S) {
+    history::record(S, "duplicate node", None);
+    let src = S.doc[S.sel];
+    let copy = #{};
+    for (key, value) in src.iter() {
+        copy[key] = util::copy(value);
+    }
+    let base = src.name;
+    let n = 2;
+    while name_taken(S.doc, format!("{}{}", base, n)) {
+        n += 1;
+    }
+    copy.name = format!("{}{}", base, n);
+    // The copy carried the original's id, which the engine then had to
+    // regenerate for itself; children address a parent by id, so it is ours.
+    copy.id = fresh_id(S.doc, copy.name);
+    S.doc.insert(S.sel + 1, copy);
+    S.sel += 1;
+    build_mirror(S);
+}
+
+pub fn delete_selected(S) {
+    if S.doc.len() <= 1 {
+        log::warn("cannot delete the last node");
+        return;
+    }
+    history::record(S, format!("delete {}", S.doc[S.sel].name), None);
+    let victim = S.doc[S.sel];
+    if let Some(found) = live(S, S.sel) {
+        found.queue_free();
+    }
+    let kept = [];
+    for (i, node) in S.doc.iter().enumerate() {
+        if i != S.sel && !has_ancestor(S.doc, node, victim.id) {
+            kept.push(node);
+        }
+    }
+    S.doc = kept;
+    S.sel = util::clamp(S.sel, 0, S.doc.len() - 1);
+    build_mirror(S);
+    log::info("deleted " + victim.name);
+}
+
+// Count stats for the status bar.
+pub fn stats(S) {
+    let scripts = 0;
+    for node in S.doc {
+        if node.contains_key("script") {
+            scripts += 1;
+        }
+    }
+    (S.doc.len(), scripts)
+}

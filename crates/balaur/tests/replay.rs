@@ -4,11 +4,9 @@
 use balaur::input::InputSnapshot;
 use balaur::{digest, replay, standard_app, App, AppConfig, FIXED_DT};
 
-const SCRIPT: &str = "local S = {}
-function S:fixed_update(dt)
-    if input.is_down(\"Space\") then self.node:translate(dt, 0, 0) end
-end
-return S
+const SCRIPT: &str = "pub fn fixed_update(this, dt) {
+    if input::is_down(input::KEY_SPACE) { this.node.translate(dt, 0.0, 0.0); }
+}
 ";
 
 fn project(dir: &std::path::Path) {
@@ -20,10 +18,10 @@ fn project(dir: &std::path::Path) {
     .unwrap();
     std::fs::write(
         dir.join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Runner\"\nscript = \"scripts/s.luau\"\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Runner\"\nscript = \"scripts/s.rn\"\n",
     )
     .unwrap();
-    std::fs::write(dir.join("scripts").join("s.luau"), SCRIPT).unwrap();
+    std::fs::write(dir.join("scripts").join("s.rn"), SCRIPT).unwrap();
 }
 
 fn booted(dir: &std::path::Path) -> App {
@@ -96,9 +94,8 @@ fn replaying_without_the_recorded_input_diverges() {
     for _ in &recorded {
         app.tick(FIXED_DT);
     }
-    assert_eq!(
-        walked(&app),
-        0.0,
+    assert!(
+        walked(&app).abs() < 1e-9,
         "nobody pressed Space this time, so the runner should not have moved"
     );
     assert_ne!(

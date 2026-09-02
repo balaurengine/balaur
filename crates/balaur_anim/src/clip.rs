@@ -11,7 +11,7 @@
 //!
 //! [[tracks]]
 //! target = ""                   # node path relative to the player; "" = self
-//! property = "position"         # position | rotation_euler | scale
+//! property = "position"         # position | rotation_euler | rotation | scale
 //!                               # or <component>/<property>: "color/rgba"
 //! interp = "linear"             # step | linear | cubic
 //! keys = [
@@ -79,6 +79,10 @@ pub enum Property {
     /// same spelling as `node:set_rotation_euler` — and interpolated as a
     /// quaternion, which is the only way past ±180° that takes the short way.
     RotationEuler,
+    /// Authored as a unit quaternion `[x, y, z, w]` — what an imported clip
+    /// carries, kept as it came so a re-export round-trips — and slerped
+    /// like the euler spelling.
+    Rotation,
     Scale,
     /// A registered component's property, addressed `component/property`.
     /// Resolved when the pose is written, not here: a clip may be parsed
@@ -99,6 +103,7 @@ impl Property {
     pub(crate) const fn channels(&self) -> Option<usize> {
         match self {
             Self::Position | Self::RotationEuler | Self::Scale => Some(3),
+            Self::Rotation => Some(4),
             Self::Component { .. } => None,
             Self::Call => Some(0),
         }
@@ -108,6 +113,7 @@ impl Property {
         match text {
             "position" => Ok(Self::Position),
             "rotation_euler" => Ok(Self::RotationEuler),
+            "rotation" => Ok(Self::Rotation),
             "scale" => Ok(Self::Scale),
             other => match other.split_once('/') {
                 Some((component, property))
@@ -121,8 +127,8 @@ impl Property {
                     })
                 }
                 _ => Err(anyhow!(
-                    "`property = \"{other}\"` is not \"position\", \"rotation_euler\" or \"scale\", \
-                     and does not read as `component/property`"
+                    "`property = \"{other}\"` is not \"position\", \"rotation_euler\", \"rotation\" \
+                     or \"scale\", and does not read as `component/property`"
                 )),
             },
         }

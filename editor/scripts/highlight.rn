@@ -1,0 +1,35 @@
+// Rune script analysis for the editor: the engine-facing hooks a file
+// declares. Colouring is the code editor widget's own.
+
+// Split source into lines and find `pub fn hook(this, ...)` definitions.
+// Returns the lines and the hooks as `#{ name, line }`, lines counted from 1.
+pub fn analyze(source) {
+    let lines = source.split('\n').collect::<Vec>();
+    let hooks = [];
+    for (i, line) in lines.iter().enumerate() {
+        let rest = line.trim();
+        if !rest.starts_with("pub ") {
+            continue;
+        }
+        rest = rest[4..].trim();
+        if rest.starts_with("async ") {
+            rest = rest[6..].trim();
+        }
+        if !rest.starts_with("fn ") {
+            continue;
+        }
+        rest = rest[3..];
+        let name = "";
+        for c in rest.chars() {
+            if c.is_alphanumeric() || c == '_' {
+                name.push(c);
+            } else {
+                break;
+            }
+        }
+        if name != "" {
+            hooks.push(#{ name: name, line: i + 1 });
+        }
+    }
+    (lines, hooks)
+}

@@ -8,8 +8,6 @@
 //! }
 //! ```
 
-pub mod multi;
-
 pub use balaur_anim::AnimationPlugin;
 #[cfg(feature = "audio")]
 pub use balaur_audio::AudioPlugin;
@@ -33,19 +31,13 @@ pub use balaur_input as input;
 pub use balaur_net as net;
 pub use balaur_physics as physics;
 pub use balaur_render as render;
-pub use balaur_script_luau as luau;
 pub use balaur_script_rune as rune;
 pub use balaur_ui as ui;
 
 use anyhow::{Context, Result};
 
-/// Build an [`App`] with the standard plugin set (input, physics, render,
-/// audio).
-/// The script backend a project asks for in its `project.toml`.
-///
-/// One project, one language. Two backends can run side by side in a process,
-/// but a callback minted by one is meaningless to the other, so mixing them in
-/// a single project needs an id space they share.
+/// The script backend a project asks for in its `project.toml`. Rune is the
+/// one language this build ships; the field stays so a project states it.
 fn backend_for(config: &AppConfig) -> Result<balaur_core::ScriptHostFactory> {
     let manifest = match &config.pack {
         Some(pack) => Some(pack.manifest.clone()),
@@ -54,61 +46,32 @@ fn backend_for(config: &AppConfig) -> Result<balaur_core::ScriptHostFactory> {
     let language = manifest
         .as_deref()
         .and_then(|m| balaur_core::project::ProjectManifest::parse(m).ok())
-        .map_or_else(|| "luau".to_string(), |m| m.language);
+        .map_or_else(|| "rune".to_string(), |m| m.language);
     match language.as_str() {
-        "luau" | "lua" => Ok(balaur_script_luau::factory()),
         "rune" => Ok(balaur_script_rune::factory()),
-        // Both hosts at once, routed by file extension: .luau and .rn
-        // scripts in one scene, calling each other by node and method name.
-        "mixed" => Ok(multi::factory()),
         other => Err(anyhow::anyhow!(
-            "project.toml asks for language \"{other}\"; this build has luau, rune and mixed"
+            "project.toml asks for language \"{other}\"; this build has rune"
         )),
     }
 }
 
 /// Build an export pack with the script backend `standard_app` installs.
 ///
-/// Luau compiles a file on its own — names are resolved at run time, so
-/// bytecode does not depend on which modules exist. Rune resolves `input::…`
-/// while compiling, so its export has to run against the same modules the
-/// game will have: boot the app the game would boot, and compile through its
-/// host. Exporting through a bare context instead rejects every script that
-/// touches the engine.
+/// Rune resolves `input::…` while compiling, so an export has to run against
+/// the same modules the game will have: boot the app the game would boot, and
+/// compile through its host. Exporting through a bare context instead rejects
+/// every script that touches the engine.
 pub fn build_pack(project_root: &std::path::Path) -> Result<Pack> {
-    let manifest = std::fs::read_to_string(project_root.join("project.toml"))?;
-    match balaur_core::project::ProjectManifest::parse(&manifest)?
-        .language
-        .as_str()
-    {
-        "rune" => {
-            let app = standard_app(AppConfig::export(project_root))?;
-            let host = app
-                .engine
-                .script_host()
-                .context("no script backend for a rune project")?;
-            let host = host
-                .as_any()
-                .downcast_ref::<balaur_script_rune::RuneHost>()
-                .context("expected the rune backend for a rune project")?;
-            Pack::build(project_root, host)
-        }
-        // Mixed exports compile each script with its own language's compiler,
-        // through the booted host for the same reason rune does.
-        "mixed" => {
-            let app = standard_app(AppConfig::export(project_root))?;
-            let host = app
-                .engine
-                .script_host()
-                .context("no script backend for a mixed project")?;
-            let host = host
-                .as_any()
-                .downcast_ref::<multi::MultiHost>()
-                .context("expected the mixed backend for a mixed project")?;
-            Pack::build(project_root, host)
-        }
-        _ => Pack::build(project_root, &balaur_script_luau::Compiler),
-    }
+    let app = standard_app(AppConfig::export(project_root))?;
+    let host = app
+        .engine
+        .script_host()
+        .context("no script backend for the project")?;
+    let host = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .context("expected the rune backend")?;
+    Pack::build(project_root, host)
 }
 
 pub fn standard_app(mut config: AppConfig) -> Result<App> {

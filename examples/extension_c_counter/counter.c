@@ -26,7 +26,7 @@ static Counter COUNTER = {0};
 
 /* ---- the functions ------------------------------------------------------- */
 
-/* Luau hands whole numbers over as BALAUR_INT and fractions as BALAUR_NUM, so
+/* A script hands whole numbers over as BALAUR_INT and fractions as BALAUR_NUM, so
  * anything taking a number should accept both. */
 static bool as_number(const BalaurValue *value, double *out) {
     if (value->kind == BALAUR_NUM) {

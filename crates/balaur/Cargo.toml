@@ -24,7 +24,6 @@ gamend = ["dep:balaur_gamend"]
 balaur_core.workspace = true
 balaur_plugin.workspace = true
 balaur_script.workspace = true
-balaur_script_luau.workspace = true
 balaur_script_rune.workspace = true
 balaur_physics.workspace = true
 balaur_anim.workspace = true

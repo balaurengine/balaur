@@ -5,66 +5,84 @@ use balaur::{standard_app, AppConfig};
 
 #[test]
 fn plugin_components_roundtrip_through_the_registry() {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
-    std::fs::write(
-        dir.path().join("project.toml"),
-        "name = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
-    )
-    .unwrap();
-    std::fs::write(dir.path().join("scenes/main.toml"), "").unwrap();
-    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
-    config.watch = false;
-    let app = standard_app(config).unwrap();
-    let lua = balaur_script_luau::lua_of(&app.engine);
-    lua.load(
+    let (dir, app) = app_with_every_component();
+    run_script(
+        dir.path(),
+        &app,
         r#"
-        -- The registry lists every plugin's components.
-        local names = scene.component_types()
-        local set = {}
-        for _, n in names do set[n] = true end
-        for _, expected in { "body3d", "collider3d", "shape3d", "widget" } do
-            assert(set[expected], expected .. " not registered")
-        end
+        fn has(list, item) {
+            for x in list {
+                if x == item {
+                    return true;
+                }
+            }
+            false
+        }
 
-        local n = scene.spawn("Thing")
-        n:set_position(0, 3, 0)
+        pub fn init(this) {
+            // The registry lists every plugin's components.
+            let names = scene::component_types();
+            for expected in ["body3d", "collider3d", "shape3d", "widget"] {
+                assert!(has(names, expected), "{} not registered", expected);
+            }
 
-        -- set_component adds with defaults when the node lacks the
-        -- component, and merges when it has it; there is no add_component.
-        n:set_component("body3d")
-        n:set_component("collider3d", { kind = "ball", radius = 0.7 })
-        n:set_component("shape3d", { kind = "ball", radius = 0.7 })
-        n:set_component("widget", { text = "hi" })
+            let n = scene::spawn("Thing");
+            n.set_position(0.0, 3.0, 0.0);
 
-        local body = n:get_component("body3d")
-        assert(body.kind == "dynamic", "default body kind")
-        n:set_component("body3d", { kind = "static" })
-        assert(n:get_component("body3d").kind == "static", "edited body kind")
+            // set_component adds with defaults when the node lacks the
+            // component, and merges when it has it; there is no add_component.
+            n.set_component("body3d");
+            n.set_component("collider3d", #{ kind: "ball", radius: 0.7 });
+            n.set_component("shape3d", #{ kind: "ball", radius: 0.7 });
+            n.set_component("widget", #{ text: "hi" });
 
-        local col = n:get_component("collider3d")
-        assert(math.abs(col.radius - 0.7) < 1e-5, "collider radius roundtrip")
+            let body = n.get_component("body3d");
+            assert!(body.kind == "dynamic", "default body kind");
+            n.set_component("body3d", #{ kind: "static" });
+            assert!(n.get_component("body3d").kind == "static", "edited body kind");
 
-        -- Schema drives editors.
-        local schema = scene.component_schema("collider3d")
-        assert(schema.kind.type == "enum")
-        assert(schema.radius.default == 0.5)
+            let col = n.get_component("collider3d");
+            assert!(math::abs(col.radius - 0.7) < 1e-5, "collider radius roundtrip");
 
-        -- Removal: body removed, collider survives as static geometry.
-        n:remove_component("body3d")
-        assert(n:get_component("body3d") == nil, "body removed")
-        assert(n:get_component("collider3d") ~= nil, "collider survives body removal")
-        n:remove_component("collider3d")
-        assert(n:get_component("collider3d") == nil, "collider removed")
+            // Schema drives editors.
+            let schema = scene::component_schema("collider3d");
+            assert!(schema["kind"]["type"] == "enum");
+            assert!(schema["radius"]["default"] == 0.5);
 
-        local present = n:component_names()
-        local have = {}
-        for _, name in present do have[name] = true end
-        assert(have.shape3d and have.widget and not have.body3d)
+            // Removal: body removed, collider survives as static geometry.
+            n.remove_component("body3d");
+            assert!(n.get_component("body3d") is Tuple, "body removed");
+            assert!(!(n.get_component("collider3d") is Tuple), "collider survives body removal");
+            n.remove_component("collider3d");
+            assert!(n.get_component("collider3d") is Tuple, "collider removed");
+
+            let present = n.component_names();
+            assert!(has(present, "shape3d") && has(present, "widget") && !has(present, "body3d"));
+            this.done = 1;
+        }
         "#,
-    )
-    .exec()
-    .unwrap();
+    );
+}
+
+/// Attach `source` to a fresh node and require it to have reached its
+/// closing `this.done = 1`; a failed `assert!` inside leaves that unset.
+fn run_script(dir: &std::path::Path, app: &balaur::App, source: &str) {
+    balaur::logbuf::capture_for_test();
+    balaur::logbuf::clear();
+    std::fs::create_dir_all(dir.join("scripts")).unwrap();
+    std::fs::write(dir.join("scripts/t.rn"), source).unwrap();
+    let node = spawn(app, "Tester");
+    app.engine
+        .script_host()
+        .unwrap()
+        .attach(balaur::node_id_of(node), "scripts/t.rn")
+        .unwrap();
+    assert_eq!(
+        balaur::rune::rune_of(&app.engine).number_field(node, "done"),
+        Some(1.0),
+        "the script did not run to its end: {:#?}",
+        balaur::logbuf::recent(10)
+    );
 }
 
 /// An app with every standard plugin's components registered, plus the

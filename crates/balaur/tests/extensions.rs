@@ -50,12 +50,13 @@ fn project(with_extension: bool) -> tempfile::TempDir {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = \"scripts/s.luau\"\n",
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\nscript = \"scripts/s.rn\"\n",
     )
     .unwrap();
     std::fs::write(
-        dir.path().join("scripts/s.luau"),
-        "local S = {}\nfunction S:init() _G.said = greeter.greet('world') end\nreturn S\n",
+        dir.path().join("scripts/s.rn"),
+        "pub fn init(this) { this.said = greeter::greet(\"world\"); }\n\
+         pub fn update(this, dt) { this.count = greeter::greetings(); }\n",
     )
     .unwrap();
     if with_extension {
@@ -70,16 +71,22 @@ fn project(with_extension: bool) -> tempfile::TempDir {
     dir
 }
 
+/// The scene's `Root`, the node the project's script is attached to.
+fn root_node(app: &balaur::App) -> balaur::hecs::Entity {
+    let world = app.engine.world();
+    balaur::scene::find_node(&world, app.engine.root(), "Root").expect("the scene has a Root")
+}
+
 #[test]
 fn a_project_extension_is_loaded_and_reachable_from_a_script() {
     let dir = project(true);
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
 
-    let lua = balaur::luau::lua_of(&app.engine);
-    let said: String = lua.globals().get("said").unwrap_or_default();
+    let said = balaur::rune::rune_of(&app.engine).text_field(root_node(&app), "said");
     assert_eq!(
-        said, "hello, world",
+        said.as_deref(),
+        Some("hello, world"),
         "the extension's binding did not reach the script"
     );
 }
@@ -89,11 +96,7 @@ fn a_project_extension_is_loaded_and_reachable_from_a_script() {
 #[test]
 fn a_project_without_extensions_still_boots() {
     let dir = project(false);
-    std::fs::write(
-        dir.path().join("scripts/s.luau"),
-        "local S = {}\nfunction S:init() end\nreturn S\n",
-    )
-    .unwrap();
+    std::fs::write(dir.path().join("scripts/s.rn"), "pub fn init(this) {}\n").unwrap();
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
     app.tick(1.0 / 60.0);
@@ -109,7 +112,10 @@ fn an_extension_survives_many_frames() {
     for _ in 0..60 {
         app.tick(1.0 / 60.0);
     }
-    let lua = balaur::luau::lua_of(&app.engine);
-    let count: i64 = lua.load("return greeter.greetings()").eval().unwrap();
-    assert_eq!(count, 1, "the extension's state did not survive the run");
+    let count = balaur::rune::rune_of(&app.engine).number_field(root_node(&app), "count");
+    assert_eq!(
+        count,
+        Some(1.0),
+        "the extension's state did not survive the run"
+    );
 }

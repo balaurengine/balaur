@@ -91,7 +91,7 @@ fn a_recording_round_trips_through_the_file() {
     assert_eq!(session.frames.len(), 3);
     assert_eq!(session.frames[2].tick, 3);
     assert_eq!(session.frames[2].digest, 3000);
-    assert_eq!(session.frames[0].step(), 1.0 / 60.0);
+    assert!((session.frames[0].step() - 1.0 / 60.0).abs() < 1e-9);
 }
 
 #[test]

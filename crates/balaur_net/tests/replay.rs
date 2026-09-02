@@ -64,7 +64,7 @@ fn record_a_fetch(url: &str) -> Vec<serde_json::Map<String, serde_json::Value>> 
         HttpCall {
             id: 1,
             method: "GET".into(),
-            url: url.into(),
+            url: url.to_string(),
             headers: Vec::new(),
             body: None,
             timeout: Some(5.0),
@@ -106,7 +106,7 @@ fn a_recorded_response_replays_with_no_server_listening() {
         HttpCall {
             id: 1,
             method: "GET".into(),
-            url: url.into(),
+            url,
             headers: Vec::new(),
             body: None,
             timeout: Some(5.0),

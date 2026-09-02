@@ -12,14 +12,15 @@ use std::path::{Path, PathBuf};
 
 use balaur_core::{App, AppConfig};
 use balaur_plugin::{library_suffix, load_extension, BalaurValue};
+use balaur_script::{NodeId, Value};
 
-fn app() -> App {
+fn app_in(dir: &Path) -> App {
     App::new(AppConfig {
-        project_root: PathBuf::from("."),
+        project_root: dir.to_path_buf(),
         pack: None,
         watch: false,
         script_args: Vec::new(),
-        script_backend: Some(balaur_script_luau::factory()),
+        script_backend: Some(balaur_script_rune::factory()),
     })
     .unwrap()
 }
@@ -69,35 +70,78 @@ fn counter() -> PathBuf {
         .clone()
 }
 
-/// Load the counter into a fresh app.
+/// The counter loaded into a fresh app, with `probe.rn` attached to a node.
 ///
-/// The `Extension` comes back with the app because it owns the open library,
-/// and every function pointer it registered points into that library.
-fn loaded() -> (App, balaur_plugin::Extension) {
-    let mut app = app();
+/// Rune runs code from files, not strings, so each test's expressions are
+/// `pub fn`s of that script and `call` runs one by name. The `Extension`
+/// stays with the app because it owns the open library, and every function
+/// pointer it registered points into that library.
+struct Loaded {
+    app: App,
+    _library: balaur_plugin::Extension,
+    _dir: tempfile::TempDir,
+    probe: NodeId,
+}
+
+fn loaded(script: &str) -> Loaded {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("project.toml"), "[project]\nname = \"t\"\n").unwrap();
+    std::fs::write(dir.path().join("probe.rn"), script).unwrap();
+    let mut app = app_in(dir.path());
     let mut extension = unsafe { load_extension(&counter()) }.expect("the C extension should load");
     assert_eq!(extension.manifest().name, "counter");
     balaur_plugin::load(&mut app, extension.plugin_mut()).unwrap();
-    (app, extension)
+
+    let root = app.engine.root();
+    let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Probe", root);
+    let probe = balaur_core::node_id_of(node);
+    let host = app.engine.script_host().unwrap();
+    host.attach(probe, "probe.rn").unwrap();
+    Loaded {
+        app,
+        _library: extension,
+        _dir: dir,
+        probe,
+    }
+}
+
+impl Loaded {
+    /// Run `pub fn name(this)` from `probe.rn` and hand back what it returned.
+    fn call(&self, name: &str) -> Value {
+        self.app
+            .engine
+            .script_host()
+            .unwrap()
+            .call_on(self.probe, name, &[])
+            .unwrap_or_else(|| panic!("`{name}` did not run to completion"))
+    }
+}
+
+fn number(value: Value) -> f64 {
+    match value {
+        Value::Num(n) => n,
+        Value::Int(i) => i as f64,
+        other => panic!("expected a number, got {other:?}"),
+    }
 }
 
 #[test]
 fn a_c_extension_declares_itself_into_a_running_app() {
-    let (app, _library) = loaded();
-    let lua = balaur_script_luau::lua_of(&app.engine);
-    let greeting: String = lua.load("return counter.greet('world')").eval().unwrap();
-    assert_eq!(greeting, "hello, world");
+    let probe = loaded("pub fn greet(this) { counter::greet(\"world\") }\n");
+    assert_eq!(probe.call("greet"), Value::Str("hello, world".into()));
 }
 
 #[test]
 fn numbers_cross_the_boundary_in_both_directions() {
-    let (app, _library) = loaded();
-    let lua = balaur_script_luau::lua_of(&app.engine);
-    let sum: f64 = lua.load("return counter.add(2, 3)").eval().unwrap();
+    let probe = loaded(
+        "pub fn whole(this) { counter::add(2, 3) }\n\
+         pub fn fraction(this) { counter::add(0.5, 0.25) }\n",
+    );
+    let sum = number(probe.call("whole"));
     assert!((sum - 5.0).abs() < f64::EPSILON);
-    // Luau hands whole numbers over as integers and fractions as floats; both
+    // Rune hands whole numbers over as integers and fractions as floats; both
     // reach the same C function.
-    let mixed: f64 = lua.load("return counter.add(0.5, 0.25)").eval().unwrap();
+    let mixed = number(probe.call("fraction"));
     assert!((mixed - 0.75).abs() < f64::EPSILON);
 }
 
@@ -106,33 +150,35 @@ fn numbers_cross_the_boundary_in_both_directions() {
 /// cannot do across separate compilations.
 #[test]
 fn a_c_extension_keeps_its_own_state_across_calls() {
-    let (app, _library) = loaded();
-    let lua = balaur_script_luau::lua_of(&app.engine);
-    let first: i64 = lua.load("return counter.bump()").eval().unwrap();
-    let second: i64 = lua.load("return counter.bump()").eval().unwrap();
+    let probe = loaded("pub fn bump(this) { counter::bump() }\n");
+    let Value::Int(first) = probe.call("bump") else {
+        panic!("bump returns an integer");
+    };
+    let Value::Int(second) = probe.call("bump") else {
+        panic!("bump returns an integer");
+    };
     assert_eq!(second, first + 1);
 }
 
 #[test]
 fn lists_cross_the_boundary_in_both_directions() {
-    let (app, _library) = loaded();
-    let lua = balaur_script_luau::lua_of(&app.engine);
-    let out: Vec<f64> = lua.load("return counter.triple(2)").eval().unwrap();
-    assert_eq!(out, vec![2.0, 4.0, 6.0]);
+    let probe = loaded(
+        "pub fn tripled(this) { counter::triple(2) }\n\
+         pub fn summed(this) { counter::sum_list([1, 2, 3.5]) }\n",
+    );
+    assert_eq!(
+        probe.call("tripled"),
+        Value::List(vec![Value::Num(2.0), Value::Num(4.0), Value::Num(6.0)])
+    );
 
-    let total: f64 = lua
-        .load("return counter.sum_list({1, 2, 3.5})")
-        .eval()
-        .unwrap();
+    let total = number(probe.call("summed"));
     assert!((total - 6.5).abs() < f64::EPSILON);
 }
 
 #[test]
 fn a_constant_registered_from_c_is_readable() {
-    let (app, _library) = loaded();
-    let lua = balaur_script_luau::lua_of(&app.engine);
-    let version: String = lua.load("return counter.VERSION").eval().unwrap();
-    assert_eq!(version, "0.1.0");
+    let probe = loaded("pub fn version(this) { counter::VERSION }\n");
+    assert_eq!(probe.call("version"), Value::Str("0.1.0".into()));
 }
 
 /// A non-zero return becomes a script error, and the string the extension
@@ -140,23 +186,27 @@ fn a_constant_registered_from_c_is_readable() {
 /// nil.
 #[test]
 fn a_failing_c_function_becomes_a_script_error_with_its_message() {
-    let (app, _library) = loaded();
-    let lua = balaur_script_luau::lua_of(&app.engine);
-    let err = lua
-        .load("return counter.always_fails()")
-        .exec()
-        .unwrap_err()
-        .to_string();
+    let probe = loaded(
+        "pub fn failing(this) {\n\
+         \x20 let (ok, err) = script::attempt(|| counter::always_fails());\n\
+         \x20 if ok { \"no error\" } else { err }\n\
+         }\n\
+         pub fn wrong_types(this) {\n\
+         \x20 let (ok, err) = script::attempt(|| counter::add(\"a\", \"b\"));\n\
+         \x20 if ok { \"no error\" } else { err }\n\
+         }\n",
+    );
+    let Value::Str(err) = probe.call("failing") else {
+        panic!("the probe returns the error text");
+    };
     assert!(
         err.contains("this function fails on purpose"),
         "the extension's own message did not reach the script: {err}"
     );
 
-    let wrong_types = lua
-        .load("return counter.add('a', 'b')")
-        .exec()
-        .unwrap_err()
-        .to_string();
+    let Value::Str(wrong_types) = probe.call("wrong_types") else {
+        panic!("the probe returns the error text");
+    };
     assert!(
         wrong_types.contains("add expects two numbers"),
         "unhelpful: {wrong_types}"

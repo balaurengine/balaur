@@ -488,7 +488,7 @@ fn a_tween_drives_a_component_property_the_animation_crate_does_not_depend_on() 
     let mut app = app();
     let entity = spawn(&app, "Box");
     let params: toml::Value =
-        toml::from_str(&format!("kind = \"cuboid\"\ncolor = [0.0, 0.0, 0.0, 1.0]")).unwrap();
+        toml::from_str("kind = \"cuboid\"\ncolor = [0.0, 0.0, 0.0, 1.0]").unwrap();
     components::add(&app.engine, entity, "shape3d", Some(&params)).unwrap();
     start(
         &app,
@@ -521,7 +521,7 @@ fn a_tween_captures_the_component_value_it_starts_from() {
     let mut app = app();
     let entity = spawn(&app, "Box");
     let params: toml::Value =
-        toml::from_str(&format!("kind = \"cuboid\"\ncolor = [0.0, 1.0, 0.0, 1.0]")).unwrap();
+        toml::from_str("kind = \"cuboid\"\ncolor = [0.0, 1.0, 0.0, 1.0]").unwrap();
     components::add(&app.engine, entity, "shape3d", Some(&params)).unwrap();
     start(
         &app,

@@ -185,3 +185,42 @@ fn a_dot_dot_segment_climbs_to_the_parent() {
     assert_eq!(find_node(&world, b, "../B/C"), Some(c));
     assert_eq!(find_node(&world, engine.root(), ".."), None);
 }
+
+#[test]
+fn reparenting_keeps_the_world_pose_and_moves_the_child() {
+    let (engine, a, b, c) = tree();
+    {
+        let world = engine.world_mut();
+        world.get::<&mut Transform>(a).unwrap().position = Vec3::new(10.0, 0.0, 0.0);
+        world.get::<&mut Transform>(b).unwrap().position = Vec3::new(0.0, 5.0, 0.0);
+        world.get::<&mut Transform>(c).unwrap().position = Vec3::new(1.0, 1.0, 0.0);
+    }
+    let before = scene::composed_global(&engine.world(), c).position;
+    scene::reparent(&mut engine.world_mut(), c, a).unwrap();
+    let world = engine.world();
+    assert_eq!(world.get::<&Parent>(c).unwrap().0, a);
+    assert!(world.get::<&Children>(a).unwrap().0.contains(&c));
+    assert!(!world.get::<&Children>(b).unwrap().0.contains(&c));
+    let after = scene::composed_global(&world, c).position;
+    assert!(
+        (after - before).length() < 1e-5,
+        "{before:?} became {after:?}"
+    );
+    // Its local transform absorbed the move: it is now B's old offset plus
+    // its own, relative to A.
+    let local = world.get::<&Transform>(c).unwrap().position;
+    assert!(
+        (local - Vec3::new(1.0, 6.0, 0.0)).length() < 1e-5,
+        "{local:?}"
+    );
+}
+
+#[test]
+fn a_node_cannot_be_moved_under_itself_or_its_descendants() {
+    let (engine, a, _, c) = tree();
+    assert!(scene::reparent(&mut engine.world_mut(), a, a).is_err());
+    assert!(scene::reparent(&mut engine.world_mut(), a, c).is_err());
+    // Nothing moved.
+    let world = engine.world();
+    assert_eq!(world.get::<&Parent>(a).unwrap().0, engine.root());
+}

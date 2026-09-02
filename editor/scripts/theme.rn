@@ -1,0 +1,49 @@
+// Design tokens from the balaur editor handoff ("Organic" palette).
+// Two complete sets; #f9f4ed is the fixed on-accent text in both. The active
+// set lives on `S.theme`.
+
+pub fn dark() {
+    #{
+        dark: true,
+        bg: "#17191c", panel: "#20242a", sunken: "#101215", raised: "#2b3037",
+        line: "#343a42", line_soft: "#2b3037",
+        text: "#eef1f4", dim: "#b0b8c0", faint: "#767e88",
+        accent: "#f0a273", accent_fill: "#d5814e", accent_soft: "#3d2415",
+        sage: "#8fbcae", sage_soft: "#22352f",
+        grid: "#1e2126", grid_major: "#2b3037", code_bg: "#131518",
+        on_accent: "#f9f4ed",
+        k_key: "#f0a273", k_str: "#8fbcae", k_num: "#ffc7a8", k_com: "#767e88",
+        k_fn: "#eef1f4", k_type: "#b6d8cc", k_punc: "#98a1aa",
+    }
+}
+
+pub fn light() {
+    #{
+        dark: false,
+        bg: "#eef0f1", panel: "#e2e5e7", sunken: "#d6dadc", raised: "#f9fafb",
+        line: "#c2c8cb", line_soft: "#d8dcdf",
+        text: "#1d2124", dim: "#586065", faint: "#8f979c",
+        accent: "#a85a2c", accent_fill: "#c06a34", accent_soft: "#f3e0d2",
+        sage: "#5f7f74", sage_soft: "#dde8e4",
+        grid: "#e3e6e8", grid_major: "#cfd4d7", code_bg: "#f9fafb",
+        on_accent: "#f9f4ed",
+        k_key: "#8a4718", k_str: "#3f6459", k_num: "#a85a2c", k_com: "#8f979c",
+        k_fn: "#22272b", k_type: "#5f7f74", k_punc: "#767e83",
+    }
+}
+
+// Push the active token set into egui and the 3D viewport.
+pub fn apply(S) {
+    let t = S.theme;
+    ui::set_theme(t);
+    let (r, g, b) = crate::util::hex_to_rgb(t.bg);
+    render::set_background(r, g, b);
+    let (mr, mg, mb) = crate::util::hex_to_rgb(t.grid);
+    let (jr, jg, jb) = crate::util::hex_to_rgb(t.grid_major);
+    render::set_grid_colors(mr, mg, mb, jr, jg, jb);
+}
+
+pub fn set_dark(S, dark) {
+    S.theme = if dark { dark() } else { light() };
+    apply(S);
+}

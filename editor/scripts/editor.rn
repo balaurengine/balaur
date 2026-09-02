@@ -1,0 +1,258 @@
+// The balaur editor: a regular balaur project whose modules draw the whole
+// shell and edit the game given to `balaur edit`; `S` is its one state object.
+
+mod anim;
+mod center;
+mod chrome;
+mod defs;
+mod dock;
+mod gizmo;
+mod gizmo2d;
+mod highlight;
+mod history;
+mod inspector;
+mod left;
+mod model;
+mod overlays;
+mod palette;
+mod polygon;
+mod rig;
+mod selftest;
+mod shell;
+mod theme;
+mod util;
+
+pub fn init(this) {
+    let S = #{
+        persona: "scene",
+        tool: "select",
+        doctab: "scene",
+        dock: "output",
+        zoom: 100.0,
+        playing: false,
+        palette: false,
+        palette_query: "",
+        palette_submit: false,
+        chip_state: #{},
+        compact: false,
+        version: "0.1.0",
+        ui_scale: 1.25,
+        script_buffers: #{},
+        script_dirty: #{},
+        anim_time: 0.0,
+        collapsed: #{},
+        breakpoints: #{},
+        debug_frame: 0,
+        paused: (),
+        paused_rel: "",
+        breakdemo: None,
+        fps: 0.0,
+        frame: 0,
+        shot: None,
+        screen_w: 1280.0,
+        screen_h: 800.0,
+        viewport: #{ x: 308.0, y: 94.0, w: 664.0, h: 528.0 },
+        rail_visible: false,
+        mode2d: false,
+        refs: [],
+        sources: #{},
+        listings: #{},
+        clip: None,
+        anim_rebind: false,
+        gizmo_hover: None,
+        gizmo_drag: None,
+        drag_in_viewport: false,
+        rig_hover: None,
+        polygon_hover: None,
+        polygon_drag: None,
+        polygon_loop: None,
+        polygon_mode: "points",
+        polygon_texture: None,
+        paint_bone: None,
+        paint_radius: 40.0,
+        paint_strength: 0.5,
+        uv_backdrop: (),
+        hooks_src: "",
+        hooks_live: [],
+        log_level: "all",
+        log_query: "",
+        asset_dir: "",
+        mirror: (),
+        theme: theme::dark(),
+    };
+    this.S = S;
+
+    model::load(S);
+    theme::apply(S);
+    render::set_app_icon("assets/balaur-logo.png");
+    ui::set_scale(S.ui_scale);
+    render::set_grid(true, 1.0, 5, 20);
+    shell::apply_camera(S);
+    log::info(format!("editing {} ({} nodes)", S.game_name, S.doc.len()));
+
+    // Optional start-up states, comma-separated (persona id, "palette",
+    // "light", "play", "select:<node>", "shot=<png path>"), applied in order.
+    let states = engine::args().get(1).unwrap_or("");
+    for token in states.split(',') {
+        if token != "" {
+            shell::apply_start_state(S, token);
+        }
+    }
+}
+
+// Mirror was rebuilt: re-resolve node handles.
+fn resolve_refs(S) {
+    S.refs = [];
+    for node in S.doc {
+        S.refs.push(S.mirror.get_node(model::node_path(S.doc, node)));
+    }
+}
+
+pub fn update(this, dt) {
+    let S = this.S;
+    // Smoothed frame rate for the status bar; a raw 1/dt reads as noise.
+    if dt > 0.0 {
+        let now = 1.0 / dt;
+        S.fps = (if S.fps == 0.0 { now } else { S.fps }) * 0.9 + now * 0.1;
+    }
+    S.frame += 1;
+    let shot_some = S.shot;
+    if let Some(shot) = shot_some {
+        if S.frame == 60 {
+            render::screenshot(shot);
+        }
+    }
+    let paused = debugger::paused();
+    if paused is Object && !(S.paused is Object) {
+        shell::on_pause(S, paused);
+    }
+    S.paused = paused;
+    if let Some(n) = S.breakdemo {
+        if S.paused is Object {
+            S.breakdemo = Some(n + 1);
+            shell::resume(S, if (n + 1) % 2 == 1 { debugger::STEP_OVER } else { debugger::CONTINUE });
+        }
+    }
+    if S.refs.len() != S.doc.len() || model::live(S, S.sel).is_none() {
+        resolve_refs(S);
+    }
+    // 2D/3D viewport mode follows the edited scene's components.
+    let is2d = model::is_2d(S);
+    if is2d != S.mode2d {
+        S.mode2d = is2d;
+        render::set_grid(!is2d, 1.0, 5, 20);
+        shell::apply_camera(S);
+    }
+    if is2d {
+        overlays::grid2d(S);
+    }
+    gizmo::update(S);
+    anim::update(S);
+    // Scene-tree UI widgets draw during play (and for preview in the
+    // Interface persona), clipped to the viewport.
+    let rect = gizmo::viewport_rect(S);
+    let widgets_on = S.playing || S.persona == "ui";
+    ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.w, rect.h);
+    if S.tool == "key" && S.persona == "anim" && input::mouse_just_pressed(input::MOUSE_LEFT) {
+        anim::add_key(S, S.anim_time);
+    }
+    gizmo::draw(S);
+    rig::draw(S);
+    polygon::idle(S);
+    polygon::draw(S);
+    let chips = util::obj(S.chip_state.get(S.persona).unwrap_or(#{}));
+    if S.persona == "scene" && chips.get("guides").unwrap_or(false) {
+        overlays::guides(S);
+    }
+    if S.persona == "anim" && chips.get("path").unwrap_or(true) {
+        overlays::motion_path(S);
+    }
+    if S.persona == "phys" && chips.get("colliders").unwrap_or(true) {
+        if S.mode2d {
+            overlays::colliders2d(S);
+        } else {
+            overlays::colliders(S);
+        }
+    }
+}
+
+pub fn draw_ui(this) {
+    let S = this.S;
+    let (sw, sh) = ui::screen_size();
+    S.screen_w = sw;
+    S.screen_h = sh;
+    S.compact = sw < 1240.0;
+
+    // Global shortcuts.
+    if ui::shortcut("cmd", "K") {
+        if S.palette {
+            shell::close_palette(S);
+        } else {
+            shell::open_palette(S, "");
+        }
+    }
+    if ui::shortcut("cmd", "S") {
+        shell::save_active(S);
+    }
+    if ui::shortcut("cmd", "Equals") {
+        shell::set_ui_scale(S, S.ui_scale + 0.125);
+    }
+    if ui::shortcut("cmd", "Minus") {
+        shell::set_ui_scale(S, S.ui_scale - 0.125);
+    }
+    // Debugger keys work with the code editor focused: they are not text.
+    if S.paused is Object {
+        if ui::shortcut("none", "F5") {
+            shell::resume(S, debugger::CONTINUE);
+        } else if ui::shortcut("none", "F10") {
+            shell::resume(S, debugger::STEP_OVER);
+        } else if ui::shortcut("none", "F11") {
+            shell::resume(S, debugger::STEP_INTO);
+        } else if ui::shortcut("shift", "F11") {
+            shell::resume(S, debugger::STEP_OUT);
+        }
+    }
+    if !ui::wants_keyboard() {
+        if !(S.paused is Object) && ui::shortcut("none", "F5") {
+            shell::toggle_play(S);
+        }
+        let personas = ["scene", "script", "anim", "phys", "ui"];
+        for (i, id) in personas.iter().enumerate() {
+            if ui::shortcut("alt", format!("{}", i + 1)) {
+                shell::set_persona(S, id);
+            }
+        }
+        if ui::shortcut("shift", "A") {
+            model::add_child(S, None);
+        }
+        // Gated with the rest, so typing in the code editor keeps egui's own
+        // per-widget undo; redo first, to claim the shifted chord.
+        if ui::shortcut("shift+cmd", "Z") || ui::shortcut("cmd", "Y") {
+            shell::redo(S);
+        } else if ui::shortcut("cmd", "Z") {
+            shell::undo(S);
+        }
+        if ui::shortcut("alt", "L") {
+            theme::set_dark(S, !S.theme.dark);
+        }
+        if S.persona == "anim" && ui::shortcut("none", "K") {
+            anim::add_key(S, S.anim_time);
+        }
+        if ui::shortcut("none", "Escape") {
+            polygon::cancel(S);
+        }
+    }
+
+    // Fixed skeleton: outer chrome, then dock, rail, tabs, then the center.
+    chrome::persona_bar(S);
+    chrome::status_bar(S);
+    left::draw(S);
+    inspector::draw(S);
+    dock::draw(S);
+    center::draw(S);
+    palette::draw(S);
+}
+
+pub fn hot_reload(this) {
+    theme::apply(this.S);
+}

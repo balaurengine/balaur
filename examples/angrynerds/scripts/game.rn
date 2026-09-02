@@ -1,0 +1,240 @@
+// Angry-birds gameplay: slingshot aiming, launching, impact scoring and
+// restarts. The level itself is pure scene data (2D components); this
+// script only drives it, so everything stays editable in the balaur editor.
+
+const ANCHOR_X = -8.0;
+const ANCHOR_Y = 2.2;
+const MAX_PULL = 2.6;
+const POWER = 9.0;
+const KILL_IMPULSE = 3.0;
+const BIRDS = 3;
+
+pub fn init(this) {
+    this.root = this.node.parent();
+    physics2d::set_gravity(0.0, -9.81);
+    render::set_background(0.55, 0.78, 0.92);
+    render::set_camera_2d(0.0, 3.0, 52.0);
+
+    this.score = 0;
+    this.birds_left = BIRDS;
+    this.aiming = false;
+    this.launched = false;
+    this.rest_timer = 0.0;
+    this.over = false;
+
+    // Capture initial state so R can rebuild the level in place. Each entry
+    // remembers its top-level owner so popping a pig pops its whole subtree.
+    this.level = [];
+    this.pigs = #{};
+    capture(this, this.root, None);
+    for entry in this.level {
+        if entry.owner.starts_with("Pig") && entry.name == entry.owner {
+            this.pigs[entry.owner] = true;
+        }
+    }
+    this.bird = this.root.get_node("Bird");
+}
+
+fn capture(this, node, owner) {
+    for child in node.children() {
+        let top = match owner {
+            Some(name) => name,
+            None => child.name(),
+        };
+        if child.has_component("shape2d") {
+            let p = child.position();
+            let r = child.rotation_euler();
+            this.level.push(#{
+                node: child,
+                name: child.name(),
+                owner: top,
+                pos: [p.x, p.y, p.z],
+                rot: [r.x, r.y, r.z],
+                shape2d: child.get_component("shape2d"),
+                collider2d: child.get_component("collider2d"),
+                body2d: child.get_component("body2d"),
+            });
+        }
+        capture(this, child, Some(top));
+    }
+}
+
+fn set_widget_text(this, name, text) {
+    let node = this.root.get_node(name);
+    if !(node is balaur::Node) {
+        return;
+    }
+    let w = node.get_component("widget");
+    if w is Object {
+        w.text = text;
+        node.set_component("widget", w);
+    }
+}
+
+// Remove a node's 2D components: it disappears from both the renderer and
+// the physics world without being freed, so a restart can bring it back.
+fn pop(entry) {
+    if entry.collider2d is Object {
+        entry.node.remove_component("collider2d");
+    }
+    if entry.body2d is Object {
+        entry.node.remove_component("body2d");
+    }
+    entry.node.remove_component("shape2d");
+}
+
+pub fn restart(this) {
+    for entry in this.level {
+        let node = entry.node;
+        node.set_position(entry.pos[0], entry.pos[1], entry.pos[2]);
+        node.set_rotation_euler(entry.rot[0], entry.rot[1], entry.rot[2]);
+        node.set_component("shape2d", entry.shape2d);
+        if entry.body2d is Object {
+            node.set_component("body2d", entry.body2d);
+        }
+        if entry.collider2d is Object {
+            node.set_component("collider2d", entry.collider2d);
+        }
+        if entry.name.starts_with("Pig") {
+            this.pigs[entry.name] = true;
+        }
+    }
+    this.score = 0;
+    this.birds_left = BIRDS;
+    this.aiming = false;
+    this.launched = false;
+    this.rest_timer = 0.0;
+    this.over = false;
+    set_widget_text(this, "Score", "Score 0");
+    set_widget_text(this, "Birds", format!("Birds {}", BIRDS));
+    set_widget_text(this, "Hint", "Drag the bird, release to launch · R restarts");
+}
+
+fn pigs_alive(this) {
+    let n = 0;
+    for (_, alive) in this.pigs.iter() {
+        if alive {
+            n += 1;
+        }
+    }
+    n
+}
+
+// Park the bird back on the sling as a kinematic body, ready to aim.
+fn rearm_bird(this) {
+    this.bird.set_position(ANCHOR_X, ANCHOR_Y, 0.0);
+    this.bird.set_rotation_euler(0.0, 0.0, 0.0);
+    this.bird.set_component("body2d", #{ kind: "kinematic" });
+    this.launched = false;
+    this.rest_timer = 0.0;
+}
+
+fn finish(this, message) {
+    this.over = true;
+    set_widget_text(this, "Hint", message);
+}
+
+pub fn update(this, dt) {
+    if input::just_pressed("R") {
+        restart(this);
+        return;
+    }
+    if this.over || !this.bird.is_valid() {
+        return;
+    }
+
+    let (mx, my) = render::mouse_world_2d();
+    let b = this.bird.position();
+
+    // Slingshot: grab the parked bird, pull, release to launch.
+    if !this.launched {
+        if input::mouse_just_pressed(input::MOUSE_LEFT) {
+            let d = math::sqrt((mx - b.x) * (mx - b.x) + (my - b.y) * (my - b.y));
+            if d < 1.4 {
+                this.aiming = true;
+            }
+        }
+        if this.aiming {
+            let dx = mx - ANCHOR_X;
+            let dy = my - ANCHOR_Y;
+            let len = math::sqrt(dx * dx + dy * dy);
+            if len > MAX_PULL {
+                dx = dx / len * MAX_PULL;
+                dy = dy / len * MAX_PULL;
+            }
+            this.bird.set_position(ANCHOR_X + dx, ANCHOR_Y + dy, 0.0);
+            if input::mouse_just_released(input::MOUSE_LEFT) {
+                this.aiming = false;
+                let p = this.bird.position();
+                let ix = (ANCHOR_X - p.x) * POWER;
+                let iy = (ANCHOR_Y - p.y) * POWER;
+                if math::sqrt(ix * ix + iy * iy) > 1.0 {
+                    this.bird.set_component("body2d", #{ kind: physics2d::BODY_DYNAMIC });
+                    physics2d::apply_impulse(this.bird, ix, iy);
+                    this.launched = true;
+                    this.birds_left -= 1;
+                    set_widget_text(this, "Birds", format!("Birds {}", this.birds_left));
+                } else {
+                    this.bird.set_position(ANCHOR_X, ANCHOR_Y, 0.0);
+                }
+            }
+        }
+        // Sling bands, drawn from the post to the bird.
+        let p = this.bird.position();
+        render::draw_line_2d(ANCHOR_X - 0.14, ANCHOR_Y - 0.5, p.x, p.y, 0.35, 0.2, 0.12, 4.0);
+        render::draw_line_2d(ANCHOR_X + 0.14, ANCHOR_Y - 0.45, p.x, p.y, 0.3, 0.16, 0.1, 4.0);
+    }
+
+    // Pigs pop when anything hits them hard enough.
+    let names = this.pigs.keys().collect::<Vec>();
+    for name in names {
+        if !this.pigs[name] {
+            continue;
+        }
+        let pig = this.root.get_node(name);
+        if !(pig is balaur::Node) {
+            this.pigs[name] = false;
+            continue;
+        }
+        let p = pig.position();
+        let impulse = physics2d::max_contact_impulse(pig);
+        if impulse > KILL_IMPULSE || p.y < -3.0 {
+            for entry in this.level {
+                if entry.owner == name {
+                    pop(entry);
+                }
+            }
+            this.pigs[name] = false;
+            this.score += 500;
+            set_widget_text(this, "Score", format!("Score {}", this.score));
+            log::info(format!("{} popped (impulse {:.1})", name, impulse));
+        }
+    }
+
+    if pigs_alive(this) == 0 {
+        this.score += this.birds_left * 1000;
+        set_widget_text(this, "Score", format!("Score {}", this.score));
+        finish(this, "You win! · R to restart");
+        return;
+    }
+
+    // Retire a spent bird: fell off the world, or came to rest.
+    if this.launched {
+        let (vx, vy) = physics2d::linear_velocity(this.bird);
+        let speed = math::sqrt(vx * vx + vy * vy);
+        let p = this.bird.position();
+        let gone = p.y < -3.0 || math::abs(p.x) > 20.0;
+        if speed < 0.25 {
+            this.rest_timer += dt;
+        } else {
+            this.rest_timer = 0.0;
+        }
+        if gone || this.rest_timer > 1.2 {
+            if this.birds_left > 0 {
+                rearm_bird(this);
+            } else {
+                finish(this, "Out of birds · R to restart");
+            }
+        }
+    }
+}

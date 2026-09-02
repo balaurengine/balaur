@@ -1,7 +1,8 @@
 //! The node operations, called directly rather than through a language.
 //!
-//! Both backends dispatch to this same list, so a bug here is a bug in every
-//! language at once — which makes it worth testing without one in the way.
+//! The script backend dispatches to this same list, so a bug here is a bug in
+//! every script at once — which makes it worth testing without a language in
+//! the way.
 
 use balaur_core::node_api::NODE_OPS;
 use balaur_core::{App, AppConfig, Engine};
@@ -315,11 +316,35 @@ fn attaching_a_script_without_a_backend_is_a_clear_error() {
     let err = call(
         &app.engine,
         "attach_script",
-        &[node, Value::Str("s.luau".into())],
+        &[node, Value::Str("s.rn".into())],
     )
     .unwrap_err();
     assert!(
         format!("{err:#}").contains("backend"),
         "does not explain the problem: {err:#}"
     );
+}
+
+#[test]
+fn set_parent_is_a_node_operation() {
+    use balaur_core::node_api::NODE_OPS;
+    use balaur_core::scene::{self, Parent};
+    let engine = balaur_core::Engine::new();
+    let root = engine.root();
+    let (a, b) = {
+        let mut world = engine.world_mut();
+        let a = scene::spawn_node(&mut world, "A", root);
+        let b = scene::spawn_node(&mut world, "B", root);
+        (a, b)
+    };
+    let op = NODE_OPS.iter().find(|op| op.name == "set_parent").unwrap();
+    (op.call)(
+        &engine,
+        &[
+            balaur_script::Value::Node(balaur_core::node_id_of(b).0),
+            balaur_script::Value::Node(balaur_core::node_id_of(a).0),
+        ],
+    )
+    .unwrap();
+    assert_eq!(engine.world().get::<&Parent>(b).unwrap().0, a);
 }

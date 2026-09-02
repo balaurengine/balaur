@@ -23,24 +23,20 @@ practical side.
 
 The single most important rule: **simulation goes in `fixed_update`.**
 
-```luau
-local Player = {}
+```rune
+// Runs on the fixed 60 Hz step. Zero or more times per frame, always the
+// same dt, immediately before physics. Simulation lives here.
+pub fn fixed_update(this, dt) {
+    if input::is_down(input::KEY_SPACE) {
+        physics3d::apply_impulse(this.node, 0.0, 5.0, 0.0);
+    }
+}
 
--- Runs on the fixed 60 Hz step. Zero or more times per frame, always the
--- same dt, immediately before physics. Simulation lives here.
-function Player:fixed_update(dt)
-    if input.is_down(input.KEY_SPACE) then
-        physics.apply_impulse(self.node, 0, 5, 0)
-    end
-end
-
--- Runs once per frame with the real frame time. Presentation only:
--- anything a dropped frame may safely skip.
-function Player:update(dt)
-    self.bob = self.bob + dt
-end
-
-return Player
+// Runs once per frame with the real frame time. Presentation only:
+// anything a dropped frame may safely skip.
+pub fn update(this, dt) {
+    this.bob = this.bob + dt;
+}
 ```
 
 | | `update(dt)` | `fixed_update(dt)` |

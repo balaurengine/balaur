@@ -280,18 +280,17 @@ fn percent_decoded(uri: &str) -> String {
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
-        let escaped = (bytes[i] == b'%' && i + 2 < bytes.len() + 0)
-            .then(|| u8::from_str_radix(std::str::from_utf8(&bytes[i + 1..i + 3]).ok()?, 16).ok())
-            .flatten();
-        match escaped {
-            Some(byte) => {
-                out.push(byte);
-                i += 3;
-            }
-            None => {
-                out.push(bytes[i]);
-                i += 1;
-            }
+        let escaped = bytes
+            .get(i + 1..i + 3)
+            .filter(|_| bytes[i] == b'%')
+            .and_then(|hex| std::str::from_utf8(hex).ok())
+            .and_then(|hex| u8::from_str_radix(hex, 16).ok());
+        if let Some(byte) = escaped {
+            out.push(byte);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
         }
     }
     String::from_utf8_lossy(&out).into_owned()
@@ -774,24 +773,25 @@ fn clips_of(model: &Model) -> Option<toml::Value> {
             let times: Vec<f32> = times.collect();
             let cubic =
                 channel.sampler().interpolation() == gltf::animation::Interpolation::CubicSpline;
-            let (property, values): (&str, Vec<[f32; 3]>) = match outputs {
-                gltf::animation::util::ReadOutputs::Translations(it) => ("position", it.collect()),
-                gltf::animation::util::ReadOutputs::Scales(it) => ("scale", it.collect()),
+            let (property, values): (&str, Vec<Vec<f32>>) = match outputs {
+                gltf::animation::util::ReadOutputs::Translations(it) => {
+                    ("position", it.map(|v| v.to_vec()).collect())
+                }
+                gltf::animation::util::ReadOutputs::Scales(it) => {
+                    ("scale", it.map(|v| v.to_vec()).collect())
+                }
+                // Kept as the quaternion the file holds, so a re-export gives
+                // the same numbers back.
                 gltf::animation::util::ReadOutputs::Rotations(rotations) => (
-                    "rotation_euler",
-                    rotations
-                        .into_f32()
-                        .map(|q| {
-                            euler_from_quat(Quat::from_xyzw(q[0], q[1], q[2], q[3])).to_array()
-                        })
-                        .collect(),
+                    "rotation",
+                    rotations.into_f32().map(|q| q.to_vec()).collect(),
                 ),
                 gltf::animation::util::ReadOutputs::MorphTargetWeights(_) => continue,
             };
             // A cubic key is (in tangent, value, out tangent); the value is
             // the middle one.
-            let values: Vec<[f32; 3]> = if cubic {
-                values.as_chunks::<3>().0.iter().map(|c| c[1]).collect()
+            let values: Vec<Vec<f32>> = if cubic {
+                values.chunks(3).filter_map(|c| c.get(1).cloned()).collect()
             } else {
                 values
             };
@@ -801,7 +801,7 @@ fn clips_of(model: &Model) -> Option<toml::Value> {
                 .map(|(t, v)| {
                     let mut key = toml::map::Map::new();
                     key.insert("t".into(), toml::Value::Float(f64::from(*t)));
-                    key.insert("value".into(), floats(*v));
+                    key.insert("value".into(), floats(v.iter().copied()));
                     toml::Value::Table(key)
                 })
                 .collect();

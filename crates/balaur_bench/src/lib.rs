@@ -9,34 +9,30 @@ use std::path::Path;
 use anyhow::Result;
 use balaur_core::{App, AppConfig, ScriptHostFactory};
 
-/// Which backend a benchmark runs on. The same scenario is measured on both,
-/// which is the only way to say what a language actually costs.
+/// Which backend a benchmark runs on. One today; a second language is
+/// measured on the same scenarios the day its backend lands.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Backend {
-    Luau,
     Rune,
 }
 
 impl Backend {
-    pub const ALL: [Self; 2] = [Self::Luau, Self::Rune];
+    pub const ALL: [Self; 1] = [Self::Rune];
 
     pub fn name(self) -> &'static str {
         match self {
-            Self::Luau => "luau",
             Self::Rune => "rune",
         }
     }
 
     pub fn extension(self) -> &'static str {
         match self {
-            Self::Luau => "luau",
             Self::Rune => "rn",
         }
     }
 
     fn factory(self) -> ScriptHostFactory {
         match self {
-            Self::Luau => balaur_script_luau::factory(),
             Self::Rune => balaur_script_rune::factory(),
         }
     }

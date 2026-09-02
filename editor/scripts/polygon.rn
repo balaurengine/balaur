@@ -1,0 +1,787 @@
+// The Polygon tool: trace a polygon's outline in the viewport, draw its
+// polygons over interior points, place its UVs over the texture, and paint
+// bone weights. Every edit lands in the node's inline `mesh` table.
+
+use crate::history;
+use crate::model;
+use crate::util;
+
+const W = 2.0;
+const PICK_PX = 8.0;
+const MARK_PX = 4.0;
+
+pub fn modes() {
+    ["points", "polygons", "uv", "weights"]
+}
+
+pub fn mode_name(id) {
+    match id {
+        "points" => "Points",
+        "polygons" => "Polygons",
+        "uv" => "UV",
+        "weights" => "Weights",
+        _ => id,
+    }
+}
+
+fn hover_color() {
+    [0.118, 0.314, 0.784]
+}
+
+fn world_per_px(S) {
+    let (_, _, zoom) = render::camera_2d();
+    S.ui_scale / util::max(zoom, 0.01)
+}
+
+pub fn component(node) {
+    match node.get("polygon") {
+        Some(comp) => if comp is Object { Some(comp) } else { None },
+        None => None,
+    }
+}
+
+// The inline mesh table under edit, or `None`: a mesh that is a file
+// reference is edited by making it inline first (the inspector's asset row).
+pub fn mesh(S) {
+    match component(S.doc[S.sel]) {
+        Some(comp) => match comp.get("mesh") {
+            Some(mesh) => if mesh is Object { Some(mesh) } else { None },
+            None => None,
+        },
+        None => None,
+    }
+}
+
+pub fn editable(S) {
+    match component(S.doc[S.sel]) {
+        Some(comp) => match comp.get("mesh") {
+            Some(mesh) => mesh is Object || mesh == "",
+            None => true,
+        },
+        None => false,
+    }
+}
+
+// The polygon's world frame: how a local vertex lands on screen.
+fn frame(S) {
+    let found = match model::live(S, S.sel) {
+        Some(found) => found,
+        None => return None,
+    };
+    let p = found.global_position();
+    let angle = found.global_rotation_euler().z;
+    let s = found.global_scale();
+    Some(#{ x: p.x, y: p.y, c: math::cos(angle), s: math::sin(angle), sx: s.x, sy: s.y })
+}
+
+fn to_world(f, lx, ly) {
+    let px = lx * f.sx;
+    let py = ly * f.sy;
+    (f.x + f.c * px - f.s * py, f.y + f.s * px + f.c * py)
+}
+
+fn to_local(f, wx, wy) {
+    let dx = wx - f.x;
+    let dy = wy - f.y;
+    let px = f.c * dx + f.s * dy;
+    let py = -f.s * dx + f.c * dy;
+    (px / (if util::abs(f.sx) > 1e-6 { f.sx } else { 1.0 }), py / (if util::abs(f.sy) > 1e-6 { f.sy } else { 1.0 }))
+}
+
+pub fn internal_count(mesh) {
+    util::max(0, math::floor(util::f(mesh.get("internal").unwrap_or(0))) as i64)
+}
+
+fn positions(mesh) {
+    util::vec(mesh.get("positions").unwrap_or([]))
+}
+
+fn outline_count(mesh) {
+    positions(mesh).len() - internal_count(mesh)
+}
+
+fn point(p) {
+    (util::f(p[0]), util::f(p[1]))
+}
+
+// Texture pixel size for the selection, cached per path.
+fn texture_size(S) {
+    let comp = match component(S.doc[S.sel]) {
+        Some(comp) => comp,
+        None => return None,
+    };
+    let texture = comp.get("texture").unwrap_or("");
+    if texture == "" {
+        return None;
+    }
+    if let Some(cache) = S.polygon_texture {
+        if cache.path == texture {
+            return cache.size;
+        }
+    }
+    let (ok, size) = script::attempt(|| render::texture_size(S.game_root + "/" + texture));
+    let found = if ok {
+        let (w, h) = size;
+        Some((util::f(w), util::f(h)))
+    } else {
+        log::warn(format!("texture {}: {:?}", texture, size));
+        None
+    };
+    S.polygon_texture = Some(#{ path: texture, size: found });
+    found
+}
+
+fn pixels_per_unit(S) {
+    match component(S.doc[S.sel]) {
+        Some(comp) => util::f(comp.get("pixels_per_unit").unwrap_or(100.0)),
+        None => 100.0,
+    }
+}
+
+// The engine's default UV of a local point: the texture centred on the
+// origin at `pixels_per_unit`, v downward.
+fn default_uv(S, lx, ly) {
+    match texture_size(S) {
+        Some((w, h)) => {
+            let ppu = pixels_per_unit(S);
+            [0.5 + lx * ppu / w, 0.5 - ly * ppu / h]
+        }
+        None => [0.5, 0.5],
+    }
+}
+
+// A UV's place in the polygon's local frame, over the texture backdrop.
+fn uv_to_local(S, u, v) {
+    match texture_size(S) {
+        Some((w, h)) => {
+            let ppu = pixels_per_unit(S);
+            ((u - 0.5) * w / ppu, (0.5 - v) * h / ppu)
+        }
+        None => (u - 0.5, 0.5 - v),
+    }
+}
+
+// Every edit records history *before* touching the mesh, then pushes the
+// document's polygon onto the live node. A `key` coalesces a drag.
+fn begin(S, label, key) {
+    history::record(S, label, key);
+}
+
+fn apply(S) {
+    model::apply_component(S, "polygon");
+}
+
+// The mesh, created empty when the polygon has none yet. The caller has
+// already recorded history.
+fn ensure_mesh(S) {
+    let mesh_some = mesh(S);
+    if let Some(mesh) = mesh_some {
+        return Some(mesh);
+    }
+    if !editable(S) {
+        log::warn("this polygon's mesh is a file; make it inline to edit it here");
+        return None;
+    }
+    let comp = component(S.doc[S.sel]).unwrap();
+    comp.mesh = #{ positions: [] };
+    Some(comp.mesh)
+}
+
+fn bone_list(mesh) {
+    match mesh.get("skin") {
+        Some(skin) => if skin is Object { util::vec(skin.get("bones").unwrap_or([])) } else { [] },
+        None => [],
+    }
+}
+
+// Insert a vertex at `at`, keeping every per-vertex list square and shifting
+// polygon indices past it.
+fn insert_vertex(S, mesh, at, lx, ly) {
+    mesh.positions.insert(at, [lx, ly]);
+    let uvs_some = mesh.get("uvs");
+    if let Some(uvs) = uvs_some {
+        if uvs is Vec {
+            uvs.insert(at, default_uv(S, lx, ly));
+        }
+    }
+    for bone in bone_list(mesh) {
+        let weights_some = bone.get("weights");
+        if let Some(weights) = weights_some {
+            if weights is Vec {
+                weights.insert(at, 0.0);
+            }
+        }
+    }
+    for ring in util::vec(mesh.get("polygons").unwrap_or([])) {
+        for j in 0..ring.len() {
+            if ring[j] >= at {
+                ring[j] = ring[j] + 1;
+            }
+        }
+    }
+}
+
+fn remove_at(mesh, at) {
+    mesh.positions.remove(at);
+    let uvs_some = mesh.get("uvs");
+    if let Some(uvs) = uvs_some {
+        if uvs is Vec && at < uvs.len() {
+            uvs.remove(at);
+        }
+    }
+    for bone in bone_list(mesh) {
+        let weights_some = bone.get("weights");
+        if let Some(weights) = weights_some {
+            if weights is Vec && at < weights.len() {
+                weights.remove(at);
+            }
+        }
+    }
+    if at >= outline_count(mesh) {
+        mesh.internal = internal_count(mesh) - 1;
+    }
+    let kept = [];
+    for ring in util::vec(mesh.get("polygons").unwrap_or([])) {
+        let uses = false;
+        for j in 0..ring.len() {
+            if ring[j] == at {
+                uses = true;
+            } else if ring[j] > at {
+                ring[j] = ring[j] - 1;
+            }
+        }
+        if !uses {
+            kept.push(ring);
+        }
+    }
+    if kept.len() > 0 {
+        mesh.polygons = kept;
+    } else {
+        mesh.remove("polygons");
+    }
+}
+
+// Add an outline vertex (after the last outline one) or an internal one, at
+// a world point. Returns its index.
+pub fn add_vertex(S, wx, wy, internal) {
+    let f = match frame(S) {
+        Some(f) => f,
+        None => return None,
+    };
+    if !editable(S) {
+        return None;
+    }
+    begin(S, if internal { "add internal vertex" } else { "add vertex" }, None);
+    let mesh = match ensure_mesh(S) {
+        Some(mesh) => mesh,
+        None => return None,
+    };
+    let (lx, ly) = to_local(f, wx, wy);
+    let at = if internal {
+        let at = mesh.positions.len();
+        insert_vertex(S, mesh, at, lx, ly);
+        mesh.internal = internal_count(mesh) + 1;
+        at
+    } else {
+        let at = outline_count(mesh);
+        insert_vertex(S, mesh, at, lx, ly);
+        at
+    };
+    apply(S);
+    Some(at)
+}
+
+pub fn remove_vertex(S, at) {
+    let mesh = match mesh(S) {
+        Some(mesh) => mesh,
+        None => return,
+    };
+    if at >= mesh.positions.len() {
+        return;
+    }
+    begin(S, "remove vertex", None);
+    remove_at(mesh, at);
+    apply(S);
+}
+
+pub fn move_vertex(S, at, wx, wy) {
+    let mesh = match mesh(S) {
+        Some(mesh) => mesh,
+        None => return,
+    };
+    let f = match frame(S) {
+        Some(f) => f,
+        None => return,
+    };
+    if at >= mesh.positions.len() {
+        return;
+    }
+    begin(S, "move vertex", Some(format!("poly:move:{}:{}", S.sel, at)));
+    let (lx, ly) = to_local(f, wx, wy);
+    mesh.positions[at] = [lx, ly];
+    apply(S);
+}
+
+// Close the loop being drawn into one of the mesh's polygons.
+pub fn close_loop(S) {
+    let ring = match S.polygon_loop {
+        Some(ring) => ring,
+        None => return,
+    };
+    if mesh(S).is_none() || ring.len() < 3 {
+        S.polygon_loop = None;
+        return;
+    }
+    begin(S, "draw polygon", None);
+    let mesh = mesh(S).unwrap();
+    if !(mesh.get("polygons").unwrap_or(()) is Vec) {
+        mesh.polygons = [];
+    }
+    mesh.polygons.push(ring.clone());
+    S.polygon_loop = None;
+    apply(S);
+}
+
+// Back to automatic triangulation of the outline.
+pub fn clear_polygons(S) {
+    let mesh = match mesh(S) {
+        Some(mesh) => mesh,
+        None => return,
+    };
+    if !mesh.contains_key("polygons") {
+        return;
+    }
+    begin(S, "clear polygons", None);
+    mesh.remove("polygons");
+    apply(S);
+}
+
+// UVs materialised from the defaults, so one can be moved on its own.
+fn ensure_uvs(S, mesh) {
+    let uvs_some = mesh.get("uvs");
+    if let Some(uvs) = uvs_some {
+        if uvs is Vec && uvs.len() == mesh.positions.len() {
+            return uvs;
+        }
+    }
+    let uvs = [];
+    for p in mesh.positions {
+        let (x, y) = point(p);
+        uvs.push(default_uv(S, x, y));
+    }
+    mesh.uvs = uvs;
+    uvs
+}
+
+pub fn move_uv(S, at, wx, wy) {
+    let mesh = match mesh(S) {
+        Some(mesh) => mesh,
+        None => return,
+    };
+    let f = match frame(S) {
+        Some(f) => f,
+        None => return,
+    };
+    if at >= mesh.positions.len() {
+        return;
+    }
+    begin(S, "move uv", Some(format!("poly:uv:{}:{}", S.sel, at)));
+    let uvs = ensure_uvs(S, mesh);
+    let (lx, ly) = to_local(f, wx, wy);
+    uvs[at] = default_uv(S, lx, ly);
+    apply(S);
+}
+
+// The rig's bones, as paths relative to the rig root the polygon names.
+fn rig_bone_paths(S) {
+    let (node, found) = model::selected(S);
+    let comp = component(node);
+    if found.is_none() || comp.is_none() {
+        return None;
+    }
+    let found = found.unwrap();
+    let comp = comp.unwrap();
+    let skel = comp.get("skeleton").unwrap_or("");
+    let rig = if skel == "" { found } else { found.get_node(skel) };
+    if !(rig is balaur::Node) {
+        log::warn(format!("polygon rig '{}' names no node", skel));
+        return None;
+    }
+    let base = rig.path();
+    let paths = [];
+    for bone in util::vec(skeleton::bones(rig)) {
+        let full = bone.path();
+        if full != base {
+            paths.push(full[base.len() + 1..]);
+        }
+    }
+    Some(paths)
+}
+
+// Sync Bones to Polygon: the skin lists the rig's bones, in rig order,
+// keeping the weights of any it already had.
+pub fn sync_bones(S) {
+    let paths = match rig_bone_paths(S) {
+        Some(paths) => paths,
+        None => return,
+    };
+    if !editable(S) {
+        return;
+    }
+    begin(S, "sync bones to polygon", None);
+    let mesh = match ensure_mesh(S) {
+        Some(mesh) => mesh,
+        None => return,
+    };
+    let had = #{};
+    for bone in bone_list(mesh) {
+        had[bone.path] = util::vec(bone.get("weights").unwrap_or([]));
+    }
+    let bones = [];
+    for path in paths {
+        let weights = had.get(path).unwrap_or([]);
+        while weights.len() < mesh.positions.len() {
+            weights.push(0.0);
+        }
+        bones.push(#{ path: path, weights: weights });
+    }
+    mesh.skin = #{ bones: bones };
+    S.paint_bone = if bones.len() > 0 { Some(0) } else { None };
+    apply(S);
+    log::info(format!("{} bones synced to the polygon", bones.len()));
+}
+
+pub fn bones(S) {
+    match mesh(S) {
+        Some(mesh) => bone_list(mesh),
+        None => [],
+    }
+}
+
+// Add `amount` (negative to unpaint) to the active bone's weight on vertex
+// `at`, clamped; the engine renormalises across bones when it loads.
+pub fn paint(S, at, amount) {
+    let mesh = match mesh(S) {
+        Some(mesh) => mesh,
+        None => return,
+    };
+    let index = match S.paint_bone {
+        Some(index) => index,
+        None => return,
+    };
+    let bone = match bones(S).get(index) {
+        Some(bone) => bone,
+        None => return,
+    };
+    if at >= mesh.positions.len() {
+        return;
+    }
+    begin(S, "paint weights", Some(format!("poly:paint:{}", S.sel)));
+    if !(bone.get("weights").unwrap_or(()) is Vec) {
+        bone.weights = [];
+    }
+    while bone.weights.len() <= at {
+        bone.weights.push(0.0);
+    }
+    bone.weights[at] = util::clamp(util::f(bone.weights[at]) + amount, 0.0, 1.0);
+    apply(S);
+}
+
+fn uv_of(S, mesh, i, p) {
+    let uvs_some = mesh.get("uvs");
+    if let Some(uvs) = uvs_some {
+        if uvs is Vec {
+            if let Some(uv) = uvs.get(i) {
+                return uv;
+            }
+        }
+    }
+    let (x, y) = point(p);
+    default_uv(S, x, y)
+}
+
+// World points of every vertex, in position space or UV space.
+fn world_points(S, mesh, f, in_uv) {
+    let out = [];
+    for (i, p) in mesh.positions.iter().enumerate() {
+        let (lx, ly) = point(p);
+        if in_uv {
+            let uv = uv_of(S, mesh, i, p);
+            let (ux, uy) = uv_to_local(S, util::f(uv[0]), util::f(uv[1]));
+            lx = ux;
+            ly = uy;
+        }
+        let (wx, wy) = to_world(f, lx, ly);
+        out.push([wx, wy]);
+    }
+    out
+}
+
+// The vertex under the cursor, in position space or UV space.
+fn pick(S, mesh, f, mx, my, in_uv) {
+    let best = None;
+    let best_d = PICK_PX * world_per_px(S);
+    for (i, p) in world_points(S, mesh, f, in_uv).iter().enumerate() {
+        let d = math::sqrt((p[0] - mx) * (p[0] - mx) + (p[1] - my) * (p[1] - my));
+        if d < best_d {
+            best = Some(i);
+            best_d = d;
+        }
+    }
+    best
+}
+
+fn line(a, b, color) {
+    render::draw_line_2d(a[0], a[1], b[0], b[1], color[0], color[1], color[2], W);
+}
+
+fn marker(S, x, y, color, filled) {
+    let h = MARK_PX * world_per_px(S);
+    let width = if filled { 2.0 * MARK_PX } else { W };
+    render::draw_line_2d(x - h, y - h, x + h, y - h, color[0], color[1], color[2], width);
+    render::draw_line_2d(x + h, y - h, x + h, y + h, color[0], color[1], color[2], width);
+    render::draw_line_2d(x + h, y + h, x - h, y + h, color[0], color[1], color[2], width);
+    render::draw_line_2d(x - h, y + h, x - h, y - h, color[0], color[1], color[2], width);
+}
+
+pub fn draw(S) {
+    if S.tool != "polygon" || !S.mode2d {
+        return;
+    }
+    let mesh = match mesh(S) {
+        Some(mesh) => mesh,
+        None => return,
+    };
+    let f = match frame(S) {
+        Some(f) => f,
+        None => return,
+    };
+    let k = S.theme;
+    let accent = util::rgb(k.accent);
+    let sage = util::rgb(k.sage);
+    let mode = S.polygon_mode;
+    let points = world_points(S, mesh, f, mode == "uv");
+    let outline = outline_count(mesh);
+    // The outline, closed; then the drawn polygons over it.
+    for i in 0..outline {
+        let j = if i == outline - 1 { 0 } else { i + 1 };
+        if let Some(a) = points.get(i) {
+            if let Some(b) = points.get(j) {
+                line(a, b, accent);
+            }
+        }
+    }
+    for ring in util::vec(mesh.get("polygons").unwrap_or([])) {
+        for (i, index) in ring.iter().enumerate() {
+            let next = ring[if i == ring.len() - 1 { 0 } else { i + 1 }];
+            if let Some(a) = points.get(index) {
+                if let Some(b) = points.get(next) {
+                    line(a, b, sage);
+                }
+            }
+        }
+    }
+    if let Some(ring) = S.polygon_loop {
+        for i in 1..ring.len() {
+            line(points[ring[i - 1]], points[ring[i]], hover_color());
+        }
+    }
+    let active = match S.paint_bone {
+        Some(index) => bones(S).get(index),
+        None => None,
+    };
+    for (i, p) in points.iter().enumerate() {
+        let color = if S.polygon_hover == Some(i) { hover_color() } else { accent };
+        if mode == "weights" {
+            if let Some(bone) = active {
+                let w = util::f(util::vec(bone.get("weights").unwrap_or([])).get(i).unwrap_or(0.0));
+                color = [w, w, w];
+            }
+        }
+        marker(S, p[0], p[1], color, i >= outline);
+    }
+}
+
+fn backdrop_live(S) {
+    S.uv_backdrop is balaur::Node && S.uv_backdrop.is_valid()
+}
+
+// A translucent copy of the texture, undeformed, under the UV points.
+fn enter_uv(S) {
+    if backdrop_live(S) {
+        return;
+    }
+    let comp = match component(S.doc[S.sel]) {
+        Some(comp) => comp,
+        None => return,
+    };
+    let texture = comp.get("texture").unwrap_or("");
+    if texture == "" || !(S.mirror is balaur::Node) {
+        return;
+    }
+    let backdrop = S.mirror.add_child("UvBackdrop");
+    backdrop.set_component("sprite", #{
+        texture: S.game_root + "/" + texture,
+        pixels_per_unit: pixels_per_unit(S),
+        color: [1.0, 1.0, 1.0, 0.55],
+    });
+    S.uv_backdrop = backdrop;
+}
+
+fn leave_uv(S) {
+    if backdrop_live(S) {
+        S.uv_backdrop.queue_free();
+    }
+    S.uv_backdrop = ();
+}
+
+pub fn set_mode(S, mode) {
+    S.polygon_mode = mode;
+    S.polygon_loop = None;
+    if mode != "uv" {
+        leave_uv(S);
+    }
+    if mode == "weights" && S.paint_bone.is_none() && bones(S).len() > 0 {
+        S.paint_bone = Some(0);
+    }
+}
+
+// Runs every frame whatever the tool: the backdrop follows the polygon and
+// goes away with the mode.
+pub fn idle(S) {
+    if S.tool != "polygon" || S.polygon_mode != "uv" || mesh(S).is_none() {
+        leave_uv(S);
+        return;
+    }
+    enter_uv(S);
+    let f = match frame(S) {
+        Some(f) => f,
+        None => return,
+    };
+    if backdrop_live(S) {
+        if let Some(found) = model::live(S, S.sel) {
+            let p = found.global_position();
+            let r = found.global_rotation_euler();
+            S.uv_backdrop.set_position(p.x, p.y, p.z);
+            S.uv_backdrop.set_rotation_euler(r.x, r.y, r.z);
+            S.uv_backdrop.set_scale(f.sx, f.sy, 1.0);
+        }
+    }
+}
+
+pub fn cancel(S) {
+    S.polygon_loop = None;
+    S.polygon_drag = None;
+}
+
+fn alt_down() {
+    input::is_down("LAlt") || input::is_down("RAlt")
+}
+
+// Runs from the 2D gizmo while the Polygon tool is active.
+pub fn update(S, over_viewport, mx, my) {
+    let mode = S.polygon_mode;
+    let f = match frame(S) {
+        Some(f) => f,
+        None => return,
+    };
+    let mesh = match mesh(S) {
+        Some(mesh) => mesh,
+        None => {
+            S.polygon_hover = None;
+            if over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT) && mode == "points" {
+                add_vertex(S, mx, my, alt_down());
+            }
+            return;
+        }
+    };
+    let hover = if over_viewport { pick(S, mesh, f, mx, my, mode == "uv") } else { None };
+    S.polygon_hover = hover;
+    if !input::is_mouse_down(input::MOUSE_LEFT) {
+        S.polygon_drag = None;
+    }
+    if let Some(drag) = S.polygon_drag {
+        if mode == "uv" {
+            move_uv(S, drag, mx, my);
+        } else {
+            move_vertex(S, drag, mx, my);
+        }
+        return;
+    }
+    if !over_viewport {
+        return;
+    }
+    if mode == "points" {
+        if input::mouse_just_pressed(input::MOUSE_LEFT) {
+            match hover {
+                Some(hover) => {
+                    S.polygon_drag = Some(hover);
+                }
+                None => {
+                    add_vertex(S, mx, my, alt_down());
+                }
+            }
+        } else if input::mouse_just_pressed(input::MOUSE_RIGHT) {
+            let hover_some = hover;
+            if let Some(hover) = hover_some {
+                remove_vertex(S, hover);
+            }
+        }
+    } else if mode == "polygons" {
+        if input::mouse_just_pressed(input::MOUSE_LEFT) {
+            let hover_some = hover;
+            if let Some(hover) = hover_some {
+                let ring = S.polygon_loop.unwrap_or([]);
+                if ring.len() >= 3 && hover == ring[0] {
+                    S.polygon_loop = Some(ring);
+                    close_loop(S);
+                } else if !util::contains(ring, hover) {
+                    ring.push(hover);
+                    S.polygon_loop = Some(ring);
+                }
+            }
+        } else if input::mouse_just_pressed(input::MOUSE_RIGHT) {
+            S.polygon_loop = None;
+        }
+    } else if mode == "uv" {
+        if input::mouse_just_pressed(input::MOUSE_LEFT) {
+            let hover_some = hover;
+            if let Some(hover) = hover_some {
+                S.polygon_drag = Some(hover);
+            }
+        }
+    } else if mode == "weights" {
+        let sign = if input::is_mouse_down(input::MOUSE_LEFT) {
+            1.0
+        } else if input::is_mouse_down(input::MOUSE_RIGHT) {
+            -1.0
+        } else {
+            0.0
+        };
+        if sign != 0.0 {
+            let radius = S.paint_radius * world_per_px(S);
+            let amount = sign * S.paint_strength * engine::delta() * 2.0;
+            for (i, p) in world_points(S, mesh, f, false).iter().enumerate() {
+                if math::sqrt((p[0] - mx) * (p[0] - mx) + (p[1] - my) * (p[1] - my)) <= radius {
+                    paint(S, i, amount);
+                }
+            }
+        }
+    }
+}
+
+// The four modes as pills in the viewport's chip row.
+pub fn mode_chips(S, k) {
+    let mode = S.polygon_mode;
+    for id in modes() {
+        let on = mode == id;
+        if ui::pill(mode_name(id), #{
+            height: 26, size: 11, strong: true,
+            fill: if on { k.accent_soft } else { k.panel },
+            stroke: k.line_soft,
+            color: if on { k.accent } else { k.dim },
+        }) {
+            set_mode(S, id);
+        }
+    }
+}

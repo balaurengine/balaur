@@ -15,6 +15,7 @@ flow nothing checks.
 - a binding can call the function it was passed
 - a bone reports only the key that wrote it
 - a breakpoint lands on the next line with code
+- a breakpoint pauses update on its line with the arguments as locals
 - a breakpoint pauses update on its line with the locals in scope
 - a broken rune script fails the export
 - a build from another engine version is refused by name
@@ -55,12 +56,14 @@ flow nothing checks.
 - a curve name nothing defines is rejected naming it
 - a curve reads its own name back as a transition and a mode
 - a curve returns exactly the same bits twice
+- a data uri buffer needs no reader
 - a definition may carry its vertices instead
 - a definition may name a file to import
 - a definition missing its shape says so
 - a definition that is not a clip is refused where it was written
 - a definition with no type cannot choose a parser and says so
 - a different seed gives a different stream
+- a disabled modifier leaves the pose alone
 - a divergence report names the node and the slice
 - a dot dot segment climbs to the parent
 - a duplicate name resolves the same way every time
@@ -76,6 +79,7 @@ flow nothing checks.
 - a frame shorter than a step ticks update but not fixed update
 - a freed node stops being valid
 - a glb becomes a mesh with its skin
+- a gltf reads its buffer beside itself through the reader
 - a grid parses row major
 - a grid thinner than one cell is refused
 - a grid whose count does not match its shape is refused
@@ -127,6 +131,7 @@ flow nothing checks.
 - a missing texture is an error
 - a modal runs its body
 - a negative index counts back from the newest vertex
+- a node cannot be moved under itself or its descendants
 - a node does not remember its preset
 - a node is not json data
 - a node is within its ancestors and itself only
@@ -187,6 +192,7 @@ flow nothing checks.
 - a rig that has not started playing is at rest
 - a rotation crossing 180 degrees interpolates the short way
 - a rotation track is sampled as a quaternion the short way round
+- a rotation track takes quaternion keys and slerps between them
 - a rune project that calls the engine can be exported
 - a rune script defines a clip of its own and plays it
 - a rune script fetches awaits and echoes
@@ -294,6 +300,7 @@ flow nothing checks.
 - an euler triple survives the round trip through a quaternion
 - an expectation warns while unmet and clears when met
 - an http error status is a response not an error
+- an import carries the side buffer and the texture along
 - an import writes bones a mesh node and a clip keyed by path
 - an imported inverse bind replaces the rest pose
 - an impulse starts a body moving
@@ -321,6 +328,7 @@ flow nothing checks.
 - an unknown shape kind is refused by name
 - an unmoved camera does not reassert itself
 - an unparseable colour is left alone
+- an unreachable target straightens the chain toward it
 - an unreachable websocket reports an error event
 - an unregistered name is an error that says so
 - an untouched world hashes the same twice
@@ -397,6 +405,7 @@ flow nothing checks.
 - extra arguments are ignored like lua does
 - first divergence names the node that moved
 - fixed update ignores the frame time that update follows
+- flip bends the elbow the other way to the same tip
 - flips round trip and do not force a rebuild
 - freeing a node drops its sound on the next sweep
 - freeing a node frees its children
@@ -429,6 +438,7 @@ flow nothing checks.
 - linear velocity is set and read back
 - live a lua script talks to a real server
 - login me refresh and realtime against a live server
+- look at turns the bone toward the target
 - lua and rune scripts call each other in one scene
 - malformed json is an error rather than a crash
 - math fastcalls are routed through the global table
@@ -484,6 +494,7 @@ flow nothing checks.
 - renaming a node changes what name returns
 - renaming a node does not change its digest label
 - renaming a parent does not break its children
+- reparenting keeps the world pose and moves the child
 - replaying does not reach the network
 - replaying without the recorded input diverges
 - require caches and hot reloads in place
@@ -500,6 +511,7 @@ flow nothing checks.
 - script args reach scripts as a list
 - script module works without a backend
 - scroll accumulates within a frame and resets between
+- set parent is a node operation
 - set text replaces a field buffer
 - shape2d does not claim a sprite
 - shapes can be set from a script in both dimensions
@@ -576,10 +588,12 @@ flow nothing checks.
 - truncated or foreign bytes do not decode
 - tuples map positionally
 - tween to is the same tween spelled shorter
+- two bone ik puts the tip on a reachable target
 - two identical tweens produce bit identical results
 - two nodes naming one path share one parsed object
 - two runs agree on every tick not just the last
 - two runs of the same clip produce the same palette bit for bit
+- two runs solve to the same bits
 - typed registration survives erasure
 - unclaimed extensions are left alone
 - undecodable bytes hand out a silent handle instead of erroring
