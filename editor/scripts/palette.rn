@@ -38,6 +38,7 @@ fn commands(S) {
         command("Toggle dark chrome", "☾", "⌥L", || theme::set_dark(S, !S.theme.dark)),
         command("Open animation timeline", "◷", "⌥3", || { S.dock = "timeline"; }),
         command("Duplicate selected node", "⧉", "", || model::duplicate_selected(S)),
+        command("Copy selected node", "⧉", "⌘C", || ui::set_clipboard(model::copy_selected(S))),
         command("Delete selected node", "✕", "", || model::delete_selected(S)),
         command("Create animation clip", "◷", "", || { anim::ensure_clip(S); }),
         command("Insert keyframe at playhead", "◆", "K", || anim::add_key(S, S.anim.time)),

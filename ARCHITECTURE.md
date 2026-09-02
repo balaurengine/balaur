@@ -308,7 +308,7 @@ free to be a library of named assets as a file is — which is what lets the
 editor's Make inline be the exact inverse of its Save as file.
 
 Core never learns what an asset *is*. A plugin registers a parser with
-`App::register_asset_type(name, parse)`, the parser returns an opaque
+`App::register_asset_type(name, directory, doc, parse)`, the parser returns an opaque
 `Rc<dyn Any>`, and the plugin downcasts it — the same trick the typemap plays.
 `AssetState` is the `DetHashMap` cache keyed by the *resolved* reference, so
 two spellings of one asset cannot produce two entries and iteration order is

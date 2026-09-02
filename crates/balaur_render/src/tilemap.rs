@@ -55,9 +55,24 @@ fn parse_tileset(value: &toml::Value) -> Result<Tileset> {
     })
 }
 
+/// What a definition table holds, for the generated reference.
+const TILESET_ASSET_DOC: &str = r##"An image cut into equal tiles for the `tilemap` component: `texture` names
+the image, `tile_size` is the pixel length of one tile edge and `columns` is
+how many tiles one row of the image holds. Tile indices count row by row
+from the top left.
+
+```toml
+[[assets]]
+id = "dungeon"
+type = "tileset"
+texture = "art/dungeon.png"
+tile_size = 16
+columns = 8
+```"##;
+
 /// The `tileset` asset type: files live in `tilesets/`.
 pub(crate) fn register_tileset_asset(app: &mut App) {
-    app.register_asset_type(TILESET_ASSET_TYPE, "tilesets", |value| {
+    app.register_asset_type(TILESET_ASSET_TYPE, "tilesets", TILESET_ASSET_DOC, |value| {
         Ok(std::rc::Rc::new(parse_tileset(value)?) as std::rc::Rc<dyn std::any::Any>)
     });
 }

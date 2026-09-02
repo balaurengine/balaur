@@ -180,8 +180,8 @@ def gen_script_api(api, owners):
 
 
 def component_row(prop, spec):
-    """One <tr>. HTML rather than a markdown table because the row lives
-    inside <details>, where CommonMark leaves markdown unrendered."""
+    """One <tr>. HTML rather than a markdown table because a cell holds
+    several sentences with inline code."""
     notes = [html.escape(spec.get("description", ""))]
     if "options" in spec:
         notes.append("One of " + ", ".join(f"<code>{html.escape(o)}</code>" for o in spec["options"]) + ".")
@@ -207,7 +207,27 @@ def component_row(prop, spec):
     return "<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>"
 
 
-def gen_components(components):
+# Section order for the component reference. A component lands in the first
+# group whose tag it carries and lists every tag under its heading.
+COMPONENT_GROUPS = [
+    ("2d", "2D"),
+    ("3d", "3D"),
+    ("physics", "Physics"),
+    ("render", "Rendering"),
+    ("animation", "Animation"),
+    ("audio", "Audio"),
+    ("ui", "UI"),
+]
+
+
+def component_group(tags):
+    for tag, label in COMPONENT_GROUPS:
+        if tag in tags:
+            return label
+    return "Other"
+
+
+def gen_components(components, tags):
     out = [
         "# Components\n\n",
         "Balaur has no node classes and no inheritance tree: every node is the\n"
@@ -223,23 +243,43 @@ def gen_components(components):
         "nothing with `body`; each component is independent and complete.\n\n"
         "Each component is registered by a plugin with the schema below; one\n"
         "registration provides the scene-file key, the runtime\n"
-        "`node:set_component` family, and the editor's inspector rows.\n\n",
+        "`node:set_component` family, and the editor's inspector rows.\n\n"
+        "Components are grouped by the first of their facet tags; one with\n"
+        "several (`collider2d` is both `2d` and `physics`) lists them all under\n"
+        "its heading.\n\n",
     ]
+    groups = {}
     for name in sorted(components):
-        schema = components[name]
-        props = sorted(schema)
-        rows = "\n".join(component_row(p, schema[p]) for p in props)
-        out.append(
-            f"<details>\n<summary><code>{html.escape(name)}</code> · "
-            f"{len(props)} propert{'y' if len(props) == 1 else 'ies'}</summary>\n"
-            "<table>\n<thead><tr><th>property</th><th>type</th><th>default</th>"
-            f"<th>description</th></tr></thead>\n<tbody>\n{rows}\n</tbody>\n</table>\n"
-            "</details>\n\n"
-        )
+        groups.setdefault(component_group(tags.get(name, [])), []).append(name)
+    for label in [label for _, label in COMPONENT_GROUPS] + ["Other"]:
+        if label not in groups:
+            continue
+        out.append(f"## {label}\n\n")
+        for name in groups[label]:
+            schema = components[name]
+            props = sorted(schema)
+            rows = "\n".join(component_row(p, schema[p]) for p in props)
+            facets = " · ".join(f"`{t}`" for t in tags.get(name, [])) or "untagged"
+            out.append(
+                f"### `{name}`\n\n"
+                f"{facets} · {len(props)} propert{'y' if len(props) == 1 else 'ies'}\n\n"
+                "<table>\n<thead><tr><th>property</th><th>type</th><th>default</th>"
+                f"<th>description</th></tr></thead>\n<tbody>\n{rows}\n</tbody>\n</table>\n\n"
+            )
     return "".join(out)
 
 
-def gen_assets(asset_types, functions):
+def asset_users(components):
+    """`component.property` per asset type, read off the component schemas."""
+    users = {}
+    for component in sorted(components):
+        for prop, spec in sorted(components[component].items()):
+            if spec.get("type") == "asset":
+                users.setdefault(spec.get("asset", ""), []).append(f"`{component}.{prop}`")
+    return users
+
+
+def gen_assets(asset_types, functions, components):
     """The asset reference: what an asset is, and every type plugins register."""
     out = [
         "# Assets\n\n",
@@ -271,13 +311,20 @@ def gen_assets(asset_types, functions):
         "definition table that does not parse is an error, reported where it\n"
         "was written.\n\n"
         "## Types\n\n"
-        "Registered by plugins, so this list is whatever the build contains.\n\n"
-        "| type | project directory |\n| --- | --- |\n",
+        "Registered by plugins, so this list is whatever the build contains.\n"
+        "Each type says where its files live, which component properties take\n"
+        "it, and what a definition table holds.\n\n",
     ]
+    users = asset_users(components)
     for name in sorted(asset_types):
-        directory = asset_types[name]
-        home = f"`{directory}/`" if directory else "— (not promotable to a file)"
-        out.append(f"| `{name}` | {home} |\n")
+        info = asset_types[name]
+        directory = info.get("directory", "")
+        home = f"`{directory}/`" if directory else "none, so it cannot be promoted to a file"
+        used = ", ".join(users.get(name, [])) or "no component property yet"
+        out.append(f"### `{name}`\n\nFiles: {home}. Used by: {used}.\n\n")
+        doc = info.get("doc", "").strip()
+        if doc:
+            out.append(doc + "\n\n")
     if functions:
         listed = ", ".join(f"`{f}`" for f in sorted(functions))
         out.append(
@@ -287,7 +334,7 @@ def gen_assets(asset_types, functions):
     out.append(
         "## Plugins define asset types\n\n"
         "Core never learns what an asset *is*. A plugin registers a parser\n"
-        "with `App::register_asset_type(name, parse)` and downcasts the parsed\n"
+        "with `App::register_asset_type(name, directory, doc, parse)` and downcasts the parsed\n"
         "object itself.\n\n"
         "## Assets ship in packs\n\n"
         "`balaur export` bundles them, so a shipped game resolves an asset\n"
@@ -318,7 +365,7 @@ def main():
         "crates.md": gen_crates(crates),
         "crate-graph.md": gen_graph(crates),
         "script-api.md": gen_script_api(api, owners),
-        "components.md": gen_components(api.get("components", {})),
+        "components.md": gen_components(api.get("components", {}), api.get("component_tags", {})),
         "assets.md": gen_assets(
             api.get("asset_types", {}),
             # `modules` is a list of {name, functions, constants}.
@@ -326,6 +373,7 @@ def main():
                 (m["functions"] for m in api.get("modules", []) if m["name"] == "assets"),
                 [],
             ),
+            api.get("components", {}),
         ),
         "behaviour.md": gen_flows(test_names()),
     }

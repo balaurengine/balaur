@@ -253,6 +253,22 @@ fn one_based(field: Option<&str>, len: usize, at: &str, what: &str) -> Result<Op
 /// The `mesh` asset type: geometry as a project resource.
 pub const MESH_ASSET_TYPE: &str = "mesh";
 
+/// What a definition table holds, for the generated reference.
+const MESH_ASSET_DOC: &str = r##"Geometry for `mesh`-typed properties. A definition either names a `source`
+model file to import or carries the vertices itself as `positions` and
+`indices`, which is what lets a script build one at run time; naming both is
+refused. A `skin` table adds bone weights for skeletal animation.
+
+```toml
+[[assets]]
+id = "blade"
+type = "mesh"
+source = "models/blade.obj"      # imported...
+# ...or, instead of `source`:
+positions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
+indices = [[0, 1, 2]]
+```"##;
+
 /// Register `mesh` so scenes, components and scripts all name geometry the
 /// same way. A definition is either a reference to a model file or the
 /// vertices themselves, which is what lets a script author one at run time:
@@ -267,7 +283,7 @@ pub const MESH_ASSET_TYPE: &str = "mesh";
 /// indices = [[0, 1, 2]]
 /// ```
 pub(crate) fn register_mesh_asset(app: &mut App) {
-    app.register_asset_type(MESH_ASSET_TYPE, "models", |value| {
+    app.register_asset_type(MESH_ASSET_TYPE, "models", MESH_ASSET_DOC, |value| {
         Ok(std::rc::Rc::new(parse_definition(value)?) as std::rc::Rc<dyn std::any::Any>)
     });
 }

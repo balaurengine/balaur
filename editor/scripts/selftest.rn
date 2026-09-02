@@ -276,3 +276,26 @@ pub fn polygons(S) {
     check(polygon::internal_count(back) == internal, "and its internal count");
     log::info("selftest polygon: done");
 }
+
+/// Copy and paste, which the shell drives from a clipboard event no headless
+/// run can raise: the two document verbs behind it, asserted directly.
+pub fn clipboard(S) {
+    let before = S.doc.len();
+    let name = model::selected_node(S).name;
+    let text = model::copy_selected(S);
+    check(text.starts_with("[[nodes]]"), "a copied node encodes as a scene document");
+    check(!text.contains("id = "), "the copy carries no id for the paste to collide with");
+
+    check(model::paste_nodes(S, text), "pasting a copied node is accepted");
+    check(S.doc.len() == before + 1, format!("the paste added one node ({})", S.doc.len()));
+    check(model::selected_node(S).name != name, "the pasted node was renamed");
+    check(mirror_resolves(S), "the pasted node resolves in the mirror");
+
+    check(!model::paste_nodes(S, "not a scene at all"), "text that is not a scene is left alone");
+    check(S.doc.len() == before + 1, "and adds nothing");
+
+    undo_all(S);
+    check(S.doc.len() == before, format!("undo takes the paste back ({})", S.doc.len()));
+    check(mirror_resolves(S), "the undone scene resolves in the mirror");
+    log::info("selftest clipboard: done");
+}

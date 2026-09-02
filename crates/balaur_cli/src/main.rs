@@ -881,7 +881,21 @@ fn dump_api() -> Result<()> {
             .map(|(name, schema)| Ok((name, serde_json::to_value(schema)?)))
             .collect::<Result<_>>()?;
     api["components"] = serde_json::to_value(components)?;
-    let asset_types: std::collections::BTreeMap<String, String> = app
+    // Facet tags per component, so the reference can group them.
+    let component_tags: std::collections::BTreeMap<String, Vec<&'static str>> = app
+        .engine
+        .try_resource::<balaur::components::ComponentRegistry>()
+        .map(|registry| {
+            registry
+                .borrow()
+                .0
+                .iter()
+                .map(|(name, def)| (name.clone(), def.tags.to_vec()))
+                .collect()
+        })
+        .unwrap_or_default();
+    api["component_tags"] = serde_json::to_value(component_tags)?;
+    let asset_types: std::collections::BTreeMap<String, serde_json::Value> = app
         .engine
         .try_resource::<balaur::assets::AssetTypeRegistry>()
         .map(|registry| {
@@ -889,7 +903,12 @@ fn dump_api() -> Result<()> {
                 .borrow()
                 .0
                 .iter()
-                .map(|(name, t)| (name.clone(), t.directory.clone()))
+                .map(|(name, t)| {
+                    (
+                        name.clone(),
+                        serde_json::json!({"directory": t.directory, "doc": t.doc}),
+                    )
+                })
                 .collect()
         })
         .unwrap_or_default();

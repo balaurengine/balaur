@@ -230,6 +230,26 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: fs_list,
     },
     EngineOp {
+        module: "fs",
+        name: "remove",
+        call: fs_remove,
+    },
+    EngineOp {
+        module: "fs",
+        name: "mkdir",
+        call: fs_mkdir,
+    },
+    EngineOp {
+        module: "fs",
+        name: "rename",
+        call: fs_rename,
+    },
+    EngineOp {
+        module: "fs",
+        name: "mtime",
+        call: fs_mtime,
+    },
+    EngineOp {
         module: "toml",
         name: "parse",
         call: toml_parse,
@@ -657,6 +677,54 @@ fn fs_write(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn fs_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Bool(resolve(eng, text(args, 0)?).exists()))
+}
+
+/// Delete a file, or a directory and everything under it.
+///
+/// Answers whether there was anything there, rather than failing: a tool
+/// deleting what a previous run already deleted has nothing to report.
+fn fs_remove(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let path = resolve(eng, text(args, 0)?);
+    if !path.exists() {
+        return Ok(Value::Bool(false));
+    }
+    if path.is_dir() {
+        std::fs::remove_dir_all(path)?;
+    } else {
+        std::fs::remove_file(path)?;
+    }
+    Ok(Value::Bool(true))
+}
+
+fn fs_mkdir(eng: &Engine, args: &[Value]) -> Result<Value> {
+    std::fs::create_dir_all(resolve(eng, text(args, 0)?))?;
+    Ok(Value::Nil)
+}
+
+/// Move a file or directory. The destination's parent is made first, for the
+/// same reason `fs::write` makes one.
+fn fs_rename(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let from = resolve(eng, text(args, 0)?);
+    let to = resolve(eng, text(args, 1)?);
+    if let Some(parent) = to.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::rename(from, to)?;
+    Ok(Value::Nil)
+}
+
+/// When a file last changed, in seconds since the epoch, or `()` for one that
+/// is not there. A tool polling for edits compares this instead of re-reading.
+fn fs_mtime(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let Ok(meta) = std::fs::metadata(resolve(eng, text(args, 0)?)) else {
+        return Ok(Value::Nil);
+    };
+    let Ok(modified) = meta.modified() else {
+        return Ok(Value::Nil);
+    };
+    Ok(modified
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(Value::Nil, |d| Value::Num(d.as_secs_f64())))
 }
 
 fn fs_list(eng: &Engine, args: &[Value]) -> Result<Value> {

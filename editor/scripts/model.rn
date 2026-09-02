@@ -704,6 +704,55 @@ pub fn duplicate_selected(S) {
     build_mirror(S);
 }
 
+/// The selection as a scene document, for the clipboard. Its id goes: the
+/// paste mints a fresh one, and two nodes with one id is what the engine
+/// cannot mirror.
+pub fn copy_selected(S) {
+    let src = S.doc[S.sel];
+    let out = #{};
+    for (key, value) in src.iter() {
+        if key != "id" && key != "parent" {
+            out[key] = util::copy(value);
+        }
+    }
+    toml::encode(#{ nodes: [out] })
+}
+
+/// Paste a scene document beside the selection. Anything that is not one is
+/// left alone, because the clipboard is shared with every other application.
+pub fn paste_nodes(S, text) {
+    // The clipboard holds whatever the last application put there, so a
+    // parse failure is an answer, not an error.
+    let (parsed, doc) = script::attempt(|| toml::parse(text));
+    if !parsed || !(doc is Object) {
+        return false;
+    }
+    let nodes = util::vec(doc.get("nodes").unwrap_or([]));
+    if nodes.len() == 0 {
+        return false;
+    }
+    history::record(S, "paste node", None);
+    for node in nodes {
+        if !(node is Object) || !node.contains_key("name") {
+            continue;
+        }
+        let copy = util::deep(node);
+        let base = copy.name;
+        let n = 2;
+        while name_taken(S.doc, format!("{}{}", base, n)) {
+            n += 1;
+        }
+        copy.name = format!("{}{}", base, n);
+        copy.id = fresh_id(S.doc, copy.name);
+        // A pasted node joins the selection's parent, not its own old one.
+        copy.parent = S.doc[S.sel].parent;
+        S.doc.insert(S.sel + 1, copy);
+        S.sel += 1;
+    }
+    build_mirror(S);
+    true
+}
+
 pub fn delete_selected(S) {
     if S.doc.len() <= 1 {
         log::warn("cannot delete the last node");

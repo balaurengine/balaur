@@ -46,7 +46,7 @@ fn app_in(project_root: &std::path::Path, pack: Option<Pack>) -> App {
     })
     .unwrap();
     app.engine.insert_resource(Heard::default());
-    app.register_asset_type("note", "notes", parse_note);
+    app.register_asset_type("note", "notes", "", parse_note);
     // Writes nothing but the reference it was handed: the point is which
     // string reaches `apply`, not what a real plugin would build from it.
     app.register_component(

@@ -172,6 +172,12 @@ pub fn update(this, dt) {
 
 pub fn draw_ui(this) {
     let S = this.S;
+    // egui hands a paste to the frame it arrived on: this is the only place
+    // it can be read, so ⌘V anywhere in the shell pastes a copied node.
+    let pasted = ui::clipboard();
+    if pasted != "" {
+        model::paste_nodes(S, pasted);
+    }
     let (sw, sh) = ui::screen_size();
     S.screen_w = sw;
     S.screen_h = sh;

@@ -420,10 +420,14 @@ impl App {
     /// (`animations`). A tool promoting an inline definition to a file needs
     /// somewhere to put it and the schema does not carry that; an empty string
     /// means the type has no home and cannot be promoted.
+    ///
+    /// `doc` describes the definition table for the generated reference:
+    /// markdown, a paragraph and a TOML example.
     pub fn register_asset_type(
         &mut self,
         name: &str,
         directory: &str,
+        doc: &'static str,
         parse: impl Fn(&toml::Value) -> Result<std::rc::Rc<dyn std::any::Any>> + 'static,
     ) -> &mut Self {
         let registry = self.engine.resource::<crate::assets::AssetTypeRegistry>();
@@ -432,6 +436,7 @@ impl App {
             crate::assets::AssetType {
                 parse: Box::new(parse),
                 directory: directory.to_string(),
+                doc,
             },
         ));
         self

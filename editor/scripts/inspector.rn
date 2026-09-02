@@ -464,7 +464,7 @@ fn editors() {
         "enum": edit_enum,
         "vec2": edit_vector,
         "vec3": edit_vector,
-        "color": edit_vector,
+        "color": edit_color,
         "asset": edit_asset,
     }
 }
@@ -533,8 +533,23 @@ fn edit_enum(S, k, comp, prop, spec, value) {
     });
 }
 
-// vec2, vec3 and color are one editor: a row of drag values differing only in
-// how many, what they are lettered, and whether they clamp to unit range.
+// A swatch that opens egui's picker, and the four channels beside it: a
+// colour is the one vector nobody reads as numbers.
+fn edit_color(S, k, comp, prop, spec, value) {
+    row(k, prop, || {
+        let (rgba, changed) = ui::color(#{ value: util::vec(value) });
+        if changed {
+            model::set_component_prop(S, comp, prop, rgba);
+        }
+        ui::add_space(6);
+        let text = format!("{} {} {} {}",
+            fixed(rgba[0], 2), fixed(rgba[1], 2), fixed(rgba[2], 2), fixed(rgba[3], 2));
+        ui::label(text, style::mono_sm(k.faint));
+    });
+}
+
+// vec2 and vec3 are one editor: a row of drag values differing only in how
+// many and what they are lettered.
 fn edit_vector(S, k, comp, prop, spec, value) {
     let datatype = spec["type"];
     row(k, prop, || {

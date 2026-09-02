@@ -66,6 +66,22 @@ impl Opts {
     pub(crate) fn px(&self, key: &str, default: f32) -> f32 {
         self.f32(key, default) * scale()
     }
+    /// A colour as four unit floats, defaulting to opaque white: the shape a
+    /// schema's `color` property already stores.
+    pub(crate) fn unit_rgba(&self, key: &str) -> [f32; 4] {
+        let mut out = [1.0f32; 4];
+        if let Some(Value::List(items)) = self.get(key) {
+            for (slot, item) in out.iter_mut().zip(items) {
+                *slot = match item {
+                    Value::Num(n) => *n as f32,
+                    Value::Int(i) => *i as f32,
+                    _ => *slot,
+                }
+                .clamp(0.0, 1.0);
+            }
+        }
+        out
+    }
     pub(crate) fn callback(&self, key: &str) -> Option<CallbackId> {
         match self.get(key) {
             Some(Value::Callback(id)) => Some(*id),

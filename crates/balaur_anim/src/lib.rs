@@ -61,6 +61,33 @@ pub use crate::tween::{Tween, TweenId};
 
 pub struct AnimationPlugin;
 
+/// What a definition table holds, for the generated reference.
+const CLIP_ASSET_DOC: &str = r##"A clip keys node properties over time. `length` is in seconds and may be
+left out to end at the last key; `loop` is `none` (hold the last key),
+`loop` or `pingpong`. Each track names a `target` node path relative to the
+playing node (empty means that node), a `property` (`position`,
+`rotation_euler`, `rotation`, `scale` or `<component>/<property>`), an
+`interp` (`step`, `linear`, `cubic`) and its `keys`, each `{ t, value }` with
+an optional `ease`. A track with no `property` is a method track whose keys
+call the node's script. A file holds one clip, or several under
+`[clips.<name>]`, addressed as `file.toml#name`.
+
+```toml
+type = "animation_clip"
+
+[clips.patrol]
+length = 4.0
+loop = "pingpong"
+
+[[clips.patrol.tracks]]
+property = "position"
+interp = "linear"
+keys = [
+  { t = 0.0, value = [-2.5, 0.25, -2.0] },
+  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = "in_out_sine" },
+]
+```"##;
+
 impl Plugin for AnimationPlugin {
     fn name(&self) -> &'static str {
         "animation"
@@ -72,7 +99,7 @@ impl Plugin for AnimationPlugin {
         // After the clip has posed the rig, so a modifier has the last word.
         app.add_system(Stage::Update, modifier::modify_system);
         modifier::register_modifier2d_component(app);
-        app.register_asset_type(CLIP_ASSET_TYPE, "animations", |value| {
+        app.register_asset_type(CLIP_ASSET_TYPE, "animations", CLIP_ASSET_DOC, |value| {
             Ok(Rc::new(clip::parse(value)?) as Rc<dyn Any>)
         });
         register_animation_component(app);

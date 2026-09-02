@@ -550,6 +550,53 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
             })
         },
     );
+    // Copy and paste. egui hands a paste to the frame it arrived on, so
+    // `clipboard` answers the pasted text on that frame and "" otherwise;
+    // the platform's clipboard is not readable on demand.
+    m.function("set_clipboard", |_eng: &Engine, text: String| {
+        with_ctx(|ctx| {
+            ctx.copy_text(text);
+            Ok(())
+        })
+    });
+    m.function("clipboard", |_eng: &Engine, ()| {
+        with_ctx(|ctx| {
+            Ok(ctx.input(|i| {
+                i.events
+                    .iter()
+                    .rev()
+                    .find_map(|e| match e {
+                        egui::Event::Paste(text) => Some(text.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_default()
+            }))
+        })
+    });
+    // A colour as `[r, g, b, a]` in unit floats, which is how a schema's
+    // `color` property is stored. Four drag values were the alternative.
+    m.function("color", |_eng: &Engine, value: Option<Value>| {
+        let opts = Opts(value);
+        let start = opts.unit_rgba("value");
+        with_ui(|ui| {
+            let mut rgba = egui::Rgba::from_rgba_unmultiplied(start[0], start[1], start[2], start[3]);
+            let response = egui::color_picker::color_edit_button_rgba(
+                ui,
+                &mut rgba,
+                egui::color_picker::Alpha::OnlyBlend,
+            );
+            let out = rgba.to_rgba_unmultiplied();
+            Ok((
+                vec![
+                    f64::from(out[0]),
+                    f64::from(out[1]),
+                    f64::from(out[2]),
+                    f64::from(out[3]),
+                ],
+                response.changed(),
+            ))
+        })
+    });
     m.function("wants_keyboard", |_eng: &Engine, ()| {
         with_ctx(|ctx| Ok(ctx.egui_wants_keyboard_input()))
     });

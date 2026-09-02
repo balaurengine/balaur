@@ -52,6 +52,9 @@ pub struct AssetType {
     /// definition to a file needs it; empty means the type declares no home
     /// and cannot be promoted.
     pub directory: String,
+    /// What a definition table holds, for the generated reference. Markdown,
+    /// one paragraph and a TOML example.
+    pub doc: &'static str,
 }
 
 /// Asset parsers, appended during plugin build and read-only afterwards —

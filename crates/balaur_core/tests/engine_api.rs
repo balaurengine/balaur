@@ -321,3 +321,65 @@ fn a_script_can_write_to_the_log_it_reads_back() {
         assert_eq!(entry.level, level);
     }
 }
+
+/// The verbs the editor's asset browser needs: it could read and write, but
+/// not create, rename or delete.
+#[test]
+fn a_file_can_be_made_moved_and_deleted() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let eng = &app.engine;
+    let s = |t: &str| Value::Str(t.into());
+
+    call(eng, "fs", "mkdir", &[s("sprites/enemies")]).unwrap();
+    assert!(dir.path().join("sprites/enemies").is_dir());
+
+    call(eng, "fs", "write", &[s("sprites/enemies/pig.toml"), s("a = 1\n")]).unwrap();
+    call(
+        eng,
+        "fs",
+        "rename",
+        &[s("sprites/enemies/pig.toml"), s("sprites/boar.toml")],
+    )
+    .unwrap();
+    assert!(!dir.path().join("sprites/enemies/pig.toml").exists());
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("sprites/boar.toml")).unwrap(),
+        "a = 1\n"
+    );
+
+    // Deleting says whether there was anything there, so deleting twice is
+    // not an error a tool has to guard against.
+    assert_eq!(
+        call(eng, "fs", "remove", &[s("sprites/boar.toml")]).unwrap(),
+        Value::Bool(true)
+    );
+    assert_eq!(
+        call(eng, "fs", "remove", &[s("sprites/boar.toml")]).unwrap(),
+        Value::Bool(false)
+    );
+
+    // A directory goes with everything under it.
+    call(eng, "fs", "write", &[s("sprites/enemies/a.toml"), s("x = 1\n")]).unwrap();
+    assert_eq!(
+        call(eng, "fs", "remove", &[s("sprites/enemies")]).unwrap(),
+        Value::Bool(true)
+    );
+    assert!(!dir.path().join("sprites/enemies").exists());
+}
+
+/// A tool polls this instead of re-reading a file to see whether it changed.
+#[test]
+fn a_files_modification_time_is_readable_and_absent_for_one_that_is_not_there() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let eng = &app.engine;
+    let s = |t: &str| Value::Str(t.into());
+
+    assert_eq!(call(eng, "fs", "mtime", &[s("nothing.toml")]).unwrap(), Value::Nil);
+    call(eng, "fs", "write", &[s("thing.toml"), s("a = 1\n")]).unwrap();
+    let Value::Num(at) = call(eng, "fs", "mtime", &[s("thing.toml")]).unwrap() else {
+        panic!("a written file has a modification time");
+    };
+    assert!(at > 1_700_000_000.0, "seconds since the epoch, got {at}");
+}
