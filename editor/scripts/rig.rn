@@ -170,44 +170,26 @@ fn draw_bone(S, g, color) {
 
 // A 3D bone: an octahedron from origin to tip, its waist a fifth of the way.
 fn draw_bone_3d(g, color) {
-    let dx = g.tip[0] - g.origin[0];
-    let dy = g.tip[1] - g.origin[1];
-    let dz = g.tip[2] - g.origin[2];
-    let len = math::sqrt(dx * dx + dy * dy + dz * dz);
+    let d = util::vsub(g.tip, g.origin);
+    let (_, len) = util::vnorm(d);
     if len < 1e-6 {
         return;
     }
     // Two directions across the bone: any vector not along it, crossed.
-    let ax = 0.0;
-    let ay = 0.0;
-    let az = 1.0;
-    if util::abs(dz) > 0.9 * len {
-        ax = 1.0;
-        az = 0.0;
-    }
-    let ux = dy * az - dz * ay;
-    let uy = dz * ax - dx * az;
-    let uz = dx * ay - dy * ax;
-    let ul = math::sqrt(ux * ux + uy * uy + uz * uz);
-    ux = ux / ul;
-    uy = uy / ul;
-    uz = uz / ul;
-    let vx = dy * uz - dz * uy;
-    let vy = dz * ux - dx * uz;
-    let vz = dx * uy - dy * ux;
-    let vl = math::sqrt(vx * vx + vy * vy + vz * vz);
-    vx = vx / vl;
-    vy = vy / vl;
-    vz = vz / vl;
+    let across = if util::abs(d[2]) > 0.9 * len {
+        [1.0, 0.0, 0.0]
+    } else {
+        [0.0, 0.0, 1.0]
+    };
+    let (u, _) = util::vnorm(util::vcross(d, across));
+    let (v, _) = util::vnorm(util::vcross(d, u));
     let half = 0.1 * len;
-    let jx = g.origin[0] + dx * 0.2;
-    let jy = g.origin[1] + dy * 0.2;
-    let jz = g.origin[2] + dz * 0.2;
+    let j = util::vadd(g.origin, util::vscale(d, 0.2));
     let waist = [
-        [jx + ux * half, jy + uy * half, jz + uz * half],
-        [jx + vx * half, jy + vy * half, jz + vz * half],
-        [jx - ux * half, jy - uy * half, jz - uz * half],
-        [jx - vx * half, jy - vy * half, jz - vz * half],
+        util::vadd(j, util::vscale(u, half)),
+        util::vadd(j, util::vscale(v, half)),
+        util::vsub(j, util::vscale(u, half)),
+        util::vsub(j, util::vscale(v, half)),
     ];
     for (i, w) in waist.iter().enumerate() {
         let n = waist[(i + 1) % 4];

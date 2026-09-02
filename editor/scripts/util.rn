@@ -107,7 +107,8 @@ pub fn vnorm(a) {
     if l < 1e-6 {
         return ([0.0, 0.0, 0.0], 0.0);
     }
-    (vscale(a, 1.0 / l), l)
+    // Explicit `return`: a bare tuple after a block parses as calling it.
+    return (vscale(a, 1.0 / l), l);
 }
 
 pub fn dist(a, b) {
