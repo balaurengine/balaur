@@ -94,10 +94,10 @@ fn attaching_to_a_compiled_script_is_cheap_per_node() {
 
 #[test]
 fn transform_propagation_stays_linear() {
-    let _alone = alone();
     // Wide and shallow, the shape a real scene has: propagation recurses per
     // level, so one long chain overflows the stack instead of measuring.
     const DEPTH: usize = 50;
+    let _alone = alone();
     let project = Project::new(Backend::Rune, EMPTY[0].1).unwrap();
     let app = app(Backend::Rune, &project).unwrap();
     let root = app.engine.root();
