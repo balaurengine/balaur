@@ -788,6 +788,19 @@ fn run_project(opts: &RunOpts) -> Result<()> {
 /// screenshot frames the scene the way the window would.
 const OFFSCREEN_SIZE: (u32, u32) = (1600, 1000);
 
+/// A canonical path the rest of the engine can join to with `/`.
+///
+/// Windows' canonical form is a `\\?\` UNC path, which turns *off* path
+/// normalisation: the editor builds `<root>/project.toml` by hand and every
+/// such join then fails to open.
+fn joinable(path: &Path) -> PathBuf {
+    let text = path.to_string_lossy();
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) => PathBuf::from(rest),
+        None => path.to_path_buf(),
+    }
+}
+
 fn edit_project(
     path: &Path,
     editor: Option<PathBuf>,
@@ -795,9 +808,11 @@ fn edit_project(
     offscreen: bool,
     state: Option<String>,
 ) -> Result<()> {
-    let game = path
-        .canonicalize()
-        .with_context(|| format!("project not found: {}", path.display()))?;
+    let game = joinable(
+        &path
+            .canonicalize()
+            .with_context(|| format!("project not found: {}", path.display()))?,
+    );
     let editor_root = editor
         .or_else(|| std::env::var("BALAUR_EDITOR").ok().map(PathBuf::from))
         .or_else(|| {
@@ -805,12 +820,16 @@ fn edit_project(
             // This has to come before the source-tree guess, whose baked-in
             // path belongs to whatever machine did the build.
             let exe = std::env::current_exe().ok()?;
-            exe.parent()?.join("editor").canonicalize().ok()
+            exe.parent()?
+                .join("editor")
+                .canonicalize()
+                .ok()
+                .map(|p| joinable(&p))
         })
         .or_else(|| {
             // The editor that ships next to the engine sources.
             let candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../editor");
-            candidate.canonicalize().ok()
+            candidate.canonicalize().ok().map(|p| joinable(&p))
         })
         .context("no editor project found; pass --editor <dir>")?;
     let mut config = AppConfig::dev(editor_root.to_string_lossy().as_ref());
@@ -961,4 +980,28 @@ pub fn update(this, dt) {
     tracing::info!("created project '{name}' at {}", path.display());
     tracing::info!("run it with: balaur run {}", path.display());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::joinable;
+    use std::path::{Path, PathBuf};
+
+    /// The editor joins `<root>/project.toml` by hand, which a `\\?\` path
+    /// cannot open: Windows stops normalising one, so `/` is not a separator.
+    #[test]
+    fn a_canonical_windows_path_is_made_joinable() {
+        assert_eq!(
+            joinable(Path::new(r"\\?\D:\a\balaur\examples\hello")),
+            PathBuf::from(r"D:\a\balaur\examples\hello")
+        );
+    }
+
+    #[test]
+    fn a_plain_path_is_left_alone() {
+        assert_eq!(
+            joinable(Path::new("/Users/x/balaur/examples/hello")),
+            PathBuf::from("/Users/x/balaur/examples/hello")
+        );
+    }
 }

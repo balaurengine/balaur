@@ -286,14 +286,25 @@ fn normalize(doc) {
 }
 
 // Load the game project pointed at by `engine::args()[0]`.
+// A read the editor cannot do without: `fs::read` answers `()` for a file it
+// could not open, and `toml::parse` then fails with the type, not the path.
+fn must_read(path) {
+    let text = fs::read(path);
+    if !(text is String) {
+        log::error(format!("cannot read {}", path));
+        return "";
+    }
+    text
+}
+
 pub fn load(S) {
     let root = engine::args()[0];
     S.game_root = root;
-    let manifest = toml::parse(fs::read(root + "/project.toml"));
+    let manifest = toml::parse(must_read(root + "/project.toml"));
     S.game_name = manifest.name;
     S.scene_rel = manifest.main_scene;
     S.scene_path = root + "/" + manifest.main_scene;
-    let doc = toml::parse(fs::read(S.scene_path));
+    let doc = toml::parse(must_read(S.scene_path));
     S.doc = util::vec(doc.get("nodes").unwrap_or([]));
     normalize(S.doc);
     S.sel = 0;
