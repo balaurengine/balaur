@@ -100,6 +100,7 @@ flow nothing checks.
 - a matching fingerprint reports no differences
 - a mesh collider without its asset says so
 - a mesh that does not resolve warns and leaves the polygon empty
+- a message round trips through one side and back
 - a method key fires on the node its track targets
 - a method key fires once per loop
 - a method key is passed once per loop and never by a seek
@@ -254,7 +255,9 @@ flow nothing checks.
 - a typed binding reaches rune
 - a vector argument and three numbers agree
 - a verified download lands at the final path
+- a websocket compresses when the server agrees
 - a websocket opens echoes and closes
+- a websocket sends plain frames when compression is off
 - a windowed backend keeps the fallback off its buffers
 - a windows target downloads the exe asset
 - a wrong argument is reported not fatal
@@ -435,6 +438,7 @@ flow nothing checks.
 - naming a source and vertices at once is refused
 - naming another file swaps the playback to it
 - no bindings accepts registrations and discards them
+- no context takeover resets the window each message
 - no fixed step runs while frozen and the missed time is not owed
 - node and callback handles survive a round trip
 - nodes sharing a name get distinct ids
@@ -519,6 +523,7 @@ flow nothing checks.
 - the digest moves while the simulation does
 - the engine modules reach rune
 - the euler convention matches the engines own
+- the extension header is read as the rfc says
 - the fingerprint names a real compiler
 - the fingerprint survives the fixed size abi tag
 - the fixed stage runs after update and before post update
@@ -528,6 +533,7 @@ flow nothing checks.
 - the grid background and camera input are settable
 - the mangling reads the way a script author would guess
 - the mouse constants address real buttons
+- the net table of the manifest sets the defaults
 - the neutral value accepts anything
 - the node api is available as methods
 - the order does not depend on how the plugins were listed

@@ -15,7 +15,7 @@ pub enum CameraKind {
     Orthographic,
 }
 
-/// The `camera` component's authored state. [`drive_camera_system`] copies
+/// The `camera` component's authored state. `drive_camera_system` copies
 /// the current one into [`CameraConfig`] / [`CameraConfig2d`].
 pub struct Camera {
     pub kind: CameraKind,

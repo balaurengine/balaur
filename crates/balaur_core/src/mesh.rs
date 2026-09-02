@@ -531,7 +531,7 @@ fn rows(value: &toml::Value, key: &str, lengths: &[usize], shape: &str) -> Resul
 }
 
 /// A mesh asset's geometry, with a `source` reference followed to the file it
-/// names. This is the half [`parse_definition`] cannot do: an asset parser
+/// names. This is the half `parse_definition` cannot do: an asset parser
 /// sees only the definition, and reading a file needs the project reader.
 ///
 /// # Errors

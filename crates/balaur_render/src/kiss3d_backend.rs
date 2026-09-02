@@ -609,7 +609,7 @@ fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
                 // One quad, no subdivisions: a flat plane needs no interior
                 // vertices, and fewer of them is fewer to transform.
                 Shape::Plane { hx, hz } => (scene.add_quad(2.0 * hx, 2.0 * hz, 1, 1), None),
-                Shape::Mesh => match upload_mesh(app, scene, &renderable) {
+                Shape::Mesh => match upload_mesh(app, scene, renderable) {
                     Some(built) => built,
                     // Nothing to draw yet, and `upload_mesh` said why.
                     None => continue,
