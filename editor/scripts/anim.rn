@@ -387,10 +387,10 @@ pub fn add_key(S, t) {
     history::record(S, "insert keyframe", None);
     let target = target_path(S, player_i);
     let r = found.rotation_euler();
-    put_key(track_for(def, "rotation_euler", target), t, [r.x, r.y, r.z]);
+    put_key(track_for(def, "rotation_euler", target), t, util::xyz(r));
     if !node.contains_key("bone2d") && !node.contains_key("bone3d") {
         let p = found.position();
-        put_key(track_for(def, "position", target), t, [p.x, p.y, p.z]);
+        put_key(track_for(def, "position", target), t, util::xyz(p));
     }
     if t > length(def) {
         def.length = t;

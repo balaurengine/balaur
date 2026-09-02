@@ -251,8 +251,8 @@ fn start_drag(S, geo, part, mx, my) {
     let rot = util::vec3(node.get("rotation_euler").unwrap_or(()), [0.0, 0.0, 0.0]);
     let drag = #{
         part: part,
-        pos: [p.x, p.y, p.z],
-        scale: [s.x, s.y, s.z],
+        pos: util::xyz(p),
+        scale: util::xyz(s),
         rot: rot,
         center: [geo.center[0], geo.center[1]],
         angle: geo.angle,

@@ -18,38 +18,6 @@ fn hover_color() {
     [0.118, 0.314, 0.784]
 }
 
-fn vsub(a, b) {
-    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
-}
-
-fn vadd(a, b) {
-    [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
-}
-
-fn vscale(a, s) {
-    [a[0] * s, a[1] * s, a[2] * s]
-}
-
-fn vdot(a, b) {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-fn vcross(a, b) {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
-}
-
-fn vnorm(a) {
-    let l = math::sqrt(vdot(a, a));
-    if l < 1e-6 {
-        return ([0.0, 0.0, 0.0], 0.0);
-    }
-    return (vscale(a, 1.0 / l), l);
-}
-
 // Rotation basis from the engine's ZYX euler (roll=x, pitch=y, yaw=z):
 // R = Rz(yaw) * Ry(pitch) * Rx(roll). Returns the world-space directions of
 // the node's local axes (the matrix columns).
@@ -111,9 +79,9 @@ pub fn viewport_rect(S) {
 fn camera_frame(S) {
     let (ex, ey, ez, tx, ty, tz, fov, dpi) = render::camera_pose();
     let eye = [ex, ey, ez];
-    let (forward, dist) = vnorm(vsub([tx, ty, tz], eye));
-    let (right, _) = vnorm(vcross(forward, [0.0, 1.0, 0.0]));
-    let up = vcross(right, forward);
+    let (forward, dist) = util::vnorm(util::vsub([tx, ty, tz], eye));
+    let (right, _) = util::vnorm(util::vcross(forward, [0.0, 1.0, 0.0]));
+    let up = util::vcross(right, forward);
     let sw = S.screen_w;
     let sh = S.screen_h;
     let wpp = 2.0 * dist * math::tan(fov / 2.0) / util::max(sh, 1.0);
@@ -132,15 +100,15 @@ fn camera_frame(S) {
 
 // Intersect the current mouse ray with a plane (point p, normal n).
 fn ray_plane(cam, p, n) {
-    let denom = vdot(cam.ray_d, n);
+    let denom = util::vdot(cam.ray_d, n);
     if util::abs(denom) < 1e-6 {
         return None;
     }
-    let t = vdot(vsub(p, cam.ray_o), n) / denom;
+    let t = util::vdot(util::vsub(p, cam.ray_o), n) / denom;
     if t < 0.0 {
         return None;
     }
-    Some(vadd(cam.ray_o, vscale(cam.ray_d, t)))
+    Some(util::vadd(cam.ray_o, util::vscale(cam.ray_d, t)))
 }
 
 fn mouse_design_px(S, cam) {
@@ -216,8 +184,8 @@ fn geometry(S) {
     let marker = 0.6 * dist * 0.0144;
     let r = found.global_rotation_euler();
     Some(#{
-        center: [p.x, p.y, p.z],
-        basis: basis_from_euler([r.x, r.y, r.z]),
+        center: util::xyz(p),
+        basis: basis_from_euler(util::xyz(r)),
         he: [hx, hy, hz],
         // The rotation ball tracks the selection but never grows past a
         // fraction of the camera distance (or shrinks below pickability).
@@ -329,11 +297,11 @@ fn ring_point(geo, axis, t) {
 }
 
 fn face_normal(geo, face) {
-    vscale(geo.basis[face.axis], face.sign)
+    util::vscale(geo.basis[face.axis], face.sign)
 }
 
 fn face_front_facing(cam, geo, face) {
-    vdot(face_normal(geo, face), vsub(cam.eye, face.pos)) > 0.0
+    util::vdot(face_normal(geo, face), util::vsub(cam.eye, face.pos)) > 0.0
 }
 
 fn near(cam, p, mx, my, radius) {
@@ -520,7 +488,7 @@ pub fn draw(S) {
 
 // Screen direction (design px per world unit) of a world direction at a point.
 fn screen_dir(cam, center, dir) {
-    match (project(cam, center), project(cam, vadd(center, dir))) {
+    match (project(cam, center), project(cam, util::vadd(center, dir))) {
         (Some((ax, ay)), Some((bx, by))) => Some([bx - ax, by - ay]),
         _ => None,
     }
@@ -537,8 +505,8 @@ fn start_gizmo_drag(S, cam, geo, part, mx, my) {
     let axis = part.get("axis").unwrap_or(0);
     let drag = #{
         part: part,
-        pos: [p.x, p.y, p.z],
-        scale: [s.x, s.y, s.z],
+        pos: util::xyz(p),
+        scale: util::xyz(s),
         rot: [rot[0], rot[1], rot[2]],
         basis: geo.basis,
         mouse: [mx, my],
@@ -551,7 +519,7 @@ fn start_gizmo_drag(S, cam, geo, part, mx, my) {
     };
     if part.kind == "face" {
         // Anchor: where the mouse ray first hits the face's plane.
-        let n = vscale(geo.basis[part.axis], part.sign);
+        let n = util::vscale(geo.basis[part.axis], part.sign);
         drag.plane_n = n;
         drag.plane_p = [geo.center[0], geo.center[1], geo.center[2]];
         drag.anchor = ray_plane(cam, drag.plane_p, n);
@@ -590,7 +558,7 @@ fn apply_gizmo_drag(S, cam, mx, my) {
         let a0 = math::atan(d.mouse[1] - d.center[1], d.mouse[0] - d.center[0]);
         let a1 = math::atan(my - d.center[1], mx - d.center[0]);
         let axis_dir = d.basis[d.part.axis];
-        let toward = vdot(axis_dir, vsub(cam.eye, d.world_center));
+        let toward = util::vdot(axis_dir, util::vsub(cam.eye, d.world_center));
         let delta = (a1 - a0) * (if toward >= 0.0 { -1.0 } else { 1.0 });
         let rot = euler_from_basis(rotate_basis_local(basis_from_euler(d.rot), d.part.axis, delta));
         node.rotation_euler = rot;
@@ -617,8 +585,8 @@ fn apply_gizmo_drag(S, cam, mx, my) {
         let anchor_some = d.anchor;
         if let Some(anchor) = anchor_some {
             if let Some(hit) = ray_plane(cam, d.plane_p, d.plane_n) {
-                let delta = vsub(hit, anchor);
-                let pos = vadd([d.pos[0], d.pos[1], d.pos[2]], delta);
+                let delta = util::vsub(hit, anchor);
+                let pos = util::vadd([d.pos[0], d.pos[1], d.pos[2]], delta);
                 if snapping(S) {
                     for axis in 0..3 {
                         pos[axis] = math::round(pos[axis] * 2.0) / 2.0;
@@ -701,7 +669,7 @@ pub fn update(S) {
                     for i in 0..S.doc.len() {
                         if let Some(found) = model::live(S, i) {
                             let p = found.global_position();
-                            if let Some((px, py)) = project(cam, [p.x, p.y, p.z]) {
+                            if let Some((px, py)) = project(cam, util::xyz(p)) {
                                 let dist = math::sqrt((px - mx) * (px - mx) + (py - my) * (py - my));
                                 if dist < best_d {
                                     best = Some(i);
@@ -759,8 +727,8 @@ pub fn update(S) {
         if input::is_down("LShift") || input::is_down("RShift") {
             y -= dy * cam.wpp;
         } else {
-            let (flat, _) = vnorm([cam.forward[0], 0.0, cam.forward[2]]);
-            let d = vadd(vscale(cam.right, dx * cam.wpp), vscale(flat, -dy * cam.wpp));
+            let (flat, _) = util::vnorm([cam.forward[0], 0.0, cam.forward[2]]);
+            let d = util::vadd(util::vscale(cam.right, dx * cam.wpp), util::vscale(flat, -dy * cam.wpp));
             x += d[0];
             z += d[2];
         }

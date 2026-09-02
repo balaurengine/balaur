@@ -88,7 +88,7 @@ fn transform_section(S, k) {
         match found {
             Some(found) => {
                 let p = found.position();
-                [p.x, p.y, p.z]
+                util::xyz(p)
             }
             None => util::vec3(node.get("position").unwrap_or(()), [0.0, 0.0, 0.0]),
         }
@@ -106,7 +106,7 @@ fn transform_section(S, k) {
         match found {
             Some(found) => {
                 let r = found.rotation_degrees();
-                [r.x, r.y, r.z]
+                util::xyz(r)
             }
             None => {
                 let r = util::vec3(node.get("rotation_euler").unwrap_or(()), [0.0, 0.0, 0.0]);
@@ -124,7 +124,7 @@ fn transform_section(S, k) {
         match found {
             Some(found) => {
                 let s = found.scale();
-                [s.x, s.y, s.z]
+                util::xyz(s)
             }
             None => util::vec3(node.get("scale").unwrap_or(()), [1.0, 1.0, 1.0]),
         }

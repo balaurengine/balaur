@@ -65,7 +65,7 @@ pub fn geometry(S, i) {
     let tip = match child_ref {
         Some(child) => {
             let t = child.global_position();
-            [t.x, t.y, t.z]
+            util::xyz(t)
         }
         None => {
             let bone = bone_data(node);
@@ -84,7 +84,7 @@ pub fn geometry(S, i) {
             }
         }
     };
-    Some(#{ origin: [o.x, o.y, o.z], tip: tip })
+    Some(#{ origin: util::xyz(o), tip: tip })
 }
 
 fn segment_distance(p, a, b) {
@@ -356,9 +356,9 @@ fn sync_bones(S, root_i, transforms) {
                         let p = found.position();
                         let r = found.rotation_euler();
                         let s = found.scale();
-                        S.doc[i].position = [p.x, p.y, p.z];
-                        S.doc[i].rotation_euler = [r.x, r.y, r.z];
-                        S.doc[i].scale = [s.x, s.y, s.z];
+                        S.doc[i].position = util::xyz(p);
+                        S.doc[i].rotation_euler = util::xyz(r);
+                        S.doc[i].scale = util::xyz(s);
                     } else {
                         let component = if S.doc[i].contains_key("bone3d") { "bone3d" } else { "bone2d" };
                         S.doc[i][component] = found.get_component(component);

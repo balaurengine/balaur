@@ -71,6 +71,60 @@ pub fn vec2(v, fallback) {
     }
 }
 
+/// A live node's `Vec3` as the `[x, y, z]` the draw and document code uses.
+pub fn xyz(v) {
+    [v.x, v.y, v.z]
+}
+
+pub fn vadd(a, b) {
+    [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+}
+
+pub fn vsub(a, b) {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+pub fn vscale(a, s) {
+    [a[0] * s, a[1] * s, a[2] * s]
+}
+
+pub fn vdot(a, b) {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+pub fn vcross(a, b) {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+/// The unit vector and the length; a zero vector normalises to zero, so a
+/// caller can divide without checking first.
+pub fn vnorm(a) {
+    let l = math::sqrt(vdot(a, a));
+    if l < 1e-6 {
+        return ([0.0, 0.0, 0.0], 0.0);
+    }
+    (vscale(a, 1.0 / l), l)
+}
+
+pub fn dist(a, b) {
+    let (_, l) = vnorm(vsub(a, b));
+    l
+}
+
+/// `a` with `b`'s entries written over it. Rune has no spread syntax, so the
+/// per-call overrides of a shared option object go through here.
+pub fn merge(a, b) {
+    let out = copy(a);
+    for (k, v) in b.iter() {
+        out[k] = v;
+    }
+    out
+}
+
 pub fn contains(items, x) {
     for it in items {
         if it == x {
