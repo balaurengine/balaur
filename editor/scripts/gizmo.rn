@@ -47,7 +47,7 @@ fn vnorm(a) {
     if l < 1e-6 {
         return ([0.0, 0.0, 0.0], 0.0);
     }
-    (vscale(a, 1.0 / l), l)
+    return (vscale(a, 1.0 / l), l);
 }
 
 // Rotation basis from the engine's ZYX euler (roll=x, pitch=y, yaw=z):

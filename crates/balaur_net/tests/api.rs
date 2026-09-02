@@ -7,7 +7,7 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 
 use balaur_core::{App, AppConfig};
-use balaur_net::{HttpCall, NetPlugin, NetSnapshot, NetState};
+use balaur_net::{HttpCall, NetPlugin, NetSnapshot, NetState, SocketOptions};
 use balaur_script::Value;
 
 fn app_with_net(dir: &std::path::Path) -> App {
@@ -176,7 +176,9 @@ fn a_websocket_opens_echoes_and_closes() {
     let id = app.engine.next_token();
     {
         let state = app.engine.resource::<NetState>();
-        state.borrow_mut().connect(&app.engine, id, &url, None);
+        state
+            .borrow_mut()
+            .connect(&app.engine, id, &url, SocketOptions::default(), None);
     }
 
     let open = wait_for(&mut app, |snapshot| socket_event(snapshot, "open"));
@@ -214,10 +216,214 @@ fn an_unreachable_websocket_reports_an_error_event() {
     {
         let state = app.engine.resource::<NetState>();
         let id = app.engine.next_token();
-        state
-            .borrow_mut()
-            .connect(&app.engine, id, &format!("ws://127.0.0.1:{port}"), None);
+        state.borrow_mut().connect(
+            &app.engine,
+            id,
+            &format!("ws://127.0.0.1:{port}"),
+            SocketOptions::default(),
+            None,
+        );
     }
     let event = wait_for(&mut app, |snapshot| socket_event(snapshot, "error"));
     assert!(matches!(field(&event, "reason"), Some(Value::Str(_))));
+}
+
+/// Raw deflate with a sync flush, tail stripped — one side of RFC 7692.
+fn run_deflate(c: &mut flate2::Compress, input: &[u8]) -> Vec<u8> {
+    use flate2::FlushCompress;
+    let mut out = Vec::with_capacity(input.len() + 64);
+    let mut consumed = 0;
+    loop {
+        if out.len() == out.capacity() {
+            out.reserve(256);
+        }
+        let before = c.total_in();
+        c.compress_vec(&input[consumed..], &mut out, FlushCompress::Sync)
+            .unwrap();
+        consumed += (c.total_in() - before) as usize;
+        if consumed == input.len() && out.len() < out.capacity() {
+            break;
+        }
+    }
+    out.truncate(out.len() - 4);
+    out
+}
+fn run_inflate(d: &mut flate2::Decompress, input: &[u8]) -> Vec<u8> {
+    use flate2::FlushDecompress;
+    let mut data = input.to_vec();
+    data.extend_from_slice(&[0, 0, 0xff, 0xff]);
+    let mut out = Vec::with_capacity(data.len() * 4 + 64);
+    let mut consumed = 0;
+    loop {
+        if out.len() == out.capacity() {
+            out.reserve(256);
+        }
+        let before = d.total_in();
+        d.decompress_vec(&data[consumed..], &mut out, FlushDecompress::Sync)
+            .unwrap();
+        consumed += (d.total_in() - before) as usize;
+        if consumed == data.len() && out.len() < out.capacity() {
+            break;
+        }
+    }
+    out
+}
+
+/// An echo server that speaks `permessage-deflate` when offered, over raw
+/// frames — tungstenite's message API refuses the compression bit on both
+/// sides. Reports whether the first text frame arrived compressed.
+#[allow(
+    clippy::result_large_err,
+    reason = "tungstenite's handshake callback names its own error type"
+)]
+fn serve_deflate_echo(saw_compressed: std::sync::mpsc::Sender<bool>) -> String {
+    use flate2::{Compress, Compression, Decompress};
+    use tungstenite::handshake::server::{Request, Response};
+    use tungstenite::http::HeaderValue;
+    use tungstenite::protocol::frame::coding::{Control, Data, OpCode};
+    use tungstenite::protocol::frame::{Frame, FrameSocket};
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    std::thread::spawn(move || {
+        let Ok((stream, _)) = listener.accept() else {
+            return;
+        };
+        let mut negotiated = false;
+        let connection =
+            tungstenite::accept_hdr(stream, |request: &Request, mut response: Response| {
+                let offered = request
+                    .headers()
+                    .get("sec-websocket-extensions")
+                    .is_some_and(|v| v.to_str().unwrap_or("").contains("permessage-deflate"));
+                if offered {
+                    negotiated = true;
+                    response.headers_mut().insert(
+                        "Sec-WebSocket-Extensions",
+                        HeaderValue::from_static("permessage-deflate"),
+                    );
+                }
+                Ok(response)
+            })
+            .unwrap();
+        // The client sends nothing before the 101, so no bytes are lost.
+        let mut socket = FrameSocket::new(connection.into_inner());
+        let mut inflate = Decompress::new(false);
+        let mut deflate = Compress::new(Compression::default(), false);
+        let mut reported = false;
+        loop {
+            let Ok(Some(frame)) = socket.read(None) else {
+                break;
+            };
+            // Raw reads leave the client's mask on; take it off.
+            let mut payload = frame.payload().to_vec();
+            if let Some(mask) = frame.header().mask {
+                for (i, byte) in payload.iter_mut().enumerate() {
+                    *byte ^= mask[i % 4];
+                }
+            }
+            match frame.header().opcode {
+                OpCode::Data(Data::Text) => {
+                    let compressed = frame.header().rsv1;
+                    if !reported {
+                        reported = true;
+                        let _ = saw_compressed.send(compressed);
+                    }
+                    let text = if compressed {
+                        run_inflate(&mut inflate, &payload)
+                    } else {
+                        payload
+                    };
+                    let (body, rsv1) = if negotiated {
+                        (run_deflate(&mut deflate, &text), true)
+                    } else {
+                        (text, false)
+                    };
+                    let mut reply = Frame::message(body, OpCode::Data(Data::Text), true);
+                    reply.header_mut().rsv1 = rsv1;
+                    if socket.send(reply).is_err() {
+                        break;
+                    }
+                }
+                OpCode::Control(Control::Close) => {
+                    let _ = socket.send(Frame::close(None));
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
+    format!("ws://{addr}")
+}
+
+fn echo_once(options: SocketOptions) -> (String, bool) {
+    let (report, saw) = std::sync::mpsc::channel();
+    let url = serve_deflate_echo(report);
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_net(dir.path());
+    let id = app.engine.next_token();
+    {
+        let state = app.engine.resource::<NetState>();
+        state
+            .borrow_mut()
+            .connect(&app.engine, id, &url, options, None);
+    }
+    wait_for(&mut app, |snapshot| socket_event(snapshot, "open"));
+    // Long and repetitive, so compression has something to do.
+    let text = "the quick brown fox jumps over the lazy dog; ".repeat(40);
+    {
+        let state = app.engine.resource::<NetState>();
+        assert!(state.borrow_mut().send_text(id, &text));
+    }
+    let message = wait_for(&mut app, |snapshot| socket_event(snapshot, "message"));
+    let echoed = match field(&message, "text") {
+        Some(Value::Str(s)) => s.clone(),
+        other => panic!("no text in {other:?}"),
+    };
+    assert_eq!(echoed, text);
+    {
+        let state = app.engine.resource::<NetState>();
+        assert!(state.borrow_mut().close(id));
+    }
+    wait_for(&mut app, |snapshot| socket_event(snapshot, "closed"));
+    let compressed = saw
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .expect("the server saw the first frame");
+    (echoed, compressed)
+}
+
+#[test]
+fn a_websocket_compresses_when_the_server_agrees() {
+    let (_, compressed) = echo_once(SocketOptions::default());
+    assert!(
+        compressed,
+        "the frame should have carried permessage-deflate"
+    );
+}
+
+#[test]
+fn a_websocket_sends_plain_frames_when_compression_is_off() {
+    let (_, compressed) = echo_once(SocketOptions {
+        compression: false,
+        headers: Vec::new(),
+    });
+    assert!(
+        !compressed,
+        "compression was not offered, so no frame may set rsv1"
+    );
+}
+
+#[test]
+fn the_net_table_of_the_manifest_sets_the_defaults() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "name = \"t\"\nmain_scene = \"scenes/main.toml\"\n\n[net]\nwebsocket_compression = false\nhttp_timeout = 2.5\n",
+    )
+    .unwrap();
+    let app = app_with_net(dir.path());
+    let config = app.engine.resource::<balaur_net::NetConfig>();
+    let config = config.borrow();
+    assert!(!config.websocket_compression);
+    assert!((config.http_timeout - 2.5).abs() < f64::EPSILON);
 }

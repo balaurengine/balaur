@@ -75,6 +75,7 @@ mod backend {
     pub(crate) fn spawn_socket(
         socket: u64,
         _url: String,
+        _options: SocketOptions,
         _commands: Receiver<SocketCommand>,
         events: &Sender<NetEvent>,
     ) {
@@ -96,6 +97,75 @@ pub struct HttpCall {
     pub body: Option<String>,
     /// Seconds for the whole request; `None` takes the 10 second default.
     pub timeout: Option<f64>,
+}
+
+/// How one `websocket.connect` opens its connection.
+#[derive(Clone, Debug)]
+pub struct SocketOptions {
+    /// Offer `permessage-deflate`; the server decides whether frames are
+    /// compressed. Off, frames go as they are.
+    pub compression: bool,
+    /// Extra headers on the upgrade request — an `Authorization`, a cookie.
+    pub headers: Vec<(String, String)>,
+}
+
+impl Default for SocketOptions {
+    fn default() -> Self {
+        Self {
+            compression: true,
+            headers: Vec::new(),
+        }
+    }
+}
+
+/// Project-wide defaults for the net module, the `[net]` table of
+/// `project.toml`:
+///
+/// ```toml
+/// [net]
+/// websocket_compression = true   # offer permessage-deflate on every connection
+/// http_timeout = 10.0            # seconds, when a request names none
+/// ```
+///
+/// A call's own options override these.
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct NetConfig {
+    pub websocket_compression: bool,
+    pub http_timeout: f64,
+}
+
+impl Default for NetConfig {
+    fn default() -> Self {
+        Self {
+            websocket_compression: true,
+            http_timeout: 10.0,
+        }
+    }
+}
+
+impl NetConfig {
+    /// The `[net]` table of the project's manifest, or the defaults when the
+    /// file or the table is missing. A table that does not parse is reported
+    /// and ignored rather than failing the boot over a networking setting.
+    #[must_use]
+    pub fn load(files: &balaur_core::project::ProjectFiles) -> Self {
+        #[derive(serde::Deserialize)]
+        struct Manifest {
+            #[serde(default)]
+            net: NetConfig,
+        }
+        let Ok(bytes) = files.read("project.toml") else {
+            return Self::default();
+        };
+        match toml::from_str::<Manifest>(&String::from_utf8_lossy(&bytes)) {
+            Ok(manifest) => manifest.net,
+            Err(err) => {
+                tracing::warn!("project.toml [net]: {err}; using the defaults");
+                Self::default()
+            }
+        }
+    }
 }
 
 /// What the engine thread asks a connection's worker thread to do.
@@ -176,13 +246,20 @@ impl NetState {
     /// Open a websocket connection under `id` (an [`Engine::next_token`]
     /// value); the handshake happens off-thread, and every event — `open`
     /// first, `closed` or `error` last — reaches `handler` on a later tick.
-    pub fn connect(&mut self, eng: &Engine, id: u64, url: &str, handler: Option<Handler>) {
+    pub fn connect(
+        &mut self,
+        eng: &Engine,
+        id: u64,
+        url: &str,
+        options: SocketOptions,
+        handler: Option<Handler>,
+    ) {
         if let Some(handler) = handler {
             self.socket_handlers.insert(id, handler);
         }
         let (commands, receiver) = channel();
         let started = self.io.start(eng, |report| {
-            backend::spawn_socket(id, url.to_string(), receiver, report);
+            backend::spawn_socket(id, url.to_string(), options, receiver, report);
         });
         if started {
             self.sockets.insert(id, commands);
@@ -351,6 +428,15 @@ impl balaur_plugin::Plugin for NetPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
+        let config = {
+            let files = reg
+                .app()
+                .engine
+                .resource::<balaur_core::project::ProjectFiles>();
+            let files = files.borrow();
+            NetConfig::load(&files)
+        };
+        reg.insert_resource(config);
         reg.insert_resource(NetState::default());
         reg.insert_resource(NetSnapshot::default());
         reg.add_system(Stage::First, pump_net_system);
@@ -394,16 +480,7 @@ fn call_of(url: &str, opts: Option<&Value>) -> Result<HttpCall> {
         Some(other) => return Err(anyhow!("body should be a string, got {other:?}")),
         None => None,
     };
-    let headers = match opt(opts, "headers") {
-        Some(Value::Map(pairs)) => pairs
-            .iter()
-            .map(|(k, v)| match v {
-                Value::Str(s) => Ok((k.clone(), s.clone())),
-                other => Err(anyhow!("header `{k}` should be a string, got {other:?}")),
-            })
-            .collect::<Result<_>>()?,
-        _ => Vec::new(),
-    };
+    let headers = headers_of(opts)?;
     let timeout = match opt(opts, "timeout") {
         Some(Value::Num(n)) => Some(*n),
         Some(Value::Int(n)) => Some(*n as f64),
@@ -455,7 +532,10 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
                 },
             };
             let handler = handler_of(&node, opts.as_ref(), "on_response", "on_response")?;
-            let call = call_of(&url, opts.as_ref())?;
+            let mut call = call_of(&url, opts.as_ref())?;
+            if call.timeout.is_none() {
+                call.timeout = Some(eng.resource::<NetConfig>().borrow().http_timeout);
+            }
             let id = eng.next_token();
             let state = eng.resource::<NetState>();
             state.borrow_mut().request(eng, id, call, handler);
@@ -464,18 +544,53 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
     );
 }
 
+/// The headers table of an options value, as string pairs.
+fn headers_of(opts: Option<&Value>) -> Result<Vec<(String, String)>> {
+    match opt(opts, "headers") {
+        Some(Value::Map(pairs)) => pairs
+            .iter()
+            .map(|(k, v)| match v {
+                Value::Str(s) => Ok((k.clone(), s.clone())),
+                other => Err(anyhow!("header `{k}` should be a string, got {other:?}")),
+            })
+            .collect(),
+        Some(other) => Err(anyhow!("headers should be a table, got {other:?}")),
+        None => Ok(Vec::new()),
+    }
+}
+
+/// A connection's options: `compression` and `headers`, over the project's
+/// `[net]` defaults.
+fn socket_options_of(opts: Option<&Value>, config: &NetConfig) -> Result<SocketOptions> {
+    let compression = match opt(opts, "compression") {
+        Some(Value::Bool(on)) => *on,
+        Some(other) => {
+            return Err(anyhow!(
+                "compression should be true or false, got {other:?}"
+            ))
+        }
+        None => config.websocket_compression,
+    };
+    Ok(SocketOptions {
+        compression,
+        headers: headers_of(opts)?,
+    })
+}
+
 /// `websocket.*`. Text frames only: the value model has no bytes, and a
 /// binary frame is logged and dropped in the reader thread.
 fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
     // Events fire as `{ socket, kind, ... }` with kind `open`, `message`,
-    // `closed` or `error`; a nil node discards them.
+    // `closed` or `error`; a nil node discards them. Options: `on_event`,
+    // `compression`, `headers`.
     m.function(
         "connect",
         |eng: &Engine, (node, url, opts): (Value, String, Option<Value>)| {
             let handler = handler_of(&node, opts.as_ref(), "on_event", "on_websocket_event")?;
+            let options = socket_options_of(opts.as_ref(), &eng.resource::<NetConfig>().borrow())?;
             let id = eng.next_token();
             let state = eng.resource::<NetState>();
-            state.borrow_mut().connect(eng, id, &url, handler);
+            state.borrow_mut().connect(eng, id, &url, options, handler);
             Ok(int(id))
         },
     );

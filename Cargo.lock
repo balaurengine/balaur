@@ -509,12 +509,18 @@ dependencies = [
  "balaur_plugin",
  "balaur_script",
  "cc",
+ "flate2",
+ "httparse",
+ "rand 0.9.5",
+ "rustls",
  "serde",
  "serde_json",
  "tempfile",
+ "toml",
  "tracing",
  "tungstenite",
  "ureq",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]

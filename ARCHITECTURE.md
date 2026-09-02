@@ -921,7 +921,11 @@ comes off the schema, where a `float` property already declares its range.
 Today: HTTP and WebSocket (`balaur_net`), plus the Gamend backend. WebSocket
 runs over TCP, so one lost packet stalls every update behind it — fine for
 turn-based play and for lockstep at low tick rates, wrong for anything
-twitchy.
+twitchy. The websocket worker speaks frames itself (tungstenite's upgrade
+request and frame codec, its own protocol loop) so that `permessage-deflate`
+can set the reserved bit tungstenite's message API refuses; compression,
+upgrade headers and the HTTP timeout are per-call options over the `[net]`
+table of `project.toml`.
 
 The target is QUIC/WebTransport as the *single* transport (`wtransport` or
 `web-transport-quinn`): reliable-ordered streams and unreliable datagrams in

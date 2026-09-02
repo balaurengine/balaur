@@ -14,7 +14,7 @@ use std::cell::{Cell, RefCell};
 use std::ffi::{c_char, c_int, c_void, CString};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
-use crate::{HttpCall, NetEvent, SocketCommand};
+use crate::{HttpCall, NetEvent, SocketCommand, SocketOptions};
 
 extern "C" {
     fn balaur_fetch(
@@ -190,6 +190,8 @@ extern "C" fn ws_failed(user: *mut c_void) {
 pub(crate) fn spawn_socket(
     socket: u64,
     url: String,
+    // The browser negotiates compression and headers itself.
+    _options: SocketOptions,
     commands: Receiver<SocketCommand>,
     events: &Sender<NetEvent>,
 ) {

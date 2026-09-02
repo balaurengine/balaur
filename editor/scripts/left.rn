@@ -186,7 +186,8 @@ fn secondary_content(S) {
                 }));
             }
         }
-        ("Rune modules", rows)
+        // `return`: a bare tuple after an `if` block parses as a call on the block's value.
+        return ("Rune modules", rows);
     } else if S.persona == "phys" {
         // A 2D scene carries `body2d`/`collider2d`; reading `body` alone left
         // this panel empty for every 2D project.
@@ -207,7 +208,7 @@ fn secondary_content(S) {
         if rows.len() == 0 {
             rows.push(row("▣", "no bodies or colliders", "", || {}));
         }
-        ("Collision", rows)
+        return ("Collision", rows);
     } else if S.persona == "anim" {
         let rows = [];
         for (i, node) in S.doc.iter().enumerate() {
@@ -224,7 +225,7 @@ fn secondary_content(S) {
         if rows.len() == 0 {
             rows.push(row("◷", "no clips — ＋ Key in Timeline", "", || {}));
         }
-        ("Clips", rows)
+        return ("Clips", rows);
     } else if S.persona == "ui" {
         // Two ways a node puts something on screen: a `widget` component in the
         // scene, or a script with a `draw_ui` hook. Listing only the second
@@ -242,7 +243,7 @@ fn secondary_content(S) {
         if rows.len() == 0 {
             rows.push(row("▤", "no widgets or draw_ui scripts", "", || {}));
         }
-        ("Interface", rows)
+        return ("Interface", rows);
     } else {
         let rows = [];
         for f in model::list(S, "scenes") {
@@ -255,7 +256,7 @@ fn secondary_content(S) {
                 }));
             }
         }
-        ("Scenes", rows)
+        return ("Scenes", rows);
     }
 }
 

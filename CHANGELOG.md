@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Websockets negotiate `permessage-deflate` (RFC 7692) and take per-connection options: `websocket.connect(node, url, { compression = false, headers = { Authorization = "..." } })`. A `[net]` table in `project.toml` sets the defaults (`websocket_compression`, `http_timeout`).
 - Determinism: one fixed 60 Hz step (`Stage::FixedUpdate`, `fixed_update(dt)`, `balaur run --fixed-tick`).
 - Per-tick simulation digest with `first_divergence`, `--trace-digest`, and a cross-OS CI check.
 - Record and replay: `run --record`, `replay --verify` / `--entries-at`, sources for input, gamepad, net, gamend.
