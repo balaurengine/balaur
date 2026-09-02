@@ -89,6 +89,9 @@ fn an_edge_fires_for_one_frame_the_way_a_key_does() {
 
     frame(&mut app, &[]);
     assert!(!just_pressed(&app, "jump"), "still just-pressed a frame on");
+    assert!(pressed(&app, "jump"), "the key is still held");
+
+    frame(&mut app, &[("Space", false)]);
     assert!(!pressed(&app, "jump"));
     assert!(just_released(&app, "jump"));
 
@@ -141,12 +144,12 @@ fn rebinding_replaces_what_the_project_declared() {
     app.engine
         .resource::<InputActions>()
         .borrow_mut()
-        .rebind("jump", &[String::from("KeyJ")])
+        .rebind("jump", &[String::from("J")])
         .unwrap();
 
     frame(&mut app, &[("Space", true)]);
     assert!(!pressed(&app, "jump"), "the old binding still fires");
-    frame(&mut app, &[("Space", false), ("KeyJ", true)]);
+    frame(&mut app, &[("Space", false), ("J", true)]);
     assert!(pressed(&app, "jump"));
 }
 

@@ -222,6 +222,17 @@ pub fn apply_camera(S) {
 // cmd+S saves the visible script buffer when the code editor is open, the
 // scene document otherwise.
 pub fn save_active(S) {
+    // A shader is not a script: it is written and the watcher relinks the
+    // materials naming it, with no unit to rebuild.
+    if S.shader_rel != "" && S.doctab == "script" {
+        let abs = S.game_root + "/" + S.shader_rel;
+        if let Some(buffer) = S.script_buffers.get(abs) {
+            fs::write(abs, buffer);
+            S.script_dirty.remove(abs);
+            log::info("saved " + S.shader_rel);
+        }
+        return;
+    }
     let node = S.doc[S.sel];
     let in_script = (S.persona == "script" || S.doctab == "script") && node.contains_key("script");
     if in_script {

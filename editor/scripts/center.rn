@@ -190,15 +190,22 @@ fn viewport(S, k) {
 fn script_editor(S, k) {
     let node = model::selected_node(S);
     ui::central_panel(#{ fill: k.code_bg }, || {
-        let rel = match model::script_rel(node) {
-            Some(rel) => rel,
-            None => {
-                ui::add_space(24);
-                ui::horizontal((), || {
+        // A shader opened from a material takes the pane; otherwise the
+        // selected node's script does.
+        let shading = S.shader_rel != "";
+        let rel = if shading {
+            S.shader_rel
+        } else {
+            match model::script_rel(node) {
+                Some(rel) => rel,
+                None => {
                     ui::add_space(24);
-                    ui::label("no script attached to " + node.name, style::mono_lg(k.faint));
-                });
-                return;
+                    ui::horizontal((), || {
+                        ui::add_space(24);
+                        ui::label("no script attached to " + node.name, style::mono_lg(k.faint));
+                    });
+                    return;
+                }
             }
         };
         let path = S.game_root + "/" + rel;
@@ -212,15 +219,15 @@ fn script_editor(S, k) {
         // Hooks come from the live buffer, so they update while typing —
         // re-analysed only when that buffer actually changed.
         let current = S.script_buffers.get(path).unwrap_or(src);
-        if S.hooks_src != current {
+        if !shading && S.hooks_src != current {
             S.hooks_src = current;
             let (_, parsed) = highlight::analyze(current);
             S.hooks_live = parsed;
         }
-        let hooks = S.hooks_live;
+        let hooks = if shading { [] } else { S.hooks_live };
         ui::right_panel("hooks", #{ width: 172, fill: k.panel, padding_x: 12 }, || {
             ui::add_space(11);
-            ui::label("HOOKS IN FILE", style::heading(k));
+            ui::label(if shading { "SHADER" } else { "HOOKS IN FILE" }, style::heading(k));
             ui::add_space(9);
             for hook in hooks {
                 ui::frame(#{ fill: k.sunken, radius: 14, padding_x: 10 }, || {
@@ -242,13 +249,14 @@ fn script_editor(S, k) {
         // and hot reloads the game code).
         ui::scroll("code", (), || {
             ui::add_space(12);
-            let stopped_here = S.debug.paused is Object && S.debug.paused_rel == rel;
+            let stopped_here = !shading && S.debug.paused is Object && S.debug.paused_rel == rel;
             let (text, changed, hit) = ui::code_editor("edit:" + path, src, #{
                 size: 12.5, gutter_width: 34, gutter_color: k.faint,
                 k_key: k.k_key, k_str: k.k_str, k_num: k.k_num,
                 k_com: k.k_com, k_fn: k.k_fn, k_type: k.k_type,
                 k_punc: k.k_punc,
-                breakpoints: shell::breakpoint_lines(S, rel),
+                language: if shading { "wesl" } else { "rune" },
+                breakpoints: if shading { [] } else { shell::breakpoint_lines(S, rel) },
                 problems: lint::lines(S, rel, "error"),
                 warnings: lint::lines(S, rel, "warning"),
                 problem_color: k.accent, warning_color: k.sage,
@@ -259,7 +267,7 @@ fn script_editor(S, k) {
             if changed {
                 S.script_dirty[path] = true;
             }
-            if hit is i64 {
+            if hit is i64 && !shading {
                 shell::toggle_breakpoint(S, rel, hit);
             }
             ui::add_space(12);

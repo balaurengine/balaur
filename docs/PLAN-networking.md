@@ -1,9 +1,11 @@
 > **Status:** not started. Written down on 2026-09-02 so the order is decided
-> before the first line: rollback first, because determinism makes it cheap
-> here; replication second, factored so both ride the same identity, property
-> access and clock; QUIC under both, as WebTransport, so one transport runs
-> native and in the browser. `ARCHITECTURE.md` "Networking and state sync"
-> has the reasoning; this is the work.
+> before the first line: node identity and lifecycle first, because rollback
+> and replication both stand on it and it is the piece that can invalidate
+> the determinism work; rollback next, because determinism makes it cheap
+> here; replication after a session exists, factored so both ride the same
+> identity, property access and clock; QUIC under both, as WebTransport, so
+> one transport runs native and in the browser. `ARCHITECTURE.md`
+> "Networking and state sync" has the reasoning; §3 is the work, in order.
 
 # Plan: multiplayer
 
@@ -81,7 +83,7 @@ Every protocol a multiplayer engine could sit on, and where each stands here.
 | Protocol | Decision |
 | --- | --- |
 | HTTP | Have. REST, Gamend, downloads. Not a game transport. |
-| WebSocket (TCP, TLS, `permessage-deflate`) | Have, text only; binary frames come in phase 1. Stays for turn-based games, lobbies, chat, and as the fallback where UDP is blocked. Wrong for anything twitchy: one lost packet stalls every frame behind it. |
+| WebSocket (TCP, TLS, `permessage-deflate`) | Have, text only; binary frames come in step 1. Stays for turn-based games, lobbies, chat, and as the fallback where UDP is blocked. Wrong for anything twitchy: one lost packet stalls every frame behind it. |
 | Raw UDP | Not exposed to scripts, now or later. No browser has it, it brings no encryption, congestion control or NAT story of its own, and every engine that ships it ends up writing a reliability layer on top. QUIC datagrams are that layer, standardised. |
 | QUIC over WebTransport | The target, and the only transport under rollback and replication. Reliable-ordered streams and unreliable datagrams in one encrypted connection: datagrams carry inputs and unreliable deltas, streams carry the handshake, digests, RPCs and reliable state. Native through `wtransport` or `web-transport-quinn`; in the browser through the WebTransport API, which Chrome, Firefox and Safari all ship. Client-server only: a browser cannot listen, and the server is an HTTP/3 endpoint with a certificate. |
 | WebRTC data channels | Fallback, for one case: browser peer-to-peer without a relay. Needs a signalling channel (a Gamend room) and STUN/TURN; the unreliable-unordered mode gives UDP-like datagrams. Candidates are `matchbox` (native and browser, `matchbox_server` for signalling) or `webrtc` (webrtc-rs). Behind the same trait; not built until a game needs it. |
@@ -102,36 +104,63 @@ neither can listen. Rollback between them goes through a relay: a Gamend
 room, or a small server on the same transport that forwards inputs. Native
 peers may connect directly. The session layer does not care which.
 
-## 3. Phases
+## 3. Steps
+
+Ordered so the riskiest piece is proved first and each step leaves something
+that works.
 
 1. **Bytes.** A `Value::Bytes` variant, `websocket::send` taking either
-   text or bytes, binary frames delivered as bytes. Needed by everything
-   below and useful alone.
-2. **Rollback on one machine.** Snapshot restore learns to respawn and free
-   nodes. A `Session` with local players only, an input journal per tick,
-   and a test that drops a late input in, rolls back and reaches the same
-   digest as the straight run.
-3. **Rollback over the wire.** The transport trait with the websocket under
-   it and a loopback server in the test; two engines play a scene in
+   text or bytes, binary frames delivered as bytes. Ships alone, and
+   everything below needs it.
+2. **Identity and lifecycle for run-time nodes.** An authority-scoped
+   `StableId` allocator (`<peer>:<counter>`) for nodes spawned after load,
+   and a snapshot restore that respawns a freed node and frees a spawned
+   one. `node_api`'s spawn inserts no `StableId` today, so the digest names
+   such a node by an entity index two peers cannot negotiate; that is
+   determinism gap 3 in `ARCHITECTURE.md`. The step ends on a test that
+   spawns and frees across a snapshot boundary and restores to a
+   bit-identical digest.
+3. **Rollback on one machine.** A `Session` with local players only, an
+   input journal per tick, and a test that drops a late input in, rolls back
+   and reaches the same digest as the straight run.
+4. **The transport trait, websocket under it.** Reliable-ordered streams and
+   unreliable datagrams in the trait from the first line, shaped by QUIC and
+   not by what a websocket happens to offer; the websocket implements
+   datagrams as reliable sends, degraded but correct. Spike both QUIC crates
+   before writing it so the trait fits the winner rather than being
+   retrofitted to it.
+5. **Rollback over the wire.** Two engines on loopback play a scene in
    lockstep with rollback, and a test injects a desync and asserts both stop
    on the same tick.
-4. **WebTransport, native.** One crate (`wtransport` or `web-transport-quinn`)
-   behind the same trait, client and server: datagrams for inputs, a stream
-   for the handshake and digests. The loopback test of phase 3 runs again
-   over it.
-5. **WebTransport in the browser.** The emscripten shim over the browser's
-   WebTransport API, once web export lands; `serverCertificateHashes` for
-   the dev server.
-6. **Replication.** The `replicate` component, change detection, delta
-   encoding, an authority rule, RPC by stable id, and the client's predict
-   and reconcile loop for its own node.
+6. **WebTransport, native.** The chosen crate behind the same trait, client
+   and server: datagrams for inputs, a stream for the handshake and digests.
+   The loopback tests of step 5 run again over it.
 7. **Sessions from Gamend.** A room becomes a session, and the relay for
-   browser peers; matchmaking and presence stay on the server side.
-8. **WebRTC data channels.** Only when a game needs browser peer-to-peer
-   without a relay. Same trait, same loopback tests.
+   browser peers; matchmaking and presence stay on the server side. First
+   point at which a real game ships on this stack, which is why it comes
+   before replication rather than after.
+8. **Replication.** The `replicate` component, change detection, delta
+   encoding, an authority rule, RPC by stable id, and the client's predict
+   and reconcile loop for its own node. Inherits a proven transport, a
+   proven session and working spawn and free.
+9. **WebTransport in the browser.** The emscripten shim over the browser's
+   WebTransport API, with `serverCertificateHashes` for the dev server.
+   Blocked on web export, so it lands whenever that does.
+10. **WebRTC data channels.** Only when a game needs browser peer-to-peer
+    without a relay. Same trait, same loopback tests.
 
-Each phase has its own tests before the next starts; a headless CI run of two
-engines on loopback is the bar for 3, 4 and 6.
+Each step has its own tests before the next starts; a headless CI run of two
+engines on loopback is the bar for 5, 6 and 8.
+
+Two notes on running this:
+
+- **The risk is concentrated in step 2.** If a physics restore plus a respawn
+  does not reach a bit-identical digest, every step after it is blocked and
+  the determinism work does not hold up. That is why its test is a digest
+  comparison and why it does not wait for rollback to expose it.
+- **Steps 1 and 4 do not depend on step 2.** Two people split there: one
+  takes identity and lifecycle, the other takes bytes and the transport
+  trait.
 
 ## 4. Open questions
 
@@ -148,8 +177,8 @@ engines on loopback is the bar for 3, 4 and 6.
    journal and re-baselines from the current snapshot: rewind within a
    version, reload across versions, never rewind across a reload.
 4. **Which QUIC crate.** Both wrap `quinn`; they differ in API and
-   maintainer. Decided at phase 4 by whichever makes the server side
-   smaller.
+   maintainer. Decided by the spike at step 4, by whichever makes the server
+   side smaller.
 5. **Relay or direct.** Whether native rollback peers connect to each other
    (NAT traversal, no server cost) or always meet at a relay (one code path,
    browsers included). One code path is the default until latency says

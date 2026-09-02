@@ -162,15 +162,18 @@ pub struct Origin {
 }
 
 impl Origin {
-    /// The counters to restore before the *next* tick runs.
+    /// The counters as they stand, as a starting point.
     ///
-    /// Read during a frame that has already advanced its clock, so the tick
-    /// and time are stepped back by one: replaying re-runs the frame this was
-    /// taken in.
+    /// The tick and time here are provisional: whether the frame this was
+    /// read in is itself recorded depends on where in the frame the recording
+    /// started, so [`Recorder`] settles both against the first frame it
+    /// actually writes. The token counter is not provisional — it has to be
+    /// the value in force when recording began, because a request made
+    /// between then and the first frame is part of that frame.
     pub fn of(eng: &Engine) -> Self {
         Self {
-            tick: eng.tick().saturating_sub(1),
-            time: eng.time() - f64::from(eng.delta()),
+            tick: eng.tick(),
+            time: eng.time(),
             tokens: eng.tokens(),
         }
     }
@@ -308,6 +311,9 @@ pub fn restore(eng: &Engine, sources: &serde_json::Map<String, serde_json::Value
 /// Appends frames as they happen, so a crashed session still leaves a file.
 pub struct Recorder {
     out: BufWriter<std::fs::File>,
+    /// Held back until the first frame settles its origin, so the file's one
+    /// header is written once and correct.
+    header: Option<Header>,
     path: PathBuf,
     /// Whether every frame carries a digest, or only the trailer does.
     per_tick_digest: bool,
@@ -321,18 +327,15 @@ pub struct Recorder {
 }
 
 impl Recorder {
-    pub fn create(path: &Path, header: &Header, per_tick_digest: bool) -> Result<Self> {
+    pub fn create(path: &Path, header: Header, per_tick_digest: bool) -> Result<Self> {
         if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)
-                .with_context(|| format!("creating {}", dir.display()))?;
+            std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
         }
         let file =
             std::fs::File::create(path).with_context(|| format!("creating {}", path.display()))?;
-        let mut out = BufWriter::new(file);
-        serde_json::to_writer(&mut out, header)?;
-        out.write_all(b"\n")?;
         Ok(Self {
-            out,
+            out: BufWriter::new(file),
+            header: Some(header),
             path: path.to_path_buf(),
             per_tick_digest,
             frames: 0,
@@ -353,10 +356,24 @@ impl Recorder {
     /// Flushed per frame: a session that crashes is exactly the session
     /// worth having recorded.
     pub fn write(&mut self, frame: &Frame) -> Result<()> {
-        serde_json::to_writer(&mut self.out, frame)?;
+        if let Some(mut header) = self.header.take() {
+            // The first frame says where the session really starts, which the
+            // moment `record` was called could not: a call from inside a
+            // frame is recorded from that frame, a call between two from the
+            // next one.
+            header.origin.tick = frame.tick.saturating_sub(1);
+            header.origin.time -= f64::from(frame.step());
+            self.write_line(&header)?;
+        }
+        self.write_line(frame)?;
+        self.frames += 1;
+        Ok(())
+    }
+
+    fn write_line(&mut self, line: &impl Serialize) -> Result<()> {
+        serde_json::to_writer(&mut self.out, line)?;
         self.out.write_all(b"\n")?;
         self.out.flush()?;
-        self.frames += 1;
         Ok(())
     }
 
@@ -367,16 +384,15 @@ impl Recorder {
         Ok(self.path.clone())
     }
 
+    /// A session that recorded no frame still needs its header, or the file
+    /// is not a recording at all.
     fn end(&mut self, trailer: &Trailer) -> Result<()> {
-        serde_json::to_writer(
-            &mut self.out,
-            &EndLine {
-                end: trailer.clone(),
-            },
-        )?;
-        self.out.write_all(b"\n")?;
-        self.out.flush()?;
-        Ok(())
+        if let Some(header) = self.header.take() {
+            self.write_line(&header)?;
+        }
+        self.write_line(&EndLine {
+            end: trailer.clone(),
+        })
     }
 
     /// A debugger pause that arrived since the last frame, as one event.
@@ -492,7 +508,7 @@ pub fn start_recording(
         scripts: scripts.to_string(),
         started: timestamp(),
     };
-    let recorder = Recorder::create(path, &header, per_tick_digest)?;
+    let recorder = Recorder::create(path, header, per_tick_digest)?;
     *eng.resource::<ReplayMode>().borrow_mut() = ReplayMode::Recording;
     eng.resource::<Recording>().borrow_mut().0 = Some(recorder);
     Ok(())

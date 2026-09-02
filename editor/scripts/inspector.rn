@@ -777,6 +777,24 @@ fn material_rows(S, k, reference) {
     if reference == "" || reference.starts_with("#") {
         return;
     }
+    let (ok, definition) = script::attempt(|| assets::load(reference));
+    let shader = if ok && definition is Object {
+        definition.get("shader").unwrap_or("")
+    } else {
+        ""
+    };
+    if shader != "" {
+        row(k, "  shader", || {
+            if ui::pill(util::last_segment(shader), #{
+                height: 20, size: 10, strong: true,
+                tooltip: "Edit " + shader,
+                fill: k.sage_soft, color: k.sage,
+            }) {
+                S.shader_rel = shader;
+                S.doctab = "script";
+            }
+        });
+    }
     for p in render::material_params(reference) {
         material_row(S, k, reference, p["name"], p["type"], p["value"]);
     }

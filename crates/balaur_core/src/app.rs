@@ -535,7 +535,14 @@ impl App {
     /// so `set_fixed_dt` reaches every run mode instead of only the one whose
     /// loop lives here.
     pub fn advance(&mut self, measured_dt: f32) {
-        match self.engine.resource::<crate::replay::ReplayPlayer>().borrow().plan() {
+        // In its own statement: a match holds its scrutinee's temporaries for
+        // every arm, and the arms below borrow the player again.
+        let plan = self
+            .engine
+            .resource::<crate::replay::ReplayPlayer>()
+            .borrow()
+            .plan();
+        match plan {
             crate::replay::Step::Live => {
                 self.engine.set_replay_hold(false);
                 self.tick(self.fixed_dt.unwrap_or(measured_dt));

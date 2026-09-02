@@ -4,10 +4,13 @@
 > `material`, and `balaur_render::shader_material` draws it as a kiss3d
 > `Material2d`. Phase 3 is built too: `mesh` and `shape3d` take a `material`,
 > and `shader_material_3d` draws it with the scene's lights and fog through
-> `package::mesh`. Phase 4 has its first half: saving a shader relinks it, and
+> `package::mesh`. Phase 4 is built: saving a shader relinks it, and
 > a link error names the file, line and column the author wrote, which
-> `render::check_material` hands to the editor's Problems list. The rest of
-> phase 4 (param rows, WGSL in the code editor) is not started.
+> `render::check_material` hands to the editor's Problems list;
+> `render::material_params` gives the inspector a row per field the shader
+> declares, written straight back to the material file; and a `.wesl` opens
+> in the code editor, highlighted as WESL, from the material that names it.
+> Phases 5-9 are not started.
 >
 > **Where the implementation decided differently:**
 >
@@ -55,7 +58,17 @@
 >    the fixed-light path, fog and the tint; the other five arrive but are not
 >    yet read, and each is another entry in the frame group rather than a new
 >    group, because WebGPU guarantees only four.
-> 11. **2D has no room for a fifth group either.** The sprite material already
+> 11. **Param rows reuse the component vocabulary.** `material_params`
+>    answers in the type names a component schema uses — `float`, `vec2`,
+>    `vec3`, `color` — so the inspector draws them with the editors it
+>    already has. A `vec4` is reported as a colour: it is what one nearly
+>    always is, `Value::Color` is the engine's own four-channel type, and
+>    `[params]` takes `#rrggbb` and `[r, g, b, a]` alike either way.
+> 12. **A shader opens in the code pane, not a pane of its own.** `S.shader_rel`
+>    aims the existing editor at a `.wesl`; the hooks panel and the
+>    breakpoint gutter stand down, because neither means anything in a
+>    shader, and saving writes the file rather than rebuilding a unit.
+> 13. **2D has no room for a fifth group either.** The sprite material already
 >    uses frame, object, texture and params. When `docs/PLAN-rendering.md`
 >    adds 2D lights they fold into the frame group; they cannot take a group
 >    of their own.

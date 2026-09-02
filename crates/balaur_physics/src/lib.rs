@@ -101,6 +101,7 @@ impl Plugin for PhysicsPlugin {
         );
         install_constants(&mut *m, BODY_KINDS, SHAPE_KINDS);
         body::install_body_api(&mut *m);
+        body::install_body_state_api(&mut *m);
         body::register_body_component(app);
         collider::register_collider_component(app);
         register_physics_presets(app)?;
@@ -384,6 +385,7 @@ pub const BODY_KINDS: &[(&str, &str)] = &[
     ("BODY_DYNAMIC", "dynamic"),
     ("BODY_STATIC", "static"),
     ("BODY_KINEMATIC", "kinematic"),
+    ("BODY_KINEMATIC_VELOCITY", "kinematic_velocity"),
 ];
 
 

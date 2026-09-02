@@ -914,7 +914,9 @@ Ordered by what would break a networked session first:
 3. **Run-time-spawned nodes have no `StableId`.** They hash under a name and
    an entity index, which is reproducible across runs of one binary but is not
    an identity two peers can negotiate. Replication needs an authority-scoped
-   allocator (`<peer>:<counter>`).
+   allocator (`<peer>:<counter>`). This and the restore gap below are step 2
+   of `docs/PLAN-networking.md`, ahead of rollback, because everything
+   networked stands on them.
 4. **Nothing forces a new subsystem to use `ExternalIo`.** Within it the
    guarantee is structural — the worker `Sender` is unreachable except through
    `start`, which does nothing while replaying — but a subsystem that opens
@@ -946,7 +948,9 @@ node an instance sits on.
 
 What restore does not do: respawn a node freed after the snapshot, or free one
 spawned after it. It writes over nodes that exist. That is the next piece,
-and it matters for netcode (spawning bullets). Nothing forces a new subsystem
+and it matters for netcode (spawning bullets); it is the step the networking
+plan proves first, since a restore that cannot reach a bit-identical digest
+blocks everything built on it. Nothing forces a new subsystem
 to register a source, the same shape of gap the digest has.
 
 ## Networking and state sync (planned)
@@ -1259,7 +1263,7 @@ website's roadmap is the short form of this list.
 | 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |
 | Custom shaders and materials, written in WESL | `docs/PLAN-shaders.md` |
 | Game UI toolkit, save games, localization, audio buses | `docs/PLAN-batteries.md` phases 2-6 |
-| Binary websocket frames, rollback netcode, WebTransport (QUIC) native and in the browser, replication and RPC, Gamend sessions, WebRTC for browser peer-to-peer; never raw UDP | `docs/PLAN-networking.md` §2, §3 |
+| Binary websocket frames, stable ids and respawn for run-time nodes, rollback netcode, WebTransport (QUIC) native and in the browser, replication and RPC, Gamend sessions, WebRTC for browser peer-to-peer; never raw UDP | `docs/PLAN-networking.md` §2, §3 |
 | Signed binary releases, published benchmarks | `docs/PLAN-release.md` |
 | Web export | `docs/PLAN-mobile-export.md` "Web" |
 | Parallel system execution, once profiling demands it | no plan yet; the gameplay tick is serial by design |

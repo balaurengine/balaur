@@ -31,6 +31,9 @@ pub fn init(this) {
         persona: "scene",
         tool: "select",
         doctab: "scene",
+        // A shader opened from a material; empty means the code pane shows
+        // the selected node's script instead.
+        shader_rel: "",
         dock: "output",
         zoom: 100.0,
         playing: false,
