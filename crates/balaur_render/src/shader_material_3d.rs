@@ -81,8 +81,8 @@ fn gpu_light(light: &kiss3d::light::CollectedLight) -> GpuLight {
             2.0,
             attenuation_radius,
             [
-                inner_cone_angle.cos(),
-                outer_cone_angle.cos(),
+                libm::cosf(inner_cone_angle),
+                libm::cosf(outer_cone_angle),
                 0.0,
                 0.0,
             ],
@@ -93,12 +93,7 @@ fn gpu_light(light: &kiss3d::light::CollectedLight) -> GpuLight {
     GpuLight {
         position_kind: [position.x, position.y, position.z, kind],
         direction_radius: [direction.x, direction.y, direction.z, radius],
-        color_intensity: [
-            light.color.x,
-            light.color.y,
-            light.color.z,
-            light.intensity,
-        ],
+        color_intensity: [light.color.x, light.color.y, light.color.z, light.intensity],
         cone,
     }
 }
@@ -206,6 +201,8 @@ const NORMAL: [wgpu::VertexAttribute; 1] = [attribute(1, wgpu::VertexFormat::Flo
 const UV: [wgpu::VertexAttribute; 1] = [attribute(2, wgpu::VertexFormat::Float32x2)];
 
 fn vertex_layouts() -> [Option<wgpu::VertexBufferLayout<'static>>; 3] {
+    const VEC3: u64 = std::mem::size_of::<[f32; 3]>() as u64;
+    const VEC2: u64 = std::mem::size_of::<[f32; 2]>() as u64;
     let layout = |stride: u64, attributes| {
         Some(wgpu::VertexBufferLayout {
             array_stride: stride,
@@ -213,8 +210,6 @@ fn vertex_layouts() -> [Option<wgpu::VertexBufferLayout<'static>>; 3] {
             attributes,
         })
     };
-    const VEC3: u64 = std::mem::size_of::<[f32; 3]>() as u64;
-    const VEC2: u64 = std::mem::size_of::<[f32; 2]>() as u64;
     [
         layout(VEC3, &POSITION),
         layout(VEC3, &NORMAL),
@@ -350,15 +345,15 @@ impl ShaderMaterial3d {
             debug_assert_eq!(groups.len() as u32, PARAMS_GROUP);
             groups.push(Some(layout));
         }
-        let pipeline_layout =
-            std::rc::Rc::new(ctxt.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        let pipeline_layout = std::rc::Rc::new(ctxt.create_pipeline_layout(
+            &wgpu::PipelineLayoutDescriptor {
                 label: Some("material3d_pipeline_layout"),
                 bind_group_layouts: &groups,
                 immediate_size: 0,
-            }));
-        let shader = std::rc::Rc::new(
-            ctxt.create_shader_module(Some("material3d_shader"), &compiled.wgsl),
-        );
+            },
+        ));
+        let shader =
+            std::rc::Rc::new(ctxt.create_shader_module(Some("material3d_shader"), &compiled.wgsl));
         let cull = build_pipeline(
             pipeline_layout.clone(),
             shader.clone(),
@@ -388,10 +383,8 @@ impl ShaderMaterial3d {
             frame_uniform,
             frame_bind_group,
             params_bind_group: params.map(|(_, group)| group),
-            #[allow(
-                clippy::disallowed_methods,
-                reason = "the render clock a shader reads, outside the simulation"
-            )]
+            // The render clock a shader reads, outside the simulation.
+            #[allow(clippy::disallowed_methods)]
             started: Instant::now(),
             frame_counter: Cell::new(0),
             last_frame: Cell::new(u64::MAX),
@@ -511,11 +504,22 @@ impl Material3d for ShaderMaterial3d {
             .as_any_mut()
             .downcast_mut::<ShaderGpuData3d>()
             .expect("a material's node carries ShaderGpuData3d");
-        let poisoned = "kiss3d panicked while writing the mesh";
-        mesh.coords().write().expect(poisoned).load_to_gpu();
-        mesh.normals().write().expect(poisoned).load_to_gpu();
-        mesh.uvs().write().expect(poisoned).load_to_gpu();
-        mesh.faces().write().expect(poisoned).load_to_gpu();
+        mesh.coords()
+            .write()
+            .expect("kiss3d panicked while writing the mesh's positions")
+            .load_to_gpu();
+        mesh.normals()
+            .write()
+            .expect("kiss3d panicked while writing the mesh's normals")
+            .load_to_gpu();
+        mesh.uvs()
+            .write()
+            .expect("kiss3d panicked while writing the mesh's UVs")
+            .load_to_gpu();
+        mesh.faces()
+            .write()
+            .expect("kiss3d panicked while writing the mesh's faces")
+            .load_to_gpu();
 
         let (
             Some(coords),
@@ -587,11 +591,7 @@ impl MaterialCache3d {
 
     /// The material `reference` names, linking it on first use; `None` for
     /// one that will not link, which leaves kiss3d's own material on the node.
-    pub(crate) fn get(
-        &mut self,
-        app: &balaur_core::App,
-        reference: &str,
-    ) -> Option<Shared3d> {
+    pub(crate) fn get(&mut self, app: &balaur_core::App, reference: &str) -> Option<Shared3d> {
         if let Some(hit) = self.linked.get(reference) {
             return hit.clone();
         }
@@ -600,7 +600,7 @@ impl MaterialCache3d {
             .ok()
             .map(|material| {
                 let shared: Shared3d = std::rc::Rc::new(std::cell::RefCell::new(
-                    Box::new(material) as Box<dyn Material3d>
+                    Box::new(material) as Box<dyn Material3d>,
                 ));
                 // Registered, not just attached: `begin_frame` and every
                 // per-frame capability the window supplies go through the

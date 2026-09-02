@@ -2,11 +2,12 @@
 > WESL, linked through `balaur_render::shaders`; the `material` asset parses,
 > links and packs its values (`balaur_render::material`); `sprite` takes a
 > `material`, and `balaur_render::shader_material` draws it as a kiss3d
-> `Material2d`. Phase 4 has its first half: saving a shader relinks it, and a
-> link error names the file, line and column the author wrote, which
-> `render::check_material` hands to the editor's Problems list. Phase 3 (3D)
-> and the rest of phase 4 (param rows, WGSL in the code editor) are not
-> started.
+> `Material2d`. Phase 3 is built too: `mesh` and `shape3d` take a `material`,
+> and `shader_material_3d` draws it with the scene's lights and fog through
+> `package::mesh`. Phase 4 has its first half: saving a shader relinks it, and
+> a link error names the file, line and column the author wrote, which
+> `render::check_material` hands to the editor's Problems list. The rest of
+> phase 4 (param rows, WGSL in the code editor) is not started.
 >
 > **Where the implementation decided differently:**
 >
@@ -40,6 +41,24 @@
 >    path the linker was handed, which is a name this code invented;
 >    `compile` rewrites it to the shader path so a span is somewhere an
 >    editor can put a marker.
+> 9. **A material is registered with kiss3d, not only attached to the node.**
+>    `begin_frame` — and every per-frame capability the window supplies —
+>    goes through `MaterialManager*`'s own materials. A material that is only
+>    attached never gets it, and writes its view and clock once and then
+>    never again.
+> 10. **kiss3d only offered those capabilities to its own material.** Image
+>    based lighting, reflection probes, SSAO, the transmission background and
+>    the clustered light buffers were all sent to `get_default()`, so a
+>    material a game registers could never receive them however it
+>    implemented the trait. The fork broadcasts them through a new
+>    `MaterialManager3d::for_each`. What Balaur's 3D material *binds* today is
+>    the fixed-light path, fog and the tint; the other five arrive but are not
+>    yet read, and each is another entry in the frame group rather than a new
+>    group, because WebGPU guarantees only four.
+> 11. **2D has no room for a fifth group either.** The sprite material already
+>    uses frame, object, texture and params. When `docs/PLAN-rendering.md`
+>    adds 2D lights they fold into the frame group; they cannot take a group
+>    of their own.
 
 # Plan: shaders and materials
 

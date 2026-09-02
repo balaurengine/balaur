@@ -473,8 +473,13 @@ pub fn linting(S) {
         check(errors[0].line == 2, format!("the error is on line 2, not {}", errors[0].line));
         check(errors[0].message.contains("just_pressd"),
             format!("the message names the call: {}", errors[0].message));
-        check(util::vec(lint::lines(S, rel, "error")).contains(2),
-            "the gutter is given line 2");
+        let marked = false;
+        for line in lint::lines(S, rel, "error") {
+            if line == 2 {
+                marked = true;
+            }
+        }
+        check(marked, "the gutter is given line 2");
     }
 
     // Rune's own warnings ride along with the same call.

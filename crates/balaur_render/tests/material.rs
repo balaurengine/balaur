@@ -29,6 +29,26 @@ shader = "shaders/wave.wesl"
 params = { speed = 3.0, glow = "#204080" }
 "##;
 
+const SHADER_3D: &str = r"
+import package::mesh::{VertexInput, VertexOutput, vertex, shade};
+
+struct Params { warmth: vec4<f32> }
+@group(3) @binding(0) var<uniform> params: Params;
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput {
+    return vertex(in);
+}
+
+@fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    return shade(in) * params.warmth;
+}
+";
+
+const MATERIAL_3D: &str = r##"type = "material"
+shader = "shaders/lit.wesl"
+params = { warmth = "#ffddaa" }
+"##;
+
 /// A project on disk with one shader and one material naming it.
 fn project() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
@@ -36,6 +56,8 @@ fn project() -> tempfile::TempDir {
     std::fs::create_dir_all(dir.path().join("materials")).unwrap();
     std::fs::write(dir.path().join("shaders/wave.wesl"), SHADER).unwrap();
     std::fs::write(dir.path().join("materials/wave.toml"), MATERIAL).unwrap();
+    std::fs::write(dir.path().join("shaders/lit.wesl"), SHADER_3D).unwrap();
+    std::fs::write(dir.path().join("materials/lit.toml"), MATERIAL_3D).unwrap();
     // A sprite sizes itself from its image, so the project needs a real one.
     std::fs::create_dir_all(dir.path().join("art")).unwrap();
     std::fs::copy(
@@ -148,4 +170,49 @@ fn rewriting_a_shader_is_what_the_next_link_reads() {
     .unwrap();
     let second = balaur_core::project::scene_text(&app.engine, "shaders/wave.wesl").unwrap();
     assert!(second.ends_with("// edited"), "{second}");
+}
+
+#[test]
+fn a_shape3d_remembers_the_material_it_names() {
+    let dir = project();
+    let app = app(dir.path());
+    let entity = node(&app);
+    let table = toml::from_str("kind = \"ball\"\nmaterial = \"materials/lit.toml\"").unwrap();
+    components::add(&app.engine, entity, "shape3d", Some(&table)).unwrap();
+
+    let world = app.engine.world();
+    let renderable = world
+        .get::<&balaur_render::Renderable>(entity)
+        .expect("a shape3d writes a Renderable");
+    assert_eq!(renderable.material, "materials/lit.toml");
+}
+
+#[test]
+fn the_component_writes_the_material_back() {
+    let dir = project();
+    let app = app(dir.path());
+    let entity = node(&app);
+    let table = toml::from_str("kind = \"ball\"\nmaterial = \"materials/lit.toml\"").unwrap();
+    components::add(&app.engine, entity, "shape3d", Some(&table)).unwrap();
+
+    let read = components::get(&app.engine, entity, "shape3d").unwrap();
+    assert_eq!(
+        read.get("material").and_then(toml::Value::as_str),
+        Some("materials/lit.toml")
+    );
+}
+
+#[test]
+fn a_3d_material_links_against_the_mesh_contract() {
+    let dir = project();
+    let app = app(dir.path());
+    let asset =
+        balaur_core::assets::load_typed::<Material>(&app.engine, "materials/lit.toml").unwrap();
+    let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
+    let compiled = compile(&asset, &source).unwrap();
+    assert!(compiled.wgsl.contains("fn fs_main"), "{}", compiled.wgsl);
+    // `shade` pulled the lighting loop and the fog in with it.
+    assert!(compiled.wgsl.contains("ambient_count"), "{}", compiled.wgsl);
+    assert!(compiled.wgsl.contains("fog_color"), "{}", compiled.wgsl);
+    assert_eq!(compiled.params.len(), 16);
 }

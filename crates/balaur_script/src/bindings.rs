@@ -32,8 +32,21 @@ pub trait Bindings<C: ?Sized> {
 }
 
 /// One function's reference entry: its name, the components it reads or
-/// writes (empty when it acts on none), and one line saying what it does.
-pub type FnDoc = (&'static str, &'static [&'static str], &'static str);
+/// writes (empty when it acts on none), its script-facing signature, and one
+/// line saying what it does.
+///
+/// The signature is `""` for anything registered through
+/// [`BindingsExt::function`], which records the real argument and return types
+/// itself. Spell one out only where a function is registered through
+/// [`Bindings::function_raw`] and so has no types to read: write what a script
+/// passes, `"(path: string, recursive: bool)"` and `"bool"`, or `"()"` for
+/// nothing.
+pub type FnDoc = (
+    &'static str,
+    &'static [&'static str],
+    &'static str,
+    &'static str,
+);
 
 /// Typed registration. Blanket-implemented, so every backend gets it free.
 pub trait BindingsExt<C: ?Sized>: Bindings<C> {

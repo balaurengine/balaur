@@ -102,6 +102,31 @@ pub const REPLAY_OPS: &[EngineOp] = &[
 /// Declare the module's functions and the `STATE_*` constants `state` answers
 /// with.
 pub fn install_replay_api(m: &mut dyn Bindings<Engine>) {
+    m.module_doc(
+        "Record what a running game is fed and play it back. A recording \
+         holds each tick's input, network arrivals and events, not the world \
+         they produced, so a session is small and replays by re-running the \
+         game against the same input. The editor's Session dock drives these, \
+         and so does `balaur run --record`.",
+    );
+    m.describe(&[
+        ("record", &[], "(path: string, options: any?)", "Start recording into a file; call it before the code whose session it records runs."),
+        ("stop", &[], "(reason: string?)", "Close the recording, naming why it ended, and return the file it wrote."),
+        ("recording", &[], "()", "The file being recorded into, or nil."),
+        ("load", &[], "(path: string)", "Read a session and put it in front of the engine, paused before its first tick."),
+        ("unload", &[], "()", "Drop the loaded session and let the game run live again."),
+        ("play", &[], "()", "Run the loaded session, one recorded tick per frame."),
+        ("pause", &[], "()", "Stop between ticks, holding the simulation still while the frame loop keeps drawing."),
+        ("seek", &[], "(tick: int)", "Run recorded ticks until playback reaches the given tick; forward only."),
+        ("state", &[], "()", "What playback is doing: `STATE_STOPPED`, `STATE_PLAYING`, `STATE_PAUSED` or `STATE_SEEKING`."),
+        ("position", &[], "()", "The tick playback has reached."),
+        ("length", &[], "()", "The loaded session's frame count and the ticks it spans, or nil."),
+        ("header", &[], "()", "The loaded session's project, start time, script fingerprint and how it ended."),
+        ("info", &[], "(path: string)", "The same summary for a session file on disk, without loading it."),
+        ("events", &[], "(from: int, to: int)", "The events recorded between two ticks, each with its tick, kind, label and data."),
+        ("marks", &[], "(source: string, key: string?)", "The ticks at which one replay source held a non-empty list under a key, and what it held."),
+        ("diverged", &[], "()", "The first tick whose replay did not reproduce the recorded digest, or nil."),
+    ]);
     for d in REPLAY_OPS {
         m.function_raw(d.name, Box::new(d.call));
     }

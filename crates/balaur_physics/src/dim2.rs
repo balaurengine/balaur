@@ -515,16 +515,16 @@ fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
          worlds.",
     );
     m.describe(&[
-        ("add_body", &["body2d"], "Give the node a 2D rigid body of the given kind (`BODY_DYNAMIC`, `BODY_STATIC`, `BODY_KINEMATIC`)."),
-        ("add_collider", &["collider2d"], "Attach a 2D collider from a `collider2d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component's own vocabulary."),
-        ("set_gravity", &[], "Set the 2D world's gravity, in units per second squared."),
-        ("apply_impulse", &["body2d"], "Add an instant change in momentum, as if the body were struck."),
-        ("set_linear_velocity", &["body2d"], "Set how fast the body travels, in units per second."),
-        ("linear_velocity", &["body2d"], "How fast the body is travelling, in units per second."),
-        ("set_angular_velocity", &["body2d"], "Set how fast the body spins, in radians per second."),
-        ("angular_velocity", &["body2d"], "How fast the body is spinning, in radians per second."),
-        ("max_contact_impulse", &["body2d"], "The hardest contact this body took in the last step, zero when nothing touched it."),
-        ("overlaps", &["collider2d"], "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
+        ("add_body", &["body2d"], "", "Give the node a 2D rigid body of the given kind (`BODY_DYNAMIC`, `BODY_STATIC`, `BODY_KINEMATIC`)."),
+        ("add_collider", &["collider2d"], "", "Attach a 2D collider from a `collider2d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component's own vocabulary."),
+        ("set_gravity", &[], "", "Set the 2D world's gravity, in units per second squared."),
+        ("apply_impulse", &["body2d"], "", "Add an instant change in momentum, as if the body were struck."),
+        ("set_linear_velocity", &["body2d"], "", "Set how fast the body travels, in units per second."),
+        ("linear_velocity", &["body2d"], "", "How fast the body is travelling, in units per second."),
+        ("set_angular_velocity", &["body2d"], "", "Set how fast the body spins, in radians per second."),
+        ("angular_velocity", &["body2d"], "", "How fast the body is spinning, in radians per second."),
+        ("max_contact_impulse", &["body2d"], "", "The hardest contact this body took in the last step, zero when nothing touched it."),
+        ("overlaps", &["collider2d"], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
     ]);
     // Constructors, so a 2D body can be built from script rather than only
     // declared in a scene file.
@@ -604,7 +604,7 @@ fn register_physics2d_components(app: &mut App) {
     app.register_component(
         "body2d",
         ComponentDef {
-            doc: "",
+            doc: "Makes the node a 2D rigid body rapier simulates: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. On its own a body has no shape; add a `collider2d` for it to collide with anything.",
             schema: ComponentDef::parse_schema(
                 "body2d",
                 r#"kind = { type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic"], shorthand = true, description = "How 2D physics drives the node: simulated, immovable, or moved by script" }"#,
@@ -654,7 +654,7 @@ fn register_physics2d_components(app: &mut App) {
     app.register_component(
         "collider2d",
         ComponentDef {
-            doc: "",
+            doc: "The shape the 2D physics world sees for this node, and the surface it presents: friction, bounciness and density. With a `body2d` it moves with the body; on its own it is static geometry a scene can be built from. A sensor reports overlaps without pushing anything.",
             schema: ComponentDef::parse_schema(
                 "collider2d",
                 r#"kind = { type = "enum", default = "rect", options = ["circle", "rect", "capsule"], description = "Collision shape" }

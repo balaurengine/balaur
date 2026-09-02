@@ -354,7 +354,7 @@ pub fn init(this) {
     });
 }
 pub fn update(this, dt) {
-    this.running = animation::is_running(this.handle);
+    this.running = animation::is_tween_running(this.handle);
 }
 pub fn on_landed(this) {
     animation::tween_to(this.node, "position", [0.0, 9.0, 0.0], 0.2, "linear");
@@ -400,7 +400,7 @@ fn a_script_reads_a_tween_handle_back_and_stops_by_it() {
     assert_eq!(
         field(&app, entity, "running"),
         Value::Bool(true),
-        "`is_running` should answer for a tween that is under way"
+        "`is_tween_running` should answer for a tween that is under way"
     );
     let handle = match field(&app, entity, "handle") {
         Value::Int(id) => id as u64,

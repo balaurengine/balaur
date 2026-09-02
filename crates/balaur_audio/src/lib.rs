@@ -502,14 +502,14 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
          nothing is heard.",
     );
     m.describe(&[
-        ("play", &[], "Start the audio file at a path and return the handle `stop`, `set_volume`, `set_pitch` and `is_playing` take."),
-        ("stop", &[], "Silence the sound a handle names; a finished, stopped or unknown handle is left alone."),
-        ("set_volume", &[], "Set a playing handle's linear gain, where 1 is the file's own level."),
-        ("set_pitch", &[], "Set a playing handle's speed multiplier, which carries its pitch with it."),
-        ("is_playing", &[], "Whether a handle's sound is still audible; false once it ends, and always false with no output device."),
-        ("stop_all", &[], "Silence everything at once and clear the playback every `sound` component was holding."),
-        ("play_on", &["sound"], "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
-        ("stop_on", &["sound"], "Silence what the node's `sound` started; a node carrying none is left alone."),
+        ("play", &[], "", "Start the audio file at a path and return the handle `stop`, `set_volume`, `set_pitch` and `is_playing` take."),
+        ("stop", &[], "", "Silence the sound a handle names; a finished, stopped or unknown handle is left alone."),
+        ("set_volume", &[], "", "Set a playing handle's linear gain, where 1 is the file's own level."),
+        ("set_pitch", &[], "", "Set a playing handle's speed multiplier, which carries its pitch with it."),
+        ("is_playing", &[], "", "Whether a handle's sound is still audible; false once it ends, and always false with no output device."),
+        ("stop_all", &[], "", "Silence everything at once and clear the playback every `sound` component was holding."),
+        ("play_on", &["sound"], "", "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
+        ("stop_on", &["sound"], "", "Silence what the node's `sound` started; a node carrying none is left alone."),
     ]);
     // `audio.play(path, { volume = 1.0, pitch = 1.0, loop = true })` hands
     // back the handle the other functions take. Flags live in the options

@@ -387,14 +387,14 @@ pub(crate) fn install(m: &mut dyn balaur_script::Bindings<Engine>) {
     use balaur_script::{BindingsExt as _, Value};
 
     m.describe(&[
-        ("actions", &[], "Every action `[input.actions]` declares, so a rebinding screen can list them."),
-        ("action_value", &[], "How far the action is pushed, -1 to 1; a key answers 0 or 1, a stick or `keys:A,D` the whole range."),
-        ("action_pressed", &[], "Whether the action is held down now."),
-        ("action_just_pressed", &[], "Whether the action went down this frame."),
-        ("action_just_released", &[], "Whether the action came up this frame."),
-        ("bindings", &[], "What the action is bound to now, whether from the project or from the player's own rebinding."),
-        ("bind", &[], "Rebind the action to one binding or a list of them, replacing what it had and saving to the user data directory."),
-        ("reset_bindings", &[], "Drop every saved rebinding and go back to what the project declared."),
+        ("actions", &[], "", "Every action `[input.actions]` declares, so a rebinding screen can list them."),
+        ("action_value", &[], "", "How far the action is pushed, -1 to 1; a key answers 0 or 1, a stick or `keys:A,D` the whole range."),
+        ("action_pressed", &[], "", "Whether the action is held down now."),
+        ("action_just_pressed", &[], "", "Whether the action went down this frame."),
+        ("action_just_released", &[], "", "Whether the action came up this frame."),
+        ("bindings", &[], "", "What the action is bound to now, whether from the project or from the player's own rebinding."),
+        ("bind", &[], "", "Rebind the action to one binding or a list of them, replacing what it had and saving to the user data directory."),
+        ("reset_bindings", &[], "", "Drop every saved rebinding and go back to what the project declared."),
     ]);
 
     // Every declared action, so a rebinding screen can list them.

@@ -1019,7 +1019,10 @@ The target is QUIC/WebTransport as the *single* transport (`wtransport` or
 one protocol, native and in-browser, TLS included. The point is not raw
 performance over raw UDP; it is not maintaining a native UDP path and a
 separate browser WebRTC path. WebRTC data channels stay a fallback for browser
-P2P without a relay. Note the wasm shape this has to fit: the emscripten
+P2P without a relay, and raw UDP is never exposed to scripts: QUIC datagrams
+are unreliable delivery with encryption, congestion control and a browser
+story, none of which a UDP socket brings. `docs/PLAN-networking.md` §2 has
+the decision per protocol. Note the wasm shape this has to fit: the emscripten
 backend is thread-free and the non-emscripten wasm backend is a stub that
 errors, so a browser transport is a JS bridge like `shim/emscripten_net.c`.
 
@@ -1256,7 +1259,7 @@ website's roadmap is the short form of this list.
 | 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |
 | Custom shaders and materials, written in WESL | `docs/PLAN-shaders.md` |
 | Game UI toolkit, save games, localization, audio buses | `docs/PLAN-batteries.md` phases 2-6 |
-| Rollback netcode, state replication, QUIC transport | `docs/PLAN-networking.md` |
+| Binary websocket frames, rollback netcode, WebTransport (QUIC) native and in the browser, replication and RPC, Gamend sessions, WebRTC for browser peer-to-peer; never raw UDP | `docs/PLAN-networking.md` §2, §3 |
 | Signed binary releases, published benchmarks | `docs/PLAN-release.md` |
 | Web export | `docs/PLAN-mobile-export.md` "Web" |
 | Parallel system execution, once profiling demands it | no plan yet; the gameplay tick is serial by design |

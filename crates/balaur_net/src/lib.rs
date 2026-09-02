@@ -541,7 +541,7 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
          which falls back to the project's `[net] http_timeout`.",
     );
     m.describe(&[
-        ("request", &[], "Start an HTTP request and return the id its reply carries, to await or to match inside the handler."),
+        ("request", &[], "", "Start an HTTP request and return the id its reply carries, to await or to match inside the handler."),
     ]);
     // An HTTP error status is a response, not an error. With a nil node the
     // returned id is a token to suspend on (`await` / `task::wait`).
@@ -612,9 +612,9 @@ fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
          `error`, and nothing awaits a socket id.",
     );
     m.describe(&[
-        ("connect", &[], "Open a connection and return the id `send` and `close` take; options are `on_event`, `compression` and `headers`."),
-        ("send", &[], "Queue a text frame on the connection; false when it is already gone."),
-        ("close", &[], "Ask the connection to close, which still delivers a `closed` event; false when it was already gone."),
+        ("connect", &[], "", "Open a connection and return the id `send` and `close` take; options are `on_event`, `compression` and `headers`."),
+        ("send", &[], "", "Queue a text frame on the connection; false when it is already gone."),
+        ("close", &[], "", "Ask the connection to close, which still delivers a `closed` event; false when it was already gone."),
     ]);
     // Events fire as `{ socket, kind, ... }` with kind `open`, `message`,
     // `closed` or `error`; a nil node discards them. Options: `on_event`,

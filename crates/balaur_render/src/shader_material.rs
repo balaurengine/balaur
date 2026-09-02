@@ -317,10 +317,8 @@ impl ShaderMaterial {
             frame_uniform,
             frame_bind_group,
             params_bind_group: params.map(|(_, group)| group),
-            #[allow(
-                clippy::disallowed_methods,
-                reason = "the render clock a shader reads, outside the simulation"
-            )]
+            // The render clock a shader reads, outside the simulation.
+            #[allow(clippy::disallowed_methods)]
             started: Instant::now(),
             frame_counter: Cell::new(0),
             last_frame: Cell::new(u64::MAX),
@@ -543,10 +541,10 @@ impl MaterialCache {
             .inspect_err(|why| tracing::error!(material = reference, "{why:#}"))
             .ok()
             .map(|material| {
-                let shared: SharedMaterial =
-                    std::rc::Rc::new(std::cell::RefCell::new(
-                        Box::new(material) as Box<dyn Material2d>
-                    ));
+                let shared: SharedMaterial = std::rc::Rc::new(std::cell::RefCell::new(Box::new(
+                    material,
+                )
+                    as Box<dyn Material2d>));
                 // Registered, not just attached: kiss3d calls `begin_frame`
                 // over the manager's materials, and a material that misses it
                 // writes its view and clock once and then never again.

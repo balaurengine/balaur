@@ -39,6 +39,10 @@ pub struct FnEntry {
     pub name: String,
     /// Components the function reads or writes; empty when it acts on none.
     pub acts_on: Vec<String>,
+    /// The signature its module spelled out, for a function registered raw
+    /// and so having no Rust types to read. Empty when the typed seam
+    /// recorded one instead.
+    pub signature: String,
     pub doc: String,
 }
 
@@ -230,10 +234,11 @@ impl balaur_script::Bindings<Engine> for RuneModule {
 
     fn describe(&mut self, entries: &[balaur_script::FnDoc]) {
         DOCS.with_borrow_mut(|docs| {
-            docs.extend(entries.iter().map(|(name, acts_on, doc)| FnEntry {
+            docs.extend(entries.iter().map(|(name, acts_on, signature, doc)| FnEntry {
                 module: self.name.clone(),
                 name: (*name).to_string(),
                 acts_on: acts_on.iter().map(|c| (*c).to_string()).collect(),
+                signature: (*signature).to_string(),
                 doc: (*doc).to_string(),
             }));
         });

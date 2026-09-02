@@ -104,7 +104,7 @@ mod tests {
 
     #[test]
     fn a_shader_that_does_not_parse_is_an_error_not_a_panic() {
-        let err = link(&[("package::bad", "fn broken( {")], "package::bad", &[])
+        let err = link(&[("package::bad", "fn broken(")], "package::bad", &[])
             .err()
             .expect("a malformed shader must come back as an error");
         assert!(format!("{err}").contains("package::bad"), "{err}");

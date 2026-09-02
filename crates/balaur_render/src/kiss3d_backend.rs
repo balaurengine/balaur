@@ -105,7 +105,12 @@ impl Frontend {
         apply_clear_color(app, window);
         pump_input(app, window);
         app.advance(dt);
-        sync(app, &mut self.scene, &mut self.slots, &mut self.materials_3d);
+        sync(
+            app,
+            &mut self.scene,
+            &mut self.slots,
+            &mut self.materials_3d,
+        );
         sync_2d(
             app,
             &mut self.scene_2d,
@@ -610,8 +615,7 @@ fn sync(
         seen.insert(entity);
         let rebuild = match slots.get(&entity) {
             Some(slot) => {
-                slot.version != renderable.version
-                    || (relinked && !renderable.material.is_empty())
+                slot.version != renderable.version || (relinked && !renderable.material.is_empty())
             }
             None => true,
         };

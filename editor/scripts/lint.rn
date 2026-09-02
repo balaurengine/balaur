@@ -56,8 +56,8 @@ fn asset_missing(S, value) {
     if value == "" || value.starts_with("#") {
         return false;
     }
-    let path = match value.find('#') {
-        Some(at) => value[..at],
+    let path = match value.split_once('#') {
+        Some((file, _)) => file,
         None => value,
     };
     !fs::exists(S.game_root + "/" + path)
@@ -155,7 +155,7 @@ pub fn run(S) {
 fn fingerprint(S) {
     let parts = [];
     for rel in roots(S) {
-        parts.push(rel + ":" + source_of(S, rel).unwrap_or("").len().to_string());
+        parts.push(format!("{}:{}", rel, source_of(S, rel).unwrap_or("").len()));
     }
     util::join(parts, "|")
 }

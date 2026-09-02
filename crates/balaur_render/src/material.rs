@@ -10,7 +10,6 @@
 use anyhow::{anyhow, bail, Result};
 use balaur_core::hecs::Entity;
 use balaur_core::App;
-use balaur_script::BindingsExt as _;
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt};
 use wesl::syntax::{GlobalDeclaration, TranslationUnit};
@@ -212,6 +211,11 @@ pub(crate) fn register_material_asset(app: &mut App) {
 /// linking it — a scene must load on a machine that cannot draw — which is
 /// why a broken shader needs asking about rather than waiting for.
 pub(crate) fn install_material_check(m: &mut dyn Bindings<balaur_core::Engine>) {
+    m.describe(&[(
+        "check_material",
+        &[],
+        "", "Every diagnostic about the material at that path, as `[#{ file, line, column, severity, message }]`; empty when it links.",
+    )]);
     m.function(
         "check_material",
         |eng: &balaur_core::Engine, path: String| {
@@ -223,6 +227,76 @@ pub(crate) fn install_material_check(m: &mut dyn Bindings<balaur_core::Engine>) 
             ))
         },
     );
+}
+
+/// `render::material_params(path)` — the values a material's shader takes, as
+/// `[#{ name, type, value }]` in the order the uniform lays them out.
+///
+/// `type` is the vocabulary a component schema uses (`float`, `vec2`, `vec3`,
+/// `color`), so an inspector draws these with the editors it already has.
+/// Reading the fields off the linked shader is what keeps the rows and the
+/// shader in step; the material only says what the values are.
+///
+/// A material that will not link has no rows. What is wrong with it is
+/// `check_material`'s answer, not this one's.
+pub(crate) fn install_material_params(m: &mut dyn Bindings<balaur_core::Engine>) {
+    m.function("material_params", |eng: &balaur_core::Engine, path: String| {
+        Ok(balaur_script::Value::List(
+            material_params(eng, &path).unwrap_or_default(),
+        ))
+    });
+}
+
+/// The editor type a field is drawn as. A `vec4` is a colour: it is what one
+/// almost always is, `Value::Color` is the engine's own four-channel type,
+/// and the `[params]` table takes `#rrggbb` and `[r, g, b, a]` alike.
+fn row_type(ty: FieldType) -> &'static str {
+    match ty {
+        FieldType::F32 => "float",
+        FieldType::Vec2 => "vec2",
+        FieldType::Vec3 => "vec3",
+        FieldType::Vec4 => "color",
+    }
+}
+
+/// A field's current value, or its zero when the material sets nothing.
+fn row_value(ty: FieldType, param: Option<Param>) -> balaur_script::Value {
+    use balaur_script::Value;
+    match (ty, param) {
+        (FieldType::F32, Some(Param::Float(v))) => Value::Num(f64::from(v)),
+        (FieldType::Vec2, Some(Param::Vec2(v))) => Value::Vec2(v),
+        (FieldType::Vec3, Some(Param::Vec3(v))) => Value::Vec3(v),
+        (FieldType::Vec4, Some(Param::Vec4(v))) => Value::Color(v),
+        (FieldType::F32, _) => Value::Num(0.0),
+        (FieldType::Vec2, _) => Value::Vec2([0.0; 2]),
+        (FieldType::Vec3, _) => Value::Vec3([0.0; 3]),
+        (FieldType::Vec4, _) => Value::Color([0.0; 4]),
+    }
+}
+
+fn material_params(eng: &balaur_core::Engine, path: &str) -> Result<Vec<balaur_script::Value>> {
+    use balaur_script::Value;
+    let files = eng.resource::<balaur_core::project::ProjectFiles>();
+    let text = String::from_utf8(files.borrow().read(path)?)?;
+    let material = parse(&toml::from_str::<toml::Value>(&text)?)?;
+    let source = String::from_utf8(files.borrow().read(&material.shader)?)?;
+    let compiled = compile(&material, &source)?;
+    Ok(compiled
+        .fields
+        .iter()
+        .map(|field| {
+            let set = material
+                .params
+                .iter()
+                .find(|(name, _)| name == &field.name)
+                .map(|(_, param)| *param);
+            Value::Map(vec![
+                ("name".to_string(), Value::Str(field.name.clone())),
+                ("type".to_string(), Value::Str(row_type(field.ty).to_string())),
+                ("value".to_string(), row_value(field.ty, set)),
+            ])
+        })
+        .collect())
 }
 
 /// Parse the material at `path`, read the shader it names, and link them.
@@ -610,7 +684,7 @@ struct Params { speed: f32, tint: vec4<f32> }
     #[test]
     fn a_shader_that_does_not_link_names_the_file_the_material_pointed_at() {
         let material = parse(&table("shader = \"shaders/broken.wesl\"")).unwrap();
-        let err = compile(&material, "fn broken( {").err().unwrap();
+        let err = compile(&material, "fn broken(").err().unwrap();
         assert!(
             format!("{err:#}").contains("shaders/broken.wesl"),
             "{err:#}"

@@ -482,15 +482,15 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
          neutrally rather than failing.",
     );
     m.describe(&[
-        ("is_down", &[], "Whether the `KEY_*` key is held down right now, however many frames it has been down."),
-        ("just_pressed", &[], "Whether the `KEY_*` key went down this frame; true for that one frame only."),
-        ("just_released", &[], "Whether the `KEY_*` key came up this frame; true for that one frame only."),
-        ("mouse_position", &[], "The cursor's position in window pixels, with (0, 0) at the top-left corner."),
-        ("mouse_delta", &[], "How far the cursor moved this frame, in pixels; movement, not a position."),
-        ("scroll_delta", &[], "How far the wheel turned this frame, as an (x, y) pair; zero when it did not turn."),
-        ("is_mouse_down", &[], "Whether the `MOUSE_*` button is held down right now, however many frames it has been down."),
-        ("mouse_just_pressed", &[], "Whether the `MOUSE_*` button went down this frame; true for that one frame only."),
-        ("mouse_just_released", &[], "Whether the `MOUSE_*` button came up this frame; true for that one frame only."),
+        ("is_down", &[], "", "Whether the `KEY_*` key is held down right now, however many frames it has been down."),
+        ("just_pressed", &[], "", "Whether the `KEY_*` key went down this frame; true for that one frame only."),
+        ("just_released", &[], "", "Whether the `KEY_*` key came up this frame; true for that one frame only."),
+        ("mouse_position", &[], "", "The cursor's position in window pixels, with (0, 0) at the top-left corner."),
+        ("mouse_delta", &[], "", "How far the cursor moved this frame, in pixels; movement, not a position."),
+        ("scroll_delta", &[], "", "How far the wheel turned this frame, as an (x, y) pair; zero when it did not turn."),
+        ("is_mouse_down", &[], "", "Whether the `MOUSE_*` button is held down right now, however many frames it has been down."),
+        ("mouse_just_pressed", &[], "", "Whether the `MOUSE_*` button went down this frame; true for that one frame only."),
+        ("mouse_just_released", &[], "", "Whether the `MOUSE_*` button came up this frame; true for that one frame only."),
     ]);
     for (name, index) in MOUSE_BUTTON_CONSTANTS {
         m.constant(name, balaur_script::Value::Int(*index));
@@ -562,10 +562,10 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
 /// window backend feeds.
 fn install_touch_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("touches", &[], "Every finger on the screen as `{ id, x, y }`, oldest first, in the same pixels as `mouse_position`."),
-        ("touches_started", &[], "The ids of the fingers that touched down this frame."),
-        ("touches_ended", &[], "The ids of the fingers that lifted or were cancelled this frame."),
-        ("dropped_files", &[], "The absolute paths of files dropped onto the window this frame, in drop order; desktop only."),
+        ("touches", &[], "", "Every finger on the screen as `{ id, x, y }`, oldest first, in the same pixels as `mouse_position`."),
+        ("touches_started", &[], "", "The ids of the fingers that touched down this frame."),
+        ("touches_ended", &[], "", "The ids of the fingers that lifted or were cancelled this frame."),
+        ("dropped_files", &[], "", "The absolute paths of files dropped onto the window this frame, in drop order; desktop only."),
     ]);
     // Active touches as `{ id, x, y }` maps, oldest finger first. Pixel
     // coordinates, same space as `mouse_position`.
@@ -624,12 +624,12 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
 /// convention as a headless keyboard.
 fn install_gamepad_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("gamepads", &[], "The ids of every connected pad, ordered so the list is stable from frame to frame."),
-        ("gamepad_name", &[], "The pad's name as the platform reports it, empty when no pad has that id."),
-        ("gamepad_down", &[], "Whether the pad's `PAD_*` button is held down right now, however many frames it has been down."),
-        ("gamepad_just_pressed", &[], "Whether the pad's `PAD_*` button went down this frame; true for that one frame only."),
-        ("gamepad_just_released", &[], "Whether the pad's `PAD_*` button came up this frame; true for that one frame only."),
-        ("gamepad_axis", &[], "How far the pad's `AXIS_*` stick or trigger is pushed, -1 to 1; zero at rest and for an absent pad."),
+        ("gamepads", &[], "", "The ids of every connected pad, ordered so the list is stable from frame to frame."),
+        ("gamepad_name", &[], "", "The pad's name as the platform reports it, empty when no pad has that id."),
+        ("gamepad_down", &[], "", "Whether the pad's `PAD_*` button is held down right now, however many frames it has been down."),
+        ("gamepad_just_pressed", &[], "", "Whether the pad's `PAD_*` button went down this frame; true for that one frame only."),
+        ("gamepad_just_released", &[], "", "Whether the pad's `PAD_*` button came up this frame; true for that one frame only."),
+        ("gamepad_axis", &[], "", "How far the pad's `AXIS_*` stick or trigger is pushed, -1 to 1; zero at rest and for an absent pad."),
     ]);
     for name in PAD_BUTTON_NAMES {
         m.constant(

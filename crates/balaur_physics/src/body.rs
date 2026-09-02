@@ -67,14 +67,14 @@ pub(crate) fn remove_body_and_colliders(eng: &Engine, entity: Entity) {
 /// Body and collider creation, impulses, velocity access and overlap queries.
 pub(crate) fn install_body_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("add_body", &["body3d"], "Give the node a rigid body of the given kind (`BODY_DYNAMIC`, `BODY_STATIC`, `BODY_KINEMATIC`)."),
-        ("add_ball_collider", &["collider3d"], "Attach a sphere collider of the given radius."),
-        ("add_cuboid_collider", &["collider3d"], "Attach a box collider from its three half-extents."),
-        ("apply_impulse", &["body3d"], "Add an instant change in momentum, as if the body were struck."),
-        ("set_linear_velocity", &["body3d"], "Set how fast the body travels, in units per second."),
-        ("linear_velocity", &["body3d"], "How fast the body is travelling, in units per second."),
-        ("overlaps", &["collider3d"], "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
-        ("set_gravity", &[], "Set the 3D world's gravity, in units per second squared."),
+        ("add_body", &["body3d"], "", "Give the node a rigid body of the given kind (`BODY_DYNAMIC`, `BODY_STATIC`, `BODY_KINEMATIC`)."),
+        ("add_ball_collider", &["collider3d"], "", "Attach a sphere collider of the given radius."),
+        ("add_cuboid_collider", &["collider3d"], "", "Attach a box collider from its three half-extents."),
+        ("apply_impulse", &["body3d"], "", "Add an instant change in momentum, as if the body were struck."),
+        ("set_linear_velocity", &["body3d"], "", "Set how fast the body travels, in units per second."),
+        ("linear_velocity", &["body3d"], "", "How fast the body is travelling, in units per second."),
+        ("overlaps", &["collider3d"], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
+        ("set_gravity", &[], "", "Set the 3D world's gravity, in units per second squared."),
     ]);
     m.function(
         "add_body",
@@ -140,7 +140,7 @@ pub(crate) fn register_body_component(app: &mut App) {
     app.register_component(
         "body3d",
         ComponentDef {
-            doc: "",
+            doc: "Makes the node a 3D rigid body rapier simulates: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. On its own a body has no shape; add a `collider3d` for it to collide with anything.",
             schema: ComponentDef::parse_schema(
                 "body3d",
                 r#"kind = { type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic"], shorthand = true, description = "How physics drives the node: simulated, immovable, or moved by script" }"#,

@@ -766,6 +766,78 @@ fn edit_asset(S, k, comp, prop, spec, value) {
             }
         });
     });
+    if spec.get("asset").unwrap_or("") == "material" {
+        material_rows(S, k, model::relative_file(S, as_text(value)));
+    }
+}
+
+// The values a material's shader takes, read off the linked shader so the
+// rows cannot drift from it. One that will not link has none.
+fn material_rows(S, k, reference) {
+    if reference == "" || reference.starts_with("#") {
+        return;
+    }
+    for p in render::material_params(reference) {
+        material_row(S, k, reference, p["name"], p["type"], p["value"]);
+    }
+}
+
+fn material_row(S, k, reference, name, datatype, value) {
+    // Indented, because these belong to the row above rather than the node.
+    row(k, "  " + name, || {
+        if datatype == "color" {
+            let (rgba, changed) = ui::color(#{ value: util::vec(value) });
+            if changed {
+                write_material_param(S, reference, name, rgba);
+            }
+        } else if datatype == "float" {
+            let (v, changed) = value_field(k, util::f(value), #{ decimals: 3 });
+            if changed {
+                write_material_param(S, reference, name, v);
+            }
+        } else {
+            let count = if datatype == "vec2" { 2 } else { 3 };
+            let letters = ["x", "y", "z"];
+            let w = CONTROL_W / (count as f64) - 5.0;
+            let v = util::vec(value);
+            let cell = #{ changed: false, out: [] };
+            for i in 0..count {
+                cell.out.push(match v.get(i) { Some(x) => util::f(x), None => 0.0 });
+                let (nv, ch) = ui::drag_value(cell.out[i], #{
+                    width: w, speed: 0.02, decimals: 3,
+                    prefix: letters[i], prefix_color: k.accent,
+                    fill: k.sunken, stroke: k.line_soft, color: k.text,
+                });
+                if ch {
+                    cell.out[i] = nv;
+                    cell.changed = true;
+                }
+            }
+            if cell.changed {
+                write_material_param(S, reference, name, cell.out);
+            }
+        }
+    });
+}
+
+// Write one value into the material's `[params]` table. Saving is what
+// relinks it, so a dragged value shows in the viewport.
+fn write_material_param(S, reference, name, value) {
+    let (ok, definition) = script::attempt(|| assets::load(reference));
+    if !ok || !(definition is Object) {
+        log::warn(format!("cannot read the material {}: {:?}", reference, definition));
+        return;
+    }
+    let params = match definition.get("params") {
+        Some(existing) => existing,
+        None => #{},
+    };
+    params[name] = value;
+    definition["params"] = params;
+    let (written, err) = script::attempt(|| assets::save(reference, definition));
+    if !written {
+        log::warn(format!("cannot write {}: {:?}", reference, err));
+    }
 }
 
 // Anything with no registered editor: its text, straight through.

@@ -75,17 +75,45 @@ Both call the same bindings: subsystems declare them once against
 Values a binding accepts are named rather than spelled — `input.KEY_SPACE`,
 `input.MOUSE_LEFT`, `physics3d.BODY_DYNAMIC`, `ui.ANCHOR_TOP_LEFT`.
 
+A script says which of its values a scene may tune, and the inspector edits
+them per node:
+
+```rust
+pub fn exports() { #{ speed: 2.0, clockwise: true } }
+```
+
 Scenes are declarative TOML; plugins extend their vocabulary:
 
 ```toml
 [[nodes]]
 name = "Ball"
 position = [0.0, 6.0, 0.0]
-script = "scripts/ball.rn"
+script = { source = "scripts/ball.rn", props = { speed = 3.5 } }
 body3d = "dynamic"                                # from balaur_physics
 collider3d = { kind = "ball", radius = 0.5 }      # from balaur_physics
 shape3d = { kind = "ball", radius = 0.5 }         # from balaur_render
+
+[[nodes]]
+name = "CrateB"
+instance = "scenes/crate.toml"                    # a prefab: another scene
+position = [-0.5, 5.0, 1.5]
+
+[nodes.overrides."Crate/Lid"]                     # one node inside it
+color = [0.9, 0.3, 0.25]
 ```
+
+Games ask for actions, not keys. `project.toml` binds them, and one action
+serves a key, a stick and a d-pad at once:
+
+```toml
+[input.actions]
+jump = ["Space", "gamepad:South"]
+move_x = ["keys:A,D", "axis:LeftStickX"]
+```
+
+`input.action_pressed("jump")`, `input.action_value("move_x")`. A recording
+holds the keys that were pressed and derives the actions again on the way
+back, so rebinding never invalidates a replay.
 
 Try the demo: `cargo run -p balaur_cli -- run examples/hello --headless`,
 then edit `examples/hello/scripts/spinner.rn` while it runs. Scripts also

@@ -28,12 +28,12 @@ pub fn install_animation_api(m: &mut dyn Bindings<Engine>) {
 /// Starting, queueing and holding a clip.
 fn install_transport_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("play", &["animation"], "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier) and `from_start`."),
-        ("queue", &["animation"], "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains."),
-        ("stop", &["animation"], "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it."),
-        ("pause", &["animation"], "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to."),
-        ("resume", &["animation"], "Carry on from where `pause` left off; a stopped, finished or never-started node is left alone."),
-        ("define", &["animation"], "Give this node a clip of its own under that name, from a definition table shaped like a scene file's."),
+        ("play", &["animation"], "", "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier) and `from_start`."),
+        ("queue", &["animation"], "", "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains."),
+        ("stop", &["animation"], "", "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it."),
+        ("pause", &["animation"], "", "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to."),
+        ("resume", &["animation"], "", "Carry on from where `pause` left off; a stopped, finished or never-started node is left alone."),
+        ("define", &["animation"], "", "Give this node a clip of its own under that name, from a definition table shaped like a scene file's."),
     ]);
     // `opts` is `{ speed = 1.5, from_start = false }`, both optional. A flag
     // in a trailing options table rather than a `play_from_start` (N9).
@@ -87,11 +87,11 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
 /// Where the playhead is, and what it just did.
 fn install_playhead_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("seek", &["animation"], "Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip."),
-        ("current", &["animation"], "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started."),
-        ("time", &["animation"], "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped."),
-        ("is_playing", &["animation"], "Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false."),
-        ("just_finished", &["animation"], "The clip that ended on this node during the last step, and nil on every other frame."),
+        ("seek", &["animation"], "", "Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip."),
+        ("current", &["animation"], "", "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started."),
+        ("time", &["animation"], "", "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped."),
+        ("is_playing", &["animation"], "", "Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false."),
+        ("just_finished", &["animation"], "", "The clip that ended on this node during the last step, and nil on every other frame."),
     ]);
     // Poses the node even on a paused or ended clip, and does not fire the
     // method keys it skips over.
@@ -150,13 +150,13 @@ fn install_tween_api(m: &mut dyn Bindings<Engine>) {
     // No component: a tween is generated from the node's current values and
     // kept beside the players, so the node needs no `animation` of its own.
     m.describe(&[
-        ("tween", &[], "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_running` take."),
-        ("tween_to", &[], "Move one property of the node to a value over a number of seconds on an optional easing curve, returning a handle."),
-        ("is_running", &[], "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false."),
+        ("tween", &[], "", "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take."),
+        ("tween_to", &[], "", "Move one property of the node to a value over a number of seconds on an optional easing curve, returning a handle."),
+        ("is_tween_running", &[], "", "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip."),
     ]);
     // `{ loops = 1, speed = 1.0, steps = { ... } }`. Steps run one after
     // another; `parallel = true` joins a step to the one before it. Returns
-    // the handle `stop` and `is_running` take.
+    // the handle `stop` and `is_tween_running` take.
     m.function("tween", |eng: &Engine, (node, spec): (NodeId, Value)| {
         tween::start(eng, entity_of(node)?, &node_api::to_toml(&spec)?)
     });
@@ -179,7 +179,7 @@ fn install_tween_api(m: &mut dyn Bindings<Engine>) {
     // Whether a tween handle still names something going. A handle whose
     // tween has finished, been stopped, or died with its node names nothing,
     // and answers false.
-    m.function("is_running", |eng: &Engine, what: Value| {
+    m.function("is_tween_running", |eng: &Engine, what: Value| {
         let state = eng.resource::<crate::AnimationState>();
         let going = state
             .borrow()

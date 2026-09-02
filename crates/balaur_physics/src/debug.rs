@@ -152,6 +152,10 @@ fn draw_system(eng: &Engine, _dt: f32) {
 /// `physics.set_debug_draw` / `physics.debug_draw`: world-spanning, so they
 /// live in `physics` rather than in either dimension (D5).
 pub(crate) fn install_debug_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("set_debug_draw", &[], "", "Draw the physics world over the scene: `true` for the usual shapes, or a table naming modes (`#{ colliders = true, joints = true }`)."),
+        ("debug_draw", &[], "", "What the debug renderer is drawing now, as a table of `enabled` and one flag per mode."),
+    ]);
     // Takes `true`/`false` for "the usual thing", or a table naming the modes
     // (`#{ colliders = true, joints = true }`) when a caller wants more than
     // shapes. One entry point rather than a setter per flag.

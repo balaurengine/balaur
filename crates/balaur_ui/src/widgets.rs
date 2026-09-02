@@ -349,11 +349,76 @@ const RUNE: Syntax = Syntax {
     ],
 };
 
-/// The highlighter for a language name. Rune is the one language, so an
-/// unknown name still highlights rather than rendering plain punctuation.
+/// Shaders: WGSL plus what WESL adds to it (`import`, the `@if` family).
+const WESL: Syntax = Syntax {
+    line_comment: "//",
+    keywords: &[
+        "fn", "let", "var", "const", "if", "else", "switch", "case", "default", "loop", "for",
+        "while", "break", "continue", "return", "discard", "struct", "alias", "override",
+        "const_assert", "true", "false", "enable", "requires", "diagnostic", "import", "as",
+    ],
+    builtins: &[
+        "f32",
+        "i32",
+        "u32",
+        "bool",
+        "vec2",
+        "vec3",
+        "vec4",
+        "vec2f",
+        "vec3f",
+        "vec4f",
+        "mat2x2",
+        "mat3x3",
+        "mat4x4",
+        "array",
+        "atomic",
+        "ptr",
+        "sampler",
+        "texture_2d",
+        "texture_cube",
+        "textureSample",
+        "textureLoad",
+        "normalize",
+        "length",
+        "distance",
+        "dot",
+        "cross",
+        "mix",
+        "clamp",
+        "min",
+        "max",
+        "abs",
+        "sign",
+        "floor",
+        "ceil",
+        "fract",
+        "step",
+        "smoothstep",
+        "select",
+        "sin",
+        "cos",
+        "tan",
+        "pow",
+        "exp",
+        "log",
+        "sqrt",
+        "inverseSqrt",
+    ],
+};
+
+/// The highlighter for a language name.
+///
+/// An unknown name falls back to Rune rather than rendering the editor as
+/// plain punctuation.
 pub(crate) const fn syntax_for(language: &str) -> &'static Syntax {
-    let _ = language;
-    &RUNE
+    // `match` on a `&str` is not const, and two languages do not warrant a
+    // table.
+    if matches!(language.as_bytes(), b"wesl" | b"wgsl") {
+        &WESL
+    } else {
+        &RUNE
+    }
 }
 
 /// The lines a checker flagged, underlined in the text and dotted in the
@@ -808,11 +873,23 @@ mod tests {
         assert!(rune.builtins.contains(&"this"));
     }
 
+    #[test]
+    fn shaders_select_their_own_tokens() {
+        for name in ["wesl", "wgsl"] {
+            let wesl = syntax_for(name);
+            assert!(wesl.keywords.contains(&"var"), "{name}");
+            assert!(wesl.keywords.contains(&"import"), "{name}");
+            assert!(wesl.builtins.contains(&"textureSample"), "{name}");
+            // Rune's `let` is WGSL's too, but `this` is not a shader word.
+            assert!(!wesl.builtins.contains(&"this"), "{name}");
+        }
+    }
+
     /// An unknown or absent language must still highlight something rather
     /// than render the editor as plain punctuation.
     #[test]
     fn an_unknown_language_falls_back_to_rune() {
-        assert_eq!(syntax_for("wesl").line_comment, RUNE.line_comment);
+        assert_eq!(syntax_for("luau").line_comment, RUNE.line_comment);
         assert_eq!(syntax_for("").line_comment, RUNE.line_comment);
     }
 }

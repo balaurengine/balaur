@@ -2,12 +2,13 @@
 
 ## Unreleased
 
+- The script API documents itself: every module says what it is for, every function says what it does and which components it acts on, and every component and asset type carries a summary. `balaur api` prints all of it, `scripts/api_lints.py` fails the build when a registered function has no entry, and the website's reference is generated from it.
 - Prefabs: a node names another scene file with `instance`, whose roots become its children. `[nodes.overrides."Path/Inside"]` edits one node of the instance, ids inside are prefixed by the instance's own (`n_crate_b/n_lid`), and a prefab that contains itself is an error naming the cycle.
 - Input actions: `[input.actions]` in `project.toml` binds a name to keys, mouse buttons, gamepad buttons, axes and key pairs; scripts read `input.action_value` / `action_pressed` / `action_just_pressed` / `action_just_released`. `input.bind` rebinds and saves to the user data directory, `input.reset_bindings` undoes it. Actions are derived from the recorded raw input each frame, so a replay reproduces them.
 - Editor: inspector sections (Transform, each component, Script, Events) fold on a click of their heading.
 - Component handles: `node.body2d.apply_impulse(x, y)` is `physics2d::apply_impulse(node, x, y)` with the node bound, and every handle has `get()`, `set(table)`, `has()` and `remove()`. A module declares the components it drives with `Bindings::drives`, typed bindings record their signatures, and `balaur api` prints both, so the reference lists a component's functions on its own page.
 - Shaders are written in WESL (WGSL plus imports, `@if` variants and dead-code elimination) and linked to WGSL at run time; the 2D skinning shader moved out of Rust into `shaders/skinned_2d.wesl`.
-- `material` asset type: a `shader`, its `[features]` and the `[params]` its `Params` struct takes, read off the linked shader rather than declared twice. `sprite` takes a `material`; a shader that will not link logs once and the sprite draws with the built-in material. `.wesl` files ship in a pack. Saving a shader or a material relinks it and rebuilds the nodes drawing with it, and `render::check_material(path)` answers with the file, line and column a broken one failed at.
+- `material` asset type: a `shader`, its `[features]` and the `[params]` its `Params` struct takes, read off the linked shader rather than declared twice. `sprite` takes a `material`; a shader that will not link logs once and the sprite draws with the built-in material. `.wesl` files ship in a pack. Saving a shader or a material relinks it and rebuilds the nodes drawing with it, and `render::check_material(path)` answers with the file, line and column a broken one failed at. `mesh` and `shape3d` take one too, lit by the scene's lights and fog.
 - Exported script properties: `pub fn exports()` declares tunable defaults, the `script` scene key takes `{ source, props }` beside the plain path, and `props` is written onto the instance before `init`. The inspector lists them per node with undo, writing an override only where it differs from the default. `node:attach_script(path, props)` and `script::exports(path)` are the run-time and tool-facing halves.
 - Websockets negotiate `permessage-deflate` (RFC 7692) and take per-connection options: `websocket.connect(node, url, { compression = false, headers = { Authorization = "..." } })`. A `[net]` table in `project.toml` sets the defaults (`websocket_compression`, `http_timeout`).
 - Determinism: one fixed 60 Hz step (`Stage::FixedUpdate`, `fixed_update(dt)`, `balaur run --fixed-tick`).
@@ -40,6 +41,7 @@
 
 ### Breaking
 
+- `animation.is_running` is `animation.is_tween_running`: it takes a tween handle, where `animation.is_playing` takes a node and asks about its clip, and the old pair of names said neither.
 - Luau is removed: Rune is the one scripting language. `.luau` scripts, `language = "luau"` / `"mixed"`, `balaur_script_luau` and the `balaur::luau` alias are gone; the editor and every example are Rune.
 - `ui.select` is `ui.dropdown`.
 - `shape`/`body`/`collider` are now `shape3d`/`body3d`/`collider3d`; body/collider script APIs moved to `physics3d`.

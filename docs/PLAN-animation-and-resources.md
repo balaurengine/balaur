@@ -410,7 +410,7 @@ local id = animation.tween(self.node, {
     { target = "Shadow", property = "scale", to = {2,2,2}, duration = 0.4, parallel = true },
   },
 })
-animation.stop(id);  animation.is_running(id)
+animation.stop(id);  animation.is_tween_running(id)
 ```
 
 - **Sequential by default.** `parallel = true` joins the step to the previous

@@ -22,7 +22,7 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "set_theme",
         &[],
-        "Replace the colour tokens from a table of `name = \"#rrggbb\"` entries, plus `dark = true|false`.",
+        "", "Replace the colour tokens from a table of `name = \"#rrggbb\"` entries, plus `dark = true|false`.",
     )]);
     {
         // No reader by design (N8): `UiConfig::theme` already holds every
@@ -55,12 +55,12 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
 /// `ui.*` bindings: panels.
 pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("top_panel", &[], "Dock a strip across the top of the window and draw the callback inside it; `height` is in design pixels."),
-        ("bottom_panel", &[], "Dock a strip across the bottom of the window and draw the callback inside it; `height` is in design pixels."),
-        ("left_panel", &[], "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels."),
-        ("right_panel", &[], "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels."),
-        ("central_panel", &[], "Draw the callback into whatever room the docked panels left over."),
-        ("overlay", &[], "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer."),
+        ("top_panel", &[], "", "Dock a strip across the top of the window and draw the callback inside it; `height` is in design pixels."),
+        ("bottom_panel", &[], "", "Dock a strip across the bottom of the window and draw the callback inside it; `height` is in design pixels."),
+        ("left_panel", &[], "", "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels."),
+        ("right_panel", &[], "", "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels."),
+        ("central_panel", &[], "", "Draw the callback into whatever room the docked panels left over."),
+        ("overlay", &[], "", "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer."),
     ]);
     macro_rules! panel {
         ($name:literal, $ctor:ident, $size_key:literal) => {
@@ -143,7 +143,7 @@ pub(crate) fn install_text(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "label",
         &[],
-        "Draw a line of text; `size`, `font`, `color`, `strong` and `wrap` style it.",
+        "", "Draw a line of text; `size`, `font`, `color`, `strong` and `wrap` style it.",
     )]);
     m.function(
         "label",
@@ -184,8 +184,8 @@ pub(crate) fn install_controls(m: &mut dyn Bindings<Engine>) {
 /// `ui.*` bindings: text input.
 pub(crate) fn install_text_input(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("text_field", &[], "Draw a single-line text box keyed by `id`; returns its text, whether it changed, and whether Enter was pressed."),
-        ("set_text", &[], "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone."),
+        ("text_field", &[], "", "Draw a single-line text box keyed by `id`; returns its text, whether it changed, and whether Enter was pressed."),
+        ("set_text", &[], "", "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone."),
     ]);
     {
         m.function(
@@ -215,7 +215,7 @@ pub(crate) fn install_code(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "code_line",
         &[],
-        "Draw one read-only code row from a list of `{ text, color, strong }` spans, with a gutter label on the left.",
+        "", "Draw one read-only code row from a list of `{ text, color, strong }` spans, with a gutter label on the left.",
     )]);
     m.function(
         "code_line",
@@ -289,7 +289,7 @@ pub(crate) fn install_window(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "window",
         &[],
-        "Draw the callback in a floating window the user drags and resizes; false once its close button is used.",
+        "", "Draw the callback in a floating window the user drags and resizes; false once its close button is used.",
     )]);
     m.function(
         "window",
@@ -329,7 +329,7 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "modal",
         &[],
-        "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked.",
+        "", "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked.",
     )]);
     m.function(
         "modal",
@@ -377,7 +377,7 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "set_widget_layer",
         &[],
-        "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
+        "", "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
     )]);
     {
         // No reader by design (N8): the `WidgetLayerConfig` entry already
@@ -411,12 +411,12 @@ pub(crate) fn install_scale(m: &mut dyn Bindings<Engine>) {
         (
             "scale",
             &[],
-            "The global UI scale: real pixels per design pixel.",
+            "", "The global UI scale: real pixels per design pixel.",
         ),
         (
             "set_scale",
             &[],
-            "Set the global UI scale, clamped to between 0.5 and 3.0 real pixels per design pixel.",
+            "", "Set the global UI scale, clamped to between 0.5 and 3.0 real pixels per design pixel.",
         ),
     ]);
     m.function("scale", |eng: &Engine, ()| {
@@ -436,7 +436,7 @@ pub(crate) fn install_code_editor(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "code_editor",
         &[],
-        "Draw an editable, highlighted buffer with a gutter; returns the text, whether it changed, and any line clicked.",
+        "", "Draw an editable, highlighted buffer with a gutter; returns the text, whether it changed, and any line clicked.",
     )]);
     {
         m.function(
@@ -454,7 +454,7 @@ pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "dropdown",
         &[],
-        "Draw a pill-shaped select over a list of strings; returns the selection and whether it changed this frame.",
+        "", "Draw a pill-shaped select over a list of strings; returns the selection and whether it changed this frame.",
     )]);
     m.function(
         "dropdown",
@@ -514,8 +514,8 @@ pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
 /// `ui.*` bindings: images and overlay shapes.
 pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("image", &[], "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path."),
-        ("rect_stroke", &[], "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked."),
+        ("image", &[], "", "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path."),
+        ("rect_stroke", &[], "", "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked."),
     ]);
     {
         m.function(
@@ -567,15 +567,15 @@ pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
 /// `ui.*` bindings: queries.
 pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("available_width", &[], "The width left in the current container, in design pixels."),
-        ("available_height", &[], "The height left in the current container, in design pixels."),
-        ("central_rect", &[], "The x, y, width and height of the surface being drawn into, in design pixels."),
-        ("screen_size", &[], "The window's width and height, in design pixels."),
-        ("shortcut", &[], "Whether this chord was pressed this frame, consuming it; `mods` is `\"cmd+shift\"`, from the `MOD_*` constants."),
-        ("set_clipboard", &[], "Copy text to the system clipboard."),
-        ("clipboard", &[], "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand."),
-        ("color", &[], "Draw a colour picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed."),
-        ("wants_keyboard", &[], "Whether a UI widget holds keyboard focus, so the game should leave this frame's key presses alone."),
+        ("available_width", &[], "", "The width left in the current container, in design pixels."),
+        ("available_height", &[], "", "The height left in the current container, in design pixels."),
+        ("central_rect", &[], "", "The x, y, width and height of the surface being drawn into, in design pixels."),
+        ("screen_size", &[], "", "The window's width and height, in design pixels."),
+        ("shortcut", &[], "", "Whether this chord was pressed this frame, consuming it; `mods` is `\"cmd+shift\"`, from the `MOD_*` constants."),
+        ("set_clipboard", &[], "", "Copy text to the system clipboard."),
+        ("clipboard", &[], "", "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand."),
+        ("color", &[], "", "Draw a colour picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed."),
+        ("wants_keyboard", &[], "", "Whether a UI widget holds keyboard focus, so the game should leave this frame's key presses alone."),
     ]);
     // Queries return design pixels (real points divided by the UI scale), so
     // scripts compute layout in one consistent unit.
@@ -686,8 +686,8 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
 /// changed it, so a script can write back only on a real edit.
 fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("toggle", &[], "Draw an on/off switch; returns the state after this frame and whether it was clicked."),
-        ("slider", &[], "Draw a horizontal slider between `min` and `max`; returns the value after this frame and whether it moved."),
+        ("toggle", &[], "", "Draw an on/off switch; returns the state after this frame and whether it was clicked."),
+        ("slider", &[], "", "Draw a horizontal slider between `min` and `max`; returns the value after this frame and whether it moved."),
     ]);
     m.function(
         "toggle",
@@ -783,7 +783,7 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "drag_value",
         &[],
-        "Draw a number dragged sideways to change it; returns the value and whether this frame changed it.",
+        "", "Draw a number dragged sideways to change it; returns the value and whether this frame changed it.",
     )]);
     m.function(
         "drag_value",
@@ -857,10 +857,10 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
 /// `ui.horizontal`, `ui.vertical`, `ui.right` and `ui.frame`.
 fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("horizontal", &[], "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels."),
-        ("vertical", &[], "Lay the callback's widgets out in a column."),
-        ("right", &[], "Lay the callback's widgets out against the right edge, still declared left to right."),
-        ("frame", &[], "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels."),
+        ("horizontal", &[], "", "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels."),
+        ("vertical", &[], "", "Lay the callback's widgets out in a column."),
+        ("right", &[], "", "Lay the callback's widgets out against the right edge, still declared left to right."),
+        ("frame", &[], "", "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels."),
     ]);
     m.function(
         "horizontal",
@@ -945,10 +945,10 @@ fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
 /// `ui.scroll`, spacing and separators.
 fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("scroll", &[], "Put the callback in a vertical scroll area; `max_height` caps it and `stick_to_bottom` follows new content."),
-        ("add_space", &[], "Insert blank space along the current layout, in design pixels."),
-        ("separator", &[], "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed."),
-        ("spacing", &[], "Set the gap between the current container's widgets, in design pixels."),
+        ("scroll", &[], "", "Put the callback in a vertical scroll area; `max_height` caps it and `stick_to_bottom` follows new content."),
+        ("add_space", &[], "", "Insert blank space along the current layout, in design pixels."),
+        ("separator", &[], "", "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed."),
+        ("spacing", &[], "", "Set the gap between the current container's widgets, in design pixels."),
     ]);
     m.function(
         "scroll",
@@ -1008,8 +1008,8 @@ fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
 /// `ui.pill` and `ui.menu_item`.
 fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("pill", &[], "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked."),
-        ("menu_item", &[], "Draw a row inside a context menu; true on the frame it was clicked, which also closes the menu."),
+        ("pill", &[], "", "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked."),
+        ("menu_item", &[], "", "Draw a row inside a context menu; true on the frame it was clicked, which also closes the menu."),
     ]);
     m.function(
         "pill",
@@ -1104,8 +1104,8 @@ fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
 /// `ui.circle_button` and `ui.dot`.
 fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("circle_button", &[], "Draw a round button holding one glyph, `d` design pixels across; true on the frame it was clicked."),
-        ("dot", &[], "Draw a filled circle in a `#rrggbb` colour, `d` design pixels across."),
+        ("circle_button", &[], "", "Draw a round button holding one glyph, `d` design pixels across; true on the frame it was clicked."),
+        ("dot", &[], "", "Draw a filled circle in a `#rrggbb` colour, `d` design pixels across."),
     ]);
     m.function(
         "circle_button",

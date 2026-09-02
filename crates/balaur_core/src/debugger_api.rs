@@ -72,15 +72,15 @@ pub fn install_debugger_api(m: &mut dyn Bindings<Engine>) {
          one see one debugger.",
     );
     m.describe(&[
-        ("set_breakpoints", &[], "Replace one file's breakpoints with the given lines, returning the lines they landed on."),
-        ("breakpoints", &[], "The lines one file's breakpoints landed on."),
-        ("paused", &[], "Where a script is stopped — node, path, line, reason and frames, innermost first — or nil while none is."),
-        ("resume", &[], "Let the stopped script go on, in the given step mode (`CONTINUE`, `STEP_OVER`, `STEP_INTO`, `STEP_OUT`)."),
-        ("set_break_on_error", &[], "Stop where a script throws instead of logging it and moving on; off by default."),
-        ("break_on_error", &[], "Whether a script that throws stops rather than being logged."),
-        ("request_break", &[], "Ask to stop at the next line any script runs; nothing is stopped yet when it returns."),
-        ("set_scope", &[], "Limit the pause to one node's subtree, so an editor keeps running while the game stops; nil means the whole tree."),
-        ("scope", &[], "The node whose subtree a pause holds still, or nil when a pause stops the whole tree."),
+        ("set_breakpoints", &[], "(path: string, lines: [int])", "Replace one file's breakpoints with the given lines, returning the lines they landed on."),
+        ("breakpoints", &[], "(path: string)", "The lines one file's breakpoints landed on."),
+        ("paused", &[], "()", "Where a script is stopped — node, path, line, reason and frames, innermost first — or nil while none is."),
+        ("resume", &[], "(mode: string?)", "Let the stopped script go on, in the given step mode (`CONTINUE`, `STEP_OVER`, `STEP_INTO`, `STEP_OUT`)."),
+        ("set_break_on_error", &[], "(on: bool)", "Stop where a script throws instead of logging it and moving on; off by default."),
+        ("break_on_error", &[], "()", "Whether a script that throws stops rather than being logged."),
+        ("request_break", &[], "()", "Ask to stop at the next line any script runs; nothing is stopped yet when it returns."),
+        ("set_scope", &[], "(node: node?)", "Limit the pause to one node's subtree, so an editor keeps running while the game stops; nil means the whole tree."),
+        ("scope", &[], "()", "The node whose subtree a pause holds still, or nil when a pause stops the whole tree."),
     ]);
     for d in DEBUGGER_OPS {
         m.function_raw(d.name, Box::new(d.call));

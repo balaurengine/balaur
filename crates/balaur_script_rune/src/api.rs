@@ -64,6 +64,14 @@ pub fn api_json(_host: &RuneHost) -> Result<String> {
     for entry in api_docs() {
         let module = modules.entry(entry.module).or_default();
         module.docs.insert(entry.name.clone(), entry.doc);
+        // A raw registration has no types to read, so its module spells the
+        // signature out; the typed seam's own record wins where both exist.
+        if !entry.signature.is_empty() {
+            module
+                .signatures
+                .entry(entry.name.clone())
+                .or_insert(entry.signature);
+        }
         if !entry.acts_on.is_empty() {
             module
                 .acts_on
@@ -79,18 +87,19 @@ pub fn api_json(_host: &RuneHost) -> Result<String> {
     // a plugin's `Bindings`, so nothing records them as they are declared;
     // their entries are written out here instead, and `api_lints.py` checks
     // this list against `RuneHost::context`.
-    for (module, name, doc) in [
-        ("script", "require", "Load another script file as a module, compiled once and shared by every caller afterwards."),
-        ("script", "attempt", "Call a function, answering `(true, value)` when it returned and `(false, message)` when it failed."),
-        ("script", "check", "Every compiler diagnostic about the given source, as `[#{ file, line, column, severity, message }]`; an editor passes the buffer it is showing."),
-        ("script", "functions", "The public functions a script file declares, with their argument names."),
-        ("script", "exports", "The tunable properties a script declares in `exports()`, with their defaults."),
-        ("script", "shared", "Wrap a script function so it can be called from several places with a fixed argument count."),
-        ("task", "wait", "Park an async handler until the engine wakes the token it was given."),
+    for (module, name, args, doc) in [
+        ("script", "require", "(path: string)", "Load another script file as a module, compiled once and shared by every caller afterwards."),
+        ("script", "attempt", "(f: fn)", "Call a function, answering `(true, value)` when it returned and `(false, message)` when it failed."),
+        ("script", "check", "(path: string, source: string)", "Every compiler diagnostic about the given source, as `[#{ file, line, column, severity, message }]`; an editor passes the buffer it is showing."),
+        ("script", "functions", "(path: string)", "The public functions a script file declares, with their argument names."),
+        ("script", "exports", "(path: string)", "The tunable properties a script declares in `exports()`, with their defaults."),
+        ("script", "shared", "(f: fn, arity: int)", "Wrap a script function so it can be called from several places with a fixed argument count."),
+        ("task", "wait", "(token: int)", "Park an async handler until the engine wakes the token it was given."),
     ] {
         let entry = modules.entry(module.to_string()).or_default();
         entry.functions.insert(name.to_string());
         entry.docs.insert(name.to_string(), doc.to_string());
+        entry.signatures.insert(name.to_string(), args.to_string());
     }
     for (module, doc) in [
         (

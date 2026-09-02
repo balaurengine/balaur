@@ -305,11 +305,11 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
          clearing. Bodies and colliders live in `physics2d` and `physics3d`.",
     );
     m.describe(&[
-        ("set_paused", &[], "Stop or resume stepping both worlds; nodes keep their poses."),
-        ("is_paused", &[], "Whether stepping is stopped."),
-        ("set_sleeping_allowed", &[], "Allow or forbid resting bodies falling asleep, in both worlds and for bodies added later."),
-        ("sleeping_allowed", &[], "Whether resting bodies are allowed to fall asleep."),
-        ("clear", &[], "Remove every body and collider from both worlds, as a play-in-editor session does on stop."),
+        ("set_paused", &[], "", "Stop or resume stepping both worlds; nodes keep their poses."),
+        ("is_paused", &[], "", "Whether stepping is stopped."),
+        ("set_sleeping_allowed", &[], "", "Allow or forbid resting bodies falling asleep, in both worlds and for bodies added later."),
+        ("sleeping_allowed", &[], "", "Whether resting bodies are allowed to fall asleep."),
+        ("clear", &[], "", "Remove every body and collider from both worlds, as a play-in-editor session does on stop."),
     ]);
     // Everything here spans BOTH worlds: editors and games treat
     // "physics" as one simulation. Per-dimension calls live in physics3d/2d.

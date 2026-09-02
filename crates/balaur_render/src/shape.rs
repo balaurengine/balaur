@@ -13,10 +13,10 @@ use crate::{
 
 pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_ball", &["shape3d"], "Draw the node as a sphere of the given radius in world units, replacing any other 3D shape."),
-        ("set_cuboid", &["shape3d"], "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape."),
-        ("set_rect", &["shape2d"], "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape."),
-        ("color", &["shape3d", "shape2d", "sprite", "polygon"], "The node's tint as r, g, b, a channel floats; opaque white when the node draws nothing at all."),
+        ("set_ball", &["shape3d"], "", "Draw the node as a sphere of the given radius in world units, replacing any other 3D shape."),
+        ("set_cuboid", &["shape3d"], "", "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape."),
+        ("set_rect", &["shape2d"], "", "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape."),
+        ("color", &["shape3d", "shape2d", "sprite", "polygon"], "", "The node's tint as r, g, b, a channel floats; opaque white when the node draws nothing at all."),
     ]);
     m.function("set_ball", |eng: &Engine, (node, radius): (NodeId, f32)| {
         set_shape(eng, entity_of(node)?, Shape::Ball { radius })

@@ -334,13 +334,13 @@ fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
          was started with, the directory it may write to, and the way out.",
     );
     m.describe(&[
-        ("time", &[], "Seconds of engine time since the app started, accumulated as a float."),
-        ("delta", &[], "Seconds the frame in progress covers, the same number a system is handed."),
-        ("tick", &[], "Which frame this is, counted whole — what simulation code branches on instead of `time`."),
-        ("quit", &[], "Ask the app to shut down; the frame in flight still finishes."),
-        ("args", &[], "The command-line arguments the app was started with, empty when it was given none."),
-        ("reload_script", &[], "Recompile one script by its project-relative key, for a tool editing files outside the watched root."),
-        ("user_data_dir", &[], "A writable per-user directory for saves and settings, created on first call and named after the project."),
+        ("time", &[], "()", "Seconds of engine time since the app started, accumulated as a float."),
+        ("delta", &[], "()", "Seconds the frame in progress covers, the same number a system is handed."),
+        ("tick", &[], "()", "Which frame this is, counted whole — what simulation code branches on instead of `time`."),
+        ("quit", &[], "()", "Ask the app to shut down; the frame in flight still finishes."),
+        ("args", &[], "()", "The command-line arguments the app was started with, empty when it was given none."),
+        ("reload_script", &[], "(key: string)", "Recompile one script by its project-relative key, for a tool editing files outside the watched root."),
+        ("user_data_dir", &[], "()", "A writable per-user directory for saves and settings, created on first call and named after the project."),
     ]);
 }
 
@@ -351,18 +351,18 @@ fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
          palette from.",
     );
     m.describe(&[
-        ("root", &[], "The tree's root node."),
-        ("get_node", &[], "The node at an `A/B/C` path from the root, where `..` climbs to the parent; nil when nothing matches."),
-        ("spawn", &[], "Create one empty named node under the given parent, or under the root when none is given."),
-        ("instantiate", &[], "Build a scene document — TOML text, not a path — under a parent; `{ scripts: false }` leaves scripts unattached."),
-        ("source", &[], "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing."),
-        ("component_types", &[], "The names of every registered component type, not the components on any node."),
-        ("component_tags", &[], "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered."),
-        ("component_schema", &[], "A component type's property schema as a table; nil for a name nothing registered."),
-        ("presets", &[], "The names of every registered preset."),
-        ("preset_info", &[], "A preset's description, tags and the components it adds; nil for a name nothing registered."),
-        ("apply_preset", &[], "Add every component a preset names to the node; a part that fails leaves the parts before it in place."),
-        ("unmet_expectations", &[], "Components on the node whose expectations nothing satisfies, as `{ component, expects }`; advisory only."),
+        ("root", &[], "()", "The tree's root node."),
+        ("get_node", &[], "(path: string)", "The node at an `A/B/C` path from the root, where `..` climbs to the parent; nil when nothing matches."),
+        ("spawn", &[], "(name: string, parent: node?)", "Create one empty named node under the given parent, or under the root when none is given."),
+        ("instantiate", &[], "(source: string, parent: node?, opts: any?)", "Build a scene document — TOML text, not a path — under a parent; `{ scripts: false }` leaves scripts unattached."),
+        ("source", &[], "(path: string)", "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing."),
+        ("component_types", &[], "()", "The names of every registered component type, not the components on any node."),
+        ("component_tags", &[], "(name: string)", "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered."),
+        ("component_schema", &[], "(name: string)", "A component type's property schema as a table; nil for a name nothing registered."),
+        ("presets", &[], "()", "The names of every registered preset."),
+        ("preset_info", &[], "(name: string)", "A preset's description, tags and the components it adds; nil for a name nothing registered."),
+        ("apply_preset", &[], "(node: node, name: string)", "Add every component a preset names to the node; a part that fails leaves the parts before it in place."),
+        ("unmet_expectations", &[], "(node: node)", "Components on the node whose expectations nothing satisfies, as `{ component, expects }`; advisory only."),
     ]);
 }
 
@@ -373,9 +373,9 @@ fn document_skeleton(m: &mut dyn balaur_script::Bindings<Engine>) {
          `bone2d` or `bone3d`; there is no skeleton component.",
     );
     m.describe(&[
-        ("apply_rest", &["bone2d", "bone3d"], "Move every bone under the node back to its rest transform."),
-        ("overwrite_rest", &["bone2d", "bone3d"], "Record every bone's current transform under the node as its new rest pose."),
-        ("bones", &["bone2d", "bone3d"], "The bones under the node in tree order, the order a skin numbers them in, the node itself first when it is one."),
+        ("apply_rest", &["bone2d", "bone3d"], "(node: node)", "Move every bone under the node back to its rest transform."),
+        ("overwrite_rest", &["bone2d", "bone3d"], "(node: node)", "Record every bone's current transform under the node as its new rest pose."),
+        ("bones", &["bone2d", "bone3d"], "(node: node)", "The bones under the node in tree order, the order a skin numbers them in, the node itself first when it is one."),
     ]);
 }
 
@@ -387,12 +387,12 @@ fn document_assets(m: &mut dyn balaur_script::Bindings<Engine>) {
          the owning plugin builds from it.",
     );
     m.describe(&[
-        ("load", &[], "The definition table behind a reference, from the cache; an error when the reference resolves to nothing."),
-        ("duplicate", &[], "A private copy of a definition, read past the cache, so editing it disturbs no other holder of that reference."),
-        ("exists", &[], "Whether a reference resolves to a definition that is really there; false rather than an error when it does not."),
-        ("reload", &[], "Forget a reference so the next load re-reads its file, along with every entry cut from that same file."),
-        ("save", &[], "Write a definition table to the project-relative file a reference names; an error for a reference that is not a whole file."),
-        ("directory", &[], "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none."),
+        ("load", &[], "(reference: string)", "The definition table behind a reference, from the cache; an error when the reference resolves to nothing."),
+        ("duplicate", &[], "(reference: string)", "A private copy of a definition, read past the cache, so editing it disturbs no other holder of that reference."),
+        ("exists", &[], "(reference: string)", "Whether a reference resolves to a definition that is really there; false rather than an error when it does not."),
+        ("reload", &[], "(reference: string)", "Forget a reference so the next load re-reads its file, along with every entry cut from that same file."),
+        ("save", &[], "(reference: string, definition: any)", "Write a definition table to the project-relative file a reference names; an error unless it names a whole file."),
+        ("directory", &[], "(type_name: string)", "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none."),
     ]);
 }
 
@@ -403,11 +403,11 @@ fn document_log(m: &mut dyn balaur_script::Bindings<Engine>) {
          land beside engine ones.",
     );
     m.describe(&[
-        ("info", &[], "Write a line at info level, tagged as coming from a script."),
-        ("warn", &[], "Write a line at warning level, tagged as coming from a script."),
-        ("error", &[], "Write a line at error level, tagged as coming from a script."),
-        ("recent", &[], "The last n buffered entries, 100 by default, each `{ time, level, tag, message, fields }`."),
-        ("clear", &[], "Empty the buffer, so a console reading it starts again from nothing."),
+        ("info", &[], "(message: string)", "Write a line at info level, tagged as coming from a script."),
+        ("warn", &[], "(message: string)", "Write a line at warning level, tagged as coming from a script."),
+        ("error", &[], "(message: string)", "Write a line at error level, tagged as coming from a script."),
+        ("recent", &[], "(n: int?)", "The last n buffered entries, 100 by default, each `{ time, level, tag, message, fields }`."),
+        ("clear", &[], "()", "Empty the buffer, so a console reading it starts again from nothing."),
     ]);
 }
 
@@ -418,10 +418,10 @@ fn document_rng(m: &mut dyn balaur_script::Bindings<Engine>) {
          recorded session made.",
     );
     m.describe(&[
-        ("seed", &[], "Restart the deterministic engine stream at the given seed, so every draw after it repeats."),
-        ("random", &[], "A float from the deterministic engine stream, uniform in `[0, 1)`."),
-        ("range", &[], "A float from the deterministic engine stream, uniform in `[low, high)` — the two arguments."),
-        ("int", &[], "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included."),
+        ("seed", &[], "(seed: int)", "Restart the deterministic engine stream at the given seed, so every draw after it repeats."),
+        ("random", &[], "()", "A float from the deterministic engine stream, uniform in `[0, 1)`."),
+        ("range", &[], "(low: float, high: float)", "A float from the deterministic engine stream, uniform in `[low, high)` — the two arguments."),
+        ("int", &[], "(low: int, high: int)", "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included."),
     ]);
 }
 
@@ -433,14 +433,14 @@ fn document_fs(m: &mut dyn balaur_script::Bindings<Engine>) {
          `scene.source`.",
     );
     m.describe(&[
-        ("read", &[], "A whole file as text, project-relative unless absolute; nil when it cannot be read."),
-        ("write", &[], "Write text to a project-relative file, creating the directory it goes in."),
-        ("exists", &[], "Whether a project-relative path has anything at it, file or directory."),
-        ("list", &[], "A directory's entries as `{ name, is_dir }`, sorted, dotfiles skipped; empty for a directory that is not there."),
-        ("remove", &[], "Delete a project-relative file, or a directory and everything under it; false when there was nothing there."),
-        ("mkdir", &[], "Create a project-relative directory and every parent it needs."),
-        ("rename", &[], "Move a project-relative file or directory, creating the destination's parent first."),
-        ("mtime", &[], "When a file last changed, in seconds since the Unix epoch; nil for one that is not there."),
+        ("read", &[], "(path: string)", "A whole file as text, project-relative unless absolute; nil when it cannot be read."),
+        ("write", &[], "(path: string, text: string)", "Write text to a project-relative file, creating the directory it goes in."),
+        ("exists", &[], "(path: string)", "Whether a project-relative path has anything at it, file or directory."),
+        ("list", &[], "(path: string)", "A directory's entries as `{ name, is_dir }`, sorted, dotfiles skipped; empty for a directory that is not there."),
+        ("remove", &[], "(path: string)", "Delete a project-relative file, or a directory and everything under it; false when there was nothing there."),
+        ("mkdir", &[], "(path: string)", "Create a project-relative directory and every parent it needs."),
+        ("rename", &[], "(from: string, to: string)", "Move a project-relative file or directory, creating the destination's parent first."),
+        ("mtime", &[], "(path: string)", "When a file last changed, in seconds since the Unix epoch; nil for one that is not there."),
     ]);
 }
 
@@ -450,8 +450,8 @@ fn document_toml(m: &mut dyn balaur_script::Bindings<Engine>) {
          definitions and component properties are all written in.",
     );
     m.describe(&[
-        ("parse", &[], "The table a TOML document describes; an error on text that does not parse."),
-        ("encode", &[], "A table written back out as TOML text; a node or callback in it is not data and is an error."),
+        ("parse", &[], "(text: string)", "The table a TOML document describes; an error on text that does not parse."),
+        ("encode", &[], "(value: any)", "A table written back out as TOML text; a node or callback in it is not data and is an error."),
     ]);
 }
 
@@ -461,8 +461,8 @@ fn document_json(m: &mut dyn balaur_script::Bindings<Engine>) {
          the engine. Unlike TOML it has null, so nil survives a round trip.",
     );
     m.describe(&[
-        ("parse", &[], "The value a JSON document describes; an error on text that does not parse."),
-        ("encode", &[], "A value written back out as JSON text; NaN, infinity, a node or a callback has no JSON form and is an error."),
+        ("parse", &[], "(text: string)", "The value a JSON document describes; an error on text that does not parse."),
+        ("encode", &[], "(value: any)", "A value written back out as JSON text; NaN, infinity, a node or a callback has no JSON form and is an error."),
     ]);
 }
 

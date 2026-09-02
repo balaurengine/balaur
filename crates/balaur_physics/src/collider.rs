@@ -334,7 +334,7 @@ pub(crate) fn register_collider_component(app: &mut App) {
     app.register_component(
         "collider3d",
         ComponentDef {
-            doc: "",
+            doc: "The shape the 3D physics world sees for this node, and the surface it presents: friction, bounciness and density. With a `body3d` it moves with the body; on its own it is static geometry a scene can be built from. A sensor reports overlaps without pushing anything.",
             schema: ComponentDef::parse_schema(
                 "collider3d",
                 r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid", "capsule", "cylinder", "cone", "triangle", "trimesh", "convex_hull", "polyline", "heightfield"], description = "Collision shape" }
