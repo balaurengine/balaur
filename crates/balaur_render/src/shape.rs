@@ -12,6 +12,12 @@ use crate::{
 };
 
 pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("set_ball", &["shape3d"], "Draw the node as a sphere of the given radius in world units, replacing any other 3D shape."),
+        ("set_cuboid", &["shape3d"], "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape."),
+        ("set_rect", &["shape2d"], "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape."),
+        ("color", &["shape3d", "shape2d", "sprite", "polygon"], "The node's tint as r, g, b, a channel floats; opaque white when the node draws nothing at all."),
+    ]);
     m.function("set_ball", |eng: &Engine, (node, radius): (NodeId, f32)| {
         set_shape(eng, entity_of(node)?, Shape::Ball { radius })
     });
@@ -139,20 +145,29 @@ pub(crate) fn register_shape_component(app: &mut App) {
     app.register_component(
         "shape3d",
         ComponentDef {
-            doc: "",
+            doc: "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone or plane -- sized in world units and tinted by `color`.",
             schema: ComponentDef::parse_schema(
                 "shape3d",
                 r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid", "capsule", "cylinder", "cone", "plane"], description = "Rendered 3D shape" }
 radius = { type = "float", default = 0.5, min = 0.01, description = "Radius, for every kind but cuboid" }
 height = { type = "float", default = 1.0, min = 0.01, description = "Length along y, for capsule, cylinder and cone" }
 half_extents = { type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }
-color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
+color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }
+material = { type = "asset", asset = "material", default = "", description = "The material this draws with; empty draws with the built-in one" }"#,
             ),
             tags: &["3d", "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
                 set_shape(eng, entity, shape_from_params(params)?)?;
-                set_color(eng, entity, color_from_params(params))
+                set_color(eng, entity, color_from_params(params))?;
+                crate::material::set_material_3d(
+                    eng,
+                    entity,
+                    params
+                        .get("material")
+                        .and_then(toml::Value::as_str)
+                        .unwrap_or_default(),
+                )
             }),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
@@ -165,6 +180,10 @@ color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, a
                 let mut params = shape_to_params(renderable.shape)?;
                 if let Some(map) = params.as_table_mut() {
                     map.insert("color".into(), color_to_toml(renderable.color));
+                    map.insert(
+                        "material".into(),
+                        toml::Value::String(renderable.material.clone()),
+                    );
                 }
                 Some(params)
             }),
@@ -236,7 +255,7 @@ pub(crate) fn register_shape2d_component(app: &mut App) {
     app.register_component(
         "shape2d",
         ComponentDef {
-            doc: "",
+            doc: "An untextured 2D primitive drawn at the node -- circle, rect, capsule or a polyline traced through a mesh asset's points -- sized in world units.",
             schema: ComponentDef::parse_schema(
                 "shape2d",
                 r#"kind = { type = "enum", default = "rect", options = ["circle", "rect", "capsule", "polyline"], description = "Rendered 2D shape" }

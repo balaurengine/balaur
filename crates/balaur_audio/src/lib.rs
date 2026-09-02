@@ -370,7 +370,9 @@ fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
     reg.register_component(
         "sound",
         ComponentDef {
-            doc: "",
+            doc: "A sound of the node's own: which file, at what volume and pitch, \
+                  looping or not. `audio.play_on` and `audio.stop_on` trigger it, and \
+                  `autoplay` starts it when the node enters the scene.",
             schema: ComponentDef::parse_schema(
                 "sound",
                 r#"file = { type = "string", default = "", description = "Audio file, project-relative; required to play" }
@@ -493,6 +495,22 @@ const fn handle_of(raw: i64) -> u64 {
 
 /// `audio.*`. Declared against the neutral seam, so it works on any backend.
 fn install_audio_api(m: &mut dyn Bindings<Engine>) {
+    m.module_doc(
+        "Sound playback: a file plays under an integer handle, with `volume`, \
+         `pitch` and `loop` options, and the `sound` component gives a node a \
+         sound of its own. With no output device every call still works and \
+         nothing is heard.",
+    );
+    m.describe(&[
+        ("play", &[], "Start the audio file at a path and return the handle `stop`, `set_volume`, `set_pitch` and `is_playing` take."),
+        ("stop", &[], "Silence the sound a handle names; a finished, stopped or unknown handle is left alone."),
+        ("set_volume", &[], "Set a playing handle's linear gain, where 1 is the file's own level."),
+        ("set_pitch", &[], "Set a playing handle's speed multiplier, which carries its pitch with it."),
+        ("is_playing", &[], "Whether a handle's sound is still audible; false once it ends, and always false with no output device."),
+        ("stop_all", &[], "Silence everything at once and clear the playback every `sound` component was holding."),
+        ("play_on", &["sound"], "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
+        ("stop_on", &["sound"], "Silence what the node's `sound` started; a node carrying none is left alone."),
+    ]);
     // `audio.play(path, { volume = 1.0, pitch = 1.0, loop = true })` hands
     // back the handle the other functions take. Flags live in the options
     // table rather than in the name, so fade/bus can join them (N9).

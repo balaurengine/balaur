@@ -304,6 +304,52 @@ def schema_findings(loc, component, prop, spec, types) -> list[Finding]:
     return out
 
 
+def check_documented(api: dict) -> list[Finding]:
+    """Every script function says what it does, and every component does too.
+
+    The generated reference is only as good as what the modules declare, and a
+    function renamed without its `describe` entry loses its line silently. Both
+    halves are mechanical, so both are ERROR.
+    """
+    out = []
+    for module in api["modules"]:
+        name = module["name"]
+        docs = module.get("docs", {})
+        if not module["functions"]:
+            continue
+        if not module.get("doc"):
+            out.append(Finding(name, "module-undocumented",
+                               f"`{name}` has no `m.module_doc(..)`: the reference cannot say "
+                               "what the module is for", "ERROR"))
+        for fn in module["functions"]:
+            if not docs.get(fn):
+                out.append(Finding(f"{name}.{fn}", "function-undocumented",
+                                   "no `m.describe(..)` entry: add one line saying what it "
+                                   "does, and the components it acts on", "ERROR"))
+        for fn in docs:
+            if fn not in module["functions"]:
+                out.append(Finding(f"{name}.{fn}", "describes-nothing",
+                                   "described but not registered: the function was renamed or "
+                                   "removed and its entry was left behind", "ERROR"))
+        for fn, components in module.get("acts_on", {}).items():
+            for component in components:
+                if component not in api.get("components", {}):
+                    out.append(Finding(f"{name}.{fn}", "acts-on-unknown",
+                                       f"acts on `{component}`, which no plugin registers as a "
+                                       "component", "ERROR"))
+    for component, doc in api.get("component_docs", {}).items():
+        if not doc:
+            out.append(Finding(component, "component-undocumented",
+                               "`ComponentDef.doc` is empty: the reference cannot say what the "
+                               "component gives a node", "ERROR"))
+    for name, asset in api.get("asset_types", {}).items():
+        if not asset.get("doc"):
+            out.append(Finding(name, "asset-undocumented",
+                               "`register_asset_type` was given no doc: the reference cannot "
+                               "show what a definition table holds", "ERROR"))
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fail-on-error", action="store_true")
@@ -312,7 +358,8 @@ def main() -> int:
     args = ap.parse_args()
 
     api = script_api(args.api_json)
-    findings = check_modules(api) + check_functions(api, declaration_sites()) + check_schemas()
+    findings = (check_modules(api) + check_functions(api, declaration_sites())
+                + check_schemas() + check_documented(api))
 
     errors = [f for f in findings if f.severity == "ERROR"]
     reports = [f for f in findings if f.severity == "REPORT"]

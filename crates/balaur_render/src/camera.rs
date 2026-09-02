@@ -86,7 +86,7 @@ pub(crate) fn register_camera_component(app: &mut App) {
     app.register_component(
         "camera",
         ComponentDef {
-            doc: "",
+            doc: "The view the scene is drawn from, following the node's global pose: `look_at` aims the 3D camera, `zoom` scales the 2D one in logical pixels per world unit. The last `current` camera of a kind, in tree order, drives that view.",
             schema: ComponentDef::parse_schema(
                 "camera",
                 r#"kind = { type = "enum", default = "3d", options = ["3d", "2d"], description = "Which camera this node drives" }

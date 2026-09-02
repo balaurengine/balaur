@@ -317,6 +317,10 @@ impl ShaderMaterial {
             frame_uniform,
             frame_bind_group,
             params_bind_group: params.map(|(_, group)| group),
+            #[allow(
+                clippy::disallowed_methods,
+                reason = "the render clock a shader reads, outside the simulation"
+            )]
             started: Instant::now(),
             frame_counter: Cell::new(0),
             last_frame: Cell::new(u64::MAX),

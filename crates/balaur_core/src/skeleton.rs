@@ -434,7 +434,9 @@ pub(crate) fn register_bone2d_component(app: &mut App) {
     app.register_component(
         "bone2d",
         ComponentDef {
-            doc: "",
+            doc: "Makes the node a 2D bone: the rest position and rotation about z a rig returns \
+                  to, plus the length and angle its gizmo is drawn with. A skin names its rig by \
+                  node path and deforms by the bones under it, in tree order.",
             schema: ComponentDef::parse_schema("bone2d", BONE2D_SCHEMA),
             tags: &["2d", "animation"],
             expects: &[],
@@ -482,7 +484,9 @@ pub(crate) fn register_bone3d_component(app: &mut App) {
     app.register_component(
         "bone3d",
         ComponentDef {
-            doc: "",
+            doc: "Makes the node a 3D bone: the rest position, euler rotation and scale a rig \
+                  returns to, plus the length its gizmo is drawn with. A skinned mesh names its \
+                  rig by node path and deforms by the bones under it, in tree order.",
             schema: ComponentDef::parse_schema("bone3d", BONE3D_SCHEMA),
             tags: &["3d", "animation"],
             expects: &[],

@@ -75,7 +75,9 @@ pub(crate) fn register_widget_component(app: &mut App) {
     app.register_component(
         "widget",
         ComponentDef {
-            doc: "",
+            doc: "A HUD element the widget layer draws every frame: a label, button or panel \
+                  anchored to a screen corner or the center, offset in design pixels. A button \
+                  records its click in `clicked` and calls the node's `on_click` method.",
             schema: ComponentDef::parse_schema(
                 "widget",
                 r#"kind = { type = "enum", default = "label", options = ["label", "button", "panel"], description = "The HUD element the widget layer draws" }

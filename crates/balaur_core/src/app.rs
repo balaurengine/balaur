@@ -618,6 +618,10 @@ impl App {
     /// rather than the measured frame time, so an interactive run reproduces
     /// a headless one tick for tick — given the same inputs, which is what a
     /// replay file supplies.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the loop driver measures a frame; what it feeds systems is fixed_dt"
+    )]
     pub fn run(&mut self) {
         let target = Duration::from_secs_f32(self.fixed_dt.unwrap_or(FIXED_DT));
         let mut last = Instant::now();

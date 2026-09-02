@@ -11,7 +11,7 @@ pub(crate) fn register_sprite_component(app: &mut App) {
     app.register_component(
         "sprite",
         ComponentDef {
-            doc: "",
+            doc: "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` sheet makes it a flipbook `frame` steps through.",
             schema: ComponentDef::parse_schema(
                 "sprite",
                 r#"texture = { type = "string", default = "", description = "Image file, project-relative; required" }

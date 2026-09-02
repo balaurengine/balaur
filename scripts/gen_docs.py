@@ -227,7 +227,7 @@ def component_group(tags):
     return "Other"
 
 
-def gen_components(components, tags):
+def gen_components(components, tags, docs=None):
     out = [
         "# Components\n\n",
         "Balaur has no node classes and no inheritance tree: every node is the\n"
@@ -260,10 +260,12 @@ def gen_components(components, tags):
             props = sorted(schema)
             rows = "\n".join(component_row(p, schema[p]) for p in props)
             facets = " · ".join(f"`{t}`" for t in tags.get(name, [])) or "untagged"
+            summary = (docs or {}).get(name, "")
             out.append(
                 f"### `{name}`\n\n"
                 f"{facets} · {len(props)} propert{'y' if len(props) == 1 else 'ies'}\n\n"
-                "<table>\n<thead><tr><th>property</th><th>type</th><th>default</th>"
+                + (f"{summary}\n\n" if summary else "")
+                + "<table>\n<thead><tr><th>property</th><th>type</th><th>default</th>"
                 f"<th>description</th></tr></thead>\n<tbody>\n{rows}\n</tbody>\n</table>\n\n"
             )
     return "".join(out)
@@ -365,7 +367,11 @@ def main():
         "crates.md": gen_crates(crates),
         "crate-graph.md": gen_graph(crates),
         "script-api.md": gen_script_api(api, owners),
-        "components.md": gen_components(api.get("components", {}), api.get("component_tags", {})),
+        "components.md": gen_components(
+            api.get("components", {}),
+            api.get("component_tags", {}),
+            api.get("component_docs", {}),
+        ),
         "assets.md": gen_assets(
             api.get("asset_types", {}),
             # `modules` is a list of {name, functions, constants}.

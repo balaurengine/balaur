@@ -408,8 +408,16 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
 /// `ui.*` bindings: scale.
 pub(crate) fn install_scale(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("scale", &[], "The global UI scale: real pixels per design pixel."),
-        ("set_scale", &[], "Set the global UI scale, clamped to between 0.5 and 3.0 real pixels per design pixel."),
+        (
+            "scale",
+            &[],
+            "The global UI scale: real pixels per design pixel.",
+        ),
+        (
+            "set_scale",
+            &[],
+            "Set the global UI scale, clamped to between 0.5 and 3.0 real pixels per design pixel.",
+        ),
     ]);
     m.function("scale", |eng: &Engine, ()| {
         let config = eng.resource::<UiConfig>();
@@ -558,6 +566,17 @@ pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: queries.
 pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("available_width", &[], "The width left in the current container, in design pixels."),
+        ("available_height", &[], "The height left in the current container, in design pixels."),
+        ("central_rect", &[], "The x, y, width and height of the surface being drawn into, in design pixels."),
+        ("screen_size", &[], "The window's width and height, in design pixels."),
+        ("shortcut", &[], "Whether this chord was pressed this frame, consuming it; `mods` is `\"cmd+shift\"`, from the `MOD_*` constants."),
+        ("set_clipboard", &[], "Copy text to the system clipboard."),
+        ("clipboard", &[], "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand."),
+        ("color", &[], "Draw a colour picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed."),
+        ("wants_keyboard", &[], "Whether a UI widget holds keyboard focus, so the game should leave this frame's key presses alone."),
+    ]);
     // Queries return design pixels (real points divided by the UI scale), so
     // scripts compute layout in one consistent unit.
     m.function("available_width", |_eng: &Engine, ()| {
@@ -666,6 +685,10 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
 /// The two controls that return their edited value plus whether this frame
 /// changed it, so a script can write back only on a real edit.
 fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("toggle", &[], "Draw an on/off switch; returns the state after this frame and whether it was clicked."),
+        ("slider", &[], "Draw a horizontal slider between `min` and `max`; returns the value after this frame and whether it moved."),
+    ]);
     m.function(
         "toggle",
         |_eng: &Engine, (on, opts): (bool, Option<Value>)| {
@@ -757,6 +780,11 @@ fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.drag_value` and its keyboard handling.
 fn install_drag_value(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[(
+        "drag_value",
+        &[],
+        "Draw a number dragged sideways to change it; returns the value and whether this frame changed it.",
+    )]);
     m.function(
         "drag_value",
         |_eng: &Engine, (value, opts): (f64, Option<Value>)| {
@@ -828,6 +856,12 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.horizontal`, `ui.vertical`, `ui.right` and `ui.frame`.
 fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("horizontal", &[], "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels."),
+        ("vertical", &[], "Lay the callback's widgets out in a column."),
+        ("right", &[], "Lay the callback's widgets out against the right edge, still declared left to right."),
+        ("frame", &[], "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels."),
+    ]);
     m.function(
         "horizontal",
         |eng: &Engine, (opts, cb): (Option<Value>, CallbackId)| {
@@ -910,6 +944,12 @@ fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.scroll`, spacing and separators.
 fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("scroll", &[], "Put the callback in a vertical scroll area; `max_height` caps it and `stick_to_bottom` follows new content."),
+        ("add_space", &[], "Insert blank space along the current layout, in design pixels."),
+        ("separator", &[], "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed."),
+        ("spacing", &[], "Set the gap between the current container's widgets, in design pixels."),
+    ]);
     m.function(
         "scroll",
         |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
@@ -967,6 +1007,10 @@ fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.pill` and `ui.menu_item`.
 fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("pill", &[], "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked."),
+        ("menu_item", &[], "Draw a row inside a context menu; true on the frame it was clicked, which also closes the menu."),
+    ]);
     m.function(
         "pill",
         |eng: &Engine, (s, opts): (String, Option<Value>)| {
@@ -1059,6 +1103,10 @@ fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.circle_button` and `ui.dot`.
 fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("circle_button", &[], "Draw a round button holding one glyph, `d` design pixels across; true on the frame it was clicked."),
+        ("dot", &[], "Draw a filled circle in a `#rrggbb` colour, `d` design pixels across."),
+    ]);
     m.function(
         "circle_button",
         |_eng: &Engine, (glyph, opts): (String, Option<Value>)| {

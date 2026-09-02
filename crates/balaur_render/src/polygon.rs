@@ -62,7 +62,7 @@ pub(crate) fn register_polygon_component(app: &mut App) {
     app.register_component(
         "polygon",
         ComponentDef {
-            doc: "",
+            doc: "A filled, textured 2D polygon from a `mesh` asset's points and triangles, deformed by the rig `skeleton` names when the mesh carries skin weights.",
             schema: ComponentDef::parse_schema("polygon", POLYGON_SCHEMA),
             tags: &["2d", "render", "animation"],
             expects: &[],

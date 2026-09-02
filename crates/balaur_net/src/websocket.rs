@@ -513,6 +513,10 @@ fn send_text(connection: &mut Socket, deflate: &mut Option<Deflate>, text: Strin
 }
 
 /// Every client frame is masked (RFC 6455 §5.3); the codec applies it.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the mask must be unpredictable per RFC 6455; it never reaches simulation"
+)]
 fn send(connection: &mut Socket, mut frame: Frame) -> tungstenite::Result<()> {
     frame.header_mut().mask = Some(rand::random());
     connection.send(frame)

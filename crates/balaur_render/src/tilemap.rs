@@ -138,7 +138,7 @@ pub(crate) fn register_tilemap_component(app: &mut App) {
     app.register_component(
         "tilemap",
         ComponentDef {
-            doc: "",
+            doc: "A grid of tiles cut from one `tileset` atlas and centred on the node, one character per cell, drawn at `pixels_per_unit` tile-texture pixels per world unit.",
             schema: ComponentDef::parse_schema(
                 "tilemap",
                 r#"tileset = { type = "asset", asset = "tileset", default = "", description = "The tileset naming the texture and tile grid" }

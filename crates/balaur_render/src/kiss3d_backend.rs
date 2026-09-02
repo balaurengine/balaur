@@ -62,6 +62,7 @@ struct Frontend {
     tilemap_slots: HashMap<Entity, crate::tilemap::TilemapSlot>,
     emitter_slots: HashMap<Entity, crate::particles::EmitterSlot>,
     materials: crate::shader_material::MaterialCache,
+    materials_3d: crate::shader_material_3d::MaterialCache3d,
     order_2d: Vec<Entity>,
     frame: u64,
     /// Whether the on-screen keyboard was summoned last frame, so it is
@@ -85,6 +86,7 @@ impl Frontend {
             tilemap_slots: HashMap::new(),
             emitter_slots: HashMap::new(),
             materials: crate::shader_material::MaterialCache::default(),
+            materials_3d: crate::shader_material_3d::MaterialCache3d::default(),
             order_2d: Vec::new(),
             frame: 0,
             keyboard_shown: false,
@@ -103,7 +105,7 @@ impl Frontend {
         apply_clear_color(app, window);
         pump_input(app, window);
         app.advance(dt);
-        sync(app, &mut self.scene, &mut self.slots);
+        sync(app, &mut self.scene, &mut self.slots, &mut self.materials_3d);
         sync_2d(
             app,
             &mut self.scene_2d,
@@ -135,6 +137,10 @@ impl Frontend {
 
 /// Run the app inside a kiss3d window until the window closes or the game
 /// requests quit.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the loop driver measures a frame; what it feeds systems is fixed_dt"
+)]
 pub fn run_windowed(mut app: App, title: &str) -> anyhow::Result<()> {
     // Claim the debug-line buffers: `flush_debug_lines`/`_2d` below drain
     // them as they draw, so the plugin's headless fallback stands down.
@@ -586,22 +592,34 @@ fn take_screenshot_if_due(app: &App, window: &Window, frame: u64) {
 }
 
 /// Mirror `Renderable` + `GlobalTransform` into the kiss3d scene graph.
-fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
+fn sync(
+    app: &App,
+    scene: &mut SceneNode3d,
+    slots: &mut HashMap<Entity, Slot>,
+    materials: &mut crate::shader_material_3d::MaterialCache3d,
+) {
     let world = app.engine.world();
+    // A saved shader or material relinks, and the nodes holding the old
+    // pipeline have to be built again against the new one.
+    let relinked = materials.refresh(app);
+
     let mut seen: HashSet<Entity> = HashSet::new();
     for (entity, renderable, global) in
         &mut world.query::<(Entity, &Renderable, &GlobalTransform)>()
     {
         seen.insert(entity);
         let rebuild = match slots.get(&entity) {
-            Some(slot) => slot.version != renderable.version,
+            Some(slot) => {
+                slot.version != renderable.version
+                    || (relinked && !renderable.material.is_empty())
+            }
             None => true,
         };
         if rebuild {
             if let Some(mut old) = slots.remove(&entity) {
                 old.node.remove();
             }
-            let (node, skin) = match renderable.shape {
+            let (mut node, skin) = match renderable.shape {
                 Shape::Ball { radius } => (scene.add_sphere(radius), None),
                 Shape::Cuboid { hx, hy, hz } => {
                     (scene.add_cube(2.0 * hx, 2.0 * hy, 2.0 * hz), None)
@@ -618,6 +636,13 @@ fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
                     None => continue,
                 },
             };
+            // After the texture: a material reads it, and kiss3d's own
+            // material stays on a node whose shader would not link.
+            if !renderable.material.is_empty() {
+                if let Some(material) = materials.get(app, &renderable.material) {
+                    node.set_material(material);
+                }
+            }
             slots.insert(
                 entity,
                 Slot {

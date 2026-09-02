@@ -46,7 +46,9 @@ pub(crate) fn register_modifier2d_component(app: &mut App) {
     app.register_component(
         "modifier2d",
         ComponentDef {
-            doc: "",
+            doc: "Aims a 2D bone at a target node every frame, after the clip has posed the rig: \
+                  `look_at` turns one bone toward the target, `two_bone_ik` bends a root, middle \
+                  and tip chain so the tip reaches it.",
             schema: ComponentDef::parse_schema("modifier2d", SCHEMA),
             tags: &["2d", "animation"],
             expects: &[],

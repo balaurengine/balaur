@@ -75,17 +75,34 @@ pub fn api_json(_host: &RuneHost) -> Result<String> {
     for (name, doc) in api_module_docs() {
         modules.entry(name).or_default().doc = doc;
     }
-    for (module, name) in [
-        ("script", "require"),
-        ("script", "attempt"),
-        ("script", "check"),
-        ("task", "wait"),
+    // The host installs these on Rune modules of its own rather than through
+    // a plugin's `Bindings`, so nothing records them as they are declared;
+    // their entries are written out here instead, and `api_lints.py` checks
+    // this list against `RuneHost::context`.
+    for (module, name, doc) in [
+        ("script", "require", "Load another script file as a module, compiled once and shared by every caller afterwards."),
+        ("script", "attempt", "Call a function, answering `(true, value)` when it returned and `(false, message)` when it failed."),
+        ("script", "check", "Every compiler diagnostic about the given source, as `[#{ file, line, column, severity, message }]`; an editor passes the buffer it is showing."),
+        ("script", "functions", "The public functions a script file declares, with their argument names."),
+        ("script", "exports", "The tunable properties a script declares in `exports()`, with their defaults."),
+        ("script", "shared", "Wrap a script function so it can be called from several places with a fixed argument count."),
+        ("task", "wait", "Park an async handler until the engine wakes the token it was given."),
     ] {
-        modules
-            .entry(module.to_string())
-            .or_default()
-            .functions
-            .insert(name.to_string());
+        let entry = modules.entry(module.to_string()).or_default();
+        entry.functions.insert(name.to_string());
+        entry.docs.insert(name.to_string(), doc.to_string());
+    }
+    for (module, doc) in [
+        (
+            "script",
+            "Loading other scripts, inspecting what they declare, and calling into them without a failure taking the frame down.",
+        ),
+        (
+            "task",
+            "Waiting inside an async handler: `init` and event handlers may await, `update` is deliberately synchronous.",
+        ),
+    ] {
+        modules.entry(module.to_string()).or_default().doc = doc.to_string();
     }
     let mut out = String::from("{\n  \"modules\": [\n");
     let last = modules.len();

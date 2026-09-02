@@ -119,7 +119,9 @@ fn register_animation_component(app: &mut App) {
     app.register_component(
         "animation",
         ComponentDef {
-            doc: "",
+            doc: "Plays animation clips on a node: the library to play them from, one to start \
+                  when the scene loads, and the rate every clip on the node runs at. The \
+                  `animation` script module drives the playhead from there.",
             schema: ComponentDef::parse_schema(
                 "animation",
                 r#"library = { type = "asset", asset = "animation_clip", default = "", description = "The clip library this node plays from" }

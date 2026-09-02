@@ -178,6 +178,22 @@ pub(crate) fn set_material_2d(eng: &Engine, entity: Entity, reference: &str) -> 
     Ok(())
 }
 
+/// Point `entity` at the `material` asset its 3D shape draws with.
+///
+/// The 3D counterpart of [`set_material_2d`]; a change rebuilds the node for
+/// the same reason.
+pub(crate) fn set_material_3d(eng: &Engine, entity: Entity, reference: &str) -> Result<()> {
+    let world = eng.world_mut();
+    let mut renderable = world
+        .get::<&mut crate::Renderable>(entity)
+        .map_err(|_| anyhow!("node has no 3D shape yet"))?;
+    if renderable.material != reference {
+        renderable.material = reference.to_string();
+        renderable.version += 1;
+    }
+    Ok(())
+}
+
 /// The `material` asset type: files live in `materials/`.
 pub(crate) fn register_material_asset(app: &mut App) {
     app.register_asset_type(

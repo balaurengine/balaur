@@ -123,6 +123,7 @@ impl<S: Subscriber> Layer<S> for CaptureLayer {
 /// records from dependencies land in the same place.
 ///
 /// Idempotent — a second call is a no-op, which keeps tests from fighting.
+#[allow(clippy::disallowed_methods, reason = "log timestamps, not simulation")]
 pub fn capture(max_level: LevelFilter) {
     *lock_buffer() = Some(Buffer {
         start: Instant::now(),
@@ -140,6 +141,7 @@ pub fn capture(max_level: LevelFilter) {
 }
 
 /// Capture only, without stderr output. For tests.
+#[allow(clippy::disallowed_methods, reason = "log timestamps, not simulation")]
 pub fn capture_for_test() {
     *lock_buffer() = Some(Buffer {
         start: Instant::now(),

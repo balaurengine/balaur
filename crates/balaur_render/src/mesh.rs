@@ -17,12 +17,13 @@ pub(crate) fn register_mesh_component(app: &mut App) {
     app.register_component(
         MESH_ASSET_TYPE,
         balaur_core::components::ComponentDef {
-            doc: "",
+            doc: "Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.",
             schema: balaur_core::components::ComponentDef::parse_schema(
                 MESH_ASSET_TYPE,
                 r#"source = { type = "asset", asset = "mesh", default = "", description = "The mesh asset this node draws" }
 skeleton = { type = "string", default = "", description = "Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node" }
-texture = { type = "string", default = "", description = "Image file, project-relative; empty draws the colour alone" }"#,
+texture = { type = "string", default = "", description = "Image file, project-relative; empty draws the colour alone" }
+material = { type = "asset", asset = "material", default = "", description = "The material this draws with; empty draws with the built-in one" }"#,
             ),
             tags: &["3d", "render"],
             expects: &[],
@@ -42,7 +43,8 @@ texture = { type = "string", default = "", description = "Image file, project-re
                         tracing::warn!("mesh '{source}': {why:#}");
                     }
                 }
-                crate::set_mesh(eng, entity, source, text("skeleton"), text("texture"))
+                crate::set_mesh(eng, entity, source, text("skeleton"), text("texture"))?;
+                crate::material::set_material_3d(eng, entity, &text("material"))
             }),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
@@ -62,6 +64,10 @@ texture = { type = "string", default = "", description = "Image file, project-re
                 map.insert(
                     "texture".into(),
                     toml::Value::String(renderable.texture.clone()),
+                );
+                map.insert(
+                    "material".into(),
+                    toml::Value::String(renderable.material.clone()),
                 );
                 Some(toml::Value::Table(map))
             }),

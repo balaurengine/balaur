@@ -290,7 +290,9 @@ pub fn install_engine_api(eng: &Engine) -> Result<()> {
         let m = match &mut current {
             Some((name, m)) if *name == d.module => m,
             _ => {
-                current = Some((d.module, host.module(d.module)?));
+                let mut fresh = host.module(d.module)?;
+                document(d.module, &mut *fresh);
+                current = Some((d.module, fresh));
                 &mut current.as_mut().expect("just assigned").1
             }
         };
@@ -305,6 +307,163 @@ pub fn install_engine_api(eng: &Engine) -> Result<()> {
     let mut math = host.module("math")?;
     crate::math_api::install_math_api(&mut *math);
     Ok(())
+}
+
+/// The reference text for one module, added as that module is created.
+///
+/// One table spans nine modules, so this cannot sit beside a single
+/// `install_*` the way every other subsystem's documentation does.
+fn document(module: &str, m: &mut dyn balaur_script::Bindings<Engine>) {
+    match module {
+        "engine" => document_engine(m),
+        "scene" => document_scene(m),
+        "skeleton" => document_skeleton(m),
+        "assets" => document_assets(m),
+        "log" => document_log(m),
+        "rng" => document_rng(m),
+        "fs" => document_fs(m),
+        "toml" => document_toml(m),
+        "json" => document_json(m),
+        _ => {}
+    }
+}
+
+fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
+    m.module_doc(
+        "The running app itself: the clock a frame reads, the command line it \
+         was started with, the directory it may write to, and the way out.",
+    );
+    m.describe(&[
+        ("time", &[], "Seconds of engine time since the app started, accumulated as a float."),
+        ("delta", &[], "Seconds the frame in progress covers, the same number a system is handed."),
+        ("tick", &[], "Which frame this is, counted whole — what simulation code branches on instead of `time`."),
+        ("quit", &[], "Ask the app to shut down; the frame in flight still finishes."),
+        ("args", &[], "The command-line arguments the app was started with, empty when it was given none."),
+        ("reload_script", &[], "Recompile one script by its project-relative key, for a tool editing files outside the watched root."),
+        ("user_data_dir", &[], "A writable per-user directory for saves and settings, created on first call and named after the project."),
+    ]);
+}
+
+fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
+    m.module_doc(
+        "The node tree: its root, lookup by path, spawning and instancing. \
+         Also the component and preset vocabulary an editor builds its \
+         palette from.",
+    );
+    m.describe(&[
+        ("root", &[], "The tree's root node."),
+        ("get_node", &[], "The node at an `A/B/C` path from the root, where `..` climbs to the parent; nil when nothing matches."),
+        ("spawn", &[], "Create one empty named node under the given parent, or under the root when none is given."),
+        ("instantiate", &[], "Build a scene document — TOML text, not a path — under a parent; `{ scripts: false }` leaves scripts unattached."),
+        ("source", &[], "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing."),
+        ("component_types", &[], "The names of every registered component type, not the components on any node."),
+        ("component_tags", &[], "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered."),
+        ("component_schema", &[], "A component type's property schema as a table; nil for a name nothing registered."),
+        ("presets", &[], "The names of every registered preset."),
+        ("preset_info", &[], "A preset's description, tags and the components it adds; nil for a name nothing registered."),
+        ("apply_preset", &[], "Add every component a preset names to the node; a part that fails leaves the parts before it in place."),
+        ("unmet_expectations", &[], "Components on the node whose expectations nothing satisfies, as `{ component, expects }`; advisory only."),
+    ]);
+}
+
+fn document_skeleton(m: &mut dyn balaur_script::Bindings<Engine>) {
+    m.module_doc(
+        "Bones under a rig node: the rest pose a rig returns to, and the tree \
+         order a skin numbers its joints in. A bone is any node carrying \
+         `bone2d` or `bone3d`; there is no skeleton component.",
+    );
+    m.describe(&[
+        ("apply_rest", &["bone2d", "bone3d"], "Move every bone under the node back to its rest transform."),
+        ("overwrite_rest", &["bone2d", "bone3d"], "Record every bone's current transform under the node as its new rest pose."),
+        ("bones", &["bone2d", "bone3d"], "The bones under the node in tree order, the order a skin numbers them in, the node itself first when it is one."),
+    ]);
+}
+
+fn document_assets(m: &mut dyn balaur_script::Bindings<Engine>) {
+    m.module_doc(
+        "Asset definitions by reference: a project-relative file path, \
+         `file#entry` for one entry inside it, or `#id` for a block the scene \
+         declares. A script gets the definition table, not the parsed object \
+         the owning plugin builds from it.",
+    );
+    m.describe(&[
+        ("load", &[], "The definition table behind a reference, from the cache; an error when the reference resolves to nothing."),
+        ("duplicate", &[], "A private copy of a definition, read past the cache, so editing it disturbs no other holder of that reference."),
+        ("exists", &[], "Whether a reference resolves to a definition that is really there; false rather than an error when it does not."),
+        ("reload", &[], "Forget a reference so the next load re-reads its file, along with every entry cut from that same file."),
+        ("save", &[], "Write a definition table to the project-relative file a reference names; an error for a reference that is not a whole file."),
+        ("directory", &[], "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none."),
+    ]);
+}
+
+fn document_log(m: &mut dyn balaur_script::Bindings<Engine>) {
+    m.module_doc(
+        "The three levels a script writes at, and the buffer behind them. \
+         Scripted lines go through the engine's own `tracing` stream, so they \
+         land beside engine ones.",
+    );
+    m.describe(&[
+        ("info", &[], "Write a line at info level, tagged as coming from a script."),
+        ("warn", &[], "Write a line at warning level, tagged as coming from a script."),
+        ("error", &[], "Write a line at error level, tagged as coming from a script."),
+        ("recent", &[], "The last n buffered entries, 100 by default, each `{ time, level, tag, message, fields }`."),
+        ("clear", &[], "Empty the buffer, so a console reading it starts again from nothing."),
+    ]);
+}
+
+fn document_rng(m: &mut dyn balaur_script::Bindings<Engine>) {
+    m.module_doc(
+        "The engine's one deterministic PCG32 stream: the same seed draws the \
+         same numbers on every platform, and a replay reproduces every draw a \
+         recorded session made.",
+    );
+    m.describe(&[
+        ("seed", &[], "Restart the deterministic engine stream at the given seed, so every draw after it repeats."),
+        ("random", &[], "A float from the deterministic engine stream, uniform in `[0, 1)`."),
+        ("range", &[], "A float from the deterministic engine stream, uniform in `[low, high)` — the two arguments."),
+        ("int", &[], "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included."),
+    ]);
+}
+
+fn document_fs(m: &mut dyn balaur_script::Bindings<Engine>) {
+    m.module_doc(
+        "Files on disk, project-relative unless the path is absolute, so a \
+         script cannot wander the filesystem by accident. This is the disk \
+         itself: a packed build's contents are reached through `assets` and \
+         `scene.source`.",
+    );
+    m.describe(&[
+        ("read", &[], "A whole file as text, project-relative unless absolute; nil when it cannot be read."),
+        ("write", &[], "Write text to a project-relative file, creating the directory it goes in."),
+        ("exists", &[], "Whether a project-relative path has anything at it, file or directory."),
+        ("list", &[], "A directory's entries as `{ name, is_dir }`, sorted, dotfiles skipped; empty for a directory that is not there."),
+        ("remove", &[], "Delete a project-relative file, or a directory and everything under it; false when there was nothing there."),
+        ("mkdir", &[], "Create a project-relative directory and every parent it needs."),
+        ("rename", &[], "Move a project-relative file or directory, creating the destination's parent first."),
+        ("mtime", &[], "When a file last changed, in seconds since the Unix epoch; nil for one that is not there."),
+    ]);
+}
+
+fn document_toml(m: &mut dyn balaur_script::Bindings<Engine>) {
+    m.module_doc(
+        "TOML text to and from script tables: the format scene files, asset \
+         definitions and component properties are all written in.",
+    );
+    m.describe(&[
+        ("parse", &[], "The table a TOML document describes; an error on text that does not parse."),
+        ("encode", &[], "A table written back out as TOML text; a node or callback in it is not data and is an error."),
+    ]);
+}
+
+fn document_json(m: &mut dyn balaur_script::Bindings<Engine>) {
+    m.module_doc(
+        "JSON text to and from script values, for talking to anything outside \
+         the engine. Unlike TOML it has null, so nil survives a round trip.",
+    );
+    m.describe(&[
+        ("parse", &[], "The value a JSON document describes; an error on text that does not parse."),
+        ("encode", &[], "A value written back out as JSON text; NaN, infinity, a node or a callback has no JSON form and is an error."),
+    ]);
 }
 
 fn time(eng: &Engine, _: &[Value]) -> Result<Value> {

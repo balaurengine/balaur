@@ -1,7 +1,7 @@
 //! Named actions over the raw snapshot: what a project declares, what a
 //! player rebinds, and the edges a game reads.
 
-use balaur_core::{App, AppConfig, Plugin as _, Stage};
+use balaur_core::{App, AppConfig};
 use balaur_input::{InputActions, InputPlugin, InputSnapshot};
 
 const MANIFEST: &str = r#"
@@ -136,11 +136,7 @@ jump = ["Spacebar", "Space"]
 #[test]
 fn rebinding_replaces_what_the_project_declared() {
     let (_dir, mut app) = app(MANIFEST);
-    {
-        let actions = app.engine.resource::<InputActions>();
-        // The map loads on the first tick, so give it one before rebinding.
-        drop(actions);
-    }
+    // The map loads on the first tick, so give it one before rebinding.
     frame(&mut app, &[]);
     app.engine
         .resource::<InputActions>()

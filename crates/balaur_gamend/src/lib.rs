@@ -556,6 +556,19 @@ fn json_of(value: Option<&Value>) -> Result<Json> {
 /// backend. One-shots return an awaitable id; socket events stream to the
 /// connect call's handler method (default `on_gamend_event`).
 fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
+    m.module_doc(
+        "The Gamend backend: a session, its REST API, and a realtime socket \
+         carrying topics and server hooks. Every call returns an id to await, \
+         and each result also reaches the handler method of the node it was \
+         given (`on_gamend_event` unless `on_event` names another) as a map \
+         tagged with a `kind`.",
+    );
+    m.describe(&[
+        ("configure", &[], "Point the plugin at a server's base url; every other call errors until this one runs."),
+        ("login", &[], "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers."),
+        ("rest", &[], "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`."),
+        ("connect", &[], "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take."),
+    ]);
     // `gamend.configure(url)` — where the server lives. Everything else
     // errors until this is called.
     m.function("configure", |eng: &Engine, url: String| {
@@ -622,6 +635,13 @@ fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
 
 /// The per-connection half of `gamend.*`: operations on an open socket.
 fn install_gamend_socket_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("join", &[], "Subscribe the socket to a topic and return the id the server's `reply` answers."),
+        ("push", &[], "Send an event and its payload to a topic on the socket, returning the id the `reply` answers."),
+        ("leave", &[], "Unsubscribe the socket from a topic, returning the id the `reply` answers."),
+        ("call_hook", &[], "Call a server plugin's function over the socket; the reply's `response` holds `data` or `error`."),
+        ("close", &[], "Shut the socket down; false when the connection was already gone."),
+    ]);
     // `gamend.join(socket, topic, payload?)` -> id; reply arrives as
     // `{ request, kind = "reply", status, response }`.
     m.function(

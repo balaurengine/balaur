@@ -290,6 +290,8 @@ pub struct Renderable {
     pub skeleton: String,
     /// Image a mesh is textured with; empty draws the colour alone.
     pub texture: String,
+    /// The `material` asset this draws with; empty means the built-in one.
+    pub material: String,
     /// Bumped when `shape` changes so backends know to rebuild their node.
     pub version: u64,
 }
@@ -467,6 +469,7 @@ pub(crate) fn set_mesh(
                 mesh: Some(source),
                 skeleton,
                 texture,
+                material: String::new(),
                 version: 0,
             },
         )
@@ -490,6 +493,7 @@ pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()
                 mesh: None,
                 skeleton: String::new(),
                 texture: String::new(),
+                material: String::new(),
                 version: 0,
             },
         )
@@ -706,6 +710,11 @@ impl Plugin for RenderPlugin {
         app.engine
             .insert_resource(CameraInputConfig { enabled: true });
         let mut m = app.script_module("render")?;
+        m.module_doc(
+            "What a frame is made of: the shape, sprite, mesh or emitter a \
+             node draws, the 2D and 3D cameras, the OS window, and the \
+             backdrop and debug lines drawn around the scene.",
+        );
         install_camera_api(&mut *m);
         install_camera_2d_api(&mut *m);
         install_window_api(&mut *m);
@@ -758,6 +767,14 @@ fn clear_debug_lines_system(eng: &Engine, _dt: f32) {
 /// The 3D camera: where it looks from, whether it takes the mouse, and the
 /// pose, matrix and picking ray it published this frame.
 fn install_camera_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("set_camera", &[], "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units."),
+        ("set_camera_input", &[], "Allow or inhibit the backend's own mouse camera controls, so an editor can take the pointer for a drag."),
+        ("camera_matrix", &[], "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window."),
+        ("mouse_ray", &[], "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units."),
+        ("pick_ray", &[], "The nearest node a world-space ray meets, given its origin xyz and direction xyz, or `()` for nothing."),
+        ("camera_pose", &[], "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale."),
+    ]);
     // Writes `CameraConfig`; not an accessor pair with `render.camera_pose`,
     // which reads what the renderer actually did with the request.
     m.function(
@@ -833,6 +850,11 @@ fn install_camera_api(m: &mut dyn Bindings<Engine>) {
 /// The 2D camera: its target center and zoom, the state it published this
 /// frame, and the mouse unprojected through it.
 fn install_camera_2d_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("set_camera_2d", &[], "Point the 2D camera: the world centre xy, then the zoom in logical pixels per world unit."),
+        ("camera_2d", &[], "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window."),
+        ("mouse_world_2d", &[], "The mouse position in 2D world coordinates, for picking."),
+    ]);
     // World center + zoom in logical pixels per world unit. Not an accessor
     // pair with `render.camera_2d`, which reads the published snapshot.
     m.function(
@@ -873,6 +895,13 @@ fn resolve_project_path(eng: &Engine, path: &str) -> std::path::PathBuf {
 }
 
 fn install_window_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("screenshot", &[], "Save the next rendered frame as a PNG at a project-relative path; a run with no renderer says so."),
+        ("set_app_icon", &[], "Set the application icon (the dock or taskbar one) from a PNG in the project, named by its path."),
+        ("set_fullscreen", &[], "Put the window into borderless fullscreen on the current monitor, or back into a window."),
+        ("set_cursor_grab", &[], "Confine the cursor to the window, for FPS-style mouse look."),
+        ("set_cursor_hidden", &[], "Hide or show the mouse cursor over the window."),
+    ]);
     // PNG on the next rendered frame; a run with no renderer says so. Fire
     // and forget — the log line naming the file is the completion signal.
     m.function("screenshot", |eng: &Engine, path: String| {
@@ -929,6 +958,13 @@ fn install_window_api(m: &mut dyn Bindings<Engine>) {
 /// What is drawn behind and around the scene: clear colour, ground grid,
 /// and the per-frame debug lines (3D and 2D).
 fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("set_background", &[], "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats."),
+        ("set_grid", &[], "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent."),
+        ("set_grid_colors", &[], "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats."),
+        ("draw_line", &[], "Draw one 3D world-space line for this frame; the width is in pixels unless perspective scales it with distance."),
+        ("draw_line_2d", &[], "Draw one 2D world-space line for this frame; width is in pixels."),
+    ]);
     // No reader by design (N8): the `ClearColorConfig` entry already holds
     // the colour; add `background` when a caller needs to read it back.
     m.function(
@@ -1018,6 +1054,10 @@ fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
 /// Shape and colour on a node, 3D and 2D.
 /// The `sprite` bindings: a textured 2D quad, its sheet and its frame.
 fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("set_sprite", &["sprite"], "Draw the node as a quad textured with a project image, sized from it at 100 texture pixels per world unit."),
+        ("set_sprite_sheet", &["sprite"], "Draw the node as one cell of a columns-by-rows sheet, sizing the quad to a single frame, not the whole image."),
+    ]);
     // Sized from the image unless `set_sprite_size` says otherwise, so the
     // common case is one call and art keeps its authored proportions.
     m.function(
@@ -1067,6 +1107,9 @@ fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
 /// The image's pixel size, from its header: what a tool placing UVs over a
 /// texture needs, in every build.
 fn install_texture_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("texture_size", &[], "The width and height of an image in pixels, read from its header."),
+    ]);
     m.function("texture_size", |eng: &Engine, path: String| {
         let bytes = eng
             .resource::<balaur_core::project::ProjectFiles>()
@@ -1080,6 +1123,15 @@ fn install_texture_api(m: &mut dyn Bindings<Engine>) {
 }
 
 fn install_sprite_state_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("set_sprite_frame", &["sprite"], "Show a sheet cell, numbered left to right then top to bottom; only the UVs move, so it is cheap per frame."),
+        ("set_sprite_size", &["sprite"], "Override the size the sprite took from its image, giving half-extents in world units instead."),
+        ("sprite", &["sprite"], "The texture path, sheet columns and rows, and current frame; empty and zeros when the node has no sprite."),
+        ("set_circle", &["shape2d"], "Draw the node as a circle of the given radius in world units, replacing any other 2D shape."),
+        ("set_color", &["sprite", "shape2d", "shape3d", "polygon", "particles"], "Tint whatever the node draws, as r, g, b channel floats and an optional alpha, one meaning opaque."),
+        ("shape3d", &["shape3d"], "The 3D shape's kind and its three dimensions in world units; empty and zeros when the node has no 3D shape."),
+        ("shape2d", &["shape2d"], "The 2D shape's kind and its two dimensions in world units; empty and zeros when the node has no 2D shape."),
+    ]);
     // Frames are numbered left to right, top to bottom. Changing one only
     // moves UVs, so this is cheap enough to call every frame.
     m.function(

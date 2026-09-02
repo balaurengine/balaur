@@ -1,0 +1,19 @@
+# Determinism bans. The engine's promise is that identical inputs produce an
+# identical simulation, and the two ways that breaks are wall-clock time and
+# entropy reaching gameplay. See docs/DETERMINISM.md.
+
+# A call that is genuinely outside the simulation -- a loop driver measuring a
+# frame, a log timestamp, a protocol nonce -- carries
+# #[allow(clippy::disallowed_methods, reason = "..")] saying which it is.
+disallowed-methods = [
+    { path = "std::time::Instant::now", reason = "wall-clock time in simulation makes a run unreproducible; simulation reads Engine::tick or FIXED_DT" },
+    { path = "std::time::SystemTime::now", reason = "wall-clock time in simulation makes a run unreproducible; simulation reads Engine::tick or FIXED_DT" },
+    { path = "rand::random", reason = "entropy in simulation desyncs a replay; the seeded `rng` module is the simulation's only source of randomness" },
+]
+
+# Iterating either leaks hash order into behaviour. scripts/house_lints.py
+# catches the iteration itself; this catches constructing one in a crate that
+# has an insertion-ordered map available.
+disallowed-types = [
+    { path = "std::collections::hash_map::RandomState", reason = "hash order is not reproducible across runs; use the engine's insertion-ordered map" },
+]

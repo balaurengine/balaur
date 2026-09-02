@@ -50,7 +50,7 @@ pub(crate) fn register_particles_component(app: &mut App) {
     app.register_component(
         "particles",
         ComponentDef {
-            doc: "",
+            doc: "A purely visual 2D emitter at the node: rate, lifetime, speed, cone and gravity. The live particles and the randomness scattering them are backend state the simulation never sees.",
             schema: ComponentDef::parse_schema(
                 "particles",
                 r#"emitting = { type = "bool", default = true, description = "Whether new particles are born; live ones finish either way" }
