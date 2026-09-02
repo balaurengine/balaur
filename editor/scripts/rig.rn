@@ -5,20 +5,12 @@
 use crate::history;
 use crate::model;
 use crate::util;
+use crate::viewport;
 
 const W = 2.4;
 // A tip bone with no length set still needs a diamond to pick.
 const TIP_LENGTH = 0.35;
 const PICK_PX = 10.0;
-
-fn hover_color() {
-    [0.118, 0.314, 0.784]
-}
-
-fn world_per_px(S) {
-    let (_, _, zoom) = render::camera_2d();
-    S.ui_scale / util::max(zoom, 0.01)
-}
 
 fn has_object(node, key) {
     match node.get(key) {
@@ -104,7 +96,7 @@ fn segment_distance(p, a, b) {
 // within a screen-space radius.
 pub fn pick(S, mx, my) {
     let best = None;
-    let best_d = PICK_PX * world_per_px(S);
+    let best_d = PICK_PX * viewport::world_per_px(S);
     for (i, node) in S.doc.iter().enumerate() {
         if is_bone(node) {
             if let Some(g) = geometry(S, i) {
@@ -157,7 +149,7 @@ fn draw_bone(S, g, color) {
     }
     let nx = -dy / len;
     let ny = dx / len;
-    let half = util::min(0.12 * len, 6.0 * world_per_px(S));
+    let half = util::min(0.12 * len, 6.0 * viewport::world_per_px(S));
     let jx = g.origin[0] + dx * 0.2;
     let jy = g.origin[1] + dy * 0.2;
     let a = [jx + nx * half, jy + ny * half];
@@ -213,7 +205,7 @@ pub fn draw(S) {
         if is_bone(node) {
             if let Some(g) = geometry(S, i) {
                 let color = if S.rig_hover == Some(i) {
-                    hover_color()
+                    viewport::hover_color()
                 } else if i == S.sel {
                     accent
                 } else {

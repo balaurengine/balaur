@@ -8,15 +8,7 @@ use crate::model;
 use crate::rig;
 use crate::shell;
 use crate::util;
-
-// steadyum's selection palette: orange frame, deep-blue hover.
-fn orange() {
-    [1.0, 0.647, 0.0]
-}
-
-fn hover_color() {
-    [0.118, 0.314, 0.784]
-}
+use crate::viewport;
 
 // Rotation basis from the engine's ZYX euler (roll=x, pitch=y, yaw=z):
 // R = Rz(yaw) * Ry(pitch) * Rx(roll). Returns the world-space directions of
@@ -390,13 +382,6 @@ fn draw_handle_marker(geo, signs, half, color) {
 }
 
 // Which gizmo part is "hot" (dragged part wins over hover).
-fn hot_part(S) {
-    match S.gizmo_drag {
-        Some(drag) => Some(drag.part),
-        None => S.gizmo_hover,
-    }
-}
-
 fn hot_is(hot, kind) {
     match hot {
         Some(part) => part.kind == kind,
@@ -417,7 +402,7 @@ pub fn draw(S) {
     if S.persona == "script" {
         return;
     }
-    let hot = hot_part(S);
+    let hot = viewport::hot_part(S);
     let he = geo.he;
     let hot_face = if hot_is(hot, "face") { hot } else { None };
     // The 12 box edges, in the node's rotated frame. An edge bounds the
@@ -427,10 +412,10 @@ pub fn draw(S) {
         let (b_axis, c_axis) = face_axes(axis);
         for sb in [-1.0, 1.0] {
             for sc2 in [-1.0, 1.0] {
-                let color = orange();
+                let color = viewport::orange();
                 if let Some(face) = hot_face {
                     if (b_axis == face.axis && sb == face.sign) || (c_axis == face.axis && sc2 == face.sign) {
-                        color = hover_color();
+                        color = viewport::hover_color();
                     }
                 }
                 let a_off = [0.0, 0.0, 0.0];
@@ -456,7 +441,7 @@ pub fn draw(S) {
             Some(part) => part.kind == "handle" && part.index == i,
             None => false,
         };
-        draw_handle_marker(geo, corner.signs, geo.marker, if hot_handle { hover_color() } else { orange() });
+        draw_handle_marker(geo, corner.signs, geo.marker, if hot_handle { viewport::hover_color() } else { viewport::orange() });
     }
     // Face-center scale rectangles (drag = scale along the face normal).
     for (i, face) in faces(geo).iter().enumerate() {
@@ -464,7 +449,7 @@ pub fn draw(S) {
             Some(part) => part.kind == "facerect" && part.index == i,
             None => false,
         };
-        let color = if hot_rect { hover_color() } else { orange() };
+        let color = if hot_rect { viewport::hover_color() } else { viewport::orange() };
         let pts = face_rect_points(geo, face);
         for j in 0..4 {
             line(pts[j], pts[(j + 1) % 4], color, W, false);
@@ -476,7 +461,7 @@ pub fn draw(S) {
             Some(part) => part.kind == "ring" && part.axis == axis,
             None => false,
         };
-        let color = if hot_ring { hover_color() } else { orange() };
+        let color = if hot_ring { viewport::hover_color() } else { viewport::orange() };
         let prev = ring_point(geo, axis, 0.0);
         for t in 1..49 {
             let next = ring_point(geo, axis, (t as f64) / 48.0);
@@ -525,13 +510,6 @@ fn start_gizmo_drag(S, cam, geo, part, mx, my) {
         drag.anchor = ray_plane(cam, drag.plane_p, n);
     }
     S.gizmo_drag = Some(drag);
-}
-
-fn snapping(S) {
-    match S.chip_state.get("scene") {
-        Some(chips) => chips.get("snap").unwrap_or(false) == true,
-        None => false,
-    }
 }
 
 fn apply_gizmo_drag(S, cam, mx, my) {
@@ -587,7 +565,7 @@ fn apply_gizmo_drag(S, cam, mx, my) {
             if let Some(hit) = ray_plane(cam, d.plane_p, d.plane_n) {
                 let delta = util::vsub(hit, anchor);
                 let pos = util::vadd([d.pos[0], d.pos[1], d.pos[2]], delta);
-                if snapping(S) {
+                if viewport::snapping(S) {
                     for axis in 0..3 {
                         pos[axis] = math::round(pos[axis] * 2.0) / 2.0;
                     }
@@ -597,10 +575,6 @@ fn apply_gizmo_drag(S, cam, mx, my) {
             }
         }
     }
-}
-
-fn manipulates(tool) {
-    tool == "move" || tool == "rotate" || tool == "scale" || tool == "zoom"
 }
 
 // Runs every frame from the root's `update`.
@@ -644,7 +618,7 @@ pub fn update(S) {
 
     // The camera keeps the pointer unless a manipulation tool is active or
     // the gizmo itself is hot.
-    render::set_camera_input(!manipulates(S.tool) && S.gizmo_hover.is_none() && S.gizmo_drag.is_none());
+    render::set_camera_input(!viewport::manipulates(S.tool, false) && S.gizmo_hover.is_none() && S.gizmo_drag.is_none());
 
     if input::mouse_just_pressed(input::MOUSE_LEFT) && over_viewport {
         let hovered = match (S.gizmo_hover, geo) {
@@ -732,7 +706,7 @@ pub fn update(S) {
             x += d[0];
             z += d[2];
         }
-        if snapping(S) {
+        if viewport::snapping(S) {
             x = math::round(x * 2.0) / 2.0;
             y = math::round(y * 2.0) / 2.0;
             z = math::round(z * 2.0) / 2.0;

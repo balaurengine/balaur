@@ -1,0 +1,44 @@
+// What every viewport tool needs and each one used to define for itself: the
+// selection palette, the world-per-pixel scale, and the three questions a
+// tool asks about the current drag.
+
+use crate::util;
+
+/// steadyum's selection orange.
+pub fn orange() {
+    [1.0, 0.647, 0.0]
+}
+
+/// The deep blue a hovered part tints to.
+pub fn hover_color() {
+    [0.118, 0.314, 0.784]
+}
+
+/// World units per design pixel (design px = logical px / ui scale).
+pub fn world_per_px(S) {
+    let (_, _, zoom) = render::camera_2d();
+    S.ui_scale / util::max(zoom, 0.01)
+}
+
+/// Whether the Snap chip is on.
+pub fn snapping(S) {
+    match S.chip_state.get("scene") {
+        Some(chips) => chips.get("snap").unwrap_or(false) == true,
+        None => false,
+    }
+}
+
+/// The gizmo part under the pointer: the dragged one wins over the hovered.
+pub fn hot_part(S) {
+    match S.gizmo_drag {
+        Some(drag) => Some(drag.part),
+        None => S.gizmo_hover,
+    }
+}
+
+/// Tools that drive the gizmo rather than the camera. The 2D viewport adds
+/// the two tools that exist only there.
+pub fn manipulates(tool, mode2d) {
+    let core = tool == "move" || tool == "rotate" || tool == "scale" || tool == "zoom";
+    core || (mode2d && (tool == "bone" || tool == "polygon"))
+}

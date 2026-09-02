@@ -22,6 +22,7 @@ mod shell;
 mod style;
 mod theme;
 mod util;
+mod viewport;
 
 pub fn init(this) {
     let S = #{

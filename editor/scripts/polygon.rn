@@ -5,6 +5,7 @@
 use crate::history;
 use crate::model;
 use crate::util;
+use crate::viewport;
 
 const W = 2.0;
 const PICK_PX = 8.0;
@@ -22,15 +23,6 @@ pub fn mode_name(id) {
         "weights" => "Weights",
         _ => id,
     }
-}
-
-fn hover_color() {
-    [0.118, 0.314, 0.784]
-}
-
-fn world_per_px(S) {
-    let (_, _, zoom) = render::camera_2d();
-    S.ui_scale / util::max(zoom, 0.01)
 }
 
 pub fn component(node) {
@@ -520,7 +512,7 @@ fn world_points(S, mesh, f, in_uv) {
 // The vertex under the cursor, in position space or UV space.
 fn pick(S, mesh, f, mx, my, in_uv) {
     let best = None;
-    let best_d = PICK_PX * world_per_px(S);
+    let best_d = PICK_PX * viewport::world_per_px(S);
     for (i, p) in world_points(S, mesh, f, in_uv).iter().enumerate() {
         let d = math::sqrt((p[0] - mx) * (p[0] - mx) + (p[1] - my) * (p[1] - my));
         if d < best_d {
@@ -536,7 +528,7 @@ fn line(a, b, color) {
 }
 
 fn marker(S, x, y, color, filled) {
-    let h = MARK_PX * world_per_px(S);
+    let h = MARK_PX * viewport::world_per_px(S);
     let width = if filled { 2.0 * MARK_PX } else { W };
     render::draw_line_2d(x - h, y - h, x + h, y - h, color[0], color[1], color[2], width);
     render::draw_line_2d(x + h, y - h, x + h, y + h, color[0], color[1], color[2], width);
@@ -583,7 +575,7 @@ pub fn draw(S) {
     }
     if let Some(ring) = S.polygon_loop {
         for i in 1..ring.len() {
-            line(points[ring[i - 1]], points[ring[i]], hover_color());
+            line(points[ring[i - 1]], points[ring[i]], viewport::hover_color());
         }
     }
     let active = match S.paint_bone {
@@ -591,7 +583,7 @@ pub fn draw(S) {
         None => None,
     };
     for (i, p) in points.iter().enumerate() {
-        let color = if S.polygon_hover == Some(i) { hover_color() } else { accent };
+        let color = if S.polygon_hover == Some(i) { viewport::hover_color() } else { accent };
         if mode == "weights" {
             if let Some(bone) = active {
                 let w = util::f(util::vec(bone.get("weights").unwrap_or([])).get(i).unwrap_or(0.0));
@@ -759,7 +751,7 @@ pub fn update(S, over_viewport, mx, my) {
             0.0
         };
         if sign != 0.0 {
-            let radius = S.paint_radius * world_per_px(S);
+            let radius = S.paint_radius * viewport::world_per_px(S);
             let amount = sign * S.paint_strength * engine::delta() * 2.0;
             for (i, p) in world_points(S, mesh, f, false).iter().enumerate() {
                 if math::sqrt((p[0] - mx) * (p[0] - mx) + (p[1] - my) * (p[1] - my)) <= radius {

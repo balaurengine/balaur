@@ -8,14 +8,7 @@ use crate::polygon;
 use crate::rig;
 use crate::shell;
 use crate::util;
-
-fn orange() {
-    [1.0, 0.647, 0.0]
-}
-
-fn hover_color() {
-    [0.118, 0.314, 0.784]
-}
+use crate::viewport;
 
 // steadyum's 6px bbox stroke, 30% thinner per taste (matches the 3D gizmo).
 const W = 4.2;
@@ -44,11 +37,6 @@ fn handle_signs() {
 }
 
 // World units per design pixel (design px = logical px / ui scale).
-fn world_per_px(S) {
-    let (_, _, zoom) = render::camera_2d();
-    S.ui_scale / util::max(zoom, 0.01)
-}
-
 fn line(a, b, color, width) {
     render::draw_line_2d(a[0], a[1], b[0], b[1], color[0], color[1], color[2], width);
 }
@@ -116,7 +104,7 @@ fn geometry(S) {
     hx = hx * s.x;
     hy = hy * s.y;
     let angle = found.global_rotation_euler().z;
-    let rs = HANDLE_PX * world_per_px(S);
+    let rs = HANDLE_PX * viewport::world_per_px(S);
     Some(#{
         center: [p.x, p.y],
         angle: angle,
@@ -148,13 +136,6 @@ fn hit_test(S, geo, mx, my) {
         return Some(#{ kind: "face" });
     }
     None
-}
-
-fn hot_part(S) {
-    match S.gizmo_drag {
-        Some(drag) => Some(drag.part),
-        None => S.gizmo_hover,
-    }
 }
 
 // Handle marker edges: `[face_axis, face_sign, ax, ay, bx, by]` over the
@@ -209,12 +190,12 @@ pub fn draw(S) {
     if S.persona == "script" {
         return;
     }
-    let hot = hot_part(S);
+    let hot = viewport::hot_part(S);
     let hx = geo.he[0];
     let hy = geo.he[1];
     // Frame: in steadyum the 2D translate picker covers the whole interior,
     // so a translate hover/drag highlights all four edges.
-    let box_color = if is_hot(hot, "face") { hover_color() } else { orange() };
+    let box_color = if is_hot(hot, "face") { viewport::hover_color() } else { viewport::orange() };
     let corners = [
         local_point(geo, -hx, -hy),
         local_point(geo, hx, -hy),
@@ -229,10 +210,10 @@ pub fn draw(S) {
             Some(part) => part.kind == "handle" && part.signs[0] == signs[0] && part.signs[1] == signs[1],
             None => false,
         };
-        draw_handle_marker(geo, signs, if hot_handle { hover_color() } else { orange() });
+        draw_handle_marker(geo, signs, if hot_handle { viewport::hover_color() } else { viewport::orange() });
     }
     // Rotation circle, same stroke and colours as the frame.
-    let ring_color = if is_hot(hot, "ring") { hover_color() } else { orange() };
+    let ring_color = if is_hot(hot, "ring") { viewport::hover_color() } else { viewport::orange() };
     let prev = local_point(geo, geo.ring, 0.0);
     for t in 1..49 {
         let a = (t as f64) / 48.0 * math::PI * 2.0;
@@ -268,13 +249,6 @@ fn start_drag(S, geo, part, mx, my) {
     S.gizmo_drag = Some(drag);
 }
 
-fn snapping(S) {
-    match S.chip_state.get("scene") {
-        Some(chips) => chips.get("snap").unwrap_or(false) == true,
-        None => false,
-    }
-}
-
 fn apply_drag(S, mx, my) {
     let d = S.gizmo_drag.unwrap();
     let (node, found) = model::selected(S);
@@ -285,7 +259,7 @@ fn apply_drag(S, mx, my) {
     if d.part.kind == "face" {
         let x = d.pos[0] + (mx - d.mouse[0]);
         let y = d.pos[1] + (my - d.mouse[1]);
-        if snapping(S) {
+        if viewport::snapping(S) {
             x = math::round(x * 2.0) / 2.0;
             y = math::round(y * 2.0) / 2.0;
         }
@@ -381,7 +355,7 @@ fn pick(S, mx, my) {
         return best;
     }
     // Fallback: nearest node origin within 40 design px.
-    let wpp = world_per_px(S);
+    let wpp = viewport::world_per_px(S);
     let best_d = 40.0 * wpp;
     for i in 0..S.doc.len() {
         if let Some(found) = model::live(S, i) {
@@ -394,10 +368,6 @@ fn pick(S, mx, my) {
         }
     }
     best
-}
-
-fn manipulates(tool) {
-    tool == "move" || tool == "rotate" || tool == "scale" || tool == "zoom" || tool == "bone" || tool == "polygon"
 }
 
 // Runs every frame from the root's `update` (via gizmo::update's 2D
@@ -435,7 +405,7 @@ pub fn update(S, vp) {
         };
     }
 
-    render::set_camera_input(!manipulates(S.tool) && S.gizmo_hover.is_none() && S.gizmo_drag.is_none());
+    render::set_camera_input(!viewport::manipulates(S.tool, true) && S.gizmo_hover.is_none() && S.gizmo_drag.is_none());
 
     if input::mouse_just_pressed(input::MOUSE_LEFT) && over_viewport {
         let hovered = match (S.gizmo_hover, geo) {
@@ -475,7 +445,7 @@ pub fn update(S, vp) {
     if dx == 0.0 && dy == 0.0 {
         return;
     }
-    let wpp = world_per_px(S);
+    let wpp = viewport::world_per_px(S);
     let (node, found) = model::selected(S);
     if found.is_some() && (S.tool == "move" || S.tool == "rotate" || S.tool == "scale") {
         history::record(S, format!("{} node", S.tool), Some(format!("tool:{}:{}", S.tool, S.sel)));
@@ -493,7 +463,7 @@ pub fn update(S, vp) {
         let p = found.position();
         let x = p.x + dx * wpp;
         let y = p.y - dy * wpp;
-        if snapping(S) {
+        if viewport::snapping(S) {
             x = math::round(x * 2.0) / 2.0;
             y = math::round(y * 2.0) / 2.0;
         }
