@@ -24,10 +24,22 @@ thread_local! {
     /// Every function and constant declared through the seam, for the API
     /// dump: Rune's context cannot be walked from outside.
     static API: RefCell<Vec<ApiEntry>> = const { RefCell::new(Vec::new()) };
-    /// `(module, component)` pairs a module declared it drives.
-    static DRIVES: RefCell<Vec<(String, String)>> = const { RefCell::new(Vec::new()) };
+    /// What each described function does: `(module, name, acts_on, doc)`.
+    static DOCS: RefCell<Vec<FnEntry>> = const { RefCell::new(Vec::new()) };
+    /// `(module, doc)` for each module that described itself.
+    static MODULE_DOCS: RefCell<Vec<(String, String)>> = const { RefCell::new(Vec::new()) };
     /// `(module, function)` -> its `BOUND` handle, for component handles.
     static NAMED: RefCell<HashMap<(String, String), usize>> = RefCell::new(HashMap::new());
+}
+
+/// One function's reference entry, as its module declared it.
+#[derive(Clone, Debug)]
+pub struct FnEntry {
+    pub module: String,
+    pub name: String,
+    /// Components the function reads or writes; empty when it acts on none.
+    pub acts_on: Vec<String>,
+    pub doc: String,
 }
 
 /// One declared script-facing name.
@@ -46,8 +58,12 @@ pub(crate) fn api_entries() -> Vec<ApiEntry> {
     API.with_borrow(Clone::clone)
 }
 
-pub(crate) fn api_drives() -> Vec<(String, String)> {
-    DRIVES.with_borrow(Clone::clone)
+pub(crate) fn api_docs() -> Vec<FnEntry> {
+    DOCS.with_borrow(Clone::clone)
+}
+
+pub(crate) fn api_module_docs() -> Vec<(String, String)> {
+    MODULE_DOCS.with_borrow(Clone::clone)
 }
 
 pub(crate) fn bound_handle(module: &str, name: &str) -> Option<usize> {
@@ -208,13 +224,18 @@ impl balaur_script::Bindings<Engine> for RuneModule {
         });
     }
 
-    fn drives(&mut self, components: &[&str]) {
-        DRIVES.with_borrow_mut(|d| {
-            d.extend(
-                components
-                    .iter()
-                    .map(|c| (self.name.clone(), (*c).to_string())),
-            );
+    fn module_doc(&mut self, doc: &'static str) {
+        MODULE_DOCS.with_borrow_mut(|d| d.push((self.name.clone(), doc.to_string())));
+    }
+
+    fn describe(&mut self, entries: &[balaur_script::FnDoc]) {
+        DOCS.with_borrow_mut(|docs| {
+            docs.extend(entries.iter().map(|(name, acts_on, doc)| FnEntry {
+                module: self.name.clone(),
+                name: (*name).to_string(),
+                acts_on: acts_on.iter().map(|c| (*c).to_string()).collect(),
+                doc: (*doc).to_string(),
+            }));
         });
     }
 

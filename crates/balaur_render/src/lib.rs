@@ -721,7 +721,6 @@ impl Plugin for RenderPlugin {
         app.engine
             .insert_resource(CameraInputConfig { enabled: true });
         let mut m = app.script_module("render")?;
-        m.drives(&["camera", "sprite", "shape2d", "shape3d"]);
         install_camera_api(&mut *m);
         install_camera_2d_api(&mut *m);
         install_window_api(&mut *m);

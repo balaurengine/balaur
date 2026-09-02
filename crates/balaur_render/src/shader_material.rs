@@ -17,7 +17,8 @@ use kiss3d::camera::Camera2d;
 use kiss3d::context::Context;
 use kiss3d::resource::vertex_index::VERTEX_INDEX_FORMAT;
 use kiss3d::resource::{
-    multisample_state, GpuData, GpuMesh2d, Material2d, PipelineCache, RenderContext2d, Texture,
+    multisample_state, GpuData, GpuMesh2d, Material2d, MaterialManager2d, PipelineCache,
+    RenderContext2d, Texture,
 };
 use kiss3d::scene::{InstancesBuffer2d, ObjectData2d};
 
@@ -512,6 +513,11 @@ impl MaterialCache {
         }
         self.generation = now;
         let had = !self.linked.is_empty();
+        for reference in self.linked.keys() {
+            MaterialManager2d::get_global_manager(|manager| {
+                manager.remove(&manager_name(reference));
+            });
+        }
         self.linked.clear();
         had
     }
@@ -533,13 +539,27 @@ impl MaterialCache {
             .inspect_err(|why| tracing::error!(material = reference, "{why:#}"))
             .ok()
             .map(|material| {
-                std::rc::Rc::new(std::cell::RefCell::new(
-                    Box::new(material) as Box<dyn Material2d>
-                ))
+                let shared: SharedMaterial =
+                    std::rc::Rc::new(std::cell::RefCell::new(
+                        Box::new(material) as Box<dyn Material2d>
+                    ));
+                // Registered, not just attached: kiss3d calls `begin_frame`
+                // over the manager's materials, and a material that misses it
+                // writes its view and clock once and then never again.
+                MaterialManager2d::get_global_manager(|manager| {
+                    manager.add(shared.clone(), &manager_name(reference));
+                });
+                shared
             });
         self.linked.insert(reference.to_string(), built.clone());
         built
     }
+}
+
+/// What a material is registered under in kiss3d's global manager. Prefixed
+/// so a project's path can never collide with `object2d` or `lit2d`.
+fn manager_name(reference: &str) -> String {
+    format!("balaur:{reference}")
 }
 
 fn build(app: &balaur_core::App, reference: &str) -> anyhow::Result<ShaderMaterial> {

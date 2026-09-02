@@ -45,9 +45,6 @@ _INEXACT_FLOAT = (r"sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|asinh|acosh"
 # Both spellings: `x.sin()` and `f32::sin(x)` are the same call.
 PLATFORM_FLOAT_RS = re.compile(rf"(?:\.|\bf(?:32|64)::)(?:{_INEXACT_FLOAT})\(")
 
-# Rune's `f64` module reaches Rust's `powf`/`powi`; `math::pow` is libm's.
-PLATFORM_FLOAT_RN = re.compile(r"\.(?:powf|powi)\(")
-
 # Type suffixes a typemap entry may never take (NAMING.md N2). A denylist, not
 # an allowlist: "no suffix" is a legal category, so `ClearColor` and
 # `DebugLineBuffer` would both pass any permissive check.
@@ -102,32 +99,6 @@ def rust_files() -> list[Path]:
         dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS and not d.startswith("."))
         out.extend(Path(dirpath) / f for f in filenames if f.endswith(".rs"))
     return sorted(out)
-
-
-def script_files() -> list[Path]:
-    """Rune scripts, walked the same way and for the same reason."""
-    out = []
-    for dirpath, dirnames, filenames in os.walk(ROOT):
-        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS and not d.startswith("."))
-        out.extend(Path(dirpath) / f for f in filenames if f.endswith(".rn"))
-    return sorted(out)
-
-
-def check_script_file(path: Path) -> list[Finding]:
-    """The one determinism rule a Rune script can break by itself."""
-    rel = path.relative_to(ROOT)
-    findings = []
-    for i, raw in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-        line = raw.strip()
-        if line.startswith("//"):
-            continue
-        m = PLATFORM_FLOAT_RN.search(line)
-        if m:
-            findings.append(Finding(rel, i, "platform-float-math",
-                                    f"`{m.group(0).lstrip('.').rstrip('(')}` is Rune's, and "
-                                    "calls the platform "
-                                    "`pow`; use `math::pow` (DETERMINISM.md)", "ERROR"))
-    return findings
 
 
 @dataclass
@@ -526,10 +497,6 @@ def main() -> int:
     ctx = scan_context(files)
     for path in files:
         findings.extend(check_file(path, ctx))
-    scripts = script_files()
-    for path in scripts:
-        findings.extend(check_script_file(path))
-    files = files + scripts
 
     errors = [f for f in findings if f.severity == "ERROR"]
     reports = [f for f in findings if f.severity == "REPORT"]

@@ -104,7 +104,6 @@ impl Plugin for AnimationPlugin {
         });
         register_animation_component(app);
         let mut m = app.script_module("animation")?;
-        m.drives(&["animation"]);
         install_animation_api(&mut *m);
         Ok(())
     }

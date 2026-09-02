@@ -17,9 +17,7 @@ use balaur_script::Value as Neutral;
 use rune::runtime::{InstAddress, Memory, Output, Protocol, VmError, VmResult};
 
 use super::{from_neutral, to_neutral, Node};
-use crate::bindings::{
-    api_drives, api_entries, bound_handle, call_bound, hold_node_fn, CallbackScope,
-};
+use crate::bindings::{api_docs, bound_handle, call_bound, hold_node_fn, CallbackScope};
 
 /// A component on a node, as scripts see it.
 #[derive(rune::Any, Clone)]
@@ -85,24 +83,13 @@ pub(crate) fn install(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::Co
             .build_associated::<Component>()?;
     }
 
-    // Method name -> component -> bound function, from what modules declared.
-    let mut driven: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for (module, component) in api_drives() {
-        driven.entry(module).or_default().push(component);
-    }
+    // Method name -> component -> bound function, from what each function
+    // declared it acts on.
     let mut methods: BTreeMap<String, HashMap<String, usize>> = BTreeMap::new();
-    for entry in api_entries() {
-        let Some(signature) = entry.signature.as_deref() else {
-            continue;
-        };
-        if entry.constant.is_some()
-            || !(signature.starts_with("NodeId") || signature.starts_with("(NodeId"))
-        {
+    for entry in api_docs() {
+        if entry.acts_on.is_empty() {
             continue;
         }
-        let Some(components) = driven.get(&entry.module) else {
-            continue;
-        };
         let Some(handle) = bound_handle(&entry.module, &entry.name) else {
             continue;
         };
@@ -116,9 +103,9 @@ pub(crate) fn install(m: &mut rune::Module, eng: &Engine) -> Result<(), rune::Co
             continue;
         }
         let targets = methods.entry(entry.name.clone()).or_default();
-        for component in components {
+        for component in entry.acts_on {
             if targets.insert(component.clone(), handle).is_some() {
-                tracing::warn!("two modules drive `{component}` with a `{}`", entry.name);
+                tracing::warn!("two modules act on `{component}` with a `{}`", entry.name);
             }
         }
     }

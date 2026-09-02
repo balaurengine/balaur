@@ -4407,6 +4407,7 @@ checksum = "fae8ee26b0371a29a77d2b2d6b3ae13aa81def6f9bf1b1b92a32d279a5e709b7"
 [[package]]
 name = "rune"
 version = "0.14.2"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#29a29bd91c733c3b040e92cb98085c33b13e0a0f"
 dependencies = [
  "anyhow",
  "codespan-reporting 0.11.1",
@@ -4432,6 +4433,7 @@ dependencies = [
 [[package]]
 name = "rune-alloc"
 version = "0.14.2"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#29a29bd91c733c3b040e92cb98085c33b13e0a0f"
 dependencies = [
  "ahash",
  "pin-project",
@@ -4442,6 +4444,7 @@ dependencies = [
 [[package]]
 name = "rune-alloc-macros"
 version = "0.14.2"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#29a29bd91c733c3b040e92cb98085c33b13e0a0f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4451,6 +4454,7 @@ dependencies = [
 [[package]]
 name = "rune-core"
 version = "0.14.2"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#29a29bd91c733c3b040e92cb98085c33b13e0a0f"
 dependencies = [
  "musli",
  "rune-alloc",
@@ -4461,6 +4465,7 @@ dependencies = [
 [[package]]
 name = "rune-macros"
 version = "0.14.2"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#29a29bd91c733c3b040e92cb98085c33b13e0a0f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4471,6 +4476,7 @@ dependencies = [
 [[package]]
 name = "rune-tracing"
 version = "0.14.2"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#29a29bd91c733c3b040e92cb98085c33b13e0a0f"
 dependencies = [
  "rune-tracing-macros",
 ]
@@ -4478,6 +4484,7 @@ dependencies = [
 [[package]]
 name = "rune-tracing-macros"
 version = "0.14.2"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#29a29bd91c733c3b040e92cb98085c33b13e0a0f"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -20,9 +20,20 @@ pub trait Bindings<C: ?Sized> {
     /// The argument and return types of `name`, as Rust spells them, for the
     /// generated reference. A backend that keeps no API record ignores it.
     fn signature(&mut self, _name: &str, _args: &str, _returns: &str) {}
-    /// The components this module's functions act on, for the reference.
-    fn drives(&mut self, _components: &[&str]) {}
+    /// What this module is for: one or two sentences for the reference.
+    fn module_doc(&mut self, _doc: &'static str) {}
+    /// What each function does and which components it acts on.
+    ///
+    /// A function that names a component becomes a method on that component's
+    /// handle (`node.body2d.apply_impulse(..)`), so the list is API, not just
+    /// documentation. `scripts/api_lints.py` fails the build for a registered
+    /// function with no entry here.
+    fn describe(&mut self, _entries: &[FnDoc]) {}
 }
+
+/// One function's reference entry: its name, the components it reads or
+/// writes (empty when it acts on none), and one line saying what it does.
+pub type FnDoc = (&'static str, &'static [&'static str], &'static str);
 
 /// Typed registration. Blanket-implemented, so every backend gets it free.
 pub trait BindingsExt<C: ?Sized>: Bindings<C> {
@@ -87,8 +98,11 @@ impl<C: ?Sized, T: Bindings<C> + ?Sized> Bindings<C> for &mut T {
     fn signature(&mut self, name: &str, args: &str, returns: &str) {
         (**self).signature(name, args, returns);
     }
-    fn drives(&mut self, components: &[&str]) {
-        (**self).drives(components);
+    fn module_doc(&mut self, doc: &'static str) {
+        (**self).module_doc(doc);
+    }
+    fn describe(&mut self, entries: &[FnDoc]) {
+        (**self).describe(entries);
     }
 }
 
@@ -102,8 +116,11 @@ impl<C: ?Sized, T: Bindings<C> + ?Sized> Bindings<C> for Box<T> {
     fn signature(&mut self, name: &str, args: &str, returns: &str) {
         (**self).signature(name, args, returns);
     }
-    fn drives(&mut self, components: &[&str]) {
-        (**self).drives(components);
+    fn module_doc(&mut self, doc: &'static str) {
+        (**self).module_doc(doc);
+    }
+    fn describe(&mut self, entries: &[FnDoc]) {
+        (**self).describe(entries);
     }
 }
 

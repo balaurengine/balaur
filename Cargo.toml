@@ -82,8 +82,12 @@ tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 [profile.dev]
 debug = "line-tables-only"
 
-# Our kiss3d fork: v0.46.0 + the macOS Command-modifier fix for egui + iOS/Android
-# support. Cargo.lock pins the commit; to hack on kiss3d locally, use a `paths`
-# override in .cargo/config.toml rather than editing this.
+# Two forks. Cargo.lock pins both commits; to hack on either locally, use a
+# `paths` override in .cargo/config.toml rather than editing this.
 [patch.crates-io]
+# 0.14.2 with `f64::powf`/`powi` on libm. Rune installs its stdlib wholesale and
+# a function cannot be overridden, so a fork is the only way those two stop
+# calling the platform libm.
+rune = { git = "https://github.com/balaurengine/rune.git", branch = "deterministic-pow" }
+# v0.46.0 + the macOS Command-modifier fix for egui + iOS/Android support.
 kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "mobile-fixes" }

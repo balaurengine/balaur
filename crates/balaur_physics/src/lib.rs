@@ -73,7 +73,6 @@ impl Plugin for PhysicsPlugin {
             install_world_controls(&mut *m);
         }
         let mut m = app.script_module("physics3d")?;
-        m.drives(&["body3d", "collider3d"]);
         install_constants(&mut *m, BODY_KINDS, SHAPE_KINDS);
         install_body_api(&mut *m);
         register_physics_components(app);
