@@ -475,6 +475,15 @@ fn apply_transform(t, key, v) {
     }
 }
 
+pub fn index_of_live(S, node) {
+    for (i, found) in S.refs.iter().enumerate() {
+        if found is balaur::Node && found.is_valid() && found.path() == node.path() {
+            return Some(i);
+        }
+    }
+    None
+}
+
 pub fn selected(S) {
     (S.doc[S.sel], live(S, S.sel))
 }

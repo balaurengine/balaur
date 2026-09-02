@@ -5,8 +5,14 @@
 > start-state tables, the schema cache, and `ui::central_rect` in place of
 > `center::viewport_rect`'s arithmetic. Plugins load from `editor/plugins/`
 > and `<game>/editor/`, and `editor/plugins/counter.rn` is the worked example
-> the e2e suite runs as `--state counterdemo`. Phase 3 is not started. See
-> [generated/](generated/) for what the code actually does.
+> the e2e suite runs as `--state counterdemo`. Phase 3 is under way: the
+> filesystem verbs (`fs::remove`, `mkdir`, `rename`, `mtime`) and the Assets
+> dock's create, rename and delete; node copy and paste over the clipboard;
+> `ui::color` for a schema colour; and `render::pick_ray`, which the 3D
+> select tool now uses in place of the nearest projected origin. Drag and
+> drop, world-anchored text, the export and import verbs and the async
+> tokens are not started. See [generated/](generated/) for what the code
+> actually does.
 >
 > **Where the implementation decided differently:**
 >
@@ -29,7 +35,14 @@
 > 4. **`model::set_transform` does not record history.** A drag records once
 >    at its start and then writes every frame, so recording inside the writer
 >    would either duplicate or depend on the coalescing window.
-> 5. **`script::functions` did not replace `highlight::analyze`.** The
+> 5. **Picking takes the ray, and keeps the old fallback.** The backend's
+>    `ViewportSnapshot` is empty without a window and every e2e run of the
+>    editor is headless, so a picker that read the mouse itself could not be
+>    tested; `render::pick_ray` takes the ray and the select tool passes it
+>    `render::mouse_ray()`. A mesh keeps its vertices in an asset, so the
+>    component carries no bounds for one — those still pick by nearest
+>    origin, which is what everything used to do.
+> 6. **`script::functions` did not replace `highlight::analyze`.** The
 >    editor's host is rooted at the editor project and the sources it shows
 >    belong to the game, so the parser stays for those; `script::functions`
 >    is what the plugin loader uses to check a file declares `register`
@@ -146,7 +159,7 @@ Each of these is something the editor works around today.
 | `script::functions(path)` | `highlight::analyze` parses `pub fn` lines by hand | `[#{ name, arity, is_async, line }]` from the host |
 | `script::shared(f)` | none: a closure handed across units cannot be called | wraps any `Function` in the `require` trampoline; what lets a plugin pass `\|\| …` to the registry |
 | `task::frames(n)`, `task::seconds(t)`, `task::paused()` | flags in `S` | tokens the pump and the debugger wake |
-| `render::pick(x, y)` | the select tool projects every node's origin and takes the nearest within 40 px; 2D tests half extents | a ray or point test against what is drawn (shapes, sprites, polygons, meshes); returns the node |
+| `render::pick(x, y)` | the select tool projects every node's origin and takes the nearest within 40 px; 2D tests half extents | a ray or point test against what is drawn (shapes, sprites, polygons, meshes); returns the node. **The ray is an argument, not the mouse**: the backend's `ViewportSnapshot` is all zeros without a window, so a picker that read it could not be tested in a headless run — and every e2e run of the editor is headless. `render::pick_ray(o, d)` tests `Renderable` + `GlobalTransform`, which is engine data the renderer never sees, and the select tool passes it `render::mouse_ray()`. |
 | `render::draw_text_2d` / `draw_text` | none: overlays cannot label a bone or a node | a world-anchored label in the line layer |
 | `engine::export(root)`, `assets::import(path)` | CLI only | the two verbs an Export button and an Import command need, async-capable |
 
@@ -243,3 +256,41 @@ per unit.)
 | 1 | Registries: docks, tools, personas, chips, commands, inspector sections, property editors, start states on `S.registry`; built-ins registered through them. `ui::central_rect`, `script::functions`, `script::shared`, `task::frames`. | 2 days |
 | 2 | Plugin loading from the two directories; `api`; `ui::window`; `fs::mtime`/`changed`/`engine::watch`; `docs/manual/editor.mdx` gains "Extending the editor" with the example above. | 2 days |
 | 3 | The rest of §3 as the tools that need them land: DnD and clipboard (Assets dock, node copy), `render::pick` (select tool), `draw_text` (bone names), `engine::export` / `assets::import` (an Export button, an Import command), the async self-tests. | as needed |
+
+## 6. Tools not yet built
+
+Three tools the plugin seam now makes cheap to add. Each is a persona tool
+or a dock registered like the built-ins, and each lands with a `--state`
+self-test.
+
+### Tilemap editor
+
+A `tilemap` component draws today; nothing paints one. The Scene persona
+gains a Tiles tool: a palette dock showing the tile set's texture cut by
+`tile_size`, click and drag to paint the selected tile, right-drag to
+erase, a rectangle fill, and layers as sibling `tilemap` nodes. Autotiling
+is a rule table on the tile set (`[[autotile]]` with a bitmask per tile) the
+painter consults after each stroke. Edits write the `cells` string through
+`history`, so undo is free.
+
+### Curve editor and onion skin
+
+The Animate persona's timeline shows keys as dots on a lane. A curve view
+under it draws each track's channels as curves against time, with the
+easing of a segment editable by dragging a handle at the key — the twelve
+named easings stay the storage, and a handle drag picks the nearest one,
+so the file stays readable. Onion skin ghosts the posed rig at the previous
+and next keys behind the viewport, from the same sampler the preview uses.
+
+### Profiler
+
+The engine records a duration per stage and per system each frame, plus
+rapier's counters and the script host's time per hook; `engine::timings()`
+returns the last frame's table. A Profiler dock draws them as a stacked bar
+per frame against a budget line at 16.7 ms and lists the top entries; a
+budget table in the project marks a row red when it is over. Headless runs
+print the same table with `--timings`, which is what the benchmark suite
+already wants.
+
+Phases: profiler first (it measures the other two), then the tilemap
+editor, then the curve view and onion skin.

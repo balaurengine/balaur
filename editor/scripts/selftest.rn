@@ -299,3 +299,76 @@ pub fn clipboard(S) {
     check(mirror_resolves(S), "the undone scene resolves in the mirror");
     log::info("selftest clipboard: done");
 }
+
+pub fn assets(S) {
+    let root = S.game_root + "/";
+    S.assets.dir = "";
+    S.assets.sel = "";
+
+    dock::new_folder(S);
+    let made = S.assets.sel;
+    check(made == "new-folder", format!("a new folder is named for what it is ({})", made));
+    check(fs::exists(root + made), "the new folder is on disk");
+
+    // A second one cannot take the same name.
+    dock::new_folder(S);
+    let second = S.assets.sel;
+    check(second != made, format!("a second folder gets its own name ({})", second));
+
+    S.assets.sel = made;
+    dock::rename_asset(S, "renamed-folder");
+    check(!fs::exists(root + made), "the old name is gone");
+    check(fs::exists(root + "renamed-folder"), "the new name is there");
+    check(S.assets.sel == "renamed-folder", "the selection followed the rename");
+
+    dock::rename_asset(S, "with/slash");
+    check(fs::exists(root + "renamed-folder"), "a name with a slash is refused");
+
+    dock::delete_asset(S);
+    check(!fs::exists(root + "renamed-folder"), "delete removes it");
+    check(S.assets.sel == "", "and clears the selection");
+
+    S.assets.sel = second;
+    dock::delete_asset(S);
+    check(!fs::exists(root + second), "the second folder is cleaned up too");
+    log::info("selftest assets: done");
+}
+
+pub fn picking(S) {
+    let target = None;
+    for i in 0..S.doc.len() {
+        if let Some(found) = model::live(S, i) {
+            let (kind, _, _, _) = render::shape3d(found);
+            if kind != "" && kind != "mesh" {
+                target = Some(i);
+                break;
+            }
+        }
+    }
+    let target_some = target;
+    let i = match target_some {
+        Some(i) => i,
+        None => {
+            log::info("selftest picking: no node with a 3D shape, skipped");
+            return;
+        }
+    };
+    let found = model::live(S, i).unwrap();
+    let p = found.global_position();
+    let name = S.doc[i].name;
+
+    // Straight down -z at it from well outside anything.
+    let hit = render::pick_ray(p.x, p.y, p.z + 200.0, 0.0, 0.0, -1.0);
+    if check(hit is balaur::Node, format!("a ray aimed at '{}' meets a node", name)) {
+        check(model::index_of_live(S, hit).is_some(), "and it is one of the document's");
+    }
+
+    // The same ray pointing away meets nothing.
+    let behind = render::pick_ray(p.x, p.y, p.z + 200.0, 0.0, 0.0, 1.0);
+    check(util::is_nil(behind), "a ray pointing away from the scene picks nothing");
+
+    // Far to the side, past anything the scene contains.
+    let aside = render::pick_ray(p.x + 10000.0, p.y, p.z + 200.0, 0.0, 0.0, -1.0);
+    check(util::is_nil(aside), "a ray beside the scene picks nothing");
+    log::info("selftest picking: done");
+}

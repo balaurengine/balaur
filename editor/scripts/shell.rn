@@ -265,6 +265,8 @@ fn states() {
         "rigdemo": crate::selftest::rigging,
         "polydemo": crate::selftest::polygons,
         "clipdemo": crate::selftest::clipboard,
+        "assetdemo": crate::selftest::assets,
+        "pickdemo": crate::selftest::picking,
     }
 }
 

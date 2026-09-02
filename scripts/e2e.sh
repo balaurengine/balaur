@@ -139,6 +139,27 @@ for ex in examples/*/; do
   printf '  plugin ... '
   edit_step "$name: plugin" "$ex" counterdemo
   printf 'ok\n'
+
+  # Copy and paste, which the shell drives from a clipboard event no headless
+  # run can raise, and the Assets dock's three filesystem verbs.
+  printf '  clip ...   '
+  edit_step "$name: clipboard" "$ex" clipdemo
+  printf 'ok\n'
+  printf '  assets ... '
+  edit_step "$name: assets" "$ex" assetdemo
+  printf 'ok\n'
+
+  # Picking, aimed by hand: the ray a real click uses comes from the window,
+  # which a headless run does not have.
+  printf '  pick ...   '
+  edit_step "$name: picking" "$ex" pickdemo
+  printf 'ok\n'
+
+  # Exported script properties: the defaults a script declares, an override
+  # written onto one node, and the sparseness that drops it again.
+  printf '  props ...  '
+  edit_step "$name: props" "$ex" propsdemo
+  printf 'ok\n'
 done
 
 printf '\npack digests (compared across platforms in CI):\n'

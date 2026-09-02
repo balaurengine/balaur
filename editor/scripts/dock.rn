@@ -219,22 +219,120 @@ fn parent_dir(dir) {
     util::join(parts, "/")
 }
 
+/// The Assets dock's own state, hung on `S.assets`. `sel` is the card acted
+/// on by rename and delete; `renaming` swaps the breadcrumb for a field.
+pub fn assets_state() {
+    #{ dir: "", sel: "", renaming: false }
+}
+
+// New folder, rename and delete: what a file browser is for, and what this
+// one could not do until `fs` gained the verbs.
+fn asset_verbs(S, k) {
+    let chosen = S.assets.sel != "";
+    if ui::pill("＋ folder", #{
+        height: 20, size: 10, strong: true, tooltip: "Make a folder here",
+        fill: k.sunken, color: k.dim,
+    }) {
+        new_folder(S);
+    }
+    ui::add_space(6);
+    if ui::pill("rename", #{
+        height: 20, size: 10, strong: true,
+        tooltip: if chosen { "Rename the selected item" } else { "Select an item first" },
+        fill: k.sunken, color: if chosen { k.dim } else { k.line },
+    }) {
+        if chosen {
+            S.assets.renaming = !S.assets.renaming;
+        }
+    }
+    ui::add_space(6);
+    if ui::pill("delete", #{
+        height: 20, size: 10, strong: true,
+        tooltip: if chosen { "Delete the selected item" } else { "Select an item first" },
+        fill: k.sunken, color: if chosen { k.accent } else { k.line },
+    }) {
+        if chosen {
+            delete_asset(S);
+        }
+    }
+}
+
+fn asset_path(S, rel) {
+    S.game_root + "/" + rel
+}
+
+pub fn new_folder(S) {
+    let base = if S.assets.dir == "" { "new-folder" } else { format!("{}/new-folder", S.assets.dir) };
+    let name = base;
+    let n = 2;
+    while fs::exists(asset_path(S, name)) {
+        name = format!("{}-{}", base, n);
+        n += 1;
+    }
+    fs::mkdir(asset_path(S, name));
+    model::forget(S, None);
+    S.assets.sel = name;
+    log::info(format!("made res://{}", name));
+}
+
+pub fn rename_asset(S, name) {
+    S.assets.renaming = false;
+    if name == "" || name.contains("/") {
+        log::warn("a name cannot be empty or contain a slash");
+        return;
+    }
+    let from = S.assets.sel;
+    let to = if S.assets.dir == "" { name } else { format!("{}/{}", S.assets.dir, name) };
+    if from == to {
+        return;
+    }
+    if fs::exists(asset_path(S, to)) {
+        log::warn(format!("res://{} already exists", to));
+        return;
+    }
+    fs::rename(asset_path(S, from), asset_path(S, to));
+    model::forget(S, None);
+    S.assets.sel = to;
+    log::info(format!("renamed res://{} to res://{}", from, to));
+}
+
+pub fn delete_asset(S) {
+    let rel = S.assets.sel;
+    if fs::remove(asset_path(S, rel)) {
+        log::info(format!("deleted res://{}", rel));
+    } else {
+        log::warn(format!("res://{} was not there", rel));
+    }
+    model::forget(S, None);
+    S.assets.sel = "";
+}
+
 fn assets(S, k) {
-    let dir = S.asset_dir;
+    let dir = S.assets.dir;
     let files = model::list(S, dir);
     // Breadcrumb: where we are, and the way back up.
     ui::horizontal(#{ height: 24 }, || {
         ui::add_space(12);
         if dir != "" {
             if ui::pill("↑", #{ height: 20, size: 11, strong: true, fill: k.sunken, color: k.dim, tooltip: "Up one folder" }) {
-                S.asset_dir = parent_dir(dir);
+                S.assets.dir = parent_dir(dir);
             }
             ui::add_space(6);
         }
-        ui::label(format!("res://{}", dir), style::mono_sm(k.faint));
+        if S.assets.renaming {
+            let (name, _, submitted) = ui::text_field("asset-rename", "new name",
+                util::merge(style::field(k, 180.0), #{ value: util::last_segment(S.assets.sel) }));
+            if submitted {
+                rename_asset(S, name);
+            }
+        } else {
+            ui::label(format!("res://{}", dir), style::mono_sm(k.faint));
+        }
         ui::right(|| {
             ui::add_space(12);
             ui::label(format!("{} items", files.len()), style::mono_sm(k.faint));
+            ui::add_space(12);
+            asset_verbs(S, k);
         });
     });
     // Cards wrap into rows: the row count is what the dock's height scrolls.
@@ -257,13 +355,22 @@ fn assets(S, k) {
                     ui::vertical(|| {
                         if ui::pill(icon, #{
                             height: CARD_H, min_width: CARD_W, size: 20, radius: 12,
-                            fill: k[tint], color: k.dim,
+                            fill: if S.assets.sel == rel { k.accent_soft } else { k[tint] },
+                            color: if S.assets.sel == rel { k.accent } else { k.dim },
                             tooltip: rel,
                         }) {
-                            if f.is_dir {
-                                S.asset_dir = rel;
+                            // A second click on the selected card opens it,
+                            // so one click can mean "act on this one".
+                            if S.assets.sel == rel {
+                                if f.is_dir {
+                                    S.assets.dir = rel;
+                                    S.assets.sel = "";
+                                } else {
+                                    open_asset(S, rel);
+                                }
                             } else {
-                                open_asset(S, rel);
+                                S.assets.sel = rel;
+                                S.assets.renaming = false;
                             }
                         }
                         let short = if f.name.len() > 14 { f.name[..14] } else { f.name };

@@ -15,6 +15,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 mod camera;
 pub mod mesh;
 mod particles;
+mod pick;
 mod polygon;
 mod shape;
 mod sprite;
@@ -758,6 +759,19 @@ fn install_camera_api(m: &mut dyn Bindings<Engine>) {
             cam.ray_dir[2],
         ))
     });
+    // What a ray meets first, or `()`. The ray is an argument rather than
+    // the mouse because the viewport snapshot is empty without a window,
+    // and the editor's own tests run headless.
+    m.function(
+        "pick_ray",
+        |eng: &Engine, (ox, oy, oz, dx, dy, dz): (f64, f64, f64, f64, f64, f64)| {
+            let origin = glamx::Vec3::new(ox as f32, oy as f32, oz as f32);
+            let dir = glamx::Vec3::new(dx as f32, dy as f32, dz as f32);
+            let world = eng.world();
+            Ok(crate::pick::along_ray(&world, origin, dir)
+                .map(|(entity, _)| balaur_core::node_id_of(entity)))
+        },
+    );
     // Eye xyz, target xyz, fov (rad), HiDPI scale; all zeros with no windowed
     // backend. Reads the published snapshot, not what `set_camera` wrote.
     m.function("camera_pose", |eng: &Engine, ()| {

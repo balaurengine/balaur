@@ -60,7 +60,6 @@ pub fn init(this) {
         hooks_live: [],
         log_level: "all",
         log_query: "",
-        asset_dir: "",
         mirror: (),
         theme: theme::dark(),
         gizmo: gizmo::state(),
@@ -68,6 +67,7 @@ pub fn init(this) {
         polygon: polygon::state(),
         anim: anim::state(),
         debug: shell::debug_state(),
+        assets: dock::assets_state(),
         // Where an editor plugin keeps its own state, by id.
         plugins: #{},
         registry: plugins::state(),

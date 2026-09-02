@@ -96,7 +96,7 @@ pub fn draw(S) {
     let k = S.theme;
     let scrim_clicked = ui::modal("palette", #{
         width: 560, top: 0.11, fill: k.panel, stroke: k.line,
-        scrim: "#17191c6b",
+        scrim: "#0b0e126b",
     }, || {
         // Search row.
         ui::frame(#{ padding_x: 16, padding_y: 12 }, || {
