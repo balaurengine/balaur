@@ -92,12 +92,12 @@ pub fn status_bar(S) {
     ui::bottom_panel("status", #{ height: 28, fill: k.panel, padding_x: 12 }, || {
         ui::horizontal(#{ height: 28 }, || {
             ui::spacing(16, 0);
-            let stopped = S.paused is Object;
+            let stopped = S.debug.paused is Object;
             ui::dot(if stopped { k.accent } else if S.playing { k.sage } else { k.faint }, 6);
             // Measured, not asserted: the bar used to claim 60 fps whatever
             // the frame actually cost.
             let mode = if stopped {
-                format!("paused · {}:{}", S.paused_rel, S.paused.line)
+                format!("paused · {}:{}", S.debug.paused_rel, S.debug.paused.line)
             } else if S.playing {
                 format!("playing · {} fps", S.fps as i64)
             } else {

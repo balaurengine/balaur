@@ -241,14 +241,14 @@ fn script_editor(S, k) {
         // and hot reloads the game code).
         ui::scroll("code", (), || {
             ui::add_space(12);
-            let stopped_here = S.paused is Object && S.paused_rel == node.script;
+            let stopped_here = S.debug.paused is Object && S.debug.paused_rel == node.script;
             let (text, changed, hit) = ui::code_editor("edit:" + path, src, #{
                 size: 12.5, gutter_width: 34, gutter_color: k.faint,
                 k_key: k.k_key, k_str: k.k_str, k_num: k.k_num,
                 k_com: k.k_com, k_fn: k.k_fn, k_type: k.k_type,
                 k_punc: k.k_punc,
                 breakpoints: shell::breakpoint_lines(S, node.script),
-                current_line: if stopped_here { S.paused.line } else { () },
+                current_line: if stopped_here { S.debug.paused.line } else { () },
                 breakpoint_color: k.accent, current_fill: k.accent_soft,
             });
             S.script_buffers[path] = text;

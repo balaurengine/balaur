@@ -7,6 +7,12 @@ use crate::model;
 use crate::theme;
 use crate::util;
 
+/// The debugger's own state, hung on `S.debug`. `demo` drives the breakdemo
+/// self-test's step/continue alternation.
+pub fn debug_state() {
+    #{ frame: 0, breakpoints: #{}, paused: (), paused_rel: "", demo: None }
+}
+
 pub fn choose(S, i) {
     if i != S.sel {
         history::commit(S);
@@ -118,7 +124,7 @@ pub fn chip_value(S, persona, key) {
 // Breakpoints are kept per game-relative script path; the host keys the
 // same file by the absolute path play attaches it under.
 pub fn breakpoint_lines(S, rel) {
-    let lines = util::vec(S.breakpoints.get(rel).unwrap_or([]));
+    let lines = util::vec(S.debug.breakpoints.get(rel).unwrap_or([]));
     lines.sort();
     lines
 }
@@ -139,7 +145,7 @@ pub fn toggle_breakpoint(S, rel, line) {
     }
     // The host reports where each request landed: a blank line moves to the
     // next line with code.
-    S.breakpoints[rel] = util::vec(debugger::set_breakpoints(S.game_root + "/" + rel, kept));
+    S.debug.breakpoints[rel] = util::vec(debugger::set_breakpoints(S.game_root + "/" + rel, kept));
 }
 
 // Game-relative path of a script the host reports by absolute key.
@@ -155,27 +161,27 @@ pub fn script_rel(S, path) {
 // notice next frame, and a pause that follows at once must read as new.
 pub fn resume(S, mode) {
     debugger::resume(mode);
-    S.paused = ();
+    S.debug.paused = ();
 }
 
 // A fresh pause: show the script and the frame it stopped in.
 pub fn on_pause(S, p) {
-    S.paused_rel = script_rel(S, p.path);
-    S.debug_frame = 0;
+    S.debug.paused_rel = script_rel(S, p.path);
+    S.debug.frame = 0;
     let stopped = p.node.path();
     for (i, node) in S.doc.iter().enumerate() {
         let same = match model::live(S, i) {
             Some(found) => found.path() == stopped,
             None => false,
         };
-        if same || node.get("script") == Some(S.paused_rel) {
+        if same || node.get("script") == Some(S.debug.paused_rel) {
             choose(S, i);
             break;
         }
     }
     set_persona(S, "script");
     S.dock = "debugger";
-    log::info(format!("paused at {}:{} ({})", S.paused_rel, p.line, p.reason));
+    log::info(format!("paused at {}:{} ({})", S.debug.paused_rel, p.line, p.reason));
 }
 
 pub fn attach_script(S) {
@@ -393,6 +399,6 @@ pub fn break_demo(S) {
             break;
         }
     }
-    S.breakdemo = Some(0);
+    S.debug.demo = Some(0);
     toggle_play(S);
 }

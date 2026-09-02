@@ -284,7 +284,7 @@ fn polygon_section(S, k) {
         }
     });
     for (i, bone) in polygon::bones(S).iter().enumerate() {
-        let active = S.paint_bone == Some(i);
+        let active = S.polygon.bone == Some(i);
         ui::horizontal(#{ height: 24 }, || {
             ui::spacing(8, 0);
             ui::add_space(LABEL_W);
@@ -295,25 +295,25 @@ fn polygon_section(S, k) {
                 color: if active { k.accent } else { k.text },
                 tooltip: "Paint this bone's weights in the Weights mode",
             }) {
-                S.paint_bone = Some(i);
+                S.polygon.bone = Some(i);
             }
         });
     }
     row(k, "Brush", || {
         let w = CONTROL_W / 2.0 - 5.0;
-        let (radius, ch) = ui::drag_value(S.paint_radius, #{
+        let (radius, ch) = ui::drag_value(S.polygon.radius, #{
             width: w, speed: 0.5, decimals: 0, prefix: "px", prefix_color: k.accent,
             fill: k.sunken, stroke: k.line_soft, color: k.text,
         });
         if ch {
-            S.paint_radius = util::clamp(radius, 2.0, 400.0);
+            S.polygon.radius = util::clamp(radius, 2.0, 400.0);
         }
-        let (strength, ch2) = ui::drag_value(S.paint_strength, #{
+        let (strength, ch2) = ui::drag_value(S.polygon.strength, #{
             width: w, speed: 0.01, decimals: 2, prefix: "×", prefix_color: k.accent,
             fill: k.sunken, stroke: k.line_soft, color: k.text,
         });
         if ch2 {
-            S.paint_strength = util::clamp(strength, 0.01, 2.0);
+            S.polygon.strength = util::clamp(strength, 0.01, 2.0);
         }
     });
 }

@@ -63,7 +63,7 @@ fn tab_row(S, k) {
                     // machine's, and lands in every screenshot.
                     format!("res:// · {}", S.game_name)
                 } else if S.dock == "debugger" {
-                    if S.paused is Object { S.paused.reason } else { "F5 run · F10 over · F11 into · ⇧F11 out" }
+                    if S.debug.paused is Object { S.debug.paused.reason } else { "F5 run · F10 over · F11 into · ⇧F11 out" }
                 } else {
                     let (node, _, _) = anim::player(S);
                     match anim::definition(S) {
@@ -316,16 +316,16 @@ fn timeline(S, k) {
                 height: 22, size: 11, strong: true, tooltip: "Insert keyframe at playhead (or press K)",
                 fill: k.accent_soft, color: k.accent,
             }) {
-                anim::add_key(S, S.anim_time);
+                anim::add_key(S, S.anim.time);
             }
             if ui::pill("− Key", #{
                 height: 22, size: 11, strong: true, tooltip: "Delete keyframe at playhead",
                 fill: k.sunken, color: k.dim,
             }) {
-                anim::delete_key_at(S, S.anim_time);
+                anim::delete_key_at(S, S.anim.time);
             }
         });
-        let (t, scrubbed) = ui::slider(S.anim_time, 0.0, length, #{
+        let (t, scrubbed) = ui::slider(S.anim.time, 0.0, length, #{
             width: lane_w,
             rail: k.sunken, fill: k.accent_fill, knob: k.bg,
         });
@@ -333,7 +333,7 @@ fn timeline(S, k) {
             anim::seek(S, t);
         }
         ui::add_space(6);
-        ui::label(format!("{:.2} / {:.2} s", S.anim_time, length), style::mono_sm(k.faint));
+        ui::label(format!("{:.2} / {:.2} s", S.anim.time, length), style::mono_sm(k.faint));
     });
     // One lane per track, key dots filled before the playhead and hollow after;
     // component and method tracks render the same way transform tracks do.
@@ -361,7 +361,7 @@ fn timeline(S, k) {
                         ui::add_space(gap);
                         cursor = x;
                     }
-                    let before = t <= S.anim_time + 1e-4;
+                    let before = t <= S.anim.time + 1e-4;
                     ui::label(if before { "●" } else { "○" }, #{ size: 11, color: color });
                     cursor += 14.0;
                 }
@@ -384,7 +384,7 @@ fn value_text(v) {
 
 // The pause: transport, then the frames with the chosen one's locals open.
 fn debugger_view(S, k) {
-    let p = S.paused;
+    let p = S.debug.paused;
     if !(p is Object) {
         ui::horizontal(#{ height: 30 }, || {
             ui::add_space(12);
@@ -414,12 +414,12 @@ fn debugger_view(S, k) {
             }
         }
         ui::add_space(12);
-        ui::label(format!("{} · {}:{}", p.reason, S.paused_rel, p.line), style::mono(k.dim));
+        ui::label(format!("{} · {}:{}", p.reason, S.debug.paused_rel, p.line), style::mono(k.dim));
     });
     ui::scroll("debug-frames", (), || {
         ui::spacing(4, 2);
         for (i, frame) in p.frames.iter().enumerate() {
-            let chosen = i == S.debug_frame;
+            let chosen = i == S.debug.frame;
             ui::horizontal(#{ height: 24 }, || {
                 ui::add_space(6);
                 if ui::pill(frame["function"], #{
@@ -427,7 +427,7 @@ fn debugger_view(S, k) {
                     fill: if chosen { k.accent_fill } else { k.sunken },
                     color: if chosen { k.on_accent } else { k.dim },
                 }) {
-                    S.debug_frame = i;
+                    S.debug.frame = i;
                 }
                 ui::add_space(6);
                 ui::label(format!("{}:{}", shell::script_rel(S, frame.path), frame.line), style::mono(k.faint));

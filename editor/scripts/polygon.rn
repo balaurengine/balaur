@@ -7,6 +7,15 @@ use crate::model;
 use crate::util;
 use crate::viewport;
 
+/// The polygon tool's own state, hung on `S.polygon`. `chain` is the loop
+/// being clicked out, `backdrop` the UV reference node.
+pub fn state() {
+    #{
+        hover: None, drag: None, chain: None, mode: "points", texture: None,
+        bone: None, radius: 40.0, strength: 0.5, backdrop: (),
+    }
+}
+
 const W = 2.0;
 const PICK_PX = 8.0;
 const MARK_PX = 4.0;
@@ -106,7 +115,7 @@ fn texture_size(S) {
     if texture == "" {
         return None;
     }
-    if let Some(cache) = S.polygon_texture {
+    if let Some(cache) = S.polygon.texture {
         if cache.path == texture {
             return cache.size;
         }
@@ -119,7 +128,7 @@ fn texture_size(S) {
         log::warn(format!("texture {}: {:?}", texture, size));
         None
     };
-    S.polygon_texture = Some(#{ path: texture, size: found });
+    S.polygon.texture = Some(#{ path: texture, size: found });
     found
 }
 
@@ -316,12 +325,12 @@ pub fn move_vertex(S, at, wx, wy) {
 
 // Close the loop being drawn into one of the mesh's polygons.
 pub fn close_loop(S) {
-    let ring = match S.polygon_loop {
+    let ring = match S.polygon.chain {
         Some(ring) => ring,
         None => return,
     };
     if mesh(S).is_none() || ring.len() < 3 {
-        S.polygon_loop = None;
+        S.polygon.chain = None;
         return;
     }
     begin(S, "draw polygon", None);
@@ -330,7 +339,7 @@ pub fn close_loop(S) {
         mesh.polygons = [];
     }
     mesh.polygons.push(ring.clone());
-    S.polygon_loop = None;
+    S.polygon.chain = None;
     apply(S);
 }
 
@@ -438,7 +447,7 @@ pub fn sync_bones(S) {
         bones.push(#{ path: path, weights: weights });
     }
     mesh.skin = #{ bones: bones };
-    S.paint_bone = if bones.len() > 0 { Some(0) } else { None };
+    S.polygon.bone = if bones.len() > 0 { Some(0) } else { None };
     apply(S);
     log::info(format!("{} bones synced to the polygon", bones.len()));
 }
@@ -457,7 +466,7 @@ pub fn paint(S, at, amount) {
         Some(mesh) => mesh,
         None => return,
     };
-    let index = match S.paint_bone {
+    let index = match S.polygon.bone {
         Some(index) => index,
         None => return,
     };
@@ -551,7 +560,7 @@ pub fn draw(S) {
     let k = S.theme;
     let accent = util::rgb(k.accent);
     let sage = util::rgb(k.sage);
-    let mode = S.polygon_mode;
+    let mode = S.polygon.mode;
     let points = world_points(S, mesh, f, mode == "uv");
     let outline = outline_count(mesh);
     // The outline, closed; then the drawn polygons over it.
@@ -573,17 +582,17 @@ pub fn draw(S) {
             }
         }
     }
-    if let Some(ring) = S.polygon_loop {
+    if let Some(ring) = S.polygon.chain {
         for i in 1..ring.len() {
             line(points[ring[i - 1]], points[ring[i]], viewport::hover_color());
         }
     }
-    let active = match S.paint_bone {
+    let active = match S.polygon.bone {
         Some(index) => bones(S).get(index),
         None => None,
     };
     for (i, p) in points.iter().enumerate() {
-        let color = if S.polygon_hover == Some(i) { viewport::hover_color() } else { accent };
+        let color = if S.polygon.hover == Some(i) { viewport::hover_color() } else { accent };
         if mode == "weights" {
             if let Some(bone) = active {
                 let w = util::f(util::vec(bone.get("weights").unwrap_or([])).get(i).unwrap_or(0.0));
@@ -595,7 +604,7 @@ pub fn draw(S) {
 }
 
 fn backdrop_live(S) {
-    S.uv_backdrop is balaur::Node && S.uv_backdrop.is_valid()
+    S.polygon.backdrop is balaur::Node && S.polygon.backdrop.is_valid()
 }
 
 // A translucent copy of the texture, undeformed, under the UV points.
@@ -617,31 +626,31 @@ fn enter_uv(S) {
         pixels_per_unit: pixels_per_unit(S),
         color: [1.0, 1.0, 1.0, 0.55],
     });
-    S.uv_backdrop = backdrop;
+    S.polygon.backdrop = backdrop;
 }
 
 fn leave_uv(S) {
     if backdrop_live(S) {
-        S.uv_backdrop.queue_free();
+        S.polygon.backdrop.queue_free();
     }
-    S.uv_backdrop = ();
+    S.polygon.backdrop = ();
 }
 
 pub fn set_mode(S, mode) {
-    S.polygon_mode = mode;
-    S.polygon_loop = None;
+    S.polygon.mode = mode;
+    S.polygon.chain = None;
     if mode != "uv" {
         leave_uv(S);
     }
-    if mode == "weights" && S.paint_bone.is_none() && bones(S).len() > 0 {
-        S.paint_bone = Some(0);
+    if mode == "weights" && S.polygon.bone.is_none() && bones(S).len() > 0 {
+        S.polygon.bone = Some(0);
     }
 }
 
 // Runs every frame whatever the tool: the backdrop follows the polygon and
 // goes away with the mode.
 pub fn idle(S) {
-    if S.tool != "polygon" || S.polygon_mode != "uv" || mesh(S).is_none() {
+    if S.tool != "polygon" || S.polygon.mode != "uv" || mesh(S).is_none() {
         leave_uv(S);
         return;
     }
@@ -654,16 +663,16 @@ pub fn idle(S) {
         if let Some(found) = model::live(S, S.sel) {
             let p = found.global_position();
             let r = found.global_rotation_euler();
-            S.uv_backdrop.set_position(p.x, p.y, p.z);
-            S.uv_backdrop.set_rotation_euler(r.x, r.y, r.z);
-            S.uv_backdrop.set_scale(f.sx, f.sy, 1.0);
+            S.polygon.backdrop.set_position(p.x, p.y, p.z);
+            S.polygon.backdrop.set_rotation_euler(r.x, r.y, r.z);
+            S.polygon.backdrop.set_scale(f.sx, f.sy, 1.0);
         }
     }
 }
 
 pub fn cancel(S) {
-    S.polygon_loop = None;
-    S.polygon_drag = None;
+    S.polygon.chain = None;
+    S.polygon.drag = None;
 }
 
 fn alt_down() {
@@ -672,7 +681,7 @@ fn alt_down() {
 
 // Runs from the 2D gizmo while the Polygon tool is active.
 pub fn update(S, over_viewport, mx, my) {
-    let mode = S.polygon_mode;
+    let mode = S.polygon.mode;
     let f = match frame(S) {
         Some(f) => f,
         None => return,
@@ -680,7 +689,7 @@ pub fn update(S, over_viewport, mx, my) {
     let mesh = match mesh(S) {
         Some(mesh) => mesh,
         None => {
-            S.polygon_hover = None;
+            S.polygon.hover = None;
             if over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT) && mode == "points" {
                 add_vertex(S, mx, my, alt_down());
             }
@@ -688,11 +697,11 @@ pub fn update(S, over_viewport, mx, my) {
         }
     };
     let hover = if over_viewport { pick(S, mesh, f, mx, my, mode == "uv") } else { None };
-    S.polygon_hover = hover;
+    S.polygon.hover = hover;
     if !input::is_mouse_down(input::MOUSE_LEFT) {
-        S.polygon_drag = None;
+        S.polygon.drag = None;
     }
-    if let Some(drag) = S.polygon_drag {
+    if let Some(drag) = S.polygon.drag {
         if mode == "uv" {
             move_uv(S, drag, mx, my);
         } else {
@@ -707,7 +716,7 @@ pub fn update(S, over_viewport, mx, my) {
         if input::mouse_just_pressed(input::MOUSE_LEFT) {
             match hover {
                 Some(hover) => {
-                    S.polygon_drag = Some(hover);
+                    S.polygon.drag = Some(hover);
                 }
                 None => {
                     add_vertex(S, mx, my, alt_down());
@@ -723,23 +732,23 @@ pub fn update(S, over_viewport, mx, my) {
         if input::mouse_just_pressed(input::MOUSE_LEFT) {
             let hover_some = hover;
             if let Some(hover) = hover_some {
-                let ring = S.polygon_loop.unwrap_or([]);
+                let ring = S.polygon.chain.unwrap_or([]);
                 if ring.len() >= 3 && hover == ring[0] {
-                    S.polygon_loop = Some(ring);
+                    S.polygon.chain = Some(ring);
                     close_loop(S);
                 } else if !util::contains(ring, hover) {
                     ring.push(hover);
-                    S.polygon_loop = Some(ring);
+                    S.polygon.chain = Some(ring);
                 }
             }
         } else if input::mouse_just_pressed(input::MOUSE_RIGHT) {
-            S.polygon_loop = None;
+            S.polygon.chain = None;
         }
     } else if mode == "uv" {
         if input::mouse_just_pressed(input::MOUSE_LEFT) {
             let hover_some = hover;
             if let Some(hover) = hover_some {
-                S.polygon_drag = Some(hover);
+                S.polygon.drag = Some(hover);
             }
         }
     } else if mode == "weights" {
@@ -751,8 +760,8 @@ pub fn update(S, over_viewport, mx, my) {
             0.0
         };
         if sign != 0.0 {
-            let radius = S.paint_radius * viewport::world_per_px(S);
-            let amount = sign * S.paint_strength * engine::delta() * 2.0;
+            let radius = S.polygon.radius * viewport::world_per_px(S);
+            let amount = sign * S.polygon.strength * engine::delta() * 2.0;
             for (i, p) in world_points(S, mesh, f, false).iter().enumerate() {
                 if math::sqrt((p[0] - mx) * (p[0] - mx) + (p[1] - my) * (p[1] - my)) <= radius {
                     paint(S, i, amount);
@@ -764,7 +773,7 @@ pub fn update(S, over_viewport, mx, my) {
 
 // The four modes as pills in the viewport's chip row.
 pub fn mode_chips(S, k) {
-    let mode = S.polygon_mode;
+    let mode = S.polygon.mode;
     for id in modes() {
         let on = mode == id;
         if ui::pill(mode_name(id), #{

@@ -7,6 +7,11 @@ use crate::model;
 use crate::util;
 use crate::viewport;
 
+/// The rig tool's own state, hung on `S.rig`.
+pub fn state() {
+    #{ hover: None }
+}
+
 const W = 2.4;
 // A tip bone with no length set still needs a diamond to pick.
 const TIP_LENGTH = 0.35;
@@ -204,7 +209,7 @@ pub fn draw(S) {
     for (i, node) in S.doc.iter().enumerate() {
         if is_bone(node) {
             if let Some(g) = geometry(S, i) {
-                let color = if S.rig_hover == Some(i) {
+                let color = if S.rig.hover == Some(i) {
                     viewport::hover_color()
                 } else if i == S.sel {
                     accent
@@ -292,14 +297,14 @@ pub fn update(S, over_viewport, mx, my) {
     // No 3D picking: a 3D rig is selected in the tree and grown from the
     // inspector's Skeleton section.
     if !S.mode2d {
-        S.rig_hover = None;
+        S.rig.hover = None;
         return;
     }
-    S.rig_hover = if over_viewport { pick(S, mx, my) } else { None };
+    S.rig.hover = if over_viewport { pick(S, mx, my) } else { None };
     if !(over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT)) {
         return;
     }
-    if let Some(hover) = S.rig_hover {
+    if let Some(hover) = S.rig.hover {
         crate::shell::choose(S, hover);
         return;
     }

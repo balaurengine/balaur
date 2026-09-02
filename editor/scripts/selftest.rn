@@ -254,14 +254,14 @@ pub fn polygons(S) {
     check(bones.len() > 0, format!("sync bones lists the rig's bones ({})", bones.len()));
     check(bones.len() == 0 || util::vec(bones[0].get("weights").unwrap_or([])).len() == vertices + 1, "every bone has one weight per vertex");
     if bones.len() > 0 {
-        S.paint_bone = Some(0);
+        S.polygon.bone = Some(0);
         polygon::paint(S, at, 1.0);
         check(util::f(bones[0].weights[at]) == 1.0, "painting sets the vertex's weight");
     }
 
     let internal_at = polygon::add_vertex(S, 0.1, 0.1, true).unwrap_or(-1);
     check(polygon::internal_count(polygon::mesh(S).unwrap()) == internal + 1, "an alt-click adds an internal vertex");
-    S.polygon_loop = Some([0, 1, internal_at]);
+    S.polygon.chain = Some([0, 1, internal_at]);
     polygon::close_loop(S);
     let polygons = util::vec(polygon::mesh(S).unwrap().get("polygons").unwrap_or([]));
     check(polygons.len() >= 1, format!("closing a loop draws a polygon ({})", polygons.len()));

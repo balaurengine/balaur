@@ -42,13 +42,7 @@ pub fn init(this) {
         script_buffers: #{},
         schemas: #{},
         script_dirty: #{},
-        anim_time: 0.0,
         collapsed: #{},
-        breakpoints: #{},
-        debug_frame: 0,
-        paused: (),
-        paused_rel: "",
-        breakdemo: None,
         fps: 0.0,
         frame: 0,
         shot: None,
@@ -61,20 +55,6 @@ pub fn init(this) {
         sources: #{},
         listings: #{},
         clip: None,
-        anim_rebind: false,
-        gizmo_hover: None,
-        gizmo_drag: None,
-        drag_in_viewport: false,
-        rig_hover: None,
-        polygon_hover: None,
-        polygon_drag: None,
-        polygon_loop: None,
-        polygon_mode: "points",
-        polygon_texture: None,
-        paint_bone: None,
-        paint_radius: 40.0,
-        paint_strength: 0.5,
-        uv_backdrop: (),
         hooks_src: "",
         hooks_live: [],
         log_level: "all",
@@ -82,6 +62,13 @@ pub fn init(this) {
         asset_dir: "",
         mirror: (),
         theme: theme::dark(),
+        gizmo: gizmo::state(),
+        rig: rig::state(),
+        polygon: polygon::state(),
+        anim: anim::state(),
+        debug: shell::debug_state(),
+        // Where an editor plugin keeps its own state, by id.
+        plugins: #{},
     };
     this.S = S;
 
@@ -126,13 +113,13 @@ pub fn update(this, dt) {
         }
     }
     let paused = debugger::paused();
-    if paused is Object && !(S.paused is Object) {
+    if paused is Object && !(S.debug.paused is Object) {
         shell::on_pause(S, paused);
     }
-    S.paused = paused;
-    if let Some(n) = S.breakdemo {
-        if S.paused is Object {
-            S.breakdemo = Some(n + 1);
+    S.debug.paused = paused;
+    if let Some(n) = S.debug.demo {
+        if S.debug.paused is Object {
+            S.debug.demo = Some(n + 1);
             shell::resume(S, if (n + 1) % 2 == 1 { debugger::STEP_OVER } else { debugger::CONTINUE });
         }
     }
@@ -157,7 +144,7 @@ pub fn update(this, dt) {
     let widgets_on = S.playing || S.persona == "ui";
     ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.w, rect.h);
     if S.tool == "key" && S.persona == "anim" && input::mouse_just_pressed(input::MOUSE_LEFT) {
-        anim::add_key(S, S.anim_time);
+        anim::add_key(S, S.anim.time);
     }
     gizmo::draw(S);
     rig::draw(S);
@@ -204,7 +191,7 @@ pub fn draw_ui(this) {
         shell::set_ui_scale(S, S.ui_scale - 0.125);
     }
     // Debugger keys work with the code editor focused: they are not text.
-    if S.paused is Object {
+    if S.debug.paused is Object {
         if ui::shortcut("none", "F5") {
             shell::resume(S, debugger::CONTINUE);
         } else if ui::shortcut("none", "F10") {
@@ -216,7 +203,7 @@ pub fn draw_ui(this) {
         }
     }
     if !ui::wants_keyboard() {
-        if !(S.paused is Object) && ui::shortcut("none", "F5") {
+        if !(S.debug.paused is Object) && ui::shortcut("none", "F5") {
             shell::toggle_play(S);
         }
         let personas = ["scene", "script", "anim", "phys", "ui"];
@@ -239,7 +226,7 @@ pub fn draw_ui(this) {
             theme::set_dark(S, !S.theme.dark);
         }
         if S.persona == "anim" && ui::shortcut("none", "K") {
-            anim::add_key(S, S.anim_time);
+            anim::add_key(S, S.anim.time);
         }
         if ui::shortcut("none", "Escape") {
             polygon::cancel(S);

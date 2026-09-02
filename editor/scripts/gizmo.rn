@@ -10,6 +10,11 @@ use crate::shell;
 use crate::util;
 use crate::viewport;
 
+/// The gizmo's own state, hung on `S.gizmo`.
+pub fn state() {
+    #{ hover: None, drag: None, in_viewport: false }
+}
+
 // Rotation basis from the engine's ZYX euler (roll=x, pitch=y, yaw=z):
 // R = Rz(yaw) * Ry(pitch) * Rx(roll). Returns the world-space directions of
 // the node's local axes (the matrix columns).
@@ -509,11 +514,11 @@ fn start_gizmo_drag(S, cam, geo, part, mx, my) {
         drag.plane_p = [geo.center[0], geo.center[1], geo.center[2]];
         drag.anchor = ray_plane(cam, drag.plane_p, n);
     }
-    S.gizmo_drag = Some(drag);
+    S.gizmo.drag = Some(drag);
 }
 
 fn apply_gizmo_drag(S, cam, mx, my) {
-    let d = S.gizmo_drag.unwrap();
+    let d = S.gizmo.drag.unwrap();
     let (_, found) = model::selected(S);
     let found = match found {
         Some(found) => found,
@@ -588,12 +593,12 @@ pub fn update(S) {
     // The Rig bone tool owns the click in 3D too: a bone under the cursor is
     // selected, anywhere else grows one under the selection.
     if S.tool == "bone" {
-        S.gizmo_hover = None;
-        S.gizmo_drag = None;
+        S.gizmo.hover = None;
+        S.gizmo.drag = None;
         render::set_camera_input(false);
-        S.rig_hover = if over_viewport { rig::pick_3d(S, mx, my, on_screen) } else { None };
+        S.rig.hover = if over_viewport { rig::pick_3d(S, mx, my, on_screen) } else { None };
         if over_viewport && input::mouse_just_pressed(input::MOUSE_LEFT) {
-            match S.rig_hover {
+            match S.rig.hover {
                 Some(hover) => shell::choose(S, hover),
                 None => {
                     rig::add_bone(S, S.sel, 0.0, 0.0);
@@ -602,11 +607,11 @@ pub fn update(S) {
         }
         return;
     }
-    S.rig_hover = None;
+    S.rig.hover = None;
 
     // Hover state (skipped while a drag is latched).
-    if S.gizmo_drag.is_none() {
-        S.gizmo_hover = match geo {
+    if S.gizmo.drag.is_none() {
+        S.gizmo.hover = match geo {
             Some(geo) => if over_viewport && S.persona != "script" { hit_test(cam, geo, mx, my) } else { None },
             None => None,
         };
@@ -614,17 +619,17 @@ pub fn update(S) {
 
     // The camera keeps the pointer unless a manipulation tool is active or
     // the gizmo itself is hot.
-    render::set_camera_input(!viewport::manipulates(S.tool, false) && S.gizmo_hover.is_none() && S.gizmo_drag.is_none());
+    render::set_camera_input(!viewport::manipulates(S.tool, false) && S.gizmo.hover.is_none() && S.gizmo.drag.is_none());
 
     if input::mouse_just_pressed(input::MOUSE_LEFT) && over_viewport {
-        let hovered = match (S.gizmo_hover, geo) {
+        let hovered = match (S.gizmo.hover, geo) {
             (Some(part), Some(geo)) => Some((part, geo)),
             _ => None,
         };
         match hovered {
             Some((part, geo)) => start_gizmo_drag(S, cam, geo, part, mx, my),
             None => {
-                S.drag_in_viewport = true;
+                S.gizmo.in_viewport = true;
                 if S.tool == "select" {
                     // Rigging: a bone's thin octahedron loses to any origin
                     // near it, so in the Animate persona bones are tried first.
@@ -657,15 +662,15 @@ pub fn update(S) {
         }
     }
     if !input::is_mouse_down(input::MOUSE_LEFT) {
-        S.gizmo_drag = None;
-        S.drag_in_viewport = false;
+        S.gizmo.drag = None;
+        S.gizmo.in_viewport = false;
     }
 
-    if S.gizmo_drag.is_some() {
+    if S.gizmo.drag.is_some() {
         apply_gizmo_drag(S, cam, mx, my);
         return;
     }
-    if !S.drag_in_viewport {
+    if !S.gizmo.in_viewport {
         return;
     }
 

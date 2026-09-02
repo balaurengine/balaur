@@ -405,7 +405,7 @@ pub fn build_mirror(S) {
     // the new mirror names has to be pointed at the edited project before it
     // can load (`anim::rebind`, next frame).
     S.clip = None;
-    S.anim_rebind = true;
+    S.anim.rebind = true;
 }
 
 // The live node for a doc index (`None` right after a rebuild).

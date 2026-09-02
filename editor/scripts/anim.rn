@@ -6,6 +6,11 @@ use crate::history;
 use crate::model;
 use crate::util;
 
+/// The animation timeline's own state, hung on `S.anim`.
+pub fn state() {
+    #{ time: 0.0, rebind: false }
+}
+
 // The asset type `balaur_anim` registers, written into the document so a
 // promoted file declares what it is.
 const CLIP_TYPE = "animation_clip";
@@ -291,7 +296,7 @@ pub fn arm(S) {
         return;
     }
     animation::pause(found);
-    animation::seek(found, S.anim_time);
+    animation::seek(found, S.anim.time);
 }
 
 // The clip changed: the scene needs saving, an external clip needs writing,
@@ -433,7 +438,7 @@ pub fn delete_key_at(S, t) {
 
 // Move the playhead. The engine poses the node; the editor samples nothing.
 pub fn seek(S, t) {
-    S.anim_time = t;
+    S.anim.time = t;
     let (node, found, _) = player(S);
     let found_some = found;
     if let Some(found) = found_some {
@@ -560,8 +565,8 @@ pub fn resume_all(S) {
 // follow the playhead while the scene runs, and re-arm when the selection
 // moves to another player.
 pub fn update(S) {
-    if S.anim_rebind {
-        S.anim_rebind = false;
+    if S.anim.rebind {
+        S.anim.rebind = false;
         rebind(S);
     }
     let player_i = player_index(S);
@@ -570,7 +575,7 @@ pub fn update(S) {
         let found_some = found;
         if let Some(found) = found_some {
             if component(node).is_some() {
-                S.anim_time = animation::time(found);
+                S.anim.time = animation::time(found);
             }
         }
         return;

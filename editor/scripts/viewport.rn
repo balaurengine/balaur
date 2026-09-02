@@ -30,9 +30,9 @@ pub fn snapping(S) {
 
 /// The gizmo part under the pointer: the dragged one wins over the hovered.
 pub fn hot_part(S) {
-    match S.gizmo_drag {
+    match S.gizmo.drag {
         Some(drag) => Some(drag.part),
-        None => S.gizmo_hover,
+        None => S.gizmo.hover,
     }
 }
 

@@ -40,7 +40,7 @@ fn commands(S) {
         command("Duplicate selected node", "⧉", "", || model::duplicate_selected(S)),
         command("Delete selected node", "✕", "", || model::delete_selected(S)),
         command("Create animation clip", "◷", "", || { anim::ensure_clip(S); }),
-        command("Insert keyframe at playhead", "◆", "K", || anim::add_key(S, S.anim_time)),
+        command("Insert keyframe at playhead", "◆", "K", || anim::add_key(S, S.anim.time)),
         command("Save clip as file", "◷", "", || anim::promote(S)),
         command("Make clip inline", "◷", "", || anim::make_inline(S)),
         command("UI scale +", "＋", "⌘=", || shell::set_ui_scale(S, S.ui_scale + 0.125)),

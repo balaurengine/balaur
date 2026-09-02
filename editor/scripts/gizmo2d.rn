@@ -246,11 +246,11 @@ fn start_drag(S, geo, part, mx, my) {
         // The opposite corner/edge stays fixed in world space.
         drag.anchor = local_point(geo, -part.signs[0] * geo.he[0], -part.signs[1] * geo.he[1]);
     }
-    S.gizmo_drag = Some(drag);
+    S.gizmo.drag = Some(drag);
 }
 
 fn apply_drag(S, mx, my) {
-    let d = S.gizmo_drag.unwrap();
+    let d = S.gizmo.drag.unwrap();
     let (_, found) = model::selected(S);
     let found = match found {
         Some(found) => found,
@@ -381,8 +381,8 @@ pub fn update(S, vp) {
     // The Rig bone and Polygon tools own the click: no gizmo hover, no
     // camera drag.
     if S.tool == "bone" || S.tool == "polygon" {
-        S.gizmo_hover = None;
-        S.gizmo_drag = None;
+        S.gizmo.hover = None;
+        S.gizmo.drag = None;
         render::set_camera_input(false);
         if S.tool == "bone" {
             rig::update(S, over_viewport, mx, my);
@@ -391,27 +391,27 @@ pub fn update(S, vp) {
         }
         return;
     }
-    S.rig_hover = None;
-    S.polygon_hover = None;
+    S.rig.hover = None;
+    S.polygon.hover = None;
 
-    if S.gizmo_drag.is_none() {
-        S.gizmo_hover = match geo {
+    if S.gizmo.drag.is_none() {
+        S.gizmo.hover = match geo {
             Some(geo) => if over_viewport && S.persona != "script" { hit_test(S, geo, mx, my) } else { None },
             None => None,
         };
     }
 
-    render::set_camera_input(!viewport::manipulates(S.tool, true) && S.gizmo_hover.is_none() && S.gizmo_drag.is_none());
+    render::set_camera_input(!viewport::manipulates(S.tool, true) && S.gizmo.hover.is_none() && S.gizmo.drag.is_none());
 
     if input::mouse_just_pressed(input::MOUSE_LEFT) && over_viewport {
-        let hovered = match (S.gizmo_hover, geo) {
+        let hovered = match (S.gizmo.hover, geo) {
             (Some(part), Some(geo)) => Some((part, geo)),
             _ => None,
         };
         match hovered {
             Some((part, geo)) => start_drag(S, geo, part, mx, my),
             None => {
-                S.drag_in_viewport = true;
+                S.gizmo.in_viewport = true;
                 if S.tool == "select" {
                     if let Some(best) = pick(S, mx, my) {
                         shell::choose(S, best);
@@ -421,15 +421,15 @@ pub fn update(S, vp) {
         }
     }
     if !input::is_mouse_down(input::MOUSE_LEFT) {
-        S.gizmo_drag = None;
-        S.drag_in_viewport = false;
+        S.gizmo.drag = None;
+        S.gizmo.in_viewport = false;
     }
 
-    if S.gizmo_drag.is_some() {
+    if S.gizmo.drag.is_some() {
         apply_drag(S, mx, my);
         return;
     }
-    if !S.drag_in_viewport {
+    if !S.gizmo.in_viewport {
         return;
     }
 
