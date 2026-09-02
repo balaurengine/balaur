@@ -424,6 +424,19 @@ pub fn live(S, i) {
 /// `rotation_euler` and `scale`; what it leaves out is left alone. History is
 /// the caller's, because a drag records once at its start and then writes
 /// every frame.
+// A component's schema, cached: schemas are fixed for a session and the
+// inspector asks for one per component per frame.
+pub fn schema(S, name) {
+    match S.schemas.get(name) {
+        Some(cached) => cached,
+        None => {
+            let fresh = util::obj(scene::component_schema(name));
+            S.schemas[name] = fresh;
+            fresh
+        }
+    }
+}
+
 pub fn set_transform(S, i, parts) {
     let node = S.doc[i];
     let target = live(S, i);
@@ -546,10 +559,10 @@ pub fn open_scene(S, rel) {
 // `readonly` properties are stripped, and an `asset` property keeps the
 // document's authored spelling — the engine's resolved one cannot be saved.
 fn doc_value(S, name, data, previous) {
-    let schema = util::obj(scene::component_schema(name));
+    let spec_of = schema(S, name);
     let out = #{};
     for (key, value) in data.iter() {
-        let spec = schema.get(key);
+        let spec = spec_of.get(key);
         let authored = match previous {
             Some(previous) => if previous is Object { previous.get(key) } else { None },
             None => None,
@@ -622,8 +635,8 @@ pub fn apply_component(S, name) {
     sync_component_doc(S, name);
     // `doc_value` keeps an asset's authored spelling only when it is a
     // reference; an inline table is the authored form, so it goes back whole.
-    let schema = util::obj(scene::component_schema(name));
-    for (key, spec) in schema.iter() {
+    let spec_of = schema(S, name);
+    for (key, spec) in spec_of.iter() {
         if spec["type"] == "asset" && authored is Object {
             if let Some(inline) = authored.get(key) {
                 if inline is Object && node.contains_key(name) {
@@ -649,7 +662,7 @@ pub fn set_component_prop(S, name, prop, value) {
     // `doc_value` keeps the document's spelling of an asset property, which is
     // exactly wrong for the one property that was just retyped, so it is
     // stamped back over afterwards.
-    let spec = util::obj(scene::component_schema(name)).get(prop);
+    let spec = schema(S, name).get(prop);
     let spec_some = spec;
     if let Some(spec) = spec_some {
         if spec["type"] == "asset" && node.contains_key(name) {

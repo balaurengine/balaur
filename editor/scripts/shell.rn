@@ -245,79 +245,132 @@ fn select_named(S, name) {
     }
 }
 
+// One handler per start-up state, looked up rather than branched on, so a
+// self-test or a plugin registers its own.
+fn states() {
+    #{
+        "palette": state_palette,
+        "light": state_light,
+        "play": state_play,
+        "rotdemo": state_rotdemo,
+        "animdemo": state_animdemo,
+        "undodemo": crate::selftest::undo,
+        "breakdemo": break_demo,
+        "rigdemo": crate::selftest::rigging,
+        "polydemo": crate::selftest::polygons,
+    }
+}
+
+// States written `<prefix><argument>`, which take the rest of the string.
+fn prefixed_states() {
+    [
+        ("shot=", state_shot),
+        ("tool:", state_tool),
+        ("dock:", state_dock),
+        ("mode:", state_mode),
+        ("select:", state_select),
+    ]
+}
+
 // One start-up state, mirroring the design prototype's startPersona prop.
 pub fn apply_start_state(S, start) {
-    if start.starts_with("shot=") {
-        // Screenshot the shell once the first frames have laid it out, for
-        // a visual check of an editor state a headless run cannot show.
-        S.shot = Some(start[5..]);
-    } else if start == "palette" {
-        open_palette(S, "");
-    } else if start == "light" {
-        theme::set_dark(S, false);
-    } else if start == "play" {
-        toggle_play(S);
-    } else if start == "rotdemo" {
-        select_named(S, "Spinner");
-        model::set_transform(S, S.sel, #{
-            rotation_euler: [math::rad(15.0), math::rad(30.0), 0.0],
-            scale: [3.0, 3.0, 3.0],
-        });
-        set_zoom(S, 100.0);
-    } else if start == "animdemo" {
-        // Self-test state: author a clip on the Spinner when the mirror
-        // resolved it, otherwise on any resolved node — keying reads a live
-        // transform.
-        let pick = None;
+    for (prefix, run) in prefixed_states() {
+        if start.starts_with(prefix) {
+            run(S, start[prefix.len()..]);
+            return;
+        }
+    }
+    match states().get(start) {
+        Some(run) => run(S),
+        None => if start != "" {
+            state_persona(S, start);
+        },
+    }
+}
+
+// Screenshot the shell once the first frames have laid it out, for a visual
+// check of an editor state a headless run cannot show.
+fn state_shot(S, path) {
+    S.shot = Some(path);
+}
+
+fn state_tool(S, tool) {
+    S.tool = tool;
+}
+
+fn state_dock(S, dock) {
+    S.dock = dock;
+}
+
+fn state_mode(S, mode) {
+    crate::polygon::set_mode(S, mode);
+}
+
+// Self-test state: select a node by name (e.g. select:Pig1).
+fn state_select(S, name) {
+    select_named(S, name);
+}
+
+fn state_palette(S) {
+    open_palette(S, "");
+}
+
+fn state_light(S) {
+    theme::set_dark(S, false);
+}
+
+fn state_play(S) {
+    toggle_play(S);
+}
+
+fn state_rotdemo(S) {
+    select_named(S, "Spinner");
+    model::set_transform(S, S.sel, #{
+        rotation_euler: [math::rad(15.0), math::rad(30.0), 0.0],
+        scale: [3.0, 3.0, 3.0],
+    });
+    set_zoom(S, 100.0);
+}
+
+// Self-test state: author a clip on the Spinner when the mirror resolved it,
+// otherwise on any resolved node — keying reads a live transform.
+fn state_animdemo(S) {
+    let pick = None;
+    for (i, node) in S.doc.iter().enumerate() {
+        if model::live(S, i).is_some() && (pick.is_none() || node.name == "Spinner") {
+            pick = Some(i);
+        }
+    }
+    match pick {
+        None => log::warn("animdemo: the mirror resolved no node to animate"),
+        Some(i) => {
+            S.sel = i;
+            anim::ensure_clip(S);
+            anim::add_key(S, 0.0);
+            let (_, found) = model::selected(S);
+            let found_some = found;
+            if let Some(found) = found_some {
+                found.set_position(2.5, 2.5, 0.0);
+                found.set_rotation_euler(0.0, math::rad(180.0), 0.0);
+                anim::add_key(S, 1.0);
+                found.set_position(2.5, 0.5, 0.0);
+                anim::add_key(S, 2.0);
+                anim::seek(S, 0.6);
+            }
+        }
+    }
+    set_persona(S, "anim");
+}
+
+// A bare name is a persona; the script persona also picks a scripted node so
+// the centre pane has something to show.
+fn state_persona(S, name) {
+    set_persona(S, name);
+    if name == "script" {
         for (i, node) in S.doc.iter().enumerate() {
-            if model::live(S, i).is_some() && (pick.is_none() || node.name == "Spinner") {
-                pick = Some(i);
-            }
-        }
-        match pick {
-            None => log::warn("animdemo: the mirror resolved no node to animate"),
-            Some(i) => {
+            if node.contains_key("script") {
                 S.sel = i;
-                anim::ensure_clip(S);
-                anim::add_key(S, 0.0);
-                let (_, found) = model::selected(S);
-                let found_some = found;
-                if let Some(found) = found_some {
-                    found.set_position(2.5, 2.5, 0.0);
-                    found.set_rotation_euler(0.0, math::rad(180.0), 0.0);
-                    anim::add_key(S, 1.0);
-                    found.set_position(2.5, 0.5, 0.0);
-                    anim::add_key(S, 2.0);
-                    anim::seek(S, 0.6);
-                }
-            }
-        }
-        set_persona(S, "anim");
-    } else if start == "undodemo" {
-        crate::selftest::undo(S);
-    } else if start == "breakdemo" {
-        break_demo(S);
-    } else if start == "rigdemo" {
-        crate::selftest::rigging(S);
-    } else if start == "polydemo" {
-        crate::selftest::polygons(S);
-    } else if start.starts_with("tool:") {
-        S.tool = start[5..];
-    } else if start.starts_with("dock:") {
-        S.dock = start[5..];
-    } else if start.starts_with("mode:") {
-        crate::polygon::set_mode(S, start[5..]);
-    } else if start.starts_with("select:") {
-        // Self-test state: select a node by name (e.g. select:Pig1).
-        select_named(S, start[7..]);
-    } else if start != "" {
-        set_persona(S, start);
-        if start == "script" {
-            for (i, node) in S.doc.iter().enumerate() {
-                if node.contains_key("script") {
-                    S.sel = i;
-                    break;
-                }
+                break;
             }
         }
     }

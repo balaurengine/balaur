@@ -455,127 +455,159 @@ fn as_text(value) {
     }
 }
 
+// One editor per schema datatype, looked up rather than branched on, so a
+// plugin can register an editor for a datatype the editor has never heard of.
+fn editors() {
+    #{
+        "float": edit_float,
+        "bool": edit_bool,
+        "enum": edit_enum,
+        "vec2": edit_vector,
+        "vec3": edit_vector,
+        "color": edit_vector,
+        "asset": edit_asset,
+    }
+}
+
 fn prop_row(S, k, comp, prop, spec, data) {
     let value = match data.get(prop) {
         Some(value) => value,
         None => spec.get("default").unwrap_or(()),
     };
+    let editor = match editors().get(spec["type"]) {
+        Some(editor) => editor,
+        None => edit_text,
+    };
+    editor(S, k, comp, prop, spec, value);
+}
+
+fn edit_float(S, k, comp, prop, spec, value) {
+    row(k, prop, || {
+        let (v, ch) = value_field(k, if value is Tuple { 0.0 } else { util::f(value) }, #{
+            speed: spec.get("step").unwrap_or(0.02),
+            decimals: spec.get("decimals").unwrap_or(2),
+        });
+        if ch {
+            let min_some = spec.get("min");
+            if let Some(min) = min_some {
+                v = util::max(util::f(min), v);
+            }
+            let max_some = spec.get("max");
+            if let Some(max) = max_some {
+                v = util::min(util::f(max), v);
+            }
+            model::set_component_prop(S, comp, prop, v);
+        }
+    });
+}
+
+fn edit_bool(S, k, comp, prop, spec, value) {
+    row(k, prop, || {
+        let (on, ch) = ui::toggle(value == true, #{
+            on_fill: k.accent_fill, off_fill: k.sunken,
+            on_knob: k.on_accent, off_knob: k.faint,
+        });
+        if ch {
+            model::set_component_prop(S, comp, prop, on);
+        }
+    });
+}
+
+fn edit_enum(S, k, comp, prop, spec, value) {
+    row(k, prop, || {
+        let (v, changed) = ui::dropdown(format!("sel:{}:{}:{}", comp, prop, S.sel), as_text(value), util::vec(spec.get("options").unwrap_or([])), #{
+            width: CONTROL_W, size: 12, height: 28, color: k.text,
+        });
+        if changed {
+            model::set_component_prop(S, comp, prop, v);
+        }
+    });
+}
+
+// vec2, vec3 and color are one editor: a row of drag values differing only in
+// how many, what they are lettered, and whether they clamp to unit range.
+fn edit_vector(S, k, comp, prop, spec, value) {
     let datatype = spec["type"];
-    if datatype == "float" {
-        row(k, prop, || {
-            let (v, ch) = value_field(k, if value is Tuple { 0.0 } else { util::f(value) }, #{
-                speed: spec.get("step").unwrap_or(0.02),
-                decimals: spec.get("decimals").unwrap_or(2),
+    row(k, prop, || {
+        let v = util::vec(value);
+        let count = if datatype == "color" { 4 } else if datatype == "vec2" { 2 } else { 3 };
+        let letters = if datatype == "color" { ["r", "g", "b", "a"] } else { ["x", "y", "z"] };
+        let w = CONTROL_W / (count as f64) - 5.0;
+        let cell = #{ changed: false, out: [] };
+        for i in 0..count {
+            let fallback = if datatype == "color" { 1.0 } else { 0.0 };
+            cell.out.push(match v.get(i) { Some(x) => util::f(x), None => fallback });
+            let (nv, ch) = ui::drag_value(cell.out[i], #{
+                width: w, speed: if datatype == "color" { 0.005 } else { 0.02 },
+                decimals: 2,
+                prefix: letters[i], prefix_color: k.accent,
+                fill: k.sunken, stroke: k.line_soft, color: k.text,
             });
             if ch {
-                let min_some = spec.get("min");
-                if let Some(min) = min_some {
-                    v = util::max(util::f(min), v);
-                }
-                let max_some = spec.get("max");
-                if let Some(max) = max_some {
-                    v = util::min(util::f(max), v);
-                }
-                model::set_component_prop(S, comp, prop, v);
+                cell.out[i] = if datatype == "color" { util::clamp(nv, 0.0, 1.0) } else { nv };
+                cell.changed = true;
             }
-        });
-    } else if datatype == "bool" {
-        row(k, prop, || {
-            let (on, ch) = ui::toggle(value == true, #{
-                on_fill: k.accent_fill, off_fill: k.sunken,
-                on_knob: k.on_accent, off_knob: k.faint,
-            });
-            if ch {
-                model::set_component_prop(S, comp, prop, on);
-            }
-        });
-    } else if datatype == "enum" {
-        row(k, prop, || {
-            let (v, changed) = ui::dropdown(format!("sel:{}:{}:{}", comp, prop, S.sel), as_text(value), util::vec(spec.get("options").unwrap_or([])), #{
-                width: CONTROL_W, size: 12, height: 28, color: k.text,
-            });
-            if changed {
-                model::set_component_prop(S, comp, prop, v);
-            }
-        });
-    } else if datatype == "vec2" || datatype == "vec3" || datatype == "color" {
-        row(k, prop, || {
-            let v = util::vec(value);
-            let count = if datatype == "color" { 4 } else if datatype == "vec2" { 2 } else { 3 };
-            let letters = if datatype == "color" { ["r", "g", "b", "a"] } else { ["x", "y", "z"] };
-            let w = CONTROL_W / (count as f64) - 5.0;
-            let cell = #{ changed: false, out: [] };
-            for i in 0..count {
-                let fallback = if datatype == "color" { 1.0 } else { 0.0 };
-                cell.out.push(match v.get(i) { Some(x) => util::f(x), None => fallback });
-                let (nv, ch) = ui::drag_value(cell.out[i], #{
-                    width: w, speed: if datatype == "color" { 0.005 } else { 0.02 },
-                    decimals: 2,
-                    prefix: letters[i], prefix_color: k.accent,
-                    fill: k.sunken, stroke: k.line_soft, color: k.text,
-                });
-                if ch {
-                    cell.out[i] = if datatype == "color" { util::clamp(nv, 0.0, 1.0) } else { nv };
-                    cell.changed = true;
-                }
-            }
-            if cell.changed {
-                model::set_component_prop(S, comp, prop, cell.out);
-            }
-        });
-    } else if datatype == "asset" {
-        // A reference, or an inline definition the engine reports as a `#!`
-        // digest. A type that declares no directory cannot be promoted, so
-        // it gets no button.
-        row(k, prop, || {
-            let reference = model::relative_file(S, as_text(value));
-            let inline = reference.starts_with("#!");
-            let asset_type = spec.get("asset").unwrap_or("");
-            let dir = if asset_type != "" { assets::directory(asset_type) } else { "" };
-            if inline {
-                ui::label("— inline —", style::mono(k.faint));
-            } else {
-                let id = format!("asset:{}:{}:{}", comp, prop, S.sel);
-                let width = if dir == "" { CONTROL_W } else { CONTROL_W - 78.0 };
-                let (text, _, submitted) = ui::text_field(id, "— none —",
-                    util::merge(style::field(k, width), #{ value: reference }));
-                if submitted {
-                    model::set_component_prop(S, comp, prop, text);
-                }
-            }
-            if dir == "" {
-                return;
-            }
-            ui::right(|| {
-                let label = if inline { "save as file" } else { "make inline" };
-                if ui::pill(label, #{
-                    height: 20, size: 10, strong: true,
-                    tooltip: if inline {
-                        format!("Write this {} to {}/ and reference it", asset_type, dir)
-                    } else {
-                        "Copy this file's definition onto the node"
-                    },
-                    fill: k.sage_soft, color: k.sage,
-                }) {
-                    if inline {
-                        promote_asset(S, comp, prop, asset_type, dir, reference);
-                    } else {
-                        inline_asset(S, comp, prop, reference);
-                    }
-                }
-            });
-        });
-    } else {
-        row(k, prop, || {
-            let id = format!("comp:{}:{}:{}", comp, prop, S.sel);
-            let (text, _, submitted) = ui::text_field(id, "— empty —",
-                util::merge(style::field(k, CONTROL_W),
-                    #{ value: model::relative_file(S, as_text(value)) }));
+        }
+        if cell.changed {
+            model::set_component_prop(S, comp, prop, cell.out);
+        }
+    });
+}
+
+// A reference, or an inline definition the engine reports as a `#!` digest. A
+// type that declares no directory cannot be promoted, so it gets no button.
+fn edit_asset(S, k, comp, prop, spec, value) {
+    row(k, prop, || {
+        let reference = model::relative_file(S, as_text(value));
+        let inline = reference.starts_with("#!");
+        let asset_type = spec.get("asset").unwrap_or("");
+        let dir = if asset_type != "" { assets::directory(asset_type) } else { "" };
+        if inline {
+            ui::label("— inline —", style::mono(k.faint));
+        } else {
+            let id = format!("asset:{}:{}:{}", comp, prop, S.sel);
+            let width = if dir == "" { CONTROL_W } else { CONTROL_W - 78.0 };
+            let (text, _, submitted) = ui::text_field(id, "— none —",
+                util::merge(style::field(k, width), #{ value: reference }));
             if submitted {
                 model::set_component_prop(S, comp, prop, text);
             }
+        }
+        if dir == "" {
+            return;
+        }
+        ui::right(|| {
+            let label = if inline { "save as file" } else { "make inline" };
+            if ui::pill(label, #{
+                height: 20, size: 10, strong: true,
+                tooltip: if inline {
+                    format!("Write this {} to {}/ and reference it", asset_type, dir)
+                } else {
+                    "Copy this file's definition onto the node"
+                },
+                fill: k.sage_soft, color: k.sage,
+            }) {
+                if inline {
+                    promote_asset(S, comp, prop, asset_type, dir, reference);
+                } else {
+                    inline_asset(S, comp, prop, reference);
+                }
+            }
         });
-    }
+    });
+}
+
+// Anything with no registered editor: its text, straight through.
+fn edit_text(S, k, comp, prop, spec, value) {
+    row(k, prop, || {
+        let id = format!("comp:{}:{}:{}", comp, prop, S.sel);
+        let (text, _, submitted) = ui::text_field(id, "— empty —",
+            util::merge(style::field(k, CONTROL_W),
+                #{ value: model::relative_file(S, as_text(value)) }));
+        if submitted {
+            model::set_component_prop(S, comp, prop, text);
+        }
+    });
 }
 
 fn fixed(v, decimals) {
@@ -666,7 +698,7 @@ fn component_sections(S, k, filter) {
             });
         }
         ui::add_space(8);
-        let schema = util::obj(scene::component_schema(comp));
+        let schema = model::schema(S, comp);
         let data = util::obj(found.get_component(comp));
         for prop in util::keys_sorted(schema) {
             let spec = schema[prop];

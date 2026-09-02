@@ -46,9 +46,9 @@ fn undo_all(S) {
 
 // The first writable float on any component of the selection, so the test
 // exercises `set_component_prop` on whatever the scene actually has.
-fn writable_float(found) {
+fn writable_float(S, found) {
     for comp in found.component_names() {
-        let schema = util::obj(scene::component_schema(comp));
+        let schema = model::schema(S, comp);
         for prop in util::keys_sorted(schema) {
             let spec = schema[prop];
             if spec["type"] == "float" && spec.get("readonly").unwrap_or(false) != true {
@@ -71,7 +71,7 @@ pub fn component_write(S) {
         Some(found) => found,
         None => return,
     };
-    let (comp, prop, spec) = match writable_float(found) {
+    let (comp, prop, spec) = match writable_float(S, found) {
         Some(hit) => hit,
         None => {
             log::info("selftest: the selection has no writable float; skipped");

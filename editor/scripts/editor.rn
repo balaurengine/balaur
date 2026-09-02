@@ -40,6 +40,7 @@ pub fn init(this) {
         version: "0.1.0",
         ui_scale: 1.25,
         script_buffers: #{},
+        schemas: #{},
         script_dirty: #{},
         anim_time: 0.0,
         collapsed: #{},
