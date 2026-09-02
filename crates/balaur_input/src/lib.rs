@@ -42,7 +42,9 @@ pub enum TouchPhase {
 /// mouse sits at `(0, 0)` with zero delta and zero scroll. Every `input.*`
 /// query therefore returns the neutral answer rather than failing, which is
 /// what lets the same simulation code run in CI and in a window.
-#[derive(Default)]
+/// Serialized as-is into a replay recording: the field names are the file
+/// format, so renaming one is a format change and wants `replay::FORMAT`.
+#[derive(Default, serde::Serialize, serde::Deserialize)]
 pub struct InputSnapshot {
     down: DetHashSet<String>,
     just_pressed: DetHashSet<String>,
@@ -217,11 +219,22 @@ impl Plugin for InputPlugin {
     fn build(&mut self, app: &mut App) -> Result<()> {
         app.engine.insert_resource(InputSnapshot::default());
         app.engine.insert_resource(GamepadState::default());
+        app.add_replay_source(
+            "gamepad",
+            |eng| gamepad::capture(&eng.resource::<GamepadState>().borrow()),
+            |eng, value| gamepad::restore(&mut eng.resource::<GamepadState>().borrow_mut(), value),
+        );
+        app.add_replay_resource::<InputSnapshot>("input");
 
         // Controllers are not window events, so they are polled inside the
         // tick rather than by the windowed backend: a headless run with a pad
         // plugged in sees it too. First, so scripts read this frame's state.
         app.add_system(Stage::First, |eng, _| {
+            // Not while replaying: the recorded pads were restored moments
+            // ago and polling the real hardware would overwrite them.
+            if balaur_core::replay::is_playing(eng) {
+                return;
+            }
             eng.resource::<GamepadState>().borrow_mut().poll();
         });
 

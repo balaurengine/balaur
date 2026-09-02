@@ -25,10 +25,11 @@
 //! map carries a `kind` — `login`, `rest`, `reply`, `error`, `open`,
 //! `message`, `closed` — so one handler can take them all.
 
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, Sender};
 
 use anyhow::{anyhow, Result};
 use balaur_core::engine_api::from_json;
+use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 use serde_json::Value as Json;
@@ -134,6 +135,7 @@ pub(crate) enum SocketCommand {
 }
 
 /// A completion crossing from a worker thread back to the frame loop.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) enum GamendEvent {
     LoggedIn {
         request: u64,
@@ -184,27 +186,15 @@ pub struct Handler {
 }
 
 /// Handle tables, the shared client, and the channel workers report into.
+#[derive(Default)]
 pub struct GamendState {
     client: Option<backend::SharedClient>,
-    events: Receiver<GamendEvent>,
-    report: Sender<GamendEvent>,
+    /// The worker channel, this tick's arrivals, and the rule that a replay
+    /// never reaches the server — all three live in here.
+    io: ExternalIo<GamendEvent>,
     sockets: DetHashMap<u64, Sender<SocketCommand>>,
     request_handlers: DetHashMap<u64, Handler>,
     socket_handlers: DetHashMap<u64, Handler>,
-}
-
-impl Default for GamendState {
-    fn default() -> Self {
-        let (report, events) = channel();
-        Self {
-            client: None,
-            events,
-            report,
-            sockets: DetHashMap::default(),
-            request_handlers: DetHashMap::default(),
-            socket_handlers: DetHashMap::default(),
-        }
-    }
 }
 
 impl GamendState {
@@ -222,6 +212,7 @@ impl GamendState {
 
     pub fn login(
         &mut self,
+        eng: &Engine,
         request: u64,
         credentials: LoginCredentials,
         handler: Option<Handler>,
@@ -230,12 +221,15 @@ impl GamendState {
         if let Some(handler) = handler {
             self.request_handlers.insert(request, handler);
         }
-        backend::spawn_login(&client, request, credentials, &self.report);
+        self.io.start(eng, |report| {
+            backend::spawn_login(&client, request, credentials, report);
+        });
         Ok(())
     }
 
     pub fn rest(
         &mut self,
+        eng: &Engine,
         request: u64,
         method: String,
         path: String,
@@ -246,20 +240,26 @@ impl GamendState {
         if let Some(handler) = handler {
             self.request_handlers.insert(request, handler);
         }
-        backend::spawn_rest(&client, request, method, path, body, &self.report);
+        self.io.start(eng, |report| {
+            backend::spawn_rest(&client, request, method, path, body, report);
+        });
         Ok(())
     }
 
     /// Open the realtime connection. The worker joins the session's own
     /// `user:<id>` topic before reporting `open`, so hooks work immediately.
-    pub fn connect(&mut self, socket: u64, handler: Option<Handler>) -> Result<()> {
+    pub fn connect(&mut self, eng: &Engine, socket: u64, handler: Option<Handler>) -> Result<()> {
         let client = self.client()?;
         if let Some(handler) = handler {
             self.socket_handlers.insert(socket, handler);
         }
         let (commands, receiver) = channel();
-        backend::spawn_socket(&client, socket, receiver, &self.report);
-        self.sockets.insert(socket, commands);
+        let started = self.io.start(eng, |report| {
+            backend::spawn_socket(&client, socket, receiver, report);
+        });
+        if started {
+            self.sockets.insert(socket, commands);
+        }
         Ok(())
     }
 
@@ -348,6 +348,17 @@ pub struct GamendSnapshot {
 
 /// Drain worker reports, record them, then dispatch and wake — in arrival
 /// order, after the borrows are released so a handler may call back in.
+/// This tick's arrivals, raw. The pump has already stashed them.
+fn capture_gamend(eng: &Engine) -> serde_json::Value {
+    eng.resource::<GamendState>().borrow().io.capture()
+}
+
+/// Back down the same channel the worker threads use, so the pump dispatches
+/// them exactly as it did when they came from the server.
+fn restore_gamend(eng: &Engine, value: &serde_json::Value) {
+    eng.resource::<GamendState>().borrow().io.restore(value);
+}
+
 fn pump_gamend_system(eng: &Engine, _: f32) {
     let mut dispatches: Vec<(Option<Handler>, Option<u64>, Value)> = Vec::new();
     {
@@ -356,7 +367,7 @@ fn pump_gamend_system(eng: &Engine, _: f32) {
         let mut state = state.borrow_mut();
         let mut snapshot = snapshot.borrow_mut();
         snapshot.events.clear();
-        while let Ok(event) = state.events.try_recv() {
+        for event in state.io.drain() {
             let (handler, wake) = match &event {
                 GamendEvent::LoggedIn { request, .. }
                 | GamendEvent::RestDone { request, .. }
@@ -487,6 +498,7 @@ impl balaur_plugin::Plugin for GamendPlugin {
         reg.insert_resource(GamendState::default());
         reg.insert_resource(GamendSnapshot::default());
         reg.add_system(Stage::First, pump_gamend_system);
+        reg.add_replay_source("gamend", capture_gamend, restore_gamend);
         let mut m = reg.script_module("gamend")?;
         install_gamend_api(&mut *m);
         Ok(())
@@ -565,7 +577,7 @@ fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
             let id = eng.next_token();
             eng.resource::<GamendState>()
                 .borrow_mut()
-                .login(id, credentials, handler)?;
+                .login(eng, id, credentials, handler)?;
             Ok(int(id))
         },
     );
@@ -581,6 +593,7 @@ fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
             };
             let id = eng.next_token();
             eng.resource::<GamendState>().borrow_mut().rest(
+                eng,
                 id,
                 method.to_uppercase(),
                 path,
@@ -600,7 +613,7 @@ fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
             let id = eng.next_token();
             eng.resource::<GamendState>()
                 .borrow_mut()
-                .connect(id, handler)?;
+                .connect(eng, id, handler)?;
             Ok(int(id))
         },
     );

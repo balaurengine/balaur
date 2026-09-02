@@ -20,7 +20,8 @@ frame = { type = "float", default = 0.0, min = 0.0, description = "Current sheet
 flip_x = { type = "bool", default = false, description = "Mirror horizontally" }
 flip_y = { type = "bool", default = false, description = "Mirror vertically" }
 pixels_per_unit = { type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit" }
-half_extents = { type = "vec2", default = [0.0, 0.0], description = "Size override in world units; [0, 0] sizes from the texture" }"#,
+half_extents = { type = "vec2", default = [0.0, 0.0], description = "Size override in world units; [0, 0] sizes from the texture" }
+color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
             ),
             tags: &["2d", "render"],
             expects: &[],
@@ -67,7 +68,8 @@ half_extents = { type = "vec2", default = [0.0, 0.0], description = "Size overri
                     } else {
                         crate::DEFAULT_PIXELS_PER_UNIT
                     },
-                )
+                )?;
+                crate::set_color(eng, entity, crate::color_from_params(params))
             }),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
@@ -102,6 +104,7 @@ half_extents = { type = "vec2", default = [0.0, 0.0], description = "Size overri
                         toml::Value::Float(f64::from(hy)),
                     ]),
                 );
+                map.insert("color".into(), crate::color_to_toml(renderable.color));
                 Some(toml::Value::Table(map))
             }),
         },

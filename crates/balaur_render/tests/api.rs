@@ -31,9 +31,9 @@ fn the_plugin_registers_its_components() {
     let app = app();
     let names = components::names(&app.engine);
     for expected in [
-        "shape",
+        "shape3d",
         "shape2d",
-        "color",
+        "shape2d",
         "camera",
         "tilemap",
         "particles",
@@ -63,7 +63,7 @@ fn a_shape_component_puts_a_renderable_on_the_node() {
     let app = app();
     let e = node(&app);
     let params: toml::Value = toml::from_str("kind = \"ball\"\nradius = 2.0").unwrap();
-    components::add(&app.engine, e, "shape", Some(&params)).unwrap();
+    components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
 
     let world = app.engine.world();
     let r = world
@@ -88,7 +88,7 @@ fn a_2d_shape_component_puts_a_2d_renderable_on_the_node() {
 fn every_shape_kind_the_schema_offers_is_accepted() {
     let app = app();
     for (component, kinds) in [
-        ("shape", ["ball", "cuboid"]),
+        ("shape3d", ["ball", "cuboid"]),
         ("shape2d", ["circle", "rect"]),
     ] {
         for kind in kinds {
@@ -104,21 +104,16 @@ fn every_shape_kind_the_schema_offers_is_accepted() {
 fn a_colour_reads_back_as_it_was_set() {
     let app = app();
     let e = node(&app);
-    let params: toml::Value = toml::from_str("rgba = [0.25, 0.5, 0.75, 1.0]").unwrap();
-    components::add(
-        &app.engine,
-        e,
-        "shape",
-        Some(&toml::from_str("kind = \"ball\"").unwrap()),
-    )
-    .unwrap();
-    components::add(&app.engine, e, "color", Some(&params)).unwrap();
+    // Colour is a property of the renderable, not a component of its own.
+    let params: toml::Value =
+        toml::from_str("kind = \"ball\"\ncolor = [0.25, 0.5, 0.75, 1.0]").unwrap();
+    components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
 
-    let got = components::get(&app.engine, e, "color").expect("colour reads back");
+    let got = components::get(&app.engine, e, "shape3d").expect("colour reads back");
     let rgba = got
-        .get("rgba")
+        .get("color")
         .and_then(toml::Value::as_array)
-        .expect("rgba array");
+        .expect("color array");
     assert!((rgba[0].as_float().unwrap() - 0.25).abs() < 1e-6);
 }
 
@@ -127,8 +122,8 @@ fn removing_a_shape_takes_the_renderable_with_it() {
     let app = app();
     let e = node(&app);
     let params: toml::Value = toml::from_str("kind = \"ball\"").unwrap();
-    components::add(&app.engine, e, "shape", Some(&params)).unwrap();
-    components::remove(&app.engine, e, "shape").unwrap();
+    components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
+    components::remove(&app.engine, e, "shape3d").unwrap();
     assert!(app.engine.world().get::<&Renderable>(e).is_err());
 }
 
@@ -223,7 +218,7 @@ fn ticking_a_headless_app_with_render_does_not_panic() {
     let mut app = app();
     let e = node(&app);
     let params: toml::Value = toml::from_str("kind = \"ball\"").unwrap();
-    components::add(&app.engine, e, "shape", Some(&params)).unwrap();
+    components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
     for _ in 0..10 {
         app.tick(1.0 / 60.0);
     }
@@ -248,9 +243,9 @@ fn every_3d_shape_kind_round_trips() {
         let app = app();
         let e = node(&app);
         let params: toml::Value = toml::from_str(source).unwrap();
-        components::add(&app.engine, e, "shape", Some(&params))
+        components::add(&app.engine, e, "shape3d", Some(&params))
             .unwrap_or_else(|why| panic!("{expected} did not apply: {why:#}"));
-        let back = components::get(&app.engine, e, "shape")
+        let back = components::get(&app.engine, e, "shape3d")
             .unwrap_or_else(|| panic!("{expected} produced nothing to read back"));
         assert_eq!(
             back.get("kind").and_then(toml::Value::as_str),
@@ -268,8 +263,8 @@ fn a_capsule_keeps_the_height_it_was_given() {
     let e = node(&app);
     let params: toml::Value =
         toml::from_str("kind = \"capsule\"\nradius = 0.25\nheight = 3.0").unwrap();
-    components::add(&app.engine, e, "shape", Some(&params)).unwrap();
-    let back = components::get(&app.engine, e, "shape").unwrap();
+    components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
+    let back = components::get(&app.engine, e, "shape3d").unwrap();
     let height = back.get("height").and_then(balaur_core::components::as_f64);
     assert!(
         height.is_some_and(|h| (h - 3.0).abs() < 1e-6),
@@ -333,8 +328,12 @@ fn an_unknown_shape_kind_is_refused_by_name() {
     let app = app();
     let e = node(&app);
     let params: toml::Value = toml::from_str("kind = \"dodecahedron\"").unwrap();
-    let err = components::add(&app.engine, e, "shape", Some(&params))
-        .expect_err("an unknown kind must not apply")
-        .to_string();
+    // The component layer wraps the cause, so the name is in the chain --
+    // which is the form the log prints.
+    let err = format!(
+        "{:#}",
+        components::add(&app.engine, e, "shape3d", Some(&params))
+            .expect_err("an unknown kind must not apply")
+    );
     assert!(err.contains("dodecahedron"), "{err}");
 }

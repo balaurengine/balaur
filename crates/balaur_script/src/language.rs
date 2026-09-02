@@ -45,6 +45,19 @@ pub trait ScriptHost<C: ?Sized> {
     /// here lands on the step it was meant for, on every machine.
     fn fixed_update(&self, dt: f32);
 
+    /// Every live instance's state, for a rollback snapshot.
+    ///
+    /// A script that implements `save_state` decides its own contents;
+    /// otherwise the host captures the instance's plain fields — numbers,
+    /// strings, booleans, nodes and tables of those. Functions and foreign
+    /// userdata are skipped, because neither survives being put down and
+    /// picked back up.
+    fn save_state(&self) -> Vec<(NodeId, Value)>;
+
+    /// Put instances back the way [`ScriptHost::save_state`] found them,
+    /// through `load_state` where a script defines one.
+    fn load_state(&self, states: &[(NodeId, Value)]);
+
     /// Apply reloads the watcher has queued. Called at a point in the frame
     /// where swapping code is safe.
     fn pump_reloads(&self);

@@ -11,7 +11,7 @@ cannot drift from what scripts actually see.
 | [`animation`](#animation) | 14 | 0 | every language |
 | [`assets`](#assets) | 6 | 0 | every language |
 | [`audio`](#audio) | 8 | 0 | every language |
-| [`engine`](#engine) | 6 | 0 | every language |
+| [`engine`](#engine) | 7 | 0 | every language |
 | [`fs`](#fs) | 4 | 0 | every language |
 | [`gamend`](#gamend) | 9 | 0 | every language |
 | [`http`](#http) | 1 | 0 | every language |
@@ -19,8 +19,9 @@ cannot drift from what scripts actually see.
 | [`json`](#json) | 2 | 0 | every language |
 | [`log`](#log) | 5 | 0 | every language |
 | [`node`](#node) | 29 | 0 | every language |
-| [`physics`](#physics) | 13 | 5 | every language |
+| [`physics`](#physics) | 5 | 0 | every language |
 | [`physics2d`](#physics2d) | 10 | 5 | every language |
+| [`physics3d`](#physics3d) | 8 | 5 | every language |
 | [`render`](#render) | 31 | 0 | every language |
 | [`rng`](#rng) | 4 | 0 | every language |
 | [`scene`](#scene) | 12 | 0 | every language |
@@ -42,7 +43,7 @@ cannot drift from what scripts actually see.
 
 ## `engine`
 
-**Functions:** `args`, `delta`, `quit`, `reload_script`, `time`, `user_data_dir`
+**Functions:** `args`, `delta`, `quit`, `reload_script`, `tick`, `time`, `user_data_dir`
 
 ## `fs`
 
@@ -105,17 +106,7 @@ cannot drift from what scripts actually see.
 
 ## `physics`
 
-**Functions:** `add_ball_collider`, `add_body`, `add_cuboid_collider`, `apply_impulse`, `clear`, `is_paused`, `linear_velocity`, `overlaps`, `set_gravity`, `set_linear_velocity`, `set_paused`, `set_sleeping_allowed`, `sleeping_allowed`
-
-**Constants** (5):
-
-| Name | Value |
-| --- | --- |
-| `BODY_DYNAMIC` | `dynamic` |
-| `BODY_KINEMATIC` | `kinematic` |
-| `BODY_STATIC` | `static` |
-| `SHAPE_BALL` | `ball` |
-| `SHAPE_CUBOID` | `cuboid` |
+**Functions:** `clear`, `is_paused`, `set_paused`, `set_sleeping_allowed`, `sleeping_allowed`
 
 ## `physics2d`
 
@@ -131,9 +122,23 @@ cannot drift from what scripts actually see.
 | `SHAPE_CIRCLE` | `circle` |
 | `SHAPE_RECT` | `rect` |
 
+## `physics3d`
+
+**Functions:** `add_ball_collider`, `add_body`, `add_cuboid_collider`, `apply_impulse`, `linear_velocity`, `overlaps`, `set_gravity`, `set_linear_velocity`
+
+**Constants** (5):
+
+| Name | Value |
+| --- | --- |
+| `BODY_DYNAMIC` | `dynamic` |
+| `BODY_KINEMATIC` | `kinematic` |
+| `BODY_STATIC` | `static` |
+| `SHAPE_BALL` | `ball` |
+| `SHAPE_CUBOID` | `cuboid` |
+
 ## `render`
 
-**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `color`, `draw_line`, `draw_line_2d`, `mouse_ray`, `mouse_world_2d`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_rect`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `shape`, `shape2d`, `sprite`
+**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `color`, `draw_line`, `draw_line_2d`, `mouse_ray`, `mouse_world_2d`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_rect`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `shape2d`, `shape3d`, `sprite`
 
 ## `rng`
 

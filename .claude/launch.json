@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "website",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd /Users/dragosdaian/Documents/appsinacup/balaur-website && exec node_modules/.bin/docusaurus serve --port 3000 --no-open"],
+      "port": 3000
+    }
+  ]
+}

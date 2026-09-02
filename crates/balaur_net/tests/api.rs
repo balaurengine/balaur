@@ -78,7 +78,9 @@ fn a_response_arrives_in_the_snapshot_with_status_and_body() {
     let id = app.engine.next_token();
     {
         let state = app.engine.resource::<NetState>();
-        state.borrow_mut().request(id, get_call(&url), None);
+        state
+            .borrow_mut()
+            .request(&app.engine, id, get_call(&url), None);
     }
     let response = wait_for(&mut app, |snapshot| snapshot.http.first().cloned());
     assert_eq!(
@@ -98,7 +100,9 @@ fn an_http_error_status_is_a_response_not_an_error() {
     {
         let state = app.engine.resource::<NetState>();
         let id = app.engine.next_token();
-        state.borrow_mut().request(id, get_call(&url), None);
+        state
+            .borrow_mut()
+            .request(&app.engine, id, get_call(&url), None);
     }
     let response = wait_for(&mut app, |snapshot| snapshot.http.first().cloned());
     assert_eq!(field(&response, "status"), Some(&Value::Int(404)));
@@ -117,9 +121,12 @@ fn a_failed_transfer_reports_an_error_event() {
     {
         let state = app.engine.resource::<NetState>();
         let id = app.engine.next_token();
-        state
-            .borrow_mut()
-            .request(id, get_call(&format!("http://127.0.0.1:{port}")), None);
+        state.borrow_mut().request(
+            &app.engine,
+            id,
+            get_call(&format!("http://127.0.0.1:{port}")),
+            None,
+        );
     }
     let response = wait_for(&mut app, |snapshot| snapshot.http.first().cloned());
     assert!(
@@ -169,7 +176,7 @@ fn a_websocket_opens_echoes_and_closes() {
     let id = app.engine.next_token();
     {
         let state = app.engine.resource::<NetState>();
-        state.borrow_mut().connect(id, &url, None);
+        state.borrow_mut().connect(&app.engine, id, &url, None);
     }
 
     let open = wait_for(&mut app, |snapshot| socket_event(snapshot, "open"));
@@ -209,7 +216,7 @@ fn an_unreachable_websocket_reports_an_error_event() {
         let id = app.engine.next_token();
         state
             .borrow_mut()
-            .connect(id, &format!("ws://127.0.0.1:{port}"), None);
+            .connect(&app.engine, id, &format!("ws://127.0.0.1:{port}"), None);
     }
     let event = wait_for(&mut app, |snapshot| socket_event(snapshot, "error"));
     assert!(matches!(field(&event, "reason"), Some(Value::Str(_))));

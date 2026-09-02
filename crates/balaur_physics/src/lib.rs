@@ -65,10 +65,15 @@ impl Plugin for PhysicsPlugin {
         app.engine.insert_resource(PhysicsState::new());
         app.add_system(Stage::FixedUpdate, step_system);
         build_physics_digest(app);
+        build_physics_snapshot(app);
 
-        let mut m = app.script_module("physics")?;
+        // `physics` holds what spans both worlds; each dimension has its own.
+        {
+            let mut m = app.script_module("physics")?;
+            install_world_controls(&mut *m);
+        }
+        let mut m = app.script_module("physics3d")?;
         install_constants(&mut *m, BODY_KINDS, SHAPE_KINDS);
-        install_world_controls(&mut *m);
         install_body_api(&mut *m);
         register_physics_components(app);
         register_physics_presets(app)?;
@@ -103,22 +108,98 @@ fn build_physics_digest(app: &mut App) {
     });
 }
 
-/// The 3D body presets. Dimension is unmarked on 3D names (N/D5).
+/// The rapier world plus the maps tying it to entities.
+///
+/// The whole world rather than a per-body summary: rapier's own
+/// `serde-serialize` skips exactly the workspace fields a snapshot must not
+/// carry (the pipeline, the CCD solver), and reconstructing islands and
+/// contact state by hand would be a second physics engine.
+#[derive(serde::Deserialize)]
+struct PhysicsFrame {
+    world: PhysicsWorld,
+    bodies: Vec<(u64, RigidBodyHandle)>,
+    colliders: Vec<(u64, Vec<ColliderHandle>)>,
+    paused: bool,
+    sleeping_allowed: bool,
+}
+
+/// The save side borrows: a rollback ring holds many of these, and
+/// `PhysicsWorld` is not `Clone` precisely because copying one is expensive.
+#[derive(serde::Serialize)]
+struct PhysicsFrameRef<'a> {
+    world: &'a PhysicsWorld,
+    bodies: Vec<(u64, RigidBodyHandle)>,
+    colliders: Vec<(u64, Vec<ColliderHandle>)>,
+    paused: bool,
+    sleeping_allowed: bool,
+}
+
+fn build_physics_snapshot(app: &mut App) {
+    app.add_snapshot_source(
+        "physics",
+        |eng| {
+            let state = eng.resource::<PhysicsState>();
+            let state = state.borrow();
+            let frame = PhysicsFrameRef {
+                world: &state.world,
+                bodies: state
+                    .bodies
+                    .iter()
+                    .map(|(e, h)| (e.to_bits().get(), *h))
+                    .collect(),
+                colliders: state
+                    .colliders
+                    .iter()
+                    .map(|(e, h)| (e.to_bits().get(), h.clone()))
+                    .collect(),
+                paused: state.paused,
+                sleeping_allowed: state.sleeping_allowed,
+            };
+            serde_json::to_value(frame).unwrap_or(serde_json::Value::Null)
+        },
+        |eng, value| {
+            let frame: PhysicsFrame = match serde_json::from_value(value.clone()) {
+                Ok(frame) => frame,
+                Err(e) => {
+                    tracing::error!(error = %e, "restoring the physics world");
+                    return;
+                }
+            };
+            let state = eng.resource::<PhysicsState>();
+            let mut state = state.borrow_mut();
+            state.world = frame.world;
+            state.paused = frame.paused;
+            state.sleeping_allowed = frame.sleeping_allowed;
+            state.bodies = frame
+                .bodies
+                .into_iter()
+                .filter_map(|(bits, h)| Some((Entity::from_bits(bits)?, h)))
+                .collect();
+            state.colliders = frame
+                .colliders
+                .into_iter()
+                .filter_map(|(bits, h)| Some((Entity::from_bits(bits)?, h)))
+                .collect();
+        },
+    );
+}
+
+/// The 3D body presets. Both dimensions carry their marker (D5).
 fn register_physics_presets(app: &mut App) -> Result<()> {
     app.register_preset(
-        "rigid_body",
+        "rigid_body3d",
         balaur_core::presets::preset(
             "A body physics simulates, with a box collider",
             &["3d", "physics"],
-            &[("body", Some("kind = \"dynamic\"")), ("collider", None)],
+            &[("body3d", Some("kind = \"dynamic\"")), ("collider3d", None)],
         )?,
     );
     app.register_preset(
-        "static_body",
+        "static_body3d",
         balaur_core::presets::preset(
             "An immovable body with a box collider: ground, walls",
             &["3d", "physics"],
-            &[("body", Some("kind = \"static\"")), ("collider", None)],
+            &[("body3d", Some("kind = \"static\"")), ("collider3d", None)],
         )?,
     );
     Ok(())
@@ -300,20 +381,41 @@ fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let handle = state.colliders.get(&entity)?.first()?;
     let collider = state.world.colliders.get(*handle)?;
     let mut map = toml::map::Map::new();
-    if let Some(ball) = collider.shape().as_ball() {
-        map.insert("kind".into(), toml::Value::String("ball".into()));
-        map.insert("radius".into(), toml::Value::Float(f64::from(ball.radius)));
-    } else {
-        let cuboid = collider.shape().as_cuboid()?;
-        map.insert("kind".into(), toml::Value::String("cuboid".into()));
+    let f = |v: f32| toml::Value::Float(f64::from(v));
+    let vec3 = |x: f32, y: f32, z: f32| toml::Value::Array(vec![f(x), f(y), f(z)]);
+    let shape = collider.shape();
+    // Parameter-built kinds read back; asset-backed ones cannot, because
+    // rapier keeps the geometry and not the file it came from.
+    if let Some(ball) = shape.as_ball() {
+        map.insert("kind".into(), "ball".into());
+        map.insert("radius".into(), f(ball.radius));
+    } else if let Some(cuboid) = shape.as_cuboid() {
+        map.insert("kind".into(), "cuboid".into());
+        let he = cuboid.half_extents;
+        map.insert("half_extents".into(), vec3(he.x, he.y, he.z));
+    } else if let Some(capsule) = shape.as_capsule() {
+        map.insert("kind".into(), "capsule".into());
+        map.insert("radius".into(), f(capsule.radius));
+        // `height` is the straight part: the segment, caps excluded.
         map.insert(
-            "half_extents".into(),
-            toml::Value::Array(vec![
-                toml::Value::Float(f64::from(cuboid.half_extents.x)),
-                toml::Value::Float(f64::from(cuboid.half_extents.y)),
-                toml::Value::Float(f64::from(cuboid.half_extents.z)),
-            ]),
+            "height".into(),
+            f((capsule.segment.b - capsule.segment.a).length()),
         );
+    } else if let Some(cylinder) = shape.as_cylinder() {
+        map.insert("kind".into(), "cylinder".into());
+        map.insert("radius".into(), f(cylinder.radius));
+        map.insert("height".into(), f(cylinder.half_height * 2.0));
+    } else if let Some(cone) = shape.as_cone() {
+        map.insert("kind".into(), "cone".into());
+        map.insert("radius".into(), f(cone.radius));
+        map.insert("height".into(), f(cone.half_height * 2.0));
+    } else if let Some(tri) = shape.as_triangle() {
+        map.insert("kind".into(), "triangle".into());
+        map.insert("a".into(), vec3(tri.a.x, tri.a.y, tri.a.z));
+        map.insert("b".into(), vec3(tri.b.x, tri.b.y, tri.b.z));
+        map.insert("c".into(), vec3(tri.c.x, tri.c.y, tri.c.z));
+    } else {
+        return None;
     }
     map.insert(
         "restitution".into(),
@@ -500,8 +602,8 @@ fn step_system(eng: &Engine, _dt: f32) {
 
 /// Pause, sleeping and gravity.
 fn install_world_controls(m: &mut dyn Bindings<Engine>) {
-    // Spans BOTH the 3D and the 2D world, unlike the rest of `physics`:
-    // editors and games treat "physics" as one simulation.
+    // Everything here spans BOTH worlds: editors and games treat
+    // "physics" as one simulation. Per-dimension calls live in physics3d/2d.
     m.function("set_paused", |eng: &Engine, paused: bool| {
         let state = eng.resource::<PhysicsState>();
         state.borrow_mut().paused = paused;
@@ -563,13 +665,6 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
         dim2::clear(eng);
         Ok(())
     });
-    // 3D only, unlike the four above; the 2D world has `physics2d.set_gravity`.
-    // No reader by design: add `physics.gravity` when a caller needs it back.
-    m.function("set_gravity", |eng: &Engine, (x, y, z): (f32, f32, f32)| {
-        let state = eng.resource::<PhysicsState>();
-        state.borrow_mut().world.gravity = Vec3::new(x, y, z);
-        Ok(())
-    });
 }
 
 /// Body and collider creation, impulses, velocity access and overlap queries.
@@ -620,10 +715,17 @@ fn install_body_api(m: &mut dyn Bindings<Engine>) {
             .map(balaur_core::node_id_of)
             .collect::<Vec<_>>())
     });
+    // The 2D world has `physics2d.set_gravity`.
+    // No reader by design: add `physics3d.gravity` when a caller needs it back.
+    m.function("set_gravity", |eng: &Engine, (x, y, z): (f32, f32, f32)| {
+        let state = eng.resource::<PhysicsState>();
+        state.borrow_mut().world.gravity = Vec3::new(x, y, z);
+        Ok(())
+    });
 }
 
 /// Body kinds the 3D and 2D worlds both accept, so a script writes
-/// `physics.BODY_DYNAMIC` rather than spelling "dynamic" and finding out at
+/// `physics3d.BODY_DYNAMIC` rather than spelling "dynamic" and finding out at
 /// runtime that "Dynamic" silently fell through to the default.
 pub const BODY_KINDS: &[(&str, &str)] = &[
     ("BODY_DYNAMIC", "dynamic"),
@@ -654,10 +756,10 @@ pub(crate) fn install_constants(
 /// Neither key is backed by a component type: both write into `PhysicsState`.
 fn register_physics_components(app: &mut App) {
     app.register_component(
-        "body",
+        "body3d",
         ComponentDef {
             schema: ComponentDef::parse_schema(
-                "body",
+                "body3d",
                 r#"kind = { type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic"], shorthand = true, description = "How physics drives the node: simulated, immovable, or moved by script" }"#,
             ),
             tags: &["3d", "physics"],
@@ -703,10 +805,10 @@ fn register_physics_components(app: &mut App) {
         },
     );
     app.register_component(
-        "collider",
+        "collider3d",
         ComponentDef {
             schema: ComponentDef::parse_schema(
-                "collider",
+                "collider3d",
                 r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid", "capsule", "cylinder", "cone", "triangle", "trimesh", "convex_hull", "polyline", "heightfield"], description = "Collision shape" }
 radius = { type = "float", default = 0.5, min = 0.01, description = "Radius, for ball, capsule, cylinder and cone" }
 height = { type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, for capsule, cylinder and cone" }

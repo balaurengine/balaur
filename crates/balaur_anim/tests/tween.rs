@@ -487,23 +487,22 @@ parallel = true
 fn a_tween_drives_a_component_property_the_animation_crate_does_not_depend_on() {
     let mut app = app();
     let entity = spawn(&app, "Box");
-    let params: toml::Value = toml::from_str(r#"kind = "cuboid""#).unwrap();
-    components::add(&app.engine, entity, "shape", Some(&params)).unwrap();
-    let params: toml::Value = toml::from_str("rgba = [0.0, 0.0, 0.0, 1.0]").unwrap();
-    components::add(&app.engine, entity, "color", Some(&params)).unwrap();
+    let params: toml::Value =
+        toml::from_str(&format!("kind = \"cuboid\"\ncolor = [0.0, 0.0, 0.0, 1.0]")).unwrap();
+    components::add(&app.engine, entity, "shape3d", Some(&params)).unwrap();
     start(
         &app,
         entity,
         r#"
 [[steps]]
-property = "color/rgba"
+property = "shape3d/color"
 to = [1.0, 0.0, 0.0, 1.0]
 duration = 0.5
 "#,
     );
     tick(&mut app, 31);
-    let rgba = components::get(&app.engine, entity, "color")
-        .and_then(|table| table.get("rgba").cloned())
+    let rgba = components::get(&app.engine, entity, "shape3d")
+        .and_then(|table| table.get("color").cloned())
         .unwrap();
     let channels: Vec<f64> = rgba
         .as_array()
@@ -521,23 +520,22 @@ duration = 0.5
 fn a_tween_captures_the_component_value_it_starts_from() {
     let mut app = app();
     let entity = spawn(&app, "Box");
-    let params: toml::Value = toml::from_str(r#"kind = "cuboid""#).unwrap();
-    components::add(&app.engine, entity, "shape", Some(&params)).unwrap();
-    let params: toml::Value = toml::from_str("rgba = [0.0, 1.0, 0.0, 1.0]").unwrap();
-    components::add(&app.engine, entity, "color", Some(&params)).unwrap();
+    let params: toml::Value =
+        toml::from_str(&format!("kind = \"cuboid\"\ncolor = [0.0, 1.0, 0.0, 1.0]")).unwrap();
+    components::add(&app.engine, entity, "shape3d", Some(&params)).unwrap();
     start(
         &app,
         entity,
         r#"
 [[steps]]
-property = "color/rgba"
+property = "shape3d/color"
 by = [1.0, -1.0, 0.0, 0.0]
 duration = 0.5
 "#,
     );
     tick(&mut app, 31);
-    let rgba = components::get(&app.engine, entity, "color")
-        .and_then(|table| table.get("rgba").cloned())
+    let rgba = components::get(&app.engine, entity, "shape3d")
+        .and_then(|table| table.get("color").cloned())
         .unwrap();
     let channels: Vec<f64> = rgba
         .as_array()

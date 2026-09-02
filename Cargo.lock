@@ -257,6 +257,9 @@ name = "arrayvec"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "as-raw-xcb-connection"
@@ -364,6 +367,7 @@ dependencies = [
  "balaur_script_luau",
  "balaur_script_rune",
  "balaur_ui",
+ "serde_json",
  "tempfile",
  "toml",
  "tracing",
@@ -474,6 +478,7 @@ dependencies = [
  "balaur_core",
  "balaur_plugin",
  "balaur_script",
+ "serde",
  "serde_json",
  "tempfile",
  "tracing",
@@ -489,6 +494,8 @@ dependencies = [
  "balaur_core",
  "balaur_script",
  "gilrs",
+ "serde",
+ "serde_json",
  "tracing",
 ]
 
@@ -502,6 +509,8 @@ dependencies = [
  "balaur_plugin",
  "balaur_script",
  "cc",
+ "serde",
+ "serde_json",
  "tempfile",
  "tracing",
  "tungstenite",
@@ -519,6 +528,8 @@ dependencies = [
  "glamx",
  "rapier2d",
  "rapier3d",
+ "serde",
+ "serde_json",
  "tempfile",
  "toml",
  "tracing",
@@ -533,6 +544,7 @@ dependencies = [
  "balaur_script",
  "balaur_script_luau",
  "libloading",
+ "serde_json",
  "tempfile",
  "tracing",
 ]
@@ -564,6 +576,7 @@ name = "balaur_script"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "serde",
 ]
 
 [[package]]
@@ -666,6 +679,9 @@ name = "bitflags"
 version = "2.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
+dependencies = [
+ "serde_core",
+]
 
 [[package]]
 name = "bitstream-io"
@@ -1820,6 +1836,7 @@ dependencies = [
  "approx",
  "bytemuck",
  "libm",
+ "serde_core",
 ]
 
 [[package]]
@@ -1833,6 +1850,7 @@ dependencies = [
  "glam 0.33.6",
  "nalgebra",
  "num-traits",
+ "serde",
  "simba",
 ]
 
@@ -1995,6 +2013,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 dependencies = [
  "foldhash 0.2.0",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -2858,6 +2878,7 @@ dependencies = [
  "num-complex",
  "num-rational",
  "num-traits",
+ "serde",
  "simba",
  "typenum",
 ]
@@ -3019,6 +3040,7 @@ checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
 dependencies = [
  "bytemuck",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -3694,6 +3716,8 @@ dependencies = [
  "num-derive",
  "num-traits",
  "ordered-float",
+ "serde",
+ "serde_arrays",
  "simba",
  "slab",
  "smallvec",
@@ -3722,6 +3746,8 @@ dependencies = [
  "num-traits",
  "ordered-float",
  "rstar",
+ "serde",
+ "serde_arrays",
  "simba",
  "slab",
  "smallvec",
@@ -4697,6 +4723,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_arrays"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94a16b99c5ea4fe3daccd14853ad260ec00ea043b2708d1fd1da3106dcd8d9df"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "serde_core"
 version = "1.0.229"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4909,6 +4944,7 @@ dependencies = [
  "hashbrown 0.16.1",
  "num-traits",
  "robust",
+ "serde",
  "smallvec",
 ]
 

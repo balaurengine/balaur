@@ -36,6 +36,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "engine",
+        name: "tick",
+        call: tick,
+    },
+    EngineOp {
+        module: "engine",
         name: "quit",
         call: quit,
     },
@@ -267,6 +272,12 @@ fn time(eng: &Engine, _: &[Value]) -> Result<Value> {
 
 fn delta(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Num(f64::from(eng.delta())))
+}
+
+/// Which frame this is. What simulation code should branch on instead of
+/// wall-clock: an exact integer, where `time` is an accumulated float.
+fn tick(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::Num(eng.tick() as f64))
 }
 
 fn quit(eng: &Engine, _: &[Value]) -> Result<Value> {

@@ -207,46 +207,42 @@ the most determinism-obsessed engine surveyed — names its RNG plainly
 already carries the promise. `crates/balaur_core/src/rng.rs:1` already opens
 "The engine's deterministic random stream."
 
-### D5 — Dimension: lowercase `2d`, terminal. 3D is unmarked.
+### D5 — Dimension: lowercase, terminal, and on both sides.
 
 Three questions, decided together.
 
 **Casing.** Rust RFC 430 / C-CASE treats a compound token as one word, every
 user-facing key is lowercase (`body2d`, `shape2d`, `collider2d`, `physics2d`),
-and the crates are `rapier2d`/`rapier3d`. Note that the raw tally in the tree
-runs the *other* way: among Balaur-owned CamelCase types, uppercase leads 5
-types to 3 (`Physics2DState`, `DebugLines2D`, `Camera2DConfig`, `Viewport2D`,
-`DebugLine2D` against `Shape2d`, `Renderable2d`, `Slot2d`). The three
-lowercase names most often cited as precedent — `SceneNode2d`,
-`PanZoomCamera2d`, `Camera2d` — are kiss3d's, not ours. The rule rests on the
-casing convention and the user-facing keys, not on a headcount.
+and the crates are `rapier2d`/`rapier3d`.
 
 **Position: terminal, not infix.** `PhysicsState2d` sorts next to
 `PhysicsState`. `Physics2DState` sorts nowhere near it, which is why no single
-grep finds the 2D half of a subsystem today.
+grep finds the 2D half of a subsystem.
 
-**3D stays unmarked.** Balaur owns zero `3d` identifiers — every `3d` in the
-tree is a dependency's (`SceneNode3d`, `OrbitCamera3d`, `rapier3d`). Marking
-3D means renaming every 3D type *and* breaking the `physics` script module,
-which `examples/` and `editor/` call throughout. The asymmetry is Unity's, and
-Unity's documented footgun — a `Rigidbody` where `OnCollisionEnter2D` never
-fires — does not apply, because Balaur's 2D and 3D physics do not silently
-coexist on one node. The tree already wraps the dependency asymmetrically:
-`struct Slot { node: SceneNode3d }` beside `struct Slot2d { node: SceneNode2d }`
-(`kiss3d_backend.rs:21,26`), and `sync` beside `sync_2d` (`:422,:482`).
+**Both dimensions are marked where a user reads the name.** Every user-facing
+key with a 2D sibling carries its dimension: `shape3d`/`shape2d`,
+`body3d`/`body2d`, `collider3d`/`collider2d`, the presets
+`rigid_body3d`/`rigid_body2d`, and the script modules `physics3d`/`physics2d`.
+The earlier decision left 3D unmarked, borrowing Unity's asymmetry; it was
+reversed because a reader of the component list should not have to know that
+"bare means 3D". What that reversal cost, and what it deliberately did not do:
+
+- The `physics` script module could not simply become `physics3d`, because
+  `set_paused`, `is_paused`, `set_sleeping_allowed`, `sleeping_allowed` and
+  `clear` span **both** worlds. So `physics` now holds exactly those, and the
+  per-dimension calls (`add_body`, colliders, impulses, velocities, overlaps,
+  `set_gravity`, the `BODY_*`/`SHAPE_*` constants) live in `physics3d` and
+  `physics2d`. A module name is no longer a lie about what is in it.
+- A component with no sibling keeps its plain name: `camera`, `mesh`,
+  `tilemap`, `sprite`. Marking a dimension that nothing contrasts with would be
+  noise, not consistency.
+- Rust-internal types (`Shape`, `Renderable`, `PhysicsState`) are not renamed
+  here. They are compiler-caught and free to follow (N4); the user-facing layer
+  is what this decision is about.
 
 **The snake_case carve-out costs zero renames**, which is what makes it worth
 stating. In snake_case `_2d` is its own word — *unless* the segment quotes a
-user-facing component key or script module name, in which case it stays glued.
-Tested against the tree: `node_pose_2d`, `sync_2d`, `apply_camera_2d`,
-`publish_camera_2d`, `flush_debug_lines_2d`, `draw_line_2d`, `camera_2d`,
-`mouse_world_2d` — all separated, none quoting a key.
-`register_shape2d_component`, `install_physics2d_api`, `set_shape2d`,
-`render.get_shape2d` — all glued, all quoting the literal strings `shape2d` /
-`physics2d`. The rule decides every case in the tree correctly and explains why
-the two spellings coexist.
-
----
+component key or module name, where the key is spelled as the key is spelled.
 
 ## 3. The rules
 
@@ -255,7 +251,7 @@ the two spellings coexist.
 | **N1** | One word, one meaning **within a scope**. `resource` is a typemap entry and nothing else; `asset` is game content loaded from a file; `load` produces a live object from a path (reading raw text is `source`); `components` on a node means the components it has. Synonyms *across* the Rust/script boundary are allowed when each word is native to its side — the ban is on homonyms. | `Engine::resource::<PhysicsState>()` (`crates/balaur_core/src/engine.rs:67`) is the typemap and only the typemap. `scene.spawn` (one empty node) and `scene.instantiate` (a whole scene file) are two verbs for two concepts, correctly. | `scene.load(path)` (`crates/balaur_core/src/engine_api.rs:73`, impl `:236`) does not load a scene — it returns the file's raw TOML via `host.scene_source(rel)`, or nil. `assets.load` is about to mean a genuine cached load one module over. | all | REPORT |
 | **N2** | Every typemap type ends in a suffix from D3's closed set, or none. A type that spans two categories is **split**, not renamed. A `*Config`'s pending flag is named `changed`. A `*Snapshot`'s doc comment must state what it is when no windowed backend is running. | `ScreenshotRequest` — inserted at `crates/balaur_cli/src/main.rs:152`, consumed and removed at `crates/balaur_render/src/kiss3d_backend.rs:391-417`. | `ClearColor` (`crates/balaur_render/src/lib.rs:35`) has the `changed: bool` that defines Config and is applied-and-cleared at `kiss3d_backend.rs:139-148`, but reads as a plain colour value. `CameraInputEnabled(pub bool)` (`:149`) is a settable knob named as a predicate. | rust-internal | REPORT + denylist ERROR |
 | **N3** | `Det` marks exactly one thing: a collection whose iteration order is fixed, standing in for a std type the house lint forbids. Nowhere else. Determinism is otherwise carried by the module and its doc comment. | `DetHashMap` / `DetHashSet` (`crates/balaur_core/src/collections.rs:14-15`) — the sanctioned substitutes for the `HashMap`/`HashSet` that `nondeterministic-iteration` makes a CI failure to iterate. | `DetRng` (`crates/balaur_core/src/rng.rs:55`) — one RNG in the workspace, `Pcg32` integer-only and platform-identical, so the prefix contrasts with nothing. | rust-internal | ERROR |
-| **N4** | In CamelCase the dimension is a lowercase `2d` at the **end** of the identifier. 3D is unmarked and never spelled. SCREAMING_SNAKE consts are exempt. | `Shape2d`, `Renderable2d` (`crates/balaur_render/src/lib.rs:185,192`), `Slot2d`. | `DebugLines2D` (`:97`) sits 95 lines from `Renderable2d` in the same file with the other casing. `Physics2DState`, `Camera2DConfig` and `Viewport2D` put the dimension mid-name, so none sorts next to its 3D twin. `SHAPE_KINDS_2D` (`crates/balaur_physics/src/lib.rs:388`) is exempt. | rust-internal | ERROR |
+| **N4** | In CamelCase the dimension is a lowercase `2d`/`3d` at the **end** of the identifier. Rust-internal 3D types may stay unmarked until renamed; user-facing keys never (D5). SCREAMING_SNAKE consts are exempt. | `Shape2d`, `Renderable2d` (`crates/balaur_render/src/lib.rs:185,192`), `Slot2d`. | `DebugLines2D` (`:97`) sits 95 lines from `Renderable2d` in the same file with the other casing. `Physics2DState`, `Camera2DConfig` and `Viewport2D` put the dimension mid-name, so none sorts next to its 3D twin. `SHAPE_KINDS_2D` (`crates/balaur_physics/src/lib.rs:388`) is exempt. | rust-internal | ERROR |
 | **N5** | In snake_case `_2d` is its own word — unless the segment quotes a user-facing component key or script module name, in which case it stays glued. Requires no renames; it explains why both spellings are correct. | Separated: `node_pose_2d` (`crates/balaur_physics/src/dim2.rs:50`), `sync_2d`, `draw_line_2d`, `camera_2d`, `mouse_world_2d`. Glued: `register_shape2d_component` (`crates/balaur_render/src/lib.rs:604`, key `shape2d`), `install_physics2d_api` (`dim2.rs:329`, module `physics2d`). | Nothing in the tree violates it once stated — which is the point. Before it was written down, `render.get_shape2d` and `render.set_camera_2d` sitting 40 lines apart in the same install function read as a coin flip. | all | ERROR |
 | **N6** | Component schema vocabulary is fixed. The tagged-union discriminant is always the property `kind` — never `shape`, `type`, `mode` or `variant`. The meta key declaring a property's datatype is `type`, never `kind`. Type names are spelled out and come from a closed set that `parse_schema` **rejects departures from**: `float`, `bool`, `string`, `enum`, `vec2`, `vec3`, `color` (plus `asset` when the asset layer lands). A colour property is `type = "color"`. A property never repeats its own component's name or reuses another component's name for a different type. | `body`, `body2d`, `shape`, `shape2d` and `widget` all name the discriminant `kind` (`crates/balaur_physics/src/lib.rs:405` and four others). The `color` component correctly names its property `rgba` (`crates/balaur_render/src/lib.rs:679`). | `collider` and `collider2d` name it `shape` (`crates/balaur_physics/src/lib.rs:451`, `dim2.rs:435`), so `examples/hello/scenes/main.toml:16` says `shape = "cuboid"` under `[nodes.collider]` directly above `:20`'s `kind = "cuboid"` under `[nodes.shape]`. `widget.color = { kind = "str" }` (`crates/balaur_ui/src/widget_layer.rs:61`) holds a hex string where the `color` component holds a float array. And today `parse_schema` (`crates/balaur_core/src/components.rs:59-61`) is a bare `toml::from_str(...).expect(...)` that validates nothing — the closed set is the target, not the current state. | scene-file | ERROR (needs the validator) |
 | **N7** | A script function that only reads state is named for what it returns: no `get_` prefix, and `is_` **only** for a boolean. | `ui.scale` / `ui.set_scale` (`crates/balaur_ui/src/widget_bindings.rs:295,300`); `node.position`, `node.parent`, `node.children`, `render.camera_pose`, `input.mouse_position`, `input.is_down`. 40 of 46 readers already comply. | `render.get_shape`, `render.get_shape2d`, `render.get_color` (`crates/balaur_render/src/lib.rs:412,516,423`) — zero call sites in `editor/` or `examples/`, so the cheapest fixes available. Exemptions are listed in §5 with their reasons, so they stop being cited as precedent. | script-api | ERROR |
@@ -408,7 +404,7 @@ condition.
 | `render.set_camera` / `render.camera_pose` | They are not an accessor pair and must not be made to look like one: the setter writes `CameraConfig`, the reader reads the published `ViewportSnapshot` (eye, target, fov, `scale_factor`, `view_proj`, picking ray). Command in, truth out. Fix is a doc line on both under N8, not a rename. |
 | `render.camera_2d`, `set_camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5 — none quotes a component key or module name. Gluing them would break 23 call sites, 14 of them `draw_line_2d` (12 in `editor/scripts`, 2 in `examples/angrynerds/scripts/game.luau`), the most-called render function in the tree. |
 | `render` as one 22-function module | The module-scope complaint is real, but it is fixable by moving functions between `install_*` fns (N11, Table A) at zero user cost, whereas a `render2d` split costs ~23 breaking script call sites for a boundary the 38-function `ui` manages without. Revisit past ~30 functions. |
-| `physics` / `physics2d` asymmetry (bare means 3D) | D5. Symmetry would break every script in `examples/` and `editor/` and require marking every 3D Rust type, when Balaur owns zero `3d` identifiers. Note the residual defect the name cannot carry: `physics.set_paused`, `is_paused`, `clear` and `set_sleeping_allowed` (`crates/balaur_physics/src/lib.rs:276,283,303,320`) span **both** worlds while the module's other six functions are 3D-only. Say so in a doc line at each of the four. |
+| `physics` / `physics3d` / `physics2d` | D5. `physics` holds only what spans both worlds (`set_paused`, `is_paused`, `set_sleeping_allowed`, `sleeping_allowed`, `clear`); everything per-dimension is in `physics3d` or `physics2d`. |
 | `"ball"` / `"cuboid"` | parry's words, and `ball` is odd on a *render* component — but nothing in the tree translates them and no bug traces to them, unlike `"fixed"`. Renaming costs 13 scene sites, the `SHAPE_BALL`/`SHAPE_CUBOID` constants that `crates/balaur_physics/tests/constants.rs` asserts on, and the script setters. Churn for taste. 2D's `circle`/`rect` are already design words. |
 | `render.set_ball` / `set_cuboid` / `set_rect` / `set_circle`, `physics.add_ball_collider` / `add_cuboid_collider` | N9 explicitly does not reach them. `balaur_render` has no `balaur_physics` dependency (`crates/balaur_render/Cargo.toml:16-27`) and adding one inverts the layering and drags rapier into every headless render build; and in a dynamically typed API a function whose argument *count and meaning* depend on the runtime value of argument 2 is worse than four fixed-arity functions. `physics.add_ball_collider` also has two live call sites in two languages (`examples/hello/scripts/ball.luau:7`, `examples/hello_rune/scripts/ball.rn:6`), and Rune resolves engine calls at compile time, so the Rune one would fail `balaur export`, not just play. Consequence to accept: `render.shape()` returns `("ball", r, r, r)` and does not round-trip into a single write. Separately, `physics.SHAPE_BALL` / `SHAPE_CUBOID` are exported, documented and test-asserted with no function that accepts them — a REPORT-level oddity; if they still have no consumer in a year, delete the constants. |
 | `rotation_euler` | `euler` is not a unit, but the Rust field it exposes is a quaternion (`crates/balaur_core/src/scene.rs:24 pub rotation: Quat`), so bare `rotation` becomes ambiguous the day a quaternion accessor lands. The real defect — radians in the API, degrees in the inspector — is fixed additively (Table B). |

@@ -57,9 +57,9 @@ fn a_component_can_carry_several_tags() {
 fn dimension_tags_separate_the_two_worlds() {
     let mut app = app();
     app.add_plugin(balaur::physics::PhysicsPlugin).unwrap();
-    assert!(def(&app, "body").tags.contains(&"3d"));
+    assert!(def(&app, "body3d").tags.contains(&"3d"));
     assert!(def(&app, "body2d").tags.contains(&"2d"));
-    assert!(!def(&app, "body").tags.contains(&"2d"));
+    assert!(!def(&app, "body3d").tags.contains(&"2d"));
 }
 
 /// Every component has to be findable under some facet, or the palette hides
@@ -159,6 +159,10 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
         for _, p in scene.presets() do names[p] = true end
         assert(names["rigid_body2d"], "rigid_body2d missing")
         assert(names["static_body2d"], "static_body2d missing")
+        -- Both dimensions are marked (D5): there is no bare `rigid_body`.
+        assert(names["rigid_body3d"], "rigid_body3d missing")
+        assert(names["static_body3d"], "static_body3d missing")
+        assert(not names["rigid_body"], "the unmarked 3D name is gone")
         assert(names["sprite2d"], "sprite2d missing")
 
         local info = scene.preset_info("rigid_body2d")

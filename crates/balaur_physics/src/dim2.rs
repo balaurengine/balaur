@@ -188,6 +188,15 @@ fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     if let Some(ball) = collider.shape().as_ball() {
         map.insert("kind".into(), toml::Value::String("circle".into()));
         map.insert("radius".into(), toml::Value::Float(f64::from(ball.radius)));
+    } else if let Some(capsule) = collider.shape().as_capsule() {
+        map.insert("kind".into(), toml::Value::String("capsule".into()));
+        map.insert(
+            "radius".into(),
+            toml::Value::Float(f64::from(capsule.radius)),
+        );
+        // `height` is the straight part, caps excluded, as it is in 3D.
+        let straight = (capsule.segment.b - capsule.segment.a).length();
+        map.insert("height".into(), toml::Value::Float(f64::from(straight)));
     } else {
         let cuboid = collider.shape().as_cuboid()?;
         map.insert("kind".into(), toml::Value::String("rect".into()));
@@ -400,6 +409,76 @@ fn build_physics2d(app: &mut App) {
     app.engine.insert_resource(PhysicsState2d::new());
     app.add_system(Stage::FixedUpdate, step_system);
     build_physics2d_digest(app);
+    build_physics2d_snapshot(app);
+}
+
+/// The 2D twin of the 3D snapshot source.
+#[derive(serde::Deserialize)]
+struct PhysicsFrame2d {
+    world: PhysicsWorld2,
+    bodies: Vec<(u64, RigidBodyHandle2)>,
+    colliders: Vec<(u64, Vec<ColliderHandle2>)>,
+    paused: bool,
+    sleeping_allowed: bool,
+}
+
+#[derive(serde::Serialize)]
+struct PhysicsFrame2dRef<'a> {
+    world: &'a PhysicsWorld2,
+    bodies: Vec<(u64, RigidBodyHandle2)>,
+    colliders: Vec<(u64, Vec<ColliderHandle2>)>,
+    paused: bool,
+    sleeping_allowed: bool,
+}
+
+fn build_physics2d_snapshot(app: &mut App) {
+    app.add_snapshot_source(
+        "physics2d",
+        |eng| {
+            let state = eng.resource::<PhysicsState2d>();
+            let state = state.borrow();
+            let frame = PhysicsFrame2dRef {
+                world: &state.world,
+                bodies: state
+                    .bodies
+                    .iter()
+                    .map(|(e, h)| (e.to_bits().get(), *h))
+                    .collect(),
+                colliders: state
+                    .colliders
+                    .iter()
+                    .map(|(e, h)| (e.to_bits().get(), h.clone()))
+                    .collect(),
+                paused: state.paused,
+                sleeping_allowed: state.sleeping_allowed,
+            };
+            serde_json::to_value(frame).unwrap_or(serde_json::Value::Null)
+        },
+        |eng, value| {
+            let frame: PhysicsFrame2d = match serde_json::from_value(value.clone()) {
+                Ok(frame) => frame,
+                Err(e) => {
+                    tracing::error!(error = %e, "restoring the 2D physics world");
+                    return;
+                }
+            };
+            let state = eng.resource::<PhysicsState2d>();
+            let mut state = state.borrow_mut();
+            state.world = frame.world;
+            state.paused = frame.paused;
+            state.sleeping_allowed = frame.sleeping_allowed;
+            state.bodies = frame
+                .bodies
+                .into_iter()
+                .filter_map(|(bits, h)| Some((Entity::from_bits(bits)?, h)))
+                .collect();
+            state.colliders = frame
+                .colliders
+                .into_iter()
+                .filter_map(|(bits, h)| Some((Entity::from_bits(bits)?, h)))
+                .collect();
+        },
+    );
 }
 
 /// The 2D twin of the 3D source: velocity and sleep state, which no

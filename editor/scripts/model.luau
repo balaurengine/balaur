@@ -181,7 +181,7 @@ function M.node_type(node)
         return "KinematicBody2D"
     elseif node.widget ~= nil then
         return "Widget"
-    elseif node.shape ~= nil then
+    elseif node.shape3d ~= nil then
         return "MeshInstance3D"
     elseif node.shape2d ~= nil then
         return "MeshInstance2D"
@@ -190,10 +190,10 @@ function M.node_type(node)
 end
 
 function M.body_kind(node)
-    if type(node.body) == "table" then
-        return node.body.kind
+    if type(node.body3d) == "table" then
+        return node.body3d.kind
     end
-    return node.body
+    return node.body3d
 end
 
 function M.body2d_kind(node)
@@ -225,8 +225,8 @@ function M.node_icon(node)
         return "◐", "sage"
     elseif kind ~= nil then
         return "▣", "sage"
-    elseif node.shape ~= nil then
-        if node.shape.kind == "ball" then
+    elseif node.shape3d ~= nil then
+        if node.shape3d.kind == "ball" then
             return "◯", "accent"
         end
         return "◆", "accent"

@@ -7,7 +7,6 @@
 //! keeps the simulation byte-for-byte identical with and without a window.
 
 use anyhow::{anyhow, Result};
-use balaur_core::components::ComponentDef;
 use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
 use balaur_core::{App, Engine, Plugin, Stage};
@@ -16,6 +15,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 mod camera;
 pub mod mesh;
 mod particles;
+mod shape;
 mod sprite;
 mod tilemap;
 pub use camera::{Camera, CameraKind};
@@ -379,7 +379,7 @@ pub(crate) fn set_mesh(eng: &Engine, entity: Entity, source: String) -> Result<(
         .map_err(|_| anyhow!("node is dead"))
 }
 
-fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()> {
+pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()> {
     let mut world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable>(entity) {
         r.shape = shape;
@@ -400,7 +400,12 @@ fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()> {
 }
 
 /// Point `entity` at the mesh asset its polyline draws, and set the shape.
-fn set_polyline(eng: &Engine, entity: Entity, source: String, shape: Shape2d) -> Result<()> {
+pub(crate) fn set_polyline(
+    eng: &Engine,
+    entity: Entity,
+    source: String,
+    shape: Shape2d,
+) -> Result<()> {
     let mut world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
         let rebuild = r.shape != shape || r.polyline.as_deref() != Some(source.as_str());
@@ -425,7 +430,7 @@ fn set_polyline(eng: &Engine, entity: Entity, source: String, shape: Shape2d) ->
         .map_err(|_| anyhow!("node is dead"))
 }
 
-fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Result<()> {
+pub(crate) fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Result<()> {
     let mut world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
         r.shape = shape;
@@ -526,8 +531,35 @@ fn set_sprite(
         .map_err(|_| anyhow!("node is dead"))
 }
 
+/// The `color` property of a renderable component's params.
+///
+/// A property rather than a component of its own: a tint has no meaning
+/// without something to tint, and as a separate component it was the only one
+/// that owned no storage and refused to apply on a bare node.
+pub(crate) fn color_from_params(params: &toml::Value) -> [f32; 4] {
+    let c = |i: usize, default: f64| {
+        params
+            .get("color")
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.get(i))
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or(default) as f32
+    };
+    [c(0, 0.8), c(1, 0.8), c(2, 0.8), c(3, 1.0)]
+}
+
+/// The `color` property, for a component's `get`.
+pub(crate) fn color_to_toml(color: [f32; 4]) -> toml::Value {
+    toml::Value::Array(
+        color
+            .iter()
+            .map(|c| toml::Value::Float(f64::from(*c)))
+            .collect(),
+    )
+}
+
 /// Tint whichever renderable(s) the node carries (3D, 2D and/or particles).
-fn set_color(eng: &Engine, entity: Entity, color: [f32; 4]) -> Result<()> {
+pub(crate) fn set_color(eng: &Engine, entity: Entity, color: [f32; 4]) -> Result<()> {
     let world = eng.world_mut();
     let mut any = false;
     if let Ok(mut r) = world.get::<&mut Renderable>(entity) {
@@ -575,14 +607,13 @@ impl Plugin for RenderPlugin {
         install_camera_2d_api(&mut *m);
         install_window_api(&mut *m);
         install_backdrop_api(&mut *m);
-        install_shape_api(&mut *m);
+        shape::install_shape_api(&mut *m);
         install_sprite_api(&mut *m);
         install_sprite_state_api(&mut *m);
-        register_shape_component(app);
-        register_shape2d_component(app);
+        shape::register_shape_component(app);
+        shape::register_shape2d_component(app);
         register_render_presets(app)?;
         sprite::register_sprite_component(app);
-        register_color_component(app);
         camera::register_camera_component(app);
         mesh::register_mesh_component(app);
         tilemap::register_tileset_asset(app);
@@ -977,7 +1008,7 @@ fn install_sprite_state_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     // Returns ("", 0, 0, 0) when the node has no shape.
-    m.function("shape", |eng: &Engine, node: NodeId| {
+    m.function("shape3d", |eng: &Engine, node: NodeId| {
         let world = eng.world();
         let result = match world.get::<&Renderable>(entity_of(node)?) {
             Ok(r) => match r.shape {
@@ -1016,279 +1047,6 @@ fn install_sprite_state_api(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-fn install_shape_api(m: &mut dyn Bindings<Engine>) {
-    m.function("set_ball", |eng: &Engine, (node, radius): (NodeId, f32)| {
-        set_shape(eng, entity_of(node)?, Shape::Ball { radius })
-    });
-    m.function(
-        "set_cuboid",
-        |eng: &Engine, (node, hx, hy, hz): (NodeId, f32, f32, f32)| {
-            set_shape(eng, entity_of(node)?, Shape::Cuboid { hx, hy, hz })
-        },
-    );
-    m.function(
-        "set_rect",
-        |eng: &Engine, (node, hx, hy): (NodeId, f32, f32)| {
-            set_shape2d(eng, entity_of(node)?, Shape2d::Rect { hx, hy })
-        },
-    );
-    m.function("color", |eng: &Engine, node: NodeId| {
-        let world = eng.world();
-        let result = if let Ok(r) = world.get::<&Renderable>(entity_of(node)?) {
-            (r.color[0], r.color[1], r.color[2], r.color[3])
-        } else if let Ok(r) = world.get::<&Renderable2d>(entity_of(node)?) {
-            (r.color[0], r.color[1], r.color[2], r.color[3])
-        } else {
-            (1.0, 1.0, 1.0, 1.0)
-        };
-        Ok(result)
-    });
-}
-
-// Components below are schema-driven, and each key doubles as a scene key.
-
-/// The `shape` component: 3D primitives, editable from the editor.
-/// The `Shape` a `shape` component's params describe.
-fn shape_from_params(params: &toml::Value) -> Result<Shape> {
-            let kind = params
-                .get("kind")
-                .and_then(|v| v.as_str())
-                .unwrap_or("cuboid");
-            let radius = params
-                .get("radius")
-                .and_then(balaur_core::components::as_f64)
-                .unwrap_or(0.5) as f32;
-            let he = |i: usize| {
-                params
-                    .get("half_extents")
-                    .and_then(|v| v.as_array())
-                    .and_then(|a| a.get(i))
-                    .and_then(balaur_core::components::as_f64)
-                    .unwrap_or(0.5) as f32
-            };
-            let height = params
-                .get("height")
-                .and_then(balaur_core::components::as_f64)
-                .unwrap_or(1.0) as f32;
-            let radius = radius.max(0.01);
-            let height = height.max(0.01);
-            let shape = match kind {
-                "ball" => Shape::Ball { radius },
-                "cuboid" => Shape::Cuboid {
-                    hx: he(0).max(0.01),
-                    hy: he(1).max(0.01),
-                    hz: he(2).max(0.01),
-                },
-                "capsule" => Shape::Capsule { radius, height },
-                "cylinder" => Shape::Cylinder { radius, height },
-                "cone" => Shape::Cone { radius, height },
-                "plane" => Shape::Plane {
-                    hx: he(0).max(0.01),
-                    hz: he(2).max(0.01),
-                },
-                other => return Err(anyhow!("unknown shape kind '{other}'")),
-            };
-    Ok(shape)
-}
-
-/// A `shape` component's params for `shape`, or `None` when another
-/// component owns it.
-fn shape_to_params(shape: Shape) -> Option<toml::Value> {
-            let mut map = toml::map::Map::new();
-            match shape {
-                Shape::Ball { radius } => {
-                    map.insert("kind".into(), toml::Value::String("ball".into()));
-                    map.insert("radius".into(), toml::Value::Float(f64::from(radius)));
-                }
-                Shape::Capsule { radius, height }
-                | Shape::Cylinder { radius, height }
-                | Shape::Cone { radius, height } => {
-                    let name = match shape {
-                        Shape::Capsule { .. } => "capsule",
-                        Shape::Cylinder { .. } => "cylinder",
-                        _ => "cone",
-                    };
-                    map.insert("kind".into(), toml::Value::String(name.into()));
-                    map.insert("radius".into(), toml::Value::Float(f64::from(radius)));
-                    map.insert("height".into(), toml::Value::Float(f64::from(height)));
-                }
-                // A mesh is saved by the `mesh` component, not this one.
-                Shape::Mesh => return None,
-                Shape::Plane { hx, hz } => {
-                    map.insert("kind".into(), toml::Value::String("plane".into()));
-                    map.insert(
-                        "half_extents".into(),
-                        toml::Value::Array(vec![
-                            toml::Value::Float(f64::from(hx)),
-                            toml::Value::Float(0.0),
-                            toml::Value::Float(f64::from(hz)),
-                        ]),
-                    );
-                }
-                Shape::Cuboid { hx, hy, hz } => {
-                    map.insert("kind".into(), toml::Value::String("cuboid".into()));
-                    map.insert(
-                        "half_extents".into(),
-                        toml::Value::Array(vec![
-                            toml::Value::Float(f64::from(hx)),
-                            toml::Value::Float(f64::from(hy)),
-                            toml::Value::Float(f64::from(hz)),
-                        ]),
-                    );
-                }
-            }
-    Some(toml::Value::Table(map))
-}
-
-fn register_shape_component(app: &mut App) {
-    app.register_component(
-        "shape",
-        ComponentDef {
-            schema: ComponentDef::parse_schema(
-                "shape",
-                r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid", "capsule", "cylinder", "cone", "plane"], description = "Rendered 3D shape" }
-radius = { type = "float", default = 0.5, min = 0.01, description = "Radius, for every kind but cuboid" }
-height = { type = "float", default = 1.0, min = 0.01, description = "Length along y, for capsule, cylinder and cone" }
-half_extents = { type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }"#,
-            ),
-            tags: &["3d", "render"],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                set_shape(eng, entity, shape_from_params(params)?)
-            }),
-            remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Renderable>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let renderable = world.get::<&Renderable>(entity).ok()?;
-                shape_to_params(renderable.shape)
-            }),
-        },
-    );
-}
-
-/// The `shape2d` component: 2D primitives.
-fn register_shape2d_component(app: &mut App) {
-    app.register_component(
-        "shape2d",
-        ComponentDef {
-            schema: ComponentDef::parse_schema(
-                "shape2d",
-                r#"kind = { type = "enum", default = "rect", options = ["circle", "rect", "capsule", "polyline"], description = "Rendered 2D shape" }
-radius = { type = "float", default = 0.5, min = 0.01, description = "Radius, when kind is circle or capsule" }
-height = { type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, when kind is capsule" }
-mesh = { type = "asset", asset = "mesh", default = "", description = "Points of a polyline, taken from a mesh asset's vertices" }
-width = { type = "float", default = 0.02, min = 0.001, description = "Line thickness in world units, when kind is polyline" }
-closed = { type = "bool", default = false, description = "Join the last point back to the first, making a polygon outline" }
-half_extents = { type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }"#,
-            ),
-            tags: &["2d", "render"],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                let kind = params
-                    .get("kind")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("rect");
-                let radius = params
-                    .get("radius")
-                    .and_then(balaur_core::components::as_f64)
-                    .unwrap_or(0.5) as f32;
-                let he = |i: usize| {
-                    params
-                        .get("half_extents")
-                        .and_then(|v| v.as_array())
-                        .and_then(|a| a.get(i))
-                        .and_then(balaur_core::components::as_f64)
-                        .unwrap_or(0.5) as f32
-                };
-                let shape = match kind {
-                    "circle" => Shape2d::Circle {
-                        radius: radius.max(0.01),
-                    },
-                    "rect" => Shape2d::Rect {
-                        hx: he(0).max(0.01),
-                        hy: he(1).max(0.01),
-                    },
-                    "capsule" => Shape2d::Capsule {
-                        radius: radius.max(0.01),
-                        height: params
-                            .get("height")
-                            .and_then(balaur_core::components::as_f64)
-                            .unwrap_or(1.0)
-                            .max(0.01) as f32,
-                    },
-                    "polyline" => {
-                        let source = params
-                            .get("mesh")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_default()
-                            .to_string();
-                        let shape = Shape2d::Polyline {
-                            width: params
-                                .get("width")
-                                .and_then(balaur_core::components::as_f64)
-                                .unwrap_or(0.02)
-                                .max(0.001) as f32,
-                            closed: params
-                                .get("closed")
-                                .and_then(toml::Value::as_bool)
-                                .unwrap_or(false),
-                        };
-                        return set_polyline(eng, entity, source, shape);
-                    }
-                    other => return Err(anyhow!("unknown shape2d kind '{other}'")),
-                };
-                set_shape2d(eng, entity, shape)
-            }),
-            remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Renderable2d>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let renderable = world.get::<&Renderable2d>(entity).ok()?;
-                let mut map = toml::map::Map::new();
-                match renderable.shape {
-                    // A sprite is saved by the `sprite` component, not this one.
-                    Shape2d::Sprite { .. } => return None,
-                    Shape2d::Circle { radius } => {
-                        map.insert("kind".into(), toml::Value::String("circle".into()));
-                        map.insert("radius".into(), toml::Value::Float(f64::from(radius)));
-                    }
-                    Shape2d::Polyline { width, closed } => {
-                        map.insert("kind".into(), toml::Value::String("polyline".into()));
-                        map.insert("width".into(), toml::Value::Float(f64::from(width)));
-                        map.insert("closed".into(), toml::Value::Boolean(closed));
-                        if let Some(source) = renderable.polyline.clone() {
-                            map.insert("mesh".into(), toml::Value::String(source));
-                        }
-                    }
-                    Shape2d::Capsule { radius, height } => {
-                        map.insert("kind".into(), toml::Value::String("capsule".into()));
-                        map.insert("radius".into(), toml::Value::Float(f64::from(radius)));
-                        map.insert("height".into(), toml::Value::Float(f64::from(height)));
-                    }
-                    Shape2d::Rect { hx, hy } => {
-                        map.insert("kind".into(), toml::Value::String("rect".into()));
-                        map.insert(
-                            "half_extents".into(),
-                            toml::Value::Array(vec![
-                                toml::Value::Float(f64::from(hx)),
-                                toml::Value::Float(f64::from(hy)),
-                            ]),
-                        );
-                    }
-                }
-                Some(toml::Value::Table(map))
-            }),
-        },
-    );
-}
-
 /// Presets over the render components. `2d` is terminal and lowercase; 3D
 /// names carry no marker (N/D5).
 fn register_render_presets(app: &mut App) -> Result<()> {
@@ -1313,50 +1071,4 @@ fn register_render_presets(app: &mut App) -> Result<()> {
         )?,
     );
     Ok(())
-}
-
-/// The `color` component, shared by 2D and 3D renderables.
-fn register_color_component(app: &mut App) {
-    app.register_component(
-        "color",
-        ComponentDef {
-            schema: ComponentDef::parse_schema(
-                "color",
-                r#"rgba = { type = "color", default = [0.8, 0.8, 0.8, 1.0], shorthand = true, description = "The node's tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
-            ),
-            tags: &["render"],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                let c = |i: usize, default: f64| {
-                    params
-                        .get("rgba")
-                        .and_then(|v| v.as_array())
-                        .and_then(|a| a.get(i))
-                        .and_then(balaur_core::components::as_f64)
-                        .unwrap_or(default) as f32
-                };
-                set_color(eng, entity, [c(0, 0.8), c(1, 0.8), c(2, 0.8), c(3, 1.0)])
-            }),
-            remove: Box::new(|eng, entity| set_color(eng, entity, [0.8, 0.8, 0.8, 1.0])),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let color = if let Ok(r) = world.get::<&Renderable>(entity) {
-                    r.color
-                } else if let Ok(r) = world.get::<&Renderable2d>(entity) {
-                    r.color
-                } else {
-                    world.get::<&Particles>(entity).ok()?.color
-                };
-                Some(toml::Value::Table(toml::map::Map::from_iter([(
-                    "rgba".to_string(),
-                    toml::Value::Array(
-                        color
-                            .iter()
-                            .map(|c| toml::Value::Float(f64::from(*c)))
-                            .collect(),
-                    ),
-                )])))
-            }),
-        },
-    );
 }

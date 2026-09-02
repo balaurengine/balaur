@@ -24,22 +24,22 @@ fn write_project(root: &std::path::Path) {
 id = "n_ground"
 name = "Ground"
 position = [0.0, -1.0, 0.0]
-body = "static"
-collider = { kind = "cuboid", half_extents = [10.0, 0.5, 10.0] }
+body3d = "static"
+collider3d = { kind = "cuboid", half_extents = [10.0, 0.5, 10.0] }
 
 [[nodes]]
 id = "n_balla"
 name = "BallA"
 position = [0.1, 5.0, 0.0]
-body = "dynamic"
-collider = { kind = "ball", radius = 0.5 }
+body3d = "dynamic"
+collider3d = { kind = "ball", radius = 0.5 }
 
 [[nodes]]
 id = "n_ballb"
 name = "BallB"
 position = [-0.1, 7.0, 0.05]
-body = "dynamic"
-collider = { kind = "ball", radius = 0.5 }
+body3d = "dynamic"
+collider3d = { kind = "ball", radius = 0.5 }
 "#,
     )
     .unwrap();

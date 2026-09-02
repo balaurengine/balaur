@@ -133,6 +133,61 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
     Ok(Neutral::Nil)
 }
 
+/// Rune -> neutral, for a snapshot: like `to_neutral`, but functions and
+/// foreign `Any` values are skipped rather than held -- a snapshot has to be
+/// plain data. Nodes stay: entity bits are stable within one process.
+pub(crate) fn to_plain(v: &rune::Value) -> Option<Neutral> {
+    use rune::runtime::Object;
+    if let Ok(b) = rune::from_value::<bool>(v.clone()) {
+        return Some(Neutral::Bool(b));
+    }
+    if let Ok(i) = rune::from_value::<i64>(v.clone()) {
+        return Some(Neutral::Int(i));
+    }
+    if let Ok(f) = rune::from_value::<f64>(v.clone()) {
+        return Some(Neutral::Num(f));
+    }
+    if let Ok(s) = v.borrow_string_ref() {
+        return Some(Neutral::Str(s.to_string()));
+    }
+    if let Ok(n) = v.borrow_ref::<Node>() {
+        return Some(Neutral::Node(n.id));
+    }
+    if let Ok(p) = v.borrow_ref::<Vec2>() {
+        return Some(Neutral::Vec2([p.x as f32, p.y as f32]));
+    }
+    if let Ok(p) = v.borrow_ref::<Vec3>() {
+        return Some(Neutral::Vec3([p.x as f32, p.y as f32, p.z as f32]));
+    }
+    if let Ok(c) = v.borrow_ref::<Color>() {
+        return Some(Neutral::Color([
+            c.r as f32, c.g as f32, c.b as f32, c.a as f32,
+        ]));
+    }
+    if v.borrow_ref::<rune::runtime::Function>().is_ok() {
+        return None;
+    }
+    if let Ok(items) = v.borrow_ref::<rune::runtime::Vec>() {
+        return Some(Neutral::List(items.iter().filter_map(to_plain).collect()));
+    }
+    if let Ok(obj) = v.borrow_ref::<Object>() {
+        let mut out = Vec::with_capacity(obj.len());
+        for (k, val) in obj.iter() {
+            if let Some(plain) = to_plain(val) {
+                out.push((k.to_string(), plain));
+            }
+        }
+        out.sort_by(|a, b| a.0.cmp(&b.0));
+        return Some(Neutral::Map(out));
+    }
+    if let Ok(t) = v.borrow_tuple_ref() {
+        if t.is_empty() {
+            return Some(Neutral::Nil);
+        }
+    }
+    None
+}
+
 /// Neutral -> Rune value.
 pub(crate) fn from_neutral(v: &Neutral) -> Result<rune::Value> {
     let out = match v {

@@ -40,6 +40,20 @@ impl<'a> Registry<'a> {
         self.app.add_system(stage, frame_system);
     }
 
+    /// What this plugin receives from outside the simulation, for recording
+    /// and replay.
+    ///
+    /// `fn` pointers rather than closures, for the same reason
+    /// [`Registry::add_system`] takes one: this API has to survive a C ABI.
+    pub fn add_replay_source(
+        &mut self,
+        name: &str,
+        capture: fn(&Engine) -> serde_json::Value,
+        restore: fn(&Engine, &serde_json::Value),
+    ) {
+        self.app.add_replay_source(name, capture, restore);
+    }
+
     /// A named component with a schema, reachable from scene files and scripts.
     ///
     /// Takes `&mut self` rather than `&mut App`: a plugin registering through

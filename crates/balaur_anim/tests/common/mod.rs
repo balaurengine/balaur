@@ -66,6 +66,10 @@ impl ScriptHost<balaur_core::Engine> for Calls {
     fn detach(&self, _: NodeId) {}
     fn update(&self, _: f32) {}
     fn fixed_update(&self, _: f32) {}
+    fn save_state(&self) -> Vec<(NodeId, balaur_script::Value)> {
+        Vec::new()
+    }
+    fn load_state(&self, _: &[(NodeId, balaur_script::Value)]) {}
     fn pump_reloads(&self) {}
     fn reload(&self, _: &str) -> anyhow::Result<()> {
         Ok(())

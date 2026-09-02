@@ -40,6 +40,7 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use balaur_core::engine::Engine;
 use balaur_core::pack::Pack;
 use balaur_core::scene::ScriptAttachment;
+use balaur_script::NodeId;
 
 /// Luau compiler settings shared by dev mode and pack export, so shipped
 /// bytecode behaves exactly like what was tested during development.
@@ -287,6 +288,103 @@ impl ScriptHost {
             };
             if let Err(err) = f.call::<()>((inst, dt)) {
                 self.report_error(&format!("{method}({entity:?})"), &err.to_string());
+            }
+        }
+    }
+
+    /// Every instance's state, for a rollback snapshot.
+    ///
+    /// The hybrid contract: a script that defines `save_state` says what
+    /// matters; one that does not gets its plain fields captured. `self.node`
+    /// is skipped — the host owns that binding and reinstates it on load, so
+    /// a snapshot never has to be trusted about which node an instance is on.
+    pub fn save_state(&self) -> Vec<(NodeId, balaur_script::Value)> {
+        let batch: Vec<(Entity, Table)> = self
+            .state
+            .borrow()
+            .instances
+            .iter()
+            .map(|(e, t)| (*e, t.clone()))
+            .collect();
+        let mut out = Vec::with_capacity(batch.len());
+        for (entity, inst) in batch {
+            let node = balaur_core::node_id_of(entity);
+            if let Ok(Some(save)) = inst.get::<Option<Function>>("save_state") {
+                match save.call::<mlua::Value>(inst.clone()) {
+                    Ok(value) => {
+                        if let Some(plain) = env::to_plain(&value) {
+                            out.push((node, plain));
+                        }
+                    }
+                    Err(err) => {
+                        self.report_error(&format!("save_state({entity:?})"), &err.to_string());
+                    }
+                }
+                continue;
+            }
+            let mut fields = Vec::new();
+            let _ = inst.for_each(|key: mlua::Value, value: mlua::Value| {
+                let mlua::Value::String(key) = key else {
+                    return Ok(());
+                };
+                let Ok(key) = key.to_str() else { return Ok(()) };
+                if &*key == "node" {
+                    return Ok(());
+                }
+                if let Some(plain) = env::to_plain(&value) {
+                    fields.push((key.to_string(), plain));
+                }
+                Ok(())
+            });
+            out.push((node, balaur_script::Value::Map(fields)));
+        }
+        out
+    }
+
+    /// Put instances back, through `load_state` where a script defines one.
+    pub fn load_state(&self, states: &[(NodeId, balaur_script::Value)]) {
+        for (node, value) in states {
+            let Ok(entity) = balaur_core::entity_of(*node) else {
+                continue;
+            };
+            let Some(inst) = self.state.borrow().instances.get(&entity).cloned() else {
+                continue;
+            };
+            if let Ok(Some(load)) = inst.get::<Option<Function>>("load_state") {
+                let lua = self.lua();
+                match env::from_neutral(&lua, &self.engine, value) {
+                    Ok(arg) => {
+                        if let Err(err) = load.call::<()>((inst, arg)) {
+                            self.report_error(&format!("load_state({entity:?})"), &err.to_string());
+                        }
+                    }
+                    Err(err) => {
+                        self.report_error(&format!("load_state({entity:?})"), &err.to_string());
+                    }
+                }
+                continue;
+            }
+            let balaur_script::Value::Map(fields) = value else {
+                continue;
+            };
+            let lua = self.lua();
+            for (key, field) in fields {
+                match env::from_neutral(&lua, &self.engine, field) {
+                    Ok(v) => {
+                        if let Err(err) = inst.set(key.as_str(), v) {
+                            self.report_error(
+                                &format!("load_state({entity:?}).{key}"),
+                                &err.to_string(),
+                            );
+                        }
+                    }
+                    Err(err) => {
+                        self.report_error(
+                            &format!("load_state({entity:?}).{key}"),
+                            &err.to_string(),
+                        );
+                    }
+                }
             }
         }
     }
@@ -671,6 +769,14 @@ impl balaur_script::ScriptHost<Engine> for ScriptHost {
 
     fn fixed_update(&self, dt: f32) {
         ScriptHost::fixed_update(self, dt);
+    }
+
+    fn save_state(&self) -> Vec<(NodeId, balaur_script::Value)> {
+        ScriptHost::save_state(self)
+    }
+
+    fn load_state(&self, states: &[(NodeId, balaur_script::Value)]) {
+        ScriptHost::load_state(self, states);
     }
 
     fn pump_reloads(&self) {

@@ -20,12 +20,17 @@ Two features are load-bearing and non-negotiable:
   [ARCHITECTURE.md](ARCHITECTURE.md#determinism)).
 
 ```bash
-balaur run my-game --fixed-tick --trace-digest run-a.txt
+balaur run my-game --fixed-tick --record session.blr
+balaur replay session.blr --verify        # every tick, or the first that parted
+balaur replay session.blr --entries-at 4213
 ```
 
-  Two traces that differ parted at the first differing line; the digest is
-  built from labelled slices, so `balaur_core::digest::first_divergence`
-  names the node and component rather than just the tick.
+  A recording carries each tick's input, the step it ran at, and the digest it
+  produced, so `--verify` re-feeds the session and stops at the first tick
+  that disagrees. `--entries-at` then prints that tick's labelled slices —
+  run it on both machines and diff to get `n_ball_7/body2d` rather than a
+  tick number. `--trace-digest run-a.txt` writes the digests alone when all
+  you want is a file to diff.
 
 ## Quickstart
 
@@ -85,7 +90,7 @@ the step it was meant for.
 Both call the same bindings: subsystems declare them once against
 `balaur_script`, so neither language is privileged and a third costs one crate.
 Values a binding accepts are named rather than spelled — `input.KEY_SPACE`,
-`input.MOUSE_LEFT`, `physics.BODY_DYNAMIC`, `ui.ANCHOR_TOP_LEFT`.
+`input.MOUSE_LEFT`, `physics3d.BODY_DYNAMIC`, `ui.ANCHOR_TOP_LEFT`.
 
 Scenes are declarative TOML; plugins extend their vocabulary:
 
@@ -94,14 +99,14 @@ Scenes are declarative TOML; plugins extend their vocabulary:
 name = "Ball"
 position = [0.0, 6.0, 0.0]
 script = "scripts/ball.luau"
-body = "dynamic"                                # from balaur_physics
-collider = { kind = "ball", radius = 0.5 }      # from balaur_physics
-shape = { kind = "ball", radius = 0.5 }         # from balaur_render
+body3d = "dynamic"                                # from balaur_physics
+collider3d = { kind = "ball", radius = 0.5 }      # from balaur_physics
+shape3d = { kind = "ball", radius = 0.5 }         # from balaur_render
 ```
 
 Try the demo: `cargo run -p balaur_cli -- run examples/hello --headless`,
 then edit `examples/hello/scripts/spinner.luau` while it runs. Scripts also
-get `input` (keys/mouse), `rng` (seeded, deterministic), `audio`, `physics`,
+get `input` (keys/mouse), `rng` (seeded, deterministic), `audio`, `physics`/`physics3d`/`physics2d`,
 `render` (shapes, colors, `render.set_camera`), `animation` (clips and
 tweens), `assets` (shared content by reference), and deterministic `math.*`
 replacements out of the box.
@@ -172,6 +177,8 @@ only way to say what a language actually costs.
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — decisions and why, hand-written
+- [docs/DETERMINISM.md](docs/DETERMINISM.md) — writing a game that reproduces,
+  and the record/replay tools for when it does not
 - [docs/NAMING.md](docs/NAMING.md) — what every name means and the rules new
   ones follow; it governs the other docs
 - [docs/generated/script-api.md](docs/generated/script-api.md) — every module,

@@ -518,6 +518,95 @@ impl RuneHost {
         }
     }
 
+    /// Every instance's state, for a rollback snapshot: a script that
+    /// defines `save_state` says what matters, one that does not gets its
+    /// plain fields captured. `node` is skipped -- the host reinstates it.
+    pub fn save_state(&self) -> Vec<(balaur_script::NodeId, balaur_script::Value)> {
+        let batch: Vec<(Entity, String, rune::Value)> = self
+            .state
+            .borrow()
+            .instances
+            .iter()
+            .filter_map(|(e, i)| Some((*e, i.key.clone(), i.state.try_clone().ok()?)))
+            .collect();
+        let mut out = Vec::with_capacity(batch.len());
+        for (entity, key, state) in batch {
+            let node = balaur_core::node_id_of(entity);
+            if let Some(f) = self.method(&key, "save_state") {
+                match f.call::<rune::Value>((state,)) {
+                    VmResult::Ok(value) => {
+                        if let Some(plain) = value::to_plain(&value) {
+                            out.push((node, plain));
+                        }
+                    }
+                    VmResult::Err(err) => tracing::error!("[{key}] save_state: {err}"),
+                }
+                continue;
+            }
+            let Ok(obj) = state.borrow_ref::<rune::runtime::Object>() else {
+                continue;
+            };
+            let mut fields = Vec::new();
+            for (k, v) in obj.iter() {
+                if k.as_str() == "node" {
+                    continue;
+                }
+                if let Some(plain) = value::to_plain(v) {
+                    fields.push((k.to_string(), plain));
+                }
+            }
+            fields.sort_by(|a, b| a.0.cmp(&b.0));
+            out.push((node, balaur_script::Value::Map(fields)));
+        }
+        out
+    }
+
+    /// Put instances back, through `load_state` where a script defines one.
+    pub fn load_state(&self, states: &[(balaur_script::NodeId, balaur_script::Value)]) {
+        for (node, value) in states {
+            let Ok(entity) = balaur_core::entity_of(*node) else {
+                continue;
+            };
+            let Some((key, state)) = self
+                .state
+                .borrow()
+                .instances
+                .get(&entity)
+                .and_then(|i| Some((i.key.clone(), i.state.try_clone().ok()?)))
+            else {
+                continue;
+            };
+            if let Some(f) = self.method(&key, "load_state") {
+                match value::from_neutral(value) {
+                    Ok(arg) => {
+                        if let VmResult::Err(err) = f.call::<rune::Value>((state, arg)) {
+                            tracing::error!("[{key}] load_state: {err}");
+                        }
+                    }
+                    Err(err) => tracing::error!("[{key}] load_state: {err}"),
+                }
+                continue;
+            }
+            let balaur_script::Value::Map(fields) = value else {
+                continue;
+            };
+            let Ok(mut obj) = state.borrow_mut::<rune::runtime::Object>() else {
+                continue;
+            };
+            for (k, v) in fields {
+                let (Ok(v), Ok(k)) = (
+                    value::from_neutral(v),
+                    rune::alloc::String::try_from(k.as_str()),
+                ) else {
+                    continue;
+                };
+                if let Err(err) = obj.insert(k, v) {
+                    tracing::error!("[{key}] load_state: {err}");
+                }
+            }
+        }
+    }
+
     /// Call one node's script method — a signal, or one script calling
     /// another. Returns the method's return value; `None` when the call did
     /// not run to completion here (no instance, no such method, or an async
@@ -849,6 +938,12 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
 
     fn update(&self, dt: f32) {
         RuneHost::update(self, dt);
+    }
+    fn save_state(&self) -> Vec<(balaur_script::NodeId, balaur_script::Value)> {
+        Self::save_state(self)
+    }
+    fn load_state(&self, states: &[(balaur_script::NodeId, balaur_script::Value)]) {
+        Self::load_state(self, states);
     }
 
     fn fixed_update(&self, dt: f32) {

@@ -20,9 +20,11 @@ pub mod node_api;
 pub mod pack;
 pub mod presets;
 pub mod project;
+pub mod replay;
 pub mod resources;
 pub mod rng;
 pub mod scene;
+pub mod snapshot;
 pub mod standalone;
 
 pub use app::{
@@ -35,8 +37,10 @@ pub use components::{ComponentDef, ComponentRegistry, StableId};
 pub use digest::{Digest, DigestRegistry};
 pub use engine::{Command, Engine};
 pub use pack::Pack;
+pub use replay::{ReplayMode, ReplayRegistry};
 pub use resources::Resources;
 pub use scene::{Children, GlobalTransform, Name, Parent, ScriptAttachment, Transform};
+pub use snapshot::{Snapshot, SnapshotRegistry, SnapshotRing};
 
 pub use glamx;
 pub use hecs;

@@ -150,15 +150,21 @@ flow nothing checks.
 - a property the component never reports still survives a patch
 - a quad is triangulated as a fan
 - a queued clip starts when the one before it ends
+- a recorded response replays with no server listening
+- a recording from a future format is refused by name
+- a recording round trips through the file
 - a reference to a named entry resolves to the entry inside the file
 - a reference to a whole file resolves to that file
 - a registered component is listed and has a schema
+- a registered source is captured and fed back
 - a release is just released for one frame only
 - a released mouse button reports one frame of release
 - a reload keeps instance state
+- a replayed session reproduces every tick digest
 - a required module shares functions and hot reloads in place
 - a resource round trips and is shared not copied
 - a response arrives in the snapshot with status and body
+- a restored world digests as it did when captured
 - a rotation crossing 180 degrees interpolates the short way
 - a rotation track is sampled as a quaternion the short way round
 - a rune project that calls the engine can be exported
@@ -175,6 +181,8 @@ flow nothing checks.
 - a script can attach another script and read it back
 - a script can write to the log it reads back
 - a script error inside a pass is logged not fatal
+- a script with save and load state is asked
+- a script without them has its plain fields captured and restored
 - a scrub moves nothing but the playhead
 - a scrub poses a paused clip where the playhead lands
 - a seek does not fire the keys it skipped
@@ -183,8 +191,10 @@ flow nothing checks.
 - a shape component puts a renderable on the node
 - a sheet is sized to one frame
 - a short frame runs no steps and carries the remainder
+- a snapshot round trips through bytes
 - a sound component autoplays and stop on silences it
 - a source build prints that it is one
+- a source missing from the recording is left alone
 - a sparse table keeps its keys
 - a spawned node is named parented and has a transform
 - a sprite is sized from its image
@@ -247,6 +257,7 @@ flow nothing checks.
 - an embedded game will not read a file beside it
 - an empty asset property is no asset rather than a broken reference
 - an empty definition says what it needs
+- an empty file is refused rather than replayed as nothing
 - an empty or inverted range does not panic
 - an empty pack still round trips
 - an engine has a root node from the start
@@ -425,7 +436,10 @@ flow nothing checks.
 - renaming a node changes what name returns
 - renaming a node does not change its digest label
 - renaming a parent does not break its children
+- replaying does not reach the network
+- replaying without the recorded input diverges
 - require caches and hot reloads in place
+- restore does not respawn or free nodes
 - rng int stays inside its range
 - rng is seeded and reproducible
 - saving an asset writes the file and the next load reads it
@@ -481,6 +495,7 @@ flow nothing checks.
 - the plugin registers its components
 - the range covers every height
 - the remaining widgets are callable
+- the ring keeps the newest and forgets the oldest
 - the rng is reproducible from a seed
 - the rng stream position is part of the digest
 - the same setup animates identically twice

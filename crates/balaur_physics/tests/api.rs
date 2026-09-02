@@ -25,9 +25,9 @@ fn body(app: &App, kind: &str) -> Entity {
     let root = app.engine.root();
     let e = scene::spawn_node(&mut app.engine.world_mut(), "B", root);
     let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
-    components::add(&app.engine, e, "body", Some(&params)).unwrap();
+    components::add(&app.engine, e, "body3d", Some(&params)).unwrap();
     let collider: toml::Value = toml::from_str("kind = \"ball\"\nradius = 0.5").unwrap();
-    components::add(&app.engine, e, "collider", Some(&collider)).unwrap();
+    components::add(&app.engine, e, "collider3d", Some(&collider)).unwrap();
     e
 }
 
@@ -57,7 +57,7 @@ fn every_declared_body_kind_is_accepted() {
         let root = app.engine.root();
         let e = scene::spawn_node(&mut app.engine.world_mut(), kind, root);
         let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
-        components::add(&app.engine, e, "body", Some(&params))
+        components::add(&app.engine, e, "body3d", Some(&params))
             .unwrap_or_else(|e| panic!("body kind `{kind}` was rejected: {e}"));
     }
 }
@@ -66,7 +66,7 @@ fn every_declared_body_kind_is_accepted() {
 fn every_declared_shape_is_accepted() {
     let app = app();
     for (component, shapes) in [
-        ("collider", balaur_physics::SHAPE_KINDS),
+        ("collider3d", balaur_physics::SHAPE_KINDS),
         ("collider2d", balaur_physics::SHAPE_KINDS_2D),
     ] {
         for (_, shape) in shapes {
@@ -85,7 +85,7 @@ fn an_unknown_body_kind_is_rejected_with_its_name() {
     let root = app.engine.root();
     let e = scene::spawn_node(&mut app.engine.world_mut(), "B", root);
     let params = toml::toml! { kind = "levitating" };
-    let err = components::add(&app.engine, e, "body", Some(&params.into())).unwrap_err();
+    let err = components::add(&app.engine, e, "body3d", Some(&params.into())).unwrap_err();
     // anyhow's Display shows only the outermost context; {:#} walks the chain.
     assert!(
         format!("{err:#}").contains("levitating"),
@@ -142,7 +142,7 @@ fn removing_a_body_stops_it_being_simulated() {
     for _ in 0..10 {
         app.tick(1.0 / 60.0);
     }
-    components::remove(&app.engine, e, "body").unwrap();
+    components::remove(&app.engine, e, "body3d").unwrap();
     let at = app.engine.world().get::<&Transform>(e).unwrap().position.y;
     for _ in 0..30 {
         app.tick(1.0 / 60.0);
@@ -160,7 +160,7 @@ fn a_3d_collider_takes_friction_restitution_and_density() {
     let ground = scene::spawn_node(&mut app.engine.world_mut(), "Ground", root);
     let flat: toml::Value = toml::from_str("kind = \"cuboid\"\nhalf_extents = [10.0, 0.5, 10.0]")
         .expect("literal collider params parse");
-    components::add(&app.engine, ground, "collider", Some(&flat)).unwrap();
+    components::add(&app.engine, ground, "collider3d", Some(&flat)).unwrap();
 
     let ball = scene::spawn_node(&mut app.engine.world_mut(), "Ball", root);
     app.engine
@@ -171,15 +171,15 @@ fn a_3d_collider_takes_friction_restitution_and_density() {
         .y = 2.0;
     let body: toml::Value =
         toml::from_str("kind = \"dynamic\"").expect("literal body params parse");
-    components::add(&app.engine, ball, "body", Some(&body)).unwrap();
+    components::add(&app.engine, ball, "body3d", Some(&body)).unwrap();
     let bouncy: toml::Value = toml::from_str(
         "kind = \"ball\"\nradius = 0.5\nrestitution = 0.9\nfriction = 0.2\ndensity = 3.0",
     )
     .expect("literal collider params parse");
-    components::add(&app.engine, ball, "collider", Some(&bouncy)).unwrap();
+    components::add(&app.engine, ball, "collider3d", Some(&bouncy)).unwrap();
 
     // Read back through the live rapier collider, not stored params.
-    let got = components::get(&app.engine, ball, "collider").unwrap();
+    let got = components::get(&app.engine, ball, "collider3d").unwrap();
     let f = |key: &str| {
         got.get(key)
             .and_then(components::as_f64)
@@ -291,7 +291,7 @@ fn every_parametric_collider_kind_applies() {
         let app = app();
         let e = node_at(&app);
         let params: toml::Value = toml::from_str(source).unwrap();
-        components::add(&app.engine, e, "collider", Some(&params))
+        components::add(&app.engine, e, "collider3d", Some(&params))
             .unwrap_or_else(|why| panic!("{source} did not apply: {why:#}"));
     }
 }
@@ -313,9 +313,11 @@ fn a_mesh_collider_without_its_asset_says_so() {
         let app = app();
         let e = node_at(&app);
         let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
-        let err = components::add(&app.engine, e, "collider", Some(&params))
-            .expect_err("a mesh collider with no mesh must not apply")
-            .to_string();
+        let err = format!(
+            "{:#}",
+            components::add(&app.engine, e, "collider3d", Some(&params))
+                .expect_err("a mesh collider with no mesh must not apply")
+        );
         assert!(
             err.contains("mesh"),
             "{kind} should name the missing asset: {err}"
@@ -328,9 +330,11 @@ fn a_heightfield_collider_without_its_asset_says_so() {
     let app = app();
     let e = node_at(&app);
     let params: toml::Value = toml::from_str("kind = \"heightfield\"").unwrap();
-    let err = components::add(&app.engine, e, "collider", Some(&params))
-        .expect_err("a heightfield with no grid must not apply")
-        .to_string();
+    let err = format!(
+        "{:#}",
+        components::add(&app.engine, e, "collider3d", Some(&params))
+            .expect_err("a heightfield with no grid must not apply")
+    );
     assert!(err.contains("heightfield"), "{err}");
 }
 
@@ -339,8 +343,10 @@ fn an_unknown_collider_kind_is_refused_by_name() {
     let app = app();
     let e = node_at(&app);
     let params: toml::Value = toml::from_str("kind = \"blancmange\"").unwrap();
-    let err = components::add(&app.engine, e, "collider", Some(&params))
-        .expect_err("an unknown kind must not apply")
-        .to_string();
+    let err = format!(
+        "{:#}",
+        components::add(&app.engine, e, "collider3d", Some(&params))
+            .expect_err("an unknown kind must not apply")
+    );
     assert!(err.contains("blancmange"), "{err}");
 }

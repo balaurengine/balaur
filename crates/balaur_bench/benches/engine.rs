@@ -109,7 +109,7 @@ fn physics_step(c: &mut Criterion) {
         for i in 0..count {
             let e = scene::spawn_node(&mut app.engine.world_mut(), &format!("b{i}"), root);
             let params = toml::toml! { kind = "dynamic" };
-            let _ = balaur_core::components::add(&app.engine, e, "body", Some(&params.into()));
+            let _ = balaur_core::components::add(&app.engine, e, "body3d", Some(&params.into()));
         }
         group.throughput(Throughput::Elements(count as u64));
         group.bench_with_input(BenchmarkId::from_parameter(count), &count, |b, _| {

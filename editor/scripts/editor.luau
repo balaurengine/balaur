@@ -396,7 +396,7 @@ local function draw_colliders(S)
     local k = theme.current
     local r, g, b = theme.hex_to_rgb(k.sage)
     for i, node in S.doc do
-        local c = node.collider
+        local c = node.collider3d
         local ref = model.ref(S, i)
         if c ~= nil and ref ~= nil then
             local x, y, z = table.unpack(ref:global_position())

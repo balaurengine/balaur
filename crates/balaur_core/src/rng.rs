@@ -37,6 +37,12 @@ impl Pcg32 {
         self.state
     }
 
+    /// Resume a stream at a position [`Pcg32::state`] reported. Not a seed:
+    /// this is the raw position, and it skips the seeding advance.
+    pub const fn from_state(state: u64) -> Self {
+        Self { state }
+    }
+
     /// Uniform in `[0, 1)` with 53 bits of precision.
     pub fn next_f64(&mut self) -> f64 {
         let hi = u64::from(self.next_u32() >> 6); // 26 bits

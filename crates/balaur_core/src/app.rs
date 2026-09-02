@@ -167,6 +167,10 @@ impl App {
         engine.insert_resource(ScriptArgs(config.script_args.clone()));
         engine.insert_resource(crate::rng::RngState::default());
         engine.insert_resource(crate::digest::DigestRegistry::default());
+        engine.insert_resource(crate::replay::ReplayRegistry::default());
+        engine.insert_resource(crate::replay::ReplayFeed::default());
+        engine.insert_resource(crate::replay::ReplayMode::default());
+        engine.insert_resource(crate::snapshot::SnapshotRegistry::default());
         if let Some(make) = config.script_backend.take() {
             engine.set_script_host(make(ScriptSetup {
                 engine: &engine,
@@ -193,6 +197,16 @@ impl App {
         // does not depend on the render crate.
         crate::mesh::register_mesh_asset(&mut app);
         crate::heightfield::register_heightfield_asset(&mut app);
+        crate::snapshot::build_core_sources(&mut app);
+        // Before every plugin's First work, so a subsystem that dispatches
+        // incoming traffic there sees the recording rather than the network.
+        app.add_system(Stage::First, |eng, _| {
+            let feed = eng.resource::<crate::replay::ReplayFeed>();
+            let frame = feed.borrow().0.clone();
+            if let Some(frame) = frame {
+                crate::replay::restore(eng, &frame);
+            }
+        });
         app.add_system(Stage::PreUpdate, |eng, _| {
             if let Some(host) = eng.script_host() {
                 host.pump_reloads();
@@ -249,6 +263,69 @@ impl App {
     pub fn set_fixed_dt(&mut self, dt: Option<f32>) -> &mut Self {
         self.fixed_dt = dt;
         self
+    }
+
+    /// Declare what this plugin receives from outside the simulation.
+    ///
+    /// Everything registered here is written to a recording each tick and fed
+    /// back on replay. A subsystem that takes input from the OS, a socket or
+    /// a player and does not register is a hole a replay cannot fill.
+    pub fn add_replay_source(
+        &mut self,
+        name: &str,
+        capture: impl Fn(&Engine) -> serde_json::Value + 'static,
+        restore: impl Fn(&Engine, &serde_json::Value) + 'static,
+    ) -> &mut Self {
+        let sources = self.engine.resource::<crate::replay::ReplayRegistry>();
+        sources
+            .borrow_mut()
+            .0
+            .push((name.to_string(), Box::new(capture), Box::new(restore)));
+        self
+    }
+
+    /// Declare simulation state this plugin owns, so rollback can put it
+    /// back.
+    ///
+    /// A plugin that keeps simulation state outside the scene tree — physics
+    /// does — must register here for the same reason it registers a digest
+    /// source: core cannot see it, and what core cannot see cannot be
+    /// restored.
+    pub fn add_snapshot_source(
+        &mut self,
+        name: &str,
+        save: impl Fn(&Engine) -> serde_json::Value + 'static,
+        load: impl Fn(&Engine, &serde_json::Value) + 'static,
+    ) -> &mut Self {
+        let sources = self.engine.resource::<crate::snapshot::SnapshotRegistry>();
+        sources
+            .borrow_mut()
+            .0
+            .push((name.to_string(), Box::new(save), Box::new(load)));
+        self
+    }
+
+    /// Register a whole resource as a replay source, for passive state.
+    ///
+    /// The common case: something the OS fills in and nothing here sends
+    /// back, so capture and restore are just serialize and replace. A
+    /// subsystem with an outbound side wants
+    /// [`replay::ExternalIo`](crate::replay::ExternalIo) instead.
+    pub fn add_replay_resource<T>(&mut self, name: &str) -> &mut Self
+    where
+        T: serde::Serialize + serde::de::DeserializeOwned + 'static,
+    {
+        self.add_replay_source(
+            name,
+            |eng| {
+                serde_json::to_value(&*eng.resource::<T>().borrow())
+                    .unwrap_or(serde_json::Value::Null)
+            },
+            |eng, value| match serde_json::from_value::<T>(value.clone()) {
+                Ok(restored) => *eng.resource::<T>().borrow_mut() = restored,
+                Err(e) => tracing::error!(error = %e, "replaying a resource"),
+            },
+        )
     }
 
     /// Fold plugin-owned state into the per-tick digest.

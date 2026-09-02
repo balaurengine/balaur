@@ -77,10 +77,10 @@ Balaur engine core: the Rust data plane.
 
 - **workspace deps:** `balaur_script`
 - **external deps:** 13 (anyhow, dirs, glamx, hecs, indexmap, rustc-hash, serde, serde_json, …)
-- **public surface:** 60 fn, 38 struct, 4 enum, 1 trait, 11 const, 10 type
+- **public surface:** 62 fn, 48 struct, 5 enum, 1 trait, 12 const, 14 type
 - **traits:** `Plugin`
-- **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Children`, `ComponentDef`, `ComponentRegistry`, `Digest`, `DigestRegistry`, `Engine`, `EngineOp`, `Entry`, `GlobalTransform`, `Hasher`, `HeightfieldData`, `LogEntry`, `MeshData`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `StableId`, `Transform`
-- **enums:** `AssetRef`, `AssetSource`, `Command`, `Stage`
+- **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Children`, `ComponentDef`, `ComponentRegistry`, `Digest`, `DigestRegistry`, `Engine`, `EngineOp`, `Entry`, `ExternalIo`, `Frame`, `GlobalTransform`, `Hasher`, `Header`, `HeightfieldData`, `LogEntry`, `MeshData`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Recorder`, `ReplayFeed`, `ReplayRegistry`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `Session`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `Transform`
+- **enums:** `AssetRef`, `AssetSource`, `Command`, `ReplayMode`, `Stage`
 
 ## `balaur_gamend`
 
@@ -89,7 +89,7 @@ Balaur plugin for the Gamend backend: login, REST, realtime and server hooks for
 The Gamend backend as a Balaur plugin: `gamend.*` for scripts.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
-- **external deps:** 5 (anyhow, serde_json, tracing, tungstenite, ureq)
+- **external deps:** 6 (anyhow, serde, serde_json, tracing, tungstenite, ureq)
 - **public surface:** 2 fn, 8 struct, 3 enum
 - **structs:** `Client`, `GamendPlugin`, `GamendSnapshot`, `GamendState`, `Handler`, `Reply`, `Session`, `Socket`
 - **enums:** `Credentials`, `LoginCredentials`, `SocketEvent`
@@ -101,7 +101,7 @@ Balaur input plugin: backend-agnostic input state and the `input` Lua module
 Input as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
-- **external deps:** 3 (anyhow, gilrs, tracing)
+- **external deps:** 5 (anyhow, gilrs, serde, serde_json, tracing)
 - **public surface:** 1 fn, 4 struct, 1 enum, 4 const
 - **structs:** `GamepadState`, `InputPlugin`, `InputSnapshot`, `Pad`
 - **enums:** `TouchPhase`
@@ -113,7 +113,7 @@ Balaur networking plugin: http requests and websocket connections for scripts
 Networking as a Balaur plugin: `http.*` and `websocket.*` for scripts.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
-- **external deps:** 4 (anyhow, tracing, tungstenite, ureq)
+- **external deps:** 6 (anyhow, serde, serde_json, tracing, tungstenite, ureq)
 - **public surface:** 5 struct
 - **structs:** `Handler`, `HttpCall`, `NetPlugin`, `NetSnapshot`, `NetState`
 
@@ -124,7 +124,7 @@ Balaur plugin wrapping the Rapier physics engine
 Rapier physics as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
-- **external deps:** 6 (anyhow, glamx, rapier2d, rapier3d, toml, tracing)
+- **external deps:** 8 (anyhow, glamx, rapier2d, rapier3d, serde, serde_json, toml, tracing)
 - **public surface:** 5 fn, 3 struct, 3 const
 - **structs:** `PhysicsPlugin`, `PhysicsState`, `PhysicsState2d`
 
@@ -135,7 +135,7 @@ What a module or an extension implements to register itself with the engine
 What a module or an extension implements to register itself.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
-- **external deps:** 3 (anyhow, libloading, tracing)
+- **external deps:** 4 (anyhow, libloading, serde_json, tracing)
 - **public surface:** 6 fn, 14 struct, 1 trait, 17 const, 1 type
 - **traits:** `Plugin`
 - **structs:** `AbiTag`, `BalaurApi`, `BalaurEntry`, `BalaurMapRef`, `BalaurModule`, `BalaurRegistry`, `BalaurSlice`, `BalaurStr`, `BalaurValue`, `CExtension`, `Extension`, `Fingerprint`, `Manifest`, `Registry`
@@ -159,7 +159,7 @@ Language-neutral scripting seam: traits only, no backend.
 The scripting seam: traits only, no backend.
 
 - **workspace deps:** none
-- **external deps:** 1 (anyhow)
+- **external deps:** 2 (anyhow, serde)
 - **public surface:** 1 fn, 3 struct, 1 enum, 8 trait, 1 type
 - **traits:** `Bindings`, `BindingsExt`, `CallbackHost`, `FromArg`, `FromArgs`, `IntoValue`, `ScriptCompiler`, `ScriptHost`
 - **structs:** `CallbackId`, `NoBindings`, `NodeId`

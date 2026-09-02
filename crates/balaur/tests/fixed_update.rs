@@ -3,7 +3,7 @@
 //! The split only means something if the two callbacks disagree about time,
 //! so these tick a deliberately ragged frame and assert they diverge.
 
-use balaur::{standard_app, AppConfig, App, FIXED_DT};
+use balaur::{standard_app, App, AppConfig, FIXED_DT};
 
 /// Both callbacks walk the node along an axis by the dt they were handed:
 /// x accumulates fixed time, z accumulates measured time.

@@ -29,18 +29,14 @@ pub struct Particles {
     pub size: f32,
     /// Acceleration applied over a particle's life.
     pub gravity: [f32; 2],
-    /// Tint, written by the shared `color` component like every renderable.
+    /// Tint, from this component's own `color` property like every renderable.
     pub color: [f32; 4],
 }
 
 fn set_particles(eng: &Engine, entity: Entity, next: Particles) -> Result<()> {
     let mut world = eng.world_mut();
     if let Ok(mut emitter) = world.get::<&mut Particles>(entity) {
-        // The tint belongs to the `color` component; re-applying this one
-        // must not reset it.
-        let color = emitter.color;
         *emitter = next;
-        emitter.color = color;
         return Ok(());
     }
     world
@@ -63,7 +59,8 @@ speed = { type = "float", default = 2.0, min = 0.0, description = "Initial speed
 angle = { type = "float", default = 90.0, description = "Emission direction in degrees; 90 is straight up" }
 spread = { type = "float", default = 30.0, min = 0.0, description = "Half-angle of the emission cone in degrees" }
 size = { type = "float", default = 4.0, min = 0.5, description = "Particle size in logical pixels" }
-gravity = { type = "vec2", default = [0.0, -3.0], description = "Acceleration applied over a particle's life" }"#,
+gravity = { type = "vec2", default = [0.0, -3.0], description = "Acceleration applied over a particle's life" }
+color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
             ),
             tags: &["render"],
             expects: &[],
@@ -95,7 +92,7 @@ gravity = { type = "vec2", default = [0.0, -3.0], description = "Acceleration ap
                         spread: num("spread", 30.0).max(0.0),
                         size: num("size", 4.0).max(0.5),
                         gravity: [gravity(0, 0.0), gravity(1, -3.0)],
-                        color: [0.8, 0.8, 0.8, 1.0],
+                        color: crate::color_from_params(params),
                     },
                 )
             }),
@@ -109,6 +106,7 @@ gravity = { type = "vec2", default = [0.0, -3.0], description = "Acceleration ap
                 let emitter = world.get::<&Particles>(entity).ok()?;
                 let mut out = toml::map::Map::new();
                 out.insert("emitting".into(), toml::Value::Boolean(emitter.emitting));
+                out.insert("color".into(), crate::color_to_toml(emitter.color));
                 for (key, value) in [
                     ("rate", emitter.rate),
                     ("lifetime", emitter.lifetime),

@@ -59,14 +59,12 @@ body2d = "static"
 [nodes.shape2d]
 kind = "rect"
 half_extents = [14, 0.5]
+color = [0.45, 0.63, 0.35, 1.0]
 
 [nodes.collider2d]
 kind = "rect"
 half_extents = [14, 0.5]
 friction = 0.9
-
-[nodes.color]
-rgba = [0.45, 0.63, 0.35, 1.0]
 
 [[nodes]]
 id = "n_slingpost"
@@ -77,9 +75,7 @@ position = [-8, 0.9, 0]
 [nodes.shape2d]
 kind = "rect"
 half_extents = [0.12, 0.9]
-
-[nodes.color]
-rgba = [0.42, 0.28, 0.16, 1.0]
+color = [0.42, 0.28, 0.16, 1.0]
 
 [[nodes]]
 id = "n_bird"
@@ -91,6 +87,7 @@ body2d = "kinematic"
 [nodes.shape2d]
 kind = "circle"
 radius = 0.4
+color = [0.85, 0.2, 0.18, 1.0]
 
 [nodes.collider2d]
 kind = "circle"
@@ -98,9 +95,6 @@ radius = 0.4
 restitution = 0.3
 friction = 0.7
 density = 2.5
-
-[nodes.color]
-rgba = [0.85, 0.2, 0.18, 1.0]
 
 [[nodes]]
 id = "n_columnl"
@@ -112,14 +106,12 @@ body2d = "dynamic"
 [nodes.shape2d]
 kind = "rect"
 half_extents = [0.16, 1.0]
+color = [0.74, 0.57, 0.32, 1.0]
 
 [nodes.collider2d]
 kind = "rect"
 half_extents = [0.16, 1.0]
 friction = 0.7
-
-[nodes.color]
-rgba = [0.74, 0.57, 0.32, 1.0]
 
 [[nodes]]
 id = "n_columnr"
@@ -131,14 +123,12 @@ body2d = "dynamic"
 [nodes.shape2d]
 kind = "rect"
 half_extents = [0.16, 1.0]
+color = [0.74, 0.57, 0.32, 1.0]
 
 [nodes.collider2d]
 kind = "rect"
 half_extents = [0.16, 1.0]
 friction = 0.7
-
-[nodes.color]
-rgba = [0.74, 0.57, 0.32, 1.0]
 
 [[nodes]]
 id = "n_plank"
@@ -150,14 +140,12 @@ body2d = "dynamic"
 [nodes.shape2d]
 kind = "rect"
 half_extents = [1.3, 0.14]
+color = [0.68, 0.5, 0.28, 1.0]
 
 [nodes.collider2d]
 kind = "rect"
 half_extents = [1.3, 0.14]
 friction = 0.7
-
-[nodes.color]
-rgba = [0.68, 0.5, 0.28, 1.0]
 
 [[nodes]]
 id = "n_columnl2"
@@ -169,14 +157,12 @@ body2d = "dynamic"
 [nodes.shape2d]
 kind = "rect"
 half_extents = [0.15, 0.8]
+color = [0.74, 0.57, 0.32, 1.0]
 
 [nodes.collider2d]
 kind = "rect"
 half_extents = [0.15, 0.8]
 friction = 0.7
-
-[nodes.color]
-rgba = [0.74, 0.57, 0.32, 1.0]
 
 [[nodes]]
 id = "n_columnr2"
@@ -188,14 +174,12 @@ body2d = "dynamic"
 [nodes.shape2d]
 kind = "rect"
 half_extents = [0.15, 0.8]
+color = [0.74, 0.57, 0.32, 1.0]
 
 [nodes.collider2d]
 kind = "rect"
 half_extents = [0.15, 0.8]
 friction = 0.7
-
-[nodes.color]
-rgba = [0.74, 0.57, 0.32, 1.0]
 
 [[nodes]]
 id = "n_plank2"
@@ -207,14 +191,12 @@ body2d = "dynamic"
 [nodes.shape2d]
 kind = "rect"
 half_extents = [0.9, 0.14]
+color = [0.68, 0.5, 0.28, 1.0]
 
 [nodes.collider2d]
 kind = "rect"
 half_extents = [0.9, 0.14]
 friction = 0.7
-
-[nodes.color]
-rgba = [0.68, 0.5, 0.28, 1.0]
 
 [[nodes]]
 id = "n_pig1"
@@ -226,15 +208,13 @@ body2d = "dynamic"
 [nodes.shape2d]
 kind = "circle"
 radius = 0.45
+color = [0.36, 0.72, 0.25, 1.0]
 
 [nodes.collider2d]
 kind = "circle"
 radius = 0.45
 restitution = 0.2
 friction = 0.6
-
-[nodes.color]
-rgba = [0.36, 0.72, 0.25, 1.0]
 
 
 [[nodes]]
@@ -246,9 +226,7 @@ position = [-0.18, 0.072, 0.01]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.189
-
-[nodes.color]
-rgba = [0.16, 0.13, 0.11, 1.0]
+color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
 id = "n_rimr"
@@ -259,9 +237,7 @@ position = [0.18, 0.072, 0.01]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.189
-
-[nodes.color]
-rgba = [0.16, 0.13, 0.11, 1.0]
+color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
 id = "n_bridge"
@@ -272,9 +248,7 @@ position = [0, 0.072, 0.01]
 [nodes.shape2d]
 kind = "rect"
 half_extents = [0.05, 0.016]
-
-[nodes.color]
-rgba = [0.16, 0.13, 0.11, 1.0]
+color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
 id = "n_lensl"
@@ -285,9 +259,7 @@ position = [-0.18, 0.072, 0.02]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.135
-
-[nodes.color]
-rgba = [0.96, 0.96, 0.93, 1.0]
+color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
 id = "n_lensr"
@@ -298,9 +270,7 @@ position = [0.18, 0.072, 0.02]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.135
-
-[nodes.color]
-rgba = [0.96, 0.96, 0.93, 1.0]
+color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
 id = "n_pupill"
@@ -311,9 +281,7 @@ position = [-0.18, 0.072, 0.03]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.05
-
-[nodes.color]
-rgba = [0.1, 0.1, 0.12, 1.0]
+color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
 id = "n_pupilr"
@@ -324,9 +292,7 @@ position = [0.18, 0.072, 0.03]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.05
-
-[nodes.color]
-rgba = [0.1, 0.1, 0.12, 1.0]
+color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
 id = "n_pig2"
@@ -338,15 +304,13 @@ body2d = "dynamic"
 [nodes.shape2d]
 kind = "circle"
 radius = 0.4
+color = [0.36, 0.72, 0.25, 1.0]
 
 [nodes.collider2d]
 kind = "circle"
 radius = 0.4
 restitution = 0.2
 friction = 0.6
-
-[nodes.color]
-rgba = [0.36, 0.72, 0.25, 1.0]
 
 
 [[nodes]]
@@ -358,9 +322,7 @@ position = [-0.16, 0.064, 0.01]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.168
-
-[nodes.color]
-rgba = [0.16, 0.13, 0.11, 1.0]
+color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
 id = "n_rimr_2"
@@ -371,9 +333,7 @@ position = [0.16, 0.064, 0.01]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.168
-
-[nodes.color]
-rgba = [0.16, 0.13, 0.11, 1.0]
+color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
 id = "n_bridge_2"
@@ -384,9 +344,7 @@ position = [0, 0.064, 0.01]
 [nodes.shape2d]
 kind = "rect"
 half_extents = [0.044, 0.014]
-
-[nodes.color]
-rgba = [0.16, 0.13, 0.11, 1.0]
+color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
 id = "n_lensl_2"
@@ -397,9 +355,7 @@ position = [-0.16, 0.064, 0.02]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.12
-
-[nodes.color]
-rgba = [0.96, 0.96, 0.93, 1.0]
+color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
 id = "n_lensr_2"
@@ -410,9 +366,7 @@ position = [0.16, 0.064, 0.02]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.12
-
-[nodes.color]
-rgba = [0.96, 0.96, 0.93, 1.0]
+color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
 id = "n_pupill_2"
@@ -423,9 +377,7 @@ position = [-0.16, 0.064, 0.03]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.044
-
-[nodes.color]
-rgba = [0.1, 0.1, 0.12, 1.0]
+color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
 id = "n_pupilr_2"
@@ -436,9 +388,7 @@ position = [0.16, 0.064, 0.03]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.044
-
-[nodes.color]
-rgba = [0.1, 0.1, 0.12, 1.0]
+color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
 id = "n_pig3"
@@ -450,15 +400,13 @@ body2d = "dynamic"
 [nodes.shape2d]
 kind = "circle"
 radius = 0.36
+color = [0.36, 0.72, 0.25, 1.0]
 
 [nodes.collider2d]
 kind = "circle"
 radius = 0.36
 restitution = 0.2
 friction = 0.6
-
-[nodes.color]
-rgba = [0.36, 0.72, 0.25, 1.0]
 
 [[nodes]]
 id = "n_riml_3"
@@ -469,9 +417,7 @@ position = [-0.144, 0.058, 0.01]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.151
-
-[nodes.color]
-rgba = [0.16, 0.13, 0.11, 1.0]
+color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
 id = "n_rimr_3"
@@ -482,9 +428,7 @@ position = [0.144, 0.058, 0.01]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.151
-
-[nodes.color]
-rgba = [0.16, 0.13, 0.11, 1.0]
+color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
 id = "n_bridge_3"
@@ -495,9 +439,7 @@ position = [0, 0.058, 0.01]
 [nodes.shape2d]
 kind = "rect"
 half_extents = [0.04, 0.013]
-
-[nodes.color]
-rgba = [0.16, 0.13, 0.11, 1.0]
+color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
 id = "n_lensl_3"
@@ -508,9 +450,7 @@ position = [-0.144, 0.058, 0.02]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.108
-
-[nodes.color]
-rgba = [0.96, 0.96, 0.93, 1.0]
+color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
 id = "n_lensr_3"
@@ -521,9 +461,7 @@ position = [0.144, 0.058, 0.02]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.108
-
-[nodes.color]
-rgba = [0.96, 0.96, 0.93, 1.0]
+color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
 id = "n_pupill_3"
@@ -534,9 +472,7 @@ position = [-0.144, 0.058, 0.03]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.04
-
-[nodes.color]
-rgba = [0.1, 0.1, 0.12, 1.0]
+color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
 id = "n_pupilr_3"
@@ -547,7 +483,5 @@ position = [0.144, 0.058, 0.03]
 [nodes.shape2d]
 kind = "circle"
 radius = 0.04
-
-[nodes.color]
-rgba = [0.1, 0.1, 0.12, 1.0]
+color = [0.1, 0.1, 0.12, 1.0]
 

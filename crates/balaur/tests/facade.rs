@@ -85,11 +85,10 @@ fn the_standard_app_has_every_plugin_registered() {
     let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     let names = balaur_core::components::names(&app.engine);
     for expected in [
-        "body",
-        "collider",
+        "body3d",
+        "collider3d",
         "body2d",
-        "shape",
-        "color",
+        "shape3d",
         "widget",
         "animation",
     ] {

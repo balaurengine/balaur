@@ -2,8 +2,8 @@
 // watches its own fall from update.
 
 pub fn init(this) {
-    physics::add_body(this.node, physics::BODY_DYNAMIC);
-    physics::add_ball_collider(this.node, 0.5);
+    physics3d::add_body(this.node, physics3d::BODY_DYNAMIC);
+    physics3d::add_ball_collider(this.node, 0.5);
     this.reported = false;
 }
 

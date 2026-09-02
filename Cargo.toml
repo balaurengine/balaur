@@ -55,13 +55,15 @@ hecs = "0.11"
 mlua = { version = "0.12", features = ["luau", "error-send"] }
 glamx = "0.3"
 notify = "8"
-rapier3d = { version = "0.35", features = ["enhanced-determinism"] }
-rapier2d = { version = "0.35", features = ["enhanced-determinism"] }
+rapier3d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize"] }
+rapier2d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.9"
 anyhow = "1"
-indexmap = "2"
+# `serde` so the deterministic collections inside a recorded snapshot
+# serialize in their insertion order, which is the order that matters.
+indexmap = { version = "2", features = ["serde"] }
 egui = "0.36"
 rustc-hash = "2"
 libm = "0.2"

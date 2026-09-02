@@ -158,7 +158,7 @@ local function geometry(S)
     end
     local x, y, z = table.unpack(ref:global_position())
     local hx, hy, hz = 0.6, 0.6, 0.6
-    local shape = node.shape or node.collider
+    local shape = node.shape3d or node.collider3d
     if shape ~= nil then
         if shape.radius ~= nil and shape.kind == "ball" then
             hx, hy, hz = shape.radius, shape.radius, shape.radius

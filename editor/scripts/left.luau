@@ -174,11 +174,11 @@ local function secondary_content(S)
         local rows = {}
         for i, node in S.doc do
             local kind = model.body_kind(node) or model.body2d_kind(node)
-            local collider = node.collider ~= nil or node.collider2d ~= nil
+            local collider = node.collider3d ~= nil or node.collider2d ~= nil
             if kind ~= nil or collider then
                 local idx = i
                 local dim = if node.body2d ~= nil or node.collider2d ~= nil then "2D" else "3D"
-                table.insert(rows, { "▣", node.name, `{kind or "collider"} · {dim}`, function()
+                table.insert(rows, { "▣", node.name, `{kind or "collider3d"} · {dim}`, function()
                     S.select(idx)
                 end })
             end

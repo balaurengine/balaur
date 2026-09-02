@@ -38,11 +38,11 @@ fn registered_options(component: &str, field: &str) -> Vec<String> {
 #[test]
 fn body_constants_match_the_registered_schema() {
     let declared: Vec<&str> = BODY_KINDS.iter().map(|(_, v)| *v).collect();
-    for component in ["body", "body2d"] {
+    for component in ["body3d", "body2d"] {
         assert_eq!(
             declared,
             registered_options(component, "kind"),
-            "physics.BODY_* and the `{component}` component's options disagree"
+            "physics3d.BODY_* and the `{component}` component's options disagree"
         );
     }
 }

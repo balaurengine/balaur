@@ -184,9 +184,11 @@ remove_component / component_names`, `scene.component_types()`,
 `scene.component_schema(name)`), and full editor support — the editor's
 "Add component" palette and its property inspectors are generated from the
 registry, so third-party plugin components are addable and editable with
-zero editor changes. Physics registers `body`/`collider` (3D) and
-`body2d`/`collider2d` (2D), rendering registers `shape`/`shape2d` and
-`color`, and the UI plugin registers `widget`: game UI elements (label /
+zero editor changes. Physics registers `body3d`/`collider3d` and
+`body2d`/`collider2d`, rendering registers `shape3d`/`shape2d`/`sprite`
+(each carrying its own `color` property: a tint means nothing without
+something to tint, so it is not a component of its own), and the UI plugin
+registers `widget`: game UI elements (label /
 button / panel, anchored to the screen) that live as scene-tree nodes and
 draw through the widget layer (`ui.set_widget_layer` scopes/toggles it —
 the editor previews widgets in its viewport).
@@ -215,10 +217,12 @@ presets for the components they own, and a project adds its own in
 from, any one of which will do, and the editor warns while none is present.
 Nothing blocks, because a script may add the missing piece on a later tick.
 No built-in component declares one, which is a finding rather than an
-oversight: every candidate turned out to be either already an error (`color`
-refuses a node with nothing to tint) or perfectly valid (a `collider2d` with
-no `body2d` is standalone static geometry). The mechanism is there for
-plugins, and for cases where erroring would be too strict.
+oversight: every candidate turned out to be either perfectly valid (a
+`collider2d` with no `body2d` is standalone static geometry) or a sign the
+component should not exist on its own -- the old `color` component could only
+tint something else, which is why colour became a property of each
+renderable instead. The mechanism is there for plugins, and for cases where
+erroring would be too strict.
 
 ### 2D (core feature)
 
@@ -419,7 +423,7 @@ m.function("apply_impulse", |eng, (node, x, y, z): (UserDataRef<NodeRef>, f32, f
 ```
 
 Argument/return conversions are inferred. Plugins can also register scene
-file keys (`app.scene_key_handler("collider", ...)`), which are applied in
+file keys (`app.scene_key_handler("collider3d", ...)`), which are applied in
 plugin registration order (deterministic, and plugins know the right order
 for their own keys). `balaur_physics` is the reference implementation.
 
@@ -634,7 +638,7 @@ Two design points carry the weight:
   path cache, breaks on reparent, and fails to resolve for nodes spawned at
   run time.
 - **Components are not the whole simulation.** A component's `get` reports
-  what a scene author set: `body` reports its kind and nothing about velocity.
+  what a scene author set: `body3d` reports its kind and nothing about velocity.
   Two peers can agree on every position and still be one tick from parting.
   Plugins therefore contribute what a step computes through
   `App::add_digest_source`; physics adds linear and angular velocity and sleep
@@ -642,6 +646,62 @@ Two design points carry the weight:
 
 The walk is scene-tree order, not sorted-by-id: two peers that agree have the
 same tree, and a reparent is itself simulation state worth catching.
+
+### Record and replay
+
+A digest says two runs diverged. A recording says what they were *fed* when
+they did, which is the other half of the debugger.
+
+`balaur run <project> --record session.blr` writes JSON Lines: a header
+(format, project, RNG position) then one frame per tick carrying that tick's
+external input, the step it ran at, and the digest it produced. Line-oriented
+so it greps, diffs and streams, and so a session that crashes still leaves
+every tick up to the crash — the recorder flushes per frame.
+
+`balaur replay session.blr --verify` re-feeds the input and re-checks the
+digest, stopping at the first tick that disagrees and exiting non-zero. To go
+from a tick to a *slice*, `--entries-at <tick>` prints every labelled digest
+component at that tick: run it on both machines' recordings and diff, and the
+answer is `n_ball_7/body2d` rather than a tick number.
+
+Four sources register today: `input`, `gamepad`, `net` and `gamend`. Three
+serialize by derive; `Pad` needs a hand-written conversion because an axis
+name is a `&'static str`, which serializes but has nowhere to deserialize
+*to*.
+
+Three design points:
+
+- **Restore re-enters the real path.** A recorded `NetEvent` is pushed back
+  down the same channel the worker threads use, so `pump_net_system`
+  dispatches it exactly as it did when it was real — same handler lookup,
+  same await-wake, same arrival order. There is no second copy of the
+  dispatch to drift.
+- **Capture and restore are symmetric only for passive sources.** Input and
+  the gamepad receive and nothing more, so `App::add_replay_resource::<T>` is
+  the whole registration — one line. A socket is not symmetric: replaying a
+  session that made a request must not make the request again. Those
+  subsystems hold a `replay::ExternalIo<E>`, which owns the worker channel,
+  the tick's arrivals and their serialization, and hands out the `Sender`
+  only inside `ExternalIo::start` — which does nothing while a replay is
+  playing. The check cannot be forgotten because there is no other way to
+  reach the outside. The handler is still registered either way, so the
+  recorded reply has somewhere to land. `balaur_net`'s tests bind a listener
+  and assert it never accepts.
+- **The step is recorded per tick, not assumed.** A recording made at a
+  variable frame rate still replays exactly, because each frame carries the
+  `dt` it ran at as bits. Rounding it would introduce a divergence that has
+  nothing to do with the bug being chased.
+- **The restore is core's own first system.** It runs at the very top of
+  `Stage::First`, ahead of every plugin, because the net pump also runs in
+  `First` and would otherwise dispatch this tick's live traffic before the
+  recording landed. A driver sets the `ReplayFeed` resource before the tick
+  rather than adding its own system, which is what makes that ordering
+  possible.
+- **Sources are registered, not hardcoded.** `App::add_replay_source` pairs a
+  capture with a restore, the same shape as `add_digest_source`. Core knows
+  nothing about input; `balaur_input` registers `"input"` and serializes its
+  own snapshot. A source missing from an older file is left alone rather than
+  reset, so recordings outlive the subsystems they predate.
 
 ### What determinism is still missing
 
@@ -657,9 +717,39 @@ Ordered by what would break a networked session first:
    an entity index, which is reproducible across runs of one binary but is not
    an identity two peers can negotiate. Replication needs an authority-scoped
    allocator (`<peer>:<counter>`).
-4. **No record/replay file.** `InputSnapshot`, `NetSnapshot` and
-   `GamendSnapshot` are each captured per tick already and documented as the
-   replay tap; nothing yet writes them to a file and plays them back.
+4. **Nothing forces a new subsystem to use `ExternalIo`.** Within it the
+   guarantee is structural — the worker `Sender` is unreachable except through
+   `start`, which does nothing while replaying — but a subsystem that opens
+   its own channel bypasses all of it. A lint on `std::sync::mpsc::channel`
+   outside core is the obvious next guard.
+
+### Rollback
+
+A snapshot is the world at one tick, captured so it can be put back: the
+piece netcode needs when a late input arrives and the last few ticks have to
+be re-simulated from before it. `balaur_core::snapshot` keeps a registry of
+sources, each a `save` returning JSON and a `load` taking it, and a
+`SnapshotRing` that holds the last N ticks.
+
+The design mirrors the digest, on purpose. Core snapshots only what it owns --
+`Transform`s and the RNG -- and every subsystem registers its own source
+(physics saves its rapier worlds through serde; scripts go through the host's
+`save_state`/`load_state`). Core does not snapshot components, because a
+component's `apply` can have side effects: re-adding a `body3d` rebuilds the
+rigid body and discards its velocity, so each subsystem restores the state it
+owns instead of core replaying its inputs.
+
+Scripts follow a hybrid contract. A script that defines `save_state` says what
+matters and `load_state` puts it back; one that does not gets its plain fields
+captured -- functions and foreign userdata are skipped, nodes are kept as
+entity bits, and `self.node` is never captured because the host owns that
+binding and reinstates it. A snapshot is therefore never trusted about which
+node an instance sits on.
+
+What restore does not do: respawn a node freed after the snapshot, or free one
+spawned after it. It writes over nodes that exist. That is the next piece,
+and it matters for netcode (spawning bullets). Nothing forces a new subsystem
+to register a source, the same shape of gap the digest has.
 
 ## Networking and state sync (planned)
 
@@ -904,10 +994,16 @@ what lets the three modes agree bit for bit.
    The `fixed_update` callback, the shared `FixedUpdate` accumulator,
    `--fixed-tick` and the per-tick digest with its cross-platform CI diff all
    landed; what is left is stopping a game from opting out by accident.
-7. Record/replay: write the per-tick input snapshots and the seed to a file,
-   replay them with `--verify` against the digest chain, and report the first
-   divergent tick and slice. The determinism debugger, and the prerequisite
-   for rollback netcode.
+7. State snapshots, for rollback. Replay re-simulates from inputs; rollback
+   also has to *rewind*, which needs real state: the ECS, rapier's world
+   (`serde-serialize`) and every script's instance. The last one is a contract
+   question rather than an implementation one — a Luau `self` can hold
+   closures, userdata and cycles. **Decided: hybrid.** Plain fields are
+   serialized automatically; a script that needs more overrides with
+   `save_state`/`load_state`. Constraining `self` to plain data would break
+   working games, and making the callbacks mandatory would turn a forgotten
+   field into a silent desync, which is the failure mode this whole effort
+   exists to remove.
 8. Networking, in the order the section above argues for: `StableId` lookup
    and a run-time id allocator, change detection on components, a
    QUIC/WebTransport transport, then the `replicate` scene key.

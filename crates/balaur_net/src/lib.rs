@@ -26,9 +26,10 @@
 //! [`Stage::First`] of a later tick, in arrival order, never from an I/O
 //! thread.
 
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{channel, Sender};
 
 use anyhow::{anyhow, Result};
+use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
@@ -105,6 +106,7 @@ pub(crate) enum SocketCommand {
 }
 
 /// A completion crossing from a worker thread back to the frame loop.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) enum NetEvent {
     HttpResponse {
         request: u64,
@@ -146,25 +148,14 @@ pub struct Handler {
 }
 
 /// Handle tables and the channel every worker thread reports into.
+#[derive(Default)]
 pub struct NetState {
-    events: Receiver<NetEvent>,
-    report: Sender<NetEvent>,
+    /// The worker channel, this tick's arrivals, and the rule that a replay
+    /// never reaches the network — all three live in here.
+    io: ExternalIo<NetEvent>,
     sockets: DetHashMap<u64, Sender<SocketCommand>>,
     request_handlers: DetHashMap<u64, Handler>,
     socket_handlers: DetHashMap<u64, Handler>,
-}
-
-impl Default for NetState {
-    fn default() -> Self {
-        let (report, events) = channel();
-        Self {
-            events,
-            report,
-            sockets: DetHashMap::default(),
-            request_handlers: DetHashMap::default(),
-            socket_handlers: DetHashMap::default(),
-        }
-    }
 }
 
 impl NetState {
@@ -172,24 +163,31 @@ impl NetState {
     /// awaiting it can never collide with another subsystem's ids. The
     /// response (or error) reaches `handler` on a later tick, and is recorded
     /// in that tick's [`NetSnapshot`] either way.
-    pub fn request(&mut self, id: u64, mut call: HttpCall, handler: Option<Handler>) {
+    pub fn request(&mut self, eng: &Engine, id: u64, mut call: HttpCall, handler: Option<Handler>) {
         call.id = id;
+        // The handler is wired up either way: on a replay the recorded reply
+        // still has to find its way home.
         if let Some(handler) = handler {
             self.request_handlers.insert(id, handler);
         }
-        backend::spawn_request(call, self.report.clone());
+        self.io
+            .start(eng, |report| backend::spawn_request(call, report.clone()));
     }
 
     /// Open a websocket connection under `id` (an [`Engine::next_token`]
     /// value); the handshake happens off-thread, and every event — `open`
     /// first, `closed` or `error` last — reaches `handler` on a later tick.
-    pub fn connect(&mut self, id: u64, url: &str, handler: Option<Handler>) {
+    pub fn connect(&mut self, eng: &Engine, id: u64, url: &str, handler: Option<Handler>) {
         if let Some(handler) = handler {
             self.socket_handlers.insert(id, handler);
         }
         let (commands, receiver) = channel();
-        backend::spawn_socket(id, url.to_string(), receiver, &self.report);
-        self.sockets.insert(id, commands);
+        let started = self.io.start(eng, |report| {
+            backend::spawn_socket(id, url.to_string(), receiver, report);
+        });
+        if started {
+            self.sockets.insert(id, commands);
+        }
     }
 
     /// Queue a text frame. False when the connection is gone — a script
@@ -238,7 +236,7 @@ fn pump_net_system(eng: &Engine, _: f32) {
         let mut snapshot = snapshot.borrow_mut();
         snapshot.http.clear();
         snapshot.socket.clear();
-        while let Ok(event) = state.events.try_recv() {
+        for event in state.io.drain() {
             // shift_remove: keeps the remaining entries in insertion order,
             // so iteration stays deterministic.
             let handler = match &event {
@@ -357,12 +355,24 @@ impl balaur_plugin::Plugin for NetPlugin {
         reg.insert_resource(NetState::default());
         reg.insert_resource(NetSnapshot::default());
         reg.add_system(Stage::First, pump_net_system);
+        reg.add_replay_source("net", capture_net, restore_net);
         let mut m = reg.script_module("http")?;
         install_http_api(&mut *m);
         let mut m = reg.script_module("websocket")?;
         install_websocket_api(&mut *m);
         Ok(())
     }
+}
+
+/// This tick's arrivals, raw. The pump has already stashed them.
+fn capture_net(eng: &Engine) -> serde_json::Value {
+    eng.resource::<NetState>().borrow().io.capture()
+}
+
+/// Push recorded arrivals back down the same channel the worker threads use,
+/// so the pump dispatches them exactly as it did when they were real.
+fn restore_net(eng: &Engine, value: &serde_json::Value) {
+    eng.resource::<NetState>().borrow().io.restore(value);
 }
 
 /// One key out of a script options table, or `None` if the table, the key or
@@ -449,7 +459,7 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
             let call = call_of(&url, opts.as_ref())?;
             let id = eng.next_token();
             let state = eng.resource::<NetState>();
-            state.borrow_mut().request(id, call, handler);
+            state.borrow_mut().request(eng, id, call, handler);
             Ok(int(id))
         },
     );
@@ -466,7 +476,7 @@ fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
             let handler = handler_of(&node, opts.as_ref(), "on_event", "on_websocket_event")?;
             let id = eng.next_token();
             let state = eng.resource::<NetState>();
-            state.borrow_mut().connect(id, &url, handler);
+            state.borrow_mut().connect(eng, id, &url, handler);
             Ok(int(id))
         },
     );

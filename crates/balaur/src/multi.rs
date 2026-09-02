@@ -82,6 +82,18 @@ impl ScriptHost<Engine> for MultiHost {
         ScriptHost::fixed_update(&self.rune, dt);
     }
 
+    fn save_state(&self) -> Vec<(NodeId, Value)> {
+        let mut states = self.luau.save_state();
+        states.extend(self.rune.save_state());
+        states
+    }
+
+    // Both get the whole slice: each host skips nodes it does not own.
+    fn load_state(&self, states: &[(NodeId, Value)]) {
+        self.luau.load_state(states);
+        self.rune.load_state(states);
+    }
+
     fn pump_reloads(&self) {
         ScriptHost::pump_reloads(&self.luau);
         ScriptHost::pump_reloads(&self.rune);

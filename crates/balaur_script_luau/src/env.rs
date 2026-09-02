@@ -344,3 +344,45 @@ pub(crate) fn lookup_callback(id: balaur_script::CallbackId) -> Option<mlua::Fun
             .map(|(_, f)| f.clone())
     })
 }
+
+/// A value as a snapshot sees it: plain data only.
+///
+/// Unlike [`to_neutral`], a function is skipped rather than registered as a
+/// callback — a callback id is meaningless once restored, and a snapshot that
+/// carried one would hand a script a handle to nothing. Foreign userdata goes
+/// the same way; a node is kept, because entity bits are stable for the
+/// lifetime of the process a rollback happens in.
+pub(crate) fn to_plain(v: &mlua::Value) -> Option<balaur_script::Value> {
+    use balaur_script::Value as N;
+    Some(match v {
+        mlua::Value::Nil => N::Nil,
+        mlua::Value::Boolean(b) => N::Bool(*b),
+        mlua::Value::Integer(i) => N::Int(int_from_lua(*i)),
+        mlua::Value::Number(n) => N::Num(*n),
+        mlua::Value::String(s) => N::Str(s.to_str().ok()?.to_string()),
+        mlua::Value::UserData(ud) => {
+            let node = ud.borrow::<NodeRef>().ok()?;
+            N::Node(node.entity.to_bits().get())
+        }
+        mlua::Value::Table(t) => {
+            let mut map = Vec::new();
+            let _ = t.for_each(|k: mlua::Value, v: mlua::Value| {
+                let key = match &k {
+                    mlua::Value::String(k) => match k.to_str() {
+                        Ok(k) => k.to_string(),
+                        Err(_) => return Ok(()),
+                    },
+                    mlua::Value::Integer(i) => i.to_string(),
+                    _ => return Ok(()),
+                };
+                if let Some(value) = to_plain(&v) {
+                    map.push((key, value));
+                }
+                Ok(())
+            });
+            N::Map(map)
+        }
+        // Functions, threads, light userdata: nothing a snapshot can carry.
+        _ => return None,
+    })
+}

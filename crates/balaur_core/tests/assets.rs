@@ -396,6 +396,10 @@ impl balaur_script::ScriptHost<Engine> for PackedHost {
     fn detach(&self, _: balaur_script::NodeId) {}
     fn update(&self, _: f32) {}
     fn fixed_update(&self, _: f32) {}
+    fn save_state(&self) -> Vec<(balaur_script::NodeId, balaur_script::Value)> {
+        Vec::new()
+    }
+    fn load_state(&self, _: &[(balaur_script::NodeId, balaur_script::Value)]) {}
     fn pump_reloads(&self) {}
     fn reload(&self, _: &str) -> anyhow::Result<()> {
         Ok(())

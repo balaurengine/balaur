@@ -4,18 +4,18 @@ name = "World"
 parent = ""
 
 [[nodes]]
-body = "static"
+body3d = "static"
 color = [0.3, 0.55, 0.3]
 id = "n_ground"
 name = "Ground"
 parent = "n_world"
 position = [0, -1, 0]
 
-[nodes.collider]
+[nodes.collider3d]
 half_extents = [10, 0.5, 10]
 kind = "cuboid"
 
-[nodes.shape]
+[nodes.shape3d]
 half_extents = [10, 0.5, 10]
 kind = "cuboid"
 
@@ -26,12 +26,10 @@ parent = "n_world"
 position = [0, 6, 0]
 script = "scripts/ball.rn"
 
-[nodes.color]
-rgba = [0.9, 0.9, 0.9, 1]
-
-[nodes.shape]
+[nodes.shape3d]
 kind = "ball"
 radius = 0.5
+color = [0.9, 0.9, 0.9, 1]
 
 [[nodes]]
 color = [0.2, 0.4, 0.9]
@@ -41,12 +39,12 @@ parent = "n_world"
 position = [2.5, 0.5, 0]
 script = "scripts/spinner.rn"
 
-[nodes.shape]
+[nodes.shape3d]
 half_extents = [0.5, 0.5, 0.5]
 kind = "cuboid"
 
 [[nodes]]
-body = "kinematic"
+body3d = "kinematic"
 id = "n_platform"
 name = "Platform"
 parent = "n_world"
@@ -57,16 +55,14 @@ script = "scripts/platform.rn"
 autoplay = "patrol"
 library = "animations/platform.toml"
 
-[nodes.collider]
+[nodes.collider3d]
 half_extents = [1, 0.25, 1]
 kind = "cuboid"
 
-[nodes.color]
-rgba = [0.55, 0.35, 0.8, 1]
-
-[nodes.shape]
+[nodes.shape3d]
 half_extents = [1, 0.25, 1]
 kind = "cuboid"
+color = [0.55, 0.35, 0.8, 1]
 
 [[nodes]]
 id = "n_hud"

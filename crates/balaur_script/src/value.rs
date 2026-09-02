@@ -8,7 +8,7 @@ use anyhow::{bail, Result};
 /// a closed set means a type confusion is a caught error rather than silent
 /// corruption. Vectors and colours are variants rather than lists because they
 /// are the hot types and boxing them is what makes scripting slow.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Value {
     Nil,
     Bool(bool),
@@ -139,7 +139,7 @@ impl FromArg for String {
 }
 
 /// A call-scoped script function, resolved by the backend that registered it.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, serde::Serialize, serde::Deserialize)]
 pub struct CallbackId(pub u64);
 
 impl FromArg for CallbackId {

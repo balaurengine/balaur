@@ -47,6 +47,74 @@ pub const PAD_AXIS_NAMES: &[&str] = &[
     "DPadY",
 ];
 
+/// A pad on its way into or out of a recording.
+///
+/// Separate from [`Pad`] for one reason: an axis name is a `&'static str`
+/// borrowed from [`PAD_AXIS_NAMES`], which serializes but cannot be
+/// deserialized. Coming back in, the name is looked up in that list again.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct PadFrame {
+    id: i64,
+    name: String,
+    down: Vec<String>,
+    just_pressed: Vec<String>,
+    just_released: Vec<String>,
+    axes: Vec<(String, f32)>,
+}
+
+/// Every pad's state this tick, for a recording.
+pub(crate) fn capture(state: &GamepadState) -> serde_json::Value {
+    let pads: Vec<PadFrame> = state
+        .pads
+        .iter()
+        .map(|pad| PadFrame {
+            id: pad.id,
+            name: pad.name.clone(),
+            down: pad.down.iter().cloned().collect(),
+            just_pressed: pad.just_pressed.iter().cloned().collect(),
+            just_released: pad.just_released.iter().cloned().collect(),
+            axes: pad
+                .axes
+                .iter()
+                .map(|(name, value)| ((*name).to_string(), *value))
+                .collect(),
+        })
+        .collect();
+    serde_json::to_value(pads).unwrap_or(serde_json::Value::Null)
+}
+
+/// Replace the pads with a recorded tick's. An axis the build no longer
+/// knows is dropped rather than guessed at.
+pub(crate) fn restore(state: &mut GamepadState, value: &serde_json::Value) {
+    let frames: Vec<PadFrame> = match serde_json::from_value(value.clone()) {
+        Ok(frames) => frames,
+        Err(e) => {
+            tracing::error!(error = %e, "replaying gamepad input");
+            return;
+        }
+    };
+    state.pads = frames
+        .into_iter()
+        .map(|frame| Pad {
+            id: frame.id,
+            name: frame.name,
+            down: frame.down.into_iter().collect(),
+            just_pressed: frame.just_pressed.into_iter().collect(),
+            just_released: frame.just_released.into_iter().collect(),
+            axes: frame
+                .axes
+                .into_iter()
+                .filter_map(|(name, value)| {
+                    PAD_AXIS_NAMES
+                        .iter()
+                        .find(|known| **known == name)
+                        .map(|known| (*known, value))
+                })
+                .collect(),
+        })
+        .collect();
+}
+
 /// One connected controller's state for the current frame.
 pub struct Pad {
     pub id: i64,

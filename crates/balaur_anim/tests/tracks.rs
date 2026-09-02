@@ -63,8 +63,12 @@ fn numbers(value: &toml::Value) -> Vec<f64> {
 fn a_clip_animates_a_component_the_animation_crate_does_not_depend_on() {
     let mut app = app();
     let entity = spawn(&app, "Box");
-    set(&app, entity, "shape", r#"kind = "cuboid""#);
-    set(&app, entity, "color", "rgba = [0.0, 0.0, 0.0, 1.0]");
+    set(
+        &app,
+        entity,
+        "shape3d",
+        &format!("kind = \"cuboid\"\ncolor = [0.0, 0.0, 0.0, 1.0]"),
+    );
     set(
         &app,
         entity,
@@ -74,7 +78,7 @@ fn a_clip_animates_a_component_the_animation_crate_does_not_depend_on() {
 length = 1.0
 
 [[library.tracks]]
-property = "color/rgba"
+property = "shape3d/color"
 keys = [
   { t = 0.0, value = [0.0, 0.0, 0.0, 1.0] },
   { t = 1.0, value = [1.0, 0.5, 0.0, 1.0] },
@@ -85,7 +89,7 @@ keys = [
 
     tick(&mut app, 31);
 
-    let rgba = numbers(&property(&app, entity, "color", "rgba"));
+    let rgba = numbers(&property(&app, entity, "shape3d", "color"));
     assert!(
         (rgba[0] - 0.5).abs() < 0.05,
         "half a second in, red should be halfway: {rgba:?}"
@@ -101,7 +105,7 @@ fn animating_one_property_leaves_the_rest_of_its_component_alone() {
     set(
         &app,
         entity,
-        "shape",
+        "shape3d",
         r#"kind = "cuboid"
 half_extents = [2.0, 3.0, 4.0]"#,
     );
@@ -114,7 +118,7 @@ half_extents = [2.0, 3.0, 4.0]"#,
 length = 1.0
 
 [[library.tracks]]
-property = "shape/radius"
+property = "shape3d/radius"
 keys = [ { t = 0.0, value = 0.5 }, { t = 1.0, value = 2.0 } ]
 "#,
     );
@@ -123,7 +127,7 @@ keys = [ { t = 0.0, value = 0.5 }, { t = 1.0, value = 2.0 } ]
     tick(&mut app, 30);
 
     assert_eq!(
-        numbers(&property(&app, entity, "shape", "half_extents")),
+        numbers(&property(&app, entity, "shape3d", "half_extents")),
         vec![2.0, 3.0, 4.0],
         "writing `radius` through the registry put `half_extents` back to its \
          schema default — which is what `components::patch` exists to prevent"
@@ -135,8 +139,12 @@ fn a_component_track_can_drive_a_child_node() {
     let mut app = app();
     let parent = spawn(&app, "Player");
     let child = scene::spawn_node(&mut app.engine.world_mut(), "Halo", parent);
-    set(&app, child, "shape", r#"kind = "ball""#);
-    set(&app, child, "color", "rgba = [0.0, 0.0, 0.0, 1.0]");
+    set(
+        &app,
+        child,
+        "shape3d",
+        "kind = \"ball\"\ncolor = [0.0, 0.0, 0.0, 1.0]",
+    );
     set(
         &app,
         parent,
@@ -148,7 +156,7 @@ interp = "linear"
 
 [[library.tracks]]
 target = "Halo"
-property = "color/rgba"
+property = "shape3d/color"
 keys = [
   { t = 0.0, value = [0.0, 0.0, 0.0, 1.0] },
   { t = 1.0, value = [0.0, 0.0, 1.0, 1.0] },
@@ -159,7 +167,7 @@ keys = [
 
     tick(&mut app, 61);
 
-    let rgba = numbers(&property(&app, child, "color", "rgba"));
+    let rgba = numbers(&property(&app, child, "shape3d", "color"));
     assert!(
         (rgba[2] - 1.0).abs() < 1e-3,
         "the child was not driven: {rgba:?}"
@@ -170,7 +178,7 @@ keys = [
 fn a_track_naming_a_component_nothing_registered_leaves_the_node_alone() {
     let mut app = app();
     let entity = spawn(&app, "Box");
-    set(&app, entity, "shape", r#"kind = "ball""#);
+    set(&app, entity, "shape3d", r#"kind = "ball""#);
     set(
         &app,
         entity,

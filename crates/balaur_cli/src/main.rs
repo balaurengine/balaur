@@ -45,6 +45,10 @@ enum Command {
         /// differ diverged at the first differing line.
         #[arg(long, value_name = "PATH")]
         trace_digest: Option<PathBuf>,
+        /// Record the session — every tick's input and digest — to a file
+        /// `balaur replay` can play back.
+        #[arg(long, value_name = "PATH")]
+        record: Option<PathBuf>,
     },
     /// Export the project as a pack: every script precompiled to Luau
     /// bytecode, scenes and manifest bundled.
@@ -113,6 +117,22 @@ enum Command {
         #[arg(long)]
         state: Option<String>,
     },
+    /// Play back a session recorded with `run --record`.
+    ///
+    /// The recording carries its project and every tick's input, so this
+    /// needs nothing else. With `--verify` it also re-checks each tick's
+    /// digest and stops at the first that disagrees — which is the tick the
+    /// simulation stopped being reproducible.
+    Replay {
+        file: PathBuf,
+        /// Compare each tick against the recorded digest.
+        #[arg(long)]
+        verify: bool,
+        /// Print every digest slice at this tick and exit. Run it on both
+        /// machines' recordings and diff to see exactly what parted.
+        #[arg(long, value_name = "TICK")]
+        entries_at: Option<u64>,
+    },
     /// Run an exported pack (no sources, no compiler, no watcher).
     Play {
         pack: PathBuf,
@@ -164,6 +184,7 @@ fn main() -> Result<()> {
             offscreen,
             fixed_tick,
             trace_digest,
+            record,
         } => run_project(&RunOpts {
             path,
             headless,
@@ -171,7 +192,13 @@ fn main() -> Result<()> {
             offscreen,
             fixed_tick,
             trace_digest,
+            record,
         }),
+        Command::Replay {
+            file,
+            verify,
+            entries_at,
+        } => replay_session(&file, verify, entries_at),
         Command::Edit {
             path,
             editor,
@@ -587,6 +614,7 @@ struct RunOpts {
     offscreen: bool,
     fixed_tick: bool,
     trace_digest: Option<PathBuf>,
+    record: Option<PathBuf>,
 }
 
 /// Append `<tick> <digest>` per frame, at the end of the frame.
@@ -604,6 +632,90 @@ fn trace_digest_to(app: &mut App, path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Record every tick's external input and the digest it produced.
+///
+/// `Stage::Last` is late enough that the frame is over and early enough that
+/// nothing has cleared the input yet — a backend calls `begin_frame` before
+/// the *next* tick, so the snapshot still holds what this tick was fed.
+fn record_to(app: &mut App, path: &Path, project: &Path) -> Result<()> {
+    let seed = balaur::rng::with_rng(&app.engine, |rng| rng.state());
+    let header = balaur::replay::Header {
+        format: balaur::replay::FORMAT,
+        project: project.to_string_lossy().into_owned(),
+        seed,
+    };
+    let mut recorder = balaur::replay::Recorder::create(path, &header)?;
+    app.add_system(balaur::Stage::Last, move |eng, dt| {
+        let frame = balaur::replay::Frame {
+            tick: eng.tick(),
+            dt: dt.to_bits(),
+            sources: balaur::replay::capture(eng),
+            digest: balaur::digest::digest(eng).0,
+        };
+        if let Err(e) = recorder.write(&frame) {
+            tracing::error!(error = %e, "writing the recording");
+        }
+    });
+    Ok(())
+}
+
+fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<()> {
+    let session = balaur::replay::Session::read(file)?;
+    let mut app = balaur::standard_app(AppConfig::dev(&session.header.project))?;
+    // Before load_project: a script's `init` can open a socket, and that must
+    // not reach the network either.
+    *app.engine
+        .resource::<balaur::replay::ReplayMode>()
+        .borrow_mut() = balaur::replay::ReplayMode::Playing;
+    app.load_project()?;
+    balaur::rng::with_rng(&app.engine, |rng| {
+        *rng = balaur::rng::Pcg32::from_state(session.header.seed);
+    });
+
+    let feed = app.engine.resource::<balaur::replay::ReplayFeed>();
+    for frame in &session.frames {
+        // Set before the tick: core restores it at the very top of First,
+        // ahead of every plugin, and `is_playing` reads it to keep outbound
+        // I/O switched off for the whole tick.
+        feed.borrow_mut().0 = Some(frame.sources.clone());
+        app.tick(frame.step());
+
+        if let Some(at) = entries_at {
+            if frame.tick == at {
+                for entry in balaur::digest::entries(&app.engine) {
+                    println!("{} {}", entry.label, entry.digest);
+                }
+                return Ok(());
+            }
+            continue;
+        }
+        if verify {
+            let live = balaur::digest::digest(&app.engine);
+            if live.0 != frame.digest {
+                anyhow::bail!(
+                    "tick {}: recorded {} but replayed {}\n\
+                     run `balaur replay <file> --entries-at {}` on both machines and diff",
+                    frame.tick,
+                    balaur::digest::Digest(frame.digest),
+                    live,
+                    frame.tick
+                );
+            }
+        }
+    }
+
+    if let Some(at) = entries_at {
+        anyhow::bail!("the recording stops before tick {at}");
+    }
+    if verify {
+        println!(
+            "{} ticks replayed, every digest matched",
+            session.frames.len()
+        );
+    }
+    Ok(())
+}
+
 fn run_project(opts: &RunOpts) -> Result<()> {
     let RunOpts {
         path,
@@ -612,12 +724,16 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         offscreen,
         fixed_tick,
         trace_digest,
+        record,
     } = opts;
     let (headless, frames, offscreen) = (*headless, *frames, *offscreen);
     let mut app = balaur::standard_app(AppConfig::dev(path.to_string_lossy().as_ref()))?;
     app.load_project()?;
     if *fixed_tick {
         app.set_fixed_dt(Some(balaur::FIXED_DT));
+    }
+    if let Some(out) = record {
+        record_to(&mut app, out, path)?;
     }
     if let Some(trace) = trace_digest {
         if !*fixed_tick {
