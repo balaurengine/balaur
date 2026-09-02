@@ -19,6 +19,7 @@ mod polygon;
 mod rig;
 mod selftest;
 mod shell;
+mod style;
 mod theme;
 mod util;
 

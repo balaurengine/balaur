@@ -5,6 +5,7 @@ use crate::anim;
 use crate::history;
 use crate::model;
 use crate::shell;
+use crate::style;
 use crate::theme;
 use crate::util;
 
@@ -134,7 +135,7 @@ pub fn draw(S) {
                         }
                         ui::right(|| {
                             ui::add_space(10);
-                            ui::label(cmd.key, #{ size: 11, font: "mono", color: k.faint });
+                            ui::label(cmd.key, style::mono_sm(k.faint));
                         });
                     });
                     if hit.run || (S.palette_submit && first) {
@@ -147,7 +148,7 @@ pub fn draw(S) {
             if matched == 0 {
                 ui::horizontal(#{ height: 40 }, || {
                     ui::add_space(16);
-                    ui::label("no matches", #{ size: 12, font: "mono", color: k.faint });
+                    ui::label("no matches", style::mono_lg(k.faint));
                 });
             }
             ui::add_space(8);

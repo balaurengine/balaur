@@ -7,6 +7,7 @@ use crate::history;
 use crate::model;
 use crate::polygon;
 use crate::shell;
+use crate::style;
 use crate::util;
 
 // The viewport's design-px rect, published on `S` for the gizmo, the widget
@@ -83,7 +84,7 @@ fn doc_tabs(S, k) {
                         let (nodes, _) = model::stats(S);
                         format!("{} · {} nodes", S.game_name, nodes)
                     };
-                    ui::label(hint, #{ size: 11, font: "mono", color: k.faint });
+                    ui::label(hint, style::mono_sm(k.faint));
                 });
             }
         });
@@ -164,11 +165,11 @@ fn viewport(S, k) {
         ui::horizontal(#{ height: 28 }, || {
             ui::frame(#{ fill: k.panel, stroke: k.line_soft, radius: 14, padding_x: 10 }, || {
                 ui::horizontal(#{ height: 28, tight: true }, || {
-                    ui::label("x →", #{ size: 11, font: "mono", color: k.accent });
+                    ui::label("x →", style::mono_sm(k.accent));
                     ui::add_space(6);
-                    ui::label("y ↑", #{ size: 11, font: "mono", color: k.sage });
+                    ui::label("y ↑", style::mono_sm(k.sage));
                     ui::add_space(6);
-                    ui::label("z ↓", #{ size: 11, font: "mono", color: k.dim });
+                    ui::label("z ↓", style::mono_sm(k.dim));
                 });
             });
             ui::right(|| {
@@ -177,7 +178,7 @@ fn viewport(S, k) {
                         if ui::pill("−", #{ height: 22, size: 12, color: k.dim }) {
                             shell::set_zoom(S, S.zoom - 25.0);
                         }
-                        ui::label(format!("{} %", S.zoom as i64), #{ size: 11, font: "mono", color: k.text });
+                        ui::label(format!("{} %", S.zoom as i64), style::mono_sm(k.text));
                         if ui::pill("＋", #{ height: 22, size: 12, color: k.dim }) {
                             shell::set_zoom(S, S.zoom + 25.0);
                         }
@@ -195,7 +196,7 @@ fn script_editor(S, k) {
             ui::add_space(24);
             ui::horizontal((), || {
                 ui::add_space(24);
-                ui::label("no script attached to " + node.name, #{ size: 12, font: "mono", color: k.faint });
+                ui::label("no script attached to " + node.name, style::mono_lg(k.faint));
             });
             return;
         }
@@ -203,7 +204,7 @@ fn script_editor(S, k) {
         let src = match model::source(S, node.script) {
             Some(src) => src,
             None => {
-                ui::label("missing file: " + node.script, #{ size: 12, font: "mono", color: k.faint });
+                ui::label("missing file: " + node.script, style::mono_lg(k.faint));
                 return;
             }
         };
@@ -218,7 +219,7 @@ fn script_editor(S, k) {
         let hooks = S.hooks_live;
         ui::right_panel("hooks", #{ width: 172, fill: k.panel, padding_x: 12 }, || {
             ui::add_space(11);
-            ui::label("HOOKS IN FILE", #{ size: 10, font: "heading", strong: true, color: k.dim });
+            ui::label("HOOKS IN FILE", style::heading(k));
             ui::add_space(9);
             for hook in hooks {
                 ui::frame(#{ fill: k.sunken, radius: 14, padding_x: 10 }, || {
@@ -226,14 +227,14 @@ fn script_editor(S, k) {
                         let color = if hook.name == "init" || hook.name == "update" { k.accent } else { k.sage };
                         ui::dot(color, 6);
                         ui::add_space(4);
-                        ui::label(hook.name, #{ size: 11, font: "mono", color: k.text });
+                        ui::label(hook.name, style::mono_sm(k.text));
                     });
                 });
                 ui::add_space(4);
             }
             if S.script_dirty.contains_key(path) {
                 ui::add_space(8);
-                ui::label("● unsaved · ⌘S", #{ size: 10, font: "mono", color: k.accent });
+                ui::label("● unsaved · ⌘S", util::merge(style::mono(k.accent), #{ size: 10 }));
             }
         });
         // Editable, syntax-highlighted buffer (persists per file; ⌘S saves
@@ -265,7 +266,7 @@ fn script_editor(S, k) {
 // The `events` document tab: every script's engine-facing hooks, per node.
 fn events_view(S, k) {
     ui::central_panel(#{ fill: k.bg, padding_x: 24, padding_y: 16 }, || {
-        ui::label("EVENT BINDINGS", #{ size: 10, font: "heading", strong: true, color: k.dim });
+        ui::label("EVENT BINDINGS", style::heading(k));
         ui::add_space(8);
         for node in S.doc {
             let script_some = node.get("script");
@@ -277,9 +278,9 @@ fn events_view(S, k) {
                                 let color = if hook.name == "init" || hook.name == "update" { k.accent } else { k.sage };
                                 ui::dot(color, 6);
                                 ui::add_space(4);
-                                ui::label(format!("{}.{}()", node.name, hook.name), #{ size: 11.5, font: "mono", color: k.text });
+                                ui::label(format!("{}.{}()", node.name, hook.name), style::mono(k.text));
                                 ui::right(|| {
-                                    ui::label(format!("{}:{}", script, hook.line), #{ size: 11, font: "mono", color: k.faint });
+                                    ui::label(format!("{}:{}", script, hook.line), style::mono_sm(k.faint));
                                 });
                             });
                         });

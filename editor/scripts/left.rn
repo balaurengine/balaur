@@ -3,13 +3,14 @@
 use crate::anim;
 use crate::model;
 use crate::shell;
+use crate::style;
 use crate::util;
 
 fn section_label(text, k) {
     ui::add_space(11);
     ui::horizontal((), || {
         ui::add_space(10);
-        ui::label(text.to_uppercase(), #{ size: 10, font: "heading", strong: true, color: k.dim });
+        ui::label(text.to_uppercase(), style::heading(k));
     });
     ui::add_space(9);
 }
@@ -25,7 +26,7 @@ fn tree_row(S, k, row) {
         ui::add_space(4);
         if depth > 0 {
             let connector = row.rails + (if row.is_last { "└─" } else { "├─" });
-            ui::label(connector, #{ size: 11, font: "mono", color: k.line });
+            ui::label(connector, style::mono_sm(k.line));
         }
         if row.has_kids {
             // Keyed by id, which is what the walk buckets on and what survives
@@ -116,7 +117,7 @@ fn walk(S, k, kids, parent_id, depth, rails) {
 fn tree(S, k, reserve) {
     ui::horizontal(#{ height: 36 }, || {
         ui::add_space(10);
-        ui::label("NODE TREE", #{ size: 10, font: "heading", strong: true, color: k.dim });
+        ui::label("NODE TREE", style::heading(k));
         ui::right(|| {
             ui::add_space(9);
             if ui::circle_button("＋", #{ d: 21, size: 12, fill: k.accent_soft, color: k.accent, tooltip: "Add child node" }) {

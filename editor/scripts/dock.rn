@@ -4,6 +4,7 @@
 use crate::anim;
 use crate::model;
 use crate::shell;
+use crate::style;
 use crate::util;
 
 fn tab_row(S, k) {
@@ -76,7 +77,7 @@ fn tab_row(S, k) {
                         }
                     }
                 };
-                ui::label(hint, #{ size: 11, font: "mono", color: k.faint });
+                ui::label(hint, style::mono_sm(k.faint));
             });
         }
     });
@@ -132,25 +133,22 @@ fn output(S, k) {
                 } else if entry.tag == "env" {
                     color = k.sage;
                 }
-                ui::label(marker, #{ size: 11.5, font: "mono", strong: true, color: color });
-                ui::label(format!("{:6.1}s", util::f(entry.time)), #{ size: 11.5, font: "mono", color: k.faint });
+                ui::label(marker, util::merge(style::mono(color), #{ strong: true }));
+                ui::label(format!("{:6.1}s", util::f(entry.time)), style::mono(k.faint));
                 ui::add_space(6);
                 let tag = if entry.tag.len() > 9 { entry.tag[..9] } else { entry.tag };
-                ui::label(tag + util::repeat(" ", 9 - tag.len()), #{
-                    size: 11.5, font: "mono", strong: true,
-                    color: if entry.level == "error" { k.accent } else { color },
-                });
+                let tag_color = if entry.level == "error" { k.accent } else { color };
+                ui::label(tag + util::repeat(" ", 9 - tag.len()),
+                    util::merge(style::mono(tag_color), #{ strong: true }));
                 ui::add_space(6);
-                ui::label(entry.message, #{
-                    size: 11.5, font: "mono",
-                    strong: entry.level == "error",
-                    color: if entry.level == "error" { k.text } else { k.dim },
-                });
+                let bad = entry.level == "error";
+                ui::label(entry.message,
+                    util::merge(style::mono(if bad { k.text } else { k.dim }), #{ strong: bad }));
                 // Structured fields the event carried, which the message text
                 // deliberately does not repeat.
                 for field in util::vec(entry.get("fields").unwrap_or([])) {
                     ui::add_space(8);
-                    ui::label(format!("{}={}", field.name, field.value), #{ size: 11, font: "mono", color: k.faint });
+                    ui::label(format!("{}={}", field.name, field.value), style::mono_sm(k.faint));
                 }
             });
         }
@@ -162,7 +160,7 @@ fn output(S, k) {
                 } else {
                     "nothing logged yet"
                 };
-                ui::label(why, #{ size: 11.5, font: "mono", color: k.faint });
+                ui::label(why, style::mono(k.faint));
             });
         }
     });
@@ -226,10 +224,10 @@ fn assets(S, k) {
             }
             ui::add_space(6);
         }
-        ui::label(format!("res://{}", dir), #{ size: 11, font: "mono", color: k.faint });
+        ui::label(format!("res://{}", dir), style::mono_sm(k.faint));
         ui::right(|| {
             ui::add_space(12);
-            ui::label(format!("{} items", files.len()), #{ size: 11, font: "mono", color: k.faint });
+            ui::label(format!("{} items", files.len()), style::mono_sm(k.faint));
         });
     });
     // Cards wrap into rows: the row count is what the dock's height scrolls.
@@ -262,7 +260,7 @@ fn assets(S, k) {
                             }
                         }
                         let short = if f.name.len() > 14 { f.name[..14] } else { f.name };
-                        ui::label(short, #{ size: 11, font: "mono", color: k.dim });
+                        ui::label(short, style::mono_sm(k.dim));
                     });
                 }
             });
@@ -272,7 +270,7 @@ fn assets(S, k) {
         if files.len() == 0 {
             ui::horizontal((), || {
                 ui::add_space(12);
-                ui::label("empty folder", #{ size: 11.5, font: "mono", color: k.faint });
+                ui::label("empty folder", style::mono(k.faint));
             });
         }
     });
@@ -293,7 +291,7 @@ fn timeline(S, k) {
                 } else {
                     format!("{}: clip '{}' is not in its library", node.name, anim::clip_name(node))
                 };
-                ui::label(missing, #{ size: 12, font: "mono", color: k.faint });
+                ui::label(missing, style::mono_lg(k.faint));
                 ui::add_space(12);
                 if ui::pill("＋ Create clip", #{
                     height: 24, size: 11.5, strong: true,
@@ -335,7 +333,7 @@ fn timeline(S, k) {
             anim::seek(S, t);
         }
         ui::add_space(6);
-        ui::label(format!("{:.2} / {:.2} s", S.anim_time, length), #{ size: 11, font: "mono", color: k.faint });
+        ui::label(format!("{:.2} / {:.2} s", S.anim_time, length), style::mono_sm(k.faint));
     });
     // One lane per track, key dots filled before the playhead and hollow after;
     // component and method tracks render the same way transform tracks do.
@@ -350,7 +348,7 @@ fn timeline(S, k) {
                         ui::horizontal(#{ height: 30, tight: true }, || {
                             ui::dot(color, 7);
                             ui::add_space(4);
-                            ui::label(label, #{ size: 12, font: "mono", color: k.text });
+                            ui::label(label, style::mono_lg(k.text));
                         });
                     });
                 });
@@ -395,7 +393,7 @@ fn debugger_view(S, k) {
             } else {
                 "set breakpoints in the script gutter, then run the scene"
             };
-            ui::label(hint, #{ size: 11.5, font: "mono", color: k.faint });
+            ui::label(hint, style::mono(k.faint));
         });
         return;
     }
@@ -416,7 +414,7 @@ fn debugger_view(S, k) {
             }
         }
         ui::add_space(12);
-        ui::label(format!("{} · {}:{}", p.reason, S.paused_rel, p.line), #{ size: 11.5, font: "mono", color: k.dim });
+        ui::label(format!("{} · {}:{}", p.reason, S.paused_rel, p.line), style::mono(k.dim));
     });
     ui::scroll("debug-frames", (), || {
         ui::spacing(4, 2);
@@ -432,22 +430,22 @@ fn debugger_view(S, k) {
                     S.debug_frame = i;
                 }
                 ui::add_space(6);
-                ui::label(format!("{}:{}", shell::script_rel(S, frame.path), frame.line), #{ size: 11.5, font: "mono", color: k.faint });
+                ui::label(format!("{}:{}", shell::script_rel(S, frame.path), frame.line), style::mono(k.faint));
             });
             if chosen {
                 let names = util::keys_sorted(frame.locals);
                 for name in names {
                     ui::horizontal((), || {
                         ui::add_space(24);
-                        ui::label(name, #{ size: 11.5, font: "mono", strong: true, color: k.text });
+                        ui::label(name, util::merge(style::mono(k.text), #{ strong: true }));
                         ui::add_space(6);
-                        ui::label(value_text(frame.locals[name]), #{ size: 11.5, font: "mono", color: k.dim });
+                        ui::label(value_text(frame.locals[name]), style::mono(k.dim));
                     });
                 }
                 if names.len() == 0 {
                     ui::horizontal((), || {
                         ui::add_space(24);
-                        ui::label("no locals", #{ size: 11.5, font: "mono", color: k.faint });
+                        ui::label("no locals", style::mono(k.faint));
                     });
                 }
             }

@@ -3,6 +3,7 @@
 use crate::defs;
 use crate::model;
 use crate::shell;
+use crate::style;
 use crate::theme;
 
 fn plural(n, word) {
@@ -102,16 +103,16 @@ pub fn status_bar(S) {
             } else {
                 "editing"
             };
-            ui::label(mode, #{ size: 11, font: "mono", color: k.dim });
+            ui::label(mode, style::mono_sm(k.dim));
             let (nodes, scripts) = model::stats(S);
             ui::label(format!("{} {} · {} {}", nodes, plural(nodes, "node"), scripts, plural(scripts, "script")),
-                #{ size: 11, font: "mono", color: k.dim });
+                style::mono_sm(k.dim));
             ui::dot(k.sage, 6);
-            ui::label("Rune VM warm", #{ size: 11, font: "mono", color: k.dim });
-            ui::label("kiss3d · wgpu", #{ size: 11, font: "mono", color: k.dim });
+            ui::label("Rune VM warm", style::mono_sm(k.dim));
+            ui::label("kiss3d · wgpu", style::mono_sm(k.dim));
             ui::right(|| {
                 let pname = defs::persona_name(S.persona);
-                ui::label(format!("{} persona · {}", pname, defs::tool_name(S.tool)), #{ size: 11, font: "mono", color: k.dim });
+                ui::label(format!("{} persona · {}", pname, defs::tool_name(S.tool)), style::mono_sm(k.dim));
             });
         });
     });

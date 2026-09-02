@@ -6,6 +6,7 @@ use crate::model;
 use crate::polygon;
 use crate::rig;
 use crate::shell;
+use crate::style;
 use crate::util;
 
 const LABEL_W = 84.0;
@@ -15,7 +16,7 @@ const CONTROL_W = 186.0;
 fn section(k, title) {
     ui::add_space(12);
     ui::horizontal((), || {
-        ui::label(title.to_uppercase(), #{ size: 10, font: "heading", strong: true, color: k.dim });
+        ui::label(title.to_uppercase(), style::heading(k));
         ui::add_space(8);
         ui::separator(k.line_soft);
     });
@@ -144,7 +145,7 @@ fn script_section(S, k, title) {
         ui::frame(#{ fill: k.sage_soft, stroke: k.sage, radius: 14, padding_x: 11 }, || {
             ui::horizontal(#{ height: 28 }, || {
                 let name = node.get("script").unwrap_or("— none —");
-                ui::label(name, #{ size: 11.5, font: "mono", color: k.sage });
+                ui::label(name, style::mono(k.sage));
                 ui::right(|| {
                     let has = node.contains_key("script");
                     let action = if has { "open" } else { "add" };
@@ -169,7 +170,7 @@ fn script_section(S, k, title) {
 fn clip_source_row(S, k, node) {
     let path = anim::library_path(node);
     row(k, "Source", || {
-        ui::label(path.unwrap_or("— inline —"), #{ size: 11.5, font: "mono", color: k.faint });
+        ui::label(path.unwrap_or("— inline —"), style::mono(k.faint));
         ui::right(|| {
             let inline = path.is_none();
             let label = if inline { "save as file" } else { "make inline" };
@@ -205,7 +206,7 @@ fn skeleton_section(S, k) {
     section(k, "Skeleton");
     row(k, "Bones", || {
         let what = if rig::is_bone(node) { "this bone and below" } else { format!("under {}", node.name) };
-        ui::label(format!("{} · {}", count, what), #{ size: 11.5, font: "mono", color: k.text });
+        ui::label(format!("{} · {}", count, what), style::mono(k.text));
         ui::right(|| {
             if ui::pill("＋ bone", #{
                 height: 20, size: 10, strong: true,
@@ -258,7 +259,7 @@ fn polygon_section(S, k) {
                 } else {
                     "a file; make it inline to edit"
                 };
-                ui::label(text, #{ size: 11, font: "mono", color: k.faint });
+                ui::label(text, style::mono_sm(k.faint));
             });
             return;
         }
@@ -266,12 +267,12 @@ fn polygon_section(S, k) {
     let positions = util::vec(mesh.get("positions").unwrap_or([]));
     let internal = polygon::internal_count(mesh);
     row(k, "Vertices", || {
-        ui::label(format!("{} · {} internal", positions.len(), internal), #{ size: 11.5, font: "mono", color: k.text });
+        ui::label(format!("{} · {} internal", positions.len(), internal), style::mono(k.text));
     });
     row(k, "Polygons", || {
         let count = util::vec(mesh.get("polygons").unwrap_or([])).len();
         ui::label(if count == 0 { "outline, automatic" } else { format!("{} drawn", count) },
-            #{ size: 11.5, font: "mono", color: k.text });
+            style::mono(k.text));
         if count > 0 {
             ui::right(|| {
                 if ui::pill("clear", #{
@@ -351,11 +352,8 @@ fn animation_section(S, k) {
     let comp = util::obj(anim::component(node).unwrap_or(#{}));
     row(k, "Clip", || {
         let id = format!("clipname:{}", S.sel);
-        let (text, _, submitted) = ui::text_field(id, "unnamed", #{
-            value: anim::clip_name(node),
-            size: 11.5, font: "mono", width: CONTROL_W, height: 28,
-            fill: k.sunken, stroke: k.line_soft, color: k.text,
-        });
+        let (text, _, submitted) = ui::text_field(id, "unnamed",
+            util::merge(style::field(k, CONTROL_W), #{ value: anim::clip_name(node) }));
         if submitted {
             // The name is `autoplay`: what the scene starts is what the
             // Timeline edits, so there is one clip to get wrong instead of two.
@@ -372,7 +370,7 @@ fn animation_section(S, k) {
             rail: k.sunken, fill: k.accent_fill, knob: k.bg,
         });
         ui::add_space(6);
-        ui::label(format!("{:.2}", v), #{ size: 11.5, font: "mono", color: k.text });
+        ui::label(format!("{:.2}", v), style::mono(k.text));
         if ch {
             comp.speed = v;
             anim::touch(S);
@@ -398,7 +396,7 @@ fn animation_section(S, k) {
     });
     row(k, "Keys", || {
         ui::label(format!("{} on {} tracks", anim::key_count(def), anim::tracks(def).len()),
-            #{ size: 11.5, font: "mono", color: k.text });
+            style::mono(k.text));
     });
 }
 
@@ -408,7 +406,7 @@ fn interface_section(S, k) {
     section(k, "Interface");
     let draws = model::draws_ui(S, node);
     row(k, "Draws UI", || {
-        ui::label(if draws { "yes · draw_ui()" } else { "no" }, #{ size: 11.5, font: "mono", color: if draws { k.sage } else { k.faint } });
+        ui::label(if draws { "yes · draw_ui()" } else { "no" }, style::mono(if draws { k.sage } else { k.faint }));
     });
     row(k, "Safe area", || {
         if !S.chip_state.contains_key("ui") {
@@ -546,15 +544,12 @@ fn prop_row(S, k, comp, prop, spec, data) {
             let asset_type = spec.get("asset").unwrap_or("");
             let dir = if asset_type != "" { assets::directory(asset_type) } else { "" };
             if inline {
-                ui::label("— inline —", #{ size: 11.5, font: "mono", color: k.faint });
+                ui::label("— inline —", style::mono(k.faint));
             } else {
                 let id = format!("asset:{}:{}:{}", comp, prop, S.sel);
                 let width = if dir == "" { CONTROL_W } else { CONTROL_W - 78.0 };
-                let (text, _, submitted) = ui::text_field(id, "— none —", #{
-                    value: reference,
-                    size: 11.5, font: "mono", width: width, height: 28,
-                    fill: k.sunken, stroke: k.line_soft, color: k.text,
-                });
+                let (text, _, submitted) = ui::text_field(id, "— none —",
+                    util::merge(style::field(k, width), #{ value: reference }));
                 if submitted {
                     model::set_component_prop(S, comp, prop, text);
                 }
@@ -584,11 +579,9 @@ fn prop_row(S, k, comp, prop, spec, data) {
     } else {
         row(k, prop, || {
             let id = format!("comp:{}:{}:{}", comp, prop, S.sel);
-            let (text, _, submitted) = ui::text_field(id, "— empty —", #{
-                value: model::relative_file(S, as_text(value)),
-                size: 11.5, font: "mono", width: CONTROL_W, height: 28,
-                fill: k.sunken, stroke: k.line_soft, color: k.text,
-            });
+            let (text, _, submitted) = ui::text_field(id, "— empty —",
+                util::merge(style::field(k, CONTROL_W),
+                    #{ value: model::relative_file(S, as_text(value)) }));
             if submitted {
                 model::set_component_prop(S, comp, prop, text);
             }
@@ -635,7 +628,7 @@ fn readonly_row(k, prop, spec, data) {
         None => spec.get("default").unwrap_or(()),
     };
     row(k, prop, || {
-        ui::label(readonly_text(spec, value), #{ size: 11.5, font: "mono", color: k.faint });
+        ui::label(readonly_text(spec, value), style::mono(k.faint));
         ui::right(|| {
             ui::label("read-only", #{ size: 10, color: k.faint });
         });
@@ -666,7 +659,7 @@ fn component_sections(S, k, filter) {
         // Section header with a right-aligned remove button.
         ui::add_space(12);
         ui::horizontal(#{ height: 20 }, || {
-            ui::label(comp.to_uppercase(), #{ size: 10, font: "heading", strong: true, color: k.dim });
+            ui::label(comp.to_uppercase(), style::heading(k));
             ui::right(|| {
                 if ui::pill("✕", #{
                     height: 18, size: 10, strong: true, tooltip: "Remove component",
@@ -706,7 +699,7 @@ fn events_section(S, k) {
         None => {
             ui::horizontal((), || {
                 ui::add_space(8);
-                ui::label("no script attached", #{ size: 11, font: "mono", color: k.faint });
+                ui::label("no script attached", style::mono_sm(k.faint));
             });
             return;
         }
@@ -719,9 +712,9 @@ fn events_section(S, k) {
                     let color = if hook.name == "init" || hook.name == "update" { k.accent } else { k.sage };
                     ui::dot(color, 6);
                     ui::add_space(4);
-                    ui::label(hook.name + "()", #{ size: 11.5, font: "mono", color: k.text });
+                    ui::label(hook.name + "()", style::mono(k.text));
                     ui::right(|| {
-                        ui::label("→ engine", #{ size: 11, font: "mono", color: k.faint });
+                        ui::label("→ engine", style::mono_sm(k.faint));
                     });
                 });
             });
@@ -742,7 +735,7 @@ pub fn draw(S) {
             ui::vertical(|| {
                 ui::spacing(4, 1);
                 ui::label(node.name, #{ size: 16, font: "heading", strong: true, color: k.text });
-                ui::label(model::node_type(node), #{ size: 11, font: "mono", color: k.faint });
+                ui::label(model::node_type(node), style::mono_sm(k.faint));
             });
         });
 
