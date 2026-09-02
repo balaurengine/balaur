@@ -86,4 +86,5 @@ debug = "line-tables-only"
 # support. Cargo.lock pins the commit; to hack on kiss3d locally, use a `paths`
 # override in .cargo/config.toml rather than editing this.
 [patch.crates-io]
+rune = { path = "/private/tmp/claude-501/-Users-dragosdaian-Documents-appsinacup-balaur/948b9028-40c8-4748-8fc5-e1495d92fb61/scratchpad/rune-fork/crates/rune" }  # TEMP probe
 kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "mobile-fixes" }

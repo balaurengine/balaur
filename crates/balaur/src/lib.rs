@@ -74,6 +74,90 @@ pub fn build_pack(project_root: &std::path::Path) -> Result<Pack> {
     Pack::build(project_root, host)
 }
 
+/// Every finding in a project: each script a scene attaches, compiled through
+/// a booted host, plus the files those scenes name.
+///
+/// The unit a check compiles is the root a scene names, not every `.rn` in
+/// the tree: a `mod` submodule compiled on its own fails on its own imports,
+/// and its diagnostics arrive through the root that reaches it anyway.
+///
+/// # Errors
+/// If the project will not boot.
+pub fn check_project(project_root: &std::path::Path) -> Result<Vec<balaur_script_rune::Finding>> {
+    let app = standard_app(AppConfig::export(project_root))?;
+    let host = app
+        .engine
+        .script_host()
+        .context("no script backend for the project")?;
+    let host = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .context("expected the rune backend")?;
+    let mut found = Vec::new();
+    for rel in scene_scripts(project_root) {
+        let path = project_root.join(&rel);
+        let Ok(source) = std::fs::read_to_string(&path) else {
+            found.push(balaur_script_rune::Finding {
+                file: rel.clone(),
+                line: 0,
+                column: 0,
+                severity: "error",
+                message: format!("script {rel} does not exist"),
+            });
+            continue;
+        };
+        found.extend(host.check_source(&rel, &source)?);
+    }
+    Ok(found)
+}
+
+/// Every script path the project's scene files attach, deduplicated and in a
+/// stable order. A scene that will not parse is skipped: it is the scene
+/// loader's error to report, not the checker's.
+fn scene_scripts(project_root: &std::path::Path) -> Vec<String> {
+    let mut out: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut dirs = vec![project_root.to_path_buf()];
+    while let Some(dir) = dirs.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                dirs.push(path);
+                continue;
+            }
+            if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+                continue;
+            }
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            let Ok(document) = text.parse::<toml::Table>() else {
+                continue;
+            };
+            let Some(nodes) = document.get("nodes").and_then(toml::Value::as_array) else {
+                continue;
+            };
+            for node in nodes {
+                // `script` is a path, or a table whose `source` is one.
+                let script = match node.get("script") {
+                    Some(toml::Value::String(path)) => Some(path.clone()),
+                    Some(toml::Value::Table(table)) => table
+                        .get("source")
+                        .and_then(toml::Value::as_str)
+                        .map(str::to_string),
+                    _ => None,
+                };
+                if let Some(script) = script {
+                    out.insert(script);
+                }
+            }
+        }
+    }
+    out.into_iter().collect()
+}
+
 pub fn standard_app(mut config: AppConfig) -> Result<App> {
     if config.script_backend.is_none() {
         config.script_backend = Some(backend_for(&config)?);

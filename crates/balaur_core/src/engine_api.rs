@@ -340,6 +340,15 @@ fn args(eng: &Engine, _: &[Value]) -> Result<Value> {
 /// is deliberately not the default: a shipped game may live somewhere
 /// read-only.
 fn user_data_dir(eng: &Engine, _: &[Value]) -> Result<Value> {
+    let dir = user_data_dir_of(eng);
+    std::fs::create_dir_all(&dir)?;
+    Ok(Value::Str(dir.to_string_lossy().into_owned()))
+}
+
+/// The same directory, for a plugin that keeps a file there — input
+/// rebindings, say. The script binding creates it; this only names it, so a
+/// reader does not make a directory just by asking where one would be.
+pub fn user_data_dir_of(eng: &Engine) -> std::path::PathBuf {
     let name = eng
         .try_resource::<crate::project::ProjectManifest>()
         .map(|m| m.borrow().name.clone())
@@ -365,9 +374,7 @@ fn user_data_dir(eng: &Engine, _: &[Value]) -> Result<Value> {
         },
         |dir| dir.join("balaur"),
     );
-    let dir = base.join(name);
-    std::fs::create_dir_all(&dir)?;
-    Ok(Value::Str(dir.to_string_lossy().into_owned()))
+    base.join(name)
 }
 
 fn reload_script(eng: &Engine, args: &[Value]) -> Result<Value> {

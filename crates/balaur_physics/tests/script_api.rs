@@ -162,3 +162,30 @@ fn a_wrong_argument_is_reported_not_fatal() {
         "unhelpful: {errors:#?}"
     );
 }
+
+#[test]
+fn a_component_handle_binds_the_node_for_the_module_driving_it() {
+    run_clean(
+        r#"
+        physics2d::add_body(this.node, physics2d::BODY_DYNAMIC);
+        this.node.body2d.apply_impulse(1.0, 0.0);
+        this.node.body2d.set_linear_velocity(2.0, 0.0);
+        if !this.node.body2d.has() {
+            log::error("the handle should see the body2d it was made for");
+        }
+        let table = this.node.body2d.get();
+        if table.kind != "dynamic" {
+            log::error("get() should hand back the component table");
+        }
+        "#,
+    );
+}
+
+#[test]
+fn a_component_handle_refuses_a_function_no_driving_module_declares() {
+    let errors = run("this.node.sprite.apply_impulse(1.0, 0.0);");
+    assert!(
+        errors.iter().any(|e| e.contains("apply_impulse")),
+        "expected an error naming the missing function, got {errors:#?}"
+    );
+}

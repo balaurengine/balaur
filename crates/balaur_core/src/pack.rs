@@ -77,7 +77,12 @@ impl Pack {
                     let bytes = compiler.compile(&rel, &source)?;
                     pack.scripts.insert(rel, bytes);
                 }
+                // `scenes` is the pack's text map: scene documents, asset
+                // documents and shader sources all read back through it.
                 Some("toml") if rel != "project.toml" => {
+                    pack.scenes.insert(rel, std::fs::read_to_string(&path)?);
+                }
+                Some("wesl") => {
                     pack.scenes.insert(rel, std::fs::read_to_string(&path)?);
                 }
                 Some(ext) if ASSET_EXTENSIONS.contains(&ext) => {

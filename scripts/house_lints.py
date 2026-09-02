@@ -37,12 +37,13 @@ MAX_COMMENT_BLOCK = 12   # consecutive comment lines
 MAX_FN_LINES = 120
 MAX_FILE_LINES = 1200
 
-# Float methods that route to the platform libm and differ across operating
-# systems (docs/DETERMINISM.md). `sqrt`, `abs`, `floor`, `ceil`, `round`,
-# `trunc`, `mul_add`, `to_radians` and `to_degrees` are IEEE-exact and absent.
-PLATFORM_FLOAT_RS = re.compile(
-    r"\.(?:sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|asinh|acosh|atanh"
-    r"|exp|exp2|exp_m1|ln|ln_1p|log|log2|log10|powf|cbrt|hypot)\(")
+# The float methods that differ across platform libms (docs/DETERMINISM.md).
+# `sqrt`, `abs`, `floor`, `ceil`, `round`, `trunc`, `mul_add`, `to_radians`
+# and `to_degrees` are IEEE-exact, and deliberately absent.
+_INEXACT_FLOAT = (r"sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|asinh|acosh"
+                  r"|atanh|exp|exp2|exp_m1|ln|ln_1p|log|log2|log10|powf|cbrt|hypot")
+# Both spellings: `x.sin()` and `f32::sin(x)` are the same call.
+PLATFORM_FLOAT_RS = re.compile(rf"(?:\.|\bf(?:32|64)::)(?:{_INEXACT_FLOAT})\(")
 
 # Rune's `f64` module reaches Rust's `powf`/`powi`; `math::pow` is libm's.
 PLATFORM_FLOAT_RN = re.compile(r"\.(?:powf|powi)\(")
@@ -123,7 +124,8 @@ def check_script_file(path: Path) -> list[Finding]:
         m = PLATFORM_FLOAT_RN.search(line)
         if m:
             findings.append(Finding(rel, i, "platform-float-math",
-                                    f"`{m.group(0)[1:-1]}` is Rune's, and calls the platform "
+                                    f"`{m.group(0).lstrip('.').rstrip('(')}` is Rune's, and "
+                                    "calls the platform "
                                     "`pow`; use `math::pow` (DETERMINISM.md)", "ERROR"))
     return findings
 
@@ -418,7 +420,8 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
             m = PLATFORM_FLOAT_RS.search(line)
             if m:
                 findings.append(Finding(rel, i, "platform-float-math",
-                                        f"`{m.group(0)[1:-1]}` routes to the platform libm and "
+                                        f"`{m.group(0).lstrip('.').rstrip('(')}` routes to the "
+                                        "platform libm and "
                                         "differs across operating systems; use `libm::` "
                                         "(DETERMINISM.md)", "ERROR"))
 

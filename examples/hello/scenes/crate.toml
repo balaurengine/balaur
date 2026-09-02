@@ -1,0 +1,28 @@
+# A prefab: any scene file a node can name with `instance`. Its nodes become
+# that node's children, with ids prefixed by the instance's, so two crates in
+# one scene never share an identity.
+
+[[nodes]]
+id = "n_crate"
+name = "Crate"
+body3d = "dynamic"
+color = [0.72, 0.52, 0.28]
+
+[nodes.collider3d]
+half_extents = [0.35, 0.35, 0.35]
+kind = "cuboid"
+
+[nodes.shape3d]
+half_extents = [0.35, 0.35, 0.35]
+kind = "cuboid"
+
+[[nodes]]
+id = "n_lid"
+name = "Lid"
+parent = "n_crate"
+position = [0, 0.4, 0]
+color = [0.45, 0.32, 0.17]
+
+[nodes.shape3d]
+half_extents = [0.37, 0.05, 0.37]
+kind = "cuboid"

@@ -13,22 +13,29 @@ use anyhow::{anyhow, Result};
 static COMMON: &str = include_str!("shaders/common.wesl");
 
 /// The 2D skinning material's shader.
-pub(crate) static SKINNED_2D: &str = include_str!("shaders/skinned_2d.wesl");
+pub static SKINNED_2D: &str = include_str!("shaders/skinned_2d.wesl");
+
+/// The contract a project's 2D material shader draws against, mounted as
+/// `package::sprite`: the uniforms the pipeline binds and the vertex work
+/// every such shader would otherwise repeat.
+static SPRITE: &str = include_str!("shaders/sprite.wesl");
 
 /// Composes `(module path, source)` pairs into one WGSL translation unit,
 /// starting from `root` and keeping only what its entry points reach.
 ///
-/// `package::common` is mounted for free. `features` toggles `@if(name)`.
+/// `package::common` and `package::sprite` are mounted for free.
+/// `features` toggles `@if(name)`.
 /// Errors name the line the author wrote rather than the linked output's, so
 /// a project's shader can say where it broke. The result carries the syntax
 /// tree as well as the text, which is what `material` reads its fields from.
-pub(crate) fn link(
+pub fn link(
     modules: &[(&str, &str)],
     root: &str,
     features: &[(&str, bool)],
 ) -> Result<wesl::CompileResult> {
     let mut resolver = wesl::VirtualResolver::new();
-    for (path, source) in std::iter::once(&("package::common", COMMON)).chain(modules) {
+    let mounted = [("package::common", COMMON), ("package::sprite", SPRITE)];
+    for (path, source) in mounted.iter().chain(modules) {
         let parsed = path
             .parse()
             .map_err(|e| anyhow!("shader module path `{path}`: {e}"))?;
@@ -59,19 +66,30 @@ mod tests {
 
     #[test]
     fn the_skinning_shader_links() {
-        let wgsl = link(&[("package::skinned_2d", SKINNED_2D)], "package::skinned_2d", &[])
-            .expect("the engine's own shader must link")
-            .to_string();
+        let wgsl = link(
+            &[("package::skinned_2d", SKINNED_2D)],
+            "package::skinned_2d",
+            &[],
+        )
+        .expect("the engine's own shader must link")
+        .to_string();
         assert!(wgsl.contains("fn vs_main"), "{wgsl}");
         assert!(wgsl.contains("fn fs_main"), "{wgsl}");
     }
 
     #[test]
     fn an_imported_helper_arrives_in_the_output() {
-        let wgsl = link(&[("package::skinned_2d", SKINNED_2D)], "package::skinned_2d", &[])
-            .unwrap()
-            .to_string();
-        assert!(!wgsl.contains("import "), "imports must be resolved away: {wgsl}");
+        let wgsl = link(
+            &[("package::skinned_2d", SKINNED_2D)],
+            "package::skinned_2d",
+            &[],
+        )
+        .unwrap()
+        .to_string();
+        assert!(
+            !wgsl.contains("import "),
+            "imports must be resolved away: {wgsl}"
+        );
         assert!(wgsl.contains("mat3x3<f32>(a.xyz, b.xyz, c.xyz)"), "{wgsl}");
     }
 

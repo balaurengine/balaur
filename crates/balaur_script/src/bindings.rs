@@ -49,7 +49,7 @@ pub trait BindingsExt<C: ?Sized>: Bindings<C> {
 
 /// A type name without its module paths: `alloc::string::String` reads
 /// `String`, `(balaur_script::value::NodeId, f32)` reads `(NodeId, f32)`.
-pub fn short_type(name: &str) -> String {
+pub(crate) fn short_type(name: &str) -> String {
     let mut out = String::with_capacity(name.len());
     let mut ident_start: Option<usize> = None;
     let chars: Vec<char> = name.chars().collect();

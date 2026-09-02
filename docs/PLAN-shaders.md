@@ -1,7 +1,8 @@
-> **Status:** phase 1 built on 2026-09-02 — the engine's shaders are WESL,
-> linked through `balaur_render::shaders`. The `material` asset parses, links
-> and packs its values (`balaur_render::material`); what remains of phase 2
-> is the component property and the GPU material that draws with it.
+> **Status:** phases 1 and 2 built on 2026-09-02. The engine's shaders are
+> WESL, linked through `balaur_render::shaders`; the `material` asset parses,
+> links and packs its values (`balaur_render::material`); `sprite` takes a
+> `material`, and `balaur_render::shader_material` draws it as a kiss3d
+> `Material2d`. Phase 3 (3D) and phase 4 (the editor) are not started.
 >
 > **Where the implementation decided differently:**
 >
@@ -16,6 +17,17 @@
 > 3. **A param the shader does not read warns rather than errors.** Stripping
 >    removes a field the shader stopped reading, so commenting out a line
 >    would otherwise fail every scene using the material.
+> 4. **A shader's contract is a WESL module, not boilerplate.** The uniforms,
+>    the vertex inputs and the transform live in `package::sprite`, mounted
+>    for free, so a project's shader is its own two entry points and nothing
+>    else. This is what the plan meant by a `Params` struct "at a known group
+>    and binding" — the binding is in the contract, not in prose.
+> 5. **`polygon` takes no material.** It already draws through the skinning
+>    material, which owns its own buffers; one node cannot have two. `sprite`
+>    and `shape2d` are kiss3d's own geometry and take one.
+> 6. **Shader files ride in the pack's text map.** `scenes` was already
+>    holding asset documents as well as scenes; `.wesl` joins them rather
+>    than growing a fourth map for one file type.
 
 # Plan: shaders and materials
 

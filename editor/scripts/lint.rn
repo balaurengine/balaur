@@ -1,0 +1,207 @@
+// What is wrong with the project, as a list: every script the scene attaches,
+// compiled through the host, plus the scene document checked against the
+// component registry and the files it names.
+//
+// A finding is `#{ file, line, column, severity, message }`, `file` always
+// game-relative and `line` 1-based; line 0 means the file as a whole.
+
+use crate::model;
+use crate::shell;
+use crate::util;
+
+/// The module's own slice of `S`, at `S.lint`.
+///
+/// `at` is when the last sweep ran and `typed` when the buffer last changed,
+/// which is what `due` compares to hold a check off until typing stops.
+pub fn state() {
+    #{ found: [], at: -1.0, typed: -1.0, sources: "" }
+}
+
+const IDLE = 0.4;
+
+/// Every distinct script the document attaches, game-relative.
+///
+/// The unit a check compiles is the root, not the file: a `mod` submodule
+/// compiled on its own fails on its own imports, and its diagnostics reach us
+/// through the root that reaches it.
+fn roots(S) {
+    let seen = #{};
+    let out = [];
+    for node in S.doc {
+        match model::script_rel(node) {
+            Some(rel) => {
+                if !seen.contains_key(rel) {
+                    seen[rel] = true;
+                    out.push(rel);
+                }
+            }
+            None => (),
+        }
+    }
+    out
+}
+
+// The text to check: the unsaved buffer when there is one, so a finding is
+// about what is on screen rather than what is on disk.
+fn source_of(S, rel) {
+    match S.script_buffers.get(S.game_root + "/" + rel) {
+        Some(buffer) => Some(buffer),
+        None => model::source(S, rel),
+    }
+}
+
+// A reference is a path, a path with `#entry`, or `#inline`; only the first
+// two name a file, and an inline definition is a table, not a string.
+fn asset_missing(S, value) {
+    if value == "" || value.starts_with("#") {
+        return false;
+    }
+    let path = match value.find('#') {
+        Some(at) => value[..at],
+        None => value,
+    };
+    !fs::exists(S.game_root + "/" + path)
+}
+
+fn at(file, line, severity, message) {
+    #{ file: file, line: line, column: 0, severity: severity, message: message }
+}
+
+// The scene: files its nodes name, asset references that do not resolve, and
+// the expectations the engine already computes per node.
+fn scene_findings(S) {
+    let found = [];
+    let scene = S.scene_rel;
+    for (i, node) in S.doc.iter().enumerate() {
+        match model::script_rel(node) {
+            Some(rel) => {
+                if !fs::exists(S.game_root + "/" + rel) {
+                    found.push(at(scene, 0, "error",
+                        format!("{}: script {} does not exist", node.name, rel)));
+                }
+            }
+            None => (),
+        }
+        match node.get("instance") {
+            Some(prefab) => {
+                if !fs::exists(S.game_root + "/" + prefab) {
+                    found.push(at(scene, 0, "error",
+                        format!("{}: prefab {} does not exist", node.name, prefab)));
+                }
+            }
+            None => (),
+        }
+        let live = model::live(S, i);
+        if live.is_none() {
+            continue;
+        }
+        let found_node = live.unwrap();
+        for warning in util::vec(scene::unmet_expectations(found_node)) {
+            found.push(at(scene, 0, "warning", format!("{}: {} needs one of: {}",
+                node.name, warning.component, util::join(util::vec(warning.expects), ", "))));
+        }
+        for comp in found_node.component_names() {
+            let schema = model::schema(S, comp);
+            let data = util::obj(found_node.get_component(comp));
+            for prop in util::keys_sorted(schema) {
+                if schema[prop]["type"] != "asset" {
+                    continue;
+                }
+                let value = data.get(prop).unwrap_or("");
+                if !(value is String) || value == "" {
+                    continue;
+                }
+                if asset_missing(S, value) {
+                    found.push(at(scene, 0, "warning", format!("{}: {}.{} → {} does not exist",
+                        node.name, comp, prop, value)));
+                    continue;
+                }
+                // A material parses headless and links only when something
+                // draws it, so a broken shader has to be asked about.
+                if schema[prop]["asset"] == "material" && !value.starts_with("#") {
+                    for f in util::vec(render::check_material(value)) {
+                        found.push(at(f.file, f.line, f.severity,
+                            format!("{}: {}", node.name, f.message)));
+                    }
+                }
+            }
+        }
+    }
+    found
+}
+
+/// Check every root and the scene, and replace the finding list.
+pub fn run(S) {
+    let found = [];
+    for rel in roots(S) {
+        let src = source_of(S, rel);
+        if src.is_none() {
+            found.push(at(S.scene_rel, 0, "error", format!("missing file: {}", rel)));
+            continue;
+        }
+        for f in util::vec(script::check(S.game_root + "/" + rel, src.unwrap())) {
+            // The host answers in the key it was given, which is absolute.
+            found.push(at(shell::script_rel(S, f.file), f.line, f.severity, f.message));
+        }
+    }
+    for f in scene_findings(S) {
+        found.push(f);
+    }
+    S.lint.found = found;
+    S.lint.at = engine::time();
+}
+
+// What the next sweep would look at, so an unchanged project is not swept.
+fn fingerprint(S) {
+    let parts = [];
+    for rel in roots(S) {
+        parts.push(rel + ":" + source_of(S, rel).unwrap_or("").len().to_string());
+    }
+    util::join(parts, "|")
+}
+
+/// Run a sweep when the project has changed and typing has stopped.
+///
+/// A check is a compile on the frame thread — tens of milliseconds for a large
+/// file — so it waits out a burst of keystrokes rather than running inside one.
+pub fn idle(S) {
+    let now = engine::time();
+    let sources = fingerprint(S);
+    if sources != S.lint.sources {
+        S.lint.sources = sources;
+        S.lint.typed = now;
+        return;
+    }
+    if S.lint.at >= S.lint.typed && S.lint.at >= 0.0 {
+        return;
+    }
+    if now - S.lint.typed < IDLE {
+        return;
+    }
+    run(S);
+}
+
+/// The lines of one file carrying a finding of `severity`, for the gutter.
+pub fn lines(S, rel, severity) {
+    let out = [];
+    for f in S.lint.found {
+        if f.file == rel && f.severity == severity && f.line > 0 {
+            out.push(f.line);
+        }
+    }
+    out
+}
+
+/// `(errors, warnings)` over the whole project.
+pub fn counts(S) {
+    let errors = 0;
+    let warnings = 0;
+    for f in S.lint.found {
+        if f.severity == "error" {
+            errors += 1;
+        } else {
+            warnings += 1;
+        }
+    }
+    (errors, warnings)
+}

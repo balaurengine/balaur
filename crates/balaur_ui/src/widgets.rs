@@ -350,6 +350,38 @@ pub(crate) const fn syntax_for(language: &str) -> &'static Syntax {
     &RUNE
 }
 
+/// The lines a checker flagged, underlined in the text and dotted in the
+/// gutter. Two flat lists rather than rows: a line is the whole anchor the
+/// editor has, and severity is which list it is in.
+pub(crate) struct Marks {
+    errors: Vec<usize>,
+    warnings: Vec<usize>,
+    error_color: Color32,
+    warning_color: Color32,
+}
+
+impl Marks {
+    fn from_opts(opts: &Opts) -> Self {
+        Self {
+            errors: opts.lines("problems"),
+            warnings: opts.lines("warnings"),
+            error_color: opts.color("problem_color", Color32::from_rgb(0xe0, 0x4a, 0x4a)),
+            warning_color: opts.color("warning_color", Color32::from_rgb(0xe0, 0xb0, 0x4a)),
+        }
+    }
+
+    /// The colour a 1-based line is flagged in; an error outranks a warning.
+    fn color(&self, line: usize) -> Option<Color32> {
+        if self.errors.contains(&line) {
+            Some(self.error_color)
+        } else if self.warnings.contains(&line) {
+            Some(self.warning_color)
+        } else {
+            None
+        }
+    }
+}
+
 /// Line-based highlighting into a LayoutJob (used by the editable code
 /// editor's layouter; mirrors the design handoff's tokenizer rules).
 pub(crate) fn highlight(
@@ -357,15 +389,24 @@ pub(crate) fn highlight(
     syntax: &Syntax,
     font: &FontId,
     colors: &SyntaxColors,
+    marks: &Marks,
 ) -> egui::text::LayoutJob {
     let mut job = egui::text::LayoutJob::default();
-    let fmt = |color: Color32| egui::TextFormat::simple(font.clone(), color);
+    let fmt = |color: Color32, underline: egui::Stroke| egui::TextFormat {
+        font_id: font.clone(),
+        color,
+        underline,
+        ..Default::default()
+    };
     for (i, line) in text_src.split('\n').enumerate() {
         if i > 0 {
-            job.append("\n", 0.0, fmt(colors.punct));
+            job.append("\n", 0.0, fmt(colors.punct, egui::Stroke::NONE));
         }
+        let underline = marks
+            .color(i + 1)
+            .map_or(egui::Stroke::NONE, |color| egui::Stroke::new(sc(1.0), color));
         if line.trim_start().starts_with(syntax.line_comment) {
-            job.append(line, 0.0, fmt(colors.comment));
+            job.append(line, 0.0, fmt(colors.comment, underline));
             continue;
         }
         let bytes = line.as_bytes();
@@ -420,7 +461,7 @@ pub(crate) fn highlight(
             } else {
                 (c.len_utf8(), colors.punct)
             };
-            job.append(&rest[..token_len], 0.0, fmt(color));
+            job.append(&rest[..token_len], 0.0, fmt(color, underline));
             pos += token_len;
         }
     }
@@ -439,6 +480,7 @@ struct Gutter {
     current_line: usize,
     breakpoint_color: Color32,
     current_fill: Color32,
+    marks: Marks,
 }
 
 impl Gutter {
@@ -454,6 +496,7 @@ impl Gutter {
                 "current_fill",
                 Color32::from_rgba_unmultiplied(0xe0, 0xb0, 0x4a, 0x40),
             ),
+            marks: Marks::from_opts(opts),
         }
     }
 
@@ -484,6 +527,18 @@ impl Gutter {
                     pos2(rect.min.x + sc(7.0), center_y),
                     sc(4.0),
                     self.breakpoint_color,
+                );
+            }
+            // On the inner edge, so it reads beside the code and cannot be
+            // taken for the breakpoint dot on the outer one.
+            if let Some(color) = self.marks.color(i + 1) {
+                ui.painter().rect_filled(
+                    egui::Rect::from_min_size(
+                        pos2(rect.max.x - sc(2.0), center_y - row_h * 0.5),
+                        vec2(sc(2.0), row_h),
+                    ),
+                    CornerRadius::ZERO,
+                    color,
                 );
             }
             ui.painter().text(
@@ -529,6 +584,7 @@ pub(crate) fn code_editor(
     let size = opts.px("size", 12.5);
     let gutter = Gutter::from_opts(opts, size);
     let colors = SyntaxColors::from_opts(opts);
+    let marks = Marks::from_opts(opts);
     let font = FontId::new(size, theme::family("mono"));
     let (changed, clicked) = with_ui(|ui| {
         let font = font.clone();
@@ -545,7 +601,7 @@ pub(crate) fn code_editor(
             clicked = gutter.paint(ui, n_lines, row_h);
             ui.add_space(sc(12.0));
             let mut layouter = |ui: &egui::Ui, buf: &dyn egui::TextBuffer, _wrap: f32| {
-                let mut job = highlight(buf.as_str(), syntax, &font, &colors);
+                let mut job = highlight(buf.as_str(), syntax, &font, &colors, &marks);
                 job.wrap.max_width = f32::INFINITY;
                 ui.fonts_mut(|f| f.layout_job(job))
             };

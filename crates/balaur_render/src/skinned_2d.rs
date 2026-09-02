@@ -83,7 +83,6 @@ fn padded(m: &Mat3) -> [[f32; 4]; 3] {
     ]
 }
 
-
 /// A polygon's kiss3d node, drawn through the skinning material. The
 /// handle comes back only for a mesh with a skin; a rigid polygon has
 /// nothing to write per frame.

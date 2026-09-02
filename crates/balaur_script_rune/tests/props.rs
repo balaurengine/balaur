@@ -217,3 +217,85 @@ fn a_packed_game_boots_with_the_properties_its_scene_set() {
     assert_eq!(number(&app, enemy, "seen_speed"), Some(4.25));
     assert_eq!(number(&app, enemy, "seen_jumps"), Some(2.0));
 }
+
+/// A prefab's scripts attach once the whole outer tree exists, with the
+/// properties the prefab set — and an override on the instance reaches the
+/// node inside it.
+#[test]
+fn scripts_inside_a_prefab_attach_with_their_properties() {
+    let dir = project(&[
+        ("scripts/enemy.rn", ENEMY),
+        (
+            "scenes/enemy.toml",
+            "[[nodes]]\n\
+             id = \"n_body\"\n\
+             name = \"Body\"\n\
+             script = { source = \"scripts/enemy.rn\", props = { speed = 1.5 } }\n",
+        ),
+    ]);
+    let app = app_in(dir.path());
+    let root = app.engine.root();
+    balaur_core::project::instantiate_scene(
+        &app.engine,
+        "[[nodes]]\n\
+         id = \"n_left\"\n\
+         name = \"Left\"\n\
+         instance = \"scenes/enemy.toml\"\n\
+         \n\
+         [[nodes]]\n\
+         id = \"n_right\"\n\
+         name = \"Right\"\n\
+         instance = \"scenes/enemy.toml\"\n",
+        root,
+        true,
+    )
+    .unwrap();
+
+    for name in ["Left/Body", "Right/Body"] {
+        let node = node_named(&app, name);
+        assert_eq!(number(&app, node, "seen_speed"), Some(1.5), "{name}");
+        assert_eq!(number(&app, node, "seen_jumps"), Some(2.0), "{name}");
+    }
+}
+
+/// Prefabs travel in the pack as their own scene files, so a shipped game
+/// resolves `instance` the way a dev run does.
+#[test]
+fn a_packed_game_builds_its_prefabs() {
+    let dir = project(&[
+        ("project.toml", "name = \"t\"\nmain_scene = \"main.toml\"\n"),
+        ("scripts/enemy.rn", ENEMY),
+        (
+            "scenes/enemy.toml",
+            "[[nodes]]\n\
+             id = \"n_body\"\n\
+             name = \"Body\"\n\
+             script = { source = \"scripts/enemy.rn\", props = { speed = 6.5 } }\n",
+        ),
+        (
+            "main.toml",
+            "[[nodes]]\n\
+             id = \"n_enemy\"\n\
+             name = \"Enemy\"\n\
+             instance = \"scenes/enemy.toml\"\n",
+        ),
+    ]);
+    let built = app_in(dir.path());
+    let compiler = built.engine.script_host().unwrap();
+    let pack = balaur_core::Pack::build(dir.path(), rune(&compiler)).unwrap();
+    let pack = balaur_core::Pack::decode(&pack.encode()).unwrap();
+    drop(built);
+
+    let mut app = App::new(AppConfig {
+        project_root: dir.path().to_path_buf(),
+        pack: Some(pack),
+        watch: false,
+        script_args: Vec::new(),
+        script_backend: Some(balaur_script_rune::factory()),
+    })
+    .unwrap();
+    app.load_project().unwrap();
+
+    let body = node_named(&app, "Enemy/Body");
+    assert_eq!(number(&app, body, "seen_speed"), Some(6.5));
+}

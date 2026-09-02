@@ -173,6 +173,19 @@ pub fn generation(eng: &Engine) -> u64 {
     })
 }
 
+/// Declare everything derived from project files stale, without forgetting
+/// any asset.
+///
+/// For a file an asset is built *from* rather than parsed from — a shader a
+/// material links, say. Nothing caches the file itself, so there is nothing
+/// to drop; what has to move is the counter the deriving plugin watches.
+pub fn invalidate(eng: &Engine) {
+    if let Ok(cache) = state(eng) {
+        let mut cache = cache.borrow_mut();
+        cache.generation = cache.generation.wrapping_add(1);
+    }
+}
+
 impl AssetState {
     /// One textual reference as a cache key.
     ///

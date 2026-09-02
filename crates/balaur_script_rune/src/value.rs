@@ -1,5 +1,7 @@
 //! Conversions between the neutral `balaur_script::Value` and Rune's.
 
+mod component;
+
 use anyhow::{anyhow, Result};
 use balaur_script::{CallbackId, Value as Neutral};
 use rune::alloc::clone::TryClone as _;
@@ -69,6 +71,7 @@ pub(crate) fn install(
         m.raw_function(declared.name, crate::bindings::node_handler(handle))
             .build_associated::<Node>()?;
     }
+    component::install(m, engine)?;
     Ok(())
 }
 

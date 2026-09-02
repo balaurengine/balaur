@@ -35,6 +35,7 @@ use std::future::Future as _;
 
 use rune::alloc::clone::TryClone as _;
 use rune::runtime::{Function, RuntimeContext, Unit, VmExecution, VmResult};
+use rune::ast::Spanned as _;
 use rune::{Diagnostics, Source, Sources, TypeHash as _, Vm};
 
 pub use api::{api_json, rune_of};
@@ -126,6 +127,46 @@ fn public_functions(source: &str) -> Vec<PublicSignature> {
         }
     }
     out
+}
+
+/// One compiler finding, at the file and line the author wrote.
+#[derive(Clone, Debug)]
+pub struct Finding {
+    /// The source key the compiler read this from, which for a `mod` is the
+    /// submodule's own file, not the root's.
+    pub file: String,
+    /// 1-based, both, so a gutter and a caret can point at them.
+    pub line: usize,
+    pub column: usize,
+    /// `"error"` or `"warning"`.
+    pub severity: &'static str,
+    pub message: String,
+}
+
+/// Resolve a diagnostic's source and span into a [`Finding`]. A span-less
+/// diagnostic (a link error) lands on line 0, which means "the whole file".
+fn finding(
+    sources: &Sources,
+    id: rune::SourceId,
+    span: Option<rune::ast::Span>,
+    severity: &'static str,
+    message: &str,
+) -> Finding {
+    let source = sources.get(id);
+    let (line, column) = match (source, span) {
+        (Some(source), Some(span)) => {
+            let (line, column) = source.pos_to_utf8_linecol(span.start.into_usize());
+            (line + 1, column + 1)
+        }
+        _ => (0, 0),
+    };
+    Finding {
+        file: source.map_or_else(String::new, |source| source.name().to_string()),
+        line,
+        column,
+        severity,
+        message: message.to_string(),
+    }
 }
 
 fn render(diagnostics: &Diagnostics, sources: &Sources) -> String {
@@ -472,6 +513,25 @@ impl RuneHost {
                 }
             })
             .build()?;
+        // `script::check("scripts/enemy.rn", source)` — every diagnostic the
+        // compiler has about that source, as `[#{ file, line, column,
+        // severity, message }]`. The source is the caller's, so an editor
+        // checks the buffer it is showing rather than the file on disk.
+        script
+            .function("check", move |path: &str, source: &str| {
+                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+                match host
+                    .check_source(&Self::normalize_key(path), source)
+                    .and_then(|found| finding_rows(&found))
+                {
+                    Ok(value) => value,
+                    Err(err) => {
+                        tracing::error!("script::check({path}): {err}");
+                        rune::to_value(()).expect("unit always converts")
+                    }
+                }
+            })
+            .build()?;
         // `script::exports("scripts/enemy.rn")` — what that script declares
         // tunable, as `[#{ name, default, type }]` in name order. The type is
         // the default's own, named in the schema vocabulary so the inspector
@@ -590,6 +650,67 @@ impl RuneHost {
             Ok(unit) => Ok(Arc::new(unit)),
             Err(_) => Err(anyhow!("{}", render(&diagnostics, &sources))),
         }
+    }
+
+    /// Compile `key` from `source` and report every diagnostic instead of
+    /// the first error's rendered text — the caller wants a list, not a page.
+    ///
+    /// The unit is dropped, so a check never disturbs the instances running
+    /// the old one, and the source is the caller's (an unsaved buffer), not
+    /// the file. A submodule's diagnostic is reported against the submodule:
+    /// each one carries the `SourceId` the compiler read it from.
+    ///
+    /// # Errors
+    /// If the context cannot be built.
+    pub fn check_source(&self, key: &str, source: &str) -> Result<Vec<Finding>> {
+        let (ctx, _) = self.context()?;
+        let (path, packed) = {
+            let state = self.state.borrow();
+            match &state.pack {
+                Some(pack) => (PathBuf::from(key), Some(pack.scripts.clone())),
+                None => (state.project_root.join(key), None),
+            }
+        };
+        let mut sources = Sources::new();
+        sources.insert(Source::with_path(key, source, path)?)?;
+        // The one place warnings are wanted: an error report should be the
+        // error, but a check is exactly the language server's business.
+        let mut diagnostics = Diagnostics::new();
+        let mut loader = PackSourceLoader {
+            scripts: packed.clone().unwrap_or_default(),
+        };
+        let mut prepared = rune::prepare(&mut sources)
+            .with_context(&ctx)
+            .with_diagnostics(&mut diagnostics);
+        if packed.is_some() {
+            prepared = prepared.with_source_loader(&mut loader);
+        }
+        drop(prepared.build());
+        let mut findings = Vec::new();
+        for diagnostic in diagnostics.diagnostics() {
+            findings.push(match diagnostic {
+                rune::diagnostics::Diagnostic::Fatal(fatal) => {
+                    // `FatalDiagnostic::span` is private; the kind is not, and
+                    // only a compile error has a span at all.
+                    let span = match fatal.kind() {
+                        rune::diagnostics::FatalDiagnosticKind::CompileError(error) => {
+                            Some(error.span())
+                        }
+                        _ => None,
+                    };
+                    finding(&sources, fatal.source_id(), span, "error", &fatal.to_string())
+                }
+                rune::diagnostics::Diagnostic::Warning(warning) => finding(
+                    &sources,
+                    warning.source_id(),
+                    Some(warning.span()),
+                    "warning",
+                    &warning.to_string(),
+                ),
+                _ => continue,
+            });
+        }
+        Ok(findings)
     }
 
     fn load(&self, key: &str) -> Result<Arc<Unit>> {
@@ -947,6 +1068,7 @@ impl RuneHost {
     pub fn pump_reloads(&self) {
         let mut changed: Vec<String> = Vec::new();
         let mut assets: Vec<String> = Vec::new();
+        let mut sources = false;
         {
             let state = self.state.borrow();
             let Some(events) = &state.events else { return };
@@ -966,10 +1088,17 @@ impl RuneHost {
                         // Assets and scenes are both TOML; `reload` drops only
                         // what was cached, so a saved scene changes nothing.
                         Some("toml") if !assets.contains(&key) => assets.push(key),
+                        // A shader is source a material links, not an asset
+                        // anything parsed: there is nothing cached to drop,
+                        // only the counter its material watches.
+                        Some("wesl") => sources = true,
                         _ => {}
                     }
                 }
             }
+        }
+        if sources {
+            balaur_core::assets::invalidate(&self.engine);
         }
         for key in assets {
             if let Err(err) = balaur_core::assets::reload(&self.engine, &key) {
@@ -1172,6 +1301,29 @@ impl RuneHost {
         }
         RuneModule::new(name, self.engine.clone(), state.pending.clone())
     }
+}
+
+/// `script::check`'s answer: one row per diagnostic, in the order the
+/// compiler reported them.
+fn finding_rows(found: &[Finding]) -> Result<rune::Value> {
+    let mut rows = Vec::with_capacity(found.len());
+    for one in found {
+        let mut row = rune::runtime::Object::new();
+        for (key, value) in [
+            ("file", rune::to_value(one.file.clone())?),
+            ("line", rune::to_value(i64::try_from(one.line).unwrap_or(0))?),
+            (
+                "column",
+                rune::to_value(i64::try_from(one.column).unwrap_or(0))?,
+            ),
+            ("severity", rune::to_value(one.severity)?),
+            ("message", rune::to_value(one.message.clone())?),
+        ] {
+            row.insert(rune::alloc::String::try_from(key)?, value)?;
+        }
+        rows.push(rune::to_value(row)?);
+    }
+    Ok(rune::to_value(rows)?)
 }
 
 /// `script::exports`' answer: one row per declared property, carrying the name,

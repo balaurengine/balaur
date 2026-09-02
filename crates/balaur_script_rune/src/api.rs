@@ -58,11 +58,16 @@ pub fn api_json(_host: &RuneHost) -> Result<String> {
         }
     }
     for (module, component) in api_drives() {
-        modules.entry(module).or_default().components.insert(component);
+        modules
+            .entry(module)
+            .or_default()
+            .components
+            .insert(component);
     }
     for (module, name) in [
         ("script", "require"),
         ("script", "attempt"),
+        ("script", "check"),
         ("task", "wait"),
     ] {
         modules

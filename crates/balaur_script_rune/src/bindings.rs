@@ -6,6 +6,7 @@
 //! the wrong thread fails with a script error instead of being undefined.
 
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use balaur_core::Engine;
@@ -25,6 +26,8 @@ thread_local! {
     static API: RefCell<Vec<ApiEntry>> = const { RefCell::new(Vec::new()) };
     /// `(module, component)` pairs a module declared it drives.
     static DRIVES: RefCell<Vec<(String, String)>> = const { RefCell::new(Vec::new()) };
+    /// `(module, function)` -> its `BOUND` handle, for component handles.
+    static NAMED: RefCell<HashMap<(String, String), usize>> = RefCell::new(HashMap::new());
 }
 
 /// One declared script-facing name.
@@ -45,6 +48,15 @@ pub(crate) fn api_entries() -> Vec<ApiEntry> {
 
 pub(crate) fn api_drives() -> Vec<(String, String)> {
     DRIVES.with_borrow(Clone::clone)
+}
+
+pub(crate) fn bound_handle(module: &str, name: &str) -> Option<usize> {
+    NAMED.with_borrow(|n| n.get(&(module.to_string(), name.to_string())).copied())
+}
+
+/// Call a bound function by handle; `None` when it lives on another thread.
+pub(crate) fn call_bound(handle: usize, args: &[Value]) -> Option<anyhow::Result<Value>> {
+    BOUND.with_borrow(|b| b.get(handle).map(|(engine, f)| f(engine, args)))
 }
 
 fn record(module: &str, name: &str, constant: Option<String>) {
@@ -82,12 +94,12 @@ pub(crate) fn lookup_callback(id: CallbackId) -> Option<rune::runtime::Function>
 /// A callback is valid only while the binding that received it is running, so
 /// the registry is truncated on the way out. A script that stashes one and
 /// calls it later gets an error rather than a dangling function.
-struct CallbackScope {
+pub(crate) struct CallbackScope {
     base: usize,
 }
 
 impl CallbackScope {
-    fn enter() -> Self {
+    pub(crate) fn enter() -> Self {
         Self {
             base: CALLBACKS.with_borrow(Vec::len),
         }
@@ -143,6 +155,9 @@ impl balaur_script::Bindings<Engine> for RuneModule {
             b.push((self.engine.clone(), f));
             b.len() - 1
         });
+        NAMED.with_borrow_mut(|n| {
+            n.insert((self.name.clone(), name.to_string()), handle);
+        });
         let Some(module) = self.module.as_mut() else {
             return;
         };
@@ -195,7 +210,11 @@ impl balaur_script::Bindings<Engine> for RuneModule {
 
     fn drives(&mut self, components: &[&str]) {
         DRIVES.with_borrow_mut(|d| {
-            d.extend(components.iter().map(|c| (self.name.clone(), (*c).to_string())));
+            d.extend(
+                components
+                    .iter()
+                    .map(|c| (self.name.clone(), (*c).to_string())),
+            );
         });
     }
 

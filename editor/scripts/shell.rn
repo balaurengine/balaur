@@ -235,12 +235,18 @@ pub fn save_active(S) {
             // not the script is live, and leaves the old one running on a
             // failure, so a save that does not compile can say so.
             let (ok, err) = script::attempt(|| engine::reload_script(abs));
+            // A save is the one moment the whole project is known good or
+            // not; the idle sweep only catches up to it.
+            crate::lint::run(S);
             if ok {
                 log::info("saved " + rel);
             } else {
-                // Rune renders a caret diagram; the dock is one line per entry.
+                // Rune renders a caret diagram against the absolute key it
+                // was given, and `attempt` calls every failure a panic; this
+                // one is always a compile error, and the dock is narrow.
                 for line in err.split('\n') {
-                    log::error(line);
+                    let clean = line.replace(S.game_root + "/", "");
+                    log::error(clean.replace("Panicked: ", ""));
                 }
             }
         }
@@ -277,20 +283,7 @@ fn states() {
         "assetdemo": crate::selftest::assets,
         "pickdemo": crate::selftest::picking,
         "propsdemo": crate::selftest::script_props,
-        "zzlintshot": state_zzlintshot,
     }
-}
-
-// TEMPORARY screenshot state, removed after the run.
-fn state_zzlintshot(S) {
-    select_named(S, "Ball");
-    set_persona(S, "script");
-    let node = S.doc[S.sel];
-    let rel = model::script_rel(node).unwrap_or("");
-    let abs = S.game_root + "/" + rel;
-    S.script_buffers[abs] = "// A ball that reverses its spin on a key press.\npub fn init(this) {\n    this.spin = 2.0;\n}\n\npub fn update(this, dt) {\n    if input::just_pressd(\"jump\") {\n        this.spin = -this.spin;\n    }\n    this.node.rotate_y(this.spin * dt);\n}\n";
-    save_active(S);
-    S.dock = "output";
 }
 
 // States written `<prefix><argument>`, which take the rest of the string.

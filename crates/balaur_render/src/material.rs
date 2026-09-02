@@ -166,6 +166,51 @@ pub(crate) fn register_material_asset(app: &mut App) {
     );
 }
 
+/// `render::check_material(path)` — what is wrong with a material asset, as
+/// `[#{ file, line, column, severity, message }]`, empty when it links.
+///
+/// Linking is CPU work with no GPU in it, so a check runs in a headless
+/// editor and in CI. The asset layer deliberately parses a material without
+/// linking it — a scene must load on a machine that cannot draw — which is
+/// why a broken shader needs asking about rather than waiting for.
+pub(crate) fn install_material_check(m: &mut dyn balaur_script::Bindings<balaur_core::Engine>) {
+    m.function(
+        "check_material",
+        |eng: &balaur_core::Engine, path: String| {
+            Ok(balaur_script::Value::List(
+                match check_material(eng, &path) {
+                    Ok(()) => Vec::new(),
+                    Err(why) => vec![finding(&path, &format!("{why:#}"))],
+                },
+            ))
+        },
+    );
+}
+
+/// Parse the material at `path`, read the shader it names, and link them.
+fn check_material(eng: &balaur_core::Engine, path: &str) -> Result<()> {
+    let files = eng.resource::<balaur_core::project::ProjectFiles>();
+    let text = String::from_utf8(files.borrow().read(path)?)?;
+    let material = parse(&toml::from_str::<toml::Value>(&text)?)?;
+    let source = String::from_utf8(files.borrow().read(&material.shader)?)?;
+    compile(&material, &source).map(|_| ())
+}
+
+/// One finding, in the shape `script::check` answers in, so the editor's
+/// Problems list takes both without knowing which produced which.
+fn finding(path: &str, message: &str) -> balaur_script::Value {
+    use balaur_script::Value;
+    Value::Map(vec![
+        ("file".to_string(), Value::Str(path.to_string())),
+        // WESL spans point into the linked output; until they are mapped
+        // back, the finding is about the file rather than a line in it.
+        ("line".to_string(), Value::Int(0)),
+        ("column".to_string(), Value::Int(0)),
+        ("severity".to_string(), Value::Str("error".to_string())),
+        ("message".to_string(), Value::Str(message.to_string())),
+    ])
+}
+
 /// A scalar or vector a `Params` field may have.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FieldType {
@@ -230,10 +275,14 @@ pub struct Field {
 /// Empty for a shader with no `Params` — most shaders — which is not an
 /// error: a material may exist only to pick a variant.
 pub fn fields(linked: &TranslationUnit) -> Result<Vec<Field>> {
-    let Some(declaration) = linked.global_declarations.iter().find_map(|d| match d.node() {
-        GlobalDeclaration::Struct(s) if s.ident.name().as_str() == PARAMS_STRUCT => Some(s),
-        _ => None,
-    }) else {
+    let Some(declaration) = linked
+        .global_declarations
+        .iter()
+        .find_map(|d| match d.node() {
+            GlobalDeclaration::Struct(s) if s.ident.name().as_str() == PARAMS_STRUCT => Some(s),
+            _ => None,
+        })
+    else {
         return Ok(Vec::new());
     };
     let mut fields = Vec::new();
@@ -248,11 +297,7 @@ pub fn fields(linked: &TranslationUnit) -> Result<Vec<Field>> {
         })?;
         let (align, size) = ty.align_size();
         offset = offset.next_multiple_of(align);
-        fields.push(Field {
-            name,
-            ty,
-            offset,
-        });
+        fields.push(Field { name, ty, offset });
         offset += size;
     }
     Ok(fields)
@@ -271,7 +316,10 @@ pub fn pack(fields: &[Field], params: &[(String, Param)]) -> Result<Vec<u8>> {
     let mut bytes = vec![0u8; end];
     for (name, param) in params {
         let Some(field) = fields.iter().find(|f| &f.name == name) else {
-            tracing::warn!(param = name.as_str(), "no such field in the shader's Params");
+            tracing::warn!(
+                param = name.as_str(),
+                "no such field in the shader's Params"
+            );
             continue;
         };
         let expected = match field.ty {
@@ -293,6 +341,43 @@ pub fn pack(fields: &[Field], params: &[(String, Param)]) -> Result<Vec<u8>> {
         }
     }
     Ok(bytes)
+}
+
+/// A material linked and packed: what a backend needs to draw with it.
+pub struct Compiled {
+    /// The linked WGSL, ready for `create_shader_module`.
+    pub wgsl: String,
+    /// The `Params` fields the shader declares, in buffer order.
+    pub fields: Vec<Field>,
+    /// The values, laid out for the uniform buffer; empty for a shader that
+    /// declares no `Params`.
+    pub params: Vec<u8>,
+}
+
+/// Link `material`'s shader and pack its values against what it declares.
+///
+/// `source` is the shader file's text. Reading it stays the caller's job:
+/// where a project's bytes come from — the pack, the directory, an unsaved
+/// editor buffer — is not this module's business.
+pub fn compile(material: &Material, source: &str) -> Result<Compiled> {
+    let features: Vec<(&str, bool)> = material
+        .features
+        .iter()
+        .map(|(name, on)| (name.as_str(), *on))
+        .collect();
+    let root = "package::material";
+    // WESL spans name the module they came from, and the module is a name
+    // this function invented; the author only ever saw the file, so that is
+    // what the error has to point at.
+    let linked = crate::shaders::link(&[(root, source)], root, &features)
+        .map_err(|why| anyhow!("{}", format!("{why:#}").replace(root, &material.shader)))?;
+    let fields = fields(&linked.syntax)?;
+    let params = pack(&fields, &material.params)?;
+    Ok(Compiled {
+        wgsl: linked.to_string(),
+        fields,
+        params,
+    })
 }
 
 #[cfg(test)]
@@ -371,8 +456,16 @@ struct Params { speed: f32, tint: vec4<f32> }
         assert_eq!(
             params_of(WITH_PARAMS),
             vec![
-                Field { name: "speed".into(), ty: FieldType::F32, offset: 0 },
-                Field { name: "tint".into(), ty: FieldType::Vec4, offset: 16 },
+                Field {
+                    name: "speed".into(),
+                    ty: FieldType::F32,
+                    offset: 0
+                },
+                Field {
+                    name: "tint".into(),
+                    ty: FieldType::Vec4,
+                    offset: 16
+                },
             ]
         );
     }
@@ -424,7 +517,115 @@ struct Params { a: vec3<f32>, b: f32, c: vec2<f32> }
         let fields = params_of(WITH_PARAMS);
         let err = pack(&fields, &[("tint".to_string(), Param::Float(1.0))]).unwrap_err();
         let text = format!("{err}");
-        assert!(text.contains("tint") && text.contains("vec4<f32>"), "{text}");
+        assert!(
+            text.contains("tint") && text.contains("vec4<f32>"),
+            "{text}"
+        );
+    }
+
+    const WITH_VARIANT: &str = r"
+struct Params { speed: f32, tint: vec4<f32> }
+@group(3) @binding(0) var<uniform> params: Params;
+@if(lit) fn boost() -> f32 { return 2.0; }
+@if(!lit) fn boost() -> f32 { return 1.0; }
+@fragment fn fs_main() -> @location(0) vec4<f32> {
+    return params.tint * params.speed * boost();
+}
+";
+
+    #[test]
+    fn compiling_links_the_shader_and_packs_the_values() {
+        let material = parse(&table(
+            "shader = \"s.wesl\"\nparams = { speed = 2.0, tint = [0.25, 0.5, 0.75, 1.0] }",
+        ))
+        .unwrap();
+        let compiled = compile(&material, WITH_PARAMS).unwrap();
+        assert!(compiled.wgsl.contains("fn fs_main"), "{}", compiled.wgsl);
+        assert_eq!(compiled.params.len(), 32);
+        let at = |o: usize| f32::from_le_bytes(compiled.params[o..o + 4].try_into().unwrap());
+        assert_eq!((at(0), at(16), at(28)), (2.0, 0.25, 1.0));
+    }
+
+    #[test]
+    fn a_feature_picks_which_variant_is_linked() {
+        let on = parse(&table("shader = \"s.wesl\"\nfeatures = { lit = true }")).unwrap();
+        let off = parse(&table("shader = \"s.wesl\"\nfeatures = { lit = false }")).unwrap();
+        assert!(compile(&on, WITH_VARIANT).unwrap().wgsl.contains("2.0"));
+        assert!(compile(&off, WITH_VARIANT).unwrap().wgsl.contains("1.0"));
+    }
+
+    #[test]
+    fn a_shader_that_does_not_link_names_the_file_the_material_pointed_at() {
+        let material = parse(&table("shader = \"shaders/broken.wesl\"")).unwrap();
+        let err = compile(&material, "fn broken( {").err().unwrap();
+        assert!(
+            format!("{err:#}").contains("shaders/broken.wesl"),
+            "{err:#}"
+        );
+    }
+
+    /// What a project writes: the contract module carries everything but the
+    /// two entry points and the material's own values.
+    const PROJECT_SHADER: &str = r"
+import package::sprite::{VertexInput, VertexOutput, vertex, sample_albedo, tint, time};
+
+struct Params { speed: f32, glow: vec4<f32> }
+@group(3) @binding(0) var<uniform> params: Params;
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput {
+    return vertex(in);
+}
+
+@fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let pulse = 0.5 + 0.5 * sin(time() * params.speed);
+    return sample_albedo(in.uv) * tint(in) + params.glow * pulse;
+}
+";
+
+    #[test]
+    fn a_link_error_points_at_the_file_and_line_the_author_wrote() {
+        let material = parse(&table("shader = \"shaders/water.wesl\"")).unwrap();
+        // The `;` is missing on line 5, so that is where WESL should point.
+        let broken = r"
+import package::sprite::{VertexInput, VertexOutput, vertex};
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput {
+    return vertex(in)
+}
+";
+        let err = format!("{:#}", compile(&material, broken).err().unwrap());
+        assert!(err.contains("shaders/water.wesl:6"), "{err}");
+        assert!(!err.contains("package::material"), "{err}");
+    }
+
+    #[test]
+    fn a_project_shader_links_against_the_sprite_contract() {
+        let material = parse(&table(
+            "shader = \"shaders/water.wesl\"\nparams = { speed = 3.0, glow = \"#204080\" }",
+        ))
+        .unwrap();
+        let compiled = compile(&material, PROJECT_SHADER).unwrap();
+        assert!(compiled.wgsl.contains("fn vs_main"), "{}", compiled.wgsl);
+        assert!(compiled.wgsl.contains("fn fs_main"), "{}", compiled.wgsl);
+        // The contract's helpers were pulled in, not left as imports.
+        assert!(!compiled.wgsl.contains("import "), "{}", compiled.wgsl);
+        assert!(compiled.wgsl.contains("textureSample"), "{}", compiled.wgsl);
+        assert_eq!(
+            compiled.fields,
+            vec![
+                Field {
+                    name: "speed".into(),
+                    ty: FieldType::F32,
+                    offset: 0
+                },
+                Field {
+                    name: "glow".into(),
+                    ty: FieldType::Vec4,
+                    offset: 16
+                },
+            ]
+        );
+        assert_eq!(compiled.params.len(), 32);
     }
 
     #[test]

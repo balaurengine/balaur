@@ -4,12 +4,14 @@
 > measurements below are from a debug build of the tree at that date.
 >
 > **What phase 0 showed.** A save that does not compile now prints Rune's
-> caret diagram to Output. Two cosmetic artifacts of routing it through
-> `script::attempt` came with it: the message is prefixed `Panicked: `
-> (rune's `VmError` display for an error raised in a native function),
-> and an absolute key renders the path with a doubled separator —
-> `Missing item {root}::::input::just_pressd`. Both go away in phase 1,
-> which reads the diagnostics structurally instead of stringifying them.
+> caret diagram to Output. Routing it through `script::attempt` costs three
+> cosmetic repairs the editor has to make on a string: the project root is
+> stripped from the rendered path (`scripts/ball.rn:7:8`, not an absolute
+> one), and `attempt`'s `Panicked: ` prefix — its display for any failure —
+> is dropped, because this call can only ever fail to compile. The third,
+> `Missing item {root}::::input::just_pressd`, is inside the message and
+> cannot be repaired from here. All three are arguments for phase 1, which
+> reads the diagnostics structurally instead of stringifying them.
 
 # Plan: in-editor linting
 

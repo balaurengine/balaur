@@ -721,6 +721,12 @@
         "description": "Size override in world units; [0, 0] sizes from the texture",
         "type": "vec2"
       },
+      "material": {
+        "asset": "material",
+        "default": "",
+        "description": "The material this draws with; empty draws with the built-in one",
+        "type": "asset"
+      },
       "pixels_per_unit": {
         "default": 100.0,
         "description": "Texture pixels per world unit",
@@ -844,6 +850,9 @@
   },
   "modules": [
     {
+      "components": [
+        "animation"
+      ],
       "constants": [],
       "functions": [
         "current",
@@ -861,9 +870,26 @@
         "tween",
         "tween_to"
       ],
-      "name": "animation"
+      "name": "animation",
+      "signatures": {
+        "current": "NodeId -> Option<String>",
+        "define": "(NodeId, String, Value) -> ()",
+        "is_playing": "NodeId -> bool",
+        "is_running": "Value -> bool",
+        "just_finished": "NodeId -> Option<String>",
+        "pause": "NodeId -> ()",
+        "play": "(NodeId, String, Option<Value>) -> ()",
+        "queue": "(NodeId, String) -> ()",
+        "resume": "NodeId -> ()",
+        "seek": "(NodeId, f32) -> ()",
+        "stop": "Value -> ()",
+        "time": "NodeId -> f32",
+        "tween": "(NodeId, Value) -> u64",
+        "tween_to": "(NodeId, String, Value, f32, Option<String>) -> u64"
+      }
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "directory",
@@ -873,9 +899,13 @@
         "reload",
         "save"
       ],
-      "name": "assets"
+      "name": "assets",
+      "signatures": {}
     },
     {
+      "components": [
+        "sound"
+      ],
       "constants": [],
       "functions": [
         "is_playing",
@@ -887,9 +917,20 @@
         "stop_all",
         "stop_on"
       ],
-      "name": "audio"
+      "name": "audio",
+      "signatures": {
+        "is_playing": "i64 -> bool",
+        "play": "(String, Option<Value>) -> u64",
+        "play_on": "NodeId -> u64",
+        "set_pitch": "(i64, f32) -> ()",
+        "set_volume": "(i64, f32) -> ()",
+        "stop": "i64 -> ()",
+        "stop_all": "() -> ()",
+        "stop_on": "NodeId -> ()"
+      }
     },
     {
+      "components": [],
       "constants": [
         {
           "name": "CONTINUE",
@@ -919,9 +960,11 @@
         "set_breakpoints",
         "set_scope"
       ],
-      "name": "debugger"
+      "name": "debugger",
+      "signatures": {}
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "args",
@@ -932,9 +975,11 @@
         "time",
         "user_data_dir"
       ],
-      "name": "engine"
+      "name": "engine",
+      "signatures": {}
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "exists",
@@ -946,9 +991,11 @@
         "rename",
         "write"
       ],
-      "name": "fs"
+      "name": "fs",
+      "signatures": {}
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "call_hook",
@@ -961,16 +1008,32 @@
         "push",
         "rest"
       ],
-      "name": "gamend"
+      "name": "gamend",
+      "signatures": {
+        "call_hook": "(i64, String, String, Option<Value>) -> Value",
+        "close": "i64 -> Value",
+        "configure": "String -> ()",
+        "connect": "(Value, Option<Value>) -> Value",
+        "join": "(i64, String, Option<Value>) -> Value",
+        "leave": "(i64, String) -> Value",
+        "login": "(Value, Option<Value>, Option<Value>) -> Value",
+        "push": "(i64, String, String, Option<Value>) -> Value",
+        "rest": "(Value, String, String, Option<Value>) -> Value"
+      }
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "request"
       ],
-      "name": "http"
+      "name": "http",
+      "signatures": {
+        "request": "(Value, Option<Value>, Option<Value>) -> Value"
+      }
     },
     {
+      "components": [],
       "constants": [
         {
           "name": "AXIS_DPAD_X",
@@ -1754,17 +1817,41 @@
         "touches_ended",
         "touches_started"
       ],
-      "name": "input"
+      "name": "input",
+      "signatures": {
+        "dropped_files": "() -> Value",
+        "gamepad_axis": "(i64, String) -> f32",
+        "gamepad_down": "(i64, String) -> bool",
+        "gamepad_just_pressed": "(i64, String) -> bool",
+        "gamepad_just_released": "(i64, String) -> bool",
+        "gamepad_name": "i64 -> String",
+        "gamepads": "() -> Value",
+        "is_down": "String -> bool",
+        "is_mouse_down": "usize -> bool",
+        "just_pressed": "String -> bool",
+        "just_released": "String -> bool",
+        "mouse_delta": "() -> (f32, f32)",
+        "mouse_just_pressed": "usize -> bool",
+        "mouse_just_released": "usize -> bool",
+        "mouse_position": "() -> (f32, f32)",
+        "scroll_delta": "() -> (f32, f32)",
+        "touches": "() -> Value",
+        "touches_ended": "() -> Value",
+        "touches_started": "() -> Value"
+      }
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "encode",
         "parse"
       ],
-      "name": "json"
+      "name": "json",
+      "signatures": {}
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "clear",
@@ -1773,9 +1860,11 @@
         "recent",
         "warn"
       ],
-      "name": "log"
+      "name": "log",
+      "signatures": {}
     },
     {
+      "components": [],
       "constants": [
         {
           "name": "INF",
@@ -1816,9 +1905,11 @@
         "tan",
         "tanh"
       ],
-      "name": "math"
+      "name": "math",
+      "signatures": {}
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "add_child",
@@ -1852,9 +1943,11 @@
         "set_scale",
         "translate"
       ],
-      "name": "node"
+      "name": "node",
+      "signatures": {}
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "clear",
@@ -1863,9 +1956,20 @@
         "set_sleeping_allowed",
         "sleeping_allowed"
       ],
-      "name": "physics"
+      "name": "physics",
+      "signatures": {
+        "clear": "() -> ()",
+        "is_paused": "() -> bool",
+        "set_paused": "bool -> ()",
+        "set_sleeping_allowed": "bool -> ()",
+        "sleeping_allowed": "() -> bool"
+      }
     },
     {
+      "components": [
+        "body2d",
+        "collider2d"
+      ],
       "constants": [
         {
           "name": "BODY_DYNAMIC",
@@ -1900,9 +2004,25 @@
         "set_gravity",
         "set_linear_velocity"
       ],
-      "name": "physics2d"
+      "name": "physics2d",
+      "signatures": {
+        "add_body": "(NodeId, String) -> ()",
+        "add_collider": "(NodeId, Value) -> ()",
+        "angular_velocity": "NodeId -> f32",
+        "apply_impulse": "(NodeId, f32, f32) -> ()",
+        "linear_velocity": "NodeId -> (f32, f32)",
+        "max_contact_impulse": "NodeId -> f32",
+        "overlaps": "NodeId -> Vec<NodeId>",
+        "set_angular_velocity": "(NodeId, f32) -> ()",
+        "set_gravity": "(f32, f32) -> ()",
+        "set_linear_velocity": "(NodeId, f32, f32) -> ()"
+      }
     },
     {
+      "components": [
+        "body3d",
+        "collider3d"
+      ],
       "constants": [
         {
           "name": "BODY_DYNAMIC",
@@ -1935,9 +2055,25 @@
         "set_gravity",
         "set_linear_velocity"
       ],
-      "name": "physics3d"
+      "name": "physics3d",
+      "signatures": {
+        "add_ball_collider": "(NodeId, f32) -> ()",
+        "add_body": "(NodeId, String) -> ()",
+        "add_cuboid_collider": "(NodeId, f32, f32, f32) -> ()",
+        "apply_impulse": "(NodeId, f32, f32, f32) -> ()",
+        "linear_velocity": "NodeId -> (f32, f32, f32)",
+        "overlaps": "NodeId -> Vec<NodeId>",
+        "set_gravity": "(f32, f32, f32) -> ()",
+        "set_linear_velocity": "(NodeId, f32, f32, f32) -> ()"
+      }
     },
     {
+      "components": [
+        "camera",
+        "shape2d",
+        "shape3d",
+        "sprite"
+      ],
       "constants": [],
       "functions": [
         "camera_2d",
@@ -1974,9 +2110,45 @@
         "sprite",
         "texture_size"
       ],
-      "name": "render"
+      "name": "render",
+      "signatures": {
+        "camera_2d": "() -> (f32, f32, f32)",
+        "camera_matrix": "() -> Vec<f32>",
+        "camera_pose": "() -> (f32, f32, f32, f32, f32, f32, f32, f32)",
+        "color": "NodeId -> (f32, f32, f32, f32)",
+        "draw_line": "(f32, f32, f32, f32, f32, f32, f32, f32, f32, Option<f32>, Option<bool>, Option<bool>) -> ()",
+        "draw_line_2d": "(f32, f32, f32, f32, f32, f32, f32, Option<f32>) -> ()",
+        "mouse_ray": "() -> (f32, f32, f32, f32, f32, f32)",
+        "mouse_world_2d": "() -> (f32, f32)",
+        "pick_ray": "(f64, f64, f64, f64, f64, f64) -> Option<NodeId>",
+        "screenshot": "String -> ()",
+        "set_app_icon": "String -> ()",
+        "set_background": "(f32, f32, f32) -> ()",
+        "set_ball": "(NodeId, f32) -> ()",
+        "set_camera": "(f32, f32, f32, f32, f32, f32) -> ()",
+        "set_camera_2d": "(f32, f32, f32) -> ()",
+        "set_camera_input": "bool -> ()",
+        "set_circle": "(NodeId, f32) -> ()",
+        "set_color": "(NodeId, f32, f32, f32, Option<f32>) -> ()",
+        "set_cuboid": "(NodeId, f32, f32, f32) -> ()",
+        "set_cursor_grab": "bool -> ()",
+        "set_cursor_hidden": "bool -> ()",
+        "set_fullscreen": "bool -> ()",
+        "set_grid": "(bool, Option<f32>, Option<u32>, Option<i32>) -> ()",
+        "set_grid_colors": "(f32, f32, f32, f32, f32, f32) -> ()",
+        "set_rect": "(NodeId, f32, f32) -> ()",
+        "set_sprite": "(NodeId, String) -> ()",
+        "set_sprite_frame": "(NodeId, u32) -> ()",
+        "set_sprite_sheet": "(NodeId, String, u32, u32) -> ()",
+        "set_sprite_size": "(NodeId, f32, f32) -> ()",
+        "shape2d": "NodeId -> (String, f32, f32)",
+        "shape3d": "NodeId -> (String, f32, f32, f32)",
+        "sprite": "NodeId -> (String, u32, u32, u32)",
+        "texture_size": "String -> (u32, u32)"
+      }
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "int",
@@ -1984,9 +2156,11 @@
         "range",
         "seed"
       ],
-      "name": "rng"
+      "name": "rng",
+      "signatures": {}
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "apply_preset",
@@ -2002,41 +2176,54 @@
         "spawn",
         "unmet_expectations"
       ],
-      "name": "scene"
+      "name": "scene",
+      "signatures": {}
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "attempt",
+        "check",
         "require"
       ],
-      "name": "script"
+      "name": "script",
+      "signatures": {}
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "apply_rest",
         "bones",
         "overwrite_rest"
       ],
-      "name": "skeleton"
+      "name": "skeleton",
+      "signatures": {}
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "wait"
       ],
-      "name": "task"
+      "name": "task",
+      "signatures": {}
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "encode",
         "parse"
       ],
-      "name": "toml"
+      "name": "toml",
+      "signatures": {}
     },
     {
+      "components": [
+        "widget"
+      ],
       "constants": [
         {
           "name": "ANCHOR_BOTTOM_LEFT",
@@ -2141,16 +2328,68 @@
         "wants_keyboard",
         "window"
       ],
-      "name": "ui"
+      "name": "ui",
+      "signatures": {
+        "add_space": "f32 -> ()",
+        "available_height": "() -> f32",
+        "available_width": "() -> f32",
+        "bottom_panel": "(String, Option<Value>, CallbackId) -> ()",
+        "central_panel": "(Option<Value>, CallbackId) -> ()",
+        "central_rect": "() -> (f32, f32, f32, f32)",
+        "circle_button": "(String, Option<Value>) -> bool",
+        "clipboard": "() -> String",
+        "code_editor": "(String, String, Option<Value>) -> (String, bool, Option<i64>)",
+        "code_line": "(String, Value, Option<Value>) -> ()",
+        "color": "Option<Value> -> (Vec<f64>, bool)",
+        "dot": "(String, f32) -> ()",
+        "drag_value": "(f64, Option<Value>) -> (f64, bool)",
+        "dropdown": "(String, String, Value, Option<Value>) -> (String, bool)",
+        "frame": "(Option<Value>, CallbackId) -> ()",
+        "horizontal": "(Option<Value>, CallbackId) -> ()",
+        "image": "(String, Option<Value>) -> ()",
+        "label": "(String, Option<Value>) -> ()",
+        "left_panel": "(String, Option<Value>, CallbackId) -> ()",
+        "menu_item": "(String, Option<Value>) -> bool",
+        "modal": "(String, Option<Value>, CallbackId) -> bool",
+        "overlay": "(String, Option<Value>, CallbackId) -> ()",
+        "pill": "(String, Option<Value>) -> bool",
+        "rect_stroke": "(f32, f32, f32, f32, Option<Value>) -> ()",
+        "right": "CallbackId -> ()",
+        "right_panel": "(String, Option<Value>, CallbackId) -> ()",
+        "scale": "() -> f32",
+        "screen_size": "() -> (f32, f32)",
+        "scroll": "(String, Option<Value>, CallbackId) -> ()",
+        "separator": "Option<String> -> ()",
+        "set_clipboard": "String -> ()",
+        "set_scale": "f32 -> ()",
+        "set_text": "(String, String) -> ()",
+        "set_theme": "Value -> ()",
+        "set_widget_layer": "(bool, Option<f32>, Option<f32>, Option<f32>, Option<f32>) -> ()",
+        "shortcut": "(String, String) -> bool",
+        "slider": "(f32, f32, f32, Option<Value>) -> (f32, bool)",
+        "spacing": "(f32, f32) -> ()",
+        "text_field": "(String, Option<String>, Option<Value>) -> (String, bool, bool)",
+        "toggle": "(bool, Option<Value>) -> (bool, bool)",
+        "top_panel": "(String, Option<Value>, CallbackId) -> ()",
+        "vertical": "CallbackId -> ()",
+        "wants_keyboard": "() -> bool",
+        "window": "(String, Option<Value>, CallbackId) -> bool"
+      }
     },
     {
+      "components": [],
       "constants": [],
       "functions": [
         "close",
         "connect",
         "send"
       ],
-      "name": "websocket"
+      "name": "websocket",
+      "signatures": {
+        "close": "i64 -> Value",
+        "connect": "(Value, String, Option<Value>) -> Value",
+        "send": "(i64, String) -> Value"
+      }
     }
   ]
 }

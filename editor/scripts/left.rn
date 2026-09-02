@@ -64,7 +64,15 @@ fn tree_row(S, k, row) {
             fill: if selected { k.accent_fill } else { "#00000000" },
             hover_fill: k.raised,
             color: if selected { k.on_accent } else { k.text },
-            trailing: if node.contains_key("script") { "‹›" } else { () },
+            // An instance's own children come from another file and are not
+            // in this document, so the row says so rather than looking empty.
+            trailing: if node.contains_key("instance") {
+                "⧉"
+            } else if node.contains_key("script") {
+                "‹›"
+            } else {
+                ()
+            },
             trailing_color: if selected { k.on_accent } else { k.sage },
             menu: || {
                 if ui::menu_item("＋  Add child", #{ color: k.text }) {

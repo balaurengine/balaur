@@ -18,7 +18,7 @@ pub mod mesh;
 mod particles;
 mod pick;
 mod polygon;
-mod shaders;
+pub mod shaders;
 mod shape;
 mod sprite;
 mod tilemap;
@@ -29,6 +29,8 @@ pub use tilemap::{Tilemap, Tileset, TILESET_ASSET_TYPE};
 
 #[cfg(feature = "kiss3d")]
 pub mod kiss3d_backend;
+#[cfg(feature = "kiss3d")]
+mod shader_material;
 #[cfg(feature = "kiss3d")]
 mod skinned_2d;
 
@@ -379,6 +381,8 @@ pub struct Renderable2d {
     pub polyline: Option<String>,
     /// What a polygon draws, present exactly when `shape` is one.
     pub polygon: Option<std::sync::Arc<PolygonMesh>>,
+    /// The `material` asset this draws with; empty means the built-in one.
+    pub material: String,
     pub version: u64,
 }
 
@@ -408,6 +412,7 @@ pub(crate) fn set_polygon(
                 sprite: None,
                 polyline: None,
                 polygon: Some(polygon),
+                material: String::new(),
                 version: 0,
             },
         )
@@ -532,6 +537,7 @@ pub(crate) fn set_polyline(
                 sprite: None,
                 polyline: Some(source),
                 polygon: None,
+                material: String::new(),
                 version: 0,
             },
         )
@@ -554,6 +560,7 @@ pub(crate) fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Resul
                 sprite: None,
                 polyline: None,
                 polygon: None,
+                material: String::new(),
                 version: 0,
             },
         )
@@ -635,6 +642,7 @@ fn set_sprite(
                 sprite: Some(texture),
                 polyline: None,
                 polygon: None,
+                material: String::new(),
                 version: 0,
             },
         )
@@ -669,6 +677,24 @@ pub(crate) fn color_to_toml(color: [f32; 4]) -> toml::Value {
 }
 
 /// Tint whichever renderable(s) the node carries (3D, 2D and/or particles).
+/// Point `entity` at the `material` asset it draws with; empty is the
+/// built-in material.
+///
+/// A change bumps `version`, which rebuilds the backend's node: a material
+/// owns its pipeline, so it cannot be swapped onto a node already built
+/// against a different one.
+pub(crate) fn set_material_2d(eng: &Engine, entity: Entity, reference: &str) -> Result<()> {
+    let world = eng.world_mut();
+    let mut renderable = world
+        .get::<&mut Renderable2d>(entity)
+        .map_err(|_| anyhow!("node has no 2D shape yet"))?;
+    if renderable.material != reference {
+        renderable.material = reference.to_string();
+        renderable.version += 1;
+    }
+    Ok(())
+}
+
 pub(crate) fn set_color(eng: &Engine, entity: Entity, color: [f32; 4]) -> Result<()> {
     let world = eng.world_mut();
     let mut any = false;
@@ -718,6 +744,7 @@ impl Plugin for RenderPlugin {
         install_camera_2d_api(&mut *m);
         install_window_api(&mut *m);
         install_backdrop_api(&mut *m);
+        material::install_material_check(&mut *m);
         shape::install_shape_api(&mut *m);
         install_sprite_api(&mut *m);
         install_sprite_state_api(&mut *m);

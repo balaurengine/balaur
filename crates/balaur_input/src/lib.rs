@@ -15,8 +15,10 @@ use balaur_core::Engine;
 use balaur_core::{App, Plugin, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
 
+pub mod actions;
 pub mod gamepad;
 
+pub use actions::InputActions;
 pub use gamepad::{GamepadState, PAD_AXIS_NAMES, PAD_BUTTON_NAMES};
 
 const MOUSE_BUTTONS: usize = 8;
@@ -219,6 +221,7 @@ impl Plugin for InputPlugin {
     fn build(&mut self, app: &mut App) -> Result<()> {
         app.engine.insert_resource(InputSnapshot::default());
         app.engine.insert_resource(GamepadState::default());
+        app.engine.insert_resource(InputActions::default());
         app.add_replay_source(
             "gamepad",
             |eng| gamepad::capture(&eng.resource::<GamepadState>().borrow()),
@@ -237,6 +240,9 @@ impl Plugin for InputPlugin {
             }
             eng.resource::<GamepadState>().borrow_mut().poll();
         });
+        // After the poll and after a replay restored the recording's snapshot,
+        // so an action is derived from exactly the input that was recorded.
+        app.add_system(Stage::First, |eng, _| actions::tick(eng));
 
         let mut m = app.script_module("input")?;
         install_input_api(&mut m);
@@ -532,6 +538,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
     });
     install_touch_api(m);
     install_gamepad_api(m);
+    actions::install(m);
 }
 
 /// `input.touches*` and `input.dropped_files` — the per-frame lists the

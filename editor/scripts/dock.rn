@@ -2,6 +2,7 @@
 // Timeline / Debugger.
 
 use crate::anim;
+use crate::lint;
 use crate::model;
 use crate::shell;
 use crate::style;
@@ -11,7 +12,7 @@ fn tab_row(S, k) {
     ui::horizontal(#{ height: 34 }, || {
         ui::spacing(6, 0);
         ui::add_space(6);
-        let tabs = ["output", "assets", "timeline", "debugger"];
+        let tabs = ["output", "problems", "assets", "timeline", "debugger"];
         for entry in S.registry.docks {
             tabs.push(entry.id);
         }
@@ -21,6 +22,14 @@ fn tab_row(S, k) {
                 Some(entry) => entry.name,
                 None => tab[..1].to_uppercase() + tab[1..],
             };
+            // The count belongs on the tab: a problem nobody opened the dock
+            // for is exactly the one worth seeing.
+            if tab == "problems" {
+                let (errors, warnings) = lint::counts(S);
+                if errors + warnings > 0 {
+                    label += format!(" {}", errors + warnings);
+                }
+            }
             if ui::pill(label, #{
                 height: 24, size: 11.5, strong: true,
                 fill: if active { k.accent_fill } else { k.sunken },
@@ -515,7 +524,15 @@ fn debugger_view(S, k) {
     let p = S.debug.paused;
     if !(p is Object) {
         ui::horizontal(#{ height: 30 }, || {
-            ui::add_space(12);
+            ui::add_space(8);
+            // Nothing stops on the click: the next line a script runs is where.
+            if S.playing && ui::pill("⏸ Pause", #{
+                height: 24, size: 11.5, strong: true, tooltip: "F6",
+                fill: k.accent_soft, color: k.accent,
+            }) {
+                debugger::request_break();
+            }
+            ui::add_space(4);
             let hint = if S.playing {
                 "running · click a line number in the script to set a breakpoint"
             } else {
@@ -594,12 +611,74 @@ fn debugger_view(S, k) {
     });
 }
 
+// Problems: every finding the last sweep produced, worst first, each row a
+// file and a line the click opens at.
+fn problems(S, k) {
+    let rows = [];
+    for f in S.lint.found {
+        if f.severity == "error" {
+            rows.push(f);
+        }
+    }
+    for f in S.lint.found {
+        if f.severity != "error" {
+            rows.push(f);
+        }
+    }
+    ui::scroll("problems", (), || {
+        ui::spacing(4, 2);
+        if rows.len() == 0 {
+            ui::horizontal((), || {
+                ui::add_space(6);
+                let why = if S.lint.at < 0.0 { "not checked yet" } else { "no problems" };
+                ui::label(why, style::mono(k.faint));
+            });
+            return;
+        }
+        for f in rows {
+            let bad = f.severity == "error";
+            ui::horizontal(#{ height: 22 }, || {
+                ui::add_space(6);
+                ui::label(if bad { "✕" } else { "!" },
+                    util::merge(style::mono(if bad { k.accent } else { k.sage }), #{ strong: true }));
+                ui::add_space(6);
+                let at = if f.line > 0 { format!("{}:{}", f.file, f.line) } else { f.file };
+                if ui::pill(at, #{
+                    height: 20, size: 11, font: "mono",
+                    fill: k.sunken, color: k.dim,
+                    tooltip: "Open the file at this line",
+                }) {
+                    open_at(S, f);
+                }
+                ui::add_space(6);
+                ui::label(f.message,
+                    util::merge(style::mono(if bad { k.text } else { k.dim }), #{ strong: bad }));
+            });
+        }
+    });
+}
+
+// Select the node whose script this is and show it, so a click lands on the
+// code rather than on a file name.
+fn open_at(S, f) {
+    for (i, node) in S.doc.iter().enumerate() {
+        if model::script_rel(node) == Some(f.file) {
+            shell::choose(S, i);
+            shell::set_persona(S, "script");
+            return;
+        }
+    }
+    S.doctab = "scene";
+}
+
 pub fn draw(S) {
     let k = S.theme;
     let height = if S.dock == "timeline" || S.dock == "debugger" { 212 } else { 150 };
     ui::bottom_panel("dock", #{ height: height, fill: k.panel }, || {
         tab_row(S, k);
-        if S.dock == "assets" {
+        if S.dock == "problems" {
+            problems(S, k);
+        } else if S.dock == "assets" {
             assets(S, k);
         } else if S.dock == "timeline" {
             timeline(S, k);

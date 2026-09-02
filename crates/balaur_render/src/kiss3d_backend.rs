@@ -61,6 +61,7 @@ struct Frontend {
     slots_2d: HashMap<Entity, Slot2d>,
     tilemap_slots: HashMap<Entity, crate::tilemap::TilemapSlot>,
     emitter_slots: HashMap<Entity, crate::particles::EmitterSlot>,
+    materials: crate::shader_material::MaterialCache,
     order_2d: Vec<Entity>,
     frame: u64,
     /// Whether the on-screen keyboard was summoned last frame, so it is
@@ -83,6 +84,7 @@ impl Frontend {
             slots_2d: HashMap::new(),
             tilemap_slots: HashMap::new(),
             emitter_slots: HashMap::new(),
+            materials: crate::shader_material::MaterialCache::default(),
             order_2d: Vec::new(),
             frame: 0,
             keyboard_shown: false,
@@ -107,6 +109,7 @@ impl Frontend {
             &mut self.scene_2d,
             &mut self.slots_2d,
             &mut self.order_2d,
+            &mut self.materials,
         );
         crate::tilemap::sync_tilemaps(app, &mut self.scene_2d, &mut self.tilemap_slots);
         // The step the frame actually ran, which under --fixed-tick is not
@@ -935,6 +938,7 @@ fn sync_2d(
     scene: &mut SceneNode2d,
     slots: &mut HashMap<Entity, Slot2d>,
     order_cache: &mut Vec<Entity>,
+    materials: &mut crate::shader_material::MaterialCache,
 ) {
     let world = app.engine.world();
     let root = app.engine.root();
@@ -956,6 +960,10 @@ fn sync_2d(
         order_cache.clone_from(&order);
     }
 
+    // A saved shader or material relinks, and the nodes holding the old
+    // pipeline have to be built again against the new one.
+    let relinked = materials.refresh(app);
+
     let mut seen: HashSet<Entity> = HashSet::new();
     for &entity in &order {
         let Ok(renderable) = world.get::<&Renderable2d>(entity) else {
@@ -966,7 +974,9 @@ fn sync_2d(
         };
         seen.insert(entity);
         let rebuild = match slots.get(&entity) {
-            Some(slot) => slot.version != renderable.version,
+            Some(slot) => {
+                slot.version != renderable.version || (relinked && !renderable.material.is_empty())
+            }
             None => true,
         };
         if rebuild {
@@ -983,6 +993,13 @@ fn sync_2d(
             };
             if let Some(sprite) = &renderable.sprite {
                 attach_texture(app, &mut node, &sprite.path);
+            }
+            // After the texture: a material reads it, and kiss3d's own
+            // material stays on a node whose shader would not link.
+            if !renderable.material.is_empty() {
+                if let Some(material) = materials.get(app, &renderable.material) {
+                    node.set_material(material);
+                }
             }
             slots.insert(
                 entity,

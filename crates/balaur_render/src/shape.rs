@@ -244,7 +244,8 @@ mesh = { type = "asset", asset = "mesh", default = "", description = "Points of 
 width = { type = "float", default = 0.02, min = 0.001, description = "Line thickness in world units, when kind is polyline" }
 closed = { type = "bool", default = false, description = "Join the last point back to the first, making a polygon outline" }
 half_extents = { type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }
-color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
+color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }
+material = { type = "asset", asset = "material", default = "", description = "The material this draws with; empty draws with the built-in one" }"#,
             ),
             tags: &["2d", "render"],
             expects: &[],
@@ -254,7 +255,15 @@ color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, a
                     Some(source) => set_polyline(eng, entity, source, shape)?,
                     None => set_shape2d(eng, entity, shape)?,
                 }
-                set_color(eng, entity, color_from_params(params))
+                set_color(eng, entity, color_from_params(params))?;
+                crate::set_material_2d(
+                    eng,
+                    entity,
+                    params
+                        .get("material")
+                        .and_then(toml::Value::as_str)
+                        .unwrap_or_default(),
+                )
             }),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
@@ -298,6 +307,10 @@ color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, a
                     }
                 }
                 map.insert("color".into(), color_to_toml(renderable.color));
+                map.insert(
+                    "material".into(),
+                    toml::Value::String(renderable.material.clone()),
+                );
                 Some(toml::Value::Table(map))
             }),
         },

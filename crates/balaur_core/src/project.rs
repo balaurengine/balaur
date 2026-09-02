@@ -142,6 +142,21 @@ pub type SceneKeyHandler = crate::components::ApplyFn;
 #[derive(Default)]
 pub struct SceneKeyRegistry(pub Vec<(String, SceneKeyHandler)>);
 
+/// The manifest's own text, kept because `ProjectManifest` is typed and a
+/// plugin's table is not one of its fields.
+///
+/// `ProjectFiles::read("project.toml")` is not the answer: a pack carries the
+/// manifest beside the assets rather than among them, so a shipped game would
+/// find nothing there and silently take every default.
+pub struct ManifestSource(pub String);
+
+/// The manifest text, or `None` before the project has loaded.
+#[must_use]
+pub fn manifest_source(eng: &Engine) -> Option<String> {
+    eng.try_resource::<ManifestSource>()
+        .map(|m| m.borrow().0.clone())
+}
+
 /// The project directory, as an engine resource (used by `fs`, audio, and
 /// any plugin resolving project-relative paths).
 pub struct ProjectRoot(pub std::path::PathBuf);
@@ -346,8 +361,7 @@ pub fn scene_text(eng: &Engine, path: &str) -> Result<String> {
         .try_resource::<ProjectRoot>()
         .map(|r| r.borrow().0.clone())
         .unwrap_or_default();
-    std::fs::read_to_string(root.join(path))
-        .with_context(|| format!("reading scene file '{path}'"))
+    std::fs::read_to_string(root.join(path)).with_context(|| format!("reading scene file '{path}'"))
 }
 
 fn attach_pending(eng: &Engine, build: &Build) -> Result<()> {
@@ -363,12 +377,7 @@ fn attach_pending(eng: &Engine, build: &Build) -> Result<()> {
     Ok(())
 }
 
-fn instantiate_nodes(
-    eng: &Engine,
-    doc: &SceneDoc,
-    base: Entity,
-    build: &mut Build,
-) -> Result<()> {
+fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Build) -> Result<()> {
     let registry = eng
         .try_resource::<SceneKeyRegistry>()
         .ok_or_else(|| anyhow!("scene key registry resource missing"))?;
@@ -494,17 +503,12 @@ fn apply_overrides(
         for (key, handler) in handlers {
             if let Some(value) = table.get(key) {
                 if let Err(err) = handler(eng, target, value) {
-                    tracing::error!(
-                        "override '{path}.{key}' on node '{}': {err:#}",
-                        node.name
-                    );
+                    tracing::error!("override '{path}.{key}' on node '{}': {err:#}", node.name);
                 }
             }
         }
         for key in table.keys() {
-            if !TRANSFORM_KEYS.contains(&key.as_str())
-                && !handlers.iter().any(|(k, _)| k == key)
-            {
+            if !TRANSFORM_KEYS.contains(&key.as_str()) && !handlers.iter().any(|(k, _)| k == key) {
                 tracing::warn!(
                     "override '{path}.{key}' on node '{}' has no registered handler",
                     node.name
@@ -540,7 +544,9 @@ fn triple(value: Option<&toml::Value>) -> Option<[f32; 3]> {
     }
     let mut out = [0.0; 3];
     for (slot, item) in out.iter_mut().zip(items) {
-        *slot = item.as_float().or_else(|| item.as_integer().map(|i| i as f64))? as f32;
+        *slot = item
+            .as_float()
+            .or_else(|| item.as_integer().map(|i| i as f64))? as f32;
     }
     Some(out)
 }

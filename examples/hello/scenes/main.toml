@@ -69,6 +69,25 @@ half_extents = [1, 0.25, 1]
 kind = "cuboid"
 color = [0.55, 0.35, 0.8, 1]
 
+# Two instances of one prefab. The second overrides a node inside it, which
+# is the only thing that makes them differ.
+[[nodes]]
+id = "n_crate_a"
+name = "CrateA"
+parent = "n_world"
+instance = "scenes/crate.toml"
+position = [-1.5, 3, 1.5]
+
+[[nodes]]
+id = "n_crate_b"
+name = "CrateB"
+parent = "n_world"
+instance = "scenes/crate.toml"
+position = [-0.5, 5, 1.5]
+
+[nodes.overrides."Crate/Lid"]
+color = [0.9, 0.3, 0.25]
+
 [[nodes]]
 id = "n_hud"
 name = "Hud"

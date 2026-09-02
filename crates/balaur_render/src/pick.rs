@@ -173,7 +173,13 @@ mod tests {
     fn a_ray_down_the_z_axis_hits_the_near_face_of_a_cube() {
         let place = at(Vec3::new(0.0, 0.0, -10.0));
         let half = Vec3::splat(1.0);
-        let hit = hit_box(&place, Vec3::ZERO, half, Vec3::ZERO, Vec3::new(0.0, 0.0, -1.0));
+        let hit = hit_box(
+            &place,
+            Vec3::ZERO,
+            half,
+            Vec3::ZERO,
+            Vec3::new(0.0, 0.0, -1.0),
+        );
         assert_eq!(
             hit,
             Some(9.0),
@@ -186,7 +192,13 @@ mod tests {
         let place = at(Vec3::new(0.0, 0.0, -10.0));
         let half = Vec3::splat(1.0);
         assert_eq!(
-            hit_box(&place, Vec3::ZERO, half, Vec3::ZERO, Vec3::new(0.0, 0.0, 1.0)),
+            hit_box(
+                &place,
+                Vec3::ZERO,
+                half,
+                Vec3::ZERO,
+                Vec3::new(0.0, 0.0, 1.0)
+            ),
             None
         );
     }
@@ -227,7 +239,14 @@ mod tests {
         let beside = Vec3::new(0.0, 0.0, -3.0);
         let across = Vec3::new(1.0, 0.0, 0.0);
         // Long on x, so a ray along x down its length meets its end.
-        assert!(hit_box(&place, Vec3::ZERO, half, Vec3::new(-20.0, 0.0, -10.0), across).is_some());
+        assert!(hit_box(
+            &place,
+            Vec3::ZERO,
+            half,
+            Vec3::new(-20.0, 0.0, -10.0),
+            across
+        )
+        .is_some());
         // Turned, the same node no longer reaches a ray 3 units off its side.
         place.rotation = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
         assert!(hit_box(&place, Vec3::ZERO, half, beside, Vec3::new(0.0, 1.0, 0.0)).is_none());
@@ -251,7 +270,10 @@ mod tests {
         let place = at(Vec3::ZERO);
         let inside = Vec3::new(0.1, 0.0, 0.0);
         let down = Vec3::new(0.0, 0.0, -1.0);
-        assert_eq!(hit_box(&place, Vec3::ZERO, Vec3::splat(1.0), inside, down), Some(0.0));
+        assert_eq!(
+            hit_box(&place, Vec3::ZERO, Vec3::splat(1.0), inside, down),
+            Some(0.0)
+        );
         assert_eq!(hit_sphere(&place, 1.0, inside, down), Some(0.0));
     }
 

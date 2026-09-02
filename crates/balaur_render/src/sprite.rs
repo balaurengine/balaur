@@ -21,7 +21,8 @@ flip_x = { type = "bool", default = false, description = "Mirror horizontally" }
 flip_y = { type = "bool", default = false, description = "Mirror vertically" }
 pixels_per_unit = { type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit" }
 half_extents = { type = "vec2", default = [0.0, 0.0], description = "Size override in world units; [0, 0] sizes from the texture" }
-color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
+color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }
+material = { type = "asset", asset = "material", default = "", description = "The material this draws with; empty draws with the built-in one" }"#,
             ),
             tags: &["2d", "render"],
             expects: &[],
@@ -69,44 +70,62 @@ color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, a
                         crate::DEFAULT_PIXELS_PER_UNIT
                     },
                 )?;
-                crate::set_color(eng, entity, crate::color_from_params(params))
+                crate::set_color(eng, entity, crate::color_from_params(params))?;
+                crate::set_material_2d(
+                    eng,
+                    entity,
+                    params
+                        .get("material")
+                        .and_then(toml::Value::as_str)
+                        .unwrap_or_default(),
+                )
             }),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
                 let _ = world.remove_one::<Renderable2d>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let renderable = world.get::<&Renderable2d>(entity).ok()?;
-                let sprite = renderable.sprite.as_ref()?;
-                let Shape2d::Sprite { hx, hy } = renderable.shape else {
-                    return None;
-                };
-                let mut map = toml::map::Map::new();
-                map.insert("texture".into(), toml::Value::String(sprite.path.clone()));
-                if let Some(sheet) = sprite.sheet {
-                    map.insert(
-                        "columns".into(),
-                        toml::Value::Float(f64::from(sheet.columns)),
-                    );
-                    map.insert("rows".into(), toml::Value::Float(f64::from(sheet.rows)));
-                }
-                map.insert("frame".into(), toml::Value::Float(f64::from(sprite.frame)));
-                map.insert("flip_x".into(), toml::Value::Boolean(sprite.flip_x));
-                map.insert("flip_y".into(), toml::Value::Boolean(sprite.flip_y));
-                // Written out resolved: a saved scene reloads to the same size
-                // even if the image on disk is replaced with a different one.
-                map.insert(
-                    "half_extents".into(),
-                    toml::Value::Array(vec![
-                        toml::Value::Float(f64::from(hx)),
-                        toml::Value::Float(f64::from(hy)),
-                    ]),
-                );
-                map.insert("color".into(), crate::color_to_toml(renderable.color));
-                Some(toml::Value::Table(map))
-            }),
+            get: Box::new(read_sprite),
         },
     );
+}
+
+/// The `sprite` component's properties, read back off the node.
+fn read_sprite(
+    eng: &balaur_core::Engine,
+    entity: balaur_core::hecs::Entity,
+) -> Option<toml::Value> {
+    let world = eng.world();
+    let renderable = world.get::<&Renderable2d>(entity).ok()?;
+    let sprite = renderable.sprite.as_ref()?;
+    let Shape2d::Sprite { hx, hy } = renderable.shape else {
+        return None;
+    };
+    let mut map = toml::map::Map::new();
+    map.insert("texture".into(), toml::Value::String(sprite.path.clone()));
+    if let Some(sheet) = sprite.sheet {
+        map.insert(
+            "columns".into(),
+            toml::Value::Float(f64::from(sheet.columns)),
+        );
+        map.insert("rows".into(), toml::Value::Float(f64::from(sheet.rows)));
+    }
+    map.insert("frame".into(), toml::Value::Float(f64::from(sprite.frame)));
+    map.insert("flip_x".into(), toml::Value::Boolean(sprite.flip_x));
+    map.insert("flip_y".into(), toml::Value::Boolean(sprite.flip_y));
+    // Written out resolved: a saved scene reloads to the same size even if
+    // the image on disk is replaced with a different one.
+    map.insert(
+        "half_extents".into(),
+        toml::Value::Array(vec![
+            toml::Value::Float(f64::from(hx)),
+            toml::Value::Float(f64::from(hy)),
+        ]),
+    );
+    map.insert("color".into(), crate::color_to_toml(renderable.color));
+    map.insert(
+        "material".into(),
+        toml::Value::String(renderable.material.clone()),
+    );
+    Some(toml::Value::Table(map))
 }

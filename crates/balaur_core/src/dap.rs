@@ -138,11 +138,13 @@ fn accept_loop(
             let Ok(reader) = stream.try_clone() else {
                 continue;
             };
-            *out.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(stream);
+            *out.lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(stream);
             connected.store(true, Ordering::Relaxed);
             read_messages(reader, &requests);
             connected.store(false, Ordering::Relaxed);
-            *out.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+            *out.lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
         }
     });
 }
@@ -338,7 +340,9 @@ impl Session {
             "pause" => self.request_break(eng),
             "continue" | "next" | "stepIn" | "stepOut" => self.resume(eng, &command),
             "disconnect" | "terminate" => self.disconnect(eng, &command),
-            other => Err(format!("the balaur debug adapter does not support `{other}`")),
+            other => Err(format!(
+                "the balaur debug adapter does not support `{other}`"
+            )),
         };
         self.respond(request, answer);
         // The client may only configure once it has been told the adapter is
@@ -368,12 +372,18 @@ impl Session {
                     .collect()
             })
             .unwrap_or_default();
-        let landed = host.set_breakpoints(&key, &wanted).map_err(|e| e.to_string())?;
+        let landed = host
+            .set_breakpoints(&key, &wanted)
+            .map_err(|e| e.to_string())?;
         self.remember_lines(&key, &landed);
         Ok(json!({ "breakpoints": self.breakpoint_list(&key, &landed) }))
     }
 
-    fn set_exception_breakpoints(&mut self, eng: &Engine, arguments: &Json) -> Result<Json, String> {
+    fn set_exception_breakpoints(
+        &mut self,
+        eng: &Engine,
+        arguments: &Json,
+    ) -> Result<Json, String> {
         let on = arguments["filters"]
             .as_array()
             .is_some_and(|f| f.iter().any(|filter| filter == "error"));
@@ -577,7 +587,10 @@ impl Session {
             }
             self.remember_lines(&path, &landed);
             for breakpoint in self.breakpoint_list(&path, &landed) {
-                self.event("breakpoint", json!({ "reason": "changed", "breakpoint": breakpoint }));
+                self.event(
+                    "breakpoint",
+                    json!({ "reason": "changed", "breakpoint": breakpoint }),
+                );
             }
         }
     }

@@ -95,11 +95,15 @@ impl Client {
 
     /// Let both sides move: one frame for the adapter, one read for us.
     fn drive(&mut self, app: &mut App) {
+        let t0 = std::time::Instant::now();
         app.tick(FIXED_DT);
+        let ticked = t0.elapsed();
+        let t1 = std::time::Instant::now();
         let mut chunk = [0u8; 4096];
         if let Ok(read) = self.stream.read(&mut chunk) {
             self.buffer.extend_from_slice(&chunk[..read]);
         }
+        eprintln!("drive: tick {:?} read {:?}", ticked, t1.elapsed());
     }
 
     /// Take one whole message out of the buffer, if one has arrived.
@@ -172,7 +176,10 @@ impl Client {
 /// Attach, and stop asking questions until the adapter says it is ready.
 fn handshake(app: &mut App, client: &mut Client) {
     let capabilities = client.ask(app, "initialize", json!({ "adapterID": "balaur" }));
-    assert_eq!(capabilities["supportsConfigurationDoneRequest"], json!(true));
+    assert_eq!(
+        capabilities["supportsConfigurationDoneRequest"],
+        json!(true)
+    );
     client.event(app, "initialized");
     client.ask(app, "attach", json!({}));
     client.ask(app, "configurationDone", json!({}));
@@ -267,7 +274,11 @@ fn a_client_sets_a_breakpoint_then_reads_and_walks_the_stopped_game() {
     let scopes = client.ask(&mut app, "scopes", json!({ "frameId": frame_id }));
     assert_eq!(scopes["scopes"][0]["name"], json!("Locals"));
     let locals = scopes["scopes"][0]["variablesReference"].clone();
-    let variables = client.ask(&mut app, "variables", json!({ "variablesReference": locals }));
+    let variables = client.ask(
+        &mut app,
+        "variables",
+        json!({ "variablesReference": locals }),
+    );
     assert_eq!(variable(&variables, "dt")["type"], json!("number"));
 
     // Each update raises `n` on line 5 and `ran` on line 6, so the two agree

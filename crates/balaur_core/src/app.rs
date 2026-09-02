@@ -483,6 +483,8 @@ impl App {
         if let Some(manifest) = &self.manifest {
             self.engine.insert_resource(manifest.clone());
         }
+        self.engine
+            .insert_resource(project::ManifestSource(manifest_src.clone()));
         self.load_project_presets()?;
         let root = self.engine.root();
         project::instantiate_scene(&self.engine, &scene_src, root, true)?;

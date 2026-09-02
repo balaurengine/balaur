@@ -12,6 +12,7 @@ mod highlight;
 mod history;
 mod inspector;
 mod left;
+mod lint;
 mod model;
 mod overlays;
 mod palette;
@@ -67,6 +68,7 @@ pub fn init(this) {
         polygon: polygon::state(),
         anim: anim::state(),
         debug: shell::debug_state(),
+        lint: lint::state(),
         assets: dock::assets_state(),
         // Where an editor plugin keeps its own state, by id.
         plugins: #{},
@@ -129,6 +131,9 @@ pub fn update(this, dt) {
     if S.refs.len() != S.doc.len() || model::live(S, S.sel).is_none() {
         resolve_refs(S);
     }
+    // A sweep is a compile per script, so it waits for typing to stop; the
+    // mirror has to be resolved first, since the scene half reads live nodes.
+    lint::idle(S);
     // 2D/3D viewport mode follows the edited scene's components.
     let is2d = model::is_2d(S);
     if is2d != S.mode2d {
@@ -215,6 +220,9 @@ pub fn draw_ui(this) {
     if !ui::wants_keyboard() {
         if !(S.debug.paused is Object) && ui::shortcut("none", "F5") {
             shell::toggle_play(S);
+        }
+        if S.playing && !(S.debug.paused is Object) && ui::shortcut("none", "F6") {
+            debugger::request_break();
         }
         let personas = ["scene", "script", "anim", "phys", "ui"];
         for (i, id) in personas.iter().enumerate() {

@@ -93,6 +93,15 @@ enum Command {
         #[arg(long)]
         sign: Option<String>,
     },
+    /// Check a project without running it: every script a scene attaches is
+    /// compiled, and every finding is printed with its file and line.
+    Check {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        /// Report warnings too, and fail on them.
+        #[arg(long)]
+        strict: bool,
+    },
     /// Update this install — the binary, the bundled editor and its runtime
     /// template — to the latest published build.
     Update {
@@ -250,6 +259,7 @@ fn main() -> Result<()> {
             app,
             sign,
         }),
+        Command::Check { path, strict } => check_project(&path, strict),
         Command::Update { tag, check } => update::run(tag.as_deref(), check),
         Command::Play { pack, frames } => {
             let bytes =
@@ -895,6 +905,44 @@ fn edit_project(
 ///
 /// The engine is asked, not the source: constants like `input.KEY_SPACE` are
 /// derived at registration, so parsing Rust would miss them.
+/// `balaur check`: the editor's Problems list, headless, for CI.
+///
+/// Exits non-zero when anything would stop the project running, so a broken
+/// script fails a build rather than a play session.
+fn check_project(path: &std::path::Path, strict: bool) -> Result<()> {
+    let found = balaur::check_project(path)?;
+    let mut errors = 0;
+    let mut warnings = 0;
+    for one in &found {
+        if one.severity == "error" {
+            errors += 1;
+        } else {
+            warnings += 1;
+            if !strict {
+                continue;
+            }
+        }
+        let at = if one.line > 0 {
+            format!("{}:{}:{}", one.file, one.line, one.column)
+        } else {
+            one.file.clone()
+        };
+        println!("{at}: {}: {}", one.severity, one.message);
+    }
+    if errors == 0 && (!strict || warnings == 0) {
+        // Warnings are counted even when they are not printed, so a quiet
+        // run still says there is something --strict would show.
+        let quiet = if strict || warnings == 0 {
+            String::new()
+        } else {
+            format!(" ({warnings} warning(s); --strict shows them)")
+        };
+        println!("no problems{quiet}");
+        return Ok(());
+    }
+    std::process::exit(1);
+}
+
 fn dump_api() -> Result<()> {
     let dir = std::env::temp_dir().join("balaur-api-probe");
     std::fs::create_dir_all(dir.join("scenes"))?;

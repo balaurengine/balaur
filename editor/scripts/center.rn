@@ -4,6 +4,7 @@
 use crate::defs;
 use crate::highlight;
 use crate::history;
+use crate::lint;
 use crate::model;
 use crate::polygon;
 use crate::shell;
@@ -248,6 +249,9 @@ fn script_editor(S, k) {
                 k_com: k.k_com, k_fn: k.k_fn, k_type: k.k_type,
                 k_punc: k.k_punc,
                 breakpoints: shell::breakpoint_lines(S, rel),
+                problems: lint::lines(S, rel, "error"),
+                warnings: lint::lines(S, rel, "warning"),
+                problem_color: k.accent, warning_color: k.sage,
                 current_line: if stopped_here { S.debug.paused.line } else { () },
                 breakpoint_color: k.accent, current_fill: k.accent_soft,
             });
