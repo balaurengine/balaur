@@ -117,7 +117,10 @@ fn look_at_turns_the_bone_toward_the_target() {
     );
     // Its child follows: the elbow now sits straight above the shoulder.
     let elbow_at = global_xy(&app, elbow);
-    assert!((elbow_at - Vec2::new(0.0, 1.0)).length() < 1e-4, "{elbow_at:?}");
+    assert!(
+        (elbow_at - Vec2::new(0.0, 1.0)).length() < 1e-4,
+        "{elbow_at:?}"
+    );
 }
 
 #[test]

@@ -77,12 +77,56 @@ fn glb(json: &str, bin: &[u8]) -> Vec<u8> {
     out
 }
 
+/// The smallest PNG there is: one white pixel.
+const PIXEL_PNG: &[u8] = &[
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+    0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0xF8, 0xFF, 0xFF, 0x3F,
+    0x00, 0x05, 0xFE, 0x02, 0xFE, 0xA7, 0x35, 0x81, 0x84, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
+    0x44, 0xAE, 0x42, 0x60, 0x82,
+];
+
+/// How the file carries its buffer: inside the `.glb`, beside a `.gltf`, or
+/// inline as a `data:` URI.
+#[derive(Clone, Copy)]
+enum Buffer {
+    Bin,
+    Side,
+    DataUri,
+}
+
+fn base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let n = chunk
+            .iter()
+            .enumerate()
+            .fold(0u32, |acc, (i, b)| acc | (u32::from(*b) << (16 - 8 * i)));
+        for i in 0..4 {
+            if i <= chunk.len() {
+                out.push(ALPHABET[((n >> (18 - 6 * i)) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
 /// A column: root joint `Rig` at the origin, child joint `Tip` one unit up,
 /// a quad from y = 0 to y = 2 whose bottom row follows `Rig` and top row
 /// follows `Tip`, and a one-second clip turning `Tip` a quarter turn about z.
 fn column() -> Vec<u8> {
+    let (json, bin) = column_parts(Buffer::Bin, false);
+    glb(&json, &bin)
+}
+
+/// The JSON and the buffer of the column, the buffer carried as `how`, with
+/// a one-pixel base colour texture when `textured`.
+fn column_parts(how: Buffer, textured: bool) -> (String, Vec<u8>) {
     let half = std::f32::consts::FRAC_1_SQRT_2;
-    let accessors = [
+    let mut accessors = vec![
         // 0 positions
         Accessor {
             bytes: f32s(&[-0.5, 0.0, 0.0, 0.5, 0.0, 0.0, -0.5, 2.0, 0.0, 0.5, 2.0, 0.0]),
@@ -145,7 +189,34 @@ fn column() -> Vec<u8> {
             bounds: None,
         },
     ];
+    if textured {
+        // 7 the image, as a plain buffer view (an accessor entry is emitted
+        // too, which glTF allows to go unused).
+        accessors.push(Accessor {
+            bytes: PIXEL_PNG.to_vec(),
+            component_type: 5121,
+            kind: "SCALAR",
+            count: PIXEL_PNG.len(),
+            bounds: None,
+        });
+    }
     let (bin, views, descs) = pack(&accessors);
+    let buffer = match how {
+        Buffer::Bin => format!(r#"{{"byteLength":{}}}"#, bin.len()),
+        Buffer::Side => format!(r#"{{"byteLength":{},"uri":"column.bin"}}"#, bin.len()),
+        Buffer::DataUri => format!(
+            r#"{{"byteLength":{},"uri":"data:application/octet-stream;base64,{}"}}"#,
+            bin.len(),
+            base64(&bin)
+        ),
+    };
+    let material = if textured {
+        r#","images":[{"bufferView":7,"mimeType":"image/png"}],"textures":[{"source":0}],
+"materials":[{"pbrMetallicRoughness":{"baseColorTexture":{"index":0}}}]"#
+    } else {
+        ""
+    };
+    let primitive_material = if textured { r#","material":0"# } else { "" };
     let json = format!(
         r#"{{"asset":{{"version":"2.0"}},"scene":0,"scenes":[{{"nodes":[0,2]}}],
 "nodes":[
@@ -154,15 +225,14 @@ fn column() -> Vec<u8> {
   {{"name":"Body","mesh":0,"skin":0}}
 ],
 "skins":[{{"joints":[0,1],"inverseBindMatrices":4}}],
-"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0,"JOINTS_0":2,"WEIGHTS_0":3}},"indices":1}}]}}],
+"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0,"JOINTS_0":2,"WEIGHTS_0":3}},"indices":1{primitive_material}}}]}}],
 "animations":[{{"name":"wave","channels":[{{"sampler":0,"target":{{"node":1,"path":"rotation"}}}}],
-  "samplers":[{{"input":5,"output":6,"interpolation":"LINEAR"}}]}}],
-"buffers":[{{"byteLength":{}}}],
+  "samplers":[{{"input":5,"output":6,"interpolation":"LINEAR"}}]}}]{material},
+"buffers":[{buffer}],
 "bufferViews":[{views}],
-"accessors":[{descs}]}}"#,
-        bin.len()
+"accessors":[{descs}]}}"#
     );
-    glb(&json, &bin)
+    (json, bin)
 }
 
 fn close(a: f32, b: f32) -> bool {
@@ -264,4 +334,66 @@ fn an_import_writes_bones_a_mesh_node_and_a_clip_keyed_by_path() {
     // Both documents are TOML a scene loader reads.
     toml::to_string(&imported.scene).unwrap();
     toml::to_string(&clips).unwrap();
+}
+
+#[test]
+fn a_gltf_reads_its_buffer_beside_itself_through_the_reader() {
+    let (json, bin) = column_parts(Buffer::Side, false);
+    let reader = |uri: &str| {
+        if uri == "column.bin" {
+            Ok(bin.clone())
+        } else {
+            Err(anyhow::anyhow!("no such side file '{uri}'"))
+        }
+    };
+    let data = mesh::parse_with(json.as_bytes(), "column.gltf", &reader).unwrap();
+    assert_eq!(data.positions.len(), 4);
+    assert!(data.skin.is_some());
+    // Without a reader the same file says what it is missing.
+    let err = format!(
+        "{:#}",
+        mesh::parse(json.as_bytes(), "column.gltf").unwrap_err()
+    );
+    assert!(
+        err.contains("column.bin") && err.contains("side file"),
+        "{err}"
+    );
+}
+
+#[test]
+fn a_data_uri_buffer_needs_no_reader() {
+    let (json, _) = column_parts(Buffer::DataUri, false);
+    let data = mesh::parse(json.as_bytes(), "column.gltf").unwrap();
+    assert_eq!(data.indices.len(), 2);
+}
+
+#[test]
+fn an_import_carries_the_side_buffer_and_the_texture_along() {
+    let (json, bin) = column_parts(Buffer::Side, true);
+    let reader = |uri: &str| {
+        if uri == "column.bin" {
+            Ok(bin.clone())
+        } else {
+            Err(anyhow::anyhow!("no such side file '{uri}'"))
+        }
+    };
+    let imported = glb::import(json.as_bytes(), "column.gltf", &reader).unwrap();
+    let names: Vec<&str> = imported.files.iter().map(|(n, _)| n.as_str()).collect();
+    assert_eq!(names, vec!["column.bin", "column_texture.png"]);
+    assert_eq!(imported.files[1].1, PIXEL_PNG);
+    let nodes = imported.scene.get("nodes").unwrap().as_array().unwrap();
+    let mesh = nodes
+        .iter()
+        .find(|n| n.get("name").unwrap().as_str() == Some("ColumnMesh"))
+        .unwrap()
+        .get("mesh")
+        .unwrap();
+    assert_eq!(
+        mesh.get("source").unwrap().get("source").unwrap().as_str(),
+        Some("models/column.gltf")
+    );
+    assert_eq!(
+        mesh.get("texture").unwrap().as_str(),
+        Some("models/column_texture.png")
+    );
 }

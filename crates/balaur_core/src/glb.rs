@@ -63,8 +63,8 @@ impl Model {
                     .take()
                     .ok_or_else(|| anyhow!("{name} names its binary chunk and has none"))?,
                 gltf::buffer::Source::Uri(uri) => {
-                    let data = uri_bytes(uri, side)
-                        .with_context(|| format!("{name}: buffer '{uri}'"))?;
+                    let data =
+                        uri_bytes(uri, side).with_context(|| format!("{name}: buffer '{uri}'"))?;
                     if !uri.starts_with("data:") {
                         side_files.push((percent_decoded(uri), data.clone()));
                     }
@@ -714,7 +714,11 @@ fn texture_file(
     match image.source() {
         gltf::image::Source::Uri { uri, .. } => {
             if uri.starts_with("data:") {
-                let extension = if uri.starts_with("data:image/jpeg") { "jpg" } else { "png" };
+                let extension = if uri.starts_with("data:image/jpeg") {
+                    "jpg"
+                } else {
+                    "png"
+                };
                 return Ok(Some((
                     format!("{stem}_texture.{extension}"),
                     uri_bytes(uri, side)?,
@@ -732,7 +736,10 @@ fn texture_file(
                 "image/jpeg" => "jpg",
                 _ => "png",
             };
-            Ok(Some((format!("{stem}_texture.{extension}"), bytes.to_vec())))
+            Ok(Some((
+                format!("{stem}_texture.{extension}"),
+                bytes.to_vec(),
+            )))
         }
     }
 }

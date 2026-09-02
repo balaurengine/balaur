@@ -201,9 +201,7 @@ fn two_bone_ik(world: &World, root: Entity, target: Vec2, flip: bool) {
         return;
     }
     let to = target - r;
-    let d = to
-        .length()
-        .clamp((l1 - l2).abs() + 1e-5, l1 + l2 - 1e-5);
+    let d = to.length().clamp((l1 - l2).abs() + 1e-5, l1 + l2 - 1e-5);
     let base = libm::atan2f(to.y, to.x);
     let sign = if flip { -1.0 } else { 1.0 };
     let cos_root = ((l1 * l1 + d * d - l2 * l2) / (2.0 * l1 * d)).clamp(-1.0, 1.0);
@@ -218,7 +216,7 @@ fn two_bone_ik(world: &World, root: Entity, target: Vec2, flip: bool) {
 pub(crate) fn modify_system(eng: &Engine, _dt: f32) {
     let world = eng.world();
     let mut modifiers: Vec<(Entity, Modifier2d)> = world
-        .query::<&Modifier2d>()
+        .query::<(Entity, &Modifier2d)>()
         .iter()
         .filter(|(_, m)| m.enabled && !m.target.is_empty())
         .map(|(e, m)| (e, m.clone()))
