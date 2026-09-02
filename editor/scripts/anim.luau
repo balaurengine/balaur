@@ -1,6 +1,6 @@
 -- The Animate persona's adapter between the scene document and the engine's
--- `assets` / `animation` modules. A clip is an engine `animation_clip` asset:
--- nothing here interpolates or applies a pose — scrubbing seeks the engine.
+-- `assets` / `animation` modules: scrubbing seeks the engine, nothing here
+-- samples. The clip belongs to the player (`M.player`), keyed by node path.
 local model = require("scripts/model")
 local history = require("scripts/history")
 
@@ -16,6 +16,8 @@ local GROUP = "clips"
 -- How close two key times have to be to count as the same key: half a frame
 -- at 24 fps, which is the grain a person scrubbing can actually hit.
 local SAME_TIME = 0.021
+-- A hand-edited file can name a parent that names it back.
+local MAX_DEPTH = 256
 
 -- The editor's engine resolves relative paths against the *editor's* root, so
 -- references handed to it are made absolute; the document keeps the relative form.
@@ -32,6 +34,61 @@ function M.component(node)
         return nil
     end
     return node.animation
+end
+
+-- Doc index of the node whose clip the Timeline edits: the selection when
+-- it carries `animation`, else its nearest ancestor that does, else the
+-- selection itself (the node a new clip would be created on).
+function M.player_index(S)
+    local i = S.sel
+    local node = S.doc[i]
+    for _ = 1, MAX_DEPTH do
+        if node == nil then
+            break
+        end
+        if M.component(node) ~= nil then
+            return i
+        end
+        if node.parent == nil or node.parent == "" then
+            break
+        end
+        local parent_i
+        for j, candidate in S.doc do
+            if candidate.id == node.parent then
+                parent_i = j
+                break
+            end
+        end
+        if parent_i == nil then
+            break
+        end
+        i, node = parent_i, S.doc[parent_i]
+    end
+    return S.sel
+end
+
+-- The player's document node, live node and doc index.
+function M.player(S)
+    local i = M.player_index(S)
+    return S.doc[i], model.ref(S, i), i
+end
+
+-- The selection's node path relative to the player: what a track's `target`
+-- says. Empty when the selection is the player.
+function M.target_path(S, player_i)
+    if player_i == S.sel then
+        return ""
+    end
+    local names = {}
+    local node = S.doc[S.sel]
+    for _ = 1, MAX_DEPTH do
+        if node == nil or node == S.doc[player_i] then
+            break
+        end
+        table.insert(names, 1, node.name)
+        node = model.by_id(S.doc, node.parent)
+    end
+    return table.concat(names, "/")
 end
 
 -- The clip the Timeline edits: the one the scene starts. An empty name means
@@ -71,16 +128,16 @@ local function entry_of(doc, name)
     return nil
 end
 
--- The library document for the selected node, cached on `S.clip`. Inline it
--- *is* the scene document's own table; external it is written back by `M.save`.
+-- The library document for the player, cached on `S.clip`. Inline it *is*
+-- the scene document's own table; external it is written back by `M.save`.
 function M.document(S)
-    local node = S.doc[S.sel]
+    local node, _, player_i = M.player(S)
     local comp = M.component(node)
     if comp == nil then
         return nil
     end
     local cached = S.clip
-    if cached ~= nil and cached.index == S.sel and cached.source == comp.library then
+    if cached ~= nil and cached.index == player_i and cached.source == comp.library then
         return cached.doc
     end
     local doc, path
@@ -93,15 +150,15 @@ function M.document(S)
             log.warn(`clip {path}: {tostring(loaded)}`)
             -- Cached as a failure so the warning is printed once rather than
             -- once a frame.
-            S.clip = { index = S.sel, source = comp.library, path = path, dirty = false }
+            S.clip = { index = player_i, source = comp.library, path = path, dirty = false }
             return nil
         end
         doc = loaded
     else
-        S.clip = { index = S.sel, source = comp.library, dirty = false }
+        S.clip = { index = player_i, source = comp.library, dirty = false }
         return nil
     end
-    S.clip = { index = S.sel, source = comp.library, doc = doc, path = path, dirty = false }
+    S.clip = { index = player_i, source = comp.library, doc = doc, path = path, dirty = false }
     return doc
 end
 
@@ -111,7 +168,7 @@ function M.definition(S)
     if doc == nil then
         return nil
     end
-    return entry_of(doc, M.clip_name(S.doc[S.sel]))
+    return entry_of(doc, M.clip_name(S.doc[M.player_index(S)]))
 end
 
 function M.tracks(def)
@@ -121,8 +178,15 @@ function M.tracks(def)
     return def.tracks
 end
 
+-- A lane's name: the property, prefixed by the node it drives when that is
+-- not the player itself.
 function M.track_label(track)
-    return track.property or "call"
+    local property = track.property or "call"
+    local target = track.target or ""
+    if target == "" then
+        return property
+    end
+    return `{target} · {property}`
 end
 
 function M.length(def)
@@ -143,10 +207,10 @@ end
 -- Put the edited clip in front of the engine and hold it at the playhead:
 -- `animation.define` hands over the editor's in-memory table, edits included.
 function M.arm(S)
-    local node, ref = model.selected(S)
+    local node, ref, player_i = M.player(S)
     local comp = M.component(node)
     if comp == nil then
-        S.clip = { index = S.sel, dirty = false }
+        S.clip = { index = player_i, dirty = false }
         return
     end
     if ref == nil then
@@ -205,9 +269,10 @@ function M.touch(S)
     M.arm(S)
 end
 
--- Create an inline clip on the selected node, named after it.
+-- Create an inline clip on the player, named after it. With no player above
+-- the selection, the selection becomes one.
 function M.ensure_clip(S)
-    local node = S.doc[S.sel]
+    local node = S.doc[M.player_index(S)]
     if M.component(node) ~= nil then
         return M.definition(S)
     end
@@ -225,13 +290,16 @@ function M.ensure_clip(S)
     return M.definition(S)
 end
 
-local function track_for(def, property)
+local function track_for(def, property, target)
     for _, track in M.tracks(def) do
-        if (track.target or "") == "" and track.property == property then
+        if (track.target or "") == target and track.property == property then
             return track
         end
     end
     local track = { property = property, interp = "linear", keys = {} }
+    if target ~= "" then
+        track.target = target
+    end
     if type(def.tracks) ~= "table" then
         def.tracks = {}
     end
@@ -254,7 +322,9 @@ local function put_key(track, t, value)
     table.insert(track.keys, key)
 end
 
--- Insert (or replace) a key at `t` from the node's current transform.
+-- Insert (or replace) a key at `t` from the selection's current transform,
+-- on the player's clip, addressed by path. A bone keys its rotation alone:
+-- its position is its rest, and a key there would tear the rig.
 function M.add_key(S, t)
     local def = M.ensure_clip(S)
     local node, ref = model.selected(S)
@@ -263,15 +333,19 @@ function M.add_key(S, t)
         log.warn(`{node.name}: no live node to read a transform from`)
         return
     end
+    local player_i = M.player_index(S)
     if def == nil then
-        log.warn(`{node.name}: the library has no clip called '{M.clip_name(node)}'`)
+        log.warn(`{node.name}: the library has no clip called '{M.clip_name(S.doc[player_i])}'`)
         return
     end
     history.record(S, "insert keyframe")
-    local px, py, pz = table.unpack(ref:position())
+    local target = M.target_path(S, player_i)
     local rx, ry, rz = table.unpack(ref:rotation_euler())
-    put_key(track_for(def, "position"), t, { px, py, pz })
-    put_key(track_for(def, "rotation_euler"), t, { rx, ry, rz })
+    put_key(track_for(def, "rotation_euler", target), t, { rx, ry, rz })
+    if type(node.bone2d) ~= "table" and type(node.bone3d) ~= "table" then
+        local px, py, pz = table.unpack(ref:position())
+        put_key(track_for(def, "position", target), t, { px, py, pz })
+    end
     if t > M.length(def) then
         def.length = t
     end
@@ -279,17 +353,19 @@ function M.add_key(S, t)
     log.info(string.format("key at %.2fs (%d keys)", t, M.key_count(def)))
 end
 
+-- Delete the selection's keys at the playhead; other nodes' lanes keep theirs.
 function M.delete_key_at(S, t)
     local def = M.definition(S)
     if def == nil then
         return
     end
     history.record(S, "delete keyframe")
+    local target = M.target_path(S, M.player_index(S))
     local kept = {}
     for _, track in M.tracks(def) do
         local keys = {}
         for _, key in (track.keys or {}) do
-            if math.abs(key.t - t) >= 0.05 then
+            if (track.target or "") ~= target or math.abs(key.t - t) >= 0.05 then
                 table.insert(keys, key)
             end
         end
@@ -307,7 +383,7 @@ end
 -- Move the playhead. The engine poses the node; the editor samples nothing.
 function M.seek(S, t)
     S.anim_time = t
-    local node, ref = model.selected(S)
+    local node, ref = M.player(S)
     if ref ~= nil and M.component(node) ~= nil then
         pcall(animation.seek, ref, t)
     end
@@ -315,7 +391,7 @@ end
 
 -- Inline → external: the same table, in a file of its own.
 function M.promote(S)
-    local node = S.doc[S.sel]
+    local node = M.player(S)
     local comp = M.component(node)
     local doc = M.document(S)
     if comp == nil or doc == nil then
@@ -338,7 +414,7 @@ end
 
 -- External → inline: a private copy of the document, owned by this node.
 function M.make_inline(S)
-    local node = S.doc[S.sel]
+    local node = M.player(S)
     local comp = M.component(node)
     local rel = M.library_path(node)
     if comp == nil or rel == nil then
@@ -418,20 +494,21 @@ end
 
 -- The engine advances every player itself. All the editor does per frame is
 -- follow the playhead while the scene runs, and re-arm when the selection
--- moves to another node.
+-- moves to another player.
 function M.update(S)
     if S.anim_rebind then
         S.anim_rebind = nil
         M.rebind(S)
     end
+    local player_i = M.player_index(S)
     if S.playing then
-        local node, ref = model.selected(S)
+        local node, ref = M.player(S)
         if ref ~= nil and M.component(node) ~= nil then
             S.anim_time = animation.time(ref)
         end
         return
     end
-    if S.clip == nil or S.clip.index ~= S.sel then
+    if S.clip == nil or S.clip.index ~= player_i then
         -- The cache is about to be replaced, so an external clip edited but
         -- not yet written goes to its file now rather than being dropped.
         M.save(S)

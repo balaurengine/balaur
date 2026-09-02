@@ -11,6 +11,7 @@ cannot drift from what scripts actually see.
 | [`animation`](#animation) | 14 | 0 | every language |
 | [`assets`](#assets) | 6 | 0 | every language |
 | [`audio`](#audio) | 8 | 0 | every language |
+| [`debugger`](#debugger) | 6 | 4 | every language |
 | [`engine`](#engine) | 7 | 0 | every language |
 | [`fs`](#fs) | 4 | 0 | every language |
 | [`gamend`](#gamend) | 9 | 0 | every language |
@@ -22,9 +23,10 @@ cannot drift from what scripts actually see.
 | [`physics`](#physics) | 5 | 0 | every language |
 | [`physics2d`](#physics2d) | 10 | 5 | every language |
 | [`physics3d`](#physics3d) | 8 | 5 | every language |
-| [`render`](#render) | 31 | 0 | every language |
+| [`render`](#render) | 32 | 0 | every language |
 | [`rng`](#rng) | 4 | 0 | every language |
 | [`scene`](#scene) | 12 | 0 | every language |
+| [`skeleton`](#skeleton) | 3 | 0 | every language |
 | [`toml`](#toml) | 2 | 0 | every language |
 | [`ui`](#ui) | 39 | 14 | every language |
 | [`websocket`](#websocket) | 3 | 0 | every language |
@@ -40,6 +42,19 @@ cannot drift from what scripts actually see.
 ## `audio`
 
 **Functions:** `is_playing`, `play`, `play_on`, `set_pitch`, `set_volume`, `stop`, `stop_all`, `stop_on`
+
+## `debugger`
+
+**Functions:** `breakpoints`, `paused`, `resume`, `scope`, `set_breakpoints`, `set_scope`
+
+**Constants** (4):
+
+| Name | Value |
+| --- | --- |
+| `CONTINUE` | `continue` |
+| `STEP_INTO` | `into` |
+| `STEP_OUT` | `out` |
+| `STEP_OVER` | `over` |
 
 ## `engine`
 
@@ -138,7 +153,7 @@ cannot drift from what scripts actually see.
 
 ## `render`
 
-**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `color`, `draw_line`, `draw_line_2d`, `mouse_ray`, `mouse_world_2d`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_rect`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `shape2d`, `shape3d`, `sprite`
+**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `color`, `draw_line`, `draw_line_2d`, `mouse_ray`, `mouse_world_2d`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_rect`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `shape2d`, `shape3d`, `sprite`, `texture_size`
 
 ## `rng`
 
@@ -147,6 +162,10 @@ cannot drift from what scripts actually see.
 ## `scene`
 
 **Functions:** `apply_preset`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `preset_info`, `presets`, `root`, `source`, `spawn`, `unmet_expectations`
+
+## `skeleton`
+
+**Functions:** `apply_rest`, `bones`, `overwrite_rest`
 
 ## `toml`
 

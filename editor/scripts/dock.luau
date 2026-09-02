@@ -1,4 +1,5 @@
--- Bottom dock (150 px, 212 px for Timeline): Output / Assets / Timeline.
+-- Bottom dock (150 px, 212 px for Timeline and Debugger): Output / Assets /
+-- Timeline / Debugger.
 local theme = require("scripts/theme")
 local model = require("scripts/model")
 local animlib = require("scripts/anim")
@@ -9,7 +10,7 @@ local function tab_row(S, k)
     ui.horizontal({ height = 34 }, function()
         ui.spacing(6, 0)
         ui.add_space(6)
-        for _, tab in { "output", "assets", "timeline" } do
+        for _, tab in { "output", "assets", "timeline", "debugger" } do
             local active = S.dock == tab
             local label = string.upper(string.sub(tab, 1, 1)) .. string.sub(tab, 2)
             if ui.pill(label, {
@@ -60,6 +61,8 @@ local function tab_row(S, k)
                     -- A project-relative path: the absolute one is this
                     -- machine's, and lands in every screenshot.
                     hint = `res:// · {S.game_name}`
+                elseif S.dock == "debugger" then
+                    hint = if S.paused ~= nil then S.paused.reason else "F5 run · F10 over · F11 into · ⇧F11 out"
                 else
                     local node = model.selected(S)
                     local def = animlib.definition(S)
@@ -244,7 +247,7 @@ end
 -- Keyframe timeline over the engine's clip (scripts/anim.luau is the adapter):
 -- scrubbing seeks the engine's player, so the viewport shows the engine's pose.
 local function timeline(S, k)
-    local node = model.selected(S)
+    local node = animlib.player(S)
     local def = animlib.definition(S)
     ui.add_space(4)
     if def == nil then
@@ -330,15 +333,102 @@ local function timeline(S, k)
     end)
 end
 
+-- A local as one line; a table is its JSON, cut short.
+local function value_text(v)
+    if type(v) ~= "table" then
+        return tostring(v)
+    end
+    local ok, text = pcall(json.encode, v)
+    if not ok then
+        return "{…}"
+    end
+    return if #text > 96 then string.sub(text, 1, 93) .. "…" else text
+end
+
+-- The pause: transport, then the frames with the chosen one's locals open.
+local function debugger_view(S, k)
+    local p = S.paused
+    if p == nil then
+        ui.horizontal({ height = 30 }, function()
+            ui.add_space(12)
+            local hint = if S.playing
+                then "running · click a line number in the script to set a breakpoint"
+                else "set breakpoints in the script gutter, then run the scene"
+            ui.label(hint, { size = 11.5, font = "mono", color = k.faint })
+        end)
+        return
+    end
+    ui.horizontal({ height = 30 }, function()
+        ui.add_space(8)
+        local steps = {
+            { "▶ Continue", debugger.CONTINUE, "F5" },
+            { "⤼ Over", debugger.STEP_OVER, "F10" },
+            { "⤵ Into", debugger.STEP_INTO, "F11" },
+            { "⤴ Out", debugger.STEP_OUT, "⇧F11" },
+        }
+        for _, step in steps do
+            if ui.pill(step[1], {
+                height = 24, size = 11.5, strong = true, tooltip = step[3],
+                fill = k.accent_soft, color = k.accent,
+            }) then
+                S.resume(step[2])
+            end
+        end
+        ui.add_space(12)
+        ui.label(`{p.reason} · {S.paused_rel or p.path}:{p.line}`, { size = 11.5, font = "mono", color = k.dim })
+    end)
+    ui.scroll("debug-frames", nil, function()
+        ui.spacing(4, 2)
+        for i, frame in p.frames do
+            local chosen = i == S.debug_frame
+            ui.horizontal({ height = 24 }, function()
+                ui.add_space(6)
+                if ui.pill(frame["function"], {
+                    height = 20, size = 11, strong = true,
+                    fill = if chosen then k.accent_fill else k.sunken,
+                    color = if chosen then k.on_accent else k.dim,
+                }) then
+                    S.debug_frame = i
+                end
+                ui.add_space(6)
+                ui.label(`{S.script_rel(frame.path)}:{frame.line}`, { size = 11.5, font = "mono", color = k.faint })
+            end)
+            if chosen then
+                local names = {}
+                for name in pairs(frame.locals) do
+                    table.insert(names, name)
+                end
+                table.sort(names)
+                for _, name in names do
+                    ui.horizontal(nil, function()
+                        ui.add_space(24)
+                        ui.label(name, { size = 11.5, font = "mono", strong = true, color = k.text })
+                        ui.add_space(6)
+                        ui.label(value_text(frame.locals[name]), { size = 11.5, font = "mono", color = k.dim })
+                    end)
+                end
+                if #names == 0 then
+                    ui.horizontal(nil, function()
+                        ui.add_space(24)
+                        ui.label("no locals", { size = 11.5, font = "mono", color = k.faint })
+                    end)
+                end
+            end
+        end
+    end)
+end
+
 function M.draw(S)
     local k = theme.current
-    local height = if S.dock == "timeline" then 212 else 150
+    local height = if S.dock == "timeline" or S.dock == "debugger" then 212 else 150
     ui.bottom_panel("dock", { height = height, fill = k.panel }, function()
         tab_row(S, k)
         if S.dock == "assets" then
             assets(S, k)
         elseif S.dock == "timeline" then
             timeline(S, k)
+        elseif S.dock == "debugger" then
+            debugger_view(S, k)
         else
             output(S, k)
         end

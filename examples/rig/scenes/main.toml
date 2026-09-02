@@ -1,0 +1,132 @@
+# A 2D rig: three bones in a chain, a textured polygon skinned to them, and a
+# clip on the character root that swings the joints. Nothing here is script
+# driven; the bones are nodes and the clip addresses them by path.
+
+[[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = ""
+position = [0, 0, 0]
+
+[nodes.camera]
+kind = "2d"
+zoom = 110
+
+[[nodes]]
+id = "n_ground"
+name = "Ground"
+parent = ""
+position = [0, -1.5, 0]
+
+[nodes.shape2d]
+kind = "rect"
+half_extents = [6, 0.25]
+color = [0.35, 0.5, 0.3, 1.0]
+
+[[nodes]]
+id = "n_hero"
+name = "Hero"
+parent = ""
+position = [0, -1.25, 0]
+
+[nodes.animation]
+autoplay = "wave"
+speed = 1.0
+
+[nodes.animation.library]
+type = "animation_clip"
+
+[nodes.animation.library.clips.wave]
+length = 2.0
+loop = "loop"
+
+[[nodes.animation.library.clips.wave.tracks]]
+target = "Hip/Thigh"
+property = "rotation_euler"
+keys = [
+  { t = 0.0, value = [0, 0, -0.5] },
+  { t = 1.0, value = [0, 0, 0.5], ease = "in_out_sine" },
+  { t = 2.0, value = [0, 0, -0.5], ease = "in_out_sine" },
+]
+
+[[nodes.animation.library.clips.wave.tracks]]
+target = "Hip/Thigh/Shin"
+property = "rotation_euler"
+keys = [
+  { t = 0.0, value = [0, 0, 0.4] },
+  { t = 1.0, value = [0, 0, -0.6], ease = "in_out_sine" },
+  { t = 2.0, value = [0, 0, 0.4], ease = "in_out_sine" },
+]
+
+[[nodes]]
+id = "n_hip"
+name = "Hip"
+parent = "n_hero"
+position = [0, 0, 0]
+bone2d = { rest_position = [0, 0], rest_rotation = 0.0, length = 0.85 }
+
+[[nodes]]
+id = "n_thigh"
+name = "Thigh"
+parent = "n_hip"
+position = [0, 0.85, 0]
+bone2d = { rest_position = [0, 0.85], rest_rotation = 0.0, length = 0.85 }
+
+[[nodes]]
+id = "n_shin"
+name = "Shin"
+parent = "n_thigh"
+position = [0, 0.85, 0]
+bone2d = { rest_position = [0, 0.85], rest_rotation = 0.0, length = 0.86, angle = 1.5708 }
+
+[[nodes]]
+id = "n_limb"
+name = "Limb"
+parent = "n_hero"
+position = [0, 0, 0]
+
+[nodes.polygon]
+texture = "art/limb.png"
+skeleton = ".."
+pixels_per_unit = 100.0
+
+[nodes.polygon.mesh]
+# The outline in order, counter-clockwise from the bottom-left corner, with
+# a vertex at each joint height on both sides; the polygons pair them up.
+positions = [
+  [-0.4, 0.0], [0.4, 0.0],
+  [0.4, 0.85], [0.4, 1.7], [0.4, 2.56],
+  [-0.4, 2.56], [-0.4, 1.7], [-0.4, 0.85],
+]
+polygons = [[0, 1, 2, 7], [7, 2, 3, 6], [6, 3, 4, 5]]
+uvs = [
+  [0, 1], [1, 1],
+  [1, 0.668], [1, 0.336], [1, 0],
+  [0, 0], [0, 0.336], [0, 0.668],
+]
+
+[[nodes.polygon.mesh.skin.bones]]
+path = "Hip"
+weights = [1, 1, 0.5, 0, 0, 0, 0, 0.5]
+
+[[nodes.polygon.mesh.skin.bones]]
+path = "Hip/Thigh"
+weights = [0, 0, 0.5, 0.5, 0, 0, 0.5, 0.5]
+
+[[nodes.polygon.mesh.skin.bones]]
+path = "Hip/Thigh/Shin"
+weights = [0, 0, 0, 0.5, 1, 1, 0.5, 0]
+
+[[nodes]]
+id = "n_hud"
+name = "Hud"
+parent = ""
+
+[nodes.widget]
+anchor = "top_left"
+kind = "label"
+font_size = 16
+text = "rig · three bones, one skinned polygon"
+text_color = "#f9f4ed"
+x = 16
+y = 16

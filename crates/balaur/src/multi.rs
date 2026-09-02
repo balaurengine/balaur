@@ -14,7 +14,7 @@ use std::rc::Rc;
 
 use anyhow::Result;
 use balaur_core::Engine;
-use balaur_script::{Bindings, BoundFn, CallbackId, NodeId, ScriptHost, Value};
+use balaur_script::{Bindings, BoundFn, CallbackId, NodeId, Pause, ScriptHost, StepMode, Value};
 use balaur_script_luau::ScriptHost as LuaHost;
 use balaur_script_rune::RuneHost;
 
@@ -147,6 +147,32 @@ impl ScriptHost<Engine> for MultiHost {
             }
             outcome => outcome,
         }
+    }
+
+    fn set_breakpoints(&self, path: &str, lines: &[usize]) -> Result<Vec<usize>> {
+        if is_rune(path) {
+            ScriptHost::set_breakpoints(&self.rune, path, lines)
+        } else {
+            ScriptHost::set_breakpoints(&self.luau, path, lines)
+        }
+    }
+
+    fn breakpoints(&self, path: &str) -> Vec<usize> {
+        if is_rune(path) {
+            ScriptHost::breakpoints(&self.rune, path)
+        } else {
+            ScriptHost::breakpoints(&self.luau, path)
+        }
+    }
+
+    /// One script pauses at a time, whichever host runs it.
+    fn paused(&self) -> Option<Pause> {
+        ScriptHost::paused(&self.luau).or_else(|| ScriptHost::paused(&self.rune))
+    }
+
+    fn resume(&self, mode: StepMode) {
+        ScriptHost::resume(&self.luau, mode);
+        ScriptHost::resume(&self.rune, mode);
     }
 
     fn as_any(&self) -> &dyn core::any::Any {

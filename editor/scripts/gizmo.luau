@@ -3,6 +3,7 @@
 -- screen-space Luau over the camera pose the backend publishes.
 local model = require("scripts/model")
 local gizmo2d = require("scripts/gizmo2d")
+local rig = require("scripts/rig")
 local history = require("scripts/history")
 
 local M = {}
@@ -557,6 +558,27 @@ function M.update(S)
     local geo = geometry(S)
     local over_viewport = in_viewport(S, cam, mx, my)
 
+    local function on_screen(p)
+        return project(S, cam, p)
+    end
+    -- The Rig bone tool owns the click in 3D too: a bone under the cursor is
+    -- selected, anywhere else grows one under the selection.
+    if S.tool == "bone" then
+        S.gizmo_hover = nil
+        S.gizmo_drag = nil
+        render.set_camera_input(false)
+        S.rig_hover = if over_viewport then rig.pick_3d(S, mx, my, on_screen) else nil
+        if over_viewport and input.mouse_just_pressed(input.MOUSE_LEFT) then
+            if S.rig_hover ~= nil then
+                S.select(S.rig_hover)
+            else
+                rig.add_bone(S, S.sel, 0, 0)
+            end
+        end
+        return
+    end
+    S.rig_hover = nil
+
     -- Hover state (skipped while a drag is latched).
     if S.gizmo_drag == nil then
         S.gizmo_hover = if geo ~= nil and over_viewport and S.persona ~= "script"
@@ -568,12 +590,19 @@ function M.update(S)
     -- the gizmo itself is hot.
     render.set_camera_input(not MANIP[S.tool] and S.gizmo_hover == nil and S.gizmo_drag == nil)
 
-    if input.mouse_just_pressed(1) and over_viewport then
+    if input.mouse_just_pressed(input.MOUSE_LEFT) and over_viewport then
         if S.gizmo_hover ~= nil and geo ~= nil then
             start_gizmo_drag(S, cam, geo, S.gizmo_hover, mx, my)
         else
             S.drag_in_viewport = true
             if S.tool == "select" then
+                -- Rigging: a bone's thin octahedron loses to any origin near
+                -- it, so in the Animate persona bones are tried first.
+                local bone = if S.persona == "anim" then rig.pick_3d(S, mx, my, on_screen) else nil
+                if bone ~= nil then
+                    S.select(bone)
+                    return
+                end
                 local best, best_d = nil, 40
                 for i in S.doc do
                     local ref = model.ref(S, i)
@@ -594,7 +623,7 @@ function M.update(S)
             end
         end
     end
-    if not input.is_mouse_down(1) then
+    if not input.is_mouse_down(input.MOUSE_LEFT) then
         S.gizmo_drag = nil
         S.drag_in_viewport = false
     end

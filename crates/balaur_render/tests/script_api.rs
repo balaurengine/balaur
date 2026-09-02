@@ -57,7 +57,7 @@ fn shapes_can_be_set_from_a_script_in_both_dimensions() {
         r#"
         render.set_ball(self.node, 0.5)
         render.set_cuboid(self.node, 1.0, 2.0, 3.0)
-        local kind, a = render.shape(self.node)
+        local kind, a = render.shape3d(self.node)
         assert(kind == "cuboid", "the last shape set should win, got " .. tostring(kind))
 
         render.set_circle(self.node, 0.25)
@@ -166,7 +166,7 @@ fn a_node_with_no_shape_answers_with_an_empty_kind() {
     run_clean(
         r#"
         local bare = self.node:add_child("Bare")
-        local kind = render.shape(bare)
+        local kind = render.shape3d(bare)
         assert(kind == "", "expected an empty kind, got " .. tostring(kind))
         "#,
     );

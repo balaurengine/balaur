@@ -91,12 +91,18 @@ fn transform_propagation_stays_linear() {
     let app = app(Backend::Luau, &project).unwrap();
     let root = app.engine.root();
     let mut cost = Vec::new();
+    // Wide and shallow, the shape a real scene has: propagation recurses per
+    // level, so one long chain overflows the stack instead of measuring.
+    const DEPTH: usize = 50;
     for count in [500usize, 5000] {
         {
             let mut world = app.engine.world_mut();
             let mut parent = root;
             for i in 0..count {
                 parent = balaur_core::scene::spawn_node(&mut world, &format!("n{i}"), parent);
+                if i % DEPTH == DEPTH - 1 {
+                    parent = root;
+                }
             }
         }
         cost.push(per_iteration(Duration::from_millis(120), || {

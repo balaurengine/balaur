@@ -158,6 +158,48 @@ new unit replaces the old one, instances keep their state objects, and the
 next call resolves against the new code. A compile error keeps the previous
 unit running, the same as Luau.
 
+### Debugger (core feature)
+
+Breakpoints, stepping and a call stack with locals, for scripts running in
+the editor. `docs/PLAN-debugger.md` has the design; this is the shape.
+
+A pause is a parked coroutine plus an engine flag, never a blocked thread:
+play-in-editor runs the game in the same process and the same Luau state as
+the editor, so the frame loop has to keep going. `Engine::set_debug_scope`
+names the subtree that is the game — the editor's mirror during play, the
+whole tree under `balaur run`. While a script is paused the engine is
+*frozen*: `Stage::FixedUpdate` does not run, so physics holds, and every
+script host skips `update`, `call_all` and `call_on` for instances inside the
+scope. Editor scripts live outside it and keep drawing. A breakpoint hits
+mid-batch; the host keeps the instances that tick had not reached and runs
+them on resume, before the next tick.
+
+The seam carries four methods — `set_breakpoints`, `breakpoints`, `paused`,
+`resume(StepMode)` — defaulted, so a backend without a debugger compiles
+unchanged. The `debugger` script module exposes them plus `set_scope`, so
+the editor's dock is plain Luau. (`debug` is Luau's own library; the module
+could not take that name.)
+
+Luau: `lua_breakpoint` patches an opcode on the file's chunk function and
+recurses into nested functions, so an unhit breakpoint costs nothing. The
+host keeps that function per file and re-applies the requested lines after a
+hot reload. The `debugbreak` hook records the hit and calls `lua_break`,
+which returns the coroutine from `lua_resume` with its stack intact; `mlua`
+maps that status to an error, so the host resumes coroutines itself, and
+while any breakpoint is set `update` runs through a coroutine like every
+other entry point — with none set the plain call stays. Frames and locals
+are gathered inside the hook, the one place Luau has adjusted the frame's pc
+to the instruction it stopped on; asked afterwards, `lua_getinfo` and
+`lua_getlocal` answer for the instruction before. Step over, into and out
+arm `lua_singlestep` and compare `lua_stackdepth` and the line in the
+`debugstep` hook. Debug level 2 keeps local names and changes no semantics,
+so dev and export share it. Two limits worth knowing: O2 inlines plain
+local functions, so stepping into one steps over it and a breakpoint inside
+it never fires — methods on the class table are not inlined; and a script
+running under a plain call from Rust (`on_free`, a module's top level)
+cannot be parked, so a breakpoint there is let through. Rune has the
+primitives (`VmExecution::step`, the unit's debug info) and no debugger yet.
+
 ### Components (plugin feature)
 
 Plugins declare named, schema-described components through
@@ -407,9 +449,81 @@ want the world mutably, and a script handler may play, stop, spawn or free
 anything including its own node.
 
 Deliberately not now, and not precluded: blend trees and state machines
-(AnimationTree, AnimatorController), skinning and retargeting — which need
-skinned meshes in the render backend first, though the track model already
-fits `bone/3/rotation`.
+(AnimationTree, AnimatorController) and retargeting. Skinning landed as the
+section below, and it cost this crate nothing: a bone is a node, so a clip
+already animates it by path.
+
+### Skeletons and skins (core + render)
+
+A bone is a node with a rest pose — the `bone2d` component, registered by
+`balaur_core::skeleton`. There is no skeleton component: a skin names its
+rig by node path (`polygon.skeleton = ".."`; `scene::find_node` learned `..`
+for it) and the rig's bones are that node's descendants that carry a bone,
+in tree order, which is the order a skin numbers them. That is the whole
+data model, and it is why nothing in `balaur_anim` knows the word bone: a
+clip on the character keys `target = "Hip/Thigh"`, the digest already hashes
+every bone's transform, and the snapshot ring already restores it.
+
+Bones live in core for the reason `mesh` does: rendering skins with them,
+the editor edits them through the registry, and physics will attach to them.
+The two whole-rig verbs are the `skeleton` script module, declared once
+beside `engine` and `scene`: `apply_rest` (Godot's *Reset to Rest Pose*),
+`overwrite_rest` (*Overwrite Rest Pose*) and `bones`.
+
+**A skin is a `polygon`**: a textured 2D polygon whose `mesh` asset carries
+positions as `[x, y]` pairs, an `internal` count of trailing interior
+vertices, optional `polygons` (index loops, each ear-clipped — the Godot
+rule: with interior vertices the author draws the polygons, because
+automatic triangulation bends badly), `uvs`, and `skin.bones` — one weight
+per vertex per bone, folded at parse to the four heaviest influences per
+vertex, renormalised. Ear clipping is written out in
+`balaur_core::triangulate` (`f32` arithmetic and comparisons, no
+transcendentals, no dependency) so a headless test asserts the triangle
+list. Absent UVs default to the texture centred on the node's origin at
+`pixels_per_unit`, v downward, read off the image header in every build —
+the same reason `sprite` sizes itself headless — so a polygon traced over a
+sprite shows that sprite undistorted.
+
+**The palette is computed by the engine, uploaded by the backend.**
+`skeleton::joint_matrices_2d` is a pure function of the scene tree: for each
+bone, current global pose times the inverse of its rest pose composed down
+from the rig, carried into the skin node's own space — so a skin need not be
+under its rig, and a flipped or scaled rig flips or scales its skin.
+`Mat3::from_quat`, affine inverse and multiplication are arithmetic only;
+the only sin/cos on the path is `libm`'s, at the rest pose. The render
+backend's `Renderable2d` gains `Shape2d::Polygon` with a `PolygonMesh`
+beside it, and its 2D sync hands the palette each frame to a skinning
+material written in `balaur_render::skinned_2d` against kiss3d's `Material2d`
+trait, with a self-contained WGSL shader — rather than kiss3d's own
+`SkinnedMesh2d`, which walks a bone chain it owns and has no scale in its
+model transform. A vertex whose weights sum to zero is left where it was
+authored, so a rigid polygon draws through the same pipeline with an empty
+palette. Rendering stays a pure observer: `skeleton::skin_positions` is the
+CPU twin of the shader, and the headless test deforms a strip with it while
+`examples/rig`'s headless and offscreen digests agree tick for tick.
+
+**3D is the same model with import instead of tracing.** `bone3d` is the
+same `Bone` on every axis (one struct backs both keys, with a flag so each
+key reports only its own), `mesh` gains `skeleton` and `texture`, and the
+`mesh` asset reads a self-contained `.glb` (`balaur_core::glb`): rigid
+primitives baked into the file's frame, skinned ones left in bind space, the
+first skin's joints and weights, and its inverse bind matrices re-based from
+the file's scene root to the rig root so the palette formula is the 2D one
+with the rest inverse swapped for the file's. `balaur import model.glb`
+writes what the file cannot say as a mesh — the joint hierarchy as nodes
+with `bone3d` rest poses, one mesh node at the model's root pointing at
+`models/model.glb` through an inline definition, and every animation as a
+clip keying those nodes by path (quaternions to euler on the same `libm`;
+cubic-spline tangents dropped to linear) — as plain TOML the editor edits
+like any other scene. The `gltf` crate builds without its image feature:
+nothing here decodes a texture, and a pack hands the reader bytes. 3D
+skinning runs on the CPU — `skin_positions_3d` and `skin_normals_3d`
+through kiss3d's `modify_vertices` / `modify_normals` on a dynamic mesh —
+rather than through kiss3d's own `Skin3d`, whose constructor is crate-private
+and whose GPU path is native-only; a few thousand vertices a frame is
+nothing, it runs on the web, and it is the same arithmetic the headless test
+asserts. `examples/rig3d` is a column imported this way, swaying on the clip
+its file carried.
 
 ### Binding API (plugin feature)
 
@@ -909,6 +1023,29 @@ reference), and **Save as file** / **Make inline** move it between the two;
 both forms hold byte-identical documents, which is what makes them exact
 inverses. Preview goes through `animation.define`, so the table being edited
 is parsed by the engine's parser even before it is written to disk.
+
+The clip belongs to the *player*: the selection, or its nearest ancestor
+carrying `animation` (`anim.player`). Keying a bone three levels under a
+character therefore writes a track on the character's clip, addressed by the
+bone's path, and a bone keys its rotation alone. Rigging is
+`editor/scripts/rig.luau`: bones draw as Godot's diamonds (to the first
+child bone, or `length` along `angle` for a tip), the **Rig bone** tool grows
+a chain by clicking, and the inspector's Skeleton section carries the two
+rest-pose verbs. Skins are `editor/scripts/polygon.luau`: Godot's UV editor
+window became four viewport modes — Points (click adds an outline vertex,
+⌥-click an interior one, drag moves, right-click removes), Polygons (click
+vertices to close a loop), UV (the points over a translucent copy of the
+texture, a helper sprite that lives under the mirror) and Weights (paint the
+active bone's weight within a brush; markers shade white to black by it).
+Every edit records history first and then pushes the document's polygon onto
+the live node, so undo and the saved scene see the same table. The editor's
+engine resolves files against the editor's own root, so `model.build_mirror`
+makes a game-relative file path absolute for the mirror and `doc_value`
+makes it relative again on the way back — which is what lets a texture show
+in the editor at all. `balaur edit <game> --state
+"anim,select:Limb,tool:polygon,mode:weights,shot=out.png"` screenshots any
+such state offscreen, and `scripts/e2e.sh` runs the `rigdemo` and `polydemo`
+self-tests headless on every example.
 
 Note: the workspace patches `kiss3d` to the local checkout at
 `~/work/kiss3d` for the macOS ⌘-modifier fix in its egui integration

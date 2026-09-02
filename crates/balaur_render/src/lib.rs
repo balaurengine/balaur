@@ -15,15 +15,19 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 mod camera;
 pub mod mesh;
 mod particles;
+mod polygon;
 mod shape;
 mod sprite;
 mod tilemap;
 pub use camera::{Camera, CameraKind};
 pub use particles::Particles;
+pub use polygon::PolygonMesh;
 pub use tilemap::{Tilemap, Tileset, TILESET_ASSET_TYPE};
 
 #[cfg(feature = "kiss3d")]
 pub mod kiss3d_backend;
+#[cfg(feature = "kiss3d")]
+mod skinned_2d;
 
 /// Ask a rendering backend to save one frame as a PNG once `after_frame`
 /// frames have been rendered (debugging, CI golden images, editor
@@ -280,6 +284,11 @@ pub struct Renderable {
     pub color: [f32; 4],
     /// The `mesh` asset this draws, present exactly when `shape` is a mesh.
     pub mesh: Option<String>,
+    /// Node path to the rig a skinned mesh deforms with, relative to the
+    /// node; empty means the node itself. Ignored by a mesh with no skin.
+    pub skeleton: String,
+    /// Image a mesh is textured with; empty draws the colour alone.
+    pub texture: String,
     /// Bumped when `shape` changes so backends know to rebuild their node.
     pub version: u64,
 }
@@ -312,6 +321,9 @@ pub enum Shape2d {
         width: f32,
         closed: bool,
     },
+    /// A filled, textured polygon, deformed by a rig when its mesh carries
+    /// skin weights. The geometry lives in `Renderable2d::polygon`.
+    Polygon,
 }
 
 /// Pixels of texture per world unit when a sprite is sized from its image.
@@ -351,16 +363,61 @@ pub struct Renderable2d {
     pub sprite: Option<SpriteTexture>,
     /// The `mesh` asset a polyline draws, present exactly when `shape` is one.
     pub polyline: Option<String>,
+    /// What a polygon draws, present exactly when `shape` is one.
+    pub polygon: Option<std::sync::Arc<PolygonMesh>>,
     pub version: u64,
 }
 
+/// Point `entity` at a polygon, rebuilding the backend's node only when the
+/// geometry, texture or rig changed — a tint alone never does.
+pub(crate) fn set_polygon(
+    eng: &Engine,
+    entity: Entity,
+    polygon: std::sync::Arc<PolygonMesh>,
+) -> Result<()> {
+    let mut world = eng.world_mut();
+    if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
+        let rebuild = r.shape != Shape2d::Polygon || r.polygon.as_deref() != Some(&*polygon);
+        r.shape = Shape2d::Polygon;
+        r.polygon = Some(polygon);
+        if rebuild {
+            r.version += 1;
+        }
+        return Ok(());
+    }
+    world
+        .insert_one(
+            entity,
+            Renderable2d {
+                shape: Shape2d::Polygon,
+                color: [1.0, 1.0, 1.0, 1.0],
+                sprite: None,
+                polyline: None,
+                polygon: Some(polygon),
+                version: 0,
+            },
+        )
+        .map_err(|_| anyhow!("node is dead"))
+}
+
 /// Point `entity` at the mesh asset it draws, mirroring `set_polyline`.
-pub(crate) fn set_mesh(eng: &Engine, entity: Entity, source: String) -> Result<()> {
+pub(crate) fn set_mesh(
+    eng: &Engine,
+    entity: Entity,
+    source: String,
+    skeleton: String,
+    texture: String,
+) -> Result<()> {
     let mut world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable>(entity) {
-        let rebuild = r.shape != Shape::Mesh || r.mesh.as_deref() != Some(source.as_str());
+        let rebuild = r.shape != Shape::Mesh
+            || r.mesh.as_deref() != Some(source.as_str())
+            || r.skeleton != skeleton
+            || r.texture != texture;
         r.shape = Shape::Mesh;
         r.mesh = Some(source);
+        r.skeleton = skeleton;
+        r.texture = texture;
         if rebuild {
             r.version += 1;
         }
@@ -373,6 +430,8 @@ pub(crate) fn set_mesh(eng: &Engine, entity: Entity, source: String) -> Result<(
                 shape: Shape::Mesh,
                 color: [0.8, 0.8, 0.8, 1.0],
                 mesh: Some(source),
+                skeleton,
+                texture,
                 version: 0,
             },
         )
@@ -393,6 +452,8 @@ pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()
                 shape,
                 color: [0.8, 0.8, 0.8, 1.0],
                 mesh: None,
+                skeleton: String::new(),
+                texture: String::new(),
                 version: 0,
             },
         )
@@ -424,6 +485,7 @@ pub(crate) fn set_polyline(
                 color: [1.0, 1.0, 1.0, 1.0],
                 sprite: None,
                 polyline: Some(source),
+                polygon: None,
                 version: 0,
             },
         )
@@ -445,6 +507,7 @@ pub(crate) fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Resul
                 color: [0.8, 0.8, 0.8, 1.0],
                 sprite: None,
                 polyline: None,
+                polygon: None,
                 version: 0,
             },
         )
@@ -525,6 +588,7 @@ fn set_sprite(
                 color: [1.0, 1.0, 1.0, 1.0],
                 sprite: Some(texture),
                 polyline: None,
+                polygon: None,
                 version: 0,
             },
         )
@@ -610,10 +674,12 @@ impl Plugin for RenderPlugin {
         shape::install_shape_api(&mut *m);
         install_sprite_api(&mut *m);
         install_sprite_state_api(&mut *m);
+        install_texture_api(&mut *m);
         shape::register_shape_component(app);
         shape::register_shape2d_component(app);
         register_render_presets(app)?;
         sprite::register_sprite_component(app);
+        polygon::register_polygon_component(app);
         camera::register_camera_component(app);
         mesh::register_mesh_component(app);
         tilemap::register_tileset_asset(app);
@@ -944,6 +1010,21 @@ fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Adjusting a sprite a node already has, and reading it back.
+/// The image's pixel size, from its header: what a tool placing UVs over a
+/// texture needs, in every build.
+fn install_texture_api(m: &mut dyn Bindings<Engine>) {
+    m.function("texture_size", |eng: &Engine, path: String| {
+        let bytes = eng
+            .resource::<balaur_core::project::ProjectFiles>()
+            .borrow()
+            .read(&path)?;
+        let (w, h) = image::load_from_memory(&bytes)
+            .map(|image| (image.width(), image.height()))
+            .map_err(|e| anyhow!("reading the size of {path}: {e}"))?;
+        Ok((w, h))
+    });
+}
+
 fn install_sprite_state_api(m: &mut dyn Bindings<Engine>) {
     // Frames are numbered left to right, top to bottom. Changing one only
     // moves UVs, so this is cheap enough to call every frame.
@@ -1038,6 +1119,7 @@ fn install_sprite_state_api(m: &mut dyn Bindings<Engine>) {
                 Shape2d::Circle { radius } => ("circle".to_string(), radius, radius),
                 Shape2d::Capsule { radius, height } => ("capsule".to_string(), radius, height),
                 Shape2d::Polyline { width, .. } => ("polyline".to_string(), width, width),
+                Shape2d::Polygon => ("polygon".to_string(), 0.0, 0.0),
                 Shape2d::Rect { hx, hy } => ("rect".to_string(), hx, hy),
                 Shape2d::Sprite { hx, hy } => ("sprite".to_string(), hx, hy),
             },
@@ -1068,6 +1150,14 @@ fn register_render_presets(app: &mut App) -> Result<()> {
             "A grid of tiles from one tileset",
             &["2d", "render"],
             &[("tilemap", None)],
+        )?,
+    );
+    app.register_preset(
+        "polygon2d",
+        balaur_core::presets::preset(
+            "A textured polygon that a rig can deform",
+            &["2d", "render", "animation"],
+            &[("polygon", None)],
         )?,
     );
     Ok(())

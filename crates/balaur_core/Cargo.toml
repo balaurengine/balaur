@@ -22,6 +22,12 @@ tracing-log.workspace = true
 # Platform-standard user-data locations for `engine.user_data_dir`.
 dirs = "6"
 sha2.workspace = true
+# Bone rest poses go through sin/cos once per bone; the platform libm differs
+# across operating systems and this one does not.
+libm.workspace = true
+# `.glb` meshes, skins and clips. No `import` feature: a pack hands the
+# reader bytes, and nothing here decodes an image.
+gltf = { version = "1.4", default-features = false, features = ["utils", "names"] }
 
 [dev-dependencies]
 tempfile = "3"

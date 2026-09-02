@@ -5,6 +5,7 @@ local defs = require("scripts/defs")
 local model = require("scripts/model")
 local highlight = require("scripts/highlight")
 local history = require("scripts/history")
+local polygonlib = require("scripts/polygon")
 
 local M = {}
 
@@ -150,6 +151,12 @@ local function viewport(S, k)
                 end
                 chip(S, k, c[1], label, c[3])
             end
+            -- The Polygon tool's modes sit with the chips: Godot's UV editor
+            -- tabs, in the viewport rather than a window.
+            if S.tool == "polygon" then
+                ui.add_space(8)
+                polygonlib.mode_chips(S, k)
+            end
         end)
         -- Bottom row: axis pill (left), zoom pill (right).
         ui.add_space(vh - 26 - 34)
@@ -230,15 +237,22 @@ local function script_editor(S, k)
         -- and hot reloads the game code).
         ui.scroll("code", nil, function()
             ui.add_space(12)
-            local text, changed = ui.code_editor("edit:" .. path, src, {
+            local stopped_here = S.paused ~= nil and S.paused_rel == node.script
+            local text, changed, hit = ui.code_editor("edit:" .. path, src, {
                 size = 12.5, gutter_width = 34, gutter_color = k.faint,
                 k_key = k.k_key, k_str = k.k_str, k_num = k.k_num,
                 k_com = k.k_com, k_fn = k.k_fn, k_type = k.k_type,
                 k_punc = k.k_punc,
+                breakpoints = S.breakpoint_lines(node.script),
+                current_line = if stopped_here then S.paused.line else nil,
+                breakpoint_color = k.accent, current_fill = k.accent_soft,
             })
             S.script_buffers[path] = text
             if changed then
                 S.script_dirty[path] = true
+            end
+            if hit ~= nil then
+                S.toggle_breakpoint(node.script, hit)
             end
             ui.add_space(12)
         end)

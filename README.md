@@ -108,8 +108,13 @@ Try the demo: `cargo run -p balaur_cli -- run examples/hello --headless`,
 then edit `examples/hello/scripts/spinner.luau` while it runs. Scripts also
 get `input` (keys/mouse), `rng` (seeded, deterministic), `audio`, `physics`/`physics3d`/`physics2d`,
 `render` (shapes, colors, `render.set_camera`), `animation` (clips and
-tweens), `assets` (shared content by reference), and deterministic `math.*`
-replacements out of the box.
+tweens), `skeleton` (rest poses of a rig), `assets` (shared content by
+reference), and deterministic `math.*` replacements out of the box.
+
+The editor has a debugger for Luau scripts: click a line number to set a
+breakpoint, run the scene, and the Debugger dock shows the call stack and
+locals, with continue and step over / into / out on `F5` / `F10` / `F11` /
+`Shift+F11`.
 
 2D is first-class: `shape2d`, `body2d` and `collider2d` components (rapier2d
 under the hood, same determinism guarantees), an orthographic pan/zoom
@@ -158,6 +163,48 @@ advances on a fixed 1/60 timestep and the easing curves (twelve transitions,
 four modes, Godot's names) are computed on `libm`, so an animation is the same
 on every platform. `examples/hello` has a moving platform driven by a clip
 asset; the editor's Animate persona edits that same clip.
+
+## Skeletal animation (2D)
+
+A bone is a node with a rest pose, and a skin is a textured polygon whose
+mesh carries bone weights, so a rig needs no new animation machinery: a
+clip on the character keys its bones by path.
+
+```toml
+[[nodes]]
+name = "Thigh"
+parent = "n_hip"
+position = [0, 0.85, 0]
+bone2d = { rest_position = [0, 0.85], rest_rotation = 0.0 }
+
+[nodes.polygon]                       # on a sibling node
+texture = "art/limb.png"
+skeleton = ".."                       # the rig root; bones are its descendants
+
+[nodes.polygon.mesh]                  # a `mesh` asset, inline
+positions = [[-0.4, 0], [0.4, 0], [0.4, 0.85], [-0.4, 0.85]]
+[[nodes.polygon.mesh.skin.bones]]
+path = "Hip/Thigh"
+weights = [0, 0, 1, 1]
+```
+
+The outline is ear-clipped, `internal` vertices and hand-drawn `polygons`
+control the triangulation, UVs default to the texture centred on the node at
+`pixels_per_unit`, and skinning runs on the GPU with a joint palette the
+engine computes from the scene tree — headless runs compute the same palette,
+so bones stay inside the determinism digest. `skeleton.apply_rest(node)` and
+`skeleton.overwrite_rest(node)` are Godot's two rest-pose verbs. The editor's
+Animate persona has a **Rig bone** tool, bone gizmos, the rest-pose buttons,
+and a **Polygon** tool with Points / Polygons / UV / Weights modes; keying a
+bone writes a track on its character's clip. `examples/rig` is a three-bone
+limb bending under a looping clip.
+
+3D rigs come from files rather than tracing: `balaur import model.glb
+--project game` copies the model under `models/`, writes its joint hierarchy
+as a scene with `bone3d` rest poses and one `mesh` node, and its animations
+as a clip library — all TOML. The mesh is CPU-skinned every frame from the
+same scene tree, so it animates through the same clips, and the same rest
+verbs and bone gizmos apply. `examples/rig3d` is a column imported this way.
 
 ## Benchmarks
 

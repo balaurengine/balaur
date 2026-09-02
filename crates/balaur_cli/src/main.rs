@@ -144,6 +144,16 @@ enum Command {
     /// script can reach. Read from a booted engine, not from the source, so
     /// derived constants are included and nothing can drift.
     Api,
+    /// Bring a `.glb` model into a project: the file under `models/`, its
+    /// node hierarchy as a scene with `bone3d` on every joint, and its
+    /// animations as a clip library — all plain TOML the editor edits.
+    Import {
+        /// The model to import (self-contained .glb).
+        file: PathBuf,
+        /// The project to write into.
+        #[arg(long, default_value = ".")]
+        project: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -176,6 +186,7 @@ fn main() -> Result<()> {
     }
     match Cli::parse().command {
         Command::Api => dump_api(),
+        Command::Import { file, project } => import_model(&file, &project),
         Command::New { path } => new_project(&path),
         Command::Run {
             path,
@@ -865,6 +876,56 @@ fn dump_api() -> Result<()> {
         .unwrap_or_default();
     api["asset_types"] = serde_json::to_value(asset_types)?;
     println!("{}", serde_json::to_string_pretty(&api)?);
+    Ok(())
+}
+
+/// `balaur import model.glb --project game`: `models/model.glb` (and the
+/// files a `.gltf` names beside itself), `scenes/model.toml` and, with
+/// animations, `animations/model.toml`.
+fn import_model(file: &Path, project: &Path) -> Result<()> {
+    let bytes = std::fs::read(file).with_context(|| format!("reading {}", file.display()))?;
+    let stem = file
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty())
+        .context("the model file has no name")?
+        .to_ascii_lowercase()
+        .replace([' ', '-'], "_");
+    let extension = file
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("glb")
+        .to_ascii_lowercase();
+    let model_file = format!("{stem}.{extension}");
+    let directory = file.parent().map(Path::to_path_buf).unwrap_or_default();
+    let side = |uri: &str| -> Result<Vec<u8>> {
+        let path = directory.join(uri);
+        std::fs::read(&path).with_context(|| format!("reading {}", path.display()))
+    };
+    let imported = balaur::glb::import(&bytes, &model_file, &side)?;
+    let models = project.join("models");
+    std::fs::create_dir_all(&models)?;
+    std::fs::create_dir_all(project.join("scenes"))?;
+    let model = models.join(&model_file);
+    std::fs::write(&model, &bytes)?;
+    println!("wrote {}", model.display());
+    for (name, data) in &imported.files {
+        let path = models.join(name);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&path, data)?;
+        println!("wrote {}", path.display());
+    }
+    let scene = project.join("scenes").join(format!("{stem}.toml"));
+    std::fs::write(&scene, imported.scene_toml()?)?;
+    println!("wrote {}", scene.display());
+    if let Some(clips) = imported.clips_toml()? {
+        std::fs::create_dir_all(project.join("animations"))?;
+        let library = project.join("animations").join(format!("{stem}.toml"));
+        std::fs::write(&library, clips)?;
+        println!("wrote {}", library.display());
+    }
     Ok(())
 }
 

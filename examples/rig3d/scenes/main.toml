@@ -1,0 +1,82 @@
+# A three-bone column imported from models/column.glb (`balaur import`),
+# swaying on the clip the file carried, plus a camera and a floor.
+
+[[nodes]]
+id = "n_column"
+name = "Column"
+parent = ""
+
+[nodes.animation]
+autoplay = "sway"
+library = "animations/column.toml"
+
+[[nodes]]
+id = "n_column_root"
+name = "Root"
+parent = "n_column"
+position = [0.0, 0.0, 0.0]
+rotation_euler = [0.0, 0.0, 0.0]
+scale = [1.0, 1.0, 1.0]
+
+[nodes.bone3d]
+rest_position = [0.0, 0.0, 0.0]
+rest_rotation = [0.0, 0.0, 0.0]
+rest_scale = [1.0, 1.0, 1.0]
+
+[[nodes]]
+id = "n_column_mid"
+name = "Mid"
+parent = "n_column_root"
+position = [0.0, 1.0, 0.0]
+rotation_euler = [0.0, 0.0, 0.0]
+scale = [1.0, 1.0, 1.0]
+
+[nodes.bone3d]
+rest_position = [0.0, 1.0, 0.0]
+rest_rotation = [0.0, 0.0, 0.0]
+rest_scale = [1.0, 1.0, 1.0]
+
+[[nodes]]
+id = "n_column_top"
+name = "Top"
+parent = "n_column_mid"
+position = [0.0, 1.0, 0.0]
+rotation_euler = [0.0, 0.0, 0.0]
+scale = [1.0, 1.0, 1.0]
+
+[nodes.bone3d]
+rest_position = [0.0, 1.0, 0.0]
+rest_rotation = [0.0, 0.0, 0.0]
+rest_scale = [1.0, 1.0, 1.0]
+
+[[nodes]]
+id = "n_column_mesh"
+name = "ColumnMesh"
+parent = "n_column"
+
+[nodes.mesh]
+skeleton = "../Root"
+
+[nodes.mesh.source]
+source = "models/column.glb"
+
+[[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = ""
+position = [4.0, 3.2, 5.5]
+
+[nodes.camera]
+kind = "3d"
+look_at = [0.0, 1.5, 0.0]
+
+[[nodes]]
+id = "n_floor"
+name = "Floor"
+parent = ""
+position = [0.0, 0.0, 0.0]
+
+[nodes.shape3d]
+kind = "plane"
+half_extents = [4.0, 0.0, 4.0]
+color = [0.3, 0.42, 0.3, 1.0]

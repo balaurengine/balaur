@@ -18,7 +18,7 @@ const MAGIC: &[u8; 5] = b"BPAK\x02";
 /// fonts have to travel with it; source art and notes do not.
 pub const ASSET_EXTENSIONS: &[&str] = &[
     "png", "jpg", "jpeg", "webp", "bmp", "tga", "ogg", "wav", "mp3", "flac", "ttf", "otf", "glb",
-    "gltf", "obj",
+    "gltf", "bin", "obj",
 ];
 
 /// A content hash, so a decoded pack can prove an entry arrived intact and a

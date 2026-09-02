@@ -3,6 +3,7 @@
 use anyhow::Result;
 
 use crate::bindings::Bindings;
+use crate::debug::{Pause, StepMode};
 use crate::value::{CallbackId, NodeId, Value};
 
 /// Compiles script sources ahead of time, for export packs.
@@ -110,6 +111,30 @@ pub trait ScriptHost<C: ?Sized> {
     /// Valid only during the binding call that received it — see
     /// `Value::Callback`.
     fn invoke(&self, callback: CallbackId, args: &[Value]) -> Result<Value>;
+
+    /// Replace one script file's breakpoints with `lines`, returning the
+    /// lines they landed on: a line without code moves to the next that has
+    /// some. A backend without a debugger refuses.
+    fn set_breakpoints(&self, path: &str, lines: &[usize]) -> Result<Vec<usize>> {
+        let _ = (path, lines);
+        Err(anyhow::anyhow!("this script backend has no debugger"))
+    }
+
+    /// One script file's breakpoints, as they landed.
+    fn breakpoints(&self, path: &str) -> Vec<usize> {
+        let _ = path;
+        Vec::new()
+    }
+
+    /// Where a script is stopped, while one is.
+    fn paused(&self) -> Option<Pause> {
+        None
+    }
+
+    /// Let the paused script go on. Nothing paused, nothing to do.
+    fn resume(&self, mode: StepMode) {
+        let _ = mode;
+    }
 
     /// Downcast to the concrete backend, for code written against one language
     /// on purpose: a tool that wants the raw interpreter state, or a test of a

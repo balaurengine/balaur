@@ -266,8 +266,9 @@ color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, a
                 let renderable = world.get::<&Renderable2d>(entity).ok()?;
                 let mut map = toml::map::Map::new();
                 match renderable.shape {
-                    // A sprite is saved by the `sprite` component, not this one.
-                    Shape2d::Sprite { .. } => return None,
+                    // A sprite is saved by the `sprite` component and a
+                    // polygon by `polygon`, not this one.
+                    Shape2d::Sprite { .. } | Shape2d::Polygon => return None,
                     Shape2d::Circle { radius } => {
                         map.insert("kind".into(), toml::Value::String("circle".into()));
                         map.insert("radius".into(), toml::Value::Float(f64::from(radius)));

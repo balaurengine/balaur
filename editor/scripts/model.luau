@@ -181,6 +181,12 @@ function M.node_type(node)
         return "KinematicBody2D"
     elseif node.widget ~= nil then
         return "Widget"
+    elseif node.bone2d ~= nil then
+        return "Bone2D"
+    elseif node.bone3d ~= nil then
+        return "Bone3D"
+    elseif node.polygon ~= nil then
+        return "Polygon2D"
     elseif node.shape3d ~= nil then
         return "MeshInstance3D"
     elseif node.shape2d ~= nil then
@@ -207,7 +213,8 @@ end
 -- editor switches camera, grid and gizmo accordingly.
 function M.is_2d(S)
     for _, node in S.doc do
-        if node.shape2d ~= nil or node.body2d ~= nil or node.collider2d ~= nil then
+        if node.shape2d ~= nil or node.body2d ~= nil or node.collider2d ~= nil
+            or node.polygon ~= nil or node.bone2d ~= nil then
             return true
         end
     end
@@ -225,6 +232,10 @@ function M.node_icon(node)
         return "◐", "sage"
     elseif kind ~= nil then
         return "▣", "sage"
+    elseif node.bone2d ~= nil or node.bone3d ~= nil then
+        return "⋈", "dim"
+    elseif node.polygon ~= nil then
+        return "⬟", "accent"
     elseif node.shape3d ~= nil then
         if node.shape3d.kind == "ball" then
             return "◯", "accent"
@@ -266,6 +277,34 @@ function M.load(S)
     M.build_mirror(S)
 end
 
+-- The editor's engine resolves files against the editor's own root, so a
+-- game-relative file path (a sprite's or polygon's texture) is made absolute
+-- for the mirror; `doc_value` makes it relative again on the way back.
+local function absolute_files(S, value)
+    if type(value) == "string" then
+        if value ~= "" and string.sub(value, 1, 1) ~= "/"
+            and fs.exists(S.game_root .. "/" .. value) then
+            return S.game_root .. "/" .. value
+        end
+        return value
+    elseif type(value) == "table" then
+        local out = {}
+        for key, inner in value do
+            out[key] = absolute_files(S, inner)
+        end
+        return out
+    end
+    return value
+end
+
+local function relative_file(S, value)
+    local prefix = S.game_root .. "/"
+    if type(value) == "string" and string.sub(value, 1, #prefix) == prefix then
+        return string.sub(value, #prefix + 1)
+    end
+    return value
+end
+
 -- (Re)build the live mirror under a fresh container node.
 function M.build_mirror(S)
     if S.mirror ~= nil and S.mirror:is_valid() then
@@ -273,9 +312,10 @@ function M.build_mirror(S)
     end
     physics.clear()
     S.mirror = scene.spawn("Edited")
+    debugger.set_scope(S.mirror)
     -- The document, not the file: a mirror read from disk cannot hold an
     -- unsaved edit, which left a duplicated node with no live node at all.
-    scene.instantiate(toml.encode({ nodes = S.doc }), S.mirror, { scripts = false })
+    scene.instantiate(toml.encode({ nodes = absolute_files(S, S.doc) }), S.mirror, { scripts = false })
     physics.set_paused(true)
     S.playing = false
     S.refs = {}
@@ -414,7 +454,7 @@ end
 -- The document mirrors the live node for saving, with two exceptions:
 -- `readonly` properties are stripped, and an `asset` property keeps the
 -- document's authored spelling — the engine's resolved one cannot be saved.
-local function doc_value(name, data, previous)
+local function doc_value(S, name, data, previous)
     local schema = scene.component_schema(name) or {}
     local out = {}
     for key, value in data do
@@ -423,7 +463,7 @@ local function doc_value(name, data, previous)
         if spec ~= nil and spec.type == "asset" and authored ~= nil then
             out[key] = authored
         elseif spec == nil or not spec.readonly then
-            out[key] = value
+            out[key] = relative_file(S, value)
         end
     end
     return out
@@ -436,7 +476,7 @@ function M.sync_component_doc(S, name)
         return
     end
     local data = ref:get_component(name)
-    node[name] = if data ~= nil then doc_value(name, data, node[name]) else nil
+    node[name] = if data ~= nil then doc_value(S, name, data, node[name]) else nil
 end
 
 function M.add_component(S, name)
@@ -460,6 +500,27 @@ function M.remove_component(S, name)
     S.doc[S.sel][name] = nil
 end
 
+-- Push the document's component onto the live node, for a tool that edited
+-- the document in place and recorded history itself.
+function M.apply_component(S, name)
+    local ref = M.ref(S, S.sel)
+    local node = S.doc[S.sel]
+    if ref == nil or node[name] == nil then
+        return
+    end
+    local authored = node[name]
+    ref:set_component(name, absolute_files(S, authored))
+    M.sync_component_doc(S, name)
+    -- `doc_value` keeps an asset's authored spelling only when it is a
+    -- reference; an inline table is the authored form, so it goes back whole.
+    local schema = scene.component_schema(name) or {}
+    for key, spec in schema do
+        if spec.type == "asset" and type(authored[key]) == "table" then
+            node[name][key] = authored[key]
+        end
+    end
+end
+
 function M.set_component_prop(S, name, prop, value)
     local ref = M.ref(S, S.sel)
     if ref == nil then
@@ -468,9 +529,9 @@ function M.set_component_prop(S, name, prop, value)
     history.record(S, `set {name}.{prop}`, `prop:{name}:{prop}:{S.sel}`)
     local node = S.doc[S.sel]
     local data = ref:get_component(name) or {}
-    local params = doc_value(name, data, node[name])
+    local params = doc_value(S, name, data, node[name])
     params[prop] = value
-    ref:set_component(name, params)
+    ref:set_component(name, absolute_files(S, params))
     M.sync_component_doc(S, name)
     -- `doc_value` keeps the document's spelling of an asset property, which is
     -- exactly wrong for the one property that was just retyped, so it is

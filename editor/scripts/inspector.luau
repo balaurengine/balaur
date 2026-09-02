@@ -2,6 +2,8 @@
 local theme = require("scripts/theme")
 local model = require("scripts/model")
 local animlib = require("scripts/anim")
+local riglib = require("scripts/rig")
+local polygonlib = require("scripts/polygon")
 local history = require("scripts/history")
 
 local M = {}
@@ -183,8 +185,142 @@ local function clip_source_row(S, k, node)
     end)
 end
 
-local function animation_section(S, k)
+-- Godot's two rest-pose verbs, for a node with bones under it (or a bone).
+local function skeleton_section(S, k)
+    local node, ref = model.selected(S)
+    if ref == nil then
+        return
+    end
+    local count = riglib.bone_count(S, S.sel)
+    if count == 0 and S.mode2d then
+        return
+    end
+    section(k, "Skeleton")
+    row(k, "Bones", function()
+        local what = if riglib.is_bone(node) then "this bone and below" else `under {node.name}`
+        ui.label(`{count} · {what}`, { size = 11.5, font = "mono", color = k.text })
+        ui.right(function()
+            if ui.pill("＋ bone", {
+                height = 20, size = 10, strong = true,
+                tooltip = "Grow a bone under this node (in 2D, the Rig bone tool places one by clicking)",
+                fill = k.accent_soft, color = k.accent,
+            }) then
+                local _, ref = model.selected(S)
+                if ref ~= nil then
+                    local x, y = table.unpack(ref:global_position())
+                    riglib.add_bone(S, S.sel, x, y + 1)
+                end
+            end
+        end)
+    end)
+    if count == 0 then
+        return
+    end
+    row(k, "Rest pose", function()
+        if ui.pill("reset", {
+            height = 24, size = 11, strong = true,
+            tooltip = "Reset to Rest Pose: pose every bone here at its rest",
+            fill = k.sunken, color = k.dim,
+        }) then
+            riglib.apply_rest(S)
+        end
+        ui.add_space(6)
+        if ui.pill("overwrite", {
+            height = 24, size = 11, strong = true,
+            tooltip = "Overwrite Rest Pose: the pose every bone is in now becomes its rest",
+            fill = k.sage_soft, color = k.sage,
+        }) then
+            riglib.overwrite_rest(S)
+        end
+    end)
+end
+
+-- What the Polygon tool works on: the vertex and polygon counts, the rig's
+-- bones to paint with, and the brush.
+local function polygon_section(S, k)
     local node = model.selected(S)
+    if polygonlib.component(node) == nil then
+        return
+    end
+    section(k, "Polygon")
+    local mesh = polygonlib.mesh(S)
+    if mesh == nil then
+        row(k, "Mesh", function()
+            local text = if polygonlib.editable(S) then "empty — trace it with the Polygon tool"
+                else "a file; make it inline to edit"
+            ui.label(text, { size = 11, font = "mono", color = k.faint })
+        end)
+        return
+    end
+    local positions = mesh.positions or {}
+    local internal = math.floor(mesh.internal or 0)
+    row(k, "Vertices", function()
+        ui.label(`{#positions} · {internal} internal`, { size = 11.5, font = "mono", color = k.text })
+    end)
+    row(k, "Polygons", function()
+        local count = if type(mesh.polygons) == "table" then #mesh.polygons else 0
+        ui.label(if count == 0 then "outline, automatic" else `{count} drawn`,
+            { size = 11.5, font = "mono", color = k.text })
+        if count > 0 then
+            ui.right(function()
+                if ui.pill("clear", {
+                    height = 20, size = 10, strong = true,
+                    tooltip = "Back to filling the outline automatically",
+                    fill = k.sunken, color = k.dim,
+                }) then
+                    polygonlib.clear_polygons(S)
+                end
+            end)
+        end
+    end)
+    row(k, "Bones", function()
+        if ui.pill("sync to rig", {
+            height = 24, size = 11, strong = true,
+            tooltip = "Sync Bones to Polygon: list the rig's bones, keeping weights already painted",
+            fill = k.sage_soft, color = k.sage,
+        }) then
+            polygonlib.sync_bones(S)
+        end
+    end)
+    for i, bone in polygonlib.bones(S) do
+        local active = S.paint_bone == i
+        ui.horizontal({ height = 24 }, function()
+            ui.spacing(8, 0)
+            ui.add_space(LABEL_W)
+            if ui.pill(bone.path, {
+                height = 22, size = 11, align = "left", min_width = CONTROL_W,
+                icon = "⋈", icon_size = 11,
+                fill = if active then k.accent_soft else k.sunken,
+                color = if active then k.accent else k.text,
+                tooltip = "Paint this bone's weights in the Weights mode",
+            }) then
+                S.paint_bone = i
+            end
+        end)
+    end
+    row(k, "Brush", function()
+        local w = CONTROL_W / 2 - 5
+        local radius, ch = ui.drag_value(S.paint_radius or 40, {
+            width = w, speed = 0.5, decimals = 0, prefix = "px", prefix_color = k.accent,
+            fill = k.sunken, stroke = k.line_soft, color = k.text,
+        })
+        if ch then
+            S.paint_radius = math.clamp(radius, 2, 400)
+        end
+        local strength, ch2 = ui.drag_value(S.paint_strength or 0.5, {
+            width = w, speed = 0.01, decimals = 2, prefix = "×", prefix_color = k.accent,
+            fill = k.sunken, stroke = k.line_soft, color = k.text,
+        })
+        if ch2 then
+            S.paint_strength = math.clamp(strength, 0.01, 2)
+        end
+    end)
+end
+
+-- The clip belongs to the player: the selection or its nearest animated
+-- ancestor, so a bone shows the character's clip, not one of its own.
+local function animation_section(S, k)
+    local node = animlib.player(S)
     local def = animlib.definition(S)
     section(k, "Animation")
     if def == nil then
@@ -573,14 +709,18 @@ function M.draw(S)
         ui.scroll("inspector-scroll", { max_height = ui.available_height() - 50 }, function()
             if S.persona == "phys" then
                 component_sections(S, k, { body = true, collider = true, body2d = true, collider2d = true })
+                polygon_section(S, k)
                 script_section(S, k)
             elseif S.persona == "script" then
                 script_section(S, k, "Attached script")
                 select_row(k, "Language", "Luau")
                 select_row(k, "Hot reload", "on save")
             elseif S.persona == "anim" then
+                skeleton_section(S, k)
+                polygon_section(S, k)
                 animation_section(S, k)
                 transform_section(S, k)
+                component_sections(S, k, { bone2d = true, bone3d = true, polygon = true })
                 script_section(S, k)
             elseif S.persona == "ui" then
                 component_sections(S, k, { widget = true })
@@ -588,6 +728,8 @@ function M.draw(S)
                 script_section(S, k)
             else
                 transform_section(S, k)
+                skeleton_section(S, k)
+                polygon_section(S, k)
                 component_sections(S, k)
                 script_section(S, k)
             end

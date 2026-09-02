@@ -10,9 +10,11 @@ pub mod app;
 pub mod assets;
 pub mod collections;
 pub mod components;
+pub mod debugger_api;
 pub mod digest;
 pub mod engine;
 pub mod engine_api;
+pub mod glb;
 pub mod heightfield;
 pub mod logbuf;
 pub mod mesh;
@@ -24,8 +26,10 @@ pub mod replay;
 pub mod resources;
 pub mod rng;
 pub mod scene;
+pub mod skeleton;
 pub mod snapshot;
 pub mod standalone;
+pub mod triangulate;
 
 pub use app::{
     App, AppConfig, Plugin, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage, FIXED_DT,

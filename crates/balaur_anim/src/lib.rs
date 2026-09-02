@@ -38,6 +38,7 @@
 pub mod bindings;
 pub mod clip;
 pub mod ease;
+pub mod modifier;
 pub mod player;
 pub mod sampler;
 mod system;
@@ -68,6 +69,9 @@ impl Plugin for AnimationPlugin {
     fn build(&mut self, app: &mut App) -> Result<()> {
         app.engine.insert_resource(AnimationState::default());
         app.add_system(Stage::Update, system::advance_system);
+        // After the clip has posed the rig, so a modifier has the last word.
+        app.add_system(Stage::Update, modifier::modify_system);
+        modifier::register_modifier2d_component(app);
         app.register_asset_type(CLIP_ASSET_TYPE, "animations", |value| {
             Ok(Rc::new(clip::parse(value)?) as Rc<dyn Any>)
         });

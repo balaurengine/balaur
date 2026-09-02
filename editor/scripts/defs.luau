@@ -14,18 +14,19 @@ M.personas = {
 M.tools = {
     scene = { "select", "move", "rotate", "scale", "zoom" },
     script = {},
-    anim = { "select", "move", "key", "zoom" },
-    phys = { "select", "move", "zoom" },
+    anim = { "select", "move", "bone", "polygon", "key", "zoom" },
+    phys = { "select", "move", "polygon", "zoom" },
     ui = { "select", "move", "zoom" },
 }
 
 M.tool_names = {
     select = "Select", move = "Translate", rotate = "Rotate", scale = "Scale",
-    zoom = "Zoom", key = "Key frame",
+    zoom = "Zoom", key = "Key frame", bone = "Rig bone", polygon = "Polygon",
 }
 
 M.tool_icons = {
-    select = "⌖", move = "✥", rotate = "⟳", scale = "⤢", zoom = "⌕", key = "◆",
+    select = "⌖", move = "✥", rotate = "⟳", scale = "⤢", zoom = "⌕", key = "◆", bone = "⋈",
+    polygon = "⬟",
 }
 
 -- Viewport overlay chips per persona: { key, label, default_on }. A chip that

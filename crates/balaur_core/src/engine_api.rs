@@ -120,6 +120,21 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: component_schema,
     },
     EngineOp {
+        module: "skeleton",
+        name: "apply_rest",
+        call: crate::skeleton::apply_rest_op,
+    },
+    EngineOp {
+        module: "skeleton",
+        name: "overwrite_rest",
+        call: crate::skeleton::overwrite_rest_op,
+    },
+    EngineOp {
+        module: "skeleton",
+        name: "bones",
+        call: crate::skeleton::bones_op,
+    },
+    EngineOp {
         module: "assets",
         name: "load",
         call: assets_load,
@@ -263,6 +278,8 @@ pub fn install_engine_api(eng: &Engine) -> Result<()> {
     }
     let mut node = host.module("node")?;
     crate::node_api::install_node_api(&mut *node);
+    let mut debugger = host.module("debugger")?;
+    crate::debugger_api::install_debugger_api(&mut *debugger);
     Ok(())
 }
 
@@ -769,14 +786,14 @@ fn integer(args: &[Value], i: usize) -> Result<i64> {
     }
 }
 
-fn text(args: &[Value], i: usize) -> Result<&str> {
+pub(crate) fn text(args: &[Value], i: usize) -> Result<&str> {
     match args.get(i) {
         Some(Value::Str(s)) => Ok(s),
         other => Err(anyhow!("argument {i} should be a string, got {other:?}")),
     }
 }
 
-fn optional_node(args: &[Value], i: usize) -> Result<Option<hecs::Entity>> {
+pub(crate) fn optional_node(args: &[Value], i: usize) -> Result<Option<hecs::Entity>> {
     match args.get(i) {
         None | Some(Value::Nil) => Ok(None),
         Some(Value::Node(id)) => Ok(Some(crate::entity_of(balaur_script::NodeId(*id))?)),

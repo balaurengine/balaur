@@ -1,0 +1,39 @@
+type = "animation_clip"
+
+[clips.sway]
+length = 2.0
+loop = "loop"
+
+[[clips.sway.tracks]]
+interp = "linear"
+property = "rotation_euler"
+target = "Root/Mid"
+
+[[clips.sway.tracks.keys]]
+t = 0.0
+value = [0.0, 0.0, -0.4000000059604645]
+
+[[clips.sway.tracks.keys]]
+t = 1.0
+value = [0.0, 0.0, 0.4000000059604645]
+
+[[clips.sway.tracks.keys]]
+t = 2.0
+value = [0.0, 0.0, -0.4000000059604645]
+
+[[clips.sway.tracks]]
+interp = "linear"
+property = "rotation_euler"
+target = "Root/Mid/Top"
+
+[[clips.sway.tracks.keys]]
+t = 0.0
+value = [0.29999998211860657, 0.0, 0.0]
+
+[[clips.sway.tracks.keys]]
+t = 1.0
+value = [-0.29999998211860657, 0.0, 0.0]
+
+[[clips.sway.tracks.keys]]
+t = 2.0
+value = [0.29999998211860657, 0.0, 0.0]

@@ -48,13 +48,13 @@ fn a_script_with_save_and_load_state_is_asked() {
         &app,
         "Counter",
         "counter.luau",
-        r#"
+        r"
 local C = {}
 function C:init() self.hidden = 1; self.count = 5 end
 function C:save_state() return { count = self.count } end
 function C:load_state(s) self.count = s.count * 10 end
 return C
-"#,
+",
     );
     let host = app.engine.script_host().unwrap();
     let states = host.save_state();

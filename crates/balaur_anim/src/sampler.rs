@@ -355,20 +355,9 @@ pub fn slerp(from: Quat, to: Quat, t: f32) -> Quat {
 /// platform's.
 #[must_use]
 pub fn quat_from_euler(euler: Vec3) -> Quat {
-    let (sr, cr) = half_sin_cos(euler.x);
-    let (sp, cp) = half_sin_cos(euler.y);
-    let (sy, cy) = half_sin_cos(euler.z);
-    Quat::from_xyzw(
-        cy * cp * sr - sy * sp * cr,
-        cy * sp * cr + sy * cp * sr,
-        sy * cp * cr - cy * sp * sr,
-        cy * cp * cr + sy * sp * sr,
-    )
-}
-
-fn half_sin_cos(angle: f32) -> (f32, f32) {
-    let half = angle * 0.5;
-    (libm::sinf(half), libm::cosf(half))
+    // One implementation for a clip key and a bone's rest pose, so the two
+    // agree to the bit.
+    balaur_core::skeleton::quat_from_euler(euler)
 }
 
 /// A quaternion back to the euler triple [`quat_from_euler`] would build it
@@ -381,16 +370,5 @@ fn half_sin_cos(angle: f32) -> (f32, f32) {
 /// describes is still the right one.
 #[must_use]
 pub fn euler_from_quat(q: Quat) -> Vec3 {
-    let sin_pitch = (2.0 * (q.w * q.y - q.z * q.x)).clamp(-1.0, 1.0);
-    Vec3::new(
-        libm::atan2f(
-            2.0 * (q.w * q.x + q.y * q.z),
-            1.0 - 2.0 * (q.x * q.x + q.y * q.y),
-        ),
-        libm::asinf(sin_pitch),
-        libm::atan2f(
-            2.0 * (q.w * q.z + q.x * q.y),
-            1.0 - 2.0 * (q.y * q.y + q.z * q.z),
-        ),
-    )
+    balaur_core::skeleton::euler_from_quat(q)
 }

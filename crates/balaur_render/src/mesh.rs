@@ -11,23 +11,29 @@ use balaur_core::App;
 ///
 /// Writes `Shape::Mesh` plus the asset reference, the same split `sprite` and
 /// `shape2d`'s polyline use — the shape enum carries parameters, the
-/// renderable carries the reference.
+/// renderable carries the reference. A mesh whose asset carries a skin
+/// deforms with the rig `skeleton` names.
 pub(crate) fn register_mesh_component(app: &mut App) {
     app.register_component(
         MESH_ASSET_TYPE,
         balaur_core::components::ComponentDef {
             schema: balaur_core::components::ComponentDef::parse_schema(
                 MESH_ASSET_TYPE,
-                r#"source = { type = "asset", asset = "mesh", default = "", description = "The mesh asset this node draws" }"#,
+                r#"source = { type = "asset", asset = "mesh", default = "", description = "The mesh asset this node draws" }
+skeleton = { type = "string", default = "", description = "Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node" }
+texture = { type = "string", default = "", description = "Image file, project-relative; empty draws the colour alone" }"#,
             ),
             tags: &["3d", "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let source = params
-                    .get("source")
-                    .and_then(toml::Value::as_str)
-                    .unwrap_or_default()
-                    .to_string();
+                let text = |key: &str| {
+                    params
+                        .get(key)
+                        .and_then(toml::Value::as_str)
+                        .unwrap_or_default()
+                        .to_string()
+                };
+                let source = text("source");
                 // Warned, not refused: one unreadable model must not take the
                 // whole scene down, and the node still has a place in the tree.
                 if !source.is_empty() {
@@ -35,7 +41,7 @@ pub(crate) fn register_mesh_component(app: &mut App) {
                         tracing::warn!("mesh '{source}': {why:#}");
                     }
                 }
-                crate::set_mesh(eng, entity, source)
+                crate::set_mesh(eng, entity, source, text("skeleton"), text("texture"))
             }),
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
@@ -48,6 +54,14 @@ pub(crate) fn register_mesh_component(app: &mut App) {
                 let source = renderable.mesh.clone()?;
                 let mut map = toml::map::Map::new();
                 map.insert("source".into(), toml::Value::String(source));
+                map.insert(
+                    "skeleton".into(),
+                    toml::Value::String(renderable.skeleton.clone()),
+                );
+                map.insert(
+                    "texture".into(),
+                    toml::Value::String(renderable.texture.clone()),
+                );
                 Some(toml::Value::Table(map))
             }),
         },

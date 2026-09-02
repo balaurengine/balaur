@@ -11,8 +11,11 @@ local dock = require("scripts/dock")
 local palette = require("scripts/palette")
 local gizmo = require("scripts/gizmo")
 local anim = require("scripts/anim")
+local rig = require("scripts/rig")
+local polygonlib = require("scripts/polygon")
 local history = require("scripts/history")
 local selftest = require("scripts/selftest")
+local highlight = require("scripts/highlight")
 
 local Editor = {}
 
@@ -37,6 +40,8 @@ function Editor:init()
         script_dirty = {},
         anim_time = 0,
         collapsed = {},
+        breakpoints = {},
+        debug_frame = 1,
     }
     self.S = S
     _G.ED = S
@@ -146,6 +151,63 @@ function Editor:init()
         return nil
     end
 
+    -- Breakpoints are kept per game-relative script path; the host keys the
+    -- same file by the absolute path play attaches it under.
+    function S.breakpoint_lines(rel)
+        local lines = {}
+        for line in pairs(S.breakpoints[rel] or {}) do
+            table.insert(lines, line)
+        end
+        table.sort(lines)
+        return lines
+    end
+
+    function S.toggle_breakpoint(rel, line)
+        local set = S.breakpoints[rel] or {}
+        set[line] = if set[line] then nil else true
+        S.breakpoints[rel] = set
+        -- The host reports where each request landed: a blank line moves
+        -- to the next line with code.
+        local landed = debugger.set_breakpoints(S.game_root .. "/" .. rel, S.breakpoint_lines(rel))
+        local kept = {}
+        for _, l in landed do
+            kept[l] = true
+        end
+        S.breakpoints[rel] = kept
+    end
+
+    -- Game-relative path of a script the host reports by absolute key.
+    function S.script_rel(path)
+        local prefix = S.game_root .. "/"
+        if string.sub(path, 1, #prefix) == prefix then
+            return string.sub(path, #prefix + 1)
+        end
+        return path
+    end
+
+    -- The pause is over the moment it is asked to go; the poll would only
+    -- notice next frame, and a pause that follows at once must read as new.
+    function S.resume(mode)
+        debugger.resume(mode)
+        S.paused = nil
+    end
+
+    -- A fresh pause: show the script and the frame it stopped in.
+    function S.on_pause(p)
+        S.paused_rel = S.script_rel(p.path)
+        S.debug_frame = 1
+        for i, node in S.doc do
+            local ref = S.refs and S.refs[i]
+            if (ref ~= nil and ref == p.node) or node.script == S.paused_rel then
+                S.select(i)
+                break
+            end
+        end
+        S.set_persona("script")
+        S.dock = "debugger"
+        log.info(`paused at {S.paused_rel}:{p.line} ({p.reason})`)
+    end
+
     function S.attach_script()
         local node = S.doc[S.sel]
         if node.script ~= nil then
@@ -172,10 +234,20 @@ function Editor:init()
     Editor.apply_camera(S)
     log.info(`editing {S.game_name} ({#S.doc} nodes)`)
 
-    -- Optional start-up state (persona id, "palette", "light", "play"),
-    -- mirroring the design prototype's startPersona prop.
-    local start = engine.args()[2]
-    if start == "palette" then
+    -- Optional start-up states, comma-separated (persona id, "palette",
+    -- "light", "play", "select:<node>", "shot=<png path>"), applied in order.
+    for token in string.gmatch(engine.args()[2] or "", "[^,]+") do
+        Editor.apply_start_state(S, token)
+    end
+end
+
+-- One start-up state, mirroring the design prototype's startPersona prop.
+function Editor.apply_start_state(S, start)
+    if string.sub(start, 1, 5) == "shot=" then
+        -- Screenshot the shell once the first frames have laid it out, for
+        -- a visual check of an editor state a headless run cannot show.
+        S.shot = string.sub(start, 6)
+    elseif start == "palette" then
         S.open_palette()
     elseif start == "light" then
         theme.set_dark(false)
@@ -219,6 +291,16 @@ function Editor:init()
         S.set_persona("anim")
     elseif start == "undodemo" then
         selftest.undo(S)
+    elseif start == "breakdemo" then
+        Editor.break_demo(S)
+    elseif start == "rigdemo" then
+        selftest.rig(S)
+    elseif start == "polydemo" then
+        selftest.polygon(S)
+    elseif string.sub(start, 1, 5) == "tool:" then
+        S.tool = string.sub(start, 6)
+    elseif string.sub(start, 1, 5) == "mode:" then
+        polygonlib.set_mode(S, string.sub(start, 6))
     elseif start ~= nil and string.sub(start, 1, 7) == "select:" then
         -- Self-test state: select a node by name (e.g. select:Pig1).
         local name = string.sub(start, 8)
@@ -238,6 +320,25 @@ function Editor:init()
             end
         end
     end
+end
+
+-- Self-test state: a breakpoint on the first scripted node's update, then
+-- play; `Editor:update` alternates a step and a continue on every pause.
+function Editor.break_demo(S)
+    for i, node in S.doc do
+        if node.script ~= nil then
+            S.sel = i
+            local _, hooks = highlight.analyze(model.source(S, node.script) or "")
+            for _, hook in hooks do
+                if hook.name == "update" then
+                    S.toggle_breakpoint(node.script, hook.line + 1)
+                end
+            end
+            break
+        end
+    end
+    S.breakdemo = 0
+    S.toggle_play()
 end
 
 function Editor.apply_camera(S)
@@ -435,6 +536,19 @@ function Editor:update(dt)
     if dt > 0 then
         S.fps = (S.fps or 1 / dt) * 0.9 + (1 / dt) * 0.1
     end
+    S.frame = (S.frame or 0) + 1
+    if S.shot ~= nil and S.frame == 60 then
+        render.screenshot(S.shot)
+    end
+    local paused = debugger.paused()
+    if paused ~= nil and S.paused == nil then
+        S.on_pause(paused)
+    end
+    S.paused = paused
+    if S.breakdemo ~= nil and S.paused ~= nil then
+        S.breakdemo += 1
+        S.resume(if S.breakdemo % 2 == 1 then debugger.STEP_OVER else debugger.CONTINUE)
+    end
     if S.refs ~= nil and S.refs[S.sel] == nil then
         -- Mirror was rebuilt last frame; re-resolve node handles.
         for i, node in S.doc do
@@ -458,10 +572,13 @@ function Editor:update(dt)
     local rect = gizmo.viewport_rect(S)
     local widgets_on = S.playing or S.persona == "ui"
     ui.set_widget_layer(widgets_on, rect.x, rect.y, rect.w, rect.h)
-    if S.tool == "key" and S.persona == "anim" and input.mouse_just_pressed(1) then
+    if S.tool == "key" and S.persona == "anim" and input.mouse_just_pressed(input.MOUSE_LEFT) then
         anim.add_key(S, S.anim_time)
     end
     gizmo.draw(S)
+    rig.draw(S)
+    polygonlib.idle(S)
+    polygonlib.draw(S)
     local chips = S.chip_state[S.persona] or {}
     if S.persona == "scene" and chips.guides then
         draw_guides(S)
@@ -522,8 +639,20 @@ function Editor:draw_ui()
     if ui.shortcut("cmd", "Minus") then
         S.set_ui_scale(S.ui_scale - 0.125)
     end
-    if not ui.wants_keyboard() then
+    -- Debugger keys work with the code editor focused: they are not text.
+    if S.paused ~= nil then
         if ui.shortcut("none", "F5") then
+            S.resume(debugger.CONTINUE)
+        elseif ui.shortcut("none", "F10") then
+            S.resume(debugger.STEP_OVER)
+        elseif ui.shortcut("none", "F11") then
+            S.resume(debugger.STEP_INTO)
+        elseif ui.shortcut("shift", "F11") then
+            S.resume(debugger.STEP_OUT)
+        end
+    end
+    if not ui.wants_keyboard() then
+        if S.paused == nil and ui.shortcut("none", "F5") then
             S.toggle_play()
         end
         local personas = { "scene", "script", "anim", "phys", "ui" }
@@ -547,6 +676,9 @@ function Editor:draw_ui()
         end
         if S.persona == "anim" and ui.shortcut("none", "K") then
             anim.add_key(S, S.anim_time)
+        end
+        if ui.shortcut("none", "Escape") then
+            polygonlib.cancel(S)
         end
     end
 

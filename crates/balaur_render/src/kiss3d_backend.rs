@@ -23,6 +23,21 @@ use crate::{
 struct Slot {
     node: SceneNode3d,
     version: u64,
+    /// A skinned mesh's rest geometry and bindings, deformed on the CPU
+    /// every frame and written back into the node's buffers.
+    skin: Option<MeshSkinSlot>,
+}
+
+/// What a skinned 3D mesh keeps between frames: the vertices as authored,
+/// which bones move them, and where the rig is.
+struct MeshSkinSlot {
+    positions: Vec<Vec3>,
+    normals: Option<Vec<Vec3>>,
+    joints: Vec<[u32; 4]>,
+    weights: Vec<[f32; 4]>,
+    bones: Vec<String>,
+    inverse_bind: Option<Vec<glamx::Mat4>>,
+    skeleton: String,
 }
 
 struct Slot2d {
@@ -31,6 +46,8 @@ struct Slot2d {
     /// The flip pair last written into the node's UVs: sheetless sprites only
     /// touch UVs when it changes, so un-flipping writes the identity rect once.
     flip: (bool, bool),
+    /// A skinned polygon's joint palette, rewritten every frame from the rig.
+    skin: Option<crate::skinned_2d::SkinHandle>,
 }
 
 /// Everything one frame of the render loop reads and writes, so the windowed
@@ -581,17 +598,19 @@ fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
             if let Some(mut old) = slots.remove(&entity) {
                 old.node.remove();
             }
-            let node = match renderable.shape {
-                Shape::Ball { radius } => scene.add_sphere(radius),
-                Shape::Cuboid { hx, hy, hz } => scene.add_cube(2.0 * hx, 2.0 * hy, 2.0 * hz),
-                Shape::Capsule { radius, height } => scene.add_capsule(radius, height),
-                Shape::Cylinder { radius, height } => scene.add_cylinder(radius, height),
-                Shape::Cone { radius, height } => scene.add_cone(radius, height),
+            let (node, skin) = match renderable.shape {
+                Shape::Ball { radius } => (scene.add_sphere(radius), None),
+                Shape::Cuboid { hx, hy, hz } => {
+                    (scene.add_cube(2.0 * hx, 2.0 * hy, 2.0 * hz), None)
+                }
+                Shape::Capsule { radius, height } => (scene.add_capsule(radius, height), None),
+                Shape::Cylinder { radius, height } => (scene.add_cylinder(radius, height), None),
+                Shape::Cone { radius, height } => (scene.add_cone(radius, height), None),
                 // One quad, no subdivisions: a flat plane needs no interior
                 // vertices, and fewer of them is fewer to transform.
-                Shape::Plane { hx, hz } => scene.add_quad(2.0 * hx, 2.0 * hz, 1, 1),
-                Shape::Mesh => match upload_mesh(app, scene, renderable.mesh.as_deref()) {
-                    Some(node) => node,
+                Shape::Plane { hx, hz } => (scene.add_quad(2.0 * hx, 2.0 * hz, 1, 1), None),
+                Shape::Mesh => match upload_mesh(app, scene, &renderable) {
+                    Some(built) => built,
                     // Nothing to draw yet, and `upload_mesh` said why.
                     None => continue,
                 },
@@ -601,11 +620,15 @@ fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
                 Slot {
                     node,
                     version: renderable.version,
+                    skin,
                 },
             );
         }
         // The block above inserts the slot when it is missing.
         let slot = slots.get_mut(&entity).unwrap();
+        if let Some(skin) = &slot.skin {
+            deform_mesh(&world, entity, skin, &mut slot.node);
+        }
         let [r, g, b, a] = renderable.color;
         // kiss3d primitives encode their dimensions in the node's local
         // scale, so the node scale is (shape size) * (scene scale).
@@ -635,11 +658,16 @@ fn sync(app: &App, scene: &mut SceneNode3d, slots: &mut HashMap<Entity, Slot>) {
     });
 }
 
-/// Resolve a `mesh` asset and hand its triangles to kiss3d. `None` when the
-/// asset is missing or unreadable, which is logged rather than fatal: one bad
-/// model must not stop the frame.
-fn upload_mesh(app: &App, scene: &mut SceneNode3d, reference: Option<&str>) -> Option<SceneNode3d> {
-    let reference = reference.filter(|r| !r.is_empty())?;
+/// Resolve a `mesh` asset and hand its triangles to kiss3d, with the skin to
+/// deform them by when the asset carries one. `None` when the asset is
+/// missing or unreadable, which is logged rather than fatal: one bad model
+/// must not stop the frame.
+fn upload_mesh(
+    app: &App,
+    scene: &mut SceneNode3d,
+    renderable: &Renderable,
+) -> Option<(SceneNode3d, Option<MeshSkinSlot>)> {
+    let reference = renderable.mesh.as_deref().filter(|r| !r.is_empty())?;
     let definition = match balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(
         &app.engine,
         reference,
@@ -665,7 +693,7 @@ fn upload_mesh(app: &App, scene: &mut SceneNode3d, reference: Option<&str>) -> O
     let faces: Vec<[u32; 3]> = data.indices.clone();
     // Normals and UVs are optional in the format; kiss3d computes normals from
     // the faces when they are absent, which is the right answer for a bare OBJ.
-    let normals = data
+    let normals: Option<Vec<Vec3>> = data
         .normals
         .as_ref()
         .map(|ns| ns.iter().map(|n| Vec3::new(n[0], n[1], n[2])).collect());
@@ -673,9 +701,90 @@ fn upload_mesh(app: &App, scene: &mut SceneNode3d, reference: Option<&str>) -> O
         .uvs
         .as_ref()
         .map(|us| us.iter().map(|u| Vec2::new(u[0], u[1])).collect());
-    // Static draw: the geometry is uploaded once per rebuild, not per frame.
-    let gpu = GpuMesh3d::new(coords, faces, normals, uvs, false);
-    Some(scene.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(gpu)), Vec3::ONE))
+    let skin = data.skin.map(|skin| MeshSkinSlot {
+        positions: coords.clone(),
+        normals: normals.clone(),
+        joints: skin.joints,
+        weights: skin.weights,
+        bones: skin.bones,
+        inverse_bind: skin.inverse_bind,
+        skeleton: renderable.skeleton.clone(),
+    });
+    // A skinned mesh is rewritten every frame; a rigid one is uploaded once.
+    let gpu = GpuMesh3d::new(coords, faces, normals, uvs, skin.is_some());
+    let mut node = scene.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(gpu)), Vec3::ONE);
+    if !renderable.texture.is_empty() {
+        match app
+            .engine
+            .resource::<balaur_core::project::ProjectFiles>()
+            .borrow()
+            .read(&renderable.texture)
+        {
+            Ok(bytes) => {
+                node.set_texture_from_memory(&bytes, &renderable.texture);
+            }
+            Err(err) => tracing::error!("{err:#}"),
+        }
+    }
+    Some((node, skin))
+}
+
+/// Pose a skinned mesh for this frame: the palette from the rig, the rest
+/// vertices through it on the CPU, and the result into the node's buffers.
+/// A rig or bone path that resolves to nothing is logged at debug and the
+/// mesh draws at rest, the same as a clip track that targets no node.
+fn deform_mesh(
+    world: &balaur_core::hecs::World,
+    entity: Entity,
+    skin: &MeshSkinSlot,
+    node: &mut SceneNode3d,
+) {
+    let rig = if skin.skeleton.is_empty() {
+        Some(entity)
+    } else {
+        balaur_core::scene::find_node(world, entity, &skin.skeleton)
+    };
+    let Some(rig) = rig else {
+        tracing::debug!(skeleton = skin.skeleton, "mesh rig path names no node");
+        return;
+    };
+    let bones: Vec<Option<Entity>> = skin
+        .bones
+        .iter()
+        .map(|path| {
+            let bone = balaur_core::scene::find_node(world, rig, path);
+            if bone.is_none() {
+                tracing::debug!(bone = path, "mesh skin names a bone that is not there");
+            }
+            bone
+        })
+        .collect();
+    let palette = balaur_core::skeleton::joint_matrices_3d(
+        world,
+        entity,
+        rig,
+        &bones,
+        skin.inverse_bind.as_deref(),
+    );
+    let positions = balaur_core::skeleton::skin_positions_3d(
+        &skin.positions,
+        &skin.joints,
+        &skin.weights,
+        &palette,
+    );
+    node.modify_vertices(&mut |coords: &mut Vec<Vec3>| {
+        coords.clone_from(&positions);
+    });
+    match &skin.normals {
+        Some(rest) => {
+            let normals =
+                balaur_core::skeleton::skin_normals_3d(rest, &skin.joints, &skin.weights, &palette);
+            node.modify_normals(&mut |ns: &mut Vec<Vec3>| {
+                ns.clone_from(&normals);
+            });
+        }
+        None => node.recompute_normals(),
+    }
 }
 
 /// The kiss3d node a 2D shape needs. `None` when a polyline names no usable
@@ -700,7 +809,88 @@ fn build_2d_node(
             scene.add_polyline(points, None, width)
         }
         Shape2d::Rect { .. } | Shape2d::Sprite { .. } => scene.add_rectangle(1.0, 1.0),
+        // Built by `build_polygon_node`, which also hands back the palette.
+        Shape2d::Polygon => return None,
     })
+}
+
+/// A polygon's kiss3d node and, when its mesh carries a skin, the palette
+/// handle the frame writes joint matrices into. `None` with nothing to draw.
+fn build_polygon_node(
+    app: &App,
+    scene: &mut SceneNode2d,
+    renderable: &Renderable2d,
+) -> Option<(SceneNode2d, Option<crate::skinned_2d::SkinHandle>)> {
+    let polygon = renderable.polygon.as_ref()?;
+    if polygon.positions.is_empty() || polygon.indices.is_empty() {
+        return None;
+    }
+    let (mut node, skin) = crate::skinned_2d::build(scene, polygon);
+    attach_texture(app, &mut node, &polygon.texture);
+    Some((node, skin))
+}
+
+/// Give a freshly built node its image. Once per rebuild: kiss3d's
+/// TextureManager caches by name, so the decode happens on the first node to
+/// ask for it. An empty path is an image not chosen yet, and kiss3d's default
+/// white texture is the right stand-in.
+fn attach_texture(app: &App, node: &mut SceneNode2d, path: &str) {
+    if path.is_empty() {
+        return;
+    }
+    // Bytes rather than a path: a packed game carries its textures inside
+    // the pack, with nothing beside it on disk.
+    match app
+        .engine
+        .resource::<balaur_core::project::ProjectFiles>()
+        .borrow()
+        .read(path)
+    {
+        Ok(bytes) => {
+            node.set_texture_from_memory(&bytes, path);
+        }
+        // A frame is not the place to abort: say which asset is missing and
+        // keep drawing the rest of the scene.
+        Err(err) => tracing::error!("{err:#}"),
+    }
+}
+
+/// The joint matrices a skinned polygon deforms by this frame, resolved
+/// from the rig it names. A path that resolves to nothing is logged at
+/// debug and the polygon draws rigid, the same as a clip track that targets
+/// no node.
+fn polygon_palette(
+    world: &balaur_core::hecs::World,
+    entity: Entity,
+    polygon: &crate::PolygonMesh,
+) -> Vec<glamx::Mat3> {
+    let Some(skin) = polygon.skin.as_ref() else {
+        return Vec::new();
+    };
+    let rig = if polygon.skeleton.is_empty() {
+        Some(entity)
+    } else {
+        balaur_core::scene::find_node(world, entity, &polygon.skeleton)
+    };
+    let Some(rig) = rig else {
+        tracing::debug!(
+            skeleton = polygon.skeleton,
+            "polygon rig path names no node"
+        );
+        return vec![glamx::Mat3::IDENTITY; skin.bones.len()];
+    };
+    let bones: Vec<Option<Entity>> = skin
+        .bones
+        .iter()
+        .map(|path| {
+            let bone = balaur_core::scene::find_node(world, rig, path);
+            if bone.is_none() {
+                tracing::debug!(bone = path, "polygon skin names a bone that is not there");
+            }
+            bone
+        })
+        .collect();
+    balaur_core::skeleton::joint_matrices_2d(world, entity, rig, &bones)
 }
 
 /// A polyline's points from its `mesh` asset, flattened to xy. Empty when the
@@ -783,31 +973,16 @@ fn sync_2d(
             if let Some(mut old) = slots.remove(&entity) {
                 old.node.detach();
             }
-            let Some(mut node) = build_2d_node(app, scene, &renderable) else {
+            let built = if renderable.shape == Shape2d::Polygon {
+                build_polygon_node(app, scene, &renderable)
+            } else {
+                build_2d_node(app, scene, &renderable).map(|node| (node, None))
+            };
+            let Some((mut node, skin)) = built else {
                 continue;
             };
-            // Attached once per rebuild: kiss3d's TextureManager caches by
-            // name, so the decode happens on the first node to ask for it.
             if let Some(sprite) = &renderable.sprite {
-                // An empty path is a sprite whose image has not been chosen
-                // yet; kiss3d's default white texture is the right stand-in.
-                if !sprite.path.is_empty() {
-                    // Bytes rather than a path: a packed game carries its
-                    // textures inside the pack, with nothing beside it on disk.
-                    match app
-                        .engine
-                        .resource::<balaur_core::project::ProjectFiles>()
-                        .borrow()
-                        .read(&sprite.path)
-                    {
-                        Ok(bytes) => {
-                            node.set_texture_from_memory(&bytes, &sprite.path);
-                        }
-                        // A frame is not the place to abort: say which asset
-                        // is missing and keep drawing the rest of the scene.
-                        Err(err) => tracing::error!("{err:#}"),
-                    }
-                }
+                attach_texture(app, &mut node, &sprite.path);
             }
             slots.insert(
                 entity,
@@ -815,6 +990,7 @@ fn sync_2d(
                     node,
                     version: renderable.version,
                     flip: (false, false),
+                    skin,
                 },
             );
         }
@@ -824,11 +1000,15 @@ fn sync_2d(
         let size = match renderable.shape {
             Shape2d::Circle { radius } => Vec2::splat(2.0 * radius),
             // kiss3d's 2D capsule is real geometry like its 3D one, and a
-            // polyline's points are already in world units: neither is a unit
-            // primitive waiting to be scaled.
-            Shape2d::Capsule { .. } | Shape2d::Polyline { .. } => Vec2::ONE,
+            // polyline's or polygon's points are already in world units: none
+            // is a unit primitive waiting to be scaled.
+            Shape2d::Capsule { .. } | Shape2d::Polyline { .. } | Shape2d::Polygon => Vec2::ONE,
             Shape2d::Rect { hx, hy } | Shape2d::Sprite { hx, hy } => Vec2::new(2.0 * hx, 2.0 * hy),
         };
+        // Every frame: the rig moved even when nothing about the polygon did.
+        if let (Some(handle), Some(polygon)) = (&slot.skin, renderable.polygon.as_deref()) {
+            handle.set(polygon_palette(&world, entity, polygon));
+        }
         // Every sync, not just on rebuild: frames and flips are UV changes, so
         // an animation that flips frames must not rebuild the node.
         if let Some(sprite) = &renderable.sprite {

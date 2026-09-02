@@ -456,8 +456,10 @@ dependencies = [
  "balaur_script",
  "dirs",
  "glamx",
+ "gltf",
  "hecs",
  "indexmap",
+ "libm",
  "rustc-hash 2.1.3",
  "serde",
  "serde_json",
@@ -559,6 +561,7 @@ dependencies = [
  "balaur_input",
  "balaur_script",
  "balaur_ui",
+ "bytemuck",
  "glamx",
  "image",
  "kiss3d",
@@ -569,6 +572,7 @@ dependencies = [
  "tempfile",
  "toml",
  "tracing",
+ "wgpu",
 ]
 
 [[package]]

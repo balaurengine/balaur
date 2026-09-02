@@ -197,6 +197,10 @@ impl App {
         // does not depend on the render crate.
         crate::mesh::register_mesh_asset(&mut app);
         crate::heightfield::register_heightfield_asset(&mut app);
+        // A bone is scene-tree data the same way: rendering skins with it,
+        // and nothing about a rest pose belongs to the renderer.
+        crate::skeleton::register_bone2d_component(&mut app);
+        crate::skeleton::register_bone3d_component(&mut app);
         crate::snapshot::build_core_sources(&mut app);
         // Before every plugin's First work, so a subsystem that dispatches
         // incoming traffic there sees the recording rather than the network.
@@ -540,6 +544,11 @@ impl App {
     /// the same number of steps in the same order every frame. Time past
     /// [`MAX_SUBSTEPS`] is dropped rather than caught up on.
     fn run_fixed_steps(&mut self, dt: f32) {
+        // A debugger pause holds the simulation: the time is dropped, not owed.
+        if self.engine.frozen_root().is_some() {
+            self.accumulator = 0.0;
+            return;
+        }
         self.accumulator = (self.accumulator + dt).min(FIXED_DT * MAX_SUBSTEPS as f32);
         while self.accumulator >= FIXED_DT {
             for system in &mut self.systems[Stage::FixedUpdate as usize] {

@@ -76,10 +76,10 @@ Balaur engine core: ECS data plane, scene tree, frame scheduler, plugin API
 Balaur engine core: the Rust data plane.
 
 - **workspace deps:** `balaur_script`
-- **external deps:** 13 (anyhow, dirs, glamx, hecs, indexmap, rustc-hash, serde, serde_json, …)
-- **public surface:** 62 fn, 48 struct, 5 enum, 1 trait, 12 const, 14 type
+- **external deps:** 15 (anyhow, dirs, glamx, gltf, hecs, indexmap, libm, rustc-hash, …)
+- **public surface:** 81 fn, 51 struct, 5 enum, 1 trait, 14 const, 14 type
 - **traits:** `Plugin`
-- **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Children`, `ComponentDef`, `ComponentRegistry`, `Digest`, `DigestRegistry`, `Engine`, `EngineOp`, `Entry`, `ExternalIo`, `Frame`, `GlobalTransform`, `Hasher`, `Header`, `HeightfieldData`, `LogEntry`, `MeshData`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Recorder`, `ReplayFeed`, `ReplayRegistry`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `Session`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `Transform`
+- **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Bone`, `Children`, `ComponentDef`, `ComponentRegistry`, `Digest`, `DigestRegistry`, `Engine`, `EngineOp`, `Entry`, `ExternalIo`, `Frame`, `GlbImport`, `GlobalTransform`, `Hasher`, `Header`, `HeightfieldData`, `LogEntry`, `MeshData`, `MeshSkin`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Recorder`, `ReplayFeed`, `ReplayRegistry`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `Session`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `Transform`
 - **enums:** `AssetRef`, `AssetSource`, `Command`, `ReplayMode`, `Stage`
 
 ## `balaur_gamend`
@@ -147,9 +147,9 @@ Balaur rendering plugin: renderable components, with a kiss3d backend
 Rendering as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_input`, `balaur_script`, `balaur_ui`
-- **external deps:** 10 (anyhow, glamx, image, kiss3d, objc2, objc2-app-kit, objc2-foundation, pollster, …)
-- **public surface:** 3 fn, 22 struct, 3 enum, 2 const, 2 type
-- **structs:** `AppIconConfig`, `Camera`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ClearColorConfig`, `DebugLineBuffer`, `DebugLineBuffer2d`, `GridConfig`, `Particles`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `SpriteSheet2d`, `SpriteTexture`, `Tilemap`, `Tileset`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
+- **external deps:** 12 (anyhow, bytemuck, glamx, image, kiss3d, objc2, objc2-app-kit, objc2-foundation, …)
+- **public surface:** 3 fn, 23 struct, 3 enum, 2 const, 2 type
+- **structs:** `AppIconConfig`, `Camera`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ClearColorConfig`, `DebugLineBuffer`, `DebugLineBuffer2d`, `GridConfig`, `Particles`, `PolygonMesh`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `SpriteSheet2d`, `SpriteTexture`, `Tilemap`, `Tileset`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
 - **enums:** `CameraKind`, `Shape`, `Shape2d`
 
 ## `balaur_script`
@@ -160,10 +160,10 @@ The scripting seam: traits only, no backend.
 
 - **workspace deps:** none
 - **external deps:** 2 (anyhow, serde)
-- **public surface:** 1 fn, 3 struct, 1 enum, 8 trait, 1 type
+- **public surface:** 1 fn, 5 struct, 3 enum, 8 trait, 1 type
 - **traits:** `Bindings`, `BindingsExt`, `CallbackHost`, `FromArg`, `FromArgs`, `IntoValue`, `ScriptCompiler`, `ScriptHost`
-- **structs:** `CallbackId`, `NoBindings`, `NodeId`
-- **enums:** `Value`
+- **structs:** `CallbackId`, `Frame`, `NoBindings`, `NodeId`, `Pause`
+- **enums:** `PauseReason`, `StepMode`, `Value`
 
 ## `balaur_script_luau`
 

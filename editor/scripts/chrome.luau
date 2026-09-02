@@ -91,10 +91,12 @@ function M.status_bar(S)
     ui.bottom_panel("status", { height = 28, fill = k.panel, padding_x = 12 }, function()
         ui.horizontal({ height = 28 }, function()
             ui.spacing(16, 0)
-            ui.dot(if S.playing then k.sage else k.faint, 6)
+            ui.dot(if S.paused ~= nil then k.accent elseif S.playing then k.sage else k.faint, 6)
             -- Measured, not asserted: the bar used to claim 60 fps whatever
             -- the frame actually cost.
-            local mode = if S.playing then `playing · {math.floor(S.fps or 0)} fps` else "editing"
+            local mode = if S.paused ~= nil then `paused · {S.paused_rel}:{S.paused.line}`
+                elseif S.playing then `playing · {math.floor(S.fps or 0)} fps`
+                else "editing"
             ui.label(mode, { size = 11, font = "mono", color = k.dim })
             local nodes, scripts = model.stats(S)
             ui.label(`{nodes} {plural(nodes, "node")} · {scripts} {plural(scripts, "script")}`,

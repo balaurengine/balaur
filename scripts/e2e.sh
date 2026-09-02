@@ -122,6 +122,17 @@ for ex in examples/*/; do
   printf '  undo ...   '
   edit_step "$name: undo" "$ex" undodemo
   printf 'ok\n'
+
+  # Rigging: grow a bone, round-trip the rest pose, key it by path, undo.
+  # A scene with no bones skips itself and says so.
+  printf '  rig ...    '
+  edit_step "$name: rig" "$ex" rigdemo
+  printf 'ok\n'
+
+  # The Polygon tool: trace, sync bones, paint, draw a polygon, undo.
+  printf '  poly ...   '
+  edit_step "$name: polygon" "$ex" polydemo
+  printf 'ok\n'
 done
 
 printf '\npack digests (compared across platforms in CI):\n'

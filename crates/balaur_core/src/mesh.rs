@@ -29,7 +29,31 @@ pub struct MeshData {
     /// Set when the definition named a file instead of carrying vertices.
     /// Resolved by [`load_from`], which has the project reader to do it with.
     pub source: Option<String>,
+    /// Bone influences, when the mesh is meant to deform with a rig.
+    pub skin: Option<MeshSkin>,
 }
+
+/// Per-vertex bone influences, in the form a GPU reads: up to four joints
+/// and their weights per vertex, and the bones those joints stand for.
+///
+/// Authored per bone (`[[skin.bones]]`, one weight per vertex) and folded to
+/// this at parse: the four heaviest influences, renormalised. A vertex no
+/// bone claims keeps zero weights and is not deformed.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct MeshSkin {
+    /// Bone node paths relative to the rig root, in joint-index order.
+    pub bones: Vec<String>,
+    /// Per vertex, same length as `positions`.
+    pub joints: Vec<[u32; 4]>,
+    /// Per vertex, same length as `positions`; sums to one or to zero.
+    pub weights: Vec<[f32; 4]>,
+    /// Per bone, in rig space: what an imported model carries instead of a
+    /// rest pose to invert. Absent for a rig authored in the editor.
+    pub inverse_bind: Option<Vec<glamx::Mat4>>,
+}
+
+/// How many bones may influence one vertex, which is what the shader blends.
+pub const INFLUENCES_PER_VERTEX: usize = 4;
 
 impl MeshData {
     #[must_use]
@@ -60,6 +84,14 @@ impl MeshData {
 /// # Errors
 /// If the extension names no parser, or the bytes do not parse.
 pub fn parse(bytes: &[u8], name: &str) -> Result<MeshData> {
+    parse_with(bytes, name, &crate::glb::no_side_files)
+}
+
+/// [`parse`], with a reader for the files a `.gltf` keeps beside itself.
+///
+/// # Errors
+/// As [`parse`], and if a side file the model names cannot be read.
+pub fn parse_with(bytes: &[u8], name: &str, side: crate::glb::SideReader<'_>) -> Result<MeshData> {
     let ext = std::path::Path::new(name)
         .extension()
         .and_then(|e| e.to_str())
@@ -67,7 +99,10 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<MeshData> {
         .to_ascii_lowercase();
     match ext.as_str() {
         "obj" => parse_obj(bytes, name),
-        other => bail!("no mesh parser for '.{other}' ({name}); balaur reads .obj"),
+        "glb" | "gltf" => crate::glb::parse_gltf(bytes, name, side),
+        other => bail!(
+            "no mesh parser for '.{other}' ({name}); balaur reads .obj, .glb and .gltf"
+        ),
     }
 }
 
@@ -263,16 +298,66 @@ fn parse_definition(value: &toml::Value) -> Result<MeshData> {
     }
 }
 
+/// Inline geometry. `positions` are `[x, y, z]` or, for a 2D polygon,
+/// `[x, y]`. Faces come from `indices`, or from `polygons` (index loops,
+/// each ear-clipped), or — with neither — from the outline itself: the
+/// positions minus the trailing `internal` ones, as one loop.
 fn parse_inline(value: &toml::Value) -> Result<MeshData> {
-    let positions = triples(value, "positions")?;
+    let positions = points(value, "positions")?;
     if positions.is_empty() {
         bail!("a mesh's `positions` is empty, so there is no geometry in it");
     }
+    let internal = value
+        .get("internal")
+        .map(|v| {
+            v.as_integer()
+                .ok_or_else(|| anyhow!("a mesh's `internal` is {}, not a count", v.type_str()))
+        })
+        .transpose()?
+        .unwrap_or(0);
+    if internal < 0 || internal as usize >= positions.len() {
+        bail!(
+            "a mesh's `internal = {internal}` leaves no outline out of {} positions",
+            positions.len()
+        );
+    }
+    let indices = match (value.get("indices"), value.get("polygons")) {
+        (Some(_), Some(_)) => {
+            bail!("a mesh names both `indices` and `polygons`; it can carry one or the other")
+        }
+        (Some(_), None) => explicit_faces(value, positions.len())?,
+        (None, polygons) => triangulated(&positions, internal as usize, polygons)?,
+    };
+    if indices.is_empty() {
+        bail!("a mesh has `positions` but no faces, so it declares nothing to fill");
+    }
+    let uvs = pairs(value, "uvs")?;
+    if let Some(uvs) = &uvs {
+        if uvs.len() != positions.len() {
+            bail!(
+                "a mesh has {} `uvs` for {} positions; it needs one per vertex",
+                uvs.len(),
+                positions.len()
+            );
+        }
+    }
+    let skin = parse_skin(value, positions.len())?;
+    Ok(MeshData {
+        positions,
+        indices,
+        uvs,
+        skin,
+        ..MeshData::default()
+    })
+}
+
+/// The `indices` a definition wrote, checked against its vertex count.
+fn explicit_faces(value: &toml::Value, vertices: usize) -> Result<Vec<[u32; 3]>> {
     let indices: Vec<[u32; 3]> = triples(value, "indices")?
         .into_iter()
         .map(|[a, b, c]| [a as u32, b as u32, c as u32])
         .collect();
-    let limit = positions.len() as u32;
+    let limit = vertices as u32;
     for [a, b, c] in &indices {
         if *a >= limit || *b >= limit || *c >= limit {
             bail!(
@@ -281,36 +366,165 @@ fn parse_inline(value: &toml::Value) -> Result<MeshData> {
             );
         }
     }
-    if indices.is_empty() {
-        bail!("a mesh has `positions` but no `indices`, so it declares no faces");
+    Ok(indices)
+}
+
+/// Faces from index loops, or from the outline when there are none.
+///
+/// Interior vertices only ever reach a triangle through a loop that names
+/// them, which is the Godot rule: automatic triangulation bends badly, so
+/// the moment a polygon has interior points its author draws the polygons.
+fn triangulated(
+    positions: &[[f32; 3]],
+    internal: usize,
+    polygons: Option<&toml::Value>,
+) -> Result<Vec<[u32; 3]>> {
+    let flat: Vec<glamx::Vec2> = positions
+        .iter()
+        .map(|p| glamx::Vec2::new(p[0], p[1]))
+        .collect();
+    let Some(polygons) = polygons else {
+        if internal > 0 {
+            tracing::warn!(
+                "a mesh has {internal} internal vertices but no `polygons`; \
+                 only its outline is filled"
+            );
+        }
+        let outline: Vec<u32> = (0..(positions.len() - internal) as u32).collect();
+        return crate::triangulate::triangulate(&flat, &outline);
+    };
+    let loops = polygons
+        .as_array()
+        .ok_or_else(|| anyhow!("a mesh's `polygons` must be a list of index loops"))?;
+    let mut out = Vec::new();
+    for (i, item) in loops.iter().enumerate() {
+        let ring: Vec<u32> = item
+            .as_array()
+            .ok_or_else(|| anyhow!("a mesh's `polygons[{i}]` is not a list of indices"))?
+            .iter()
+            .map(|v| {
+                v.as_integer()
+                    .and_then(|n| u32::try_from(n).ok())
+                    .ok_or_else(|| anyhow!("a mesh's `polygons[{i}]` holds a non-index"))
+            })
+            .collect::<Result<_>>()?;
+        out.extend(
+            crate::triangulate::triangulate(&flat, &ring)
+                .map_err(|e| anyhow!("a mesh's `polygons[{i}]`: {e}"))?,
+        );
     }
-    Ok(MeshData {
-        positions,
-        indices,
-        ..MeshData::default()
-    })
+    Ok(out)
+}
+
+/// `[[skin.bones]]` — `path` and one `weights` entry per vertex — folded to
+/// the four heaviest influences per vertex, ties to the earlier bone.
+fn parse_skin(value: &toml::Value, vertices: usize) -> Result<Option<MeshSkin>> {
+    let Some(skin) = value.get("skin") else {
+        return Ok(None);
+    };
+    let bones = skin
+        .get("bones")
+        .and_then(toml::Value::as_array)
+        .ok_or_else(|| anyhow!("a mesh's `skin` needs a `bones` list"))?;
+    let mut names = Vec::with_capacity(bones.len());
+    let mut per_vertex: Vec<Vec<(u32, f32)>> = vec![Vec::new(); vertices];
+    for (index, bone) in bones.iter().enumerate() {
+        let path = bone
+            .get("path")
+            .and_then(toml::Value::as_str)
+            .filter(|p| !p.is_empty())
+            .ok_or_else(|| anyhow!("a mesh's `skin.bones[{index}]` needs a `path`"))?;
+        let weights = bone
+            .get("weights")
+            .and_then(toml::Value::as_array)
+            .ok_or_else(|| anyhow!("a mesh's `skin.bones[{index}]` needs a `weights` list"))?;
+        if weights.len() != vertices {
+            bail!(
+                "a mesh's `skin.bones[{index}]` has {} weights for {vertices} vertices",
+                weights.len()
+            );
+        }
+        for (vertex, weight) in weights.iter().enumerate() {
+            let weight = crate::components::as_f64(weight).ok_or_else(|| {
+                anyhow!("a mesh's `skin.bones[{index}]` weight {vertex} is not a number")
+            })? as f32;
+            if weight < 0.0 || !weight.is_finite() {
+                bail!("a mesh's `skin.bones[{index}]` weight {vertex} is {weight}; weights are 0 or more");
+            }
+            if weight > 0.0 {
+                per_vertex[vertex].push((index as u32, weight));
+            }
+        }
+        names.push(path.to_string());
+    }
+    let mut joints = Vec::with_capacity(vertices);
+    let mut weights = Vec::with_capacity(vertices);
+    for influences in &mut per_vertex {
+        // Heaviest first, earlier bone on a tie: `total_cmp` keeps the order
+        // the same on every platform.
+        influences.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
+        influences.truncate(INFLUENCES_PER_VERTEX);
+        let total: f32 = influences.iter().map(|(_, w)| w).sum();
+        let mut j = [0u32; INFLUENCES_PER_VERTEX];
+        let mut w = [0f32; INFLUENCES_PER_VERTEX];
+        for (slot, (bone, weight)) in influences.iter().enumerate() {
+            j[slot] = *bone;
+            w[slot] = weight / total;
+        }
+        joints.push(j);
+        weights.push(w);
+    }
+    Ok(Some(MeshSkin {
+        bones: names,
+        joints,
+        weights,
+        inverse_bind: None,
+    }))
 }
 
 /// `[[x, y, z], ...]` from a definition key.
 fn triples(value: &toml::Value, key: &str) -> Result<Vec<[f32; 3]>> {
+    rows(value, key, &[3], "[x, y, z] triples")
+}
+
+/// `[[x, y, z], ...]` or `[[x, y], ...]`; a pair is a 2D vertex on z = 0.
+fn points(value: &toml::Value, key: &str) -> Result<Vec<[f32; 3]>> {
+    rows(value, key, &[2, 3], "[x, y] or [x, y, z] points")
+}
+
+/// `[[u, v], ...]`, when present.
+fn pairs(value: &toml::Value, key: &str) -> Result<Option<Vec<[f32; 2]>>> {
+    if value.get(key).is_none() {
+        return Ok(None);
+    }
+    Ok(Some(
+        rows(value, key, &[2], "[u, v] pairs")?
+            .into_iter()
+            .map(|[u, v, _]| [u, v])
+            .collect(),
+    ))
+}
+
+/// Rows of numbers from a definition key, each of one of `lengths`, padded
+/// with zeros to three. Empty when the key is absent.
+fn rows(value: &toml::Value, key: &str, lengths: &[usize], shape: &str) -> Result<Vec<[f32; 3]>> {
     let Some(rows) = value.get(key) else {
         return Ok(Vec::new());
     };
     let rows = rows
         .as_array()
-        .ok_or_else(|| anyhow!("a mesh's `{key}` must be a list of [x, y, z] triples"))?;
+        .ok_or_else(|| anyhow!("a mesh's `{key}` must be a list of {shape}"))?;
     rows.iter()
         .enumerate()
         .map(|(i, row)| {
             let row = row
                 .as_array()
-                .ok_or_else(|| anyhow!("a mesh's `{key}[{i}]` is not a triple"))?;
+                .filter(|r| lengths.contains(&r.len()))
+                .ok_or_else(|| anyhow!("a mesh's `{key}[{i}]` is not one of {shape}"))?;
             let mut out = [0.0f32; 3];
-            for (axis, slot) in out.iter_mut().enumerate() {
-                *slot = row
-                    .get(axis)
-                    .and_then(crate::components::as_f64)
-                    .ok_or_else(|| anyhow!("a mesh's `{key}[{i}]` needs three numbers"))?
+            for (slot, number) in out.iter_mut().zip(row) {
+                *slot = crate::components::as_f64(number)
+                    .ok_or_else(|| anyhow!("a mesh's `{key}[{i}]` holds a non-number"))?
                     as f32;
             }
             Ok(out)
@@ -328,11 +542,22 @@ pub fn load_from(eng: &crate::Engine, definition: &MeshData) -> Result<MeshData>
     let Some(source) = definition.source.as_deref() else {
         return Ok(definition.clone());
     };
-    let bytes = eng
-        .resource::<crate::project::ProjectFiles>()
-        .borrow()
-        .read(source)?;
-    let mut mesh = parse(&bytes, source)?;
+    let files = eng.resource::<crate::project::ProjectFiles>();
+    let files = files.borrow();
+    let bytes = files.read(source)?;
+    // A `.gltf` names its buffers and images relative to itself.
+    let directory = std::path::Path::new(source)
+        .parent()
+        .map(|d| d.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let side = |uri: &str| {
+        files.read(&if directory.is_empty() {
+            uri.to_string()
+        } else {
+            format!("{directory}/{uri}")
+        })
+    };
+    let mut mesh = parse_with(&bytes, source, &side)?;
     mesh.source = Some(source.to_string());
     Ok(mesh)
 }
@@ -485,10 +710,10 @@ mod tests {
     }
 
     #[test]
-    fn vertices_without_faces_are_refused() {
+    fn vertices_without_faces_are_filled_as_one_outline() {
         let value: toml::Value = toml::from_str("positions = [[0,0,0],[1,0,0],[0,1,0]]").unwrap();
-        let err = parse_definition(&value).unwrap_err().to_string();
-        assert!(err.contains("no `indices`"), "{err}");
+        let mesh = parse_definition(&value).unwrap();
+        assert_eq!(mesh.indices, vec![[0, 1, 2]]);
     }
 
     #[test]

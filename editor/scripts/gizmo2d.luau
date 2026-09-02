@@ -3,6 +3,8 @@
 -- the interior translates, a center disc rotates about z; all 2D world space.
 local model = require("scripts/model")
 local history = require("scripts/history")
+local rig = require("scripts/rig")
+local polygon = require("scripts/polygon")
 
 local ORANGE = { 1.0, 0.647, 0.0 }
 local HOVER = { 0.118, 0.314, 0.784 }
@@ -298,6 +300,14 @@ end
 -- Click-select: the smallest 2D shape containing the point, with a
 -- proximity fallback for shapeless nodes.
 local function pick(S, mx, my)
+    -- Rigging: a bone's thin diamond loses to any shape around it, so in the
+    -- Animate persona bones are tried first.
+    if S.persona == "anim" then
+        local bone = rig.pick(S, mx, my)
+        if bone ~= nil then
+            return bone
+        end
+    end
     local best, best_area = nil, math.huge
     for i, node in S.doc do
         local ref = model.ref(S, i)
@@ -337,7 +347,7 @@ local function pick(S, mx, my)
     return best
 end
 
-local MANIP = { move = true, rotate = true, scale = true, zoom = true }
+local MANIP = { move = true, rotate = true, scale = true, zoom = true, bone = true, polygon = true }
 
 -- Runs every frame from Editor:update (via gizmo.update's 2D dispatch).
 -- `vp` is the viewport rect in design px, from gizmo.viewport_rect.
@@ -351,6 +361,22 @@ function M.update(S, vp)
     local over_viewport = pmx > vp.x and pmx < vp.x + vp.w
         and pmy > vp.y + 44 and pmy < vp.y + vp.h - 40
 
+    -- The Rig bone and Polygon tools own the click: no gizmo hover, no
+    -- camera drag.
+    if S.tool == "bone" or S.tool == "polygon" then
+        S.gizmo_hover = nil
+        S.gizmo_drag = nil
+        render.set_camera_input(false)
+        if S.tool == "bone" then
+            rig.update(S, over_viewport, mx, my)
+        else
+            polygon.update(S, over_viewport, mx, my)
+        end
+        return
+    end
+    S.rig_hover = nil
+    S.polygon_hover = nil
+
     if S.gizmo_drag == nil then
         S.gizmo_hover = if geo ~= nil and over_viewport and S.persona ~= "script"
             then hit_test(S, geo, mx, my)
@@ -359,7 +385,7 @@ function M.update(S, vp)
 
     render.set_camera_input(not MANIP[S.tool] and S.gizmo_hover == nil and S.gizmo_drag == nil)
 
-    if input.mouse_just_pressed(1) and over_viewport then
+    if input.mouse_just_pressed(input.MOUSE_LEFT) and over_viewport then
         if S.gizmo_hover ~= nil and geo ~= nil then
             start_drag(S, geo, S.gizmo_hover, mx, my)
         else
@@ -372,7 +398,7 @@ function M.update(S, vp)
             end
         end
     end
-    if not input.is_mouse_down(1) then
+    if not input.is_mouse_down(input.MOUSE_LEFT) then
         S.gizmo_drag = nil
         S.drag_in_viewport = false
     end

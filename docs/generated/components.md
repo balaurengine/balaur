@@ -53,6 +53,32 @@ registration provides the scene-file key, the runtime
 </details>
 
 <details>
+<summary><code>bone2d</code> · 4 properties</summary>
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>angle</code></td><td>float</td><td><code>0.0</code></td><td>Gizmo direction of a tip bone, in radians; ignored while a child bone exists</td></tr>
+<tr><td><code>length</code></td><td>float</td><td><code>0.0</code></td><td>Gizmo length of a tip bone; 0 draws to the first child bone At least 0.0.</td></tr>
+<tr><td><code>rest_position</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Local rest translation</td></tr>
+<tr><td><code>rest_rotation</code></td><td>float</td><td><code>0.0</code></td><td>Local rest rotation about z, in radians</td></tr>
+</tbody>
+</table>
+</details>
+
+<details>
+<summary><code>bone3d</code> · 4 properties</summary>
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>length</code></td><td>float</td><td><code>0.0</code></td><td>Gizmo length of a tip bone; 0 draws to the first child bone At least 0.0.</td></tr>
+<tr><td><code>rest_position</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Local rest translation</td></tr>
+<tr><td><code>rest_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Local rest rotation, euler radians in the order rotation_euler uses</td></tr>
+<tr><td><code>rest_scale</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Local rest scale</td></tr>
+</tbody>
+</table>
+</details>
+
+<details>
 <summary><code>camera</code> · 4 properties</summary>
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -106,11 +132,13 @@ registration provides the scene-file key, the runtime
 </details>
 
 <details>
-<summary><code>mesh</code> · 1 property</summary>
+<summary><code>mesh</code> · 3 properties</summary>
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>skeleton</code></td><td>string</td><td>—</td><td>Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node</td></tr>
 <tr><td><code>source</code></td><td>asset · <code>mesh</code></td><td>—</td><td>The mesh asset this node draws</td></tr>
+<tr><td><code>texture</code></td><td>string</td><td>—</td><td>Image file, project-relative; empty draws the colour alone</td></tr>
 </tbody>
 </table>
 </details>
@@ -129,6 +157,20 @@ registration provides the scene-file key, the runtime
 <tr><td><code>size</code></td><td>float</td><td><code>4.0</code></td><td>Particle size in logical pixels At least 0.5.</td></tr>
 <tr><td><code>speed</code></td><td>float</td><td><code>2.0</code></td><td>Initial speed in world units per second At least 0.0.</td></tr>
 <tr><td><code>spread</code></td><td>float</td><td><code>30.0</code></td><td>Half-angle of the emission cone in degrees At least 0.0.</td></tr>
+</tbody>
+</table>
+</details>
+
+<details>
+<summary><code>polygon</code> · 5 properties</summary>
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node&#x27;s space</td></tr>
+<tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Texture pixels per world unit, for the default UV mapping At least 0.01.</td></tr>
+<tr><td><code>skeleton</code></td><td>string</td><td>—</td><td>Node path to the rig root, relative to this node; empty means this node</td></tr>
+<tr><td><code>texture</code></td><td>string</td><td>—</td><td>Image file, project-relative; empty draws the tint alone</td></tr>
 </tbody>
 </table>
 </details>

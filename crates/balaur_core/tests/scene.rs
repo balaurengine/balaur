@@ -156,3 +156,32 @@ fn a_duplicate_name_resolves_the_same_way_every_time() {
         assert_eq!(find_node(&world, root, "Same"), first);
     }
 }
+
+/// Transform propagation recurses once per level of nesting, so scene depth is
+/// bounded by the stack rather than by anything the engine checks. Measured on
+/// a 2 MiB test thread it gives out between 4000 and 4500 levels in a debug
+/// build; this pins a depth well inside that, so making a frame heavier shows
+/// up here rather than as an abort in someone's game.
+#[test]
+fn deep_nesting_propagates_without_overflowing() {
+    let engine = Engine::new();
+    let root = engine.root();
+    {
+        let mut world = engine.world_mut();
+        let mut parent = root;
+        for i in 0..1000 {
+            parent = scene::spawn_node(&mut world, &format!("n{i}"), parent);
+        }
+    }
+    propagate_transforms(&mut engine.world_mut(), root);
+}
+
+#[test]
+fn a_dot_dot_segment_climbs_to_the_parent() {
+    let (engine, a, b, c) = tree();
+    let world = engine.world();
+    assert_eq!(find_node(&world, c, ".."), Some(b));
+    assert_eq!(find_node(&world, c, "../.."), Some(a));
+    assert_eq!(find_node(&world, b, "../B/C"), Some(c));
+    assert_eq!(find_node(&world, engine.root(), ".."), None);
+}

@@ -375,48 +375,63 @@ fn remove_body_and_colliders(eng: &Engine, entity: Entity) {
     }
 }
 
+/// The shape half of a `collider3d`'s params.
+///
+/// `None` for the asset-backed kinds: rapier keeps the geometry, not the
+/// file it came from, so there is nothing to write back.
+fn collider_shape_params(
+    shape: &dyn rapier3d::geometry::Shape,
+) -> Option<toml::map::Map<String, toml::Value>> {
+    let f = |v: f32| toml::Value::Float(f64::from(v));
+    let vec3 = |x: f32, y: f32, z: f32| toml::Value::Array(vec![f(x), f(y), f(z)]);
+    let mut map = toml::map::Map::new();
+    if let Some(ball) = shape.as_ball() {
+        map.insert("kind".into(), "ball".into());
+        map.insert("radius".into(), f(ball.radius));
+        return Some(map);
+    }
+    if let Some(cuboid) = shape.as_cuboid() {
+        map.insert("kind".into(), "cuboid".into());
+        let he = cuboid.half_extents;
+        map.insert("half_extents".into(), vec3(he.x, he.y, he.z));
+        return Some(map);
+    }
+    if let Some(capsule) = shape.as_capsule() {
+        map.insert("kind".into(), "capsule".into());
+        map.insert("radius".into(), f(capsule.radius));
+        // `height` is the straight part: the segment, caps excluded.
+        let straight = (capsule.segment.b - capsule.segment.a).length();
+        map.insert("height".into(), f(straight));
+        return Some(map);
+    }
+    if let Some(cylinder) = shape.as_cylinder() {
+        map.insert("kind".into(), "cylinder".into());
+        map.insert("radius".into(), f(cylinder.radius));
+        map.insert("height".into(), f(cylinder.half_height * 2.0));
+        return Some(map);
+    }
+    if let Some(cone) = shape.as_cone() {
+        map.insert("kind".into(), "cone".into());
+        map.insert("radius".into(), f(cone.radius));
+        map.insert("height".into(), f(cone.half_height * 2.0));
+        return Some(map);
+    }
+    if let Some(tri) = shape.as_triangle() {
+        map.insert("kind".into(), "triangle".into());
+        map.insert("a".into(), vec3(tri.a.x, tri.a.y, tri.a.z));
+        map.insert("b".into(), vec3(tri.b.x, tri.b.y, tri.b.z));
+        map.insert("c".into(), vec3(tri.c.x, tri.c.y, tri.c.z));
+        return Some(map);
+    }
+    None
+}
+
 fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let state = eng.resource::<PhysicsState>();
     let state = state.borrow();
     let handle = state.colliders.get(&entity)?.first()?;
     let collider = state.world.colliders.get(*handle)?;
-    let mut map = toml::map::Map::new();
-    let f = |v: f32| toml::Value::Float(f64::from(v));
-    let vec3 = |x: f32, y: f32, z: f32| toml::Value::Array(vec![f(x), f(y), f(z)]);
-    let shape = collider.shape();
-    // Parameter-built kinds read back; asset-backed ones cannot, because
-    // rapier keeps the geometry and not the file it came from.
-    if let Some(ball) = shape.as_ball() {
-        map.insert("kind".into(), "ball".into());
-        map.insert("radius".into(), f(ball.radius));
-    } else if let Some(cuboid) = shape.as_cuboid() {
-        map.insert("kind".into(), "cuboid".into());
-        let he = cuboid.half_extents;
-        map.insert("half_extents".into(), vec3(he.x, he.y, he.z));
-    } else if let Some(capsule) = shape.as_capsule() {
-        map.insert("kind".into(), "capsule".into());
-        map.insert("radius".into(), f(capsule.radius));
-        // `height` is the straight part: the segment, caps excluded.
-        map.insert(
-            "height".into(),
-            f((capsule.segment.b - capsule.segment.a).length()),
-        );
-    } else if let Some(cylinder) = shape.as_cylinder() {
-        map.insert("kind".into(), "cylinder".into());
-        map.insert("radius".into(), f(cylinder.radius));
-        map.insert("height".into(), f(cylinder.half_height * 2.0));
-    } else if let Some(cone) = shape.as_cone() {
-        map.insert("kind".into(), "cone".into());
-        map.insert("radius".into(), f(cone.radius));
-        map.insert("height".into(), f(cone.half_height * 2.0));
-    } else if let Some(tri) = shape.as_triangle() {
-        map.insert("kind".into(), "triangle".into());
-        map.insert("a".into(), vec3(tri.a.x, tri.a.y, tri.a.z));
-        map.insert("b".into(), vec3(tri.b.x, tri.b.y, tri.b.z));
-        map.insert("c".into(), vec3(tri.c.x, tri.c.y, tri.c.z));
-    } else {
-        return None;
-    }
+    let mut map = collider_shape_params(collider.shape())?;
     map.insert(
         "restitution".into(),
         toml::Value::Float(f64::from(collider.restitution())),

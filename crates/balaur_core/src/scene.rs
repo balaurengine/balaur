@@ -87,10 +87,15 @@ pub fn spawn_node(world: &mut World, name: &str, parent: Entity) -> Entity {
     entity
 }
 
-/// Resolve a `A/B/C` path relative to `from` by matching child names.
+/// Resolve a `A/B/C` path relative to `from` by matching child names; a
+/// `..` segment climbs to the parent, as a Godot NodePath does.
 pub fn find_node(world: &World, from: Entity, path: &str) -> Option<Entity> {
     let mut current = from;
     for segment in path.split('/').filter(|s| !s.is_empty()) {
+        if segment == ".." {
+            current = world.get::<&Parent>(current).ok()?.0;
+            continue;
+        }
         let children = world.get::<&Children>(current).ok()?;
         let mut next = None;
         for &child in &children.0 {
@@ -161,6 +166,20 @@ pub fn collect_subtree(world: &World, entity: Entity) -> Vec<Entity> {
         }
     }
     out
+}
+
+/// Whether `entity` is `root` or somewhere below it.
+pub fn is_within(world: &World, entity: Entity, root: Entity) -> bool {
+    let mut current = entity;
+    loop {
+        if current == root {
+            return true;
+        }
+        match world.get::<&Parent>(current).ok().map(|p| p.0) {
+            Some(parent) => current = parent,
+            None => return false,
+        }
+    }
 }
 
 /// Despawn a node and its whole subtree, unlinking it from its parent.

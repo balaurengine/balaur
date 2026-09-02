@@ -38,6 +38,9 @@ pub(crate) struct EngineInner {
     /// subsystem's awaitable ids share a namespace and a wake can never
     /// resume the wrong task.
     pub(crate) tokens: Cell<u64>,
+    /// The subtree a debugger treats as the game. `None` means the whole tree.
+    pub(crate) debug_scope: Cell<Option<hecs::Entity>>,
+    pub(crate) frozen: Cell<bool>,
 }
 
 impl Engine {
@@ -56,6 +59,8 @@ impl Engine {
                 tick: Cell::new(0),
                 quit: Cell::new(false),
                 tokens: Cell::new(1),
+                debug_scope: Cell::new(None),
+                frozen: Cell::new(false),
             }),
         }
     }
@@ -142,6 +147,32 @@ impl Engine {
 
     pub fn request_quit(&self) {
         self.inner.quit.set(true);
+    }
+
+    /// Name the subtree a debugger pause holds still: the editor's mirror
+    /// during play. `None` is the whole tree, which is what `balaur run` wants.
+    pub fn set_debug_scope(&self, root: Option<hecs::Entity>) {
+        self.inner.debug_scope.set(root);
+    }
+
+    pub fn debug_scope(&self) -> Option<hecs::Entity> {
+        self.inner.debug_scope.get()
+    }
+
+    /// Hold the simulation while a script is paused. The frame loop keeps
+    /// running; [`Engine::frozen_root`] says what stops.
+    pub fn set_frozen(&self, frozen: bool) {
+        self.inner.frozen.set(frozen);
+    }
+
+    /// The subtree a debugger pause holds still: no fixed step runs, and the
+    /// script hosts skip every instance under it. `None` while nothing is
+    /// paused.
+    pub fn frozen_root(&self) -> Option<hecs::Entity> {
+        self.inner
+            .frozen
+            .get()
+            .then(|| self.inner.debug_scope.get().unwrap_or_else(|| self.root()))
     }
 
     pub fn quit_requested(&self) -> bool {

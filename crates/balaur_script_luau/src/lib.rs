@@ -17,9 +17,11 @@
 //! state, and every reference to the class survive; only the code changes.
 //! A compile error keeps the previous version running and reports the error.
 
+mod debugger;
 pub mod det;
 pub mod env;
 mod node_api;
+mod pause;
 
 pub use env::LuaModule;
 pub use mlua;
@@ -39,15 +41,19 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 
 use balaur_core::engine::Engine;
 use balaur_core::pack::Pack;
-use balaur_core::scene::ScriptAttachment;
-use balaur_script::NodeId;
+use balaur_core::scene::{self, ScriptAttachment};
+use balaur_script::{NodeId, Pause, StepMode};
+
+use debugger::Outcome;
 
 /// Luau compiler settings shared by dev mode and pack export, so shipped
 /// bytecode behaves exactly like what was tested during development.
 pub fn compiler() -> mlua::chunk::Compiler {
     mlua::chunk::Compiler::new()
         .set_optimization_level(2)
-        .set_debug_level(1)
+        // Level 2 keeps local names for the debugger's locals view; it
+        // changes no semantics.
+        .set_debug_level(2)
         // Determinism: keep the replaced math functions out of fastcalls so
         // calls route through the (rebound) global table. See `script::det`.
         .set_disabled_builtins(det::DISABLED_BUILTINS.iter().copied())
@@ -104,6 +110,30 @@ struct HostState {
     /// Script tasks suspended through `await(token)`, in suspension order —
     /// which is resume order when one wake serves several waiters.
     waiting: Vec<WaitingTask>,
+    /// Each file's chunk function, which is what breakpoints are patched into.
+    chunks: HashMap<String, Function>,
+    breakpoints: HashMap<String, Breakpoints>,
+    paused: Option<Paused>,
+}
+
+/// One file's breakpoints: the lines asked for, and where they landed on
+/// the chunk currently loaded.
+#[derive(Default)]
+struct Breakpoints {
+    requested: Vec<usize>,
+    landed: Vec<usize>,
+}
+
+/// A coroutine the debugger parked, with the rest of the tick it cut short.
+struct Paused {
+    owner: Entity,
+    key: String,
+    label: String,
+    thread: mlua::Thread,
+    pause: Pause,
+    /// Instances the interrupted tick had not reached, run on resume.
+    remaining: Vec<(Entity, Table)>,
+    method: Option<(String, f32)>,
 }
 
 /// One suspended script task: a coroutine parked until its token wakes.
@@ -161,10 +191,14 @@ impl ScriptHost {
                 events,
                 last_errors: HashMap::new(),
                 waiting: Vec::new(),
+                chunks: HashMap::new(),
+                breakpoints: HashMap::new(),
+                paused: None,
             })),
         };
         env::install_globals(&host.lua, &engine, &host)?;
         det::install(&host.lua, &engine)?;
+        debugger::install(&host.lua)?;
         Ok(host)
     }
 
@@ -246,13 +280,17 @@ impl ScriptHost {
     }
 
     /// Remove the instance for a despawned node, calling `on_free` first.
-    /// Tasks the node's script left suspended die with it.
+    /// Tasks the node's script left suspended die with it, a pause included.
     pub fn detach(&self, entity: Entity) {
-        let inst = {
+        let (inst, paused) = {
             let mut state = self.state.borrow_mut();
             state.waiting.retain(|t| t.owner != entity);
-            state.instances.remove(&entity)
+            let paused = state.paused.take_if(|p| p.owner == entity);
+            (state.instances.remove(&entity), paused)
         };
+        if let Some(paused) = paused {
+            self.drop_pause(&paused);
+        }
         if let Some(inst) = inst {
             if let Ok(Some(on_free)) = inst.get::<Option<Function>>("on_free") {
                 if let Err(err) = on_free.call::<()>(inst) {
@@ -273,21 +311,70 @@ impl ScriptHost {
 
     /// Call `method(dt)` on every live instance that defines it.
     fn tick_lifecycle(&self, method: &str, dt: f32) {
-        // Collect first so scripts can attach/detach/spawn during their own
-        // update without the host state being borrowed.
-        let batch: Vec<(Entity, Table)> = self
-            .state
-            .borrow()
+        let batch = self.live_batch();
+        self.run_batch(method, dt, batch);
+    }
+
+    /// The instances a tick visits, collected first so scripts can attach,
+    /// detach or spawn during their own update without the host state being
+    /// borrowed. The paused instance and everything under the frozen root
+    /// stay out.
+    fn live_batch(&self) -> Vec<(Entity, Table)> {
+        let state = self.state.borrow();
+        state
             .instances
             .iter()
+            .filter(|(e, _)| !self.is_held(**e, &state))
             .map(|(e, t)| (*e, t.clone()))
-            .collect();
-        for (entity, inst) in batch {
+            .collect()
+    }
+
+    /// Whether the debugger keeps `entity` from running: it is the paused
+    /// instance, or it lives under the frozen root.
+    fn is_held(&self, entity: Entity, state: &HostState) -> bool {
+        if state.paused.as_ref().is_some_and(|p| p.owner == entity) {
+            return true;
+        }
+        self.engine
+            .frozen_root()
+            .is_some_and(|root| scene::is_within(&self.engine.world(), entity, root))
+    }
+
+    /// Whether a tick must run through coroutines so a breakpoint can park
+    /// it. A plain call is cheaper, so it stays the path with none set.
+    fn debugging(&self) -> bool {
+        let state = self.state.borrow();
+        state.paused.is_some() || state.breakpoints.values().any(|b| !b.landed.is_empty())
+    }
+
+    /// Run `method(dt)` over `batch`. A breakpoint stops the batch where it
+    /// is; the remainder is filed with the pause and runs on resume.
+    fn run_batch(&self, method: &str, dt: f32, batch: Vec<(Entity, Table)>) {
+        let debugging = self.debugging();
+        let mut batch = batch.into_iter();
+        while let Some((entity, inst)) = batch.next() {
             let Ok(Some(f)) = inst.get::<Option<Function>>(method) else {
                 continue;
             };
-            if let Err(err) = f.call::<()>((inst, dt)) {
-                self.report_error(&format!("{method}({entity:?})"), &err.to_string());
+            if !debugging {
+                if let Err(err) = f.call::<()>((inst, dt)) {
+                    self.report_error(&format!("{method}({entity:?})"), &err.to_string());
+                }
+                continue;
+            }
+            let mut args = mlua::MultiValue::new();
+            args.push_back(Value::Table(inst));
+            args.push_back(Value::Number(f64::from(dt)));
+            self.run_task(entity, &format!("{method}({entity:?})"), f, args);
+            let mut state = self.state.borrow_mut();
+            if let Some(paused) = state
+                .paused
+                .as_mut()
+                .filter(|p| p.owner == entity && p.method.is_none())
+            {
+                paused.remaining = batch.collect();
+                paused.method = Some((method.to_string(), dt));
+                return;
             }
         }
     }
@@ -452,11 +539,15 @@ impl ScriptHost {
         old.clear()?;
         fresh.for_each(|k: Value, v: Value| old.set(k, v))?;
         old.set_metatable(fresh.metatable())?;
-        {
+        let paused = {
             let mut state = self.state.borrow_mut();
             state.last_errors.remove(&key);
             // A task suspended in the old code must not resume into it.
             state.waiting.retain(|t| t.key != key);
+            state.paused.take_if(|p| p.key == key)
+        };
+        if let Some(paused) = paused {
+            self.drop_pause(&paused);
         }
         // Give scripts a chance to migrate state.
         let instances: Vec<(Entity, Table)> = {
@@ -519,8 +610,13 @@ impl ScriptHost {
         method: &str,
         args: &[balaur_script::Value],
     ) -> Option<balaur_script::Value> {
-        let inst = self.state.borrow().instances.get(&entity).cloned();
-        let inst = inst?;
+        let inst = {
+            let state = self.state.borrow();
+            if self.is_held(entity, &state) {
+                return None;
+            }
+            state.instances.get(&entity).cloned()?
+        };
         let Ok(Some(func)) = inst.get::<Option<Function>>(method) else {
             return None;
         };
@@ -545,13 +641,7 @@ impl ScriptHost {
     // `args` is cloned once per instance inside the loop, so it is consumed.
     #[allow(clippy::needless_pass_by_value)]
     pub fn call_all(&self, method: &str, args: impl mlua::IntoLuaMulti + Clone) {
-        let mut batch: Vec<(Entity, Table)> = self
-            .state
-            .borrow()
-            .instances
-            .iter()
-            .map(|(e, t)| (*e, t.clone()))
-            .collect();
+        let mut batch = self.live_batch();
         batch.sort_by_key(|(e, _)| *e);
         for (entity, inst) in batch {
             let Ok(Some(func)) = inst.get::<Option<Function>>(method) else {
@@ -585,36 +675,37 @@ impl ScriptHost {
                 return None;
             }
         };
-        let outcome = thread.resume::<mlua::MultiValue>(args);
+        let outcome = debugger::resume(&self.lua, &thread, args);
         self.settle_task(owner, label, thread, outcome)
     }
 
     /// File a task that suspended, finish one that returned, report one that
-    /// failed.
+    /// failed, park one a breakpoint stopped.
     fn settle_task(
         &self,
         owner: Entity,
         label: &str,
         thread: mlua::Thread,
-        outcome: mlua::Result<mlua::MultiValue>,
+        outcome: Outcome,
     ) -> Option<balaur_script::Value> {
         let values = match outcome {
-            Ok(values) => values,
-            Err(err) => {
+            Outcome::Failed(err) => {
                 self.report_error(label, &err.to_string());
                 return None;
             }
+            Outcome::Broke(hit) => return self.park(owner, label, thread, hit),
+            Outcome::Finished(values) => {
+                let returned = values.iter().next().unwrap_or(&Value::Nil);
+                return match env::to_neutral(returned) {
+                    Ok(value) => Some(value),
+                    Err(err) => {
+                        self.report_error(label, &err.to_string());
+                        None
+                    }
+                };
+            }
+            Outcome::Yielded(values) => values,
         };
-        if thread.status() != mlua::prelude::LuaThreadStatus::Resumable {
-            let returned = values.iter().next().unwrap_or(&Value::Nil);
-            return match env::to_neutral(returned) {
-                Ok(value) => Some(value),
-                Err(err) => {
-                    self.report_error(label, &err.to_string());
-                    None
-                }
-            };
-        }
         let Some(token) = wait_token(&values) else {
             self.report_error(label, "scripts suspend only through await(token)");
             return None;
@@ -650,7 +741,11 @@ impl ScriptHost {
                     continue;
                 }
             };
-            let outcome = task.thread.resume::<mlua::MultiValue>(value);
+            let outcome = debugger::resume(
+                &self.lua,
+                &task.thread,
+                mlua::MultiValue::from_vec(vec![value]),
+            );
             self.settle_task(task.owner, &task.label, task.thread, outcome);
         }
     }
@@ -687,7 +782,24 @@ impl ScriptHost {
         }
     }
 
+    /// Load a chunk, patch its breakpoints in, and run it.
     fn eval_chunk(&self, key: &str) -> Result<Value> {
+        let chunk = self.load_chunk(key)?;
+        {
+            let mut state = self.state.borrow_mut();
+            state.chunks.insert(key.to_string(), chunk.clone());
+            // A fresh chunk carries no patches, whatever the last one had.
+            if let Some(b) = state.breakpoints.get_mut(key) {
+                b.landed.clear();
+            }
+        }
+        self.apply_breakpoints(key)?;
+        chunk
+            .call::<Value>(())
+            .map_err(|err| anyhow!("evaluating {key}: {err}"))
+    }
+
+    fn load_chunk(&self, key: &str) -> Result<Function> {
         let bytecode = {
             let state = self.state.borrow();
             if let Some(pack) = &state.pack {
@@ -708,8 +820,8 @@ impl ScriptHost {
             .load(bytecode.as_slice())
             .set_name(format!("@{key}"))
             .set_mode(ChunkMode::Binary)
-            .eval()
-            .map_err(|err| anyhow!("evaluating {key}: {err}"))
+            .into_function()
+            .map_err(|err| anyhow!("loading {key}: {err}"))
     }
 
     fn report_error(&self, key: &str, err: &str) {
@@ -812,6 +924,22 @@ impl balaur_script::ScriptHost<Engine> for ScriptHost {
     fn instance_count(&self) -> usize {
         ScriptHost::instance_count(self)
     }
+    fn set_breakpoints(&self, path: &str, lines: &[usize]) -> anyhow::Result<Vec<usize>> {
+        ScriptHost::set_breakpoints(self, path, lines)
+    }
+
+    fn breakpoints(&self, path: &str) -> Vec<usize> {
+        ScriptHost::breakpoints(self, path)
+    }
+
+    fn paused(&self) -> Option<Pause> {
+        ScriptHost::paused(self)
+    }
+
+    fn resume(&self, mode: StepMode) {
+        ScriptHost::resume(self, mode);
+    }
+
     fn invoke(
         &self,
         callback: balaur_script::CallbackId,
