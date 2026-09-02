@@ -37,7 +37,12 @@ id = "n_spinner"
 name = "Spinner"
 parent = "n_world"
 position = [2.5, 0.5, 0]
-script = "scripts/spinner.rn"
+
+[nodes.script]
+source = "scripts/spinner.rn"
+
+[nodes.script.props]
+speed = 3.5
 
 [nodes.shape3d]
 half_extents = [0.5, 0.5, 0.5]

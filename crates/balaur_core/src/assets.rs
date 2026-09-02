@@ -522,24 +522,11 @@ fn entry_of<'a>(document: &'a toml::Value, entry: &str) -> Option<&'a toml::Valu
 }
 
 /// The asset file's text: from the pack in a packed run and from disk
-/// otherwise, exactly as scene files resolve.
-///
-/// Falling back to `ProjectRoot` matters: a Rust-only app and every test runs
-/// with no script host at all.
+/// otherwise, which is `project::scene_text` — an asset document and a scene
+/// file resolve the same way and always have.
 fn read_document(eng: &Engine, path: &str) -> Result<toml::Value> {
-    let source = eng
-        .script_host()
-        .and_then(|host| host.scene_source(path))
-        .map_or_else(|| read_from_disk(eng, path), Ok)?;
+    let source = crate::project::scene_text(eng, path)?;
     toml::from_str(&source).with_context(|| format!("parsing asset file '{path}'"))
-}
-
-fn read_from_disk(eng: &Engine, path: &str) -> Result<String> {
-    let root = eng
-        .try_resource::<ProjectRoot>()
-        .map(|r| r.borrow().0.clone())
-        .unwrap_or_default();
-    std::fs::read_to_string(root.join(path)).with_context(|| format!("reading asset file '{path}'"))
 }
 
 fn parse(eng: &Engine, key: &AssetRef, reference: &str) -> Result<Rc<dyn Any>> {

@@ -2,6 +2,7 @@
 // is the failure channel: `scripts/e2e.sh` fails any run that logs one.
 
 use crate::anim;
+use crate::dock;
 use crate::history;
 use crate::model;
 use crate::polygon;
@@ -300,6 +301,8 @@ pub fn clipboard(S) {
     log::info("selftest clipboard: done");
 }
 
+/// The Assets dock's three verbs. Everything it makes it also removes, so a
+/// run leaves the example project exactly as it found it.
 pub fn assets(S) {
     let root = S.game_root + "/";
     S.assets.dir = "";
@@ -334,6 +337,9 @@ pub fn assets(S) {
     log::info("selftest assets: done");
 }
 
+/// Picking, aimed by hand. The viewport snapshot a real click reads is empty
+/// without a window, which is why `render::pick_ray` takes the ray: a
+/// headless run can still aim one and say what it met.
 pub fn picking(S) {
     let target = None;
     for i in 0..S.doc.len() {
@@ -371,4 +377,56 @@ pub fn picking(S) {
     let aside = render::pick_ray(p.x + 10000.0, p.y, p.z + 200.0, 0.0, 0.0, -1.0);
     check(util::is_nil(aside), "a ray beside the scene picks nothing");
     log::info("selftest picking: done");
+}
+
+// Exported script properties: what the script declares, what the node
+// overrides, and the sparseness that keeps a default reaching every node
+// that left it alone.
+// The first numeric export in the scene, with the node carrying it. A number
+// is what the drag editors write; a string or a bool would be asserting a
+// different widget, which is its own test.
+fn first_number_export(S) {
+    for (i, node) in S.doc.iter().enumerate() {
+        if let Some(rel) = model::script_rel(node) {
+            for export in model::exports(S, rel) {
+                if export["type"] == "float" || export["type"] == "int" {
+                    return Some((i, export));
+                }
+            }
+        }
+    }
+    None
+}
+
+pub fn script_props(S) {
+    let found = first_number_export(S);
+    let (i, export) = match found {
+        Some(hit) => hit,
+        None => {
+            log::info("selftest props: no script in this scene exports a number, skipped");
+            return;
+        }
+    };
+    shell::choose(S, i);
+    let rel = model::script_rel(S.doc[i]).unwrap();
+    let name = export.name;
+    check(export.contains_key("type"), format!("{} declares a type for {}", rel, name));
+    let was = util::f(export["default"]);
+    model::set_script_prop(S, name, was + 5.0);
+    let props = model::script_props(S.doc[i]);
+    check(props.contains_key(name), format!("{} became an override on the node", name));
+    check(util::abs(util::f(props[name]) - (was + 5.0)) < 1e-6,
+        format!("{} holds the written value ({})", name, props.get(name).unwrap_or(())));
+
+    // Back to the default: the override is dropped rather than written out,
+    // so a later change to the script's default reaches this node again.
+    model::set_script_prop(S, name, was);
+    check(!model::script_props(S.doc[i]).contains_key(name),
+        format!("{} back at its default stops being an override", name));
+
+    shell::undo(S);
+    check(model::script_props(S.doc[i]).contains_key(name),
+        "undo brings the override back");
+    check(mirror_resolves(S), "the mirror still resolves after editing properties");
+    log::info("selftest props: done");
 }

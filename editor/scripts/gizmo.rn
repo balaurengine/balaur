@@ -578,26 +578,6 @@ fn apply_gizmo_drag(S, cam, mx, my) {
     }
 }
 
-// The pick of last resort: the nearest node origin within 40 design px, for
-// what `render::pick_ray` has no bounds for.
-fn nearest_origin(S, cam, mx, my) {
-    let best = None;
-    let best_d = 40.0;
-    for i in 0..S.doc.len() {
-        if let Some(found) = model::live(S, i) {
-            let p = found.global_position();
-            if let Some((px, py)) = project(cam, util::xyz(p)) {
-                let dist = math::sqrt((px - mx) * (px - mx) + (py - my) * (py - my));
-                if dist < best_d {
-                    best = Some(i);
-                    best_d = dist;
-                }
-            }
-        }
-    }
-    best
-}
-
 // Runs every frame from the root's `update`.
 pub fn update(S) {
     if model::is_2d(S) {
@@ -659,27 +639,18 @@ pub fn update(S) {
                         shell::choose(S, bone);
                         return;
                     }
-                    // What the ray actually meets, then the old nearest
-                    // origin for what it cannot measure: a mesh keeps its
-                    // vertices in an asset, so it has no bounds here.
+                    // What the ray meets, asked of the engine: it holds the
+                    // geometry, and every shape including a mesh has bounds.
                     let hit = render::pick_ray(
                         cam.ray_o[0], cam.ray_o[1], cam.ray_o[2],
                         cam.ray_d[0], cam.ray_d[1], cam.ray_d[2],
                     );
-                    // The engine answers with a node or nothing, the way
-                    // `get_node` does.
-                    let picked = if hit is balaur::Node {
-                        model::index_of_live(S, hit)
-                    } else {
-                        None
-                    };
-                    let best = match picked {
-                        Some(i) => Some(i),
-                        None => nearest_origin(S, cam, mx, my),
-                    };
-                    let best_some = best;
-                    if let Some(best) = best_some {
-                        shell::choose(S, best);
+                    if hit is balaur::Node {
+                        let picked = model::index_of_live(S, hit);
+                        let picked_some = picked;
+                        if let Some(i) = picked_some {
+                            shell::choose(S, i);
+                        }
                     }
                 }
             }

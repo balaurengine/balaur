@@ -23,6 +23,8 @@ thread_local! {
     /// Every function and constant declared through the seam, for the API
     /// dump: Rune's context cannot be walked from outside.
     static API: RefCell<Vec<ApiEntry>> = const { RefCell::new(Vec::new()) };
+    /// `(module, component)` pairs a module declared it drives.
+    static DRIVES: RefCell<Vec<(String, String)>> = const { RefCell::new(Vec::new()) };
 }
 
 /// One declared script-facing name.
@@ -32,10 +34,17 @@ pub struct ApiEntry {
     pub name: String,
     /// The constant's value as text; `None` for a function.
     pub constant: Option<String>,
+    /// `args -> returns` in Rust spelling, when the function was declared
+    /// through the typed seam.
+    pub signature: Option<String>,
 }
 
 pub(crate) fn api_entries() -> Vec<ApiEntry> {
     API.with_borrow(Clone::clone)
+}
+
+pub(crate) fn api_drives() -> Vec<(String, String)> {
+    DRIVES.with_borrow(Clone::clone)
 }
 
 fn record(module: &str, name: &str, constant: Option<String>) {
@@ -44,6 +53,7 @@ fn record(module: &str, name: &str, constant: Option<String>) {
             module: module.to_string(),
             name: name.to_string(),
             constant,
+            signature: None,
         });
     });
 }
@@ -169,6 +179,24 @@ impl balaur_script::Bindings<Engine> for RuneModule {
         if let Err(err) = registered.build() {
             tracing::error!("binding {}::{name}: {err}", self.name);
         }
+    }
+
+    fn signature(&mut self, name: &str, args: &str, returns: &str) {
+        API.with_borrow_mut(|api| {
+            let entry = api
+                .iter_mut()
+                .rev()
+                .find(|e| e.module == self.name && e.name == name && e.constant.is_none());
+            if let Some(entry) = entry {
+                entry.signature = Some(format!("{args} -> {returns}"));
+            }
+        });
+    }
+
+    fn drives(&mut self, components: &[&str]) {
+        DRIVES.with_borrow_mut(|d| {
+            d.extend(components.iter().map(|c| (self.name.clone(), (*c).to_string())));
+        });
     }
 
     fn constant(&mut self, name: &str, value: Value) {

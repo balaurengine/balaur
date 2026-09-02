@@ -1,17 +1,21 @@
-// Spins in place; press Space (windowed runs) to reverse direction. Edit SPEED
-// while `balaur run` is going: the change applies the moment you save.
+// Spins in place; press Space (windowed runs) to reverse direction. `speed`
+// and `clockwise` are exported, so the scene tunes them per node and the
+// inspector edits them — the file's defaults are what a node that says
+// nothing gets.
 
-const SPEED = 2.0;
+pub fn exports() {
+    #{ speed: 2.0, clockwise: true }
+}
 
 pub fn init(this) {
     this.angle = 0.0;
-    this.direction = 1.0;
+    this.direction = if this.clockwise { 1.0 } else { -1.0 };
 }
 
 pub fn update(this, dt) {
     if input::just_pressed(input::KEY_SPACE) {
         this.direction = -this.direction;
     }
-    this.angle += dt * SPEED * this.direction;
+    this.angle += dt * this.speed * this.direction;
     this.node.set_rotation_euler(0.0, this.angle, 0.0);
 }

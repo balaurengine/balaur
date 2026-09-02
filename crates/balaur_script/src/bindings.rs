@@ -17,6 +17,11 @@ pub type BoundFn<C> = Box<dyn Fn(&C, &[Value]) -> Result<Value>>;
 pub trait Bindings<C: ?Sized> {
     fn function_raw(&mut self, name: &str, f: BoundFn<C>);
     fn constant(&mut self, name: &str, value: Value);
+    /// The argument and return types of `name`, as Rust spells them, for the
+    /// generated reference. A backend that keeps no API record ignores it.
+    fn signature(&mut self, _name: &str, _args: &str, _returns: &str) {}
+    /// The components this module's functions act on, for the reference.
+    fn drives(&mut self, _components: &[&str]) {}
 }
 
 /// Typed registration. Blanket-implemented, so every backend gets it free.
@@ -34,7 +39,40 @@ pub trait BindingsExt<C: ?Sized>: Bindings<C> {
                 Ok(f(ctx, typed)?.into_value())
             }),
         );
+        self.signature(
+            name,
+            &short_type(std::any::type_name::<A>()),
+            &short_type(std::any::type_name::<R>()),
+        );
     }
+}
+
+/// A type name without its module paths: `alloc::string::String` reads
+/// `String`, `(balaur_script::value::NodeId, f32)` reads `(NodeId, f32)`.
+pub fn short_type(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut ident_start: Option<usize> = None;
+    let chars: Vec<char> = name.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == ':' && chars.get(i + 1) == Some(&':') {
+            if let Some(start) = ident_start {
+                out.truncate(start);
+            }
+            ident_start = None;
+            i += 2;
+            continue;
+        }
+        if c.is_alphanumeric() || c == '_' {
+            ident_start.get_or_insert(out.len());
+        } else {
+            ident_start = None;
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
 }
 
 /// So `&mut dyn Bindings<C>` and `Box<dyn Bindings<C>>` are usable wherever a
@@ -46,6 +84,12 @@ impl<C: ?Sized, T: Bindings<C> + ?Sized> Bindings<C> for &mut T {
     fn constant(&mut self, name: &str, value: Value) {
         (**self).constant(name, value);
     }
+    fn signature(&mut self, name: &str, args: &str, returns: &str) {
+        (**self).signature(name, args, returns);
+    }
+    fn drives(&mut self, components: &[&str]) {
+        (**self).drives(components);
+    }
 }
 
 impl<C: ?Sized, T: Bindings<C> + ?Sized> Bindings<C> for Box<T> {
@@ -54,6 +98,12 @@ impl<C: ?Sized, T: Bindings<C> + ?Sized> Bindings<C> for Box<T> {
     }
     fn constant(&mut self, name: &str, value: Value) {
         (**self).constant(name, value);
+    }
+    fn signature(&mut self, name: &str, args: &str, returns: &str) {
+        (**self).signature(name, args, returns);
+    }
+    fn drives(&mut self, components: &[&str]) {
+        (**self).drives(components);
     }
 }
 

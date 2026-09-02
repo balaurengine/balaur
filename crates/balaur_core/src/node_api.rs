@@ -9,7 +9,7 @@
 // function pointers; several of them have nothing to fail at.
 #![allow(clippy::unnecessary_wraps)]
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use balaur_script::{Bindings, Value};
 use glamx::{EulerRot, Quat, Vec3};
 use hecs::Entity;
@@ -440,12 +440,23 @@ fn call(eng: &Engine, args: &[Value]) -> Result<Value> {
         .unwrap_or(Value::Nil))
 }
 
+/// `node:attach_script(path, props)` — the scene's `script` key, at run time.
+/// `props` is optional and holds what this node overrides of the script's
+/// exported defaults, so a spawned node is tuned the way an authored one is.
 fn attach_script(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
+    let props = match args.get(2) {
+        None | Some(Value::Nil) => Vec::new(),
+        Some(Value::Map(fields)) => fields.clone(),
+        Some(other) => bail!(
+            "attach_script props must be a table, got {}",
+            other.type_name()
+        ),
+    };
     let host = eng
         .script_host()
         .ok_or_else(|| anyhow!("no script backend is running"))?;
-    host.attach(crate::node_id_of(e), text(args, 1)?)?;
+    host.attach_with_props(crate::node_id_of(e), text(args, 1)?, &props)?;
     Ok(Value::Nil)
 }
 

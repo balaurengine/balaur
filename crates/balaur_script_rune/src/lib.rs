@@ -144,6 +144,10 @@ struct Script {
     methods: HashMap<String, Option<Function>>,
     lines: Rc<debugger::Lines>,
     functions: Vec<PublicSignature>,
+    /// `exports()` evaluated once, since it is the same table for every node
+    /// running this file. A reload replaces the whole `Script`, so a changed
+    /// default reaches the next attach without an invalidation step.
+    exports: Option<Vec<(String, balaur_script::Value)>>,
 }
 
 impl Script {
@@ -156,6 +160,7 @@ impl Script {
             methods: HashMap::new(),
             lines,
             functions,
+            exports: None,
         }
     }
 }
@@ -335,6 +340,8 @@ impl std::future::Future for WaitFuture {
 struct State {
     /// Stop where a script threw instead of logging it past.
     break_on_error: bool,
+    /// A debugger asked to stop; the next line a script runs is where.
+    break_next: bool,
     project_root: PathBuf,
     pack: Option<Pack>,
     /// Registered by plugins at startup, folded into the context on first use.
@@ -389,6 +396,7 @@ impl RuneHost {
             engine,
             state: Rc::new(RefCell::new(State {
                 break_on_error: false,
+                break_next: false,
                 project_root,
                 pack,
                 pending: Rc::new(RefCell::new(Vec::new())),
@@ -459,6 +467,26 @@ impl RuneHost {
                     Ok(value) => value,
                     Err(err) => {
                         tracing::error!("script::functions({path}): {err}");
+                        rune::to_value(()).expect("unit always converts")
+                    }
+                }
+            })
+            .build()?;
+        // `script::exports("scripts/enemy.rn")` — what that script declares
+        // tunable, as `[#{ name, default, type }]` in name order. The type is
+        // the default's own, named in the schema vocabulary so the inspector
+        // reaches for the editor it already has. The inspector's Script
+        // properties section is drawn from this.
+        script
+            .function("exports", move |path: &str| {
+                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+                match host
+                    .exports(&Self::normalize_key(path))
+                    .and_then(|declared| export_rows(&declared))
+                {
+                    Ok(value) => value,
+                    Err(err) => {
+                        tracing::error!("script::exports({path}): {err}");
                         rune::to_value(()).expect("unit always converts")
                     }
                 }
@@ -578,6 +606,37 @@ impl RuneHost {
         Ok(unit)
     }
 
+    /// The defaults `exports()` declares for `key`, evaluated once per file.
+    ///
+    /// Declaration order is not recoverable — Rune objects do not keep it —
+    /// so the list is sorted by name, which is the order the inspector shows
+    /// and the order a scene's `props` are written back in.
+    pub fn exports(&self, key: &str) -> Result<Vec<(String, balaur_script::Value)>> {
+        if let Some(hit) = self
+            .state
+            .borrow()
+            .scripts
+            .get(key)
+            .and_then(|s| s.exports.clone())
+        {
+            return Ok(hit);
+        }
+        let declared = match self.method(key, "exports") {
+            None => Vec::new(),
+            Some(f) => match f.call::<rune::Value>(()) {
+                VmResult::Ok(v) => match value::to_plain(&v) {
+                    Some(balaur_script::Value::Map(fields)) => fields,
+                    _ => return Err(anyhow!("[{key}] exports must return an object of defaults")),
+                },
+                VmResult::Err(err) => return Err(anyhow!("[{key}] exports: {err}")),
+            },
+        };
+        if let Some(script) = self.state.borrow_mut().scripts.get_mut(key) {
+            script.exports = Some(declared.clone());
+        }
+        Ok(declared)
+    }
+
     /// Look up a script function, returning `None` when it is not defined.
     fn method(&self, key: &str, name: &str) -> Option<Function> {
         if let Some(hit) = self
@@ -600,6 +659,17 @@ impl RuneHost {
     }
 
     pub fn attach(&self, entity: Entity, path: &str) -> Result<()> {
+        self.attach_with_props(entity, path, &[])
+    }
+
+    /// Attach, writing the script's exported defaults and then the scene's
+    /// `props` over them onto the instance, before `init` sees it.
+    pub fn attach_with_props(
+        &self,
+        entity: Entity,
+        path: &str,
+        props: &[(String, balaur_script::Value)],
+    ) -> Result<()> {
         let key = Self::normalize_key(path);
         self.load(&key)?;
         let mut obj = rune::runtime::Object::new();
@@ -609,6 +679,22 @@ impl RuneHost {
                 id: entity.to_bits().get(),
             })?,
         )?;
+        let declared = self.exports(&key)?;
+        for (name, value) in &declared {
+            obj.insert(
+                rune::alloc::String::try_from(name.as_str())?,
+                value::from_neutral(value)?,
+            )?;
+        }
+        for (name, value) in props {
+            if !declared.iter().any(|(d, _)| d == name) {
+                tracing::warn!("[{key}] property '{name}' is set on a node but not exported");
+            }
+            obj.insert(
+                rune::alloc::String::try_from(name.as_str())?,
+                value::from_neutral(value)?,
+            )?;
+        }
         let state = rune::to_value(obj)?;
         self.state.borrow_mut().instances.insert(
             entity,
@@ -1088,13 +1174,66 @@ impl RuneHost {
     }
 }
 
+/// `script::exports`' answer: one row per declared property, carrying the name,
+/// the default and the type to draw it at.
+fn export_rows(declared: &[(String, balaur_script::Value)]) -> Result<rune::Value> {
+    let mut rows = Vec::with_capacity(declared.len());
+    for (name, default) in declared {
+        let mut row = rune::runtime::Object::new();
+        row.insert(
+            rune::alloc::String::try_from("name")?,
+            rune::to_value(name.clone())?,
+        )?;
+        row.insert(
+            rune::alloc::String::try_from("default")?,
+            value::from_neutral(default)?,
+        )?;
+        row.insert(
+            rune::alloc::String::try_from("type")?,
+            rune::to_value(export_type(default))?,
+        )?;
+        rows.push(rune::to_value(row)?);
+    }
+    Ok(rune::to_value(rows)?)
+}
+
+/// A default's type, in the same vocabulary a component schema uses, so the
+/// inspector draws an export with the editor it already has for that type.
+///
+/// `int` is not one of `PROPERTY_TYPES` — no schema declares it — but the
+/// distinction has to survive to the editor, which rounds an edit back to a
+/// whole number rather than turning a count into 2.0.
+fn export_type(default: &balaur_script::Value) -> &'static str {
+    use balaur_script::Value;
+    match default {
+        Value::Bool(_) => "bool",
+        Value::Int(_) => "int",
+        Value::Num(_) => "float",
+        Value::Vec2(_) => "vec2",
+        Value::Vec3(_) => "vec3",
+        Value::Color(_) => "color",
+        // A node reference and anything structured are typed by hand until
+        // an attribute says otherwise; `PLAN-scripting.md` phase 3.
+        _ => "string",
+    }
+}
+
 impl balaur_script::ScriptHost<Engine> for RuneHost {
     fn module(&self, name: &str) -> Result<Box<dyn balaur_script::Bindings<Engine>>> {
         Ok(Box::new(RuneHost::module(self, name)?))
     }
 
-    fn attach(&self, node: balaur_script::NodeId, path: &str) -> Result<()> {
-        RuneHost::attach(self, balaur_core::entity_of(node)?, path)
+    fn attach_with_props(
+        &self,
+        node: balaur_script::NodeId,
+        path: &str,
+        props: &[(String, balaur_script::Value)],
+    ) -> Result<()> {
+        RuneHost::attach_with_props(self, balaur_core::entity_of(node)?, path, props)
+    }
+
+    fn exports(&self, path: &str) -> Result<Vec<(String, balaur_script::Value)>> {
+        RuneHost::exports(self, &Self::normalize_key(path))
     }
 
     fn detach(&self, node: balaur_script::NodeId) {
@@ -1177,6 +1316,10 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
 
     fn break_on_error(&self) -> bool {
         Self::break_on_error(self)
+    }
+
+    fn request_break(&self) {
+        RuneHost::request_break(self);
     }
 
     fn paused(&self) -> Option<Pause> {

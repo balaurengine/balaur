@@ -19,6 +19,9 @@ anyhow.workspace = true
 balaur_script.workspace = true
 tracing.workspace = true
 toml.workspace = true
+# Emitter spread goes through sin/cos; the platform libm differs across
+# operating systems and this one does not.
+libm.workspace = true
 kiss3d = { version = "0.46", optional = true, features = ["egui"] }
 # The same wgpu kiss3d builds against: the skinned polygon material is
 # written here against kiss3d's material trait, so the types must unify.
@@ -30,6 +33,9 @@ balaur_ui = { workspace = true, optional = true }
 # Not optional: a sprite sized from its image puts that size in a component
 # scripts read, so a headless build has to compute it too.
 image = { version = "0.25", default-features = false, features = ["png"] }
+# Not optional either: linking a shader is CPU work with no GPU in it, and a
+# shader that fails to link is a bug only a headless test would catch.
+wesl = "0.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6", optional = true }

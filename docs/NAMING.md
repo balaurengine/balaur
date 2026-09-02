@@ -154,7 +154,7 @@ still-live leak.)
 `*Snapshot`'s headless clause is equally concrete: `ViewportSnapshot2d`
 derives `Default` with `zoom: 0.0`, while `CameraConfig2d::default()` is
 `zoom: 60.0`. A script reading `render.camera_2d()` headless gets `(0, 0, 0)`,
-and only `editor/scripts/gizmo2d.rn:40-41`'s `math.max(zoom, 0.01)` keeps
+and only `editor/scripts/viewport.rn:20`'s `util::max(zoom, 0.01)` keeps
 that from being a division by zero.
 
 **Rejected.** A four-suffix set (State/Config/Registry/Request + bare): it has

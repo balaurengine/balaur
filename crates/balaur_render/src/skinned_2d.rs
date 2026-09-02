@@ -27,7 +27,22 @@ use kiss3d::resource::{
 };
 use kiss3d::scene::{InstancesBuffer2d, Object2d, ObjectData2d, SceneNode2d};
 
+use crate::shaders;
 use crate::PolygonMesh;
+
+/// The skinning shader, linked from WESL to WGSL.
+///
+/// The engine's own shaders are checked by `shaders`' tests, so a failure
+/// here is a bug in this build, not in anything a project wrote.
+fn linked_shader() -> String {
+    shaders::link(
+        &[("package::skinned_2d", shaders::SKINNED_2D)],
+        "package::skinned_2d",
+        &[],
+    )
+    .expect("the engine's own shader must link")
+    .to_string()
+}
 
 /// The most bones one polygon may name. Three `vec4` per joint keeps the
 /// object uniform well inside the 16 KB every adapter guarantees.
@@ -68,68 +83,6 @@ fn padded(m: &Mat3) -> [[f32; 4]; 3] {
     ]
 }
 
-const SHADER: &str = r"
-struct FrameUniforms {
-    view_0: vec4<f32>, view_1: vec4<f32>, view_2: vec4<f32>,
-    proj_0: vec4<f32>, proj_1: vec4<f32>, proj_2: vec4<f32>,
-}
-struct ObjectUniforms {
-    model_0: vec4<f32>, model_1: vec4<f32>, model_2: vec4<f32>,
-    color: vec4<f32>,
-    joints: array<vec4<f32>, 384>,
-}
-@group(0) @binding(0) var<uniform> frame: FrameUniforms;
-@group(1) @binding(0) var<uniform> obj: ObjectUniforms;
-@group(2) @binding(0) var t_albedo: texture_2d<f32>;
-@group(2) @binding(1) var s_albedo: sampler;
-
-struct VertexInput {
-    @location(0) position: vec2<f32>,
-    @location(1) tex_coord: vec2<f32>,
-    @location(2) joints: vec4<u32>,
-    @location(3) weights: vec4<f32>,
-}
-struct VertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) tex_coord: vec2<f32>,
-}
-
-fn unpack(a: vec4<f32>, b: vec4<f32>, c: vec4<f32>) -> mat3x3<f32> {
-    return mat3x3<f32>(a.xyz, b.xyz, c.xyz);
-}
-fn joint_mat(j: u32) -> mat3x3<f32> {
-    let b = 3u * j;
-    return unpack(obj.joints[b], obj.joints[b + 1u], obj.joints[b + 2u]);
-}
-
-@vertex
-fn vs_main(vertex: VertexInput) -> VertexOutput {
-    var out: VertexOutput;
-    let p = vec3<f32>(vertex.position, 1.0);
-    let total = vertex.weights.x + vertex.weights.y + vertex.weights.z + vertex.weights.w;
-    var skinned = p;
-    if total > 0.0 {
-        skinned = vertex.weights.x * (joint_mat(vertex.joints.x) * p)
-            + vertex.weights.y * (joint_mat(vertex.joints.y) * p)
-            + vertex.weights.z * (joint_mat(vertex.joints.z) * p)
-            + vertex.weights.w * (joint_mat(vertex.joints.w) * p);
-    }
-    let view = unpack(frame.view_0, frame.view_1, frame.view_2);
-    let proj = unpack(frame.proj_0, frame.proj_1, frame.proj_2);
-    let model = unpack(obj.model_0, obj.model_1, obj.model_2);
-    let world = model * vec3<f32>(skinned.xy, 1.0);
-    var projected = proj * view * world;
-    projected.z = 0.0;
-    out.clip_position = vec4<f32>(projected, 1.0);
-    out.tex_coord = vertex.tex_coord;
-    return out;
-}
-
-@fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(t_albedo, s_albedo, in.tex_coord) * obj.color;
-}
-";
 
 /// A polygon's kiss3d node, drawn through the skinning material. The
 /// handle comes back only for a mesh with a skin; a rigid polygon has
@@ -390,7 +343,7 @@ impl SkinnedMaterial {
             ],
             immediate_size: 0,
         });
-        let shader = ctxt.create_shader_module(Some("polygon_shader"), SHADER);
+        let shader = ctxt.create_shader_module(Some("polygon_shader"), &linked_shader());
         let pipeline = build_pipeline(pipeline_layout, shader);
         let frame_uniform = ctxt.create_buffer(&wgpu::BufferDescriptor {
             label: Some("polygon_frame_uniform"),

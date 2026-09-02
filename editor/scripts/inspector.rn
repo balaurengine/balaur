@@ -133,7 +133,7 @@ fn script_section(S, k, title) {
     row(k, "Script", || {
         ui::frame(#{ fill: k.sage_soft, stroke: k.sage, radius: 14, padding_x: 11 }, || {
             ui::horizontal(#{ height: 28 }, || {
-                let name = node.get("script").unwrap_or("— none —");
+                let name = model::script_rel(node).unwrap_or("— none —");
                 ui::label(name, style::mono(k.sage));
                 ui::right(|| {
                     let has = node.contains_key("script");
@@ -152,6 +152,55 @@ fn script_section(S, k, title) {
             });
         });
     });
+    script_props_rows(S, k, node);
+}
+
+// What the script declares tunable, one row per export. A value differing
+// from the default is the node's own; everything else is inherited, so a
+// changed default reaches every node that left it alone.
+fn script_props_rows(S, k, node) {
+    let rel = match model::script_rel(node) {
+        Some(rel) => rel,
+        None => return,
+    };
+    let declared = model::exports(S, rel);
+    if declared.is_empty() {
+        return;
+    }
+    let props = model::script_props(node);
+    ui::add_space(2);
+    ui::horizontal((), || {
+        ui::add_space(8);
+        ui::label("PROPERTIES", style::heading(k));
+    });
+    ui::add_space(6);
+    for export in declared {
+        let overridden = props.contains_key(export.name);
+        let value = if overridden { props[export.name] } else { export["default"] };
+        let spec = #{
+            "type": if export["type"] == "int" { "float" } else { export["type"] },
+            "default": export["default"],
+            "decimals": if export["type"] == "int" { 0 } else { 2 },
+            "step": if export["type"] == "int" { 1.0 } else { 0.02 },
+        };
+        let editor = match editors().get(spec["type"]) {
+            Some(editor) => editor,
+            None => edit_text,
+        };
+        editor(S, k, SCRIPT_PROPS, export.name, spec, value);
+        if overridden {
+            ui::horizontal((), || {
+                ui::add_space(LABEL_W + 8);
+                if ui::pill("reset", #{
+                    height: 18, size: 9, fill: k.sunken, color: k.faint,
+                    tooltip: "Back to the script's default",
+                }) {
+                    model::set_script_prop(S, export.name, export["default"]);
+                }
+            });
+            ui::add_space(4);
+        }
+    }
 }
 
 // Save as file promotes the inline definition to `animations/<node>.toml`,
@@ -428,7 +477,7 @@ fn promote_asset(S, comp, prop, asset_type, dir, reference) {
         log::warn(format!("cannot write {}: {:?}", rel, err));
         return;
     }
-    model::set_component_prop(S, comp, prop, rel);
+    write(S, comp, prop, rel);
     log::info(format!("saved {}", rel));
 }
 
@@ -441,7 +490,7 @@ fn inline_asset(S, comp, prop, reference) {
         log::warn(format!("cannot inline {}: {:?}", reference, copy));
         return;
     }
-    model::set_component_prop(S, comp, prop, copy);
+    write(S, comp, prop, copy);
     log::info(format!("{} is now inline on {}", reference, S.doc[S.sel].name));
 }
 
@@ -452,6 +501,21 @@ fn as_text(value) {
         ""
     } else {
         format!("{}", value)
+    }
+}
+
+// The `comp` an editor is given when it is editing a script's exported
+// property rather than a component. No component can be named this — a
+// component name is an identifier — so the two never collide.
+const SCRIPT_PROPS = "script/props";
+
+// Where an edited value goes. Every editor writes through here, so the same
+// six editors serve components and script properties both.
+fn write(S, comp, prop, value) {
+    if comp == SCRIPT_PROPS {
+        model::set_script_prop(S, prop, value);
+    } else {
+        write(S, comp, prop, value);
     }
 }
 
@@ -505,7 +569,7 @@ fn edit_float(S, k, comp, prop, spec, value) {
             if let Some(max) = max_some {
                 v = util::min(util::f(max), v);
             }
-            model::set_component_prop(S, comp, prop, v);
+            write(S, comp, prop, v);
         }
     });
 }
@@ -517,7 +581,7 @@ fn edit_bool(S, k, comp, prop, spec, value) {
             on_knob: k.on_accent, off_knob: k.faint,
         });
         if ch {
-            model::set_component_prop(S, comp, prop, on);
+            write(S, comp, prop, on);
         }
     });
 }
@@ -528,7 +592,7 @@ fn edit_enum(S, k, comp, prop, spec, value) {
             width: CONTROL_W, size: 12, height: 28, color: k.text,
         });
         if changed {
-            model::set_component_prop(S, comp, prop, v);
+            write(S, comp, prop, v);
         }
     });
 }
@@ -539,7 +603,7 @@ fn edit_color(S, k, comp, prop, spec, value) {
     row(k, prop, || {
         let (rgba, changed) = ui::color(#{ value: util::vec(value) });
         if changed {
-            model::set_component_prop(S, comp, prop, rgba);
+            write(S, comp, prop, rgba);
         }
         ui::add_space(6);
         let text = format!("{} {} {} {}",
@@ -573,7 +637,7 @@ fn edit_vector(S, k, comp, prop, spec, value) {
             }
         }
         if cell.changed {
-            model::set_component_prop(S, comp, prop, cell.out);
+            write(S, comp, prop, cell.out);
         }
     });
 }
@@ -594,7 +658,7 @@ fn edit_asset(S, k, comp, prop, spec, value) {
             let (text, _, submitted) = ui::text_field(id, "— none —",
                 util::merge(style::field(k, width), #{ value: reference }));
             if submitted {
-                model::set_component_prop(S, comp, prop, text);
+                write(S, comp, prop, text);
             }
         }
         if dir == "" {
@@ -629,7 +693,7 @@ fn edit_text(S, k, comp, prop, spec, value) {
             util::merge(style::field(k, CONTROL_W),
                 #{ value: model::relative_file(S, as_text(value)) }));
         if submitted {
-            model::set_component_prop(S, comp, prop, text);
+            write(S, comp, prop, text);
         }
     });
 }
@@ -739,7 +803,7 @@ fn component_sections(S, k, filter) {
 fn events_section(S, k) {
     let node = model::selected_node(S);
     section(k, "Events");
-    let script = match node.get("script") {
+    let script = match model::script_rel(node) {
         Some(script) => script,
         None => {
             ui::horizontal((), || {

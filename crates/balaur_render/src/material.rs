@@ -1,0 +1,436 @@
+//! The `material` asset: a shader, the `@if` features that pick its variant,
+//! and the values its uniforms take.
+//!
+//! A material is data; the shader it names is source. Which values a shader
+//! takes is the shader's own business, so the fields are read off its
+//! `Params` struct once it is linked rather than declared a second time here
+//! — a material that sets a value the shader does not read says so, and a
+//! shader that grows a field needs no edit anywhere else.
+
+use anyhow::{anyhow, bail, Result};
+use balaur_core::App;
+use wesl::syntax::{GlobalDeclaration, TranslationUnit};
+
+/// The asset type name, and what an `asset`-typed property asks for.
+pub const MATERIAL_ASSET_TYPE: &str = "material";
+
+/// The struct a shader declares to take a material's values.
+const PARAMS_STRUCT: &str = "Params";
+
+/// Which bind group a material's own uniform takes. Groups 0, 1 and 2 are
+/// the frame, the object and its texture, as every Balaur material lays them
+/// out.
+pub const PARAMS_GROUP: u32 = 3;
+
+/// A uniform buffer's size is a multiple of this, whatever the struct holds.
+const UNIFORM_ALIGN: usize = 16;
+
+/// One value a material sets, in the shape its `[params]` table wrote it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Param {
+    Float(f32),
+    Vec2([f32; 2]),
+    Vec3([f32; 3]),
+    Vec4([f32; 4]),
+}
+
+impl Param {
+    /// How the value would be spelled in WGSL, for an error that has to name
+    /// both sides of a mismatch.
+    fn type_name(self) -> &'static str {
+        match self {
+            Param::Float(_) => "f32",
+            Param::Vec2(_) => "vec2<f32>",
+            Param::Vec3(_) => "vec3<f32>",
+            Param::Vec4(_) => "vec4<f32>",
+        }
+    }
+
+    fn floats(&self) -> &[f32] {
+        match self {
+            Param::Float(v) => std::slice::from_ref(v),
+            Param::Vec2(v) => v,
+            Param::Vec3(v) => v,
+            Param::Vec4(v) => v,
+        }
+    }
+}
+
+/// A parsed `material` asset.
+#[derive(Clone, Debug, Default)]
+pub struct Material {
+    /// Project-relative path to the WESL shader this material draws with.
+    pub shader: String,
+    /// `@if` flags, in the order written; chosen when the shader is linked.
+    pub features: Vec<(String, bool)>,
+    /// Values for the shader's `Params` fields, by name.
+    pub params: Vec<(String, Param)>,
+}
+
+/// What a definition table holds, for the generated reference.
+pub(crate) const MATERIAL_ASSET_DOC: &str = r##"A shader and the values it draws with. `shader` names a `.wesl` file
+(project-relative); `[features]` are the `@if` flags that pick a variant when
+it is linked; `[params]` are the values of the shader's `Params` struct, by
+field name. A number is an `f32`, an array of two, three or four numbers a
+`vec2`/`vec3`/`vec4`, and a `#rrggbb` or `#rrggbbaa` string a `vec4`.
+
+```toml
+[[assets]]
+id = "water"
+type = "material"
+shader = "shaders/water.wesl"
+features = { lit = true }
+params = { speed = 0.4, tint = "#3aa0ff" }
+```"##;
+
+/// `#rrggbb` or `#rrggbbaa` as four channels in 0..=1.
+fn hex_rgba(text: &str) -> Option<[f32; 4]> {
+    let hex = text.strip_prefix('#')?;
+    let channel = |i: usize| {
+        u8::from_str_radix(hex.get(i..i + 2)?, 16)
+            .ok()
+            .map(|b| f32::from(b) / 255.0)
+    };
+    match hex.len() {
+        6 => Some([channel(0)?, channel(2)?, channel(4)?, 1.0]),
+        8 => Some([channel(0)?, channel(2)?, channel(4)?, channel(6)?]),
+        _ => None,
+    }
+}
+
+fn parse_param(name: &str, value: &toml::Value) -> Result<Param> {
+    if let Some(text) = value.as_str() {
+        return hex_rgba(text)
+            .map(Param::Vec4)
+            .ok_or_else(|| anyhow!("param `{name}`: `{text}` is not #rrggbb or #rrggbbaa"));
+    }
+    if let Some(number) = balaur_core::components::as_f64(value) {
+        return Ok(Param::Float(number as f32));
+    }
+    let array = value
+        .as_array()
+        .ok_or_else(|| anyhow!("param `{name}`: expected a number, an array or a colour string"))?;
+    let numbers: Option<Vec<f32>> = array
+        .iter()
+        .map(|v| balaur_core::components::as_f64(v).map(|n| n as f32))
+        .collect();
+    let numbers =
+        numbers.ok_or_else(|| anyhow!("param `{name}`: every element must be a number"))?;
+    match numbers[..] {
+        [x, y] => Ok(Param::Vec2([x, y])),
+        [x, y, z] => Ok(Param::Vec3([x, y, z])),
+        [x, y, z, w] => Ok(Param::Vec4([x, y, z, w])),
+        _ => bail!(
+            "param `{name}`: an array is two, three or four numbers, not {}",
+            numbers.len()
+        ),
+    }
+}
+
+/// Parse a `material` definition table.
+pub fn parse(value: &toml::Value) -> Result<Material> {
+    let shader = value
+        .get("shader")
+        .and_then(toml::Value::as_str)
+        .ok_or_else(|| anyhow!("a material names its shader: `shader = \"shaders/x.wesl\"`"))?
+        .to_string();
+    let mut features = Vec::new();
+    if let Some(table) = value.get("features").and_then(toml::Value::as_table) {
+        for (name, on) in table {
+            let on = on
+                .as_bool()
+                .ok_or_else(|| anyhow!("feature `{name}` is on or off, not `{on}`"))?;
+            features.push((name.clone(), on));
+        }
+    }
+    let mut params = Vec::new();
+    if let Some(table) = value.get("params").and_then(toml::Value::as_table) {
+        for (name, value) in table {
+            params.push((name.clone(), parse_param(name, value)?));
+        }
+    }
+    Ok(Material {
+        shader,
+        features,
+        params,
+    })
+}
+
+/// The `material` asset type: files live in `materials/`.
+pub(crate) fn register_material_asset(app: &mut App) {
+    app.register_asset_type(
+        MATERIAL_ASSET_TYPE,
+        "materials",
+        MATERIAL_ASSET_DOC,
+        |value| Ok(std::rc::Rc::new(parse(value)?) as std::rc::Rc<dyn std::any::Any>),
+    );
+}
+
+/// A scalar or vector a `Params` field may have.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FieldType {
+    F32,
+    Vec2,
+    Vec3,
+    Vec4,
+}
+
+impl FieldType {
+    /// WGSL's alignment and size for the type, which is what decides where
+    /// the next field starts.
+    fn align_size(self) -> (usize, usize) {
+        match self {
+            FieldType::F32 => (4, 4),
+            FieldType::Vec2 => (8, 8),
+            FieldType::Vec3 => (16, 12),
+            FieldType::Vec4 => (16, 16),
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            FieldType::F32 => "f32",
+            FieldType::Vec2 => "vec2<f32>",
+            FieldType::Vec3 => "vec3<f32>",
+            FieldType::Vec4 => "vec4<f32>",
+        }
+    }
+
+    /// The type a WGSL type expression names, or `None` for one a material
+    /// cannot write.
+    fn parse(ty: &wesl::syntax::TypeExpression) -> Option<Self> {
+        let arg_is_f32 = || match &ty.template_args {
+            Some(args) if args.len() == 1 => args[0].expression.to_string() == "f32",
+            _ => false,
+        };
+        match ty.ident.name().as_str() {
+            "f32" => Some(FieldType::F32),
+            "vec2f" => Some(FieldType::Vec2),
+            "vec3f" => Some(FieldType::Vec3),
+            "vec4f" => Some(FieldType::Vec4),
+            "vec2" if arg_is_f32() => Some(FieldType::Vec2),
+            "vec3" if arg_is_f32() => Some(FieldType::Vec3),
+            "vec4" if arg_is_f32() => Some(FieldType::Vec4),
+            _ => None,
+        }
+    }
+}
+
+/// One field of a shader's `Params` struct, and where it sits in the buffer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Field {
+    pub name: String,
+    pub ty: FieldType,
+    pub offset: usize,
+}
+
+/// The `Params` fields a linked shader declares, laid out the way WGSL lays
+/// out a uniform.
+///
+/// Empty for a shader with no `Params` — most shaders — which is not an
+/// error: a material may exist only to pick a variant.
+pub fn fields(linked: &TranslationUnit) -> Result<Vec<Field>> {
+    let Some(declaration) = linked.global_declarations.iter().find_map(|d| match d.node() {
+        GlobalDeclaration::Struct(s) if s.ident.name().as_str() == PARAMS_STRUCT => Some(s),
+        _ => None,
+    }) else {
+        return Ok(Vec::new());
+    };
+    let mut fields = Vec::new();
+    let mut offset: usize = 0;
+    for member in &declaration.members {
+        let name = member.ident.name().to_string();
+        let ty = FieldType::parse(&member.ty).ok_or_else(|| {
+            anyhow!(
+                "`{PARAMS_STRUCT}.{name}` is `{}`; a material writes f32, vec2, vec3 and vec4 only",
+                member.ty.ident.name()
+            )
+        })?;
+        let (align, size) = ty.align_size();
+        offset = offset.next_multiple_of(align);
+        fields.push(Field {
+            name,
+            ty,
+            offset,
+        });
+        offset += size;
+    }
+    Ok(fields)
+}
+
+/// The bytes `params` make for `fields`, sized as the uniform buffer wants.
+///
+/// A field no param names keeps its zero. A param no field names is dropped
+/// with a warning rather than an error: stripping removes a field the shader
+/// stopped reading, and commenting out a line should not fail a scene.
+pub fn pack(fields: &[Field], params: &[(String, Param)]) -> Result<Vec<u8>> {
+    let end = fields
+        .last()
+        .map_or(0, |f| f.offset + f.ty.align_size().1)
+        .next_multiple_of(UNIFORM_ALIGN);
+    let mut bytes = vec![0u8; end];
+    for (name, param) in params {
+        let Some(field) = fields.iter().find(|f| &f.name == name) else {
+            tracing::warn!(param = name.as_str(), "no such field in the shader's Params");
+            continue;
+        };
+        let expected = match field.ty {
+            FieldType::F32 => matches!(param, Param::Float(_)),
+            FieldType::Vec2 => matches!(param, Param::Vec2(_)),
+            FieldType::Vec3 => matches!(param, Param::Vec3(_)),
+            FieldType::Vec4 => matches!(param, Param::Vec4(_)),
+        };
+        if !expected {
+            bail!(
+                "param `{name}` is a {}, but the shader declares it {}",
+                param.type_name(),
+                field.ty.name()
+            );
+        }
+        for (i, value) in param.floats().iter().enumerate() {
+            let at = field.offset + i * 4;
+            bytes[at..at + 4].copy_from_slice(&value.to_le_bytes());
+        }
+    }
+    Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::shaders;
+
+    fn table(text: &str) -> toml::Value {
+        toml::from_str(text).unwrap()
+    }
+
+    fn params_of(shader: &str) -> Vec<Field> {
+        let linked = shaders::link(&[("package::m", shader)], "package::m", &[]).unwrap();
+        fields(&linked.syntax).unwrap()
+    }
+
+    #[test]
+    fn a_material_names_its_shader() {
+        let m = parse(&table("shader = \"shaders/water.wesl\"")).unwrap();
+        assert_eq!(m.shader, "shaders/water.wesl");
+        assert!(m.params.is_empty());
+    }
+
+    #[test]
+    fn a_material_without_a_shader_is_an_error() {
+        let err = parse(&table("params = { speed = 1.0 }")).unwrap_err();
+        assert!(format!("{err}").contains("names its shader"), "{err}");
+    }
+
+    #[test]
+    fn params_take_numbers_arrays_and_colours() {
+        let m = parse(&table(
+            r##"
+            shader = "s.wesl"
+            [params]
+            speed = 0.5
+            offset = [1.0, 2.0]
+            tint = "#ff8000"
+            "##,
+        ))
+        .unwrap();
+        let by_name = |n: &str| m.params.iter().find(|(k, _)| k == n).unwrap().1;
+        assert_eq!(by_name("speed"), Param::Float(0.5));
+        assert_eq!(by_name("offset"), Param::Vec2([1.0, 2.0]));
+        assert_eq!(by_name("tint"), Param::Vec4([1.0, 128.0 / 255.0, 0.0, 1.0]));
+    }
+
+    #[test]
+    fn a_colour_that_is_not_hex_names_the_param() {
+        let err = parse(&table("shader = \"s.wesl\"\nparams = { tint = \"blue\" }")).unwrap_err();
+        assert!(format!("{err}").contains("tint"), "{err}");
+    }
+
+    #[test]
+    fn features_are_read_in_the_order_written() {
+        let m = parse(&table(
+            "shader = \"s.wesl\"\nfeatures = { lit = true, fog = false }",
+        ))
+        .unwrap();
+        assert_eq!(
+            m.features,
+            vec![("fog".to_string(), false), ("lit".to_string(), true)]
+        );
+    }
+
+    const WITH_PARAMS: &str = r"
+struct Params { speed: f32, tint: vec4<f32> }
+@group(3) @binding(0) var<uniform> params: Params;
+@fragment fn fs_main() -> @location(0) vec4<f32> {
+    return params.tint * params.speed;
+}
+";
+
+    #[test]
+    fn fields_come_off_the_shaders_own_struct() {
+        assert_eq!(
+            params_of(WITH_PARAMS),
+            vec![
+                Field { name: "speed".into(), ty: FieldType::F32, offset: 0 },
+                Field { name: "tint".into(), ty: FieldType::Vec4, offset: 16 },
+            ]
+        );
+    }
+
+    #[test]
+    fn a_shader_with_no_params_has_no_fields() {
+        let shader = "@fragment fn fs_main() -> @location(0) vec4<f32> {
+            return vec4<f32>(1.0);
+        }";
+        assert!(params_of(shader).is_empty());
+    }
+
+    #[test]
+    fn a_vec3_pads_the_field_after_it_to_sixteen() {
+        let shader = r"
+struct Params { a: vec3<f32>, b: f32, c: vec2<f32> }
+@group(3) @binding(0) var<uniform> params: Params;
+@fragment fn fs_main() -> @location(0) vec4<f32> {
+    return vec4<f32>(params.a, params.b) + vec4<f32>(params.c, 0.0, 0.0);
+}
+";
+        let offsets: Vec<usize> = params_of(shader).iter().map(|f| f.offset).collect();
+        assert_eq!(offsets, vec![0, 12, 16]);
+    }
+
+    #[test]
+    fn packing_writes_each_value_at_its_own_offset() {
+        let fields = params_of(WITH_PARAMS);
+        let params = vec![
+            ("speed".to_string(), Param::Float(2.0)),
+            ("tint".to_string(), Param::Vec4([0.25, 0.5, 0.75, 1.0])),
+        ];
+        let bytes = pack(&fields, &params).unwrap();
+        assert_eq!(bytes.len(), 32);
+        let at = |o: usize| f32::from_le_bytes(bytes[o..o + 4].try_into().unwrap());
+        assert_eq!(at(0), 2.0);
+        assert_eq!((at(16), at(20), at(24), at(28)), (0.25, 0.5, 0.75, 1.0));
+    }
+
+    #[test]
+    fn a_field_no_param_names_keeps_its_zero() {
+        let fields = params_of(WITH_PARAMS);
+        let bytes = pack(&fields, &[("speed".to_string(), Param::Float(3.0))]).unwrap();
+        assert_eq!(f32::from_le_bytes(bytes[16..20].try_into().unwrap()), 0.0);
+    }
+
+    #[test]
+    fn a_param_of_the_wrong_type_names_both_sides() {
+        let fields = params_of(WITH_PARAMS);
+        let err = pack(&fields, &[("tint".to_string(), Param::Float(1.0))]).unwrap_err();
+        let text = format!("{err}");
+        assert!(text.contains("tint") && text.contains("vec4<f32>"), "{text}");
+    }
+
+    #[test]
+    fn a_param_the_shader_does_not_read_is_dropped_not_fatal() {
+        let fields = params_of(WITH_PARAMS);
+        let bytes = pack(&fields, &[("nonesuch".to_string(), Param::Float(1.0))]).unwrap();
+        assert_eq!(bytes.len(), 32);
+    }
+}

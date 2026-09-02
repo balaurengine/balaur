@@ -60,7 +60,7 @@ impl ScriptHost<balaur_core::Engine> for Calls {
     ) -> anyhow::Result<Box<dyn balaur_script::Bindings<balaur_core::Engine>>> {
         Ok(Box::new(balaur_script::NoBindings))
     }
-    fn attach(&self, _: NodeId, _: &str) -> anyhow::Result<()> {
+    fn attach_with_props(&self, _: NodeId, _: &str, _: &[(String, Value)]) -> anyhow::Result<()> {
         Ok(())
     }
     fn detach(&self, _: NodeId) {}

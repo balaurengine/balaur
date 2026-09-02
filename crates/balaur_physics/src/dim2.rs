@@ -509,6 +509,7 @@ fn build_physics2d_digest(app: &mut App) {
 /// `physics2d`: bodies, colliders, gravity, velocities, contact impulse and
 /// overlap queries.
 fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
+    m.drives(&["body2d", "collider2d"]);
     // Constructors, so a 2D body can be built from script rather than only
     // declared in a scene file.
     m.function(

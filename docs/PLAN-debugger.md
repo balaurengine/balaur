@@ -1,12 +1,11 @@
-> **Status:** phases 1–4 built on 2026-09-02 — the `debugger` script module,
+> **Status:** every phase built on 2026-09-02 — the `debugger` script module,
 > the engine freeze, breakpoints with continue and step over / into / out,
-> call frames with named locals, and the editor's gutter, dock and
-> shortcuts. Luau left the tree the same day, so the Rune host is the one
-> implementation; the Luau design below stays as the record of what was
-> built first. Phase 5 (break on error) landed on 2026-09-02 as
-> `debugger::set_break_on_error`. Phase 6 (a Debug Adapter Protocol server)
-> is not started. See [generated/](generated/) for what the code actually
-> does.
+> call frames with named locals, the editor's gutter, dock and shortcuts,
+> break on error (`debugger::set_break_on_error`), and the Debug Adapter
+> Protocol server behind `balaur run --debug <port>`. Luau left the tree the
+> same day, so the Rune host is the one implementation; the Luau design below
+> stays as the record of what was built first. See [generated/](generated/)
+> for what the code actually does.
 >
 > **Where the implementation decided differently:**
 >
@@ -28,6 +27,13 @@
 >    from the execution's call stack and the unit's debug info; locals are
 >    the frame's named arguments. An async entry point (`task::wait`) runs
 >    as a future and is not parked.
+> 5. **A Pause button needed a fifth seam method.** A DAP client expects to
+>    stop a running game on demand, and nothing in the first four methods can:
+>    only a unit with breakpoints runs stepped, so there is otherwise no
+>    instruction to stop on. `request_break` arms the host instead of stopping
+>    it — the next synchronous call goes through the stepping executor and
+>    breaks on its first line, with reason `pause`. Nothing is paused when the
+>    call returns, which is exactly what DAP's own `pause` request promises.
 
 # Plan: a script debugger
 
@@ -70,20 +76,24 @@ stops. What stops is the game:
 
 ### The seam
 
-Three methods on `ScriptHost`, defaulted so a backend without a debugger
-compiles unchanged:
+Methods on `ScriptHost`, defaulted so a backend without a debugger compiles
+unchanged:
 
 ```rust
 fn set_breakpoints(&self, path: &str, lines: &[usize]) -> Result<Vec<usize>>;
 fn breakpoints(&self, path: &str) -> Vec<usize>;
 fn paused(&self) -> Option<Pause>;
 fn resume(&self, mode: StepMode);
+fn set_break_on_error(&self, on: bool);
+fn request_break(&self);
 ```
 
 `Pause` carries the node, path, line, reason and the call frames — each with
 its function name, path, line and named locals as neutral values. The
-`debugger` script module exposes the same four, plus `set_scope` /
-`scope` and the `STEP_*` constants, so the editor's dock is plain Luau.
+`debugger` script module exposes the same set, plus `set_scope` / `scope` and
+the `STEP_*` constants, so the editor's dock is plain script. Everything a
+front end can ask for — the editor's dock, the DAP server — is one of these,
+which is why neither needed a language behind it.
 
 ### Luau
 
@@ -142,9 +152,38 @@ the message on it. Two consequences fall out of that mechanism:
 
 ### Outside the editor (phase 6)
 
-A Debug Adapter Protocol server thread for `balaur run --debug <port>`,
-feeding commands into the frame loop at `Stage::First` the way the net plugin
-does, over the same four host methods.
+`balaur_core::dap` serves the Debug Adapter Protocol on `balaur run --debug
+<port>`, so VS Code or any other DAP client drives the same debugger the
+editor's dock does. It speaks DAP on one side and the seam methods above on
+the other, and knows nothing about scripts.
+
+The threading is the net plugin's, for the net plugin's reason: a reader
+thread parses framed requests and queues them, a writer thread puts replies on
+the wire, and a system at `Stage::First` does everything that touches the
+engine — so a command lands at one point in the frame, in arrival order,
+never from a socket thread. One client at a time; a second connection replaces
+the first.
+
+What the protocol asks for maps onto the seam with nothing left over:
+
+| DAP | Seam |
+|---|---|
+| `setBreakpoints` | `set_breakpoints`, and the response reports the line each one landed on |
+| `setExceptionBreakpoints` (filter `error`) | `set_break_on_error` |
+| `stackTrace` / `scopes` / `variables` | `Pause::frames`, a Locals scope per frame, maps and lists opening into their own references |
+| `continue` / `next` / `stepIn` / `stepOut` | `resume(Continue / Over / Into / Out)` |
+| `pause` | `request_break` |
+| `stopped` / `continued` | `paused` going from none to some, and back |
+
+Two things fall outside it. **`evaluate` answers for a name, not an
+expression**: there is no evaluator behind the seam, so a watch or hover on a
+local in the selected frame is answered from its captured value and anything
+else is refused in as many words. And **`--debug-wait` holds the boot** until
+a client has attached and configured, because a game runs `init` before its
+frame loop starts and a breakpoint there could otherwise never be set in time.
+The `breakpoint` event covers the same window from the other side: a line set
+before its file compiled is answered as asked, and corrected once the unit
+arrives and the real line is known.
 
 ## 2. Phases
 
@@ -154,4 +193,4 @@ does, over the same four host methods.
 3. Step over / into / out.
 4. Rune stepping; the editor boots the mixed host.
 5. Break on error.
-6. DAP server.
+6. DAP server, and the Pause button `request_break` it needed.

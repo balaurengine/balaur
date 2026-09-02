@@ -46,7 +46,7 @@ fn doc_tabs(S, k) {
         ui::horizontal(#{ height: 38 }, || {
             ui::spacing(6, 0);
             let scene_name = util::last_segment(S.scene_rel);
-            let script_label = match node.get("script") {
+            let script_label = match model::script_rel(node) {
                 Some(script) => {
                     let dirty = S.script_dirty.contains_key(S.game_root + "/" + script);
                     util::last_segment(script) + (if dirty { " ●" } else { "" })
@@ -74,7 +74,7 @@ fn doc_tabs(S, k) {
             if !S.compact {
                 ui::right(|| {
                     let hint = if S.doctab == "script" && node.contains_key("script") {
-                        "Rune · " + node.script
+                        "Rune · " + model::script_rel(node).unwrap_or("")
                     } else {
                         let (nodes, _) = model::stats(S);
                         format!("{} · {} nodes", S.game_name, nodes)
@@ -189,19 +189,22 @@ fn viewport(S, k) {
 fn script_editor(S, k) {
     let node = model::selected_node(S);
     ui::central_panel(#{ fill: k.code_bg }, || {
-        if !node.contains_key("script") {
-            ui::add_space(24);
-            ui::horizontal((), || {
+        let rel = match model::script_rel(node) {
+            Some(rel) => rel,
+            None => {
                 ui::add_space(24);
-                ui::label("no script attached to " + node.name, style::mono_lg(k.faint));
-            });
-            return;
-        }
-        let path = S.game_root + "/" + node.script;
-        let src = match model::source(S, node.script) {
+                ui::horizontal((), || {
+                    ui::add_space(24);
+                    ui::label("no script attached to " + node.name, style::mono_lg(k.faint));
+                });
+                return;
+            }
+        };
+        let path = S.game_root + "/" + rel;
+        let src = match model::source(S, rel) {
             Some(src) => src,
             None => {
-                ui::label("missing file: " + node.script, style::mono_lg(k.faint));
+                ui::label("missing file: " + rel, style::mono_lg(k.faint));
                 return;
             }
         };
@@ -238,13 +241,13 @@ fn script_editor(S, k) {
         // and hot reloads the game code).
         ui::scroll("code", (), || {
             ui::add_space(12);
-            let stopped_here = S.debug.paused is Object && S.debug.paused_rel == node.script;
+            let stopped_here = S.debug.paused is Object && S.debug.paused_rel == rel;
             let (text, changed, hit) = ui::code_editor("edit:" + path, src, #{
                 size: 12.5, gutter_width: 34, gutter_color: k.faint,
                 k_key: k.k_key, k_str: k.k_str, k_num: k.k_num,
                 k_com: k.k_com, k_fn: k.k_fn, k_type: k.k_type,
                 k_punc: k.k_punc,
-                breakpoints: shell::breakpoint_lines(S, node.script),
+                breakpoints: shell::breakpoint_lines(S, rel),
                 current_line: if stopped_here { S.debug.paused.line } else { () },
                 breakpoint_color: k.accent, current_fill: k.accent_soft,
             });
@@ -253,7 +256,7 @@ fn script_editor(S, k) {
                 S.script_dirty[path] = true;
             }
             if hit is i64 {
-                shell::toggle_breakpoint(S, node.script, hit);
+                shell::toggle_breakpoint(S, rel, hit);
             }
             ui::add_space(12);
         });
@@ -266,7 +269,7 @@ fn events_view(S, k) {
         ui::label("EVENT BINDINGS", style::heading(k));
         ui::add_space(8);
         for node in S.doc {
-            let script_some = node.get("script");
+            let script_some = model::script_rel(node);
             if let Some(script) = script_some {
                 for hook in model::hooks(S, script) {
                     ui::horizontal(#{ height: 30 }, || {

@@ -13,10 +13,12 @@ use balaur_core::{App, Engine, Plugin, Stage};
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 mod camera;
+pub mod material;
 pub mod mesh;
 mod particles;
 mod pick;
 mod polygon;
+mod shaders;
 mod shape;
 mod sprite;
 mod tilemap;
@@ -280,8 +282,19 @@ pub enum Shape {
     Mesh,
 }
 
+/// A local axis-aligned box. A mesh is not centred on its origin, so the
+/// centre is part of it.
+#[derive(Clone, Copy)]
+pub struct Bounds {
+    pub centre: glamx::Vec3,
+    pub half: glamx::Vec3,
+}
+
 pub struct Renderable {
     pub shape: Shape,
+    /// The mesh's own box, measured when the asset resolves. Every other
+    /// shape carries its size in `shape`, so this is `None` for those.
+    pub bounds: Option<Bounds>,
     pub color: [f32; 4],
     /// The `mesh` asset this draws, present exactly when `shape` is a mesh.
     pub mesh: Option<String>,
@@ -401,6 +414,34 @@ pub(crate) fn set_polygon(
         .map_err(|_| anyhow!("node is dead"))
 }
 
+/// The box a mesh's vertices fill, or `None` when the asset will not load.
+///
+/// Measured here rather than in the picker: the definition is already being
+/// resolved, and a click should not read a file.
+fn mesh_bounds(eng: &Engine, source: &str) -> Option<Bounds> {
+    if source.is_empty() {
+        return None;
+    }
+    let definition =
+        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, source).ok()?;
+    let mut low = glamx::Vec3::splat(f32::INFINITY);
+    let mut high = glamx::Vec3::splat(f32::NEG_INFINITY);
+    for p in &definition.positions {
+        let p = glamx::Vec3::new(p[0], p[1], p[2]);
+        low = low.min(p);
+        high = high.max(p);
+    }
+    if !low.is_finite() || !high.is_finite() {
+        return None;
+    }
+    Some(Bounds {
+        centre: (low + high) / 2.0,
+        // A flat mesh has no thickness on one axis, and a slab test on zero
+        // misses everything.
+        half: ((high - low) / 2.0).max(glamx::Vec3::splat(1e-4)),
+    })
+}
+
 /// Point `entity` at the mesh asset it draws, mirroring `set_polyline`.
 pub(crate) fn set_mesh(
     eng: &Engine,
@@ -409,6 +450,7 @@ pub(crate) fn set_mesh(
     skeleton: String,
     texture: String,
 ) -> Result<()> {
+    let bounds = mesh_bounds(eng, &source);
     let mut world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable>(entity) {
         let rebuild = r.shape != Shape::Mesh
@@ -416,6 +458,7 @@ pub(crate) fn set_mesh(
             || r.skeleton != skeleton
             || r.texture != texture;
         r.shape = Shape::Mesh;
+        r.bounds = bounds;
         r.mesh = Some(source);
         r.skeleton = skeleton;
         r.texture = texture;
@@ -429,6 +472,7 @@ pub(crate) fn set_mesh(
             entity,
             Renderable {
                 shape: Shape::Mesh,
+                bounds,
                 color: [0.8, 0.8, 0.8, 1.0],
                 mesh: Some(source),
                 skeleton,
@@ -451,6 +495,7 @@ pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()
             entity,
             Renderable {
                 shape,
+                bounds: None,
                 color: [0.8, 0.8, 0.8, 1.0],
                 mesh: None,
                 skeleton: String::new(),
@@ -668,6 +713,7 @@ impl Plugin for RenderPlugin {
         app.engine
             .insert_resource(CameraInputConfig { enabled: true });
         let mut m = app.script_module("render")?;
+        m.drives(&["camera", "sprite", "shape2d", "shape3d"]);
         install_camera_api(&mut *m);
         install_camera_2d_api(&mut *m);
         install_window_api(&mut *m);
@@ -683,6 +729,7 @@ impl Plugin for RenderPlugin {
         polygon::register_polygon_component(app);
         camera::register_camera_component(app);
         mesh::register_mesh_component(app);
+        material::register_material_asset(app);
         tilemap::register_tileset_asset(app);
         tilemap::register_tilemap_component(app);
         particles::register_particles_component(app);

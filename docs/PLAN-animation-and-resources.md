@@ -510,3 +510,28 @@ this layer, and a `PackedScene`-style prefab is then just another asset type.
 - [AnimationPlayer — Godot docs](https://docs.godotengine.org/en/stable/classes/class_animationplayer.html)
 - [TSCN file format — Godot docs](https://docs.godotengine.org/en/stable/engine_details/file_formats/tscn.html)
 - [Animation overview — Unity manual](https://docs.unity3d.com/Manual/AnimationOverview.html)
+
+## 6. Blending and state machines (planned)
+
+§3.7 deferred these; the sampler stayed pure so they could land without the
+data model moving. Three pieces, in order:
+
+1. **Blend.** A pose is a `Vec<TrackValue>`; `blend(a, b, t)` lerps
+   positions and scales and slerps rotations, track by track, over two
+   poses of the same clip shape. The player gains a second slot and a
+   cross-fade: `animation::play(node, "run", #{ fade: 0.2 })` samples both
+   clips and blends by elapsed fade. Method tracks fire from the incoming
+   clip only.
+2. **Blend trees.** An `animation_tree` asset: a small graph of nodes —
+   clip, blend by one parameter, blend by two — evaluated to one pose per
+   tick from parameters a script sets (`animation::set_param(node, "speed",
+   v)`). The tree is data in a TOML file, edited in the Animate persona as
+   a list before it is a graph.
+3. **State machines.** States name a tree or a clip; transitions carry a
+   condition on parameters and a fade. Evaluated on the fixed step, so a
+   replay reproduces every transition.
+
+3D IK follows the 2D modifiers: `modifier3d` with `look_at` and
+`two_bone_ik` on a `bone3d` chain, the same analytic solve in three
+dimensions with a pole vector. Everything stays on `libm` and the fixed
+step; the digest already covers bone transforms.

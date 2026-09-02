@@ -1,0 +1,2156 @@
+{
+  "asset_types": {
+    "animation_clip": {
+      "directory": "animations",
+      "doc": "A clip keys node properties over time. `length` is in seconds and may be\nleft out to end at the last key; `loop` is `none` (hold the last key),\n`loop` or `pingpong`. Each track names a `target` node path relative to the\nplaying node (empty means that node), a `property` (`position`,\n`rotation_euler`, `rotation`, `scale` or `<component>/<property>`), an\n`interp` (`step`, `linear`, `cubic`) and its `keys`, each `{ t, value }` with\nan optional `ease`. A track with no `property` is a method track whose keys\ncall the node's script. A file holds one clip, or several under\n`[clips.<name>]`, addressed as `file.toml#name`.\n\n```toml\ntype = \"animation_clip\"\n\n[clips.patrol]\nlength = 4.0\nloop = \"pingpong\"\n\n[[clips.patrol.tracks]]\nproperty = \"position\"\ninterp = \"linear\"\nkeys = [\n  { t = 0.0, value = [-2.5, 0.25, -2.0] },\n  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = \"in_out_sine\" },\n]\n```"
+    },
+    "heightfield": {
+      "directory": "terrain",
+      "doc": "A grid of heights for terrain: `rows` by `columns` samples in `heights`,\nrow-major, one value per grid point. The count has to match the grid.\n\n```toml\n[[assets]]\nid = \"valley\"\ntype = \"heightfield\"\nrows = 3\ncolumns = 3\nheights = [0, 0, 0, 0, -1, 0, 0, 0, 0]\n```"
+    },
+    "material": {
+      "directory": "materials",
+      "doc": "A shader and the values it draws with. `shader` names a `.wesl` file\n(project-relative); `[features]` are the `@if` flags that pick a variant when\nit is linked; `[params]` are the values of the shader's `Params` struct, by\nfield name. A number is an `f32`, an array of two, three or four numbers a\n`vec2`/`vec3`/`vec4`, and a `#rrggbb` or `#rrggbbaa` string a `vec4`.\n\n```toml\n[[assets]]\nid = \"water\"\ntype = \"material\"\nshader = \"shaders/water.wesl\"\nfeatures = { lit = true }\nparams = { speed = 0.4, tint = \"#3aa0ff\" }\n```"
+    },
+    "mesh": {
+      "directory": "models",
+      "doc": "Geometry for `mesh`-typed properties. A definition either names a `source`\nmodel file to import or carries the vertices itself as `positions` and\n`indices`, which is what lets a script build one at run time; naming both is\nrefused. A `skin` table adds bone weights for skeletal animation.\n\n```toml\n[[assets]]\nid = \"blade\"\ntype = \"mesh\"\nsource = \"models/blade.obj\"      # imported...\n# ...or, instead of `source`:\npositions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]\nindices = [[0, 1, 2]]\n```"
+    },
+    "tileset": {
+      "directory": "tilesets",
+      "doc": "An image cut into equal tiles for the `tilemap` component: `texture` names\nthe image, `tile_size` is the pixel length of one tile edge and `columns` is\nhow many tiles one row of the image holds. Tile indices count row by row\nfrom the top left.\n\n```toml\n[[assets]]\nid = \"dungeon\"\ntype = \"tileset\"\ntexture = \"art/dungeon.png\"\ntile_size = 16\ncolumns = 8\n```"
+    }
+  },
+  "component_tags": {
+    "animation": [
+      "animation"
+    ],
+    "body2d": [
+      "2d",
+      "physics"
+    ],
+    "body3d": [
+      "3d",
+      "physics"
+    ],
+    "bone2d": [
+      "2d",
+      "animation"
+    ],
+    "bone3d": [
+      "3d",
+      "animation"
+    ],
+    "camera": [
+      "3d",
+      "render"
+    ],
+    "collider2d": [
+      "2d",
+      "physics"
+    ],
+    "collider3d": [
+      "3d",
+      "physics"
+    ],
+    "mesh": [
+      "3d",
+      "render"
+    ],
+    "modifier2d": [
+      "2d",
+      "animation"
+    ],
+    "particles": [
+      "render"
+    ],
+    "polygon": [
+      "2d",
+      "render",
+      "animation"
+    ],
+    "shape2d": [
+      "2d",
+      "render"
+    ],
+    "shape3d": [
+      "3d",
+      "render"
+    ],
+    "sound": [
+      "audio"
+    ],
+    "sprite": [
+      "2d",
+      "render"
+    ],
+    "tilemap": [
+      "2d",
+      "render"
+    ],
+    "widget": [
+      "ui"
+    ]
+  },
+  "components": {
+    "animation": {
+      "autoplay": {
+        "default": "",
+        "description": "Clip to start when the scene loads; empty starts nothing",
+        "type": "string"
+      },
+      "library": {
+        "asset": "animation_clip",
+        "default": "",
+        "description": "The clip library this node plays from",
+        "type": "asset"
+      },
+      "root": {
+        "default": "",
+        "description": "Node path the clip's tracks resolve against; empty means this node",
+        "type": "string"
+      },
+      "speed": {
+        "default": 1.0,
+        "description": "Playback rate for every clip on this node",
+        "type": "float"
+      }
+    },
+    "body2d": {
+      "kind": {
+        "default": "dynamic",
+        "description": "How 2D physics drives the node: simulated, immovable, or moved by script",
+        "options": [
+          "dynamic",
+          "static",
+          "kinematic"
+        ],
+        "shorthand": true,
+        "type": "enum"
+      }
+    },
+    "body3d": {
+      "kind": {
+        "default": "dynamic",
+        "description": "How physics drives the node: simulated, immovable, or moved by script",
+        "options": [
+          "dynamic",
+          "static",
+          "kinematic"
+        ],
+        "shorthand": true,
+        "type": "enum"
+      }
+    },
+    "bone2d": {
+      "angle": {
+        "default": 0.0,
+        "description": "Gizmo direction of a tip bone, in radians; ignored while a child bone exists",
+        "type": "float"
+      },
+      "length": {
+        "default": 0.0,
+        "description": "Gizmo length of a tip bone; 0 draws to the first child bone",
+        "min": 0.0,
+        "type": "float"
+      },
+      "rest_position": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "Local rest translation",
+        "type": "vec2"
+      },
+      "rest_rotation": {
+        "default": 0.0,
+        "description": "Local rest rotation about z, in radians",
+        "type": "float"
+      }
+    },
+    "bone3d": {
+      "length": {
+        "default": 0.0,
+        "description": "Gizmo length of a tip bone; 0 draws to the first child bone",
+        "min": 0.0,
+        "type": "float"
+      },
+      "rest_position": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Local rest translation",
+        "type": "vec3"
+      },
+      "rest_rotation": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Local rest rotation, euler radians in the order rotation_euler uses",
+        "type": "vec3"
+      },
+      "rest_scale": {
+        "default": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "description": "Local rest scale",
+        "type": "vec3"
+      }
+    },
+    "camera": {
+      "current": {
+        "default": true,
+        "description": "Whether this camera drives the view; the last current one wins",
+        "type": "bool"
+      },
+      "kind": {
+        "default": "3d",
+        "description": "Which camera this node drives",
+        "options": [
+          "3d",
+          "2d"
+        ],
+        "type": "enum"
+      },
+      "look_at": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "World point the 3D camera looks at",
+        "type": "vec3"
+      },
+      "zoom": {
+        "default": 60.0,
+        "description": "2D zoom in logical pixels per world unit",
+        "min": 1.0,
+        "type": "float"
+      }
+    },
+    "collider2d": {
+      "density": {
+        "default": 1.0,
+        "description": "Mass per area, so the shape's size sets its mass",
+        "min": 0.001,
+        "type": "float"
+      },
+      "friction": {
+        "default": 0.5,
+        "description": "Surface friction; 0 is ice",
+        "min": 0.0,
+        "type": "float"
+      },
+      "half_extents": {
+        "default": [
+          0.5,
+          0.5
+        ],
+        "description": "Half-sizes of the rect, when kind is rect",
+        "type": "vec2"
+      },
+      "height": {
+        "default": 1.0,
+        "description": "Length along y of the straight part, when kind is capsule",
+        "min": 0.01,
+        "type": "float"
+      },
+      "kind": {
+        "default": "rect",
+        "description": "Collision shape",
+        "options": [
+          "circle",
+          "rect",
+          "capsule"
+        ],
+        "type": "enum"
+      },
+      "radius": {
+        "default": 0.5,
+        "description": "Circle radius, when kind is circle",
+        "min": 0.01,
+        "type": "float"
+      },
+      "restitution": {
+        "default": 0.0,
+        "description": "Bounciness: 0 is a dead stop, 1 a full rebound",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "sensor": {
+        "default": false,
+        "description": "Detects overlaps without colliding: bodies pass through and are reported",
+        "type": "bool"
+      }
+    },
+    "collider3d": {
+      "a": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "First corner, when kind is triangle",
+        "type": "vec3"
+      },
+      "b": {
+        "default": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "description": "Second corner, when kind is triangle",
+        "type": "vec3"
+      },
+      "c": {
+        "default": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "description": "Third corner, when kind is triangle",
+        "type": "vec3"
+      },
+      "density": {
+        "default": 1.0,
+        "description": "Mass per volume, so the shape's size sets its mass",
+        "min": 0.001,
+        "type": "float"
+      },
+      "friction": {
+        "default": 0.5,
+        "description": "Surface friction; 0 is ice",
+        "min": 0.0,
+        "type": "float"
+      },
+      "half_extents": {
+        "default": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "description": "Half-sizes of the cuboid, when kind is cuboid",
+        "type": "vec3"
+      },
+      "height": {
+        "default": 1.0,
+        "description": "Length along y of the straight part, for capsule, cylinder and cone",
+        "min": 0.01,
+        "type": "float"
+      },
+      "heightfield": {
+        "asset": "heightfield",
+        "default": "",
+        "description": "Terrain grid, when kind is heightfield",
+        "type": "asset"
+      },
+      "kind": {
+        "default": "cuboid",
+        "description": "Collision shape",
+        "options": [
+          "ball",
+          "cuboid",
+          "capsule",
+          "cylinder",
+          "cone",
+          "triangle",
+          "trimesh",
+          "convex_hull",
+          "polyline",
+          "heightfield"
+        ],
+        "type": "enum"
+      },
+      "mesh": {
+        "asset": "mesh",
+        "default": "",
+        "description": "Geometry for a trimesh, convex_hull or polyline collider",
+        "type": "asset"
+      },
+      "radius": {
+        "default": 0.5,
+        "description": "Radius, for ball, capsule, cylinder and cone",
+        "min": 0.01,
+        "type": "float"
+      },
+      "restitution": {
+        "default": 0.0,
+        "description": "Bounciness: 0 is a dead stop, 1 a full rebound",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "scale": {
+        "default": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "description": "Cell size and height scale of a heightfield",
+        "type": "vec3"
+      },
+      "sensor": {
+        "default": false,
+        "description": "Detects overlaps without colliding: bodies pass through and are reported",
+        "type": "bool"
+      }
+    },
+    "mesh": {
+      "skeleton": {
+        "default": "",
+        "description": "Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node",
+        "type": "string"
+      },
+      "source": {
+        "asset": "mesh",
+        "default": "",
+        "description": "The mesh asset this node draws",
+        "type": "asset"
+      },
+      "texture": {
+        "default": "",
+        "description": "Image file, project-relative; empty draws the colour alone",
+        "type": "string"
+      }
+    },
+    "modifier2d": {
+      "bone": {
+        "default": "",
+        "description": "Node path to the driven bone, relative to this node; empty means this node. For two_bone_ik, the root of the chain",
+        "type": "string"
+      },
+      "enabled": {
+        "default": true,
+        "description": "Whether the modifier runs; off leaves the clip's pose alone",
+        "type": "bool"
+      },
+      "flip": {
+        "default": false,
+        "description": "Bend the two-bone chain the other way",
+        "type": "bool"
+      },
+      "kind": {
+        "default": "look_at",
+        "description": "Aim one bone at the target, or bend a root, middle, tip chain so the tip reaches it",
+        "options": [
+          "look_at",
+          "two_bone_ik"
+        ],
+        "type": "enum"
+      },
+      "target": {
+        "default": "",
+        "description": "Node path to the point to aim at, relative to this node",
+        "type": "string"
+      }
+    },
+    "particles": {
+      "angle": {
+        "default": 90.0,
+        "description": "Emission direction in degrees; 90 is straight up",
+        "type": "float"
+      },
+      "color": {
+        "default": [
+          0.8,
+          0.8,
+          0.8,
+          1.0
+        ],
+        "description": "Tint, as channel floats or #rrggbb / #rrggbbaa",
+        "type": "color"
+      },
+      "emitting": {
+        "default": true,
+        "description": "Whether new particles are born; live ones finish either way",
+        "type": "bool"
+      },
+      "gravity": {
+        "default": [
+          0.0,
+          -3.0
+        ],
+        "description": "Acceleration applied over a particle's life",
+        "type": "vec2"
+      },
+      "lifetime": {
+        "default": 1.0,
+        "description": "Seconds a particle lives",
+        "min": 0.05,
+        "type": "float"
+      },
+      "rate": {
+        "default": 20.0,
+        "description": "Particles born per second",
+        "min": 0.0,
+        "type": "float"
+      },
+      "size": {
+        "default": 4.0,
+        "description": "Particle size in logical pixels",
+        "min": 0.5,
+        "type": "float"
+      },
+      "speed": {
+        "default": 2.0,
+        "description": "Initial speed in world units per second",
+        "min": 0.0,
+        "type": "float"
+      },
+      "spread": {
+        "default": 30.0,
+        "description": "Half-angle of the emission cone in degrees",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    "polygon": {
+      "color": {
+        "default": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "description": "Tint, as channel floats or #rrggbb / #rrggbbaa",
+        "type": "color"
+      },
+      "mesh": {
+        "asset": "mesh",
+        "default": "",
+        "description": "Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node's space",
+        "type": "asset"
+      },
+      "pixels_per_unit": {
+        "default": 100.0,
+        "description": "Texture pixels per world unit, for the default UV mapping",
+        "min": 0.01,
+        "type": "float"
+      },
+      "skeleton": {
+        "default": "",
+        "description": "Node path to the rig root, relative to this node; empty means this node",
+        "type": "string"
+      },
+      "texture": {
+        "default": "",
+        "description": "Image file, project-relative; empty draws the tint alone",
+        "type": "string"
+      }
+    },
+    "shape2d": {
+      "closed": {
+        "default": false,
+        "description": "Join the last point back to the first, making a polygon outline",
+        "type": "bool"
+      },
+      "color": {
+        "default": [
+          0.8,
+          0.8,
+          0.8,
+          1.0
+        ],
+        "description": "Tint, as channel floats or #rrggbb / #rrggbbaa",
+        "type": "color"
+      },
+      "half_extents": {
+        "default": [
+          0.5,
+          0.5
+        ],
+        "description": "Half-sizes of the rect, when kind is rect",
+        "type": "vec2"
+      },
+      "height": {
+        "default": 1.0,
+        "description": "Length along y of the straight part, when kind is capsule",
+        "min": 0.01,
+        "type": "float"
+      },
+      "kind": {
+        "default": "rect",
+        "description": "Rendered 2D shape",
+        "options": [
+          "circle",
+          "rect",
+          "capsule",
+          "polyline"
+        ],
+        "type": "enum"
+      },
+      "mesh": {
+        "asset": "mesh",
+        "default": "",
+        "description": "Points of a polyline, taken from a mesh asset's vertices",
+        "type": "asset"
+      },
+      "radius": {
+        "default": 0.5,
+        "description": "Radius, when kind is circle or capsule",
+        "min": 0.01,
+        "type": "float"
+      },
+      "width": {
+        "default": 0.02,
+        "description": "Line thickness in world units, when kind is polyline",
+        "min": 0.001,
+        "type": "float"
+      }
+    },
+    "shape3d": {
+      "color": {
+        "default": [
+          0.8,
+          0.8,
+          0.8,
+          1.0
+        ],
+        "description": "Tint, as channel floats or #rrggbb / #rrggbbaa",
+        "type": "color"
+      },
+      "half_extents": {
+        "default": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "description": "Half-sizes of the cuboid, when kind is cuboid",
+        "type": "vec3"
+      },
+      "height": {
+        "default": 1.0,
+        "description": "Length along y, for capsule, cylinder and cone",
+        "min": 0.01,
+        "type": "float"
+      },
+      "kind": {
+        "default": "cuboid",
+        "description": "Rendered 3D shape",
+        "options": [
+          "ball",
+          "cuboid",
+          "capsule",
+          "cylinder",
+          "cone",
+          "plane"
+        ],
+        "type": "enum"
+      },
+      "radius": {
+        "default": 0.5,
+        "description": "Radius, for every kind but cuboid",
+        "min": 0.01,
+        "type": "float"
+      }
+    },
+    "sound": {
+      "autoplay": {
+        "default": false,
+        "description": "Start playing when the node enters the scene",
+        "type": "bool"
+      },
+      "file": {
+        "default": "",
+        "description": "Audio file, project-relative; required to play",
+        "type": "string"
+      },
+      "loop": {
+        "default": false,
+        "description": "Restart the sound when it ends",
+        "type": "bool"
+      },
+      "pitch": {
+        "default": 1.0,
+        "description": "Playback speed multiplier",
+        "min": 0.01,
+        "type": "float"
+      },
+      "volume": {
+        "default": 1.0,
+        "description": "Linear gain; 1 is the file's own level",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    "sprite": {
+      "color": {
+        "default": [
+          0.8,
+          0.8,
+          0.8,
+          1.0
+        ],
+        "description": "Tint, as channel floats or #rrggbb / #rrggbbaa",
+        "type": "color"
+      },
+      "columns": {
+        "default": 0.0,
+        "description": "Sheet grid columns for flipbook sprites; 0 means a single image",
+        "min": 0.0,
+        "type": "float"
+      },
+      "flip_x": {
+        "default": false,
+        "description": "Mirror horizontally",
+        "type": "bool"
+      },
+      "flip_y": {
+        "default": false,
+        "description": "Mirror vertically",
+        "type": "bool"
+      },
+      "frame": {
+        "default": 0.0,
+        "description": "Current sheet cell, counted left-to-right then top-to-bottom",
+        "min": 0.0,
+        "type": "float"
+      },
+      "half_extents": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "Size override in world units; [0, 0] sizes from the texture",
+        "type": "vec2"
+      },
+      "pixels_per_unit": {
+        "default": 100.0,
+        "description": "Texture pixels per world unit",
+        "min": 0.01,
+        "type": "float"
+      },
+      "rows": {
+        "default": 0.0,
+        "description": "Sheet grid rows for flipbook sprites; 0 means a single image",
+        "min": 0.0,
+        "type": "float"
+      },
+      "texture": {
+        "default": "",
+        "description": "Image file, project-relative; required",
+        "type": "string"
+      }
+    },
+    "tilemap": {
+      "cells": {
+        "default": "",
+        "description": "Rows of tile characters, one row per line: . is empty, 0-9 then a-z index into the tileset",
+        "type": "string"
+      },
+      "pixels_per_unit": {
+        "default": 100.0,
+        "description": "Tile-texture pixels per world unit",
+        "min": 0.01,
+        "type": "float"
+      },
+      "tileset": {
+        "asset": "tileset",
+        "default": "",
+        "description": "The tileset naming the texture and tile grid",
+        "type": "asset"
+      }
+    },
+    "widget": {
+      "anchor": {
+        "default": "top_left",
+        "description": "Screen corner or center the offset is measured from",
+        "options": [
+          "top_left",
+          "top_right",
+          "bottom_left",
+          "bottom_right",
+          "center"
+        ],
+        "type": "enum"
+      },
+      "clicked": {
+        "default": false,
+        "description": "True on the frame the button was clicked",
+        "readonly": true,
+        "type": "bool"
+      },
+      "font_size": {
+        "default": 16.0,
+        "description": "Text size in design pixels",
+        "min": 6.0,
+        "type": "float"
+      },
+      "height": {
+        "default": 0.0,
+        "description": "Panel height in design pixels; 0 sizes to content",
+        "min": 0.0,
+        "type": "float"
+      },
+      "kind": {
+        "default": "label",
+        "description": "The HUD element the widget layer draws",
+        "options": [
+          "label",
+          "button",
+          "panel"
+        ],
+        "type": "enum"
+      },
+      "on_click": {
+        "default": "",
+        "description": "Script method called on this node when the button is clicked",
+        "type": "string"
+      },
+      "text": {
+        "default": "label",
+        "description": "Label or button caption",
+        "type": "string"
+      },
+      "text_color": {
+        "default": [
+          0.933,
+          0.945,
+          0.957,
+          1.0
+        ],
+        "description": "Text color",
+        "type": "color"
+      },
+      "visible": {
+        "default": true,
+        "description": "Draw the widget; hidden widgets keep their state",
+        "type": "bool"
+      },
+      "width": {
+        "default": 0.0,
+        "description": "Panel width in design pixels; 0 sizes to content",
+        "min": 0.0,
+        "type": "float"
+      },
+      "x": {
+        "default": 16.0,
+        "description": "Horizontal offset from the anchor, in design pixels",
+        "type": "float"
+      },
+      "y": {
+        "default": 16.0,
+        "description": "Vertical offset from the anchor, in design pixels",
+        "type": "float"
+      }
+    }
+  },
+  "modules": [
+    {
+      "constants": [],
+      "functions": [
+        "current",
+        "define",
+        "is_playing",
+        "is_running",
+        "just_finished",
+        "pause",
+        "play",
+        "queue",
+        "resume",
+        "seek",
+        "stop",
+        "time",
+        "tween",
+        "tween_to"
+      ],
+      "name": "animation"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "directory",
+        "duplicate",
+        "exists",
+        "load",
+        "reload",
+        "save"
+      ],
+      "name": "assets"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "is_playing",
+        "play",
+        "play_on",
+        "set_pitch",
+        "set_volume",
+        "stop",
+        "stop_all",
+        "stop_on"
+      ],
+      "name": "audio"
+    },
+    {
+      "constants": [
+        {
+          "name": "CONTINUE",
+          "value": "continue"
+        },
+        {
+          "name": "STEP_INTO",
+          "value": "into"
+        },
+        {
+          "name": "STEP_OUT",
+          "value": "out"
+        },
+        {
+          "name": "STEP_OVER",
+          "value": "over"
+        }
+      ],
+      "functions": [
+        "break_on_error",
+        "breakpoints",
+        "paused",
+        "request_break",
+        "resume",
+        "scope",
+        "set_break_on_error",
+        "set_breakpoints",
+        "set_scope"
+      ],
+      "name": "debugger"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "args",
+        "delta",
+        "quit",
+        "reload_script",
+        "tick",
+        "time",
+        "user_data_dir"
+      ],
+      "name": "engine"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "exists",
+        "list",
+        "mkdir",
+        "mtime",
+        "read",
+        "remove",
+        "rename",
+        "write"
+      ],
+      "name": "fs"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "call_hook",
+        "close",
+        "configure",
+        "connect",
+        "join",
+        "leave",
+        "login",
+        "push",
+        "rest"
+      ],
+      "name": "gamend"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "request"
+      ],
+      "name": "http"
+    },
+    {
+      "constants": [
+        {
+          "name": "AXIS_DPAD_X",
+          "value": "DPadX"
+        },
+        {
+          "name": "AXIS_DPAD_Y",
+          "value": "DPadY"
+        },
+        {
+          "name": "AXIS_LEFT_STICK_X",
+          "value": "LeftStickX"
+        },
+        {
+          "name": "AXIS_LEFT_STICK_Y",
+          "value": "LeftStickY"
+        },
+        {
+          "name": "AXIS_LEFT_Z",
+          "value": "LeftZ"
+        },
+        {
+          "name": "AXIS_RIGHT_STICK_X",
+          "value": "RightStickX"
+        },
+        {
+          "name": "AXIS_RIGHT_STICK_Y",
+          "value": "RightStickY"
+        },
+        {
+          "name": "AXIS_RIGHT_Z",
+          "value": "RightZ"
+        },
+        {
+          "name": "KEY_0",
+          "value": "Key0"
+        },
+        {
+          "name": "KEY_1",
+          "value": "Key1"
+        },
+        {
+          "name": "KEY_2",
+          "value": "Key2"
+        },
+        {
+          "name": "KEY_3",
+          "value": "Key3"
+        },
+        {
+          "name": "KEY_4",
+          "value": "Key4"
+        },
+        {
+          "name": "KEY_5",
+          "value": "Key5"
+        },
+        {
+          "name": "KEY_6",
+          "value": "Key6"
+        },
+        {
+          "name": "KEY_7",
+          "value": "Key7"
+        },
+        {
+          "name": "KEY_8",
+          "value": "Key8"
+        },
+        {
+          "name": "KEY_9",
+          "value": "Key9"
+        },
+        {
+          "name": "KEY_A",
+          "value": "A"
+        },
+        {
+          "name": "KEY_ABNT_C1",
+          "value": "AbntC1"
+        },
+        {
+          "name": "KEY_ABNT_C2",
+          "value": "AbntC2"
+        },
+        {
+          "name": "KEY_ADD",
+          "value": "Add"
+        },
+        {
+          "name": "KEY_APOSTROPHE",
+          "value": "Apostrophe"
+        },
+        {
+          "name": "KEY_APPS",
+          "value": "Apps"
+        },
+        {
+          "name": "KEY_AT",
+          "value": "At"
+        },
+        {
+          "name": "KEY_AX",
+          "value": "Ax"
+        },
+        {
+          "name": "KEY_B",
+          "value": "B"
+        },
+        {
+          "name": "KEY_BACK",
+          "value": "Back"
+        },
+        {
+          "name": "KEY_BACKSLASH",
+          "value": "Backslash"
+        },
+        {
+          "name": "KEY_C",
+          "value": "C"
+        },
+        {
+          "name": "KEY_CALCULATOR",
+          "value": "Calculator"
+        },
+        {
+          "name": "KEY_CAPITAL",
+          "value": "Capital"
+        },
+        {
+          "name": "KEY_CARET",
+          "value": "Caret"
+        },
+        {
+          "name": "KEY_COLON",
+          "value": "Colon"
+        },
+        {
+          "name": "KEY_COMMA",
+          "value": "Comma"
+        },
+        {
+          "name": "KEY_COMPOSE",
+          "value": "Compose"
+        },
+        {
+          "name": "KEY_CONVERT",
+          "value": "Convert"
+        },
+        {
+          "name": "KEY_COPY",
+          "value": "Copy"
+        },
+        {
+          "name": "KEY_CUT",
+          "value": "Cut"
+        },
+        {
+          "name": "KEY_D",
+          "value": "D"
+        },
+        {
+          "name": "KEY_DECIMAL",
+          "value": "Decimal"
+        },
+        {
+          "name": "KEY_DELETE",
+          "value": "Delete"
+        },
+        {
+          "name": "KEY_DIVIDE",
+          "value": "Divide"
+        },
+        {
+          "name": "KEY_DOWN",
+          "value": "Down"
+        },
+        {
+          "name": "KEY_E",
+          "value": "E"
+        },
+        {
+          "name": "KEY_END",
+          "value": "End"
+        },
+        {
+          "name": "KEY_EQUALS",
+          "value": "Equals"
+        },
+        {
+          "name": "KEY_ESCAPE",
+          "value": "Escape"
+        },
+        {
+          "name": "KEY_F",
+          "value": "F"
+        },
+        {
+          "name": "KEY_F1",
+          "value": "F1"
+        },
+        {
+          "name": "KEY_F10",
+          "value": "F10"
+        },
+        {
+          "name": "KEY_F11",
+          "value": "F11"
+        },
+        {
+          "name": "KEY_F12",
+          "value": "F12"
+        },
+        {
+          "name": "KEY_F13",
+          "value": "F13"
+        },
+        {
+          "name": "KEY_F14",
+          "value": "F14"
+        },
+        {
+          "name": "KEY_F15",
+          "value": "F15"
+        },
+        {
+          "name": "KEY_F16",
+          "value": "F16"
+        },
+        {
+          "name": "KEY_F17",
+          "value": "F17"
+        },
+        {
+          "name": "KEY_F18",
+          "value": "F18"
+        },
+        {
+          "name": "KEY_F19",
+          "value": "F19"
+        },
+        {
+          "name": "KEY_F2",
+          "value": "F2"
+        },
+        {
+          "name": "KEY_F20",
+          "value": "F20"
+        },
+        {
+          "name": "KEY_F21",
+          "value": "F21"
+        },
+        {
+          "name": "KEY_F22",
+          "value": "F22"
+        },
+        {
+          "name": "KEY_F23",
+          "value": "F23"
+        },
+        {
+          "name": "KEY_F24",
+          "value": "F24"
+        },
+        {
+          "name": "KEY_F3",
+          "value": "F3"
+        },
+        {
+          "name": "KEY_F4",
+          "value": "F4"
+        },
+        {
+          "name": "KEY_F5",
+          "value": "F5"
+        },
+        {
+          "name": "KEY_F6",
+          "value": "F6"
+        },
+        {
+          "name": "KEY_F7",
+          "value": "F7"
+        },
+        {
+          "name": "KEY_F8",
+          "value": "F8"
+        },
+        {
+          "name": "KEY_F9",
+          "value": "F9"
+        },
+        {
+          "name": "KEY_G",
+          "value": "G"
+        },
+        {
+          "name": "KEY_GRAVE",
+          "value": "Grave"
+        },
+        {
+          "name": "KEY_H",
+          "value": "H"
+        },
+        {
+          "name": "KEY_HOME",
+          "value": "Home"
+        },
+        {
+          "name": "KEY_I",
+          "value": "I"
+        },
+        {
+          "name": "KEY_INSERT",
+          "value": "Insert"
+        },
+        {
+          "name": "KEY_J",
+          "value": "J"
+        },
+        {
+          "name": "KEY_K",
+          "value": "K"
+        },
+        {
+          "name": "KEY_KANA",
+          "value": "Kana"
+        },
+        {
+          "name": "KEY_KANJI",
+          "value": "Kanji"
+        },
+        {
+          "name": "KEY_L",
+          "value": "L"
+        },
+        {
+          "name": "KEY_LALT",
+          "value": "LAlt"
+        },
+        {
+          "name": "KEY_LBRACKET",
+          "value": "LBracket"
+        },
+        {
+          "name": "KEY_LCONTROL",
+          "value": "LControl"
+        },
+        {
+          "name": "KEY_LEFT",
+          "value": "Left"
+        },
+        {
+          "name": "KEY_LSHIFT",
+          "value": "LShift"
+        },
+        {
+          "name": "KEY_LWIN",
+          "value": "LWin"
+        },
+        {
+          "name": "KEY_M",
+          "value": "M"
+        },
+        {
+          "name": "KEY_MAIL",
+          "value": "Mail"
+        },
+        {
+          "name": "KEY_MEDIA_SELECT",
+          "value": "MediaSelect"
+        },
+        {
+          "name": "KEY_MEDIA_STOP",
+          "value": "MediaStop"
+        },
+        {
+          "name": "KEY_MINUS",
+          "value": "Minus"
+        },
+        {
+          "name": "KEY_MULTIPLY",
+          "value": "Multiply"
+        },
+        {
+          "name": "KEY_MUTE",
+          "value": "Mute"
+        },
+        {
+          "name": "KEY_MY_COMPUTER",
+          "value": "MyComputer"
+        },
+        {
+          "name": "KEY_N",
+          "value": "N"
+        },
+        {
+          "name": "KEY_NAVIGATE_BACKWARD",
+          "value": "NavigateBackward"
+        },
+        {
+          "name": "KEY_NAVIGATE_FORWARD",
+          "value": "NavigateForward"
+        },
+        {
+          "name": "KEY_NEXT_TRACK",
+          "value": "NextTrack"
+        },
+        {
+          "name": "KEY_NO_CONVERT",
+          "value": "NoConvert"
+        },
+        {
+          "name": "KEY_NUMLOCK",
+          "value": "Numlock"
+        },
+        {
+          "name": "KEY_NUMPAD0",
+          "value": "Numpad0"
+        },
+        {
+          "name": "KEY_NUMPAD1",
+          "value": "Numpad1"
+        },
+        {
+          "name": "KEY_NUMPAD2",
+          "value": "Numpad2"
+        },
+        {
+          "name": "KEY_NUMPAD3",
+          "value": "Numpad3"
+        },
+        {
+          "name": "KEY_NUMPAD4",
+          "value": "Numpad4"
+        },
+        {
+          "name": "KEY_NUMPAD5",
+          "value": "Numpad5"
+        },
+        {
+          "name": "KEY_NUMPAD6",
+          "value": "Numpad6"
+        },
+        {
+          "name": "KEY_NUMPAD7",
+          "value": "Numpad7"
+        },
+        {
+          "name": "KEY_NUMPAD8",
+          "value": "Numpad8"
+        },
+        {
+          "name": "KEY_NUMPAD9",
+          "value": "Numpad9"
+        },
+        {
+          "name": "KEY_NUMPAD_COMMA",
+          "value": "NumpadComma"
+        },
+        {
+          "name": "KEY_NUMPAD_ENTER",
+          "value": "NumpadEnter"
+        },
+        {
+          "name": "KEY_NUMPAD_EQUALS",
+          "value": "NumpadEquals"
+        },
+        {
+          "name": "KEY_O",
+          "value": "O"
+        },
+        {
+          "name": "KEY_OEM102",
+          "value": "OEM102"
+        },
+        {
+          "name": "KEY_P",
+          "value": "P"
+        },
+        {
+          "name": "KEY_PAGE_DOWN",
+          "value": "PageDown"
+        },
+        {
+          "name": "KEY_PAGE_UP",
+          "value": "PageUp"
+        },
+        {
+          "name": "KEY_PASTE",
+          "value": "Paste"
+        },
+        {
+          "name": "KEY_PAUSE",
+          "value": "Pause"
+        },
+        {
+          "name": "KEY_PERIOD",
+          "value": "Period"
+        },
+        {
+          "name": "KEY_PLAY_PAUSE",
+          "value": "PlayPause"
+        },
+        {
+          "name": "KEY_POWER",
+          "value": "Power"
+        },
+        {
+          "name": "KEY_PREV_TRACK",
+          "value": "PrevTrack"
+        },
+        {
+          "name": "KEY_Q",
+          "value": "Q"
+        },
+        {
+          "name": "KEY_R",
+          "value": "R"
+        },
+        {
+          "name": "KEY_RALT",
+          "value": "RAlt"
+        },
+        {
+          "name": "KEY_RBRACKET",
+          "value": "RBracket"
+        },
+        {
+          "name": "KEY_RCONTROL",
+          "value": "RControl"
+        },
+        {
+          "name": "KEY_RETURN",
+          "value": "Return"
+        },
+        {
+          "name": "KEY_RIGHT",
+          "value": "Right"
+        },
+        {
+          "name": "KEY_RSHIFT",
+          "value": "RShift"
+        },
+        {
+          "name": "KEY_RWIN",
+          "value": "RWin"
+        },
+        {
+          "name": "KEY_S",
+          "value": "S"
+        },
+        {
+          "name": "KEY_SCROLL",
+          "value": "Scroll"
+        },
+        {
+          "name": "KEY_SEMICOLON",
+          "value": "Semicolon"
+        },
+        {
+          "name": "KEY_SLASH",
+          "value": "Slash"
+        },
+        {
+          "name": "KEY_SLEEP",
+          "value": "Sleep"
+        },
+        {
+          "name": "KEY_SNAPSHOT",
+          "value": "Snapshot"
+        },
+        {
+          "name": "KEY_SPACE",
+          "value": "Space"
+        },
+        {
+          "name": "KEY_STOP",
+          "value": "Stop"
+        },
+        {
+          "name": "KEY_SUBTRACT",
+          "value": "Subtract"
+        },
+        {
+          "name": "KEY_SYSRQ",
+          "value": "Sysrq"
+        },
+        {
+          "name": "KEY_T",
+          "value": "T"
+        },
+        {
+          "name": "KEY_TAB",
+          "value": "Tab"
+        },
+        {
+          "name": "KEY_U",
+          "value": "U"
+        },
+        {
+          "name": "KEY_UNDERLINE",
+          "value": "Underline"
+        },
+        {
+          "name": "KEY_UNKNOWN",
+          "value": "Unknown"
+        },
+        {
+          "name": "KEY_UNLABELED",
+          "value": "Unlabeled"
+        },
+        {
+          "name": "KEY_UP",
+          "value": "Up"
+        },
+        {
+          "name": "KEY_V",
+          "value": "V"
+        },
+        {
+          "name": "KEY_VOLUME_DOWN",
+          "value": "VolumeDown"
+        },
+        {
+          "name": "KEY_VOLUME_UP",
+          "value": "VolumeUp"
+        },
+        {
+          "name": "KEY_W",
+          "value": "W"
+        },
+        {
+          "name": "KEY_WAKE",
+          "value": "Wake"
+        },
+        {
+          "name": "KEY_WEB_BACK",
+          "value": "WebBack"
+        },
+        {
+          "name": "KEY_WEB_FAVORITES",
+          "value": "WebFavorites"
+        },
+        {
+          "name": "KEY_WEB_FORWARD",
+          "value": "WebForward"
+        },
+        {
+          "name": "KEY_WEB_HOME",
+          "value": "WebHome"
+        },
+        {
+          "name": "KEY_WEB_REFRESH",
+          "value": "WebRefresh"
+        },
+        {
+          "name": "KEY_WEB_SEARCH",
+          "value": "WebSearch"
+        },
+        {
+          "name": "KEY_WEB_STOP",
+          "value": "WebStop"
+        },
+        {
+          "name": "KEY_X",
+          "value": "X"
+        },
+        {
+          "name": "KEY_Y",
+          "value": "Y"
+        },
+        {
+          "name": "KEY_YEN",
+          "value": "Yen"
+        },
+        {
+          "name": "KEY_Z",
+          "value": "Z"
+        },
+        {
+          "name": "MOUSE_LEFT",
+          "value": "0"
+        },
+        {
+          "name": "MOUSE_MIDDLE",
+          "value": "2"
+        },
+        {
+          "name": "MOUSE_RIGHT",
+          "value": "1"
+        },
+        {
+          "name": "PAD_DPAD_DOWN",
+          "value": "DPadDown"
+        },
+        {
+          "name": "PAD_DPAD_LEFT",
+          "value": "DPadLeft"
+        },
+        {
+          "name": "PAD_DPAD_RIGHT",
+          "value": "DPadRight"
+        },
+        {
+          "name": "PAD_DPAD_UP",
+          "value": "DPadUp"
+        },
+        {
+          "name": "PAD_EAST",
+          "value": "East"
+        },
+        {
+          "name": "PAD_LEFT_THUMB",
+          "value": "LeftThumb"
+        },
+        {
+          "name": "PAD_LEFT_TRIGGER",
+          "value": "LeftTrigger"
+        },
+        {
+          "name": "PAD_LEFT_TRIGGER2",
+          "value": "LeftTrigger2"
+        },
+        {
+          "name": "PAD_MODE",
+          "value": "Mode"
+        },
+        {
+          "name": "PAD_NORTH",
+          "value": "North"
+        },
+        {
+          "name": "PAD_RIGHT_THUMB",
+          "value": "RightThumb"
+        },
+        {
+          "name": "PAD_RIGHT_TRIGGER",
+          "value": "RightTrigger"
+        },
+        {
+          "name": "PAD_RIGHT_TRIGGER2",
+          "value": "RightTrigger2"
+        },
+        {
+          "name": "PAD_SELECT",
+          "value": "Select"
+        },
+        {
+          "name": "PAD_SOUTH",
+          "value": "South"
+        },
+        {
+          "name": "PAD_START",
+          "value": "Start"
+        },
+        {
+          "name": "PAD_WEST",
+          "value": "West"
+        }
+      ],
+      "functions": [
+        "dropped_files",
+        "gamepad_axis",
+        "gamepad_down",
+        "gamepad_just_pressed",
+        "gamepad_just_released",
+        "gamepad_name",
+        "gamepads",
+        "is_down",
+        "is_mouse_down",
+        "just_pressed",
+        "just_released",
+        "mouse_delta",
+        "mouse_just_pressed",
+        "mouse_just_released",
+        "mouse_position",
+        "scroll_delta",
+        "touches",
+        "touches_ended",
+        "touches_started"
+      ],
+      "name": "input"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "encode",
+        "parse"
+      ],
+      "name": "json"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "clear",
+        "error",
+        "info",
+        "recent",
+        "warn"
+      ],
+      "name": "log"
+    },
+    {
+      "constants": [
+        {
+          "name": "INF",
+          "value": "inf"
+        },
+        {
+          "name": "PI",
+          "value": "3.141592653589793"
+        },
+        {
+          "name": "TAU",
+          "value": "6.283185307179586"
+        }
+      ],
+      "functions": [
+        "abs",
+        "acos",
+        "asin",
+        "atan",
+        "atan2",
+        "ceil",
+        "clamp",
+        "cos",
+        "cosh",
+        "deg",
+        "exp",
+        "floor",
+        "log",
+        "log10",
+        "max",
+        "min",
+        "pow",
+        "rad",
+        "round",
+        "sin",
+        "sinh",
+        "sqrt",
+        "tan",
+        "tanh"
+      ],
+      "name": "math"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "add_child",
+        "attach_script",
+        "call",
+        "children",
+        "component_names",
+        "get_component",
+        "get_node",
+        "global_position",
+        "global_rotation_euler",
+        "global_scale",
+        "has_component",
+        "is_valid",
+        "name",
+        "parent",
+        "path",
+        "position",
+        "queue_free",
+        "remove_component",
+        "rotation_degrees",
+        "rotation_euler",
+        "scale",
+        "script_path",
+        "set_component",
+        "set_name",
+        "set_parent",
+        "set_position",
+        "set_rotation_degrees",
+        "set_rotation_euler",
+        "set_scale",
+        "translate"
+      ],
+      "name": "node"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "clear",
+        "is_paused",
+        "set_paused",
+        "set_sleeping_allowed",
+        "sleeping_allowed"
+      ],
+      "name": "physics"
+    },
+    {
+      "constants": [
+        {
+          "name": "BODY_DYNAMIC",
+          "value": "dynamic"
+        },
+        {
+          "name": "BODY_KINEMATIC",
+          "value": "kinematic"
+        },
+        {
+          "name": "BODY_STATIC",
+          "value": "static"
+        },
+        {
+          "name": "SHAPE_CIRCLE",
+          "value": "circle"
+        },
+        {
+          "name": "SHAPE_RECT",
+          "value": "rect"
+        }
+      ],
+      "functions": [
+        "add_body",
+        "add_collider",
+        "angular_velocity",
+        "apply_impulse",
+        "linear_velocity",
+        "max_contact_impulse",
+        "overlaps",
+        "set_angular_velocity",
+        "set_gravity",
+        "set_linear_velocity"
+      ],
+      "name": "physics2d"
+    },
+    {
+      "constants": [
+        {
+          "name": "BODY_DYNAMIC",
+          "value": "dynamic"
+        },
+        {
+          "name": "BODY_KINEMATIC",
+          "value": "kinematic"
+        },
+        {
+          "name": "BODY_STATIC",
+          "value": "static"
+        },
+        {
+          "name": "SHAPE_BALL",
+          "value": "ball"
+        },
+        {
+          "name": "SHAPE_CUBOID",
+          "value": "cuboid"
+        }
+      ],
+      "functions": [
+        "add_ball_collider",
+        "add_body",
+        "add_cuboid_collider",
+        "apply_impulse",
+        "linear_velocity",
+        "overlaps",
+        "set_gravity",
+        "set_linear_velocity"
+      ],
+      "name": "physics3d"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "camera_2d",
+        "camera_matrix",
+        "camera_pose",
+        "color",
+        "draw_line",
+        "draw_line_2d",
+        "mouse_ray",
+        "mouse_world_2d",
+        "pick_ray",
+        "screenshot",
+        "set_app_icon",
+        "set_background",
+        "set_ball",
+        "set_camera",
+        "set_camera_2d",
+        "set_camera_input",
+        "set_circle",
+        "set_color",
+        "set_cuboid",
+        "set_cursor_grab",
+        "set_cursor_hidden",
+        "set_fullscreen",
+        "set_grid",
+        "set_grid_colors",
+        "set_rect",
+        "set_sprite",
+        "set_sprite_frame",
+        "set_sprite_sheet",
+        "set_sprite_size",
+        "shape2d",
+        "shape3d",
+        "sprite",
+        "texture_size"
+      ],
+      "name": "render"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "int",
+        "random",
+        "range",
+        "seed"
+      ],
+      "name": "rng"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "apply_preset",
+        "component_schema",
+        "component_tags",
+        "component_types",
+        "get_node",
+        "instantiate",
+        "preset_info",
+        "presets",
+        "root",
+        "source",
+        "spawn",
+        "unmet_expectations"
+      ],
+      "name": "scene"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "attempt",
+        "require"
+      ],
+      "name": "script"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "apply_rest",
+        "bones",
+        "overwrite_rest"
+      ],
+      "name": "skeleton"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "wait"
+      ],
+      "name": "task"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "encode",
+        "parse"
+      ],
+      "name": "toml"
+    },
+    {
+      "constants": [
+        {
+          "name": "ANCHOR_BOTTOM_LEFT",
+          "value": "bottom_left"
+        },
+        {
+          "name": "ANCHOR_BOTTOM_RIGHT",
+          "value": "bottom_right"
+        },
+        {
+          "name": "ANCHOR_CENTER",
+          "value": "center"
+        },
+        {
+          "name": "ANCHOR_TOP_LEFT",
+          "value": "top_left"
+        },
+        {
+          "name": "ANCHOR_TOP_RIGHT",
+          "value": "top_right"
+        },
+        {
+          "name": "FONT_HEADING",
+          "value": "heading"
+        },
+        {
+          "name": "FONT_MONO",
+          "value": "mono"
+        },
+        {
+          "name": "MOD_ALT",
+          "value": "alt"
+        },
+        {
+          "name": "MOD_CMD",
+          "value": "cmd"
+        },
+        {
+          "name": "MOD_CTRL",
+          "value": "ctrl"
+        },
+        {
+          "name": "MOD_SHIFT",
+          "value": "shift"
+        },
+        {
+          "name": "WIDGET_BUTTON",
+          "value": "button"
+        },
+        {
+          "name": "WIDGET_LABEL",
+          "value": "label"
+        },
+        {
+          "name": "WIDGET_PANEL",
+          "value": "panel"
+        }
+      ],
+      "functions": [
+        "add_space",
+        "available_height",
+        "available_width",
+        "bottom_panel",
+        "central_panel",
+        "central_rect",
+        "circle_button",
+        "clipboard",
+        "code_editor",
+        "code_line",
+        "color",
+        "dot",
+        "drag_value",
+        "dropdown",
+        "frame",
+        "horizontal",
+        "image",
+        "label",
+        "left_panel",
+        "menu_item",
+        "modal",
+        "overlay",
+        "pill",
+        "rect_stroke",
+        "right",
+        "right_panel",
+        "scale",
+        "screen_size",
+        "scroll",
+        "separator",
+        "set_clipboard",
+        "set_scale",
+        "set_text",
+        "set_theme",
+        "set_widget_layer",
+        "shortcut",
+        "slider",
+        "spacing",
+        "text_field",
+        "toggle",
+        "top_panel",
+        "vertical",
+        "wants_keyboard",
+        "window"
+      ],
+      "name": "ui"
+    },
+    {
+      "constants": [],
+      "functions": [
+        "close",
+        "connect",
+        "send"
+      ],
+      "name": "websocket"
+    }
+  ]
+}

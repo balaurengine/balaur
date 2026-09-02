@@ -390,7 +390,12 @@ impl balaur_script::ScriptHost<Engine> for PackedHost {
         self.modules.borrow_mut().push(name.to_string());
         Ok(Box::new(balaur_script::NoBindings))
     }
-    fn attach(&self, _: balaur_script::NodeId, _: &str) -> anyhow::Result<()> {
+    fn attach_with_props(
+        &self,
+        _: balaur_script::NodeId,
+        _: &str,
+        _: &[(String, balaur_script::Value)],
+    ) -> anyhow::Result<()> {
         Ok(())
     }
     fn detach(&self, _: balaur_script::NodeId) {}

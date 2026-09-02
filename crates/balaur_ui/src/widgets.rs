@@ -178,6 +178,7 @@ pub const MODIFIERS: &[(&str, &str)] = &[
 pub(crate) fn install_ui_api(app: &mut App) -> Result<()> {
     let mut m = app.script_module("ui")?;
     let m: &mut dyn Bindings<Engine> = &mut *m;
+    m.drives(&["widget"]);
 
     for (name, value) in ANCHORS
         .iter()

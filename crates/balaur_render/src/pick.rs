@@ -10,13 +10,13 @@ use glamx::Vec3;
 
 use crate::{Renderable, Shape};
 
-/// A shape's half-extents in its own space, or `None` for one whose size the
-/// component does not carry.
+/// The box a renderable fills in its own space, as centre and half-extents.
 ///
-/// A mesh's vertices live in its asset, so its bounds are not here; the
-/// caller falls back to whatever it did before for those.
-fn half_extents(shape: Shape) -> Option<Vec3> {
-    let e = match shape {
+/// Every shape carries its size, and a mesh carries the box measured from its
+/// vertices when the asset resolved. `None` is a mesh whose asset would not
+/// load, which is also a mesh that draws nothing.
+fn local_box(renderable: &Renderable) -> Option<(Vec3, Vec3)> {
+    let half = match renderable.shape {
         Shape::Ball { radius } => Vec3::splat(radius),
         Shape::Cuboid { hx, hy, hz } => Vec3::new(hx, hy, hz),
         // The caps add a radius at each end of the straight part.
@@ -27,16 +27,20 @@ fn half_extents(shape: Shape) -> Option<Vec3> {
         // A quad has no thickness; picking one needs some, or the slab test
         // divides by zero and every ray misses it.
         Shape::Plane { hx, hz } => Vec3::new(hx, 1e-4, hz),
-        Shape::Mesh => return None,
+        // A mesh is the one shape not centred on its own origin.
+        Shape::Mesh => {
+            let bounds = renderable.bounds?;
+            return Some((bounds.centre, bounds.half));
+        }
     };
-    Some(e)
+    Some((Vec3::ZERO, half))
 }
 
 /// Distance along `dir` to the near face of the box, or `None` for a miss.
 ///
 /// The slab test, with the ray put into the box's own space first so a
 /// rotated or scaled node is tested as the axis-aligned box it started as.
-fn hit_box(at: &GlobalTransform, half: Vec3, origin: Vec3, dir: Vec3) -> Option<f32> {
+fn hit_box(at: &GlobalTransform, centre: Vec3, half: Vec3, origin: Vec3, dir: Vec3) -> Option<f32> {
     let inverse = at.rotation.inverse();
     let scale = Vec3::new(
         if at.scale.x.abs() < 1e-6 {
@@ -57,7 +61,7 @@ fn hit_box(at: &GlobalTransform, half: Vec3, origin: Vec3, dir: Vec3) -> Option<
     );
     // Both ends scale, so `t` still measures world distance and hits from
     // different nodes stay comparable.
-    let o = inverse * (origin - at.position) / scale;
+    let o = (inverse * (origin - at.position)) / scale - centre;
     let d = (inverse * dir) / scale;
 
     let mut near = f32::NEG_INFINITY;
@@ -129,7 +133,8 @@ pub(crate) fn along_ray(
     {
         let hit = match renderable.shape {
             Shape::Ball { radius } => hit_sphere(at, radius, origin, dir),
-            other => half_extents(other).and_then(|half| hit_box(at, half, origin, dir)),
+            _ => local_box(renderable)
+                .and_then(|(centre, half)| hit_box(at, centre, half, origin, dir)),
         };
         let Some(distance) = hit else { continue };
         if best.is_none_or(|(_, best)| distance < best) {
@@ -155,6 +160,7 @@ mod tests {
     fn renderable(shape: Shape) -> Renderable {
         Renderable {
             shape,
+            bounds: None,
             color: [1.0; 4],
             mesh: None,
             skeleton: String::new(),
@@ -167,7 +173,7 @@ mod tests {
     fn a_ray_down_the_z_axis_hits_the_near_face_of_a_cube() {
         let place = at(Vec3::new(0.0, 0.0, -10.0));
         let half = Vec3::splat(1.0);
-        let hit = hit_box(&place, half, Vec3::ZERO, Vec3::new(0.0, 0.0, -1.0));
+        let hit = hit_box(&place, Vec3::ZERO, half, Vec3::ZERO, Vec3::new(0.0, 0.0, -1.0));
         assert_eq!(
             hit,
             Some(9.0),
@@ -180,7 +186,7 @@ mod tests {
         let place = at(Vec3::new(0.0, 0.0, -10.0));
         let half = Vec3::splat(1.0);
         assert_eq!(
-            hit_box(&place, half, Vec3::ZERO, Vec3::new(0.0, 0.0, 1.0)),
+            hit_box(&place, Vec3::ZERO, half, Vec3::ZERO, Vec3::new(0.0, 0.0, 1.0)),
             None
         );
     }
@@ -208,9 +214,9 @@ mod tests {
         let half = Vec3::splat(1.0);
         let beside = Vec3::new(3.0, 0.0, 0.0);
         let down = Vec3::new(0.0, 0.0, -1.0);
-        assert_eq!(hit_box(&place, half, beside, down), None);
+        assert_eq!(hit_box(&place, Vec3::ZERO, half, beside, down), None);
         place.scale = Vec3::new(5.0, 1.0, 1.0);
-        assert_eq!(hit_box(&place, half, beside, down), Some(9.0));
+        assert_eq!(hit_box(&place, Vec3::ZERO, half, beside, down), Some(9.0));
     }
 
     /// A quarter turn about y puts a long node's length across the ray.
@@ -221,10 +227,10 @@ mod tests {
         let beside = Vec3::new(0.0, 0.0, -3.0);
         let across = Vec3::new(1.0, 0.0, 0.0);
         // Long on x, so a ray along x down its length meets its end.
-        assert!(hit_box(&place, half, Vec3::new(-20.0, 0.0, -10.0), across).is_some());
+        assert!(hit_box(&place, Vec3::ZERO, half, Vec3::new(-20.0, 0.0, -10.0), across).is_some());
         // Turned, the same node no longer reaches a ray 3 units off its side.
         place.rotation = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
-        assert!(hit_box(&place, half, beside, Vec3::new(0.0, 1.0, 0.0)).is_none());
+        assert!(hit_box(&place, Vec3::ZERO, half, beside, Vec3::new(0.0, 1.0, 0.0)).is_none());
     }
 
     /// A ball is round: its corners are not part of it.
@@ -237,7 +243,7 @@ mod tests {
         // At the corner of the box that contains it, it does not.
         let corner = Vec3::new(0.9, 0.9, 0.0);
         assert!(hit_sphere(&place, 1.0, corner, down).is_none());
-        assert!(hit_box(&place, Vec3::splat(1.0), corner, down).is_some());
+        assert!(hit_box(&place, Vec3::ZERO, Vec3::splat(1.0), corner, down).is_some());
     }
 
     #[test]
@@ -245,7 +251,7 @@ mod tests {
         let place = at(Vec3::ZERO);
         let inside = Vec3::new(0.1, 0.0, 0.0);
         let down = Vec3::new(0.0, 0.0, -1.0);
-        assert_eq!(hit_box(&place, Vec3::splat(1.0), inside, down), Some(0.0));
+        assert_eq!(hit_box(&place, Vec3::ZERO, Vec3::splat(1.0), inside, down), Some(0.0));
         assert_eq!(hit_sphere(&place, 1.0, inside, down), Some(0.0));
     }
 
@@ -254,17 +260,34 @@ mod tests {
     #[test]
     fn a_plane_is_pickable_from_above() {
         let place = at(Vec3::ZERO);
-        let half = half_extents(Shape::Plane { hx: 5.0, hz: 5.0 }).unwrap();
+        let (_, half) = local_box(&renderable(Shape::Plane { hx: 5.0, hz: 5.0 })).unwrap();
         let above = Vec3::new(1.0, 4.0, 1.0);
         let down = Vec3::new(0.0, -1.0, 0.0);
-        assert!(hit_box(&place, half, above, down).is_some());
+        assert!(hit_box(&place, Vec3::ZERO, half, above, down).is_some());
     }
 
-    /// The vertices are in the asset, so the component cannot say how big a
-    /// mesh is; the caller keeps whatever it did before for those.
+    /// A mesh is picked over the box its vertices filled, wherever that box
+    /// sits relative to the node's origin.
     #[test]
-    fn a_mesh_reports_no_extents() {
-        assert!(half_extents(Shape::Mesh).is_none());
+    fn a_mesh_is_picked_over_the_box_its_vertices_filled() {
+        let mut r = renderable(Shape::Mesh);
+        // A metre cube sitting two to the right of the node's origin.
+        r.bounds = Some(crate::Bounds {
+            centre: Vec3::new(2.0, 0.0, 0.0),
+            half: Vec3::splat(0.5),
+        });
+        let place = at(Vec3::new(0.0, 0.0, -10.0));
+        let (centre, half) = local_box(&r).unwrap();
+        let down = Vec3::new(0.0, 0.0, -1.0);
+        // Over the vertices, not over the origin.
+        assert!(hit_box(&place, centre, half, Vec3::new(2.0, 0.0, 0.0), down).is_some());
+        assert!(hit_box(&place, centre, half, Vec3::ZERO, down).is_none());
+    }
+
+    /// A mesh whose asset would not load draws nothing, and picks nothing.
+    #[test]
+    fn a_mesh_with_no_bounds_is_not_pickable() {
+        assert!(local_box(&renderable(Shape::Mesh)).is_none());
     }
 
     #[test]

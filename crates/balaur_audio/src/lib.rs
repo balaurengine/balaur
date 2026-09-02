@@ -356,6 +356,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
         register_sound_component(reg);
 
         let mut m = reg.script_module("audio")?;
+        m.drives(&["sound"]);
         install_audio_api(&mut m);
         Ok(())
     }

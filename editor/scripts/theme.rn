@@ -1,34 +1,34 @@
-// Design tokens from the balaur editor handoff ("Organic" palette).
-// Two complete sets; #f9f4ed is the fixed on-accent text in both. The active
-// set lives on `S.theme`.
+// Design tokens: ink on paper with one blue wash, the same palette as the
+// website. Two complete sets; #f6f8fb is the fixed on-accent text in both.
+// The active set lives on `S.theme`.
 
 pub fn dark() {
     #{
         dark: true,
-        bg: "#17191c", panel: "#20242a", sunken: "#101215", raised: "#2b3037",
-        line: "#343a42", line_soft: "#2b3037",
-        text: "#eef1f4", dim: "#b0b8c0", faint: "#767e88",
-        accent: "#f0a273", accent_fill: "#d5814e", accent_soft: "#3d2415",
-        sage: "#8fbcae", sage_soft: "#22352f",
-        grid: "#1e2126", grid_major: "#2b3037", code_bg: "#131518",
-        on_accent: "#f9f4ed",
-        k_key: "#f0a273", k_str: "#8fbcae", k_num: "#ffc7a8", k_com: "#767e88",
-        k_fn: "#eef1f4", k_type: "#b6d8cc", k_punc: "#98a1aa",
+        bg: "#0b0e12", panel: "#12161c", sunken: "#080a0e", raised: "#1a2028",
+        line: "#232a33", line_soft: "#1a2028",
+        text: "#e6e9ee", dim: "#98a3ae", faint: "#6b7683",
+        accent: "#6fa4d8", accent_fill: "#4287cc", accent_soft: "#1a2c40",
+        sage: "#8fb8b0", sage_soft: "#1f3230",
+        grid: "#151a21", grid_major: "#232a33", code_bg: "#0d1015",
+        on_accent: "#f6f8fb",
+        k_key: "#6fa4d8", k_str: "#8fb8b0", k_num: "#9fc2e5", k_com: "#6b7683",
+        k_fn: "#e6e9ee", k_type: "#b7d3cc", k_punc: "#98a3ae",
     }
 }
 
 pub fn light() {
     #{
         dark: false,
-        bg: "#eef0f1", panel: "#e2e5e7", sunken: "#d6dadc", raised: "#f9fafb",
-        line: "#c2c8cb", line_soft: "#d8dcdf",
-        text: "#1d2124", dim: "#586065", faint: "#8f979c",
-        accent: "#a85a2c", accent_fill: "#c06a34", accent_soft: "#f3e0d2",
-        sage: "#5f7f74", sage_soft: "#dde8e4",
-        grid: "#e3e6e8", grid_major: "#cfd4d7", code_bg: "#f9fafb",
-        on_accent: "#f9f4ed",
-        k_key: "#8a4718", k_str: "#3f6459", k_num: "#a85a2c", k_com: "#8f979c",
-        k_fn: "#22272b", k_type: "#5f7f74", k_punc: "#767e83",
+        bg: "#f8f7f3", panel: "#f1f3f6", sunken: "#e3e7ec", raised: "#ffffff",
+        line: "#d0d6dd", line_soft: "#e3e7ec",
+        text: "#14181d", dim: "#5b6670", faint: "#8e99a5",
+        accent: "#2f6a9e", accent_fill: "#3577b1", accent_soft: "#dce8f3",
+        sage: "#4f7f78", sage_soft: "#dbe8e6",
+        grid: "#e9ebed", grid_major: "#d0d6dd", code_bg: "#ffffff",
+        on_accent: "#f6f8fb",
+        k_key: "#2b6291", k_str: "#3f6e67", k_num: "#2f6a9e", k_com: "#8e99a5",
+        k_fn: "#1c2128", k_type: "#4f7f78", k_punc: "#6b7683",
     }
 }
 

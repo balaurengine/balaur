@@ -139,23 +139,29 @@ are the ones to watch.
 
 | Hazard | Status |
 | --- | --- |
-| `math.random` | Handled — seeded engine stream, recorded in the replay header |
-| `math.sin`, `cos`, `exp`, … | Handled — pure-Rust `libm`, identical everywhere |
+| `rng::random`, `rng::range`, `rng::int` | Handled — seeded engine stream, recorded in the replay header |
+| `math::sin`, `cos`, `exp`, … | Handled — pure-Rust `libm`, identical everywhere |
+| `Quat::from_euler`, `Vec3::normalize`, … | Handled — `glamx` is pinned to `libm` and `scalar-math` |
 | Physics across platforms | Handled — rapier's `enhanced-determinism` |
 | Variable `dt` | Handled if you simulate in `fixed_update` |
 | Network replies | Handled — recorded and replayed, outbound suppressed |
-| `x ^ y` | **Your problem** — the operator calls the platform `pow`. Use `math.pow` |
-| `os.clock()`, `os.time()` | **Your problem** — wall clock is not reproducible. Use `engine.tick()` |
-| `pairs()` over table or userdata keys | **Your problem** — iteration order depends on pointer values. Use arrays, or string/number keys |
+| `x.powf(y)`, `x.powi(n)` | **Your problem** — these are Rune's own, and reach the platform `pow`. Use `math::pow` |
+| `engine::time()`, `engine::delta()` | **Your problem** — both accumulate real frame time. Use `engine::tick()`, or `fixed_update`'s `dt` |
+| Iterating the keys of an object | **Your problem** — `#{}` is hash-ordered, not insertion-ordered. Iterate a `Vec`, or `sort()` the keys first |
 | Hot reload mid-session | **Your problem** — changing code changes behaviour. Turn it off for a run you intend to verify |
+
+Rune's other float methods are safe to call directly: `sqrt`, `abs`, `floor`,
+`ceil`, `round`, `min` and `max` are all exactly rounded by IEEE-754, so every
+platform already agrees on them. `powf` and `powi` are the two that are not,
+and `scripts/house_lints.py` fails the build on either.
 
 ## Rules of thumb
 
 1. Simulation in `fixed_update`, presentation in `update`.
-2. Never branch simulation on wall-clock time.
-3. Iterate arrays, or tables keyed by strings or numbers — never by table
-   identity.
-4. Use `math.pow`, not `^`.
+2. Never branch simulation on accumulated time — `engine::tick()` is the exact
+   integer, `engine::time()` is a float that grew by whatever each frame took.
+3. Iterate a `Vec`, or sort an object's keys before walking them.
+4. Use `math::pow`, not `x.powf(y)`.
 5. Record a session in CI and `--verify` it. A determinism bug found the day
    it lands costs an afternoon; found six months later it costs a rewrite.
 

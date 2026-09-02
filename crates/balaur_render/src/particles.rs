@@ -205,12 +205,10 @@ fn step_emitter(slot: &mut EmitterSlot, emitter: &Particles, origin: [f32; 2], d
         slot.debt -= 1.0;
         let jitter = (slot.rng.next_f64() as f32) * 2.0 - 1.0;
         let direction = (emitter.angle + jitter * emitter.spread).to_radians();
+        let (sin, cos) = libm::sincosf(direction);
         slot.particles.push(Particle {
             position: origin,
-            velocity: [
-                direction.cos() * emitter.speed,
-                direction.sin() * emitter.speed,
-            ],
+            velocity: [cos * emitter.speed, sin * emitter.speed],
             age: 0.0,
             lifetime: emitter.lifetime,
         });

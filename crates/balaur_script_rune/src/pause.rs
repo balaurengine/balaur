@@ -12,7 +12,7 @@ use rune::alloc::clone::TryClone as _;
 use rune::runtime::{VmExecution, VmResult};
 use rune::{TypeHash as _, Vm};
 
-use crate::debugger::{self, Hit, Lines, Outcome, StepPlan};
+use crate::debugger::{self, Hit, Lines, Outcome, StepPlan, Stops};
 use crate::{Paused, RuneHost, State};
 
 /// The instance and method an execution is running for.
@@ -48,8 +48,9 @@ impl RuneHost {
                 .and_then(|s| s.functions.iter().find(|f| f.name == name))
                 .is_some_and(|f| !f.is_async);
             // Breaking where a script threw needs the instruction it threw
-            // on, which only the stepping executor still has.
-            sync && (has_breakpoints || state.break_on_error)
+            // on, which only the stepping executor still has; an asked-for
+            // break needs it to have somewhere to stop at all.
+            sync && (has_breakpoints || state.break_on_error || state.break_next)
         };
         if stepping {
             return self.invoke_stepping(owner, key, name, args);
@@ -118,14 +119,19 @@ impl RuneHost {
         plan: Option<StepPlan>,
         leaving: Option<usize>,
     ) -> Option<balaur_script::Value> {
-        let ips = self
-            .state
-            .borrow()
-            .breakpoints
-            .get(callee.key)
-            .map(|b| b.ips.clone())
-            .unwrap_or_default();
-        match debugger::run(&mut exec, lines, &ips, plan, leaving) {
+        let (ips, stops) = {
+            let state = self.state.borrow();
+            let ips = state
+                .breakpoints
+                .get(callee.key)
+                .map(|b| b.ips.clone())
+                .unwrap_or_default();
+            // A step already names where to stop; an asked-for break waits
+            // for the step to arrive rather than cutting it short.
+            let break_next = state.break_next && plan.is_none();
+            (ips, Stops { plan, break_next })
+        };
+        match debugger::run(&mut exec, lines, &ips, stops, leaving) {
             Outcome::Finished(value) => {
                 self.settle_call(callee.owner, callee.key, callee.label, value)
             }
@@ -159,6 +165,7 @@ impl RuneHost {
             return self.drive(callee, exec, lines, None, Some(ip));
         }
         let Callee { owner, key, label } = *callee;
+        self.state.borrow_mut().break_next = false;
         let frames = debugger::frames(&exec, lines, key, hit.line);
         let pause = Pause {
             node: balaur_core::node_id_of(owner),
@@ -198,6 +205,14 @@ impl RuneHost {
     /// the stepping executor, which is what keeps the failing instruction.
     pub fn set_break_on_error(&self, on: bool) {
         self.state.borrow_mut().break_on_error = on;
+    }
+
+    /// Stop at the next line a script runs. Nothing stops here: the request
+    /// is armed, and the pause arrives on the next synchronous call — the
+    /// tick after this one, for a game whose scripts only run per frame.
+    pub fn request_break(&self) {
+        let mut state = self.state.borrow_mut();
+        state.break_next = state.paused.is_none();
     }
 
     #[must_use]

@@ -101,14 +101,22 @@ pub(crate) struct StepPlan {
     pub(crate) line: usize,
 }
 
-/// Drive `exec` until a breakpoint, a step target, an error or the end.
+/// What [`run`] stops for besides the breakpoint set.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Stops {
+    pub(crate) plan: Option<StepPlan>,
+    /// Stop at the first line this execution reaches — the Pause button.
+    pub(crate) break_next: bool,
+}
+
+/// Drive `exec` until a breakpoint, a stop in `stops`, an error or the end.
 /// `leaving` is the instruction it is parked on, which runs without
 /// breaking again.
 pub(crate) fn run(
     exec: &mut VmExecution<Vm>,
     lines: &Lines,
     breakpoints: &HashSet<usize>,
-    plan: Option<StepPlan>,
+    stops: Stops,
     mut leaving: Option<usize>,
 ) -> Outcome {
     loop {
@@ -117,7 +125,13 @@ pub(crate) fn run(
         if !skip {
             let line = lines.line(ip);
             let depth = exec.vm().call_frames().len();
-            if let Some(plan) = plan {
+            if stops.break_next && line > 0 {
+                return Outcome::Broke(Hit {
+                    line,
+                    reason: PauseReason::Pause,
+                });
+            }
+            if let Some(plan) = stops.plan {
                 let arrived = match plan.mode {
                     StepMode::Continue => false,
                     StepMode::Into => line != plan.line || depth != plan.depth,

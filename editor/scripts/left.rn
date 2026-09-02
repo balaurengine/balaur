@@ -179,7 +179,7 @@ fn secondary_content(S) {
                 rows.push(row("‹›", f.name, format!("{} L", n), || {
                     // Jump to the node using this script.
                     for (i, node) in S.doc.iter().enumerate() {
-                        if node.get("script") == Some(rel) {
+                        if model::script_rel(node) == Some(rel) {
                             shell::choose(S, i);
                             break;
                         }

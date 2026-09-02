@@ -17,7 +17,8 @@ use std::collections::HashMap;
 use crate::assets::SceneAsset;
 use crate::collections::DetHashMap;
 use crate::components::StableId;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
+use balaur_script::Value;
 use glamx::{EulerRot, Quat, Vec3};
 use hecs::Entity;
 use serde::Deserialize;
@@ -75,10 +76,56 @@ struct SceneNode {
     position: Option<[f32; 3]>,
     rotation_euler: Option<[f32; 3]>,
     scale: Option<[f32; 3]>,
-    script: Option<String>,
+    script: Option<ScriptRef>,
+    /// A prefab: another scene file, built as this node's children.
+    ///
+    /// The node keeps its own name, transform and components — they are the
+    /// instance's, not the prefab's — and the prefab's roots become its
+    /// children, which is what `scene::instantiate` does from a script.
+    instance: Option<String>,
+    /// Per-node edits inside the instance, keyed by path from this node:
+    /// `[nodes.overrides."Body/Arm"]`. Each holds scene keys, applied after
+    /// the prefab is built, in key order.
+    #[serde(default)]
+    overrides: toml::Table,
     /// Plugin-owned keys, dispatched to scene key handlers.
     #[serde(flatten)]
     extra: HashMap<String, toml::Value>,
+}
+
+/// A node's `script`: a path, or a path with the properties this node sets.
+///
+/// `props` holds only what differs from the script's exported defaults, so a
+/// changed default reaches every node that did not override it.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum ScriptRef {
+    Source(String),
+    Tuned {
+        source: String,
+        #[serde(default)]
+        props: toml::Table,
+    },
+}
+
+impl ScriptRef {
+    fn source(&self) -> &str {
+        match self {
+            Self::Source(path) | Self::Tuned { source: path, .. } => path,
+        }
+    }
+
+    /// The node's overrides, as the host takes them. Order is the table's,
+    /// which `toml` keeps sorted, so two runs write the same instance.
+    fn props(&self) -> Result<Vec<(String, Value)>> {
+        let Self::Tuned { props, .. } = self else {
+            return Ok(Vec::new());
+        };
+        props
+            .iter()
+            .map(|(k, v)| Ok((k.clone(), crate::node_api::from_toml(v)?)))
+            .collect()
+    }
 }
 
 /// A plugin hook for custom scene keys: `(engine, node, value)`.
@@ -236,6 +283,10 @@ impl ProjectFiles {
     }
 }
 
+/// A node's script, held until the whole tree exists: the node, the path, and
+/// the properties the scene set on it.
+type PendingScript = (Entity, String, Vec<(String, Value)>);
+
 /// Instantiate a scene document under `base`. Nodes are created in
 /// declaration order; scripts are attached (and `init` runs) after the whole
 /// tree exists, so `init` can already look up sibling nodes.
@@ -247,20 +298,76 @@ pub fn instantiate_scene(
     base: Entity,
     attach_scripts: bool,
 ) -> Result<()> {
+    let mut build = Build {
+        prefix: String::new(),
+        open: Vec::new(),
+        pending: Vec::new(),
+        attach_scripts,
+    };
+    build_scene(eng, source, base, &mut build)?;
+    attach_pending(eng, &build)
+}
+
+/// One scene being built, and everything a prefab inside it needs to know.
+struct Build {
+    /// Prepended to every stable id, one `<instance id>/` per enclosing
+    /// instance. This is what keeps two instances of one prefab apart, and
+    /// what a replay or a replication layer ends up addressing.
+    prefix: String,
+    /// The prefab files open above this one, so a prefab that contains itself
+    /// is an error naming the cycle rather than a hang.
+    open: Vec<String>,
+    /// Scripts wait for the whole tree — the outermost one, not the prefab —
+    /// so `init` can already look up anything the scene declares.
+    pending: Vec<PendingScript>,
+    attach_scripts: bool,
+}
+
+/// Parse and build one scene document under `base`.
+fn build_scene(eng: &Engine, source: &str, base: Entity, build: &mut Build) -> Result<()> {
     let doc: SceneDoc = toml::from_str(source).context("parsing scene")?;
     // The scene's own `[[assets]]` are in scope for every node in it, and only
     // while it is being built, so `#id` never resolves against a sibling scene.
+    // A prefab's blocks are in scope for the prefab, and go out of scope with
+    // it, which is why this nests rather than accumulating.
     let previous = crate::assets::enter_scene_scope(eng, source, &doc.assets)?;
-    let built = instantiate_nodes(eng, &doc, base, attach_scripts);
+    let built = instantiate_nodes(eng, &doc, base, build);
     crate::assets::leave_scene_scope(eng, previous);
     built
+}
+
+/// A scene file's text: from the pack in a packed run, from disk otherwise —
+/// the same resolution an asset document gets.
+pub fn scene_text(eng: &Engine, path: &str) -> Result<String> {
+    if let Some(source) = eng.script_host().and_then(|host| host.scene_source(path)) {
+        return Ok(source);
+    }
+    let root = eng
+        .try_resource::<ProjectRoot>()
+        .map(|r| r.borrow().0.clone())
+        .unwrap_or_default();
+    std::fs::read_to_string(root.join(path))
+        .with_context(|| format!("reading scene file '{path}'"))
+}
+
+fn attach_pending(eng: &Engine, build: &Build) -> Result<()> {
+    if !build.attach_scripts || build.pending.is_empty() {
+        return Ok(());
+    }
+    let host = eng
+        .script_host()
+        .ok_or_else(|| anyhow!("the scene attaches scripts but no script backend is running"))?;
+    for (entity, script, props) in &build.pending {
+        host.attach_with_props(crate::node_id_of(*entity), script, props)?;
+    }
+    Ok(())
 }
 
 fn instantiate_nodes(
     eng: &Engine,
     doc: &SceneDoc,
     base: Entity,
-    attach_scripts: bool,
+    build: &mut Build,
 ) -> Result<()> {
     let registry = eng
         .try_resource::<SceneKeyRegistry>()
@@ -268,7 +375,6 @@ fn instantiate_nodes(
     let registry = registry.borrow();
     let handlers = &registry.0;
     let root = base;
-    let mut pending_scripts: Vec<(Entity, String)> = Vec::new();
     let mut by_id: DetHashMap<&str, Entity> = DetHashMap::default();
     let ids = repair_ids(&doc.nodes);
     for (index, node) in doc.nodes.iter().enumerate() {
@@ -286,7 +392,7 @@ fn instantiate_nodes(
         let entity = scene::spawn_node(&mut eng.world_mut(), &node.name, parent);
         by_id.insert(ids[index].as_str(), entity);
         eng.world_mut()
-            .insert_one(entity, StableId(ids[index].clone()))?;
+            .insert_one(entity, StableId(format!("{}{}", build.prefix, ids[index])))?;
         {
             let world = eng.world();
             // spawn_node inserts a Transform on every node it creates.
@@ -316,18 +422,127 @@ fn instantiate_nodes(
             }
         }
         if let Some(script) = &node.script {
-            pending_scripts.push((entity, script.clone()));
+            let props = script
+                .props()
+                .with_context(|| format!("script properties on node '{}'", node.name))?;
+            build
+                .pending
+                .push((entity, script.source().to_string(), props));
         }
-    }
-    if attach_scripts && !pending_scripts.is_empty() {
-        let host = eng.script_host().ok_or_else(|| {
-            anyhow!("the scene attaches scripts but no script backend is running")
-        })?;
-        for (entity, script) in pending_scripts {
-            host.attach(crate::node_id_of(entity), &script)?;
+        if let Some(prefab) = &node.instance {
+            build_instance(eng, node, &ids[index], entity, build)
+                .with_context(|| format!("instance '{prefab}' on node '{}'", node.name))?;
+            apply_overrides(eng, node, entity, handlers);
         }
     }
     Ok(())
+}
+
+/// Build a prefab under the node that names it, with every id inside it
+/// prefixed by this node's own.
+fn build_instance(
+    eng: &Engine,
+    node: &SceneNode,
+    id: &str,
+    entity: Entity,
+    build: &mut Build,
+) -> Result<()> {
+    let prefab = node.instance.as_deref().unwrap_or_default();
+    if build.open.iter().any(|open| open == prefab) {
+        let mut chain = build.open.clone();
+        chain.push(prefab.to_string());
+        bail!("a prefab cannot contain itself: {}", chain.join(" -> "));
+    }
+    let source = scene_text(eng, prefab)?;
+    let inner = format!("{}{}/", build.prefix, id);
+    let outer = std::mem::replace(&mut build.prefix, inner);
+    build.open.push(prefab.to_string());
+    let built = build_scene(eng, &source, entity, build);
+    build.open.pop();
+    build.prefix = outer;
+    built
+}
+
+/// Apply this node's `overrides` to the instance it just built.
+///
+/// A path that no longer names anything is reported and kept: the prefab may
+/// have moved a node, and dropping the edit would lose work the file still
+/// holds. Everything else is dispatched exactly as a node's own keys are, so
+/// an override reaches components and the transform both.
+fn apply_overrides(
+    eng: &Engine,
+    node: &SceneNode,
+    entity: Entity,
+    handlers: &[(String, SceneKeyHandler)],
+) {
+    for (path, table) in &node.overrides {
+        let Some(target) = scene::find_node(&eng.world(), entity, path) else {
+            tracing::warn!(
+                "override '{path}' on node '{}' names nothing inside the instance",
+                node.name
+            );
+            continue;
+        };
+        let Some(table) = table.as_table() else {
+            tracing::warn!(
+                "override '{path}' on node '{}' is not a table of scene keys",
+                node.name
+            );
+            continue;
+        };
+        apply_transform_keys(eng, target, table);
+        for (key, handler) in handlers {
+            if let Some(value) = table.get(key) {
+                if let Err(err) = handler(eng, target, value) {
+                    tracing::error!(
+                        "override '{path}.{key}' on node '{}': {err:#}",
+                        node.name
+                    );
+                }
+            }
+        }
+        for key in table.keys() {
+            if !TRANSFORM_KEYS.contains(&key.as_str())
+                && !handlers.iter().any(|(k, _)| k == key)
+            {
+                tracing::warn!(
+                    "override '{path}.{key}' on node '{}' has no registered handler",
+                    node.name
+                );
+            }
+        }
+    }
+}
+
+/// The keys every node has, which an override may set like any other.
+const TRANSFORM_KEYS: [&str; 3] = ["position", "rotation_euler", "scale"];
+
+fn apply_transform_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
+    let world = eng.world();
+    let Ok(mut transform) = world.get::<&mut Transform>(entity) else {
+        return;
+    };
+    if let Some([x, y, z]) = triple(table.get("position")) {
+        transform.position = Vec3::new(x, y, z);
+    }
+    if let Some([roll, pitch, yaw]) = triple(table.get("rotation_euler")) {
+        transform.rotation = Quat::from_euler(EulerRot::ZYX, yaw, pitch, roll);
+    }
+    if let Some([x, y, z]) = triple(table.get("scale")) {
+        transform.scale = Vec3::new(x, y, z);
+    }
+}
+
+fn triple(value: Option<&toml::Value>) -> Option<[f32; 3]> {
+    let items = value?.as_array()?;
+    if items.len() != 3 {
+        return None;
+    }
+    let mut out = [0.0; 3];
+    for (slot, item) in out.iter_mut().zip(items) {
+        *slot = item.as_float().or_else(|| item.as_integer().map(|i| i as f64))? as f32;
+    }
+    Some(out)
 }
 
 /// Give every node a unique id, repairing what the file got wrong.

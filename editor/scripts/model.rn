@@ -24,7 +24,7 @@ pub fn source(S, rel) {
         }
     }
     let text = fs::read(S.game_root + "/" + rel);
-    let entry = #{ text: if text is String { Some(text) } else { None }, at: now, hooks: None };
+    let entry = #{ text: if text is String { Some(text) } else { None }, at: now, hooks: None, exports: None };
     S.sources[rel] = entry;
     entry.text
 }
@@ -69,14 +69,101 @@ pub fn forget(S, rel) {
     }
 }
 
+// A node's `script` key is either the path or `{ source, props }`, so every
+// reader of it goes through here rather than assuming the string form.
+pub fn script_rel(node) {
+    match node.get("script") {
+        Some(script) => if script is String {
+            Some(script)
+        } else {
+            util::obj(script).get("source")
+        },
+        None => None,
+    }
+}
+
+// What this node overrides of its script's exported defaults. Sparse: a
+// property back at its default is absent, so a changed default reaches it.
+pub fn script_props(node) {
+    match node.get("script") {
+        Some(script) => if script is String {
+            #{}
+        } else {
+            util::obj(util::obj(script).get("props").unwrap_or(#{}))
+        },
+        None => #{},
+    }
+}
+
+// The properties the script declares, cached beside its text: asking the host
+// compiles the file, which is not something to do once a frame.
+pub fn exports(S, rel) {
+    if source(S, rel).is_none() {
+        return [];
+    }
+    let entry = S.sources[rel];
+    if entry.exports.is_none() {
+        let declared = script::exports(S.game_root + "/" + rel);
+        entry.exports = Some(if declared is Vec { declared } else { [] });
+    }
+    entry.exports.unwrap()
+}
+
+// Set one exported property on the selected node, writing the table form of
+// the `script` key. Takes effect the next time the script attaches, which for
+// play-in-editor is the next play.
+pub fn set_script_prop(S, prop, value) {
+    let node = S.doc[S.sel];
+    let rel = match script_rel(node) {
+        Some(rel) => rel,
+        None => return,
+    };
+    history::record(S, "set " + prop, Some(format!("sprop:{}:{}", prop, S.sel)));
+    let props = script_props(node);
+    let stored = as_default_type(S, rel, prop, value);
+    if same_as_default(S, rel, prop, stored) {
+        props.remove(prop);
+    } else {
+        props[prop] = stored;
+    }
+    node.script = if props.is_empty() { rel } else { #{ source: rel, props: props } };
+}
+
+// The editors all drag floats, so an export declared as a whole number is
+// rounded back to one: a count that became 2.0 is a different value to the
+// script, and to the file.
+fn as_default_type(S, rel, prop, value) {
+    for export in exports(S, rel) {
+        if export.name == prop && export["type"] == "int" && value is f64 {
+            return math::round(value) as i64;
+        }
+    }
+    value
+}
+
+// A value equal to the export's default stops being an override. Numbers
+// compare as numbers, so retyping 2 over an int default of 2 clears it.
+fn same_as_default(S, rel, prop, value) {
+    for export in exports(S, rel) {
+        if export.name == prop {
+            let d = export["default"];
+            if (d is i64 || d is f64) && (value is i64 || value is f64) {
+                return util::f(d) == util::f(value);
+            }
+            return d == value;
+        }
+    }
+    false
+}
+
 // Whether the node's script draws its own interface, as opposed to carrying a
 // `widget` component.
 pub fn draws_ui(S, node) {
-    if !node.contains_key("script") {
-        return false;
-    }
-    match source(S, node.script) {
-        Some(text) => text.contains("draw_ui"),
+    match script_rel(node) {
+        Some(rel) => match source(S, rel) {
+            Some(text) => text.contains("draw_ui"),
+            None => false,
+        },
         None => false,
     }
 }
@@ -475,6 +562,8 @@ fn apply_transform(t, key, v) {
     }
 }
 
+/// The document index whose live node is `node`, or `None`. What a picker
+/// hands back is an engine node; everything the editor does is by index.
 pub fn index_of_live(S, node) {
     for (i, found) in S.refs.iter().enumerate() {
         if found is balaur::Node && found.is_valid() && found.path() == node.path() {
@@ -554,9 +643,9 @@ pub fn add_child(S, preset) {
 pub fn attach_game_scripts(S) {
     for (i, node) in S.doc.iter().enumerate() {
         if let Some(found) = live(S, i) {
-            let script_some = node.get("script");
+            let script_some = script_rel(node);
             if let Some(script) = script_some {
-                found.attach_script(S.game_root + "/" + script);
+                found.attach_script(S.game_root + "/" + script, script_props(node));
             }
         }
     }

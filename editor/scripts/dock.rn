@@ -201,7 +201,7 @@ fn open_asset(S, rel) {
         return;
     }
     for (i, node) in S.doc.iter().enumerate() {
-        if node.get("script") == Some(rel) {
+        if model::script_rel(node) == Some(rel) {
             shell::choose(S, i);
             shell::set_persona(S, "script");
             return;

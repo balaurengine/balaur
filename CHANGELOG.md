@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Shaders are written in WESL (WGSL plus imports, `@if` variants and dead-code elimination) and linked to WGSL at run time; the 2D skinning shader moved out of Rust into `shaders/skinned_2d.wesl`.
+- `material` asset type: a `shader`, its `[features]` and the `[params]` its `Params` struct takes, read off the linked shader rather than declared twice.
+- Exported script properties: `pub fn exports()` declares tunable defaults, the `script` scene key takes `{ source, props }` beside the plain path, and `props` is written onto the instance before `init`. The inspector lists them per node with undo, writing an override only where it differs from the default. `node:attach_script(path, props)` and `script::exports(path)` are the run-time and tool-facing halves.
 - Websockets negotiate `permessage-deflate` (RFC 7692) and take per-connection options: `websocket.connect(node, url, { compression = false, headers = { Authorization = "..." } })`. A `[net]` table in `project.toml` sets the defaults (`websocket_compression`, `http_timeout`).
 - Determinism: one fixed 60 Hz step (`Stage::FixedUpdate`, `fixed_update(dt)`, `balaur run --fixed-tick`).
 - Per-tick simulation digest with `first_divergence`, `--trace-digest`, and a cross-OS CI check.

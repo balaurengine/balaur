@@ -48,6 +48,11 @@ pub const DEBUGGER_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "debugger",
+        name: "request_break",
+        call: request_break,
+    },
+    EngineOp {
+        module: "debugger",
         name: "set_scope",
         call: set_scope,
     },
@@ -142,6 +147,13 @@ fn set_break_on_error(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn break_on_error(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Bool(host(eng)?.break_on_error()))
+}
+
+/// `debugger.request_break()`: stop at the next line a script runs. Nothing
+/// is paused when this returns — `paused` answers once the stop arrives.
+fn request_break(eng: &Engine, _: &[Value]) -> Result<Value> {
+    host(eng)?.request_break();
+    Ok(Value::Nil)
 }
 
 /// The subtree a pause holds still, so an editor can keep its own scripts

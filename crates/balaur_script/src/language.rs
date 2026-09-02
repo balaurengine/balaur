@@ -30,7 +30,26 @@ pub trait ScriptHost<C: ?Sized> {
     fn module(&self, name: &str) -> Result<Box<dyn Bindings<C>>>;
 
     /// Attach a script to a node and run its `init`.
-    fn attach(&self, node: NodeId, path: &str) -> Result<()>;
+    fn attach(&self, node: NodeId, path: &str) -> Result<()> {
+        self.attach_with_props(node, path, &[])
+    }
+
+    /// Attach, with properties the scene set on this node.
+    ///
+    /// Each is written onto the instance over the default the script's
+    /// `exports` declared, before `init` runs — so `init` reads tuned values
+    /// rather than having to ask for them.
+    fn attach_with_props(&self, node: NodeId, path: &str, props: &[(String, Value)]) -> Result<()>;
+
+    /// The defaults `path`'s `exports` declares, in declaration order.
+    ///
+    /// Empty for a script without one, which is also every script that
+    /// predates the convention. The editor reads this to know what a script
+    /// offers and at which type; the file is compiled if it is not loaded.
+    fn exports(&self, path: &str) -> Result<Vec<(String, Value)>> {
+        let _ = path;
+        Ok(Vec::new())
+    }
 
     /// Detach and run `on_free`. Not an error for a node without a script.
     fn detach(&self, node: NodeId);
@@ -126,7 +145,6 @@ pub trait ScriptHost<C: ?Sized> {
         Vec::new()
     }
 
-    /// Where a script is stopped, while one is.
     /// Stop at the instruction that threw, rather than logging and moving
     /// on. Off by default: it puts every call through the stepping executor.
     fn set_break_on_error(&self, on: bool) {
@@ -137,6 +155,13 @@ pub trait ScriptHost<C: ?Sized> {
         false
     }
 
+    /// Stop at the next line a script runs — a debugger's Pause button.
+    ///
+    /// Nothing stops during this call: the request is armed, and the pause
+    /// arrives when a script next runs, with reason `pause`.
+    fn request_break(&self) {}
+
+    /// Where a script is stopped, while one is.
     fn paused(&self) -> Option<Pause> {
         None
     }

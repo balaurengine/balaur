@@ -10,6 +10,8 @@ pub mod app;
 pub mod assets;
 pub mod collections;
 pub mod components;
+#[cfg(not(target_family = "wasm"))]
+pub mod dap;
 pub mod debugger_api;
 pub mod digest;
 pub mod engine;

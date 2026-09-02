@@ -38,7 +38,15 @@ than adopting a framework's opinions.
 
 All crates share `glamx` (glam + `Pose3`/`Rot3`), the same math used by
 rapier 0.35 and kiss3d 0.46. One math crate across core, physics, and
-rendering means zero conversion layers.
+rendering means zero conversion layers. There is no separate `glam`
+dependency: glamx re-exports the whole of it, so `use glamx::Vec3` is the
+one spelling.
+
+The workspace pins glamx to `libm` and `scalar-math`, the two features
+parry's `enhanced-determinism` turns on. They would otherwise arrive only by
+feature unification from rapier, which means a crate built without physics in
+its graph — `cargo test -p balaur_anim` — would silently get the platform
+libm and the SIMD paths instead. Pinning them makes every build the same one.
 
 ### The `Engine` handle
 
@@ -133,6 +141,46 @@ A `.rn` file declares free functions taking the instance first
 in place, so what a script writes to `this` is what the host reads next
 frame. `mod name;` pulls in `name.rn` beside the file: from disk in a dev
 run, from the pack when shipped.
+
+### Exported properties (core feature)
+
+A script says which of its values a scene may tune, by returning a table of
+defaults from `exports`:
+
+```rune
+pub fn exports() {
+    #{ speed: 2.0, clockwise: true }
+}
+```
+
+A node's `script` key then takes a table beside the string form, and sets
+only what it overrides:
+
+```toml
+[nodes.script]
+source = "scripts/spinner.rn"
+
+[nodes.script.props]
+speed = 3.5
+```
+
+At attach the host evaluates `exports` once per file, writes the defaults
+onto the instance, writes the node's `props` over them, and only then calls
+`init` — so `init` reads tuned values rather than asking for them. A
+property the script does not export is still written, and warns: dropping it
+would lose an edit, and until `#[export]` exists (`docs/PLAN-scripting.md`
+phase 3) a typo has no other way to announce itself.
+
+`props` is sparse by construction. The inspector writes an override only
+where the value differs from the default and removes it when it returns, so
+changing a default in the script reaches every node that never overrode it.
+The type is the default's own type, which is what tells the inspector
+whether to draw a drag value, a toggle or a field, and what keeps a count
+declared as `2` from becoming `2.0` when it is dragged.
+
+Everything here is scene data — the pack carries it, a digest covers what it
+changed, and a replay reproduces it. `node:attach_script(path, props)` is the
+same thing at run time, so a spawned node is tuned the way an authored one is.
 
 ### Hot reload (core feature)
 
@@ -417,9 +465,10 @@ is floor-and-subtract rather than `%`, and span decomposition uses only
 `floor`, `f32` arithmetic and `i32` parity, all IEEE-exact. Every
 transcendental — the easing curves, euler↔quaternion, slerp — is `libm`'s
 rather than `f32::sin`/`powf`, which route to the platform libm and differ
-across OSes; `glam`'s `Quat::from_euler` and `Quat::slerp` are avoided for the
-same reason. Players and tweens live in `DetHashMap`s, and the effects a step
-produces are applied in insertion order.
+across OSes. glam's own `Quat::from_euler` and `Quat::slerp` land on the same
+libm, because the workspace pins `glamx/libm`. Players and tweens live in
+`DetHashMap`s, and the effects a step produces are applied in insertion
+order.
 
 Two scheduling consequences are load-bearing. The system runs in
 `Stage::Update` *after* the script tick, so `animation.play()` takes effect the
@@ -693,10 +742,10 @@ is fixed. The hazards, and how Balaur addresses or will address them:
 
 | Hazard | Status |
 | --- | --- |
-| `f64::sin/cos/exp/pow/...` call the platform libm; results differ across OS/libc | **Done:** the engine's `math` module (`math::sin`, `math::pow`, `math::PI`, ... — `docs/generated/script-api.md` has the list) is implemented on pure-Rust `libm` (MUSL algorithms, bit-identical everywhere). Simulation code calls `math::*`; Rune's own float methods stay the platform's and are not rebound (lintable later). |
+| `f64::sin/cos/exp/pow/...` call the platform libm; results differ across OS/libc | **Done:** the engine's `math` module (`math::sin`, `math::pow`, `math::PI`, ... — `docs/generated/script-api.md` has the list) is implemented on pure-Rust `libm` (MUSL algorithms, bit-identical everywhere). Simulation code calls `math::*`; Rune's own float methods stay the platform's and are not rebound. Rune has no transcendentals to rebind — its `f64` module stops at `sqrt`, `abs`, `floor`, `ceil`, `round`, `min`, `max`, `powf` and `powi`, and only the last two are inexact. `scripts/house_lints.py` rejects those two. |
 | Iteration order over an object (`for (k, v) in obj`) is the hash map's, not insertion order | Rule: simulation-affecting iteration uses vectors or sorted keys. The editor can lint for this; an engine-provided ordered map is planned. |
 | A random source seeded from entropy | **Done:** Rune has no random of its own; the `rng` module (`rng::seed/random/range/int`) is an engine-owned PCG32 stream with a fixed default seed, so a fresh run is reproducible by construction. |
-| Wall-clock (`os.clock`, variable `dt`) leaking into simulation | **Done.** `Stage::FixedUpdate` runs on one app-owned accumulator at `FIXED_DT`; scripts get a `fixed_update(dt)` callback there and physics steps there, so simulation code never sees the frame's measured time. `App::set_fixed_dt` (`balaur run --fixed-tick`) additionally pins the frame itself, making an interactive run reproduce a headless one tick for tick given the same inputs. Physics and animation take the constant from `balaur_core::FIXED_DT` rather than each declaring their own 60th of a second. Input is captured once per frame into a snapshot (replayable). |
+| Wall-clock (`engine::time()`, variable `dt`) leaking into simulation | **Done.** `Stage::FixedUpdate` runs on one app-owned accumulator at `FIXED_DT`; scripts get a `fixed_update(dt)` callback there and physics steps there, so simulation code never sees the frame's measured time. `App::set_fixed_dt` (`balaur run --fixed-tick`) additionally pins the frame itself, making an interactive run reproduce a headless one tick for tick given the same inputs. Physics and animation take the constant from `balaur_core::FIXED_DT` rather than each declaring their own 60th of a second. Input is captured once per frame into a snapshot (replayable). |
 
 Engine-side measures already in place:
 
@@ -711,11 +760,12 @@ Engine-side measures already in place:
   demo, in both modes and from the exported pack).
 - Transcendentals on a simulation path use the `libm` crate rather than
   `f32::sin`/`powf`, which route to the platform libm: `balaur_anim`'s easing
-  curves, euler↔quaternion conversion and slerp are all written out on it
-  rather than taken from `glam`. Remaining hole: `balaur_core` still builds a
-  rotation with `Quat::from_euler` at scene load (`project.rs`,
-  `node_api.rs`), so an authored `rotation_euler` is one platform-libm call
-  away from the animated one.
+  curves, euler↔quaternion conversion and slerp are all written out on it,
+  and glam's are libm's too because the workspace pins `glamx/libm` and
+  `glamx/scalar-math`. That closes the hole `Quat::from_euler` at scene load
+  (`project.rs`, `node_api.rs`) used to leave open. `scripts/house_lints.py`
+  fails the build on a bare `.sin()`/`.powf()` in Rust, or `.powf()`/`.powi()`
+  in a Rune script.
 - Dev-mode and shipped bytecode come from one compiler configuration.
 - `crates/balaur_physics/tests/determinism.rs` asserts two runs match bit for
   bit, per tick rather than only at the end.
@@ -866,7 +916,7 @@ to register a source, the same shape of gap the digest has.
 
 Nothing here is built. It is written down because the determinism work above
 was done *for* it, and because the shape of the engine already decides most of
-the answers.
+the answers. `docs/PLAN-networking.md` has the phases, in order.
 
 ### What the engine already gives a replication layer
 
@@ -1113,36 +1163,23 @@ what lets the three modes agree bit for bit.
 
 ## Roadmap
 
-1. `--!strict` type checking surfaced in editor diagnostics; palette-driven
-   node search.
-2. Editor: drag gizmos in the viewport, scene saving UX (autosave/undo),
-   multi-scene tabs, text editing in the script view (today it is a viewer;
-   editing happens in your $EDITOR and hot reloads).
-3. Prefabs/sub-scenes. The asset layer landed, so a prefab is another
-   registered asset type rather than new machinery; what remains is the scene
-   key that instantiates one and the rule for overriding properties on the
-   instance.
-4. Binary assets (audio, textures, fonts) in packs, with content hashing. TOML
-   assets already pack and resolve by reference — a packed run loads a clip
-   exactly as a dev run does — but a pack holds text only, so binary content
-   needs a second section and a hash per entry.
-5. Editor: selection, inspector (reflect components to Lua), gizmos, scene
-   saving (world → TOML serialization).
-6. A lint that catches simulation written against `update`'s variable `dt`.
-   The `fixed_update` callback, the shared `FixedUpdate` accumulator,
-   `--fixed-tick` and the per-tick digest with its cross-platform CI diff all
-   landed; what is left is stopping a game from opting out by accident.
-7. State snapshots, for rollback. Replay re-simulates from inputs; rollback
-   also has to *rewind*, which needs real state: the ECS, rapier's world
-   (`serde-serialize`) and every script's instance. The last one is a contract
-   question rather than an implementation one — a script's `this` can hold
-   closures, engine handles and cycles. **Decided: hybrid.** Plain fields are
-   serialized automatically; a script that needs more overrides with
-   `save_state`/`load_state`. Constraining `self` to plain data would break
-   working games, and making the callbacks mandatory would turn a forgotten
-   field into a silent desync, which is the failure mode this whole effort
-   exists to remove.
-8. Networking, in the order the section above argues for: `StableId` lookup
-   and a run-time id allocator, change detection on components, a
-   QUIC/WebTransport transport, then the `replicate` scene key.
-9. Parallel system execution inside the data plane once profiling demands it.
+What does not exist yet, each with the plan that says how it will. The
+website's roadmap is the short form of this list.
+
+| Item | Plan |
+| --- | --- |
+| Tilemap editor, curve editor and onion skin, profiler | `docs/PLAN-editor.md` §6 |
+| Debugger over the Debug Adapter Protocol | `docs/PLAN-debugger.md` phase 6 |
+| `#[export]` on a script constant, in place of the `exports` table | `docs/PLAN-scripting.md` phase 3 |
+| Prefabs, stable asset ids and asset hot reload, sprite-sheet import | `docs/PLAN-scenes-and-assets.md` |
+| Extensions tier two: components, systems, calling back into scripts | `docs/PLAN-c-api.md` "What Tier 1 does not do" |
+| Soft bodies, tearing, fluids, granular materials | `docs/PLAN-physics.md` |
+| Animation blending, blend trees, state machines, 3D IK | `docs/PLAN-animation-and-resources.md` §6 |
+| 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |
+| Custom shaders and materials, written in WESL | `docs/PLAN-shaders.md` |
+| Game UI toolkit, input actions, save games, localization, audio buses | `docs/PLAN-batteries.md` |
+| Rollback netcode, state replication, QUIC transport | `docs/PLAN-networking.md` |
+| Signed binary releases, published benchmarks | `docs/PLAN-release.md` |
+| Web export | `docs/PLAN-mobile-export.md` "Web" |
+| Parallel system execution, once profiling demands it | no plan yet; the gameplay tick is serial by design |
+

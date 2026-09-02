@@ -42,13 +42,92 @@ was written.
 ## Types
 
 Registered by plugins, so this list is whatever the build contains.
+Each type says where its files live, which component properties take
+it, and what a definition table holds.
 
-| type | project directory |
-| --- | --- |
-| `animation_clip` | `animations/` |
-| `heightfield` | `terrain/` |
-| `mesh` | `models/` |
-| `tileset` | `tilesets/` |
+### `animation_clip`
+
+Files: `animations/`. Used by: `animation.library`.
+
+A clip keys node properties over time. `length` is in seconds and may be
+left out to end at the last key; `loop` is `none` (hold the last key),
+`loop` or `pingpong`. Each track names a `target` node path relative to the
+playing node (empty means that node), a `property` (`position`,
+`rotation_euler`, `rotation`, `scale` or `<component>/<property>`), an
+`interp` (`step`, `linear`, `cubic`) and its `keys`, each `{ t, value }` with
+an optional `ease`. A track with no `property` is a method track whose keys
+call the node's script. A file holds one clip, or several under
+`[clips.<name>]`, addressed as `file.toml#name`.
+
+```toml
+type = "animation_clip"
+
+[clips.patrol]
+length = 4.0
+loop = "pingpong"
+
+[[clips.patrol.tracks]]
+property = "position"
+interp = "linear"
+keys = [
+  { t = 0.0, value = [-2.5, 0.25, -2.0] },
+  { t = 4.0, value = [-2.5, 0.25, 2.0], ease = "in_out_sine" },
+]
+```
+
+### `heightfield`
+
+Files: `terrain/`. Used by: `collider3d.heightfield`.
+
+A grid of heights for terrain: `rows` by `columns` samples in `heights`,
+row-major, one value per grid point. The count has to match the grid.
+
+```toml
+[[assets]]
+id = "valley"
+type = "heightfield"
+rows = 3
+columns = 3
+heights = [0, 0, 0, 0, -1, 0, 0, 0, 0]
+```
+
+### `mesh`
+
+Files: `models/`. Used by: `collider3d.mesh`, `mesh.source`, `polygon.mesh`, `shape2d.mesh`.
+
+Geometry for `mesh`-typed properties. A definition either names a `source`
+model file to import or carries the vertices itself as `positions` and
+`indices`, which is what lets a script build one at run time; naming both is
+refused. A `skin` table adds bone weights for skeletal animation.
+
+```toml
+[[assets]]
+id = "blade"
+type = "mesh"
+source = "models/blade.obj"      # imported...
+# ...or, instead of `source`:
+positions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
+indices = [[0, 1, 2]]
+```
+
+### `tileset`
+
+Files: `tilesets/`. Used by: `tilemap.tileset`.
+
+An image cut into equal tiles for the `tilemap` component: `texture` names
+the image, `tile_size` is the pixel length of one tile edge and `columns` is
+how many tiles one row of the image holds. Tile indices count row by row
+from the top left.
+
+```toml
+[[assets]]
+id = "dungeon"
+type = "tileset"
+texture = "art/dungeon.png"
+tile_size = 16
+columns = 8
+```
+
 
 ## The `assets` script module
 
@@ -57,7 +136,7 @@ Registered by plugins, so this list is whatever the build contains.
 ## Plugins define asset types
 
 Core never learns what an asset *is*. A plugin registers a parser
-with `App::register_asset_type(name, parse)` and downcasts the parsed
+with `App::register_asset_type(name, directory, doc, parse)` and downcasts the parsed
 object itself.
 
 ## Assets ship in packs

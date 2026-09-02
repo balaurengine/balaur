@@ -49,6 +49,16 @@ enum Command {
         /// `balaur replay` can play back.
         #[arg(long, value_name = "PATH")]
         record: Option<PathBuf>,
+        /// Serve the Debug Adapter Protocol on this port, so an editor can
+        /// set breakpoints and step the game. Port 0 takes any free port and
+        /// reports it.
+        #[arg(long, value_name = "PORT")]
+        debug: Option<u16>,
+        /// Hold the boot until a debugger has attached and configured. The
+        /// only way a breakpoint in `init` can fire, since scripts start
+        /// before the frame loop does.
+        #[arg(long, requires = "debug")]
+        debug_wait: bool,
     },
     /// Export the project as a pack: every script checked, scenes and
     /// manifest bundled.
@@ -196,6 +206,8 @@ fn main() -> Result<()> {
             fixed_tick,
             trace_digest,
             record,
+            debug,
+            debug_wait,
         } => run_project(&RunOpts {
             path,
             headless,
@@ -204,6 +216,8 @@ fn main() -> Result<()> {
             fixed_tick,
             trace_digest,
             record,
+            debug,
+            debug_wait,
         }),
         Command::Replay {
             file,
@@ -626,6 +640,8 @@ struct RunOpts {
     fixed_tick: bool,
     trace_digest: Option<PathBuf>,
     record: Option<PathBuf>,
+    debug: Option<u16>,
+    debug_wait: bool,
 }
 
 /// Append `<tick> <digest>` per frame, at the end of the frame.
@@ -736,9 +752,25 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         fixed_tick,
         trace_digest,
         record,
+        debug,
+        debug_wait,
     } = opts;
     let (headless, frames, offscreen) = (*headless, *frames, *offscreen);
     let mut app = balaur::standard_app(AppConfig::dev(path.to_string_lossy().as_ref()))?;
+    // Before the project loads, so a client that waits can have breakpoints
+    // in place by the time `init` runs.
+    let _debugger = match debug {
+        Some(port) => {
+            let server = balaur::dap::serve(&mut app, *port)?;
+            println!("debug adapter listening on {}", server.addr());
+            if *debug_wait {
+                println!("waiting for a debugger to attach");
+                server.wait_for_attach(DEBUG_ATTACH_TIMEOUT)?;
+            }
+            Some(server)
+        }
+        None => None,
+    };
     app.load_project()?;
     if *fixed_tick {
         app.set_fixed_dt(Some(balaur::FIXED_DT));
@@ -783,6 +815,11 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     }
     balaur::run(app, &title)
 }
+
+/// How long `--debug-wait` holds the boot for a client. Long enough to start
+/// one by hand, short enough that a forgotten flag in CI fails rather than
+/// hangs.
+const DEBUG_ATTACH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
 
 /// The offscreen framebuffer, matching the windowed default's aspect so a
 /// screenshot frames the scene the way the window would.

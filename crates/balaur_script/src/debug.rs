@@ -38,6 +38,9 @@ impl StepMode {
 pub enum PauseReason {
     Breakpoint,
     Step,
+    /// A debugger asked to stop, and the next line a script ran is where it
+    /// landed.
+    Pause,
     /// The script threw. Its execution is over: a pause here can be looked
     /// at and dismissed, not continued.
     Error,
@@ -48,6 +51,7 @@ impl PauseReason {
         match self {
             Self::Breakpoint => "breakpoint",
             Self::Step => "step",
+            Self::Pause => "pause",
             Self::Error => "error",
         }
     }

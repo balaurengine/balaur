@@ -389,3 +389,35 @@ fn a_throw_is_logged_and_passed_over_unless_break_on_error_is_on() {
     assert_eq!(app.engine.frozen_root(), None);
     assert_eq!(field(&app, node, "ran"), Some(0.0));
 }
+
+#[test]
+fn an_asked_for_break_stops_at_the_next_line_a_script_runs() {
+    let dir = project(&[("s.rn", COUNTER)]);
+    let app = app_in(dir.path());
+    let node = attach(&app, app.engine.root(), "Holder", "s.rn");
+    let host = app.engine.script_host().unwrap();
+
+    // No breakpoint anywhere: the request itself is what puts the next call
+    // through the stepping executor.
+    host.request_break();
+    assert!(host.paused().is_none(), "nothing stops until a script runs");
+
+    host.update(0.25);
+    let pause = host.paused().expect("the next update stops");
+    assert_eq!(
+        (pause.line, pause.reason),
+        (6, PauseReason::Pause),
+        "the first line of update, not the entry"
+    );
+    assert_eq!(pause.frames[0].function, "update");
+    assert_eq!(app.engine.frozen_root(), Some(app.engine.root()));
+
+    host.resume(StepMode::Continue);
+    assert!(host.paused().is_none());
+    assert_eq!(field(&app, node, "ran"), Some(1.0));
+
+    // The request is spent: the next tick runs straight through.
+    host.update(0.25);
+    assert!(host.paused().is_none());
+    assert_eq!(field(&app, node, "ran"), Some(2.0));
+}

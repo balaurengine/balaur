@@ -19,41 +19,27 @@ Each component is registered by a plugin with the schema below; one
 registration provides the scene-file key, the runtime
 `node:set_component` family, and the editor's inspector rows.
 
-<details>
-<summary><code>animation</code> · 4 properties</summary>
-<table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>autoplay</code></td><td>string</td><td>—</td><td>Clip to start when the scene loads; empty starts nothing</td></tr>
-<tr><td><code>library</code></td><td>asset · <code>animation_clip</code></td><td>—</td><td>The clip library this node plays from</td></tr>
-<tr><td><code>root</code></td><td>string</td><td>—</td><td>Node path the clip&#x27;s tracks resolve against; empty means this node</td></tr>
-<tr><td><code>speed</code></td><td>float</td><td><code>1.0</code></td><td>Playback rate for every clip on this node</td></tr>
-</tbody>
-</table>
-</details>
+Components are grouped by the first of their facet tags; one with
+several (`collider2d` is both `2d` and `physics`) lists them all under
+its heading.
 
-<details>
-<summary><code>body2d</code> · 1 property</summary>
+## 2D
+
+### `body2d`
+
+`2d` · `physics` · 1 property
+
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>kind</code></td><td>enum</td><td><code>dynamic</code></td><td>How 2D physics drives the node: simulated, immovable, or moved by script One of <code>dynamic</code>, <code>static</code>, <code>kinematic</code>. Scene shorthand: <code>kind</code>'s value can be given as the component's whole value.</td></tr>
 </tbody>
 </table>
-</details>
 
-<details>
-<summary><code>body3d</code> · 1 property</summary>
-<table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>kind</code></td><td>enum</td><td><code>dynamic</code></td><td>How physics drives the node: simulated, immovable, or moved by script One of <code>dynamic</code>, <code>static</code>, <code>kinematic</code>. Scene shorthand: <code>kind</code>'s value can be given as the component's whole value.</td></tr>
-</tbody>
-</table>
-</details>
+### `bone2d`
 
-<details>
-<summary><code>bone2d</code> · 4 properties</summary>
+`2d` · `animation` · 4 properties
+
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
@@ -63,36 +49,11 @@ registration provides the scene-file key, the runtime
 <tr><td><code>rest_rotation</code></td><td>float</td><td><code>0.0</code></td><td>Local rest rotation about z, in radians</td></tr>
 </tbody>
 </table>
-</details>
 
-<details>
-<summary><code>bone3d</code> · 4 properties</summary>
-<table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>length</code></td><td>float</td><td><code>0.0</code></td><td>Gizmo length of a tip bone; 0 draws to the first child bone At least 0.0.</td></tr>
-<tr><td><code>rest_position</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Local rest translation</td></tr>
-<tr><td><code>rest_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Local rest rotation, euler radians in the order rotation_euler uses</td></tr>
-<tr><td><code>rest_scale</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Local rest scale</td></tr>
-</tbody>
-</table>
-</details>
+### `collider2d`
 
-<details>
-<summary><code>camera</code> · 4 properties</summary>
-<table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>3d</code></td><td>Which camera this node drives One of <code>3d</code>, <code>2d</code>.</td></tr>
-<tr><td><code>look_at</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>World point the 3D camera looks at</td></tr>
-<tr><td><code>zoom</code></td><td>float</td><td><code>60.0</code></td><td>2D zoom in logical pixels per world unit At least 1.0.</td></tr>
-</tbody>
-</table>
-</details>
+`2d` · `physics` · 8 properties
 
-<details>
-<summary><code>collider2d</code> · 8 properties</summary>
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
@@ -106,10 +67,132 @@ registration provides the scene-file key, the runtime
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 </tbody>
 </table>
-</details>
 
-<details>
-<summary><code>collider3d</code> · 14 properties</summary>
+### `modifier2d`
+
+`2d` · `animation` · 5 properties
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>bone</code></td><td>string</td><td>—</td><td>Node path to the driven bone, relative to this node; empty means this node. For two_bone_ik, the root of the chain</td></tr>
+<tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether the modifier runs; off leaves the clip&#x27;s pose alone</td></tr>
+<tr><td><code>flip</code></td><td>bool</td><td><code>false</code></td><td>Bend the two-bone chain the other way</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, or bend a root, middle, tip chain so the tip reaches it One of <code>look_at</code>, <code>two_bone_ik</code>.</td></tr>
+<tr><td><code>target</code></td><td>string</td><td>—</td><td>Node path to the point to aim at, relative to this node</td></tr>
+</tbody>
+</table>
+
+### `polygon`
+
+`2d` · `render` · `animation` · 5 properties
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node&#x27;s space</td></tr>
+<tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Texture pixels per world unit, for the default UV mapping At least 0.01.</td></tr>
+<tr><td><code>skeleton</code></td><td>string</td><td>—</td><td>Node path to the rig root, relative to this node; empty means this node</td></tr>
+<tr><td><code>texture</code></td><td>string</td><td>—</td><td>Image file, project-relative; empty draws the tint alone</td></tr>
+</tbody>
+</table>
+
+### `shape2d`
+
+`2d` · `render` · 8 properties
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>closed</code></td><td>bool</td><td><code>false</code></td><td>Join the last point back to the first, making a polygon outline</td></tr>
+<tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>Half-sizes of the rect, when kind is rect</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y of the straight part, when kind is capsule At least 0.01.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>rect</code></td><td>Rendered 2D shape One of <code>circle</code>, <code>rect</code>, <code>capsule</code>, <code>polyline</code>.</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points of a polyline, taken from a mesh asset&#x27;s vertices</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, when kind is circle or capsule At least 0.01.</td></tr>
+<tr><td><code>width</code></td><td>float</td><td><code>0.02</code></td><td>Line thickness in world units, when kind is polyline At least 0.001.</td></tr>
+</tbody>
+</table>
+
+### `sprite`
+
+`2d` · `render` · 9 properties
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>columns</code></td><td>float</td><td><code>0.0</code></td><td>Sheet grid columns for flipbook sprites; 0 means a single image At least 0.0.</td></tr>
+<tr><td><code>flip_x</code></td><td>bool</td><td><code>false</code></td><td>Mirror horizontally</td></tr>
+<tr><td><code>flip_y</code></td><td>bool</td><td><code>false</code></td><td>Mirror vertically</td></tr>
+<tr><td><code>frame</code></td><td>float</td><td><code>0.0</code></td><td>Current sheet cell, counted left-to-right then top-to-bottom At least 0.0.</td></tr>
+<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Size override in world units; [0, 0] sizes from the texture</td></tr>
+<tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Texture pixels per world unit At least 0.01.</td></tr>
+<tr><td><code>rows</code></td><td>float</td><td><code>0.0</code></td><td>Sheet grid rows for flipbook sprites; 0 means a single image At least 0.0.</td></tr>
+<tr><td><code>texture</code></td><td>string</td><td>—</td><td>Image file, project-relative; required</td></tr>
+</tbody>
+</table>
+
+### `tilemap`
+
+`2d` · `render` · 3 properties
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>cells</code></td><td>string</td><td>—</td><td>Rows of tile characters, one row per line: . is empty, 0-9 then a-z index into the tileset</td></tr>
+<tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Tile-texture pixels per world unit At least 0.01.</td></tr>
+<tr><td><code>tileset</code></td><td>asset · <code>tileset</code></td><td>—</td><td>The tileset naming the texture and tile grid</td></tr>
+</tbody>
+</table>
+
+## 3D
+
+### `body3d`
+
+`3d` · `physics` · 1 property
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>kind</code></td><td>enum</td><td><code>dynamic</code></td><td>How physics drives the node: simulated, immovable, or moved by script One of <code>dynamic</code>, <code>static</code>, <code>kinematic</code>. Scene shorthand: <code>kind</code>'s value can be given as the component's whole value.</td></tr>
+</tbody>
+</table>
+
+### `bone3d`
+
+`3d` · `animation` · 4 properties
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>length</code></td><td>float</td><td><code>0.0</code></td><td>Gizmo length of a tip bone; 0 draws to the first child bone At least 0.0.</td></tr>
+<tr><td><code>rest_position</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Local rest translation</td></tr>
+<tr><td><code>rest_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Local rest rotation, euler radians in the order rotation_euler uses</td></tr>
+<tr><td><code>rest_scale</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Local rest scale</td></tr>
+</tbody>
+</table>
+
+### `camera`
+
+`3d` · `render` · 4 properties
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>3d</code></td><td>Which camera this node drives One of <code>3d</code>, <code>2d</code>.</td></tr>
+<tr><td><code>look_at</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>World point the 3D camera looks at</td></tr>
+<tr><td><code>zoom</code></td><td>float</td><td><code>60.0</code></td><td>2D zoom in logical pixels per world unit At least 1.0.</td></tr>
+</tbody>
+</table>
+
+### `collider3d`
+
+`3d` · `physics` · 14 properties
+
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
@@ -129,10 +212,11 @@ registration provides the scene-file key, the runtime
 <tr><td><code>sensor</code></td><td>bool</td><td><code>false</code></td><td>Detects overlaps without colliding: bodies pass through and are reported</td></tr>
 </tbody>
 </table>
-</details>
 
-<details>
-<summary><code>mesh</code> · 3 properties</summary>
+### `mesh`
+
+`3d` · `render` · 3 properties
+
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
@@ -141,24 +225,28 @@ registration provides the scene-file key, the runtime
 <tr><td><code>texture</code></td><td>string</td><td>—</td><td>Image file, project-relative; empty draws the colour alone</td></tr>
 </tbody>
 </table>
-</details>
 
-<details>
-<summary><code>modifier2d</code> · 5 properties</summary>
+### `shape3d`
+
+`3d` · `render` · 5 properties
+
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>bone</code></td><td>string</td><td>—</td><td>Node path to the driven bone, relative to this node; empty means this node. For two_bone_ik, the root of the chain</td></tr>
-<tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Whether the modifier runs; off leaves the clip&#x27;s pose alone</td></tr>
-<tr><td><code>flip</code></td><td>bool</td><td><code>false</code></td><td>Bend the two-bone chain the other way</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, or bend a root, middle, tip chain so the tip reaches it One of <code>look_at</code>, <code>two_bone_ik</code>.</td></tr>
-<tr><td><code>target</code></td><td>string</td><td>—</td><td>Node path to the point to aim at, relative to this node</td></tr>
+<tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td>Half-sizes of the cuboid, when kind is cuboid</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y, for capsule, cylinder and cone At least 0.01.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>cuboid</code></td><td>Rendered 3D shape One of <code>ball</code>, <code>cuboid</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>plane</code>.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for every kind but cuboid At least 0.01.</td></tr>
 </tbody>
 </table>
-</details>
 
-<details>
-<summary><code>particles</code> · 9 properties</summary>
+## Rendering
+
+### `particles`
+
+`render` · 9 properties
+
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
@@ -173,55 +261,29 @@ registration provides the scene-file key, the runtime
 <tr><td><code>spread</code></td><td>float</td><td><code>30.0</code></td><td>Half-angle of the emission cone in degrees At least 0.0.</td></tr>
 </tbody>
 </table>
-</details>
 
-<details>
-<summary><code>polygon</code> · 5 properties</summary>
+## Animation
+
+### `animation`
+
+`animation` · 4 properties
+
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
-<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node&#x27;s space</td></tr>
-<tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Texture pixels per world unit, for the default UV mapping At least 0.01.</td></tr>
-<tr><td><code>skeleton</code></td><td>string</td><td>—</td><td>Node path to the rig root, relative to this node; empty means this node</td></tr>
-<tr><td><code>texture</code></td><td>string</td><td>—</td><td>Image file, project-relative; empty draws the tint alone</td></tr>
+<tr><td><code>autoplay</code></td><td>string</td><td>—</td><td>Clip to start when the scene loads; empty starts nothing</td></tr>
+<tr><td><code>library</code></td><td>asset · <code>animation_clip</code></td><td>—</td><td>The clip library this node plays from</td></tr>
+<tr><td><code>root</code></td><td>string</td><td>—</td><td>Node path the clip&#x27;s tracks resolve against; empty means this node</td></tr>
+<tr><td><code>speed</code></td><td>float</td><td><code>1.0</code></td><td>Playback rate for every clip on this node</td></tr>
 </tbody>
 </table>
-</details>
 
-<details>
-<summary><code>shape2d</code> · 8 properties</summary>
-<table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>closed</code></td><td>bool</td><td><code>false</code></td><td>Join the last point back to the first, making a polygon outline</td></tr>
-<tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
-<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>Half-sizes of the rect, when kind is rect</td></tr>
-<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y of the straight part, when kind is capsule At least 0.01.</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>rect</code></td><td>Rendered 2D shape One of <code>circle</code>, <code>rect</code>, <code>capsule</code>, <code>polyline</code>.</td></tr>
-<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points of a polyline, taken from a mesh asset&#x27;s vertices</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, when kind is circle or capsule At least 0.01.</td></tr>
-<tr><td><code>width</code></td><td>float</td><td><code>0.02</code></td><td>Line thickness in world units, when kind is polyline At least 0.001.</td></tr>
-</tbody>
-</table>
-</details>
+## Audio
 
-<details>
-<summary><code>shape3d</code> · 5 properties</summary>
-<table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
-<tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td>Half-sizes of the cuboid, when kind is cuboid</td></tr>
-<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y, for capsule, cylinder and cone At least 0.01.</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>cuboid</code></td><td>Rendered 3D shape One of <code>ball</code>, <code>cuboid</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>plane</code>.</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for every kind but cuboid At least 0.01.</td></tr>
-</tbody>
-</table>
-</details>
+### `sound`
 
-<details>
-<summary><code>sound</code> · 5 properties</summary>
+`audio` · 5 properties
+
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
@@ -232,40 +294,13 @@ registration provides the scene-file key, the runtime
 <tr><td><code>volume</code></td><td>float</td><td><code>1.0</code></td><td>Linear gain; 1 is the file&#x27;s own level At least 0.0.</td></tr>
 </tbody>
 </table>
-</details>
 
-<details>
-<summary><code>sprite</code> · 9 properties</summary>
-<table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
-<tr><td><code>columns</code></td><td>float</td><td><code>0.0</code></td><td>Sheet grid columns for flipbook sprites; 0 means a single image At least 0.0.</td></tr>
-<tr><td><code>flip_x</code></td><td>bool</td><td><code>false</code></td><td>Mirror horizontally</td></tr>
-<tr><td><code>flip_y</code></td><td>bool</td><td><code>false</code></td><td>Mirror vertically</td></tr>
-<tr><td><code>frame</code></td><td>float</td><td><code>0.0</code></td><td>Current sheet cell, counted left-to-right then top-to-bottom At least 0.0.</td></tr>
-<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Size override in world units; [0, 0] sizes from the texture</td></tr>
-<tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Texture pixels per world unit At least 0.01.</td></tr>
-<tr><td><code>rows</code></td><td>float</td><td><code>0.0</code></td><td>Sheet grid rows for flipbook sprites; 0 means a single image At least 0.0.</td></tr>
-<tr><td><code>texture</code></td><td>string</td><td>—</td><td>Image file, project-relative; required</td></tr>
-</tbody>
-</table>
-</details>
+## UI
 
-<details>
-<summary><code>tilemap</code> · 3 properties</summary>
-<table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>cells</code></td><td>string</td><td>—</td><td>Rows of tile characters, one row per line: . is empty, 0-9 then a-z index into the tileset</td></tr>
-<tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Tile-texture pixels per world unit At least 0.01.</td></tr>
-<tr><td><code>tileset</code></td><td>asset · <code>tileset</code></td><td>—</td><td>The tileset naming the texture and tile grid</td></tr>
-</tbody>
-</table>
-</details>
+### `widget`
 
-<details>
-<summary><code>widget</code> · 12 properties</summary>
+`ui` · 12 properties
+
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
@@ -283,5 +318,4 @@ registration provides the scene-file key, the runtime
 <tr><td><code>y</code></td><td>float</td><td><code>16.0</code></td><td>Vertical offset from the anchor, in design pixels</td></tr>
 </tbody>
 </table>
-</details>
 
