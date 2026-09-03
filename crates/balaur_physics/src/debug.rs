@@ -17,7 +17,7 @@ use crate::vocabulary::Opts;
 use crate::{PhysicsState, PhysicsState2d};
 
 /// What the physics debug draw shows. Written by scripts and the editor, read
-/// by [`draw_system`] every frame.
+/// by this module's `draw_system` every frame.
 ///
 /// `mode` is rapier's own flag set, so a mode rapier adds needs a name here
 /// and nothing else.

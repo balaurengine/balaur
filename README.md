@@ -13,7 +13,7 @@ Written in Rust. Fast to run, fast to iterate, easy to use — and one file to s
 
 [**Read the docs**](https://balaurengine.org/docs/intro) · [Features](https://balaurengine.org/features) · [Principles](https://balaurengine.org/docs/principles) · [Download](https://balaurengine.org/download) · [Roadmap](https://balaurengine.org/docs/roadmap)
 
-[![CI](https://github.com/balaurengine/balaur/actions/workflows/ci.yml/badge.svg)](https://github.com/balaurengine/balaur/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/balaurengine/balaur/actions/workflows/runner.yml/badge.svg)](https://github.com/balaurengine/balaur/actions/workflows/runner.yml) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 </div>
 

@@ -91,7 +91,7 @@ pub struct PhysicsState {
     /// Rapier builds it during a step, so a world that has not stepped yet has
     /// an empty one — and a raycast in `init`, which is where a game places
     /// things on the ground, would find nothing at all. Queries refresh it
-    /// when this is false (see [`query::ensure_queries`]).
+    /// when this is false (`query::ensure_queries`).
     pub queries_ready: bool,
     /// Bumped by every shape edit a script makes — digging a voxel, replacing
     /// a collider. Hashed into the digest: nothing else about the world says a

@@ -47,7 +47,8 @@ impl WebsocketTransport {
     ///
     /// Returns immediately; the handshake runs on a worker thread and
     /// [`Transport::state`] answers `Connecting` until it lands. Goes through
-    /// [`ExternalIo::start`], so a replay or a re-simulated tick opens no
+    /// [`ExternalIo::start`](balaur_core::replay::ExternalIo::start), so a
+    /// replay or a re-simulated tick opens no
     /// socket at all and the link stays `Connecting` forever — which is the
     /// intended outcome, since neither should be talking to anyone.
     #[must_use]

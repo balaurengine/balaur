@@ -1,7 +1,8 @@
 name: All
 
-# The one entry point: the other four are reusable workflows now, called from
-# here rather than each subscribing to pushes itself.
+# The one entry point: the other four are reusable workflows, called from here
+# rather than each subscribing to pushes itself. Lint reads the code, test runs
+# it, docs checks both kinds of documentation, build produces the downloads.
 on:
   push:
     branches: [main, master]
@@ -20,8 +21,8 @@ jobs:
   docs:
     uses: ./.github/workflows/docs.yml
 
-  ci:
-    uses: ./.github/workflows/ci.yml
+  test:
+    uses: ./.github/workflows/test.yml
 
   # Runs on pull requests too; build.yml skips the one job that publishes.
   # The token stays writable because a called workflow cannot grant itself more.

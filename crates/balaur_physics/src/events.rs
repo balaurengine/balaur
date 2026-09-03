@@ -12,9 +12,9 @@
 //! **Order.** Sorted by the two entities' bits before dispatch. Rapier's own
 //! order follows its broad phase, and a replay may not depend on that.
 //!
-//! **Re-entrancy.** A hook runs while the world is borrowed by the step. A
-//! `physics3d` call from inside one gets an error saying so (see
-//! [`crate::state_mut`]), never a `RefCell` panic.
+//! **Re-entrancy.** A hook runs while the world is borrowed by the step, so a
+//! `physics3d` call from inside one gets an error saying so rather than a
+//! `RefCell` panic.
 
 use crate::rapier3d::prelude::{
     ColliderHandle, ColliderSet, CollisionEvent, ContactForceEvent, ContactModificationContext,

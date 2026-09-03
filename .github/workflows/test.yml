@@ -1,8 +1,7 @@
-name: CI
+name: Test
 
-# Does the change work? Formatting and project lints are in lint.yml,
-# documentation in docs.yml, and anything that produces a downloadable
-# artifact in build.yml.
+# Everything that actually runs the engine. Static checks are in lint.yml,
+# documentation in docs.yml, and anything producing a download in build.yml.
 
 on:
   # Runs from .github/workflows/runner.yml, which owns the triggers; kept
@@ -18,15 +17,15 @@ env:
   BALAUR_E2E: "1"
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # Correctness, on all three desktop platforms, because platform code is where
-  # the engine actually differs: path handling, the macOS dock-icon path, and the
-  # windowed backend's wgpu/winit stack. A single Linux job compiled none of it.
-  check:
-    name: ${{ matrix.os }} · clippy · test · e2e
+  # On all three desktop platforms, because platform code is where the engine
+  # actually differs: path handling, the macOS dock-icon path, and the windowed
+  # backend's wgpu/winit stack. A single Linux job exercised none of it.
+  test:
+    name: tests · ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -48,32 +47,15 @@ jobs:
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
             libxkbcommon-dev libwayland-dev
       - uses: Swatinem/rust-cache@v2
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      # Without this the windowed backend — kiss3d, wgpu, egui, and the macOS
-      # objc2 dock-icon code — is compiled by nobody but whoever last ran the
-      # editor. It is off by default, so `--all-targets` above never reaches it.
-      - name: Clippy (windowed)
-        run: cargo clippy -p balaur_cli --features window --all-targets -- -D warnings
-      - name: Test
+      - name: Unit and integration tests
         run: cargo test --workspace
       # Extensions are off by default, so `--workspace` above never builds the
       # dlopen path, the cdylib, or the tests that load one at run time.
-      - name: Clippy (extensions)
-        run: cargo clippy -p balaur_plugin -p balaur --features balaur/extensions --all-targets -- -D warnings
-      - name: Test (extensions)
+      - name: Extension tests
         shell: bash
         run: |
           cargo test -p balaur_plugin --features dylib
           cargo test -p balaur --features extensions
-      # extension_greeter is deliberately outside the workspace, so the clippy
-      # and test steps above never reach it. It is the only thing proving an
-      # extension builds without the engine's build tree.
-      - name: Clippy (out-of-tree extension)
-        shell: bash
-        run: |
-          cargo clippy --manifest-path examples/extension_greeter/Cargo.toml \
-            --target-dir target/extension_greeter --all-targets -- -D warnings
       # A build with a subsystem switched off is the point of having features;
       # nothing else checks that one still compiles.
       - name: Build without the optional subsystems
@@ -90,7 +72,7 @@ jobs:
           path: target/e2e/digests.txt
       # A pack agreeing across platforms says the encoder is reproducible. It
       # says nothing about whether two CPUs stepped the same physics, which is
-      # what this records and the simulation-matches job diffs.
+      # what this records and the simulation job diffs.
       - name: Determinism — record the per-tick digest trace
         shell: bash
         run: ./scripts/determinism_trace.sh record target/determinism
@@ -103,8 +85,8 @@ jobs:
   # The multi-platform half of the determinism promise; see
   # scripts/compare_packs.sh for what it does and does not claim.
   packs-match:
-    name: packs are identical across platforms
-    needs: check
+    name: every platform exports an identical pack
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -119,7 +101,7 @@ jobs:
   # here names the tick two platforms parted on.
   simulation-matches:
     name: every platform steps the same simulation
-    needs: check
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -129,15 +111,6 @@ jobs:
           path: traces
       - name: Compare
         run: ./scripts/determinism_trace.sh compare traces
-
-  supply-chain:
-    name: advisories · bans
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check advisories bans sources
 
   # The promise is that one binary reproduces a simulation everywhere. If the
   # binary is not reproducible from one runner's own sources, that promise is

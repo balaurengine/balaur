@@ -40,10 +40,10 @@ use rune::runtime::{Function, RuntimeContext, Unit, VmExecution, VmResult};
 use rune::{Diagnostics, Source, Sources, TypeHash as _, Vm};
 
 pub use api::{api_json, rune_of};
+pub use bindings::{ApiEntry, RuneModule};
 pub use inspect::Finding;
 use inspect::{public_functions, render, PublicSignature};
 use script_module::script_module;
-pub use bindings::{ApiEntry, RuneModule};
 pub use value::{Color, Node, Vec2, Vec3};
 
 /// The Rune backend, as an `AppConfig::script_backend` factory.
@@ -81,7 +81,6 @@ impl balaur_script::ScriptCompiler for RuneHost {
         Ok(source.as_bytes().to_vec())
     }
 }
-
 
 struct Script {
     unit: Arc<Unit>,
@@ -455,7 +454,6 @@ impl RuneHost {
         }
     }
 
-
     fn load(&self, key: &str) -> Result<Arc<Unit>> {
         if let Some(script) = self.state.borrow().scripts.get(key) {
             return Ok(script.unit.clone());
@@ -469,7 +467,6 @@ impl RuneHost {
         self.apply_breakpoints(key);
         Ok(unit)
     }
-
 
     /// Look up a script function, returning `None` when it is not defined.
     fn method(&self, key: &str, name: &str) -> Option<Function> {
@@ -889,7 +886,6 @@ impl RuneHost {
         Ok(value)
     }
 
-
     /// Build the export object for one script: its `pub fn`s by name, each
     /// wrapped in a Rust-routed trampoline (see `SHARED_FNS`).
     fn module_object(&self, key: &str) -> Result<rune::runtime::Object> {
@@ -981,7 +977,6 @@ impl RuneHost {
         RuneModule::new(name, self.engine.clone(), state.pending.clone())
     }
 }
-
 
 impl balaur_script::ScriptHost<Engine> for RuneHost {
     fn module(&self, name: &str) -> Result<Box<dyn balaur_script::Bindings<Engine>>> {

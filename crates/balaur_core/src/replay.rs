@@ -230,8 +230,8 @@ pub struct EventLog(pub Vec<Event>);
 
 /// Record one event against the current tick.
 ///
-/// Free when nothing is recording, and dropped past
-/// [`MAX_EVENTS_PER_TICK`], so a subsystem may call it unconditionally.
+/// Free when nothing is recording, and dropped past this module's
+/// `MAX_EVENTS_PER_TICK`, so a subsystem may call it unconditionally.
 pub fn event(eng: &Engine, kind: &str, label: impl Into<String>, data: Option<serde_json::Value>) {
     let Some(log) = eng.try_resource::<EventLog>() else {
         return;

@@ -61,10 +61,7 @@ fn mesh_of(eng: &Engine, value: Option<&Value>) -> Result<(Vec<Vector>, Vec<[u32
                     _ => 0,
                 })
                 .collect();
-            Ok((
-                points,
-                flat.as_chunks::<3>().0.to_vec(),
-            ))
+            Ok((points, flat.as_chunks::<3>().0.to_vec()))
         }
         _ => Err(anyhow!(
             "expected a mesh: an asset name, or a table of `points` and `indices`"

@@ -6,9 +6,7 @@
 
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, CallbackId, Value};
-use egui::{
-    pos2, vec2, Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKind,
-};
+use egui::{pos2, vec2, Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKind};
 
 use crate::bridge::{scale, scoped, with_ctx, with_ui};
 use crate::theme::{self, parse_hex};
@@ -60,7 +58,7 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
         ("left_panel", &[], "", "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with."),
         ("right_panel", &[], "", "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with."),
         ("central_panel", &[], "", "Draw the callback into whatever room the docked panels left over."),
-        ("overlay", &[], "", "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer."),
+        ("overlay", &[], "", "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `w`/`h` fix its size, and `fill`, `stroke`, `radius` and padding make it a sheet."),
     ]);
     macro_rules! panel {
         ($name:literal, $ctor:ident, $size_key:literal, $span:ident) => {
@@ -127,15 +125,31 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
                 let w = opts.px("w", 0.0);
                 let h = opts.px("h", 0.0);
                 let mut result = Ok(());
+                let pad_x = opts.px("padding_x", 0.0);
+                let pad_y = opts.px("padding_y", 0.0);
                 egui::Area::new(egui::Id::new(id))
                     .order(egui::Order::Foreground)
                     .fixed_pos(pos2(x, y))
                     .show(ctx, |ui| {
-                        if w > 0.0 && h > 0.0 {
-                            ui.set_min_size(vec2(w, h));
-                            ui.set_max_size(vec2(w, h));
+                        let mut frame = egui::Frame::new()
+                            .inner_margin(egui::Margin::symmetric(pad_x as i8, pad_y as i8))
+                            .corner_radius(pill_radius(opts.px("radius", 0.0) * 2.0));
+                        if let Some(fill) = opts.opt_color("fill") {
+                            frame = frame.fill(fill);
                         }
-                        result = scoped(eng, ui, cb);
+                        if let Some(stroke) = opts.opt_color("stroke") {
+                            frame = frame.stroke(Stroke::new(1.0, stroke));
+                        }
+                        frame.show(ui, |ui| {
+                            // The caller's size is the sheet's; the frame's
+                            // padding comes out of it, not on top of it.
+                            if w > 0.0 && h > 0.0 {
+                                let inner = vec2(w - 2.0 * pad_x, h - 2.0 * pad_y);
+                                ui.set_min_size(inner);
+                                ui.set_max_size(inner);
+                            }
+                            result = scoped(eng, ui, cb);
+                        });
                     });
                 result
             })

@@ -72,7 +72,7 @@ fn residual_speed(x: f32) -> f32 {
     let state = state.borrow();
     let velocity = state.world.bodies[state.bodies[&ball]].linvel();
     // The f64 build narrows here, so both builds compare the same way.
-    
+
     velocity.length()
 }
 

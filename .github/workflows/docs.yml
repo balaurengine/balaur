@@ -1,8 +1,8 @@
 name: Docs
 
-# Both kinds of documentation: what rustdoc builds from the source, and what
-# scripts/gen_docs.py generates into docs/generated/ and must not drift from.
-# Neither is platform-specific, so both run once.
+# Both kinds of documentation, in two jobs so a failure names itself: what
+# rustdoc builds from the source, and what scripts/gen_docs.py generates into
+# docs/generated/ and must not drift from.
 on:
   # Runs from .github/workflows/runner.yml, which owns the triggers; kept
   # dispatchable so it can still be run on its own from the Actions tab.
@@ -18,8 +18,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  docs:
-    name: rustdoc · generated docs
+  # `-D warnings` here is mostly about intra-doc links: a `[`Thing`]` that
+  # names a private or renamed item is a dead link in the published docs.
+  rustdoc:
+    name: rustdoc builds with no broken links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Linux build deps
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo doc
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps --lib
+
+  generated-docs:
+    name: docs/generated is current
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -28,9 +43,5 @@ jobs:
       - name: Linux build deps
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
       - uses: Swatinem/rust-cache@v2
-      - name: Rustdoc
-        env:
-          RUSTDOCFLAGS: -D warnings
-        run: cargo doc --workspace --no-deps --lib
       - name: Regenerate and diff
         run: python3 scripts/gen_docs.py --check

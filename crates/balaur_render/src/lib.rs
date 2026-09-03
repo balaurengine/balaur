@@ -770,7 +770,6 @@ fn clear_debug_lines_system(eng: &Engine, _dt: f32) {
     }
 }
 
-
 /// Presets over the render components. `2d` is terminal and lowercase; 3D
 /// names carry no marker (N/D5).
 fn register_render_presets(app: &mut App) -> Result<()> {

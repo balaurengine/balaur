@@ -1,7 +1,8 @@
 name: Lint
 
-# The platform-independent gates, run once rather than per-OS. Clippy lives
-# in ci.yml instead: what it sees genuinely differs per platform.
+# Everything that reads the code without running it: rustfmt, clippy, and the
+# house rules no compiler enforces. Anything that executes the engine is in
+# test.yml; anything that produces a download is in build.yml.
 on:
   # Runs from .github/workflows/runner.yml, which owns the triggers; kept
   # dispatchable so it can still be run on its own from the Actions tab.
@@ -16,27 +17,78 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  format:
-    name: format
+  rustfmt:
+    name: rustfmt
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Format
+      - name: cargo fmt --all --check
         run: cargo fmt --all --check
 
-  project-lints:
-    name: project lints
+  # Clippy is Rust's linter: what rustc allows but the project treats as an
+  # error. Per OS because `#[cfg(windows)]` code is compiled nowhere else, and
+  # once per feature flag because a feature that is off is not compiled either.
+  clippy:
+    name: clippy · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      # Audio and input for the headless build; X11/Wayland/xkb for the
+      # windowed one, which links winit.
+      - name: Linux build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2-dev libudev-dev \
+            libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
+            libxkbcommon-dev libwayland-dev
+      - uses: Swatinem/rust-cache@v2
+      - name: Default features
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      # The windowed backend — kiss3d, wgpu, egui, and the macOS objc2
+      # dock-icon path — is off by default, so the sweep above never reaches it.
+      - name: Feature `window`
+        run: cargo clippy -p balaur_cli --features window --all-targets -- -D warnings
+      # Extensions are off by default too: the dlopen path, the cdylib, and the
+      # tests that load one at run time.
+      - name: Feature `extensions`
+        run: cargo clippy -p balaur_plugin -p balaur --features balaur/extensions --all-targets -- -D warnings
+      # extension_greeter is deliberately outside the workspace, so nothing
+      # above reaches it. It is the only thing proving an extension builds
+      # without the engine's build tree.
+      - name: Out-of-tree extension
+        shell: bash
+        run: |
+          cargo clippy --manifest-path examples/extension_greeter/Cargo.toml \
+            --target-dir target/extension_greeter --all-targets -- -D warnings
+
+  house-rules:
+    name: house rules
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      # Naming, function length, deterministic iteration, tracing over log —
-      # the rules in docs/NAMING.md that no compiler enforces.
-      - name: Project lints
+      # Naming, function length, file length, deterministic iteration, tracing
+      # over log — the rules in docs/NAMING.md that no compiler enforces.
+      - name: scripts/house_lints.py
         run: python3 scripts/house_lints.py --fail-on-error
-      # Every language in the tree, not just Rust: Rune, the workflows
-      # and the scripts themselves. Generated files are skipped by their banner.
-      - name: Comment lints
+      # Every language in the tree, not just Rust: Rune, the workflows and the
+      # scripts themselves. Generated files are skipped by their banner.
+      - name: scripts/comment_lints.py
         run: python3 scripts/comment_lints.py --fail-on-error
+
+  supply-chain:
+    name: dependency advisories, bans and sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories bans sources
