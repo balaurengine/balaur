@@ -74,7 +74,7 @@ macro_rules! write_parameters {
 pub(crate) fn build(app: &mut App) {
     app.engine
         .insert_resource(ManifestTuning { applied: false });
-    app.add_system(Stage::First, apply_manifest_tuning);
+    app.add_system(Stage::First, manifest_tuning_system);
 }
 
 /// Whether the manifest's `[physics]` table has been read yet.
@@ -85,7 +85,7 @@ struct ManifestTuning {
     applied: bool,
 }
 
-fn apply_manifest_tuning(eng: &Engine, _dt: f32) {
+fn manifest_tuning_system(eng: &Engine, _dt: f32) {
     {
         let flag = eng.resource::<ManifestTuning>();
         if flag.borrow().applied {

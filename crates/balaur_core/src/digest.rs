@@ -12,7 +12,7 @@ use hecs::Entity;
 
 use crate::components::{ComponentRegistry, StableId};
 use crate::engine::Engine;
-use crate::scene::{collect_subtree, Name, Transform};
+use crate::scene::{collect_subtree, Name, Parent, Transform};
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -112,7 +112,14 @@ pub fn entries(eng: &Engine) -> Vec<Entry> {
         let world = eng.world();
         // The debug scope when there is one: inside an editor the game is a
         // subtree, and the editor's own nodes are not the run being checked.
-        collect_subtree(&world, eng.debug_scope().unwrap_or_else(|| eng.root()))
+        let scope = eng.debug_scope();
+        collect_subtree(&world, scope.unwrap_or_else(|| eng.root()))
+            .into_iter()
+            // Not the container itself: an editor makes a fresh one for every
+            // run, and its generated id would differ between two runs of the
+            // same game.
+            .filter(|e| Some(*e) != scope)
+            .collect::<Vec<_>>()
             .into_iter()
             .map(|e| {
                 let transform = world.get::<&Transform>(e).ok().map(|t| *t);
@@ -227,16 +234,35 @@ fn push_components(eng: &Engine, entity: Entity, label: &str, out: &mut Vec<Entr
     }
 }
 
+/// A node with no stable id can still be named the same way twice: by where
+/// it sits. Bounded because a hand-edited parent chain can name itself.
+const MAX_LABEL_DEPTH: usize = 64;
+
 /// How a node is named in a divergence report: its stable id where it has
 /// one, so the two peers agree on the name even after a reparent.
+///
+/// Without one the label is the node's path. Not its entity, which comes from
+/// allocation: an editor tears its scene down and builds it again in the same
+/// process, and an identical world has to hash identically across that.
 pub fn node_label(world: &hecs::World, entity: Entity) -> String {
     if let Ok(id) = world.get::<&StableId>(entity) {
         return id.0.clone();
     }
-    let name = world
-        .get::<&Name>(entity)
-        .map_or_else(|_| String::from("node"), |n| n.0.clone());
-    format!("{name}#{}", entity.id())
+    let mut parts = Vec::new();
+    let mut at = Some(entity);
+    while let Some(e) = at {
+        if parts.len() >= MAX_LABEL_DEPTH {
+            break;
+        }
+        parts.push(
+            world
+                .get::<&Name>(e)
+                .map_or_else(|_| String::from("node"), |n| n.0.clone()),
+        );
+        at = world.get::<&Parent>(e).ok().map(|p| p.0);
+    }
+    parts.reverse();
+    parts.join("/")
 }
 
 fn hash_value(h: &mut Hasher, value: &toml::Value) {

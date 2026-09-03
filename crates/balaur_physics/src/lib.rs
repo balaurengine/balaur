@@ -54,6 +54,14 @@ pub struct PhysicsState {
     /// Joints per entity. Which of rapier's two sets a joint lives in is
     /// decided when it is made and never changes.
     pub joints: DetHashMap<Entity, joint::JointRef>,
+    /// What each collider and joint was authored from.
+    ///
+    /// Rapier keeps a shape, not the asset it was built from, and not the
+    /// `fill` or `fit` that shaped it — so without this an editor round-trip
+    /// would quietly lose them. Read back under whatever rapier does report,
+    /// so a live edit still shows through.
+    pub collider_params: DetHashMap<Entity, toml::Value>,
+    pub joint_params: DetHashMap<Entity, toml::Value>,
     /// While paused the simulation does not step (editors pause by default
     /// and unpause on play).
     pub paused: bool,
@@ -85,6 +93,8 @@ impl PhysicsState {
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
             joints: DetHashMap::default(),
+            collider_params: DetHashMap::default(),
+            joint_params: DetHashMap::default(),
             paused: false,
             queries_ready: false,
             wheel_inputs: DetHashMap::default(),
@@ -125,9 +135,16 @@ impl Plugin for PhysicsPlugin {
         );
         install_constants(&mut *m, BODY_KINDS, SHAPE_KINDS);
         body::install_body_api(&mut *m);
+        body::install_force_api(&mut *m);
         body::install_body_state_api(&mut *m);
+        body::install_body_tuning_api(&mut *m);
+        body::install_body_pose_api(&mut *m);
+        body::install_body_sleep_api(&mut *m);
         collider::install_collider_api(&mut *m);
         query::install_query_api(&mut *m);
+        query::install_shapecast_api(&mut *m);
+        query::install_volume_query_api(&mut *m);
+        query::install_pair_query_api(&mut *m);
         joint::install_joint_api(&mut *m);
         character::install_character_api(&mut *m);
         vehicle::install_vehicle_api(&mut *m);
@@ -141,6 +158,7 @@ impl Plugin for PhysicsPlugin {
         {
             let mut m = app.script_module("geometry3d")?;
             geometry::install_geometry_api(&mut *m);
+            geometry::install_mesh_edit_api(&mut *m);
         }
 
         dim2::build(app)?;
@@ -307,6 +325,7 @@ pub(crate) fn node_pose(eng: &Engine, entity: Entity) -> Result<Pose3> {
 }
 
 fn step_system(eng: &Engine, _dt: f32) {
+    resolve_pending_joints(eng);
     let events = {
         let state = eng.resource::<PhysicsState>();
         let mut state = state.borrow_mut();
@@ -366,6 +385,31 @@ fn step_system(eng: &Engine, _dt: f32) {
     // Rapier disables a body whose pose went non-finite rather than letting
     // the world become NaN. A game that never asks still deserves to be told.
     tuning::warn_about_quarantine(eng);
+}
+
+/// Make the joints whose other end had not been spawned when they were
+/// applied.
+///
+/// A scene file names nodes in whatever order it likes, so a joint that points
+/// forwards is normal rather than an error; it is made on the first step after
+/// its partner exists.
+fn resolve_pending_joints(eng: &Engine) {
+    let pending = {
+        let state = eng.resource::<PhysicsState>();
+        let state = state.borrow();
+        joint::pending(&state)
+    };
+    for entity in pending {
+        let params = {
+            let state = eng.resource::<PhysicsState>();
+            let state = state.borrow();
+            state.joint_params.get(&entity).cloned()
+        };
+        let Some(params) = params else { continue };
+        if let Err(why) = joint::apply_joint(eng, entity, &params) {
+            tracing::debug!("joint3d is still waiting: {why:#}");
+        }
+    }
 }
 
 /// Remove the joints that gave way this step and tell both ends.
@@ -443,19 +487,21 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
     m.function("clear", |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState>();
         let mut state = state.borrow_mut();
-        let handles: Vec<_> = state.bodies.values().copied().collect();
-        for handle in handles {
-            state.world.remove_body(handle);
-        }
-        let standalone: Vec<_> = state.colliders.values().flatten().copied().collect();
-        for handle in standalone {
-            state.world.remove_collider(handle);
-        }
+        // A fresh world, not a drained one: see `dim2::clear` for why a
+        // rebuilt scene would otherwise not simulate the way a fresh process
+        // does. Gravity and the step are settings, and carry over.
+        let gravity = state.world.gravity;
+        let params = state.world.integration_parameters;
+        state.world = PhysicsWorld::default();
+        state.world.gravity = gravity;
+        state.world.integration_parameters = params;
         state.bodies.clear();
         state.colliders.clear();
         // Rapier drops a body's joints with the body, so the map is all that
         // is left to clear.
         state.joints.clear();
+        state.collider_params.clear();
+        state.joint_params.clear();
         drop(state);
         dim2::clear(eng);
         Ok(())

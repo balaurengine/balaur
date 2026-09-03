@@ -137,6 +137,20 @@ pub(crate) fn build_core_sources(app: &mut crate::app::App) {
     // into them.
     app.add_snapshot_source("nodes", save_nodes, load_nodes);
     app.add_snapshot_source("transforms", save_transforms, load_transforms);
+    // The clock, so restoring a tick puts the tick number back too: a
+    // rollback that re-ran tick 40 while the engine still counted 47 would
+    // hand scripts a number the first run never saw.
+    app.add_snapshot_source(
+        "clock",
+        |eng| serde_json::json!({ "tick": eng.tick(), "time": eng.time() }),
+        |eng, value| {
+            let tick = value.get("tick").and_then(serde_json::Value::as_u64);
+            let time = value.get("time").and_then(serde_json::Value::as_f64);
+            if let (Some(tick), Some(time)) = (tick, time) {
+                eng.set_clock(tick, time);
+            }
+        },
+    );
     // Script instances, through the host's own save/load contract. Core never
     // learns the language; NodeId carries no serde, so it travels as bits.
     app.add_snapshot_source(

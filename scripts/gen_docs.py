@@ -227,7 +227,51 @@ def component_group(tags):
     return "Other"
 
 
-def gen_components(components, tags, docs=None):
+def component_methods(api):
+    """`component -> [(module, function, signature, doc)]`.
+
+    Read from what each binding declared it acts on, which is the same
+    declaration the script backend turns into `node.<component>.<method>`.
+    """
+    out = {}
+    for module in api.get("modules", []):
+        for function, components in (module.get("acts_on") or {}).items():
+            for component in components:
+                out.setdefault(component, []).append(
+                    (
+                        module["name"],
+                        function,
+                        module.get("signatures", {}).get(function, ""),
+                        module.get("docs", {}).get(function, ""),
+                    )
+                )
+    for rows in out.values():
+        rows.sort(key=lambda row: row[1])
+    return out
+
+
+def bound_signature(signature):
+    """The signature as the handle takes it: the node is already bound."""
+    for prefix, rest in (("(NodeId, ", "("), ("(NodeId)", "()")):
+        if signature.startswith(prefix):
+            return rest + signature[len(prefix) :]
+    return signature
+
+
+def method_row(module, function, signature, doc):
+    call = f"{html.escape(function)}{html.escape(bound_signature(signature).split(' -> ')[0])}"
+    returns = bound_signature(signature).split(" -> ")
+    gives = html.escape(returns[1]) if len(returns) > 1 else ""
+    cells = (
+        f"<code>{call}</code>",
+        f"<code>{gives}</code>" if gives and gives != "()" else "—",
+        html.escape(doc),
+        f"<code>{html.escape(module)}</code>",
+    )
+    return "<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>"
+
+
+def gen_components(components, tags, docs=None, methods=None):
     out = [
         "# Components\n\n",
         "Balaur has no node classes and no inheritance tree: every node is the\n"
@@ -244,6 +288,13 @@ def gen_components(components, tags, docs=None):
         "Each component is registered by a plugin with the schema below; one\n"
         "registration provides the scene-file key, the runtime\n"
         "`node:set_component` family, and the editor's inspector rows.\n\n"
+        "**Methods.** `node.<component>` is a handle that binds the node to the\n"
+        "module driving that component, so `node.body2d.apply_impulse(1.0, 0.0)`\n"
+        "is `physics2d::apply_impulse(node, 1.0, 0.0)` and the same call on a\n"
+        "`body3d` handle reaches `physics3d`. The methods listed per component\n"
+        "below are the functions that declared they act on it. Every handle also\n"
+        "carries `get()`, `set(table)`, `has()` and `remove()`, so a component\n"
+        "with no methods of its own is still reachable that way.\n\n"
         "Components are grouped by the first of their facet tags; one with\n"
         "several (`collider2d` is both `2d` and `physics`) lists them all under\n"
         "its heading.\n\n",
@@ -261,13 +312,25 @@ def gen_components(components, tags, docs=None):
             rows = "\n".join(component_row(p, schema[p]) for p in props)
             facets = " · ".join(f"`{t}`" for t in tags.get(name, [])) or "untagged"
             summary = (docs or {}).get(name, "")
+            calls = (methods or {}).get(name, [])
+            count = f"{len(props)} propert{'y' if len(props) == 1 else 'ies'}"
+            if calls:
+                count += f" · {len(calls)} method{'' if len(calls) == 1 else 's'}"
             out.append(
                 f"### `{name}`\n\n"
-                f"{facets} · {len(props)} propert{'y' if len(props) == 1 else 'ies'}\n\n"
+                f"{facets} · {count}\n\n"
                 + (f"{summary}\n\n" if summary else "")
                 + "<table>\n<thead><tr><th>property</th><th>type</th><th>default</th>"
                 f"<th>description</th></tr></thead>\n<tbody>\n{rows}\n</tbody>\n</table>\n\n"
             )
+            if calls:
+                body = "\n".join(method_row(*call) for call in calls)
+                out.append(
+                    f"On a node carrying `{name}`, as `node.{name}.<method>`:\n\n"
+                    "<table>\n<thead><tr><th>method</th><th>gives</th>"
+                    "<th>description</th><th>module</th></tr></thead>\n"
+                    f"<tbody>\n{body}\n</tbody>\n</table>\n\n"
+                )
     return "".join(out)
 
 
@@ -371,6 +434,7 @@ def main():
             api.get("components", {}),
             api.get("component_tags", {}),
             api.get("component_docs", {}),
+            component_methods(api),
         ),
         "assets.md": gen_assets(
             api.get("asset_types", {}),

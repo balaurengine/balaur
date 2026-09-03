@@ -169,6 +169,11 @@ for ex in examples/*/; do
 
   # Session recording: play records, stop closes the file, the recording plays
   # back into a rebuilt scene, and closing hands the editor back.
+  # The profiler's data path: every stage named, the frame covering them.
+  printf '  timings ...'
+  edit_step "$name: timings" "$ex" timingsdemo
+  printf 'ok\n'
+
   printf '  session ...'
   edit_step "$name: session" "$ex" sessiondemo
   printf 'ok\n'

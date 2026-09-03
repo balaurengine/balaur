@@ -319,6 +319,8 @@ fn states() {
         "pickdemo": crate::selftest::picking,
         "propsdemo": crate::selftest::script_props,
         "instancedemo": crate::selftest::instances,
+        "timingsdemo": crate::selftest::timings,
+        "placedemo": crate::selftest::placing,
         "lintdemo": crate::selftest::linting,
         "sessiondemo": crate::selftest::sessions,
     }

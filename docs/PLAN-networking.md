@@ -1,6 +1,6 @@
-> **Status:** steps 1 and 2 done (bytes on the wire; identity and lifecycle
-> for run-time nodes). Written down on 2026-09-02 so the order was decided
-> before the first line: node identity and lifecycle first, because rollback
+> **Status:** steps 1-3 done (bytes on the wire; identity and lifecycle for
+> run-time nodes; rollback on one machine). Written down on 2026-09-02 so the
+> order was decided before the first line: node identity and lifecycle first, because rollback
 > and replication both stand on it and it is the piece that can invalidate
 > the determinism work; rollback next, because determinism makes it cheap
 > here; replication after a session exists, factored so both ride the same
@@ -27,11 +27,12 @@ Built, and not built for networking:
 | A property schema for every component | `ComponentRegistry` |
 | Bytes across the script boundary, and binary websocket frames | `Value::Bytes`, `balaur_net` |
 | An id for every run-time spawn, and a snapshot that restores the node set | `ids`, `snapshot`'s `nodes` source |
+| Rollback in one process: a session, an input journal, prediction and re-simulation | `rollback` |
 
 Missing:
 
-- Nothing sends a tick's inputs to another machine, and nothing re-simulates
-  when a late one arrives.
+- Nothing sends a tick's inputs to another machine. Rollback works within one
+  process; no transport carries a journal between two.
 - Every transport is TCP. No UDP, no QUIC, no WebTransport, no WebRTC: one
   lost packet stalls everything behind it.
 - Nothing accepts a connection. Every socket is outbound, so two engines
@@ -124,9 +125,17 @@ that works.
    rather than entity index, because a respawned node is a new entity. A
    spawn and a free across a snapshot boundary roll back to a bit-identical
    digest. Still open: a run-time `scene.instantiate` reuses the file's ids.
-3. **Rollback on one machine.** A `Session` with local players only, an
-   input journal per tick, and a test that drops a late input in, rolls back
-   and reaches the same digest as the straight run.
+3. **Rollback on one machine.** *Done.* `rollback::Session` owns the tick,
+   a snapshot ring and the journal. It predicts a missing input by repeating
+   that player's last one, and when the real one arrives and disagrees it
+   restores the tick before it and re-runs everything since; a late input
+   matching the prediction costs nothing. The clock is snapshotted, so a
+   re-run of tick 3 is tick 3 again. `ExternalIo::start` refuses to spawn
+   work while `rollback::is_resimulating`, so a second run of a tick does
+   not send its requests twice. A late input rolls back to the digest of the
+   run that had it on time. Open: an input older than the ring is logged and
+   dropped, and a session must be driven at a fixed step because the app's
+   substep accumulator is not in a snapshot.
 4. **The transport trait, websocket under it.** Reliable-ordered streams and
    unreliable datagrams in the trait from the first line, shaped by QUIC and
    not by what a websocket happens to offer; the websocket implements

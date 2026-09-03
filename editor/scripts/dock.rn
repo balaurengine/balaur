@@ -13,7 +13,7 @@ fn tab_row(S, k) {
     ui::horizontal(#{ height: 34 }, || {
         ui::spacing(6, 0);
         ui::add_space(6);
-        let tabs = ["output", "problems", "assets", "timeline", "debugger", "session"];
+        let tabs = ["output", "problems", "assets", "timeline", "debugger", "session", "profiler"];
         for entry in S.registry.docks {
             tabs.push(entry.id);
         }
@@ -856,9 +856,113 @@ fn session_list(S, k) {
     });
 }
 
+// What one 60 Hz frame costs, as a bar per stage against that budget. The
+// editor's own frame is what is measured while it is idle; press Play and it
+// becomes the game's, which is the number anyone actually wants.
+const BUDGET_MS = 16.667;
+
+// Rune's `format!` takes a literal precision only, so a variable one is a
+// match. Mirrors `inspector::fixed`, which is private to that module.
+fn fixed(v, decimals) {
+    match decimals {
+        1 => format!("{:.1}", v),
+        3 => format!("{:.3}", v),
+        _ => format!("{:.2}", v),
+    }
+}
+
+fn profiler(S, k) {
+    let timings = engine::timings();
+    if !(timings is Object) {
+        ui::add_space(12);
+        ui::horizontal((), || {
+            ui::add_space(12);
+            ui::label("no timings yet", style::mono(k.faint));
+        });
+        return;
+    }
+    let frame_ms = util::f(timings.frame) * 1000.0;
+    ui::add_space(8);
+    ui::horizontal((), || {
+        ui::add_space(12);
+        ui::label("FRAME", style::heading(k));
+        ui::add_space(8);
+        let over = frame_ms > BUDGET_MS;
+        ui::label(
+            format!("{} ms of {} ({} steps)", fixed(frame_ms, 2), fixed(BUDGET_MS, 1), timings.fixed_steps),
+            style::mono(if over { k.accent } else { k.text }),
+        );
+        if over {
+            ui::add_space(8);
+            ui::label("over budget", style::mono_sm(k.accent));
+        }
+    });
+    ui::add_space(6);
+    ui::scroll("profiler", (), || {
+        rows(k, util::obj(timings.stages), "stage");
+        let spans = util::obj(timings.spans);
+        if !spans.is_empty() {
+            ui::add_space(6);
+            ui::horizontal((), || {
+                ui::add_space(12);
+                ui::label("NAMED", style::heading(k));
+            });
+            ui::add_space(4);
+            rows(k, spans, "span");
+        }
+    });
+}
+
+// Worst first. A hand-written pass rather than a comparator: a float
+// comparison in Rune answers with an Option, and the list is eight rows long.
+fn by_cost(table) {
+    let left = [];
+    for (name, seconds) in table.iter() {
+        left.push(#{ name: name, ms: util::f(seconds) * 1000.0 });
+    }
+    let out = [];
+    while !left.is_empty() {
+        let worst = 0;
+        for (i, row) in left.iter().enumerate() {
+            if row.ms > left[worst].ms {
+                worst = i;
+            }
+        }
+        out.push(left.remove(worst));
+    }
+    out
+}
+
+// One row per entry, worst first, with a bar as its share of the budget.
+fn rows(k, table, kind) {
+    for row in by_cost(table) {
+        let name = row.name;
+        let ms = row.ms;
+        let share = util::clamp(ms / BUDGET_MS, 0.0, 1.0);
+        ui::horizontal(#{ height: 20 }, || {
+            ui::add_space(12);
+            ui::horizontal(#{ height: 20, width: 132 }, || {
+                ui::label(name, style::mono_sm(if kind == "span" { k.sage } else { k.text }));
+            });
+            ui::horizontal(#{ height: 20, width: 68 }, || {
+                ui::label(fixed(ms, 3) + " ms", style::mono_sm(k.dim));
+            });
+            // The bar is the point: a number needs reading, a bar does not.
+            let width = util::max(1.0, share * 180.0);
+            ui::frame(#{
+                fill: if ms > BUDGET_MS * 0.5 { k.accent } else { k.sage },
+                radius: 3, padding_x: 0,
+            }, || {
+                ui::horizontal(#{ height: 8, width: width }, || {});
+            });
+        });
+    }
+}
+
 pub fn draw(S) {
     let k = S.theme;
-    let tall = S.dock == "timeline" || S.dock == "debugger" || S.dock == "session";
+    let tall = S.dock == "timeline" || S.dock == "debugger" || S.dock == "session"
+        || S.dock == "profiler";
     let height = if tall { 212 } else { 150 };
     ui::bottom_panel("dock", #{ height: height, fill: k.panel }, || {
         tab_row(S, k);
@@ -872,6 +976,8 @@ pub fn draw(S) {
             debugger_view(S, k);
         } else if S.dock == "session" {
             session_view(S, k);
+        } else if S.dock == "profiler" {
+            profiler(S, k);
         } else {
             match crate::plugins::dock(S, S.dock) {
                 Some(entry) => {

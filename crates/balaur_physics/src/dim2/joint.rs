@@ -156,6 +156,15 @@ fn handles(
 
 pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     remove_joint(eng, entity);
+    {
+        // After the removal, which clears it: what the joint was authored
+        // from is what a `get` reports and what the retry re-reads.
+        let state = eng.resource::<PhysicsState2d>();
+        state
+            .borrow_mut()
+            .joint_params
+            .insert(entity, params.clone());
+    }
     if !v::boolean(params, "enabled", true) {
         return Ok(());
     }
@@ -191,6 +200,7 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
 pub(crate) fn remove_joint(eng: &Engine, entity: Entity) {
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
+    state.joint_params.swap_remove(&entity);
     match state.joints.swap_remove(&entity).map(|j| j.handle) {
         Some(JointHandle2d::Impulse(handle)) => {
             state.world.remove_impulse_joint(handle);
@@ -203,7 +213,15 @@ pub(crate) fn remove_joint(eng: &Engine, entity: Entity) {
 pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let state = eng.resource::<PhysicsState2d>();
     let state = state.borrow();
-    let reference = state.joints.get(&entity)?;
+    // Authored values first, so a joint waiting for its other end still
+    // reports what it is waiting to be.
+    let authored = state
+        .joint_params
+        .get(&entity)
+        .and_then(|params| params.as_table().cloned())?;
+    let Some(reference) = state.joints.get(&entity) else {
+        return Some(toml::Value::Table(authored));
+    };
     let data = match &reference.handle {
         JointHandle2d::Impulse(handle) => state.world.impulse_joints.get(*handle)?.data,
         JointHandle2d::Multibody(handle) => {
@@ -213,7 +231,7 @@ pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Val
     };
     let f = |value: f32| toml::Value::Float(f64::from(value));
     let vec2 = |v: Vec2| toml::Value::Array(vec![f(v.x), f(v.y)]);
-    let mut map = toml::map::Map::new();
+    let mut map = authored;
     map.insert("anchor".into(), vec2(data.local_anchor1()));
     map.insert("other_anchor".into(), vec2(data.local_anchor2()));
     map.insert("contacts".into(), data.contacts_enabled().into());
@@ -227,7 +245,24 @@ pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Val
             .into(),
         ),
     );
+    map.insert(
+        "break_force".into(),
+        toml::Value::Float(f64::from(reference.break_force)),
+    );
     Some(toml::Value::Table(map))
+}
+
+/// Joints authored but not yet made, because the node at the other end had not
+/// been spawned when this one was.
+pub(crate) fn pending(state: &PhysicsState2d) -> Vec<Entity> {
+    let mut out: Vec<Entity> = state
+        .joint_params
+        .keys()
+        .filter(|entity| !state.joints.contains_key(*entity))
+        .copied()
+        .collect();
+    out.sort_unstable_by_key(|e| e.to_bits());
+    out
 }
 
 /// Joints whose pull passed their `break_force` this step.

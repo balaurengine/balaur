@@ -184,16 +184,6 @@ pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("raycast", &[], "(opts: table)", "The first collider a ray meets: `#{ from = [x, y, z], dir = [x, y, z], max = 100.0, filter = #{ exclude = node, only = \"dynamic\" } }`. Returns `#{ node, point, normal, distance }`, or nothing."),
         ("raycast_all", &[], "(opts: table)", "Every collider a ray meets, nearest first."),
-        ("shapecast", &[], "(opts: table)", "Sweep a shape along a direction until it hits something: a thick raycast, and how a camera avoids walls."),
-        ("nearest_point", &[], "(opts: table)", "The closest point on any collider to a world point."),
-        ("point_hits", &[], "(opts: table)", "Every collider containing a world point."),
-        ("shape_hits", &[], "(opts: table)", "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc."),
-        ("box_hits", &[], "(opts: table)", "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits."),
-        ("distance", &[], "(a: node, b: node)", "The gap between two nodes' colliders, zero when they touch or overlap."),
-        ("closest_points", &[], "(a: node, b: node)", "The nearest point on each of two nodes' colliders."),
-        ("intersects", &[], "(a: node, b: node)", "Whether two nodes' colliders overlap right now, sensor or not."),
-        ("contacts", &["collider3d"], "", "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
-        ("max_contact_impulse", &["collider3d"], "", "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number."),
     ]);
     m.function("raycast", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
@@ -291,6 +281,16 @@ pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
         }
         Ok(Value::List(out))
     });
+}
+
+/// Sweeping a shape rather than a ray: a thick raycast, and how a camera
+/// avoids walls.
+///
+/// Split from [`install_query_api`] under `MAX_FN_LINES`.
+pub(crate) fn install_shapecast_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("shapecast", &[], "(opts: table)", "Sweep a shape along a direction until it hits something: a thick raycast, and how a camera avoids walls."),
+    ]);
     m.function("shapecast", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
@@ -326,6 +326,20 @@ pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
             hit.time_of_impact,
         ))
     });
+}
+
+
+/// The queries that ask about a place rather than a line: what is at a point,
+/// inside a shape, or within a box.
+///
+/// Split from [`install_query_api`] under `MAX_FN_LINES`.
+pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("nearest_point", &[], "(opts: table)", "The closest point on any collider to a world point."),
+        ("point_hits", &[], "(opts: table)", "Every collider containing a world point."),
+        ("shape_hits", &[], "(opts: table)", "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc."),
+        ("box_hits", &[], "(opts: table)", "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits."),
+    ]);
     m.function("nearest_point", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
@@ -404,6 +418,20 @@ pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
             .collect();
         Ok(node_list(&mut hits))
     });
+}
+
+/// The questions asked about two nodes rather than about the world: how far
+/// apart, where they nearly touch, and what they are touching with.
+///
+/// Split from [`install_query_api`] under `MAX_FN_LINES`.
+pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("distance", &[], "(a: node, b: node)", "The gap between two nodes' colliders, zero when they touch or overlap."),
+        ("closest_points", &[], "(a: node, b: node)", "The nearest point on each of two nodes' colliders."),
+        ("intersects", &[], "(a: node, b: node)", "Whether two nodes' colliders overlap right now, sensor or not."),
+        ("contacts", &["collider3d"], "", "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
+        ("max_contact_impulse", &["collider3d"], "", "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number."),
+    ]);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
         with_pair(eng, a, b, |world, first, second| {
             rapier3d::parry::query::distance(
@@ -461,6 +489,8 @@ pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
         })
     });
 }
+
+
 
 /// Every contact point on a node's colliders, in the order rapier holds them
 /// within a pair and by entity bits between pairs.

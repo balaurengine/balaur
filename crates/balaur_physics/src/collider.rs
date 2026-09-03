@@ -359,6 +359,13 @@ pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value)
     });
     remove_colliders(eng, entity);
     add_collider_at(eng, entity, builder, offset)?;
+    {
+        let state = eng.resource::<PhysicsState>();
+        state
+            .borrow_mut()
+            .collider_params
+            .insert(entity, params.clone());
+    }
     if v::boolean(params, "one_way", false) {
         let axis = v::vec3(params, "one_way_axis", [0.0, 1.0, 0.0]);
         let state = eng.resource::<PhysicsState>();
@@ -520,6 +527,7 @@ pub(crate) fn remove_colliders(eng: &Engine, entity: Entity) {
         for handle in handles {
             state.world.remove_collider(handle);
         }
+        state.collider_params.swap_remove(&entity);
         state.queries_ready = false;
     }
 }
@@ -615,7 +623,17 @@ pub(crate) fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::
     let state = state.borrow();
     let handle = state.colliders.get(&entity)?.first()?;
     let collider = state.world.colliders.get(*handle)?;
-    let mut map = collider_shape_params(collider.shape())?;
+    // What it was authored from, under what rapier can report: the asset
+    // names and the build-time choices survive, and anything a script has
+    // changed since shows through.
+    let mut map = state
+        .collider_params
+        .get(&entity)
+        .and_then(|params| params.as_table().cloned())
+        .unwrap_or_default();
+    if let Some(shape) = collider_shape_params(collider.shape()) {
+        map.extend(shape);
+    }
     read_material(collider, &mut map);
     Some(toml::Value::Table(map))
 }

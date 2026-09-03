@@ -196,6 +196,13 @@ fn handles(
 
 pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     remove_joint(eng, entity);
+    {
+        let state = eng.resource::<PhysicsState>();
+        state
+            .borrow_mut()
+            .joint_params
+            .insert(entity, params.clone());
+    }
     if !v::boolean(params, "enabled", true) {
         return Ok(());
     }
@@ -233,6 +240,7 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
 pub(crate) fn remove_joint(eng: &Engine, entity: Entity) {
     let state = eng.resource::<PhysicsState>();
     let mut state = state.borrow_mut();
+    state.joint_params.swap_remove(&entity);
     match state.joints.swap_remove(&entity).map(|j| j.handle) {
         Some(JointHandle::Impulse(handle)) => {
             state.world.remove_impulse_joint(handle);
@@ -246,7 +254,15 @@ pub(crate) fn remove_joint(eng: &Engine, entity: Entity) {
 pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let state = eng.resource::<PhysicsState>();
     let state = state.borrow();
-    let reference = state.joints.get(&entity)?;
+    // Authored values first, so a joint waiting for its other end still
+    // reports what it is waiting to be.
+    let authored = state
+        .joint_params
+        .get(&entity)
+        .and_then(|params| params.as_table().cloned())?;
+    let Some(reference) = state.joints.get(&entity) else {
+        return Some(toml::Value::Table(authored));
+    };
     let data = match &reference.handle {
         JointHandle::Impulse(handle) => state.world.impulse_joints.get(*handle)?.data,
         JointHandle::Multibody(handle) => {
@@ -256,7 +272,7 @@ pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Val
     };
     let f = |value: f32| toml::Value::Float(f64::from(value));
     let vec3 = |v: Vec3| toml::Value::Array(vec![f(v.x), f(v.y), f(v.z)]);
-    let mut map = toml::map::Map::new();
+    let mut map = authored;
     map.insert("anchor".into(), vec3(data.local_anchor1()));
     map.insert("other_anchor".into(), vec3(data.local_anchor2()));
     map.insert("contacts".into(), data.contacts_enabled().into());
@@ -289,6 +305,23 @@ fn impulse_magnitude(impulses: &[f32; 6]) -> f32 {
 /// angular), which rapier hands back as a vector.
 pub(crate) fn impulse_magnitude_2d(impulses: &glamx::Vec3) -> f32 {
     impulses.length()
+}
+
+/// Joints authored but not yet made, because the node at the other end had
+/// not been spawned when this one was.
+///
+/// A scene file names nodes in whatever order it likes, and a joint that
+/// pointed forwards used to be silently inert. Retried once per step, over
+/// the few that are unresolved rather than over every joint.
+pub(crate) fn pending(state: &PhysicsState) -> Vec<Entity> {
+    let mut out: Vec<Entity> = state
+        .joint_params
+        .keys()
+        .filter(|entity| !state.joints.contains_key(*entity))
+        .copied()
+        .collect();
+    out.sort_unstable_by_key(|e| e.to_bits());
+    out
 }
 
 /// Joints whose reaction force passed their `break_force` this step.

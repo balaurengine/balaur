@@ -293,3 +293,111 @@ fn a_session_name_is_a_file_name() {
     assert!(!name.contains(' '), "a space in a path is a mistake waiting");
     assert!(name.starts_with("20"), "it still reads as a date: {name:?}");
 }
+
+/// A script that moves its node every fixed step, so the world it leaves
+/// depends on how many steps ran and on nothing else.
+const MOVER: &str = r#"
+pub fn init(this) {
+    this.n = 0;
+}
+
+pub fn fixed_update(this, dt) {
+    this.n = this.n + 1;
+    this.node.set_position(this.n as f64 * 0.25, 0.0, 0.0);
+}
+"#;
+
+const DRIVER: &str = r#"
+pub fn init(this) {
+    this.at = 0;
+    this.step = 0;
+}
+
+// The editor loads and plays from inside a frame, not between two: what the
+// rest of that frame does to the world is the thing under test.
+pub fn update(this, dt) {
+    this.at = this.at + 1;
+    if this.step == 1 && this.at == 1 {
+        this.step = 2;
+        replay::load(this.file);
+        replay::play();
+    }
+}
+
+pub fn arm(this) {
+    this.step = 1;
+    this.at = 0;
+    ""
+}
+
+pub fn start(this) {
+    this.file = replay::record("session.blr", #{ digest: true });
+    this.file
+}
+
+pub fn stop(this) {
+    replay::stop("stop");
+    ""
+}
+
+pub fn load(this) {
+    replay::load(this.file);
+    ""
+}
+
+pub fn play(this) {
+    replay::play();
+    ""
+}
+
+pub fn diverged(this) {
+    let d = replay::diverged();
+    if d is Object { format!("tick {}", d.tick) } else { "" }
+}
+"#;
+
+/// What the editor does when it replays: the scene is torn down and rebuilt
+/// in the same process, and the recording is fed into the new one. A replay
+/// that only worked from a fresh process would be no use in an editor.
+#[test]
+fn a_replay_reproduces_the_recording_after_the_scene_is_rebuilt() {
+    capture_logs();
+    let dir = project(&[("m.rn", MOVER), ("d.rn", DRIVER)]);
+    let mut app = app_in(dir.path());
+    let driver = attach(&app, "Driver", "d.rn");
+
+    let build = |app: &App| {
+        let root = app.engine.root();
+        let game = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Game", root);
+        app.engine.set_debug_scope(Some(game));
+        let mover = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Mover", game);
+        app.engine
+            .script_host()
+            .unwrap()
+            .attach(balaur_core::node_id_of(mover), "m.rn")
+            .unwrap();
+        game
+    };
+
+    let game = build(&app);
+    call(&app, driver, "start");
+    for _ in 0..5 {
+        app.advance(1.0 / 60.0);
+    }
+    call(&app, driver, "stop");
+
+    // Tear the scene down and build it again, as `build_mirror` does.
+    app.engine.push_command(balaur_core::Command::Free(game));
+    app.advance(1.0 / 60.0);
+    build(&app);
+
+    call(&app, driver, "arm");
+    for _ in 0..14 {
+        app.advance(1.0 / 60.0);
+    }
+    assert_eq!(
+        text(call(&app, driver, "diverged")),
+        "",
+        "a rebuilt scene fed the same input has to reach the same world"
+    );
+}

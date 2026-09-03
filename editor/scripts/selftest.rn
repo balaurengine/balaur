@@ -642,3 +642,76 @@ fn replayed_and_check(S, d) {
     S.session.demo = ();
     log::info("selftest session: done");
 }
+
+// The profiler's data path. Drawing is what the dock does and a headless run
+// cannot exercise it; what it can check is that `engine::timings()` answers
+// with the shape the dock reads.
+//
+// A start-up state runs inside `init`, before the first frame has ended, so
+// every duration here is legitimately zero. That the numbers are real is
+// `crates/balaur_core/tests/timings.rs`' job — this is about the shape.
+pub fn timings(S) {
+    let t = engine::timings();
+    if !check(t is Object, "engine::timings() answers with a table") {
+        return;
+    }
+    check(t.contains_key("frame") && t.contains_key("fixed_steps"),
+        "it carries the frame and its fixed steps");
+    check(t.contains_key("spans"), "and a place for named spans");
+    let stages = util::obj(t.get("stages").unwrap_or(()));
+    for name in ["first", "pre_update", "update", "fixed_update", "post_update",
+                 "scene_sync", "render", "last"] {
+        if !check(stages.contains_key(name), format!("stage '{}' is in the table", name)) {
+            return;
+        }
+    }
+    let total = 0.0;
+    for (_, seconds) in stages.iter() {
+        total += util::f(seconds);
+    }
+    // The frame contains its stages and the gaps between them, so it is never
+    // the smaller number. A profiler that said otherwise would be measuring
+    // something else.
+    check(util::f(t.frame) >= total - 1e-9,
+        format!("the frame ({}) covers its stages ({})", util::f(t.frame), total));
+    log::info("selftest timings: done");
+}
+
+// Placing a prefab from the editor: the palette's verb adds an instance node,
+// the engine builds the prefab under it, and undo takes the whole thing back.
+pub fn placing(S) {
+    let scenes = model::scene_files(S);
+    let candidates = [];
+    for rel in scenes {
+        if rel != S.scene_rel {
+            candidates.push(rel);
+        }
+    }
+    if candidates.is_empty() {
+        log::info("selftest placing: this project has no second scene to instance, skipped");
+        return;
+    }
+    let rel = candidates[0];
+    let before = S.doc.len();
+    let authored_before = model::authored(S.doc).len();
+    shell::choose(S, 0);
+
+    model::instance_scene(S, rel);
+    let node = S.doc[S.sel];
+    check(node.get("instance") == Some(rel), format!("the new node instances {}", rel));
+    check(model::authored(S.doc).len() == authored_before + 1,
+        "exactly one row was added to the file");
+    check(S.doc.len() > authored_before + 1,
+        format!("and the prefab's own rows came with it ({} in all)", S.doc.len()));
+    check(mirror_resolves(S), "every row resolves, the new prefab's included");
+
+    // A scene that instanced itself would recurse; the verb refuses.
+    let held = S.doc.len();
+    model::instance_scene(S, S.scene_rel);
+    check(S.doc.len() == held, "a scene refuses to instance itself");
+
+    shell::undo(S);
+    check(S.doc.len() == before, format!("undo takes the instance back ({} rows)", S.doc.len()));
+    check(mirror_resolves(S), "and the mirror is whole again");
+    log::info("selftest placing: done");
+}

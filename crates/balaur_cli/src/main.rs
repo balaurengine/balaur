@@ -46,6 +46,10 @@ enum Command {
         /// differ diverged at the first differing line.
         #[arg(long, value_name = "PATH")]
         trace_digest: Option<PathBuf>,
+        /// Print what each frame stage cost when the run ends: mean, worst
+        /// and share of a 60 Hz frame. What a budget is set against.
+        #[arg(long)]
+        timings: bool,
         /// Record the session — every tick's input and digest — to a file
         /// `balaur replay` can play back.
         #[arg(long, value_name = "PATH")]
@@ -221,6 +225,7 @@ fn main() -> Result<()> {
             offscreen,
             fixed_tick,
             trace_digest,
+            timings,
             record,
             debug,
             debug_wait,
@@ -231,6 +236,7 @@ fn main() -> Result<()> {
             offscreen,
             fixed_tick,
             trace_digest,
+            timings,
             record,
             debug,
             debug_wait,
@@ -657,9 +663,25 @@ struct RunOpts {
     offscreen: bool,
     fixed_tick: bool,
     trace_digest: Option<PathBuf>,
+    timings: bool,
     record: Option<PathBuf>,
     debug: Option<u16>,
     debug_wait: bool,
+}
+
+/// Fold every frame's timings into one log, kept by the caller so it survives
+/// the loop that consumes the app.
+fn log_timings(app: &mut App) -> std::rc::Rc<std::cell::RefCell<balaur::timings::TimingLog>> {
+    let log = std::rc::Rc::new(std::cell::RefCell::new(
+        balaur::timings::TimingLog::default(),
+    ));
+    let sink = log.clone();
+    app.add_system(balaur::Stage::Last, move |eng, _| {
+        let timings = eng.resource::<balaur::timings::Timings>();
+        let timings = timings.borrow();
+        sink.borrow_mut().observe(&timings);
+    });
+    log
 }
 
 /// Append `<tick> <digest>` per frame, at the end of the frame.
@@ -714,7 +736,12 @@ fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<
             }
         }
         if verify {
-            if let Some(d) = app.engine.resource::<balaur::replay::ReplayPlayer>().borrow().diverged {
+            if let Some(d) = app
+                .engine
+                .resource::<balaur::replay::ReplayPlayer>()
+                .borrow()
+                .diverged
+            {
                 anyhow::bail!(
                     "tick {}: recorded {} but replayed {}\n\
                      run `balaur replay <file> --entries-at {}` on both machines and diff",
@@ -744,6 +771,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         offscreen,
         fixed_tick,
         trace_digest,
+        timings: _,
         record,
         debug,
         debug_wait,
@@ -783,6 +811,8 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     let title = app
         .manifest()
         .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
+    // Registered last, so the frame it folds in is the whole frame.
+    let timings = opts.timings.then(|| log_timings(&mut app));
     if headless && !offscreen {
         match frames {
             Some(frames) => {
@@ -791,6 +821,9 @@ fn run_project(opts: &RunOpts) -> Result<()> {
                 }
             }
             None => app.run(),
+        }
+        if let Some(log) = &timings {
+            print!("{}", log.borrow().report());
         }
         return Ok(());
     }
@@ -806,10 +839,15 @@ fn run_project(opts: &RunOpts) -> Result<()> {
             }
         });
     }
-    if offscreen {
-        return balaur::run_offscreen(app, &title, OFFSCREEN_SIZE.0, OFFSCREEN_SIZE.1);
+    let ran = if offscreen {
+        balaur::run_offscreen(app, &title, OFFSCREEN_SIZE.0, OFFSCREEN_SIZE.1)
+    } else {
+        balaur::run(app, &title)
+    };
+    if let Some(log) = &timings {
+        print!("{}", log.borrow().report());
     }
-    balaur::run(app, &title)
+    ran
 }
 
 /// How long `--debug-wait` holds the boot for a client. Long enough to start

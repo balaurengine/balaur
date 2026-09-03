@@ -786,6 +786,34 @@ app the game would boot (`AppConfig::export`) and compiles through its host.
 Compiling against a bare `rune::Context` instead — which is what it used to do
 — rejects every script that touches the engine.
 
+## Timings
+
+`App::tick` measures each stage and publishes the frame whole, so a reader
+never sees half of one. `engine.timings()` hands a script the last frame in
+seconds — `{ frame, fixed_steps, stages, spans }` — and the editor's Profiler
+dock draws it as a bar per stage against the 16.7 ms a 60 Hz frame has.
+Headless runs print the same numbers as a summary with `balaur run --timings`:
+mean, worst and share of a frame, which is what a budget is set against and
+what `scripts/bench.py` already speaks.
+
+Stages are coarse on purpose — they cost nine `Instant::now()` calls a frame,
+beneath the noise of what they measure. Anything finer is a **named span**:
+`timings::measure(eng, "physics/step", || ...)` files a duration under a name,
+and only a plugin that asks for one pays for it. Core names its own
+(`scripts/update`, `scripts/fixed_update`, `scripts/reload`,
+`scene/transforms`), which is what turns "fixed_update costs 9% of a frame"
+into "and almost none of it is script".
+
+`fixed_steps` is reported beside the stages because `fixed_update` reading as
+free usually means the accumulator had nothing to drain, not that the
+simulation is cheap.
+
+**Timings are an observer, exactly as rendering is.** Wall time is not
+reproducible, so a `fixed_update` that branched on it would desync — and the
+digest would say so at the first tick that parted, since no timing is
+recorded, replayed or hashed. Reading them from `update`, a tool or a dock is
+what they are for.
+
 ## Determinism
 
 Cross-platform determinism is a core feature: identical inputs must produce
@@ -981,6 +1009,29 @@ The id counter is snapshotted with the rest, so a rollback that re-simulates
 a spawn mints the id the first run minted instead of the next one. Nothing
 forces a new subsystem to register a source, the same shape of gap the digest
 has.
+
+`balaur_core::rollback` is what drives all of it. A `Session` owns the tick
+number, a ring of recent snapshots and a journal of who pressed what when.
+Each tick it captures the world, decides every player's input, and steps. An
+input that has not arrived is predicted by repeating that player's last one,
+which is right for a held button and wrong exactly when the button changed.
+When the real input turns up and disagrees with what was predicted, the
+session restores the tick before it and re-runs every tick since; one that
+agrees costs nothing, so a healthy connection never rolls back at all.
+
+Two things make the re-run invisible. The clock is a snapshot source, so a
+re-run of tick 3 reports tick 3 rather than whatever the counter had reached.
+And `rollback::is_resimulating` is set for the duration, which
+`ExternalIo::start` checks alongside `is_playing` — the same choke point that
+keeps a replay off the network keeps a second run of a tick off it. A
+subsystem that reaches the outside by some other route has the same gap it
+already has for replay.
+
+What it does not do yet: cross a wire. Nothing sends a journal between two
+processes, so this is rollback against local players and a test harness. An
+input older than the ring is logged and dropped rather than resynced, and a
+session has to be driven at a fixed step, because the app's substep
+accumulator lives outside the snapshot.
 
 ## Networking and state sync (planned)
 
@@ -1287,7 +1338,7 @@ website's roadmap is the short form of this list.
 
 | Item | Plan |
 | --- | --- |
-| Tilemap editor, curve editor and onion skin, profiler | `docs/PLAN-editor.md` §6 |
+| Tilemap editor, curve editor and onion skin | `docs/PLAN-editor.md` §6 |
 | Debugger over the Debug Adapter Protocol | `docs/PLAN-debugger.md` phase 6 |
 | `#[export]` on a script constant, in place of the `exports` table | `docs/PLAN-scripting.md` phase 3 |
 | Stable asset ids, rename refactoring, sprite-sheet import | `docs/PLAN-scenes-and-assets.md` phases 3, 5, 6 |

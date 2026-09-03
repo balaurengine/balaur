@@ -789,6 +789,104 @@ pub fn prefab_of(S, node) {
     }
 }
 
+// Every scene file under `scenes/`, which is what a prefab can be.
+//
+// The convention is the one the Assets dock already opens on: a `.toml` under
+// `scenes/` is a scene, anything else is an asset.
+pub fn scene_files(S) {
+    let out = [];
+    for name in list(S, "scenes") {
+        if name.ends_with(".toml") {
+            out.push("scenes/" + name);
+        }
+    }
+    out
+}
+
+// Add a child of the selection that instances `rel`. The other half of
+// prefabs: without it the only way to place one is to type the key by hand.
+//
+// The child is a plain node carrying `instance`, so it keeps its own name and
+// transform and the prefab's roots become its children — the shape the engine
+// builds and `expand_instances` mirrors.
+pub fn instance_scene(S, rel) {
+    if refuse_structure(S, "instance a scene") {
+        return;
+    }
+    if rel == S.scene_rel {
+        log::warn("a scene cannot instance itself");
+        return;
+    }
+    history::record(S, "instance " + rel, None);
+    let base = prefab_name(rel);
+    let name = base;
+    let n = 1;
+    while name_taken(S.doc, name) {
+        n += 1;
+        name = format!("{}{}", base, n);
+    }
+    S.doc.push(#{
+        id: fresh_id(S.doc, name),
+        name: name,
+        parent: S.doc[S.sel].get("id").unwrap_or(""),
+        instance: rel,
+        position: [0.0, 0.0, 0.0],
+    });
+    // The engine builds the prefab, so the mirror has to be rebuilt rather
+    // than grown a node: `expand_instances` reads the file again with it.
+    expand_instances(S);
+    build_mirror(S);
+    for (i, node) in S.doc.iter().enumerate() {
+        if node.name == name {
+            S.sel = i;
+        }
+    }
+    log::info("instanced " + rel);
+}
+
+// `scenes/enemy_camp.toml` -> `EnemyCamp`, so a placed prefab is named for
+// what it is rather than for its path.
+fn prefab_name(rel) {
+    let file = util::last_segment(rel);
+    let stem = match file.split_once('.') {
+        Some((stem, _)) => stem,
+        None => file,
+    };
+    let out = "";
+    let upper = true;
+    for c in stem.chars() {
+        if c == '_' || c == '-' {
+            upper = true;
+        } else if upper {
+            out.extend(c.to_uppercase());
+            upper = false;
+        } else {
+            out.push(c);
+        }
+    }
+    if out == "" { "Instance" } else { out }
+}
+
+// Open the prefab behind the selection — the instance node's file, or the one
+// the selected row came from. The button an instance row wants.
+pub fn open_prefab(S) {
+    let node = S.doc[S.sel];
+    let rel = if node.contains_key("instance") {
+        Some(node.instance)
+    } else if is_instanced(node) {
+        match by_id(S.doc, node.owner) {
+            Some(owner) => owner.get("instance"),
+            None => None,
+        }
+    } else {
+        None
+    };
+    match rel {
+        Some(rel) => open_scene(S, rel),
+        None => log::info("the selection is not an instance and did not come from one"),
+    }
+}
+
 pub fn add_child(S, preset) {
     if refuse_structure(S, "add a node") {
         return;

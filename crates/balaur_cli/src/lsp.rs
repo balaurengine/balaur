@@ -118,15 +118,17 @@ impl Server {
                 write_message(writer, &reply)?;
             }
             "shutdown" => {
-                write_message(writer, &json!({ "jsonrpc": "2.0", "id": id, "result": null }))?;
+                write_message(
+                    writer,
+                    &json!({ "jsonrpc": "2.0", "id": id, "result": null }),
+                )?;
             }
             "exit" => return Ok(true),
             "textDocument/didOpen" => {
                 let document = &message["params"]["textDocument"];
-                if let (Some(uri), Some(text)) = (
-                    document["uri"].as_str(),
-                    document["text"].as_str(),
-                ) {
+                if let (Some(uri), Some(text)) =
+                    (document["uri"].as_str(), document["text"].as_str())
+                {
                     self.set_open(uri, text);
                     self.publish(writer)?;
                 }
@@ -153,7 +155,10 @@ impl Server {
             // A request we do not serve still needs an answer, or a client
             // that waits for one hangs.
             _ if id.is_some() => {
-                write_message(writer, &json!({ "jsonrpc": "2.0", "id": id, "result": null }))?;
+                write_message(
+                    writer,
+                    &json!({ "jsonrpc": "2.0", "id": id, "result": null }),
+                )?;
             }
             _ => {}
         }
@@ -186,10 +191,7 @@ impl Server {
         }
         // Every file that had findings and no longer does gets an empty list,
         // which is how LSP says "clear what I sent you".
-        let now: BTreeSet<String> = by_file
-            .keys()
-            .map(|file| self.uri_of(file))
-            .collect();
+        let now: BTreeSet<String> = by_file.keys().map(|file| self.uri_of(file)).collect();
         for uri in self.published.difference(&now) {
             write_message(writer, &notification(uri, &[]))?;
         }

@@ -123,7 +123,9 @@ impl<E: Clone + Serialize + DeserializeOwned> ExternalIo<E> {
     /// Returns whether `spawn` ran, for the caller that must skip bookkeeping
     /// of its own.
     pub fn start(&self, eng: &Engine, spawn: impl FnOnce(&Sender<E>)) -> bool {
-        if is_playing(eng) {
+        // A replay must not reach the network, and neither must a tick the
+        // session is running for the second time.
+        if is_playing(eng) || crate::rollback::is_resimulating(eng) {
             return false;
         }
         spawn(&self.report);
@@ -410,12 +412,7 @@ impl Recorder {
     /// Flushed per frame: a session that crashes is exactly the session
     /// worth having recorded.
     pub fn write(&mut self, frame: &Frame) -> Result<()> {
-        if let Some(mut header) = self.header.take() {
-            // Only the first frame says where the session really starts: a
-            // `record` call inside a frame is recorded from that frame, one
-            // between two frames from the next.
-            header.origin.tick = frame.tick.saturating_sub(1);
-            header.origin.time -= f64::from(frame.step());
+        if let Some(header) = self.header.take() {
             self.write_line(&header)?;
         }
         self.write_line(frame)?;
@@ -604,6 +601,13 @@ pub(crate) fn record_frame_system(eng: &Engine, dt: f32) {
             eng.resource::<EventLog>().borrow_mut().0.clear();
             return;
         }
+        // Only the first frame written says where the session really starts,
+        // and it says it from the clock: a `record` call inside a frame is
+        // recorded from that frame, one between two frames from the next.
+        if let Some(header) = recorder.header.as_mut() {
+            header.origin.tick = eng.tick().saturating_sub(1);
+            header.origin.time = eng.time() - f64::from(dt);
+        }
         let mut events = std::mem::take(&mut eng.resource::<EventLog>().borrow_mut().0);
         events.extend(recorder.fresh_logs());
         events.extend(recorder.fresh_pause(eng));
@@ -616,6 +620,15 @@ pub(crate) fn record_frame_system(eng: &Engine, dt: f32) {
                 .then(|| crate::digest::digest(eng).0),
             events,
         };
+        if std::env::var("BALAUR_DUMP")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            == Some(eng.tick())
+        {
+            for e in crate::digest::entries(eng) {
+                eprintln!("REC {} {}", e.label, e.digest);
+            }
+        }
         if let Err(e) = recorder.write(&frame) {
             tracing::error!(error = %e, "writing the recording");
         }
@@ -956,6 +969,15 @@ pub(crate) fn after_frame(eng: &Engine) {
         (expected, player.cursor >= session.frames.len())
     };
     if let Some((tick, expected)) = expected {
+        if std::env::var("BALAUR_DUMP")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            == Some(tick)
+        {
+            for e in crate::digest::entries(eng) {
+                eprintln!("PLAY {} {}", e.label, e.digest);
+            }
+        }
         let live = crate::digest::digest(eng).0;
         if live != expected && player.diverged.is_none() {
             player.diverged = Some(Divergence {

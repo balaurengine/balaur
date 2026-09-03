@@ -106,9 +106,6 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
         ("convex_hull", &[], "(mesh: any)", "The tightest convex shape containing every point: what a dynamic collider wants when the model is concave."),
         ("convex_decomposition", &[], "(mesh: any, opts: table?)", "The mesh cut into convex pieces, each one a mesh: the only way to collide a concave shape dynamically."),
         ("voxelize", &[], "(mesh: any, opts: table?)", "The mesh as a voxel grid — `#{ size, cells }`, ready to be a `voxels` asset — so a model can become destructible terrain."),
-        ("split", &[], "(mesh: any, opts: table)", "Cut the mesh with a plane, returning the two halves: `#{ point = [..], normal = [..] }`."),
-        ("intersect", &[], "(a: any, b: any)", "The mesh both meshes have in common, or nothing when they do not overlap."),
-        ("pieces", &[], "(mesh: any)", "The mesh's separate parts, one mesh each: what a model that was already broken is made of."),
     ]);
     m.function("convex_hull", |eng: &Engine, mesh: Value| {
         let (points, _) = mesh_of(eng, Some(&mesh))?;
@@ -184,6 +181,18 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
             ]))
         },
     );
+}
+
+/// Cutting a mesh and combining two: the operations that make new geometry
+/// rather than describing what is there.
+///
+/// Split from [`install_geometry_api`] under `MAX_FN_LINES`.
+pub(crate) fn install_mesh_edit_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("split", &[], "(mesh: any, opts: table)", "Cut the mesh with a plane, returning the two halves: `#{ point = [..], normal = [..] }`."),
+        ("intersect", &[], "(a: any, b: any)", "The mesh both meshes have in common, or nothing when they do not overlap."),
+        ("pieces", &[], "(mesh: any)", "The mesh's separate parts, one mesh each: what a model that was already broken is made of."),
+    ]);
     m.function("split", |eng: &Engine, (mesh, opts): (Value, Value)| {
         let (points, indices) = mesh_of(eng, Some(&mesh))?;
         let opts = Opts(Some(&opts));
@@ -261,3 +270,4 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
         ))
     });
 }
+

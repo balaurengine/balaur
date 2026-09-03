@@ -48,7 +48,22 @@ runs headless (tests, servers, CI). Three run modes: a window by default,
 `--headless` for no renderer at all, and `--offscreen` for a real GPU with no
 window — what an automation client or a visual CI job wants. `--frames N`
 stops after N frames. To capture a frame, the game or tool calls
-`render.screenshot("out.png")` at the moment worth capturing.
+`render.screenshot("out.png")` at the moment worth capturing. `--timings`
+prints what each frame stage cost when the run ends — mean, worst, and share
+of the 16.7 ms a 60 Hz frame has:
+
+```
+stage                        mean      worst   of frame
+fixed_update             1.567 ms  45.366 ms       9.4%
+update                   1.168 ms  19.918 ms       7.0%
+  scripts/update         1.148 ms  19.851 ms       6.9%
+  scripts/fixed_update   0.006 ms   0.058 ms       0.0%
+frame                    3.235 ms  65.948 ms      19.4%   over 120 frames
+```
+
+The indented rows are named spans, so "fixed_update costs 9% of a frame"
+becomes "and almost none of it is script". The editor draws the same numbers
+in its Profiler dock.
 
 A script has lifecycle methods and is attached to a node. Scripts are Rune:
 

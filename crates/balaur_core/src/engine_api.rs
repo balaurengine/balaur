@@ -125,6 +125,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: component_properties,
     },
     EngineOp {
+        module: "engine",
+        name: "timings",
+        call: timings,
+    },
+    EngineOp {
         module: "skeleton",
         name: "apply_rest",
         call: crate::skeleton::apply_rest_op,
@@ -311,6 +316,8 @@ pub fn install_engine_api(eng: &Engine) -> Result<()> {
     crate::replay_api::install_replay_api(&mut *replay);
     let mut math = host.module("math")?;
     crate::math_api::install_math_api(&mut *math);
+    let mut rollback = host.module("rollback")?;
+    crate::rollback_api::install_rollback_api(&mut *rollback);
     Ok(())
 }
 
@@ -340,6 +347,7 @@ fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
     );
     m.describe(&[
         ("time", &[], "()", "Seconds of engine time since the app started, accumulated as a float."),
+        ("timings", &[], "()", "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only — branching a `fixed_update` on wall time desyncs, and nothing records it."),
         ("delta", &[], "()", "Seconds the frame in progress covers, the same number a system is handed."),
         ("tick", &[], "()", "Which frame this is, counted whole — what simulation code branches on instead of `time`."),
         ("quit", &[], "()", "Ask the app to shut down; the frame in flight still finishes."),
@@ -688,6 +696,14 @@ fn component_schema(eng: &Engine, args: &[Value]) -> Result<Value> {
     registry.def(text(args, 0)?).map_or(Ok(Value::Nil), |def| {
         crate::node_api::from_toml(&def.schema)
     })
+}
+
+/// `engine.timings()` — what the last frame cost.
+///
+/// Presentation, like `engine.time()`: reading it from `fixed_update` would
+/// branch the simulation on wall time, which no two machines agree about.
+fn timings(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(crate::timings::table(eng))
 }
 
 /// The whole property table a scene key's value stands for.

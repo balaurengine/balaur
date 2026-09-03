@@ -143,39 +143,50 @@ pub struct App {
     accumulator: f32,
 }
 
+/// The typemap entries every app has, whatever plugins it goes on to add.
+///
+/// Its own function because `App::new` is otherwise a list of twenty-odd
+/// inserts with the interesting work at the bottom.
+fn insert_core_resources(engine: &Engine, config: &AppConfig) {
+    engine.insert_resource(SceneKeyRegistry::default());
+    engine.insert_resource(crate::components::ComponentRegistry::default());
+    engine.insert_resource(crate::presets::PresetRegistry::default());
+    engine.insert_resource(crate::assets::AssetTypeRegistry::default());
+    engine.insert_resource(crate::assets::AssetState::default());
+    engine.insert_resource(ProjectRoot(config.project_root.clone()));
+    // A packed game serves its textures, sounds and fonts from the pack;
+    // a dev run serves them from the source tree.
+    engine.insert_resource(match config.pack.as_ref() {
+        Some(pack) => crate::project::ProjectFiles::packed(
+            config.project_root.clone(),
+            pack.assets.clone(),
+            crate::project::ProjectManifest::parse(&pack.manifest)
+                .map(|m| m.assets)
+                .unwrap_or_default(),
+        ),
+        None => crate::project::ProjectFiles::directory(config.project_root.clone()),
+    });
+    engine.insert_resource(ScriptArgs(config.script_args.clone()));
+    engine.insert_resource(crate::rng::RngState::default());
+    engine.insert_resource(crate::ids::IdAllocator::default());
+    engine.insert_resource(crate::rollback::TickInputs::default());
+    engine.insert_resource(crate::rollback::Resimulating::default());
+    engine.insert_resource(crate::digest::DigestRegistry::default());
+    engine.insert_resource(crate::replay::ReplayRegistry::default());
+    engine.insert_resource(crate::replay::ReplaySetupRegistry::default());
+    engine.insert_resource(crate::timings::Timings::default());
+    engine.insert_resource(crate::replay::ReplayFeed::default());
+    engine.insert_resource(crate::replay::ReplayMode::default());
+    engine.insert_resource(crate::replay::Recording::default());
+    engine.insert_resource(crate::replay::ReplayPlayer::default());
+    engine.insert_resource(crate::replay::EventLog::default());
+    engine.insert_resource(crate::snapshot::SnapshotRegistry::default());
+}
+
 impl App {
     pub fn new(mut config: AppConfig) -> Result<Self> {
         let engine = Engine::new();
-        engine.insert_resource(SceneKeyRegistry::default());
-        engine.insert_resource(crate::components::ComponentRegistry::default());
-        engine.insert_resource(crate::presets::PresetRegistry::default());
-        engine.insert_resource(crate::assets::AssetTypeRegistry::default());
-        engine.insert_resource(crate::assets::AssetState::default());
-        engine.insert_resource(ProjectRoot(config.project_root.clone()));
-        // A packed game serves its textures, sounds and fonts from the pack;
-        // a dev run serves them from the source tree.
-        engine.insert_resource(match config.pack.as_ref() {
-            Some(pack) => crate::project::ProjectFiles::packed(
-                config.project_root.clone(),
-                pack.assets.clone(),
-                crate::project::ProjectManifest::parse(&pack.manifest)
-                    .map(|m| m.assets)
-                    .unwrap_or_default(),
-            ),
-            None => crate::project::ProjectFiles::directory(config.project_root.clone()),
-        });
-        engine.insert_resource(ScriptArgs(config.script_args.clone()));
-        engine.insert_resource(crate::rng::RngState::default());
-        engine.insert_resource(crate::ids::IdAllocator::default());
-        engine.insert_resource(crate::digest::DigestRegistry::default());
-        engine.insert_resource(crate::replay::ReplayRegistry::default());
-        engine.insert_resource(crate::replay::ReplaySetupRegistry::default());
-        engine.insert_resource(crate::replay::ReplayFeed::default());
-        engine.insert_resource(crate::replay::ReplayMode::default());
-        engine.insert_resource(crate::replay::Recording::default());
-        engine.insert_resource(crate::replay::ReplayPlayer::default());
-        engine.insert_resource(crate::replay::EventLog::default());
-        engine.insert_resource(crate::snapshot::SnapshotRegistry::default());
+        insert_core_resources(&engine, &config);
         if let Some(make) = config.script_backend.take() {
             engine.set_script_host(make(ScriptSetup {
                 engine: &engine,
@@ -219,24 +230,26 @@ impl App {
         });
         app.add_system(Stage::PreUpdate, |eng, _| {
             if let Some(host) = eng.script_host() {
-                host.pump_reloads();
+                crate::timings::measure(eng, "scripts/reload", || host.pump_reloads());
             }
         });
         app.add_system(Stage::Update, |eng, dt| {
             if let Some(host) = eng.script_host() {
-                host.update(dt);
+                crate::timings::measure(eng, "scripts/update", || host.update(dt));
             }
         });
         // First in the stage, so a force a script applies lands on the step
         // that physics is about to take.
         app.add_system(Stage::FixedUpdate, |eng, dt| {
             if let Some(host) = eng.script_host() {
-                host.fixed_update(dt);
+                crate::timings::measure(eng, "scripts/fixed_update", || host.fixed_update(dt));
             }
         });
         app.add_system(Stage::SceneSync, |eng, _| {
-            let root = eng.root();
-            scene::propagate_transforms(&mut eng.world_mut(), root);
+            crate::timings::measure(eng, "scene/transforms", || {
+                let root = eng.root();
+                scene::propagate_transforms(&mut eng.world_mut(), root);
+            });
         });
         app.add_system(Stage::Last, |eng, _| {
             for cmd in eng.take_commands() {
@@ -274,6 +287,16 @@ impl App {
     /// real time rather than take a bigger step, because a bigger step is a
     /// different simulation. Off by default — a variable step is smoother
     /// for a single-player game that never records or networks anything.
+    /// The step one [`App::tick`] is worth: `set_fixed_dt` where a game set
+    /// one, [`FIXED_DT`] otherwise.
+    ///
+    /// A rollback session drives at exactly this, so the substep accumulator
+    /// is back at zero every time it captures.
+    #[must_use]
+    pub fn fixed_step(&self) -> f32 {
+        self.fixed_dt.unwrap_or(FIXED_DT)
+    }
+
     pub fn set_fixed_dt(&mut self, dt: Option<f32>) -> &mut Self {
         self.fixed_dt = dt;
         self
@@ -619,17 +642,27 @@ impl App {
     }
 
     /// Run one frame at exactly `dt`, whatever the fixed-step policy says.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "times the frame for the profiler; systems are fed dt, never the clock"
+    )]
     pub fn tick(&mut self, dt: f32) {
+        let frame_started = std::time::Instant::now();
+        let mut stages = [std::time::Duration::ZERO; STAGE_COUNT];
+        let mut fixed_steps = 0;
         self.engine.advance_time(dt);
-        for stage in 0..STAGE_COUNT {
+        for (stage, elapsed) in stages.iter_mut().enumerate() {
+            let started = std::time::Instant::now();
             if stage == Stage::FixedUpdate as usize {
-                self.run_fixed_steps(dt);
-                continue;
+                fixed_steps = self.run_fixed_steps(dt);
+            } else {
+                for system in &mut self.systems[stage] {
+                    system(&self.engine, dt);
+                }
             }
-            for system in &mut self.systems[stage] {
-                system(&self.engine, dt);
-            }
+            *elapsed = started.elapsed();
         }
+        crate::timings::publish(&self.engine, frame_started.elapsed(), stages, fixed_steps);
     }
 
     /// Drain the accumulator into whole [`FIXED_DT`] steps.
@@ -637,19 +670,22 @@ impl App {
     /// One accumulator for the whole simulation, so scripts and physics take
     /// the same number of steps in the same order every frame. Time past
     /// [`MAX_SUBSTEPS`] is dropped rather than caught up on.
-    fn run_fixed_steps(&mut self, dt: f32) {
+    fn run_fixed_steps(&mut self, dt: f32) -> u32 {
         // A debugger pause holds the simulation: the time is dropped, not owed.
         if self.engine.frozen_root().is_some() {
             self.accumulator = 0.0;
-            return;
+            return 0;
         }
+        let mut steps = 0;
         self.accumulator = (self.accumulator + dt).min(FIXED_DT * MAX_SUBSTEPS as f32);
         while self.accumulator >= FIXED_DT {
             for system in &mut self.systems[Stage::FixedUpdate as usize] {
                 system(&self.engine, FIXED_DT);
             }
             self.accumulator -= FIXED_DT;
+            steps += 1;
         }
+        steps
     }
 
     /// Fixed-cadence main loop (60 Hz), until quit is requested. Rendering

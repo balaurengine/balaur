@@ -220,14 +220,20 @@ import package::mesh::{Light, contribution, VertexInput, VertexOutput, vertex};
         assert!(!wgsl(&linked).contains("@const"), "the output drops it");
     }
 
+    /// A light's intensity is radiance, so Lambert's `1/π` is what turns it
+    /// into reflected colour. Without it the engine's own default intensity
+    /// of 3.0 draws white.
     #[test]
-    fn a_light_straight_on_contributes_its_whole_colour() {
+    fn a_light_straight_on_contributes_its_colour_over_pi() {
         let lit = eval_floats(
             &probe(),
             "directional(vec3<f32>(0.0, -1.0, 0.0), vec3<f32>(0.0, 1.0, 0.0))",
         )
         .unwrap();
-        assert_eq!(lit, vec![1.0, 1.0, 1.0]);
+        let expected = 1.0 / std::f32::consts::PI;
+        for channel in lit {
+            assert!((channel - expected).abs() < 1e-6, "{channel} != {expected}");
+        }
     }
 
     #[test]

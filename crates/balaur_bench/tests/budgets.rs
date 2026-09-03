@@ -5,14 +5,18 @@
 //! have nothing to do with the commit — and a gate that cries wolf gets
 //! ignored, which is worse than no gate.
 //!
-//! Every budget here is at least 10x the measured cost on a developer machine.
-//! They catch an accidental O(n^2), a lock held across a frame, or a compile
-//! moved into the hot path. For real numbers use the benchmarks:
+//! Every budget here is 10x the measured cost, and none of them is written
+//! down twice: each test names the benchmark it gates and reads the ceiling
+//! from budgets.toml, which `bench.py --record` writes from a real run. They
+//! catch an accidental O(n^2), a lock held across a frame, or a compile moved
+//! into the hot path. For real numbers, and to move a ceiling:
 //!
 //! ```text
-//! python3 scripts/bench.py --quick
+//! python3 scripts/bench.py --quick            # the table
+//! python3 scripts/bench.py --quick --record   # rewrite budgets.toml
 //! ```
 
+use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -44,10 +48,31 @@ fn per_iteration(min: Duration, mut f: impl FnMut()) -> Duration {
     start.elapsed() / runs.max(1)
 }
 
-fn assert_under(what: &str, actual: Duration, budget: Duration) {
+/// The ceiling recorded for one benchmark id, from budgets.toml.
+///
+/// Panics rather than skipping: a gate that quietly passes when its number is
+/// missing is the failure mode this whole file exists to avoid.
+fn ceiling(id: &str) -> Duration {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("budgets.toml");
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+    let document: toml::Table = text.parse().expect("budgets.toml is not valid TOML");
+    let ns = document
+        .get("ceiling_ns")
+        .and_then(toml::Value::as_table)
+        .and_then(|t| t.get(id))
+        .and_then(toml::Value::as_integer)
+        .unwrap_or_else(|| {
+            panic!("no ceiling for '{id}'; run `python3 scripts/bench.py --quick --record`")
+        });
+    Duration::from_nanos(ns.try_into().expect("a ceiling is positive"))
+}
+
+fn assert_under(id: &str, actual: Duration) {
+    let budget = ceiling(id);
     assert!(
         actual <= budget,
-        "{what} took {actual:?}, budget is {budget:?} — \
+        "{id} took {actual:?}, budget is {budget:?} — \
          run `python3 scripts/bench.py` to see what moved"
     );
 }
@@ -66,12 +91,7 @@ fn dispatch_over_a_thousand_nodes_stays_inside_a_frame() {
         attach_many(&app, backend, 1000).unwrap();
         let host = app.engine.script_host().unwrap();
         let each = per_iteration(Duration::from_millis(120), || host.update(1.0 / 60.0));
-        // 4ms held on a developer machine; a shared runner has measured 5ms.
-        assert_under(
-            &format!("{}: update over 1000 nodes", backend.name()),
-            each,
-            Duration::from_millis(8),
-        );
+        assert_under("update_per_node/empty_rune/1000", each);
     }
 }
 
@@ -82,14 +102,12 @@ fn attaching_to_a_compiled_script_is_cheap_per_node() {
         let project = Project::new(backend, source).unwrap();
         let app = app(backend, &project).unwrap();
         attach_many(&app, backend, 1).unwrap(); // pay the compile first
+        // A hundred at a time, because that is the batch the benchmark this
+        // gates measures, and the ceiling comes from it.
         let each = per_iteration(Duration::from_millis(120), || {
-            attach_many(&app, backend, 20).unwrap();
+            attach_many(&app, backend, 100).unwrap();
         });
-        assert_under(
-            &format!("{}: attach 20 nodes", backend.name()),
-            each,
-            Duration::from_millis(3),
-        );
+        assert_under("attach_more/rune/100", each);
     }
 }
 
@@ -146,10 +164,6 @@ fn a_binding_call_stays_sub_microsecond() {
         attach_many(&app, backend, 1).unwrap();
         let host = app.engine.script_host().unwrap();
         let each = per_iteration(Duration::from_millis(120), || host.update(1.0 / 60.0));
-        assert_under(
-            &format!("{}: one binding call", backend.name()),
-            each,
-            Duration::from_micros(20),
-        );
+        assert_under("binding_call/rune", each);
     }
 }

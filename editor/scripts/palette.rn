@@ -47,6 +47,15 @@ fn commands(S) {
         command("UI scale +", "＋", "⌘=", || shell::set_ui_scale(S, S.ui_scale + 0.125)),
         command("UI scale −", "−", "⌘-", || shell::set_ui_scale(S, S.ui_scale - 0.125)),
     ];
+    // One command per scene file, the way the channel views are one per
+    // channel: a prefab is placed by name rather than through a picker.
+    for rel in model::scene_files(S) {
+        if rel != S.scene_rel {
+            let scene = rel;
+            list.push(command("Instance " + scene, "⧉", "", || model::instance_scene(S, scene)));
+        }
+    }
+    list.push(command("Open the prefab behind the selection", "⧉", "", || model::open_prefab(S)));
     // Channel views: draw normals, UVs or depth instead of the picture.
     list.push(command("View: colour", "◐", "", || render::set_channel("")));
     for name in render::channels() {

@@ -4,6 +4,10 @@
 
 const MAX_LIGHTS: u32 = 16u;
 
+// Lambert's normalisation. A light's intensity is radiance, and the engine's
+// own default is 3.0, which reads as white without this.
+const INV_PI: f32 = 0.31830988;
+
 struct Light {
     // xyz position, w kind: 0 directional, 1 point, 2 spot.
     position_kind: vec4<f32>,
@@ -111,7 +115,7 @@ fn vertex(in: VertexInput) -> VertexOutput {
         }
     }
     let ndotl = max(dot(n, normalize(to_light)), 0.0);
-    return light.color_intensity.rgb * light.color_intensity.a * ndotl * attenuation;
+    return light.color_intensity.rgb * light.color_intensity.a * ndotl * attenuation * INV_PI;
 }
 
 // Lambert diffuse over every light the frame collected, plus ambient.

@@ -31,10 +31,13 @@ pub mod replay;
 pub mod replay_api;
 pub mod resources;
 pub mod rng;
+pub mod rollback;
+pub mod rollback_api;
 pub mod scene;
 pub mod skeleton;
 pub mod snapshot;
 pub mod standalone;
+pub mod timings;
 pub mod triangulate;
 pub mod voxels;
 
@@ -51,6 +54,7 @@ pub use ids::IdAllocator;
 pub use pack::Pack;
 pub use replay::{ReplayMode, ReplayRegistry};
 pub use resources::Resources;
+pub use rollback::Session;
 pub use scene::{Children, GlobalTransform, Name, Parent, ScriptAttachment, Transform};
 pub use snapshot::{Snapshot, SnapshotRegistry, SnapshotRing};
 

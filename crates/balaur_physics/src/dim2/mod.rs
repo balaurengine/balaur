@@ -38,6 +38,10 @@ pub struct PhysicsState2d {
     pub queries_ready: bool,
     /// Joints per entity, as in the 3D world.
     pub joints: DetHashMap<Entity, joint::JointRef2d>,
+    /// What each collider and joint was authored from, as in the 3D world:
+    /// rapier keeps the shape, not the asset or the choices behind it.
+    pub collider_params: DetHashMap<Entity, toml::Value>,
+    pub joint_params: DetHashMap<Entity, toml::Value>,
     pub paused: bool,
     /// Mirrors `PhysicsState::sleeping_allowed`; `physics.set_sleeping_allowed`
     /// writes both worlds.
@@ -56,6 +60,8 @@ impl PhysicsState2d {
             colliders: DetHashMap::default(),
             queries_ready: false,
             joints: DetHashMap::default(),
+            collider_params: DetHashMap::default(),
+            joint_params: DetHashMap::default(),
             paused: false,
             sleeping_allowed: true,
         }
@@ -77,7 +83,29 @@ pub(crate) fn node_pose_2d(eng: &Engine, entity: Entity) -> Result<Pose2> {
     ))
 }
 
+/// Make the 2D joints whose other end had not been spawned when they were
+/// applied — a scene file names nodes in whatever order it likes.
+fn resolve_pending_joints(eng: &Engine) {
+    let pending = {
+        let state = eng.resource::<PhysicsState2d>();
+        let state = state.borrow();
+        joint::pending(&state)
+    };
+    for entity in pending {
+        let params = {
+            let state = eng.resource::<PhysicsState2d>();
+            let state = state.borrow();
+            state.joint_params.get(&entity).cloned()
+        };
+        let Some(params) = params else { continue };
+        if let Err(why) = joint::apply_joint(eng, entity, &params) {
+            tracing::debug!("joint2d is still waiting: {why:#}");
+        }
+    }
+}
+
 fn step_system(eng: &Engine, _dt: f32) {
+    resolve_pending_joints(eng);
     let events = {
         let state = eng.resource::<PhysicsState2d>();
         let mut state = state.borrow_mut();
@@ -146,14 +174,16 @@ fn step_system(eng: &Engine, _dt: f32) {
 pub fn clear(eng: &Engine) {
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
-    let handles: Vec<_> = state.bodies.values().copied().collect();
-    for handle in handles {
-        state.world.remove_body(handle);
-    }
-    let standalone: Vec<_> = state.colliders.values().flatten().copied().collect();
-    for handle in standalone {
-        state.world.remove_collider(handle);
-    }
+    // A fresh world, not a drained one. Rapier hands a freed handle's slot to
+    // the next body with the generation bumped, and the solver works in
+    // handle order — so a scene rebuilt in place would not simulate the way
+    // the same scene does in a fresh process, and a recorded session would
+    // not replay. Gravity and the step are settings, and carry over.
+    let gravity = state.world.gravity;
+    let params = state.world.integration_parameters;
+    state.world = PhysicsWorld2::default();
+    state.world.gravity = gravity;
+    state.world.integration_parameters = params;
     state.bodies.clear();
     state.colliders.clear();
     state.joints.clear();
@@ -190,7 +220,12 @@ pub fn build(app: &mut App) -> Result<()> {
         install_physics2d_api(&mut *m);
         body::install_body2d_force_api(&mut *m);
         body::install_body2d_state_api(&mut *m);
-        query::install_query2d_api(&mut *m);
+        body::install_body2d_tuning_api(&mut *m);
+        body::install_body2d_sleep_api(&mut *m);
+        body::install_body2d_force_reader_api(&mut *m);
+        query::install_physics2d_query_api(&mut *m);
+        query::install_physics2d_shapecast_api(&mut *m);
+        query::install_physics2d_volume_query_api(&mut *m);
         joint::install_joint2d_api(&mut *m);
         character::install_character2d_api(&mut *m);
     }

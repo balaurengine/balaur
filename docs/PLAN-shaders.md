@@ -21,7 +21,9 @@
 > depth or the bare texture instead of the picture, in 2D and 3D, from the
 > command palette. Phase 7 draws: clicking a shader's gutter previews that
 > line's value. Its *number* is not built — see open question 8 — and
-> publishing the helpers as a crates.io package is a release action.
+> publishing the helpers as a crates.io package is a release action. All of
+> it is verified on a GPU: `balaur run --offscreen` with `render.screenshot`
+> draws through the real pipeline with no window.
 >
 > **Where the implementation decided differently:**
 >
@@ -111,7 +113,15 @@
 >    no breakpoints, so the gesture was free. It is also the better one: a
 >    caret moves constantly and relinking on every keystroke would be worse
 >    than asking.
-> 20. **2D has no room for a fifth group either.** The sprite material already
+> 20. **Two bugs only running found.** `GpuMesh3d`'s `coords_buffer` and its
+>    siblings are unfinished stubs that always answer `None` — the 3D
+>    material drew nothing at all, with no error anywhere; the buffers live
+>    behind the lock, which is what kiss3d's own materials read. And a
+>    light's intensity is radiance, so Lambert's `1/π` is what turns it into
+>    reflected colour: without it the engine's default intensity of 3.0 drew
+>    white. Neither could have been caught by a compiler, a linker or a
+>    headless test.
+> 21. **2D has no room for a fifth group either.** The sprite material already
 >    uses frame, object, texture and params. When `docs/PLAN-rendering.md`
 >    adds 2D lights they fold into the frame group; they cannot take a group
 >    of their own.

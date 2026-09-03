@@ -238,26 +238,6 @@ pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
         ("teleport", &["body2d"], "", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick."),
         ("set_body_kind", &["body2d"], "", "Change the body between dynamic, static and kinematic in place, keeping its velocity."),
         ("body_kind", &["body2d"], "", "Whether the body is dynamic, static, kinematic or kinematic_velocity."),
-        ("set_gravity_scale", &["body2d"], "", "Scale world gravity for this body alone."),
-        ("gravity_scale", &["body2d"], "", "This body's gravity multiplier."),
-        ("set_damping", &["body2d"], "", "Set linear and angular damping together."),
-        ("damping", &["body2d"], "", "This body's linear and angular damping."),
-        ("set_lock_translation", &["body2d"], "", "Freeze the body's movement along x and y."),
-        ("set_lock_rotation", &["body2d"], "", "Freeze the body's spin: how a 2D character stays upright."),
-        ("locked_axes", &["body2d"], "", "Whether x, y and rotation are frozen."),
-        ("set_ccd", &["body2d"], "", "Sweep this body's whole path each step so it cannot pass through a wall."),
-        ("is_ccd", &["body2d"], "", "Whether continuous collision detection is on for this body."),
-        ("set_dominance", &["body2d"], "", "Set the group that decides which of two bodies can push the other."),
-        ("dominance", &["body2d"], "", "This body's dominance group."),
-        ("set_enabled", &["body2d"], "", "Simulate this body or leave it out entirely, keeping its state."),
-        ("is_enabled", &["body2d"], "", "Whether the body is being simulated."),
-        ("sleep", &["body2d"], "", "Put the body to sleep now."),
-        ("wake_up", &["body2d"], "", "Wake the body, so the next step moves it."),
-        ("is_sleeping", &["body2d"], "", "Whether the body is asleep and being skipped."),
-        ("predict_position", &["body2d"], "", "Where the body will be after `dt` seconds at its current velocity."),
-        ("next_position", &["body2d"], "", "The position a kinematic body has been told to move to."),
-        ("wake_all", &[], "()", "Wake every sleeping body in the 2D world."),
-        ("gravity", &[], "", "The 2D world's gravity."),
     ]);
     m.function(
         "velocity_at_point",
@@ -298,6 +278,25 @@ pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
     m.function("body_kind", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, |body| kind_name(body).to_string())
     });
+}
+
+/// How a 2D body is simulated rather than what it is doing.
+///
+/// Split from [`install_body2d_state_api`] under `MAX_FN_LINES`.
+pub(crate) fn install_body2d_tuning_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("set_gravity_scale", &["body2d"], "", "Scale world gravity for this body alone."),
+        ("gravity_scale", &["body2d"], "", "This body's gravity multiplier."),
+        ("set_damping", &["body2d"], "", "Set linear and angular damping together."),
+        ("damping", &["body2d"], "", "This body's linear and angular damping."),
+        ("set_lock_translation", &["body2d"], "", "Freeze the body's movement along x and y."),
+        ("set_lock_rotation", &["body2d"], "", "Freeze the body's spin: how a 2D character stays upright."),
+        ("locked_axes", &["body2d"], "", "Whether x, y and rotation are frozen."),
+        ("set_ccd", &["body2d"], "", "Sweep this body's whole path each step so it cannot pass through a wall."),
+        ("is_ccd", &["body2d"], "", "Whether continuous collision detection is on for this body."),
+        ("set_dominance", &["body2d"], "", "Set the group that decides which of two bodies can push the other."),
+        ("dominance", &["body2d"], "", "This body's dominance group."),
+    ]);
     m.function(
         "set_gravity_scale",
         |eng: &Engine, (node, scale): (NodeId, f32)| {
@@ -378,6 +377,23 @@ pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
             f32::from(body.dominance_group())
         })
     });
+}
+
+/// Whether a 2D body is simulated at all, and whether it is asleep.
+///
+/// Split from [`install_body2d_tuning_api`] under `MAX_FN_LINES`.
+pub(crate) fn install_body2d_sleep_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("set_enabled", &["body2d"], "", "Simulate this body or leave it out entirely, keeping its state."),
+        ("is_enabled", &["body2d"], "", "Whether the body is being simulated."),
+        ("sleep", &["body2d"], "", "Put the body to sleep now."),
+        ("wake_up", &["body2d"], "", "Wake the body, so the next step moves it."),
+        ("is_sleeping", &["body2d"], "", "Whether the body is asleep and being skipped."),
+        ("predict_position", &["body2d"], "", "Where the body will be after `dt` seconds at its current velocity."),
+        ("next_position", &["body2d"], "", "The position a kinematic body has been told to move to."),
+        ("wake_all", &[], "()", "Wake every sleeping body in the 2D world."),
+        ("gravity", &[], "", "The 2D world's gravity."),
+    ]);
     m.function("set_enabled", |eng: &Engine, (node, on): (NodeId, bool)| {
         with_body(eng, entity_of(node)?, |state, handle| {
             state.world.bodies[handle].set_enabled(on);
@@ -425,6 +441,8 @@ pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
         Ok((g.x, g.y))
     });
 }
+
+
 
 /// Forces and impulses on a 2D body. Torque is a single number here, which is
 /// the whole difference from the 3D file.
@@ -533,6 +551,14 @@ pub(crate) fn install_body2d_force_api(m: &mut dyn Bindings<Engine>) {
             })
         },
     );
+}
+
+/// What a 2D body's forces currently are, and how to drop them.
+///
+/// Split from [`install_body2d_force_api`] under `MAX_FN_LINES`.
+pub(crate) fn install_body2d_force_reader_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+    ]);
     m.function("reset_forces", |eng: &Engine, node: NodeId| {
         with_body(eng, entity_of(node)?, |state, handle| {
             state.world.bodies[handle].reset_forces(true);
@@ -553,6 +579,7 @@ pub(crate) fn install_body2d_force_api(m: &mut dyn Bindings<Engine>) {
         read_body(eng, entity_of(node)?, RigidBody::user_torque)
     });
 }
+
 
 /// The `body2d` key. Like `body3d`, backed by no component type: it writes
 /// into [`crate::PhysicsState2d`].

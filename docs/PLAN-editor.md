@@ -282,7 +282,18 @@ named easings stay the storage, and a handle drag picks the nearest one,
 so the file stays readable. Onion skin ghosts the posed rig at the previous
 and next keys behind the viewport, from the same sampler the preview uses.
 
-### Profiler
+### Profiler — built 2026-09-03
+
+`crates/balaur_core/src/timings.rs`, `engine.timings()`, `balaur run
+--timings` and the editor's Profiler dock. **Per stage, not per system**: an
+`add_system` call site has no name to report (§NAMING N15 — seven of nine are
+anonymous closures), and giving every one a name would touch every plugin. A
+named *span* is the seam instead — `timings::measure(eng, name, || ..)` — so
+a plugin names the work it cares about and nothing else changes. Core names
+its own script hooks and transform propagation; rapier's counters are a span
+`balaur_physics` can add whenever it wants one.
+
+The original sketch follows.
 
 The engine records a duration per stage and per system each frame, plus
 rapier's counters and the script host's time per hook; `engine::timings()`

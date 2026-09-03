@@ -4,11 +4,11 @@
 A raw nanosecond count says little. At 60 fps a frame is 16.667 ms, so what
 matters is how much of it a workload eats — that is the number worth acting on.
 
-`--check` turns the same run into a CI gate against crates/balaur_bench/
-budgets.toml. The ceilings there are not measurements: they carry enough
-headroom to survive a shared runner, so what fails the build is the order-of-
-magnitude regression — an allocation in the transform loop, a hash map in
-dispatch — and never a slow morning on GitHub's hardware.
+crates/balaur_bench/budgets.toml holds one ceiling per benchmark, and is the
+only place a performance number lives: `--record` writes it from a real run,
+`--check` reports against it, and tests/budgets.rs gates on it in CI. The
+ceilings are not measurements — they carry enough headroom to survive a shared
+runner, so a regression in kind fails and a slow morning does not.
 """
 import argparse
 import json
@@ -20,8 +20,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BUDGETS = ROOT / "crates" / "balaur_bench" / "budgets.toml"
-# What a recorded number is multiplied by to become a ceiling.
-HEADROOM = 4.0
+# What a recorded number is multiplied by to become a ceiling. Ten, because a
+# gate that cries wolf on a shared runner gets ignored, which is worse than no
+# gate — the doctrine tests/budgets.rs was already written to.
+HEADROOM = 10.0
 FRAME_NS = 16_666_667  # 60 fps
 
 
@@ -93,10 +95,9 @@ def budgets():
 def record(results):
     """Rewrite the budget file from this run, ceilings at HEADROOM times."""
     lines = [
-        "# Benchmark ceilings for `python3 scripts/bench.py --check`, written by\n",
-        "# `--record` from a real run and multiplied by "
-        f"{HEADROOM:g} so a shared CI runner\n",
-        "# passes. A failure here is a regression in kind, not a slow morning.\n\n",
+        "# The one place a performance number lives: written by `bench.py --record`\n",
+        f"# from a real run, multiplied by {HEADROOM:g} so a shared runner passes, and read\n",
+        "# by `bench.py --check` and crates/balaur_bench/tests/budgets.rs.\n\n",
         "[ceiling_ns]\n",
     ]
     lines += [f'"{name}" = {round(ns * HEADROOM)}\n' for name, ns in results.items()]

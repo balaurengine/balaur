@@ -152,17 +152,10 @@ fn shape_params(opts: &Opts<'_>) -> Result<toml::Value> {
     balaur_core::node_api::to_toml(shape)
 }
 
-pub(crate) fn install_query2d_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_physics2d_query_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("raycast", &[], "(opts: table)", "The first collider a ray meets: `#{ from = [x, y], dir = [x, y], max = 100.0, filter = #{ exclude = node } }`. Returns `#{ node, point, normal, distance }`, or nothing."),
         ("raycast_all", &[], "(opts: table)", "Every collider a ray meets, nearest first."),
-        ("shapecast", &[], "(opts: table)", "Sweep a shape along a direction until it hits something: a thick raycast."),
-        ("nearest_point", &[], "(opts: table)", "The closest point on any collider to a world point."),
-        ("point_hits", &[], "(opts: table)", "Every collider containing a world point: what a mouse click asks."),
-        ("shape_hits", &[], "(opts: table)", "Every collider a shape overlaps where it stands."),
-        ("box_hits", &[], "(opts: table)", "Every collider whose bounds meet an axis-aligned box."),
-        ("distance", &[], "(a: node, b: node)", "The gap between two nodes' colliders, zero when they touch."),
-        ("intersects", &[], "(a: node, b: node)", "Whether two nodes' colliders overlap right now, sensor or not."),
     ]);
     m.function("raycast", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
@@ -253,6 +246,15 @@ pub(crate) fn install_query2d_api(m: &mut dyn Bindings<Engine>) {
         }
         Ok(Value::List(out))
     });
+}
+
+/// Sweeping a 2D shape rather than a ray.
+///
+/// Split from [`install_physics2d_query_api`] under `MAX_FN_LINES`.
+pub(crate) fn install_physics2d_shapecast_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("shapecast", &[], "(opts: table)", "Sweep a shape along a direction until it hits something: a thick raycast."),
+    ]);
     m.function("shapecast", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
@@ -288,6 +290,21 @@ pub(crate) fn install_query2d_api(m: &mut dyn Bindings<Engine>) {
             hit.time_of_impact,
         ))
     });
+}
+
+
+/// The 2D queries that ask about a place rather than a line.
+///
+/// Split from [`install_physics2d_query_api`] under `MAX_FN_LINES`.
+pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("nearest_point", &[], "(opts: table)", "The closest point on any collider to a world point."),
+        ("point_hits", &[], "(opts: table)", "Every collider containing a world point: what a mouse click asks."),
+        ("shape_hits", &[], "(opts: table)", "Every collider a shape overlaps where it stands."),
+        ("box_hits", &[], "(opts: table)", "Every collider whose bounds meet an axis-aligned box."),
+        ("distance", &[], "(a: node, b: node)", "The gap between two nodes' colliders, zero when they touch."),
+        ("intersects", &[], "(a: node, b: node)", "Whether two nodes' colliders overlap right now, sensor or not."),
+    ]);
     m.function("nearest_point", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
@@ -390,6 +407,7 @@ pub(crate) fn install_query2d_api(m: &mut dyn Bindings<Engine>) {
         })
     });
 }
+
 
 fn with_pair(
     eng: &Engine,

@@ -211,6 +211,10 @@ fn two_bone_ik(world: &World, root: Entity, target: Vec2, flip: bool) {
 
 /// Every modifier, in a fixed order, from the transforms as they are now.
 pub(crate) fn modify_system(eng: &Engine, _dt: f32) {
+    // Nothing has moved under a held game, so there is nothing to re-pose.
+    if eng.frozen_root().is_some() {
+        return;
+    }
     let world = eng.world();
     let mut modifiers: Vec<(Entity, Modifier2d)> = world
         .query::<(Entity, &Modifier2d)>()
