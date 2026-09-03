@@ -13,11 +13,13 @@ use glamx::Pose3;
 use kiss3d::prelude::*;
 use kiss3d::resource::GpuMesh3d;
 
+use crate::kiss3d_camera::{
+    apply_camera, apply_camera_2d, apply_camera_input, publish_camera, publish_camera_2d,
+    CameraButtons,
+};
 use crate::{
-    AppIconConfig, CameraConfig, CameraConfig2d, CameraInputConfig, ClearColorConfig,
-    DebugLineBuffer, DebugLineBuffer2d, GridConfig, Renderable, Renderable2d, ScreenshotRequest,
-    Shape, Shape2d, SpriteTexture, ViewportSnapshot, ViewportSnapshot2d, WindowConfig,
-    WindowedBackend,
+    AppIconConfig, ClearColorConfig, DebugLineBuffer, DebugLineBuffer2d, GridConfig, Renderable,
+    Renderable2d, ScreenshotRequest, Shape, Shape2d, SpriteTexture, WindowConfig, WindowedBackend,
 };
 
 struct Slot {
@@ -68,6 +70,9 @@ struct Frontend {
     /// Whether the on-screen keyboard was summoned last frame, so it is
     /// shown/hidden on the edge rather than re-requested every frame.
     keyboard_shown: bool,
+    /// The cameras' drag bindings as built: taking the pointer away from the
+    /// camera unbinds them, and these are what it puts back.
+    camera_buttons: CameraButtons,
 }
 
 impl Frontend {
@@ -76,9 +81,16 @@ impl Frontend {
         scene
             .add_light(Light::directional(Vec3::new(-1.0, -1.0, -0.5)))
             .set_position(Vec3::new(5.0, 10.0, 5.0));
+        let camera = OrbitCamera3d::default();
+        let camera_2d = PanZoomCamera2d::default();
+        let camera_buttons = CameraButtons {
+            rotate: camera.rotate_button(),
+            drag: camera.drag_button(),
+            drag_2d: camera_2d.drag_button(),
+        };
         Self {
-            camera: OrbitCamera3d::default(),
-            camera_2d: PanZoomCamera2d::default(),
+            camera,
+            camera_2d,
             scene,
             scene_2d: SceneNode2d::empty(),
             slots: HashMap::new(),
@@ -90,6 +102,7 @@ impl Frontend {
             order_2d: Vec::new(),
             frame: 0,
             keyboard_shown: false,
+            camera_buttons,
         }
     }
 
@@ -98,6 +111,12 @@ impl Frontend {
     fn step(&mut self, app: &mut App, window: &mut Window, dt: f32) -> bool {
         apply_camera(app, &mut self.camera);
         apply_camera_2d(app, &mut self.camera_2d, window);
+        apply_camera_input(
+            app,
+            &mut self.camera,
+            &mut self.camera_2d,
+            &self.camera_buttons,
+        );
         apply_app_icon(app);
         apply_window_config(app, window);
         publish_camera(app, &self.camera, window);
@@ -228,59 +247,6 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
 /// The fixed step offscreen frames advance by, matching the physics and
 /// animation tick so a screenshot lands on a whole number of simulation steps.
 const OFFSCREEN_DT: f32 = balaur_core::FIXED_DT;
-
-/// Apply script-driven camera changes (interactive orbit controls keep
-/// working in between).
-fn apply_camera(app: &App, camera: &mut OrbitCamera3d) {
-    let Some(config) = app.engine.try_resource::<CameraConfig>() else {
-        return;
-    };
-    let mut config = config.borrow_mut();
-    if config.changed {
-        camera.look_at(config.eye, config.target);
-        config.changed = false;
-    }
-}
-
-/// Apply script-driven 2D camera changes. The config zoom is in logical
-/// pixels per world unit; the kiss3d camera works in physical pixels.
-fn apply_camera_2d(app: &App, camera: &mut PanZoomCamera2d, window: &Window) {
-    let Some(config) = app.engine.try_resource::<CameraConfig2d>() else {
-        return;
-    };
-    let mut config = config.borrow_mut();
-    if config.changed {
-        let scale = window.scale_factor() as f32;
-        camera.look_at(
-            Vec2::new(config.center[0], config.center[1]),
-            config.zoom * scale,
-        );
-        config.changed = false;
-    }
-}
-
-/// Publish the actual 2D camera state (zoom back in logical px per world
-/// unit) and the mouse position unprojected to 2D world coordinates.
-fn publish_camera_2d(app: &App, camera: &PanZoomCamera2d, window: &Window) {
-    use kiss3d::camera::Camera2d;
-
-    let Some(vp) = app.engine.try_resource::<ViewportSnapshot2d>() else {
-        return;
-    };
-    let mut vp = vp.borrow_mut();
-    let scale = window.scale_factor() as f32;
-    let at = camera.at();
-    vp.center = [at.x, at.y];
-    vp.zoom = camera.zoom() / scale;
-    if let Some(input) = app.engine.try_resource::<InputSnapshot>() {
-        let (mx, my) = input.borrow().mouse_pos();
-        // The 2D camera's projection is built from the framebuffer size, so
-        // unproject in physical pixels.
-        let size = Vec2::new(window.width() as f32, window.height() as f32);
-        let world = camera.unproject(Vec2::new(mx, my), size);
-        vp.mouse_world = [world.x, world.y];
-    }
-}
 
 fn apply_clear_color(app: &App, window: &mut Window) {
     let Some(clear) = app.engine.try_resource::<ClearColorConfig>() else {
@@ -474,61 +440,15 @@ fn dock_icon_png(source: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
-/// Expose the real camera state — pose, exact projection matrix, and the
-/// picking ray through the current mouse position — for script-side math.
-fn publish_camera(app: &App, camera: &OrbitCamera3d, window: &Window) {
-    use kiss3d::camera::Camera3d;
-
-    let Some(vp) = app.engine.try_resource::<ViewportSnapshot>() else {
-        return;
-    };
-    let mut vp = vp.borrow_mut();
-    let eye = camera.eye();
-    let at = camera.at();
-    vp.eye = [eye.x, eye.y, eye.z];
-    vp.target = [at.x, at.y, at.z];
-    vp.fov = std::f32::consts::FRAC_PI_4;
-    let scale = window.scale_factor() as f32;
-    vp.scale_factor = scale;
-    vp.view_proj = camera.transformation().to_cols_array();
-    if let Some(input) = app.engine.try_resource::<InputSnapshot>() {
-        let (mx, my) = {
-            let input = input.borrow();
-            input.mouse_pos()
-        };
-        let size = Vec2::new(
-            window.width() as f32 / scale,
-            window.height() as f32 / scale,
-        );
-        let (origin, dir) = camera.unproject(Vec2::new(mx / scale, my / scale), size);
-        vp.ray_origin = [origin.x, origin.y, origin.z];
-        vp.ray_dir = [dir.x, dir.y, dir.z];
-    }
-}
-
 /// Feed this frame's OS events into the input resource (if the input plugin
 /// is installed).
 fn pump_input(app: &App, window: &Window) {
     let Some(input) = app.engine.try_resource::<InputSnapshot>() else {
         return;
     };
-    let camera_enabled = app
-        .engine
-        .try_resource::<CameraInputConfig>()
-        .is_none_or(|c| c.borrow().enabled);
     let mut input = input.borrow_mut();
     input.begin_frame();
-    for mut event in window.events().iter() {
-        // Editors can take the pointer over for gizmo drags: inhibit the
-        // camera's own mouse handling while they do.
-        if !camera_enabled {
-            match event.value {
-                WindowEvent::MouseButton(..) | WindowEvent::CursorPos(..) => {
-                    event.inhibited = true;
-                }
-                _ => {}
-            }
-        }
+    for event in window.events().iter() {
         match event.value {
             WindowEvent::Key(key, action, _) => {
                 let name = key_name(key);

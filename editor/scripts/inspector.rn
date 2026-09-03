@@ -39,7 +39,7 @@ fn section(S, k, title) {
     open
 }
 
-fn row(k, label, body) {
+fn row(S, k, label, body) {
     ui::horizontal(#{ height: 24 }, || {
         ui::spacing(6, 0);
         // Fixed label column so control widths stay inside the panel
@@ -47,7 +47,9 @@ fn row(k, label, body) {
         ui::horizontal(#{ height: 24, width: LABEL_W }, || {
             ui::label(label, #{ size: 11.5, color: k.dim });
         });
-        body();
+        // The control column is pinned too: egui grows a row to its content,
+        // so one long value (a path, a joined list) would widen the panel.
+        ui::horizontal(#{ height: 24, width: control_w(S) }, body);
     });
     ui::add_space(2);
 }
@@ -57,11 +59,16 @@ fn control_w(S) {
     util::clamp(S.layout.right.w - 22.0 - LABEL_W, 120.0, 320.0)
 }
 
+// A full-width row inside the panel: the sheet less its padding.
+fn panel_w(S) {
+    util::max(S.layout.right.w - 26.0, 150.0)
+}
+
 // A draggable vector field writing straight back to doc + live node.
 fn vec3_row(S, k, label, getter, setter) {
     let (node, found) = model::selected(S);
     let cell = #{ v: getter(node, found), changed: false };
-    row(k, label, || {
+    row(S, k, label, || {
         let axes = ["x", "y", "z"];
         let w = control_w(S) / 3.0 - 3.0;
         for i in 0..3 {
@@ -94,7 +101,7 @@ fn value_field(k, value, opts) {
 
 // A select shell: a value the user cannot change here yet.
 fn select_row(S, k, label, value) {
-    row(k, label, || {
+    row(S, k, label, || {
         ui::pill(value, #{
             height: 28, size: 12, align: "left",
             min_width: control_w(S),
@@ -161,7 +168,12 @@ fn instance_note(S, k) {
         ui::add_space(8);
         ui::frame(#{ fill: k.sunken, radius: 12, padding_x: 10 }, || {
             ui::horizontal(#{ height: 24 }, || {
-                ui::label("⧉ from " + model::prefab_of(S, node), style::mono_sm(k.dim));
+                // A prefab path is as long as the project makes it: ellipsis
+                // rather than a note that stretches the panel.
+                ui::horizontal(#{ height: 24, width: panel_w(S) - 90.0 }, || {
+                    ui::label("⧉ from " + model::prefab_of(S, node),
+                        util::merge(style::mono_sm(k.dim), #{ truncate: true }));
+                });
                 ui::add_space(8);
                 if ui::pill("open", #{
                     height: 18, size: 9, fill: k.panel, color: k.dim,
@@ -174,7 +186,8 @@ fn instance_note(S, k) {
     });
     ui::horizontal((), || {
         ui::add_space(10);
-        ui::label("edits become overrides on " + node.at, style::mono_sm(k.faint));
+        ui::label("edits become overrides on " + node.at,
+            util::merge(style::mono_sm(k.faint), #{ truncate: true }));
     });
     ui::add_space(4);
 }
@@ -184,10 +197,11 @@ fn instance_source_row(S, k, node) {
     if !node.contains_key("instance") {
         return;
     }
-    row(k, "Instance", || {
+    row(S, k, "Instance", || {
         ui::frame(#{ fill: k.sage_soft, stroke: k.sage, radius: 14, padding_x: 11 }, || {
-            ui::horizontal(#{ height: 28 }, || {
-                ui::label(node.instance, style::mono(k.sage));
+            ui::horizontal(#{ height: 28, width: control_w(S) - 24.0 }, || {
+                ui::label(node.instance,
+                    util::merge(style::mono(k.sage), #{ truncate: true }));
                 ui::right(|| {
                     if ui::pill("open", #{
                         height: 20, size: 10, strong: true,
@@ -207,11 +221,11 @@ fn script_section(S, k, title) {
     if !section(S, k, title) {
         return;
     }
-    row(k, "Script", || {
+    row(S, k, "Script", || {
         ui::frame(#{ fill: k.sage_soft, radius: 5, padding_x: 8 }, || {
             ui::horizontal(#{ height: 22, width: control_w(S) - 18.0 }, || {
                 let name = model::script_rel(node).unwrap_or("— none —");
-                ui::label(name, #{ role: "value", color: k.sage });
+                ui::label(name, #{ role: "value", color: k.sage, truncate: true });
                 ui::right(|| {
                     let has = node.contains_key("script");
                     let action = if has { "open" } else { "add" };
@@ -284,8 +298,12 @@ fn script_props_rows(S, k, node) {
 // Make inline copies a file back onto the node; neither touches the clip itself.
 fn clip_source_row(S, k, node) {
     let path = anim::library_path(node);
-    row(k, "Source", || {
-        ui::label(path.unwrap_or("— inline —"), style::mono(k.faint));
+    row(S, k, "Source", || {
+        // The clip's file, ellipsised: a library path is longer than the row.
+        ui::horizontal(#{ height: 24, width: control_w(S) - 96.0 }, || {
+            ui::label(path.unwrap_or("— inline —"),
+                util::merge(style::mono(k.faint), #{ truncate: true }));
+        });
         ui::right(|| {
             let inline = path.is_none();
             let label = if inline { "save as file" } else { "make inline" };
@@ -321,9 +339,13 @@ fn skeleton_section(S, k) {
     if !section(S, k, "Skeleton") {
         return;
     }
-    row(k, "Bones", || {
+    row(S, k, "Bones", || {
         let what = if rig::is_bone(node) { "this bone and below" } else { format!("under {}", node.name) };
-        ui::label(format!("{} · {}", count, what), style::mono(k.text));
+        // The node's own name is in the line: ellipsis, not a wider panel.
+        ui::horizontal(#{ height: 24, width: control_w(S) - 76.0 }, || {
+            ui::label(format!("{} · {}", count, what),
+                util::merge(style::mono(k.text), #{ truncate: true }));
+        });
         ui::right(|| {
             if ui::pill("＋ bone", #{
                 role: "row_action_on",
@@ -339,7 +361,7 @@ fn skeleton_section(S, k) {
     if count == 0 {
         return;
     }
-    row(k, "Rest pose", || {
+    row(S, k, "Rest pose", || {
         if ui::pill("reset", #{
             role: "row_action",
             tooltip: "Reset to Rest Pose: pose every bone here at its rest",
@@ -369,7 +391,7 @@ fn polygon_section(S, k) {
     let mesh = match polygon::mesh(S) {
         Some(mesh) => mesh,
         None => {
-            row(k, "Mesh", || {
+            row(S, k, "Mesh", || {
                 let text = if polygon::editable(S) {
                     "empty — trace it with the Polygon tool"
                 } else {
@@ -382,10 +404,10 @@ fn polygon_section(S, k) {
     };
     let positions = util::vec(mesh.get("positions").unwrap_or([]));
     let internal = polygon::internal_count(mesh);
-    row(k, "Vertices", || {
+    row(S, k, "Vertices", || {
         ui::label(format!("{} · {} internal", positions.len(), internal), style::mono(k.text));
     });
-    row(k, "Polygons", || {
+    row(S, k, "Polygons", || {
         let count = util::vec(mesh.get("polygons").unwrap_or([])).len();
         ui::label(if count == 0 { "outline, automatic" } else { format!("{} drawn", count) },
             style::mono(k.text));
@@ -401,7 +423,7 @@ fn polygon_section(S, k) {
             });
         }
     });
-    row(k, "Bones", || {
+    row(S, k, "Bones", || {
         if ui::pill("sync to rig", #{
             height: 24, size: 11, strong: true,
             tooltip: "Sync Bones to Polygon: list the rig's bones, keeping weights already painted",
@@ -426,7 +448,7 @@ fn polygon_section(S, k) {
             }
         });
     }
-    row(k, "Brush", || {
+    row(S, k, "Brush", || {
         let w = CONTROL_W / 2.0 - 5.0;
         let (radius, ch) = ui::drag_value(S.polygon.radius, #{
             width: w, speed: 0.5, decimals: 0, prefix: "px", prefix_color: k.accent,
@@ -455,7 +477,7 @@ fn animation_section(S, k) {
     let def = match anim::definition(S) {
         Some(def) => def,
         None => {
-            row(k, "Clip", || {
+            row(S, k, "Clip", || {
                 if ui::pill("＋ Create clip", #{
                     height: 28, size: 12, strong: true,
                     min_width: CONTROL_W,
@@ -468,7 +490,7 @@ fn animation_section(S, k) {
         }
     };
     let comp = util::obj(anim::component(node).unwrap_or(#{}));
-    row(k, "Clip", || {
+    row(S, k, "Clip", || {
         let id = format!("clipname:{}", S.sel);
         let (text, _, submitted) = ui::text_field(id, "unnamed",
             util::merge(style::field(k, CONTROL_W), #{ value: anim::clip_name(node) }));
@@ -482,7 +504,7 @@ fn animation_section(S, k) {
         }
     });
     clip_source_row(S, k, node);
-    row(k, "Speed", || {
+    row(S, k, "Speed", || {
         let (v, ch) = ui::slider(util::f(comp.get("speed").unwrap_or(1.0)), 0.1, 3.0, #{
             width: CONTROL_W - 44.0,
             rail: k.sunken, fill: k.accent_fill, knob: k.bg,
@@ -494,14 +516,14 @@ fn animation_section(S, k) {
             anim::touch(S);
         }
     });
-    row(k, "Length", || {
+    row(S, k, "Length", || {
         let (v, ch) = value_field(k, anim::length(def), #{ speed: 0.01, suffix: " s" });
         if ch {
             def.length = util::max(0.1, v);
             anim::touch(S);
         }
     });
-    row(k, "Loop", || {
+    row(S, k, "Loop", || {
         // The engine's own vocabulary, not a boolean: pingpong is a third
         // answer and a toggle cannot say it.
         let (v, ch) = ui::dropdown(format!("loop:{}", S.sel), def.get("loop").unwrap_or("none"), ["none", "loop", "pingpong"], #{
@@ -512,7 +534,7 @@ fn animation_section(S, k) {
             anim::touch(S);
         }
     });
-    row(k, "Keys", || {
+    row(S, k, "Keys", || {
         ui::label(format!("{} on {} tracks", anim::key_count(def), anim::tracks(def).len()),
             style::mono(k.text));
     });
@@ -525,10 +547,10 @@ fn interface_section(S, k) {
         return;
     }
     let draws = model::draws_ui(S, node);
-    row(k, "Draws UI", || {
+    row(S, k, "Draws UI", || {
         ui::label(if draws { "yes · draw_ui()" } else { "no" }, style::mono(if draws { k.sage } else { k.faint }));
     });
-    row(k, "Safe area", || {
+    row(S, k, "Safe area", || {
         if !S.chip_state.contains_key("ui") {
             S.chip_state["ui"] = #{};
         }
@@ -605,7 +627,7 @@ fn write(S, comp, prop, value) {
 // held. A checkbox grid in everything but the shape of the control.
 fn edit_flags(S, k, comp, prop, spec, value) {
     let held = util::vec(value);
-    row(k, prop, || {
+    row(S, k, prop, || {
         for name in util::vec(spec.get("options").unwrap_or([])) {
             let on = util::contains(held, name);
             if ui::pill(name, #{
@@ -632,7 +654,7 @@ fn edit_flags(S, k, comp, prop, spec, value) {
 // dropdown lists every node in the document as an absolute path, which is
 // what a leading `/` means to the engine's resolver.
 fn edit_node(S, k, comp, prop, spec, value) {
-    row(k, prop, || {
+    row(S, k, prop, || {
         let id = format!("node:{}:{}:{}", comp, prop, S.sel);
         let (text, _, submitted) = ui::text_field(id, "— none —",
             util::merge(style::field(k, CONTROL_W - 78.0), #{ value: as_text(value) }));
@@ -692,7 +714,7 @@ fn prop_row(S, k, comp, prop, spec, data) {
 }
 
 fn edit_float(S, k, comp, prop, spec, value) {
-    row(k, prop, || {
+    row(S, k, prop, || {
         let (v, ch) = value_field(k, if value is Tuple { 0.0 } else { util::f(value) }, #{
             speed: spec.get("step").unwrap_or(0.02),
             decimals: spec.get("decimals").unwrap_or(2),
@@ -712,7 +734,7 @@ fn edit_float(S, k, comp, prop, spec, value) {
 }
 
 fn edit_bool(S, k, comp, prop, spec, value) {
-    row(k, prop, || {
+    row(S, k, prop, || {
         let (on, ch) = ui::toggle(value == true, #{ role: "toggle",
             on_fill: k.accent_fill, off_fill: k.sunken,
             on_knob: k.on_accent, off_knob: k.faint,
@@ -724,7 +746,7 @@ fn edit_bool(S, k, comp, prop, spec, value) {
 }
 
 fn edit_enum(S, k, comp, prop, spec, value) {
-    row(k, prop, || {
+    row(S, k, prop, || {
         let (v, changed) = ui::dropdown(format!("sel:{}:{}:{}", comp, prop, S.sel), as_text(value), util::vec(spec.get("options").unwrap_or([])), #{
             width: control_w(S), size: 11.5, height: 22, color: k.text,
         });
@@ -737,7 +759,7 @@ fn edit_enum(S, k, comp, prop, spec, value) {
 // A swatch that opens egui's picker, and the four channels beside it: a
 // colour is the one vector nobody reads as numbers.
 fn edit_color(S, k, comp, prop, spec, value) {
-    row(k, prop, || {
+    row(S, k, prop, || {
         let (rgba, changed) = ui::color(#{ value: util::vec(value) });
         if changed {
             write(S, comp, prop, rgba);
@@ -753,7 +775,7 @@ fn edit_color(S, k, comp, prop, spec, value) {
 // many and what they are lettered.
 fn edit_vector(S, k, comp, prop, spec, value) {
     let datatype = spec["type"];
-    row(k, prop, || {
+    row(S, k, prop, || {
         let v = util::vec(value);
         let count = if datatype == "color" { 4 } else if datatype == "vec2" { 2 } else { 3 };
         let letters = if datatype == "color" { ["r", "g", "b", "a"] } else { ["x", "y", "z"] };
@@ -782,7 +804,7 @@ fn edit_vector(S, k, comp, prop, spec, value) {
 // A reference, or an inline definition the engine reports as a `#!` digest. A
 // type that declares no directory cannot be promoted, so it gets no button.
 fn edit_asset(S, k, comp, prop, spec, value) {
-    row(k, prop, || {
+    row(S, k, prop, || {
         let reference = model::relative_file(S, as_text(value));
         let inline = reference.starts_with("#!");
         let asset_type = spec.get("asset").unwrap_or("");
@@ -838,7 +860,7 @@ fn material_rows(S, k, reference) {
         ""
     };
     if shader != "" {
-        row(k, "  shader", || {
+        row(S, k, "  shader", || {
             if ui::pill(util::last_segment(shader), #{
                 height: 20, size: 10, strong: true,
                 tooltip: "Edit " + shader,
@@ -856,7 +878,7 @@ fn material_rows(S, k, reference) {
 
 fn material_row(S, k, reference, name, datatype, value) {
     // Indented, because these belong to the row above rather than the node.
-    row(k, "  " + name, || {
+    row(S, k, "  " + name, || {
         if datatype == "color" {
             let (rgba, changed) = ui::color(#{ value: util::vec(value) });
             if changed {
@@ -914,7 +936,7 @@ fn write_material_param(S, reference, name, value) {
 
 // Anything with no registered editor: its text, straight through.
 fn edit_text(S, k, comp, prop, spec, value) {
-    row(k, prop, || {
+    row(S, k, prop, || {
         let id = format!("comp:{}:{}:{}", comp, prop, S.sel);
         let (text, _, submitted) = ui::text_field(id, "— empty —",
             util::merge(style::field(k, CONTROL_W),
@@ -958,13 +980,18 @@ fn readonly_text(spec, value) {
     }
 }
 
-fn readonly_row(k, prop, spec, data) {
+fn readonly_row(S, k, prop, spec, data) {
     let value = match data.get(prop) {
         Some(value) => value,
         None => spec.get("default").unwrap_or(()),
     };
-    row(k, prop, || {
-        ui::label(readonly_text(spec, value), style::mono(k.faint));
+    row(S, k, prop, || {
+        // A read-only value is whatever the component reports, a joined list
+        // included: it gets the column, and an ellipsis past its end.
+        ui::horizontal(#{ height: 24, width: control_w(S) - 62.0 }, || {
+            ui::label(readonly_text(spec, value),
+                util::merge(style::mono(k.faint), #{ truncate: true }));
+        });
         ui::right(|| {
             ui::label("read-only", #{ size: 10, color: k.faint });
         });
@@ -1031,7 +1058,7 @@ fn component_sections(S, k, filter) {
         for prop in util::keys_sorted(schema) {
             let spec = schema[prop];
             if spec.get("readonly").unwrap_or(false) == true {
-                readonly_row(k, prop, spec, data);
+                readonly_row(S, k, prop, spec, data);
             } else {
                 prop_row(S, k, comp, prop, spec, data);
             }
@@ -1082,8 +1109,13 @@ pub fn body(S, k) {
             ui::add_space(9);
             ui::vertical(|| {
                 ui::spacing(4, 1);
-                ui::label(node.name, #{ size: 16, font: "heading", strong: true, color: k.text });
-                ui::label(model::node_type(node), style::mono_sm(k.faint));
+                // Ellipsised: the header is the panel's width, and a node is
+                // named whatever the scene named it.
+                ui::label(node.name, #{
+                    size: 16, font: "heading", strong: true, color: k.text, truncate: true,
+                });
+                ui::label(model::node_type(node),
+                    util::merge(style::mono_sm(k.faint), #{ truncate: true }));
             });
         });
 

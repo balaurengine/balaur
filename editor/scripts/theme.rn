@@ -33,7 +33,9 @@ pub fn apply(S) {
     render::set_grid_colors(mr, mg, mb, jr, jg, jb);
 }
 
-pub fn set_dark(S, dark) {
-    S.theme = if dark { dark() } else { light() };
+// `on` rather than `dark`: a parameter of that name shadows `dark()` here,
+// and Rune would call the bool instead of the theme loader.
+pub fn set_dark(S, on) {
+    S.theme = if on { dark() } else { light() };
     apply(S);
 }

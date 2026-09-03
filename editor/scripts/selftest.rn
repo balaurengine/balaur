@@ -10,6 +10,7 @@ use crate::polygon;
 use crate::rig;
 use crate::shell;
 use crate::style;
+use crate::theme;
 use crate::util;
 
 fn check(ok, what) {
@@ -849,4 +850,17 @@ pub fn placing(S) {
     check(S.doc.len() == before, format!("undo takes the instance back ({} rows)", S.doc.len()));
     check(mirror_resolves(S), "and the mirror is whole again");
     log::info("selftest placing: done");
+}
+
+// The theme switch, both ways. One way was all it ever managed: a `dark`
+// parameter shadowed `theme::dark()`, so asking for the dark theme back
+// called a bool and the editor stayed light for the rest of the session.
+pub fn theme_switch(S) {
+    check(S.theme.dark == true, "the editor starts on the dark theme");
+    theme::set_dark(S, false);
+    check(S.theme.dark == false, "the switch reaches the light theme");
+    check(S.theme.bg != "", "and the light theme loaded its colours");
+    theme::set_dark(S, true);
+    check(S.theme.dark == true, "and switches back to the dark one");
+    log::info("selftest theme: done");
 }

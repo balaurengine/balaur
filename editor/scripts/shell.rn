@@ -337,6 +337,7 @@ fn states() {
         "placedemo": crate::selftest::placing,
         "lintdemo": crate::selftest::linting,
         "sessiondemo": crate::selftest::sessions,
+        "themedemo": crate::selftest::theme_switch,
     }
 }
 

@@ -140,8 +140,12 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
             })
         },
     );
-    // Chrome above the widget layer: panels share egui's background layer,
-    // which every widget Area draws over, so overlays need a layer of their own.
+    install_overlay(m);
+}
+
+/// `ui.overlay`: chrome above the widget layer. Panels share egui's background
+/// layer, which every widget Area draws over, so overlays need one of their own.
+fn install_overlay(m: &mut dyn Bindings<Engine>) {
     m.function(
         "overlay",
         |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
@@ -154,33 +158,47 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
                 let mut result = Ok(());
                 let pad_x = opts.px("padding_x", 0.0);
                 let pad_y = opts.px("padding_y", 0.0);
-                egui::Area::new(egui::Id::new(id))
+                let sized = w > 0.0 && h > 0.0;
+                let area = egui::Area::new(egui::Id::new(id))
                     .order(egui::Order::Foreground)
                     .fixed_pos(pos2(x, y))
-                    .show(ctx, |ui| {
-                        let mut frame = egui::Frame::new()
-                            .inner_margin(egui::Margin::symmetric(pad_x as i8, pad_y as i8))
-                            .corner_radius(pill_radius(opts.px("radius", 0.0) * 2.0));
-                        if let Some(fill) = opts.opt_color("fill") {
-                            frame = frame.fill(fill);
+                    // A sized sheet sits where the layout put it. egui slides
+                    // an area left to keep it on screen, so without this a row
+                    // wider than the sheet moved the whole panel.
+                    .constrain(!sized);
+                area.show(ctx, |ui| {
+                    // A sized sheet is exactly the rect the layout gave
+                    // it. Clipping the outer ui too is what holds that:
+                    // egui grows a container to its content, so one row
+                    // wider than the sheet (a long name, a path) would
+                    // otherwise stretch the frame's fill with it.
+                    if sized {
+                        ui.set_max_size(vec2(w, h));
+                        ui.shrink_clip_rect(egui::Rect::from_min_size(pos2(x, y), vec2(w, h)));
+                    }
+                    let mut frame = egui::Frame::new()
+                        .inner_margin(egui::Margin::symmetric(pad_x as i8, pad_y as i8))
+                        .corner_radius(pill_radius(opts.px("radius", 0.0) * 2.0));
+                    if let Some(fill) = opts.opt_color("fill") {
+                        frame = frame.fill(fill);
+                    }
+                    if let Some(stroke) = opts.opt_color("stroke") {
+                        frame = frame.stroke(Stroke::new(1.0, stroke));
+                    }
+                    frame.show(ui, |ui| {
+                        // Padding comes out of the caller's size, not on
+                        // top of it; the clip stops taller content
+                        // spilling over the sheet below.
+                        if sized {
+                            let inner = vec2(w - 2.0 * pad_x, h - 2.0 * pad_y);
+                            ui.set_min_size(inner);
+                            ui.set_max_size(inner);
+                            let at = ui.min_rect().min;
+                            ui.shrink_clip_rect(egui::Rect::from_min_size(at, inner));
                         }
-                        if let Some(stroke) = opts.opt_color("stroke") {
-                            frame = frame.stroke(Stroke::new(1.0, stroke));
-                        }
-                        frame.show(ui, |ui| {
-                            // Padding comes out of the caller's size, not on
-                            // top of it; the clip stops taller content
-                            // spilling over the sheet below.
-                            if w > 0.0 && h > 0.0 {
-                                let inner = vec2(w - 2.0 * pad_x, h - 2.0 * pad_y);
-                                ui.set_min_size(inner);
-                                ui.set_max_size(inner);
-                                let at = ui.min_rect().min;
-                                ui.shrink_clip_rect(egui::Rect::from_min_size(at, inner));
-                            }
-                            result = scoped(eng, ui, cb);
-                        });
+                        result = scoped(eng, ui, cb);
                     });
+                });
                 result
             })
         },
@@ -199,7 +217,7 @@ pub(crate) fn install_text(m: &mut dyn Bindings<Engine>) {
         "label",
         &[],
         "",
-        "Draw a line of text; `size`, `font`, `color`, `strong` and `wrap` style it.",
+        "Draw a line of text; `size`, `font`, `color`, `strong`, `wrap` and `truncate` style it.",
     )]);
     m.function(
         "label",
@@ -216,7 +234,14 @@ pub(crate) fn install_text(m: &mut dyn Bindings<Engine>) {
                 );
                 let mut label = egui::Label::new(rt).selectable(false);
                 if !opts.boolean("wrap", false) {
-                    label = label.extend();
+                    // `truncate`: an ellipsis at the container's edge, for
+                    // text the layout cannot size to (a node name, a path, a
+                    // joined list). Otherwise the text keeps its full width.
+                    label = if opts.boolean("truncate", false) {
+                        label.truncate()
+                    } else {
+                        label.extend()
+                    };
                 }
                 ui.add(label);
                 Ok(())

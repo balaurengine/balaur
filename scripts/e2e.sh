@@ -192,6 +192,11 @@ for ex in examples/*/; do
   printf '  session ...'
   edit_step "$name: session" "$ex" sessiondemo
   printf 'ok\n'
+
+  # The theme switch, both ways: light and back to dark.
+  printf '  theme ...  '
+  edit_step "$name: theme" "$ex" themedemo
+  printf 'ok\n'
 done
 
 printf '\npack digests (compared across platforms in CI):\n'

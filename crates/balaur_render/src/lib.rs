@@ -35,6 +35,8 @@ pub use tilemap::{Tilemap, Tileset, TILESET_ASSET_TYPE};
 #[cfg(feature = "kiss3d")]
 pub mod kiss3d_backend;
 #[cfg(feature = "kiss3d")]
+mod kiss3d_camera;
+#[cfg(feature = "kiss3d")]
 mod shader_material;
 #[cfg(feature = "kiss3d")]
 mod shader_material_3d;
