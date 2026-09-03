@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use balaur::{App, AppConfig, Pack};
 use clap::{Parser, Subcommand};
 
+mod lsp;
 mod templates;
 mod update;
 mod version;
@@ -92,6 +93,12 @@ enum Command {
         /// without it the bundle is signed ad-hoc.
         #[arg(long)]
         sign: Option<String>,
+    },
+    /// Serve diagnostics over the Language Server Protocol on stdin/stdout,
+    /// for an editor outside Balaur. The same checks `balaur check` runs.
+    Lsp {
+        #[arg(default_value = ".")]
+        path: PathBuf,
     },
     /// Check a project without running it: every script a scene attaches is
     /// compiled, and every finding is printed with its file and line.
@@ -260,6 +267,7 @@ fn main() -> Result<()> {
             sign,
         }),
         Command::Check { path, strict } => check_project(&path, strict),
+        Command::Lsp { path } => lsp::run(&path),
         Command::Update { tag, check } => update::run(tag.as_deref(), check),
         Command::Play { pack, frames } => {
             let bytes =

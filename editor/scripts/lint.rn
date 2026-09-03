@@ -1,9 +1,6 @@
-// What is wrong with the project, as a list: every script the scene attaches,
-// compiled through the host, plus the scene document checked against the
-// component registry and the files it names.
-//
-// A finding is `#{ file, line, column, severity, message }`, `file` always
-// game-relative and `line` 1-based; line 0 means the file as a whole.
+// What is wrong with the project: every script a scene attaches, compiled
+// through the host, plus the scene itself. A finding is `#{ file, line,
+// column, severity, message }`, `file` game-relative and line 0 the file.
 
 use crate::model;
 use crate::shell;
@@ -60,7 +57,9 @@ fn asset_missing(S, value) {
         Some((file, _)) => file,
         None => value,
     };
-    !fs::exists(S.game_root + "/" + path)
+    // The mirror hands back the absolute path the engine resolved to and a
+    // scene writes a relative one; Windows spells absolute differently.
+    !fs::exists(path) && !fs::exists(S.game_root + "/" + path)
 }
 
 fn at(file, line, severity, message) {

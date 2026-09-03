@@ -640,7 +640,8 @@ fn problems(S, k) {
             let bad = f.severity == "error";
             ui::horizontal(#{ height: 22 }, || {
                 ui::add_space(6);
-                ui::label(if bad { "✕" } else { "!" },
+                // `×`, not `✕`: the mono face has no glyph for the latter.
+                ui::label(if bad { "×" } else { "!" },
                     util::merge(style::mono(if bad { k.accent } else { k.sage }), #{ strong: true }));
                 ui::add_space(6);
                 let at = if f.line > 0 { format!("{}:{}", f.file, f.line) } else { f.file };

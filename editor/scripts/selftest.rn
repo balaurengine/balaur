@@ -470,7 +470,7 @@ pub fn linting(S) {
     lint::run(S);
     let errors = found_in(S, rel, "error");
     if check(errors.len() > 0, "a misspelled engine call is an error") {
-        check(errors[0].line == 2, format!("the error is on line 2, not {}", errors[0].line));
+        check(errors[0].line == 2, format!("the error's line is 2 (got {})", errors[0].line));
         check(errors[0].message.contains("just_pressd"),
             format!("the message names the call: {}", errors[0].message));
         let marked = false;

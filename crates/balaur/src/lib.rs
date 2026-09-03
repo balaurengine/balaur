@@ -101,6 +101,8 @@ pub fn check_project(project_root: &std::path::Path) -> Result<Vec<balaur_script
                 file: rel.clone(),
                 line: 0,
                 column: 0,
+                end_line: 0,
+                end_column: 0,
                 severity: "error",
                 message: format!("script {rel} does not exist"),
             });
@@ -114,7 +116,12 @@ pub fn check_project(project_root: &std::path::Path) -> Result<Vec<balaur_script
 /// Every script path the project's scene files attach, deduplicated and in a
 /// stable order. A scene that will not parse is skipped: it is the scene
 /// loader's error to report, not the checker's.
-fn scene_scripts(project_root: &std::path::Path) -> Vec<String> {
+///
+/// This is what a checker means by a root: the unit the compiler starts from.
+/// A `mod` submodule is not one — compiled on its own it fails on its own
+/// imports — and its diagnostics arrive through the root that imports it.
+#[must_use]
+pub fn scene_scripts(project_root: &std::path::Path) -> Vec<String> {
     let mut out: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     let mut dirs = vec![project_root.to_path_buf()];
     while let Some(dir) = dirs.pop() {

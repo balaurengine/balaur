@@ -3,14 +3,15 @@
 > the line; before phase 0 none of them had a caller in the editor. The
 > measurements below are from a debug build of the tree at that date.
 >
-> **What was built.** Phases 0 to 6. `script::check(path, source)` compiles a
+> **What was built.** All of phases 0 to 7. `script::check(path, source)` compiles a
 > root through the live host with warnings on and answers `[#{ file, line,
 > column, severity, message }]`; the editor's `lint.rn` sweeps every script
 > the scene attaches plus the scene itself, holds the sweep off until typing
 > stops, and shows the result in a Problems dock tab, as a bar in the code
 > editor's gutter and as an underline on the line. `render::check_material`
 > links a material's shader, which the asset layer deliberately does not do.
-> `balaur check` runs the script half headless for CI.
+> `balaur check` runs the script half headless for CI, and `balaur lsp`
+> serves the same findings to an editor outside Balaur.
 >
 > **Where the implementation decided differently:**
 >
@@ -32,6 +33,18 @@
 >    editor's projects are small — the whole of `examples/hello` is four
 >    scripts — and a dependency graph across `mod` and `script::require` is
 >    more machinery than the saving is worth at this size.
+> 5. **The language server is a CLI command, not a system in the engine.**
+>    §7 put it beside the DAP server in `balaur_core`, because that is where
+>    the DAP lives. The DAP has to live in a running game — a breakpoint
+>    lands at a point in the frame — and checking has no such tie: it needs
+>    the script context and nothing else. `balaur lsp` boots the project
+>    once and blocks on stdin, with no threads and no frame loop, which is
+>    both simpler and out of the way of the crate everything else edits.
+> 6. **The language server sees an unsaved buffer only for a root.** It
+>    checks the roots a scene attaches, using the client's copy of each. A
+>    `mod` submodule is compiled from disk, so an unsaved edit inside one
+>    shows up on save. Fixing it means handing the compiler a source loader
+>    backed by the client's copies — the same seam `PackSourceLoader` uses.
 >
 > **What phase 0 showed.** A save that does not compile now prints Rune's
 > caret diagram to Output. Routing it through `script::attempt` costs three
@@ -176,12 +189,21 @@ with no expansions.
 | 4 | The scene lint: unresolved assets, unmet expectations, a `script` or `instance` that names a missing file | 1 | **done** |
 | 5 | `render::check_material`, now that a material names a shader | 1, `PLAN-shaders` | **done** |
 | 6 | `balaur check`: the same script rules headless, so CI fails on what the editor underlines | 1, 4 | **done** |
-| 7 | Serve the same diagnostics over LSP, next to the DAP server in `crates/balaur_core/src/dap.rs` | 6 | not started |
+| 7 | `balaur lsp`: the same diagnostics over LSP, for an editor outside Balaur | 6 | **done** |
 
 Phase 0 cannot be covered by a self-test state: `scripts/e2e.sh` fails any
 editor run that logs an `ERROR`, which is exactly what the pass being tested
 produces. Phases 1 to 5 are covered by `--state lintdemo`, which asserts on
 the finding list rather than on the log.
+
+Verified on 2026-09-03: `lintdemo` passes its seven assertions and the other
+eleven editor states stay clean; `balaur check` reports
+`scripts/ball.rn:6:8: error: Missing item …` and exits 1, `--strict` adds
+Rune's own warnings (unnecessary semicolon, not used, unreachable code,
+pattern might panic) with the same file and line; and an LSP session that
+opens a broken *unsaved* buffer gets one diagnostic at 0-based line 5,
+character 7 — the same place, in LSP's counting — and an empty list when the
+buffer is fixed.
 
 ## What this is not
 

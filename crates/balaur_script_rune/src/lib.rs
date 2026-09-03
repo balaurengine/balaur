@@ -135,9 +135,13 @@ pub struct Finding {
     /// The source key the compiler read this from, which for a `mod` is the
     /// submodule's own file, not the root's.
     pub file: String,
-    /// 1-based, both, so a gutter and a caret can point at them.
+    /// 1-based, all four, so a gutter and a caret can point at them.
     pub line: usize,
     pub column: usize,
+    /// Where the span ends, for a client that underlines a range rather than
+    /// a line. Equal to the start for a diagnostic that carries no span.
+    pub end_line: usize,
+    pub end_column: usize,
     /// `"error"` or `"warning"`.
     pub severity: &'static str,
     pub message: String,
@@ -153,17 +157,22 @@ fn finding(
     message: &str,
 ) -> Finding {
     let source = sources.get(id);
-    let (line, column) = match (source, span) {
-        (Some(source), Some(span)) => {
-            let (line, column) = source.pos_to_utf8_linecol(span.start.into_usize());
+    let at = |offset: usize| {
+        source.map_or((0, 0), |source| {
+            let (line, column) = source.pos_to_utf8_linecol(offset);
             (line + 1, column + 1)
-        }
-        _ => (0, 0),
+        })
+    };
+    let (start, end) = match span {
+        Some(span) => (at(span.start.into_usize()), at(span.end.into_usize())),
+        None => ((0, 0), (0, 0)),
     };
     Finding {
         file: source.map_or_else(String::new, |source| source.name().to_string()),
-        line,
-        column,
+        line: start.0,
+        column: start.1,
+        end_line: end.0,
+        end_column: end.1,
         severity,
         message: message.to_string(),
     }
