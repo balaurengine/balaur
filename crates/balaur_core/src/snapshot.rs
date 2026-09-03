@@ -9,15 +9,23 @@
 //! transforms, components and the RNG; physics contributes its world; the
 //! script host contributes each instance's fields.
 //!
-//! **What is not covered yet:** entities created or destroyed since the
-//! snapshot. Restoring writes over the state of nodes that exist; it does
-//! not respawn a node that has since been freed, nor free one that has since
-//! been spawned. Rolling back across a spawn is the next piece.
+//! Nodes come and go, so the `nodes` source records the live set and puts it
+//! back: it frees what was spawned after the snapshot and respawns what was
+//! freed, with its name, parent, components and script. It is registered
+//! first, so every later source finds the entity it is about to write to.
+//!
+//! Everything is keyed by [`StableId`] rather than by entity index, because a
+//! respawned node is a new entity. The recorded index is kept as a fallback
+//! for a node that carries no id, which is a tree built by hand in a test
+//! rather than one loaded from a scene.
 
 use anyhow::{Context, Result};
+use hecs::Entity;
 use serde::{Deserialize, Serialize};
 
+use crate::components::StableId;
 use crate::engine::Engine;
+use crate::scene::{collect_subtree, Name, Parent, ScriptAttachment};
 
 /// State a subsystem owns, in a form that survives being put down and picked
 /// back up.
@@ -125,6 +133,9 @@ impl SnapshotRing {
 /// re-adding `body` rebuilds the rigid body and throws away its velocity — so
 /// the subsystem that owns the state restores it, exactly as with digests.
 pub(crate) fn build_core_sources(app: &mut crate::app::App) {
+    // First: it decides which entities exist, and every source below writes
+    // into them.
+    app.add_snapshot_source("nodes", save_nodes, load_nodes);
     app.add_snapshot_source("transforms", save_transforms, load_transforms);
     // Script instances, through the host's own save/load contract. Core never
     // learns the language; NodeId carries no serde, so it travels as bits.
@@ -134,10 +145,17 @@ pub(crate) fn build_core_sources(app: &mut crate::app::App) {
             let Some(host) = eng.script_host() else {
                 return serde_json::Value::Null;
             };
-            let states: Vec<(u64, balaur_script::Value)> = host
+            let world = eng.world();
+            let states: Vec<ScriptFrame> = host
                 .save_state()
                 .into_iter()
-                .map(|(node, value)| (node.0, value))
+                .map(|(node, value)| ScriptFrame {
+                    id: crate::entity_of(node)
+                        .ok()
+                        .and_then(|e| crate::ids::of(&world, e)),
+                    entity: node.0,
+                    value,
+                })
                 .collect();
             serde_json::to_value(states).unwrap_or(serde_json::Value::Null)
         },
@@ -145,15 +163,19 @@ pub(crate) fn build_core_sources(app: &mut crate::app::App) {
             let Some(host) = eng.script_host() else {
                 return;
             };
-            let Ok(states) =
-                serde_json::from_value::<Vec<(u64, balaur_script::Value)>>(value.clone())
-            else {
+            let Ok(frames) = serde_json::from_value::<Vec<ScriptFrame>>(value.clone()) else {
                 return;
             };
-            let states: Vec<_> = states
+            let world = eng.world();
+            let root = eng.root();
+            let states: Vec<_> = frames
                 .into_iter()
-                .map(|(bits, value)| (balaur_script::NodeId(bits), value))
+                .filter_map(|frame| {
+                    let entity = resolve(&world, root, frame.id.as_deref(), frame.entity)?;
+                    Some((crate::node_id_of(entity), frame.value))
+                })
                 .collect();
+            drop(world);
             host.load_state(&states);
         },
     );
@@ -168,10 +190,11 @@ pub(crate) fn build_core_sources(app: &mut crate::app::App) {
     );
 }
 
-/// Keyed by entity bits: a rollback restores the world it left, in the same
-/// process, so the handles are the same handles.
+/// Keyed by stable id where a node has one, because a respawned node is a
+/// new entity. The index is the fallback for a node that carries no id.
 #[derive(Serialize, Deserialize)]
 struct TransformFrame {
+    id: Option<String>,
     entity: u64,
     trs: [f32; 10],
 }
@@ -183,6 +206,7 @@ fn save_transforms(eng: &Engine) -> serde_json::Value {
         .filter_map(|entity| {
             let t = world.get::<&crate::scene::Transform>(entity).ok()?;
             Some(TransformFrame {
+                id: crate::ids::of(&world, entity),
                 entity: entity.to_bits().get(),
                 trs: [
                     t.position.x,
@@ -211,8 +235,9 @@ fn load_transforms(eng: &Engine, value: &serde_json::Value) {
         }
     };
     let world = eng.world();
+    let root = eng.root();
     for frame in frames {
-        let Some(entity) = hecs::Entity::from_bits(frame.entity) else {
+        let Some(entity) = resolve(&world, root, frame.id.as_deref(), frame.entity) else {
             continue;
         };
         let Ok(mut t) = world.get::<&mut crate::scene::Transform>(entity) else {
@@ -222,5 +247,184 @@ fn load_transforms(eng: &Engine, value: &serde_json::Value) {
         t.position = glamx::Vec3::new(v[0], v[1], v[2]);
         t.rotation = glamx::Quat::from_xyzw(v[3], v[4], v[5], v[6]);
         t.scale = glamx::Vec3::new(v[7], v[8], v[9]);
+    }
+}
+
+/// The entity a frame refers to: by stable id where it has one, and by the
+/// recorded index otherwise.
+fn resolve(world: &hecs::World, root: Entity, id: Option<&str>, entity: u64) -> Option<Entity> {
+    match id {
+        Some(id) => crate::ids::find(world, root, id),
+        None => hecs::Entity::from_bits(entity),
+    }
+}
+
+/// One script instance's state, keyed the way transforms are.
+#[derive(Serialize, Deserialize)]
+struct ScriptFrame {
+    id: Option<String>,
+    entity: u64,
+    value: balaur_script::Value,
+}
+
+/// One node as the snapshot remembers it: enough to build it again.
+///
+/// Components travel as the TOML they were declared with, not as whatever a
+/// subsystem derived from them, so a respawn goes back in through the same
+/// door a scene file uses.
+#[derive(Serialize, Deserialize)]
+struct NodeFrame {
+    id: String,
+    name: String,
+    /// The parent's stable id; absent when the parent is the root.
+    parent: Option<String>,
+    script: Option<String>,
+    components: Vec<(String, String)>,
+}
+
+/// The live node set, and the id counter that must mint the same ids again.
+#[derive(Default, Serialize, Deserialize)]
+struct NodesFrame {
+    next_id: u64,
+    nodes: Vec<NodeFrame>,
+}
+
+fn save_nodes(eng: &Engine) -> serde_json::Value {
+    let root = eng.root();
+    let entities = collect_subtree(&eng.world(), root);
+    let mut nodes = Vec::new();
+    for entity in entities {
+        if entity == root {
+            continue;
+        }
+        // The component hooks read the world themselves, so this borrow ends
+        // before they are called.
+        let Some((id, name, parent, script)) = ({
+            let world = eng.world();
+            crate::ids::of(&world, entity).map(|id| {
+                let name = world
+                    .get::<&Name>(entity)
+                    .map_or_else(|_| String::new(), |n| n.0.clone());
+                let parent = world
+                    .get::<&Parent>(entity)
+                    .ok()
+                    .map(|p| p.0)
+                    .filter(|&p| p != root)
+                    .and_then(|p| crate::ids::of(&world, p));
+                let script = world
+                    .get::<&ScriptAttachment>(entity)
+                    .ok()
+                    .map(|s| s.path.clone());
+                (id, name, parent, script)
+            })
+        }) else {
+            continue;
+        };
+        let components = crate::components::present_on(eng, entity)
+            .into_iter()
+            .filter_map(|name| {
+                let value = crate::components::get(eng, entity, &name)?;
+                Some((name, toml::to_string(&value).ok()?))
+            })
+            .collect();
+        nodes.push(NodeFrame {
+            id,
+            name,
+            parent,
+            script,
+            components,
+        });
+    }
+    let next_id = eng
+        .try_resource::<crate::ids::IdAllocator>()
+        .map_or(0, |a| a.borrow().next);
+    serde_json::to_value(NodesFrame { next_id, nodes }).unwrap_or(serde_json::Value::Null)
+}
+
+fn load_nodes(eng: &Engine, value: &serde_json::Value) {
+    let frame: NodesFrame = match serde_json::from_value(value.clone()) {
+        Ok(frame) => frame,
+        Err(e) => {
+            tracing::error!(error = %e, "restoring the node set");
+            return;
+        }
+    };
+    let root = eng.root();
+    let wanted: crate::DetHashSet<&str> = frame.nodes.iter().map(|n| n.id.as_str()).collect();
+    free_spawned_since(eng, root, &wanted);
+    // Frames are in the order `collect_subtree` produced, which puts a parent
+    // before its children, so a parent is back before anything asks for it.
+    for node in &frame.nodes {
+        respawn(eng, root, node);
+    }
+    if let Some(allocator) = eng.try_resource::<crate::ids::IdAllocator>() {
+        allocator.borrow_mut().next = frame.next_id;
+    }
+}
+
+/// Free every node the snapshot does not name. A node with no id is left
+/// alone: nothing recorded it, so nothing can say it is new.
+fn free_spawned_since(eng: &Engine, root: Entity, wanted: &crate::DetHashSet<&str>) {
+    let extra: Vec<Entity> = {
+        let world = eng.world();
+        collect_subtree(&world, root)
+            .into_iter()
+            .filter(|&e| e != root)
+            .filter(|&e| crate::ids::of(&world, e).is_some_and(|id| !wanted.contains(id.as_str())))
+            .collect()
+    };
+    for entity in extra {
+        // Its parent may have taken it already.
+        if !eng.world().contains(entity) {
+            continue;
+        }
+        if let Some(host) = eng.script_host() {
+            let subtree = collect_subtree(&eng.world(), entity);
+            for e in subtree {
+                host.detach(crate::node_id_of(e));
+            }
+        }
+        crate::scene::free_subtree(&mut eng.world_mut(), entity);
+    }
+}
+
+/// Put one node back, if it is not already there.
+fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
+    let parent = {
+        let world = eng.world();
+        if crate::ids::find(&world, root, &node.id).is_some() {
+            return;
+        }
+        match &node.parent {
+            None => root,
+            Some(parent) => {
+                let Some(entity) = crate::ids::find(&world, root, parent) else {
+                    tracing::error!(node = %node.id, parent = %parent, "respawning under a parent that is gone");
+                    return;
+                };
+                entity
+            }
+        }
+    };
+    let entity = {
+        let mut world = eng.world_mut();
+        let entity = crate::scene::spawn_node(&mut world, &node.name, parent);
+        let _ = world.insert_one(entity, StableId(node.id.clone()));
+        entity
+    };
+    for (name, text) in &node.components {
+        let Ok(params) = toml::from_str::<toml::Value>(text) else {
+            continue;
+        };
+        if let Err(e) = crate::components::add(eng, entity, name, Some(&params)) {
+            tracing::error!(error = %e, component = %name, node = %node.id, "restoring a component");
+        }
+    }
+    if let Some(path) = &node.script {
+        if let Some(host) = eng.script_host() {
+            if let Err(e) = host.attach(crate::node_id_of(entity), path) {
+                tracing::error!(error = %e, node = %node.id, "reattaching a script");
+            }
+        }
     }
 }

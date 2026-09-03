@@ -9,10 +9,10 @@ use glamx::{Pose2, Rot2, Vec2};
 use rapier2d::math::Vector;
 use rapier2d::prelude::{
     ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule, Collider,
-    ColliderBuilder as ColliderBuilder2, ColliderHandle, Group, InteractionGroups, RigidBodyHandle,
+    ColliderBuilder as ColliderBuilder2, Group, InteractionGroups, InteractionTestMode,
+    RigidBodyHandle,
 };
 
-use crate::dim2::body::remove_body_and_colliders;
 use crate::dim2::{node_pose_2d, PhysicsState2d};
 use crate::vocabulary as v;
 
@@ -73,6 +73,7 @@ pub(crate) fn add_collider_at(
     let mut state = state.borrow_mut();
     state.world.colliders[handle].user_data = u128::from(entity.to_bits().get());
     state.colliders.entry(entity).or_default().push(handle);
+    state.queries_ready = false;
     Ok(())
 }
 
@@ -87,6 +88,7 @@ pub(crate) fn remove_colliders(eng: &Engine, entity: Entity) {
         for handle in handles {
             state.world.remove_collider(handle);
         }
+        state.queries_ready = false;
     }
 }
 
@@ -123,9 +125,10 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
         "segment" => ColliderBuilder2::segment(point("a", [0.0, 0.0]), point("b", [1.0, 0.0])),
         "halfspace" => {
             let n = point("normal", [0.0, 1.0]);
-            let normal = rapier2d::na::Unit::try_new(n, 1.0e-6)
-                .ok_or_else(|| anyhow!("a halfspace collider needs a non-zero `normal`"))?;
-            ColliderBuilder2::halfspace(normal)
+            if n.length_squared() < 1.0e-12 {
+                return Err(anyhow!("a halfspace collider needs a non-zero `normal`"));
+            }
+            ColliderBuilder2::new(rapier2d::prelude::SharedShape::halfspace(n.normalize()))
         }
         "trimesh" | "convex_hull" | "polyline" => mesh_collider(eng, params, kind)?,
         "heightfield" => heightfield_collider(eng, params)?,
@@ -204,10 +207,12 @@ fn with_material(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBui
         .collision_groups(InteractionGroups::new(
             Group::from_bits_truncate(v::layer_bits(params, "layers", false)),
             Group::from_bits_truncate(v::layer_bits(params, "mask", true)),
+            InteractionTestMode::And,
         ))
         .solver_groups(InteractionGroups::new(
             Group::from_bits_truncate(v::layer_bits(params, "solver_layers", false)),
             Group::from_bits_truncate(v::layer_bits(params, "solver_mask", true)),
+            InteractionTestMode::And,
         ))
         .active_collision_types(ActiveCollisionTypes::from_bits_truncate(v::bits(
             params,
@@ -243,6 +248,7 @@ fn combine_rule(name: &str) -> CoefficientCombineRule {
         "multiply" => CoefficientCombineRule::Multiply,
         "max" => CoefficientCombineRule::Max,
         "clamped_sum" => CoefficientCombineRule::ClampedSum,
+        "geometric_mean" => CoefficientCombineRule::GeometricMean,
         _ => CoefficientCombineRule::Average,
     }
 }
@@ -253,6 +259,7 @@ fn combine_name(rule: CoefficientCombineRule) -> &'static str {
         CoefficientCombineRule::Multiply => "multiply",
         CoefficientCombineRule::Max => "max",
         CoefficientCombineRule::ClampedSum => "clamped_sum",
+        CoefficientCombineRule::GeometricMean => "geometric_mean",
         CoefficientCombineRule::Average => "average",
     }
 }
@@ -264,7 +271,7 @@ pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value)
     let offset = v::vec2(params, "offset", [0.0; 2]);
     let offset = Pose2::from_parts(
         Vec2::new(offset[0], offset[1]),
-        Rot2::radians(v::f(params, "offset_rotation", 0.0)),
+        Rot2::from_angle(v::f(params, "offset_rotation", 0.0)),
     );
     remove_colliders(eng, entity);
     add_collider_at(eng, entity, builder, offset)

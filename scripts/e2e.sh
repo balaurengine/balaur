@@ -166,6 +166,12 @@ for ex in examples/*/; do
   printf '  inst ...   '
   edit_step "$name: instances" "$ex" instancedemo
   printf 'ok\n'
+
+  # Session recording: play records, stop closes the file, the recording plays
+  # back into a rebuilt scene, and closing hands the editor back.
+  printf '  session ...'
+  edit_step "$name: session" "$ex" sessiondemo
+  printf 'ok\n'
 done
 
 printf '\npack digests (compared across platforms in CI):\n'

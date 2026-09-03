@@ -8,6 +8,7 @@
 //! does not link is a bug a headless test can catch.
 
 use anyhow::{anyhow, Result};
+use balaur_core::{App, Engine};
 
 /// Helpers any shader may `import package::common::…`.
 static COMMON: &str = include_str!("shaders/common.wesl");
@@ -23,6 +24,41 @@ static SPRITE: &str = include_str!("shaders/sprite.wesl");
 /// The 3D counterpart, mounted as `package::mesh`: the same uniforms in three
 /// dimensions, plus the scene's lights and fog.
 static MESH: &str = include_str!("shaders/mesh.wesl");
+
+/// What a channel view draws: one entry point per channel, chosen by feature.
+pub static CHANNEL: &str = include_str!("shaders/channel.wesl");
+
+/// The 2D counterpart of [`CHANNEL`].
+pub static CHANNEL_2D: &str = include_str!("shaders/channel2d.wesl");
+
+/// The channels [`CHANNEL`] can draw, in the order a menu lists them.
+pub const CHANNELS: &[&str] = &["albedo", "normals", "uv", "depth"];
+
+/// Shader modules a plugin added, mounted beside the engine's own.
+///
+/// Ordered, not hashed: a link is over the same modules in the same order
+/// every run, whoever registered them.
+#[derive(Default)]
+pub struct ShaderModules(pub Vec<(String, String)>);
+
+/// Make `source` importable as `path` — `package::water`, say.
+///
+/// For a plugin shipping shader code of its own: a project's material imports
+/// it exactly as it imports `package::sprite`.
+pub fn register_shader_module(app: &mut App, path: &str, source: &str) {
+    let entry = (path.to_string(), source.to_string());
+    if let Some(modules) = app.engine.try_resource::<ShaderModules>() {
+        modules.borrow_mut().0.push(entry);
+        return;
+    }
+    app.engine.insert_resource(ShaderModules(vec![entry]));
+}
+
+/// What plugins registered, for a caller about to link.
+pub fn plugin_modules(eng: &Engine) -> Vec<(String, String)> {
+    eng.try_resource::<ShaderModules>()
+        .map_or_else(Vec::new, |modules| modules.borrow().0.clone())
+}
 
 /// Composes `(module path, source)` pairs into one WGSL translation unit,
 /// starting from `root` and keeping only what its entry points reach.
@@ -225,6 +261,43 @@ import package::mesh::{Light, contribution, VertexInput, VertexOutput, vertex};
             .err()
             .expect("validation must reject a call to nothing");
         assert!(format!("{err:#}").contains("nonesuch"), "{err:#}");
+    }
+
+    #[test]
+    fn every_channel_links_to_one_entry_point() {
+        for channel in CHANNELS {
+            let features: Vec<(&str, bool)> = CHANNELS.iter().map(|c| (*c, c == channel)).collect();
+            let unit = link(&[("package::c", CHANNEL)], "package::c", &features)
+                .unwrap_or_else(|why| panic!("channel `{channel}`: {why:#}"));
+            let wgsl = wgsl(&unit);
+            assert_eq!(
+                wgsl.matches("fn fs_main").count(),
+                1,
+                "channel `{channel}` kept more than one fragment stage: {wgsl}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_channel_links_in_2d_too() {
+        for channel in CHANNELS {
+            let features: Vec<(&str, bool)> = CHANNELS.iter().map(|c| (*c, c == channel)).collect();
+            let unit = link(&[("package::c", CHANNEL_2D)], "package::c", &features)
+                .unwrap_or_else(|why| panic!("channel `{channel}`: {why:#}"));
+            assert_eq!(
+                wgsl(&unit).matches("fn fs_main").count(),
+                1,
+                "channel `{channel}` kept more than one fragment stage"
+            );
+        }
+    }
+
+    #[test]
+    fn a_channel_draws_what_its_name_says() {
+        let features: Vec<(&str, bool)> = CHANNELS.iter().map(|c| (*c, *c == "normals")).collect();
+        let wgsl = wgsl(&link(&[("package::c", CHANNEL)], "package::c", &features).unwrap());
+        assert!(wgsl.contains("normalize"), "{wgsl}");
+        assert!(!wgsl.contains("exp("), "the depth channel came too: {wgsl}");
     }
 
     #[test]

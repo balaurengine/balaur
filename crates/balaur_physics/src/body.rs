@@ -172,6 +172,11 @@ pub(crate) fn apply_body(eng: &Engine, entity: Entity, params: &toml::Value) -> 
     with_body(eng, entity, |state, handle| {
         let may_sleep = state.sleeping_allowed;
         write_body(&mut state.world.bodies[handle], params, may_sleep);
+        // Rapier folds additional mass in at the next step; a scene that sets
+        // `mass = 5` and a script that reads it back in the same tick would
+        // otherwise disagree.
+        let colliders = &state.world.colliders;
+        state.world.bodies[handle].recompute_mass_properties_from_colliders(colliders);
     })
 }
 
@@ -500,6 +505,8 @@ pub(crate) fn install_body_state_api(m: &mut dyn Bindings<Engine>) {
                 body.set_translation(Vec3::new(x, y, z), true);
                 body.set_linvel(Vec3::ZERO, true);
                 body.set_angvel(Vec3::ZERO, true);
+                // A query before the next step must see the new place.
+                state.queries_ready = false;
             })
         },
     );

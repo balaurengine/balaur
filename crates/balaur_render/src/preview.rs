@@ -33,6 +33,42 @@ pub struct Preview {
     pub ty: String,
 }
 
+/// `source` rewritten to draw a value, when a preview asks for one of this
+/// shader.
+///
+/// A rewrite that cannot be made — a line declaring nothing, a value with no
+/// written type — leaves the shader alone and says why once, because a
+/// caret moving through a file passes over such lines constantly.
+#[cfg(feature = "kiss3d")]
+pub(crate) fn requested(eng: &balaur_core::Engine, shader: &str, source: String) -> String {
+    let Some(request) = eng.try_resource::<crate::PreviewRequest>() else {
+        return source;
+    };
+    let (wanted, line) = {
+        let request = request.borrow();
+        (request.shader.clone(), request.line)
+    };
+    if wanted != shader || line == 0 {
+        return source;
+    }
+    match preview(&source, line) {
+        Ok(preview) => {
+            tracing::info!(
+                shader,
+                line,
+                name = preview.name,
+                ty = preview.ty,
+                "previewing"
+            );
+            preview.source
+        }
+        Err(why) => {
+            tracing::info!(shader, line, "no preview: {why:#}");
+            source
+        }
+    }
+}
+
 /// The byte range of a 1-based line.
 fn line_span(source: &str, line: usize) -> Result<(usize, usize)> {
     let mut offset = 0;

@@ -12,11 +12,27 @@ serde_json.workspace = true
 balaur_core.workspace = true
 rapier3d.workspace = true
 rapier2d.workspace = true
+# Cutting a mesh and intersecting two of them are parry's, behind its `spade`
+# feature — which rapier leaves off. Named here so the same parry rapier uses
+# gains it; the version tracks rapier's exactly.
+parry3d = { version = "0.30.2", features = ["spade"] }
+parry2d = { version = "0.30.2", features = ["spade"] }
 glamx.workspace = true
 anyhow.workspace = true
 balaur_script.workspace = true
 tracing.workspace = true
 toml.workspace = true
+# Only to size the pool the `parallel` feature runs rapier's work on.
+rayon = { version = "1", optional = true }
+
+[features]
+# Rapier's parallel solver, narrow phase and BVH refresh, through rayon.
+#
+# The solver is coloured and staged — "results depend only on the coloring,
+# not on batch distribution", says its own doc — so the thread count does not
+# change results. `tests/determinism.rs` holds that to it rather than trusting
+# it. Off by default because the digest matrix has to pass first.
+parallel = ["rapier3d/parallel", "rapier2d/parallel", "dep:rayon"]
 
 [dev-dependencies]
 balaur.workspace = true

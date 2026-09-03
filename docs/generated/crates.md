@@ -12,8 +12,8 @@ Balaur game engine: batteries-included facade over the core and standard plugins
 Batteries-included entry points for Balaur games and tools.
 
 - **workspace deps:** `balaur_anim`, `balaur_audio`, `balaur_core`, `balaur_gamend`, `balaur_input`, `balaur_net`, `balaur_physics`, `balaur_plugin`, `balaur_render`, `balaur_script`, `balaur_script_rune`, `balaur_ui`
-- **external deps:** 2 (anyhow, tracing)
-- **public surface:** 6 fn
+- **external deps:** 3 (anyhow, toml, tracing)
+- **public surface:** 8 fn
 
 ## `balaur_android`
 
@@ -76,10 +76,10 @@ Balaur engine core: the ECS world every plugin builds on.
 
 - **workspace deps:** `balaur_script`
 - **external deps:** 15 (anyhow, dirs, glamx, gltf, hecs, indexmap, libm, rustc-hash, …)
-- **public surface:** 86 fn, 51 struct, 5 enum, 1 trait, 15 const, 15 type
+- **public surface:** 109 fn, 65 struct, 7 enum, 1 trait, 18 const, 17 type
 - **traits:** `Plugin`
-- **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Bone`, `Children`, `ComponentDef`, `ComponentRegistry`, `Digest`, `DigestRegistry`, `Engine`, `EngineOp`, `Entry`, `ExternalIo`, `Frame`, `GlbImport`, `GlobalTransform`, `Hasher`, `Header`, `HeightfieldData`, `LogEntry`, `MeshData`, `MeshSkin`, `Name`, `NodeOp`, `Pack`, `Parent`, `Pcg32`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Recorder`, `ReplayFeed`, `ReplayRegistry`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `Session`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `Transform`
-- **enums:** `AssetRef`, `AssetSource`, `Command`, `ReplayMode`, `Stage`
+- **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Bone`, `Children`, `ComponentDef`, `ComponentRegistry`, `DebugLineBuffer`, `DebugLineBuffer2d`, `Digest`, `DigestRegistry`, `Divergence`, `Engine`, `EngineOp`, `Entry`, `Event`, `EventLog`, `ExternalIo`, `Frame`, `GlbImport`, `GlobalTransform`, `Hasher`, `Header`, `HeightfieldData`, `IdAllocator`, `LogEntry`, `ManifestSource`, `MeshData`, `MeshSkin`, `Name`, `NodeOp`, `Origin`, `Pack`, `Parent`, `Pcg32`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Recorder`, `Recording`, `ReplayFeed`, `ReplayPlayer`, `ReplayRegistry`, `ReplaySetupRegistry`, `Resources`, `RngState`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `Server`, `Session`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `Trailer`, `Transform`, `VoxelsData`
+- **enums:** `AssetRef`, `AssetSource`, `Command`, `PlayState`, `ReplayMode`, `Stage`, `Step`
 
 ## `balaur_gamend`
 
@@ -100,9 +100,9 @@ Balaur input plugin: backend-agnostic input state and the `input` Lua module
 Input as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
-- **external deps:** 5 (anyhow, gilrs, serde, serde_json, tracing)
-- **public surface:** 1 fn, 4 struct, 1 enum, 4 const
-- **structs:** `GamepadState`, `InputPlugin`, `InputSnapshot`, `Pad`
+- **external deps:** 6 (anyhow, gilrs, serde, serde_json, toml, tracing)
+- **public surface:** 1 fn, 5 struct, 1 enum, 4 const
+- **structs:** `GamepadState`, `InputActions`, `InputPlugin`, `InputSnapshot`, `Pad`
 - **enums:** `TouchPhase`
 
 ## `balaur_net`
@@ -123,9 +123,10 @@ Balaur plugin wrapping the Rapier physics engine
 Rapier physics as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
-- **external deps:** 8 (anyhow, glamx, rapier2d, rapier3d, serde, serde_json, toml, tracing)
-- **public surface:** 5 fn, 3 struct, 3 const
-- **structs:** `PhysicsPlugin`, `PhysicsState`, `PhysicsState2d`
+- **external deps:** 11 (anyhow, glamx, parry2d, parry3d, rapier2d, rapier3d, rayon, serde, …)
+- **public surface:** 5 fn, 12 struct, 2 enum, 4 const
+- **structs:** `Character2d`, `Character3d`, `JointRef`, `JointRef2d`, `PhysicsDebugConfig`, `PhysicsDebugState`, `PhysicsPlugin`, `PhysicsState`, `PhysicsState2d`, `Vehicle3d`, `Wheel3d`, `WheelInput`
+- **enums:** `JointHandle`, `JointHandle2d`
 
 ## `balaur_plugin`
 
@@ -135,7 +136,7 @@ What a module or an extension implements to register itself.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
 - **external deps:** 4 (anyhow, libloading, serde_json, tracing)
-- **public surface:** 6 fn, 14 struct, 1 trait, 17 const, 1 type
+- **public surface:** 6 fn, 14 struct, 1 trait, 18 const, 1 type
 - **traits:** `Plugin`
 - **structs:** `AbiTag`, `BalaurApi`, `BalaurEntry`, `BalaurMapRef`, `BalaurModule`, `BalaurRegistry`, `BalaurSlice`, `BalaurStr`, `BalaurValue`, `CExtension`, `Extension`, `Fingerprint`, `Manifest`, `Registry`
 
@@ -146,10 +147,10 @@ Balaur rendering plugin: renderable components, with a kiss3d backend
 Rendering as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_input`, `balaur_script`, `balaur_ui`
-- **external deps:** 12 (anyhow, bytemuck, glamx, image, kiss3d, objc2, objc2-app-kit, objc2-foundation, …)
-- **public surface:** 3 fn, 23 struct, 3 enum, 2 const, 2 type
-- **structs:** `AppIconConfig`, `Camera`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ClearColorConfig`, `DebugLineBuffer`, `DebugLineBuffer2d`, `GridConfig`, `Particles`, `PolygonMesh`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `SpriteSheet2d`, `SpriteTexture`, `Tilemap`, `Tileset`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
-- **enums:** `CameraKind`, `Shape`, `Shape2d`
+- **external deps:** 14 (anyhow, bytemuck, glamx, image, kiss3d, libm, objc2, objc2-app-kit, …)
+- **public surface:** 14 fn, 29 struct, 5 enum, 5 const
+- **structs:** `AppIconConfig`, `Bounds`, `Camera`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ChannelView`, `ClearColorConfig`, `Compiled`, `Field`, `GridConfig`, `Material`, `Particles`, `PolygonMesh`, `Preview`, `PreviewRequest`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `ShaderModules`, `SpriteSheet2d`, `SpriteTexture`, `Tilemap`, `Tileset`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
+- **enums:** `CameraKind`, `FieldType`, `Param`, `Shape`, `Shape2d`
 
 ## `balaur_script`
 
@@ -159,7 +160,7 @@ The scripting seam: traits only, no backend.
 
 - **workspace deps:** none
 - **external deps:** 2 (anyhow, serde)
-- **public surface:** 1 fn, 5 struct, 3 enum, 8 trait, 1 type
+- **public surface:** 1 fn, 5 struct, 3 enum, 8 trait, 2 type
 - **traits:** `Bindings`, `BindingsExt`, `CallbackHost`, `FromArg`, `FromArgs`, `IntoValue`, `ScriptCompiler`, `ScriptHost`
 - **structs:** `CallbackId`, `Frame`, `NoBindings`, `NodeId`, `Pause`
 - **enums:** `PauseReason`, `StepMode`, `Value`
@@ -170,8 +171,8 @@ The Rune script host: loading, instancing, hot reload, precompiled packs.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
 - **external deps:** 6 (anyhow, hecs, indexmap, notify, rune, tracing)
-- **public surface:** 3 fn, 7 struct
-- **structs:** `ApiEntry`, `Color`, `Node`, `RuneHost`, `RuneModule`, `Vec2`, `Vec3`
+- **public surface:** 3 fn, 10 struct
+- **structs:** `ApiEntry`, `Color`, `Component`, `Finding`, `FnEntry`, `Node`, `RuneHost`, `RuneModule`, `Vec2`, `Vec3`
 
 ## `balaur_ui`
 

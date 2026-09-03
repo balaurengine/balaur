@@ -290,6 +290,9 @@ pub struct Trailer {
     /// `stop`, `reload` or `quit`.
     pub reason: String,
     pub tick: u64,
+    /// The world when the session was stopped. Not a frame boundary — a stop
+    /// lands wherever in the frame the button was pressed — so this is a note
+    /// for a reader, not something a replay can check itself against.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub digest: Option<u64>,
 }
@@ -366,10 +369,17 @@ pub struct Recorder {
     /// Whether a script was stopped at the end of the last frame, so a pause
     /// is recorded once rather than on every frame it lasts.
     was_paused: bool,
+    /// The tick the recorder was made on. A frame offered for that same tick
+    /// is the one recording started part-way through, and half a frame is not
+    /// something a replay can reproduce.
+    born: u64,
+    /// Taken by the app, which zeroes its fixed-step accumulator. A replay
+    /// zeroes its own, so both take the same steps on the same frames.
+    restart: bool,
 }
 
 impl Recorder {
-    pub fn create(path: &Path, header: Header, per_tick_digest: bool) -> Result<Self> {
+    pub fn create(path: &Path, header: Header, per_tick_digest: bool, born: u64) -> Result<Self> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
         }
@@ -384,6 +394,8 @@ impl Recorder {
             log_cursor: crate::logbuf::recent(1).first().map_or(0.0, |e| e.time),
             finished: false,
             was_paused: false,
+            born,
+            restart: true,
         })
     }
 
@@ -504,7 +516,10 @@ pub struct Recording(pub Option<Recorder>);
 /// Written here rather than taken from a date crate because this is the only
 /// date the engine formats, and the civil-date conversion is shorter than the
 /// dependency.
-#[allow(clippy::disallowed_methods, reason = "names a recording file, not simulation")]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "names a recording file, not simulation"
+)]
 pub fn timestamp() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -551,7 +566,7 @@ pub fn start_recording(
         started: timestamp(),
         setup: capture_setup(eng),
     };
-    let recorder = Recorder::create(path, header, per_tick_digest)?;
+    let recorder = Recorder::create(path, header, per_tick_digest, eng.tick())?;
     *eng.resource::<ReplayMode>().borrow_mut() = ReplayMode::Recording;
     eng.resource::<Recording>().borrow_mut().0 = Some(recorder);
     Ok(())
@@ -585,6 +600,10 @@ pub fn stop_recording(eng: &Engine, reason: &str) -> Option<PathBuf> {
 pub(crate) fn record_frame_system(eng: &Engine, dt: f32) {
     let recording = eng.resource::<Recording>();
     if let Some(recorder) = recording.borrow_mut().0.as_mut() {
+        if eng.tick() == recorder.born {
+            eng.resource::<EventLog>().borrow_mut().0.clear();
+            return;
+        }
         let mut events = std::mem::take(&mut eng.resource::<EventLog>().borrow_mut().0);
         events.extend(recorder.fresh_logs());
         events.extend(recorder.fresh_pause(eng));
@@ -843,6 +862,22 @@ pub fn begin(eng: &Engine, session: Session) {
     player.budget = SEEK_BUDGET;
     player.diverged = None;
     player.restart = true;
+    drop(player);
+    // Held from here: `load` is called part-way through a frame, and the rest
+    // of that frame would step the game before the first recorded tick was
+    // ever fed.
+    eng.set_replay_hold(true);
+}
+
+/// Whether the app should zero its fixed-step accumulator before the next
+/// frame, because a recording is about to start at that boundary.
+pub(crate) fn take_record_restart(eng: &Engine) -> bool {
+    eng.try_resource::<Recording>().is_some_and(|r| {
+        r.borrow_mut()
+            .0
+            .as_mut()
+            .is_some_and(|rec| std::mem::take(&mut rec.restart))
+    })
 }
 
 /// Start playing the loaded session, for a Rust driver.
@@ -910,19 +945,15 @@ pub(crate) fn after_frame(eng: &Engine) {
         let Some(session) = &player.session else {
             return;
         };
-        let spent = player.cursor >= session.frames.len();
-        // The trailer's digest describes the same world the last frame left,
-        // so a session with end-only digests is checked exactly once.
+        // Only a frame's own digest is comparable. The trailer's is taken
+        // wherever in its frame the session was stopped, which is not a frame
+        // boundary and so is a record for a reader, not a check.
         let expected = player
             .cursor
             .checked_sub(1)
             .and_then(|i| session.frames.get(i))
-            .and_then(|f| f.digest.map(|d| (f.tick, d)))
-            .or_else(|| {
-                let trailer = spent.then_some(session.trailer.as_ref()).flatten()?;
-                trailer.digest.map(|d| (trailer.tick, d))
-            });
-        (expected, spent)
+            .and_then(|f| f.digest.map(|d| (f.tick, d)));
+        (expected, player.cursor >= session.frames.len())
     };
     if let Some((tick, expected)) = expected {
         let live = crate::digest::digest(eng).0;

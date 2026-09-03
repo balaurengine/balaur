@@ -13,6 +13,7 @@ use balaur_core::{App, Engine, Plugin, Stage};
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 mod camera;
+mod debug_view;
 pub mod material;
 pub mod mesh;
 mod particles;
@@ -24,6 +25,7 @@ mod shape;
 mod sprite;
 mod tilemap;
 pub use camera::{Camera, CameraKind};
+pub use debug_view::{ChannelView, PreviewRequest};
 pub use particles::Particles;
 pub use polygon::PolygonMesh;
 pub use tilemap::{Tilemap, Tileset, TILESET_ASSET_TYPE};
@@ -719,6 +721,7 @@ impl Plugin for RenderPlugin {
         install_camera_api(&mut *m);
         install_camera_2d_api(&mut *m);
         install_window_api(&mut *m);
+        debug_view::install_debug_view_api(&mut *m);
         install_backdrop_api(&mut *m);
         material::install_material_check(&mut *m);
         material::install_material_params(&mut *m);

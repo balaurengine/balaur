@@ -18,6 +18,10 @@ tracing.workspace = true
 [dev-dependencies]
 libm.workspace = true
 tempfile = "3"
+# A test declares a replay source, and a source's captured value is JSON.
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
 
 [lints]
 workspace = true

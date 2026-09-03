@@ -120,6 +120,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: component_schema,
     },
     EngineOp {
+        module: "scene",
+        name: "component_properties",
+        call: component_properties,
+    },
+    EngineOp {
         module: "skeleton",
         name: "apply_rest",
         call: crate::skeleton::apply_rest_op,
@@ -359,6 +364,7 @@ fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("component_types", &[], "()", "The names of every registered component type, not the components on any node."),
         ("component_tags", &[], "(name: string)", "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered."),
         ("component_schema", &[], "(name: string)", "A component type's property schema as a table; nil for a name nothing registered."),
+        ("component_properties", &[], "(name: string, params: any)", "What a component's `apply` would receive for `params`: the schema's defaults with a shorthand or a partial table merged over them. This is how a tool compares two spellings of the same component."),
         ("presets", &[], "()", "The names of every registered preset."),
         ("preset_info", &[], "(name: string)", "A preset's description, tags and the components it adds; nil for a name nothing registered."),
         ("apply_preset", &[], "(node: node, name: string)", "Add every component a preset names to the node; a part that fails leaves the parts before it in place."),
@@ -560,6 +566,7 @@ fn spawn(eng: &Engine, args: &[Value]) -> Result<Value> {
     let parent = optional_node(args, 1)?.unwrap_or_else(|| eng.root());
     let mut world = eng.world_mut();
     let entity = scene::spawn_node(&mut world, text(args, 0)?, parent);
+    crate::ids::assign(eng, &mut world, entity);
     Ok(Value::Node(crate::node_id_of(entity).0))
 }
 
@@ -681,6 +688,27 @@ fn component_schema(eng: &Engine, args: &[Value]) -> Result<Value> {
     registry.def(text(args, 0)?).map_or(Ok(Value::Nil), |def| {
         crate::node_api::from_toml(&def.schema)
     })
+}
+
+/// The whole property table a scene key's value stands for.
+///
+/// A scene file may write a component as a shorthand (`body3d = "dynamic"`),
+/// as a partial table, or in full, and all three mean the same component. A
+/// tool comparing what two files said therefore cannot compare the text: it
+/// has to compare what the engine would make of it, which is this.
+fn component_properties(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let name = text(args, 0)?;
+    let registry = eng.resource::<crate::components::ComponentRegistry>();
+    let schema = match registry.borrow().def(name) {
+        Some(def) => def.schema.clone(),
+        None => return Ok(Value::Nil),
+    };
+    let params = match args.get(1) {
+        None | Some(Value::Nil) => None,
+        Some(value) => Some(crate::node_api::to_toml(value)?),
+    };
+    let full = crate::components::properties(eng, &schema, params.as_ref())?;
+    crate::node_api::from_toml(&full)
 }
 
 /// An asset's definition table, from any of the three reference forms.

@@ -1,0 +1,31 @@
+# Benchmark ceilings for `python3 scripts/bench.py --check`, written by
+# `--record` from a real run and multiplied by 4 so a shared CI runner
+# passes. A failure here is a regression in kind, not a slow morning.
+
+[ceiling_ns]
+"attach_first/rune" = 209501392
+"attach_more/rune/100" = 9431518
+"binding_arg/rune/int" = 7279
+"binding_arg/rune/list" = 17670
+"binding_arg/rune/map" = 41440
+"binding_arg/rune/map_reused" = 44638
+"binding_arg/rune/str" = 11246
+"binding_call/rune" = 6542
+"compile_second_script/rune" = 753650
+"instantiate_scene/50" = 1008677
+"instantiate_scene/500" = 22121754
+"parse_scene_only/50" = 542003
+"parse_scene_only/500" = 2893766
+"physics_step/100" = 165848
+"physics_step/1000" = 1320555
+"propagate_transforms/100" = 42044
+"propagate_transforms/1000" = 1058265
+"propagate_transforms/10000" = 10764247
+"spawn_nodes/100" = 154064
+"spawn_nodes/1000" = 1659204
+"update_per_node/empty_rune/100" = 871902
+"update_per_node/empty_rune/1000" = 5004763
+"update_per_node/node_api_rune/100" = 1034040
+"update_per_node/node_api_rune/1000" = 8427260
+"update_per_node/state_rune/100" = 1102635
+"update_per_node/state_rune/1000" = 6440259

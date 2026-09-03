@@ -25,10 +25,29 @@ HEADROOM = 4.0
 FRAME_NS = 16_666_667  # 60 fps
 
 
+def bench_targets():
+    """The crate's `[[bench]]` targets, by name.
+
+    Named one by one because `--benches` means every target with `bench = true`
+    — the lib included, which runs under libtest and rejects criterion's flags.
+    """
+    out = subprocess.run(
+        ["cargo", "metadata", "--format-version", "1", "--no-deps"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    package = next(
+        p for p in json.loads(out.stdout)["packages"] if p["name"] == "balaur_bench"
+    )
+    return [t["name"] for t in package["targets"] if "bench" in t["kind"]]
+
+
 def run_benches(quick, only):
     args = ["cargo", "bench", "-p", "balaur_bench"]
-    if only:
-        args += ["--bench", only]
+    for name in [only] if only else bench_targets():
+        args += ["--bench", name]
     args += ["--"]
     if quick:
         args += ["--warm-up-time", "0.4", "--measurement-time", "1.2", "--sample-size", "20"]

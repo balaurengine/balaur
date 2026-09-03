@@ -9,21 +9,30 @@ flow nothing checks.
 - a 2d capsule collider applies
 - a 2d shape component puts a 2d renderable on the node
 - a 3d collider takes friction restitution and density
+- a 3d material links against the mesh contract
 - a 3d rig at rest is identity and a turned bone swings its vertices
 - a bad schema is rejected at registration
+- a ball is not picked at the corner a box would have
 - a binding call stays sub microsecond
 - a binding can call the function it was passed
+- a binding that does not parse is dropped and the rest still work
 - a bone reports only the key that wrote it
+- a border rounds a cuboid
 - a breakpoint lands on the next line with code
 - a breakpoint pauses update on its line with the arguments as locals
 - a broken rune script fails the export
 - a build from another engine version is refused by name
 - a call on a track that animates a value is rejected
 - a call step takes no time of its own
+- a call to a name nothing declares is caught without a gpu
 - a callback does not outlive its call
 - a camera that is not current leaves the config alone
+- a canonical windows path is made joinable
 - a capsule keeps the height it was given
+- a channel draws what its name says
 - a checksum mismatch rejects the download and leaves no file
+- a child collider joins the body above it
+- a client sets a breakpoint then reads and walks the stopped game
 - a clip animates a component the animation crate does not depend on
 - a clip defined at run time plays by the name it was given
 - a clip drives a nodes position over time
@@ -42,8 +51,11 @@ flow nothing checks.
 - a colour property accepts hex as well as floats
 - a colour reads back as it was set
 - a colour set from a script reads back
+- a colour that is not hex names the param
 - a compile error fails the build
 - a component can carry several tags
+- a component handle binds the node for the module driving it
+- a component handle refuses a function no driving module declares
 - a component track can drive a child node
 - a component track is as wide as its keys
 - a component with no expectations never warns
@@ -56,6 +68,7 @@ flow nothing checks.
 - a curve reads its own name back as a transition and a mode
 - a curve returns exactly the same bits twice
 - a data uri buffer needs no reader
+- a declared action reads the key it is bound to
 - a definition may carry its vertices instead
 - a definition may name a file to import
 - a definition missing its shape says so
@@ -64,6 +77,7 @@ flow nothing checks.
 - a different seed gives a different stream
 - a disabled modifier leaves the pose alone
 - a divergence report names the node and the slice
+- a diverging replay names the tick
 - a dot dot segment climbs to the parent
 - a duplicate name resolves the same way every time
 - a duplicated id is regenerated
@@ -71,25 +85,40 @@ flow nothing checks.
 - a face naming a vertex that does not exist is an error
 - a face naming a vertex the definition never gave is refused
 - a failed transfer reports an error event
+- a feature picks which variant is linked
+- a field no param names keeps its zero
+- a file can be made moved and deleted
 - a file with no binary chunk is refused
 - a file with no faces is an error rather than an empty mesh
+- a files modification time is readable and absent for one that is not there
+- a filter excludes the node it names
+- a finding takes its place from the diagnostic
+- a float is drawn as grey
 - a forward parent reference is rejected
 - a frame of exactly one step runs the stage once
 - a frame shorter than a step ticks update but not fixed update
 - a freed node stops being valid
 - a glb becomes a mesh with its skin
 - a gltf reads its buffer beside itself through the reader
+- a grid parses its cells
 - a grid parses row major
 - a grid thinner than one cell is refused
 - a grid whose count does not match its shape is refused
+- a grid without cells is refused
 - a headless frame empties the debug line buffers
 - a heightfield collider without its asset says so
 - a hex colour reaches apply expanded through patch as well as add
 - a hex string is a colour wherever a colour is taken
 - a hidden widget draws nothing and takes no clicks
+- a key pair reads as an axis
 - a key that neither calls nor carries a value says which it needs
 - a leaf subtree is just itself
 - a library file addresses its clips by name
+- a light behind the surface contributes nothing
+- a light straight on contributes its whole colour
+- a line that declares nothing says so
+- a link error points at the file and line the author wrote
+- a locked axis holds still
 - a long frame runs several steps all at the fixed dt
 - a loop with no area or too few points is refused
 - a looping clip never ends and a plain one does
@@ -98,9 +127,16 @@ flow nothing checks.
 - a lying trailer is refused rather than panicking
 - a malformed reference fails with a message naming the reference
 - a matching fingerprint reports no differences
+- a material names its shader
+- a material naming a missing shader says which file
+- a material without a shader is an error
+- a matrix says it cannot be drawn
 - a mesh collider without its asset says so
+- a mesh is picked over the box its vertices filled
 - a mesh that does not resolve warns and leaves the polygon empty
+- a mesh with no bounds is not pickable
 - a message round trips through one side and back
+- a message with no span places nothing
 - a method key fires on the node its track targets
 - a method key fires once per loop
 - a method key is passed once per loop and never by a seek
@@ -130,37 +166,63 @@ flow nothing checks.
 - a pack encodes the same whatever order it was filled in
 - a pack round trips through bytes
 - a pack writes its entries in sorted order
+- a packed game boots with the properties its scene set
+- a packed game builds its prefabs
 - a packed project boots without its sources
 - a packed run resolves an asset exactly as a dev run does
 - a panel takes an explicit size
 - a parallel group runs together and the next step waits for all of it
+- a param of the wrong type names both sides
+- a param the shader does not read is dropped not fatal
 - a particles component round trips and stays out of the simulation
 - a pass with no widgets is quiet
 - a path finds a descendant and missing ones are none
 - a pause holds the scope and nothing outside it
+- a paused replay holds the world still
 - a pingpong clip folds time back on itself
 - a pingpong clip reverses at the end
 - a pingpong return leg passes a key the other way round
 - a plain binary has no pack
+- a plain path is left alone
+- a plane is pickable from above
+- a plugin module is importable by a project shader
 - a plugin registers its resources and systems
 - a plugin with no requirements still loads
+- a point light inside its radius contributes something
+- a point light past its radius contributes nothing
 - a polygon loop of five is ear clipped into three
 - a polygon with no mesh yet exists and draws nothing
 - a polyline is a shape2d that keeps its reference
+- a predicate can reject a hit
+- a prefab inside a prefab prefixes twice
+- a prefab that contains itself is an error not a hang
 - a preset applies every component it names
 - a press is just pressed for one frame only
+- a project declaring no actions is not an error
 - a project preset is parsed from toml
 - a project preset without components is an error
+- a project shader links against the mesh contract
+- a project shader links against the sprite contract
 - a project with no manifest fails to load
 - a project without a language runs on rune
 - a project without a manifest is an error
 - a property that is neither a transform nor a path is rejected
 - a property the component never reports still survives a patch
+- a property the script does not export is still written
 - a quad is triangulated as a fan
 - a queued clip starts when the one before it ends
+- a ray beside the box misses
+- a ray down the z axis hits the near face of a cube
+- a ray finds the nearest collider
+- a ray pointing away misses
+- a ray starting inside hits at the eye
+- a ray that hits nothing returns nothing
+- a ray that meets nothing picks nothing
+- a recorded reply reaches the request that asked for it
 - a recorded response replays with no server listening
 - a recording from a future format is refused by name
 - a recording round trips through the file
+- a recordings bindings survive a rebinding
 - a reference to a named entry resolves to the entry inside the file
 - a reference to a whole file resolves to that file
 - a registered component is listed and has a schema
@@ -172,20 +234,24 @@ flow nothing checks.
 - a replayed session reproduces every tick digest
 - a required module shares functions and hot reloads in place
 - a resource round trips and is shared not copied
+- a respawned node brings its components back
 - a response arrives in the snapshot with status and body
 - a restored world digests as it did when captured
 - a rig at rest has an identity palette
 - a rig that has not started playing is at rest
+- a rolled back spawn mints the id it minted before
 - a rotation crossing 180 degrees interpolates the short way
 - a rotation track is sampled as a quaternion the short way round
 - a rotation track takes quaternion keys and slerps between them
 - a rune project that calls the engine can be exported
 - a rune script fetches awaits and echoes
 - a rune script logs in and calls a hook
+- a rune script sends and receives a binary frame
 - a saved animation node no longer warns that nothing handles it
 - a scaled rig scales the rest pose with it
 - a scene asset block resolves by its id from a node in that scene
 - a scene document holding an inline clip encodes and parses back
+- a scene property is on this before init runs
 - a schema declaring an asset property without naming its type is rejected
 - a script calls another and gets the return value
 - a script can attach another script and read it back
@@ -193,22 +259,37 @@ flow nothing checks.
 - a script defines a clip of its own and plays it
 - a script error inside a pass is logged not fatal
 - a script fetches awaits and echoes through a named handler
+- a script key with no source is refused on a node of its own
 - a script logs in rests and calls a hook
 - a script pauses and resumes a clip
 - a script plays a clip and hears it finish
 - a script queues a clip behind the one playing
+- a script raising a power gets the same bits libm does
 - a script reaches for the shorter spelling
 - a script reads a tween handle back and stops by it
 - a script reads the playhead back through the module
+- a script records a session and reads it back
 - a script stops a clip and nothing is current afterwards
 - a script tweens a node and hears the call at the end
+- a script without exports declares nothing
+- a script without exports takes properties anyway
 - a scrub moves nothing but the playhead
 - a scrub poses a paused clip where the playhead lands
 - a seek does not fire the keys it skipped
 - a self crossing loop still yields a triangulation
 - a sensor reports overlap without collision response
 - a sequential tween lands its steps in order
+- a session carries why it ended
+- a session name is a file name
+- a session records and replays in one process
+- a shader that does not link names the file the material pointed at
+- a shader that does not parse is an error not a panic
+- a shader with no fragment stage says so
+- a shader with no params has no fields
+- a shape3d remembers the material it names
 - a shape component puts a renderable on the node
+- a shape query finds what it overlaps
+- a shapecast stops at the first thing in the way
 - a shared closure is callable from another unit
 - a sheet is sized to one frame
 - a short frame runs no steps and carries the remainder
@@ -219,8 +300,11 @@ flow nothing checks.
 - a sound component autoplays and stop on silences it
 - a source build prints that it is one
 - a source missing from the recording is left alone
+- a spawn and a free roll back to the same digest
 - a spawned node is named parented and has a transform
 - a sprite is sized from its image
+- a sprite remembers the material it names
+- a sprite with no material names none
 - a sprite with no texture is a placeholder
 - a square becomes two triangles
 - a standalone binary gives the pack back
@@ -255,8 +339,13 @@ flow nothing checks.
 - a tween that reaches its end stops being a tween
 - a tween that would run backwards forever is rejected
 - a typed binding reaches rune
+- a value inside a helper is previewable
+- a vec2 fills red and green
+- a vec3 pads the field after it to sixteen
+- a vec4 is drawn as it is
 - a vector argument and three numbers agree
 - a verified download lands at the final path
+- a websocket carries binary frames that are not utf8
 - a websocket compresses when the server agrees
 - a websocket opens echoes and closes
 - a websocket sends plain frames when compression is off
@@ -271,6 +360,7 @@ flow nothing checks.
 - adding twice updates rather than duplicating
 - affine 2d is translate rotate scale in that order
 - an app without a backend has no script host
+- an asked for break stops at the next line a script runs
 - an asset property given neither a string nor a table says so
 - an asset type no plugin registered says which type was asked for
 - an asset type says where its files belong
@@ -280,6 +370,7 @@ flow nothing checks.
 - an eased key bends the segment that arrives at it
 - an eased step is not where a straight one would be
 - an easing curve can carry a value past the key it is heading for
+- an edge fires for one frame the way a key does
 - an embedded game will not read a file beside it
 - an empty asset property is no asset rather than a broken reference
 - an empty definition says what it needs
@@ -295,6 +386,7 @@ flow nothing checks.
 - an http error status is a response not an error
 - an import carries the side buffer and the texture along
 - an import writes bones a mesh node and a clip keyed by path
+- an imported helper arrives in the output
 - an imported inverse bind replaces the rest pose
 - an impulse starts a body moving
 - an in out curve meets in the middle
@@ -302,10 +394,17 @@ flow nothing checks.
 - an inline library autoplays the entry it names
 - an inline mesh resolves to triangles in the nodes space
 - an inline table is a definition and a string is a reference
+- an instance builds the prefab under the node that names it
 - an integer is accepted where a float is wanted
 - an interval and a call sequence among the property steps
+- an offset moves the shape and not the node
 - an out curve is its in curve reflected
 - an out of range button does not panic
+- an override naming nothing is not fatal
+- an override of one property leaves the others alone
+- an override reaches the transform too
+- an override retunes a prefabs script
+- an undeclared action reads zero rather than failing
 - an unknown body kind is rejected with its name
 - an unknown collider kind is refused by name
 - an unknown event reply carries the error status
@@ -325,6 +424,7 @@ flow nothing checks.
 - an unreachable websocket reports an error event
 - an unregistered name is an error that says so
 - an untouched world hashes the same twice
+- an untyped declaration asks for an annotation
 - anchor constants match the registered schema
 - animating a render component costs no dependency on the render crate
 - animating one property leaves the rest of its component alone
@@ -338,6 +438,7 @@ flow nothing checks.
 - binary assets travel inside the pack
 - bindings forward through references and boxes
 - body constants match the registered schema
+- body properties round trip
 - bone2d applies from a scene and reads back what was written
 - bone3d reads back every axis
 - bone weights fold to per vertex joints that sum to one
@@ -349,12 +450,16 @@ flow nothing checks.
 - by is relative to the value at the start of its step
 - by on its own offsets where the node already is
 - camera input can be switched off
+- can sleep false keeps a body awake
+- changing kind keeps the body
 - changing only the frame does not force a rebuild
 - changing the texture forces a rebuild
 - clearing the breakpoints lets update run through
+- collider material round trips
 - colliders can be added in every shape the api offers
 - commands queue and drain once
 - comments materials and groups are read past
+- compiling links the shader and packs the values
 - constant names are unique and well formed
 - corners sharing a position but not a uv become separate vertices
 - crates/balaur/src/lib.rs - (line 5)
@@ -369,21 +474,27 @@ flow nothing checks.
 - dependencies load before the plugins that need them
 - detaching the paused node lifts the pause
 - dimension tags separate the two worlds
+- disconnecting leaves the game running with no breakpoints left
 - dispatch over a thousand nodes stays inside a frame
 - draw ui is actually called
 - duplicate hands back a private copy rather than the shared one
 - each part of a fingerprint is reported separately
 - euler and quaternion round trip on every axis
+- events are recorded against the tick that made them
 - events carry their structured fields
 - every 2d shape kind round trips
 - every 3d shape kind round trips
+- every channel links in 2d too
+- every channel links to one entry point
 - every component emits only keys its schema declares
 - every component round trips through get and apply
 - every constant is screaming snake and unique
 - every constant names a key the engine knows
 - every curve starts at zero and ends at one
 - every declaration rejects a non node
+- every declared 2d shape builds
 - every declared body kind is accepted
+- every declared shape builds
 - every declared shape is accepted
 - every enum option a schema offers round trips
 - every named curve is reachable by name
@@ -395,7 +506,11 @@ flow nothing checks.
 - exists answers for all three reference forms
 - expect arity names the function and both counts
 - explicit half extents win over the image
+- exports reports the declared defaults at their own types
+- exports returning something other than an object is an error
 - extra arguments are ignored like lua does
+- features are read in the order written
+- fields come off the shaders own struct
 - first divergence names the node that moved
 - fixed update ignores the frame time that update follows
 - flip bends the elbow the other way to the same tip
@@ -407,14 +522,18 @@ flow nothing checks.
 - fs is rooted at the project
 - fs list is sorted and hides dotfiles
 - gravity and clear are callable
+- gravity scale zero hangs in the air
 - hierarchy reads back what it wrote
 - holding a key does not re fire
+- ids inside an instance are prefixed by the instance
+- importing a module nobody registered says which
 - independent plugins load in name order
 - indices and polygons together are a contradiction
 - inserting a resource twice replaces it
 - instance state survives between frames
 - interactive widgets report no interaction without input
 - internal vertices stay out of the outline until a polygon names them
+- invalidating moves the generation a linked material watches
 - join reply push and leave round trip
 - json keeps integers and floats apart
 - json null and nil are the same value
@@ -430,6 +549,8 @@ flow nothing checks.
 - login me refresh and realtime against a live server
 - look at turns the bone toward the target
 - malformed json is an error rather than a crash
+- marks answer for a source the engine does not know
+- mass is additional
 - merge defaults prefers what was given
 - missing ids are generated not rejected
 - more than four influences keep the heaviest four renormalised
@@ -450,8 +571,10 @@ flow nothing checks.
 - one inline definition written twice is cached once
 - overlaps returns an empty list for a node touching nothing
 - overwrite then apply is the identity bit for bit
+- packing writes each value at its own offset
 - pairs are 2d positions and the outline fills itself
 - panels and containers nest
+- params take numbers arrays and colours
 - patch writes one property and leaves the others where they were
 - patching a component nothing registered says which one
 - patching a node without the component adds it over the defaults
@@ -461,14 +584,19 @@ flow nothing checks.
 - pixels per unit scales the result
 - play can pick the current clip back up where it left off
 - play on restarts the nodes sound with a fresh handle
+- playing walks the session a tick at a time
 - plugin components roundtrip through the registry
 - plugins that require each other are refused
 - presets carry the parameters that distinguish them
 - project files serve a packed asset without touching disk
 - quit is off until asked for
+- raycast all is sorted nearest first
+- re applying a body keeps its velocity
 - reading a missing file is nil rather than an error
 - reapplying the same file does not restart playback
 - reapplying the same tilemap does not bump the version
+- rebinding replaces what the project declared
+- rebinding to something unparseable is refused
 - reload forgets a file so the next load reads it again
 - reload script picks up a rewritten file
 - reloading the paused script lifts the pause
@@ -483,20 +611,27 @@ flow nothing checks.
 - reparenting keeps the world pose and moves the child
 - replaying does not reach the network
 - replaying without the recorded input diverges
-- restore does not respawn or free nodes
+- restore frees a node spawned since the snapshot
+- restore respawns a node freed since the snapshot
 - retinting does not rebuild but new geometry does
+- rewriting a shader is what the next link reads
 - rng int stays inside its range
 - rotating a bone moves the vertices it weights and leaves the rest
+- rotation turns what a node covers with it
 - rune selects its own tokens
 - saving an asset writes the file and the next load reads it
 - saving something that is not a file says which reference it was
 - scale reads back what was set
+- scale widens what a node covers
 - scenes are gathered but the manifest is not one of them
 - script args reach scripts as a list
 - script module works without a backend
+- scripts inside a prefab attach with their properties
 - scroll accumulates within a frame and resets between
+- seeking runs to the tick and stops
 - set parent is a node operation
 - set text replaces a field buffer
+- shaders select their own tokens
 - shape2d does not claim a sprite
 - shapes can be set from a script in both dimensions
 - shortcuts report no press without input
@@ -513,6 +648,7 @@ flow nothing checks.
 - strings and bools convert
 - swapping replaces the binary and directories
 - text and layout helpers run
+- the 2d body carries the same properties
 - the 2d camera reports its centre and zoom
 - the 2d world has the same shape of api
 - the asset key belongs only to an asset property
@@ -523,6 +659,9 @@ flow nothing checks.
 - the clock advances and reports the last step
 - the code editor returns its buffer unchanged
 - the component round trips
+- the component writes the material back
+- the const attribute never reaches the output
+- the declared actions are listed in a stable order
 - the digest moves while the simulation does
 - the engine modules reach rune
 - the euler convention matches the engines own
@@ -535,13 +674,19 @@ flow nothing checks.
 - the generation moves only when a reload actually dropped something
 - the grid background and camera input are settable
 - the host reports a scripts public functions
+- the instance node keeps its own name and children
 - the mangling reads the way a script author would guess
+- the material asset loads and its shader links
+- the math module and the float method are one implementation
 - the mouse constants address real buttons
+- the nearest of several nodes is the one picked
+- the nearest point lands on the surface
 - the net table of the manifest sets the defaults
 - the neutral value accepts anything
 - the node api is available as methods
 - the order does not depend on how the plugins were listed
 - the pad vocabulary and the gilrs mapping agree
+- the pause request stops the game at the next line a script runs
 - the plugin builds without an output device
 - the plugin inserts the resources a frame reads
 - the plugin registers its components
@@ -551,17 +696,21 @@ flow nothing checks.
 - the ring keeps the newest and forgets the oldest
 - the rng is reproducible from a seed
 - the rng stream position is part of the digest
+- the same keys produce the same actions every run
 - the same setup animates identically twice
 - the same setup simulates identically twice
 - the scale factor is readable and settable
 - the scene root is a node and can be spawned under
 - the script api exposes tags presets and warnings
 - the skeleton module lists bones and resets them
+- the skinning shader links
 - the speed property scales playback
 - the standard app has every plugin registered
 - the stream is pinned for a given seed
+- the string form of the script key still attaches
 - the two worlds share body kinds and differ on shapes
 - the update stage still sees the measured frame time
+- the value at the line replaces the colour
 - the widget layer can be placed and turned off
 - ticking a headless app with render does not panic
 - ticking advances the clock by the step given
@@ -576,7 +725,10 @@ flow nothing checks.
 - tween to is the same tween spelled shorter
 - two bone ik puts the tip on a reachable target
 - two identical tweens produce bit identical results
+- two instances of one prefab differ only where overridden
+- two nodes can be measured against each other
 - two nodes naming one path share one parsed object
+- two nodes on one script get their own values
 - two runs agree on every tick not just the last
 - two runs of the same clip produce the same palette bit for bit
 - two runs solve to the same bits
@@ -588,6 +740,7 @@ flow nothing checks.
 - vectors and colors carry their components
 - vectors encode as json number arrays
 - vertices without faces are filled as one outline
+- waiting for a client catches a breakpoint in init
 - what the component reports back is what the scene set
 - widget kind constants match the registered schema
 - world transforms compose down the chain

@@ -764,12 +764,15 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         }
         None => None,
     };
+    // Before the project loads, for the same reason a replay sets its mode
+    // there: a script's `init` already takes await tokens and draws from the
+    // RNG, and the header has to hold the values it started from.
+    if let Some(out) = record {
+        record_to(&app, out, path)?;
+    }
     app.load_project()?;
     if *fixed_tick {
         app.set_fixed_dt(Some(balaur::FIXED_DT));
-    }
-    if let Some(out) = record {
-        record_to(&app, out, path)?;
     }
     if let Some(trace) = trace_digest {
         if !*fixed_tick {

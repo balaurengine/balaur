@@ -1,4 +1,5 @@
-> **Status:** not started. Written down on 2026-09-02 so the order is decided
+> **Status:** steps 1 and 2 done (bytes on the wire; identity and lifecycle
+> for run-time nodes). Written down on 2026-09-02 so the order was decided
 > before the first line: node identity and lifecycle first, because rollback
 > and replication both stand on it and it is the piece that can invalidate
 > the determinism work; rollback next, because determinism makes it cheap
@@ -24,14 +25,13 @@ Built, and not built for networking:
 | Whole-world snapshots: transforms, RNG, both physics worlds, script state | `snapshot` |
 | Cross-machine identity that survives rename and reparent | `StableId` |
 | A property schema for every component | `ComponentRegistry` |
+| Bytes across the script boundary, and binary websocket frames | `Value::Bytes`, `balaur_net` |
+| An id for every run-time spawn, and a snapshot that restores the node set | `ids`, `snapshot`'s `nodes` source |
 
 Missing:
 
 - Nothing sends a tick's inputs to another machine, and nothing re-simulates
   when a late one arrives.
-- Snapshot restore writes over nodes that exist; it cannot respawn a freed
-  node or free a spawned one.
-- The script value model has no bytes, so a websocket drops binary frames.
 - Every transport is TCP. No UDP, no QUIC, no WebTransport, no WebRTC: one
   lost packet stalls everything behind it.
 - Nothing accepts a connection. Every socket is outbound, so two engines
@@ -39,6 +39,8 @@ Missing:
 - No replication, no RPC, no authority, no interest management, no
   prediction, no delta encoding.
 - No lobbies or matchmaking beyond a Gamend room.
+- A run-time `scene.instantiate` still reuses the file's ids, so two
+  instances of one scene collide.
 
 ## 1. Design
 
@@ -109,17 +111,19 @@ peers may connect directly. The session layer does not care which.
 Ordered so the riskiest piece is proved first and each step leaves something
 that works.
 
-1. **Bytes.** A `Value::Bytes` variant, `websocket::send` taking either
-   text or bytes, binary frames delivered as bytes. Ships alone, and
-   everything below needs it.
-2. **Identity and lifecycle for run-time nodes.** An authority-scoped
-   `StableId` allocator (`<peer>:<counter>`) for nodes spawned after load,
-   and a snapshot restore that respawns a freed node and frees a spawned
-   one. `node_api`'s spawn inserts no `StableId` today, so the digest names
-   such a node by an entity index two peers cannot negotiate; that is
-   determinism gap 3 in `ARCHITECTURE.md`. The step ends on a test that
-   spawns and frees across a snapshot boundary and restores to a
-   bit-identical digest.
+1. **Bytes.** *Done.* A `Value::Bytes` variant, `websocket::send` taking
+   either text or bytes, and a binary frame delivered as
+   `{ kind = "binary", bytes }`. The C extension ABI gained a bytes tag
+   without a layout change, so existing extensions still load.
+2. **Identity and lifecycle for run-time nodes.** *Done.* `ids::mint` gives
+   every run-time spawn an `<authority>:<counter>` id, and the counter is
+   snapshotted, so a re-simulated spawn mints the id the first run did. A
+   `nodes` snapshot source records each node's id, name, parent, components
+   and script and restores the set: freeing what was spawned since,
+   respawning what was freed. Transforms and script state are keyed by id
+   rather than entity index, because a respawned node is a new entity. A
+   spawn and a free across a snapshot boundary roll back to a bit-identical
+   digest. Still open: a run-time `scene.instantiate` reuses the file's ids.
 3. **Rollback on one machine.** A `Session` with local players only, an
    input journal per tick, and a test that drops a late input in, rolls back
    and reaches the same digest as the straight run.

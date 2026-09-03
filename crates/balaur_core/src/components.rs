@@ -607,6 +607,14 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
     apply_full(eng, entity, name, &full)
 }
 
+/// Whether a name is a registered component, as opposed to some other scene
+/// key a plugin declared.
+#[must_use]
+pub fn is_registered(eng: &Engine, name: &str) -> bool {
+    eng.try_resource::<ComponentRegistry>()
+        .is_some_and(|registry| registry.borrow().def(name).is_some())
+}
+
 /// A registered component's schema, cloned so the registry borrow ends here.
 fn schema_of(eng: &Engine, name: &str) -> Result<toml::Value> {
     let registry = eng

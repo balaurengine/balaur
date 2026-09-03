@@ -15,7 +15,13 @@
 > declares, and `shaders::eval_floats` runs a `@const` shader function on the
 > CPU, so the lighting is asserted on headless. Phase 7's rewrite is built
 > (`balaur_render::preview`); drawing it and reading a texel back are not.
-> Phases 6 and 9 are not started.
+> Phase 9's plugin half is built: `shaders::register_shader_module` mounts a
+> plugin's module beside the engine's own, so a project's shader imports it
+> like any other. Phase 6 is built: `render::set_channel` draws normals, UVs,
+> depth or the bare texture instead of the picture, in 2D and 3D, from the
+> command palette. Phase 7 draws: clicking a shader's gutter previews that
+> line's value. Its *number* is not built — see open question 8 — and
+> publishing the helpers as a crates.io package is a release action.
 >
 > **Where the implementation decided differently:**
 >
@@ -92,7 +98,20 @@
 >    `preview` reads the type off an annotation or a constructor and says
 >    what to write when there is neither. Guessing would draw a shader that
 >    does not compile.
-> 17. **2D has no room for a fifth group either.** The sprite material already
+> 17. **A plugin's shader modules are a registry, not a package.** Phase 9
+>    imagined crates.io packages; a plugin already in the process only needs
+>    its source mounted, which `register_shader_module` does. Publishing is a
+>    release action, and a separate one.
+> 18. **A channel view is a material swap, not a second pass.** kiss3d's AOV
+>    renderer draws into its own targets, which would then have to be
+>    composited; the materials built for phase 2 and 3 already draw whatever
+>    a shader says, so a channel is one more shader and no new pass.
+> 19. **The preview is a gutter click, not the caret.** `ui::code_editor`
+>    reports a gutter click and not a caret line, and a shader's gutter holds
+>    no breakpoints, so the gesture was free. It is also the better one: a
+>    caret moves constantly and relinking on every keystroke would be worse
+>    than asking.
+> 20. **2D has no room for a fifth group either.** The sprite material already
 >    uses frame, object, texture and params. When `docs/PLAN-rendering.md`
 >    adds 2D lights they fold into the frame group; they cannot take a group
 >    of their own.
@@ -395,7 +414,13 @@ it is the argument for turning the feature on.
    and calls, and the output is readable WESL a user can take over. Every
    graph built on string concatenation regrets it. If it is ever built,
    it is built on this.
-7. **Compute shaders.** Out of scope. A compute pass that wrote back into
+8. **The preview's number needs a buffer, not the frame.** Reading a pixel
+   back through `snap_image` gives the *tonemapped 8-bit* colour, not the
+   value the shader computed — a plausible-looking number that is wrong.
+   An exact read means the preview writing to a storage buffer, and the
+   material's four bind groups are already spent (frame, object, texture,
+   params), so it waits on the group budget being reworked.
+9. **Compute shaders.** Out of scope. A compute pass that wrote back into
    simulation state would break the observer rule; one that only feeds
    rendering (particles on the GPU) is a later plan, and needs the same
    headless answer particles already have.

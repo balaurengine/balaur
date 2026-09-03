@@ -29,6 +29,7 @@ fn e2e_enabled() -> bool {
 
 /// Boot a one-node project whose script is `source`, then tick until the log
 /// contains `marker`. Panics on any logged error or on timeout.
+#[allow(clippy::disallowed_methods, reason = "a test's timeout, not simulation")]
 fn run_until(source: &str, marker: &str) {
     let _guard = LOG
         .lock()

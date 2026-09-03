@@ -165,6 +165,7 @@ mod tests {
             mesh: None,
             skeleton: String::new(),
             texture: String::new(),
+            material: String::new(),
             version: 0,
         }
     }
@@ -210,6 +211,7 @@ mod tests {
         assert_eq!(
             hit_box(
                 &place,
+                Vec3::ZERO,
                 half,
                 Vec3::new(5.0, 0.0, 0.0),
                 Vec3::new(0.0, 0.0, -1.0)

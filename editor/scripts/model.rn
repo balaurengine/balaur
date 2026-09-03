@@ -414,11 +414,16 @@ fn expand_one(S, out, owner, rel, id_prefix, at_prefix, depth) {
         // What the prefab itself says, kept so an edit that lands back on it
         // stops being an override — the same sparseness a script's exported
         // properties get, one level up.
-        row.base = util::copy(row);
-        // What the instance says about this node wins, key by key, exactly as
-        // the engine applies it.
+        //
+        // Component keys are canonicalised first: a prefab may write
+        // `body3d = "dynamic"` where the editor writes the whole table, and
+        // those are the same component spelled two ways.
+        row.base = canonical(util::copy(row));
+        // What the instance says about this node wins, property by property,
+        // exactly as the engine patches it — over the canonical form, since
+        // that is what the patch lands on.
         for (key, value) in util::obj(overrides.get(at).unwrap_or(#{})).iter() {
-            row[key] = value;
+            row[key] = merged(row.base.get(key), value);
         }
         out.push(row);
         if row.contains_key("instance") {
@@ -455,6 +460,69 @@ fn same_value(a, b) {
         Some(b) => toml::encode(#{ v: a }) == toml::encode(#{ v: b }),
         None => false,
     }
+}
+
+// Every component key of a node table replaced by the property table the
+// engine would build from it, so two spellings of one component compare equal.
+fn canonical(node) {
+    // Collected first: writing a key while iterating the same object is a
+    // borrow error in Rune, not a silent surprise.
+    let full = #{};
+    for (key, value) in node.iter() {
+        let properties = scene::component_properties(key, value);
+        if properties is Object {
+            full[key] = properties;
+        }
+    }
+    for (key, value) in full.iter() {
+        node[key] = value;
+    }
+    node
+}
+
+// An override laid over what the prefab said: a table merges property by
+// property, anything else replaces. The engine patches components, so the
+// editor has to show the same thing.
+fn merged(base, over) {
+    let base_some = base;
+    match base_some {
+        Some(base) => if base is Object && over is Object {
+            let out = util::copy(base);
+            for (key, value) in over.iter() {
+                out[key] = value;
+            }
+            out
+        } else {
+            over
+        },
+        None => over,
+    }
+}
+
+// What of `value` differs from `base`, so an override holds only the
+// properties this instance actually changed and a later edit to the prefab
+// still reaches the rest.
+fn differing(value, base) {
+    let value_some = value;
+    let value = match value_some {
+        Some(value) => value,
+        None => return None,
+    };
+    let base_some = base;
+    let base = match base_some {
+        Some(base) => base,
+        None => return Some(value),
+    };
+    if value is Object && base is Object {
+        let out = #{};
+        for (key, inner) in value.iter() {
+            if !same_value(inner, base.get(key)) {
+                out[key] = inner;
+            }
+        }
+        return if out.is_empty() { None } else { Some(out) };
+    }
+    if same_value(value, Some(base)) { None } else { Some(value) }
 }
 
 // The engine repairs a missing id at load; the editor has to arrive at the
@@ -845,10 +913,9 @@ pub fn record_override(S, node, key) {
     let table = util::obj(owner.get("overrides").unwrap_or(#{}));
     let entry = util::obj(table.get(node.at).unwrap_or(#{}));
     let base = util::obj(node.get("base").unwrap_or(#{}));
-    if node.contains_key(key) && !same_value(node[key], base.get(key)) {
-        entry[key] = node[key];
-    } else {
-        entry.remove(key);
+    match differing(node.get(key), base.get(key)) {
+        Some(value) => entry[key] = value,
+        None => entry.remove(key),
     }
     if entry.is_empty() {
         table.remove(node.at);

@@ -14,7 +14,7 @@ use balaur_script::{Bindings, Value};
 
 use crate::engine::Engine;
 use crate::engine_api::{number, text, EngineOp};
-use crate::replay::{self, PlayState, ReplayPlayer, Recording, Session};
+use crate::replay::{self, PlayState, Recording, ReplayPlayer, Session};
 
 pub const REPLAY_OPS: &[EngineOp] = &[
     EngineOp {
@@ -135,10 +135,19 @@ pub fn install_replay_api(m: &mut dyn Bindings<Engine>) {
     for d in REPLAY_OPS {
         m.function_raw(d.name, Box::new(d.call));
     }
-    m.constant("STATE_STOPPED", Value::Str(PlayState::Stopped.name().into()));
-    m.constant("STATE_PLAYING", Value::Str(PlayState::Playing.name().into()));
+    m.constant(
+        "STATE_STOPPED",
+        Value::Str(PlayState::Stopped.name().into()),
+    );
+    m.constant(
+        "STATE_PLAYING",
+        Value::Str(PlayState::Playing.name().into()),
+    );
     m.constant("STATE_PAUSED", Value::Str(PlayState::Paused.name().into()));
-    m.constant("STATE_SEEKING", Value::Str(PlayState::Seeking.name().into()));
+    m.constant(
+        "STATE_SEEKING",
+        Value::Str(PlayState::Seeking.name().into()),
+    );
 }
 
 fn option<'a>(args: &'a [Value], key: &str) -> Option<&'a Value> {
@@ -174,13 +183,7 @@ fn record(eng: &Engine, args: &[Value]) -> Result<Value> {
         name => name,
     };
     let per_tick = matches!(option(args, "digest"), Some(Value::Bool(true)));
-    replay::start_recording(
-        eng,
-        &path,
-        &project,
-        &str_option(args, "scripts"),
-        per_tick,
-    )?;
+    replay::start_recording(eng, &path, &project, &str_option(args, "scripts"), per_tick)?;
     Ok(Value::Str(path.to_string_lossy().into_owned()))
 }
 
@@ -359,8 +362,8 @@ fn marks(eng: &Engine, args: &[Value]) -> Result<Value> {
 }
 
 /// The first tick whose replay did not reproduce the recorded digest, or nil.
-/// A session recorded without digests answers nil until its trailer is
-/// reached.
+/// A session recorded without per-tick digests has nothing to compare and
+/// always answers nil.
 fn diverged(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(eng
         .resource::<ReplayPlayer>()
@@ -369,8 +372,14 @@ fn diverged(eng: &Engine, _: &[Value]) -> Result<Value> {
         .map_or(Value::Nil, |d| {
             Value::Map(vec![
                 ("tick".into(), count(d.tick)),
-                ("recorded".into(), Value::Str(format!("{:016x}", d.recorded))),
-                ("replayed".into(), Value::Str(format!("{:016x}", d.replayed))),
+                (
+                    "recorded".into(),
+                    Value::Str(format!("{:016x}", d.recorded)),
+                ),
+                (
+                    "replayed".into(),
+                    Value::Str(format!("{:016x}", d.replayed)),
+                ),
             ])
         }))
 }

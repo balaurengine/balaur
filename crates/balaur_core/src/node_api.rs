@@ -372,6 +372,7 @@ fn add_child(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let mut world = eng.world_mut();
     let child = scene::spawn_node(&mut world, text(args, 1)?, e);
+    crate::ids::assign(eng, &mut world, child);
     Ok(Value::Node(crate::node_id_of(child).0))
 }
 

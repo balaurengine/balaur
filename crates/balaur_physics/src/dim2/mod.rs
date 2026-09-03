@@ -12,14 +12,13 @@ use balaur_core::{App, Engine, Stage, Transform};
 use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{EulerRot, Pose2, Quat, Rot2, Vec2};
 use rapier2d::pipeline::PhysicsWorld as PhysicsWorld2;
-use rapier2d::prelude::{
-    ColliderBuilder as ColliderBuilder2, ColliderHandle as ColliderHandle2,
-    RigidBodyBuilder as RigidBodyBuilder2, RigidBodyHandle as RigidBodyHandle2,
-};
+use rapier2d::prelude::{ColliderHandle as ColliderHandle2, RigidBodyHandle as RigidBodyHandle2};
 
 pub mod body;
+pub mod character;
 pub mod collider;
 pub mod events;
+pub mod joint;
 pub mod query;
 
 use body::{add_body, with_body};
@@ -35,6 +34,10 @@ pub struct PhysicsState2d {
     pub world: PhysicsWorld2,
     pub bodies: DetHashMap<Entity, RigidBodyHandle2>,
     pub colliders: DetHashMap<Entity, Vec<ColliderHandle2>>,
+    /// Whether the broad phase's tree matches the colliders, as in 3D.
+    pub queries_ready: bool,
+    /// Joints per entity, as in the 3D world.
+    pub joints: DetHashMap<Entity, joint::JointRef2d>,
     pub paused: bool,
     /// Mirrors `PhysicsState::sleeping_allowed`; `physics.set_sleeping_allowed`
     /// writes both worlds.
@@ -51,6 +54,8 @@ impl PhysicsState2d {
             world,
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
+            queries_ready: false,
+            joints: DetHashMap::default(),
             paused: false,
             sleeping_allowed: true,
         }
@@ -127,9 +132,15 @@ fn step_system(eng: &Engine, _dt: f32) {
                 t.rotation = Quat::from_rotation_z(body.rotation().angle());
             }
         }
-        collector.take()
+        (collector.take(), joint::broken(state))
     };
-    events::deliver(eng, events);
+    events::deliver(eng, events.0);
+    for entity in &events.1 {
+        joint::remove_joint(eng, *entity);
+        if let Some(host) = eng.script_host() {
+            host.call_on(balaur_core::node_id_of(*entity), "on_joint_break", &[]);
+        }
+    }
 }
 
 pub fn clear(eng: &Engine) {
@@ -145,6 +156,7 @@ pub fn clear(eng: &Engine) {
     }
     state.bodies.clear();
     state.colliders.clear();
+    state.joints.clear();
 }
 
 pub fn set_paused(eng: &Engine, paused: bool) {
@@ -179,9 +191,13 @@ pub fn build(app: &mut App) -> Result<()> {
         body::install_body2d_force_api(&mut *m);
         body::install_body2d_state_api(&mut *m);
         query::install_query2d_api(&mut *m);
+        joint::install_joint2d_api(&mut *m);
+        character::install_character2d_api(&mut *m);
     }
     body::register_body2d_component(app);
     collider::register_collider2d_component(app);
+    joint::register_joint2d_component(app);
+    character::register_character2d_component(app);
 
     app.register_preset(
         "rigid_body2d",
@@ -217,6 +233,7 @@ struct PhysicsFrame2d {
     world: PhysicsWorld2,
     bodies: Vec<(u64, RigidBodyHandle2)>,
     colliders: Vec<(u64, Vec<ColliderHandle2>)>,
+    joints: Vec<(u64, joint::JointRef2d)>,
     paused: bool,
     sleeping_allowed: bool,
 }
@@ -226,6 +243,7 @@ struct PhysicsFrameRef2d<'a> {
     world: &'a PhysicsWorld2,
     bodies: Vec<(u64, RigidBodyHandle2)>,
     colliders: Vec<(u64, Vec<ColliderHandle2>)>,
+    joints: Vec<(u64, joint::JointRef2d)>,
     paused: bool,
     sleeping_allowed: bool,
 }
@@ -247,6 +265,11 @@ fn build_physics2d_snapshot(app: &mut App) {
                     .colliders
                     .iter()
                     .map(|(e, h)| (e.to_bits().get(), h.clone()))
+                    .collect(),
+                joints: state
+                    .joints
+                    .iter()
+                    .map(|(e, j)| (e.to_bits().get(), *j))
                     .collect(),
                 paused: state.paused,
                 sleeping_allowed: state.sleeping_allowed,
@@ -275,6 +298,11 @@ fn build_physics2d_snapshot(app: &mut App) {
                 .colliders
                 .into_iter()
                 .filter_map(|(bits, h)| Some((Entity::from_bits(bits)?, h)))
+                .collect();
+            state.joints = frame
+                .joints
+                .into_iter()
+                .filter_map(|(bits, j)| Some((Entity::from_bits(bits)?, j)))
                 .collect();
         },
     );

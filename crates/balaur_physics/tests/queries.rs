@@ -6,8 +6,10 @@ use balaur::{standard_app, AppConfig};
 
 static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-/// A scene with a ball at y = 2 and another at y = 6, both immovable world
-/// geometry, and `body` running in the first one's `init`.
+/// A scene with two balls on the y axis, both immovable world geometry, and
+/// `body` running in `Near`'s `init`. "Near" and "Far" are from the point of
+/// view of a ray cast downwards from above, which is what every test here
+/// does.
 fn run(body: &str) -> Vec<String> {
     let _guard = LOG
         .lock()
@@ -24,7 +26,7 @@ fn run(body: &str) -> Vec<String> {
         r#"[[nodes]]
 id = "n_near"
 name = "Near"
-position = [0.0, 2.0, 0.0]
+position = [0.0, 6.0, 0.0]
 script = "scripts/s.rn"
 
 [nodes.collider3d]
@@ -34,7 +36,7 @@ radius = 0.5
 [[nodes]]
 id = "n_far"
 name = "Far"
-position = [0.0, 6.0, 0.0]
+position = [0.0, 2.0, 0.0]
 
 [nodes.collider3d]
 kind = "ball"
@@ -72,7 +74,7 @@ fn a_ray_finds_the_nearest_collider() {
         let hit = physics3d::raycast(#{ from: [0.0, 10.0, 0.0], dir: [0.0, -1.0, 0.0], max: 100.0 });
         assert!(hit is Object, "the ray found nothing");
         assert!(hit.distance > 3.4 && hit.distance < 3.6, "hit the far ball first: {}", hit.distance);
-        assert!(hit.normal[1] > 0.9, "the normal points {:?}", hit.normal);
+        assert!(hit.normal.y > 0.9, "the normal points up, not {}", hit.normal.y);
         "#,
     );
 }
@@ -107,7 +109,7 @@ fn a_filter_excludes_the_node_it_names() {
             filter: #{ exclude: this.node },
         });
         assert!(hit is Object, "excluding the near ball found nothing at all");
-        assert!(hit.distance > 3.9, "the excluded ball was hit anyway: {}", hit.distance);
+        assert!(hit.distance > 7.0, "the excluded ball was hit anyway: {}", hit.distance);
         "#,
     );
 }
@@ -118,10 +120,10 @@ fn a_predicate_can_reject_a_hit() {
         r#"
         let hit = physics3d::raycast(#{
             from: [0.0, 10.0, 0.0], dir: [0.0, -1.0, 0.0], max: 100.0,
-            filter: #{ predicate: |node| node.name != "Near" },
+            filter: #{ predicate: |node| node.name() != "Near" },
         });
         assert!(hit is Object, "the predicate rejected everything");
-        assert!(hit.node.name == "Far", "the predicate kept {}", hit.node.name);
+        assert!(hit.node.name() == "Far", "the predicate kept {}", hit.node.name());
         "#,
     );
 }
@@ -131,7 +133,7 @@ fn a_shape_query_finds_what_it_overlaps() {
     run_clean(
         r#"
         let hits = physics3d::shape_hits(#{
-            at: [0.0, 2.0, 0.0],
+            at: [0.0, 6.0, 0.0],
             shape: #{ kind: "ball", radius: 1.0 },
         });
         assert!(hits.len() >= 1, "a ball at the near ball's position found nothing");
@@ -143,9 +145,9 @@ fn a_shape_query_finds_what_it_overlaps() {
 fn the_nearest_point_lands_on_the_surface() {
     run_clean(
         r#"
-        let found = physics3d::nearest_point(#{ point: [3.0, 2.0, 0.0], max: 100.0 });
+        let found = physics3d::nearest_point(#{ point: [3.0, 6.0, 0.0], max: 100.0 });
         assert!(found is Object, "nothing was near");
-        assert!(math::abs(found.point[0] - 0.5) < 1e-3, "not on the surface: {:?}", found.point);
+        assert!(math::abs(found.point.x - 0.5) < 1e-3, "not on the surface: {}", found.point.x);
         "#,
     );
 }

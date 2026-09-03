@@ -35,6 +35,9 @@ pub fn init(this) {
         // A shader opened from a material; empty means the code pane shows
         // the selected node's script instead.
         shader_rel: "",
+        // The shader line the viewport draws the value of; 0 draws the scene.
+        preview_line: 0,
+        preview_rel: "",
         dock: "output",
         zoom: 100.0,
         playing: false,
@@ -150,6 +153,9 @@ pub fn update(this, dt) {
         overlays::grid2d(S);
     }
     session::update(S);
+    if S.session.demo is Object {
+        selftest::session_step(S);
+    }
     // A replay feeds the recorded pointer into the same snapshot the viewport
     // tools read, so a drag would follow the recording rather than the mouse.
     // Paused, the engine is held and the live pointer is harmless again.

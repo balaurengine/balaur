@@ -25,11 +25,16 @@ use rapier3d::pipeline::PhysicsWorld;
 use rapier3d::prelude::{ColliderHandle, RigidBodyHandle};
 
 pub mod body;
+pub mod character;
 pub mod collider;
 pub mod debug;
 pub mod dim2;
 pub mod events;
+pub mod geometry;
+pub mod joint;
 pub mod query;
+pub mod tuning;
+pub mod vehicle;
 mod vocabulary;
 
 pub use dim2::PhysicsState2d;
@@ -46,9 +51,27 @@ pub struct PhysicsState {
     pub bodies: DetHashMap<Entity, RigidBodyHandle>,
     /// Colliders per entity (attached to the entity's body, or standalone).
     pub colliders: DetHashMap<Entity, Vec<ColliderHandle>>,
+    /// Joints per entity. Which of rapier's two sets a joint lives in is
+    /// decided when it is made and never changes.
+    pub joints: DetHashMap<Entity, joint::JointRef>,
     /// While paused the simulation does not step (editors pause by default
     /// and unpause on play).
     pub paused: bool,
+    /// What a script set on each wheel, and what the last step left there.
+    /// Beside the world because rapier's vehicle controller is rebuilt every
+    /// step (see [`vehicle`]).
+    pub wheel_inputs: DetHashMap<Entity, vehicle::WheelInput>,
+    /// Whether the broad phase's tree matches the colliders.
+    ///
+    /// Rapier builds it during a step, so a world that has not stepped yet has
+    /// an empty one — and a raycast in `init`, which is where a game places
+    /// things on the ground, would find nothing at all. Queries refresh it
+    /// when this is false (see [`query::ensure_queries`]).
+    pub queries_ready: bool,
+    /// Bumped by every shape edit a script makes — digging a voxel, replacing
+    /// a collider. Hashed into the digest: nothing else about the world says a
+    /// hole was dug until something falls into it.
+    pub shape_revision: u64,
     /// Whether bodies may fall asleep. Recorded here (rapier keeps it
     /// per-body) so `physics.sleeping_allowed` can read it back and bodies
     /// created later inherit it.
@@ -61,7 +84,11 @@ impl PhysicsState {
             world: PhysicsWorld::default(),
             bodies: DetHashMap::default(),
             colliders: DetHashMap::default(),
+            joints: DetHashMap::default(),
             paused: false,
+            queries_ready: false,
+            wheel_inputs: DetHashMap::default(),
+            shape_revision: 0,
             sleeping_allowed: true,
         }
     }
@@ -80,12 +107,15 @@ impl Plugin for PhysicsPlugin {
         build_physics_digest(app);
         build_physics_snapshot(app);
         debug::build(app);
+        tuning::build(app);
+        vehicle::build(app);
 
         // `physics` holds what spans both worlds; each dimension has its own.
         {
             let mut m = app.script_module("physics")?;
             install_world_controls(&mut *m);
             debug::install_debug_api(&mut *m);
+            tuning::install_tuning_api(&mut *m);
         }
         let mut m = app.script_module("physics3d")?;
         m.module_doc(
@@ -98,9 +128,20 @@ impl Plugin for PhysicsPlugin {
         body::install_body_state_api(&mut *m);
         collider::install_collider_api(&mut *m);
         query::install_query_api(&mut *m);
+        joint::install_joint_api(&mut *m);
+        character::install_character_api(&mut *m);
+        vehicle::install_vehicle_api(&mut *m);
         body::register_body_component(app);
         collider::register_collider_component(app);
+        joint::register_joint_component(app);
+        character::register_character_component(app);
+        vehicle::register_vehicle_components(app);
         register_physics_presets(app)?;
+
+        {
+            let mut m = app.script_module("geometry3d")?;
+            geometry::install_geometry_api(&mut *m);
+        }
 
         dim2::build(app)?;
         Ok(())
@@ -116,6 +157,15 @@ fn build_physics_digest(app: &mut App) {
         };
         let state = state.borrow();
         let world = eng.world();
+        // One row for the whole world's shape edits, before the per-body rows.
+        {
+            let mut h = Hasher::new();
+            h.write(&state.shape_revision.to_le_bytes());
+            out.push(Entry {
+                label: "physics/shapes".to_string(),
+                digest: h.finish(),
+            });
+        }
         for (&entity, &handle) in &state.bodies {
             let body = &state.world.bodies[handle];
             let (v, w) = (body.linvel(), body.angvel());
@@ -143,6 +193,8 @@ struct PhysicsFrame {
     world: PhysicsWorld,
     bodies: Vec<(u64, RigidBodyHandle)>,
     colliders: Vec<(u64, Vec<ColliderHandle>)>,
+    joints: Vec<(u64, joint::JointRef)>,
+    shape_revision: u64,
     paused: bool,
     sleeping_allowed: bool,
 }
@@ -154,6 +206,8 @@ struct PhysicsFrameRef<'a> {
     world: &'a PhysicsWorld,
     bodies: Vec<(u64, RigidBodyHandle)>,
     colliders: Vec<(u64, Vec<ColliderHandle>)>,
+    joints: Vec<(u64, joint::JointRef)>,
+    shape_revision: u64,
     paused: bool,
     sleeping_allowed: bool,
 }
@@ -176,6 +230,12 @@ fn build_physics_snapshot(app: &mut App) {
                     .iter()
                     .map(|(e, h)| (e.to_bits().get(), h.clone()))
                     .collect(),
+                joints: state
+                    .joints
+                    .iter()
+                    .map(|(e, j)| (e.to_bits().get(), *j))
+                    .collect(),
+                shape_revision: state.shape_revision,
                 paused: state.paused,
                 sleeping_allowed: state.sleeping_allowed,
             };
@@ -192,6 +252,7 @@ fn build_physics_snapshot(app: &mut App) {
             let state = eng.resource::<PhysicsState>();
             let mut state = state.borrow_mut();
             state.world = frame.world;
+            state.shape_revision = frame.shape_revision;
             state.paused = frame.paused;
             state.sleeping_allowed = frame.sleeping_allowed;
             state.bodies = frame
@@ -203,6 +264,11 @@ fn build_physics_snapshot(app: &mut App) {
                 .colliders
                 .into_iter()
                 .filter_map(|(bits, h)| Some((Entity::from_bits(bits)?, h)))
+                .collect();
+            state.joints = frame
+                .joints
+                .into_iter()
+                .filter_map(|(bits, j)| Some((Entity::from_bits(bits)?, j)))
                 .collect();
         },
     );
@@ -272,6 +338,8 @@ fn step_system(eng: &Engine, _dt: f32) {
         // Exactly one step: Stage::FixedUpdate already repeats at FIXED_DT, and a
         // second accumulator here would drift out of step with the scripts.
         state.world.integration_parameters.dt = FIXED_DT;
+        // The step rebuilds the broad phase itself.
+        state.queries_ready = true;
         let collector = events::Collector::default();
         state
             .world
@@ -289,11 +357,28 @@ fn step_system(eng: &Engine, _dt: f32) {
                 t.rotation = *body.rotation();
             }
         }
-        collector.take()
+        (collector.take(), joint::broken(state))
     };
     // Delivered with the world no longer borrowed: a handler is ordinary
     // script code and may move the body it was just told about.
-    events::deliver(eng, events);
+    events::deliver(eng, events.0);
+    break_joints(eng, &events.1);
+    // Rapier disables a body whose pose went non-finite rather than letting
+    // the world become NaN. A game that never asks still deserves to be told.
+    tuning::warn_about_quarantine(eng);
+}
+
+/// Remove the joints that gave way this step and tell both ends.
+///
+/// A break is an event in every way that matters, so it travels the same
+/// path: after the step, in entity order, through the node's own script.
+fn break_joints(eng: &Engine, broken: &[balaur_core::hecs::Entity]) {
+    for entity in broken {
+        joint::remove_joint(eng, *entity);
+        if let Some(host) = eng.script_host() {
+            host.call_on(balaur_core::node_id_of(*entity), "on_joint_break", &[]);
+        }
+    }
 }
 
 /// Pause, sleeping and gravity.
@@ -368,6 +453,9 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
         }
         state.bodies.clear();
         state.colliders.clear();
+        // Rapier drops a body's joints with the body, so the map is all that
+        // is left to clear.
+        state.joints.clear();
         drop(state);
         dim2::clear(eng);
         Ok(())

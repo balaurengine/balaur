@@ -33,7 +33,7 @@ fn step(S, label, moved) {
     // Rebuilding stops play, so read the flag before it is cleared: a
     // keystroke aimed at the document should not silently kill the game.
     let was_playing = S.playing;
-    crate::session::finish(S, "stop");
+    crate::session::end(S, "stop");
     model::build_mirror(S);
     if was_playing {
         log::info(format!("{} stopped the running scene", label));
@@ -103,7 +103,7 @@ pub fn stop_play(S) {
     if S.playing {
         log::info("stop: scene reset");
     }
-    crate::session::finish(S, "stop");
+    crate::session::end(S, "stop");
     model::build_mirror(S);
     // The game may have restyled the viewport (background, camera).
     theme::apply(S);
@@ -225,6 +225,20 @@ pub fn apply_camera(S) {
     );
 }
 
+// Draw what a shader's line computes, for every pixel that reaches it.
+// Clicking the marked line again puts the picture back.
+pub fn toggle_shader_preview(S, rel, line) {
+    if S.preview_line == line && S.preview_rel == rel {
+        S.preview_line = 0;
+        S.preview_rel = "";
+        render::set_shader_preview("", 0);
+    } else {
+        S.preview_line = line;
+        S.preview_rel = rel;
+        render::set_shader_preview(rel, line);
+    }
+}
+
 // cmd+S saves the visible script buffer when the code editor is open, the
 // scene document otherwise.
 pub fn save_active(S) {
@@ -251,7 +265,7 @@ pub fn save_active(S) {
             // A recording cannot survive its own code changing: the frames
             // after a reload came from a different game. The session ends
             // here, and what it caught until now is kept.
-            crate::session::finish(S, "reload");
+            crate::session::end(S, "reload");
             // The reload is also the compile: it builds the unit whether or
             // not the script is live, and leaves the old one running on a
             // failure, so a save that does not compile can say so.
@@ -306,6 +320,7 @@ fn states() {
         "propsdemo": crate::selftest::script_props,
         "instancedemo": crate::selftest::instances,
         "lintdemo": crate::selftest::linting,
+        "sessiondemo": crate::selftest::sessions,
     }
 }
 

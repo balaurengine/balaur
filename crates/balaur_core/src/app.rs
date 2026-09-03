@@ -166,6 +166,7 @@ impl App {
         });
         engine.insert_resource(ScriptArgs(config.script_args.clone()));
         engine.insert_resource(crate::rng::RngState::default());
+        engine.insert_resource(crate::ids::IdAllocator::default());
         engine.insert_resource(crate::digest::DigestRegistry::default());
         engine.insert_resource(crate::replay::ReplayRegistry::default());
         engine.insert_resource(crate::replay::ReplaySetupRegistry::default());
@@ -201,6 +202,7 @@ impl App {
         // does not depend on the render crate.
         crate::mesh::register_mesh_asset(&mut app);
         crate::heightfield::register_heightfield_asset(&mut app);
+        crate::voxels::register_voxels_asset(&mut app);
         // A bone is scene-tree data the same way: rendering skins with it,
         // and nothing about a rest pose belongs to the renderer.
         crate::skeleton::register_bone2d_component(&mut app);
@@ -309,9 +311,7 @@ impl App {
         capture: impl Fn(&Engine) -> serde_json::Value + 'static,
         restore: impl Fn(&Engine, &serde_json::Value) + 'static,
     ) -> &mut Self {
-        let registry = self
-            .engine
-            .resource::<crate::replay::ReplaySetupRegistry>();
+        let registry = self.engine.resource::<crate::replay::ReplaySetupRegistry>();
         registry
             .borrow_mut()
             .0
@@ -559,6 +559,11 @@ impl App {
     /// so `set_fixed_dt` reaches every run mode instead of only the one whose
     /// loop lives here.
     pub fn advance(&mut self, measured_dt: f32) {
+        // A session records from a frame boundary, and its replay starts from
+        // one: both zero the accumulator so they take the same fixed steps.
+        if crate::replay::take_record_restart(&self.engine) {
+            self.accumulator = 0.0;
+        }
         // In its own statement: a match holds its scrutinee's temporaries for
         // every arm, and the arms below borrow the player again.
         let plan = self

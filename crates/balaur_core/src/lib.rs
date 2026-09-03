@@ -19,6 +19,7 @@ pub mod engine;
 pub mod engine_api;
 pub mod glb;
 pub mod heightfield;
+pub mod ids;
 pub mod logbuf;
 pub mod math_api;
 pub mod mesh;
@@ -35,6 +36,7 @@ pub mod skeleton;
 pub mod snapshot;
 pub mod standalone;
 pub mod triangulate;
+pub mod voxels;
 
 pub use app::{
     App, AppConfig, Plugin, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage, FIXED_DT,
@@ -45,6 +47,7 @@ pub use collections::{DetHashMap, DetHashSet};
 pub use components::{ComponentDef, ComponentRegistry, StableId};
 pub use digest::{Digest, DigestRegistry};
 pub use engine::{Command, Engine};
+pub use ids::IdAllocator;
 pub use pack::Pack;
 pub use replay::{ReplayMode, ReplayRegistry};
 pub use resources::Resources;

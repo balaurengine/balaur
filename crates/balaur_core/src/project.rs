@@ -514,10 +514,21 @@ fn apply_overrides(
             }
         }
         for (key, handler) in handlers {
-            if let Some(value) = table.get(key) {
-                if let Err(err) = handler(eng, target, value) {
-                    tracing::error!("override '{path}.{key}' on node '{}': {err:#}", node.name);
-                }
+            let Some(value) = table.get(key) else {
+                continue;
+            };
+            // An override *patches*: the prefab already described the whole
+            // component, and this changes one property of it. Going through
+            // the scene key handler would go through `components::add`, which
+            // starts from the schema defaults — so overriding a collider's
+            // `half_extents` would quietly reset its `kind`.
+            let applied = if crate::components::is_registered(eng, key) {
+                crate::components::patch(eng, target, key, value)
+            } else {
+                handler(eng, target, value)
+            };
+            if let Err(err) = applied {
+                tracing::error!("override '{path}.{key}' on node '{}': {err:#}", node.name);
             }
         }
         for key in table.keys() {

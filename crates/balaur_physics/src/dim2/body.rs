@@ -135,6 +135,8 @@ pub(crate) fn apply_body(eng: &Engine, entity: Entity, params: &toml::Value) -> 
     with_body(eng, entity, |state, handle| {
         let may_sleep = state.sleeping_allowed;
         write_body(&mut state.world.bodies[handle], params, may_sleep);
+        let colliders = &state.world.colliders;
+        state.world.bodies[handle].recompute_mass_properties_from_colliders(colliders);
     })
 }
 
@@ -280,6 +282,7 @@ pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
                 body.set_translation(Vec2::new(x, y), true);
                 body.set_linvel(Vec2::ZERO, true);
                 body.set_angvel(0.0, true);
+                state.queries_ready = false;
             })
         },
     );

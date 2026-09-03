@@ -33,7 +33,8 @@ fn app_in(dir: &std::path::Path) -> App {
             doc: "",
             schema: ComponentDef::parse_schema(
                 "marker",
-                r#"label = { type = "string", default = "none" }"#,
+                r#"label = { type = "string", default = "none" }
+size = { type = "float", default = 1.0 }"#,
             ),
             tags: &[],
             expects: &[],
@@ -71,6 +72,7 @@ position = [1.0, 0.0, 0.0]
 
 [nodes.marker]
 label = "arm"
+size = 3.0
 "#;
 
 fn label(app: &App, path: &str) -> Option<String> {
@@ -301,4 +303,38 @@ fn a_script_key_with_no_source_is_refused_on_a_node_of_its_own() {
     )
     .unwrap_err();
     assert!(format!("{err:#}").contains("no source"), "{err:#}");
+}
+
+fn size(app: &App, path: &str) -> Option<f64> {
+    let world = app.engine.world();
+    let entity = find_node(&world, app.engine.root(), path)?;
+    let marker = world.get::<&Marker>(entity).ok()?;
+    marker.0.get("size")?.as_float()
+}
+
+/// An override changes one property of a component the prefab described whole.
+/// Applied as an `add` it would put every other property back to the schema
+/// default, which is a scene silently losing what the prefab said.
+#[test]
+fn an_override_of_one_property_leaves_the_others_alone() {
+    let (_dir, app) = load(
+        r#"
+[[nodes]]
+id = "n_enemy"
+name = "Enemy"
+instance = "scenes/enemy.toml"
+
+[nodes.overrides."Body/Arm".marker]
+label = "left arm"
+"#,
+    );
+    assert_eq!(
+        label(&app, "Enemy/Body/Arm"),
+        Some(String::from("left arm"))
+    );
+    assert_eq!(
+        size(&app, "Enemy/Body/Arm"),
+        Some(3.0),
+        "the prefab's size survived an override of its label"
+    );
 }

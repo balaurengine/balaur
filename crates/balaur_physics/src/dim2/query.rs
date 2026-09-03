@@ -10,10 +10,36 @@ use balaur_core::{entity_of, node_id_of, Engine};
 use balaur_script::{Bindings, BindingsExt, CallbackHost, NodeId, Value};
 use glamx::{Pose2, Vec2};
 use rapier2d::parry::query::{Ray, ShapeCastOptions};
-use rapier2d::prelude::{Collider, ColliderHandle, Group, InteractionGroups, QueryFilter};
+use rapier2d::prelude::{
+    Collider, ColliderHandle, Group, InteractionGroups, InteractionTestMode, QueryFilter,
+    QueryFilterFlags,
+};
 
 use crate::dim2::PhysicsState2d;
 use crate::vocabulary::{map, Opts};
+
+/// The 2D twin of `crate::query::ensure_queries`: rapier fills the broad
+/// phase during a step, and a game asks questions before its first one.
+pub(crate) fn ensure_queries(eng: &Engine) {
+    let state = eng.resource::<PhysicsState2d>();
+    let mut state = state.borrow_mut();
+    if state.queries_ready {
+        return;
+    }
+    let state = &mut *state;
+    let handles: Vec<ColliderHandle> = state.world.colliders.iter().map(|(h, _)| h).collect();
+    let params = state.world.integration_parameters;
+    let mut pairs = Vec::new();
+    state.world.broad_phase.update(
+        &params,
+        &state.world.colliders,
+        &state.world.bodies,
+        &handles,
+        &[],
+        &mut pairs,
+    );
+    state.queries_ready = true;
+}
 
 pub(crate) fn entity_of_collider(collider: &Collider) -> Option<Entity> {
     Entity::from_bits(collider.user_data as u64)
@@ -21,19 +47,20 @@ pub(crate) fn entity_of_collider(collider: &Collider) -> Option<Entity> {
 
 fn filter_of<'a>(opts: &Opts<'_>, groups: &'a mut Option<InteractionGroups>) -> QueryFilter<'a> {
     let filter = Opts(opts.get("filter"));
-    let mut out = QueryFilter::default();
+    let mut flags = QueryFilterFlags::empty();
     match filter.text("only") {
-        Some("dynamic") => out = out.exclude_fixed().exclude_kinematic(),
-        Some("kinematic") => out = out.exclude_fixed().exclude_dynamic(),
-        Some("static") => out = out.exclude_dynamic().exclude_kinematic(),
+        Some("dynamic") => flags |= QueryFilterFlags::ONLY_DYNAMIC,
+        Some("kinematic") => flags |= QueryFilterFlags::ONLY_KINEMATIC,
+        Some("static") => flags |= QueryFilterFlags::ONLY_FIXED,
         _ => {}
     }
     if !filter.boolean("sensors", true) {
-        out = out.exclude_sensors();
+        flags |= QueryFilterFlags::EXCLUDE_SENSORS;
     }
     if !filter.boolean("solids", true) {
-        out = out.exclude_solids();
+        flags |= QueryFilterFlags::EXCLUDE_SOLIDS;
     }
+    let mut out = QueryFilter::from(flags);
     if let Some(Value::List(items)) = filter.get("mask") {
         let mut bits = 0u32;
         for item in items {
@@ -50,6 +77,7 @@ fn filter_of<'a>(opts: &Opts<'_>, groups: &'a mut Option<InteractionGroups>) -> 
         *groups = Some(InteractionGroups::new(
             Group::ALL,
             Group::from_bits_truncate(if bits == 0 { u32::MAX } else { bits }),
+            InteractionTestMode::And,
         ));
         if let Some(groups) = groups.as_ref() {
             out = out.groups(*groups);
@@ -137,6 +165,7 @@ pub(crate) fn install_query2d_api(m: &mut dyn Bindings<Engine>) {
         ("intersects", &[], "(a: node, b: node)", "Whether two nodes' colliders overlap right now, sensor or not."),
     ]);
     m.function("raycast", |eng: &Engine, opts: Value| {
+        ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let (ray, max, solid) = ray_of(&opts);
         let mut candidates = Vec::new();
@@ -155,7 +184,12 @@ pub(crate) fn install_query2d_api(m: &mut dyn Bindings<Engine>) {
                     continue;
                 }
                 if let Some(entity) = entity_of_collider(collider) {
-                    candidates.push((entity, hit.time_of_impact, hit.point, hit.normal));
+                    candidates.push((
+                        entity,
+                        hit.time_of_impact,
+                        ray.point_at(hit.time_of_impact),
+                        hit.normal,
+                    ));
                 }
             }
         }
@@ -177,6 +211,7 @@ pub(crate) fn install_query2d_api(m: &mut dyn Bindings<Engine>) {
         Ok(Value::Nil)
     });
     m.function("raycast_all", |eng: &Engine, opts: Value| {
+        ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let (ray, max, solid) = ray_of(&opts);
         let mut hits = Vec::new();
@@ -195,10 +230,11 @@ pub(crate) fn install_query2d_api(m: &mut dyn Bindings<Engine>) {
                     continue;
                 }
                 if let Some(entity) = entity_of_collider(collider) {
+                    let point = ray.point_at(hit.time_of_impact);
                     hits.push((
                         entity,
                         hit.time_of_impact,
-                        [hit.point.x, hit.point.y],
+                        [point.x, point.y],
                         [hit.normal.x, hit.normal.y],
                     ));
                 }
@@ -218,6 +254,7 @@ pub(crate) fn install_query2d_api(m: &mut dyn Bindings<Engine>) {
         Ok(Value::List(out))
     });
     m.function("shapecast", |eng: &Engine, opts: Value| {
+        ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
         let builder = crate::dim2::collider::collider_builder(eng, &params)?;
@@ -252,6 +289,7 @@ pub(crate) fn install_query2d_api(m: &mut dyn Bindings<Engine>) {
         ))
     });
     m.function("nearest_point", |eng: &Engine, opts: Value| {
+        ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let point = Vec2::from(opts.vec2("point", [0.0; 2]));
         let state = eng.resource::<PhysicsState2d>();
@@ -277,6 +315,7 @@ pub(crate) fn install_query2d_api(m: &mut dyn Bindings<Engine>) {
         ]))
     });
     m.function("point_hits", |eng: &Engine, opts: Value| {
+        ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let point = Vec2::from(opts.vec2("point", [0.0; 2]));
         let state = eng.resource::<PhysicsState2d>();
@@ -292,6 +331,7 @@ pub(crate) fn install_query2d_api(m: &mut dyn Bindings<Engine>) {
         Ok(node_list(&mut hits))
     });
     m.function("shape_hits", |eng: &Engine, opts: Value| {
+        ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
         let builder = crate::dim2::collider::collider_builder(eng, &params)?;
@@ -309,6 +349,7 @@ pub(crate) fn install_query2d_api(m: &mut dyn Bindings<Engine>) {
         Ok(node_list(&mut hits))
     });
     m.function("box_hits", |eng: &Engine, opts: Value| {
+        ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let min = Vec2::from(opts.vec2("min", [0.0; 2]));
         let max = Vec2::from(opts.vec2("max", [0.0; 2]));

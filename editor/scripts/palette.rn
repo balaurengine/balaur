@@ -47,6 +47,12 @@ fn commands(S) {
         command("UI scale +", "＋", "⌘=", || shell::set_ui_scale(S, S.ui_scale + 0.125)),
         command("UI scale −", "−", "⌘-", || shell::set_ui_scale(S, S.ui_scale - 0.125)),
     ];
+    // Channel views: draw normals, UVs or depth instead of the picture.
+    list.push(command("View: colour", "◐", "", || render::set_channel("")));
+    for name in render::channels() {
+        let channel = name;
+        list.push(command("View: " + channel, "◐", "", || render::set_channel(channel)));
+    }
     for entry in S.registry.commands {
         let run = entry.run;
         list.push(command(entry.label, entry.icon, entry.key, || run(S)));

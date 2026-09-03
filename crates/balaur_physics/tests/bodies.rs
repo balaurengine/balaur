@@ -27,8 +27,23 @@ fn node(app: &App, name: &str) -> Entity {
     scene::spawn_node(&mut app.engine.world_mut(), name, root)
 }
 
+fn body_at(app: &App, name: &str, x: f32, params: &str) -> Entity {
+    let e = node(app, name);
+    {
+        let world = app.engine.world();
+        world.get::<&mut Transform>(e).unwrap().position.x = x;
+    }
+    with_body_params(app, e, params)
+}
+
 fn body_with(app: &App, name: &str, params: &str) -> Entity {
     let e = node(app, name);
+    with_body_params(app, e, params)
+}
+
+/// A body's pose is read from the node when the body is made, so a test that
+/// wants one somewhere else places the node first.
+fn with_body_params(app: &App, e: Entity, params: &str) -> Entity {
     let params: toml::Value = toml::from_str(params).unwrap();
     components::add(&app.engine, e, "body3d", Some(&params)).unwrap();
     let collider: toml::Value = toml::from_str("kind = \"ball\"\nradius = 0.5").unwrap();
@@ -185,20 +200,33 @@ fn mass_is_additional() {
 #[test]
 fn can_sleep_false_keeps_a_body_awake() {
     let mut app = app();
-    let sleeper = body_with(&app, "Sleeper", "kind = \"dynamic\"\ngravity_scale = 0.0");
-    let awake = body_with(
-        &app,
-        "Awake",
-        "kind = \"dynamic\"\ngravity_scale = 0.0\ncan_sleep = false",
-    );
-    for _ in 0..200 {
+    // Ground to come to rest on: rapier sleeps a body that has held still,
+    // and a body falling forever never holds still.
+    let ground = node(&app, "Ground");
+    {
+        let world = app.engine.world();
+        world.get::<&mut Transform>(ground).unwrap().position.y = -2.0;
+    }
+    components::add(
+        &app.engine,
+        ground,
+        "collider3d",
+        Some(&toml::from_str("kind = \"cuboid\"\nhalf_extents = [10.0, 0.5, 10.0]").unwrap()),
+    )
+    .unwrap();
+    // Apart, because sleeping is decided per island: two bodies that touch
+    // sleep or stay awake together, and the one that cannot sleep would hold
+    // the other one up.
+    let sleeper = body_at(&app, "Sleeper", 0.0, "kind = \"dynamic\"");
+    let awake = body_at(&app, "Awake", 5.0, "kind = \"dynamic\"\ncan_sleep = false");
+    for _ in 0..400 {
         app.tick(1.0 / 60.0);
     }
     let state = app.engine.resource::<PhysicsState>();
     let state = state.borrow();
     assert!(
         state.world.bodies[state.bodies[&sleeper]].is_sleeping(),
-        "a still body never slept"
+        "a body resting on the ground never slept"
     );
     assert!(
         !state.world.bodies[state.bodies[&awake]].is_sleeping(),

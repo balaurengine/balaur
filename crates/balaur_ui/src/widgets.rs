@@ -353,9 +353,33 @@ const RUNE: Syntax = Syntax {
 const WESL: Syntax = Syntax {
     line_comment: "//",
     keywords: &[
-        "fn", "let", "var", "const", "if", "else", "switch", "case", "default", "loop", "for",
-        "while", "break", "continue", "return", "discard", "struct", "alias", "override",
-        "const_assert", "true", "false", "enable", "requires", "diagnostic", "import", "as",
+        "fn",
+        "let",
+        "var",
+        "const",
+        "if",
+        "else",
+        "switch",
+        "case",
+        "default",
+        "loop",
+        "for",
+        "while",
+        "break",
+        "continue",
+        "return",
+        "discard",
+        "struct",
+        "alias",
+        "override",
+        "const_assert",
+        "true",
+        "false",
+        "enable",
+        "requires",
+        "diagnostic",
+        "import",
+        "as",
     ],
     builtins: &[
         "f32",
@@ -473,9 +497,9 @@ pub(crate) fn highlight(
         if i > 0 {
             job.append("\n", 0.0, fmt(colors.punct, egui::Stroke::NONE));
         }
-        let underline = marks
-            .color(i + 1)
-            .map_or(egui::Stroke::NONE, |color| egui::Stroke::new(sc(1.0), color));
+        let underline = marks.color(i + 1).map_or(egui::Stroke::NONE, |color| {
+            egui::Stroke::new(sc(1.0), color)
+        });
         if line.trim_start().starts_with(syntax.line_comment) {
             job.append(line, 0.0, fmt(colors.comment, underline));
             continue;

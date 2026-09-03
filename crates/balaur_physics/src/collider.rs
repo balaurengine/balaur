@@ -10,7 +10,7 @@ use glamx::{EulerRot, Pose3, Quat, Vec3};
 use rapier3d::math::Vector;
 use rapier3d::prelude::{
     ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule, Collider,
-    ColliderBuilder, ColliderHandle, Group, InteractionGroups, RigidBodyHandle,
+    ColliderBuilder, Group, InteractionGroups, InteractionTestMode, RigidBodyHandle,
 };
 
 use crate::vocabulary as v;
@@ -39,8 +39,42 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
         .map(|p| Vector::new(p[0], p[1], p[2]))
         .collect();
     match kind {
-        "trimesh" => ColliderBuilder::trimesh(points, mesh.indices.clone())
-            .map_err(|e| anyhow!("that mesh cannot be a trimesh collider: {e}")),
+        // The flags are what stop a character controller catching on the seam
+        // between two triangles of a flat floor.
+        "trimesh" => {
+            let mut flags = rapier3d::prelude::TriMeshFlags::empty();
+            if v::boolean(params, "fix_internal_edges", true) {
+                flags |= rapier3d::prelude::TriMeshFlags::FIX_INTERNAL_EDGES;
+            }
+            if v::boolean(params, "clean", false) {
+                flags |= rapier3d::prelude::TriMeshFlags::MERGE_DUPLICATE_VERTICES
+                    | rapier3d::prelude::TriMeshFlags::DELETE_DEGENERATE_TRIANGLES
+                    | rapier3d::prelude::TriMeshFlags::DELETE_BAD_TOPOLOGY_TRIANGLES;
+            }
+            if v::boolean(params, "oriented", false) {
+                flags |= rapier3d::prelude::TriMeshFlags::ORIENTED;
+            }
+            ColliderBuilder::trimesh_with_flags(points, mesh.indices.clone(), flags)
+                .map_err(|e| anyhow!("that mesh cannot be a trimesh collider: {e}"))
+        }
+        // The only way to get a *dynamic* concave shape: rapier's VHACD cuts
+        // the mesh into convex pieces and keeps them as one compound.
+        "convex_decomposition" => Ok(ColliderBuilder::convex_decomposition(
+            &points,
+            &mesh.indices,
+        )),
+        // A shape fitted to the mesh rather than made of it: a box, an
+        // oriented box, or a hull, whichever `fit` asks for.
+        "fit" => {
+            let converter = match v::text(params, "fit", "convex_hull") {
+                "aabb" => rapier3d::prelude::MeshConverter::Aabb,
+                "obb" => rapier3d::prelude::MeshConverter::Obb,
+                "convex_decomposition" => rapier3d::prelude::MeshConverter::ConvexDecomposition,
+                _ => rapier3d::prelude::MeshConverter::ConvexHull,
+            };
+            ColliderBuilder::converted_trimesh(points, mesh.indices.clone(), converter)
+                .map_err(|e| anyhow!("that mesh cannot be fitted: {e}"))
+        }
         "convex_hull" => Ok(ColliderBuilder::convex_hull(&points).unwrap_or_else(|| {
             // Degenerate input (every point on one line or plane) has no hull.
             // The node keeps a collider rather than losing one silently.
@@ -67,6 +101,49 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
             Ok(ColliderBuilder::polyline(points, None))
         }
     }
+}
+
+/// A voxel grid from a `voxels` asset: filled cells on a lattice, editable
+/// from a script while the game runs.
+fn voxel_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder> {
+    let reference = params
+        .get("voxels")
+        .and_then(toml::Value::as_str)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow!("a voxels collider needs a `voxels` asset"))?;
+    let grid = balaur_core::assets::load_typed::<balaur_core::voxels::VoxelsData>(eng, reference)?;
+    let cells: Vec<rapier3d::math::IVector> = grid
+        .cells
+        .iter()
+        .map(|c| rapier3d::math::IVector::new(c[0], c[1], c[2]))
+        .collect();
+    let size = Vector::new(grid.size[0], grid.size[1], grid.size[2]);
+    Ok(ColliderBuilder::voxels(size, &cells))
+}
+
+/// A voxel grid built from a mesh, so a model can become destructible terrain
+/// without anyone authoring a cell list.
+fn voxelized_mesh_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder> {
+    let mesh = collider_mesh(eng, params)?;
+    let points: Vec<Vector> = mesh
+        .positions
+        .iter()
+        .map(|p| Vector::new(p[0], p[1], p[2]))
+        .collect();
+    let size = v::f(params, "voxel_size", 0.25).max(0.001);
+    let fill = if v::text(params, "fill", "solid") == "surface" {
+        rapier3d::parry::transformation::voxelization::FillMode::SurfaceOnly
+    } else {
+        rapier3d::parry::transformation::voxelization::FillMode::FloodFill {
+            detect_cavities: false,
+        }
+    };
+    Ok(ColliderBuilder::voxelized_mesh(
+        &points,
+        &mesh.indices,
+        size,
+        fill,
+    ))
 }
 
 /// Terrain from a `heightfield` asset. The extent belongs to the collider, so
@@ -157,14 +234,19 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
             point("b", [1.0, 0.0, 0.0]),
             point("c", [0.0, 1.0, 0.0]),
         ),
-        "trimesh" | "convex_hull" | "polyline" => mesh_collider(eng, params, kind)?,
+        "trimesh" | "convex_hull" | "polyline" | "convex_decomposition" | "fit" => {
+            mesh_collider(eng, params, kind)?
+        }
+        "voxels" => voxel_collider(eng, params)?,
+        "voxelized_mesh" => voxelized_mesh_collider(eng, params)?,
         "heightfield" => heightfield_collider(eng, params, point("scale", [1.0, 1.0, 1.0]))?,
         // An infinite plane, for a floor that needs no size and no triangles.
         "halfspace" => {
             let n = point("normal", [0.0, 1.0, 0.0]);
-            let normal = rapier3d::na::Unit::try_new(n, 1.0e-6)
-                .ok_or_else(|| anyhow!("a halfspace collider needs a non-zero `normal`"))?;
-            ColliderBuilder::halfspace(normal)
+            if n.length_squared() < 1.0e-12 {
+                bail!("a halfspace collider needs a non-zero `normal`");
+            }
+            ColliderBuilder::new(rapier3d::prelude::SharedShape::halfspace(n.normalize()))
         }
         "segment" => {
             ColliderBuilder::segment(point("a", [0.0, 0.0, 0.0]), point("b", [1.0, 0.0, 0.0]))
@@ -214,6 +296,7 @@ fn combine_rule(name: &str) -> CoefficientCombineRule {
         "multiply" => CoefficientCombineRule::Multiply,
         "max" => CoefficientCombineRule::Max,
         "clamped_sum" => CoefficientCombineRule::ClampedSum,
+        "geometric_mean" => CoefficientCombineRule::GeometricMean,
         _ => CoefficientCombineRule::Average,
     }
 }
@@ -231,6 +314,9 @@ pub(crate) fn interaction_groups(
     InteractionGroups::new(
         Group::from_bits_truncate(v::layer_bits(params, memberships_key, false)),
         Group::from_bits_truncate(v::layer_bits(params, filter_key, true)),
+        // A collider is in a pair when *both* sides accept the other, which is
+        // what every engine's layer/mask pair means.
+        InteractionTestMode::And,
     )
 }
 
@@ -389,6 +475,8 @@ pub(crate) fn add_collider_at(
     // collider the world holds: every query result and every event needs it.
     state.world.colliders[handle].user_data = u128::from(entity.to_bits().get());
     state.colliders.entry(entity).or_default().push(handle);
+    // The broad phase has not seen this one yet.
+    state.queries_ready = false;
     Ok(())
 }
 
@@ -432,6 +520,7 @@ pub(crate) fn remove_colliders(eng: &Engine, entity: Entity) {
         for handle in handles {
             state.world.remove_collider(handle);
         }
+        state.queries_ready = false;
     }
 }
 
@@ -586,8 +675,70 @@ fn combine_name(rule: CoefficientCombineRule) -> &'static str {
         CoefficientCombineRule::Multiply => "multiply",
         CoefficientCombineRule::Max => "max",
         CoefficientCombineRule::ClampedSum => "clamped_sum",
+        CoefficientCombineRule::GeometricMean => "geometric_mean",
         CoefficientCombineRule::Average => "average",
     }
+}
+
+/// A voxel collider's grid, for editing in place.
+///
+/// Every edit bumps the collider's revision, which is what puts a dug hole in
+/// the digest: nothing else about the world changes until something falls into
+/// it, and two machines that disagree about a hole must not agree about the
+/// frame.
+fn with_voxels(
+    eng: &Engine,
+    node: NodeId,
+    f: impl FnOnce(&mut rapier3d::parry::shape::Voxels),
+) -> Result<()> {
+    let entity = balaur_core::entity_of(node)?;
+    let state = eng.resource::<PhysicsState>();
+    let mut state = state.borrow_mut();
+    let handle = *state
+        .colliders
+        .get(&entity)
+        .and_then(|handles| handles.first())
+        .ok_or_else(|| anyhow!("node has no collider"))?;
+    let collider = &mut state.world.colliders[handle];
+    let voxels = collider
+        .shape_mut()
+        .as_voxels_mut()
+        .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
+    f(voxels);
+    state.shape_revision = state.shape_revision.wrapping_add(1);
+    Ok(())
+}
+
+/// A collider's shape as points and triangles, through parry's own
+/// tessellation — which every shape has, voxels included.
+fn collider_mesh_value(eng: &Engine, node: NodeId) -> Result<balaur_script::Value> {
+    let entity = balaur_core::entity_of(node)?;
+    let state = eng.resource::<PhysicsState>();
+    let state = state.borrow();
+    let handle = *state
+        .colliders
+        .get(&entity)
+        .and_then(|handles| handles.first())
+        .ok_or_else(|| anyhow!("node has no collider"))?;
+    let (points, indices) = state.world.colliders[handle]
+        .shape()
+        .as_voxels()
+        .map(rapier3d::parry::shape::Voxels::to_trimesh)
+        .ok_or_else(|| {
+            anyhow!("only a voxel collider can be turned into a mesh so far; ask for another shape")
+        })?;
+    let points = points
+        .into_iter()
+        .map(|p| balaur_script::Value::Vec3([p.x, p.y, p.z]))
+        .collect();
+    let indices = indices
+        .into_iter()
+        .flat_map(|t| t.into_iter().map(|i| balaur_script::Value::Int(i.into())))
+        .collect();
+    Ok(crate::vocabulary::map([
+        ("points", balaur_script::Value::List(points)),
+        ("indices", balaur_script::Value::List(indices)),
+    ]))
 }
 
 /// The 32 collision layers, as an `options` list. Numbers rather than names:
@@ -603,8 +754,8 @@ pub(crate) fn shared_collider_schema() -> String {
 friction = {{ type = "float", default = 0.5, min = 0.0, description = "Surface friction; 0 is ice" }}
 density = {{ type = "float", default = 1.0, min = 0.001, description = "Mass per volume, so the shape's size sets its mass" }}
 mass = {{ type = "float", default = 0.0, min = 0.0, description = "Mass in kilograms, overriding what density works out to; 0 keeps the density" }}
-friction_combine = {{ type = "enum", default = "average", options = ["average", "min", "multiply", "max", "clamped_sum"], description = "How this surface's friction combines with the other one's" }}
-restitution_combine = {{ type = "enum", default = "average", options = ["average", "min", "multiply", "max", "clamped_sum"], description = "How this surface's bounciness combines with the other one's" }}
+friction_combine = {{ type = "enum", default = "average", options = ["average", "min", "multiply", "max", "clamped_sum", "geometric_mean"], description = "How this surface's friction combines with the other one's" }}
+restitution_combine = {{ type = "enum", default = "average", options = ["average", "min", "multiply", "max", "clamped_sum", "geometric_mean"], description = "How this surface's bounciness combines with the other one's" }}
 contact_skin = {{ type = "float", default = 0.0, min = 0.0, description = "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering" }}
 sensor = {{ type = "bool", default = false, description = "Detects overlaps without colliding: bodies pass through and are reported" }}
 enabled = {{ type = "bool", default = true, description = "Collide at all; a disabled collider keeps its shape and costs nothing" }}
@@ -625,7 +776,7 @@ one_way = {{ type = "bool", default = false, description = "A platform bodies pa
 /// into [`crate::PhysicsState`].
 pub(crate) fn register_collider_component(app: &mut App) {
     let schema = format!(
-        r#"kind = {{ type = "enum", default = "cuboid", options = ["ball", "cuboid", "capsule", "cylinder", "cone", "triangle", "segment", "halfspace", "trimesh", "convex_hull", "polyline", "heightfield"], description = "Collision shape" }}
+        r#"kind = {{ type = "enum", default = "cuboid", options = ["ball", "cuboid", "capsule", "cylinder", "cone", "triangle", "segment", "halfspace", "trimesh", "convex_hull", "convex_decomposition", "polyline", "heightfield", "voxels", "voxelized_mesh", "fit"], description = "Collision shape" }}
 radius = {{ type = "float", default = 0.5, min = 0.01, description = "Radius, for ball, capsule, cylinder and cone" }}
 height = {{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, for capsule, cylinder and cone" }}
 half_extents = {{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }}
@@ -636,6 +787,13 @@ c = {{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Third corner, wh
 normal = {{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way the infinite plane faces, when kind is halfspace" }}
 mesh = {{ type = "asset", asset = "mesh", default = "", description = "Geometry for a trimesh, convex_hull or polyline collider" }}
 heightfield = {{ type = "asset", asset = "heightfield", default = "", description = "Terrain grid, when kind is heightfield" }}
+voxels = {{ type = "asset", asset = "voxels", default = "", description = "Filled cells, when kind is voxels; a script may dig into them while the game runs" }}
+voxel_size = {{ type = "float", default = 0.25, min = 0.001, description = "How big one cell is, when kind is voxelized_mesh" }}
+fill = {{ type = "enum", default = "solid", options = ["solid", "surface"], description = "Whether voxelizing a mesh fills its inside or only its shell" }}
+fit = {{ type = "enum", default = "convex_hull", options = ["convex_hull", "aabb", "obb", "convex_decomposition"], description = "The shape fitted to the mesh, when kind is fit" }}
+fix_internal_edges = {{ type = "bool", default = true, description = "Smooth the seams between a trimesh's triangles, so a character does not catch on flat ground" }}
+clean = {{ type = "bool", default = false, description = "Drop duplicate vertices and degenerate triangles when building a trimesh" }}
+oriented = {{ type = "bool", default = false, description = "Treat the trimesh as a closed, outward-facing surface, which makes inside and outside meaningful" }}
 scale = {{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Cell size and height scale of a heightfield" }}
 one_way_axis = {{ type = "vec3", default = [0.0, 1.0, 0.0], description = "The direction a one-way platform lets bodies through from" }}
 offset = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the shape sits relative to the node" }}
@@ -667,6 +825,10 @@ pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
         ("set_collider", &["collider3d"], "", "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component's own vocabulary."),
         ("aabb", &["collider3d"], "", "The world-space box the collider currently occupies, as its two opposite corners."),
         ("collider_mass", &["collider3d"], "", "What this collider weighs, density and size together."),
+        ("set_voxel", &["collider3d"], "", "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs."),
+        ("voxel", &["collider3d"], "", "Whether one cell of a voxel collider is filled."),
+        ("voxel_at", &["collider3d"], "", "The cell a world position falls in, as three whole numbers."),
+        ("collider_mesh", &["collider3d"], "", "The collider's shape as points and triangles — including a voxel grid's — for drawing it or for spawning the pieces it broke into."),
     ]);
     m.function(
         "set_collider",
@@ -693,6 +855,62 @@ pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
             aabb.maxs.y,
             aabb.maxs.z,
         ))
+    });
+    // Voxels are the one shape a game edits rather than replaces, so they get
+    // calls of their own rather than going through `set_collider`.
+    m.function(
+        "set_voxel",
+        |eng: &Engine, (node, x, y, z, filled): (NodeId, i32, i32, i32, bool)| {
+            with_voxels(eng, node, |voxels| {
+                voxels.set_voxel(rapier3d::math::IVector::new(x, y, z), filled);
+            })
+        },
+    );
+    m.function(
+        "voxel",
+        |eng: &Engine, (node, x, y, z): (NodeId, i32, i32, i32)| {
+            let entity = balaur_core::entity_of(node)?;
+            let state = eng.resource::<PhysicsState>();
+            let state = state.borrow();
+            let handle = *state
+                .colliders
+                .get(&entity)
+                .and_then(|handles| handles.first())
+                .ok_or_else(|| anyhow!("node has no collider"))?;
+            let voxels = state.world.colliders[handle]
+                .shape()
+                .as_voxels()
+                .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
+            Ok(voxels
+                .voxel_state(rapier3d::math::IVector::new(x, y, z))
+                .is_some_and(|state| !state.is_empty()))
+        },
+    );
+    m.function(
+        "voxel_at",
+        |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
+            let entity = balaur_core::entity_of(node)?;
+            let state = eng.resource::<PhysicsState>();
+            let state = state.borrow();
+            let handle = *state
+                .colliders
+                .get(&entity)
+                .and_then(|handles| handles.first())
+                .ok_or_else(|| anyhow!("node has no collider"))?;
+            let collider = &state.world.colliders[handle];
+            let voxels = collider
+                .shape()
+                .as_voxels()
+                .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
+            // The grid is in the collider's own space, so a world point has to
+            // come home first.
+            let local = collider.position().inverse() * Vec3::new(x, y, z);
+            let cell = voxels.voxel_at_point(local);
+            Ok((cell.x, cell.y, cell.z))
+        },
+    );
+    m.function("collider_mesh", |eng: &Engine, node: NodeId| {
+        collider_mesh_value(eng, node)
     });
     m.function("collider_mass", |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;

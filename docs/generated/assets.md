@@ -77,7 +77,7 @@ keys = [
 
 ### `heightfield`
 
-Files: `terrain/`. Used by: `collider3d.heightfield`.
+Files: `terrain/`. Used by: `collider2d.heightfield`, `collider3d.heightfield`.
 
 A grid of heights for terrain: `rows` by `columns` samples in `heights`,
 row-major, one value per grid point. The count has to match the grid.
@@ -91,9 +91,28 @@ columns = 3
 heights = [0, 0, 0, 0, -1, 0, 0, 0, 0]
 ```
 
+### `material`
+
+Files: `materials/`. Used by: `mesh.material`, `shape2d.material`, `shape3d.material`, `sprite.material`.
+
+A shader and the values it draws with. `shader` names a `.wesl` file
+(project-relative); `[features]` are the `@if` flags that pick a variant when
+it is linked; `[params]` are the values of the shader's `Params` struct, by
+field name. A number is an `f32`, an array of two, three or four numbers a
+`vec2`/`vec3`/`vec4`, and a `#rrggbb` or `#rrggbbaa` string a `vec4`.
+
+```toml
+[[assets]]
+id = "water"
+type = "material"
+shader = "shaders/water.wesl"
+features = { lit = true }
+params = { speed = 0.4, tint = "#3aa0ff" }
+```
+
 ### `mesh`
 
-Files: `models/`. Used by: `collider3d.mesh`, `mesh.source`, `polygon.mesh`, `shape2d.mesh`.
+Files: `models/`. Used by: `collider2d.mesh`, `collider3d.mesh`, `mesh.source`, `polygon.mesh`, `shape2d.mesh`.
 
 Geometry for `mesh`-typed properties. A definition either names a `source`
 model file to import or carries the vertices itself as `positions` and
@@ -126,6 +145,22 @@ type = "tileset"
 texture = "art/dungeon.png"
 tile_size = 16
 columns = 8
+```
+
+### `voxels`
+
+Files: `terrain/`. Used by: `collider3d.voxels`.
+
+A voxel grid for a collider: `size` is one cell in world units, `cells` the
+filled coordinates. Coordinates are signed, so a grid has no origin corner,
+and `physics3d.set_voxel` may add or remove a cell at run time.
+
+```toml
+[[assets]]
+id = "pillar"
+type = "voxels"
+size = [1.0, 1.0, 1.0]
+cells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]
 ```
 
 

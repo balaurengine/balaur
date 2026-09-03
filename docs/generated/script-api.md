@@ -11,32 +11,34 @@ cannot drift from what scripts actually see.
 | [`animation`](#animation) | 14 | 0 | the engine |
 | [`assets`](#assets) | 6 | 0 | the engine |
 | [`audio`](#audio) | 8 | 0 | the engine |
-| [`debugger`](#debugger) | 8 | 4 | the engine |
+| [`debugger`](#debugger) | 9 | 4 | the engine |
 | [`engine`](#engine) | 7 | 0 | the engine |
-| [`fs`](#fs) | 4 | 0 | the engine |
+| [`fs`](#fs) | 8 | 0 | the engine |
 | [`gamend`](#gamend) | 9 | 0 | the engine |
+| [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
 | [`http`](#http) | 1 | 0 | the engine |
-| [`input`](#input) | 19 | 190 | the engine |
+| [`input`](#input) | 27 | 190 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
 | [`log`](#log) | 5 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
 | [`node`](#node) | 30 | 0 | the engine |
-| [`physics`](#physics) | 5 | 0 | the engine |
-| [`physics2d`](#physics2d) | 10 | 5 | the engine |
-| [`physics3d`](#physics3d) | 8 | 5 | the engine |
-| [`render`](#render) | 32 | 0 | the engine |
+| [`physics`](#physics) | 13 | 0 | the engine |
+| [`physics2d`](#physics2d) | 62 | 6 | the engine |
+| [`physics3d`](#physics3d) | 78 | 6 | the engine |
+| [`render`](#render) | 39 | 0 | the engine |
+| [`replay`](#replay) | 17 | 4 | the engine |
 | [`rng`](#rng) | 4 | 0 | the engine |
-| [`scene`](#scene) | 12 | 0 | the engine |
-| [`script`](#script) | 2 | 0 | the engine |
+| [`scene`](#scene) | 13 | 0 | the engine |
+| [`script`](#script) | 6 | 0 | the engine |
 | [`skeleton`](#skeleton) | 3 | 0 | the engine |
 | [`task`](#task) | 1 | 0 | the engine |
 | [`toml`](#toml) | 2 | 0 | the engine |
-| [`ui`](#ui) | 41 | 14 | the engine |
+| [`ui`](#ui) | 44 | 14 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
 ## `animation`
 
-**Functions:** `current`, `define`, `is_playing`, `is_running`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `stop`, `time`, `tween`, `tween_to`
+**Functions:** `current`, `define`, `is_playing`, `is_tween_running`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `stop`, `time`, `tween`, `tween_to`
 
 ## `assets`
 
@@ -65,11 +67,15 @@ cannot drift from what scripts actually see.
 
 ## `fs`
 
-**Functions:** `exists`, `list`, `read`, `write`
+**Functions:** `exists`, `list`, `mkdir`, `mtime`, `read`, `remove`, `rename`, `write`
 
 ## `gamend`
 
 **Functions:** `call_hook`, `close`, `configure`, `connect`, `join`, `leave`, `login`, `push`, `rest`
+
+## `geometry3d`
+
+**Functions:** `convex_decomposition`, `convex_hull`, `intersect`, `pieces`, `split`, `voxelize`
 
 ## `http`
 
@@ -77,7 +83,7 @@ cannot drift from what scripts actually see.
 
 ## `input`
 
-**Functions:** `dropped_files`, `gamepad_axis`, `gamepad_down`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepads`, `is_down`, `is_mouse_down`, `just_pressed`, `just_released`, `mouse_delta`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `scroll_delta`, `touches`, `touches_ended`, `touches_started`
+**Functions:** `action_just_pressed`, `action_just_released`, `action_pressed`, `action_value`, `actions`, `bind`, `bindings`, `dropped_files`, `gamepad_axis`, `gamepad_down`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepads`, `is_down`, `is_mouse_down`, `just_pressed`, `just_released`, `mouse_delta`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `reset_bindings`, `scroll_delta`, `touches`, `touches_ended`, `touches_started`
 
 **Constants** (190):
 
@@ -136,39 +142,54 @@ cannot drift from what scripts actually see.
 
 ## `physics`
 
-**Functions:** `clear`, `is_paused`, `set_paused`, `set_sleeping_allowed`, `sleeping_allowed`
+**Functions:** `clear`, `counters`, `debug_draw`, `is_paused`, `quarantined`, `set_debug_draw`, `set_paused`, `set_sleeping_allowed`, `set_threads`, `set_tuning`, `sleeping_allowed`, `threads`, `tuning`
 
 ## `physics2d`
 
-**Functions:** `add_body`, `add_collider`, `angular_velocity`, `apply_impulse`, `linear_velocity`, `max_contact_impulse`, `overlaps`, `set_angular_velocity`, `set_gravity`, `set_linear_velocity`
+**Functions:** `add_body`, `add_collider`, `add_force`, `add_force_at_point`, `add_joint`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `body_kind`, `box_hits`, `damping`, `distance`, `dominance`, `gravity`, `gravity_scale`, `intersects`, `is_ccd`, `is_enabled`, `is_grounded`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `locked_axes`, `mass`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `point_hits`, `predict_position`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_body_kind`, `set_ccd`, `set_damping`, `set_dominance`, `set_enabled`, `set_gravity`, `set_gravity_scale`, `set_joint_limits`, `set_linear_velocity`, `set_lock_rotation`, `set_lock_translation`, `set_motor_position`, `set_motor_velocity`, `shape_hits`, `shapecast`, `sleep`, `teleport`, `user_force`, `user_torque`, `velocity_at_point`, `wake_all`, `wake_up`
 
-**Constants** (5):
+**Constants** (6):
 
 | Name | Value |
 | --- | --- |
 | `BODY_DYNAMIC` | `dynamic` |
 | `BODY_KINEMATIC` | `kinematic` |
+| `BODY_KINEMATIC_VELOCITY` | `kinematic_velocity` |
 | `BODY_STATIC` | `static` |
 | `SHAPE_CIRCLE` | `circle` |
 | `SHAPE_RECT` | `rect` |
 
 ## `physics3d`
 
-**Functions:** `add_ball_collider`, `add_body`, `add_cuboid_collider`, `apply_impulse`, `linear_velocity`, `overlaps`, `set_gravity`, `set_linear_velocity`
+**Functions:** `aabb`, `add_ball_collider`, `add_body`, `add_cuboid_collider`, `add_force`, `add_force_at_point`, `add_joint`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `body_kind`, `box_hits`, `closest_points`, `collider_mass`, `collider_mesh`, `contacts`, `damping`, `distance`, `dominance`, `gravity`, `gravity_scale`, `intersects`, `is_ccd`, `is_enabled`, `is_grounded`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `locked_axes`, `mass`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `point_hits`, `predict_position`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_body_kind`, `set_brake`, `set_ccd`, `set_collider`, `set_damping`, `set_dominance`, `set_enabled`, `set_engine_force`, `set_gravity`, `set_gravity_scale`, `set_joint_limits`, `set_linear_velocity`, `set_lock_rotation`, `set_lock_translation`, `set_motor_position`, `set_motor_velocity`, `set_steering`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `solve_ik`, `teleport`, `user_force`, `user_torque`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`, `wheel_state`
 
-**Constants** (5):
+**Constants** (6):
 
 | Name | Value |
 | --- | --- |
 | `BODY_DYNAMIC` | `dynamic` |
 | `BODY_KINEMATIC` | `kinematic` |
+| `BODY_KINEMATIC_VELOCITY` | `kinematic_velocity` |
 | `BODY_STATIC` | `static` |
 | `SHAPE_BALL` | `ball` |
 | `SHAPE_CUBOID` | `cuboid` |
 
 ## `render`
 
-**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `color`, `draw_line`, `draw_line_2d`, `mouse_ray`, `mouse_world_2d`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_rect`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `shape2d`, `shape3d`, `sprite`, `texture_size`
+**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `channel`, `channels`, `check_material`, `color`, `draw_line`, `draw_line_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `pick_ray`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_channel`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_rect`, `set_shader_preview`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `shape2d`, `shape3d`, `sprite`, `texture_size`
+
+## `replay`
+
+**Functions:** `diverged`, `events`, `header`, `info`, `length`, `load`, `marks`, `pause`, `play`, `position`, `record`, `recording`, `seek`, `session_name`, `state`, `stop`, `unload`
+
+**Constants** (4):
+
+| Name | Value |
+| --- | --- |
+| `STATE_PAUSED` | `paused` |
+| `STATE_PLAYING` | `playing` |
+| `STATE_SEEKING` | `seeking` |
+| `STATE_STOPPED` | `stopped` |
 
 ## `rng`
 
@@ -176,11 +197,11 @@ cannot drift from what scripts actually see.
 
 ## `scene`
 
-**Functions:** `apply_preset`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `preset_info`, `presets`, `root`, `source`, `spawn`, `unmet_expectations`
+**Functions:** `apply_preset`, `component_properties`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `preset_info`, `presets`, `root`, `source`, `spawn`, `unmet_expectations`
 
 ## `script`
 
-**Functions:** `attempt`, `require`
+**Functions:** `attempt`, `check`, `exports`, `functions`, `require`, `shared`
 
 ## `skeleton`
 
@@ -196,7 +217,7 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `code_editor`, `code_line`, `dot`, `drag_value`, `dropdown`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `window`
+**Functions:** `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `dot`, `drag_value`, `dropdown`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `window`
 
 **Constants** (14):
 

@@ -19,7 +19,37 @@
     "tileset": {
       "directory": "tilesets",
       "doc": "An image cut into equal tiles for the `tilemap` component: `texture` names\nthe image, `tile_size` is the pixel length of one tile edge and `columns` is\nhow many tiles one row of the image holds. Tile indices count row by row\nfrom the top left.\n\n```toml\n[[assets]]\nid = \"dungeon\"\ntype = \"tileset\"\ntexture = \"art/dungeon.png\"\ntile_size = 16\ncolumns = 8\n```"
+    },
+    "voxels": {
+      "directory": "terrain",
+      "doc": "A voxel grid for a collider: `size` is one cell in world units, `cells` the\nfilled coordinates. Coordinates are signed, so a grid has no origin corner,\nand `physics3d.set_voxel` may add or remove a cell at run time.\n\n```toml\n[[assets]]\nid = \"pillar\"\ntype = \"voxels\"\nsize = [1.0, 1.0, 1.0]\ncells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]\n```"
     }
+  },
+  "component_docs": {
+    "animation": "Plays animation clips on a node: the library to play them from, one to start when the scene loads, and the rate every clip on the node runs at. The `animation` script module drives the playhead from there.",
+    "body2d": "Makes the node a 2D rigid body rapier simulates, in the xy plane: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. Add a `collider2d` for it to collide with anything.",
+    "body3d": "Makes the node a 3D rigid body rapier simulates: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. On its own a body has no shape; add a `collider3d` for it to collide with anything.",
+    "bone2d": "Makes the node a 2D bone: the rest position and rotation about z a rig returns to, plus the length and angle its gizmo is drawn with. A skin names its rig by node path and deforms by the bones under it, in tree order.",
+    "bone3d": "Makes the node a 3D bone: the rest position, euler rotation and scale a rig returns to, plus the length its gizmo is drawn with. A skinned mesh names its rig by node path and deforms by the bones under it, in tree order.",
+    "camera": "The view the scene is drawn from, following the node's global pose: `look_at` aims the 3D camera, `zoom` scales the 2D one in logical pixels per world unit. The last `current` camera of a kind, in tree order, drives that view.",
+    "character2d": "Moves a node the way a 2D player expects: `physics2d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider2d`.",
+    "character3d": "Moves a node the way a player expects rather than the way physics would: `physics3d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider3d`; a `body3d` of kind kinematic lets it push what it walks into.",
+    "collider2d": "The shape the node collides with in 2D. On a node with a `body2d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
+    "collider3d": "The shape the node collides with in 3D. On a node with a `body3d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
+    "joint2d": "Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`.",
+    "joint3d": "Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`.",
+    "mesh": "Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.",
+    "modifier2d": "Aims a 2D bone at a target node every frame, after the clip has posed the rig: `look_at` turns one bone toward the target, `two_bone_ik` bends a root, middle and tip chain so the tip reaches it.",
+    "particles": "A purely visual 2D emitter at the node: rate, lifetime, speed, cone and gravity. The live particles and the randomness scattering them are backend state the simulation never sees.",
+    "polygon": "A filled, textured 2D polygon from a `mesh` asset's points and triangles, deformed by the rig `skeleton` names when the mesh carries skin weights.",
+    "shape2d": "An untextured 2D primitive drawn at the node -- circle, rect, capsule or a polyline traced through a mesh asset's points -- sized in world units.",
+    "shape3d": "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone or plane -- sized in world units and tinted by `color`.",
+    "sound": "A sound of the node's own: which file, at what volume and pitch, looping or not. `audio.play_on` and `audio.stop_on` trigger it, and `autoplay` starts it when the node enters the scene.",
+    "sprite": "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` sheet makes it a flipbook `frame` steps through.",
+    "tilemap": "A grid of tiles cut from one `tileset` atlas and centred on the node, one character per cell, drawn at `pixels_per_unit` tile-texture pixels per world unit.",
+    "vehicle3d": "Makes this node's body a car chassis, driven by the `wheel3d` children under it. Rapier casts a ray down from each wheel and pushes the chassis along a spring, which is how driving games model cars: it never jams and never tunnels.",
+    "wheel3d": "One wheel of the `vehicle3d` above it. Where the node sits on the chassis is where the wheel's ray starts; the rest is suspension tuning. Drive it with `physics3d.set_engine_force`, `set_brake` and `set_steering`.",
+    "widget": "A HUD element the widget layer draws every frame: a label, button or panel anchored to a screen corner or the center, offset in design pixels. A button records its click in `clicked` and calls the node's `on_click` method."
   },
   "component_tags": {
     "animation": [
@@ -45,11 +75,27 @@
       "3d",
       "render"
     ],
+    "character2d": [
+      "2d",
+      "physics"
+    ],
+    "character3d": [
+      "3d",
+      "physics"
+    ],
     "collider2d": [
       "2d",
       "physics"
     ],
     "collider3d": [
+      "3d",
+      "physics"
+    ],
+    "joint2d": [
+      "2d",
+      "physics"
+    ],
+    "joint3d": [
       "3d",
       "physics"
     ],
@@ -88,6 +134,14 @@
       "2d",
       "render"
     ],
+    "vehicle3d": [
+      "3d",
+      "physics"
+    ],
+    "wheel3d": [
+      "3d",
+      "physics"
+    ],
     "widget": [
       "ui"
     ]
@@ -117,29 +171,233 @@
       }
     },
     "body2d": {
+      "angular_damping": {
+        "default": 0.0,
+        "description": "Drag on spin, in the same terms as linear_damping",
+        "min": 0.0,
+        "type": "float"
+      },
+      "can_sleep": {
+        "default": true,
+        "description": "Let the body stop being simulated once it has held still",
+        "type": "bool"
+      },
+      "ccd": {
+        "default": false,
+        "description": "Sweep the body's whole path each step so a fast one cannot pass through a wall",
+        "type": "bool"
+      },
+      "center_of_mass": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "Where the extra mass sits, in the node's own space; only read when mass is set",
+        "type": "vec2"
+      },
+      "dominance": {
+        "default": 0.0,
+        "description": "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all",
+        "max": 127.0,
+        "min": -127.0,
+        "type": "float"
+      },
+      "enabled": {
+        "default": true,
+        "description": "Simulate this body at all; a disabled body keeps its state and costs nothing",
+        "type": "bool"
+      },
+      "fast_rotation": {
+        "default": false,
+        "description": "Allow a spin fast enough that rapier would otherwise clamp it",
+        "type": "bool"
+      },
+      "gravity_scale": {
+        "default": 1.0,
+        "description": "Multiplier on world gravity for this body: 0 hangs in the air, negative floats up",
+        "type": "float"
+      },
+      "inertia": {
+        "default": 0.0,
+        "description": "Resistance to spin; 0 lets rapier derive it from the mass",
+        "min": 0.0,
+        "type": "float"
+      },
       "kind": {
         "default": "dynamic",
-        "description": "How 2D physics drives the node: simulated, immovable, or moved by script",
+        "description": "How 2D physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set",
         "options": [
           "dynamic",
           "static",
-          "kinematic"
+          "kinematic",
+          "kinematic_velocity"
         ],
         "shorthand": true,
         "type": "enum"
+      },
+      "linear_damping": {
+        "default": 0.0,
+        "description": "Drag on travel: how fast the body loses speed with nothing touching it",
+        "min": 0.0,
+        "type": "float"
+      },
+      "lock_rotation": {
+        "default": false,
+        "description": "Stop the body turning; how a 2D character stays upright",
+        "type": "bool"
+      },
+      "lock_translation": {
+        "default": [],
+        "description": "Axes the body may not move along",
+        "options": [
+          "x",
+          "y"
+        ],
+        "type": "flags"
+      },
+      "mass": {
+        "default": 0.0,
+        "description": "Extra mass on top of what the colliders' density gives; 0 leaves the body at its collider mass",
+        "min": 0.0,
+        "type": "float"
+      },
+      "sleep_time": {
+        "default": 0.5,
+        "description": "Seconds of stillness before the body sleeps",
+        "min": 0.0,
+        "type": "float"
+      },
+      "soft_ccd": {
+        "default": 0.0,
+        "description": "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies",
+        "min": 0.0,
+        "type": "float"
+      },
+      "solver_iterations": {
+        "default": 0.0,
+        "description": "Extra solver iterations for this body alone, for the one stack that jitters",
+        "min": 0.0,
+        "type": "float"
       }
     },
     "body3d": {
+      "angular_damping": {
+        "default": 0.0,
+        "description": "Drag on spin, in the same terms as linear_damping",
+        "min": 0.0,
+        "type": "float"
+      },
+      "can_sleep": {
+        "default": true,
+        "description": "Let the body stop being simulated once it has held still",
+        "type": "bool"
+      },
+      "ccd": {
+        "default": false,
+        "description": "Sweep the body's whole path each step so a fast one cannot pass through a wall",
+        "type": "bool"
+      },
+      "center_of_mass": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Where the extra mass sits, in the node's own space; only read when mass is set",
+        "type": "vec3"
+      },
+      "dominance": {
+        "default": 0.0,
+        "description": "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all",
+        "max": 127.0,
+        "min": -127.0,
+        "type": "float"
+      },
+      "enabled": {
+        "default": true,
+        "description": "Simulate this body at all; a disabled body keeps its state and costs nothing",
+        "type": "bool"
+      },
+      "fast_rotation": {
+        "default": false,
+        "description": "Allow a spin fast enough that rapier would otherwise clamp it",
+        "type": "bool"
+      },
+      "gravity_scale": {
+        "default": 1.0,
+        "description": "Multiplier on world gravity for this body: 0 hangs in the air, negative floats up",
+        "type": "float"
+      },
+      "inertia": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Resistance to spin about each axis; 0 lets rapier derive it from the mass",
+        "type": "vec3"
+      },
       "kind": {
         "default": "dynamic",
-        "description": "How physics drives the node: simulated, immovable, or moved by script",
+        "description": "How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set",
         "options": [
           "dynamic",
           "static",
-          "kinematic"
+          "kinematic",
+          "kinematic_velocity"
         ],
         "shorthand": true,
         "type": "enum"
+      },
+      "linear_damping": {
+        "default": 0.0,
+        "description": "Drag on travel: how fast the body loses speed with nothing touching it",
+        "min": 0.0,
+        "type": "float"
+      },
+      "lock_rotation": {
+        "default": [],
+        "description": "World axes the body may not turn about; locking all three keeps a character upright",
+        "options": [
+          "x",
+          "y",
+          "z"
+        ],
+        "type": "flags"
+      },
+      "lock_translation": {
+        "default": [],
+        "description": "World axes the body may not move along",
+        "options": [
+          "x",
+          "y",
+          "z"
+        ],
+        "type": "flags"
+      },
+      "mass": {
+        "default": 0.0,
+        "description": "Extra mass on top of what the colliders' density gives; 0 leaves the body at its collider mass",
+        "min": 0.0,
+        "type": "float"
+      },
+      "sleep_time": {
+        "default": 0.5,
+        "description": "Seconds of stillness before the body sleeps",
+        "min": 0.0,
+        "type": "float"
+      },
+      "soft_ccd": {
+        "default": 0.0,
+        "description": "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies",
+        "min": 0.0,
+        "type": "float"
+      },
+      "solver_iterations": {
+        "default": 0.0,
+        "description": "Extra solver iterations for this body alone, for the one stack that jitters",
+        "min": 0.0,
+        "type": "float"
       }
     },
     "bone2d": {
@@ -234,18 +492,261 @@
         "type": "float"
       }
     },
+    "character2d": {
+      "autostep": {
+        "default": 0.3,
+        "description": "The tallest step the character climbs without jumping; 0 turns stepping off",
+        "min": 0.0,
+        "type": "float"
+      },
+      "autostep_dynamic": {
+        "default": false,
+        "description": "Climb onto dynamic bodies too, not only static and kinematic ones",
+        "type": "bool"
+      },
+      "autostep_min_width": {
+        "default": 0.2,
+        "description": "How much clear ground a step needs on top before it may be climbed",
+        "min": 0.0,
+        "type": "float"
+      },
+      "lengths": {
+        "default": "absolute",
+        "description": "Whether offset, autostep and snap_to_ground are in world units or as a fraction of the character's own height",
+        "options": [
+          "absolute",
+          "relative"
+        ],
+        "type": "enum"
+      },
+      "max_climb_angle": {
+        "default": 45.0,
+        "description": "The steepest slope the character may walk up, in degrees",
+        "max": 90.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "min_slide_angle": {
+        "default": 30.0,
+        "description": "The shallowest slope the character slides back down, in degrees",
+        "max": 90.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "normal_nudge": {
+        "default": 0.0001,
+        "description": "A tiny push along the contact normal that stops the character catching on seams",
+        "min": 0.0,
+        "type": "float"
+      },
+      "offset": {
+        "default": 0.01,
+        "description": "A gap kept between the character and everything else, so the solver never has to push it out of a wall",
+        "min": 0.0,
+        "type": "float"
+      },
+      "push_bodies": {
+        "default": true,
+        "description": "Push dynamic bodies the character walks into, rather than passing through them",
+        "type": "bool"
+      },
+      "slide": {
+        "default": true,
+        "description": "Slide along what is in the way instead of stopping dead against it",
+        "type": "bool"
+      },
+      "snap_to_ground": {
+        "default": 0.2,
+        "description": "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off",
+        "min": 0.0,
+        "type": "float"
+      },
+      "up": {
+        "default": [
+          0.0,
+          1.0
+        ],
+        "description": "Which way is up for this character: the axis it stands along and measures slopes against",
+        "type": "vec2"
+      }
+    },
+    "character3d": {
+      "autostep": {
+        "default": 0.3,
+        "description": "The tallest step the character climbs without jumping; 0 turns stepping off",
+        "min": 0.0,
+        "type": "float"
+      },
+      "autostep_dynamic": {
+        "default": false,
+        "description": "Climb onto dynamic bodies too, not only static and kinematic ones",
+        "type": "bool"
+      },
+      "autostep_min_width": {
+        "default": 0.2,
+        "description": "How much clear ground a step needs on top before it may be climbed",
+        "min": 0.0,
+        "type": "float"
+      },
+      "lengths": {
+        "default": "absolute",
+        "description": "Whether offset, autostep and snap_to_ground are in world units or as a fraction of the character's own height",
+        "options": [
+          "absolute",
+          "relative"
+        ],
+        "type": "enum"
+      },
+      "max_climb_angle": {
+        "default": 45.0,
+        "description": "The steepest slope the character may walk up, in degrees",
+        "max": 90.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "min_slide_angle": {
+        "default": 30.0,
+        "description": "The shallowest slope the character slides back down, in degrees",
+        "max": 90.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "normal_nudge": {
+        "default": 0.0001,
+        "description": "A tiny push along the contact normal that stops the character catching on seams",
+        "min": 0.0,
+        "type": "float"
+      },
+      "offset": {
+        "default": 0.01,
+        "description": "A gap kept between the character and everything else, so the solver never has to push it out of a wall",
+        "min": 0.0,
+        "type": "float"
+      },
+      "push_bodies": {
+        "default": true,
+        "description": "Push dynamic bodies the character walks into, rather than passing through them",
+        "type": "bool"
+      },
+      "slide": {
+        "default": true,
+        "description": "Slide along what is in the way instead of stopping dead against it",
+        "type": "bool"
+      },
+      "snap_to_ground": {
+        "default": 0.2,
+        "description": "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off",
+        "min": 0.0,
+        "type": "float"
+      },
+      "up": {
+        "default": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "description": "Which way is up for this character: the axis it stands along and measures slopes against",
+        "type": "vec3"
+      }
+    },
     "collider2d": {
+      "a": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "First corner, when kind is triangle or segment",
+        "type": "vec2"
+      },
+      "active_collisions": {
+        "default": [
+          "dynamic_dynamic",
+          "dynamic_kinematic",
+          "dynamic_static"
+        ],
+        "description": "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default",
+        "options": [
+          "dynamic_dynamic",
+          "dynamic_kinematic",
+          "dynamic_static",
+          "kinematic_kinematic",
+          "kinematic_static",
+          "static_static"
+        ],
+        "type": "flags"
+      },
+      "b": {
+        "default": [
+          1.0,
+          0.0
+        ],
+        "description": "Second corner, when kind is triangle or segment",
+        "type": "vec2"
+      },
+      "border": {
+        "default": 0.0,
+        "description": "Rounds a rect or triangle by this radius, so it slides over seams instead of catching on them",
+        "min": 0.0,
+        "type": "float"
+      },
+      "c": {
+        "default": [
+          0.0,
+          1.0
+        ],
+        "description": "Third corner, when kind is triangle",
+        "type": "vec2"
+      },
+      "contact_force_threshold": {
+        "default": 0.0,
+        "description": "How hard a contact must be before on_contact_force is called",
+        "min": 0.0,
+        "type": "float"
+      },
+      "contact_skin": {
+        "default": 0.0,
+        "description": "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering",
+        "min": 0.0,
+        "type": "float"
+      },
       "density": {
         "default": 1.0,
-        "description": "Mass per area, so the shape's size sets its mass",
+        "description": "Mass per volume, so the shape's size sets its mass",
         "min": 0.001,
         "type": "float"
+      },
+      "enabled": {
+        "default": true,
+        "description": "Collide at all; a disabled collider keeps its shape and costs nothing",
+        "type": "bool"
+      },
+      "events": {
+        "default": [],
+        "description": "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force",
+        "options": [
+          "collision",
+          "contact_force"
+        ],
+        "type": "flags"
       },
       "friction": {
         "default": 0.5,
         "description": "Surface friction; 0 is ice",
         "min": 0.0,
         "type": "float"
+      },
+      "friction_combine": {
+        "default": "average",
+        "description": "How this surface's friction combines with the other one's",
+        "options": [
+          "average",
+          "min",
+          "multiply",
+          "max",
+          "clamped_sum",
+          "geometric_mean"
+        ],
+        "type": "enum"
       },
       "half_extents": {
         "default": [
@@ -261,19 +762,168 @@
         "min": 0.01,
         "type": "float"
       },
+      "heightfield": {
+        "asset": "heightfield",
+        "default": "",
+        "description": "A row of heights, when kind is heightfield: a side-scroller's ground",
+        "type": "asset"
+      },
+      "hooks": {
+        "default": [],
+        "description": "Mid-step questions this collider asks its node's script; each costs a call per candidate pair per step",
+        "options": [
+          "filter_contact",
+          "filter_overlap",
+          "modify_contacts"
+        ],
+        "type": "flags"
+      },
       "kind": {
         "default": "rect",
         "description": "Collision shape",
         "options": [
           "circle",
           "rect",
-          "capsule"
+          "capsule",
+          "triangle",
+          "segment",
+          "halfspace",
+          "trimesh",
+          "convex_hull",
+          "polyline",
+          "heightfield"
         ],
         "type": "enum"
       },
+      "layers": {
+        "default": [
+          "0"
+        ],
+        "description": "The layers this collider is on",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
+      },
+      "mask": {
+        "default": [],
+        "description": "The layers it collides with; empty means every layer",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
+      },
+      "mass": {
+        "default": 0.0,
+        "description": "Mass in kilograms, overriding what density works out to; 0 keeps the density",
+        "min": 0.0,
+        "type": "float"
+      },
+      "mesh": {
+        "asset": "mesh",
+        "default": "",
+        "description": "Points and triangles for a trimesh, convex_hull or polyline collider: the same asset a polygon draws",
+        "type": "asset"
+      },
+      "normal": {
+        "default": [
+          0.0,
+          1.0
+        ],
+        "description": "Which way the infinite line faces, when kind is halfspace",
+        "type": "vec2"
+      },
+      "offset": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "Where the shape sits relative to the node",
+        "type": "vec2"
+      },
+      "offset_rotation": {
+        "default": 0.0,
+        "description": "How the shape is turned relative to the node, in radians",
+        "type": "float"
+      },
+      "one_way": {
+        "default": false,
+        "description": "A platform bodies pass through from below and land on from above",
+        "type": "bool"
+      },
+      "one_way_axis": {
+        "default": [
+          0.0,
+          1.0
+        ],
+        "description": "The direction a one-way platform lets bodies through from",
+        "type": "vec2"
+      },
       "radius": {
         "default": 0.5,
-        "description": "Circle radius, when kind is circle",
+        "description": "Circle radius, when kind is circle or capsule",
         "min": 0.01,
         "type": "float"
       },
@@ -284,10 +934,111 @@
         "min": 0.0,
         "type": "float"
       },
+      "restitution_combine": {
+        "default": "average",
+        "description": "How this surface's bounciness combines with the other one's",
+        "options": [
+          "average",
+          "min",
+          "multiply",
+          "max",
+          "clamped_sum",
+          "geometric_mean"
+        ],
+        "type": "enum"
+      },
+      "scale": {
+        "default": [
+          1.0,
+          1.0
+        ],
+        "description": "Width and height scale of a heightfield",
+        "type": "vec2"
+      },
       "sensor": {
         "default": false,
         "description": "Detects overlaps without colliding: bodies pass through and are reported",
         "type": "bool"
+      },
+      "solver_layers": {
+        "default": [
+          "0"
+        ],
+        "description": "Layers for the solver alone: a pair can be detected but not resolved",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
+      },
+      "solver_mask": {
+        "default": [],
+        "description": "Which solver layers this one pushes against; empty means all of them",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
       }
     },
     "collider3d": {
@@ -297,8 +1048,25 @@
           0.0,
           0.0
         ],
-        "description": "First corner, when kind is triangle",
+        "description": "First corner, when kind is triangle or segment",
         "type": "vec3"
+      },
+      "active_collisions": {
+        "default": [
+          "dynamic_dynamic",
+          "dynamic_kinematic",
+          "dynamic_static"
+        ],
+        "description": "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default",
+        "options": [
+          "dynamic_dynamic",
+          "dynamic_kinematic",
+          "dynamic_static",
+          "kinematic_kinematic",
+          "kinematic_static",
+          "static_static"
+        ],
+        "type": "flags"
       },
       "b": {
         "default": [
@@ -306,8 +1074,14 @@
           0.0,
           0.0
         ],
-        "description": "Second corner, when kind is triangle",
+        "description": "Second corner, when kind is triangle or segment",
         "type": "vec3"
+      },
+      "border": {
+        "default": 0.0,
+        "description": "Rounds a cuboid, cylinder, cone or triangle by this radius; a rounded shape slides over seams instead of catching on them",
+        "min": 0.0,
+        "type": "float"
       },
       "c": {
         "default": [
@@ -318,17 +1092,86 @@
         "description": "Third corner, when kind is triangle",
         "type": "vec3"
       },
+      "clean": {
+        "default": false,
+        "description": "Drop duplicate vertices and degenerate triangles when building a trimesh",
+        "type": "bool"
+      },
+      "contact_force_threshold": {
+        "default": 0.0,
+        "description": "How hard a contact must be before on_contact_force is called",
+        "min": 0.0,
+        "type": "float"
+      },
+      "contact_skin": {
+        "default": 0.0,
+        "description": "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering",
+        "min": 0.0,
+        "type": "float"
+      },
       "density": {
         "default": 1.0,
         "description": "Mass per volume, so the shape's size sets its mass",
         "min": 0.001,
         "type": "float"
       },
+      "enabled": {
+        "default": true,
+        "description": "Collide at all; a disabled collider keeps its shape and costs nothing",
+        "type": "bool"
+      },
+      "events": {
+        "default": [],
+        "description": "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force",
+        "options": [
+          "collision",
+          "contact_force"
+        ],
+        "type": "flags"
+      },
+      "fill": {
+        "default": "solid",
+        "description": "Whether voxelizing a mesh fills its inside or only its shell",
+        "options": [
+          "solid",
+          "surface"
+        ],
+        "type": "enum"
+      },
+      "fit": {
+        "default": "convex_hull",
+        "description": "The shape fitted to the mesh, when kind is fit",
+        "options": [
+          "convex_hull",
+          "aabb",
+          "obb",
+          "convex_decomposition"
+        ],
+        "type": "enum"
+      },
+      "fix_internal_edges": {
+        "default": true,
+        "description": "Smooth the seams between a trimesh's triangles, so a character does not catch on flat ground",
+        "type": "bool"
+      },
       "friction": {
         "default": 0.5,
         "description": "Surface friction; 0 is ice",
         "min": 0.0,
         "type": "float"
+      },
+      "friction_combine": {
+        "default": "average",
+        "description": "How this surface's friction combines with the other one's",
+        "options": [
+          "average",
+          "min",
+          "multiply",
+          "max",
+          "clamped_sum",
+          "geometric_mean"
+        ],
+        "type": "enum"
       },
       "half_extents": {
         "default": [
@@ -351,6 +1194,16 @@
         "description": "Terrain grid, when kind is heightfield",
         "type": "asset"
       },
+      "hooks": {
+        "default": [],
+        "description": "Mid-step questions this collider asks its node's script; each costs a call per candidate pair per step",
+        "options": [
+          "filter_contact",
+          "filter_overlap",
+          "modify_contacts"
+        ],
+        "type": "flags"
+      },
       "kind": {
         "default": "cuboid",
         "description": "Collision shape",
@@ -361,18 +1214,156 @@
           "cylinder",
           "cone",
           "triangle",
+          "segment",
+          "halfspace",
           "trimesh",
           "convex_hull",
+          "convex_decomposition",
           "polyline",
-          "heightfield"
+          "heightfield",
+          "voxels",
+          "voxelized_mesh",
+          "fit"
         ],
         "type": "enum"
+      },
+      "layers": {
+        "default": [
+          "0"
+        ],
+        "description": "The layers this collider is on",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
+      },
+      "mask": {
+        "default": [],
+        "description": "The layers it collides with; empty means every layer",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
+      },
+      "mass": {
+        "default": 0.0,
+        "description": "Mass in kilograms, overriding what density works out to; 0 keeps the density",
+        "min": 0.0,
+        "type": "float"
       },
       "mesh": {
         "asset": "mesh",
         "default": "",
         "description": "Geometry for a trimesh, convex_hull or polyline collider",
         "type": "asset"
+      },
+      "normal": {
+        "default": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "description": "Which way the infinite plane faces, when kind is halfspace",
+        "type": "vec3"
+      },
+      "offset": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Where the shape sits relative to the node",
+        "type": "vec3"
+      },
+      "offset_rotation": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "How the shape is turned relative to the node, in radians",
+        "type": "vec3"
+      },
+      "one_way": {
+        "default": false,
+        "description": "A platform bodies pass through from below and land on from above",
+        "type": "bool"
+      },
+      "one_way_axis": {
+        "default": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "description": "The direction a one-way platform lets bodies through from",
+        "type": "vec3"
+      },
+      "oriented": {
+        "default": false,
+        "description": "Treat the trimesh as a closed, outward-facing surface, which makes inside and outside meaningful",
+        "type": "bool"
       },
       "radius": {
         "default": 0.5,
@@ -387,6 +1378,19 @@
         "min": 0.0,
         "type": "float"
       },
+      "restitution_combine": {
+        "default": "average",
+        "description": "How this surface's bounciness combines with the other one's",
+        "options": [
+          "average",
+          "min",
+          "multiply",
+          "max",
+          "clamped_sum",
+          "geometric_mean"
+        ],
+        "type": "enum"
+      },
       "scale": {
         "default": [
           1.0,
@@ -400,9 +1404,387 @@
         "default": false,
         "description": "Detects overlaps without colliding: bodies pass through and are reported",
         "type": "bool"
+      },
+      "solver_layers": {
+        "default": [
+          "0"
+        ],
+        "description": "Layers for the solver alone: a pair can be detected but not resolved",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
+      },
+      "solver_mask": {
+        "default": [],
+        "description": "Which solver layers this one pushes against; empty means all of them",
+        "options": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24",
+          "25",
+          "26",
+          "27",
+          "28",
+          "29",
+          "30",
+          "31"
+        ],
+        "type": "flags"
+      },
+      "voxel_size": {
+        "default": 0.25,
+        "description": "How big one cell is, when kind is voxelized_mesh",
+        "min": 0.001,
+        "type": "float"
+      },
+      "voxels": {
+        "asset": "voxels",
+        "default": "",
+        "description": "Filled cells, when kind is voxels; a script may dig into them while the game runs",
+        "type": "asset"
+      }
+    },
+    "joint2d": {
+      "anchor": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "Where the joint attaches on this node, in its own space",
+        "type": "vec2"
+      },
+      "axis": {
+        "default": [
+          1.0,
+          0.0
+        ],
+        "description": "The direction a prismatic joint slides along",
+        "type": "vec2"
+      },
+      "body": {
+        "default": "",
+        "description": "The node at the joint's other end; this node is the first end",
+        "type": "node"
+      },
+      "break_force": {
+        "default": 0.0,
+        "description": "The pull that snaps the joint and calls on_joint_break; 0 never breaks",
+        "min": 0.0,
+        "type": "float"
+      },
+      "contacts": {
+        "default": false,
+        "description": "Let the two joined bodies collide with each other",
+        "type": "bool"
+      },
+      "damping": {
+        "default": 1.0,
+        "description": "How quickly the motion settles, for a spring joint or a motor",
+        "min": 0.0,
+        "type": "float"
+      },
+      "enabled": {
+        "default": true,
+        "description": "Hold the two bodies together at all",
+        "type": "bool"
+      },
+      "kind": {
+        "default": "fixed",
+        "description": "How the two bodies may move relative to each other",
+        "options": [
+          "fixed",
+          "revolute",
+          "prismatic",
+          "rope",
+          "spring",
+          "pin_slot",
+          "generic"
+        ],
+        "shorthand": true,
+        "type": "enum"
+      },
+      "length": {
+        "default": 0.0,
+        "description": "The rope's greatest length, or the spring's rest length",
+        "min": 0.0,
+        "type": "float"
+      },
+      "limits": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "How far the joint may travel, as a low and a high; equal values mean no limit",
+        "type": "vec2"
+      },
+      "locked_axes": {
+        "default": [],
+        "description": "Which of the three freedoms a generic joint takes away",
+        "options": [
+          "x",
+          "y",
+          "ang_x"
+        ],
+        "type": "flags"
+      },
+      "motor": {
+        "default": "off",
+        "description": "Drive the joint towards a speed, towards a position, or not at all",
+        "options": [
+          "off",
+          "velocity",
+          "position"
+        ],
+        "type": "enum"
+      },
+      "motor_max_force": {
+        "default": 0.0,
+        "description": "The most force the motor may use; 0 means as much as it takes",
+        "min": 0.0,
+        "type": "float"
+      },
+      "motor_model": {
+        "default": "acceleration",
+        "description": "Whether the motor's strength is felt as an acceleration, ignoring mass, or as a force",
+        "options": [
+          "acceleration",
+          "force"
+        ],
+        "type": "enum"
+      },
+      "motor_target": {
+        "default": 0.0,
+        "description": "The speed or the position the motor drives towards",
+        "type": "float"
+      },
+      "other_anchor": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "Where it attaches on the other node, in that node's space",
+        "type": "vec2"
+      },
+      "solver": {
+        "default": "impulse",
+        "description": "impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop",
+        "options": [
+          "impulse",
+          "reduced"
+        ],
+        "type": "enum"
+      },
+      "stiffness": {
+        "default": 0.0,
+        "description": "Spring stiffness, for a spring joint or a position motor",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    "joint3d": {
+      "anchor": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Where the joint attaches on this node, in its own space",
+        "type": "vec3"
+      },
+      "axis": {
+        "default": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "description": "The axis a revolute joint turns about or a prismatic one slides along",
+        "type": "vec3"
+      },
+      "body": {
+        "default": "",
+        "description": "The node at the joint's other end; this node is the first end",
+        "type": "node"
+      },
+      "break_force": {
+        "default": 0.0,
+        "description": "The pull that snaps the joint and calls on_joint_break; 0 never breaks",
+        "min": 0.0,
+        "type": "float"
+      },
+      "contacts": {
+        "default": false,
+        "description": "Let the two joined bodies collide with each other",
+        "type": "bool"
+      },
+      "damping": {
+        "default": 1.0,
+        "description": "How quickly the motion settles, for a spring joint or a motor",
+        "min": 0.0,
+        "type": "float"
+      },
+      "enabled": {
+        "default": true,
+        "description": "Hold the two bodies together at all",
+        "type": "bool"
+      },
+      "kind": {
+        "default": "fixed",
+        "description": "How the two bodies may move relative to each other",
+        "options": [
+          "fixed",
+          "revolute",
+          "prismatic",
+          "spherical",
+          "rope",
+          "spring",
+          "generic"
+        ],
+        "shorthand": true,
+        "type": "enum"
+      },
+      "length": {
+        "default": 0.0,
+        "description": "The rope's greatest length, or the spring's rest length",
+        "min": 0.0,
+        "type": "float"
+      },
+      "limits": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "How far the joint may travel, as a low and a high; equal values mean no limit",
+        "type": "vec2"
+      },
+      "locked_axes": {
+        "default": [],
+        "description": "Which of the six freedoms a generic joint takes away",
+        "options": [
+          "x",
+          "y",
+          "z",
+          "ang_x",
+          "ang_y",
+          "ang_z"
+        ],
+        "type": "flags"
+      },
+      "motor": {
+        "default": "off",
+        "description": "Drive the joint towards a speed, towards a position, or not at all",
+        "options": [
+          "off",
+          "velocity",
+          "position"
+        ],
+        "type": "enum"
+      },
+      "motor_max_force": {
+        "default": 0.0,
+        "description": "The most force the motor may use; 0 means as much as it takes",
+        "min": 0.0,
+        "type": "float"
+      },
+      "motor_model": {
+        "default": "acceleration",
+        "description": "Whether the motor's strength is felt as an acceleration, ignoring mass, or as a force",
+        "options": [
+          "acceleration",
+          "force"
+        ],
+        "type": "enum"
+      },
+      "motor_target": {
+        "default": 0.0,
+        "description": "The speed or the position the motor drives towards",
+        "type": "float"
+      },
+      "other_anchor": {
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Where it attaches on the other node, in that node's space",
+        "type": "vec3"
+      },
+      "solver": {
+        "default": "impulse",
+        "description": "impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop",
+        "options": [
+          "impulse",
+          "reduced"
+        ],
+        "type": "enum"
+      },
+      "stiffness": {
+        "default": 0.0,
+        "description": "Spring stiffness, for a spring joint or a position motor",
+        "min": 0.0,
+        "type": "float"
       }
     },
     "mesh": {
+      "material": {
+        "asset": "material",
+        "default": "",
+        "description": "The material this draws with; empty draws with the built-in one",
+        "type": "asset"
+      },
       "skeleton": {
         "default": "",
         "description": "Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node",
@@ -586,6 +1968,12 @@
         ],
         "type": "enum"
       },
+      "material": {
+        "asset": "material",
+        "default": "",
+        "description": "The material this draws with; empty draws with the built-in one",
+        "type": "asset"
+      },
       "mesh": {
         "asset": "mesh",
         "default": "",
@@ -643,6 +2031,12 @@
           "plane"
         ],
         "type": "enum"
+      },
+      "material": {
+        "asset": "material",
+        "default": "",
+        "description": "The material this draws with; empty draws with the built-in one",
+        "type": "asset"
       },
       "radius": {
         "default": 0.5,
@@ -764,6 +2158,96 @@
         "type": "asset"
       }
     },
+    "vehicle3d": {
+      "forward_axis": {
+        "default": 2.0,
+        "description": "Which of the chassis's own axes points forward",
+        "max": 2.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "up_axis": {
+        "default": 1.0,
+        "description": "Which of the chassis's own axes points up: 0 for x, 1 for y, 2 for z",
+        "max": 2.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    "wheel3d": {
+      "axle": {
+        "default": [
+          -1.0,
+          0.0,
+          0.0
+        ],
+        "description": "The axle the wheel turns about, in the chassis's own space",
+        "type": "vec3"
+      },
+      "compression": {
+        "default": 0.82,
+        "description": "Damping while the suspension is being squashed",
+        "min": 0.0,
+        "type": "float"
+      },
+      "damping": {
+        "default": 0.88,
+        "description": "Damping while the suspension is coming back",
+        "min": 0.0,
+        "type": "float"
+      },
+      "direction": {
+        "default": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "description": "Which way the suspension pushes, in the chassis's own space: down",
+        "type": "vec3"
+      },
+      "friction_slip": {
+        "default": 10.5,
+        "description": "Grip along the wheel's rolling direction; lower slides more",
+        "min": 0.0,
+        "type": "float"
+      },
+      "max_force": {
+        "default": 6000.0,
+        "description": "The most force this suspension may push the chassis with",
+        "min": 0.0,
+        "type": "float"
+      },
+      "max_travel": {
+        "default": 5.0,
+        "description": "How far the suspension may move in total",
+        "min": 0.0,
+        "type": "float"
+      },
+      "radius": {
+        "default": 0.4,
+        "description": "The wheel's radius, which is how far off the ground it holds the ray's end",
+        "min": 0.01,
+        "type": "float"
+      },
+      "rest_length": {
+        "default": 0.3,
+        "description": "How long the suspension is with no weight on it",
+        "min": 0.0,
+        "type": "float"
+      },
+      "side_friction": {
+        "default": 1.0,
+        "description": "Grip sideways: what stops the car sliding out of a corner",
+        "min": 0.0,
+        "type": "float"
+      },
+      "stiffness": {
+        "default": 30.0,
+        "description": "Spring stiffness: higher is a stiffer, twitchier car",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
     "widget": {
       "anchor": {
         "default": "top_left",
@@ -850,15 +2334,67 @@
   },
   "modules": [
     {
+      "acts_on": {
+        "current": [
+          "animation"
+        ],
+        "define": [
+          "animation"
+        ],
+        "is_playing": [
+          "animation"
+        ],
+        "just_finished": [
+          "animation"
+        ],
+        "pause": [
+          "animation"
+        ],
+        "play": [
+          "animation"
+        ],
+        "queue": [
+          "animation"
+        ],
+        "resume": [
+          "animation"
+        ],
+        "seek": [
+          "animation"
+        ],
+        "stop": [
+          "animation"
+        ],
+        "time": [
+          "animation"
+        ]
+      },
       "components": [
         "animation"
       ],
       "constants": [],
+      "doc": "Clip playback on a node's `animation` component \u2014 starting, holding, seeking \u2014 and tweens, short clips generated from a table of steps and addressed by the handle they hand back.",
+      "docs": {
+        "current": "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started.",
+        "define": "Give this node a clip of its own under that name, from a definition table shaped like a scene file's.",
+        "is_playing": "Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false.",
+        "is_tween_running": "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip.",
+        "just_finished": "The clip that ended on this node during the last step, and nil on every other frame.",
+        "pause": "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to.",
+        "play": "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier) and `from_start`.",
+        "queue": "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains.",
+        "resume": "Carry on from where `pause` left off; a stopped, finished or never-started node is left alone.",
+        "seek": "Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip.",
+        "stop": "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it.",
+        "time": "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped.",
+        "tween": "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take.",
+        "tween_to": "Move one property of the node to a value over a number of seconds on an optional easing curve, returning a handle."
+      },
       "functions": [
         "current",
         "define",
         "is_playing",
-        "is_running",
+        "is_tween_running",
         "just_finished",
         "pause",
         "play",
@@ -875,7 +2411,7 @@
         "current": "NodeId -> Option<String>",
         "define": "(NodeId, String, Value) -> ()",
         "is_playing": "NodeId -> bool",
-        "is_running": "Value -> bool",
+        "is_tween_running": "Value -> bool",
         "just_finished": "NodeId -> Option<String>",
         "pause": "NodeId -> ()",
         "play": "(NodeId, String, Option<Value>) -> ()",
@@ -889,8 +2425,18 @@
       }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "Asset definitions by reference: a project-relative file path, `file#entry` for one entry inside it, or `#id` for a block the scene declares. A script gets the definition table, not the parsed object the owning plugin builds from it.",
+      "docs": {
+        "directory": "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none.",
+        "duplicate": "A private copy of a definition, read past the cache, so editing it disturbs no other holder of that reference.",
+        "exists": "Whether a reference resolves to a definition that is really there; false rather than an error when it does not.",
+        "load": "The definition table behind a reference, from the cache; an error when the reference resolves to nothing.",
+        "reload": "Forget a reference so the next load re-reads its file, along with every entry cut from that same file.",
+        "save": "Write a definition table to the project-relative file a reference names; an error unless it names a whole file."
+      },
       "functions": [
         "directory",
         "duplicate",
@@ -900,13 +2446,39 @@
         "save"
       ],
       "name": "assets",
-      "signatures": {}
+      "signatures": {
+        "directory": "(type_name: string)",
+        "duplicate": "(reference: string)",
+        "exists": "(reference: string)",
+        "load": "(reference: string)",
+        "reload": "(reference: string)",
+        "save": "(reference: string, definition: any)"
+      }
     },
     {
+      "acts_on": {
+        "play_on": [
+          "sound"
+        ],
+        "stop_on": [
+          "sound"
+        ]
+      },
       "components": [
         "sound"
       ],
       "constants": [],
+      "doc": "Sound playback: a file plays under an integer handle, with `volume`, `pitch` and `loop` options, and the `sound` component gives a node a sound of its own. With no output device every call still works and nothing is heard.",
+      "docs": {
+        "is_playing": "Whether a handle's sound is still audible; false once it ends, and always false with no output device.",
+        "play": "Start the audio file at a path and return the handle `stop`, `set_volume`, `set_pitch` and `is_playing` take.",
+        "play_on": "Start the node's own `sound` from the top, replacing what it had going, and return the new handle.",
+        "set_pitch": "Set a playing handle's speed multiplier, which carries its pitch with it.",
+        "set_volume": "Set a playing handle's linear gain, where 1 is the file's own level.",
+        "stop": "Silence the sound a handle names; a finished, stopped or unknown handle is left alone.",
+        "stop_all": "Silence everything at once and clear the playback every `sound` component was holding.",
+        "stop_on": "Silence what the node's `sound` started; a node carrying none is left alone."
+      },
       "functions": [
         "is_playing",
         "play",
@@ -930,6 +2502,7 @@
       }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [
         {
@@ -949,6 +2522,18 @@
           "value": "over"
         }
       ],
+      "doc": "Breakpoints, the pause a stopped script sits in, and the ways out of it. The same machinery the editor's Debugger dock and the Debug Adapter Protocol server drive, so an outside editor and the built-in one see one debugger.",
+      "docs": {
+        "break_on_error": "Whether a script that throws stops rather than being logged.",
+        "breakpoints": "The lines one file's breakpoints landed on.",
+        "paused": "Where a script is stopped \u2014 node, path, line, reason and frames, innermost first \u2014 or nil while none is.",
+        "request_break": "Ask to stop at the next line any script runs; nothing is stopped yet when it returns.",
+        "resume": "Let the stopped script go on, in the given step mode (`CONTINUE`, `STEP_OVER`, `STEP_INTO`, `STEP_OUT`).",
+        "scope": "The node whose subtree a pause holds still, or nil when a pause stops the whole tree.",
+        "set_break_on_error": "Stop where a script throws instead of logging it and moving on; off by default.",
+        "set_breakpoints": "Replace one file's breakpoints with the given lines, returning the lines they landed on.",
+        "set_scope": "Limit the pause to one node's subtree, so an editor keeps running while the game stops; nil means the whole tree."
+      },
       "functions": [
         "break_on_error",
         "breakpoints",
@@ -961,11 +2546,32 @@
         "set_scope"
       ],
       "name": "debugger",
-      "signatures": {}
+      "signatures": {
+        "break_on_error": "()",
+        "breakpoints": "(path: string)",
+        "paused": "()",
+        "request_break": "()",
+        "resume": "(mode: string?)",
+        "scope": "()",
+        "set_break_on_error": "(on: bool)",
+        "set_breakpoints": "(path: string, lines: [int])",
+        "set_scope": "(node: node?)"
+      }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "The running app itself: the clock a frame reads, the command line it was started with, the directory it may write to, and the way out.",
+      "docs": {
+        "args": "The command-line arguments the app was started with, empty when it was given none.",
+        "delta": "Seconds the frame in progress covers, the same number a system is handed.",
+        "quit": "Ask the app to shut down; the frame in flight still finishes.",
+        "reload_script": "Recompile one script by its project-relative key, for a tool editing files outside the watched root.",
+        "tick": "Which frame this is, counted whole \u2014 what simulation code branches on instead of `time`.",
+        "time": "Seconds of engine time since the app started, accumulated as a float.",
+        "user_data_dir": "A writable per-user directory for saves and settings, created on first call and named after the project."
+      },
       "functions": [
         "args",
         "delta",
@@ -976,11 +2582,31 @@
         "user_data_dir"
       ],
       "name": "engine",
-      "signatures": {}
+      "signatures": {
+        "args": "()",
+        "delta": "()",
+        "quit": "()",
+        "reload_script": "(key: string)",
+        "tick": "()",
+        "time": "()",
+        "user_data_dir": "()"
+      }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "Files on disk, project-relative unless the path is absolute, so a script cannot wander the filesystem by accident. This is the disk itself: a packed build's contents are reached through `assets` and `scene.source`.",
+      "docs": {
+        "exists": "Whether a project-relative path has anything at it, file or directory.",
+        "list": "A directory's entries as `{ name, is_dir }`, sorted, dotfiles skipped; empty for a directory that is not there.",
+        "mkdir": "Create a project-relative directory and every parent it needs.",
+        "mtime": "When a file last changed, in seconds since the Unix epoch; nil for one that is not there.",
+        "read": "A whole file as text, project-relative unless absolute; nil when it cannot be read.",
+        "remove": "Delete a project-relative file, or a directory and everything under it; false when there was nothing there.",
+        "rename": "Move a project-relative file or directory, creating the destination's parent first.",
+        "write": "Write text to a project-relative file, creating the directory it goes in."
+      },
       "functions": [
         "exists",
         "list",
@@ -992,11 +2618,33 @@
         "write"
       ],
       "name": "fs",
-      "signatures": {}
+      "signatures": {
+        "exists": "(path: string)",
+        "list": "(path: string)",
+        "mkdir": "(path: string)",
+        "mtime": "(path: string)",
+        "read": "(path: string)",
+        "remove": "(path: string)",
+        "rename": "(from: string, to: string)",
+        "write": "(path: string, text: string)"
+      }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "The Gamend backend: a session, its REST API, and a realtime socket carrying topics and server hooks. Every call returns an id to await, and each result also reaches the handler method of the node it was given (`on_gamend_event` unless `on_event` names another) as a map tagged with a `kind`.",
+      "docs": {
+        "call_hook": "Call a server plugin's function over the socket; the reply's `response` holds `data` or `error`.",
+        "close": "Shut the socket down; false when the connection was already gone.",
+        "configure": "Point the plugin at a server's base url; every other call errors until this one runs.",
+        "connect": "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take.",
+        "join": "Subscribe the socket to a topic and return the id the server's `reply` answers.",
+        "leave": "Unsubscribe the socket from a topic, returning the id the `reply` answers.",
+        "login": "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers.",
+        "push": "Send an event and its payload to a topic on the socket, returning the id the `reply` answers.",
+        "rest": "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`."
+      },
       "functions": [
         "call_hook",
         "close",
@@ -1022,8 +2670,44 @@
       }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "Mesh operations that stand outside the simulation: hulls, convex decomposition, voxelisation, cutting and boolean intersection. A mesh is an asset's name or a table of `points` and `indices`.",
+      "docs": {
+        "convex_decomposition": "The mesh cut into convex pieces, each one a mesh: the only way to collide a concave shape dynamically.",
+        "convex_hull": "The tightest convex shape containing every point: what a dynamic collider wants when the model is concave.",
+        "intersect": "The mesh both meshes have in common, or nothing when they do not overlap.",
+        "pieces": "The mesh's separate parts, one mesh each: what a model that was already broken is made of.",
+        "split": "Cut the mesh with a plane, returning the two halves: `#{ point = [..], normal = [..] }`.",
+        "voxelize": "The mesh as a voxel grid \u2014 `#{ size, cells }`, ready to be a `voxels` asset \u2014 so a model can become destructible terrain."
+      },
+      "functions": [
+        "convex_decomposition",
+        "convex_hull",
+        "intersect",
+        "pieces",
+        "split",
+        "voxelize"
+      ],
+      "name": "geometry3d",
+      "signatures": {
+        "convex_decomposition": "(Value, Option<Value>) -> Value",
+        "convex_hull": "Value -> Value",
+        "intersect": "(Value, Value) -> Value",
+        "pieces": "Value -> Value",
+        "split": "(Value, Value) -> Value",
+        "voxelize": "(Value, Option<Value>) -> Value"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "HTTP calls, off the frame: the reply arrives on a later tick as a map with `status`, `headers` and `body`, or with `error`, both to the node's `on_response` method and to whoever awaits the returned id. Options are `method`, `headers`, `body` and a `timeout` in seconds, which falls back to the project's `[net] http_timeout`.",
+      "docs": {
+        "request": "Start an HTTP request and return the id its reply carries, to await or to match inside the handler."
+      },
       "functions": [
         "request"
       ],
@@ -1033,6 +2717,7 @@
       }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [
         {
@@ -1796,7 +3481,44 @@
           "value": "West"
         }
       ],
+      "doc": "One frame of input: the keyboard, mouse, touch screen and gamepads as they stand now, plus the edges \u2014 what went down or came up this frame. Nothing feeds it in a headless run, where every query answers neutrally rather than failing.",
+      "docs": {
+        "action_just_pressed": "Whether the action went down this frame.",
+        "action_just_released": "Whether the action came up this frame.",
+        "action_pressed": "Whether the action is held down now.",
+        "action_value": "How far the action is pushed, -1 to 1; a key answers 0 or 1, a stick or `keys:A,D` the whole range.",
+        "actions": "Every action `[input.actions]` declares, so a rebinding screen can list them.",
+        "bind": "Rebind the action to one binding or a list of them, replacing what it had and saving to the user data directory.",
+        "bindings": "What the action is bound to now, whether from the project or from the player's own rebinding.",
+        "dropped_files": "The absolute paths of files dropped onto the window this frame, in drop order; desktop only.",
+        "gamepad_axis": "How far the pad's `AXIS_*` stick or trigger is pushed, -1 to 1; zero at rest and for an absent pad.",
+        "gamepad_down": "Whether the pad's `PAD_*` button is held down right now, however many frames it has been down.",
+        "gamepad_just_pressed": "Whether the pad's `PAD_*` button went down this frame; true for that one frame only.",
+        "gamepad_just_released": "Whether the pad's `PAD_*` button came up this frame; true for that one frame only.",
+        "gamepad_name": "The pad's name as the platform reports it, empty when no pad has that id.",
+        "gamepads": "The ids of every connected pad, ordered so the list is stable from frame to frame.",
+        "is_down": "Whether the `KEY_*` key is held down right now, however many frames it has been down.",
+        "is_mouse_down": "Whether the `MOUSE_*` button is held down right now, however many frames it has been down.",
+        "just_pressed": "Whether the `KEY_*` key went down this frame; true for that one frame only.",
+        "just_released": "Whether the `KEY_*` key came up this frame; true for that one frame only.",
+        "mouse_delta": "How far the cursor moved this frame, in pixels; movement, not a position.",
+        "mouse_just_pressed": "Whether the `MOUSE_*` button went down this frame; true for that one frame only.",
+        "mouse_just_released": "Whether the `MOUSE_*` button came up this frame; true for that one frame only.",
+        "mouse_position": "The cursor's position in window pixels, with (0, 0) at the top-left corner.",
+        "reset_bindings": "Drop every saved rebinding and go back to what the project declared.",
+        "scroll_delta": "How far the wheel turned this frame, as an (x, y) pair; zero when it did not turn.",
+        "touches": "Every finger on the screen as `{ id, x, y }`, oldest first, in the same pixels as `mouse_position`.",
+        "touches_ended": "The ids of the fingers that lifted or were cancelled this frame.",
+        "touches_started": "The ids of the fingers that touched down this frame."
+      },
       "functions": [
+        "action_just_pressed",
+        "action_just_released",
+        "action_pressed",
+        "action_value",
+        "actions",
+        "bind",
+        "bindings",
         "dropped_files",
         "gamepad_axis",
         "gamepad_down",
@@ -1812,6 +3534,7 @@
         "mouse_just_pressed",
         "mouse_just_released",
         "mouse_position",
+        "reset_bindings",
         "scroll_delta",
         "touches",
         "touches_ended",
@@ -1819,6 +3542,13 @@
       ],
       "name": "input",
       "signatures": {
+        "action_just_pressed": "String -> bool",
+        "action_just_released": "String -> bool",
+        "action_pressed": "String -> bool",
+        "action_value": "String -> f32",
+        "actions": "() -> Value",
+        "bind": "(String, Value) -> ()",
+        "bindings": "String -> Value",
         "dropped_files": "() -> Value",
         "gamepad_axis": "(i64, String) -> f32",
         "gamepad_down": "(i64, String) -> bool",
@@ -1834,6 +3564,7 @@
         "mouse_just_pressed": "usize -> bool",
         "mouse_just_released": "usize -> bool",
         "mouse_position": "() -> (f32, f32)",
+        "reset_bindings": "() -> ()",
         "scroll_delta": "() -> (f32, f32)",
         "touches": "() -> Value",
         "touches_ended": "() -> Value",
@@ -1841,18 +3572,36 @@
       }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "JSON text to and from script values, for talking to anything outside the engine. Unlike TOML it has null, so nil survives a round trip.",
+      "docs": {
+        "encode": "A value written back out as JSON text; NaN, infinity, a node or a callback has no JSON form and is an error.",
+        "parse": "The value a JSON document describes; an error on text that does not parse."
+      },
       "functions": [
         "encode",
         "parse"
       ],
       "name": "json",
-      "signatures": {}
+      "signatures": {
+        "encode": "(value: any)",
+        "parse": "(text: string)"
+      }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "The three levels a script writes at, and the buffer behind them. Scripted lines go through the engine's own `tracing` stream, so they land beside engine ones.",
+      "docs": {
+        "clear": "Empty the buffer, so a console reading it starts again from nothing.",
+        "error": "Write a line at error level, tagged as coming from a script.",
+        "info": "Write a line at info level, tagged as coming from a script.",
+        "recent": "The last n buffered entries, 100 by default, each `{ time, level, tag, message, fields }`.",
+        "warn": "Write a line at warning level, tagged as coming from a script."
+      },
       "functions": [
         "clear",
         "error",
@@ -1861,9 +3610,16 @@
         "warn"
       ],
       "name": "log",
-      "signatures": {}
+      "signatures": {
+        "clear": "()",
+        "error": "(message: string)",
+        "info": "(message: string)",
+        "recent": "(n: int?)",
+        "warn": "(message: string)"
+      }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [
         {
@@ -1879,6 +3635,33 @@
           "value": "6.283185307179586"
         }
       ],
+      "doc": "Deterministic float maths, backed by pure-Rust `libm`: the same inputs give the same bits on every platform. A script uses these rather than the language's own float methods, which reach for the platform's libm and drift between machines.",
+      "docs": {
+        "abs": "The magnitude, with the sign dropped.",
+        "acos": "The angle in radians whose cosine is the argument, from 0 to PI; NaN outside -1..1.",
+        "asin": "The angle in radians whose sine is the argument, from -PI/2 to PI/2; NaN outside -1..1.",
+        "atan": "The angle in radians whose tangent is the argument; with two arguments, the y-then-x form instead.",
+        "atan2": "The angle in radians from the positive x axis to the point, taking y first and x second.",
+        "ceil": "The smallest whole number at or above the argument, still a float.",
+        "clamp": "The first argument held inside the range given by the second (low) and third (high).",
+        "cos": "The cosine of an angle in radians.",
+        "cosh": "The hyperbolic cosine.",
+        "deg": "Radians converted to degrees.",
+        "exp": "e raised to the given power.",
+        "floor": "The largest whole number at or below the argument, still a float.",
+        "log": "The natural logarithm, or the logarithm in the base given as a second argument.",
+        "log10": "The base-10 logarithm; -INF at zero and NaN below it.",
+        "max": "The larger of two numbers.",
+        "min": "The smaller of two numbers.",
+        "pow": "The first argument raised to the power of the second.",
+        "rad": "Degrees converted to radians.",
+        "round": "The nearest whole number, with halfway cases going away from zero.",
+        "sin": "The sine of an angle in radians.",
+        "sinh": "The hyperbolic sine.",
+        "sqrt": "The square root; NaN for a negative argument.",
+        "tan": "The tangent of an angle in radians.",
+        "tanh": "The hyperbolic tangent, between -1 and 1."
+      },
       "functions": [
         "abs",
         "acos",
@@ -1906,11 +3689,70 @@
         "tanh"
       ],
       "name": "math",
-      "signatures": {}
+      "signatures": {
+        "abs": "(x: float)",
+        "acos": "(x: float)",
+        "asin": "(x: float)",
+        "atan": "(y: float, x: float?)",
+        "atan2": "(y: float, x: float)",
+        "ceil": "(x: float)",
+        "clamp": "(x: float, low: float, high: float)",
+        "cos": "(angle: float)",
+        "cosh": "(x: float)",
+        "deg": "(radians: float)",
+        "exp": "(power: float)",
+        "floor": "(x: float)",
+        "log": "(x: float, base: float?)",
+        "log10": "(x: float)",
+        "max": "(a: float, b: float)",
+        "min": "(a: float, b: float)",
+        "pow": "(base: float, exponent: float)",
+        "rad": "(degrees: float)",
+        "round": "(x: float)",
+        "sin": "(angle: float)",
+        "sinh": "(x: float)",
+        "sqrt": "(x: float)",
+        "tan": "(angle: float)",
+        "tanh": "(x: float)"
+      }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "What every node has: its name and path, its transform in local and world space, its children, its components and its script. Each operation takes the node as its first argument, so scripts normally call them as methods on a node value (`this.node.position()`).",
+      "docs": {
+        "add_child": "Create a named child node under this one and return it.",
+        "attach_script": "Attach the script at a path, with an optional table overriding what the script exports.",
+        "call": "Call a method on the node's script and return what it gives back; nil when there is no such script or method.",
+        "children": "The node's direct children, an empty list when it has none.",
+        "component_names": "The names of every component on the node.",
+        "get_component": "The named component's properties as a table, nil when the node does not carry it.",
+        "get_node": "The node at an `A/B/C` path relative to this one, `..` climbing to the parent; nil when nothing matches.",
+        "global_position": "The node's position in world space, as of the last transform sync.",
+        "global_rotation_euler": "The node's world rotation as euler angles in radians, as of the last transform sync.",
+        "global_scale": "The node's scale in world space, as of the last transform sync.",
+        "has_component": "Whether the node carries the named component.",
+        "is_valid": "Whether the node is still in the world; false rather than an error when the value is not a node.",
+        "name": "The node's own name, empty when it carries none.",
+        "parent": "The node's parent, nil at the root.",
+        "path": "The node's slash-separated path, built by climbing parents from the node up to the root.",
+        "position": "The node's position in its parent's space.",
+        "queue_free": "Destroy the node and its subtree at the end of the frame.",
+        "remove_component": "Take the named component off the node.",
+        "rotation_degrees": "The same local rotation as `rotation_euler`, in degrees.",
+        "rotation_euler": "The node's local rotation as euler angles in radians, x then y then z.",
+        "scale": "The node's scale relative to its parent.",
+        "script_path": "The path of the script attached to the node, nil when it has none.",
+        "set_component": "Give the node the named component, built from the given table over the component's schema defaults.",
+        "set_name": "Rename the node, doing nothing when it carries no name.",
+        "set_parent": "Move the node under another, keeping where it is in the world; an error for a cycle or a dead parent.",
+        "set_position": "Move the node to a local position, given as three numbers or one vector.",
+        "set_rotation_degrees": "Set the node's local rotation from euler angles in degrees.",
+        "set_rotation_euler": "Set the node's local rotation from euler angles in radians.",
+        "set_scale": "Set the node's scale relative to its parent, as three numbers or one vector.",
+        "translate": "Move the node by an offset in its parent's space, given as three numbers or one vector."
+      },
       "functions": [
         "add_child",
         "attach_script",
@@ -1944,31 +3786,249 @@
         "translate"
       ],
       "name": "node",
-      "signatures": {}
+      "signatures": {
+        "add_child": "(name: string)",
+        "attach_script": "(path: string, props: any?)",
+        "call": "(method: string, args: any?)",
+        "children": "()",
+        "component_names": "()",
+        "get_component": "(component: string)",
+        "get_node": "(path: string)",
+        "global_position": "()",
+        "global_rotation_euler": "()",
+        "global_scale": "()",
+        "has_component": "(component: string)",
+        "is_valid": "()",
+        "name": "()",
+        "parent": "()",
+        "path": "()",
+        "position": "()",
+        "queue_free": "()",
+        "remove_component": "(component: string)",
+        "rotation_degrees": "()",
+        "rotation_euler": "()",
+        "scale": "()",
+        "script_path": "()",
+        "set_component": "(component: string, params: any?)",
+        "set_name": "(name: string)",
+        "set_parent": "(parent: node)",
+        "set_position": "(x: float, y: float, z: float)",
+        "set_rotation_degrees": "(x: float, y: float, z: float)",
+        "set_rotation_euler": "(x: float, y: float, z: float)",
+        "set_scale": "(x: float, y: float, z: float)",
+        "translate": "(x: float, y: float, z: float)"
+      }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "What spans both physics worlds at once: pausing, sleeping and clearing. Bodies and colliders live in `physics2d` and `physics3d`.",
+      "docs": {
+        "clear": "Remove every body and collider from both worlds, as a play-in-editor session does on stop.",
+        "counters": "What the last step spent its time on. Zeroes unless the engine was built with rapier's profiler.",
+        "debug_draw": "What the debug renderer is drawing now, as a table of `enabled` and one flag per mode.",
+        "is_paused": "Whether stepping is stopped.",
+        "quarantined": "The nodes rapier disabled this step because their position or velocity stopped being a number. Empty is the normal answer.",
+        "set_debug_draw": "Draw the physics world over the scene: `true` for the usual shapes, or a table naming modes (`#{ colliders = true, joints = true }`).",
+        "set_paused": "Stop or resume stepping both worlds; nodes keep their poses.",
+        "set_sleeping_allowed": "Allow or forbid resting bodies falling asleep, in both worlds and for bodies added later.",
+        "set_threads": "How many threads rapier's solver may use. Only a build with the `parallel` feature has any; on a serial build this says so and changes nothing.",
+        "set_tuning": "Change how the solver behaves in both worlds: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness and the rest. Every value here changes results, so a recording only replays against the same numbers \u2014 prefer `[physics]` in project.toml.",
+        "sleeping_allowed": "Whether resting bodies are allowed to fall asleep.",
+        "threads": "How many threads the solver is using; 1 on a serial build.",
+        "tuning": "The solver settings both worlds are running with."
+      },
       "functions": [
         "clear",
+        "counters",
+        "debug_draw",
         "is_paused",
+        "quarantined",
+        "set_debug_draw",
         "set_paused",
         "set_sleeping_allowed",
-        "sleeping_allowed"
+        "set_threads",
+        "set_tuning",
+        "sleeping_allowed",
+        "threads",
+        "tuning"
       ],
       "name": "physics",
       "signatures": {
         "clear": "() -> ()",
+        "counters": "() -> Value",
+        "debug_draw": "() -> Value",
         "is_paused": "() -> bool",
+        "quarantined": "() -> Value",
+        "set_debug_draw": "Value -> ()",
         "set_paused": "bool -> ()",
         "set_sleeping_allowed": "bool -> ()",
-        "sleeping_allowed": "() -> bool"
+        "set_threads": "i64 -> ()",
+        "set_tuning": "Value -> ()",
+        "sleeping_allowed": "() -> bool",
+        "threads": "() -> i64",
+        "tuning": "() -> Value"
       }
     },
     {
+      "acts_on": {
+        "add_body": [
+          "body2d"
+        ],
+        "add_collider": [
+          "collider2d"
+        ],
+        "add_force": [
+          "body2d"
+        ],
+        "add_force_at_point": [
+          "body2d"
+        ],
+        "add_joint": [
+          "joint2d"
+        ],
+        "add_torque": [
+          "body2d"
+        ],
+        "angular_velocity": [
+          "body2d"
+        ],
+        "apply_impulse": [
+          "body2d"
+        ],
+        "apply_impulse_at_point": [
+          "body2d"
+        ],
+        "apply_torque_impulse": [
+          "body2d"
+        ],
+        "body_kind": [
+          "body2d"
+        ],
+        "damping": [
+          "body2d"
+        ],
+        "dominance": [
+          "body2d"
+        ],
+        "gravity_scale": [
+          "body2d"
+        ],
+        "is_ccd": [
+          "body2d"
+        ],
+        "is_enabled": [
+          "body2d"
+        ],
+        "is_grounded": [
+          "character2d"
+        ],
+        "is_sleeping": [
+          "body2d"
+        ],
+        "joint_impulse": [
+          "joint2d"
+        ],
+        "kinetic_energy": [
+          "body2d"
+        ],
+        "linear_velocity": [
+          "body2d"
+        ],
+        "locked_axes": [
+          "body2d"
+        ],
+        "mass": [
+          "body2d"
+        ],
+        "max_contact_impulse": [
+          "body2d"
+        ],
+        "move_character": [
+          "character2d"
+        ],
+        "next_position": [
+          "body2d"
+        ],
+        "overlaps": [
+          "collider2d"
+        ],
+        "predict_position": [
+          "body2d"
+        ],
+        "remove_joint": [
+          "joint2d"
+        ],
+        "reset_forces": [
+          "body2d"
+        ],
+        "reset_torques": [
+          "body2d"
+        ],
+        "set_angular_velocity": [
+          "body2d"
+        ],
+        "set_body_kind": [
+          "body2d"
+        ],
+        "set_ccd": [
+          "body2d"
+        ],
+        "set_damping": [
+          "body2d"
+        ],
+        "set_dominance": [
+          "body2d"
+        ],
+        "set_enabled": [
+          "body2d"
+        ],
+        "set_gravity_scale": [
+          "body2d"
+        ],
+        "set_joint_limits": [
+          "joint2d"
+        ],
+        "set_linear_velocity": [
+          "body2d"
+        ],
+        "set_lock_rotation": [
+          "body2d"
+        ],
+        "set_lock_translation": [
+          "body2d"
+        ],
+        "set_motor_position": [
+          "joint2d"
+        ],
+        "set_motor_velocity": [
+          "joint2d"
+        ],
+        "sleep": [
+          "body2d"
+        ],
+        "teleport": [
+          "body2d"
+        ],
+        "user_force": [
+          "body2d"
+        ],
+        "user_torque": [
+          "body2d"
+        ],
+        "velocity_at_point": [
+          "body2d"
+        ],
+        "wake_up": [
+          "body2d"
+        ]
+      },
       "components": [
         "body2d",
-        "collider2d"
+        "character2d",
+        "collider2d",
+        "joint2d"
       ],
       "constants": [
         {
@@ -1978,6 +4038,10 @@
         {
           "name": "BODY_KINEMATIC",
           "value": "kinematic"
+        },
+        {
+          "name": "BODY_KINEMATIC_VELOCITY",
+          "value": "kinematic_velocity"
         },
         {
           "name": "BODY_STATIC",
@@ -1992,36 +4056,406 @@
           "value": "rect"
         }
       ],
+      "doc": "The 2D rigid-body world: bodies and colliders on nodes, their velocities, and overlap queries. `physics` holds what spans both worlds.",
+      "docs": {
+        "add_body": "Give the node a 2D rigid body of the given kind (`BODY_DYNAMIC`, `BODY_STATIC`, `BODY_KINEMATIC`).",
+        "add_collider": "Attach a 2D collider from a `collider2d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component's own vocabulary.",
+        "add_force": "Push the body until the force is reset; unlike an impulse this is spread over time.",
+        "add_force_at_point": "Push at a world point, which also turns the body.",
+        "add_joint": "Tie this node's body to another with a 2D joint, from a `joint2d` table.",
+        "add_torque": "Turn the body until the torque is reset.",
+        "angular_velocity": "How fast the body is spinning, in radians per second.",
+        "apply_impulse": "Add an instant change in momentum, as if the body were struck.",
+        "apply_impulse_at_point": "Strike the body at a world point, which spins it as well as moves it.",
+        "apply_torque_impulse": "Add an instant change in angular momentum, as if the body were spun.",
+        "body_kind": "Whether the body is dynamic, static, kinematic or kinematic_velocity.",
+        "box_hits": "Every collider whose bounds meet an axis-aligned box.",
+        "damping": "This body's linear and angular damping.",
+        "distance": "The gap between two nodes' colliders, zero when they touch.",
+        "dominance": "This body's dominance group.",
+        "gravity": "The 2D world's gravity.",
+        "gravity_scale": "This body's gravity multiplier.",
+        "intersects": "Whether two nodes' colliders overlap right now, sensor or not.",
+        "is_ccd": "Whether continuous collision detection is on for this body.",
+        "is_enabled": "Whether the body is being simulated.",
+        "is_grounded": "Whether the last move ended with ground under the character's feet.",
+        "is_sleeping": "Whether the body is asleep and being skipped.",
+        "joint_impulse": "How hard the joint is pulling right now.",
+        "kinetic_energy": "The body's kinetic energy, for a rest test the solver agrees with.",
+        "linear_velocity": "How fast the body is travelling, in units per second.",
+        "locked_axes": "Whether x, y and rotation are frozen.",
+        "mass": "The body's total mass, colliders included.",
+        "max_contact_impulse": "The hardest contact this body took in the last step, zero when nothing touched it.",
+        "move_character": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, grounded, sliding, collisions }`. Call it from fixed_update.",
+        "nearest_point": "The closest point on any collider to a world point.",
+        "next_position": "The position a kinematic body has been told to move to.",
+        "overlaps": "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.",
+        "point_hits": "Every collider containing a world point: what a mouse click asks.",
+        "predict_position": "Where the body will be after `dt` seconds at its current velocity.",
+        "raycast": "The first collider a ray meets: `#{ from = [x, y], dir = [x, y], max = 100.0, filter = #{ exclude = node } }`. Returns `#{ node, point, normal, distance }`, or nothing.",
+        "raycast_all": "Every collider a ray meets, nearest first.",
+        "remove_joint": "Undo the node's joint, leaving both bodies free.",
+        "reset_forces": "Drop every force added since the last step.",
+        "reset_torques": "Drop every torque added since the last step.",
+        "set_angular_velocity": "Set how fast the body spins, in radians per second.",
+        "set_body_kind": "Change the body between dynamic, static and kinematic in place, keeping its velocity.",
+        "set_ccd": "Sweep this body's whole path each step so it cannot pass through a wall.",
+        "set_damping": "Set linear and angular damping together.",
+        "set_dominance": "Set the group that decides which of two bodies can push the other.",
+        "set_enabled": "Simulate this body or leave it out entirely, keeping its state.",
+        "set_gravity": "Set the 2D world's gravity, in units per second squared.",
+        "set_gravity_scale": "Scale world gravity for this body alone.",
+        "set_joint_limits": "Set how far the joint may travel.",
+        "set_linear_velocity": "Set how fast the body travels, in units per second.",
+        "set_lock_rotation": "Freeze the body's spin: how a 2D character stays upright.",
+        "set_lock_translation": "Freeze the body's movement along x and y.",
+        "set_motor_position": "Drive the joint towards an angle or a distance, with a spring's stiffness and damping.",
+        "set_motor_velocity": "Drive the joint towards a speed: how a wheel is powered.",
+        "shape_hits": "Every collider a shape overlaps where it stands.",
+        "shapecast": "Sweep a shape along a direction until it hits something: a thick raycast.",
+        "sleep": "Put the body to sleep now.",
+        "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick.",
+        "user_force": "The force the next step will integrate.",
+        "user_torque": "The torque the next step will integrate.",
+        "velocity_at_point": "How fast a world point on the body is moving, spin included.",
+        "wake_all": "Wake every sleeping body in the 2D world.",
+        "wake_up": "Wake the body, so the next step moves it."
+      },
       "functions": [
         "add_body",
         "add_collider",
+        "add_force",
+        "add_force_at_point",
+        "add_joint",
+        "add_torque",
         "angular_velocity",
         "apply_impulse",
+        "apply_impulse_at_point",
+        "apply_torque_impulse",
+        "body_kind",
+        "box_hits",
+        "damping",
+        "distance",
+        "dominance",
+        "gravity",
+        "gravity_scale",
+        "intersects",
+        "is_ccd",
+        "is_enabled",
+        "is_grounded",
+        "is_sleeping",
+        "joint_impulse",
+        "kinetic_energy",
         "linear_velocity",
+        "locked_axes",
+        "mass",
         "max_contact_impulse",
+        "move_character",
+        "nearest_point",
+        "next_position",
         "overlaps",
+        "point_hits",
+        "predict_position",
+        "raycast",
+        "raycast_all",
+        "remove_joint",
+        "reset_forces",
+        "reset_torques",
         "set_angular_velocity",
+        "set_body_kind",
+        "set_ccd",
+        "set_damping",
+        "set_dominance",
+        "set_enabled",
         "set_gravity",
-        "set_linear_velocity"
+        "set_gravity_scale",
+        "set_joint_limits",
+        "set_linear_velocity",
+        "set_lock_rotation",
+        "set_lock_translation",
+        "set_motor_position",
+        "set_motor_velocity",
+        "shape_hits",
+        "shapecast",
+        "sleep",
+        "teleport",
+        "user_force",
+        "user_torque",
+        "velocity_at_point",
+        "wake_all",
+        "wake_up"
       ],
       "name": "physics2d",
       "signatures": {
         "add_body": "(NodeId, String) -> ()",
         "add_collider": "(NodeId, Value) -> ()",
+        "add_force": "(NodeId, f32, f32) -> ()",
+        "add_force_at_point": "(NodeId, f32, f32, f32, f32) -> ()",
+        "add_joint": "(NodeId, Value) -> ()",
+        "add_torque": "(NodeId, f32) -> ()",
         "angular_velocity": "NodeId -> f32",
         "apply_impulse": "(NodeId, f32, f32) -> ()",
+        "apply_impulse_at_point": "(NodeId, f32, f32, f32, f32) -> ()",
+        "apply_torque_impulse": "(NodeId, f32) -> ()",
+        "body_kind": "NodeId -> String",
+        "box_hits": "Value -> Value",
+        "damping": "NodeId -> (f32, f32)",
+        "distance": "(NodeId, NodeId) -> Value",
+        "dominance": "NodeId -> f32",
+        "gravity": "() -> (f32, f32)",
+        "gravity_scale": "NodeId -> f32",
+        "intersects": "(NodeId, NodeId) -> Value",
+        "is_ccd": "NodeId -> bool",
+        "is_enabled": "NodeId -> bool",
+        "is_grounded": "NodeId -> bool",
+        "is_sleeping": "NodeId -> bool",
+        "joint_impulse": "NodeId -> f32",
+        "kinetic_energy": "NodeId -> f32",
         "linear_velocity": "NodeId -> (f32, f32)",
+        "locked_axes": "NodeId -> (bool, bool, bool)",
+        "mass": "NodeId -> f32",
         "max_contact_impulse": "NodeId -> f32",
+        "move_character": "(NodeId, f32, f32) -> Value",
+        "nearest_point": "Value -> Value",
+        "next_position": "NodeId -> (f32, f32)",
         "overlaps": "NodeId -> Vec<NodeId>",
+        "point_hits": "Value -> Value",
+        "predict_position": "(NodeId, f32) -> (f32, f32)",
+        "raycast": "Value -> Value",
+        "raycast_all": "Value -> Value",
+        "remove_joint": "NodeId -> ()",
+        "reset_forces": "NodeId -> ()",
+        "reset_torques": "NodeId -> ()",
         "set_angular_velocity": "(NodeId, f32) -> ()",
+        "set_body_kind": "(NodeId, String) -> ()",
+        "set_ccd": "(NodeId, bool) -> ()",
+        "set_damping": "(NodeId, f32, f32) -> ()",
+        "set_dominance": "(NodeId, f32) -> ()",
+        "set_enabled": "(NodeId, bool) -> ()",
         "set_gravity": "(f32, f32) -> ()",
-        "set_linear_velocity": "(NodeId, f32, f32) -> ()"
+        "set_gravity_scale": "(NodeId, f32) -> ()",
+        "set_joint_limits": "(NodeId, f32, f32) -> ()",
+        "set_linear_velocity": "(NodeId, f32, f32) -> ()",
+        "set_lock_rotation": "(NodeId, bool) -> ()",
+        "set_lock_translation": "(NodeId, bool, bool) -> ()",
+        "set_motor_position": "(NodeId, f32, f32, f32) -> ()",
+        "set_motor_velocity": "(NodeId, f32, f32) -> ()",
+        "shape_hits": "Value -> Value",
+        "shapecast": "Value -> Value",
+        "sleep": "NodeId -> ()",
+        "teleport": "(NodeId, f32, f32) -> ()",
+        "user_force": "NodeId -> (f32, f32)",
+        "user_torque": "NodeId -> f32",
+        "velocity_at_point": "(NodeId, f32, f32) -> (f32, f32)",
+        "wake_all": "() -> ()",
+        "wake_up": "NodeId -> ()"
       }
     },
     {
+      "acts_on": {
+        "aabb": [
+          "collider3d"
+        ],
+        "add_ball_collider": [
+          "collider3d"
+        ],
+        "add_body": [
+          "body3d"
+        ],
+        "add_cuboid_collider": [
+          "collider3d"
+        ],
+        "add_force": [
+          "body3d"
+        ],
+        "add_force_at_point": [
+          "body3d"
+        ],
+        "add_joint": [
+          "joint3d"
+        ],
+        "add_torque": [
+          "body3d"
+        ],
+        "angular_velocity": [
+          "body3d"
+        ],
+        "apply_impulse": [
+          "body3d"
+        ],
+        "apply_impulse_at_point": [
+          "body3d"
+        ],
+        "apply_torque_impulse": [
+          "body3d"
+        ],
+        "body_kind": [
+          "body3d"
+        ],
+        "collider_mass": [
+          "collider3d"
+        ],
+        "collider_mesh": [
+          "collider3d"
+        ],
+        "contacts": [
+          "collider3d"
+        ],
+        "damping": [
+          "body3d"
+        ],
+        "dominance": [
+          "body3d"
+        ],
+        "gravity_scale": [
+          "body3d"
+        ],
+        "is_ccd": [
+          "body3d"
+        ],
+        "is_enabled": [
+          "body3d"
+        ],
+        "is_grounded": [
+          "character3d"
+        ],
+        "is_sleeping": [
+          "body3d"
+        ],
+        "joint_impulse": [
+          "joint3d"
+        ],
+        "kinetic_energy": [
+          "body3d"
+        ],
+        "linear_velocity": [
+          "body3d"
+        ],
+        "locked_axes": [
+          "body3d"
+        ],
+        "mass": [
+          "body3d"
+        ],
+        "max_contact_impulse": [
+          "collider3d"
+        ],
+        "move_character": [
+          "character3d"
+        ],
+        "next_position": [
+          "body3d"
+        ],
+        "overlaps": [
+          "collider3d"
+        ],
+        "predict_position": [
+          "body3d"
+        ],
+        "remove_joint": [
+          "joint3d"
+        ],
+        "reset_forces": [
+          "body3d"
+        ],
+        "reset_torques": [
+          "body3d"
+        ],
+        "set_angular_velocity": [
+          "body3d"
+        ],
+        "set_body_kind": [
+          "body3d"
+        ],
+        "set_brake": [
+          "wheel3d"
+        ],
+        "set_ccd": [
+          "body3d"
+        ],
+        "set_collider": [
+          "collider3d"
+        ],
+        "set_damping": [
+          "body3d"
+        ],
+        "set_dominance": [
+          "body3d"
+        ],
+        "set_enabled": [
+          "body3d"
+        ],
+        "set_engine_force": [
+          "wheel3d"
+        ],
+        "set_gravity_scale": [
+          "body3d"
+        ],
+        "set_joint_limits": [
+          "joint3d"
+        ],
+        "set_linear_velocity": [
+          "body3d"
+        ],
+        "set_lock_rotation": [
+          "body3d"
+        ],
+        "set_lock_translation": [
+          "body3d"
+        ],
+        "set_motor_position": [
+          "joint3d"
+        ],
+        "set_motor_velocity": [
+          "joint3d"
+        ],
+        "set_steering": [
+          "wheel3d"
+        ],
+        "set_voxel": [
+          "collider3d"
+        ],
+        "sleep": [
+          "body3d"
+        ],
+        "solve_ik": [
+          "joint3d"
+        ],
+        "teleport": [
+          "body3d"
+        ],
+        "user_force": [
+          "body3d"
+        ],
+        "user_torque": [
+          "body3d"
+        ],
+        "vehicle_speed": [
+          "vehicle3d"
+        ],
+        "velocity_at_point": [
+          "body3d"
+        ],
+        "voxel": [
+          "collider3d"
+        ],
+        "voxel_at": [
+          "collider3d"
+        ],
+        "wake_up": [
+          "body3d"
+        ],
+        "wheel_state": [
+          "wheel3d"
+        ]
+      },
       "components": [
         "body3d",
-        "collider3d"
+        "character3d",
+        "collider3d",
+        "joint3d",
+        "vehicle3d",
+        "wheel3d"
       ],
       "constants": [
         {
@@ -2031,6 +4465,10 @@
         {
           "name": "BODY_KINEMATIC",
           "value": "kinematic"
+        },
+        {
+          "name": "BODY_KINEMATIC_VELOCITY",
+          "value": "kinematic_velocity"
         },
         {
           "name": "BODY_STATIC",
@@ -2045,43 +4483,354 @@
           "value": "cuboid"
         }
       ],
+      "doc": "The 3D rigid-body world: bodies and colliders on nodes, their velocities, and overlap queries. `physics` holds what spans both worlds.",
+      "docs": {
+        "aabb": "The world-space box the collider currently occupies, as its two opposite corners.",
+        "add_ball_collider": "Attach a sphere collider of the given radius.",
+        "add_body": "Give the node a rigid body of the given kind (`BODY_DYNAMIC`, `BODY_STATIC`, `BODY_KINEMATIC`, `BODY_KINEMATIC_VELOCITY`).",
+        "add_cuboid_collider": "Attach a box collider from its three half-extents.",
+        "add_force": "Push the body until the force is reset; unlike an impulse this is spread over time.",
+        "add_force_at_point": "Push at a world point, which also turns the body.",
+        "add_joint": "Tie this node's body to another with a joint, from a `joint3d` table: `kind`, `body`, `anchor`, `axis`, `limits`, and the rest of the component's own vocabulary.",
+        "add_torque": "Turn the body until the torque is reset.",
+        "angular_velocity": "How fast the body is spinning, in radians per second about each axis.",
+        "apply_impulse": "Add an instant change in momentum, as if the body were struck.",
+        "apply_impulse_at_point": "Strike the body at a world point, which spins it as well as moves it.",
+        "apply_torque_impulse": "Add an instant change in angular momentum, as if the body were spun.",
+        "body_kind": "Whether the body is dynamic, static, kinematic or kinematic_velocity.",
+        "box_hits": "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits.",
+        "closest_points": "The nearest point on each of two nodes' colliders.",
+        "collider_mass": "What this collider weighs, density and size together.",
+        "collider_mesh": "The collider's shape as points and triangles \u2014 including a voxel grid's \u2014 for drawing it or for spawning the pieces it broke into.",
+        "contacts": "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.",
+        "damping": "This body's linear and angular damping.",
+        "distance": "The gap between two nodes' colliders, zero when they touch or overlap.",
+        "dominance": "This body's dominance group.",
+        "gravity": "The 3D world's gravity.",
+        "gravity_scale": "This body's gravity multiplier.",
+        "intersects": "Whether two nodes' colliders overlap right now, sensor or not.",
+        "is_ccd": "Whether continuous collision detection is on for this body.",
+        "is_enabled": "Whether the body is being simulated.",
+        "is_grounded": "Whether the last move ended with ground under the character's feet.",
+        "is_sleeping": "Whether the body is asleep and being skipped.",
+        "joint_impulse": "How hard the joint is pulling right now: what a breakable one is measured against.",
+        "kinetic_energy": "The body's kinetic energy, for a rest test the solver agrees with.",
+        "linear_velocity": "How fast the body is travelling, in units per second.",
+        "locked_axes": "Which translation and rotation axes are frozen.",
+        "mass": "The body's total mass, colliders included.",
+        "max_contact_impulse": "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number.",
+        "move_character": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, grounded, sliding, collisions }`. Call it from fixed_update \u2014 it reads the world the step just wrote.",
+        "nearest_point": "The closest point on any collider to a world point.",
+        "next_position": "The pose a kinematic body has been told to move to.",
+        "overlaps": "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.",
+        "point_hits": "Every collider containing a world point.",
+        "predict_position": "Where the body will be after `dt` seconds at its current velocity.",
+        "raycast": "The first collider a ray meets: `#{ from = [x, y, z], dir = [x, y, z], max = 100.0, filter = #{ exclude = node, only = \"dynamic\" } }`. Returns `#{ node, point, normal, distance }`, or nothing.",
+        "raycast_all": "Every collider a ray meets, nearest first.",
+        "remove_joint": "Undo the node's joint, leaving both bodies free.",
+        "reset_forces": "Drop every force added since the last step.",
+        "reset_torques": "Drop every torque added since the last step.",
+        "set_angular_velocity": "Set how fast the body spins, in radians per second about each axis.",
+        "set_body_kind": "Change the body between dynamic, static and kinematic in place, keeping its velocity.",
+        "set_brake": "How hard this wheel brakes.",
+        "set_ccd": "Sweep this body's whole path each step so it cannot pass through a wall.",
+        "set_collider": "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component's own vocabulary.",
+        "set_damping": "Set linear and angular damping together.",
+        "set_dominance": "Set the group that decides which of two bodies can push the other.",
+        "set_enabled": "Simulate this body or leave it out entirely, keeping its state.",
+        "set_engine_force": "How hard this wheel drives, in newtons; negative reverses.",
+        "set_gravity": "Set the 3D world's gravity, in units per second squared.",
+        "set_gravity_scale": "Scale world gravity for this body alone.",
+        "set_joint_limits": "Set how far the joint may travel, in radians for a revolute one and units for a prismatic one.",
+        "set_linear_velocity": "Set how fast the body travels, in units per second.",
+        "set_lock_rotation": "Freeze the body's spin about each world axis: how an upright character stays upright.",
+        "set_lock_translation": "Freeze the body's movement along each world axis.",
+        "set_motor_position": "Drive the joint towards an angle or a distance, with a spring's stiffness and damping.",
+        "set_motor_velocity": "Drive the joint towards a speed: how a wheel is powered or a door swings itself shut.",
+        "set_steering": "Turn this wheel, in radians.",
+        "set_voxel": "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.",
+        "shape_hits": "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc.",
+        "shapecast": "Sweep a shape along a direction until it hits something: a thick raycast, and how a camera avoids walls.",
+        "sleep": "Put the body to sleep now.",
+        "solve_ik": "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits.",
+        "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick.",
+        "user_force": "The force the next step will integrate.",
+        "user_torque": "The torque the next step will integrate.",
+        "vehicle_speed": "How fast the chassis is going along its forward axis, in units per second.",
+        "velocity_at_point": "How fast a world point on the body is moving, spin included.",
+        "voxel": "Whether one cell of a voxel collider is filled.",
+        "voxel_at": "The cell a world position falls in, as three whole numbers.",
+        "wake_all": "Wake every sleeping body in the 3D world.",
+        "wake_up": "Wake the body, so the next step moves it.",
+        "wheel_state": "What the last step did with this wheel: `#{ rotation, suspension_force, grounded, engine_force, brake, steering }`."
+      },
       "functions": [
+        "aabb",
         "add_ball_collider",
         "add_body",
         "add_cuboid_collider",
+        "add_force",
+        "add_force_at_point",
+        "add_joint",
+        "add_torque",
+        "angular_velocity",
         "apply_impulse",
+        "apply_impulse_at_point",
+        "apply_torque_impulse",
+        "body_kind",
+        "box_hits",
+        "closest_points",
+        "collider_mass",
+        "collider_mesh",
+        "contacts",
+        "damping",
+        "distance",
+        "dominance",
+        "gravity",
+        "gravity_scale",
+        "intersects",
+        "is_ccd",
+        "is_enabled",
+        "is_grounded",
+        "is_sleeping",
+        "joint_impulse",
+        "kinetic_energy",
         "linear_velocity",
+        "locked_axes",
+        "mass",
+        "max_contact_impulse",
+        "move_character",
+        "nearest_point",
+        "next_position",
         "overlaps",
+        "point_hits",
+        "predict_position",
+        "raycast",
+        "raycast_all",
+        "remove_joint",
+        "reset_forces",
+        "reset_torques",
+        "set_angular_velocity",
+        "set_body_kind",
+        "set_brake",
+        "set_ccd",
+        "set_collider",
+        "set_damping",
+        "set_dominance",
+        "set_enabled",
+        "set_engine_force",
         "set_gravity",
-        "set_linear_velocity"
+        "set_gravity_scale",
+        "set_joint_limits",
+        "set_linear_velocity",
+        "set_lock_rotation",
+        "set_lock_translation",
+        "set_motor_position",
+        "set_motor_velocity",
+        "set_steering",
+        "set_voxel",
+        "shape_hits",
+        "shapecast",
+        "sleep",
+        "solve_ik",
+        "teleport",
+        "user_force",
+        "user_torque",
+        "vehicle_speed",
+        "velocity_at_point",
+        "voxel",
+        "voxel_at",
+        "wake_all",
+        "wake_up",
+        "wheel_state"
       ],
       "name": "physics3d",
       "signatures": {
+        "aabb": "NodeId -> (f32, f32, f32, f32, f32, f32)",
         "add_ball_collider": "(NodeId, f32) -> ()",
         "add_body": "(NodeId, String) -> ()",
         "add_cuboid_collider": "(NodeId, f32, f32, f32) -> ()",
+        "add_force": "(NodeId, f32, f32, f32) -> ()",
+        "add_force_at_point": "(NodeId, f32, f32, f32, f32, f32, f32) -> ()",
+        "add_joint": "(NodeId, Value) -> ()",
+        "add_torque": "(NodeId, f32, f32, f32) -> ()",
+        "angular_velocity": "NodeId -> (f32, f32, f32)",
         "apply_impulse": "(NodeId, f32, f32, f32) -> ()",
+        "apply_impulse_at_point": "(NodeId, f32, f32, f32, f32, f32, f32) -> ()",
+        "apply_torque_impulse": "(NodeId, f32, f32, f32) -> ()",
+        "body_kind": "NodeId -> String",
+        "box_hits": "Value -> Value",
+        "closest_points": "(NodeId, NodeId) -> Value",
+        "collider_mass": "NodeId -> f32",
+        "collider_mesh": "NodeId -> Value",
+        "contacts": "NodeId -> Value",
+        "damping": "NodeId -> (f32, f32)",
+        "distance": "(NodeId, NodeId) -> Value",
+        "dominance": "NodeId -> f32",
+        "gravity": "() -> (f32, f32, f32)",
+        "gravity_scale": "NodeId -> f32",
+        "intersects": "(NodeId, NodeId) -> Value",
+        "is_ccd": "NodeId -> bool",
+        "is_enabled": "NodeId -> bool",
+        "is_grounded": "NodeId -> bool",
+        "is_sleeping": "NodeId -> bool",
+        "joint_impulse": "NodeId -> f32",
+        "kinetic_energy": "NodeId -> f32",
         "linear_velocity": "NodeId -> (f32, f32, f32)",
+        "locked_axes": "NodeId -> (bool, bool, bool, bool, bool, bool)",
+        "mass": "NodeId -> f32",
+        "max_contact_impulse": "NodeId -> f32",
+        "move_character": "(NodeId, f32, f32, f32) -> Value",
+        "nearest_point": "Value -> Value",
+        "next_position": "NodeId -> (f32, f32, f32)",
         "overlaps": "NodeId -> Vec<NodeId>",
+        "point_hits": "Value -> Value",
+        "predict_position": "(NodeId, f32) -> (f32, f32, f32)",
+        "raycast": "Value -> Value",
+        "raycast_all": "Value -> Value",
+        "remove_joint": "NodeId -> ()",
+        "reset_forces": "NodeId -> ()",
+        "reset_torques": "NodeId -> ()",
+        "set_angular_velocity": "(NodeId, f32, f32, f32) -> ()",
+        "set_body_kind": "(NodeId, String) -> ()",
+        "set_brake": "(NodeId, f32) -> ()",
+        "set_ccd": "(NodeId, bool) -> ()",
+        "set_collider": "(NodeId, Value) -> ()",
+        "set_damping": "(NodeId, f32, f32) -> ()",
+        "set_dominance": "(NodeId, f32) -> ()",
+        "set_enabled": "(NodeId, bool) -> ()",
+        "set_engine_force": "(NodeId, f32) -> ()",
         "set_gravity": "(f32, f32, f32) -> ()",
-        "set_linear_velocity": "(NodeId, f32, f32, f32) -> ()"
+        "set_gravity_scale": "(NodeId, f32) -> ()",
+        "set_joint_limits": "(NodeId, f32, f32) -> ()",
+        "set_linear_velocity": "(NodeId, f32, f32, f32) -> ()",
+        "set_lock_rotation": "(NodeId, bool, bool, bool) -> ()",
+        "set_lock_translation": "(NodeId, bool, bool, bool) -> ()",
+        "set_motor_position": "(NodeId, f32, f32, f32) -> ()",
+        "set_motor_velocity": "(NodeId, f32, f32) -> ()",
+        "set_steering": "(NodeId, f32) -> ()",
+        "set_voxel": "(NodeId, i32, i32, i32, bool) -> ()",
+        "shape_hits": "Value -> Value",
+        "shapecast": "Value -> Value",
+        "sleep": "NodeId -> ()",
+        "solve_ik": "(NodeId, f32, f32, f32) -> ()",
+        "teleport": "(NodeId, f32, f32, f32) -> ()",
+        "user_force": "NodeId -> (f32, f32, f32)",
+        "user_torque": "NodeId -> (f32, f32, f32)",
+        "vehicle_speed": "NodeId -> f32",
+        "velocity_at_point": "(NodeId, f32, f32, f32) -> (f32, f32, f32)",
+        "voxel": "(NodeId, i32, i32, i32) -> bool",
+        "voxel_at": "(NodeId, f32, f32, f32) -> (i32, i32, i32)",
+        "wake_all": "() -> ()",
+        "wake_up": "NodeId -> ()",
+        "wheel_state": "NodeId -> Value"
       }
     },
     {
+      "acts_on": {
+        "color": [
+          "polygon",
+          "shape2d",
+          "shape3d",
+          "sprite"
+        ],
+        "set_ball": [
+          "shape3d"
+        ],
+        "set_circle": [
+          "shape2d"
+        ],
+        "set_color": [
+          "particles",
+          "polygon",
+          "shape2d",
+          "shape3d",
+          "sprite"
+        ],
+        "set_cuboid": [
+          "shape3d"
+        ],
+        "set_rect": [
+          "shape2d"
+        ],
+        "set_sprite": [
+          "sprite"
+        ],
+        "set_sprite_frame": [
+          "sprite"
+        ],
+        "set_sprite_sheet": [
+          "sprite"
+        ],
+        "set_sprite_size": [
+          "sprite"
+        ],
+        "shape2d": [
+          "shape2d"
+        ],
+        "shape3d": [
+          "shape3d"
+        ],
+        "sprite": [
+          "sprite"
+        ]
+      },
       "components": [
-        "camera",
+        "particles",
+        "polygon",
         "shape2d",
         "shape3d",
         "sprite"
       ],
       "constants": [],
+      "doc": "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the OS window, and the backdrop and debug lines drawn around the scene.",
+      "docs": {
+        "camera_2d": "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window.",
+        "camera_matrix": "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window.",
+        "camera_pose": "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale.",
+        "check_material": "Every diagnostic about the material at that path, as `[#{ file, line, column, severity, message }]`; empty when it links.",
+        "color": "The node's tint as r, g, b, a channel floats; opaque white when the node draws nothing at all.",
+        "draw_line": "Draw one 3D world-space line for this frame; the width is in pixels unless perspective scales it with distance.",
+        "draw_line_2d": "Draw one 2D world-space line for this frame; width is in pixels.",
+        "mouse_ray": "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units.",
+        "mouse_world_2d": "The mouse position in 2D world coordinates, for picking.",
+        "pick_ray": "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz.",
+        "screenshot": "Save the next rendered frame as a PNG at a project-relative path; a run with no renderer says so.",
+        "set_app_icon": "Set the application icon (the dock or taskbar one) from a PNG in the project, named by its path.",
+        "set_background": "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats.",
+        "set_ball": "Draw the node as a sphere of the given radius in world units, replacing any other 3D shape.",
+        "set_camera": "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units.",
+        "set_camera_2d": "Point the 2D camera: the world centre xy, then the zoom in logical pixels per world unit.",
+        "set_camera_input": "Allow or inhibit the backend's own mouse camera controls, so an editor can take the pointer for a drag.",
+        "set_circle": "Draw the node as a circle of the given radius in world units, replacing any other 2D shape.",
+        "set_color": "Tint whatever the node draws, as r, g, b channel floats and an optional alpha, one meaning opaque.",
+        "set_cuboid": "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape.",
+        "set_cursor_grab": "Confine the cursor to the window, for FPS-style mouse look.",
+        "set_cursor_hidden": "Hide or show the mouse cursor over the window.",
+        "set_fullscreen": "Put the window into borderless fullscreen on the current monitor, or back into a window.",
+        "set_grid": "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent.",
+        "set_grid_colors": "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats.",
+        "set_rect": "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape.",
+        "set_sprite": "Draw the node as a quad textured with a project image, sized from it at 100 texture pixels per world unit.",
+        "set_sprite_frame": "Show a sheet cell, numbered left to right then top to bottom; only the UVs move, so it is cheap per frame.",
+        "set_sprite_sheet": "Draw the node as one cell of a columns-by-rows sheet, sizing the quad to a single frame, not the whole image.",
+        "set_sprite_size": "Override the size the sprite took from its image, giving half-extents in world units instead.",
+        "shape2d": "The 2D shape's kind and its two dimensions in world units; empty and zeros when the node has no 2D shape.",
+        "shape3d": "The 3D shape's kind and its three dimensions in world units; empty and zeros when the node has no 3D shape.",
+        "sprite": "The texture path, sheet columns and rows, and current frame; empty and zeros when the node has no sprite.",
+        "texture_size": "An image's width and height in pixels, read from the file's own header."
+      },
       "functions": [
         "camera_2d",
         "camera_matrix",
         "camera_pose",
+        "channel",
+        "channels",
+        "check_material",
         "color",
         "draw_line",
         "draw_line_2d",
+        "material_params",
         "mouse_ray",
         "mouse_world_2d",
         "pick_ray",
@@ -2092,6 +4841,7 @@
         "set_camera",
         "set_camera_2d",
         "set_camera_input",
+        "set_channel",
         "set_circle",
         "set_color",
         "set_cuboid",
@@ -2101,6 +4851,7 @@
         "set_grid",
         "set_grid_colors",
         "set_rect",
+        "set_shader_preview",
         "set_sprite",
         "set_sprite_frame",
         "set_sprite_sheet",
@@ -2115,9 +4866,13 @@
         "camera_2d": "() -> (f32, f32, f32)",
         "camera_matrix": "() -> Vec<f32>",
         "camera_pose": "() -> (f32, f32, f32, f32, f32, f32, f32, f32)",
+        "channel": "() -> String",
+        "channels": "() -> Value",
+        "check_material": "String -> Value",
         "color": "NodeId -> (f32, f32, f32, f32)",
         "draw_line": "(f32, f32, f32, f32, f32, f32, f32, f32, f32, Option<f32>, Option<bool>, Option<bool>) -> ()",
         "draw_line_2d": "(f32, f32, f32, f32, f32, f32, f32, Option<f32>) -> ()",
+        "material_params": "String -> Value",
         "mouse_ray": "() -> (f32, f32, f32, f32, f32, f32)",
         "mouse_world_2d": "() -> (f32, f32)",
         "pick_ray": "(f64, f64, f64, f64, f64, f64) -> Option<NodeId>",
@@ -2128,6 +4883,7 @@
         "set_camera": "(f32, f32, f32, f32, f32, f32) -> ()",
         "set_camera_2d": "(f32, f32, f32) -> ()",
         "set_camera_input": "bool -> ()",
+        "set_channel": "String -> ()",
         "set_circle": "(NodeId, f32) -> ()",
         "set_color": "(NodeId, f32, f32, f32, Option<f32>) -> ()",
         "set_cuboid": "(NodeId, f32, f32, f32) -> ()",
@@ -2137,6 +4893,7 @@
         "set_grid": "(bool, Option<f32>, Option<u32>, Option<i32>) -> ()",
         "set_grid_colors": "(f32, f32, f32, f32, f32, f32) -> ()",
         "set_rect": "(NodeId, f32, f32) -> ()",
+        "set_shader_preview": "(String, i64) -> ()",
         "set_sprite": "(NodeId, String) -> ()",
         "set_sprite_frame": "(NodeId, u32) -> ()",
         "set_sprite_sheet": "(NodeId, String, u32, u32) -> ()",
@@ -2148,8 +4905,95 @@
       }
     },
     {
+      "acts_on": {},
+      "components": [],
+      "constants": [
+        {
+          "name": "STATE_PAUSED",
+          "value": "paused"
+        },
+        {
+          "name": "STATE_PLAYING",
+          "value": "playing"
+        },
+        {
+          "name": "STATE_SEEKING",
+          "value": "seeking"
+        },
+        {
+          "name": "STATE_STOPPED",
+          "value": "stopped"
+        }
+      ],
+      "doc": "Record what a running game is fed and play it back. A recording holds each tick's input, network arrivals and events, not the world they produced, so a session is small and replays by re-running the game against the same input. The editor's Session dock drives these, and so does `balaur run --record`.",
+      "docs": {
+        "diverged": "The first tick whose replay did not reproduce the recorded digest, or nil.",
+        "events": "The events recorded between two ticks, each with its tick, kind, label and data.",
+        "header": "The loaded session's project, start time, script fingerprint and how it ended.",
+        "info": "The same summary for a session file on disk, without loading it.",
+        "length": "The loaded session's frame count and the ticks it spans, or nil.",
+        "load": "Read a session and put it in front of the engine, paused before its first tick.",
+        "marks": "The ticks at which one replay source held a non-empty list under a key, and what it held.",
+        "pause": "Stop between ticks, holding the simulation still while the frame loop keeps drawing.",
+        "play": "Run the loaded session, one recorded tick per frame.",
+        "position": "The tick playback has reached.",
+        "record": "Start recording into a file; call it before the code whose session it records runs.",
+        "recording": "The file being recorded into, or nil.",
+        "seek": "Run recorded ticks until playback reaches the given tick; forward only.",
+        "state": "What playback is doing: `STATE_STOPPED`, `STATE_PLAYING`, `STATE_PAUSED` or `STATE_SEEKING`.",
+        "stop": "Close the recording, naming why it ended, and return the file it wrote.",
+        "unload": "Drop the loaded session and let the game run live again."
+      },
+      "functions": [
+        "diverged",
+        "events",
+        "header",
+        "info",
+        "length",
+        "load",
+        "marks",
+        "pause",
+        "play",
+        "position",
+        "record",
+        "recording",
+        "seek",
+        "session_name",
+        "state",
+        "stop",
+        "unload"
+      ],
+      "name": "replay",
+      "signatures": {
+        "diverged": "()",
+        "events": "(from: int, to: int)",
+        "header": "()",
+        "info": "(path: string)",
+        "length": "()",
+        "load": "(path: string)",
+        "marks": "(source: string, key: string?)",
+        "pause": "()",
+        "play": "()",
+        "position": "()",
+        "record": "(path: string, options: any?)",
+        "recording": "()",
+        "seek": "(tick: int)",
+        "state": "()",
+        "stop": "(reason: string?)",
+        "unload": "()"
+      }
+    },
+    {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "The engine's one deterministic PCG32 stream: the same seed draws the same numbers on every platform, and a replay reproduces every draw a recorded session made.",
+      "docs": {
+        "int": "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included.",
+        "random": "A float from the deterministic engine stream, uniform in `[0, 1)`.",
+        "range": "A float from the deterministic engine stream, uniform in `[low, high)` \u2014 the two arguments.",
+        "seed": "Restart the deterministic engine stream at the given seed, so every draw after it repeats."
+      },
       "functions": [
         "int",
         "random",
@@ -2157,13 +5001,36 @@
         "seed"
       ],
       "name": "rng",
-      "signatures": {}
+      "signatures": {
+        "int": "(low: int, high: int)",
+        "random": "()",
+        "range": "(low: float, high: float)",
+        "seed": "(seed: int)"
+      }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "The node tree: its root, lookup by path, spawning and instancing. Also the component and preset vocabulary an editor builds its palette from.",
+      "docs": {
+        "apply_preset": "Add every component a preset names to the node; a part that fails leaves the parts before it in place.",
+        "component_properties": "What a component's `apply` would receive for `params`: the schema's defaults with a shorthand or a partial table merged over them. This is how a tool compares two spellings of the same component.",
+        "component_schema": "A component type's property schema as a table; nil for a name nothing registered.",
+        "component_tags": "The facets a component type is filed under, for filtering a palette; nil for a name nothing registered.",
+        "component_types": "The names of every registered component type, not the components on any node.",
+        "get_node": "The node at an `A/B/C` path from the root, where `..` climbs to the parent; nil when nothing matches.",
+        "instantiate": "Build a scene document \u2014 TOML text, not a path \u2014 under a parent; `{ scripts: false }` leaves scripts unattached.",
+        "preset_info": "A preset's description, tags and the components it adds; nil for a name nothing registered.",
+        "presets": "The names of every registered preset.",
+        "root": "The tree's root node.",
+        "source": "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing.",
+        "spawn": "Create one empty named node under the given parent, or under the root when none is given.",
+        "unmet_expectations": "Components on the node whose expectations nothing satisfies, as `{ component, expects }`; advisory only."
+      },
       "functions": [
         "apply_preset",
+        "component_properties",
         "component_schema",
         "component_tags",
         "component_types",
@@ -2177,53 +5044,129 @@
         "unmet_expectations"
       ],
       "name": "scene",
-      "signatures": {}
+      "signatures": {
+        "apply_preset": "(node: node, name: string)",
+        "component_properties": "(name: string, params: any)",
+        "component_schema": "(name: string)",
+        "component_tags": "(name: string)",
+        "component_types": "()",
+        "get_node": "(path: string)",
+        "instantiate": "(source: string, parent: node?, opts: any?)",
+        "preset_info": "(name: string)",
+        "presets": "()",
+        "root": "()",
+        "source": "(path: string)",
+        "spawn": "(name: string, parent: node?)",
+        "unmet_expectations": "(node: node)"
+      }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "Loading other scripts, inspecting what they declare, and calling into them without a failure taking the frame down.",
+      "docs": {
+        "attempt": "Call a function, answering `(true, value)` when it returned and `(false, message)` when it failed.",
+        "check": "Every compiler diagnostic about the given source, as `[#{ file, line, column, severity, message }]`; an editor passes the buffer it is showing.",
+        "exports": "The tunable properties a script declares in `exports()`, with their defaults.",
+        "functions": "The public functions a script file declares, with their argument names.",
+        "require": "Load another script file as a module, compiled once and shared by every caller afterwards.",
+        "shared": "Wrap a script function so it can be called from several places with a fixed argument count."
+      },
       "functions": [
         "attempt",
         "check",
-        "require"
+        "exports",
+        "functions",
+        "require",
+        "shared"
       ],
       "name": "script",
-      "signatures": {}
+      "signatures": {
+        "attempt": "(f: fn)",
+        "check": "(path: string, source: string)",
+        "exports": "(path: string)",
+        "functions": "(path: string)",
+        "require": "(path: string)",
+        "shared": "(f: fn, arity: int)"
+      }
     },
     {
-      "components": [],
+      "acts_on": {
+        "apply_rest": [
+          "bone2d",
+          "bone3d"
+        ],
+        "bones": [
+          "bone2d",
+          "bone3d"
+        ],
+        "overwrite_rest": [
+          "bone2d",
+          "bone3d"
+        ]
+      },
+      "components": [
+        "bone2d",
+        "bone3d"
+      ],
       "constants": [],
+      "doc": "Bones under a rig node: the rest pose a rig returns to, and the tree order a skin numbers its joints in. A bone is any node carrying `bone2d` or `bone3d`; there is no skeleton component.",
+      "docs": {
+        "apply_rest": "Move every bone under the node back to its rest transform.",
+        "bones": "The bones under the node in tree order, the order a skin numbers them in, the node itself first when it is one.",
+        "overwrite_rest": "Record every bone's current transform under the node as its new rest pose."
+      },
       "functions": [
         "apply_rest",
         "bones",
         "overwrite_rest"
       ],
       "name": "skeleton",
-      "signatures": {}
+      "signatures": {
+        "apply_rest": "(node: node)",
+        "bones": "(node: node)",
+        "overwrite_rest": "(node: node)"
+      }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "Waiting inside an async handler: `init` and event handlers may await, `update` is deliberately synchronous.",
+      "docs": {
+        "wait": "Park an async handler until the engine wakes the token it was given."
+      },
       "functions": [
         "wait"
       ],
       "name": "task",
-      "signatures": {}
+      "signatures": {
+        "wait": "(token: int)"
+      }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "TOML text to and from script tables: the format scene files, asset definitions and component properties are all written in.",
+      "docs": {
+        "encode": "A table written back out as TOML text; a node or callback in it is not data and is an error.",
+        "parse": "The table a TOML document describes; an error on text that does not parse."
+      },
       "functions": [
         "encode",
         "parse"
       ],
       "name": "toml",
-      "signatures": {}
+      "signatures": {
+        "encode": "(value: any)",
+        "parse": "(text: string)"
+      }
     },
     {
-      "components": [
-        "widget"
-      ],
+      "acts_on": {},
+      "components": [],
       "constants": [
         {
           "name": "ANCHOR_BOTTOM_LEFT",
@@ -2282,6 +5225,53 @@
           "value": "panel"
         }
       ],
+      "doc": "Immediate-mode UI, redrawn from a script's `draw_ui` every frame: panels, layout containers and the design system's widget shapes. HUD elements that live in the scene tree are the `widget` component instead.",
+      "docs": {
+        "add_space": "Insert blank space along the current layout, in design pixels.",
+        "available_height": "The height left in the current container, in design pixels.",
+        "available_width": "The width left in the current container, in design pixels.",
+        "bottom_panel": "Dock a strip across the bottom of the window and draw the callback inside it; `height` is in design pixels.",
+        "central_panel": "Draw the callback into whatever room the docked panels left over.",
+        "central_rect": "The x, y, width and height of the surface being drawn into, in design pixels.",
+        "circle_button": "Draw a round button holding one glyph, `d` design pixels across; true on the frame it was clicked.",
+        "clipboard": "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand.",
+        "code_editor": "Draw an editable, highlighted buffer with a gutter; returns the text, whether it changed, and any line clicked.",
+        "code_line": "Draw one read-only code row from a list of `{ text, color, strong }` spans, with a gutter label on the left.",
+        "color": "Draw a colour picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed.",
+        "dot": "Draw a filled circle in a `#rrggbb` colour, `d` design pixels across.",
+        "drag_value": "Draw a number dragged sideways to change it; returns the value and whether this frame changed it.",
+        "dropdown": "Draw a pill-shaped select over a list of strings; returns the selection and whether it changed this frame.",
+        "frame": "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels.",
+        "horizontal": "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels.",
+        "image": "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path.",
+        "label": "Draw a line of text; `size`, `font`, `color`, `strong` and `wrap` style it.",
+        "left_panel": "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels.",
+        "menu_item": "Draw a row inside a context menu; true on the frame it was clicked, which also closes the menu.",
+        "modal": "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked.",
+        "overlay": "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer.",
+        "pill": "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked.",
+        "rect_stroke": "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked.",
+        "right": "Lay the callback's widgets out against the right edge, still declared left to right.",
+        "right_panel": "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels.",
+        "scale": "The global UI scale: real pixels per design pixel.",
+        "screen_size": "The window's width and height, in design pixels.",
+        "scroll": "Put the callback in a vertical scroll area; `max_height` caps it and `stick_to_bottom` follows new content.",
+        "separator": "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed.",
+        "set_clipboard": "Copy text to the system clipboard.",
+        "set_scale": "Set the global UI scale, clamped to between 0.5 and 3.0 real pixels per design pixel.",
+        "set_text": "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone.",
+        "set_theme": "Replace the colour tokens from a table of `name = \"#rrggbb\"` entries, plus `dark = true|false`.",
+        "set_widget_layer": "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
+        "shortcut": "Whether this chord was pressed this frame, consuming it; `mods` is `\"cmd+shift\"`, from the `MOD_*` constants.",
+        "slider": "Draw a horizontal slider between `min` and `max`; returns the value after this frame and whether it moved.",
+        "spacing": "Set the gap between the current container's widgets, in design pixels.",
+        "text_field": "Draw a single-line text box keyed by `id`; returns its text, whether it changed, and whether Enter was pressed.",
+        "toggle": "Draw an on/off switch; returns the state after this frame and whether it was clicked.",
+        "top_panel": "Dock a strip across the top of the window and draw the callback inside it; `height` is in design pixels.",
+        "vertical": "Lay the callback's widgets out in a column.",
+        "wants_keyboard": "Whether a UI widget holds keyboard focus, so the game should leave this frame's key presses alone.",
+        "window": "Draw the callback in a floating window the user drags and resizes; false once its close button is used."
+      },
       "functions": [
         "add_space",
         "available_height",
@@ -2377,8 +5367,15 @@
       }
     },
     {
+      "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "A long-lived connection carrying text or binary frames. Its events are a stream, not a result: each one reaches the connecting node's handler method (`on_websocket_event` unless `on_event` names another) as a map `{ socket, kind, .. }` with kind `open`, `message` (with `text`), `binary` (with `bytes`), `closed` or `error`, and nothing awaits a socket id.",
+      "docs": {
+        "close": "Ask the connection to close, which still delivers a `closed` event; false when it was already gone.",
+        "connect": "Open a connection and return the id `send` and `close` take; options are `on_event`, `compression` and `headers`.",
+        "send": "Queue a frame on the connection, text for a string and binary for bytes; false when it is already gone."
+      },
       "functions": [
         "close",
         "connect",
@@ -2388,7 +5385,7 @@
       "signatures": {
         "close": "i64 -> Value",
         "connect": "(Value, String, Option<Value>) -> Value",
-        "send": "(i64, String) -> Value"
+        "send": "(i64, Value) -> Value"
       }
     }
   ]

@@ -209,6 +209,13 @@ prefab set, so one enemy file becomes a fast enemy and a slow one. A path that
 names nothing is reported and kept rather than dropped: the prefab may have
 moved the node, and the edit is still in the file.
 
+**An override patches; it does not replace.** The prefab already described the
+component whole, so an override naming one property leaves the rest alone —
+`components::patch`, not the `add` a scene key normally goes through. Through
+`add` an override of a collider's `half_extents` would quietly put its `kind`
+back to the schema default, which is the kind of bug a scene file cannot show
+you.
+
 Identity is what makes two instances of one file distinguishable: every
 `StableId` inside an instance is prefixed by the instance's own id, so the
 crate lid above is `n_crate_b/n_lid` and its twin is `n_crate_a/n_lid`. The
@@ -222,9 +229,13 @@ Scripts inside an instance attach when the *outermost* scene is finished, so
 **In the editor** an instance's nodes are read from its file and shown in the
 tree in place, one shade quieter, so what you see is the tree the game will
 build. Those rows are not the scene file's: editing one writes an `overrides`
-entry on the node that named the prefab, and an edit that lands back on the
-prefab's own value removes it again — the same sparseness a script's exported
-properties get, one level up. Structure is refused: adding, duplicating or
+entry on the node that named the prefab — only the properties that differ, to
+match the patch — and an edit that lands back on the prefab's own value removes
+it again, the same sparseness a script's exported properties get one level up.
+Comparing the two needs `scene.component_properties(name, params)`, because a
+prefab may write `body3d = "dynamic"` where the editor writes the whole table
+and those are one component spelled two ways: the engine says what a spelling
+means, and the editor compares that. Structure is refused: adding, duplicating or
 deleting a node inside an instance would have nowhere in the file to live, and
 the editor says which prefab to open instead.
 
@@ -921,12 +932,12 @@ Ordered by what would break a networked session first:
 2. **Hot reload is a determinism hazard.** Swapping code mid-session changes
    behaviour by design. A verified or networked run has to either disable it
    or record the reload as an event in the input trace.
-3. **Run-time-spawned nodes have no `StableId`.** They hash under a name and
-   an entity index, which is reproducible across runs of one binary but is not
-   an identity two peers can negotiate. Replication needs an authority-scoped
-   allocator (`<peer>:<counter>`). This and the restore gap below are step 2
-   of `docs/PLAN-networking.md`, ahead of rollback, because everything
-   networked stands on them.
+3. **A run-time `scene.instantiate` reuses the file's ids.** A node a script
+   spawns now gets `<authority>:<counter>` from `ids::mint`, but instantiating
+   one scene twice gives both copies the ids the file declares, so they
+   collide. The fix is a minted prefix per instance; it is held back because
+   the editor mirrors the game scene through that call and addresses the
+   result by id.
 4. **Nothing forces a new subsystem to use `ExternalIo`.** Within it the
    guarantee is structural — the worker `Sender` is unreachable except through
    `start`, which does nothing while replaying — but a subsystem that opens
@@ -956,12 +967,20 @@ entity bits, and `self.node` is never captured because the host owns that
 binding and reinstates it. A snapshot is therefore never trusted about which
 node an instance sits on.
 
-What restore does not do: respawn a node freed after the snapshot, or free one
-spawned after it. It writes over nodes that exist. That is the next piece,
-and it matters for netcode (spawning bullets); it is the step the networking
-plan proves first, since a restore that cannot reach a bit-identical digest
-blocks everything built on it. Nothing forces a new subsystem
-to register a source, the same shape of gap the digest has.
+Restore puts the node set back, not only the state of nodes that survived.
+The `nodes` source records every node's id, name, parent, components and
+script, and registers first, so it frees what was spawned since and respawns
+what was freed before any other source writes into an entity. A respawned
+node's components go back through the same `apply` a scene file uses, which
+is why core records the declaration rather than whatever a subsystem derived
+from it. Everything is keyed by `StableId` rather than entity index, since a
+respawned node is a new entity; the index survives as the fallback for a
+node with no id, which is a tree built by hand in a test.
+
+The id counter is snapshotted with the rest, so a rollback that re-simulates
+a spawn mints the id the first run minted instead of the next one. Nothing
+forces a new subsystem to register a source, the same shape of gap the digest
+has.
 
 ## Networking and state sync (planned)
 

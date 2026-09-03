@@ -218,7 +218,7 @@ impl PhysicsHooks for Hooks<'_> {
             return;
         };
         for (node, other) in [(a, b), (b, a)] {
-            let normal = context.normal;
+            let normal = *context.normal;
             let answer = host.call_on(
                 balaur_core::node_id_of(node),
                 "modify_contacts",
@@ -253,17 +253,13 @@ fn one_way_axis(context: &ContactModificationContext<'_>) -> Option<glamx::Vec3>
 fn apply_contact_answer(context: &mut ContactModificationContext<'_>, answer: Option<&Value>) {
     let Some(answer) = answer else { return };
     let opts = crate::vocabulary::Opts(Some(answer));
-    if let Some(friction) = opts.get("friction") {
-        if let Value::Num(friction) = friction {
-            for contact in context.solver_contacts.iter_mut() {
-                contact.friction = *friction as f32;
-            }
-        }
+    // Friction and restitution are the pair's, not each contact point's:
+    // rapier already combined the two materials before asking.
+    if let Some(Value::Num(friction)) = opts.get("friction") {
+        *context.friction = *friction as f32;
     }
     if let Some(Value::Num(restitution)) = opts.get("restitution") {
-        for contact in context.solver_contacts.iter_mut() {
-            contact.restitution = *restitution as f32;
-        }
+        *context.restitution = *restitution as f32;
     }
     if !opts.boolean("solid", true) {
         context.solver_contacts.clear();

@@ -256,7 +256,11 @@ fn script_editor(S, k) {
                 k_com: k.k_com, k_fn: k.k_fn, k_type: k.k_type,
                 k_punc: k.k_punc,
                 language: if shading { "wesl" } else { "rune" },
-                breakpoints: if shading { [] } else { shell::breakpoint_lines(S, rel) },
+                breakpoints: if shading {
+                    if S.preview_line > 0 { [S.preview_line] } else { [] }
+                } else {
+                    shell::breakpoint_lines(S, rel)
+                },
                 problems: lint::lines(S, rel, "error"),
                 warnings: lint::lines(S, rel, "warning"),
                 problem_color: k.accent, warning_color: k.sage,
@@ -267,8 +271,14 @@ fn script_editor(S, k) {
             if changed {
                 S.script_dirty[path] = true;
             }
-            if hit is i64 && !shading {
-                shell::toggle_breakpoint(S, rel, hit);
+            if hit is i64 {
+                // A shader's gutter has no breakpoints, so the same click
+                // asks for the line's value instead.
+                if shading {
+                    shell::toggle_shader_preview(S, rel, hit);
+                } else {
+                    shell::toggle_breakpoint(S, rel, hit);
+                }
             }
             ui::add_space(12);
         });

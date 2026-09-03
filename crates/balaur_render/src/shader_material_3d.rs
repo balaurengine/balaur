@@ -568,6 +568,10 @@ type Shared3d = std::rc::Rc<std::cell::RefCell<Box<dyn Material3d + 'static>>>;
 pub(crate) struct MaterialCache3d {
     linked: std::collections::HashMap<String, Option<Shared3d>>,
     generation: u64,
+    /// The channel material and which channel it draws.
+    channel: Option<(String, Shared3d)>,
+    /// The channel the last frame drew; a change rebuilds every node.
+    active: String,
 }
 
 impl MaterialCache3d {
@@ -587,6 +591,68 @@ impl MaterialCache3d {
         }
         self.linked.clear();
         had
+    }
+
+    /// Whether the channel view changed since the last frame.
+    ///
+    /// Turning one on or off changes every node, not only those naming a
+    /// material, so the caller rebuilds all of them.
+    pub(crate) fn channel_changed(&mut self, channel: &str) -> bool {
+        if self.active == channel {
+            return false;
+        }
+        self.active = channel.to_string();
+        true
+    }
+
+    /// The material a node draws with: the channel while a view is on, its
+    /// own otherwise, and none at all — kiss3d's — when it names neither.
+    pub(crate) fn for_node(
+        &mut self,
+        app: &balaur_core::App,
+        reference: &str,
+        channel: &str,
+    ) -> Option<Shared3d> {
+        if !channel.is_empty() {
+            return self.channel(channel);
+        }
+        if reference.is_empty() {
+            return None;
+        }
+        self.get(app, reference)
+    }
+
+    /// The material that draws `channel`, built on first use.
+    pub(crate) fn channel(&mut self, channel: &str) -> Option<Shared3d> {
+        if let Some((drawn, material)) = &self.channel {
+            if drawn == channel {
+                return Some(material.clone());
+            }
+        }
+        let features: Vec<(&str, bool)> = crate::shaders::CHANNELS
+            .iter()
+            .map(|c| (*c, *c == channel))
+            .collect();
+        let built = crate::shaders::link(
+            &[("package::channel", crate::shaders::CHANNEL)],
+            "package::channel",
+            &features,
+        )
+        .map(|unit| {
+            ShaderMaterial3d::new(&crate::material::Compiled {
+                wgsl: crate::shaders::wgsl(&unit),
+                fields: Vec::new(),
+                params: Vec::new(),
+            })
+        })
+        .inspect_err(|why| tracing::error!(channel, "{why:#}"))
+        .ok()?;
+        let shared: Shared3d = std::rc::Rc::new(std::cell::RefCell::new(Box::new(built)));
+        MaterialManager3d::get_global_manager(|manager| {
+            manager.add(shared.clone(), "balaur3d:channel");
+        });
+        self.channel = Some((channel.to_string(), shared.clone()));
+        Some(shared)
     }
 
     /// The material `reference` names, linking it on first use; `None` for
@@ -623,6 +689,8 @@ fn build(app: &balaur_core::App, reference: &str) -> anyhow::Result<ShaderMateri
     let asset =
         balaur_core::assets::load_typed::<crate::material::Material>(&app.engine, reference)?;
     let source = balaur_core::project::scene_text(&app.engine, &asset.shader)?;
-    let compiled = crate::material::compile(&asset, &source)?;
+    let source = crate::preview::requested(&app.engine, &asset.shader, source);
+    let modules = crate::shaders::plugin_modules(&app.engine);
+    let compiled = crate::material::compile_with(&asset, &source, &modules)?;
     Ok(ShaderMaterial3d::new(&compiled))
 }

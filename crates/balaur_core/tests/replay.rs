@@ -1,6 +1,8 @@
 //! The replay file and the source registry it is built from.
 
-use balaur_core::replay::{self, Frame, Header, PlayState, Recorder, ReplayPlayer, Session, Trailer};
+use balaur_core::replay::{
+    self, Frame, Header, PlayState, Recorder, ReplayPlayer, Session, Trailer,
+};
 use balaur_core::{App, AppConfig, Engine};
 
 fn app() -> App {
@@ -71,7 +73,7 @@ fn a_recording_round_trips_through_the_file() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("s.blr");
 
-    let mut recorder = Recorder::create(&path, header(), true).unwrap();
+    let mut recorder = Recorder::create(&path, header(), true, 0).unwrap();
     for tick in 1..=3u64 {
         recorder
             .write(&Frame {
@@ -109,7 +111,7 @@ fn a_recording_from_a_future_format_is_refused_by_name() {
     let path = dir.path().join("s.blr");
     let mut future = header();
     future.format = replay::FORMAT + 1;
-    let mut recorder = Recorder::create(&path, future, false).unwrap();
+    let mut recorder = Recorder::create(&path, future, false, 0).unwrap();
     recorder.write(&Frame::default()).unwrap();
     drop(recorder);
 
@@ -311,7 +313,10 @@ fn seeking_runs_to_the_tick_and_stops() {
     let mut app = app_with_dial();
     ratchet(&mut app);
     replay::begin(&app.engine, session);
-    app.engine.resource::<ReplayPlayer>().borrow_mut().seek(target);
+    app.engine
+        .resource::<ReplayPlayer>()
+        .borrow_mut()
+        .seek(target);
     app.advance(1.0 / 60.0);
 
     let player = app.engine.resource::<ReplayPlayer>();
@@ -365,5 +370,95 @@ fn a_session_carries_why_it_ended() {
     assert_eq!(
         session.trailer.as_ref().map(|t| t.reason.as_str()),
         Some("reload")
+    );
+}
+
+/// A stand-in for a subsystem that sends and receives: the request takes an
+/// await token, and the reply that comes back is keyed by it.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+struct Reply {
+    token: u64,
+    value: i64,
+}
+
+#[derive(Default)]
+struct Wire {
+    io: balaur_core::replay::ExternalIo<Reply>,
+    asked: Vec<u64>,
+    got: Vec<(u64, i64)>,
+}
+
+fn wired(app: &mut App) {
+    app.engine.insert_resource(Wire::default());
+    app.add_replay_source(
+        "wire",
+        |eng: &Engine| eng.resource::<Wire>().borrow().io.capture(),
+        |eng: &Engine, value| eng.resource::<Wire>().borrow().io.restore(value),
+    );
+    app.add_system(balaur_core::Stage::First, |eng: &Engine, _| {
+        let wire = eng.resource::<Wire>();
+        let arrivals = wire.borrow_mut().io.drain();
+        for reply in arrivals {
+            wire.borrow_mut().got.push((reply.token, reply.value));
+        }
+    });
+}
+
+/// Ask for something. The worker answers at once here; a real one answers on
+/// a later tick, which changes nothing about the ids.
+fn ask(eng: &Engine) {
+    let token = eng.next_token();
+    let wire = eng.resource::<Wire>();
+    wire.borrow_mut().asked.push(token);
+    let value = i64::try_from(token).unwrap_or(0) * 10;
+    wire.borrow().io.start(eng, |tx| {
+        let _ = tx.send(Reply { token, value });
+    });
+}
+
+/// The reason the header carries a token counter: a reply is keyed by the id
+/// its request took, so a replay that hands out different ids delivers a
+/// recorded reply to nothing at all.
+#[test]
+fn a_recorded_reply_reaches_the_request_that_asked_for_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+
+    let mut live = app();
+    wired(&mut live);
+    // Tokens taken before the session, as a long-lived editor has taken many.
+    for _ in 0..7 {
+        live.engine.next_token();
+    }
+
+    replay::start_recording(&live.engine, &path, ".", "", false).unwrap();
+    ask(&live.engine);
+    for _ in 0..3 {
+        live.advance(1.0 / 60.0);
+    }
+    replay::stop_recording(&live.engine, "stop").unwrap();
+    let (asked, got) = {
+        let wire = live.engine.resource::<Wire>();
+        let wire = wire.borrow();
+        (wire.asked.clone(), wire.got.clone())
+    };
+    assert_eq!(got.len(), 1, "the reply arrived while recording");
+
+    let mut again = app();
+    wired(&mut again);
+    replay::begin(&again.engine, Session::read(&path).unwrap());
+    // Before the first frame, exactly where a script's `init` would ask.
+    ask(&again.engine);
+    replay::play(&again.engine);
+    while replay::is_running(&again.engine) {
+        again.advance(1.0 / 60.0);
+    }
+
+    let wire = again.engine.resource::<Wire>();
+    let wire = wire.borrow();
+    assert_eq!(wire.asked, asked, "a replay asks under the recorded ids");
+    assert_eq!(
+        wire.got, got,
+        "and the recorded reply lands on the request that asked"
     );
 }

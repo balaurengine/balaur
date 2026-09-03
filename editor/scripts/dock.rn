@@ -682,6 +682,7 @@ fn session_view(S, k) {
         session_list(S, k);
         return;
     }
+    let split = replay::diverged();
     let first = S.session.first;
     let last = S.session.last;
     let span = util::max(1.0, util::f(last - first));
@@ -706,7 +707,9 @@ fn session_view(S, k) {
                 return;
             }
         });
-        let at = util::f(replay::position() - first);
+        // Before the first frame is fed the position is one tick short of the
+        // session's start, which is off the near end of the ruler.
+        let at = util::max(0.0, util::f(replay::position()) - util::f(first));
         let (t, scrubbed) = ui::slider(at, 0.0, span, #{
             width: lane_w,
             rail: k.sunken, fill: k.accent_fill, knob: k.bg,
@@ -720,7 +723,6 @@ fn session_view(S, k) {
 
     // A divergence is information, not a failure: the replay ran, and this is
     // the tick at which it stopped reproducing what was recorded.
-    let split = replay::diverged();
     if split is Object {
         ui::horizontal(#{ height: 20 }, || {
             ui::add_space(8);
@@ -763,7 +765,8 @@ fn lane_marks(S, k, lane, first, span, lane_w) {
             if hit is Object {
                 let behind = hit.tick <= replay::position();
                 if ui::pill("", #{
-                    height: 8, width: util::max(4.0, w - 2.0), tooltip: format!("{}: {}", hit.tick, hit.label),
+                    height: 8, min_width: util::max(4.0, w - 2.0),
+                    tooltip: format!("{}: {}", hit.tick, hit.label),
                     fill: if behind { k.accent } else { k.line_soft }, color: k.dim,
                 }) {
                     session::seek(S, hit.tick);
@@ -796,12 +799,27 @@ fn detail(S, k) {
 // the ring that prunes the oldest, so a session worth returning to survives
 // the next ten runs.
 fn session_list(S, k) {
+    ui::horizontal(#{ height: 24 }, || {
+        ui::add_space(8);
+        ui::label("sessions are recorded on every play", style::mono_sm(k.faint));
+        ui::right(|| {
+            ui::add_space(8);
+            let on = S.session.verify;
+            if ui::pill("verify", #{
+                height: 20, size: 10, strong: true,
+                tooltip: "Hash the world every tick, so a replay can name where it parted",
+                fill: if on { k.accent_fill } else { k.sunken },
+                color: if on { k.on_accent } else { k.faint },
+            }) {
+                S.session.verify = !on;
+            }
+        });
+    });
     let names = session::listing(S);
     if names.len() == 0 {
         ui::horizontal(#{ height: 26 }, || {
             ui::add_space(8);
-            ui::label("no sessions yet — press Play and the run is recorded",
-                style::mono(k.faint));
+            ui::label("no sessions yet — press Play", style::mono(k.faint));
         });
         return;
     }
@@ -815,7 +833,6 @@ fn session_list(S, k) {
                     fill: k.accent_soft, color: k.accent,
                 }) {
                     session::open(S, name);
-                    return;
                 }
                 ui::label(name, style::mono_sm(k.text));
                 ui::right(|| {
@@ -825,7 +842,6 @@ fn session_list(S, k) {
                         fill: k.sunken, color: k.faint,
                     }) {
                         session::remove(S, name);
-                        return;
                     }
                     if !name.starts_with("kept-") && ui::pill("keep", #{
                         height: 20, size: 10, strong: true,
@@ -833,7 +849,6 @@ fn session_list(S, k) {
                         fill: k.sunken, color: k.dim,
                     }) {
                         session::keep(S, name);
-                        return;
                     }
                 });
             });

@@ -29,6 +29,7 @@ fn alone() -> MutexGuard<'static, ()> {
 
 /// Run `f` until it has taken at least `min`, and report the per-iteration
 /// cost. Timing one pass of a fast operation measures the clock.
+#[allow(clippy::disallowed_methods, reason = "this is the measurement, not simulation")]
 fn per_iteration(min: Duration, mut f: impl FnMut()) -> Duration {
     // Warm up: first-touch page faults and lazy init are not what we measure.
     for _ in 0..3 {

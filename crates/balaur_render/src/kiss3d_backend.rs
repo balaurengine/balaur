@@ -605,8 +605,11 @@ fn sync(
 ) {
     let world = app.engine.world();
     // A saved shader or material relinks, and the nodes holding the old
-    // pipeline have to be built again against the new one.
+    // pipeline have to be built again against the new one. A channel view
+    // changes every node, whether or not it names a material.
+    let channel = crate::debug_view::channel_view(&app.engine);
     let relinked = materials.refresh(app);
+    let channel_changed = materials.channel_changed(&channel);
 
     let mut seen: HashSet<Entity> = HashSet::new();
     for (entity, renderable, global) in
@@ -615,7 +618,9 @@ fn sync(
         seen.insert(entity);
         let rebuild = match slots.get(&entity) {
             Some(slot) => {
-                slot.version != renderable.version || (relinked && !renderable.material.is_empty())
+                slot.version != renderable.version
+                    || channel_changed
+                    || (relinked && !renderable.material.is_empty())
             }
             None => true,
         };
@@ -642,10 +647,8 @@ fn sync(
             };
             // After the texture: a material reads it, and kiss3d's own
             // material stays on a node whose shader would not link.
-            if !renderable.material.is_empty() {
-                if let Some(material) = materials.get(app, &renderable.material) {
-                    node.set_material(material);
-                }
+            if let Some(material) = materials.for_node(app, &renderable.material, &channel) {
+                node.set_material(material);
             }
             slots.insert(
                 entity,
@@ -957,22 +960,16 @@ fn polyline_points(app: &App, reference: Option<&str>, closed: bool) -> Vec<Vec2
 /// Mirror `Renderable2d` + `GlobalTransform` into the kiss3d 2D scene graph
 /// (x/y translation, z rotation, x/y scale).
 ///
-/// kiss3d draws 2D nodes in insertion order, so draw order is made explicit
-/// and deterministic: scene-tree traversal order, stably sorted by the
-/// global z coordinate (z acts as a 2D layer; equal z means later-declared
-/// nodes draw on top). When the order changes, the kiss3d nodes are rebuilt
-/// in the new order.
-fn sync_2d(
-    app: &App,
-    scene: &mut SceneNode2d,
+/// The 2D nodes in the order they draw, detaching every slot when that order
+/// changed so the caller rebuilds them in the new one.
+fn draw_order_2d(
+    world: &balaur_core::hecs::World,
+    root: Entity,
     slots: &mut HashMap<Entity, Slot2d>,
     order_cache: &mut Vec<Entity>,
-    materials: &mut crate::shader_material::MaterialCache,
-) {
-    let world = app.engine.world();
-    let root = app.engine.root();
+) -> Vec<Entity> {
     let mut desired: Vec<(f32, Entity)> = Vec::new();
-    for entity in balaur_core::scene::collect_subtree(&world, root) {
+    for entity in balaur_core::scene::collect_subtree(world, root) {
         if world.get::<&Renderable2d>(entity).is_ok() {
             let z = world
                 .get::<&GlobalTransform>(entity)
@@ -988,10 +985,30 @@ fn sync_2d(
         }
         order_cache.clone_from(&order);
     }
+    order
+}
+
+/// kiss3d draws 2D nodes in insertion order, so draw order is made explicit
+/// and deterministic: scene-tree traversal order, stably sorted by the
+/// global z coordinate (z acts as a 2D layer; equal z means later-declared
+/// nodes draw on top). When the order changes, the kiss3d nodes are rebuilt
+/// in the new order.
+fn sync_2d(
+    app: &App,
+    scene: &mut SceneNode2d,
+    slots: &mut HashMap<Entity, Slot2d>,
+    order_cache: &mut Vec<Entity>,
+    materials: &mut crate::shader_material::MaterialCache,
+) {
+    let world = app.engine.world();
+    let order = draw_order_2d(&world, app.engine.root(), slots, order_cache);
 
     // A saved shader or material relinks, and the nodes holding the old
-    // pipeline have to be built again against the new one.
+    // pipeline have to be built again against the new one. A channel view
+    // changes every node, whether or not it names a material.
+    let channel = crate::debug_view::channel_view(&app.engine);
     let relinked = materials.refresh(app);
+    let channel_changed = materials.channel_changed(&channel);
 
     let mut seen: HashSet<Entity> = HashSet::new();
     for &entity in &order {
@@ -1004,7 +1021,9 @@ fn sync_2d(
         seen.insert(entity);
         let rebuild = match slots.get(&entity) {
             Some(slot) => {
-                slot.version != renderable.version || (relinked && !renderable.material.is_empty())
+                slot.version != renderable.version
+                    || channel_changed
+                    || (relinked && !renderable.material.is_empty())
             }
             None => true,
         };
@@ -1025,10 +1044,8 @@ fn sync_2d(
             }
             // After the texture: a material reads it, and kiss3d's own
             // material stays on a node whose shader would not link.
-            if !renderable.material.is_empty() {
-                if let Some(material) = materials.get(app, &renderable.material) {
-                    node.set_material(material);
-                }
+            if let Some(material) = materials.for_node(app, &renderable.material, &channel) {
+                node.set_material(material);
             }
             slots.insert(
                 entity,

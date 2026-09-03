@@ -283,7 +283,7 @@ fn material_params(eng: &balaur_core::Engine, path: &str) -> Result<Vec<balaur_s
     let text = String::from_utf8(files.borrow().read(path)?)?;
     let material = parse(&toml::from_str::<toml::Value>(&text)?)?;
     let source = String::from_utf8(files.borrow().read(&material.shader)?)?;
-    let compiled = compile(&material, &source)?;
+    let compiled = compile_with(&material, &source, &crate::shaders::plugin_modules(eng))?;
     Ok(compiled
         .fields
         .iter()
@@ -311,7 +311,8 @@ fn check_material(eng: &balaur_core::Engine, path: &str) -> Result<()> {
     let text = String::from_utf8(files.borrow().read(path)?)?;
     let material = parse(&toml::from_str::<toml::Value>(&text)?)?;
     let source = String::from_utf8(files.borrow().read(&material.shader)?)?;
-    compile(&material, &source).map(|_| ())
+    let modules = crate::shaders::plugin_modules(eng);
+    compile_with(&material, &source, &modules).map(|_| ())
 }
 
 /// The `--> file:line:column` a WESL diagnostic carries, if it has one.
@@ -493,16 +494,31 @@ pub struct Compiled {
 /// where a project's bytes come from — the pack, the directory, an unsaved
 /// editor buffer — is not this module's business.
 pub fn compile(material: &Material, source: &str) -> Result<Compiled> {
+    compile_with(material, source, &[])
+}
+
+/// [`compile`], with modules a plugin registered mounted alongside the
+/// engine's own, so a project's shader can import them.
+pub fn compile_with(
+    material: &Material,
+    source: &str,
+    plugin_modules: &[(String, String)],
+) -> Result<Compiled> {
     let features: Vec<(&str, bool)> = material
         .features
         .iter()
         .map(|(name, on)| (name.as_str(), *on))
         .collect();
+    let mut modules: Vec<(&str, &str)> = plugin_modules
+        .iter()
+        .map(|(path, source)| (path.as_str(), source.as_str()))
+        .collect();
     let root = "package::material";
     // WESL spans name the module they came from, and the module is a name
     // this function invented; the author only ever saw the file, so that is
     // what the error has to point at.
-    let linked = crate::shaders::link(&[(root, source)], root, &features)
+    modules.push((root, source));
+    let linked = crate::shaders::link(&modules, root, &features)
         .map_err(|why| anyhow!("{}", format!("{why:#}").replace(root, &material.shader)))?;
     let fields = fields(&linked.syntax)?;
     let params = pack(&fields, &material.params)?;
@@ -812,6 +828,40 @@ struct Params { pulse: f32 }
         // The lighting loop came in with `shade`.
         assert!(compiled.wgsl.contains("ambient_count"), "{}", compiled.wgsl);
         assert_eq!(compiled.params.len(), 16);
+    }
+
+    #[test]
+    fn a_plugin_module_is_importable_by_a_project_shader() {
+        let plugin = (
+            "package::water".to_string(),
+            "fn ripple(x: f32) -> f32 { return sin(x * 6.28318); }".to_string(),
+        );
+        let shader = r"
+import package::water::ripple;
+import package::sprite::{VertexInput, VertexOutput, vertex, sample_albedo};
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput {
+    return vertex(in);
+}
+
+@fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    return sample_albedo(in.uv) * ripple(in.uv.x);
+}
+";
+        let material = parse(&table("shader = \"shaders/w.wesl\"")).unwrap();
+        let compiled = compile_with(&material, shader, std::slice::from_ref(&plugin)).unwrap();
+        assert!(compiled.wgsl.contains("6.28318"), "{}", compiled.wgsl);
+    }
+
+    #[test]
+    fn importing_a_module_nobody_registered_says_which() {
+        let material = parse(&table("shader = \"shaders/w.wesl\"")).unwrap();
+        let shader = "import package::water::ripple;
+@fragment fn fs_main() -> @location(0) vec4<f32> {
+    return vec4<f32>(ripple(1.0));
+}";
+        let err = compile(&material, shader).err().unwrap();
+        assert!(format!("{err:#}").contains("water"), "{err:#}");
     }
 
     #[test]

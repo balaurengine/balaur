@@ -499,19 +499,16 @@ pub fn linting(S) {
 // one becomes an override on the node that named the prefab, an edit back to
 // the prefab's own value stops being one, and the file never gains a row it
 // does not own.
+//
+// Which component it edits is discovered, not named: a headless editor has no
+// renderer, so `color` is not registered here even though the scene declares
+// it.
 pub fn instances(S) {
-    let target = ();
-    for (i, node) in S.doc.iter().enumerate() {
-        if model::is_instanced(node) && node.contains_key("color") {
-            target = Some(i);
-            break;
-        }
-    }
-    let found = target;
-    let i = match found {
-        Some(i) => i,
+    let hit = first_instanced_float(S);
+    let (i, comp, prop, spec) = match hit {
+        Some(hit) => hit,
         None => {
-            log::info("selftest instances: no scene here instances a prefab, skipped");
+            log::info("selftest instances: no instanced node with a writable float, skipped");
             return;
         }
     };
@@ -521,23 +518,27 @@ pub fn instances(S) {
     shell::choose(S, i);
     let node = S.doc[i];
     let owner = model::by_id(S.doc, node.owner).unwrap();
-    let was = util::vec(util::obj(node.color).get("rgba").unwrap_or([]));
-    check(!owner.contains_key("overrides") || !util::obj(owner.overrides).contains_key(node.at),
-        format!("{} starts with no override of its own", node.at));
+    let was = float_prop(model::live(S, i).unwrap(), comp, prop)
+        .unwrap_or(util::f(spec.get("default").unwrap_or(0.0)));
+    let entry_of = |owner, at| util::obj(util::obj(owner.get("overrides").unwrap_or(#{})).get(at).unwrap_or(#{}));
+    check(!entry_of(owner, node.at).contains_key(comp),
+        format!("{} starts with no override of {}", node.at, comp));
 
-    model::set_component_prop(S, "color", "rgba", [0.1, 0.9, 0.2, 1.0]);
-    let table = util::obj(owner.get("overrides").unwrap_or(#{}));
-    check(table.contains_key(node.at),
-        format!("editing {} wrote an override on {}", node.at, owner.name));
+    model::set_component_prop(S, comp, prop, was + 3.0);
+    let entry = entry_of(owner, node.at);
+    check(entry.contains_key(comp),
+        format!("editing {}.{} wrote an override on {}", node.at, prop, owner.name));
+    // Sparse: the override holds the property that changed, not the whole
+    // component, because the engine patches it over the prefab's.
+    check(util::obj(entry[comp]).len() == 1,
+        format!("and holds only {} ({} keys)", prop, util::obj(entry[comp]).len()));
     check(model::authored(S.doc).len() == authored_before,
         "and added no row to the file");
 
     // Back to the prefab's own value: the override has nothing left to say.
-    model::set_component_prop(S, "color", "rgba", was);
-    let after = util::obj(owner.get("overrides").unwrap_or(#{}));
-    let entry = util::obj(after.get(node.at).unwrap_or(#{}));
-    check(!entry.contains_key("color"),
-        "a value back at the prefab's stops being an override");
+    model::set_component_prop(S, comp, prop, was);
+    check(!entry_of(owner, node.at).contains_key(comp),
+        format!("a {} back at the prefab's stops being an override", prop));
 
     // Structure is the prefab's.
     let before = S.doc.len();
@@ -548,4 +549,96 @@ pub fn instances(S) {
 
     check(mirror_resolves(S), "every row still resolves, instanced ones included");
     log::info("selftest instances: done");
+}
+
+// The first row that came from a prefab and has a float the editor can write.
+fn first_instanced_float(S) {
+    for (i, node) in S.doc.iter().enumerate() {
+        if !model::is_instanced(node) {
+            continue;
+        }
+        if let Some(found) = model::live(S, i) {
+            if let Some((comp, prop, spec)) = writable_float(S, found) {
+                return Some((i, comp, prop, spec));
+            }
+        }
+    }
+    None
+}
+
+// Recording a play session, replaying it, and getting back to the edited
+// scene. Spread over frames because a recording is made of frames, and inside
+// the `--frames 90` an e2e run allows.
+const REC_UNTIL = 9;
+const OPEN_AT = 10;
+const CHECK_AT = 28;
+
+pub fn sessions(S) {
+    S.session.demo = #{ n: 0, file: "", was: 0 };
+    // With digests, so the replay is actually checked against the recording
+    // rather than merely running.
+    S.session.verify = true;
+    shell::toggle_play(S);
+    check(S.session.recording != "", "play starts recording the session");
+    check(S.playing, "and the scene is running");
+}
+
+pub fn session_step(S) {
+    let d = S.session.demo;
+    d.n = d.n + 1;
+    if d.n == REC_UNTIL {
+        stop_and_check(S, d);
+    } else if d.n == OPEN_AT {
+        open_and_check(S, d);
+    } else if d.n == CHECK_AT {
+        replayed_and_check(S, d);
+    }
+}
+
+// Stopping closes the file. What it wrote is the session the dock lists.
+fn stop_and_check(S, d) {
+    shell::stop_play(S);
+    check(S.session.recording == "", "stop closes the recording");
+    check(util::is_nil(replay::recording()), "and the engine has none open");
+    let names = crate::session::listing(S);
+    if !check(names.len() > 0, "the session it wrote is on disk") {
+        S.session.demo = ();
+        return;
+    }
+    d.file = names[0];
+}
+
+// Replaying rebuilds the scene, feeds the recording into it, and hands the
+// dock its lanes.
+fn open_and_check(S, d) {
+    if d.file == "" {
+        S.session.demo = ();
+        return;
+    }
+    crate::session::open(S, d.file);
+    if !check(crate::session::loaded(S), format!("{} loads", d.file)) {
+        S.session.demo = ();
+        return;
+    }
+    check(replay::state() == replay::STATE_PLAYING, "and starts playing");
+    check(S.playing, "the scene runs while it plays");
+    let span = util::obj(replay::length());
+    check(span.get("frames").unwrap_or(0) > 0, "the session has frames");
+    check(S.session.lanes.len() > 0, "the dock has lanes to draw");
+    d.was = replay::position();
+}
+
+// Playing walks the recording and parks at its end; closing puts the edited
+// scene back and lets the engine run again.
+fn replayed_and_check(S, d) {
+    check(replay::position() > d.was, "playing walks the recording forward");
+    check(replay::state() == replay::STATE_PAUSED, "a spent session parks");
+    check(util::is_nil(replay::diverged()), "and reproduced what was recorded");
+    crate::session::close(S);
+    check(!crate::session::loaded(S), "closing unloads the session");
+    check(!S.playing, "and puts the edited scene back");
+    // A self-test that leaves files behind fills the ring it is testing.
+    fs::remove(crate::session::dir(S) + "/" + d.file);
+    S.session.demo = ();
+    log::info("selftest session: done");
 }

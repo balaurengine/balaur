@@ -43,12 +43,18 @@
 >    instance. That is the same rule `props` follows against a script's
 >    exported defaults, one level up, and it is why both had to compare
 >    values structurally (through the TOML encoder) rather than by identity.
->    The limit: a prefab written in a component's *shorthand* (`color = [r,
->    g, b]`) and an override written by the editor (`color = { rgba = ... }`)
->    are the same value spelled two ways, and the comparison does not know
->    it, so such an override stays written even at the prefab's own value.
->    Nothing renders differently; canonicalising would mean expanding a
->    shorthand outside the component that owns it.
+>    A prefab written in a component's *shorthand* (`body3d = "dynamic"`) and
+>    an override written by the editor (the whole table) are one component
+>    spelled two ways, so the comparison goes through
+>    `scene.component_properties(name, params)` — a new binding over
+>    `components::properties`, the merge `apply` already runs. The engine says
+>    what a spelling means; nothing outside the component has to guess.
+> 9. **An override patches rather than replaces.** Found by the editor's own
+>    self-test: the scene key path is `components::add`, which starts from the
+>    schema defaults, so overriding one property of a component silently reset
+>    every other one. `components::patch` is what an override has always
+>    meant — the prefab described the component whole, and the instance is
+>    changing part of it.
 > 8. **`script` is an override key.** Not in the plan, which said component
 >    keys. Retuning a prefab's exported properties per instance is the most
 >    useful override there is — one enemy file, a fast one and a slow one —

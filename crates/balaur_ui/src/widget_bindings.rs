@@ -143,7 +143,8 @@ pub(crate) fn install_text(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "label",
         &[],
-        "", "Draw a line of text; `size`, `font`, `color`, `strong` and `wrap` style it.",
+        "",
+        "Draw a line of text; `size`, `font`, `color`, `strong` and `wrap` style it.",
     )]);
     m.function(
         "label",
@@ -411,12 +412,14 @@ pub(crate) fn install_scale(m: &mut dyn Bindings<Engine>) {
         (
             "scale",
             &[],
-            "", "The global UI scale: real pixels per design pixel.",
+            "",
+            "The global UI scale: real pixels per design pixel.",
         ),
         (
             "set_scale",
             &[],
-            "", "Set the global UI scale, clamped to between 0.5 and 3.0 real pixels per design pixel.",
+            "",
+            "Set the global UI scale, clamped to between 0.5 and 3.0 real pixels per design pixel.",
         ),
     ]);
     m.function("scale", |eng: &Engine, ()| {

@@ -9,6 +9,7 @@ use serde_json::json;
 
 const SERVER: &str = "http://localhost:4000";
 
+#[allow(clippy::disallowed_methods, reason = "names a throwaway test account, not simulation")]
 fn device_id() -> String {
     // Unique enough per run; the account is disposable.
     format!(

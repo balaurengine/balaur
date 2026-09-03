@@ -2,9 +2,9 @@
 // shows what happened in it. `replay::*` is the engine side; this is the
 // editor's policy about where files go and how many are kept.
 
+use crate::anim;
 use crate::model;
 use crate::shell;
-use crate::style;
 use crate::util;
 
 // How many sessions are kept per game before the oldest is pruned. A kept
@@ -18,7 +18,6 @@ pub fn state() {
         // The file playback is reading, "" when none.
         loaded: "",
         header: (),
-        length: 0,
         first: 0,
         last: 0,
         // Lanes built once at load: each `#{ id, name, marks }`.
@@ -28,8 +27,11 @@ pub fn state() {
         // Cached listing of the sessions directory, and when it was read.
         list: [],
         listed_at: -1.0,
-        // What a rebuild-and-seek is aiming at, while one is running.
-        seeking_to: -1,
+        // Whether a recording hashes the world every tick, so a replay can
+        // say where it parted. Off by default: it walks every node per frame.
+        verify: false,
+        // Where `--state sessiondemo` has got to; `()` when it is not running.
+        demo: (),
     }
 }
 
@@ -59,7 +61,8 @@ pub fn fingerprint(S) {
 // recording, and one that takes an await token has to take the recorded id.
 pub fn start(S) {
     let path = dir(S) + "/" + replay::session_name() + ".blr";
-    let (ok, why) = script::attempt(|| replay::record(path, #{ scripts: fingerprint(S) }));
+    let opts = #{ scripts: fingerprint(S), digest: S.session.verify };
+    let (ok, why) = script::attempt(|| replay::record(path, opts));
     if ok {
         S.session.recording = path;
         S.session.listed_at = -1.0;
@@ -67,6 +70,26 @@ pub fn start(S) {
         log::warn(format!("not recording this session: {}", why));
         S.session.recording = "";
     }
+}
+
+// End everything the session machinery has open: the recording being written
+// and the one being played back. A rebuilt scene is no longer the world
+// either was about, so whoever rebuilds calls this first.
+pub fn end(S, reason) {
+    finish(S, reason);
+    release(S);
+}
+
+// Drop the loaded session. Nothing here rebuilds the scene: this is called
+// from the code that is about to.
+fn release(S) {
+    if S.session.loaded == "" {
+        return;
+    }
+    S.session.loaded = "";
+    S.session.lanes = [];
+    S.session.header = ();
+    replay::unload();
 }
 
 // Close the recording, if one is open. `reason` is what the dock shows for
@@ -91,11 +114,12 @@ fn prune(S) {
         }
     }
     names.sort();
-    let extra = names.len() - KEEP;
-    if extra <= 0 {
+    // Compared, not subtracted: a length is unsigned and the shortfall would
+    // underflow every time there are fewer sessions than the ring holds.
+    if names.len() <= KEEP {
         return;
     }
-    for i in 0..extra {
+    for i in 0..(names.len() - KEEP) {
         fs::remove(dir(S) + "/" + names[i]);
     }
 }
@@ -116,9 +140,15 @@ pub fn listing(S) {
         }
     }
     names.sort();
-    names.reverse();
-    S.session.list = names;
-    names
+    // Newest first, which is the one a bug was just seen in.
+    let newest = [];
+    let i = names.len();
+    while i > 0 {
+        i -= 1;
+        newest.push(names[i]);
+    }
+    S.session.list = newest;
+    newest
 }
 
 // Put a session in front of the engine and start it. The mirror is rebuilt
@@ -135,7 +165,6 @@ pub fn open(S, name) {
     S.session.loaded = path;
     S.session.header = replay::header();
     let span = util::obj(replay::length());
-    S.session.length = span.get("frames").unwrap_or(0);
     S.session.first = span.get("first").unwrap_or(0);
     S.session.last = span.get("last").unwrap_or(0);
     S.session.at = S.session.first;
@@ -148,10 +177,14 @@ pub fn open(S, name) {
     S.session.listed_at = -1.0;
     S.lint.at = -1.0;
     warn_if_stale(S, name);
+    // Everything play does, because a replay that starts from a different
+    // world replays the same input into a different game. The mirror is built
+    // with every animation player held, and only this lets them run.
     model::attach_game_scripts(S);
     S.playing = true;
     S.dock = "session";
     physics::set_paused(false);
+    anim::resume_all(S);
     replay::play();
 }
 
@@ -207,21 +240,18 @@ fn index_marks(source, key) {
 fn event_marks(kinds) {
     let out = [];
     for e in util::vec(replay::events(0, 1000000000)) {
-        if kinds.iter().any(|k| k == e.kind) {
-            out.push(#{ tick: e.tick, label: e.label });
+        for kind in kinds {
+            if kind == e.kind {
+                out.push(#{ tick: e.tick, label: e.label });
+            }
         }
     }
     out
 }
 
-// Stop playback and put the edited scene back.
+// Stop playback and put the edited scene back. `stop_play` releases the
+// session on its way to rebuilding the mirror.
 pub fn close(S) {
-    if S.session.loaded == "" {
-        return;
-    }
-    S.session.loaded = "";
-    S.session.lanes = [];
-    replay::unload();
     shell::stop_play(S);
 }
 
@@ -271,10 +301,8 @@ pub fn seek(S, tick) {
     }
     let path = S.session.loaded;
     let name = util::last_segment(path);
-    S.session.seeking_to = tick;
     open(S, name);
     replay::seek(tick);
-    S.session.seeking_to = -1;
 }
 
 // Follow the playhead while a session runs, so the detail list describes the
