@@ -113,7 +113,9 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Asset cards carry their own name and a typed mark; the timeline has a ruler, a playhead and keys that can be clicked.
 - `ui::cursor_y` reports where the next widget lands, so a rule can be drawn through rows not yet laid out.
 - The persona bar centres on the document column; the inspector reaches the bottom gutter; `ui::toggle` takes its size from the theme.
-- Vector fields are inputs, not pills; node marks come from the icon set and lost their disc; minimise points at the edge it goes to.
+- Vector fields are inputs, not pills; node marks come from the icon set and lost their disc.
+- Node marks are coloured by kind — 2D, 3D, physics, bone, interface — from tokens in the theme.
+- The tree is set in the mono face; every dock minimises with the same glyph; the tree and inspector reach the dock's bottom edge.
 
 ### Breaking
 

@@ -40,7 +40,7 @@ async fn send(call: HttpCall) -> Result<HttpEvent, String> {
     init.set_method(&call.method);
     // Fetch has no timeout of its own; an abort signal is how one is spelled.
     let seconds = call.timeout.unwrap_or(DEFAULT_TIMEOUT);
-    init.set_signal(Some(&AbortSignal::timeout((seconds * 1000.0) as u32)));
+    init.set_signal(Some(&AbortSignal::timeout_with_f64(seconds * 1000.0)));
     if let Some(body) = &call.body {
         init.set_body(&JsValue::from_str(body));
     }

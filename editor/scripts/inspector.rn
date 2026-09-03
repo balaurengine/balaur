@@ -44,7 +44,7 @@ fn row(S, k, label, body) {
         ui::spacing(6, 0);
         // Fixed label column so control widths stay inside the panel
         // regardless of the label's length.
-        ui::horizontal(#{ height: 24, width: LABEL_W }, || {
+        ui::horizontal(#{ height: 24, width: label_w(S) }, || {
             ui::label(label, #{ size: 11.5, color: k.dim });
         });
         // The control column is pinned too: egui grows a row to its content,
@@ -54,9 +54,14 @@ fn row(S, k, label, body) {
     ui::add_space(2);
 }
 
-// The control column is what the panel leaves after the label column.
+// The two columns of a row, both derived from the panel: at a width neither
+// fits, the label gives way first and the control keeps a usable size.
+fn label_w(S) {
+    util::clamp(S.layout.right.w * 0.34, 46.0, LABEL_W)
+}
+
 fn control_w(S) {
-    util::clamp(S.layout.right.w - 22.0 - LABEL_W, 120.0, 320.0)
+    util::max(72.0, util::min(320.0, S.layout.right.w - 22.0 - label_w(S)))
 }
 
 // A full-width row inside the panel: the sheet less its padding.
@@ -281,7 +286,7 @@ fn script_props_rows(S, k, node) {
         editor(S, k, SCRIPT_PROPS, export.name, spec, value);
         if overridden {
             ui::horizontal(#{ height: 16 }, || {
-                ui::add_space(LABEL_W + 8.0);
+                ui::add_space(label_w(S) + 8.0);
                 if ui::pill("reset", #{
                     height: 15, size: 9, radius: 3, fill: k.sunken, color: k.faint,
                     tooltip: "Back to the script's default",
@@ -436,7 +441,7 @@ fn polygon_section(S, k) {
         let active = S.polygon.bone == Some(i);
         ui::horizontal(#{ height: 24 }, || {
             ui::spacing(8, 0);
-            ui::add_space(LABEL_W);
+            ui::add_space(label_w(S));
             if ui::pill(bone.path, #{
                 height: 22, size: 11, align: "left", min_width: CONTROL_W,
                 icon: "⋈", icon_size: 11,

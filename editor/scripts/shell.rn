@@ -351,6 +351,7 @@ fn prefixed_states() {
         ("dock:", state_dock),
         ("tab:", state_tab),
         ("shut:", state_shut),
+        ("scale:", state_scale),
         ("move:", state_move),
         ("mode:", state_mode),
         ("select:", state_select),
@@ -414,6 +415,15 @@ fn state_tab(S, tab) {
 // `shut:left`, `shut:bottom`, `shut:right`: minimise a dock to its edge.
 fn state_fontdemo(S) {
     S.fontdemo = true;
+}
+
+// `scale:<f>`: the UI scale, which is what decides how many design pixels the
+// window has. A narrow layout is reachable no other way from a fixed capture.
+fn state_scale(S, arg) {
+    let (ok, v) = script::attempt(|| json::parse(arg));
+    if ok {
+        set_ui_scale(S, util::f(v));
+    }
 }
 
 fn state_shut(S, side) {

@@ -184,6 +184,10 @@ impl Transport for WebTransportLink {
     }
 
     fn receive(&mut self) -> Vec<Received> {
+        // The browser has no worker thread, so this is where queued sends go
+        // out and finished sessions are dropped.
+        #[cfg(target_family = "wasm")]
+        browser::pump();
         let mut out = Vec::new();
         let mut arrivals = Vec::new();
         while let Ok(event) = self.events.try_recv() {

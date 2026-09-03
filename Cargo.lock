@@ -416,6 +416,7 @@ dependencies = [
  "objc2-game-kit",
  "serde",
  "serde_json",
+ "swift-rs",
  "tempfile",
  "tracing",
 ]
@@ -717,12 +718,14 @@ dependencies = [
  "anyhow",
  "balaur_core",
  "balaur_script",
+ "js-sys",
  "rcgen",
  "ring",
  "rustls",
  "tokio",
  "tracing",
  "url",
+ "wasm-bindgen",
  "web-transport-quinn",
 ]
 
@@ -731,6 +734,12 @@ name = "base64"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
+
+[[package]]
+name = "base64"
+version = "0.21.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
 name = "base64"
@@ -5690,6 +5699,17 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
+
+[[package]]
+name = "swift-rs"
+version = "1.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e45c444e496845d3f2a351146bff59aae4975b2280238df1dfaa0c7d1846f38e"
+dependencies = [
+ "base64 0.21.7",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "symphonia"

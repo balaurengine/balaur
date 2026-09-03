@@ -6,6 +6,12 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+# The StoreKit shim is Swift, and swift-rs is the linker for it: a static
+# Swift library needs the runtime's search paths and rpaths, which differ for
+# a Mac, a device and the simulator.
+[target.'cfg(target_vendor = "apple")'.build-dependencies]
+swift-rs = { version = "1.0", features = ["build"] }
+
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true

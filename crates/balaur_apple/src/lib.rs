@@ -161,6 +161,14 @@ impl PlatformBackend for AppleBackend {
     ) {
         backend::platform_call(request, call, report);
     }
+
+    fn pump(&mut self, report: &std::sync::mpsc::Sender<PlatformEvent>) {
+        queue::drain_store(report);
+    }
+
+    fn discard(&mut self) {
+        queue::discard_store();
+    }
 }
 
 /// The `apple.*` calls in flight, and the channel the frameworks report into.
@@ -201,6 +209,11 @@ fn pump_apple_system(eng: &Engine, _: f32) {
         let snapshot = eng.resource::<AppleSnapshot>();
         let mut state = state.borrow_mut();
         let mut snapshot = snapshot.borrow_mut();
+        // A transaction that landed on its own crosses here, or nowhere: a
+        // replay is answered by the file.
+        if !state.io.start(eng, queue::drain_apple) {
+            queue::discard_apple();
+        }
         snapshot.events.clear();
         for event in state.io.drain() {
             let request = event.request();
