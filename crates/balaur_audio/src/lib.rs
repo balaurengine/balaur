@@ -577,11 +577,6 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
         ("stop_all", &[], "", "Silence everything at once and clear the playback every `sound` component was holding."),
         ("play_on", &["sound"], "", "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
         ("stop_on", &["sound"], "", "Silence what the node's `sound` started; a node carrying none is left alone."),
-        ("buses", &[], "()", "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order."),
-        ("bus_volume", &[], "(bus: string)", "One bus's own gain, without its parents'."),
-        ("set_bus_volume", &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it — which is what a volume slider is."),
-        ("events", &[], "()", "Every sound named in `audio/events.toml`, in name order."),
-        ("play_event", &[], "(name: string)", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. Nil for a name nothing declared."),
     ]);
     // `audio.play(path, { volume = 1.0, pitch = 1.0, loop = true })` hands
     // back the handle the other functions take. Flags live in the options
@@ -641,6 +636,26 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
     m.function("play_on", |eng: &Engine, node: NodeId| {
         play_on(eng, entity_of(node)?)
     });
+    install_mixing_api(m);
+    m.function("stop_on", |eng: &Engine, node: NodeId| {
+        stop_on(eng, entity_of(node)?);
+        Ok(())
+    });
+}
+
+/// `audio.*`: the mix — which bus a sound plays through, and the sounds a
+/// project names rather than spells out.
+///
+/// Its own group because the rest of `audio` is about one playback at a time
+/// and this is about all of them at once.
+fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("buses", &[], "()", "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order."),
+        ("bus_volume", &[], "(bus: string)", "One bus's own gain, without its parents'."),
+        ("set_bus_volume", &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it — which is what a volume slider is."),
+        ("events", &[], "()", "Every sound named in `audio/events.toml`, in name order."),
+        ("play_event", &[], "(name: string)", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. Nil for a name nothing declared."),
+    ]);
     m.function("events", |eng: &Engine, ()| {
         event::ensure_loaded(eng);
         let names = eng.resource::<event::Events>().borrow().names();
@@ -699,8 +714,4 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
-    m.function("stop_on", |eng: &Engine, node: NodeId| {
-        stop_on(eng, entity_of(node)?);
-        Ok(())
-    });
 }

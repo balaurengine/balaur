@@ -161,6 +161,8 @@ impl Plugin for PhysicsPlugin {
         body::install_body_pose_api(&mut *m);
         body::install_body_sleep_api(&mut *m);
         collider::install_collider_api(&mut *m);
+        collider::install_voxel_api(&mut *m);
+        collider::install_collider_reader_api(&mut *m);
         query::install_query_api(&mut *m);
         query::install_shapecast_api(&mut *m);
         query::install_volume_query_api(&mut *m);

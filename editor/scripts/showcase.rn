@@ -156,6 +156,87 @@ fn tap(q, frame, key) {
     at(q, frame + 8, || input::feed_key(key, false));
 }
 
+// A chord held while `run` happens: the overlay names the keys, which is the
+// only thing that explains a shortcut nobody can see being typed.
+fn chord(S, q, frame, held, run) {
+    at(q, frame, || {
+        for key in held {
+            input::feed_key(key, true);
+        }
+    });
+    act(q, frame + 3, run);
+    at(q, frame + 16, || {
+        for key in held {
+            input::feed_key(key, false);
+        }
+    });
+}
+
+// Where a control sits, in design px. Measured off the rendered editor: the
+// showcase feeds the snapshot, and egui reads the window, so a click here is
+// drawn rather than delivered — the sequence calls the verb itself.
+fn spot(S, name) {
+    let sw = S.screen_w;
+    let sh = S.screen_h;
+    match name {
+        "scene_tab" => (136.0, 27.0),
+        "script_tab" => (201.0, 27.0),
+        "anim_tab" => (270.0, 27.0),
+        "phys_tab" => (345.0, 27.0),
+        "ui_tab" => (422.0, 27.0),
+        "play" => (sw - 266.0, 27.0),
+        "stop" => (sw - 198.0, 27.0),
+        // The dock, when a session is loaded: its transport, and its ruler.
+        "transport" => (296.0, sh - 181.0),
+        "ruler" => (420.0, sh - 181.0),
+        // The newest recording's play button in the session list.
+        "session" => (283.0, sh - 156.0),
+        "key" => (294.0, sh - 182.0),
+        "bone_tool" => (281.0, 150.0),
+        "doc_scene" => (358.0, 74.0),
+        "doc_code" => (437.0, 74.0),
+        "shader_field" => (1130.0, 601.0),
+        "scale_x" => (1105.0, 231.0),
+        _ => (sw / 2.0, sh / 2.0),
+    }
+}
+
+fn row_spot(S, i) {
+    (110.0, TREE_TOP + (i as f64) * ROW)
+}
+
+// The gutter of the code editor, by line. The pane starts under the document
+// tabs and each line is one 12.5 px row.
+fn gutter_spot(S, line) {
+    (286.0, 112.0 + ((line - 1) as f64) * 12.44)
+}
+
+// A click a viewer can follow: the cursor arrives, presses where the control
+// is, the verb runs under it, and the button comes back up.
+fn click(S, q, frame, place, run) {
+    at(q, frame - 16, || {
+        let (x, y) = (place)();
+        feed_pointer(S, x, y);
+    });
+    at(q, frame, || {
+        let (x, y) = (place)();
+        feed_pointer(S, x, y);
+        press(S);
+    });
+    act(q, frame + 3, run);
+    at(q, frame + 12, || release(S));
+}
+
+// Click a node's row in the tree, which is how a selection is made.
+fn click_row(S, q, frame, name) {
+    click(S, q, frame, || {
+        match index_of(S, name) {
+            Some(i) => row_spot(S, i),
+            None => (110.0, TREE_TOP),
+        }
+    }, || choose(S, name));
+}
+
 fn index_of(S, name) {
     for (i, node) in S.doc.iter().enumerate() {
         if node.name == name {
@@ -165,12 +246,11 @@ fn index_of(S, name) {
     None
 }
 
-// Select a node the way a click on its row would, pointer included.
+// Select a node the way a click on its row would.
 fn choose(S, name) {
     let found = index_of(S, name);
     if let Some(i) = found {
         shell::choose(S, i);
-        point_at_row(S, i);
     }
 }
 
@@ -237,20 +317,31 @@ fn open_newest(S) {
 // Scenes and nodes, `examples/hello`: the tree, the inspector following the
 // selection, an edit, and its undo.
 fn scenes(S, q) {
-    act(q, 1, || {
-        shell::set_persona(S, "scene");
-        choose(S, "Platform");
+    act(q, 1, || shell::set_persona(S, "scene"));
+    click_row(S, q, 30, "Platform");
+    click_row(S, q, 150, "Ball");
+    click_row(S, q, 250, "Spinner");
+    click_row(S, q, 350, "CrateB");
+    click_row(S, q, 450, "Spinner");
+    // A drag on the inspector's scale field, with the button held throughout.
+    at(q, 520, || {
+        let (x, y) = spot(S, "scale_x");
+        feed_pointer(S, x, y);
     });
-    act(q, 120, || choose(S, "Ball"));
-    act(q, 210, || choose(S, "Spinner"));
-    act(q, 300, || choose(S, "CrateB"));
-    act(q, 390, || choose(S, "Spinner"));
-    act(q, 420, || history::record(S, "scale Spinner", None));
-    over_ui(q, 420, 510, |p| {
+    at(q, 540, || {
+        press(S);
+        history::record(S, "scale Spinner", None);
+    });
+    over_ui(q, 540, 620, |p| {
         let s = lerp(1.0, 2.4, ease(p));
         model::set_transform(S, S.sel, #{ scale: [s, s, s] });
     });
-    act(q, 600, || shell::undo(S));
+    over(q, 540, 620, |p| {
+        let (x, y) = spot(S, "scale_x");
+        feed_pointer(S, x + 30.0 * ease(p), y);
+    });
+    at(q, 630, || release(S));
+    chord(S, q, 700, ["LWin", "Z"], || shell::undo(S));
 }
 
 // Scripting, `examples/hello`: a change saved while the scene runs, then a
@@ -258,25 +349,31 @@ fn scenes(S, q) {
 fn scripting(S, q) {
     let rel = "scripts/spinner.rn";
     act(q, 1, || {
-        shell::set_persona(S, "script");
-        choose(S, "Spinner");
         q.kept[rel] = model::source(S, rel).unwrap_or("");
     });
-    act(q, 60, || shell::toggle_play(S));
-    act(q, 200, || edit_source(S, rel, "(this.speed + nudge", "(this.speed * 4.0 + nudge"));
-    act(q, 320, || shell::save_active(S));
-    act(q, 480, || shell::toggle_breakpoint(S, rel, line_of(S, rel, "let nudge")));
-    act(q, 600, || {
+    click(S, q, 30, || spot(S, "script_tab"), || shell::set_persona(S, "script"));
+    click_row(S, q, 110, "Spinner");
+    click(S, q, 200, || spot(S, "play"), || shell::toggle_play(S));
+    // The edit lands on the line the cursor is resting on.
+    at(q, 300, || {
+        let (x, y) = gutter_spot(S, line_of(S, rel, "this.angle += dt"));
+        feed_pointer(S, x + 220.0, y);
+    });
+    act(q, 320, || edit_source(S, rel, "(this.speed + nudge", "(this.speed * 4.0 + nudge"));
+    chord(S, q, 400, ["LWin", "S"], || shell::save_active(S));
+    click(S, q, 520, || gutter_spot(S, line_of(S, rel, "let nudge")),
+        || shell::toggle_breakpoint(S, rel, line_of(S, rel, "let nudge")));
+    chord(S, q, 640, ["F10"], || {
         if S.debug.paused is Object {
             shell::resume(S, debugger::STEP_OVER);
         }
     });
-    act(q, 680, || {
+    chord(S, q, 720, ["F10"], || {
         if S.debug.paused is Object {
             shell::resume(S, debugger::STEP_OVER);
         }
     });
-    act(q, 760, || {
+    act(q, 800, || {
         shell::toggle_breakpoint(S, rel, line_of(S, rel, "let nudge"));
         if S.debug.paused is Object {
             shell::resume(S, debugger::CONTINUE);
@@ -285,67 +382,84 @@ fn scripting(S, q) {
     act(q, 860, || restore_source(S, rel, q));
 }
 
+// The rig scene carries a `camera` node, which outvotes the editor's own
+// zoom every frame, so the clip's framing is that node's.
+fn fit_leg(S) {
+    let held = S.sel;
+    match index_of(S, "Camera") {
+        Some(i) => {
+            S.sel = i;
+            model::set_transform(S, i, #{ position: [-0.2, 0.25, 0.0] });
+            model::set_component_prop(S, "camera", "zoom", 150.0);
+        }
+        None => (),
+    }
+    S.sel = held;
+}
+
 // Animation, `examples/rig`: scrub the clip, pose the thigh, key it, play.
 fn animation(S, q) {
-    act(q, 1, || {
-        shell::set_persona(S, "anim");
-        choose(S, "Thigh");
+    act(q, 1, || fit_leg(S));
+    click(S, q, 20, || spot(S, "anim_tab"), || shell::set_persona(S, "anim"));
+    click_row(S, q, 90, "Thigh");
+    click(S, q, 150, || spot(S, "bone_tool"), || {
         S.tool = "bone";
     });
-    over_ui(q, 40, 220, |p| anim::seek(S, 2.0 * ease(p)));
-    act(q, 250, || anim::seek(S, 1.0));
-    act(q, 280, || {
-        history::record(S, "pose Thigh", None);
+    over_ui(q, 200, 340, |p| anim::seek(S, 2.0 * ease(p)));
+    act(q, 380, || anim::seek(S, 1.0));
+    // Drag the bone itself: the cursor sits on it while it turns.
+    at(q, 430, || {
         point_at_selection(S);
+        press(S);
     });
-    over_ui(q, 280, 370, |p| {
-        model::set_transform(S, S.sel, #{ rotation_euler: [0.0, 0.0, lerp(0.5, 1.5, ease(p))] });
-        point_at_selection(S);
+    act(q, 434, || history::record(S, "pose Thigh", None));
+    over_ui(q, 434, 520, |p| {
+        model::set_transform(S, S.sel, #{ rotation_euler: [0.0, 0.0, lerp(0.5, 0.95, ease(p))] });
     });
-    act(q, 420, || anim::add_key(S, S.anim.time));
-    act(q, 500, || shell::toggle_play(S));
+    over(q, 434, 520, |p| point_at_selection(S));
+    at(q, 530, || release(S));
+    click(S, q, 600, || spot(S, "key"), || anim::add_key(S, S.anim.time));
+    click(S, q, 700, || spot(S, "play"), || shell::toggle_play(S));
 }
 
 // Physics, `examples/angrynerds`: the collider overlays, then play and a
 // shot at the towers.
 fn physics(S, q) {
-    act(q, 1, || {
+    click(S, q, 20, || spot(S, "phys_tab"), || {
         shell::set_persona(S, "phys");
         shell::set_zoom(S, 45.0);
-        choose(S, "Bird");
     });
-    act(q, 60, || shell::toggle_play(S));
-    act(q, 66, || fit_level(S));
-    fling(S, q, 100);
+    click_row(S, q, 80, "Bird");
+    click(S, q, 150, || spot(S, "play"), || shell::toggle_play(S));
+    act(q, 160, || fit_level(S));
+    fling(S, q, 220);
 }
 
 // Input, `examples/hello`: the overlay, fed the keys and clicks a person
 // would press.
 fn input_clip(S, q) {
-    act(q, 1, || {
-        shell::set_persona(S, "scene");
-        choose(S, "Spinner");
-    });
-    act(q, 30, || shell::toggle_play(S));
-    tap(q, 90, "Space");
-    at(q, 150, || input::feed_key("A", true));
-    at(q, 240, || input::feed_key("A", false));
-    at(q, 270, || input::feed_key("D", true));
-    at(q, 360, || input::feed_key("D", false));
-    over(q, 380, 430, |p| {
+    act(q, 1, || shell::set_persona(S, "scene"));
+    click_row(S, q, 30, "Spinner");
+    click(S, q, 110, || spot(S, "play"), || shell::toggle_play(S));
+    tap(q, 200, "Space");
+    at(q, 260, || input::feed_key("A", true));
+    at(q, 340, || input::feed_key("A", false));
+    at(q, 370, || input::feed_key("D", true));
+    at(q, 450, || input::feed_key("D", false));
+    over(q, 470, 520, |p| {
         let v = S.viewport;
         let e = ease(p);
         feed_pointer(S, util::f(v.x) + util::f(v.w) * lerp(0.3, 0.55, e),
             util::f(v.y) + util::f(v.h) * lerp(0.6, 0.45, e));
     });
-    at(q, 440, || press(S));
-    at(q, 452, || release(S));
-    tap(q, 500, "Space");
-    at(q, 540, || {
+    at(q, 530, || press(S));
+    at(q, 545, || release(S));
+    tap(q, 600, "Space");
+    at(q, 650, || {
         input::feed_key("LShift", true);
         input::feed_key("W", true);
     });
-    at(q, 590, || {
+    at(q, 710, || {
         input::feed_key("LShift", false);
         input::feed_key("W", false);
     });
@@ -358,30 +472,43 @@ fn determinism(S, q) {
     act(q, 1, || {
         shell::set_persona(S, "scene");
         shell::set_zoom(S, 45.0);
-        choose(S, "Bird");
         S.session.verify = true;
         S.dock = "session";
     });
-    act(q, 60, || {
+    click_row(S, q, 40, "Bird");
+    click(S, q, 120, || spot(S, "play"), || {
         shell::toggle_play(S);
         S.dock = "session";
     });
-    act(q, 66, || fit_level(S));
-    fling(S, q, 100);
-    act(q, 420, || {
+    act(q, 130, || fit_level(S));
+    fling(S, q, 200);
+    click(S, q, 520, || spot(S, "stop"), || {
         shell::stop_play(S);
         S.dock = "session";
     });
-    act(q, 500, || open_newest(S));
-    act(q, 506, || fit_level(S));
-    act(q, 900, || session::seek(S, S.session.first + 10));
-    act(q, 906, || fit_level(S));
-    act(q, 1260, || session::toggle_pause(S));
-    act(q, 1380, || session::toggle_pause(S));
+    click(S, q, 640, || spot(S, "session"), || open_newest(S));
+    act(q, 650, || fit_level(S));
+    // Scrub the ruler back: the cursor walks it, and the seek lands on release.
+    at(q, 1000, || {
+        let (x, y) = spot(S, "ruler");
+        feed_pointer(S, x + 420.0, y);
+        press(S);
+    });
+    over(q, 1000, 1080, |p| {
+        let (x, y) = spot(S, "ruler");
+        feed_pointer(S, x + 420.0 - 400.0 * ease(p), y);
+    });
+    act(q, 1080, || {
+        session::seek(S, S.session.first + 10);
+        fit_level(S);
+    });
+    at(q, 1090, || release(S));
+    click(S, q, 1300, || spot(S, "transport"), || session::toggle_pause(S));
+    click(S, q, 1420, || spot(S, "transport"), || session::toggle_pause(S));
 }
 
-// Off until the 2D material pipeline binds the preview's probe.
-const PREVIEW = false;
+// On until the 2D material pipeline binds the preview's probe.
+const PREVIEW = true;
 
 fn preview(S, rel, needle) {
     let line = line_of(S, rel, needle);
@@ -390,54 +517,55 @@ fn preview(S, rel, needle) {
     }
 }
 
+// One value preview: click the line in the gutter, hold on the marked line,
+// then show the viewport drawing it.
+fn preview_step(S, q, frame, rel, needle) {
+    click(S, q, frame, || gutter_spot(S, line_of(S, rel, needle)),
+        || preview(S, rel, needle));
+    click(S, q, frame + 90, || spot(S, "doc_scene"), || {
+        S.doctab = "scene";
+    });
+    click(S, q, frame + 220, || spot(S, "doc_code"), || {
+        S.doctab = "script";
+    });
+}
+
 // Shaders, `examples/shaders`: the material in the inspector, its shader in
-// the code editor, three lines' values drawn in the viewport, a channel
-// view, and a save that relinks the sprite.
+// the code editor, what three of its lines compute, a channel view, and a
+// save that relinks the sprite.
 fn shaders(S, q) {
     let rel = "shaders/glow.wesl";
     act(q, 1, || {
         shell::set_persona(S, "scene");
-        choose(S, "Logo");
+        // The dock names each previewed line and its type as it is asked for.
+        S.dock = "output";
         q.kept[rel] = model::source(S, rel).unwrap_or("");
     });
-    act(q, 120, || {
+    click_row(S, q, 40, "Logo");
+    click(S, q, 150, || spot(S, "shader_field"), || {
         S.shader_rel = rel;
         S.doctab = "script";
     });
-    act(q, 240, || preview(S, rel, "let uv"));
-    act(q, 330, || {
-        S.doctab = "scene";
-    });
-    act(q, 420, || {
-        S.doctab = "script";
-        preview(S, rel, "let wave");
-    });
-    act(q, 480, || {
-        S.doctab = "scene";
-    });
-    act(q, 570, || {
-        S.doctab = "script";
-        preview(S, rel, "let ramp");
-    });
-    act(q, 630, || {
-        S.doctab = "scene";
-    });
-    act(q, 720, || {
+    preview_step(S, q, 260, rel, "let uv");
+    preview_step(S, q, 560, rel, "let wave");
+    preview_step(S, q, 860, rel, "let ramp");
+    act(q, 1150, || {
         if S.preview_line > 0 {
             shell::toggle_shader_preview(S, rel, S.preview_line);
         }
+        S.doctab = "scene";
         render::set_channel("uv");
     });
-    act(q, 800, || render::set_channel(""));
-    act(q, 830, || {
+    act(q, 1260, || render::set_channel(""));
+    act(q, 1300, || {
         S.doctab = "script";
         edit_source(S, rel, "dist * params.rings", "dist * params.rings * 3.0");
     });
-    act(q, 860, || shell::save_active(S));
-    act(q, 900, || {
+    chord(S, q, 1360, ["LWin", "S"], || shell::save_active(S));
+    click(S, q, 1420, || spot(S, "doc_scene"), || {
         S.doctab = "scene";
     });
-    act(q, 1000, || {
+    act(q, 1600, || {
         S.doctab = "script";
         restore_source(S, rel, q);
     });

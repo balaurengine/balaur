@@ -32,10 +32,8 @@ wanted() { # wanted <name>: true when no names were given or this one was
   return 1
 }
 
-# A clip may edit an example's files on the way; it restores them itself,
-# and this catches a run that stopped before it could.
-# Every file a sequence may write: the ones it edits on purpose, and the
-# scene files the editor re-serialises if a save lands on the document.
+# Every file a sequence may write, scene files included: a save that lands on
+# the document re-serialises its TOML.
 edited=(examples/hello/scripts/spinner.rn examples/shaders/shaders/glow.wesl
   examples/hello/scenes/main.toml examples/angrynerds/scenes/main.toml
   examples/rig/scenes/main.toml examples/shaders/scenes/main.toml)
@@ -83,13 +81,20 @@ shot scenes_tree       examples/hello      "scene,select:Platform"
 shot scripting_editor  examples/hello      "script,select:Spinner"
 shot ui_widgets        examples/angrynerds "ui,select:Restart,play"
 
-clip scenes_inspect    examples/hello      660  "show:scenes"
-clip scripting_live    examples/hello      900  "show:scripting"
-clip animation_key     examples/rig        900  "show:animation"
-clip physics_collapse  examples/angrynerds 600  "show:physics"
-clip input_overlay     examples/hello      620  "show:input"
-clip determinism_replay examples/angrynerds 1500 "show:determinism"
-clip shader_preview    examples/shaders    1050 "show:shaders"
+clip scenes_inspect    examples/hello      800  "show:scenes"
+clip scripting_live    examples/hello      950  "show:scripting"
+clip animation_key     examples/rig        1000 "show:animation"
+clip physics_collapse  examples/angrynerds 700  "show:physics"
+clip input_overlay     examples/hello      800  "show:input"
+# Its own recording should be the only row in the list it shows, and every
+# angrynerds take before it recorded one too.
+case "$(uname -s)" in
+  Darwin) data="$HOME/Library/Application Support/balaur/balaur-editor" ;;
+  *) data="${XDG_DATA_HOME:-$HOME/.local/share}/balaur/balaur-editor" ;;
+esac
+wanted determinism_replay && rm -rf "$data/sessions/angrynerds"
+clip determinism_replay examples/angrynerds 1560 "show:determinism"
+clip shader_preview    examples/shaders    1700 "show:shaders"
 
 if [ ${#failed[@]} -gt 0 ]; then
   echo "failed: ${failed[*]}" >&2

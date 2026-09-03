@@ -367,7 +367,10 @@ run in a rapier2d world that lives alongside the 3D one, with the same
 `enhanced-determinism` build, fixed 60 Hz accumulator and ordered
 collections; the `physics2d` module adds bodies and colliders
 (`physics2d.add_body`, `physics2d.add_collider`), impulses, velocities and
-`physics2d.max_contact_impulse(node)` for impact-driven gameplay.
+`physics2d.max_contact_impulse(node)` for impact-driven gameplay. Both
+dimensions carry the same surface, function for function — joints, the
+character controller, the query pipeline, collision events — because a 2D game
+should not be the poor relation of a 3D one.
 A sprite is sized from its own image unless the author says otherwise:
 `pixels_per_unit` (default 100) converts image pixels to world units, and a
 `columns`/`rows` sheet sizes the quad to one cell rather than the whole
@@ -380,9 +383,9 @@ Changing the frame moves UVs only and deliberately does not bump the
 renderable's version, so an animation flipping frames never makes the backend
 tear down and rebuild its node; changing the texture or the sheet does.
 
-`physics.set_paused`, `is_paused`, `clear`, `set_sleeping_allowed` and
-`sleeping_allowed` span both worlds, so editors treat "physics" as one
-simulation. The editor detects a 2D scene from its
+`physics.set_paused`, `is_paused`, `clear`, `set_sleeping_allowed`,
+`sleeping_allowed`, `set_tuning`, `set_debug_draw` and `set_threads` span both
+worlds, so editors treat "physics" as one simulation. The editor detects a 2D scene from its
 components and switches automatically: 2D grid, pan/zoom camera, a 2D
 selection gizmo (translate box, corner scale brackets, per-axis edge
 handles, rotation ring), click-picking in world space, and 2D collider
@@ -647,7 +650,13 @@ m.function("apply_impulse", |eng, (node, x, y, z): (UserDataRef<NodeRef>, f32, f
 Argument/return conversions are inferred. Plugins can also register scene
 file keys (`app.scene_key_handler("collider3d", ...)`), which are applied in
 plugin registration order (deterministic, and plugins know the right order
-for their own keys). `balaur_physics` is the reference implementation.
+for their own keys). `balaur_physics` is the reference implementation, and by
+now a large one: bodies, colliders, joints, characters, vehicles, queries,
+events and hooks, in two dimensions, at either scalar width. `docs/PLAN-rapier.md`
+is the map of it — what rapier offers, what Balaur calls it, and why the few
+things it leaves out are left out. Its `scalar.rs` is worth reading before any
+change to the crate: it is the one place a number changes width between the
+engine's `f32` and whatever rapier was built at.
 
 ### Modules and extensions (plugin feature)
 
@@ -1054,6 +1063,11 @@ Engine-side measures already in place:
 - Dev-mode and shipped bytecode come from one compiler configuration.
 - `crates/balaur_physics/tests/determinism.rs` asserts two runs match bit for
   bit, per tick rather than only at the end.
+- The physics scalar is a build-time choice (`f32` by default, `f64` behind a
+  feature), and each width is its own determinism world: a digest compares two
+  runs of the same build, never an `f32` run against an `f64` one. Under
+  `parallel`, `tests/scalar_and_threads.rs` asserts one thread and eight
+  produce the same digest — rapier's solver is coloured, so they must.
 - CI records a per-tick digest on Linux, macOS and Windows and diffs the three
   (`scripts/determinism_trace.sh`, the `simulation-matches` job). aarch64 is
   not in that matrix yet and is where divergence is most likely: rustc may
@@ -1524,9 +1538,13 @@ The input a sequence feeds goes through `input.feed_key`, `feed_mouse` and
 indistinguishable from a window's, so the recorder records it and a replay
 reproduces it — the determinism clip records a fed slingshot pull and then
 replays it, which is the feature it shows. The pointer is drawn by the input
-overlay (`editor/scripts/inputview.rn`), which reads the snapshot rather than
-the OS cursor for the same reason: during a replay it is the recording's
-pointer that moves. The gizmo stands down while a sequence runs, since the
+overlay (`editor/scripts/inputview.rn`) — a cursor image at the snapshot's
+position and a ring that spreads from every press — which reads the snapshot
+rather than the OS cursor for the same reason: during a replay it is the
+recording's pointer that moves. A sequence therefore puts the cursor on the
+control it is about to drive and presses there, because egui takes its input
+from the window and never sees the fed one: the click is drawn, and the verb
+under it is called. The gizmo stands down while a sequence runs, since the
 fed pointer is the game's and not the editor's.
 
 A sequence that edits an example's files restores them on its last step, and
@@ -1598,7 +1616,14 @@ what lets the three modes agree bit for bit.
 ## Roadmap
 
 What does not exist yet, each with the plan that says how it will. The
-website's roadmap is the short form of this list.
+website's roadmap is the short form of this list, and `CHANGELOG.md` is what
+each release added.
+
+The engine is at **0.2.0**. One version for the whole workspace; a release is
+a `v*` tag whose notes are that version's changelog section, and cutting one
+means moving `Unreleased` into a dated section, bumping
+`[workspace.package] version`, and striking from this table whatever the
+release finished.
 
 | Item | Plan |
 | --- | --- |
@@ -1607,12 +1632,12 @@ website's roadmap is the short form of this list.
 | Stable asset ids, rename refactoring, sprite-sheet import | `docs/PLAN-scenes-and-assets.md` phases 3, 5, 6 |
 | Extensions tier two: components, systems, calling back into scripts | `docs/PLAN-c-api.md` "What Tier 1 does not do" |
 | Soft bodies, tearing, fluids, granular materials | `docs/PLAN-physics.md` — waiting on the solvers landing in Rapier itself |
-| Named collision layers, script physics hooks on a `parallel` build, `f64` for the whole engine rather than physics alone | `docs/PLAN-rapier.md` open questions 2, 3 and 5. Everything else in that plan is built |
+| Named collision layers, script physics hooks on a `parallel` build, solver tuning carried in a recording's header, `f64` for the whole engine rather than physics alone | `docs/PLAN-rapier.md` open questions 2 to 5. Everything else in that plan is built |
 | Animation blending, blend trees, state machines | `docs/PLAN-animation-and-resources.md` §6. 3D IK exists for a reduced-coordinates joint chain (`physics3d.solve_ik`); an animation-side solver over a rig does not |
 | 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |
 | Shader channel views, the caret value preview, headless shader tests, post-process materials | `docs/PLAN-shaders.md` phases 6-9 |
 | More widget kinds, as games ask for them | `docs/PLAN-batteries.md` phase 6 |
-| Binary websocket frames, stable ids and respawn for run-time nodes, rollback netcode, WebTransport (QUIC) native and in the browser, replication and RPC, Gamend sessions, WebRTC for browser peer-to-peer; never raw UDP | `docs/PLAN-networking.md` §2, §3 |
+| WebTransport (QUIC) native and in the browser, replication and RPC, Gamend sessions, WebRTC for browser peer-to-peer; never raw UDP | `docs/PLAN-networking.md` §2.4-2.6. Binary frames, run-time stable ids and rollback (one machine and over a socket) shipped in 0.2.0 |
 | Signed binary releases, published benchmarks | `docs/PLAN-release.md` |
 | Web export | `docs/PLAN-mobile-export.md` "Web" |
 | Parallel system execution, once profiling demands it | no plan yet; the gameplay tick is serial by design |

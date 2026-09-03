@@ -624,13 +624,12 @@ the website's reference pages carry the new surface.
 
 ## Open questions
 
-1. **Teleporting a dynamic body.** The step writes simulated poses into
-   `Transform`, and nothing reads `Transform` back for a dynamic body, so a
-   script that assigns `node.position` is silently overwritten one step later.
-   `physics3d.teleport(node, x, y, z)` (set the pose, clear velocity, wake)
-   is the honest fix; the alternative — a dirty flag on `Transform` feeding
-   the body every step — is cheaper to use and costs a comparison per body per
-   step. Decide in phase 2, because every phase after it assumes an answer.
+1. ~~**Teleporting a dynamic body.**~~ **Decided in phase 2:**
+   `physics3d.teleport(node, x, y, z)` sets the pose, clears the velocity,
+   wakes the body and marks the queries stale. The dirty-flag alternative was
+   not taken: it costs a comparison per body per step to save a call that a
+   game makes rarely, and it would have made "the transform is the truth"
+   quietly untrue for one frame.
 2. **Script hooks on a parallel build.** rapier calls hooks from worker
    threads under `parallel`, so a hook that talks to Rune cannot run there.
    One design lifts the exclusion at the price of one step of latency: the
@@ -640,11 +639,11 @@ the website's reference pages carry the new surface.
    step. A new pair defaults to *allow* for one step. Whether that latency is
    acceptable is a question for the first game that needs both; until then
    the two are exclusive and say so.
-3. **Where world tuning lives.** Script setters make a replay depend on
-   script order; a manifest section makes a game unable to tune at run time.
-   Phase 9 proposes both with the manifest as the truth a recording carries —
-   which needs the recording header to include it, and that is a change in
-   `balaur_core`, not here.
+3. **Where world tuning lives.** *Half decided.* Phase 9 built both: a
+   `[physics]` table read once after the project loads, and `physics.set_tuning`
+   for a game that tunes at run time. What is still open is the recording
+   header — until it carries the tuning, a replay trusts that the manifest has
+   not changed since.
 4. **Layer names.** `layers = ["0", "3"]` is honest and unreadable. Godot
    names layers in project settings and the inspector relabels the
    checkboxes. That needs schema options resolved at inspector time rather
@@ -655,4 +654,9 @@ the website's reference pages carry the new surface.
    that is glamx's `D*` types through every crate, and a plan of its own.
 6. **What the 2D `heightfield` is for.** In 2D it is a polyline over a height
    array, which is a side-scroller's ground. Whether that beats authoring a
-   `polygon` is a question for whoever builds the second 2D example.
+   `polygon` is a question for whoever builds the second 2D example. Both are
+   built; only the advice is missing.
+
+Still open, and the three rows the roadmap carries: **2** (script hooks on a
+parallel build), **3**'s recording header, **4** (named layers) and **5**
+(`f64` for the whole engine). Everything else in this file is built.

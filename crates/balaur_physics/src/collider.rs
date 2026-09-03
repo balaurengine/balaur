@@ -861,15 +861,6 @@ offset_rotation = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Ho
 pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_collider", &["collider3d"], "", "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component's own vocabulary."),
-        ("aabb", &["collider3d"], "", "The world-space box the collider currently occupies, as its two opposite corners."),
-        ("collider_mass", &["collider3d"], "", "What this collider weighs, density and size together."),
-        ("collider_volume", &["collider3d"], "", "How much space the shape encloses."),
-        ("swept_aabb", &["collider3d"], "", "The box the collider covers over the next step, its motion included: what the broad phase actually tests."),
-        ("handles", &["collider3d"], "", "The rapier handles behind this node — its body and its colliders — as `#{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output."),
-        ("set_voxel", &["collider3d"], "", "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs."),
-        ("voxel", &["collider3d"], "", "Whether one cell of a voxel collider is filled."),
-        ("voxel_at", &["collider3d"], "", "The cell a world position falls in, as three whole numbers."),
-        ("collider_mesh", &["collider3d"], "", "The collider's shape as points and triangles — including a voxel grid's — for drawing it or for spawning the pieces it broke into."),
     ]);
     m.function(
         "set_collider",
@@ -897,6 +888,19 @@ pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
             aabb.maxs.z,
         ))
     });
+}
+
+/// Editing a voxel grid, and reading one back as a mesh.
+///
+/// Voxels are the one shape a game changes rather than replaces, so they get
+/// calls of their own. Split from [`install_collider_api`] under
+/// `MAX_FN_LINES`.
+pub(crate) fn install_voxel_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("set_voxel", &["collider3d"], "", "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs."),
+        ("voxel", &["collider3d"], "", "Whether one cell of a voxel collider is filled."),
+        ("voxel_at", &["collider3d"], "", "The cell a world position falls in, as three whole numbers."),
+    ]);
     // Voxels are the one shape a game edits rather than replaces, so they get
     // calls of their own rather than going through `set_collider`.
     m.function(
@@ -950,6 +954,21 @@ pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
             Ok((cell.x as i64, cell.y as i64, cell.z as i64))
         },
     );
+}
+
+/// What a collider weighs, how much space it takes, where it is, and the
+/// handles rapier knows it by.
+///
+/// Split from [`install_collider_api`] under `MAX_FN_LINES`.
+pub(crate) fn install_collider_reader_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("collider_mesh", &["collider3d"], "", "The collider's shape as points and triangles — including a voxel grid's — for drawing it or for spawning the pieces it broke into."),
+        ("collider_mass", &["collider3d"], "", "What this collider weighs, density and size together."),
+        ("collider_volume", &["collider3d"], "", "How much space the shape encloses."),
+        ("swept_aabb", &["collider3d"], "", "The box the collider covers over the next step, its motion included: what the broad phase actually tests."),
+        ("handles", &["collider3d"], "", "The rapier handles behind this node — its body and its colliders — as `#{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output."),
+        ("aabb", &["collider3d"], "", "The world-space box the collider currently occupies, as its two opposite corners."),
+    ]);
     m.function("collider_mesh", |eng: &Engine, node: NodeId| {
         collider_mesh_value(eng, node)
     });

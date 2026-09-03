@@ -14,10 +14,10 @@ const KEYS = [
 ];
 const BUTTONS = ["LMB", "RMB", "MMB"];
 // How many frames a click's ripple grows for, and how wide it ends.
-const RIPPLE = 22;
-const RIPPLE_TO = 76.0;
+const RIPPLE = 30;
+const RIPPLE_TO = 120.0;
 // The drawn cursor, in design px. The image's tip is its top-left corner.
-const CURSOR = 30.0;
+const CURSOR = 36.0;
 
 pub fn state() {
     #{ ripples: [] }
@@ -96,18 +96,25 @@ pub fn draw(S) {
             });
         });
     }
-    // Rings first, so the cursor sits on top of the click it made.
+    // Rings first, so the cursor sits on top of the click it made. Three
+    // circles a pixel apart: a stroke is one pixel wide, and one is invisible
+    // over a selected row.
     let kept = [];
     for (i, r) in iv.ripples.iter().enumerate() {
         let p = (r.age as f64) / (RIPPLE as f64);
-        let d = 14.0 + (RIPPLE_TO - 14.0) * p;
-        let fade = alpha(k.accent, 1.0 - p);
-        ui::overlay(format!("input-ripple-{}", i), #{ x: r.x - d / 2.0, y: r.y - d / 2.0 }, || {
-            ui::frame(#{
-                fill: alpha(k.accent, 0.20 * (1.0 - p)), stroke: fade, radius: d / 2.0,
-                padding_x: d / 2.0, padding_y: d / 2.0,
-            }, || {});
-        });
+        let d = 16.0 + (RIPPLE_TO - 16.0) * p;
+        let left = 1.0 - p;
+        for (band, hue) in [(0.0, "#ffffff"), (2.0, "#ffffff"), (4.0, k.accent)].iter().enumerate() {
+            let w = d - hue.0;
+            ui::overlay(format!("input-ripple-{}-{}", i, band), #{ x: r.x - w / 2.0, y: r.y - w / 2.0 }, || {
+                ui::frame(#{
+                    fill: if band == 2 { alpha(k.accent, 0.18 * left) } else { "#00000000" },
+                    stroke: alpha(hue.1, left), radius: w / 2.0,
+                }, || {
+                    ui::horizontal(#{ width: w, height: w }, || {});
+                });
+            });
+        }
         r.age = r.age + 1;
         if r.age < RIPPLE {
             kept.push(r);
@@ -119,11 +126,12 @@ pub fn draw(S) {
     if x > 0.0 || y > 0.0 {
         let held = input::is_mouse_down(input::MOUSE_LEFT);
         if held {
-            ui::overlay("input-press", #{ x: x - 13.0, y: y - 13.0 }, || {
+            ui::overlay("input-press", #{ x: x - 11.0, y: y - 11.0 }, || {
                 ui::frame(#{
-                    fill: alpha(k.accent, 0.35), stroke: k.accent, radius: 13.0,
-                    padding_x: 13.0, padding_y: 13.0,
-                }, || {});
+                    fill: alpha(k.accent, 0.45), stroke: k.accent, radius: 11.0,
+                }, || {
+                    ui::horizontal(#{ width: 22.0, height: 22.0 }, || {});
+                });
             });
         }
         ui::overlay("input-pointer", #{ x: x, y: y }, || {

@@ -351,7 +351,7 @@ dependencies = [
 
 [[package]]
 name = "balaur"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur_anim",
@@ -374,7 +374,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_android"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "balaur",
  "kiss3d",
@@ -383,7 +383,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_anim"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur",
@@ -398,7 +398,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_audio"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur_core",
@@ -414,7 +414,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_bench"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur",
@@ -430,7 +430,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur",
@@ -450,7 +450,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur_script",
@@ -473,7 +473,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_gamend"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur",
@@ -490,7 +490,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_input"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur_core",
@@ -505,7 +505,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_net"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur",
@@ -529,7 +529,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_physics"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur",
@@ -554,7 +554,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_plugin"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur_core",
@@ -568,7 +568,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_render"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur",
@@ -594,7 +594,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_script"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -602,7 +602,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_script_rune"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur_core",
@@ -620,7 +620,7 @@ dependencies = [
 
 [[package]]
 name = "balaur_ui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "balaur",

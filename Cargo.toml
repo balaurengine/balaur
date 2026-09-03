@@ -5,7 +5,7 @@ members = ["crates/*"]
 exclude = ["examples/extension_greeter"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
@@ -36,19 +36,19 @@ rust_2018_idioms   = { level = "warn", priority = -1 }
 [workspace.dependencies]
 # Content hashes for packed binary assets, and the release checksums.
 sha2 = "0.10"
-balaur_core = { path = "crates/balaur_core", version = "0.1.0" }
-balaur_plugin = { path = "crates/balaur_plugin", version = "0.1.0" }
-balaur_script = { path = "crates/balaur_script", version = "0.1.0" }
-balaur_script_rune = { path = "crates/balaur_script_rune", version = "0.1.0" }
-balaur_physics = { path = "crates/balaur_physics", version = "0.1.0" }
-balaur_anim = { path = "crates/balaur_anim", version = "0.1.0" }
-balaur_render = { path = "crates/balaur_render", version = "0.1.0" }
-balaur_audio = { path = "crates/balaur_audio", version = "0.1.0" }
-balaur_input = { path = "crates/balaur_input", version = "0.1.0" }
-balaur_net = { path = "crates/balaur_net", version = "0.1.0" }
-balaur_gamend = { path = "crates/balaur_gamend", version = "0.1.0" }
-balaur_ui = { path = "crates/balaur_ui", version = "0.1.0" }
-balaur = { path = "crates/balaur", version = "0.1.0", default-features = false }
+balaur_core = { path = "crates/balaur_core", version = "0.2.0" }
+balaur_plugin = { path = "crates/balaur_plugin", version = "0.2.0" }
+balaur_script = { path = "crates/balaur_script", version = "0.2.0" }
+balaur_script_rune = { path = "crates/balaur_script_rune", version = "0.2.0" }
+balaur_physics = { path = "crates/balaur_physics", version = "0.2.0" }
+balaur_anim = { path = "crates/balaur_anim", version = "0.2.0" }
+balaur_render = { path = "crates/balaur_render", version = "0.2.0" }
+balaur_audio = { path = "crates/balaur_audio", version = "0.2.0" }
+balaur_input = { path = "crates/balaur_input", version = "0.2.0" }
+balaur_net = { path = "crates/balaur_net", version = "0.2.0" }
+balaur_gamend = { path = "crates/balaur_gamend", version = "0.2.0" }
+balaur_ui = { path = "crates/balaur_ui", version = "0.2.0" }
+balaur = { path = "crates/balaur", version = "0.2.0", default-features = false }
 
 hecs = "0.11"
 # The two features parry's `enhanced-determinism` turns on. Named here too, so a

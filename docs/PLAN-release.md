@@ -36,7 +36,26 @@ opens without a warning and updates itself.
 5. **The Download page** on the website reads the latest release's assets
    and checksums; a nightly channel beside it.
 6. **Versions.** One workspace version, tagged; the changelog is hand
-   written and the tag's notes are its `Unreleased` section.
+   written and the tag's notes are that version's section.
+
+## Cutting a release
+
+Versioning began at **0.2.0** (2026-09-03). The engine is pre-1.0, so a minor
+bump carries breaking changes and the changelog's `### Breaking` section is
+what says which.
+
+1. `[workspace.package] version` in the root `Cargo.toml`, and `cargo check`
+   once so `Cargo.lock` follows.
+2. `CHANGELOG.md`: rename `## Unreleased` to `## <version> — <date>` and open
+   a fresh empty `Unreleased`. One line per feature; the reasoning lives in
+   `ARCHITECTURE.md` and the plans, not here.
+3. `ARCHITECTURE.md`: strike from the roadmap table whatever the release
+   finished, and say the new version in the roadmap's opening.
+4. The plan for anything finished gets its status header updated — that is
+   where "why it is the way it is" belongs.
+5. `python3 scripts/gen_docs.py`, so `docs/generated/` matches what shipped.
+6. Tag `v<version>`; `scripts/draft_release.sh` turns CI's artifacts into a
+   draft, and publishing stays a decision.
 
 ## Published benchmarks
 

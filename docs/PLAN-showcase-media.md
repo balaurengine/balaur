@@ -127,14 +127,17 @@ Built, in the order it landed:
    turns the directory into a `.webm` (VP9) and an `.mp4` (H.264, for
    Safari), with frame 0 as the poster.
 2. **Input overlay.** `editor/scripts/inputview.rn` draws a chip per key and
-   mouse button down this frame, the actions they drive, the pointer, and a
-   ripple where a button went down. On from the palette (*Show input
+   mouse button down this frame, the actions they drive, a cursor image at the
+   pointer, and a ring that spreads from every press. On from the palette (*Show input
    overlay*) or `--state input`. It reads the same `input::*` snapshot the
    game reads, so a replay shows exactly what was recorded — which is what
    clip 10 relies on. A `--show-input` for `balaur run` can come later.
 3. **Showcase sequences.** `editor/scripts/showcase.rn`, one per clip: the
    calls the UI would make, paced by frame, plus the input a person would
-   feed. Input goes in from `update`, before the game reads the snapshot;
+   feed. Each one puts the cursor on the control it is about to drive and
+   presses there, so a viewer sees where the click landed; egui reads the
+   window rather than the fed snapshot, so the click is drawn and the verb is
+   called. Input goes in from `update`, before the game reads the snapshot;
    editor work goes in from `draw_ui`, after it. `input.feed_key`,
    `feed_mouse` and `feed_mouse_button` call the snapshot's own feeders, so a
    fed frame records and replays like a person's — no `.blr` is committed,
@@ -183,3 +186,6 @@ each persona's picture moves to the page about its feature.
   clip for editing a scene under a recording.
 - **The input overlay names the key and the action**, side by side: a key
   chip per key or button held, then a pill per action they drive.
+- **The rig clip frames the leg through the scene's own camera node**, which
+  outvotes the editor's zoom every frame, and keys a small rotation: a large
+  one shears the skin, which reads as a joint coming apart.
