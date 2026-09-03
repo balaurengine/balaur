@@ -335,8 +335,17 @@ fn an_override_retunes_a_prefabs_script() {
     )
     .unwrap();
 
-    assert_eq!(number(&app, node_named(&app, "Slow/Body"), "seen_speed"), Some(1.5));
-    assert_eq!(number(&app, node_named(&app, "Fast/Body"), "seen_speed"), Some(12.0));
+    assert_eq!(
+        number(&app, node_named(&app, "Slow/Body"), "seen_speed"),
+        Some(1.5)
+    );
+    assert_eq!(
+        number(&app, node_named(&app, "Fast/Body"), "seen_speed"),
+        Some(12.0)
+    );
     // Untouched by the override, so both still take the export's default.
-    assert_eq!(number(&app, node_named(&app, "Fast/Body"), "seen_jumps"), Some(2.0));
+    assert_eq!(
+        number(&app, node_named(&app, "Fast/Body"), "seen_jumps"),
+        Some(2.0)
+    );
 }

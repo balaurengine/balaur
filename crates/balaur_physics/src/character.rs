@@ -157,23 +157,29 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vec3) ->
 /// Write the effective translation onto the node, and onto its body when it
 /// has one, so the next step starts where the character actually is.
 fn apply_movement(eng: &Engine, entity: Entity, translation: Vec3) {
-    {
+    let pose = {
         let world = eng.world();
         let transform = world.get::<&mut Transform>(entity);
-        if let Ok(mut transform) = transform {
-            transform.position += translation;
-        }
-    }
+        let Ok(mut transform) = transform else {
+            return;
+        };
+        transform.position += translation;
+        Pose3::from_parts(transform.position, transform.rotation)
+    };
     let state = eng.resource::<PhysicsState>();
     let mut state = state.borrow_mut();
     if let Some(handle) = state.bodies.get(&entity).copied() {
-        let world = eng.world();
-        let transform = world.get::<&Transform>(entity);
-        if let Ok(transform) = transform {
-            let pose = Pose3::from_parts(transform.position, transform.rotation);
-            state.world.bodies[handle].set_next_kinematic_position(pose);
-        }
+        state.world.bodies[handle].set_next_kinematic_position(pose);
+        return;
     }
+    // No body: the collider is standalone world geometry, which nothing else
+    // moves. Without this the character's own shape stays where it started and
+    // every sweep is cast from the wrong place — it walks through walls.
+    let handles = state.colliders.get(&entity).cloned().unwrap_or_default();
+    for handle in handles {
+        state.world.colliders[handle].set_position(pose);
+    }
+    state.queries_ready = false;
 }
 
 /// What the character bumped into on the way, as nodes rather than handles.

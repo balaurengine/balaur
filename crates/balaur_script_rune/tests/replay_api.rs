@@ -290,7 +290,10 @@ fn a_session_name_is_a_file_name() {
 
     let name = text(call(&app, node, "name"));
     assert!(!name.contains(':'), "Windows refuses a colon, got {name:?}");
-    assert!(!name.contains(' '), "a space in a path is a mistake waiting");
+    assert!(
+        !name.contains(' '),
+        "a space in a path is a mistake waiting"
+    );
     assert!(name.starts_with("20"), "it still reads as a date: {name:?}");
 }
 

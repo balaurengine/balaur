@@ -795,7 +795,9 @@ pub fn prefab_of(S, node) {
 // `scenes/` is a scene, anything else is an asset.
 pub fn scene_files(S) {
     let out = [];
-    for name in list(S, "scenes") {
+    // `fs::list` answers with `{ name, is_dir }`, not bare names.
+    for entry in list(S, "scenes") {
+        let name = util::obj(entry).get("name").unwrap_or("");
         if name.ends_with(".toml") {
             out.push("scenes/" + name);
         }
@@ -852,19 +854,10 @@ fn prefab_name(rel) {
         Some((stem, _)) => stem,
         None => file,
     };
-    let out = "";
-    let upper = true;
-    for c in stem.chars() {
-        if c == '_' || c == '-' {
-            upper = true;
-        } else if upper {
-            out.extend(c.to_uppercase());
-            upper = false;
-        } else {
-            out.push(c);
-        }
+    if stem == "" {
+        return "Instance";
     }
-    if out == "" { "Instance" } else { out }
+    stem[..1].to_uppercase() + stem[1..]
 }
 
 // Open the prefab behind the selection — the instance node's file, or the one

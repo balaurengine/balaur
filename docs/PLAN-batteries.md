@@ -1,4 +1,7 @@
-> **Status:** phase 1 (input actions) built on 2026-09-02 —
+> **Status:** phases 1 and 3 built. Phase 3 (save games) on 2026-09-03:
+> `crates/balaur_core/src/save.rs`, the `save` script module, `[save]` in
+> `project.toml`, and migrations run one version step at a time. Phase 1
+> (input actions) on 2026-09-02 —
 > `crates/balaur_input/src/actions.rs`, the `[input.actions]` table, the
 > `input.action_*` calls, rebinding saved to the user data directory, and a
 > test that the same keys produce the same actions every run. Phases 2-6
@@ -30,7 +33,20 @@
 >    is a once-at-start twin of `add_replay_source` for anything a plugin
 >    loads rather than simulates — a locale and an audio mix will want it
 >    too. A recording made before a plugin declared its setup still plays.
-> 6. **`ManifestSource` had to exist.** A plugin reading its own table out of
+> 6. **A migration is a project-declared script, not a per-node hook.** The
+>    plan says "a script declares `migrate_save`", which leaves open *which*
+>    script — a game has many, and a save belongs to none of them.
+>    `[save] migrate = "scripts/saves.rn"` names one, and the engine calls it
+>    per version step. That needed `ScriptHost::call_in(path, function,
+>    args)`: a public function in a file, with no instance. The seam is
+>    general, and the next project-level hook will want it too.
+> 7. **A newer save is refused, not migrated.** Not in the plan. Migrations
+>    only go forward, so a file from a build ahead of this one has no path
+>    back; saying so beats handing the game a table it will misread.
+> 8. **Writes are atomic.** Also not in the plan, and the reason is the same
+>    one that makes saves worth having: the file written at a checkpoint is
+>    the one a crash must not be able to truncate.
+> 9. **`ManifestSource` had to exist.** A plugin reading its own table out of
 >    `project.toml` through `ProjectFiles` finds nothing in a packed game —
 >    a pack carries the manifest beside the assets, not among them. The raw
 >    manifest text is now an engine resource, which is also the bug

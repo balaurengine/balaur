@@ -130,6 +130,31 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: timings,
     },
     EngineOp {
+        module: "save",
+        name: "write",
+        call: save_write,
+    },
+    EngineOp {
+        module: "save",
+        name: "read",
+        call: save_read,
+    },
+    EngineOp {
+        module: "save",
+        name: "slots",
+        call: save_slots,
+    },
+    EngineOp {
+        module: "save",
+        name: "remove",
+        call: save_remove,
+    },
+    EngineOp {
+        module: "save",
+        name: "version",
+        call: save_version,
+    },
+    EngineOp {
         module: "skeleton",
         name: "apply_rest",
         call: crate::skeleton::apply_rest_op,
@@ -332,6 +357,7 @@ fn document(module: &str, m: &mut dyn balaur_script::Bindings<Engine>) {
         "skeleton" => document_skeleton(m),
         "assets" => document_assets(m),
         "log" => document_log(m),
+        "save" => document_save(m),
         "rng" => document_rng(m),
         "fs" => document_fs(m),
         "toml" => document_toml(m),
@@ -407,6 +433,26 @@ fn document_assets(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("reload", &[], "(reference: string)", "Forget a reference so the next load re-reads its file, along with every entry cut from that same file."),
         ("save", &[], "(reference: string, definition: any)", "Write a definition table to the project-relative file a reference names; an error unless it names a whole file."),
         ("directory", &[], "(type_name: string)", "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none."),
+    ]);
+}
+
+fn document_save(m: &mut dyn balaur_script::Bindings<Engine>) {
+    m.module_doc(
+        "Save games: a table in, a table out, stored per user rather than in \
+         the project. Nothing here is engine state — a save is whatever the \
+         game puts in it — so what the engine decides is only where it lives, \
+         that a half-written file cannot replace a good one, and what version \
+         it was written at. `[save] version` in `project.toml` sets that \
+         version and `[save] migrate` names the script whose \
+         `migrate_save(version, data)` brings an older file forward, one \
+         version per call.",
+    );
+    m.describe(&[
+        ("write", &[], "(slot: string, data: any)", "Write a table to a named slot, stamped with the project's save version. Written beside the target and renamed over it, so a crash mid-save cannot destroy the last one."),
+        ("read", &[], "(slot: string)", "The table in a slot, brought forward to this build's version; nil when the slot was never written. An error when the file was written by a newer build, or when it needs a migration the project declares no script for."),
+        ("slots", &[], "()", "Every slot that has been written, in name order."),
+        ("remove", &[], "(slot: string)", "Delete a slot. Not an error when it was not there."),
+        ("version", &[], "()", "The save version this build writes, from `[save] version`."),
     ]);
 }
 
@@ -696,6 +742,35 @@ fn component_schema(eng: &Engine, args: &[Value]) -> Result<Value> {
     registry.def(text(args, 0)?).map_or(Ok(Value::Nil), |def| {
         crate::node_api::from_toml(&def.schema)
     })
+}
+
+fn save_write(eng: &Engine, args: &[Value]) -> Result<Value> {
+    crate::save::write(eng, text(args, 0)?, args.get(1).unwrap_or(&Value::Nil))?;
+    Ok(Value::Nil)
+}
+
+fn save_read(eng: &Engine, args: &[Value]) -> Result<Value> {
+    crate::save::read(eng, text(args, 0)?)
+}
+
+fn save_slots(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::List(
+        crate::save::slots(eng)
+            .into_iter()
+            .map(Value::Str)
+            .collect(),
+    ))
+}
+
+fn save_remove(eng: &Engine, args: &[Value]) -> Result<Value> {
+    crate::save::remove(eng, text(args, 0)?)?;
+    Ok(Value::Nil)
+}
+
+fn save_version(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::Int(i64::from(
+        crate::save::SaveConfig::load(eng).version,
+    )))
 }
 
 /// `engine.timings()` — what the last frame cost.

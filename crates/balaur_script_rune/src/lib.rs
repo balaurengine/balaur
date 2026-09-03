@@ -34,8 +34,8 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use std::future::Future as _;
 
 use rune::alloc::clone::TryClone as _;
-use rune::runtime::{Function, RuntimeContext, Unit, VmExecution, VmResult};
 use rune::ast::Spanned as _;
+use rune::runtime::{Function, RuntimeContext, Unit, VmExecution, VmResult};
 use rune::{Diagnostics, Source, Sources, TypeHash as _, Vm};
 
 pub use api::{api_json, rune_of};
@@ -707,7 +707,13 @@ impl RuneHost {
                         }
                         _ => None,
                     };
-                    finding(&sources, fatal.source_id(), span, "error", &fatal.to_string())
+                    finding(
+                        &sources,
+                        fatal.source_id(),
+                        span,
+                        "error",
+                        &fatal.to_string(),
+                    )
                 }
                 rune::diagnostics::Diagnostic::Warning(warning) => finding(
                     &sources,
@@ -1320,7 +1326,10 @@ fn finding_rows(found: &[Finding]) -> Result<rune::Value> {
         let mut row = rune::runtime::Object::new();
         for (key, value) in [
             ("file", rune::to_value(one.file.clone())?),
-            ("line", rune::to_value(i64::try_from(one.line).unwrap_or(0))?),
+            (
+                "line",
+                rune::to_value(i64::try_from(one.line).unwrap_or(0))?,
+            ),
             (
                 "column",
                 rune::to_value(i64::try_from(one.column).unwrap_or(0))?,
@@ -1461,6 +1470,25 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
         let args: Result<Vec<rune::Value>> = args.iter().map(value::from_neutral).collect();
         let out = func.call::<rune::Value>(args?).into_result()?;
         value::to_neutral(&out)
+    }
+
+    fn call_in(
+        &self,
+        path: &str,
+        function: &str,
+        args: &[balaur_script::Value],
+    ) -> Result<Option<balaur_script::Value>> {
+        let key = Self::normalize_key(path);
+        self.load(&key)?;
+        let Some(func) = self.method(&key, function) else {
+            return Ok(None);
+        };
+        let args: Result<Vec<rune::Value>> = args.iter().map(value::from_neutral).collect();
+        let out = func
+            .call::<rune::Value>(args?)
+            .into_result()
+            .map_err(|err| anyhow!("[{key}] {function}: {err}"))?;
+        Ok(Some(value::to_neutral(&out)?))
     }
 
     fn set_breakpoints(&self, path: &str, lines: &[usize]) -> Result<Vec<usize>> {

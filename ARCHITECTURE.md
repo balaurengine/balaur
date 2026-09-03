@@ -226,9 +226,12 @@ A prefab that contains itself is an error naming the cycle, not a hang.
 Scripts inside an instance attach when the *outermost* scene is finished, so
 `init` can still look up anything the whole tree declares.
 
-**In the editor** an instance's nodes are read from its file and shown in the
-tree in place, one shade quieter, so what you see is the tree the game will
-build. Those rows are not the scene file's: editing one writes an `overrides`
+**In the editor** a prefab is placed from the palette — one command per scene
+file under `scenes/`, which adds a child instancing it — and an instance's own
+row carries an *open* button into the prefab, since a change meant for every
+instance belongs in the file rather than in an override. Its nodes are read
+from that file and shown in the tree in place, one shade quieter, so what you
+see is the tree the game will build. Those rows are not the scene file's: editing one writes an `overrides`
 entry on the node that named the prefab — only the properties that differ, to
 match the patch — and an edit that lands back on the prefab's own value removes
 it again, the same sparseness a script's exported properties get one level up.
@@ -786,6 +789,41 @@ app the game would boot (`AppConfig::export`) and compiles through its host.
 Compiling against a bare `rune::Context` instead — which is what it used to do
 — rejects every script that touches the engine.
 
+## Save games
+
+`save.write(slot, data)` and `save.read(slot)`, per user rather than per
+project, under the same `user_data_dir()` a rebinding goes to. Nothing here is
+engine state — a save is whatever the game puts in the table — so what the
+engine decides is only three things.
+
+**Where it lives.** A slot is a name, and the name is checked rather than
+trusted: letters, digits, `-` and `_`, so a save called `../../id_rsa` is
+refused rather than written.
+
+**That a half-written file cannot replace a good one.** The file is written
+beside its target and renamed over it. The save a game writes at a checkpoint
+is the one it cannot afford to find truncated.
+
+**What version wrote it.**
+
+```toml
+[save]
+version = 3                     # what this build writes
+migrate = "scripts/saves.rn"    # brings an older file forward
+```
+
+`read` stamps every file with that version and brings an older one forward by
+calling the migration script's `migrate_save(version, data)` once per version
+step — 1→2, then 2→3 — so a migration only ever has to know how the shape
+changed between two adjacent versions, never how to get from any version to
+any other. A file written by a *newer* build is refused: an older build cannot
+guess at it, and handing the game half a save is worse than saying so.
+
+`ScriptHost::call_in(path, function, args)` is the seam that makes the
+migration hook possible — calling a public function in a script *file*, with
+no instance, for the case where the engine knows which file to ask and there
+is no node to ask it of.
+
 ## Timings
 
 `App::tick` measures each stage and publishes the frame whole, so a reader
@@ -1027,11 +1065,25 @@ keeps a replay off the network keeps a second run of a tick off it. A
 subsystem that reaches the outside by some other route has the same gap it
 already has for replay.
 
+Scripts take part through a `rollback` module with two calls: `input(player)`
+for what that player is doing on the tick being simulated, real or predicted,
+and `is_resimulating()` for whether this tick is a repeat. A script's own
+fields come back with everything else, through the host's `save_state` and
+`load_state` — the half of a snapshot core cannot see into.
+
+The session steps the app at `App::fixed_step` and takes no `dt` of its own.
+That is structural, not advisory: the substep accumulator lives outside the
+snapshot, so a variable step would restore the world without restoring how
+much time was owed, and a re-run could take a different number of fixed steps
+than the run it repeats. At the fixed step the accumulator is back at zero
+every time, so the question cannot arise.
+
 What it does not do yet: cross a wire. Nothing sends a journal between two
 processes, so this is rollback against local players and a test harness. An
-input older than the ring is logged and dropped rather than resynced, and a
-session has to be driven at a fixed step, because the app's substep
-accumulator lives outside the snapshot.
+input older than the ring cannot be answered — the tick it belongs to is gone,
+so this peer keeps a prediction it now knows was wrong. `Session::stale_inputs`
+counts those, because that is a divergence the caller has to resync out of,
+not a log line.
 
 ## Networking and state sync (planned)
 
@@ -1348,7 +1400,7 @@ website's roadmap is the short form of this list.
 | Animation blending, blend trees, state machines, 3D IK | `docs/PLAN-animation-and-resources.md` §6 |
 | 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |
 | Shader channel views, the caret value preview, headless shader tests, post-process materials | `docs/PLAN-shaders.md` phases 6-9 |
-| Game UI toolkit, save games, localization, audio buses | `docs/PLAN-batteries.md` phases 2-6 |
+| Game UI toolkit, localization, audio buses | `docs/PLAN-batteries.md` phases 2, 4-6 |
 | Binary websocket frames, stable ids and respawn for run-time nodes, rollback netcode, WebTransport (QUIC) native and in the browser, replication and RPC, Gamend sessions, WebRTC for browser peer-to-peer; never raw UDP | `docs/PLAN-networking.md` §2, §3 |
 | Signed binary releases, published benchmarks | `docs/PLAN-release.md` |
 | Web export | `docs/PLAN-mobile-export.md` "Web" |

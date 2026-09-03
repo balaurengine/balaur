@@ -113,25 +113,29 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vec2) ->
         (movement, collisions)
     };
 
-    {
+    let pose = {
         let world = eng.world();
         let transform = world.get::<&mut Transform>(entity);
-        if let Ok(mut transform) = transform {
-            transform.position.x += movement.translation.x;
-            transform.position.y += movement.translation.y;
-        }
-    }
+        let Ok(mut transform) = transform else {
+            return Ok(Value::Nil);
+        };
+        transform.position.x += movement.translation.x;
+        transform.position.y += movement.translation.y;
+        Pose2::from_translation(Vec2::new(transform.position.x, transform.position.y))
+    };
     {
         let state = eng.resource::<PhysicsState2d>();
         let mut state = state.borrow_mut();
         if let Some(handle) = state.bodies.get(&entity).copied() {
-            let world = eng.world();
-            let transform = world.get::<&Transform>(entity);
-            if let Ok(transform) = transform {
-                let pose =
-                    Pose2::from_translation(Vec2::new(transform.position.x, transform.position.y));
-                state.world.bodies[handle].set_next_kinematic_position(pose);
+            state.world.bodies[handle].set_next_kinematic_position(pose);
+        } else {
+            // No body: nothing else moves a standalone collider, and a sweep
+            // from where the character used to be walks through walls.
+            let handles = state.colliders.get(&entity).cloned().unwrap_or_default();
+            for handle in handles {
+                state.world.colliders[handle].set_position(pose);
             }
+            state.queries_ready = false;
         }
     }
     Ok(map([

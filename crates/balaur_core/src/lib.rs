@@ -33,11 +33,13 @@ pub mod resources;
 pub mod rng;
 pub mod rollback;
 pub mod rollback_api;
+pub mod save;
 pub mod scene;
 pub mod skeleton;
 pub mod snapshot;
 pub mod standalone;
 pub mod timings;
+pub mod transport;
 pub mod triangulate;
 pub mod voxels;
 
@@ -57,6 +59,7 @@ pub use resources::Resources;
 pub use rollback::Session;
 pub use scene::{Children, GlobalTransform, Name, Parent, ScriptAttachment, Transform};
 pub use snapshot::{Snapshot, SnapshotRegistry, SnapshotRing};
+pub use transport::{Delivery, LinkState, Received, Transport};
 
 pub use glamx;
 pub use hecs;

@@ -55,7 +55,13 @@
 >    every other one. `components::patch` is what an override has always
 >    meant — the prefab described the component whole, and the instance is
 >    changing part of it.
-> 8. **`script` is an override key.** Not in the plan, which said component
+> 8. **Placing one is a command per scene, not a picker.** The palette
+>    already generates a command per render channel; a prefab follows the
+>    same shape, so it is searchable by name and needs no new surface. What
+>    is still missing is the inverse — promoting a subtree to a prefab file —
+>    which wants a decision first: with roots-as-children, promoting `X`
+>    gives `X` (the instance) containing `X` (the prefab's root).
+> 9. **`script` is an override key.** Not in the plan, which said component
 >    keys. Retuning a prefab's exported properties per instance is the most
 >    useful override there is — one enemy file, a fast one and a slow one —
 >    and it lands as a merge into the pending attachment rather than on the

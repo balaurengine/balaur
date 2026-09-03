@@ -34,6 +34,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 #[cfg(not(target_family = "wasm"))]
 mod http;
+pub mod transport;
 #[cfg(not(target_family = "wasm"))]
 mod websocket;
 
@@ -662,7 +663,10 @@ fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
         let sent = match payload {
             Value::Str(text) => state.borrow_mut().send_text(id, &text),
             Value::Bytes(bytes) => state.borrow_mut().send_bytes(id, bytes),
-            other => bail!("websocket.send takes a string or bytes, got {}", other.type_name()),
+            other => bail!(
+                "websocket.send takes a string or bytes, got {}",
+                other.type_name()
+            ),
         };
         Ok(Value::Bool(sent))
     });

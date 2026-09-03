@@ -104,6 +104,19 @@ pub trait ScriptHost<C: ?Sized> {
     /// about.
     fn call_on(&self, node: NodeId, method: &str, args: &[Value]) -> Option<Value>;
 
+    /// Call a public function in a script *file*, with no instance.
+    ///
+    /// The seam for a project-level hook — a save migration today — where the
+    /// engine knows which file to ask and there is no node to ask it of.
+    /// `None` means the file has no such function, which is how a caller
+    /// tells "the hook is not declared" from "the hook said nothing".
+    fn call_in(&self, path: &str, function: &str, args: &[Value]) -> Result<Option<Value>> {
+        let _ = (path, function, args);
+        Err(anyhow::anyhow!(
+            "this script backend cannot call a function in a file"
+        ))
+    }
+
     /// Call a method on every instance that defines it, in a deterministic
     /// order.
     fn call_all(&self, method: &str);

@@ -1,15 +1,47 @@
-> **Status:** not started. Written 2026-09-02. An inventory of what Rapier
-> 0.35.3 and parry 0.30.2 ship **today**, which of it `balaur_physics` does
-> not reach, and the order to close the gap in — all of it. Every row exists
-> in `Cargo.lock` right now: nothing here waits on upstream. That is what
-> separates this file from `docs/PLAN-physics.md`, which is the other half of
-> physics — soft bodies, tearing, fluids and granular materials, none of
-> which Rapier has written yet.
+> **Status:** phases 1 to 12 built on 2026-09-03, in `crates/balaur_physics`.
+> Phase 13 (f64) is **not** started — see the note below. The tables are kept
+> in the present tense as the record of what was decided; read the phase list
+> as done rather than as a to-do.
 >
-> Nothing is left out on purpose. Where a capability carries a constraint
-> (rapier's own `Sync` bound on hooks, a compile error between `simd8` and
-> `enhanced-determinism`), the constraint is stated and the capability is
-> still scheduled.
+> **What the implementation decided differently:**
+>
+> 1. **The debug-line buffers moved to `balaur_core`.** Physics draws its own
+>    world, and a producer that had to depend on the renderer to draw a line
+>    would invert the plugin layering for a `Vec<f32>`. `balaur_render`
+>    re-exports them, so `balaur::render::DebugLineBuffer` still resolves.
+> 2. **`drives` was gone; `describe` carries it.** The plan's P4 assumed
+>    `Bindings::drives` for component handles. The Rune backend now derives
+>    them from the component lists in `describe`, so every new function names
+>    its components there and nothing else is needed.
+> 3. **Rapier's `unsync-callbacks` is on.** It is the only way a hook or an
+>    event handler can reach the script host (an `Rc`). It compiles out
+>    rapier's per-pipeline thread pool, so phase 12's `physics.set_threads`
+>    sizes rayon's global pool instead.
+> 4. **Queries refresh the broad phase themselves.** Rapier fills it during a
+>    step, so a raycast in `init` — which is where a game drops a character
+>    onto the ground — found nothing at all. `query::ensure_queries` rebuilds
+>    it when a collider changed since the last step.
+> 5. **Colliders and joints remember what they were authored from.** Rapier
+>    keeps a shape, not the asset behind it or the `fill`/`fit` that shaped
+>    it, so an editor round-trip lost them. `PhysicsState::collider_params`
+>    and `joint_params` are read back under whatever rapier does report.
+> 6. **A joint whose other end comes later is normal.** A scene file names
+>    nodes in any order, so an unresolved joint is retried once per step
+>    rather than being silently inert.
+> 7. **A character's collider follows its node.** Without a body, a collider
+>    is standalone world geometry that nothing moves — so every sweep was cast
+>    from where the character started, and it walked through walls.
+> 8. **`pin_slot` is 2D only, and `spherical` 3D only.** Rapier's pin-slot
+>    constructor is `dim2`; the schemas follow rapier rather than pretending.
+> 9. **One-way platforms carry their axis in the collider's `user_data`.** A
+>    hook runs while the world is borrowed by the step and cannot go and read
+>    a component, so the axis rides with the collider as one of six cardinal
+>    directions.
+> 10. **f64 is not scaffolded.** Swapping `rapier3d` for `rapier3d-f64` is a
+>     dependency swap, but every binding, `Transform`, and `glamx::Vec3` in the
+>     engine is `f32`: the work is making the engine's math scalar-generic,
+>     which is open question 5, not a feature flag. Adding a `f64` feature that
+>     does not build would be worse than not having one.
 
 # Plan: the rest of Rapier
 

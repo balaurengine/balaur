@@ -132,10 +132,11 @@ that works.
    matching the prediction costs nothing. The clock is snapshotted, so a
    re-run of tick 3 is tick 3 again. `ExternalIo::start` refuses to spawn
    work while `rollback::is_resimulating`, so a second run of a tick does
-   not send its requests twice. A late input rolls back to the digest of the
-   run that had it on time. Open: an input older than the ring is logged and
-   dropped, and a session must be driven at a fixed step because the app's
-   substep accumulator is not in a snapshot.
+   not send its requests twice. Scripts join in through a `rollback` module:
+   `input(player)` and `is_resimulating()`. A late input rolls back to the
+   digest of the run that had it on time, and a script's own fields come
+   back with it. Open: an input older than the ring cannot be answered, so
+   `Session::stale_inputs` counts it and the caller has to resync.
 4. **The transport trait, websocket under it.** Reliable-ordered streams and
    unreliable datagrams in the trait from the first line, shaped by QUIC and
    not by what a websocket happens to offer; the websocket implements
@@ -189,9 +190,15 @@ Two notes on running this:
    changed code cannot reproduce the recorded state. A reload truncates the
    journal and re-baselines from the current snapshot: rewind within a
    version, reload across versions, never rewind across a reload.
-4. **Which QUIC crate.** Both wrap `quinn`; they differ in API and
-   maintainer. Decided by the spike at step 4, by whichever makes the server
-   side smaller.
+4. **Which QUIC crate.** *Decided: `web-transport-quinn`.* Both wrap `quinn`
+   and expose the same four stream calls, so the trait fits either. It wins
+   on the server side: `open_bi` hands back the stream pair in one step where
+   `wtransport` returns an `OpeningBiStream` to await again, it ships
+   `ServerBuilder`/`ClientBuilder` with defaults, and it has
+   `send_datagram_wait` and `datagram_send_buffer_space`, which a session
+   pushing a datagram every tick needs and `wtransport` does not offer.
+   `wtransport` keeps a `quic_connection()` escape hatch if that is ever
+   worth switching for.
 5. **Relay or direct.** Whether native rollback peers connect to each other
    (NAT traversal, no server cost) or always meet at a relay (one code path,
    browsers included). One code path is the default until latency says

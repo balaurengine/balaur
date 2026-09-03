@@ -169,6 +169,11 @@ for ex in examples/*/; do
 
   # Session recording: play records, stop closes the file, the recording plays
   # back into a rebuilt scene, and closing hands the editor back.
+  # Placing a prefab from the editor, and undoing it.
+  printf '  place ...  '
+  edit_step "$name: placing" "$ex" placedemo
+  printf 'ok\n'
+
   # The profiler's data path: every stage named, the frame covering them.
   printf '  timings ...'
   edit_step "$name: timings" "$ex" timingsdemo

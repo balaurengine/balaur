@@ -234,13 +234,17 @@ impl balaur_script::Bindings<Engine> for RuneModule {
 
     fn describe(&mut self, entries: &[balaur_script::FnDoc]) {
         DOCS.with_borrow_mut(|docs| {
-            docs.extend(entries.iter().map(|(name, acts_on, signature, doc)| FnEntry {
-                module: self.name.clone(),
-                name: (*name).to_string(),
-                acts_on: acts_on.iter().map(|c| (*c).to_string()).collect(),
-                signature: (*signature).to_string(),
-                doc: (*doc).to_string(),
-            }));
+            docs.extend(
+                entries
+                    .iter()
+                    .map(|(name, acts_on, signature, doc)| FnEntry {
+                        module: self.name.clone(),
+                        name: (*name).to_string(),
+                        acts_on: acts_on.iter().map(|c| (*c).to_string()).collect(),
+                        signature: (*signature).to_string(),
+                        doc: (*doc).to_string(),
+                    }),
+            );
         });
     }
 
