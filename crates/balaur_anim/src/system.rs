@@ -90,10 +90,8 @@ fn refresh_reloaded_clips(eng: &Engine) {
 
 /// Advance every playing node by whole fixed steps.
 pub(crate) fn advance_system(eng: &Engine, dt: f32) {
-    // A held game does not animate. The accumulator goes with it: it is one
-    // counter for every player, so it cannot be advanced for some and not
-    // others, and time spent held is dropped rather than owed — exactly what
-    // `App::run_fixed_steps` does with the simulation's own.
+    // A held game does not animate, and time spent held is dropped rather
+    // than owed — what `App::run_fixed_steps` does with the simulation's own.
     if eng.frozen_root().is_some() {
         eng.resource::<AnimationState>().borrow_mut().accumulator = 0.0;
         return;

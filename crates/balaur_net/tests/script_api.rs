@@ -30,7 +30,10 @@ static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 /// marker shows up in the log. No sleeps: ticking full-tilt costs little and
 /// the sockets answer in milliseconds. Panics on any logged error or on the
 /// deadline.
-#[allow(clippy::disallowed_methods, reason = "a test's timeout, not simulation")]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "a test's timeout, not simulation"
+)]
 fn run_until(source: &str, markers: &[&str]) {
     let _guard = LOG
         .lock()

@@ -174,11 +174,9 @@ fn step_system(eng: &Engine, _dt: f32) {
 pub fn clear(eng: &Engine) {
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
-    // A fresh world, not a drained one. Rapier hands a freed handle's slot to
-    // the next body with the generation bumped, and the solver works in
-    // handle order — so a scene rebuilt in place would not simulate the way
-    // the same scene does in a fresh process, and a recorded session would
-    // not replay. Gravity and the step are settings, and carry over.
+    // A fresh world, not a drained one: rapier reuses a freed handle's slot
+    // with the generation bumped and the solver works in handle order, so a
+    // scene rebuilt in place would not simulate as a fresh process does.
     let gravity = state.world.gravity;
     let params = state.world.integration_parameters;
     state.world = PhysicsWorld2::default();

@@ -1150,8 +1150,17 @@ can set the reserved bit tungstenite's message API refuses; compression,
 upgrade headers and the HTTP timeout are per-call options over the `[net]`
 table of `project.toml`.
 
-The target is QUIC/WebTransport as the *single* transport (`wtransport` or
-`web-transport-quinn`): reliable-ordered streams and unreliable datagrams in
+`balaur_core::transport::Transport` is the seam all of this sits behind: one
+reliable ordered channel, unreliable datagrams, and a `receive` that is polled
+once per tick rather than awaited, because that is how every other arrival in
+the engine enters the simulation. It is shaped by QUIC rather than by what a
+websocket offers, so a transport missing a guarantee fakes it — the websocket
+implementation sends a datagram reliably, which costs latency and is never
+wrong. Opening a link goes through `ExternalIo::start`, so a replay or a
+re-simulated tick opens no socket at all.
+
+The target is QUIC/WebTransport as the *single* transport (`web-transport-quinn`,
+decided over `wtransport` for a smaller server side): reliable-ordered streams and unreliable datagrams in
 one protocol, native and in-browser, TLS included. The point is not raw
 performance over raw UDP; it is not maintaining a native UDP path and a
 separate browser WebRTC path. WebRTC data channels stay a fallback for browser
@@ -1391,11 +1400,9 @@ website's roadmap is the short form of this list.
 | Item | Plan |
 | --- | --- |
 | Tilemap editor, curve editor and onion skin | `docs/PLAN-editor.md` §6 |
-| Debugger over the Debug Adapter Protocol | `docs/PLAN-debugger.md` phase 6 |
 | `#[export]` on a script constant, in place of the `exports` table | `docs/PLAN-scripting.md` phase 3 |
 | Stable asset ids, rename refactoring, sprite-sheet import | `docs/PLAN-scenes-and-assets.md` phases 3, 5, 6 |
 | Extensions tier two: components, systems, calling back into scripts | `docs/PLAN-c-api.md` "What Tier 1 does not do" |
-| Joints, character controller, queries, collision events, voxels — the rest of Rapier's current API | `docs/PLAN-rapier.md` |
 | Soft bodies, tearing, fluids, granular materials | `docs/PLAN-physics.md` |
 | Animation blending, blend trees, state machines, 3D IK | `docs/PLAN-animation-and-resources.md` §6 |
 | 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |

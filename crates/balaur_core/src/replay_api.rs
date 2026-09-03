@@ -131,6 +131,7 @@ pub fn install_replay_api(m: &mut dyn Bindings<Engine>) {
         ("events", &[], "(from: int, to: int)", "The events recorded between two ticks, each with its tick, kind, label and data."),
         ("marks", &[], "(source: string, key: string?)", "The ticks at which one replay source held a non-empty list under a key, and what it held."),
         ("diverged", &[], "()", "The first tick whose replay did not reproduce the recorded digest, or nil."),
+        ("session_name", &[], "()", "A file-safe name for a session starting now, so a list of them sorts by when they ran."),
     ]);
     for d in REPLAY_OPS {
         m.function_raw(d.name, Box::new(d.call));

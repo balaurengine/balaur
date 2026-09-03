@@ -1,6 +1,7 @@
-> **Status:** steps 1-3 done (bytes on the wire; identity and lifecycle for
-> run-time nodes; rollback on one machine). Written down on 2026-09-02 so the
-> order was decided before the first line: node identity and lifecycle first, because rollback
+> **Status:** steps 1-4 done (bytes on the wire; identity and lifecycle for
+> run-time nodes; rollback on one machine; the transport trait with a
+> websocket under it). Written down on 2026-09-02 so the order was decided
+> before the first line: node identity and lifecycle first, because rollback
 > and replication both stand on it and it is the piece that can invalidate
 > the determinism work; rollback next, because determinism makes it cheap
 > here; replication after a session exists, factored so both ride the same
@@ -28,13 +29,15 @@ Built, and not built for networking:
 | Bytes across the script boundary, and binary websocket frames | `Value::Bytes`, `balaur_net` |
 | An id for every run-time spawn, and a snapshot that restores the node set | `ids`, `snapshot`'s `nodes` source |
 | Rollback in one process: a session, an input journal, prediction and re-simulation | `rollback` |
+| A transport trait with reliable and unreliable delivery, over a websocket | `core::transport`, `net::transport` |
 
 Missing:
 
 - Nothing sends a tick's inputs to another machine. Rollback works within one
   process; no transport carries a journal between two.
-- Every transport is TCP. No UDP, no QUIC, no WebTransport, no WebRTC: one
-  lost packet stalls everything behind it.
+- Every transport is still TCP under the trait. No UDP, no QUIC, no
+  WebTransport, no WebRTC: one lost packet stalls everything behind it, and a
+  datagram is unreliable in name only.
 - Nothing accepts a connection. Every socket is outbound, so two engines
   cannot meet without a server between them.
 - No replication, no RPC, no authority, no interest management, no
@@ -137,12 +140,16 @@ that works.
    digest of the run that had it on time, and a script's own fields come
    back with it. Open: an input older than the ring cannot be answered, so
    `Session::stale_inputs` counts it and the caller has to resync.
-4. **The transport trait, websocket under it.** Reliable-ordered streams and
-   unreliable datagrams in the trait from the first line, shaped by QUIC and
-   not by what a websocket happens to offer; the websocket implements
-   datagrams as reliable sends, degraded but correct. Spike both QUIC crates
-   before writing it so the trait fits the winner rather than being
-   retrofitted to it.
+4. **The transport trait, websocket under it.** *Done.* `Transport` in
+   `balaur_core` carries one reliable ordered channel and unreliable
+   datagrams, polled per tick rather than awaited, so a link records and
+   replays like every other source. `WebsocketTransport` in `balaur_net`
+   implements it: both deliveries share one socket and carry a one-byte tag,
+   and a datagram is sent reliably — degraded, never wrong. Opening goes
+   through `ExternalIo::start`, so a replay or a re-simulated tick opens no
+   socket. The QUIC crate is decided (§4.4). Open: one reliable channel
+   rather than many, so a big reliable message would block small ones behind
+   it; nothing sends one yet.
 5. **Rollback over the wire.** Two engines on loopback play a scene in
    lockstep with rollback, and a test injects a desync and asserts both stop
    on the same tick.

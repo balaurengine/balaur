@@ -82,7 +82,15 @@ part".
 
 The editor records every play session on its own, into its data directory, and
 the Session dock plays them back with a timeline of the input, requests, log
-lines and stops that went by. Nothing needs turning on.
+lines and stops that went by. Nothing needs turning on. Its `verify` toggle
+turns per-tick digests on for the sessions recorded after it, and a replay
+then names the tick it parted from the recording on.
+
+A session replays into a scene the editor has torn down and built again, so
+everything the engine owns has to reproduce across that rebuild and not only
+across a fresh process: a node's digest label is its path rather than its
+entity, `physics.clear` replaces both worlds rather than draining them, and
+animation stands down while the engine is held.
 
 Play it back, re-checking every tick:
 

@@ -36,6 +36,32 @@
 >    and the dock asks for `("input", "just_pressed")`. Core never learns the
 >    shape of the input plugin's snapshot, and a new source gets a lane
 >    without a change here.
+> 7. **The trailer's digest is a note, not a check.** A stop lands wherever in
+>    the frame the button was pressed, which is not a frame boundary, so it is
+>    not comparable with anything a replay reaches. Only a frame's own digest
+>    is compared, and per-tick digests are a Session-dock toggle (`verify`)
+>    rather than always on.
+>
+> **Four things that had to be made reproducible before an editor replay
+> could reproduce anything**, each found by the self-test and each a bug in
+> its own right:
+>
+> - **A node with no stable id was labelled by its entity.** An editor tears
+>   its scene down and builds it again, so the same world hashed differently
+>   across a rebuild. The fallback label is now the node's path.
+> - **The digest included the scope's container node.** The editor makes a
+>   fresh one per run and its generated `local:N` id differs every time. The
+>   container is the boundary, not game state, and is now excluded.
+> - **Animation ignored the freeze.** It advances at `Stage::Update` on a
+>   plugin-wide accumulator, so a held game kept animating and the accumulator
+>   carried leftover time across a rebuild. It now stands down exactly as
+>   `App::run_fixed_steps` does. This also fixes a debugger pause, which never
+>   held animation still.
+> - **`physics.clear` drained the world instead of replacing it.** Rapier
+>   gives a freed handle's slot to the next body with the generation bumped,
+>   and the solver works in handle order, so a rebuilt scene of stacked bodies
+>   did not simulate the way a fresh process does. Both worlds are now
+>   replaced outright, carrying gravity and the step across.
 
 # Plan: session recording and replay in the editor
 
@@ -279,7 +305,12 @@ Animate timeline's vocabulary:
    the chrome's pause button; cache reset. Backwards seek by rebuild.
 5. **Events.** `EventLog`, the four producers, the log diff, the index and
    `events(from, to)`, `verified`.
-6. **Session dock.** Lanes, ruler, detail list, marker.
+6. **Session dock.** Lanes, ruler, detail list, marker, and the `verify`
+   toggle that turns per-tick digests on.
+7. **`--state sessiondemo`**, in the editor's own self-test suite and in
+   `scripts/e2e.sh`: play records, stop closes the file, the recording plays
+   back into a rebuilt scene, reproduces it tick for tick, and closing hands
+   the editor back. It is what found the four bugs above.
 
 Later, in no order: spawn and free events; keyframe snapshots for instant
 seek once snapshot handles spawn and free; delta-encoded input if sessions

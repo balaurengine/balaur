@@ -521,8 +521,10 @@ impl Material3d for ShaderMaterial3d {
             .expect("kiss3d panicked while writing the mesh's faces")
             .load_to_gpu();
 
-        // The `*_buffer()` accessors on `GpuMesh3d` are unfinished stubs that
-        // always answer `None`; the buffer lives behind the lock.
+        // Read through the lock rather than `mesh.coords_buffer()`: those
+        // accessors answer `None` for everyone until the fork's fix lands,
+        // and a material that draws nothing looks like one with nothing to
+        // draw.
         let coords = mesh
             .coords()
             .read()

@@ -132,10 +132,12 @@ back, so rebinding never invalidates a replay.
 
 Try the demo: `cargo run -p balaur_cli -- run examples/hello --headless`,
 then edit `examples/hello/scripts/spinner.rn` while it runs. Scripts also
-get `input` (keys/mouse), `rng` (seeded, deterministic), `audio`, `physics`/`physics3d`/`physics2d`,
-`render` (shapes, colors, `render.set_camera`), `animation` (clips and
-tweens), `skeleton` (rest poses of a rig), `assets` (shared content by
-reference), and deterministic `math.*` replacements out of the box.
+get `input` (keys/mouse), `rng` (seeded, deterministic), `audio`, `physics`/`physics3d`/`physics2d`
+(bodies, joints, characters, raycasts and the rest of Rapier), `geometry3d`
+(hulls, convex decomposition, voxelising and cutting meshes), `render` (shapes,
+colors, `render.set_camera`), `animation` (clips and tweens), `skeleton` (rest
+poses of a rig), `assets` (shared content by reference), and deterministic
+`math.*` replacements out of the box.
 
 The editor has a script debugger: click a line number to set a
 breakpoint, run the scene, and the Debugger dock shows the call stack and
