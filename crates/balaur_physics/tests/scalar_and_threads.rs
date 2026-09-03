@@ -1,5 +1,4 @@
-//! Phases 12 and 13 of `docs/PLAN-rapier.md`: the scalar the simulation runs
-//! at, and the threads it runs on.
+//! The scalar the simulation runs at, and the threads it runs on.
 //!
 //! Most of this file only compiles under the feature it is about — a f64
 //! assertion in an f32 build would be testing the wrong engine.

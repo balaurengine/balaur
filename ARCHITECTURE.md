@@ -255,7 +255,7 @@ lets scripts migrate state shapes.
 ### Debugger (core feature)
 
 Breakpoints, stepping and a call stack with locals, for scripts running in
-the editor. `docs/PLAN-debugger.md` has the design; this is the shape.
+the editor.
 
 A pause is a parked coroutine plus an engine flag, never a blocked thread:
 play-in-editor runs the game in the same process and the same script host
@@ -652,9 +652,9 @@ file keys (`app.scene_key_handler("collider3d", ...)`), which are applied in
 plugin registration order (deterministic, and plugins know the right order
 for their own keys). `balaur_physics` is the reference implementation, and by
 now a large one: bodies, colliders, joints, characters, vehicles, queries,
-events and hooks, in two dimensions, at either scalar width. `docs/PLAN-rapier.md`
-is the map of it — what rapier offers, what Balaur calls it, and why the few
-things it leaves out are left out. Its `scalar.rs` is worth reading before any
+events and hooks, in two dimensions, at either scalar width.
+`docs/generated/script-api.md` is the map of it, and `docs/PLAN-rapier.md`
+carries the few things left open. Its `scalar.rs` is worth reading before any
 change to the crate: it is the one place a number changes width between the
 engine's `f32` and whatever rapier was built at.
 
@@ -1658,8 +1658,8 @@ release finished.
 | Asset streaming: a load that runs off the tick, a scene added to one already running, and an asset dropped when nothing names it | no plan yet; a pack is held whole in memory today. `ExternalIo` already lands background work on a tick boundary and records it for replay, `assets` caches by reference, and `pack` hashes every entry |
 | Extensions tier two: components, systems, calling back into scripts | `docs/PLAN-c-api.md` "What Tier 1 does not do" |
 | Soft bodies, tearing, fluids, granular materials | `docs/PLAN-physics.md` — waiting on the solvers landing in Rapier itself |
-| Named collision layers, script physics hooks on a `parallel` build, solver tuning carried in a recording's header, `f64` for the whole engine rather than physics alone | `docs/PLAN-rapier.md` open questions 2 to 5. Everything else in that plan is built |
-| Animation blending, blend trees, state machines | `docs/PLAN-animation-and-resources.md` §6. 3D IK exists for a reduced-coordinates joint chain (`physics3d.solve_ik`); an animation-side solver over a rig does not |
+| Named collision layers, script physics hooks on a `parallel` build, solver tuning carried in a recording's header, `f64` for the whole engine rather than physics alone | `docs/PLAN-rapier.md`. Everything else rapier has is built |
+| Animation blending, blend trees, state machines | `docs/PLAN-animation-and-resources.md`. 3D IK exists for a reduced-coordinates joint chain (`physics3d.solve_ik`); an animation-side solver over a rig does not |
 | A sequencer: cutscenes and cameras on a timeline, with tracks that call something rather than only move it | no plan yet; `balaur_anim` already samples clips onto nodes, with twelve easing curves in four modes, and the editor has the timeline dock |
 | 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |
 | Shadow maps in 3D, and baked lightmaps | no plan yet; directional, point and spot lights and fog already reach the 3D material shader, with no shadow pass behind them |

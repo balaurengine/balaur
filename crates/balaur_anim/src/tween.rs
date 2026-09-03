@@ -1,8 +1,7 @@
 //! Tweens: a clip generated on the spot, with its start values read off the
 //! node it was asked for.
 //!
-//! This is the unification the plan is built around
-//! (`docs/PLAN-animation-and-resources.md` §3.4). A tween is not a second
+//! This is the unification the crate is built around. A tween is not a second
 //! animation system: it is a short [`Clip`] whose keys are computed when the
 //! tween starts, sampled by the same [`crate::sampler`], written by the same
 //! pose path, and eased by the same curves. There is one interpolator in this

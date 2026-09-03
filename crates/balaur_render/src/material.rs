@@ -562,6 +562,10 @@ pub fn compile_with(
 
 #[cfg(test)]
 mod tests {
+    // These assert a byte-exact round-trip through the uniform buffer, so an
+    // exact comparison is the assertion, not a measurement being rounded.
+    #![allow(clippy::float_cmp)]
+
     use super::*;
     use crate::shaders;
 

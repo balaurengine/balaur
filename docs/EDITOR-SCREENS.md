@@ -4,6 +4,11 @@ Every surface the editor draws, as an ASCII mockup next to the screenshot that
 proves what it actually looks like. This is the review sheet: read a mockup,
 open the PNG beside it, write the complaint under the screen.
 
+This file records the shell **as it is**. The shell it is becoming is Stage —
+scene edge to edge, panels as sheets floating on it — planned in
+[PLAN-editor-redesign.md](PLAN-editor-redesign.md). Keep this file describing
+what the screenshots show, not what the plan wants.
+
 Regenerate the PNGs into `target/uiaudit/` with:
 
     scripts/uiaudit.sh
@@ -19,7 +24,9 @@ threshold, which is the widest thing most people will ever run it at.
 
 Fixed. Nothing docks, floats or re-arranges; a persona re-fills four regions
 and may re-order the dock. Declared in `editor/scripts/editor.rn:draw_ui` in
-this order: persona bar, status bar, tree, inspector, dock, centre.
+this order: persona bar, status bar, tree, inspector, dock, centre. Under Stage
+every one of these becomes a sheet at a rect the editor computes; the sizes
+below are what the redesign starts from.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -252,12 +259,16 @@ state in the last column.
 | D16 | **The tree's connector rails are mono text.** `├─`/`└─`/`│ ` glyphs drift out of alignment with the 27 px rows and the depth indent. | `left::tree_row` | `01`, `03` |
 | D17 | **The log's columns do not line up.** The severity mark, the timestamp, the `s`, and the tag each start where the last one ended. | `dock::output` | `01` |
 
-### Where the code and the design handoff disagree
+D1, D3 and D5 are one defect wearing three hats: a panel drawing where the
+layout said it would not. Stage does not remove that class — it makes it the
+normal case, which is why §2 of the plan is one module owning every rect and
+why nothing else starts before it.
 
-`design_handoff_balaur_editor/` is the terracotta-and-sage prototype the shell
-was built from. The token set has since moved to the website's ink-and-blue
-palette (`editor/scripts/theme.rn`), so the handoff's colour table is stale;
-its **measurements** — the fixed heights, the 84 px label column, the 999 px
-radii, the 1 px seams — are still what the code implements, and D3, D4 and D5
-are all places the code has drifted off them. Treat the handoff as the
-measurement reference and this file as the state of the world.
+### Where the measurements live
+
+The shell was built from a prototype whose terracotta-and-sage tokens are
+gone: the token set is the website's ink-and-blue palette, in
+`editor/scripts/theme.rn`. The measurements it fixed — the dock heights, the
+84 px label column, the 999 px radii, the 1 px seams — live in the code that
+draws them, and D3, D4 and D5 are places that code has drifted off them.
+This file is the state of the world; the plan is where it is going.

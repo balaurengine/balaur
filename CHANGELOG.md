@@ -40,7 +40,7 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 
 ### Physics
 
-- The rest of Rapier, in both dimensions (`docs/PLAN-rapier.md`): every rigid-body property rapier has — damping, gravity scale, axis locks, CCD, dominance, mass, per-body sleep, forces and torques.
+- The rest of Rapier, in both dimensions: every rigid-body property rapier has — damping, gravity scale, axis locks, CCD, dominance, mass, per-body sleep, forces and torques.
 - Joints: fixed, revolute, prismatic, spherical, rope, spring, pin-slot and generic, with motors, limits, `break_force`, and impulse or reduced-coordinate solvers.
 - Inverse kinematics on a reduced-coordinate chain: `physics3d.solve_ik`.
 - Character controllers: `character3d` / `character2d` and `move_character`, sliding, stepping, slope limits, ground snapping, and pushing what they walk into.

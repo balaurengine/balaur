@@ -1,5 +1,5 @@
-//! Phase 3 of `docs/PLAN-rapier.md`: what a collider carries besides its
-//! shape, where it sits, and which body it belongs to.
+//! What a collider carries besides its shape, where it sits, and which body
+//! it belongs to.
 
 use balaur_core::hecs::Entity;
 use balaur_core::scene;

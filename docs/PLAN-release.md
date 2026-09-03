@@ -63,8 +63,7 @@ Numbers that nobody can reproduce are marketing. The suite runs on one
 pinned runner per platform, headless, on every tag; the results go to
 `docs/generated/benchmarks.md` in the engine and to a page on the website,
 with the commit, the machine and the variance. A budget row per scenario
-turns a regression into a failed job, which is what
-`docs/PLAN-extensibility-and-quality.md` §3.4 asked for.
+turns a regression into a failed job.
 
 ## Phases
 

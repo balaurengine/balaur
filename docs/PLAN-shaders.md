@@ -275,9 +275,9 @@ mechanism to find it, watch it or ship it.
 
 ## Debugging a shader
 
-There is no breakpoint. No GPU API has one — not wgpu, not WebGPU — so
-`docs/PLAN-debugger.md`'s model (park the VM, read the frames) has no
-analogue on the device. What replaces it, in the order the loop actually
+There is no breakpoint. No GPU API has one — not wgpu, not WebGPU — so the
+script debugger's model (park the VM, read the frames) has no analogue on
+the device. What replaces it, in the order the loop actually
 uses them:
 
 1. **Hot reload is the debugger.** Save, see it. Sub-second iteration is

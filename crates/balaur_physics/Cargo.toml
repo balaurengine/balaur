@@ -33,7 +33,7 @@ rayon = { version = "1", optional = true }
 [features]
 default = ["f32"]
 # The scalar physics runs at; `f64` buys room for a world tens of kilometres
-# across. See docs/PLAN-rapier.md, phase 13.
+# across.
 f32 = ["dep:rapier3d", "dep:rapier2d", "dep:parry3d", "dep:parry2d"]
 f64 = ["dep:rapier3d_f64", "dep:rapier2d_f64", "dep:parry3d_f64", "dep:parry2d_f64"]
 # Rapier's parallel solver, through rayon. Its colouring makes the thread

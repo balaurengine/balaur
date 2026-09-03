@@ -2,8 +2,9 @@
 > with the additive script functions listed with Table B and the `UiState`
 > split, the `install_physics2d_api` split, the `DebugLineBuffer` drain
 > system and the `parse_schema` validator each of them required. The rows
-> aimed at `docs/PLAN-animation-and-resources.md` were applied to that plan
-> rather than to code, since none of it is built yet. §5's exemptions hold
+> aimed at the then-unbuilt asset and animation layers were applied to that
+> plan rather than to code; both have shipped since under the names decided
+> here. §5's exemptions hold
 > as written, and §6's lint rules are still a proposal: nothing in
 > `scripts/house_lints.py` enforces any of this yet, and
 > `scripts/api_lints.py` does not exist. The tables below are kept in the
@@ -76,8 +77,8 @@ The collision is only forced if content takes Godot's word, and it does not
 have to. Five of six surveyed engines call disk-loaded shared content an
 Asset; only Godot says Resource, and Unity's deprecated `Resources.Load()` is
 a live demonstration of how that word ages when it means two things.
-`docs/PLAN-animation-and-resources.md:105-116` had already reached this
-conclusion, so this ratifies it rather than inventing it. The measured cost of
+The asset-layer plan had already reached this conclusion, so this ratifies
+it rather than inventing it. The measured cost of
 the alternative: 89 `.resource::<`, 42 `try_resource`, 30 `insert_resource`,
 3 `remove_resource` and 6 `Resources` — ~170 compiler-caught sites across
 8 crates, to buy a noun.
@@ -93,9 +94,9 @@ request is not a subsystem. `Global` — `global` already means world-space here
 (`GlobalTransform`, `node:global_position`), so it trades one collision for
 another.
 
-**Consequences the plan must absorb.** `docs/PLAN-animation-and-resources.md`
-names the type `AssetServer` (`:116`, `:166`, `:348`) — a `Server` suffix D1
-has just rejected and one that is outside N2's closed set. Decide it before
+**Consequences the plan must absorb.** The asset-layer plan named the type
+`AssetServer` — a `Server` suffix D1 has just rejected and one that is outside
+N2's closed set. Decide it before
 phase 1 writes it into every future doc: the cache becomes **`AssetState`**
 (a `DetHashMap<Key, Rc<Asset>>` owned by the asset layer) and the table of
 `register_asset_type` parsers becomes **`AssetTypeRegistry`**. Free today,
@@ -329,7 +330,7 @@ Two prerequisites, both from things this audit turned up:
 | `install_physics2d_api` | split into `build_physics2d(app: &mut App)` (resource + system) and `install_physics2d_api(m: &mut dyn Bindings<Engine>)`, mirroring `PhysicsPlugin::build` at `lib.rs:60-72` | 1 | N10 |
 | `install_scene_api` | `install_backdrop_api` — it registers `set_background`, `set_grid`, `set_grid_colors`, `draw_line`, and `scene` is a real and different module owned by `balaur_core` | 1 | N11 |
 | *(contents, not names)* | move `set_camera` (`:435`) into `install_camera_api`; move `set_ball` / `set_cuboid` / `set_color` (`:488,492,497`) into `install_shape_api`; move `set_app_icon` (`:291`) into a new `install_window_api`; what remains of `install_2d_api` becomes `install_camera_2d_api`. Re-check `MAX_FN_LINES` after the moves — the current shape was cut by line count. | 5 fns, one file | N11 |
-| planned `AssetServer` | `AssetState` (the cache) + `AssetTypeRegistry` (the parser table) — not yet built, so free | `docs/PLAN-animation-and-resources.md:116,166,348` | D1, N2 |
+| planned `AssetServer` | `AssetState` (the cache) + `AssetTypeRegistry` (the parser table) — decided before either was written, and what the asset layer shipped as | — | D1, N2 |
 
 ### Table B — breaking the script API
 
@@ -353,7 +354,7 @@ hand-written mentions in `ARCHITECTURE.md` / `README.md` updated.
 | `input.mouse_just_released(button)` | The keyboard family is complete (`is_down` / `just_pressed` / `just_released`, `crates/balaur_input/src/lib.rs:373-385`); the mouse family stops at two, so drag-release has no binding and `examples/angrynerds` infers it by hand. |
 | `physics2d.add_body`, `physics2d.add_collider` | `add_body` already exists as a private Rust fn at `crates/balaur_physics/src/dim2.rs:64` and is simply never bound. `physics2d` has 7 functions to `physics`'s 11 and no constructors at all. |
 | `node.rotation_degrees` / `set_rotation_degrees` | `editor/scripts/inspector.rn:106-111` authors in degrees against `rotation_euler`'s radians. Godot-style, additive, breaks nothing. |
-| planned `assets.duplicate(path)` | The plan says `assets.instance(path)` (`docs/PLAN-animation-and-resources.md:177,188`). `instantiate` is spoken for by `scene.instantiate`, which builds nodes; the private-copy operation is Godot's `duplicate()`, which the plan itself cites on the same line. |
+| planned `assets.duplicate(path)` | The plan said `assets.instance(path)`. `instantiate` is spoken for by `scene.instantiate`, which builds nodes; the private-copy operation is Godot's `duplicate()`, which is what shipped. |
 | planned `animation` module, `animation.stop(id)` | The plan says `anim` and `anim.kill(id)` (`:257-290`). Every existing module is a full word or an established initialism, the plan's own scene key is `[nodes.animation]`, and `kill` would be a third destruction verb beside `node.queue_free` and `physics.clear`. |
 
 ### Table C — breaking scene files
@@ -362,14 +363,14 @@ Two of these touch no `.toml` at all — do those first.
 
 | From | To | Sites | Rule |
 | --- | --- | --- | --- |
-| schema meta key `kind` | `type` | 6 Rust literals (`crates/balaur_physics/src/lib.rs:405,451-453`; `dim2.rs:389,435-440`; `crates/balaur_render/src/lib.rs:537-539,609-611,679`; `crates/balaur_ui/src/widget_layer.rs:55-62`), the module doc at `crates/balaur_core/src/components.rs:18`, and **one** editor line, `editor/scripts/inspector.rn:248` `local kind = spec.kind`. **No `.toml` changes.** Do it before the asset layer: today every discriminant reads `kind = { kind = "enum", ... }`, and `docs/PLAN-animation-and-resources.md:191` proposes `library = { kind = "asset", type = "animation_clip" }`, pinning a third meaning onto `type` at the level where `kind` already means the datatype. | N6 |
+| schema meta key `kind` | `type` | 6 Rust literals (`crates/balaur_physics/src/lib.rs:405,451-453`; `dim2.rs:389,435-440`; `crates/balaur_render/src/lib.rs:537-539,609-611,679`; `crates/balaur_ui/src/widget_layer.rs:55-62`), the module doc at `crates/balaur_core/src/components.rs:18`, and **one** editor line, `editor/scripts/inspector.rn:248` `local kind = spec.kind`. **No `.toml` changes.** Do it before the asset layer: today every discriminant reads `kind = { kind = "enum", ... }`, and the asset-layer plan proposed `library = { kind = "asset", type = "animation_clip" }`, pinning a third meaning onto `type` at the level where `kind` already means the datatype. | N6 |
 | schema type `str` | `string` | `crates/balaur_ui/src/widget_layer.rs:56,61,62` plus test schemas. **No `.toml` changes.** | N6, D4 |
 | `collider.shape` / `collider2d.shape` | `collider.kind` / `collider2d.kind` | 13 scene sites (`examples/hello/scenes/main.toml:16`, `examples/hello_rune:16`, `examples/angrynerds` ×11), `crates/balaur_physics/tests/api.rs:29,74`, and **three editor readers the first pass missed**: `editor/scripts/editor.rn:271` `if c.shape == "circle"` (no fallback — after the rename every 2D circle collider silently draws as a box in the Show-colliders overlay), `gizmo.rn:162` `shape.kind == "ball" or shape.shape == "ball"`, `gizmo2d.rn:68` `shape.kind == "circle" or shape.shape == "circle"`. Those last two are `kind or shape` disjunctions — dead branches recording the same confusion. | N6 |
 | body/body2d option `"fixed"` | `"static"`; `BODY_FIXED` → `BODY_STATIC` | 3 scene files, all e2e targets (`examples/hello/scenes/main.toml:7`, `hello_rune:7`, `angrynerds:59`); the forward maps `crates/balaur_physics/src/lib.rs:161` and `dim2.rs:67`; the reverse maps `lib.rs:437` and `dim2.rs:421`; the schemas `lib.rs:405`, `dim2.rs:389`; the constant `lib.rs:380`; tests `determinism.rs:28,106`, `crates/balaur/tests/components.rs:41,42`, `api.rs:38`, and `constants.rs`, which asserts `BODY_KINDS` against the live registry — so constant and schema must move in the same commit. Unblocks the dead branch at `editor/scripts/model.rn:31,37`. | N14 |
 | `widget.color = { type = "string" }` | `widget.text_color = { type = "color" }` | 5 `[nodes.widget]` blocks across **three** example projects (`examples/hello/scenes/main.toml:53`, `hello_rune:53`, `angrynerds:17,31,45`), used at `crates/balaur_ui/src/widget_layer.rs:160`. Stops shadowing the `color` component with an incompatible type, and gets the editor's colour picker instead of a text field (`inspector.rn:284` vs `:306`). Requires `type = "color"` to also parse `#rrggbb`, which additionally fixes the silent-grey bug where `color = "#ff0000"` on a node falls through to 0.8/0.8/0.8 because `apply` calls `as_array()` (`crates/balaur_render/src/lib.rs:681-687`). | N6 |
 | `widget.size` | `widget.font_size` | Same 5 blocks. It is read as a font height at `crates/balaur_ui/src/widget_layer.rs:161` — and `panel` is already a shipped option (`:55`), so a shipped widget kind has a property that means the wrong thing for it. | N6 |
 | *(nothing)* | declare widget's `clicked`: `clicked = { type = "bool", default = false, readonly = true }` | Additive. `get` emits it at `crates/balaur_ui/src/widget_layer.rs:102` but the schema (`:55-62`) does not declare it, so it is invisible to the inspector, to `scene.component_schema("widget")` and to any generic round trip. Enforce with a test asserting every component's `get` key set is a subset of its schema key set. | N6 |
-| planned `library = { kind = "asset", type = "animation_clip" }` | `library = { type = "asset", asset = "animation_clip" }` | `docs/PLAN-animation-and-resources.md:191`; not built, so free. | N6 |
+| planned `library = { kind = "asset", type = "animation_clip" }` | `library = { type = "asset", asset = "animation_clip" }` | Decided before the asset layer was written. | N6 |
 
 **Migration, and why "one release of deprecation" does not work here.** The
 editor's save is a verbatim round-trip of the parsed document

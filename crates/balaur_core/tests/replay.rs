@@ -334,7 +334,7 @@ fn events_are_recorded_against_the_tick_that_made_them() {
 
     let mut app = app_with_dial();
     app.add_system(balaur_core::Stage::Update, |eng: &Engine, _| {
-        if eng.tick() % 2 == 0 {
+        if eng.tick().is_multiple_of(2) {
             replay::event(eng, "net.request", "GET /score", None);
         }
     });

@@ -249,13 +249,14 @@ fn playing_walks_the_session_a_tick_at_a_time() {
 /// field rather than knowing any plugin's shape.
 #[test]
 fn marks_answer_for_a_source_the_engine_does_not_know() {
-    let dir = project(&[("r.rn", RECORDER)]);
-    let mut app = app_in(dir.path());
     // A stand-in for the input plugin: core has no such source of its own.
     #[derive(serde::Serialize, serde::Deserialize, Default)]
     struct Keys {
         just_pressed: Vec<String>,
     }
+
+    let dir = project(&[("r.rn", RECORDER)]);
+    let mut app = app_in(dir.path());
     app.engine.insert_resource(Keys::default());
     app.add_replay_resource::<Keys>("input");
     scope_the_game(&app);
@@ -299,7 +300,7 @@ fn a_session_name_is_a_file_name() {
 
 /// A script that moves its node every fixed step, so the world it leaves
 /// depends on how many steps ran and on nothing else.
-const MOVER: &str = r#"
+const MOVER: &str = r"
 pub fn init(this) {
     this.n = 0;
 }
@@ -308,7 +309,7 @@ pub fn fixed_update(this, dt) {
     this.n = this.n + 1;
     this.node.set_position(this.n as f64 * 0.25, 0.0, 0.0);
 }
-"#;
+";
 
 const DRIVER: &str = r#"
 pub fn init(this) {

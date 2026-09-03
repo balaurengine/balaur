@@ -56,8 +56,7 @@ hecs = "0.11"
 glamx = { version = "0.3", features = ["libm", "scalar-math"] }
 notify = "8"
 # `unsync-callbacks` drops rapier's `Sync` bound on hooks and event handlers,
-# which is what lets one reach the script host (an `Rc`). See
-# docs/PLAN-rapier.md, "Events and hooks".
+# which is what lets one reach the script host (an `Rc`).
 rapier3d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render", "unsync-callbacks"] }
 rapier2d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render", "unsync-callbacks"] }
 serde = { version = "1", features = ["derive"] }

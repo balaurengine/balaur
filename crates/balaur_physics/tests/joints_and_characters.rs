@@ -1,6 +1,5 @@
-//! Phases 5, 6 and 7 of `docs/PLAN-rapier.md`: collision events, joints and
-//! the character controller, driven from scripts because their whole surface
-//! is the script seam.
+//! Collision events, joints and the character controller, driven from scripts
+//! because their whole surface is the script seam.
 
 use balaur::{standard_app, AppConfig};
 

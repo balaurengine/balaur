@@ -1,5 +1,4 @@
-//! Phase 2 of `docs/PLAN-rapier.md`: everything a rigid body carries beyond
-//! its kind, in both dimensions.
+//! Everything a rigid body carries beyond its kind, in both dimensions.
 //!
 //! Driven from Rust rather than from a script so the assertions can read the
 //! rapier world directly — the same reason `api.rs` gives.

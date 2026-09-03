@@ -1,5 +1,5 @@
-//! Phases 8, 9 and 11 of `docs/PLAN-rapier.md`: voxels and the shapes built
-//! from a mesh, the solver knobs, and the geometry toolkit.
+//! Voxels and the shapes built from a mesh, the solver knobs, and the
+//! geometry toolkit.
 
 use balaur::{standard_app, AppConfig};
 

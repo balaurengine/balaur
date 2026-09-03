@@ -80,6 +80,9 @@ fn parse_definition(value: &toml::Value) -> Result<VoxelsData> {
 
 #[cfg(test)]
 mod tests {
+    // Parsed literals, so an exact comparison is the assertion.
+    #![allow(clippy::float_cmp)]
+
     use super::*;
 
     #[test]

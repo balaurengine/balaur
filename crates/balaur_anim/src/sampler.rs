@@ -1,7 +1,7 @@
 //! The sampler: `(clip, time) -> pose`, and nothing else.
 //!
 //! Pure on purpose. Blend trees and state machines are a later tier
-//! (`docs/PLAN-animation-and-resources.md` §3.7), and they compose *samples*:
+//! (`docs/PLAN-animation-and-resources.md`), and they compose *samples*:
 //! a blender that mixes two poses needs the sampler to depend on nothing but
 //! its two arguments, or the data model has to change to admit it.
 //!

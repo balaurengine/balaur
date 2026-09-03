@@ -656,6 +656,10 @@ fn find_template(target: &str) -> Result<PathBuf> {
     )
 }
 
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "five independent command-line flags, not a state enum"
+)]
 struct RunOpts {
     path: PathBuf,
     headless: bool,
