@@ -34,9 +34,16 @@ wanted() { # wanted <name>: true when no names were given or this one was
 
 # A clip may edit an example's files on the way; it restores them itself,
 # and this catches a run that stopped before it could.
-edited=(examples/hello/scripts/spinner.rn examples/shaders/shaders/glow.wesl)
-backup_examples() { local f; for f in "${edited[@]}"; do cp "$f" "$work/$(basename "$f").orig"; done; }
-reset_examples() { local f; for f in "${edited[@]}"; do cp "$work/$(basename "$f").orig" "$f"; done; }
+# Every file a sequence may write: the ones it edits on purpose, and the
+# scene files the editor re-serialises if a save lands on the document.
+edited=(examples/hello/scripts/spinner.rn examples/shaders/shaders/glow.wesl
+  examples/hello/scenes/main.toml examples/angrynerds/scenes/main.toml
+  examples/rig/scenes/main.toml examples/shaders/scenes/main.toml)
+# Keyed by the whole path: every example's scene file is called main.toml,
+# and one shared slot would restore each of them from the last one backed up.
+slot() { printf '%s/orig-%s' "$work" "${1//\//_}"; }
+backup_examples() { local f; for f in "${edited[@]}"; do cp "$f" "$(slot "$f")"; done; }
+reset_examples() { local f; for f in "${edited[@]}"; do cp "$(slot "$f")" "$f"; done; }
 
 # A failed take is reported and the rest are still taken.
 failed() { echo "FAILED"; tail -5 "$work/$1.log" | cut -c1-200; failed+=("$1"); }

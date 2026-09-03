@@ -18,6 +18,16 @@
 > 4. **The tree does not change during the replay.** angrynerds pops a pig's
 >    components rather than freeing the node, so the viewport, the HUD, the
 >    Session dock's lanes and its event rows carry that part of clip 10.
+> 5. **A sequence runs in two phases.** Input is fed from `update`, before the
+>    game reads the frame's snapshot; anything a click on the chrome would do
+>    runs from `draw_ui`, after it — driving the editor from `update` rebuilt
+>    the scene underneath the game's own `update`, which then ran against
+>    half a world.
+> 6. **The shader clip does not click the gutter yet.** `showcase.rn`'s
+>    `PREVIEW` is off: the 2D pipeline does not bind the preview's probe, so
+>    a gutter click fails wgpu validation. Turn it on with that work; the
+>    clip shows the material, the editor, a channel view and a live relink
+>    meanwhile.
 
 # Plan: showcase media for the manual
 
@@ -109,43 +119,38 @@ Have:
   recorded pointer and keys into the game's own input snapshot
   (`editor/scripts/session.rn`).
 
-Planned, in order:
+Built, in the order it landed:
 
-1. **`frames=<dir>[:<from>-<to>]` start state.** Like `shot=` but a
-   `render::screenshot(dir/NNNNNN.png)` every frame in the range. A clip is
-   then `ffmpeg -framerate 60 -i %06d.png` to `.webm` (VP9) and `.mp4`
-   (H.264, for Safari), with frame `from` as the poster PNG. Readback cost
-   does not matter: the step is fixed.
-2. **Input overlay.** `overlays::input(S)` draws, in a viewport corner, a
-   chip per key and mouse button down this frame, the action names that are
-   active, and a ripple at the pointer on a press; the pointer itself is
-   drawn when a replay is feeding it. On by an editor setting (palette
-   command *Show input*, `--state input`). It reads the same
-   `input::*` snapshot the game reads, so a replay shows exactly what was
-   recorded — that is what clip 10 relies on. A `--show-input` for
-   `balaur run` can come later, drawing the same thing over the widget layer.
-3. **Showcase states.** `editor/plugins/showcase.rn` registers `show:<name>`
-   states, one per clip, each a frame-paced sequence of the calls the UI
-   would make (`select`, `set_transform`, `add_key`, `toggle_play`,
-   `session::open`, `seek`) with pauses long enough to read, and a drawn
-   cursor that moves to what it is about to "click". Same seam as
-   `editor/plugins/counter.rn`; `--frames` bounds each one so it is also a
-   test. Gameplay inside a clip comes from a committed `.blr` recorded by
-   hand once (`examples/<game>/showcase/*.blr`), so no clip needs a human at
-   the mouse when it is retaken.
-4. **Example content.** `examples/angrynerds`: a `Restart` button widget
-   (`on_click = "restart"`). `examples/shaders`: one sprite with a `material`
-   whose `.wesl` computes something in three visibly different steps (UV,
-   noise, colour ramp), so a gutter click on each line shows a different
-   picture.
-5. **`scripts/showcase.sh`.** Every image and clip above as one line each —
-   project, state, output file — writing to `docs/showcase/`, and the
-   website's `scripts/sync-docs.sh` copies them into `static/img/manual/`
-   and `static/video/`. No shot is taken by hand.
-6. **Website.** MDX takes a plain `<video autoPlay loop muted playsInline
-   poster="/img/manual/x.png"><source src="/video/x.webm" /><source
-   src="/video/x.mp4" /></video>`; no plugin. Clips are 8–25 s at the
-   offscreen size and should stay under ~2 MB each.
+1. **`frames=<dir>` start state.** Like `shot=`, but a
+   `render::screenshot(dir/NNNNNN.png)` every other frame from frame 30, so a
+   clip is 30 fps and skips the frames the layout takes to settle. ffmpeg
+   turns the directory into a `.webm` (VP9) and an `.mp4` (H.264, for
+   Safari), with frame 0 as the poster.
+2. **Input overlay.** `editor/scripts/inputview.rn` draws a chip per key and
+   mouse button down this frame, the actions they drive, the pointer, and a
+   ripple where a button went down. On from the palette (*Show input
+   overlay*) or `--state input`. It reads the same `input::*` snapshot the
+   game reads, so a replay shows exactly what was recorded — which is what
+   clip 10 relies on. A `--show-input` for `balaur run` can come later.
+3. **Showcase sequences.** `editor/scripts/showcase.rn`, one per clip: the
+   calls the UI would make, paced by frame, plus the input a person would
+   feed. Input goes in from `update`, before the game reads the snapshot;
+   editor work goes in from `draw_ui`, after it. `input.feed_key`,
+   `feed_mouse` and `feed_mouse_button` call the snapshot's own feeders, so a
+   fed frame records and replays like a person's — no `.blr` is committed,
+   and the determinism clip records its own slingshot pull and replays it.
+4. **Example content.** `examples/angrynerds` gained a `Restart` button
+   widget whose `on_click` forwards to the game script; `examples/shaders` is
+   a sprite on a `material` whose `.wesl` computes UV, a ring wave and a
+   colour ramp as separate typed `let`s.
+5. **`scripts/showcase.sh [website-dir] [name...]`.** Every image and clip as
+   one line — project, state, output — written straight into the website's
+   `static/img/manual/` and `static/video/`. A named argument takes one; a
+   failed take is reported and the rest are still taken. `BALAUR_BIN` skips
+   the cargo build.
+6. **Website.** `src/components/Clip.tsx` renders `<Clip name="x" />` as a
+   looping muted `<video>` with both sources and the poster. Clips run 8-25 s
+   at 1600x1000 and land between 0.4 and 1.3 MB.
 
 ## The editor page's existing images
 
@@ -161,18 +166,20 @@ each persona's picture moves to the page about its feature.
 | `persona_interface.png` | UI page: `ui_widgets.png` |
 | `palette.png`, `theme_light.png` | dropped; the palette and the theme are a sentence each |
 
-## Docs gaps seen on the way
+## Docs gaps closed on the way
 
-- There is no manual page for shaders and materials; clip 11 needs one.
-- The editor page says four docks; there are seven.
-- Prefabs, exported script properties, input actions and save games are in
-  the changelog and not in the manual.
+- `docs/manual/shaders.mdx` is new: the `material` asset, the WESL contract,
+  the inspector's rows, the gutter preview and the channel views.
+- The editor page names all seven docks, and its fifteen screenshots became
+  one overview image plus a clip per feature page.
+- Prefabs, exported script properties, input actions and save games were in
+  the changelog and not in the manual; each has a section now.
 
-## Open questions
+## Settled
 
-- Clip 10 asks the tree to change during the replay. That is spawn and free
-  (birds used up), not rename or reorder: those are edits, and a replay
-  feeds input, not edits. If the point is "edit the scene, the recording
-  still plays", that is a second, shorter clip.
-- Whether the input overlay's key chips use the key's own name
-  (`Space`, `A`) or the action's; showing both is the plan above.
+- **The tree changing during the replay is spawn and free**, not rename or
+  reorder: a replay feeds input, not edits. angrynerds pops a pig's
+  components as it is hit, which is what clip 10 shows. There is no second
+  clip for editing a scene under a recording.
+- **The input overlay names the key and the action**, side by side: a key
+  chip per key or button held, then a pill per action they drive.

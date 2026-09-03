@@ -1474,6 +1474,11 @@ plus the input a person would feed, paced by frame — captured by
 `frames=<dir>` every other frame and encoded by ffmpeg at 30 fps. Offscreen
 frames advance on the fixed step, so a clip is the same clip every time.
 
+A sequence runs in two phases. Input is fed from `update`, before the game
+reads the frame's snapshot; anything a click on the editor's chrome would do
+runs from `draw_ui`, after it. Driving the editor from `update` rebuilt the
+scene underneath the game's own `update`, which then ran against half a world.
+
 The input a sequence feeds goes through `input.feed_key`, `feed_mouse` and
 `feed_mouse_button`, which call the snapshot's own feeders: a fed frame is
 indistinguishable from a window's, so the recorder records it and a replay
@@ -1484,8 +1489,18 @@ the OS cursor for the same reason: during a replay it is the recording's
 pointer that moves. The gizmo stands down while a sequence runs, since the
 fed pointer is the game's and not the editor's.
 
-A sequence that edits an example's files restores them on its last step,
-and the script runs `git checkout -- examples` after each clip regardless.
+A sequence that edits an example's files restores them on its last step, and
+the script restores its own backup of every file a sequence may write after
+each take — including the example scene files, since a save that lands on the
+document re-serialises the TOML.
+
+Taking the clips found two engine-side bugs worth naming: a material handed
+in by absolute path resolved its shader against the editor's root rather than
+the game's, so a project's materials never drew in the editor; and stopping a
+play session cleared the physics world while the game's script instances were
+still attached, so the next `update` queried a body that had just been
+removed. `node.detach_script()` is the second one's fix — the editor lets go
+of the scripts before it clears the world.
 
 ## Camera and screenshots
 

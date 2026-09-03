@@ -36,7 +36,10 @@
 >    and the dock asks for `("input", "just_pressed")`. Core never learns the
 >    shape of the input plugin's snapshot, and a new source gets a lane
 >    without a change here.
-> 7. **The trailer's digest is a note, not a check.** A stop lands wherever in
+> 7. **"Save as…" is "export", and it has one destination.** The widget seam
+>    has no file dialog, so a session is copied into the project root, which
+>    is where a bug report or a `balaur replay --verify` can reach it.
+> 8. **The trailer's digest is a note, not a check.** A stop lands wherever in
 >    the frame the button was pressed, which is not a frame boundary, so it is
 >    not comparable with anything a replay reaches. Only a frame's own digest
 >    is compared, and per-tick digests are a Session-dock toggle (`verify`)

@@ -25,7 +25,11 @@ pub fn feeding(S) {
 }
 
 pub fn start(S, name) {
-    let q = #{ name: name, at: 0, steps: [], spans: [], acts: [], spans_ui: [], kept: #{} };
+    let q = #{
+        name: name, at: 0, kept: #{},
+        steps: [], spans: [], seen: 0,
+        acts: [], spans_ui: [], seen_ui: 0,
+    };
     match name {
         "scenes" => scenes(S, q),
         "scripting" => scripting(S, q),
@@ -53,7 +57,7 @@ pub fn step(S) {
         return;
     }
     q.at = q.at + 1;
-    run_phase(q.steps, q.spans, q.at);
+    q.seen = run_phase(q.steps, q.spans, q.seen, q.at);
 }
 
 // The UI phase, from `draw_ui`: what a click on the chrome would do runs
@@ -63,12 +67,15 @@ pub fn draw(S) {
     if !(q is Object) {
         return;
     }
-    run_phase(q.acts, q.spans_ui, q.at);
+    q.seen_ui = run_phase(q.acts, q.spans_ui, q.seen_ui, q.at);
 }
 
-fn run_phase(steps, spans, t) {
+// Everything due since this phase last ran, not only what is due exactly
+// now: the first frame's UI pass never happens, and a step missed for being
+// one frame early would take the rest of the sequence with it.
+fn run_phase(steps, spans, seen, t) {
     for s in steps {
-        if s.at == t {
+        if s.at > seen && s.at <= t {
             (s.run)();
         }
     }
@@ -78,6 +85,7 @@ fn run_phase(steps, spans, t) {
             (sp.run)(p);
         }
     }
+    t
 }
 
 fn at(q, frame, run) {

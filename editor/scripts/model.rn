@@ -630,6 +630,13 @@ pub fn absolute(S, value) {
 
 // (Re)build the live mirror under a fresh container node.
 pub fn build_mirror(S) {
+    // Before the world goes: a game script still attached would get one more
+    // update against bodies `physics::clear` has already removed.
+    for found in S.refs {
+        if found is balaur::Node && found.is_valid() {
+            found.detach_script();
+        }
+    }
     if S.mirror is balaur::Node && S.mirror.is_valid() {
         S.mirror.queue_free();
     }

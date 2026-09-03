@@ -544,24 +544,6 @@ impl Material3d for ShaderMaterial3d {
             .expect("kiss3d panicked while writing the mesh's faces")
             .load_to_gpu();
 
-        // Read through the lock: `mesh.coords_buffer()` and its siblings
-        // answer `None` for every caller until the fork's fix lands.
-        let coords = mesh
-            .coords()
-            .read()
-            .expect("kiss3d panicked while writing the mesh's positions");
-        let normals = mesh
-            .normals()
-            .read()
-            .expect("kiss3d panicked while writing the mesh's normals");
-        let uvs = mesh
-            .uvs()
-            .read()
-            .expect("kiss3d panicked while writing the mesh's UVs");
-        let faces = mesh
-            .faces()
-            .read()
-            .expect("kiss3d panicked while writing the mesh's faces");
         let (
             Some(coords),
             Some(normals),
@@ -570,10 +552,10 @@ impl Material3d for ShaderMaterial3d {
             Some(object_bind_group),
             Some(texture_bind_group),
         ) = (
-            coords.buffer(),
-            normals.buffer(),
-            uvs.buffer(),
-            faces.buffer(),
+            mesh.coords_buffer(),
+            mesh.normals_buffer(),
+            mesh.uvs_buffer(),
+            mesh.faces_buffer(),
             gpu_data.object_bind_group.as_ref(),
             gpu_data.texture_bind_group.as_ref(),
         )

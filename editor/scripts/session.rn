@@ -253,8 +253,10 @@ fn build_lanes() {
     lanes.push(#{ id: "mouse", name: "Mouse", marks: index_marks("input", "mouse_just_pressed") });
     lanes.push(#{ id: "net", name: "Net", marks: event_marks(["net.request"]) });
     lanes.push(#{ id: "scene", name: "Scene", marks: event_marks(["scene.spawn", "scene.free"]) });
-    lanes.push(#{ id: "log", name: "Log", marks: event_marks(["log"]) });
-    lanes.push(#{ id: "stops", name: "Stops", marks: event_marks(["debug.pause"]) });
+    // Warnings and worse as dots; the rest of the log is in the detail list
+    // for whichever tick the playhead is on.
+    lanes.push(#{ id: "log", name: "Log", marks: log_marks(["warn", "error"]) });
+    lanes.push(#{ id: "errors", name: "Errors", marks: error_marks() });
     lanes
 }
 
@@ -281,6 +283,40 @@ fn index_marks(source, key) {
         }
         if names.len() > 0 {
             out.push(#{ tick: mark.tick, label: util::join(names, " ") });
+        }
+    }
+    out
+}
+
+// Log lines at one of the given levels. A script that threw is logged as an
+// error, so this is also how a script error reaches a lane.
+fn log_marks(levels) {
+    let out = [];
+    for e in util::vec(replay::events(0, 1000000000)) {
+        if e.kind != "log" {
+            continue;
+        }
+        let level = level_of(e);
+        for want in levels {
+            if want == level {
+                out.push(#{ tick: e.tick, label: e.label });
+            }
+        }
+    }
+    out
+}
+
+fn level_of(e) {
+    util::obj(e.data).get("level").unwrap_or("info")
+}
+
+// What went wrong and where a script stopped, on one row: the two things you
+// scan a session for after seeing a bug.
+fn error_marks() {
+    let out = [];
+    for e in util::vec(replay::events(0, 1000000000)) {
+        if e.kind == "debug.pause" || (e.kind == "log" && level_of(e) == "error") {
+            out.push(#{ tick: e.tick, label: e.label });
         }
     }
     out

@@ -22,6 +22,9 @@ use balaur_core::project::ProjectFiles;
 use balaur_core::{entity_of, DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
+pub mod bus;
+pub mod event;
+
 /// The rodio/cpal backend: every target with a real audio stack.
 #[cfg(not(target_family = "wasm"))]
 mod backend {
@@ -151,6 +154,8 @@ pub struct Sound {
     pub pitch: f32,
     /// The scene key is `loop`, which Rust reserves.
     pub looped: bool,
+    /// The bus this plays through; empty is `master`.
+    pub bus: String,
     /// The playback this node started, `None` until autoplay or `play_on`
     /// starts one and again after `stop_on`. A finished sink does not clear
     /// it: intent must read the same headless as with a device.
@@ -165,6 +170,7 @@ impl Default for Sound {
             volume: 1.0,
             pitch: 1.0,
             looped: false,
+            bus: String::new(),
             handle: None,
         }
     }
@@ -175,6 +181,10 @@ pub struct AudioState {
     /// Live sinks by handle. A handle absent here answers `is_playing` false
     /// and its setters no-op.
     playing: DetHashMap<u64, backend::Sound>,
+    /// What each live handle was played at and through, so moving a bus's
+    /// slider can re-apply the gain to what is already sounding. Without it a
+    /// volume change would only reach sounds started after it.
+    routing: DetHashMap<u64, (String, f32)>,
     /// Every node's `sound` component, keyed the way `AnimationState` keys
     /// its players.
     pub nodes: DetHashMap<Entity, Sound>,
@@ -189,6 +199,7 @@ impl AudioState {
         for (_, sink) in self.playing.drain(..) {
             sink.stop();
         }
+        self.routing.clear();
         for sound in self.nodes.values_mut() {
             sound.handle = None;
         }
@@ -200,10 +211,29 @@ impl AudioState {
     /// leave the handle silent, so a headless run behaves like a windowed
     /// one.
     pub fn play(&mut self, bytes: Vec<u8>, volume: f32, pitch: f32, looped: bool) -> u64 {
+        self.play_on_bus(bytes, volume, pitch, looped, "", 1.0)
+    }
+
+    /// The same, routed through a bus: `gain` is the bus chain's, and the
+    /// sound is started at `volume * gain`.
+    ///
+    /// The bus and the sound's own volume are both remembered, because a
+    /// slider moved later has to be able to recompute one from the other.
+    pub fn play_on_bus(
+        &mut self,
+        bytes: Vec<u8>,
+        volume: f32,
+        pitch: f32,
+        looped: bool,
+        bus: &str,
+        gain: f32,
+    ) -> u64 {
         let handle = self.next_handle;
         self.next_handle += 1;
+        let volume = volume.max(0.0);
+        self.routing.insert(handle, (bus.to_string(), volume));
         if let Some(device) = &self.device {
-            match backend::play(device, bytes, volume.max(0.0), pitch.max(MIN_PITCH), looped) {
+            match backend::play(device, bytes, volume * gain, pitch.max(MIN_PITCH), looped) {
                 Ok(sound) => {
                     self.playing.insert(handle, sound);
                 }
@@ -213,8 +243,29 @@ impl AudioState {
         handle
     }
 
+    /// Re-apply `gain` to every live sound on `bus`. What moving a slider
+    /// does to what is already playing.
+    pub fn reroute(&mut self, bus: &str, gain: f32) {
+        for (handle, (on, volume)) in &self.routing {
+            let on = if on.is_empty() { bus::MASTER } else { on.as_str() };
+            if on != bus {
+                continue;
+            }
+            if let Some(sink) = self.playing.get(handle) {
+                sink.set_volume((volume * gain).max(0.0));
+            }
+        }
+    }
+
+    /// The bus a live handle plays on, and the volume it was started at.
+    #[must_use]
+    pub fn routing_of(&self, handle: u64) -> Option<(String, f32)> {
+        self.routing.get(&handle).cloned()
+    }
+
     /// Stop one handle's sound. A finished, stopped or unknown handle no-ops.
     pub fn stop(&mut self, handle: u64) {
+        self.routing.shift_remove(&handle);
         if let Some(sink) = self.playing.shift_remove(&handle) {
             sink.stop();
         }
@@ -254,9 +305,10 @@ fn read_sound(eng: &Engine, path: &str) -> Result<Vec<u8>> {
 /// If the node has no `sound` component, its `file` is empty, or the file
 /// does not exist.
 pub fn play_on(eng: &Engine, entity: Entity) -> Result<u64> {
+    bus::ensure_loaded(eng);
     let state = eng.resource::<AudioState>();
     let mut state = state.borrow_mut();
-    let (file, volume, pitch, looped, current) = {
+    let (file, volume, pitch, looped, on, current) = {
         let sound = state
             .nodes
             .get(&entity)
@@ -266,6 +318,7 @@ pub fn play_on(eng: &Engine, entity: Entity) -> Result<u64> {
             sound.volume,
             sound.pitch,
             sound.looped,
+            sound.bus.clone(),
             sound.handle,
         )
     };
@@ -276,7 +329,8 @@ pub fn play_on(eng: &Engine, entity: Entity) -> Result<u64> {
     if let Some(current) = current {
         state.stop(current);
     }
-    let handle = state.play(bytes, volume, pitch, looped);
+    let gain = eng.resource::<bus::Buses>().borrow().gain(&on);
+    let handle = state.play_on_bus(bytes, volume, pitch, looped, &on, gain);
     if let Some(sound) = state.nodes.get_mut(&entity) {
         sound.handle = Some(handle);
     }
@@ -348,9 +402,12 @@ impl balaur_plugin::Plugin for AudioPlugin {
         reg.insert_resource(AudioState {
             device,
             playing: DetHashMap::default(),
+            routing: DetHashMap::default(),
             nodes: DetHashMap::default(),
             next_handle: 1,
         });
+        reg.insert_resource(bus::Buses::default());
+        reg.insert_resource(event::Events::default());
 
         reg.add_system(Stage::PostUpdate, sweep_sounds_system);
         register_sound_component(reg);
@@ -379,7 +436,8 @@ fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
 autoplay = { type = "bool", default = false, description = "Start playing when the node enters the scene" }
 volume = { type = "float", default = 1.0, min = 0.0, description = "Linear gain; 1 is the file's own level" }
 pitch = { type = "float", default = 1.0, min = 0.01, description = "Playback speed multiplier" }
-loop = { type = "bool", default = false, description = "Restart the sound when it ends" }"#,
+loop = { type = "bool", default = false, description = "Restart the sound when it ends" }
+bus = { type = "string", default = "", description = "Audio bus this plays through; empty is `master`" }"#,
             ),
             tags: &["audio"],
             expects: &[],
@@ -417,6 +475,11 @@ fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
             sound.volume = volume;
             sound.pitch = pitch;
             sound.looped = flag("loop");
+            sound.bus = params
+                .get("bus")
+                .and_then(toml::Value::as_str)
+                .unwrap_or_default()
+                .to_string();
             // A `sound` now naming another file drops the old playback.
             if file_changed {
                 (true, sound.handle.take())
@@ -510,6 +573,11 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
         ("stop_all", &[], "", "Silence everything at once and clear the playback every `sound` component was holding."),
         ("play_on", &["sound"], "", "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
         ("stop_on", &["sound"], "", "Silence what the node's `sound` started; a node carrying none is left alone."),
+        ("buses", &[], "()", "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order."),
+        ("bus_volume", &[], "(bus: string)", "One bus's own gain, without its parents'."),
+        ("set_bus_volume", &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it — which is what a volume slider is."),
+        ("events", &[], "()", "Every sound named in `audio/events.toml`, in name order."),
+        ("play_event", &[], "(name: string)", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. Nil for a name nothing declared."),
     ]);
     // `audio.play(path, { volume = 1.0, pitch = 1.0, loop = true })` hands
     // back the handle the other functions take. Flags live in the options
@@ -521,9 +589,17 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
             let volume = number(opt(opts, "volume")).unwrap_or(1.0);
             let pitch = number(opt(opts, "pitch")).unwrap_or(1.0);
             let looped = matches!(opt(opts, "loop"), Some(Value::Bool(true)));
+            let on = match opt(opts, "bus") {
+                Some(Value::Str(name)) => name.clone(),
+                _ => String::new(),
+            };
             let bytes = read_sound(eng, &path)?;
+            bus::ensure_loaded(eng);
+            let gain = eng.resource::<bus::Buses>().borrow().gain(&on);
             let state = eng.resource::<AudioState>();
-            let handle = state.borrow_mut().play(bytes, volume, pitch, looped);
+            let handle = state
+                .borrow_mut()
+                .play_on_bus(bytes, volume, pitch, looped, &on, gain);
             Ok(handle)
         },
     );
@@ -561,6 +637,62 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
     m.function("play_on", |eng: &Engine, node: NodeId| {
         play_on(eng, entity_of(node)?)
     });
+    m.function("events", |eng: &Engine, ()| {
+        event::ensure_loaded(eng);
+        let names = eng.resource::<event::Events>().borrow().names();
+        Ok(Value::List(names.into_iter().map(Value::Str).collect()))
+    });
+    // The script says *what happened*; the events file says what that sounds
+    // like. Tuning one never touches the other.
+    m.function("play_event", |eng: &Engine, name: String| {
+        event::ensure_loaded(eng);
+        bus::ensure_loaded(eng);
+        let played = {
+            let events = eng.resource::<event::Events>();
+            let events = events.borrow();
+            events
+                .get(&name)
+                .map(|event| (event.clone(), events.next_file(&name)))
+        };
+        let Some((event, Some(file))) = played else {
+            tracing::warn!("audio event '{name}' is not declared, or names no files");
+            return Ok(Value::Nil);
+        };
+        let bytes = read_sound(eng, &file)?;
+        let gain = eng.resource::<bus::Buses>().borrow().gain(&event.bus);
+        let handle = eng.resource::<AudioState>().borrow_mut().play_on_bus(
+            bytes,
+            event.volume,
+            event.pitch,
+            event.looped,
+            &event.bus,
+            gain,
+        );
+        Ok(Value::Int(i64::try_from(handle).unwrap_or(i64::MAX)))
+    });
+    m.function("buses", |eng: &Engine, ()| {
+        bus::ensure_loaded(eng);
+        let names = eng.resource::<bus::Buses>().borrow().names();
+        Ok(Value::List(names.into_iter().map(Value::Str).collect()))
+    });
+    m.function("bus_volume", |eng: &Engine, name: String| {
+        bus::ensure_loaded(eng);
+        let volume = eng.resource::<bus::Buses>().borrow().volume(&name);
+        Ok(volume)
+    });
+    m.function(
+        "set_bus_volume",
+        |eng: &Engine, (name, volume): (String, f32)| {
+            bus::ensure_loaded(eng);
+            let buses = eng.resource::<bus::Buses>();
+            buses.borrow_mut().set_volume(&name, volume);
+            let gain = buses.borrow().gain(&name);
+            // Everything already sounding on that bus moves too, which is the
+            // difference between a mixer and a default.
+            eng.resource::<AudioState>().borrow_mut().reroute(&name, gain);
+            Ok(())
+        },
+    );
     m.function("stop_on", |eng: &Engine, node: NodeId| {
         stop_on(eng, entity_of(node)?);
         Ok(())

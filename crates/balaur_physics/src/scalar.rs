@@ -38,11 +38,8 @@ pub(crate) fn real(value: f32) -> Real {
     Real::from(value)
 }
 
-/// A number on its way back out, to a script or a `Transform`.
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "the f64 build narrows here on purpose"
-)]
+/// A number on its way back out, to a script or a `Transform`. The f64 build
+/// narrows here, on purpose and in one place.
 pub(crate) fn f32_of(value: Real) -> f32 {
     value as f32
 }

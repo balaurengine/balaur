@@ -33,6 +33,7 @@ solver_iterations = { type = "float", default = 0.0, min = 0.0, description = "E
 ccd = { type = "bool", default = false, description = "Sweep the body's whole path each step so a fast one cannot pass through a wall" }
 soft_ccd = { type = "float", default = 0.0, min = 0.0, description = "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies" }
 fast_rotation = { type = "bool", default = false, description = "Allow a spin fast enough that rapier would otherwise clamp it" }
+gyroscopic = { type = "bool", default = false, description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }
 can_sleep = { type = "bool", default = true, description = "Let the body stop being simulated once it has held still" }
 sleep_time = { type = "float", default = 0.5, min = 0.0, description = "Seconds of stillness before the body sleeps" }
 enabled = { type = "bool", default = true, description = "Simulate this body at all; a disabled body keeps its state and costs nothing" }
@@ -119,6 +120,7 @@ pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_s
     body.enable_ccd(v::boolean(params, "ccd", false));
     body.set_soft_ccd_prediction(scalar::real(v::f(params, "soft_ccd", 0.0)));
     body.set_allow_fast_rotation(v::boolean(params, "fast_rotation", false));
+    body.enable_gyroscopic_forces(v::boolean(params, "gyroscopic", false));
     body.set_enabled(v::boolean(params, "enabled", true));
     write_mass(body, params);
     // The world-wide toggle wins while it is off: `physics.set_sleeping_allowed`
@@ -578,6 +580,24 @@ pub(crate) fn install_body_state_api(m: &mut dyn Bindings<Engine>) {
     m.function("kinetic_energy", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, RigidBody::kinetic_energy)
     });
+    m.function("potential_energy", |eng: &Engine, node: NodeId| {
+        let gravity = {
+            let state = eng.resource::<PhysicsState>();
+            let gravity = state.borrow().world.gravity;
+            gravity
+        };
+        read_body(eng, entity_of(node)?, |body| {
+            body.gravitational_potential_energy(scalar::real(crate::FIXED_DT), gravity)
+        })
+    });
+    m.function("is_moving", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, |body| -> bool { body.is_moving() })
+    });
+    m.function("effective_dominance", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, |body| {
+            f32::from(body.effective_dominance_group())
+        })
+    });
     // The step writes a dynamic body's pose into `Transform` every tick, so
     // assigning `node.position` on one is overwritten before it is seen. This
     // is the way to move one, and it says what it costs: the velocity goes.
@@ -593,6 +613,7 @@ pub(crate) fn install_body_pose_api(m: &mut dyn Bindings<Engine>) {
         ("set_body_kind", &["body3d"], "", "Change the body between dynamic, static and kinematic in place, keeping its velocity."),
         ("body_kind", &["body3d"], "", "Whether the body is dynamic, static, kinematic or kinematic_velocity."),
         ("predict_position", &["body3d"], "", "Where the body will be after `dt` seconds at its current velocity."),
+        ("predict_position_with_forces", &["body3d"], "", "The same, with the forces already applied taken into account: where a thrust or a spring will have put it."),
         ("next_position", &["body3d"], "", "The pose a kinematic body has been told to move to."),
     ]);
     m.function(
@@ -846,6 +867,16 @@ pub(crate) fn install_body_sleep_api(m: &mut dyn Bindings<Engine>) {
             read_body(eng, entity_of(node)?, |body| {
                 let pose = body.predict_position_using_velocity(dt).translation;
                 (pose.x, pose.y, pose.z)
+            })
+        },
+    );
+    m.function(
+        "predict_position_with_forces",
+        |eng: &Engine, (node, dt): (NodeId, f32)| {
+            let dt = scalar::real(dt);
+            read_body(eng, entity_of(node)?, |body| {
+                let p = body.predict_position_using_velocity_and_forces(dt).translation;
+                (scalar::f32_of(p.x), scalar::f32_of(p.y), scalar::f32_of(p.z))
             })
         },
     );

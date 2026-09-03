@@ -139,6 +139,10 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: attach_script,
     },
     NodeOp {
+        name: "detach_script",
+        call: detach_script,
+    },
+    NodeOp {
         name: "queue_free",
         call: queue_free,
     },
@@ -185,6 +189,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("script_path", &[], "()", "The path of the script attached to the node, nil when it has none."),
         ("call", &[], "(method: string, args: any?)", "Call a method on the node's script and return what it gives back; nil when there is no such script or method."),
         ("attach_script", &[], "(path: string, props: any?)", "Attach the script at a path, with an optional table overriding what the script exports."),
+        ("detach_script", &[], "()", "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay."),
         ("queue_free", &[], "()", "Destroy the node and its subtree at the end of the frame."),
     ]);
     for d in NODE_OPS {
@@ -496,6 +501,20 @@ fn attach_script(eng: &Engine, args: &[Value]) -> Result<Value> {
         .script_host()
         .ok_or_else(|| anyhow!("no script backend is running"))?;
     host.attach_with_props(crate::node_id_of(e), text(args, 1)?, &props)?;
+    Ok(Value::Nil)
+}
+
+/// `node:detach_script()` — drop the instance, keeping the node.
+///
+/// A tool that tears a running scene down needs the scripts to stop before
+/// the world does: an instance whose next `update` runs against a world its
+/// own components have left throws where nothing is wrong.
+fn detach_script(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let host = eng
+        .script_host()
+        .ok_or_else(|| anyhow!("no script backend is running"))?;
+    host.detach(crate::node_id_of(e));
     Ok(Value::Nil)
 }
 
