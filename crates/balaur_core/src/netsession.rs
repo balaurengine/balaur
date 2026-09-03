@@ -28,8 +28,9 @@ use crate::transport::{Delivery, Transport};
 
 /// How far behind the running tick the digest exchange sits.
 ///
-/// Far enough that a rollback has already rewritten the number, so peers are
-/// comparing settled ticks rather than racing each other's corrections.
+/// A floor, not the rule: what actually settles a tick is every player's
+/// input having arrived for it, which [`Session::confirmed`] answers. The lag
+/// only keeps the exchange off the tick currently being corrected.
 const CONFIRM_LAG: u64 = 4;
 
 /// What one peer says to another. JSON because it is small, self-describing
@@ -65,6 +66,9 @@ pub struct NetSession {
     pending: Input,
     /// Digests peers reported, by tick, until ours catches up to compare.
     claimed: BTreeMap<u64, Digest>,
+    /// The newest tick this peer has published a digest for, so a tick that
+    /// takes a while to confirm is still published once it does.
+    published: u64,
     desync: Option<Desync>,
 }
 
@@ -78,6 +82,7 @@ impl NetSession {
             peers: Vec::new(),
             pending: Input::Nil,
             claimed: BTreeMap::new(),
+            published: 0,
             desync: None,
         }
     }
@@ -171,23 +176,56 @@ impl NetSession {
         self.send(&message, Delivery::Datagram);
     }
 
-    /// Publish the digest of a settled tick, and check anything a peer has
-    /// already claimed about one.
+    /// Publish the digest of every settled tick not published yet, and check
+    /// anything a peer has claimed about one this peer has settled too.
+    ///
+    /// Settled means confirmed: a tick still resting on a prediction of
+    /// somebody's input has a digest that a late arrival will rewrite, and
+    /// publishing that races the correction. On a slow link the confirmation
+    /// can trail `CONFIRM_LAG` by several ticks, which is why this walks
+    /// forward from the last one published rather than looking at one tick.
     fn exchange_digests(&mut self) {
         let Some(settled) = self.session.tick().checked_sub(CONFIRM_LAG + 1) else {
             return;
         };
-        if let Some(ours) = self.session.digest_at(settled) {
-            self.send(
-                &Message::Digest {
-                    tick: settled,
-                    digest: ours.0,
-                },
-                Delivery::Reliable,
-            );
+        while self.published < settled {
+            let tick = self.published + 1;
+            if !self.session.confirmed(tick) {
+                // Dropped from the ring: the input that would settle it can
+                // never arrive now, so publishing stops waiting for it rather
+                // than going quiet on every tick behind it too.
+                if self.session.earliest().is_some_and(|first| tick < first) {
+                    self.published = tick;
+                    continue;
+                }
+                break;
+            }
+            if let Some(ours) = self.session.digest_at(tick) {
+                self.send(
+                    &Message::Digest {
+                        tick,
+                        digest: ours.0,
+                    },
+                    Delivery::Reliable,
+                );
+            }
+            self.published = tick;
         }
         let ticks: Vec<u64> = self.claimed.keys().copied().collect();
         for tick in ticks {
+            // In tick order, stopping at the first one not settled here yet:
+            // inputs are datagrams, so a later tick can confirm first, and
+            // comparing it first would name the wrong tick as the desync.
+            if !self.session.confirmed(tick) {
+                // One the ring has dropped never will confirm. Blocking on it
+                // would hide every tick behind it; `stale_inputs` is where
+                // that loss is already counted.
+                if self.session.earliest().is_some_and(|first| tick < first) {
+                    self.claimed.remove(&tick);
+                    continue;
+                }
+                break;
+            }
             let (Some(theirs), Some(ours)) = (
                 self.claimed.get(&tick).copied(),
                 self.session.digest_at(tick),

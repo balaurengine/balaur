@@ -168,6 +168,19 @@ impl Session {
         self.digests.get(&tick).copied()
     }
 
+    /// Whether every player's input for `tick` actually arrived, so the tick
+    /// was run from the real thing rather than from a prediction of it.
+    ///
+    /// A digest is only worth comparing once this is true. Two peers that
+    /// predicted each other differently disagree about a tick neither has
+    /// finished, which is a race and not a desync.
+    #[must_use]
+    pub fn confirmed(&self, tick: u64) -> bool {
+        self.players
+            .iter()
+            .all(|player| self.arrived.contains_key(&(tick, *player)))
+    }
+
     /// Run one tick, rolling back first when a late input asked for it.
     ///
     /// Steps at [`App::fixed_step`]; see the module note on why it takes no
