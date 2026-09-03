@@ -72,6 +72,15 @@ fn doc_tabs(S, k) {
                     }
                 }
             }
+            ui::add_space(4);
+            if ui::pill("Split", #{
+                height: 27, size: 12, icon: "◫",
+                fill: if S.split { k.accent_soft } else { "#00000000" },
+                color: if S.split { k.accent } else { k.dim },
+                tooltip: "Show the code and the viewport at once (⌘\\)",
+            }) {
+                shell::toggle_split(S);
+            }
             if !S.compact {
                 ui::right(|| {
                     let hint = if S.doctab == "script" && node.contains_key("script") {
@@ -188,43 +197,58 @@ fn viewport(S, k) {
 }
 
 fn script_editor(S, k) {
+    ui::central_panel(#{ fill: k.code_bg }, || code_pane(S, k, true));
+}
+
+// The code side of a split: the same pane in a column the divider sizes.
+// The width egui settles on is kept, so a drag survives the next frame and
+// every later persona switch.
+fn split_code(S, k) {
+    S.split_w = ui::right_panel("split", #{
+        width: S.split_w, min: 280, max: S.screen_w - 420.0,
+        resizable: true, fill: k.code_bg,
+    }, || code_pane(S, k, false));
+}
+
+// `hooks` is off in a split, where 172 px of a narrowed pane is the code's.
+fn code_pane(S, k, hooks_panel) {
     let node = model::selected_node(S);
-    ui::central_panel(#{ fill: k.code_bg }, || {
-        // A shader opened from a material takes the pane; otherwise the
-        // selected node's script does.
-        let shading = S.shader_rel != "";
-        let rel = if shading {
-            S.shader_rel
-        } else {
-            match model::script_rel(node) {
-                Some(rel) => rel,
-                None => {
-                    ui::add_space(24);
-                    ui::horizontal((), || {
-                        ui::add_space(24);
-                        ui::label("no script attached to " + node.name, style::mono_lg(k.faint));
-                    });
-                    return;
-                }
-            }
-        };
-        let path = S.game_root + "/" + rel;
-        let src = match model::source(S, rel) {
-            Some(src) => src,
+    // A shader opened from a material takes the pane; otherwise the
+    // selected node's script does.
+    let shading = S.shader_rel != "";
+    let rel = if shading {
+        S.shader_rel
+    } else {
+        match model::script_rel(node) {
+            Some(rel) => rel,
             None => {
-                ui::label("missing file: " + rel, style::mono_lg(k.faint));
+                ui::add_space(24);
+                ui::horizontal((), || {
+                    ui::add_space(24);
+                    ui::label("no script attached to " + node.name, style::mono_lg(k.faint));
+                });
                 return;
             }
-        };
-        // Hooks come from the live buffer, so they update while typing —
-        // re-analysed only when that buffer actually changed.
-        let current = S.script_buffers.get(path).unwrap_or(src);
-        if !shading && S.hooks_src != current {
-            S.hooks_src = current;
-            let (_, parsed) = highlight::analyze(current);
-            S.hooks_live = parsed;
         }
-        let hooks = if shading { [] } else { S.hooks_live };
+    };
+    let path = S.game_root + "/" + rel;
+    let src = match model::source(S, rel) {
+        Some(src) => src,
+        None => {
+            ui::label("missing file: " + rel, style::mono_lg(k.faint));
+            return;
+        }
+    };
+    // Hooks come from the live buffer, so they update while typing —
+    // re-analysed only when that buffer actually changed.
+    let current = S.script_buffers.get(path).unwrap_or(src);
+    if !shading && S.hooks_src != current {
+        S.hooks_src = current;
+        let (_, parsed) = highlight::analyze(current);
+        S.hooks_live = parsed;
+    }
+    let hooks = if shading { [] } else { S.hooks_live };
+    if hooks_panel {
         ui::right_panel("hooks", #{ width: 172, fill: k.panel, padding_x: 12 }, || {
             ui::add_space(11);
             ui::label(if shading { "SHADER" } else { "HOOKS IN FILE" }, style::heading(k));
@@ -245,43 +269,43 @@ fn script_editor(S, k) {
                 ui::label("● unsaved · ⌘S", util::merge(style::mono(k.accent), #{ size: 10 }));
             }
         });
-        // Editable, syntax-highlighted buffer (persists per file; ⌘S saves
-        // and hot reloads the game code).
-        ui::scroll("code", (), || {
-            ui::add_space(12);
-            let stopped_here = !shading && S.debug.paused is Object && S.debug.paused_rel == rel;
-            let (text, changed, hit) = ui::code_editor("edit:" + path, src, #{
-                size: 12.5, gutter_width: 34, gutter_color: k.faint,
-                k_key: k.k_key, k_str: k.k_str, k_num: k.k_num,
-                k_com: k.k_com, k_fn: k.k_fn, k_type: k.k_type,
-                k_punc: k.k_punc,
-                language: if shading { "wesl" } else { "rune" },
-                breakpoints: if shading {
-                    if S.preview_line > 0 { [S.preview_line] } else { [] }
-                } else {
-                    shell::breakpoint_lines(S, rel)
-                },
-                problems: lint::lines(S, rel, "error"),
-                warnings: lint::lines(S, rel, "warning"),
-                problem_color: k.accent, warning_color: k.sage,
-                current_line: if stopped_here { S.debug.paused.line } else { () },
-                breakpoint_color: k.accent, current_fill: k.accent_soft,
-            });
-            S.script_buffers[path] = text;
-            if changed {
-                S.script_dirty[path] = true;
-            }
-            if hit is i64 {
-                // A shader's gutter has no breakpoints, so the same click
-                // asks for the line's value instead.
-                if shading {
-                    shell::toggle_shader_preview(S, rel, hit);
-                } else {
-                    shell::toggle_breakpoint(S, rel, hit);
-                }
-            }
-            ui::add_space(12);
+    }
+    // Editable, syntax-highlighted buffer (persists per file; ⌘S saves
+    // and hot reloads the game code).
+    ui::scroll("code", (), || {
+        ui::add_space(12);
+        let stopped_here = !shading && S.debug.paused is Object && S.debug.paused_rel == rel;
+        let (text, changed, hit) = ui::code_editor("edit:" + path, src, #{
+            size: 12.5, gutter_width: 34, gutter_color: k.faint,
+            k_key: k.k_key, k_str: k.k_str, k_num: k.k_num,
+            k_com: k.k_com, k_fn: k.k_fn, k_type: k.k_type,
+            k_punc: k.k_punc,
+            language: if shading { "wesl" } else { "rune" },
+            breakpoints: if shading {
+                if S.preview_line > 0 { [S.preview_line] } else { [] }
+            } else {
+                shell::breakpoint_lines(S, rel)
+            },
+            problems: lint::lines(S, rel, "error"),
+            warnings: lint::lines(S, rel, "warning"),
+            problem_color: k.accent, warning_color: k.sage,
+            current_line: if stopped_here { S.debug.paused.line } else { () },
+            breakpoint_color: k.accent, current_fill: k.accent_soft,
         });
+        S.script_buffers[path] = text;
+        if changed {
+            S.script_dirty[path] = true;
+        }
+        if hit is i64 {
+            // A shader's gutter has no breakpoints, so the same click
+            // asks for the line's value instead.
+            if shading {
+                shell::toggle_shader_preview(S, rel, hit);
+            } else {
+                shell::toggle_breakpoint(S, rel, hit);
+            }
+        }
+        ui::add_space(12);
     });
 }
 
@@ -317,14 +341,27 @@ pub fn draw(S) {
     let k = S.theme;
     let code = S.persona == "script" || S.doctab == "script";
     let document = S.doctab == "events" || code;
+    // A split is both panes at once, whichever document tab is lit; `events`
+    // is the one view with nothing to sit beside, so it still takes the whole
+    // centre.
+    let split = S.split && S.doctab != "events";
     // Viewport tools belong to the viewport: with a document open the rail is
     // 46 px of dead column, and the code editor is the panel starved for it.
-    S.rail_visible = !document && defs::tools(S.persona).len() > 0;
+    // A split has a viewport again, so the rail comes back with it.
+    // Published for the widget layer, which is clipped to the viewport and
+    // would otherwise keep drawing the game's UI over a document.
+    S.viewport_live = split || !document;
+    S.rail_visible = S.viewport_live && defs::tools(S.persona).len() > 0;
     if S.rail_visible {
         rail(S, k);
     }
     doc_tabs(S, k);
-    if S.doctab == "events" {
+    if split {
+        // The code column is carved first; the viewport takes what is left,
+        // which is what `central_rect` then publishes to the gizmo.
+        split_code(S, k);
+        viewport(S, k);
+    } else if S.doctab == "events" {
         events_view(S, k);
     } else if code {
         script_editor(S, k);

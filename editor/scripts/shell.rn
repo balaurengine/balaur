@@ -58,6 +58,15 @@ pub fn set_persona(S, id) {
     S.dock = if id == "anim" { "timeline" } else { "output" };
 }
 
+// Show the code and the viewport at once, or go back to one at a time. The
+// split is only ever drawn over a document, so turning it on opens one.
+pub fn toggle_split(S) {
+    S.split = !S.split;
+    if S.split && S.doctab == "events" {
+        S.doctab = "scene";
+    }
+}
+
 pub fn set_zoom(S, z) {
     S.zoom = util::clamp(z, 25.0, 400.0);
     apply_camera(S);

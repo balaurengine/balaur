@@ -561,6 +561,9 @@ pub fn load(S) {
     let manifest = toml::parse(must_read(root + "/project.toml"));
     S.game_name = manifest.name;
     S.scene_rel = manifest.main_scene;
+    // Same for the strings: the catalogue lives under the game's root, not
+    // the editor's, and without this every `text_key` draws as its key.
+    strings::set_root(root);
     // The engine read the *editor's* actions from its own project.toml, so
     // without this every action a played game asks for reads zero.
     let input_some = manifest.get("input");

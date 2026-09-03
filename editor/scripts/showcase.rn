@@ -14,6 +14,10 @@ use crate::util;
 const TREE_TOP = 110.0;
 const ROW = 27.0;
 
+// How long the pointer takes to walk to a control, in frames. Long enough to
+// read as a hand moving, short enough that a clip is not mostly travel.
+const GLIDE = 22;
+
 pub fn state() {
     ()
 }
@@ -26,7 +30,7 @@ pub fn feeding(S) {
 
 pub fn start(S, name) {
     let q = #{
-        name: name, at: 0, kept: #{},
+        name: name, at: 0, kept: #{}, ptr: (0.0, 0.0),
         steps: [], spans: [], seen: 0,
         acts: [], spans_ui: [], seen_ui: 0,
     };
@@ -112,10 +116,38 @@ fn lerp(a, b, p) {
     a + (b - a) * p
 }
 
-// Design px to the window px the snapshot holds.
+// Design px to the window px the snapshot holds. Where the pointer landed is
+// kept on the sequence, because a glide has to know where it starts from.
 fn feed_pointer(S, x, y) {
     let (_, _, _, _, _, _, _, dpi) = render::camera_pose();
     input::feed_mouse(x * S.ui_scale * dpi, y * S.ui_scale * dpi);
+    if S.showcase is Object {
+        S.showcase.ptr = (x, y);
+    }
+}
+
+// The pointer walks to a place over `from`..`to` instead of appearing there.
+// Its start is only known when the walk begins — a sequence is built before a
+// frame of it runs — so the first frame of the span reads it and the rest
+// interpolate.
+fn glide(S, q, from, to, place) {
+    let seg = #{ ready: false, x0: 0.0, y0: 0.0, x1: 0.0, y1: 0.0 };
+    over(q, from, to, |p| {
+        if !seg.ready {
+            let (x1, y1) = (place)();
+            let (x0, y0) = q.ptr;
+            seg.ready = true;
+            seg.x1 = x1;
+            seg.y1 = y1;
+            // Nothing has placed the pointer yet: start at the target rather
+            // than sweeping in from the window's corner.
+            let unplaced = x0 == 0.0 && y0 == 0.0;
+            seg.x0 = if unplaced { x1 } else { x0 };
+            seg.y0 = if unplaced { y1 } else { y0 };
+        }
+        let e = ease(p);
+        feed_pointer(S, lerp(seg.x0, seg.x1, e), lerp(seg.y0, seg.y1, e));
+    });
 }
 
 // A 2D world point in design px, through the camera the viewport draws with.
@@ -135,12 +167,21 @@ fn point_at_row(S, i) {
     feed_pointer(S, 110.0, TREE_TOP + (i as f64) * ROW);
 }
 
-fn point_at_selection(S) {
+// Where the selected node sits, in design px; its own place when it has none.
+fn selection_spot(S) {
     let found = model::live(S, S.sel);
-    if let Some(node) = found {
-        let p = node.global_position();
-        point_at_world(S, p.x, p.y);
+    match found {
+        Some(node) => {
+            let p = node.global_position();
+            design_of_world(S, p.x, p.y)
+        }
+        None => S.showcase.ptr,
     }
+}
+
+fn point_at_selection(S) {
+    let (x, y) = selection_spot(S);
+    feed_pointer(S, x, y);
 }
 
 fn press(S) {
@@ -211,13 +252,10 @@ fn gutter_spot(S, line) {
     (286.0, 112.0 + ((line - 1) as f64) * 12.44)
 }
 
-// A click a viewer can follow: the cursor arrives, presses where the control
+// A click a viewer can follow: the cursor walks in, presses where the control
 // is, the verb runs under it, and the button comes back up.
 fn click(S, q, frame, place, run) {
-    at(q, frame - 16, || {
-        let (x, y) = (place)();
-        feed_pointer(S, x, y);
-    });
+    glide(S, q, frame - GLIDE, frame, place);
     at(q, frame, || {
         let (x, y) = (place)();
         feed_pointer(S, x, y);
@@ -298,7 +336,7 @@ fn fit_level(S) {
 
 // The slingshot: grab the bird, pull down and left, let go.
 fn fling(S, q, from) {
-    at(q, from, || point_at_world(S, -8.0, 2.2));
+    glide(S, q, from - GLIDE, from, || design_of_world(S, -8.0, 2.2));
     at(q, from + 10, || press(S));
     over(q, from + 10, from + 70, |p| {
         let e = ease(p);
@@ -324,10 +362,7 @@ fn scenes(S, q) {
     click_row(S, q, 350, "CrateB");
     click_row(S, q, 450, "Spinner");
     // A drag on the inspector's scale field, with the button held throughout.
-    at(q, 520, || {
-        let (x, y) = spot(S, "scale_x");
-        feed_pointer(S, x, y);
-    });
+    glide(S, q, 520 - GLIDE, 520, || spot(S, "scale_x"));
     at(q, 540, || {
         press(S);
         history::record(S, "scale Spinner", None);
@@ -355,9 +390,9 @@ fn scripting(S, q) {
     click_row(S, q, 110, "Spinner");
     click(S, q, 200, || spot(S, "play"), || shell::toggle_play(S));
     // The edit lands on the line the cursor is resting on.
-    at(q, 300, || {
+    glide(S, q, 300 - GLIDE, 300, || {
         let (x, y) = gutter_spot(S, line_of(S, rel, "this.angle += dt"));
-        feed_pointer(S, x + 220.0, y);
+        (x + 220.0, y)
     });
     act(q, 320, || edit_source(S, rel, "(this.speed + nudge", "(this.speed * 4.0 + nudge"));
     chord(S, q, 400, ["LWin", "S"], || shell::save_active(S));
@@ -408,10 +443,8 @@ fn animation(S, q) {
     over_ui(q, 200, 340, |p| anim::seek(S, 2.0 * ease(p)));
     act(q, 380, || anim::seek(S, 1.0));
     // Drag the bone itself: the cursor sits on it while it turns.
-    at(q, 430, || {
-        point_at_selection(S);
-        press(S);
-    });
+    glide(S, q, 430 - GLIDE, 430, || selection_spot(S));
+    at(q, 430, || press(S));
     act(q, 434, || history::record(S, "pose Thigh", None));
     over_ui(q, 434, 520, |p| {
         model::set_transform(S, S.sel, #{ rotation_euler: [0.0, 0.0, lerp(0.5, 0.95, ease(p))] });
@@ -446,6 +479,10 @@ fn input_clip(S, q) {
     at(q, 340, || input::feed_key("A", false));
     at(q, 370, || input::feed_key("D", true));
     at(q, 450, || input::feed_key("D", false));
+    glide(S, q, 470 - GLIDE, 470, || {
+        let v = S.viewport;
+        (util::f(v.x) + util::f(v.w) * 0.3, util::f(v.y) + util::f(v.h) * 0.6)
+    });
     over(q, 470, 520, |p| {
         let v = S.viewport;
         let e = ease(p);
@@ -489,11 +526,11 @@ fn determinism(S, q) {
     click(S, q, 640, || spot(S, "session"), || open_newest(S));
     act(q, 650, || fit_level(S));
     // Scrub the ruler back: the cursor walks it, and the seek lands on release.
-    at(q, 1000, || {
+    glide(S, q, 1000 - GLIDE, 1000, || {
         let (x, y) = spot(S, "ruler");
-        feed_pointer(S, x + 420.0, y);
-        press(S);
+        (x + 420.0, y)
     });
+    at(q, 1000, || press(S));
     over(q, 1000, 1080, |p| {
         let (x, y) = spot(S, "ruler");
         feed_pointer(S, x + 420.0 - 400.0 * ease(p), y);

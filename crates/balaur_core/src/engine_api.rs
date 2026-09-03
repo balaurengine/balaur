@@ -184,6 +184,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: strings_locales,
     },
     EngineOp {
+        module: "strings",
+        name: "set_root",
+        call: strings_set_root,
+    },
+    EngineOp {
         module: "skeleton",
         name: "apply_rest",
         call: crate::skeleton::apply_rest_op,
@@ -485,6 +490,7 @@ fn document_strings(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("locale", &[], "()", "The locale in force."),
         ("set_locale", &[], "(locale: string)", "Switch locale; the next `tr` answers in it, which for a widget showing a key is the next frame."),
         ("locales", &[], "()", "Every locale the project ships a `strings/<locale>.toml` for, in name order."),
+        ("set_root", &[], "(root: string)", "Read the catalogues from this directory instead of the project root, forgetting the ones already read; an empty string puts it back. For a host running a project other than its own — the editor, whose own root has no `strings/`, so without this every `text_key` in a played scene draws as its key."),
     ]);
 }
 
@@ -826,6 +832,11 @@ fn strings_locale(eng: &Engine, _: &[Value]) -> Result<Value> {
 
 fn strings_set_locale(eng: &Engine, args: &[Value]) -> Result<Value> {
     crate::strings::set_locale(eng, text(args, 0)?);
+    Ok(Value::Nil)
+}
+
+fn strings_set_root(eng: &Engine, args: &[Value]) -> Result<Value> {
+    crate::strings::set_root(eng, text(args, 0)?);
     Ok(Value::Nil)
 }
 

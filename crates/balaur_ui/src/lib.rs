@@ -22,6 +22,7 @@ mod bridge;
 mod theme;
 mod widget_bindings;
 mod widget_layer;
+mod widget_layout;
 mod widget_theme;
 mod widgets;
 

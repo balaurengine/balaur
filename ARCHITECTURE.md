@@ -1253,18 +1253,21 @@ much time was owed, and a re-run could take a different number of fixed steps
 than the run it repeats. At the fixed step the accumulator is back at zero
 every time, so the question cannot arise.
 
-What it does not do yet: cross a wire. Nothing sends a journal between two
-processes, so this is rollback against local players and a test harness. An
-input older than the ring cannot be answered — the tick it belongs to is gone,
-so this peer keeps a prediction it now knows was wrong. `Session::stale_inputs`
+What it does not do yet: replicate state. `core::netsession` puts this
+session behind a `Transport`, so two engines already exchange inputs and
+digests over a wire — but inputs are all that cross, and a game that cannot
+have every peer simulate everything needs the model below. An input older
+than the ring cannot be answered — the tick it belongs to is gone, so this
+peer keeps a prediction it now knows was wrong. `Session::stale_inputs`
 counts those, because that is a divergence the caller has to resync out of,
 not a log line.
 
-## Networking and state sync (planned)
+## Networking and state sync
 
-Nothing here is built. It is written down because the determinism work above
-was done *for* it, and because the shape of the engine already decides most of
-the answers. `docs/PLAN-networking.md` has the phases, in order.
+Transport, session and rollback are built; replication is not.
+`docs/PLAN-networking.md` has the steps, in order, and says which are done.
+The rest is written down because the determinism work above was done *for*
+it, and because the shape of the engine already decides most of the answers.
 
 ### What the engine already gives a replication layer
 
@@ -1313,6 +1316,27 @@ rebuilding a renderable when only its UVs moved. Per tick and per observer,
 send the `(StableId, component, changed properties)` set since that observer's
 last acked tick, against a ring of recent states as baselines. Quantisation
 comes off the schema, where a `float` property already declares its range.
+
+### Predicting and reconciling
+
+Rollback hides latency by re-running a tick; replication hides it by letting
+the client run ahead of the server and correcting it after. The client
+applies its own input to its own node on the tick it is pressed and holds
+that input pending until a delta acks the tick it ran on. The correction
+restores that node to what the server had and replays what is still pending
+— the journal and the snapshot ring `rollback` already owns, over one node
+instead of the world. Nodes the client does not own are not predicted at
+all: they are drawn a send interval or two behind the newest state and
+interpolated between the two that bracket the render time, so a late delta
+reads as motion rather than a stall.
+
+A correction that would move a node visibly decays out of the render
+transform over a few frames instead of snapping it. That is a rendering
+offset and never feeds back into simulation state, which is the rule the
+three run modes rest on. A server testing a hit rewinds to the tick the
+shooter saw, bounded by how far back it will look; the snapshot ring is that
+history already. `docs/PLAN-networking.md` §1 "Hiding latency" names every
+technique and where it sits.
 
 ### Transport
 
@@ -1615,9 +1639,10 @@ what lets the three modes agree bit for bit.
 
 ## Roadmap
 
-What does not exist yet, each with the plan that says how it will. The
-website's roadmap is the short form of this list, and `CHANGELOG.md` is what
-each release added.
+What does not exist yet, each with the plan that says how it will. A row with
+no plan names what is already in the tree to build on, which is where its plan
+starts. The website's roadmap is the short form of this list, and
+`CHANGELOG.md` is what each release added.
 
 The engine is at **0.1.0**. One version for the whole workspace; a release is
 a `v*` tag whose notes are that version's changelog section, and cutting one
@@ -1630,15 +1655,33 @@ release finished.
 | Tilemap editor, curve editor and onion skin | `docs/PLAN-editor.md` §6 |
 | `#[export]` on a script constant, in place of the `exports` table | `docs/PLAN-scripting.md` phase 3 |
 | Stable asset ids, rename refactoring, sprite-sheet import | `docs/PLAN-scenes-and-assets.md` phases 3, 5, 6 |
+| Asset streaming: a load that runs off the tick, a scene added to one already running, and an asset dropped when nothing names it | no plan yet; a pack is held whole in memory today. `ExternalIo` already lands background work on a tick boundary and records it for replay, `assets` caches by reference, and `pack` hashes every entry |
 | Extensions tier two: components, systems, calling back into scripts | `docs/PLAN-c-api.md` "What Tier 1 does not do" |
 | Soft bodies, tearing, fluids, granular materials | `docs/PLAN-physics.md` — waiting on the solvers landing in Rapier itself |
 | Named collision layers, script physics hooks on a `parallel` build, solver tuning carried in a recording's header, `f64` for the whole engine rather than physics alone | `docs/PLAN-rapier.md` open questions 2 to 5. Everything else in that plan is built |
 | Animation blending, blend trees, state machines | `docs/PLAN-animation-and-resources.md` §6. 3D IK exists for a reduced-coordinates joint chain (`physics3d.solve_ik`); an animation-side solver over a rig does not |
+| A sequencer: cutscenes and cameras on a timeline, with tracks that call something rather than only move it | no plan yet; `balaur_anim` already samples clips onto nodes, with twelve easing curves in four modes, and the editor has the timeline dock |
 | 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |
+| Shadow maps in 3D, and baked lightmaps | no plan yet; directional, point and spot lights and fog already reach the 3D material shader, with no shadow pass behind them |
+| Frustum and occlusion culling, level of detail, instancing of repeated meshes | no plan yet; the renderer draws every node it is handed, and `Renderable` + `GlobalTransform` is where a visibility pass would sit |
+| Drawing terrain: a mesher for the `heightfield` and `voxels` assets, and tools to paint them | no plan yet; both asset types exist and physics builds colliders from them — nothing draws either |
+| More than one view: split screen, a camera rendered to a texture, picture-in-picture | no plan yet; the `camera` component drives one 2D and one 3D view, and the offscreen path already renders with no OS window |
+| Video playback: a movie on a texture with its audio on a bus | no plan yet; nothing decodes a container, and a frame would ride the texture path sprites use. Render-side only — a video never feeds simulation state |
 | Shader channel views, the caret value preview, headless shader tests, post-process materials | `docs/PLAN-shaders.md` phases 6-9 |
 | More widget kinds, as games ask for them | `docs/PLAN-batteries.md` phase 6 |
-| WebTransport (QUIC) native and in the browser, replication and RPC, Gamend sessions, WebRTC for browser peer-to-peer; never raw UDP | `docs/PLAN-networking.md` §2.4-2.6. Binary frames, run-time stable ids and rollback (one machine and over a socket) shipped in 0.1.0 |
+| Accessibility: a screen reader over the widget tree, text scaling, captions, colour-blind-safe defaults | no plan yet; the retained `widget` tree already carries text, `focusable` and a focus order, which is what a reader walks; egui can emit an AccessKit tree, localization is there for captions, and actions already rebind |
+| Navigation: a navmesh baked from the scene, A* over it or over a grid, agents that avoid each other | no plan yet; nothing in the tree pathfinds. Behaviour over it stays a script's job |
+| Positional audio: distance attenuation, panning and doppler off a listener node | `docs/PLAN-batteries.md` phase 7. rodio, already the backend, has a spatial player; a `sound` plays at the volume it is given wherever its node stands |
+| Haptics and motion: gamepad rumble, gyro, touchpad | no plan yet; gilrs already polls the pads and ships force feedback (`gilrs::ff`), which nothing calls |
+| WebTransport (QUIC) native and in the browser, Gamend sessions and matchmaking, WebRTC data channels for browser peer-to-peer; never raw UDP, never ENet | `docs/PLAN-networking.md` §2 and steps 6, 8, 13, 14. Binary frames, run-time stable ids and rollback (one machine and over a socket) shipped in 0.1.0 |
+| Replication and RPC, client-side prediction, server reconciliation, interpolation of unowned nodes, lag compensation, interest management, a bandwidth budget; join in progress; a client-authoritative hit is never planned | `docs/PLAN-networking.md` §1 "Hiding latency" and steps 9 to 12 |
+| Replaying a networked session, and a link that can be given latency, loss and reordering in a test; round-trip time, loss and bytes a second per peer | `docs/PLAN-networking.md` step 7 |
+| Voice in a session | no plan yet; the transport carries unreliable datagrams and audio has buses to mix a stream into. What is missing is a codec |
+| A crash report that reproduces itself: the recording, the log and the build id in one file | no plan yet; `replay` already writes a file that re-runs a session bit for bit and `logbuf` holds the log — nothing packages the two when a game falls over |
+| Store and platform services: achievements, cloud saves, rich presence, in-app purchase | these ship as C extensions rather than engine code (`docs/PLAN-c-api.md`); `save` is what a cloud save syncs, and Gamend already has login and REST |
 | Signed binary releases, published benchmarks | `docs/PLAN-release.md` |
 | Web export | `docs/PLAN-mobile-export.md` "Web" |
+| Console export: Switch, PlayStation, Xbox | no plan yet, and not a target flag: `balaur export --target` and the pack shape travel, but each console's graphics, input and store layer is an NDA SDK that is not wgpu, winit or gilrs |
+| XR: OpenXR on desktop and standalone headsets, WebXR in the browser — stereo views, tracked poses, controller and hand input | no plan yet; the wgpu device, the offscreen path that renders with no OS window, and input actions (the shape an OpenXR action set wants) are the reusable half. kiss3d owning the window and the swapchain is what is in the way, and a 60 Hz fixed tick against a 90 Hz display is the open question |
 | Parallel system execution, once profiling demands it | no plan yet; the gameplay tick is serial by design |
 

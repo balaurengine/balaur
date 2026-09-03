@@ -194,6 +194,8 @@ while it plays.
    persona edits them.
 5. Localization with plural rules.
 6. The remaining widget kinds as games ask for them.
+7. Positional audio: distance attenuation, stereo panning and doppler off a
+   listener node, over the buses that already exist.
 
 ## Open questions
 
