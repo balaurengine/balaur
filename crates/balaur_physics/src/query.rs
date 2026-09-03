@@ -418,6 +418,9 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
         ("intersects", &[], "(a: node, b: node)", "Whether two nodes' colliders overlap right now, sensor or not."),
         ("contacts", &["collider3d"], "", "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
         ("max_contact_impulse", &["collider3d"], "", "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number."),
+        ("time_of_impact", &[], "(a: node, b: node, opts: table)", "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max = 1.0 }`. Nothing when they never do."),
+        ("bodies", &[], "()", "Every node with a rigid body, sorted."),
+        ("active_bodies", &[], "()", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
     ]);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
         with_pair(eng, a, b, |world, first, second| {

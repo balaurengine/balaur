@@ -880,6 +880,46 @@ button reads, and a widget cannot say what every button looks like — so
 neither has a value the other could contradict, and no widget property needed
 a "unset" sentinel to make room for one.
 
+## Audio buses and events
+
+A **bus** is a gain a sound plays through, and buses form a tree:
+
+```toml
+[audio.buses]
+sfx = { volume = 0.9 }
+ui = { volume = 1.0, parent = "sfx" }
+music = { volume = 0.6 }
+```
+
+A sound's gain is its own volume times every bus's up to the root, so pulling
+the music slider moves every piece of music at once and nothing else.
+`master` exists whether or not the project declares it, because there has to
+be a name for "everything". `audio.set_bus_volume` re-applies to what is
+*already* sounding — the difference between a mixer and a default; a handle
+remembers the bus it plays on and the volume it started at so the two can be
+recomputed from each other. An undeclared bus is unity rather than silence, so
+a typo leaves a sound audible and findable; a parent cycle is cut and reported
+rather than refused, since the rest of the mix is fine.
+
+An **event** is a named sound, in `audio/events.toml`:
+
+```toml
+[hit]
+files = ["sfx/hit1.wav", "sfx/hit2.wav", "sfx/hit3.wav"]
+bus = "sfx"
+volume = 0.9
+```
+
+`audio.play_event("hit")` is what a script says; which file, at what level,
+through which bus is what a sound designer says, and neither has to touch the
+other to be tuned. **Variations are taken in turn, not drawn at random** —
+a rotation never plays the same sample twice running, which is what variations
+exist to avoid, and drawing from the engine's RNG would put what a player
+hears into the simulation's random stream, so a muted game and a loud one
+would diverge. Where a rotation has got to is presentation: not snapshotted,
+not in the digest, because which of three footsteps played is not something a
+replay has to agree about.
+
 ## Localization
 
 One `strings/<locale>.toml` per language, keys to strings, and
@@ -1500,7 +1540,11 @@ the game's, so a project's materials never drew in the editor; and stopping a
 play session cleared the physics world while the game's script instances were
 still attached, so the next `update` queried a body that had just been
 removed. `node.detach_script()` is the second one's fix — the editor lets go
-of the scripts before it clears the world.
+of the scripts before it clears the world. A third: actions are read from the
+running project's `project.toml`, which under the editor is the *editor's*, so
+every action a played game asked for read zero; `input.declare_actions` lets a
+host declare the actions of the project it is running, and the editor does it
+when it loads the game.
 
 ## Camera and screenshots
 
@@ -1562,11 +1606,12 @@ website's roadmap is the short form of this list.
 | `#[export]` on a script constant, in place of the `exports` table | `docs/PLAN-scripting.md` phase 3 |
 | Stable asset ids, rename refactoring, sprite-sheet import | `docs/PLAN-scenes-and-assets.md` phases 3, 5, 6 |
 | Extensions tier two: components, systems, calling back into scripts | `docs/PLAN-c-api.md` "What Tier 1 does not do" |
-| Soft bodies, tearing, fluids, granular materials | `docs/PLAN-physics.md` |
-| Animation blending, blend trees, state machines, 3D IK | `docs/PLAN-animation-and-resources.md` §6 |
+| Soft bodies, tearing, fluids, granular materials | `docs/PLAN-physics.md` — waiting on the solvers landing in Rapier itself |
+| Named collision layers, script physics hooks on a `parallel` build, `f64` for the whole engine rather than physics alone | `docs/PLAN-rapier.md` open questions 2, 3 and 5. Everything else in that plan is built |
+| Animation blending, blend trees, state machines | `docs/PLAN-animation-and-resources.md` §6. 3D IK exists for a reduced-coordinates joint chain (`physics3d.solve_ik`); an animation-side solver over a rig does not |
 | 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |
 | Shader channel views, the caret value preview, headless shader tests, post-process materials | `docs/PLAN-shaders.md` phases 6-9 |
-| Audio buses, more widget kinds | `docs/PLAN-batteries.md` phases 2, 6 |
+| More widget kinds, as games ask for them | `docs/PLAN-batteries.md` phase 6 |
 | Binary websocket frames, stable ids and respawn for run-time nodes, rollback netcode, WebTransport (QUIC) native and in the browser, replication and RPC, Gamend sessions, WebRTC for browser peer-to-peer; never raw UDP | `docs/PLAN-networking.md` §2, §3 |
 | Signed binary releases, published benchmarks | `docs/PLAN-release.md` |
 | Web export | `docs/PLAN-mobile-export.md` "Web" |

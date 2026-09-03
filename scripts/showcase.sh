@@ -67,9 +67,11 @@ clip() { # clip <name> <project> <frames> <state>
   balaur edit "$2" --offscreen --frames "$3" --state "$4,frames=$PWD/$work/$1" >"$work/$1.log" 2>&1 || true
   reset_examples
   if grep -q ERROR "$work/$1.log" || [ ! -f "$work/$1/000000.png" ]; then failed "$1"; return 0; fi
-  ffmpeg -y -loglevel error -framerate 30 -i "$work/$1/%06d.png" \
+  # Globbed, not numbered: a frame the backend could not serve leaves a hole,
+  # and the numbered demuxer stops dead at the first one.
+  ffmpeg -y -loglevel error -framerate 30 -pattern_type glob -i "$work/$1/*.png" \
     -c:v libvpx-vp9 -crf 34 -b:v 0 -pix_fmt yuv420p "$vid/$1.webm"
-  ffmpeg -y -loglevel error -framerate 30 -i "$work/$1/%06d.png" \
+  ffmpeg -y -loglevel error -framerate 30 -pattern_type glob -i "$work/$1/*.png" \
     -c:v libx264 -crf 24 -pix_fmt yuv420p -movflags +faststart "$vid/$1.mp4"
   cp "$work/$1/000000.png" "$img/$1.png"
   echo "ok $(du -h "$vid/$1.webm" | cut -f1)"

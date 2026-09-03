@@ -701,6 +701,23 @@ fn combine_name(rule: CoefficientCombineRule) -> &'static str {
     }
 }
 
+/// A node's first collider, for the readers that ask one question about it.
+fn with_first_collider<R>(
+    eng: &Engine,
+    node: NodeId,
+    f: impl FnOnce(&Collider) -> Result<R>,
+) -> Result<R> {
+    let entity = balaur_core::entity_of(node)?;
+    let state = eng.resource::<PhysicsState>();
+    let state = state.borrow();
+    let handle = *state
+        .colliders
+        .get(&entity)
+        .and_then(|handles| handles.first())
+        .ok_or_else(|| anyhow!("node has no collider"))?;
+    f(&state.world.colliders[handle])
+}
+
 /// A voxel collider's grid, for editing in place.
 ///
 /// Every edit bumps the collider's revision, which is what puts a dug hole in
@@ -846,6 +863,9 @@ pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
         ("set_collider", &["collider3d"], "", "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component's own vocabulary."),
         ("aabb", &["collider3d"], "", "The world-space box the collider currently occupies, as its two opposite corners."),
         ("collider_mass", &["collider3d"], "", "What this collider weighs, density and size together."),
+        ("collider_volume", &["collider3d"], "", "How much space the shape encloses."),
+        ("swept_aabb", &["collider3d"], "", "The box the collider covers over the next step, its motion included: what the broad phase actually tests."),
+        ("handles", &["collider3d"], "", "The rapier handles behind this node — its body and its colliders — as `#{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output."),
         ("set_voxel", &["collider3d"], "", "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs."),
         ("voxel", &["collider3d"], "", "Whether one cell of a voxel collider is filled."),
         ("voxel_at", &["collider3d"], "", "The cell a world position falls in, as three whole numbers."),
@@ -932,6 +952,59 @@ pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
     );
     m.function("collider_mesh", |eng: &Engine, node: NodeId| {
         collider_mesh_value(eng, node)
+    });
+    m.function("collider_volume", |eng: &Engine, node: NodeId| {
+        with_first_collider(eng, node, |collider| Ok(collider.volume()))
+    });
+    m.function("swept_aabb", |eng: &Engine, node: NodeId| {
+        with_first_collider(eng, node, |collider| {
+            let aabb = collider.compute_swept_aabb(collider.position());
+            Ok((
+                aabb.mins.x,
+                aabb.mins.y,
+                aabb.mins.z,
+                aabb.maxs.x,
+                aabb.maxs.y,
+                aabb.maxs.z,
+            ))
+        })
+    });
+    m.function("handles", |eng: &Engine, node: NodeId| {
+        let entity = balaur_core::entity_of(node)?;
+        let state = eng.resource::<PhysicsState>();
+        let state = state.borrow();
+        let pair = |index: u32, generation: u32| {
+            balaur_script::Value::List(vec![
+                balaur_script::Value::Int(i64::from(index)),
+                balaur_script::Value::Int(i64::from(generation)),
+            ])
+        };
+        let body = state
+            .bodies
+            .get(&entity)
+            .map_or(balaur_script::Value::Nil, |handle| {
+                let (index, generation) = handle.into_raw_parts();
+                pair(index, generation)
+            });
+        let colliders = state
+            .colliders
+            .get(&entity)
+            .map(|handles| {
+                balaur_script::Value::List(
+                    handles
+                        .iter()
+                        .map(|handle| {
+                            let (index, generation) = handle.into_raw_parts();
+                            pair(index, generation)
+                        })
+                        .collect(),
+                )
+            })
+            .unwrap_or(balaur_script::Value::List(Vec::new()));
+        Ok(crate::vocabulary::map([
+            ("body", body),
+            ("colliders", colliders),
+        ]))
     });
     m.function("collider_mass", |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;

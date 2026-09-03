@@ -875,8 +875,14 @@ pub(crate) fn install_body_sleep_api(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (node, dt): (NodeId, f32)| {
             let dt = scalar::real(dt);
             read_body(eng, entity_of(node)?, |body| {
-                let p = body.predict_position_using_velocity_and_forces(dt).translation;
-                (scalar::f32_of(p.x), scalar::f32_of(p.y), scalar::f32_of(p.z))
+                let p = body
+                    .predict_position_using_velocity_and_forces(dt)
+                    .translation;
+                (
+                    scalar::f32_of(p.x),
+                    scalar::f32_of(p.y),
+                    scalar::f32_of(p.z),
+                )
             })
         },
     );

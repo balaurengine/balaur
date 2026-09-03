@@ -247,7 +247,11 @@ impl AudioState {
     /// does to what is already playing.
     pub fn reroute(&mut self, bus: &str, gain: f32) {
         for (handle, (on, volume)) in &self.routing {
-            let on = if on.is_empty() { bus::MASTER } else { on.as_str() };
+            let on = if on.is_empty() {
+                bus::MASTER
+            } else {
+                on.as_str()
+            };
             if on != bus {
                 continue;
             }
@@ -689,7 +693,9 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
             let gain = buses.borrow().gain(&name);
             // Everything already sounding on that bus moves too, which is the
             // difference between a mixer and a default.
-            eng.resource::<AudioState>().borrow_mut().reroute(&name, gain);
+            eng.resource::<AudioState>()
+                .borrow_mut()
+                .reroute(&name, gain);
             Ok(())
         },
     );

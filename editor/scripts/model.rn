@@ -561,6 +561,17 @@ pub fn load(S) {
     let manifest = toml::parse(must_read(root + "/project.toml"));
     S.game_name = manifest.name;
     S.scene_rel = manifest.main_scene;
+    // The engine read the *editor's* actions from its own project.toml, so
+    // without this every action a played game asks for reads zero.
+    let input_some = manifest.get("input");
+    if let Some(table) = input_some {
+        if table is Object {
+            let actions = table.get("actions").unwrap_or(());
+            if actions is Object {
+                input::declare_actions(actions);
+            }
+        }
+    }
     S.scene_path = root + "/" + manifest.main_scene;
     let doc = toml::parse(must_read(S.scene_path));
     S.doc = util::vec(doc.get("nodes").unwrap_or([]));

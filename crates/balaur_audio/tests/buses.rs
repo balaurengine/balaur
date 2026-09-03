@@ -58,7 +58,11 @@ fn a_gain_is_the_product_of_the_chain() {
     let (_dir, app) = app(NESTED);
     assert!((gain(&app, "sfx") - 0.5).abs() < 1e-6);
     // ui feeds sfx feeds master: 0.5 * 0.5.
-    assert!((gain(&app, "ui") - 0.25).abs() < 1e-6, "{}", gain(&app, "ui"));
+    assert!(
+        (gain(&app, "ui") - 0.25).abs() < 1e-6,
+        "{}",
+        gain(&app, "ui")
+    );
     assert!((gain(&app, "music") - 0.25).abs() < 1e-6);
 }
 
@@ -85,7 +89,11 @@ fn setting_a_parents_volume_moves_its_children() {
         .resource::<Buses>()
         .borrow_mut()
         .set_volume("sfx", 1.0);
-    assert!((gain(&app, "ui") - 0.5).abs() < 1e-6, "{}", gain(&app, "ui"));
+    assert!(
+        (gain(&app, "ui") - 0.5).abs() < 1e-6,
+        "{}",
+        gain(&app, "ui")
+    );
 }
 
 /// A bus nobody declared is made rather than refused, so a game may build its
@@ -111,13 +119,11 @@ fn setting_a_volume_makes_a_bus_that_was_not_declared() {
 /// refused — and `gain` has to terminate whatever the file says.
 #[test]
 fn a_cycle_is_cut_rather_than_looping_forever() {
-    let (_dir, app) = app(
-        "
+    let (_dir, app) = app("
 [audio.buses]
 a = { volume = 0.5, parent = \"b\" }
 b = { volume = 0.5, parent = \"a\" }
-",
-    );
+");
     // The assertion is that this returns at all; the value is whatever the
     // chain came to before the cut.
     let gain = gain(&app, "a");
@@ -162,4 +168,119 @@ fn stopping_everything_forgets_every_routing() {
     state.borrow_mut().stop_all();
     assert_eq!(state.borrow().routing_of(a), None);
     assert_eq!(state.borrow().routing_of(b), None);
+}
+
+fn with_events(events: &str) -> (tempfile::TempDir, App) {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        format!("name = \"a\"\nmain_scene = \"main.toml\"\n{NESTED}"),
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("main.toml"), "").unwrap();
+    std::fs::create_dir_all(dir.path().join("audio")).unwrap();
+    std::fs::write(dir.path().join("audio/events.toml"), events).unwrap();
+    let mut app = App::new(AppConfig {
+        project_root: dir.path().to_path_buf(),
+        pack: None,
+        watch: false,
+        script_args: Vec::new(),
+        script_backend: None,
+    })
+    .unwrap();
+    balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
+    app.load_project().unwrap();
+    (dir, app)
+}
+
+const EVENTS: &str = r#"
+[hit]
+files = ["sfx/hit1.wav", "sfx/hit2.wav", "sfx/hit3.wav"]
+bus = "sfx"
+volume = 0.9
+
+[music]
+files = ["music/theme.ogg"]
+bus = "music"
+loop = true
+"#;
+
+use balaur_audio::event::{self, Events};
+
+/// A rotation, not a draw: variations exist so the same sample is not heard
+/// twice running, and taking them in turn guarantees it.
+#[test]
+fn variations_are_taken_in_turn_and_wrap() {
+    let (_dir, app) = with_events(EVENTS);
+    event::ensure_loaded(&app.engine);
+    let events = app.engine.resource::<Events>();
+    let events = events.borrow();
+    let next = || events.next_file("hit").expect("hit is declared");
+    assert_eq!(next(), "sfx/hit1.wav");
+    assert_eq!(next(), "sfx/hit2.wav");
+    assert_eq!(next(), "sfx/hit3.wav");
+    assert_eq!(next(), "sfx/hit1.wav", "the rotation wraps");
+}
+
+#[test]
+fn one_variation_is_a_sound_with_no_variation() {
+    let (_dir, app) = with_events(EVENTS);
+    event::ensure_loaded(&app.engine);
+    let events = app.engine.resource::<Events>();
+    let events = events.borrow();
+    assert_eq!(
+        events.next_file("music").as_deref(),
+        Some("music/theme.ogg")
+    );
+    assert_eq!(
+        events.next_file("music").as_deref(),
+        Some("music/theme.ogg")
+    );
+}
+
+#[test]
+fn an_event_carries_its_bus_volume_and_loop() {
+    let (_dir, app) = with_events(EVENTS);
+    event::ensure_loaded(&app.engine);
+    let events = app.engine.resource::<Events>();
+    let events = events.borrow();
+    let hit = events.get("hit").expect("declared");
+    assert_eq!(hit.bus, "sfx");
+    assert!((hit.volume - 0.9).abs() < 1e-6);
+    assert!(!hit.looped);
+    assert!(events.get("music").expect("declared").looped);
+}
+
+#[test]
+fn events_are_listed_in_name_order() {
+    let (_dir, app) = with_events(EVENTS);
+    event::ensure_loaded(&app.engine);
+    assert_eq!(
+        app.engine.resource::<Events>().borrow().names(),
+        vec!["hit", "music"]
+    );
+}
+
+/// A project with no events file is the normal case, not an error.
+#[test]
+fn a_project_with_no_events_file_is_empty() {
+    let (_dir, app) = app(NESTED);
+    event::ensure_loaded(&app.engine);
+    assert!(app.engine.resource::<Events>().borrow().names().is_empty());
+    assert_eq!(
+        app.engine.resource::<Events>().borrow().next_file("hit"),
+        None
+    );
+}
+
+/// Rotations are per event, so one sound playing does not advance another's.
+#[test]
+fn each_event_keeps_its_own_place() {
+    let (_dir, app) = with_events(EVENTS);
+    event::ensure_loaded(&app.engine);
+    let events = app.engine.resource::<Events>();
+    let events = events.borrow();
+    assert_eq!(events.next_file("hit").as_deref(), Some("sfx/hit1.wav"));
+    let _ = events.next_file("music");
+    assert_eq!(events.next_file("hit").as_deref(), Some("sfx/hit2.wav"));
 }

@@ -1,4 +1,8 @@
-> **Status:** phases 1, 3, 4 and 5 built. Phase 5 (localization) on
+> **Status:** phases 1-5 built; phase 6 is demand-driven by design. Phase 2
+> (audio buses and events) on 2026-09-03: `crates/balaur_audio/src/bus.rs`
+> and `event.rs`, `[audio.buses]`, `audio/events.toml`, a `bus` on the `sound`
+> component and in `audio.play`'s options, and `set_bus_volume` re-applying to
+> what is already playing. Phase 5 (localization) on
 > 2026-09-03: `crates/balaur_core/src/strings.rs`, the `strings` module,
 > `[locale]` in `project.toml`, plural rules for the shapes a translator
 > actually writes, `widget.text_key`, and `examples/hello` in English and
@@ -82,7 +86,16 @@
 >     is a bug that hides and a key on screen is a bug that reports itself.
 > 14. **One fallback hop, not a chain.** Two means two files to hold in mind,
 >     and the second is always the language the game was written in.
-> 15. **A migration is a project-declared script, not a per-node hook.** The
+> 15. **Variations rotate rather than shuffle.** The plan says "a named
+>     sound with variations"; how one is picked was open. A rotation never
+>     repeats a sample back to back — which is the whole reason to record
+>     three of a footstep — and it keeps what a player hears out of the
+>     engine's random stream, where a muted game and a loud one would draw
+>     differently and diverge.
+> 16. **Ducking is not built.** The plan lists it with buses. It needs a bus
+>     to know when another is sounding, which is a subscription the mixer does
+>     not have yet; the volume tree is the part a game asks for first.
+> 17. **A migration is a project-declared script, not a per-node hook.** The
 >    plan says "a script declares `migrate_save`", which leaves open *which*
 >    script — a game has many, and a save belongs to none of them.
 >    `[save] migrate = "scripts/saves.rn"` names one, and the engine calls it

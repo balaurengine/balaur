@@ -13,8 +13,11 @@ const KEYS = [
     "LShift", "RShift", "LControl", "RControl", "LAlt", "RAlt", "LWin", "RWin",
 ];
 const BUTTONS = ["LMB", "RMB", "MMB"];
-// How many frames a click's ripple grows for.
-const RIPPLE = 18;
+// How many frames a click's ripple grows for, and how wide it ends.
+const RIPPLE = 22;
+const RIPPLE_TO = 76.0;
+// The drawn cursor, in design px. The image's tip is its top-left corner.
+const CURSOR = 30.0;
 
 pub fn state() {
     #{ ripples: [] }
@@ -93,19 +96,15 @@ pub fn draw(S) {
             });
         });
     }
-    // Nothing has placed the pointer yet: a run with no mouse would otherwise
-    // show one parked in the corner.
-    if x > 0.0 || y > 0.0 {
-        ui::overlay("input-pointer", #{ x: x - 5.0, y: y - 5.0 }, || {
-            ui::dot(k.accent, 10);
-        });
-    }
+    // Rings first, so the cursor sits on top of the click it made.
     let kept = [];
     for (i, r) in iv.ripples.iter().enumerate() {
-        let d = 12.0 + 40.0 * (r.age as f64) / (RIPPLE as f64);
+        let p = (r.age as f64) / (RIPPLE as f64);
+        let d = 14.0 + (RIPPLE_TO - 14.0) * p;
+        let fade = alpha(k.accent, 1.0 - p);
         ui::overlay(format!("input-ripple-{}", i), #{ x: r.x - d / 2.0, y: r.y - d / 2.0 }, || {
             ui::frame(#{
-                fill: "#00000000", stroke: k.accent, radius: d / 2.0,
+                fill: alpha(k.accent, 0.20 * (1.0 - p)), stroke: fade, radius: d / 2.0,
                 padding_x: d / 2.0, padding_y: d / 2.0,
             }, || {});
         });
@@ -115,4 +114,28 @@ pub fn draw(S) {
         }
     }
     iv.ripples = kept;
+    // Nothing has placed the pointer yet: a run with no mouse would otherwise
+    // show one parked in the corner.
+    if x > 0.0 || y > 0.0 {
+        let held = input::is_mouse_down(input::MOUSE_LEFT);
+        if held {
+            ui::overlay("input-press", #{ x: x - 13.0, y: y - 13.0 }, || {
+                ui::frame(#{
+                    fill: alpha(k.accent, 0.35), stroke: k.accent, radius: 13.0,
+                    padding_x: 13.0, padding_y: 13.0,
+                }, || {});
+            });
+        }
+        ui::overlay("input-pointer", #{ x: x, y: y }, || {
+            ui::image("assets/cursor.png", #{ width: CURSOR, height: CURSOR });
+        });
+    }
+}
+
+// `#rrggbb` with an alpha byte appended, for a ring that fades as it grows.
+fn alpha(hex, a) {
+    let v = util::i(util::clamp(a, 0.0, 1.0) * 255.0);
+    let digits = ["0", "1", "2", "3", "4", "5", "6", "7",
+                  "8", "9", "a", "b", "c", "d", "e", "f"];
+    hex[..7] + digits[v / 16] + digits[v % 16]
 }

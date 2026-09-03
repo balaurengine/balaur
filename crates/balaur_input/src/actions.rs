@@ -124,13 +124,16 @@ impl Binding {
                     .pads()
                     .iter()
                     .map(|pad| pad.axis(name))
-                    .fold(0.0_f32, |best, v| {
-                        if v.abs() > best.abs() {
-                            v
-                        } else {
-                            best
-                        }
-                    });
+                    .fold(
+                        0.0_f32,
+                        |best, v| {
+                            if v.abs() > best.abs() {
+                                v
+                            } else {
+                                best
+                            }
+                        },
+                    );
                 let raw = if raw.abs() < DEADZONE { 0.0 } else { raw };
                 match half {
                     Half::Both => raw,
@@ -211,19 +214,33 @@ impl InputActions {
     }
 
     pub fn just_pressed(&self, name: &str) -> bool {
-        self.state.get(name).is_some_and(|s| {
-            s.value.abs() >= PRESSED && s.previous.abs() < PRESSED
-        })
+        self.state
+            .get(name)
+            .is_some_and(|s| s.value.abs() >= PRESSED && s.previous.abs() < PRESSED)
     }
 
     pub fn just_released(&self, name: &str) -> bool {
-        self.state.get(name).is_some_and(|s| {
-            s.value.abs() < PRESSED && s.previous.abs() >= PRESSED
-        })
+        self.state
+            .get(name)
+            .is_some_and(|s| s.value.abs() < PRESSED && s.previous.abs() >= PRESSED)
     }
 
     pub fn is_declared(&self, name: &str) -> bool {
         self.bound.contains_key(name)
+    }
+
+    /// Declare the project's actions outright, replacing what was declared
+    /// before and keeping the player's own rebindings on top.
+    ///
+    /// For a host running a project other than its own — the editor, whose
+    /// `project.toml` is the editor's and not the game's, so without this
+    /// every action a played game asks for reads zero.
+    pub fn declare(&mut self, actions: BTreeMap<String, Vec<Binding>>) {
+        self.bound = actions;
+        for (name, bindings) in &self.overrides {
+            self.bound.insert(name.clone(), bindings.clone());
+        }
+        self.loaded = true;
     }
 
     /// Rebind one action, replacing every binding it had. An unparseable
@@ -263,7 +280,10 @@ pub(crate) fn tick(eng: &Engine) {
         let value = bindings
             .iter()
             .map(|b| b.value(&keys, &pads))
-            .fold(0.0_f32, |best, v| if v.abs() > best.abs() { v } else { best });
+            .fold(
+                0.0_f32,
+                |best, v| if v.abs() > best.abs() { v } else { best },
+            );
         let slot = state.entry(name.clone()).or_default();
         slot.previous = slot.value;
         slot.value = value;
@@ -434,7 +454,10 @@ fn check_action(eng: &Engine, name: &str) {
             const { std::cell::RefCell::new(std::collections::BTreeSet::new()) };
     }
     if WARNED.with_borrow_mut(|w| w.insert(name.to_string())) {
-        tracing::warn!(action = name, "no such action in [input.actions]; it reads 0");
+        tracing::warn!(
+            action = name,
+            "no such action in [input.actions]; it reads 0"
+        );
     }
 }
 
@@ -451,6 +474,7 @@ pub(crate) fn install(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("bindings", &[], "", "What the action is bound to now, whether from the project or from the player's own rebinding."),
         ("bind", &[], "", "Rebind the action to one binding or a list of them, replacing what it had and saving to the user data directory."),
         ("reset_bindings", &[], "", "Drop every saved rebinding and go back to what the project declared."),
+        ("declare_actions", &[], "(actions: any)", "Declare the actions a project's `[input.actions]` would, from a table of name to binding list; for a host running a project other than its own, such as the editor."),
     ]);
 
     // Every declared action, so a rebinding screen can list them.
@@ -488,6 +512,37 @@ pub(crate) fn install(m: &mut dyn balaur_script::Bindings<Engine>) {
     });
     // `input.bind("jump", "gamepad:North")`, or a list for several. Replaces
     // what the action had and saves to the user data directory.
+    m.function("declare_actions", |eng: &Engine, table: Value| {
+        let Value::Map(entries) = table else {
+            anyhow::bail!("declare_actions takes a table of name to bindings");
+        };
+        let mut declared = BTreeMap::new();
+        for (name, value) in entries {
+            let texts = match value {
+                Value::Str(one) => vec![one],
+                Value::List(many) => many
+                    .into_iter()
+                    .filter_map(|v| match v {
+                        Value::Str(s) => Some(s),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => continue,
+            };
+            let mut parsed = Vec::with_capacity(texts.len());
+            for text in &texts {
+                match Binding::parse(text) {
+                    Ok(binding) => parsed.push(binding),
+                    Err(why) => tracing::warn!("action '{name}': {why}"),
+                }
+            }
+            declared.insert(name, parsed);
+        }
+        eng.resource::<InputActions>()
+            .borrow_mut()
+            .declare(declared);
+        Ok(())
+    });
     m.function("bind", |eng: &Engine, (name, bindings): (String, Value)| {
         let bindings = match bindings {
             Value::Str(one) => vec![one],
