@@ -4,14 +4,16 @@
 //! Split out of `lib.rs`, which keeps the plugin, its components and its
 //! scene-file keys; nothing here is called from outside `RenderPlugin::build`.
 
-use anyhow::{anyhow, Result};
+use anyhow::anyhow;
 use balaur_core::entity_of;
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::{
-    CameraConfig, CameraConfig2d, CameraInputConfig, ClearColorConfig, GridConfig, ScreenshotRequest,
-    ViewportSnapshot, ViewportSnapshot2d, WindowConfig,
+    set_color, set_shape2d, set_sprite, AppIconConfig, CameraConfig, CameraConfig2d,
+    CameraInputConfig, ClearColorConfig, DebugLineBuffer, DebugLineBuffer2d, DrawLineArgs,
+    GridConfig, Renderable, Renderable2d, ScreenshotRequest, Shape, Shape2d, SpriteSheet2d,
+    SpriteTexture, ViewportSnapshot, ViewportSnapshot2d, WindowConfig, DEFAULT_PIXELS_PER_UNIT,
 };
 
 /// The 3D camera: where it looks from, whether it takes the mouse, and the
@@ -447,6 +449,12 @@ pub(crate) fn install_sprite_state_api(m: &mut dyn Bindings<Engine>) {
             set_color(eng, entity_of(node)?, [r, g, b, a.unwrap_or(1.0)])
         },
     );
+    install_shape_readers(m);
+}
+
+/// What a node's shape is, for a tool that has to show it: the 3D kind with
+/// its dimensions, the 2D kind with its half extents.
+fn install_shape_readers(m: &mut dyn Bindings<Engine>) {
     // Returns ("", 0, 0, 0) when the node has no shape.
     m.function("shape3d", |eng: &Engine, node: NodeId| {
         let world = eng.world();

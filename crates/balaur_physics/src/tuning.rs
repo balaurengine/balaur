@@ -213,7 +213,9 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
     m.function("set_threads", |_eng: &Engine, count: i64| {
         set_threads(count.max(1) as usize)
     });
-    m.function("threads", |_eng: &Engine, ()| Ok(threads() as i64));
+    m.function("threads", |_eng: &Engine, ()| {
+        Ok(i64::try_from(threads()).unwrap_or(i64::MAX))
+    });
     m.function("counters", |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState>();
         let state = state.borrow();

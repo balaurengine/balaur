@@ -112,7 +112,7 @@ fn write_mass(body: &mut RigidBody, params: &toml::Value) {
     let com = v::vec2(params, "center_of_mass", [0.0; 2]);
     if mass <= 0.0 {
         body.set_additional_mass(0.0, false);
-    } else if inertia == 0.0 && com == [0.0; 2] {
+    } else if inertia == 0.0 && crate::body::is_default(&com) {
         body.set_additional_mass(scalar::real(mass), true);
     } else {
         let com = scalar::v2a(com);
@@ -628,6 +628,11 @@ pub(crate) fn install_body2d_force_api(m: &mut dyn Bindings<Engine>) {
             })
         },
     );
+    install_body_forces(m);
+}
+
+/// The forces and impulses a script applies to a 2D body.
+fn install_body_forces(m: &mut dyn Bindings<Engine>) {
     m.function(
         "add_force",
         |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {

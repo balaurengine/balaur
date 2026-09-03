@@ -139,13 +139,19 @@ pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_s
 
 /// `mass` is *additional* mass, so 0 means "whatever the colliders weigh" —
 /// which is what a body with no mass property has always meant here.
+/// Whether the author left a property at its all-zero default. An exact test
+/// on purpose: this asks what the file says, not how big a number is.
+pub(crate) fn is_default(v: &[f32]) -> bool {
+    v.iter().all(|n| *n == 0.0)
+}
+
 fn write_mass(body: &mut RigidBody, params: &toml::Value) {
     let mass = v::f(params, "mass", 0.0).max(0.0);
     let inertia = v::vec3(params, "inertia", [0.0; 3]);
     let com = v::vec3(params, "center_of_mass", [0.0; 3]);
     if mass <= 0.0 {
         body.set_additional_mass(0.0, false);
-    } else if inertia == [0.0; 3] && com == [0.0; 3] {
+    } else if is_default(&inertia) && is_default(&com) {
         // Rapier scales the angular inertia with the mass, which is what an
         // author who only wrote `mass = 5` means.
         body.set_additional_mass(scalar::real(mass), true);
@@ -577,6 +583,12 @@ pub(crate) fn install_body_state_api(m: &mut dyn Bindings<Engine>) {
             })
         },
     );
+    install_body_readers(m);
+}
+
+/// What a body weighs and how it is moving, read-only: the numbers a script
+/// asks about rather than the ones it sets.
+fn install_body_readers(m: &mut dyn Bindings<Engine>) {
     m.function("mass", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, RigidBody::mass)
     });

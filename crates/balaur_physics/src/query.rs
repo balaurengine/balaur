@@ -447,13 +447,14 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
                     Real::MAX,
                 )
                 .map_err(|e| anyhow!("those two shapes have no closest points: {e}"))?;
+                // Intersecting and Disjoint both answer nil: there is no pair
+                // of closest points to name in either case.
                 Ok(match found {
-                    crate::rapier3d::parry::query::ClosestPoints::Intersecting => Value::Nil,
                     crate::rapier3d::parry::query::ClosestPoints::WithinMargin(p, q) => map([
                         ("a", Value::Vec3(scalar::a3(p))),
                         ("b", Value::Vec3(scalar::a3(q))),
                     ]),
-                    crate::rapier3d::parry::query::ClosestPoints::Disjoint => Value::Nil,
+                    _ => Value::Nil,
                 })
             })
         },

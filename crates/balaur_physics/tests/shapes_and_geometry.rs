@@ -66,14 +66,14 @@ fn run_clean(script: &str) {
 #[test]
 fn a_voxel_grid_can_be_dug_into() {
     run_clean(
-        r##"pub fn init(this) {
+        r#"pub fn init(this) {
     assert!(physics3d::voxel(this.node, 0, 1, 0), "the middle cell should be filled");
     physics3d::set_voxel(this.node, 0, 1, 0, false);
     assert!(!physics3d::voxel(this.node, 0, 1, 0), "digging left the cell filled");
     physics3d::set_voxel(this.node, 5, 5, 5, true);
     assert!(physics3d::voxel(this.node, 5, 5, 5), "a new cell was not added");
 }
-"##,
+"#,
     );
 }
 
@@ -82,12 +82,12 @@ fn a_voxel_grid_can_be_dug_into() {
 #[test]
 fn a_voxel_collider_can_be_turned_into_a_mesh() {
     run_clean(
-        r##"pub fn init(this) {
+        r#"pub fn init(this) {
     let mesh = physics3d::collider_mesh(this.node);
     assert!(mesh.points.len() > 0, "the grid tessellated to nothing");
     assert!(mesh.indices.len() % 3 == 0, "the triangles are not triples");
 }
-"##,
+"#,
     );
 }
 
@@ -112,7 +112,7 @@ fn the_mesh_backed_shapes_build() {
 #[test]
 fn the_solver_knobs_are_set_and_read_back() {
     run_clean(
-        r##"pub fn init(this) {
+        r#"pub fn init(this) {
     physics::set_tuning(#{ solver_iterations: 8.0, length_unit: 64.0, ccd_substeps: 2.0 });
     let tuning = physics::tuning();
     assert!(tuning.solver_iterations == 8.0, "iterations read back as {}", tuning.solver_iterations);
@@ -121,7 +121,7 @@ fn the_solver_knobs_are_set_and_read_back() {
     assert!(physics::quarantined().len() == 0, "something was quarantined in a still world");
     assert!(physics::threads() >= 1, "a build always has at least one thread");
 }
-"##,
+"#,
     );
 }
 
@@ -150,7 +150,7 @@ fn the_geometry_toolkit_works_on_a_mesh() {
 #[test]
 fn debug_draw_is_set_and_read_back() {
     run_clean(
-        r##"pub fn init(this) {
+        r#"pub fn init(this) {
     physics::set_debug_draw(true);
     assert!(physics::debug_draw().enabled, "the switch did not stay on");
     physics::set_debug_draw(#{ colliders: true, joints: true, contacts: false });
@@ -160,6 +160,6 @@ fn debug_draw_is_set_and_read_back() {
     physics::set_debug_draw(false);
     assert!(!physics::debug_draw().enabled, "the switch did not go off");
 }
-"##,
+"#,
     );
 }

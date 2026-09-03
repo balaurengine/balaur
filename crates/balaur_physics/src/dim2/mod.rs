@@ -165,7 +165,7 @@ fn step_system(eng: &Engine, _dt: f32) {
         }
         (collector.take(), joint::broken(state))
     };
-    events::deliver(eng, events.0);
+    events::deliver(eng, &events.0);
     for entity in &events.1 {
         joint::remove_joint(eng, *entity);
         if let Some(host) = eng.script_host() {

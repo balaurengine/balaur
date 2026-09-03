@@ -7,10 +7,9 @@
 //! keeps the simulation byte-for-byte identical with and without a window.
 
 use anyhow::{anyhow, Result};
-use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
 use balaur_core::{App, Engine, Plugin, Stage};
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::Bindings;
 
 mod camera;
 mod debug_view;
@@ -587,7 +586,7 @@ fn natural_half_extents(
 }
 
 /// Point a node at a texture, sizing the quad unless the caller said otherwise.
-fn set_sprite(
+pub(crate) fn set_sprite(
     eng: &Engine,
     entity: Entity,
     texture: SpriteTexture,

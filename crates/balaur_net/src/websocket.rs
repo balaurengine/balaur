@@ -369,7 +369,7 @@ pub(crate) fn run(
             Ok(Some(frame)) => match handle(
                 socket,
                 &mut connection,
-                frame,
+                &frame,
                 &mut inbox,
                 &mut deflate,
                 closing,
@@ -398,14 +398,14 @@ pub(crate) fn run(
 fn handle(
     socket: u64,
     connection: &mut Socket,
-    frame: Frame,
+    frame: &Frame,
     inbox: &mut Inbox,
     deflate: &mut Option<Deflate>,
     closing: bool,
     events: &Sender<NetEvent>,
 ) -> Result<Option<NetEvent>> {
     let header = frame.header().clone();
-    let payload = unmasked(&frame, &header);
+    let payload = unmasked(frame, &header);
     match header.opcode {
         OpCode::Control(Control::Ping) => send(connection, Frame::pong(payload.into_owned()))?,
         OpCode::Control(Control::Pong) => {}

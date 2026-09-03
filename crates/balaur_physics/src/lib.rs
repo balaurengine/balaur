@@ -405,7 +405,7 @@ fn step_system(eng: &Engine, _dt: f32) {
     };
     // Delivered with the world no longer borrowed: a handler is ordinary
     // script code and may move the body it was just told about.
-    events::deliver(eng, events.0);
+    events::deliver(eng, &events.0);
     break_joints(eng, &events.1);
     // Rapier disables a body whose pose went non-finite rather than letting
     // the world become NaN. A game that never asks still deserves to be told.

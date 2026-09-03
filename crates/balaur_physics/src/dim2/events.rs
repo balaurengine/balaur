@@ -96,12 +96,12 @@ impl EventHandler for Collector {
     }
 }
 
-pub(crate) fn deliver(eng: &Engine, events: Vec<Event>) {
+pub(crate) fn deliver(eng: &Engine, events: &[Event]) {
     let Some(host) = eng.script_host() else {
         return;
     };
     let node = |e: Entity| Value::Node(e.to_bits().get());
-    for event in &events {
+    for event in events {
         match *event {
             Event::Started(a, b) => {
                 host.call_on(balaur_core::node_id_of(a), "on_collision_start", &[node(b)]);

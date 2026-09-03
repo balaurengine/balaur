@@ -114,7 +114,7 @@ fn voxel_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder>
     let cells: Vec<crate::rapier3d::math::IVector> = grid
         .cells
         .iter()
-        .map(|c| crate::rapier3d::math::IVector::new(c[0].into(), c[1].into(), c[2].into()))
+        .map(|c| crate::rapier3d::math::IVector::new(c[0], c[1], c[2]))
         .collect();
     let size = scalar::v3a(grid.size);
     Ok(ColliderBuilder::voxels(size, &cells))
@@ -195,9 +195,9 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
                 .map(|v| v as Real)
         };
         Vector::new(
-            read(0).unwrap_or(Real::from(fallback[0])),
-            read(1).unwrap_or(Real::from(fallback[1])),
-            read(2).unwrap_or(Real::from(fallback[2])),
+            read(0).unwrap_or(scalar::real(fallback[0])),
+            read(1).unwrap_or(scalar::real(fallback[1])),
+            read(2).unwrap_or(scalar::real(fallback[2])),
         )
     };
     let radius = scalar::real(f("radius", 0.5)).max(0.01);
@@ -459,25 +459,22 @@ pub(crate) fn add_collider_at(
     builder: ColliderBuilder,
     offset: Pose,
 ) -> Result<()> {
-    let handle = match nearest_body(eng, entity) {
-        Some((body_node, body)) => {
-            let local = pose_relative_to(eng, entity, body_node)?;
-            let state = eng.resource::<PhysicsState>();
-            let mut state = state.borrow_mut();
-            warn_if_hollow_and_dynamic(&state, body, &builder);
-            state
-                .world
-                .insert_collider(builder.position(local * offset), Some(body))
-        }
-        None => {
-            // No body anywhere above: static world geometry at the node's pose.
-            let pose = node_pose(eng, entity)?;
-            let state = eng.resource::<PhysicsState>();
-            let mut state = state.borrow_mut();
-            state
-                .world
-                .insert_collider(builder.position(pose * offset), None)
-        }
+    let handle = if let Some((body_node, body)) = nearest_body(eng, entity) {
+        let local = pose_relative_to(eng, entity, body_node)?;
+        let state = eng.resource::<PhysicsState>();
+        let mut state = state.borrow_mut();
+        warn_if_hollow_and_dynamic(&state, body, &builder);
+        state
+            .world
+            .insert_collider(builder.position(local * offset), Some(body))
+    } else {
+        // No body anywhere above: static world geometry at the node's pose.
+        let pose = node_pose(eng, entity)?;
+        let state = eng.resource::<PhysicsState>();
+        let mut state = state.borrow_mut();
+        state
+            .world
+            .insert_collider(builder.position(pose * offset), None)
     };
     let state = eng.resource::<PhysicsState>();
     let mut state = state.borrow_mut();
@@ -779,10 +776,6 @@ fn collider_mesh_value(eng: &Engine, node: NodeId) -> Result<balaur_script::Valu
     ]))
 }
 
-/// The 32 collision layers, as an `options` list. Numbers rather than names:
-/// a name would have to come from the project file, and no other component
-/// resolves its options at inspector time (see `docs/PLAN-rapier.md`).
-
 /// Everything a collider carries besides its shape, as schema text. Shared
 /// with `collider2d`: a material is dimension-free.
 pub(crate) fn shared_collider_schema() -> String {
@@ -951,7 +944,7 @@ pub(crate) fn install_voxel_api(m: &mut dyn Bindings<Engine>) {
             // come home first.
             let local = collider.position().inverse() * scalar::v3(x, y, z);
             let cell = voxels.voxel_at_point(local);
-            Ok((cell.x as i64, cell.y as i64, cell.z as i64))
+            Ok((i64::from(cell.x), i64::from(cell.y), i64::from(cell.z)))
         },
     );
 }
@@ -1005,10 +998,9 @@ pub(crate) fn install_collider_reader_api(m: &mut dyn Bindings<Engine>) {
                 let (index, generation) = handle.into_raw_parts();
                 pair(index, generation)
             });
-        let colliders = state
-            .colliders
-            .get(&entity)
-            .map(|handles| {
+        let colliders = state.colliders.get(&entity).map_or_else(
+            || balaur_script::Value::List(Vec::new()),
+            |handles| {
                 balaur_script::Value::List(
                     handles
                         .iter()
@@ -1018,8 +1010,8 @@ pub(crate) fn install_collider_reader_api(m: &mut dyn Bindings<Engine>) {
                         })
                         .collect(),
                 )
-            })
-            .unwrap_or(balaur_script::Value::List(Vec::new()));
+            },
+        );
         Ok(crate::vocabulary::map([
             ("body", body),
             ("colliders", colliders),

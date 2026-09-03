@@ -702,6 +702,12 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
             })
         },
     );
+    install_clipboard_and_color(m);
+}
+
+/// The clipboard pair and the colour picker: queries that answer about the
+/// frame rather than about the layout.
+fn install_clipboard_and_color(m: &mut dyn Bindings<Engine>) {
     // Copy and paste. egui hands a paste to the frame it arrived on, so
     // `clipboard` answers the pasted text on that frame and "" otherwise;
     // the platform's clipboard is not readable on demand.

@@ -52,23 +52,20 @@ pub(crate) fn add_collider_at(
     builder: ColliderBuilder2,
     offset: Pose2,
 ) -> Result<()> {
-    let handle = match nearest_body(eng, entity) {
-        Some((body_node, body)) => {
-            let local = pose_relative_to(eng, entity, body_node)?;
-            let state = eng.resource::<PhysicsState2d>();
-            let mut state = state.borrow_mut();
-            state
-                .world
-                .insert_collider(builder.position(local * offset), Some(body))
-        }
-        None => {
-            let pose = node_pose_2d(eng, entity)?;
-            let state = eng.resource::<PhysicsState2d>();
-            let mut state = state.borrow_mut();
-            state
-                .world
-                .insert_collider(builder.position(pose * offset), None)
-        }
+    let handle = if let Some((body_node, body)) = nearest_body(eng, entity) {
+        let local = pose_relative_to(eng, entity, body_node)?;
+        let state = eng.resource::<PhysicsState2d>();
+        let mut state = state.borrow_mut();
+        state
+            .world
+            .insert_collider(builder.position(local * offset), Some(body))
+    } else {
+        let pose = node_pose_2d(eng, entity)?;
+        let state = eng.resource::<PhysicsState2d>();
+        let mut state = state.borrow_mut();
+        state
+            .world
+            .insert_collider(builder.position(pose * offset), None)
     };
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();

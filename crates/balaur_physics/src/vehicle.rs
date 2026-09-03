@@ -167,7 +167,7 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
     );
     m.function("set_brake", |eng: &Engine, (node, brake): (NodeId, f32)| {
         with_wheel(eng, node, |input| {
-            input.brake = scalar::real(brake.max(0.0))
+            input.brake = scalar::real(brake.max(0.0));
         })
     });
     m.function(

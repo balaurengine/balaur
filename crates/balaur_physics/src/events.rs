@@ -90,13 +90,13 @@ impl EventHandler for Collector {
 
     fn handle_contact_force_event(
         &self,
-        _dt: crate::scalar::Real,
+        dt: crate::scalar::Real,
         _bodies: &crate::rapier3d::prelude::RigidBodySet,
         colliders: &ColliderSet,
         pair: &crate::rapier3d::prelude::ContactPair,
         total_force_magnitude: crate::scalar::Real,
     ) {
-        let event = ContactForceEvent::from_contact_pair(_dt, pair, total_force_magnitude);
+        let event = ContactForceEvent::from_contact_pair(dt, pair, total_force_magnitude);
         let (Some(a), Some(b)) = (
             entity_of(colliders, event.collider1),
             entity_of(colliders, event.collider2),
@@ -149,8 +149,8 @@ fn dispatch(eng: &Engine, event: &Event) {
 ///
 /// Called with `PhysicsState` **not** borrowed: a handler is ordinary script
 /// code and may do anything, including move the body it was told about.
-pub(crate) fn deliver(eng: &Engine, events: Vec<Event>) {
-    for event in &events {
+pub(crate) fn deliver(eng: &Engine, events: &[Event]) {
+    for event in events {
         dispatch(eng, event);
     }
 }

@@ -272,6 +272,8 @@ pub(crate) fn layer_names(bits: u32) -> toml::Value {
 }
 
 /// The 32 collision layers, as an `options` list for a `flags` property.
+/// Numbers rather than names: a name would have to come from the project file,
+/// and no other component resolves its options at inspector time.
 pub(crate) fn layer_options() -> String {
     (0..32)
         .map(|i| format!("\"{i}\""))

@@ -63,7 +63,7 @@ fn mesh_of(eng: &Engine, value: Option<&Value>) -> Result<(Vec<Vector>, Vec<[u32
                 .collect();
             Ok((
                 points,
-                flat.chunks_exact(3).map(|t| [t[0], t[1], t[2]]).collect(),
+                flat.as_chunks::<3>().0.to_vec(),
             ))
         }
         _ => Err(anyhow!(
@@ -262,7 +262,7 @@ pub(crate) fn install_mesh_edit_api(m: &mut dyn Bindings<Engine>) {
         Ok(Value::List(
             parts
                 .into_iter()
-                .filter_map(|part| part.ok())
+                .filter_map(Result::ok)
                 .map(|part| mesh_value(part.vertices(), part.indices()))
                 .collect(),
         ))

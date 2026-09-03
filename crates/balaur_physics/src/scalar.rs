@@ -11,6 +11,10 @@
 //! conversions below are the only places a number changes width — which is
 //! also why they are the only places to look when a `f64` build disagrees
 //! with an `f32` one.
+//!
+//! Clippy only ever sees the `f32` build, where every `Real::from` here is the
+//! identity; in the `f64` one it is the conversion this module exists for.
+#![allow(clippy::useless_conversion, clippy::unnecessary_cast)]
 
 pub(crate) use crate::rapier2d::math::{Pose as Pose2, Rotation as Rotation2, Vector as Vector2};
 pub(crate) use crate::rapier3d::math::{Pose, Real, Rotation, Vector};
