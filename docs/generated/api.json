@@ -2789,7 +2789,7 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "HTTP calls, off the frame: the reply arrives on a later tick as a map with `status`, `headers` and `body`, or with `error`, both to the node's `on_response` method and to whoever awaits the returned id. Options are `method`, `headers`, `body` and a `timeout` in seconds, which falls back to the project's `[net] http_timeout`.",
+      "doc": "HTTP calls, off the frame: the reply arrives on a later tick as a map with `status`, `headers` and `body`, or with `error`, both to the node's `on_response` method and to whoever awaits the returned id. Options are `method`, `headers`, `body` and a `timeout` in seconds, which falls back to the project's `[http] timeout`.",
       "docs": {
         "request": "Start an HTTP request and return the id its reply carries, to await or to match inside the handler."
       },
@@ -4881,6 +4881,52 @@
       }
     },
     {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "Store services every platform shares: sign-in, achievements, leaderboards and cloud saves. A call returns an id and answers on a later tick, as a map carrying `kind` \u2014 `signed_in`, `done`, `scores`, `read`, `failed` or `unsupported` \u2014 both to the node's `on_platform` method and to whoever awaits the id. With no store loaded every call answers `unsupported`, so a script written against this runs anywhere. What only one platform has lives in that platform's own module.",
+      "docs": {
+        "backend": "The name of the loaded store, or \"none\".",
+        "cloud_read": "Read a value the store syncs between the player's devices.",
+        "cloud_write": "Write a value for the store to sync between the player's devices.",
+        "player": "Who the store says is playing, or nil before a sign-in has landed.",
+        "progress": "Report an achievement's completion, 0 to 100.",
+        "scores": "Read a leaderboard's top entries; `count` in the options caps how many.",
+        "set_presence": "Say what the player is doing, where the store shows it.",
+        "sign_in": "Ask the store who is playing, and return the id its answer carries.",
+        "signed_in": "Whether a sign-in has landed.",
+        "submit_score": "Post a score to a leaderboard.",
+        "unlock": "Award an achievement whole."
+      },
+      "functions": [
+        "backend",
+        "cloud_read",
+        "cloud_write",
+        "player",
+        "progress",
+        "scores",
+        "set_presence",
+        "sign_in",
+        "signed_in",
+        "submit_score",
+        "unlock"
+      ],
+      "name": "platform",
+      "signatures": {
+        "backend": "() -> Value",
+        "cloud_read": "(Value, Option<Value>, Option<Value>) -> Value",
+        "cloud_write": "(Value, Option<Value>, Option<Value>, Option<Value>) -> Value",
+        "player": "() -> Value",
+        "progress": "(Value, Option<Value>, Option<Value>, Option<Value>) -> Value",
+        "scores": "(Value, Option<Value>, Option<Value>) -> Value",
+        "set_presence": "(Value, Option<Value>, Option<Value>) -> Value",
+        "sign_in": "(Option<Value>, Option<Value>) -> Value",
+        "signed_in": "() -> Value",
+        "submit_score": "(Value, Option<Value>, Option<Value>, Option<Value>) -> Value",
+        "unlock": "(Value, Option<Value>, Option<Value>) -> Value"
+      }
+    },
+    {
       "acts_on": {
         "color": [
           "polygon",
@@ -5482,6 +5528,7 @@
         "code_editor": "Draw an editable, highlighted buffer with a gutter; returns the text, whether it changed, and any line clicked.",
         "code_line": "Draw one read-only code row from a list of `{ text, color, strong }` spans, with a gutter label on the left.",
         "color": "Draw a colour picker over `value`, an `[r, g, b, a]` of unit floats; returns the colour and whether it changed.",
+        "cursor_y": "How far down the current panel the next widget will land, in design pixels \u2014 the same origin `rect_stroke` measures from.",
         "dot": "Draw a filled circle in a `#rrggbb` colour, `d` design pixels across.",
         "drag_value": "Draw a number dragged sideways to change it; returns the value and whether this frame changed it.",
         "dropdown": "Draw a pill-shaped select over a list of strings; returns the selection and whether it changed this frame.",
@@ -5491,11 +5538,11 @@
         "frame": "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels.",
         "horizontal": "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels.",
         "image": "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path.",
-        "label": "Draw a line of text; `size`, `font`, `color`, `strong` and `wrap` style it.",
+        "label": "Draw a line of text; `size`, `font`, `color`, `strong`, `wrap` and `truncate` style it.",
         "left_panel": "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
         "menu_item": "Draw a row inside a context menu; true on the frame it was clicked, which also closes the menu.",
         "modal": "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked.",
-        "overlay": "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer.",
+        "overlay": "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `w`/`h` fix its size, and `fill`, `stroke`, `radius` and padding make it a sheet.",
         "pill": "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked.",
         "rect_stroke": "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked.",
         "right": "Lay the callback's widgets out against the right edge, still declared left to right.",
@@ -5508,7 +5555,7 @@
         "set_focus": "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",
         "set_scale": "Set the global UI scale, clamped to between 0.5 and 3.0 real pixels per design pixel.",
         "set_text": "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone.",
-        "set_theme": "Replace the colour tokens from a table of `name = \"#rrggbb\"` entries, plus `dark = true|false`.",
+        "set_theme": "Replace the theme: `name = \"#rrggbb\"` colour tokens, `dark = true|false`, and a `roles` table of named looks a widget takes with `role:`.",
         "set_widget_layer": "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
         "shortcut": "Whether this chord was pressed this frame, consuming it; `mods` is `\"cmd+shift\"`, from the `MOD_*` constants.",
         "slider": "Draw a horizontal slider between `min` and `max`; returns the value after this frame and whether it moved.",
@@ -5533,6 +5580,7 @@
         "code_editor",
         "code_line",
         "color",
+        "cursor_y",
         "dot",
         "drag_value",
         "dropdown",
@@ -5585,6 +5633,7 @@
         "code_editor": "(String, String, Option<Value>) -> (String, bool, Option<i64>)",
         "code_line": "(String, Value, Option<Value>) -> ()",
         "color": "Option<Value> -> (Vec<f64>, bool)",
+        "cursor_y": "() -> f64",
         "dot": "(String, f32) -> ()",
         "drag_value": "(f64, Option<Value>) -> (f64, bool)",
         "dropdown": "(String, String, Value, Option<Value>) -> (String, bool)",

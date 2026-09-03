@@ -11,7 +11,7 @@ Balaur game engine: batteries-included facade over the core and standard plugins
 
 Batteries-included entry points for Balaur games and tools.
 
-- **workspace deps:** `balaur_anim`, `balaur_audio`, `balaur_core`, `balaur_gamend`, `balaur_input`, `balaur_net`, `balaur_physics`, `balaur_plugin`, `balaur_render`, `balaur_script`, `balaur_script_rune`, `balaur_ui`
+- **workspace deps:** `balaur_anim`, `balaur_apple`, `balaur_audio`, `balaur_core`, `balaur_gamend`, `balaur_http`, `balaur_input`, `balaur_physics`, `balaur_platform`, `balaur_plugin`, `balaur_render`, `balaur_script`, `balaur_script_rune`, `balaur_ui`, `balaur_websocket`, `balaur_webtransport`
 - **external deps:** 3 (anyhow, toml, tracing)
 - **public surface:** 8 fn
 
@@ -36,6 +36,18 @@ Animation as a Balaur plugin: clips, a pure sampler, and playback.
 - **public surface:** 27 fn, 9 struct, 6 enum, 1 const, 2 type
 - **structs:** `AnimationPlugin`, `AnimationState`, `Clip`, `Easing`, `Key`, `Modifier2d`, `Playback`, `Track`, `Tween`
 - **enums:** `Interp`, `Mode`, `Property`, `TrackValue`, `Transition`, `Wrap`
+
+## `balaur_apple`
+
+Balaur Apple platform services: Game Center, iCloud and Sign in with Apple
+
+Apple platform services as a Balaur plugin: Game Center and iCloud behind the portable `platform.*` verbs, and `apple.*` for what only Apple has.
+
+- **workspace deps:** `balaur_core`, `balaur_platform`, `balaur_plugin`, `balaur_script`
+- **external deps:** 9 (anyhow, block2, objc2, objc2-authentication-services, objc2-foundation, objc2-game-kit, serde, serde_json, …)
+- **public surface:** 3 struct, 2 enum, 1 const
+- **structs:** `ApplePlugin`, `AppleSnapshot`, `AppleState`
+- **enums:** `AppleCall`, `AppleEvent`
 
 ## `balaur_audio`
 
@@ -64,7 +76,7 @@ Shared setup for the benchmarks: build a project on disk, boot an app on a chose
 
 The `balaur` command line tool: create, run, export, and play projects.
 
-- **workspace deps:** `balaur`
+- **workspace deps:** `balaur`, `balaur_export`
 - **external deps:** 12 (anyhow, clap, dirs, flate2, serde_json, sha2, tar, tracing, …)
 - **public surface:** 1 fn
 
@@ -76,10 +88,19 @@ Balaur engine core: the ECS world every plugin builds on.
 
 - **workspace deps:** `balaur_script`
 - **external deps:** 15 (anyhow, dirs, glamx, gltf, hecs, indexmap, libm, rustc-hash, …)
-- **public surface:** 123 fn, 75 struct, 9 enum, 2 trait, 19 const, 19 type
+- **public surface:** 130 fn, 79 struct, 9 enum, 2 trait, 19 const, 19 type
 - **traits:** `Plugin`, `Transport`
-- **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Bone`, `Children`, `ComponentDef`, `ComponentRegistry`, `DebugLineBuffer`, `DebugLineBuffer2d`, `Desync`, `Digest`, `DigestRegistry`, `Divergence`, `Engine`, `EngineOp`, `Entry`, `Event`, `EventLog`, `ExternalIo`, `Frame`, `GlbImport`, `GlobalTransform`, `Hasher`, `Header`, `HeightfieldData`, `IdAllocator`, `LocaleConfig`, `LogEntry`, `ManifestSource`, `MeshData`, `MeshSkin`, `Name`, `NetSession`, `NodeOp`, `Origin`, `Pack`, `Parent`, `Pcg32`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Received`, `Recorder`, `Recording`, `ReplayFeed`, `ReplayPlayer`, `ReplayRegistry`, `ReplaySetupRegistry`, `Resimulating`, `Resources`, `RngState`, `SaveConfig`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `Server`, `Session`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `Strings`, `TickInputs`, `TimingLog`, `Timings`, `Trailer`, `Transform`, `VoxelsData`
+- **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Bone`, `Children`, `Clock`, `ComponentDef`, `ComponentRegistry`, `DebugLineBuffer`, `DebugLineBuffer2d`, `Desync`, `Digest`, `DigestRegistry`, `Divergence`, `Engine`, `EngineOp`, `Entry`, `Event`, `EventLog`, `ExternalIo`, `Frame`, `GlbImport`, `GlobalTransform`, `Handler`, `Hasher`, `Header`, `HeightfieldData`, `IdAllocator`, `LocaleConfig`, `LogEntry`, `ManifestSource`, `MeshData`, `MeshSkin`, `Name`, `NetSession`, `NodeOp`, `Origin`, `Pack`, `Parent`, `Pcg32`, `PluginInfo`, `PluginRegistry`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Received`, `Recorder`, `Recording`, `ReplayFeed`, `ReplayPlayer`, `ReplayRegistry`, `ReplaySetupRegistry`, `Resimulating`, `Resources`, `RngState`, `SaveConfig`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptSetup`, `Server`, `Session`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `Strings`, `TickInputs`, `TimingLog`, `Timings`, `Trailer`, `Transform`, `VoxelsData`
 - **enums:** `AssetRef`, `AssetSource`, `Command`, `Delivery`, `LinkState`, `PlayState`, `ReplayMode`, `Stage`, `Step`
+
+## `balaur_export`
+
+`balaur export` as a library: a project directory in, a `.bpak` or a game the player can run out.
+
+- **workspace deps:** `balaur`
+- **external deps:** 4 (anyhow, serde, toml, tracing)
+- **public surface:** 2 fn, 1 struct
+- **structs:** `Options`
 
 ## `balaur_gamend`
 
@@ -93,6 +114,17 @@ The Gamend backend as a Balaur plugin: `gamend.*` for scripts.
 - **structs:** `Client`, `GamendPlugin`, `GamendSnapshot`, `GamendState`, `Handler`, `Reply`, `Session`, `Socket`
 - **enums:** `Credentials`, `LoginCredentials`, `SocketEvent`
 
+## `balaur_http`
+
+Balaur HTTP plugin: requests off the frame, for scripts
+
+HTTP as a Balaur plugin: `http.*` for scripts.
+
+- **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
+- **external deps:** 10 (anyhow, js-sys, serde, serde_json, toml, tracing, ureq, wasm-bindgen, …)
+- **public surface:** 5 struct
+- **structs:** `HttpCall`, `HttpConfig`, `HttpPlugin`, `HttpSnapshot`, `HttpState`
+
 ## `balaur_input`
 
 Balaur input plugin: backend-agnostic input state and the `input` Lua module
@@ -104,17 +136,6 @@ Input as a Balaur plugin.
 - **public surface:** 1 fn, 5 struct, 1 enum, 4 const
 - **structs:** `GamepadState`, `InputActions`, `InputPlugin`, `InputSnapshot`, `Pad`
 - **enums:** `TouchPhase`
-
-## `balaur_net`
-
-Balaur networking plugin: http requests and websocket connections for scripts
-
-Networking as a Balaur plugin: `http.*` and `websocket.*` for scripts.
-
-- **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
-- **external deps:** 12 (anyhow, flate2, httparse, rand, rustls, serde, serde_json, toml, …)
-- **public surface:** 9 struct
-- **structs:** `Handler`, `HttpCall`, `NetConfig`, `NetPlugin`, `NetSnapshot`, `NetState`, `SocketOptions`, `WebsocketListener`, `WebsocketTransport`
 
 ## `balaur_physics`
 
@@ -128,6 +149,19 @@ Rapier physics as a Balaur plugin.
 - **structs:** `Character2d`, `Character3d`, `JointRef`, `JointRef2d`, `PhysicsDebugConfig`, `PhysicsDebugState`, `PhysicsPlugin`, `PhysicsState`, `PhysicsState2d`, `Vehicle3d`, `Wheel3d`, `WheelInput`
 - **enums:** `JointHandle`, `JointHandle2d`
 
+## `balaur_platform`
+
+Balaur platform services: one script module over every store
+
+Store and platform services, portable: `platform.*` for scripts.
+
+- **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
+- **external deps:** 4 (anyhow, serde, serde_json, tracing)
+- **public surface:** 1 fn, 5 struct, 2 enum, 1 trait
+- **traits:** `PlatformBackend`
+- **structs:** `PlatformPlugin`, `PlatformSnapshot`, `PlatformState`, `Player`, `Score`
+- **enums:** `Call`, `PlatformEvent`
+
 ## `balaur_plugin`
 
 What a module or an extension implements to register itself with the engine
@@ -136,7 +170,7 @@ What a module or an extension implements to register itself.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
 - **external deps:** 4 (anyhow, libloading, serde_json, tracing)
-- **public surface:** 6 fn, 14 struct, 1 trait, 18 const, 1 type
+- **public surface:** 7 fn, 14 struct, 1 trait, 18 const, 1 type
 - **traits:** `Plugin`
 - **structs:** `AbiTag`, `BalaurApi`, `BalaurEntry`, `BalaurMapRef`, `BalaurModule`, `BalaurRegistry`, `BalaurSlice`, `BalaurStr`, `BalaurValue`, `CExtension`, `Extension`, `Fingerprint`, `Manifest`, `Registry`
 
@@ -170,9 +204,9 @@ The scripting seam: traits only, no backend.
 The Rune script host: loading, instancing, hot reload, precompiled packs.
 
 - **workspace deps:** `balaur_core`, `balaur_script`
-- **external deps:** 6 (anyhow, hecs, indexmap, notify, rune, tracing)
-- **public surface:** 3 fn, 9 struct
-- **structs:** `ApiEntry`, `Color`, `Component`, `Finding`, `Node`, `RuneHost`, `RuneModule`, `Vec2`, `Vec3`
+- **external deps:** 8 (anyhow, bincode, hecs, indexmap, notify, rune, serde, tracing)
+- **public surface:** 3 fn, 10 struct
+- **structs:** `ApiEntry`, `Color`, `Component`, `Finding`, `Node`, `RuneHost`, `RuneModule`, `ScriptCost`, `Vec2`, `Vec3`
 
 ## `balaur_ui`
 
@@ -185,4 +219,27 @@ Immediate-mode UI for scripts, rendered with egui.
 - **public surface:** 1 fn, 9 struct, 1 enum, 4 const
 - **structs:** `Style`, `ThemeTokens`, `UiConfig`, `UiFocus`, `UiPlugin`, `UiState`, `Widget`, `WidgetLayerConfig`, `WidgetTheme`
 - **enums:** `Move`
+
+## `balaur_websocket`
+
+Balaur websocket plugin: connections for scripts, and a Transport for sessions
+
+Websockets as a Balaur plugin: `websocket.*` for scripts, and a [`Transport`](balaur_core::transport::Transport) for sessions.
+
+- **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
+- **external deps:** 14 (anyhow, flate2, httparse, js-sys, rand, rustls, serde, serde_json, …)
+- **public surface:** 7 struct
+- **structs:** `SocketOptions`, `WebsocketConfig`, `WebsocketListener`, `WebsocketPlugin`, `WebsocketSnapshot`, `WebsocketState`, `WebsocketTransport`
+
+## `balaur_webtransport`
+
+Balaur WebTransport plugin: a QUIC Transport for rollback sessions
+
+WebTransport over QUIC, behind [`Transport`].
+
+- **workspace deps:** `balaur_core`
+- **external deps:** 8 (anyhow, rcgen, ring, rustls, tokio, tracing, url, web-transport-quinn)
+- **public surface:** 3 struct, 1 enum
+- **structs:** `Certificate`, `WebTransportLink`, `WebTransportServer`
+- **enums:** `Accept`
 

@@ -397,7 +397,8 @@ mod tests {
 
     #[test]
     fn a_misspelled_capability_names_the_ones_that_exist() {
-        #[derive(serde::Deserialize)]
+        // `Debug`: `expect_err` prints the Ok value when there is one.
+        #[derive(Debug, serde::Deserialize)]
         struct Manifest {
             #[allow(dead_code, reason = "the parse is what this test reads")]
             apple: AppleConfig,

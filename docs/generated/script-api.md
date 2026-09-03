@@ -25,6 +25,7 @@ cannot drift from what scripts actually see.
 | [`physics`](#physics) | 13 | 0 | the engine |
 | [`physics2d`](#physics2d) | 62 | 6 | the engine |
 | [`physics3d`](#physics3d) | 88 | 6 | the engine |
+| [`platform`](#platform) | 11 | 0 | the engine |
 | [`render`](#render) | 41 | 0 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
 | [`rng`](#rng) | 4 | 0 | the engine |
@@ -36,7 +37,7 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 5 | 0 | the engine |
 | [`task`](#task) | 1 | 0 | the engine |
 | [`toml`](#toml) | 2 | 0 | the engine |
-| [`ui`](#ui) | 49 | 16 | the engine |
+| [`ui`](#ui) | 50 | 16 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
 ## `animation`
@@ -177,6 +178,10 @@ cannot drift from what scripts actually see.
 | `SHAPE_BALL` | `ball` |
 | `SHAPE_CUBOID` | `cuboid` |
 
+## `platform`
+
+**Functions:** `backend`, `cloud_read`, `cloud_write`, `player`, `progress`, `scores`, `set_presence`, `sign_in`, `signed_in`, `submit_score`, `unlock`
+
 ## `render`
 
 **Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `channel`, `channels`, `check_material`, `color`, `draw_line`, `draw_line_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `pick_ray`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_channel`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `shader_probe`, `shape2d`, `shape3d`, `sprite`, `texture_size`
@@ -232,7 +237,7 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `window`
+**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `window`
 
 **Constants** (16):
 
