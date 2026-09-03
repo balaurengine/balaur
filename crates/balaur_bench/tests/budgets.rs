@@ -33,7 +33,10 @@ fn alone() -> MutexGuard<'static, ()> {
 
 /// Run `f` until it has taken at least `min`, and report the per-iteration
 /// cost. Timing one pass of a fast operation measures the clock.
-#[allow(clippy::disallowed_methods, reason = "this is the measurement, not simulation")]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "this is the measurement, not simulation"
+)]
 fn per_iteration(min: Duration, mut f: impl FnMut()) -> Duration {
     // Warm up: first-touch page faults and lazy init are not what we measure.
     for _ in 0..3 {
@@ -102,8 +105,8 @@ fn attaching_to_a_compiled_script_is_cheap_per_node() {
         let project = Project::new(backend, source).unwrap();
         let app = app(backend, &project).unwrap();
         attach_many(&app, backend, 1).unwrap(); // pay the compile first
-        // A hundred at a time, because that is the batch the benchmark this
-        // gates measures, and the ceiling comes from it.
+                                                // A hundred at a time, because that is the batch the benchmark this
+                                                // gates measures, and the ceiling comes from it.
         let each = per_iteration(Duration::from_millis(120), || {
             attach_many(&app, backend, 100).unwrap();
         });

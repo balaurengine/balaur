@@ -580,7 +580,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
     install_feed_api(m);
     install_touch_api(m);
     install_gamepad_api(m);
-    actions::install(m);
+    actions::install_actions(m);
 }
 
 /// `input.feed_*`: the window backend's feeders, for a script that stands in

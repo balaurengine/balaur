@@ -15,7 +15,9 @@
 mod api;
 mod bindings;
 mod debugger;
+mod inspect;
 mod pause;
+mod script_module;
 mod value;
 
 use std::cell::RefCell;
@@ -39,6 +41,7 @@ use rune::runtime::{Function, RuntimeContext, Unit, VmExecution, VmResult};
 use rune::{Diagnostics, Source, Sources, TypeHash as _, Vm};
 
 pub use api::{api_json, rune_of};
+pub use inspect::Finding;
 pub use bindings::{ApiEntry, RuneModule};
 pub use value::{Color, Node, Vec2, Vec3};
 
@@ -78,113 +81,6 @@ impl balaur_script::ScriptCompiler for RuneHost {
     }
 }
 
-/// A `pub fn` a script declares, read off its source text. The host owns
-/// the text, and a `pub fn` starting a line, signature on that line, is the
-/// whole public surface of the script model.
-#[derive(Clone, Debug)]
-struct PublicSignature {
-    name: String,
-    arity: usize,
-    is_async: bool,
-    /// 1-based, so a gutter can point at it.
-    line: usize,
-}
-
-fn public_functions(source: &str) -> Vec<PublicSignature> {
-    let mut out = Vec::new();
-    for (at, line) in source.lines().enumerate() {
-        let mut rest = line.trim_start();
-        rest = match rest.strip_prefix("pub ") {
-            Some(rest) => rest.trim_start(),
-            None => continue,
-        };
-        let is_async = rest.starts_with("async ");
-        if let Some(after) = rest.strip_prefix("async ") {
-            rest = after.trim_start();
-        }
-        let Some(rest) = rest.strip_prefix("fn ") else {
-            continue;
-        };
-        let name: String = rest
-            .chars()
-            .take_while(|c| c.is_alphanumeric() || *c == '_')
-            .collect();
-        let Some(open) = rest.find('(') else { continue };
-        let Some(close) = rest.find(')') else {
-            continue;
-        };
-        let arity = rest[open + 1..close]
-            .split(',')
-            .filter(|p| !p.trim().is_empty())
-            .count();
-        if !name.is_empty() {
-            out.push(PublicSignature {
-                name,
-                arity,
-                is_async,
-                line: at + 1,
-            });
-        }
-    }
-    out
-}
-
-/// One compiler finding, at the file and line the author wrote.
-#[derive(Clone, Debug)]
-pub struct Finding {
-    /// The source key the compiler read this from, which for a `mod` is the
-    /// submodule's own file, not the root's.
-    pub file: String,
-    /// 1-based, all four, so a gutter and a caret can point at them.
-    pub line: usize,
-    pub column: usize,
-    /// Where the span ends, for a client that underlines a range rather than
-    /// a line. Equal to the start for a diagnostic that carries no span.
-    pub end_line: usize,
-    pub end_column: usize,
-    /// `"error"` or `"warning"`.
-    pub severity: &'static str,
-    pub message: String,
-}
-
-/// Resolve a diagnostic's source and span into a [`Finding`]. A span-less
-/// diagnostic (a link error) lands on line 0, which means "the whole file".
-fn finding(
-    sources: &Sources,
-    id: rune::SourceId,
-    span: Option<rune::ast::Span>,
-    severity: &'static str,
-    message: &str,
-) -> Finding {
-    let source = sources.get(id);
-    let at = |offset: usize| {
-        source.map_or((0, 0), |source| {
-            let (line, column) = source.pos_to_utf8_linecol(offset);
-            (line + 1, column + 1)
-        })
-    };
-    let (start, end) = match span {
-        Some(span) => (at(span.start.into_usize()), at(span.end.into_usize())),
-        None => ((0, 0), (0, 0)),
-    };
-    Finding {
-        file: source.map_or_else(String::new, |source| source.name().to_string()),
-        line: start.0,
-        column: start.1,
-        end_line: end.0,
-        end_column: end.1,
-        severity,
-        message: message.to_string(),
-    }
-}
-
-fn render(diagnostics: &Diagnostics, sources: &Sources) -> String {
-    let mut buf = rune::termcolor::Buffer::no_color();
-    if diagnostics.emit(&mut buf, sources).is_err() {
-        return "unprintable diagnostics".into();
-    }
-    String::from_utf8_lossy(buf.as_slice()).trim().to_string()
-}
 
 struct Script {
     unit: Arc<Unit>,
@@ -487,110 +383,7 @@ impl RuneHost {
         })
         .build()?;
         ctx.install(task)?;
-        // `script::require("scripts/lib.rn")` — an object of another
-        // script's public functions, cached and hot-reloaded in place:
-        // `let lib = script::require("scripts/lib.rn"); lib["helper"](x)`.
-        let slot = HOSTS.with(|hosts| {
-            let mut hosts = hosts.borrow_mut();
-            hosts.push(self.clone());
-            hosts.len() - 1
-        });
-        let mut script = rune::Module::with_crate("script")?;
-        script
-            .function("require", move |path: &str| {
-                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
-                match host.require_module(path) {
-                    Ok(value) => value,
-                    Err(err) => {
-                        tracing::error!("script::require({path}): {err}");
-                        rune::to_value(()).expect("unit always converts")
-                    }
-                }
-            })
-            .build()?;
-        // `script::functions("scripts/lib.rn")` — what that script declares,
-        // so a tool reads the host's own signatures instead of parsing.
-        script
-            .function("functions", move |path: &str| {
-                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
-                match host.public_signatures(path) {
-                    Ok(value) => value,
-                    Err(err) => {
-                        tracing::error!("script::functions({path}): {err}");
-                        rune::to_value(()).expect("unit always converts")
-                    }
-                }
-            })
-            .build()?;
-        // `script::check("scripts/enemy.rn", source)` — every diagnostic the
-        // compiler has about that source, as `[#{ file, line, column,
-        // severity, message }]`. The source is the caller's, so an editor
-        // checks the buffer it is showing rather than the file on disk.
-        script
-            .function("check", move |path: &str, source: &str| {
-                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
-                match host
-                    .check_source(&Self::normalize_key(path), source)
-                    .and_then(|found| finding_rows(&found))
-                {
-                    Ok(value) => value,
-                    Err(err) => {
-                        tracing::error!("script::check({path}): {err}");
-                        rune::to_value(()).expect("unit always converts")
-                    }
-                }
-            })
-            .build()?;
-        // `script::exports("scripts/enemy.rn")` — what that script declares
-        // tunable, as `[#{ name, default, type }]` in name order. The type is
-        // the default's own, named in the schema vocabulary so the inspector
-        // reaches for the editor it already has. The inspector's Script
-        // properties section is drawn from this.
-        script
-            .function("exports", move |path: &str| {
-                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
-                match host
-                    .exports(&Self::normalize_key(path))
-                    .and_then(|declared| export_rows(&declared))
-                {
-                    Ok(value) => value,
-                    Err(err) => {
-                        tracing::error!("script::exports({path}): {err}");
-                        rune::to_value(()).expect("unit always converts")
-                    }
-                }
-            })
-            .build()?;
-        // `script::shared(f, arity)` — a callback made in this unit, callable
-        // from another unit's VM. Arity is explicit: a wrapper is typed.
-        script
-            .function("shared", |f: Function, arity: i64| -> rune::Value {
-                let arity = usize::try_from(arity).unwrap_or(usize::MAX);
-                let wrapped = SHARED_FNS.with(|shared| {
-                    let mut shared = shared.borrow_mut();
-                    shared.push(f);
-                    trampoline(shared.len() - 1, arity)
-                });
-                if let Some(function) = wrapped {
-                    return rune::to_value(function).expect("a function always converts");
-                }
-                tracing::error!("script::shared: arity {arity} is past the five rune allows");
-                rune::to_value(()).expect("unit always converts")
-            })
-            .build()?;
-        // `let (ok, value) = script::attempt(|| risky())`: the closure's
-        // error becomes a value instead of ending the caller, which is what
-        // a tool wants from a call that may legitimately fail.
-        script
-            .function("attempt", |f: Function| -> rune::Value {
-                let outcome = match f.call::<rune::Value>(()).into_result() {
-                    Ok(value) => rune::to_value((true, value)),
-                    Err(err) => rune::to_value((false, err.to_string())),
-                };
-                outcome.expect("a tuple always converts")
-            })
-            .build()?;
-        ctx.install(script)?;
+        ctx.install(script_module(self)?)?;
         let pending = self.state.borrow().pending.clone();
         for m in pending.borrow_mut().drain(..) {
             ctx.install(m)?;
@@ -661,72 +454,6 @@ impl RuneHost {
         }
     }
 
-    /// Compile `key` from `source` and report every diagnostic instead of
-    /// the first error's rendered text — the caller wants a list, not a page.
-    ///
-    /// The unit is dropped, so a check never disturbs the instances running
-    /// the old one, and the source is the caller's (an unsaved buffer), not
-    /// the file. A submodule's diagnostic is reported against the submodule:
-    /// each one carries the `SourceId` the compiler read it from.
-    ///
-    /// # Errors
-    /// If the context cannot be built.
-    pub fn check_source(&self, key: &str, source: &str) -> Result<Vec<Finding>> {
-        let (ctx, _) = self.context()?;
-        let (path, packed) = {
-            let state = self.state.borrow();
-            match &state.pack {
-                Some(pack) => (PathBuf::from(key), Some(pack.scripts.clone())),
-                None => (state.project_root.join(key), None),
-            }
-        };
-        let mut sources = Sources::new();
-        sources.insert(Source::with_path(key, source, path)?)?;
-        // The one place warnings are wanted: an error report should be the
-        // error, but a check is exactly the language server's business.
-        let mut diagnostics = Diagnostics::new();
-        let mut loader = PackSourceLoader {
-            scripts: packed.clone().unwrap_or_default(),
-        };
-        let mut prepared = rune::prepare(&mut sources)
-            .with_context(&ctx)
-            .with_diagnostics(&mut diagnostics);
-        if packed.is_some() {
-            prepared = prepared.with_source_loader(&mut loader);
-        }
-        drop(prepared.build());
-        let mut findings = Vec::new();
-        for diagnostic in diagnostics.diagnostics() {
-            findings.push(match diagnostic {
-                rune::diagnostics::Diagnostic::Fatal(fatal) => {
-                    // `FatalDiagnostic::span` is private; the kind is not, and
-                    // only a compile error has a span at all.
-                    let span = match fatal.kind() {
-                        rune::diagnostics::FatalDiagnosticKind::CompileError(error) => {
-                            Some(error.span())
-                        }
-                        _ => None,
-                    };
-                    finding(
-                        &sources,
-                        fatal.source_id(),
-                        span,
-                        "error",
-                        &fatal.to_string(),
-                    )
-                }
-                rune::diagnostics::Diagnostic::Warning(warning) => finding(
-                    &sources,
-                    warning.source_id(),
-                    Some(warning.span()),
-                    "warning",
-                    &warning.to_string(),
-                ),
-                _ => continue,
-            });
-        }
-        Ok(findings)
-    }
 
     fn load(&self, key: &str) -> Result<Arc<Unit>> {
         if let Some(script) = self.state.borrow().scripts.get(key) {
@@ -742,36 +469,6 @@ impl RuneHost {
         Ok(unit)
     }
 
-    /// The defaults `exports()` declares for `key`, evaluated once per file.
-    ///
-    /// Declaration order is not recoverable — Rune objects do not keep it —
-    /// so the list is sorted by name, which is the order the inspector shows
-    /// and the order a scene's `props` are written back in.
-    pub fn exports(&self, key: &str) -> Result<Vec<(String, balaur_script::Value)>> {
-        if let Some(hit) = self
-            .state
-            .borrow()
-            .scripts
-            .get(key)
-            .and_then(|s| s.exports.clone())
-        {
-            return Ok(hit);
-        }
-        let declared = match self.method(key, "exports") {
-            None => Vec::new(),
-            Some(f) => match f.call::<rune::Value>(()) {
-                VmResult::Ok(v) => match value::to_plain(&v) {
-                    Some(balaur_script::Value::Map(fields)) => fields,
-                    _ => return Err(anyhow!("[{key}] exports must return an object of defaults")),
-                },
-                VmResult::Err(err) => return Err(anyhow!("[{key}] exports: {err}")),
-            },
-        };
-        if let Some(script) = self.state.borrow_mut().scripts.get_mut(key) {
-            script.exports = Some(declared.clone());
-        }
-        Ok(declared)
-    }
 
     /// Look up a script function, returning `None` when it is not defined.
     fn method(&self, key: &str, name: &str) -> Option<Function> {
@@ -1191,46 +888,6 @@ impl RuneHost {
         Ok(value)
     }
 
-    /// `script::functions`: what a script declares, as `[#{ name, arity,
-    /// is_async, line }]`. The host already reads every signature to build a
-    /// module object; a tool asking for the same thing should not re-parse
-    /// the source.
-    ///
-    /// # Errors
-    /// If the script will not load.
-    pub fn public_signatures(&self, path: &str) -> Result<rune::Value> {
-        let key = Self::normalize_key(path);
-        self.load(&key)?;
-        let functions = self
-            .state
-            .borrow()
-            .scripts
-            .get(&key)
-            .map(|s| s.functions.clone())
-            .ok_or_else(|| anyhow!("{key} did not load"))?;
-        let mut out = rune::runtime::Vec::new();
-        for declared in functions {
-            let mut entry = rune::runtime::Object::new();
-            entry.insert(
-                rune::alloc::String::try_from("name")?,
-                rune::to_value(declared.name)?,
-            )?;
-            entry.insert(
-                rune::alloc::String::try_from("arity")?,
-                rune::to_value(i64::try_from(declared.arity).unwrap_or(i64::MAX))?,
-            )?;
-            entry.insert(
-                rune::alloc::String::try_from("is_async")?,
-                rune::to_value(declared.is_async)?,
-            )?;
-            entry.insert(
-                rune::alloc::String::try_from("line")?,
-                rune::to_value(i64::try_from(declared.line).unwrap_or(i64::MAX))?,
-            )?;
-            out.push(rune::to_value(entry)?)?;
-        }
-        Ok(rune::to_value(out)?)
-    }
 
     /// Build the export object for one script: its `pub fn`s by name, each
     /// wrapped in a Rust-routed trampoline (see `SHARED_FNS`).
@@ -1324,75 +981,6 @@ impl RuneHost {
     }
 }
 
-/// `script::check`'s answer: one row per diagnostic, in the order the
-/// compiler reported them.
-fn finding_rows(found: &[Finding]) -> Result<rune::Value> {
-    let mut rows = Vec::with_capacity(found.len());
-    for one in found {
-        let mut row = rune::runtime::Object::new();
-        for (key, value) in [
-            ("file", rune::to_value(one.file.clone())?),
-            (
-                "line",
-                rune::to_value(i64::try_from(one.line).unwrap_or(0))?,
-            ),
-            (
-                "column",
-                rune::to_value(i64::try_from(one.column).unwrap_or(0))?,
-            ),
-            ("severity", rune::to_value(one.severity)?),
-            ("message", rune::to_value(one.message.clone())?),
-        ] {
-            row.insert(rune::alloc::String::try_from(key)?, value)?;
-        }
-        rows.push(rune::to_value(row)?);
-    }
-    Ok(rune::to_value(rows)?)
-}
-
-/// `script::exports`' answer: one row per declared property, carrying the name,
-/// the default and the type to draw it at.
-fn export_rows(declared: &[(String, balaur_script::Value)]) -> Result<rune::Value> {
-    let mut rows = Vec::with_capacity(declared.len());
-    for (name, default) in declared {
-        let mut row = rune::runtime::Object::new();
-        row.insert(
-            rune::alloc::String::try_from("name")?,
-            rune::to_value(name.clone())?,
-        )?;
-        row.insert(
-            rune::alloc::String::try_from("default")?,
-            value::from_neutral(default)?,
-        )?;
-        row.insert(
-            rune::alloc::String::try_from("type")?,
-            rune::to_value(export_type(default))?,
-        )?;
-        rows.push(rune::to_value(row)?);
-    }
-    Ok(rune::to_value(rows)?)
-}
-
-/// A default's type, in the same vocabulary a component schema uses, so the
-/// inspector draws an export with the editor it already has for that type.
-///
-/// `int` is not one of `PROPERTY_TYPES` — no schema declares it — but the
-/// distinction has to survive to the editor, which rounds an edit back to a
-/// whole number rather than turning a count into 2.0.
-fn export_type(default: &balaur_script::Value) -> &'static str {
-    use balaur_script::Value;
-    match default {
-        Value::Bool(_) => "bool",
-        Value::Int(_) => "int",
-        Value::Num(_) => "float",
-        Value::Vec2(_) => "vec2",
-        Value::Vec3(_) => "vec3",
-        Value::Color(_) => "color",
-        // A node reference and anything structured are typed by hand until
-        // an attribute says otherwise; `PLAN-scripting.md` phase 3.
-        _ => "string",
-    }
-}
 
 impl balaur_script::ScriptHost<Engine> for RuneHost {
     fn module(&self, name: &str) -> Result<Box<dyn balaur_script::Bindings<Engine>>> {

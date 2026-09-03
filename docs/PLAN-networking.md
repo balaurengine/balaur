@@ -39,8 +39,14 @@ Missing:
 - Every transport is still TCP under the trait. No UDP, no QUIC, no
   WebTransport, no WebRTC: one lost packet stalls everything behind it, and a
   datagram is unreliable in name only.
-- No replication, no RPC, no authority, no interest management, no delta
-  encoding. Inputs are predicted; state is not.
+- No replication, no RPC, no authority, no delta encoding. Inputs are
+  predicted; state is not: no client-side prediction of the local player
+  against a server, no reconciliation of the correction that comes back, no
+  interpolation of the players a client does not own, no lag compensation,
+  no interest management.
+- Nothing measures the link. No round-trip time, loss or bytes a second per
+  peer, and no way to give a transport latency, loss or reordering in a
+  test, so every number so far is a loopback number.
 - No lobbies or matchmaking beyond a Gamend room.
 - A networked session is not in the recording. Inputs reach the journal from
   a transport rather than through a replay source, so a session replays only
@@ -83,6 +89,62 @@ Four layers, each usable without the ones above it:
 Rollback ships before replication. It is the smaller job on a deterministic
 engine, it is the one nobody else can offer cheaply, and replication's
 prediction and reconciliation reuse its snapshot ring.
+
+### Hiding latency
+
+Rollback and replication hide the same 60-100 ms in different places, and a
+game picks one. Under rollback every peer simulates everything and a wrong
+guess is paid for by re-running a tick. Under replication the server is the
+only simulation that counts, so the client covers the round trip itself:
+
+- **Client-side prediction.** The client applies its own input to its own
+  node on the tick it is pressed, without waiting for the server, and keeps
+  that input pending, keyed by the tick it ran on. This is the `rollback`
+  journal again with one player in it.
+- **Server reconciliation.** A delta carries the last input tick the server
+  consumed. The client drops what is acked, restores its own node to the
+  server's state at that tick, and replays the inputs still pending. Nodes
+  it does not own are never re-simulated: they are the server's word.
+  Agreeing costs nothing, and `is_resimulating` keeps the replay off the
+  network the way it already does for rollback.
+- **Correction smoothing.** A correction that moves a node visibly decays
+  out of the render transform over a few frames instead of snapping it. It
+  is a rendering offset and never feeds back into simulation state, which is
+  the rule the three run modes rest on.
+- **Interpolation of everyone else.** Unowned nodes are drawn a fixed delay
+  behind the newest state received — a send interval or two — and
+  interpolated between the two states that bracket the render time, so a
+  late or lost delta reads as motion rather than a stall. Extrapolating past
+  the newest state is a per-node choice, off by default.
+- **Lag compensation.** A server testing a hit rewinds the world to the tick
+  the shooter saw. The snapshot ring is that history already; what is
+  missing is the per-client view time and a bound on how far back a rewind
+  may go, since the client is the one claiming what it saw.
+- **Clock and jitter.** All of it needs the client's tick to lead the
+  server's by about the one-way delay plus jitter. The offset rides the
+  channel the digests already use, and the client trims its own tick by a
+  fraction of a step rather than jumping.
+
+None of this is authority. The server simulates, the client guesses ahead,
+and where they disagree the server wins — which is what makes the model
+resist a modified client, and why prediction is a step of its own rather
+than a line in the replication step.
+
+| Technique | Decision |
+| --- | --- |
+| Rollback with input prediction | Have — steps 3 and 5 |
+| Client-side prediction of the local node | Step 10 |
+| Server reconciliation of the local node | Step 10 |
+| Correction smoothing | Step 10 |
+| Interpolation of unowned nodes | Step 10 |
+| Extrapolation (dead reckoning) past the newest state | Step 10, per node, off by default |
+| Clock offset and jitter estimate | Step 10 |
+| Lag compensation by server rewind | Step 11 |
+| Interest management | Step 12 |
+| Delta encoding against an acked baseline, quantised off the schema | Step 9 |
+| Join in progress from a baseline snapshot | Step 9 |
+| Client-authoritative hit registration | Not planned — the server decides a hit |
+| Deterministic peer-to-peer with no server | Have — step 5 |
 
 ## 2. Transports
 
@@ -168,22 +230,46 @@ that works.
 6. **WebTransport, native.** The chosen crate behind the same trait, client
    and server: datagrams for inputs, a stream for the handshake and digests.
    The loopback tests of step 5 run again over it.
-7. **Sessions from Gamend.** A room becomes a session, and the relay for
+7. **Recording a session, and measuring the link.** Inputs reach the journal
+   from a transport rather than through a replay source, so a networked
+   session cannot be replayed; routing them through one makes a desync
+   reproducible from a file. With it, a transport that can be told to hold
+   packets back, drop them or reorder them, and per-peer round-trip time,
+   loss and bytes a second published the way `engine.timings()` is. Cheap,
+   and every step after it is tested against 150 ms and 5% loss rather than
+   against loopback.
+8. **Sessions from Gamend.** A room becomes a session, and the relay for
    browser peers; matchmaking and presence stay on the server side. First
    point at which a real game ships on this stack, which is why it comes
    before replication rather than after.
-8. **Replication.** The `replicate` component, change detection, delta
-   encoding, an authority rule, RPC by stable id, and the client's predict
-   and reconcile loop for its own node. Inherits a proven transport, a
-   proven session and working spawn and free.
-9. **WebTransport in the browser.** The emscripten shim over the browser's
-   WebTransport API, with `serverCertificateHashes` for the dev server.
-   Blocked on web export, so it lands whenever that does.
-10. **WebRTC data channels.** Only when a game needs browser peer-to-peer
+9. **Replication.** The `replicate` component, change detection, delta
+   encoding against the observer's last acked tick, quantisation off the
+   schema, an authority rule, RPC by stable id, and join in progress from a
+   baseline snapshot. Inherits a proven transport, a proven session and
+   working spawn and free.
+10. **Client prediction and server reconciliation.** The client runs its own
+    input on the tick it is pressed and holds it pending until a delta acks
+    the tick it ran on; the correction rewinds that node alone, replays what
+    is still pending, and decays out of the render transform rather than
+    snapping. Unowned nodes are drawn a send interval or two behind and
+    interpolated. The clock offset rides the digest channel, and the client
+    trims its tick by a fraction of a step to hold its lead. §1 "Hiding
+    latency" has the shape.
+11. **Lag compensation.** The server rewinds to the tick the shooter saw
+    before testing a hit, off the snapshot ring it already keeps, bounded by
+    how far back a rewind may go and by what a client may claim it saw.
+12. **Interest management and a bandwidth budget.** A client is sent what it
+    can see: a per-observer filter over the replicated set, a send rate
+    decoupled from the tick rate, and a cap that drops the least urgent
+    deltas rather than growing a queue.
+13. **WebTransport in the browser.** The emscripten shim over the browser's
+    WebTransport API, with `serverCertificateHashes` for the dev server.
+    Blocked on web export, so it lands whenever that does.
+14. **WebRTC data channels.** Only when a game needs browser peer-to-peer
     without a relay. Same trait, same loopback tests.
 
 Each step has its own tests before the next starts; a headless CI run of two
-engines on loopback is the bar for 5, 6 and 8.
+engines on loopback is the bar for 5, 6, 9 and 10.
 
 Two notes on running this:
 
@@ -222,3 +308,10 @@ Two notes on running this:
    (NAT traversal, no server cost) or always meet at a relay (one code path,
    browsers included). One code path is the default until latency says
    otherwise.
+6. **Which nodes a client predicts.** Whether prediction follows from
+   `authority = "owner"` or is its own key on `replicate`. A game that
+   predicts a vehicle it is riding but not driving wants the second; every
+   game wants the first to mean something sensible without saying so.
+7. **Where the send rate is set.** A 60 Hz tick does not want 60 sends a
+   second. Whether the rate is a `[net]` default, per node, or per observer
+   decides whether interpolation delay can be a fixed number of frames.

@@ -16,6 +16,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use balaur_core::Engine;
+use balaur_script::Bindings;
 
 use crate::gamepad::GamepadState;
 use crate::InputSnapshot;
@@ -31,7 +32,7 @@ const PRESSED: f32 = 0.5;
 
 /// One source of an action's value.
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Binding {
+pub(crate) enum Binding {
     /// A key, spelled as `input.KEY_*` spells it: `"Space"`, `"KeyA"`.
     Key(String),
     /// `"mouse:left"`, `"mouse:right"`, `"mouse:middle"`.
@@ -235,7 +236,7 @@ impl InputActions {
     /// For a host running a project other than its own — the editor, whose
     /// `project.toml` is the editor's and not the game's, so without this
     /// every action a played game asks for reads zero.
-    pub fn declare(&mut self, actions: BTreeMap<String, Vec<Binding>>) {
+    pub(crate) fn declare(&mut self, actions: BTreeMap<String, Vec<Binding>>) {
         self.bound = actions;
         for (name, bindings) in &self.overrides {
             self.bound.insert(name.clone(), bindings.clone());
@@ -462,7 +463,7 @@ fn check_action(eng: &Engine, name: &str) {
 }
 
 /// `input.action_*`, `input.actions`, `input.bind`.
-pub(crate) fn install(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn install_actions(m: &mut dyn Bindings<Engine>) {
     use balaur_script::{BindingsExt as _, Value};
 
     m.describe(&[

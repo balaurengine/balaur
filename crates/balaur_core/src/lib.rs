@@ -17,6 +17,7 @@ pub mod debugger_api;
 pub mod digest;
 pub mod engine;
 pub mod engine_api;
+pub mod file_api;
 pub mod glb;
 pub mod heightfield;
 pub mod ids;

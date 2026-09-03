@@ -240,6 +240,16 @@ def noted_at_declaration(lines: list[str], idx: int, needle: str) -> bool:
     return "Takes" in joined and needle in joined
 
 
+def attribute(lines, i, limit=8) -> str:
+    """The whole attribute starting at line `i`, which rustfmt may have wrapped."""
+    text = ""
+    for line in lines[i - 1:i - 1 + limit]:
+        text += line
+        if ")]" in line:
+            break
+    return text
+
+
 def seam_rules(rel, i, line, lines, ctx, crate, impl_name) -> list[Finding]:
     """N10: the verb is bound to the parameter type."""
     m = re.match(r"(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+"
@@ -404,7 +414,7 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
             in_test_mod = True
 
         if not is_comment and line:
-            if re.search(r"#\[allow\(", line) and "reason" not in line:
+            if re.search(r"#\[allow\(", line) and "reason" not in attribute(lines, i):
                 # A comment on the line above counts, same as for unwrap.
                 commented = "//" in raw or (i > 1 and lines[i - 2].strip().startswith("//"))
                 if not commented:

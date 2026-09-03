@@ -59,7 +59,10 @@ impl Socket {
     /// Connect and complete the websocket handshake. `url` must be the full
     /// endpoint with query parameters, e.g.
     /// `ws://localhost:4000/socket/websocket?token=...&vsn=2.0.0`.
-    #[allow(clippy::disallowed_methods, reason = "connection keep-alive, not simulation")]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "connection keep-alive, not simulation"
+    )]
     pub fn connect(url: &str) -> Result<Self> {
         let (connection, _) = tungstenite::connect(url).context("websocket handshake")?;
         let mut socket = Self {
@@ -187,7 +190,10 @@ impl Socket {
     }
 
     /// Send a heartbeat when one is due; fail if the last went unanswered.
-    #[allow(clippy::disallowed_methods, reason = "connection keep-alive, not simulation")]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "connection keep-alive, not simulation"
+    )]
     fn beat(&mut self) -> Result<()> {
         if self.last_heartbeat.elapsed() < HEARTBEAT_EVERY {
             return Ok(());

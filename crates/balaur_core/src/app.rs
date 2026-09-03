@@ -147,16 +147,16 @@ pub struct App {
 ///
 /// Its own function because `App::new` is otherwise a list of twenty-odd
 /// inserts with the interesting work at the bottom.
-fn insert_core_resources(engine: &Engine, config: &AppConfig) {
-    engine.insert_resource(SceneKeyRegistry::default());
-    engine.insert_resource(crate::components::ComponentRegistry::default());
-    engine.insert_resource(crate::presets::PresetRegistry::default());
-    engine.insert_resource(crate::assets::AssetTypeRegistry::default());
-    engine.insert_resource(crate::assets::AssetState::default());
-    engine.insert_resource(ProjectRoot(config.project_root.clone()));
+fn insert_core_resources(eng: &Engine, config: &AppConfig) {
+    eng.insert_resource(SceneKeyRegistry::default());
+    eng.insert_resource(crate::components::ComponentRegistry::default());
+    eng.insert_resource(crate::presets::PresetRegistry::default());
+    eng.insert_resource(crate::assets::AssetTypeRegistry::default());
+    eng.insert_resource(crate::assets::AssetState::default());
+    eng.insert_resource(ProjectRoot(config.project_root.clone()));
     // A packed game serves its textures, sounds and fonts from the pack;
     // a dev run serves them from the source tree.
-    engine.insert_resource(match config.pack.as_ref() {
+    eng.insert_resource(match config.pack.as_ref() {
         Some(pack) => crate::project::ProjectFiles::packed(
             config.project_root.clone(),
             pack.assets.clone(),
@@ -166,22 +166,22 @@ fn insert_core_resources(engine: &Engine, config: &AppConfig) {
         ),
         None => crate::project::ProjectFiles::directory(config.project_root.clone()),
     });
-    engine.insert_resource(ScriptArgs(config.script_args.clone()));
-    engine.insert_resource(crate::rng::RngState::default());
-    engine.insert_resource(crate::ids::IdAllocator::default());
-    engine.insert_resource(crate::rollback::TickInputs::default());
-    engine.insert_resource(crate::rollback::Resimulating::default());
-    engine.insert_resource(crate::digest::DigestRegistry::default());
-    engine.insert_resource(crate::replay::ReplayRegistry::default());
-    engine.insert_resource(crate::replay::ReplaySetupRegistry::default());
-    engine.insert_resource(crate::timings::Timings::default());
-    engine.insert_resource(crate::strings::Strings::default());
-    engine.insert_resource(crate::replay::ReplayFeed::default());
-    engine.insert_resource(crate::replay::ReplayMode::default());
-    engine.insert_resource(crate::replay::Recording::default());
-    engine.insert_resource(crate::replay::ReplayPlayer::default());
-    engine.insert_resource(crate::replay::EventLog::default());
-    engine.insert_resource(crate::snapshot::SnapshotRegistry::default());
+    eng.insert_resource(ScriptArgs(config.script_args.clone()));
+    eng.insert_resource(crate::rng::RngState::default());
+    eng.insert_resource(crate::ids::IdAllocator::default());
+    eng.insert_resource(crate::rollback::TickInputs::default());
+    eng.insert_resource(crate::rollback::Resimulating::default());
+    eng.insert_resource(crate::digest::DigestRegistry::default());
+    eng.insert_resource(crate::replay::ReplayRegistry::default());
+    eng.insert_resource(crate::replay::ReplaySetupRegistry::default());
+    eng.insert_resource(crate::timings::Timings::default());
+    eng.insert_resource(crate::strings::Strings::default());
+    eng.insert_resource(crate::replay::ReplayFeed::default());
+    eng.insert_resource(crate::replay::ReplayMode::default());
+    eng.insert_resource(crate::replay::Recording::default());
+    eng.insert_resource(crate::replay::ReplayPlayer::default());
+    eng.insert_resource(crate::replay::EventLog::default());
+    eng.insert_resource(crate::snapshot::SnapshotRegistry::default());
 }
 
 impl App {

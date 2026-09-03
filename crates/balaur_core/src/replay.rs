@@ -366,6 +366,10 @@ pub fn restore(eng: &Engine, sources: &serde_json::Map<String, serde_json::Value
 }
 
 /// Appends frames as they happen, so a crashed session still leaves a file.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "four independent recording flags, not a state enum"
+)]
 pub struct Recorder {
     out: BufWriter<std::fs::File>,
     /// Held back until the first frame settles its origin, so the file's one
@@ -532,6 +536,8 @@ pub fn timestamp() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
     let (days, rest) = (secs / 86_400, secs % 86_400);
+    // Days since 1970 fits an i64 for any clock a machine can hold.
+    #[allow(clippy::cast_possible_wrap, reason = "a day count is far inside i64")]
     let (year, month, day) = civil_from_days(days as i64);
     let (h, m, s) = (rest / 3600, (rest % 3600) / 60, rest % 60);
     format!("{year:04}-{month:02}-{day:02} {h:02}:{m:02}:{s:02}")

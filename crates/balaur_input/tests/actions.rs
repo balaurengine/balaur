@@ -52,7 +52,10 @@ fn value(app: &App, name: &str) -> f32 {
 }
 
 fn pressed(app: &App, name: &str) -> bool {
-    app.engine.resource::<InputActions>().borrow().is_pressed(name)
+    app.engine
+        .resource::<InputActions>()
+        .borrow()
+        .is_pressed(name)
 }
 
 fn just_pressed(app: &App, name: &str) -> bool {
@@ -123,15 +126,13 @@ fn an_undeclared_action_reads_zero_rather_than_failing() {
 
 #[test]
 fn a_binding_that_does_not_parse_is_dropped_and_the_rest_still_work() {
-    let (_dir, mut app) = app(
-        r#"
+    let (_dir, mut app) = app(r#"
 name = "actions test"
 main_scene = "main.toml"
 
 [input.actions]
 jump = ["Spacebar", "Space"]
-"#,
-    );
+"#);
     frame(&mut app, &[("Space", true)]);
     assert!(pressed(&app, "jump"), "the one good binding still fires");
 }
@@ -178,7 +179,12 @@ fn the_declared_actions_are_listed_in_a_stable_order() {
 fn a_project_declaring_no_actions_is_not_an_error() {
     let (_dir, mut app) = app("name = \"t\"\nmain_scene = \"main.toml\"\n");
     frame(&mut app, &[("Space", true)]);
-    assert!(app.engine.resource::<InputActions>().borrow().names().is_empty());
+    assert!(app
+        .engine
+        .resource::<InputActions>()
+        .borrow()
+        .names()
+        .is_empty());
 }
 
 /// The bar from `docs/PLAN-batteries.md` phase 1: a replay records keys, and

@@ -49,11 +49,10 @@ fn parse_definition(value: &toml::Value) -> Result<VoxelsData> {
     let size = value
         .get("size")
         .and_then(toml::Value::as_array)
-        .map(|a| {
+        .map_or([1.0; 3], |a| {
             let at = |i: usize| a.get(i).and_then(crate::components::as_f64).unwrap_or(1.0) as f32;
             [at(0), at(1), at(2)]
-        })
-        .unwrap_or([1.0; 3]);
+        });
     if size.iter().any(|s| *s <= 0.0) {
         bail!("a voxel grid's `size` must be positive in every axis, not {size:?}");
     }
