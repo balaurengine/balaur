@@ -1044,9 +1044,6 @@ fn rng_int(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Int(v))
 }
 
-/// Project-relative unless absolute, so a script cannot wander the disk by
-/// accident.
-
 pub(crate) fn number(args: &[Value], i: usize) -> Result<f64> {
     match args.get(i) {
         Some(Value::Num(n)) => Ok(*n),

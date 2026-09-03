@@ -21,14 +21,14 @@ Built, and not built for networking:
 
 | Have | Where |
 | --- | --- |
-| HTTP, websockets (TLS, `permessage-deflate`, headers), `[net]` defaults | `balaur_net` |
+| HTTP, websockets (TLS, `permessage-deflate`, headers), per-protocol defaults | `balaur_http`, `balaur_websocket` |
 | Login, REST, rooms, server hooks | `balaur_gamend` |
 | Every arrival enters the simulation once per tick, in order, recorded and replayable | `ExternalIo`, `NetSnapshot` |
 | A fixed 60 Hz step and a digest per tick | `Stage::FixedUpdate`, `digest` |
 | Whole-world snapshots: transforms, RNG, both physics worlds, script state | `snapshot` |
 | Cross-machine identity that survives rename and reparent | `StableId` |
 | A property schema for every component | `ComponentRegistry` |
-| Bytes across the script boundary, and binary websocket frames | `Value::Bytes`, `balaur_net` |
+| Bytes across the script boundary, and binary websocket frames | `Value::Bytes`, `balaur_websocket` |
 | An id for every run-time spawn, and a snapshot that restores the node set | `ids`, `snapshot`'s `nodes` source |
 | Rollback in one process: a session, an input journal, prediction and re-simulation | `rollback` |
 | A transport trait with reliable and unreliable delivery, over a websocket | `core::transport`, `net::transport` |
@@ -39,6 +39,9 @@ Missing:
 - Every transport is still TCP under the trait. No UDP, no QUIC, no
   WebTransport, no WebRTC: one lost packet stalls everything behind it, and a
   datagram is unreliable in name only.
+- One crate carries HTTP and websockets together, so a game that wants
+  neither still compiles both, and a QUIC stack would have nowhere to go but
+  in beside them.
 - No replication, no RPC, no authority, no delta encoding. Inputs are
   predicted; state is not: no client-side prediction of the local player
   against a server, no reconciliation of the correction that comes back, no
@@ -155,7 +158,7 @@ Every protocol a multiplayer engine could sit on, and where each stands here.
 | HTTP | Have. REST, Gamend, downloads. Not a game transport. |
 | WebSocket (TCP, TLS, `permessage-deflate`) | Have, text only; binary frames come in step 1. Stays for turn-based games, lobbies, chat, and as the fallback where UDP is blocked. Wrong for anything twitchy: one lost packet stalls every frame behind it. |
 | Raw UDP | Not exposed to scripts, now or later. No browser has it, it brings no encryption, congestion control or NAT story of its own, and every engine that ships it ends up writing a reliability layer on top. QUIC datagrams are that layer, standardised. |
-| QUIC over WebTransport | The target, and the only transport under rollback and replication. Reliable-ordered streams and unreliable datagrams in one encrypted connection: datagrams carry inputs and unreliable deltas, streams carry the handshake, digests, RPCs and reliable state. Native through `wtransport` or `web-transport-quinn`; in the browser through the WebTransport API, which Chrome, Firefox and Safari all ship. Client-server only: a browser cannot listen, and the server is an HTTP/3 endpoint with a certificate. |
+| QUIC over WebTransport | The target, and the only transport under rollback and replication. Reliable-ordered streams and unreliable datagrams in one encrypted connection: datagrams carry inputs and unreliable deltas, streams carry the handshake, digests, RPCs and reliable state. Native through `quinn`, wrapped by `web-transport-quinn` (§4.4); in the browser through the WebTransport API, which Chrome, Firefox and Safari all ship. Client-server only: a browser cannot listen, and the server is an HTTP/3 endpoint with a certificate. |
 | WebRTC data channels | Fallback, for one case: browser peer-to-peer without a relay. Needs a signalling channel (a Gamend room) and STUN/TURN; the unreliable-unordered mode gives UDP-like datagrams. Candidates are `matchbox` (native and browser, `matchbox_server` for signalling) or `webrtc` (webrtc-rs). Behind the same trait; not built until a game needs it. |
 | ENet, laminar, custom UDP protocols | Not planned. They solve what QUIC solves, and none of them runs in a browser. |
 
@@ -163,7 +166,7 @@ Two constraints shape the browser half:
 
 - The emscripten build is thread-free and has no wasm-bindgen, so
   `web-transport-wasm` (web-sys) does not apply. The browser transport is a C
-  shim over the browser API, the way `shim/emscripten_net.c` wraps fetch and
+  shim over the browser API, the way the emscripten shim wraps fetch and
   websockets today.
 - A browser accepts a self-signed certificate through
   `serverCertificateHashes` only while it is valid for at most two weeks.
@@ -207,7 +210,7 @@ that works.
 4. **The transport trait, websocket under it.** *Done.* `Transport` in
    `balaur_core` carries one reliable ordered channel and unreliable
    datagrams, polled per tick rather than awaited, so a link records and
-   replays like every other source. `WebsocketTransport` in `balaur_net`
+   replays like every other source. `WebsocketTransport` in `balaur_websocket`
    implements it: both deliveries share one socket and carry a one-byte tag,
    and a datagram is sent reliably — degraded, never wrong. Opening goes
    through `ExternalIo::start`, so a replay or a re-simulated tick opens no
@@ -227,9 +230,46 @@ that works.
    frames, because only a client had ever run it, and the snapshot ring
    appended re-simulated ticks instead of replacing them, so a
    rollback-heavy session forgot ticks it still needed.
-6. **WebTransport, native.** The chosen crate behind the same trait, client
-   and server: datagrams for inputs, a stream for the handshake and digests.
-   The loopback tests of step 5 run again over it.
+6. **One crate per protocol, and WebTransport native.** `balaur_net` becomes
+   three plugin crates: `balaur_http`, `balaur_websocket` and
+   `balaur_webtransport`. Nothing shared is left behind, because the shared
+   part is already in core — `ExternalIo` for the delivery contract,
+   `Transport` for the seam, `Engine::next_token` for await ids — so each is
+   a self-contained plugin registering its own replay source, the way
+   `balaur_physics` and `balaur_input` already do. What that buys is the
+   reason for doing it: a QUIC stack is a large dependency, and a game that
+   only wants `http::request` should not compile one.
+
+   `balaur_webtransport` puts `quinn` behind the same trait, through
+   `web-transport-quinn` (§4.4), client and server: datagrams for inputs, a
+   stream for the handshake and digests. The crate is async and the engine is
+   polled, so a link owns a worker thread with a single-threaded runtime and
+   speaks the same two channels the websocket worker does — no runtime
+   anywhere near the frame loop. QUIC is always TLS: a server generates a
+   self-signed certificate by default, so two engines on one machine need no
+   setup, and takes a real certificate and key from disk for anything
+   shipped. The loopback tests of step 5 run again over it, parameterised
+   over the transport rather than copied.
+
+   Nothing keeps the old name for the sake of the old name. `net` described a
+   crate that held two unrelated protocols, and now that it holds none, the
+   word stops meaning anything. Four consequences, each chosen for
+   consistency rather than for compatibility:
+   - The one replay source named `net` becomes `http` and `websocket`. An
+     old recording's `net` source goes unclaimed, so it replays without its
+     network traffic. Recordings from before the split are not carried
+     forward.
+   - `[net]` in `project.toml` becomes `[http]` and `[websocket]`, and the
+     keys drop the prefix the table now carries: `http_timeout` is
+     `[http] timeout`, `websocket_compression` is `[websocket] compression`.
+     A protocol's settings live under its own name, and a key never repeats
+     its table.
+   - `shim/emscripten_net.c` splits along the same line, fetch in one and
+     websockets in the other, each compiled by its own crate's `build.rs`.
+   - The `net` feature is removed rather than aliased. Three features named
+     for what they are — `http`, `websocket`, `webtransport` — and each crate
+     re-exported under its own name, so a game reaches for `balaur::http`
+     rather than for a bundle that happens to contain it.
 7. **Recording a session, and measuring the link.** Inputs reach the journal
    from a transport rather than through a replay source, so a networked
    session cannot be replayed; routing them through one makes a desync
@@ -313,5 +353,5 @@ Two notes on running this:
    predicts a vehicle it is riding but not driving wants the second; every
    game wants the first to mean something sensible without saying so.
 7. **Where the send rate is set.** A 60 Hz tick does not want 60 sends a
-   second. Whether the rate is a `[net]` default, per node, or per observer
+   second. Whether the rate is a `[webtransport]` default, per node, or per observer
    decides whether interpolation delay can be a fixed number of frames.

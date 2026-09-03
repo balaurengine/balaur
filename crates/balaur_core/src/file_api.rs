@@ -10,6 +10,8 @@ use balaur_script::Value;
 use crate::engine::Engine;
 use crate::engine_api::text;
 
+/// Project-relative unless absolute, so a script cannot wander the disk by
+/// accident.
 pub(crate) fn resolve(eng: &Engine, path: &str) -> std::path::PathBuf {
     let p = std::path::Path::new(path);
     if p.is_absolute() {

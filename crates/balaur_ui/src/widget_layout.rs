@@ -7,8 +7,11 @@
 
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, CallbackId, Value};
+use egui::{vec2, Align, Color32, FontId, Layout, Sense, Stroke};
 
 use crate::bridge::{scale, scoped, with_ui};
+use crate::theme;
+use crate::widgets::{left_pill, pill_radius, sc, text, Opts};
 
 /// `ui.horizontal`, `ui.vertical`, `ui.right` and `ui.frame`.
 pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
