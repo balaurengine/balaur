@@ -231,9 +231,8 @@ fn main() -> Result<()> {
             debug_wait,
         } => run_project(&RunOpts {
             path,
-            headless,
+            display: Display::of(headless, offscreen),
             frames,
-            offscreen,
             fixed_tick,
             trace_digest,
             timings,
@@ -656,15 +655,30 @@ fn find_template(target: &str) -> Result<PathBuf> {
     )
 }
 
-#[allow(
-    clippy::struct_excessive_bools,
-    reason = "five independent command-line flags, not a state enum"
-)]
+/// Where a run puts its frames. `--headless` and `--offscreen` are one choice
+/// with three answers, not two independent flags: offscreen wins when both are
+/// given, because it is the one that still needs a GPU.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Display {
+    Windowed,
+    Headless,
+    Offscreen,
+}
+
+impl Display {
+    fn of(headless: bool, offscreen: bool) -> Self {
+        match (offscreen, headless) {
+            (true, _) => Self::Offscreen,
+            (false, true) => Self::Headless,
+            (false, false) => Self::Windowed,
+        }
+    }
+}
+
 struct RunOpts {
     path: PathBuf,
-    headless: bool,
+    display: Display,
     frames: Option<u64>,
-    offscreen: bool,
     fixed_tick: bool,
     trace_digest: Option<PathBuf>,
     timings: bool,
@@ -779,9 +793,8 @@ fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<
 fn run_project(opts: &RunOpts) -> Result<()> {
     let RunOpts {
         path,
-        headless,
+        display,
         frames,
-        offscreen,
         fixed_tick,
         trace_digest,
         timings: _,
@@ -789,7 +802,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         debug,
         debug_wait,
     } = opts;
-    let (headless, frames, offscreen) = (*headless, *frames, *offscreen);
+    let (display, frames) = (*display, *frames);
     let mut app = balaur::standard_app(AppConfig::dev(path.to_string_lossy().as_ref()))?;
     // Before the project loads, so a client that waits can have breakpoints
     // in place by the time `init` runs.
@@ -815,7 +828,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
     // Registered last, so the frame it folds in is the whole frame.
     let timings = opts.timings.then(|| log_timings(&mut app));
-    if headless && !offscreen {
+    if display == Display::Headless {
         match frames {
             Some(frames) => {
                 for _ in 0..frames {
@@ -841,7 +854,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
             }
         });
     }
-    let ran = if offscreen {
+    let ran = if display == Display::Offscreen {
         balaur::run_offscreen(app, &title, OFFSCREEN_SIZE.0, OFFSCREEN_SIZE.1)
     } else {
         balaur::run(app, &title)

@@ -9,31 +9,34 @@ cannot drift from what scripts actually see.
 | Module | Functions | Constants | Declared by |
 | --- | ---: | ---: | --- |
 | [`animation`](#animation) | 14 | 0 | the engine |
-| [`assets`](#assets) | 6 | 0 | the engine |
-| [`audio`](#audio) | 8 | 0 | the engine |
+| [`assets`](#assets) | 7 | 0 | the engine |
+| [`audio`](#audio) | 13 | 0 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
-| [`engine`](#engine) | 7 | 0 | the engine |
+| [`engine`](#engine) | 8 | 0 | the engine |
 | [`fs`](#fs) | 8 | 0 | the engine |
 | [`gamend`](#gamend) | 9 | 0 | the engine |
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
 | [`http`](#http) | 1 | 0 | the engine |
-| [`input`](#input) | 27 | 190 | the engine |
+| [`input`](#input) | 32 | 190 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
 | [`log`](#log) | 5 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
-| [`node`](#node) | 30 | 0 | the engine |
+| [`node`](#node) | 31 | 0 | the engine |
 | [`physics`](#physics) | 13 | 0 | the engine |
 | [`physics2d`](#physics2d) | 62 | 6 | the engine |
-| [`physics3d`](#physics3d) | 78 | 6 | the engine |
-| [`render`](#render) | 39 | 0 | the engine |
+| [`physics3d`](#physics3d) | 88 | 6 | the engine |
+| [`render`](#render) | 41 | 0 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
 | [`rng`](#rng) | 4 | 0 | the engine |
+| [`rollback`](#rollback) | 2 | 0 | the engine |
+| [`save`](#save) | 5 | 0 | the engine |
 | [`scene`](#scene) | 13 | 0 | the engine |
 | [`script`](#script) | 6 | 0 | the engine |
 | [`skeleton`](#skeleton) | 3 | 0 | the engine |
+| [`strings`](#strings) | 5 | 0 | the engine |
 | [`task`](#task) | 1 | 0 | the engine |
 | [`toml`](#toml) | 2 | 0 | the engine |
-| [`ui`](#ui) | 44 | 14 | the engine |
+| [`ui`](#ui) | 49 | 16 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
 ## `animation`
@@ -42,11 +45,11 @@ cannot drift from what scripts actually see.
 
 ## `assets`
 
-**Functions:** `directory`, `duplicate`, `exists`, `load`, `reload`, `save`
+**Functions:** `directory`, `duplicate`, `exists`, `invalidate`, `load`, `reload`, `save`
 
 ## `audio`
 
-**Functions:** `is_playing`, `play`, `play_on`, `set_pitch`, `set_volume`, `stop`, `stop_all`, `stop_on`
+**Functions:** `bus_volume`, `buses`, `events`, `is_playing`, `play`, `play_event`, `play_on`, `set_bus_volume`, `set_pitch`, `set_volume`, `stop`, `stop_all`, `stop_on`
 
 ## `debugger`
 
@@ -63,7 +66,7 @@ cannot drift from what scripts actually see.
 
 ## `engine`
 
-**Functions:** `args`, `delta`, `quit`, `reload_script`, `tick`, `time`, `user_data_dir`
+**Functions:** `args`, `delta`, `quit`, `reload_script`, `tick`, `time`, `timings`, `user_data_dir`
 
 ## `fs`
 
@@ -83,7 +86,7 @@ cannot drift from what scripts actually see.
 
 ## `input`
 
-**Functions:** `action_just_pressed`, `action_just_released`, `action_pressed`, `action_value`, `actions`, `bind`, `bindings`, `dropped_files`, `gamepad_axis`, `gamepad_down`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepads`, `is_down`, `is_mouse_down`, `just_pressed`, `just_released`, `mouse_delta`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `reset_bindings`, `scroll_delta`, `touches`, `touches_ended`, `touches_started`
+**Functions:** `action_just_pressed`, `action_just_released`, `action_pressed`, `action_value`, `actions`, `bind`, `bindings`, `declare_actions`, `dropped_files`, `feed_key`, `feed_mouse`, `feed_mouse_button`, `gamepad_axis`, `gamepad_down`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepads`, `is_down`, `is_mouse_down`, `just_pressed`, `just_released`, `mouse_delta`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `reset_bindings`, `scroll_delta`, `touches`, `touches_ended`, `touches_started`, `typed`
 
 **Constants** (190):
 
@@ -138,7 +141,7 @@ cannot drift from what scripts actually see.
 
 ## `node`
 
-**Functions:** `add_child`, `attach_script`, `call`, `children`, `component_names`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `is_valid`, `name`, `parent`, `path`, `position`, `queue_free`, `remove_component`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_parent`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `translate`
+**Functions:** `add_child`, `attach_script`, `call`, `children`, `component_names`, `detach_script`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `is_valid`, `name`, `parent`, `path`, `position`, `queue_free`, `remove_component`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_parent`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `translate`
 
 ## `physics`
 
@@ -161,7 +164,7 @@ cannot drift from what scripts actually see.
 
 ## `physics3d`
 
-**Functions:** `aabb`, `add_ball_collider`, `add_body`, `add_cuboid_collider`, `add_force`, `add_force_at_point`, `add_joint`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `body_kind`, `box_hits`, `closest_points`, `collider_mass`, `collider_mesh`, `contacts`, `damping`, `distance`, `dominance`, `gravity`, `gravity_scale`, `intersects`, `is_ccd`, `is_enabled`, `is_grounded`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `locked_axes`, `mass`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `point_hits`, `predict_position`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_body_kind`, `set_brake`, `set_ccd`, `set_collider`, `set_damping`, `set_dominance`, `set_enabled`, `set_engine_force`, `set_gravity`, `set_gravity_scale`, `set_joint_limits`, `set_linear_velocity`, `set_lock_rotation`, `set_lock_translation`, `set_motor_position`, `set_motor_velocity`, `set_steering`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `solve_ik`, `teleport`, `user_force`, `user_torque`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`, `wheel_state`
+**Functions:** `aabb`, `active_bodies`, `add_ball_collider`, `add_body`, `add_cuboid_collider`, `add_force`, `add_force_at_point`, `add_joint`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `bodies`, `body_kind`, `box_hits`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `contacts`, `damping`, `distance`, `dominance`, `effective_dominance`, `gravity`, `gravity_scale`, `handles`, `intersects`, `is_ccd`, `is_enabled`, `is_grounded`, `is_moving`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `locked_axes`, `mass`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `point_hits`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_body_kind`, `set_brake`, `set_ccd`, `set_collider`, `set_damping`, `set_dominance`, `set_enabled`, `set_engine_force`, `set_gravity`, `set_gravity_scale`, `set_joint_limits`, `set_linear_velocity`, `set_lock_rotation`, `set_lock_translation`, `set_motor_position`, `set_motor_velocity`, `set_steering`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `user_force`, `user_torque`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`, `wheel_state`
 
 **Constants** (6):
 
@@ -176,7 +179,7 @@ cannot drift from what scripts actually see.
 
 ## `render`
 
-**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `channel`, `channels`, `check_material`, `color`, `draw_line`, `draw_line_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `pick_ray`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_channel`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_rect`, `set_shader_preview`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `shape2d`, `shape3d`, `sprite`, `texture_size`
+**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `channel`, `channels`, `check_material`, `color`, `draw_line`, `draw_line_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `pick_ray`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_channel`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `shader_probe`, `shape2d`, `shape3d`, `sprite`, `texture_size`
 
 ## `replay`
 
@@ -195,6 +198,14 @@ cannot drift from what scripts actually see.
 
 **Functions:** `int`, `random`, `range`, `seed`
 
+## `rollback`
+
+**Functions:** `input`, `is_resimulating`
+
+## `save`
+
+**Functions:** `read`, `remove`, `slots`, `version`, `write`
+
 ## `scene`
 
 **Functions:** `apply_preset`, `component_properties`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `preset_info`, `presets`, `root`, `source`, `spawn`, `unmet_expectations`
@@ -207,6 +218,10 @@ cannot drift from what scripts actually see.
 
 **Functions:** `apply_rest`, `bones`, `overwrite_rest`
 
+## `strings`
+
+**Functions:** `locale`, `locales`, `set_locale`, `set_root`, `tr`
+
 ## `task`
 
 **Functions:** `wait`
@@ -217,9 +232,9 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `dot`, `drag_value`, `dropdown`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `window`
+**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `window`
 
-**Constants** (14):
+**Constants** (16):
 
 | Name | Value |
 | --- | --- |
@@ -235,8 +250,10 @@ cannot drift from what scripts actually see.
 | `MOD_CTRL` | `ctrl` |
 | `MOD_SHIFT` | `shift` |
 | `WIDGET_BUTTON` | `button` |
+| `WIDGET_COLUMN` | `column` |
 | `WIDGET_LABEL` | `label` |
 | `WIDGET_PANEL` | `panel` |
+| `WIDGET_ROW` | `row` |
 
 ## `websocket`
 

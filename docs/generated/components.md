@@ -19,6 +19,14 @@ Each component is registered by a plugin with the schema below; one
 registration provides the scene-file key, the runtime
 `node:set_component` family, and the editor's inspector rows.
 
+**Methods.** `node.<component>` is a handle that binds the node to the
+module driving that component, so `node.body2d.apply_impulse(1.0, 0.0)`
+is `physics2d::apply_impulse(node, 1.0, 0.0)` and the same call on a
+`body3d` handle reaches `physics3d`. The methods listed per component
+below are the functions that declared they act on it. Every handle also
+carries `get()`, `set(table)`, `has()` and `remove()`, so a component
+with no methods of its own is still reachable that way.
+
 Components are grouped by the first of their facet tags; one with
 several (`collider2d` is both `2d` and `physics`) lists them all under
 its heading.
@@ -27,7 +35,7 @@ its heading.
 
 ### `body2d`
 
-`2d` · `physics` · 17 properties
+`2d` · `physics` · 18 properties · 40 methods
 
 Makes the node a 2D rigid body rapier simulates, in the xy plane: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. Add a `collider2d` for it to collide with anything.
 
@@ -42,6 +50,7 @@ Makes the node a 2D rigid body rapier simulates, in the xy plane: `dynamic` fall
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Simulate this body at all; a disabled body keeps its state and costs nothing</td></tr>
 <tr><td><code>fast_rotation</code></td><td>bool</td><td><code>false</code></td><td>Allow a spin fast enough that rapier would otherwise clamp it</td></tr>
 <tr><td><code>gravity_scale</code></td><td>float</td><td><code>1.0</code></td><td>Multiplier on world gravity for this body: 0 hangs in the air, negative floats up</td></tr>
+<tr><td><code>gyroscopic</code></td><td>bool</td><td><code>false</code></td><td>Model the wobble a spinning body&#x27;s own inertia gives it, as a thrown American football has</td></tr>
 <tr><td><code>inertia</code></td><td>float</td><td><code>0.0</code></td><td>Resistance to spin; 0 lets rapier derive it from the mass At least 0.0.</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>dynamic</code></td><td>How 2D physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set One of <code>dynamic</code>, <code>static</code>, <code>kinematic</code>, <code>kinematic_velocity</code>. Scene shorthand: <code>kind</code>'s value can be given as the component's whole value.</td></tr>
 <tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Drag on travel: how fast the body loses speed with nothing touching it At least 0.0.</td></tr>
@@ -54,9 +63,57 @@ Makes the node a 2D rigid body rapier simulates, in the xy plane: `dynamic` fall
 </tbody>
 </table>
 
+On a node carrying `body2d`, as `node.body2d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>add_body(String)</code></td><td>—</td><td>Give the node a 2D rigid body of the given kind (`BODY_DYNAMIC`, `BODY_STATIC`, `BODY_KINEMATIC`).</td><td><code>physics2d</code></td></tr>
+<tr><td><code>add_force(f32, f32)</code></td><td>—</td><td>Push the body until the force is reset; unlike an impulse this is spread over time.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>add_force_at_point(f32, f32, f32, f32)</code></td><td>—</td><td>Push at a world point, which also turns the body.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>add_torque(f32)</code></td><td>—</td><td>Turn the body until the torque is reset.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>angular_velocityNodeId</code></td><td><code>f32</code></td><td>How fast the body is spinning, in radians per second.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>apply_impulse(f32, f32)</code></td><td>—</td><td>Add an instant change in momentum, as if the body were struck.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>apply_impulse_at_point(f32, f32, f32, f32)</code></td><td>—</td><td>Strike the body at a world point, which spins it as well as moves it.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>apply_torque_impulse(f32)</code></td><td>—</td><td>Add an instant change in angular momentum, as if the body were spun.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>body_kindNodeId</code></td><td><code>String</code></td><td>Whether the body is dynamic, static, kinematic or kinematic_velocity.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>dampingNodeId</code></td><td><code>(f32, f32)</code></td><td>This body&#x27;s linear and angular damping.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>dominanceNodeId</code></td><td><code>f32</code></td><td>This body&#x27;s dominance group.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>gravity_scaleNodeId</code></td><td><code>f32</code></td><td>This body&#x27;s gravity multiplier.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>is_ccdNodeId</code></td><td><code>bool</code></td><td>Whether continuous collision detection is on for this body.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>is_enabledNodeId</code></td><td><code>bool</code></td><td>Whether the body is being simulated.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>is_sleepingNodeId</code></td><td><code>bool</code></td><td>Whether the body is asleep and being skipped.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>kinetic_energyNodeId</code></td><td><code>f32</code></td><td>The body&#x27;s kinetic energy, for a rest test the solver agrees with.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>linear_velocityNodeId</code></td><td><code>(f32, f32)</code></td><td>How fast the body is travelling, in units per second.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>locked_axesNodeId</code></td><td><code>(bool, bool, bool)</code></td><td>Whether x, y and rotation are frozen.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>massNodeId</code></td><td><code>f32</code></td><td>The body&#x27;s total mass, colliders included.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>max_contact_impulseNodeId</code></td><td><code>f32</code></td><td>The hardest contact this body took in the last step, zero when nothing touched it.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>next_positionNodeId</code></td><td><code>(f32, f32)</code></td><td>The position a kinematic body has been told to move to.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>predict_position(f32)</code></td><td><code>(f32, f32)</code></td><td>Where the body will be after `dt` seconds at its current velocity.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>reset_forcesNodeId</code></td><td>—</td><td>Drop every force added since the last step.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>reset_torquesNodeId</code></td><td>—</td><td>Drop every torque added since the last step.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_angular_velocity(f32)</code></td><td>—</td><td>Set how fast the body spins, in radians per second.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_body_kind(String)</code></td><td>—</td><td>Change the body between dynamic, static and kinematic in place, keeping its velocity.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_ccd(bool)</code></td><td>—</td><td>Sweep this body&#x27;s whole path each step so it cannot pass through a wall.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_damping(f32, f32)</code></td><td>—</td><td>Set linear and angular damping together.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_dominance(f32)</code></td><td>—</td><td>Set the group that decides which of two bodies can push the other.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_enabled(bool)</code></td><td>—</td><td>Simulate this body or leave it out entirely, keeping its state.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_gravity_scale(f32)</code></td><td>—</td><td>Scale world gravity for this body alone.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_linear_velocity(f32, f32)</code></td><td>—</td><td>Set how fast the body travels, in units per second.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_lock_rotation(bool)</code></td><td>—</td><td>Freeze the body&#x27;s spin: how a 2D character stays upright.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_lock_translation(bool, bool)</code></td><td>—</td><td>Freeze the body&#x27;s movement along x and y.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>sleepNodeId</code></td><td>—</td><td>Put the body to sleep now.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>teleport(f32, f32)</code></td><td>—</td><td>Move the body to a world position at once, clearing its velocity: what assigning the node&#x27;s position cannot do, because the step writes that back every tick.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>user_forceNodeId</code></td><td><code>(f32, f32)</code></td><td>The force the next step will integrate.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>user_torqueNodeId</code></td><td><code>f32</code></td><td>The torque the next step will integrate.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>velocity_at_point(f32, f32)</code></td><td><code>(f32, f32)</code></td><td>How fast a world point on the body is moving, spin included.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>wake_upNodeId</code></td><td>—</td><td>Wake the body, so the next step moves it.</td><td><code>physics2d</code></td></tr>
+</tbody>
+</table>
+
 ### `bone2d`
 
-`2d` · `animation` · 4 properties
+`2d` · `animation` · 4 properties · 3 methods
 
 Makes the node a 2D bone: the rest position and rotation about z a rig returns to, plus the length and angle its gizmo is drawn with. A skin names its rig by node path and deforms by the bones under it, in tree order.
 
@@ -70,9 +127,20 @@ Makes the node a 2D bone: the rest position and rotation about z a rig returns t
 </tbody>
 </table>
 
+On a node carrying `bone2d`, as `node.bone2d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>apply_rest(node: node)</code></td><td>—</td><td>Move every bone under the node back to its rest transform.</td><td><code>skeleton</code></td></tr>
+<tr><td><code>bones(node: node)</code></td><td>—</td><td>The bones under the node in tree order, the order a skin numbers them in, the node itself first when it is one.</td><td><code>skeleton</code></td></tr>
+<tr><td><code>overwrite_rest(node: node)</code></td><td>—</td><td>Record every bone&#x27;s current transform under the node as its new rest pose.</td><td><code>skeleton</code></td></tr>
+</tbody>
+</table>
+
 ### `character2d`
 
-`2d` · `physics` · 12 properties
+`2d` · `physics` · 12 properties · 2 methods
 
 Moves a node the way a 2D player expects: `physics2d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider2d`.
 
@@ -94,9 +162,19 @@ Moves a node the way a 2D player expects: `physics2d.move_character` slides it a
 </tbody>
 </table>
 
+On a node carrying `character2d`, as `node.character2d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>is_groundedNodeId</code></td><td><code>bool</code></td><td>Whether the last move ended with ground under the character&#x27;s feet.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>move_character(f32, f32)</code></td><td><code>Value</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, grounded, sliding, collisions }`. Call it from fixed_update.</td><td><code>physics2d</code></td></tr>
+</tbody>
+</table>
+
 ### `collider2d`
 
-`2d` · `physics` · 33 properties
+`2d` · `physics` · 33 properties · 2 methods
 
 The shape the node collides with in 2D. On a node with a `body2d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.
 
@@ -139,9 +217,19 @@ The shape the node collides with in 2D. On a node with a `body2d` it is that bod
 </tbody>
 </table>
 
+On a node carrying `collider2d`, as `node.collider2d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>add_collider(Value)</code></td><td>—</td><td>Attach a 2D collider from a `collider2d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component&#x27;s own vocabulary.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>overlapsNodeId</code></td><td><code>Vec&lt;NodeId&gt;</code></td><td>The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.</td><td><code>physics2d</code></td></tr>
+</tbody>
+</table>
+
 ### `joint2d`
 
-`2d` · `physics` · 18 properties
+`2d` · `physics` · 18 properties · 6 methods
 
 Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`.
 
@@ -169,6 +257,20 @@ Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring
 </tbody>
 </table>
 
+On a node carrying `joint2d`, as `node.joint2d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>add_joint(Value)</code></td><td>—</td><td>Tie this node&#x27;s body to another with a 2D joint, from a `joint2d` table.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>joint_impulseNodeId</code></td><td><code>f32</code></td><td>How hard the joint is pulling right now.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>remove_jointNodeId</code></td><td>—</td><td>Undo the node&#x27;s joint, leaving both bodies free.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_joint_limits(f32, f32)</code></td><td>—</td><td>Set how far the joint may travel.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_motor_position(f32, f32, f32)</code></td><td>—</td><td>Drive the joint towards an angle or a distance, with a spring&#x27;s stiffness and damping.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_motor_velocity(f32, f32)</code></td><td>—</td><td>Drive the joint towards a speed: how a wheel is powered.</td><td><code>physics2d</code></td></tr>
+</tbody>
+</table>
+
 ### `modifier2d`
 
 `2d` · `animation` · 5 properties
@@ -188,7 +290,7 @@ Aims a 2D bone at a target node every frame, after the clip has posed the rig: `
 
 ### `polygon`
 
-`2d` · `render` · `animation` · 5 properties
+`2d` · `render` · `animation` · 5 properties · 2 methods
 
 A filled, textured 2D polygon from a `mesh` asset's points and triangles, deformed by the rig `skeleton` names when the mesh carries skin weights.
 
@@ -203,9 +305,19 @@ A filled, textured 2D polygon from a `mesh` asset's points and triangles, deform
 </tbody>
 </table>
 
+On a node carrying `polygon`, as `node.polygon.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>colorNodeId</code></td><td><code>(f32, f32, f32, f32)</code></td><td>The node&#x27;s tint as r, g, b, a channel floats; opaque white when the node draws nothing at all.</td><td><code>render</code></td></tr>
+<tr><td><code>set_color(f32, f32, f32, Option&lt;f32&gt;)</code></td><td>—</td><td>Tint whatever the node draws, as r, g, b channel floats and an optional alpha, one meaning opaque.</td><td><code>render</code></td></tr>
+</tbody>
+</table>
+
 ### `shape2d`
 
-`2d` · `render` · 9 properties
+`2d` · `render` · 9 properties · 5 methods
 
 An untextured 2D primitive drawn at the node -- circle, rect, capsule or a polyline traced through a mesh asset's points -- sized in world units.
 
@@ -224,9 +336,22 @@ An untextured 2D primitive drawn at the node -- circle, rect, capsule or a polyl
 </tbody>
 </table>
 
+On a node carrying `shape2d`, as `node.shape2d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>colorNodeId</code></td><td><code>(f32, f32, f32, f32)</code></td><td>The node&#x27;s tint as r, g, b, a channel floats; opaque white when the node draws nothing at all.</td><td><code>render</code></td></tr>
+<tr><td><code>set_circle(f32)</code></td><td>—</td><td>Draw the node as a circle of the given radius in world units, replacing any other 2D shape.</td><td><code>render</code></td></tr>
+<tr><td><code>set_color(f32, f32, f32, Option&lt;f32&gt;)</code></td><td>—</td><td>Tint whatever the node draws, as r, g, b channel floats and an optional alpha, one meaning opaque.</td><td><code>render</code></td></tr>
+<tr><td><code>set_rect(f32, f32)</code></td><td>—</td><td>Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape.</td><td><code>render</code></td></tr>
+<tr><td><code>shape2dNodeId</code></td><td><code>(String, f32, f32)</code></td><td>The 2D shape&#x27;s kind and its two dimensions in world units; empty and zeros when the node has no 2D shape.</td><td><code>render</code></td></tr>
+</tbody>
+</table>
+
 ### `sprite`
 
-`2d` · `render` · 10 properties
+`2d` · `render` · 10 properties · 7 methods
 
 A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` sheet makes it a flipbook `frame` steps through.
 
@@ -243,6 +368,21 @@ A textured 2D quad at the node, sized from its image at `pixels_per_unit` textur
 <tr><td><code>pixels_per_unit</code></td><td>float</td><td><code>100.0</code></td><td>Texture pixels per world unit At least 0.01.</td></tr>
 <tr><td><code>rows</code></td><td>float</td><td><code>0.0</code></td><td>Sheet grid rows for flipbook sprites; 0 means a single image At least 0.0.</td></tr>
 <tr><td><code>texture</code></td><td>string</td><td>—</td><td>Image file, project-relative; required</td></tr>
+</tbody>
+</table>
+
+On a node carrying `sprite`, as `node.sprite.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>colorNodeId</code></td><td><code>(f32, f32, f32, f32)</code></td><td>The node&#x27;s tint as r, g, b, a channel floats; opaque white when the node draws nothing at all.</td><td><code>render</code></td></tr>
+<tr><td><code>set_color(f32, f32, f32, Option&lt;f32&gt;)</code></td><td>—</td><td>Tint whatever the node draws, as r, g, b channel floats and an optional alpha, one meaning opaque.</td><td><code>render</code></td></tr>
+<tr><td><code>set_sprite(String)</code></td><td>—</td><td>Draw the node as a quad textured with a project image, sized from it at 100 texture pixels per world unit.</td><td><code>render</code></td></tr>
+<tr><td><code>set_sprite_frame(u32)</code></td><td>—</td><td>Show a sheet cell, numbered left to right then top to bottom; only the UVs move, so it is cheap per frame.</td><td><code>render</code></td></tr>
+<tr><td><code>set_sprite_sheet(String, u32, u32)</code></td><td>—</td><td>Draw the node as one cell of a columns-by-rows sheet, sizing the quad to a single frame, not the whole image.</td><td><code>render</code></td></tr>
+<tr><td><code>set_sprite_size(f32, f32)</code></td><td>—</td><td>Override the size the sprite took from its image, giving half-extents in world units instead.</td><td><code>render</code></td></tr>
+<tr><td><code>spriteNodeId</code></td><td><code>(String, u32, u32, u32)</code></td><td>The texture path, sheet columns and rows, and current frame; empty and zeros when the node has no sprite.</td><td><code>render</code></td></tr>
 </tbody>
 </table>
 
@@ -265,7 +405,7 @@ A grid of tiles cut from one `tileset` atlas and centred on the node, one charac
 
 ### `body3d`
 
-`3d` · `physics` · 17 properties
+`3d` · `physics` · 18 properties · 43 methods
 
 Makes the node a 3D rigid body rapier simulates: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. On its own a body has no shape; add a `collider3d` for it to collide with anything.
 
@@ -280,6 +420,7 @@ Makes the node a 3D rigid body rapier simulates: `dynamic` falls and responds to
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Simulate this body at all; a disabled body keeps its state and costs nothing</td></tr>
 <tr><td><code>fast_rotation</code></td><td>bool</td><td><code>false</code></td><td>Allow a spin fast enough that rapier would otherwise clamp it</td></tr>
 <tr><td><code>gravity_scale</code></td><td>float</td><td><code>1.0</code></td><td>Multiplier on world gravity for this body: 0 hangs in the air, negative floats up</td></tr>
+<tr><td><code>gyroscopic</code></td><td>bool</td><td><code>false</code></td><td>Model the wobble a spinning body&#x27;s own inertia gives it, as a thrown American football has</td></tr>
 <tr><td><code>inertia</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Resistance to spin about each axis; 0 lets rapier derive it from the mass</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>dynamic</code></td><td>How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set One of <code>dynamic</code>, <code>static</code>, <code>kinematic</code>, <code>kinematic_velocity</code>. Scene shorthand: <code>kind</code>'s value can be given as the component's whole value.</td></tr>
 <tr><td><code>linear_damping</code></td><td>float</td><td><code>0.0</code></td><td>Drag on travel: how fast the body loses speed with nothing touching it At least 0.0.</td></tr>
@@ -292,9 +433,60 @@ Makes the node a 3D rigid body rapier simulates: `dynamic` falls and responds to
 </tbody>
 </table>
 
+On a node carrying `body3d`, as `node.body3d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>add_body(String)</code></td><td>—</td><td>Give the node a rigid body of the given kind (`BODY_DYNAMIC`, `BODY_STATIC`, `BODY_KINEMATIC`, `BODY_KINEMATIC_VELOCITY`).</td><td><code>physics3d</code></td></tr>
+<tr><td><code>add_force(f32, f32, f32)</code></td><td>—</td><td>Push the body until the force is reset; unlike an impulse this is spread over time.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>add_force_at_point(f32, f32, f32, f32, f32, f32)</code></td><td>—</td><td>Push at a world point, which also turns the body.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>add_torque(f32, f32, f32)</code></td><td>—</td><td>Turn the body until the torque is reset.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>angular_velocityNodeId</code></td><td><code>(f32, f32, f32)</code></td><td>How fast the body is spinning, in radians per second about each axis.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>apply_impulse(f32, f32, f32)</code></td><td>—</td><td>Add an instant change in momentum, as if the body were struck.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>apply_impulse_at_point(f32, f32, f32, f32, f32, f32)</code></td><td>—</td><td>Strike the body at a world point, which spins it as well as moves it.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>apply_torque_impulse(f32, f32, f32)</code></td><td>—</td><td>Add an instant change in angular momentum, as if the body were spun.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>body_kindNodeId</code></td><td><code>String</code></td><td>Whether the body is dynamic, static, kinematic or kinematic_velocity.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>dampingNodeId</code></td><td><code>(f32, f32)</code></td><td>This body&#x27;s linear and angular damping.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>dominanceNodeId</code></td><td><code>f32</code></td><td>This body&#x27;s dominance group.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>effective_dominanceNodeId</code></td><td><code>f32</code></td><td>The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>gravity_scaleNodeId</code></td><td><code>f32</code></td><td>This body&#x27;s gravity multiplier.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>is_ccdNodeId</code></td><td><code>bool</code></td><td>Whether continuous collision detection is on for this body.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>is_enabledNodeId</code></td><td><code>bool</code></td><td>Whether the body is being simulated.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>is_movingNodeId</code></td><td><code>bool</code></td><td>Whether the body is awake and actually going somewhere.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>is_sleepingNodeId</code></td><td><code>bool</code></td><td>Whether the body is asleep and being skipped.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>kinetic_energyNodeId</code></td><td><code>f32</code></td><td>The body&#x27;s kinetic energy, for a rest test the solver agrees with.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>linear_velocityNodeId</code></td><td><code>(f32, f32, f32)</code></td><td>How fast the body is travelling, in units per second.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>locked_axesNodeId</code></td><td><code>(bool, bool, bool, bool, bool, bool)</code></td><td>Which translation and rotation axes are frozen.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>massNodeId</code></td><td><code>f32</code></td><td>The body&#x27;s total mass, colliders included.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>next_positionNodeId</code></td><td><code>(f32, f32, f32)</code></td><td>The pose a kinematic body has been told to move to.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>potential_energyNodeId</code></td><td><code>f32</code></td><td>The body&#x27;s gravitational potential energy over one step.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>predict_position(f32)</code></td><td><code>(f32, f32, f32)</code></td><td>Where the body will be after `dt` seconds at its current velocity.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>predict_position_with_forces(f32)</code></td><td><code>(f32, f32, f32)</code></td><td>The same, with the forces already applied taken into account: where a thrust or a spring will have put it.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>reset_forcesNodeId</code></td><td>—</td><td>Drop every force added since the last step.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>reset_torquesNodeId</code></td><td>—</td><td>Drop every torque added since the last step.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_angular_velocity(f32, f32, f32)</code></td><td>—</td><td>Set how fast the body spins, in radians per second about each axis.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_body_kind(String)</code></td><td>—</td><td>Change the body between dynamic, static and kinematic in place, keeping its velocity.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_ccd(bool)</code></td><td>—</td><td>Sweep this body&#x27;s whole path each step so it cannot pass through a wall.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_damping(f32, f32)</code></td><td>—</td><td>Set linear and angular damping together.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_dominance(f32)</code></td><td>—</td><td>Set the group that decides which of two bodies can push the other.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_enabled(bool)</code></td><td>—</td><td>Simulate this body or leave it out entirely, keeping its state.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_gravity_scale(f32)</code></td><td>—</td><td>Scale world gravity for this body alone.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_linear_velocity(f32, f32, f32)</code></td><td>—</td><td>Set how fast the body travels, in units per second.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_lock_rotation(bool, bool, bool)</code></td><td>—</td><td>Freeze the body&#x27;s spin about each world axis: how an upright character stays upright.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_lock_translation(bool, bool, bool)</code></td><td>—</td><td>Freeze the body&#x27;s movement along each world axis.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>sleepNodeId</code></td><td>—</td><td>Put the body to sleep now.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>teleport(f32, f32, f32)</code></td><td>—</td><td>Move the body to a world position at once, clearing its velocity: what assigning the node&#x27;s position cannot do, because the step writes that back every tick.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>user_forceNodeId</code></td><td><code>(f32, f32, f32)</code></td><td>The force the next step will integrate.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>user_torqueNodeId</code></td><td><code>(f32, f32, f32)</code></td><td>The torque the next step will integrate.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>velocity_at_point(f32, f32, f32)</code></td><td><code>(f32, f32, f32)</code></td><td>How fast a world point on the body is moving, spin included.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>wake_upNodeId</code></td><td>—</td><td>Wake the body, so the next step moves it.</td><td><code>physics3d</code></td></tr>
+</tbody>
+</table>
+
 ### `bone3d`
 
-`3d` · `animation` · 4 properties
+`3d` · `animation` · 4 properties · 3 methods
 
 Makes the node a 3D bone: the rest position, euler rotation and scale a rig returns to, plus the length its gizmo is drawn with. A skinned mesh names its rig by node path and deforms by the bones under it, in tree order.
 
@@ -305,6 +497,17 @@ Makes the node a 3D bone: the rest position, euler rotation and scale a rig retu
 <tr><td><code>rest_position</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Local rest translation</td></tr>
 <tr><td><code>rest_rotation</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>Local rest rotation, euler radians in the order rotation_euler uses</td></tr>
 <tr><td><code>rest_scale</code></td><td>vec3</td><td><code>[1.0, 1.0, 1.0]</code></td><td>Local rest scale</td></tr>
+</tbody>
+</table>
+
+On a node carrying `bone3d`, as `node.bone3d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>apply_rest(node: node)</code></td><td>—</td><td>Move every bone under the node back to its rest transform.</td><td><code>skeleton</code></td></tr>
+<tr><td><code>bones(node: node)</code></td><td>—</td><td>The bones under the node in tree order, the order a skin numbers them in, the node itself first when it is one.</td><td><code>skeleton</code></td></tr>
+<tr><td><code>overwrite_rest(node: node)</code></td><td>—</td><td>Record every bone&#x27;s current transform under the node as its new rest pose.</td><td><code>skeleton</code></td></tr>
 </tbody>
 </table>
 
@@ -326,7 +529,7 @@ The view the scene is drawn from, following the node's global pose: `look_at` ai
 
 ### `character3d`
 
-`3d` · `physics` · 12 properties
+`3d` · `physics` · 12 properties · 2 methods
 
 Moves a node the way a player expects rather than the way physics would: `physics3d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider3d`; a `body3d` of kind kinematic lets it push what it walks into.
 
@@ -348,9 +551,19 @@ Moves a node the way a player expects rather than the way physics would: `physic
 </tbody>
 </table>
 
+On a node carrying `character3d`, as `node.character3d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>is_groundedNodeId</code></td><td><code>bool</code></td><td>Whether the last move ended with ground under the character&#x27;s feet.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>move_character(f32, f32, f32)</code></td><td><code>Value</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, grounded, sliding, collisions }`. Call it from fixed_update — it reads the world the step just wrote.</td><td><code>physics3d</code></td></tr>
+</tbody>
+</table>
+
 ### `collider3d`
 
-`3d` · `physics` · 40 properties
+`3d` · `physics` · 40 properties · 15 methods
 
 The shape the node collides with in 3D. On a node with a `body3d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.
 
@@ -400,9 +613,32 @@ The shape the node collides with in 3D. On a node with a `body3d` it is that bod
 </tbody>
 </table>
 
+On a node carrying `collider3d`, as `node.collider3d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>aabbNodeId</code></td><td><code>(f32, f32, f32, f32, f32, f32)</code></td><td>The world-space box the collider currently occupies, as its two opposite corners.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>add_ball_collider(f32)</code></td><td>—</td><td>Attach a sphere collider of the given radius.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>add_cuboid_collider(f32, f32, f32)</code></td><td>—</td><td>Attach a box collider from its three half-extents.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>collider_massNodeId</code></td><td><code>f32</code></td><td>What this collider weighs, density and size together.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>collider_meshNodeId</code></td><td><code>Value</code></td><td>The collider&#x27;s shape as points and triangles — including a voxel grid&#x27;s — for drawing it or for spawning the pieces it broke into.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>collider_volumeNodeId</code></td><td><code>f32</code></td><td>How much space the shape encloses.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>contactsNodeId</code></td><td><code>Value</code></td><td>Every contact point on this node&#x27;s collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>handlesNodeId</code></td><td><code>Value</code></td><td>The rapier handles behind this node — its body and its colliders — as `#{ body, colliders }` of index and generation pairs. For matching a log line against rapier&#x27;s own output.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>max_contact_impulseNodeId</code></td><td><code>f32</code></td><td>The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>overlapsNodeId</code></td><td><code>Vec&lt;NodeId&gt;</code></td><td>The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_collider(Value)</code></td><td>—</td><td>Replace the node&#x27;s collider from a `collider3d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component&#x27;s own vocabulary.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_voxel(i32, i32, i32, bool)</code></td><td>—</td><td>Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>swept_aabbNodeId</code></td><td><code>(f32, f32, f32, f32, f32, f32)</code></td><td>The box the collider covers over the next step, its motion included: what the broad phase actually tests.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>voxel(i32, i32, i32)</code></td><td><code>bool</code></td><td>Whether one cell of a voxel collider is filled.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>voxel_at(f32, f32, f32)</code></td><td><code>(i64, i64, i64)</code></td><td>The cell a world position falls in, as three whole numbers.</td><td><code>physics3d</code></td></tr>
+</tbody>
+</table>
+
 ### `joint3d`
 
-`3d` · `physics` · 18 properties
+`3d` · `physics` · 18 properties · 7 methods
 
 Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`.
 
@@ -430,6 +666,21 @@ Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ba
 </tbody>
 </table>
 
+On a node carrying `joint3d`, as `node.joint3d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>add_joint(Value)</code></td><td>—</td><td>Tie this node&#x27;s body to another with a joint, from a `joint3d` table: `kind`, `body`, `anchor`, `axis`, `limits`, and the rest of the component&#x27;s own vocabulary.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>joint_impulseNodeId</code></td><td><code>f32</code></td><td>How hard the joint is pulling right now: what a breakable one is measured against.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>remove_jointNodeId</code></td><td>—</td><td>Undo the node&#x27;s joint, leaving both bodies free.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_joint_limits(f32, f32)</code></td><td>—</td><td>Set how far the joint may travel, in radians for a revolute one and units for a prismatic one.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_motor_position(f32, f32, f32)</code></td><td>—</td><td>Drive the joint towards an angle or a distance, with a spring&#x27;s stiffness and damping.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_motor_velocity(f32, f32)</code></td><td>—</td><td>Drive the joint towards a speed: how a wheel is powered or a door swings itself shut.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>solve_ik(f32, f32, f32)</code></td><td>—</td><td>Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits.</td><td><code>physics3d</code></td></tr>
+</tbody>
+</table>
+
 ### `mesh`
 
 `3d` · `render` · 4 properties
@@ -448,7 +699,7 @@ Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the 
 
 ### `shape3d`
 
-`3d` · `render` · 6 properties
+`3d` · `render` · 6 properties · 5 methods
 
 An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone or plane -- sized in world units and tinted by `color`.
 
@@ -464,9 +715,22 @@ An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder,
 </tbody>
 </table>
 
+On a node carrying `shape3d`, as `node.shape3d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>colorNodeId</code></td><td><code>(f32, f32, f32, f32)</code></td><td>The node&#x27;s tint as r, g, b, a channel floats; opaque white when the node draws nothing at all.</td><td><code>render</code></td></tr>
+<tr><td><code>set_ball(f32)</code></td><td>—</td><td>Draw the node as a sphere of the given radius in world units, replacing any other 3D shape.</td><td><code>render</code></td></tr>
+<tr><td><code>set_color(f32, f32, f32, Option&lt;f32&gt;)</code></td><td>—</td><td>Tint whatever the node draws, as r, g, b channel floats and an optional alpha, one meaning opaque.</td><td><code>render</code></td></tr>
+<tr><td><code>set_cuboid(f32, f32, f32)</code></td><td>—</td><td>Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape.</td><td><code>render</code></td></tr>
+<tr><td><code>shape3dNodeId</code></td><td><code>(String, f32, f32, f32)</code></td><td>The 3D shape&#x27;s kind and its three dimensions in world units; empty and zeros when the node has no 3D shape.</td><td><code>render</code></td></tr>
+</tbody>
+</table>
+
 ### `vehicle3d`
 
-`3d` · `physics` · 2 properties
+`3d` · `physics` · 2 properties · 1 method
 
 Makes this node's body a car chassis, driven by the `wheel3d` children under it. Rapier casts a ray down from each wheel and pushes the chassis along a spring, which is how driving games model cars: it never jams and never tunnels.
 
@@ -478,9 +742,18 @@ Makes this node's body a car chassis, driven by the `wheel3d` children under it.
 </tbody>
 </table>
 
+On a node carrying `vehicle3d`, as `node.vehicle3d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>vehicle_speedNodeId</code></td><td><code>f32</code></td><td>How fast the chassis is going along its forward axis, in units per second.</td><td><code>physics3d</code></td></tr>
+</tbody>
+</table>
+
 ### `wheel3d`
 
-`3d` · `physics` · 11 properties
+`3d` · `physics` · 11 properties · 4 methods
 
 One wheel of the `vehicle3d` above it. Where the node sits on the chassis is where the wheel's ray starts; the rest is suspension tuning. Drive it with `physics3d.set_engine_force`, `set_brake` and `set_steering`.
 
@@ -501,11 +774,23 @@ One wheel of the `vehicle3d` above it. Where the node sits on the chassis is whe
 </tbody>
 </table>
 
+On a node carrying `wheel3d`, as `node.wheel3d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>set_brake(f32)</code></td><td>—</td><td>How hard this wheel brakes.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_engine_force(f32)</code></td><td>—</td><td>How hard this wheel drives, in newtons; negative reverses.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_steering(f32)</code></td><td>—</td><td>Turn this wheel, in radians.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>wheel_stateNodeId</code></td><td><code>Value</code></td><td>What the last step did with this wheel: `#{ rotation, suspension_force, grounded, engine_force, brake, steering }`.</td><td><code>physics3d</code></td></tr>
+</tbody>
+</table>
+
 ## Rendering
 
 ### `particles`
 
-`render` · 9 properties
+`render` · 9 properties · 1 method
 
 A purely visual 2D emitter at the node: rate, lifetime, speed, cone and gravity. The live particles and the randomness scattering them are backend state the simulation never sees.
 
@@ -524,11 +809,20 @@ A purely visual 2D emitter at the node: rate, lifetime, speed, cone and gravity.
 </tbody>
 </table>
 
+On a node carrying `particles`, as `node.particles.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>set_color(f32, f32, f32, Option&lt;f32&gt;)</code></td><td>—</td><td>Tint whatever the node draws, as r, g, b channel floats and an optional alpha, one meaning opaque.</td><td><code>render</code></td></tr>
+</tbody>
+</table>
+
 ## Animation
 
 ### `animation`
 
-`animation` · 4 properties
+`animation` · 4 properties · 11 methods
 
 Plays animation clips on a node: the library to play them from, one to start when the scene loads, and the rate every clip on the node runs at. The `animation` script module drives the playhead from there.
 
@@ -542,11 +836,30 @@ Plays animation clips on a node: the library to play them from, one to start whe
 </tbody>
 </table>
 
+On a node carrying `animation`, as `node.animation.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>currentNodeId</code></td><td><code>Option&lt;String&gt;</code></td><td>The clip playing or paused on this node, and nil once it has ended, been stopped, or never started.</td><td><code>animation</code></td></tr>
+<tr><td><code>define(String, Value)</code></td><td>—</td><td>Give this node a clip of its own under that name, from a definition table shaped like a scene file&#x27;s.</td><td><code>animation</code></td></tr>
+<tr><td><code>is_playingNodeId</code></td><td><code>bool</code></td><td>Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false.</td><td><code>animation</code></td></tr>
+<tr><td><code>just_finishedNodeId</code></td><td><code>Option&lt;String&gt;</code></td><td>The clip that ended on this node during the last step, and nil on every other frame.</td><td><code>animation</code></td></tr>
+<tr><td><code>pauseNodeId</code></td><td>—</td><td>Hold the playhead where it is, keeping the clip current so `resume` has something to go back to.</td><td><code>animation</code></td></tr>
+<tr><td><code>play(String, Option&lt;Value&gt;)</code></td><td>—</td><td>Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier) and `from_start`.</td><td><code>animation</code></td></tr>
+<tr><td><code>queue(String)</code></td><td>—</td><td>Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains.</td><td><code>animation</code></td></tr>
+<tr><td><code>resumeNodeId</code></td><td>—</td><td>Carry on from where `pause` left off; a stopped, finished or never-started node is left alone.</td><td><code>animation</code></td></tr>
+<tr><td><code>seek(f32)</code></td><td>—</td><td>Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip.</td><td><code>animation</code></td></tr>
+<tr><td><code>stopValue</code></td><td>—</td><td>End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it.</td><td><code>animation</code></td></tr>
+<tr><td><code>timeNodeId</code></td><td><code>f32</code></td><td>Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped.</td><td><code>animation</code></td></tr>
+</tbody>
+</table>
+
 ## Audio
 
 ### `sound`
 
-`audio` · 5 properties
+`audio` · 6 properties · 2 methods
 
 A sound of the node's own: which file, at what volume and pitch, looping or not. `audio.play_on` and `audio.stop_on` trigger it, and `autoplay` starts it when the node enters the scene.
 
@@ -554,6 +867,7 @@ A sound of the node's own: which file, at what volume and pitch, looping or not.
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>autoplay</code></td><td>bool</td><td><code>false</code></td><td>Start playing when the node enters the scene</td></tr>
+<tr><td><code>bus</code></td><td>string</td><td>—</td><td>Audio bus this plays through; empty is `master`</td></tr>
 <tr><td><code>file</code></td><td>string</td><td>—</td><td>Audio file, project-relative; required to play</td></tr>
 <tr><td><code>loop</code></td><td>bool</td><td><code>false</code></td><td>Restart the sound when it ends</td></tr>
 <tr><td><code>pitch</code></td><td>float</td><td><code>1.0</code></td><td>Playback speed multiplier At least 0.01.</td></tr>
@@ -561,25 +875,42 @@ A sound of the node's own: which file, at what volume and pitch, looping or not.
 </tbody>
 </table>
 
+On a node carrying `sound`, as `node.sound.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>play_onNodeId</code></td><td><code>u64</code></td><td>Start the node&#x27;s own `sound` from the top, replacing what it had going, and return the new handle.</td><td><code>audio</code></td></tr>
+<tr><td><code>stop_onNodeId</code></td><td>—</td><td>Silence what the node&#x27;s `sound` started; a node carrying none is left alone.</td><td><code>audio</code></td></tr>
+</tbody>
+</table>
+
 ## UI
 
 ### `widget`
 
-`ui` · 12 properties
+`ui` · 19 properties
 
 A HUD element the widget layer draws every frame: a label, button or panel anchored to a screen corner or the center, offset in design pixels. A button records its click in `clicked` and calls the node's `on_click` method.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>align</code></td><td>enum</td><td><code>start</code></td><td>Where a container puts its children across its own direction One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
 <tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Screen corner or center the offset is measured from One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>.</td></tr>
 <tr><td><code>clicked</code></td><td>bool</td><td><code>false</code></td><td>True on the frame the button was clicked Read-only: engine output the inspector shows but never writes.</td></tr>
+<tr><td><code>focusable</code></td><td>bool</td><td><code>true</code></td><td>Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be</td></tr>
 <tr><td><code>font_size</code></td><td>float</td><td><code>16.0</code></td><td>Text size in design pixels At least 6.0.</td></tr>
+<tr><td><code>gap</code></td><td>float</td><td><code>8.0</code></td><td>Space between a container&#x27;s children, in design pixels At least 0.0.</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>0.0</code></td><td>Panel height in design pixels; 0 sizes to content At least 0.0.</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>.</td></tr>
 <tr><td><code>on_click</code></td><td>string</td><td>—</td><td>Script method called on this node when the button is clicked</td></tr>
+<tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called on this node when focus arrives</td></tr>
+<tr><td><code>padding</code></td><td>float</td><td><code>0.0</code></td><td>Space inside a container&#x27;s edge, in design pixels At least 0.0.</td></tr>
 <tr><td><code>text</code></td><td>string</td><td><code>label</code></td><td>Label or button caption</td></tr>
 <tr><td><code>text_color</code></td><td>color</td><td><code>[0.933, 0.945, 0.957, 1.0]</code></td><td>Text color</td></tr>
+<tr><td><code>text_key</code></td><td>string</td><td>—</td><td>A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once</td></tr>
+<tr><td><code>theme</code></td><td>asset · <code>widget_theme</code></td><td>—</td><td>How this widget and everything under it is drawn; inherited from the nearest ancestor that names one</td></tr>
 <tr><td><code>visible</code></td><td>bool</td><td><code>true</code></td><td>Draw the widget; hidden widgets keep their state</td></tr>
 <tr><td><code>width</code></td><td>float</td><td><code>0.0</code></td><td>Panel width in design pixels; 0 sizes to content At least 0.0.</td></tr>
 <tr><td><code>x</code></td><td>float</td><td><code>16.0</code></td><td>Horizontal offset from the anchor, in design pixels</td></tr>

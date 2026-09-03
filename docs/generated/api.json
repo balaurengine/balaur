@@ -23,6 +23,10 @@
     "voxels": {
       "directory": "terrain",
       "doc": "A voxel grid for a collider: `size` is one cell in world units, `cells` the\nfilled coordinates. Coordinates are signed, so a grid has no origin corner,\nand `physics3d.set_voxel` may add or remove a cell at run time.\n\n```toml\n[[assets]]\nid = \"pillar\"\ntype = \"voxels\"\nsize = [1.0, 1.0, 1.0]\ncells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]\n```"
+    },
+    "widget_theme": {
+      "directory": "themes",
+      "doc": "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius` and `padding` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...). A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root."
     }
   },
   "component_docs": {
@@ -217,6 +221,11 @@
         "description": "Multiplier on world gravity for this body: 0 hangs in the air, negative floats up",
         "type": "float"
       },
+      "gyroscopic": {
+        "default": false,
+        "description": "Model the wobble a spinning body's own inertia gives it, as a thrown American football has",
+        "type": "bool"
+      },
       "inertia": {
         "default": 0.0,
         "description": "Resistance to spin; 0 lets rapier derive it from the mass",
@@ -327,6 +336,11 @@
         "default": 1.0,
         "description": "Multiplier on world gravity for this body: 0 hangs in the air, negative floats up",
         "type": "float"
+      },
+      "gyroscopic": {
+        "default": false,
+        "description": "Model the wobble a spinning body's own inertia gives it, as a thrown American football has",
+        "type": "bool"
       },
       "inertia": {
         "default": [
@@ -2051,6 +2065,11 @@
         "description": "Start playing when the node enters the scene",
         "type": "bool"
       },
+      "bus": {
+        "default": "",
+        "description": "Audio bus this plays through; empty is `master`",
+        "type": "string"
+      },
       "file": {
         "default": "",
         "description": "Audio file, project-relative; required to play",
@@ -2249,6 +2268,16 @@
       }
     },
     "widget": {
+      "align": {
+        "default": "start",
+        "description": "Where a container puts its children across its own direction",
+        "options": [
+          "start",
+          "center",
+          "end"
+        ],
+        "type": "enum"
+      },
       "anchor": {
         "default": "top_left",
         "description": "Screen corner or center the offset is measured from",
@@ -2267,10 +2296,21 @@
         "readonly": true,
         "type": "bool"
       },
+      "focusable": {
+        "default": true,
+        "description": "Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be",
+        "type": "bool"
+      },
       "font_size": {
         "default": 16.0,
         "description": "Text size in design pixels",
         "min": 6.0,
+        "type": "float"
+      },
+      "gap": {
+        "default": 8.0,
+        "description": "Space between a container's children, in design pixels",
+        "min": 0.0,
         "type": "float"
       },
       "height": {
@@ -2285,7 +2325,9 @@
         "options": [
           "label",
           "button",
-          "panel"
+          "panel",
+          "row",
+          "column"
         ],
         "type": "enum"
       },
@@ -2293,6 +2335,17 @@
         "default": "",
         "description": "Script method called on this node when the button is clicked",
         "type": "string"
+      },
+      "on_focus": {
+        "default": "",
+        "description": "Script method called on this node when focus arrives",
+        "type": "string"
+      },
+      "padding": {
+        "default": 0.0,
+        "description": "Space inside a container's edge, in design pixels",
+        "min": 0.0,
+        "type": "float"
       },
       "text": {
         "default": "label",
@@ -2308,6 +2361,17 @@
         ],
         "description": "Text color",
         "type": "color"
+      },
+      "text_key": {
+        "default": "",
+        "description": "A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once",
+        "type": "string"
+      },
+      "theme": {
+        "asset": "widget_theme",
+        "default": "",
+        "description": "How this widget and everything under it is drawn; inherited from the nearest ancestor that names one",
+        "type": "asset"
       },
       "visible": {
         "default": true,
@@ -2433,6 +2497,7 @@
         "directory": "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none.",
         "duplicate": "A private copy of a definition, read past the cache, so editing it disturbs no other holder of that reference.",
         "exists": "Whether a reference resolves to a definition that is really there; false rather than an error when it does not.",
+        "invalidate": "Declare everything derived from project files stale \u2014 a shader a material links, say \u2014 so it is rebuilt from disk; for a file the watcher does not cover.",
         "load": "The definition table behind a reference, from the cache; an error when the reference resolves to nothing.",
         "reload": "Forget a reference so the next load re-reads its file, along with every entry cut from that same file.",
         "save": "Write a definition table to the project-relative file a reference names; an error unless it names a whole file."
@@ -2441,6 +2506,7 @@
         "directory",
         "duplicate",
         "exists",
+        "invalidate",
         "load",
         "reload",
         "save"
@@ -2450,6 +2516,7 @@
         "directory": "(type_name: string)",
         "duplicate": "(reference: string)",
         "exists": "(reference: string)",
+        "invalidate": "()",
         "load": "(reference: string)",
         "reload": "(reference: string)",
         "save": "(reference: string, definition: any)"
@@ -2470,9 +2537,14 @@
       "constants": [],
       "doc": "Sound playback: a file plays under an integer handle, with `volume`, `pitch` and `loop` options, and the `sound` component gives a node a sound of its own. With no output device every call still works and nothing is heard.",
       "docs": {
+        "bus_volume": "One bus's own gain, without its parents'.",
+        "buses": "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order.",
+        "events": "Every sound named in `audio/events.toml`, in name order.",
         "is_playing": "Whether a handle's sound is still audible; false once it ends, and always false with no output device.",
         "play": "Start the audio file at a path and return the handle `stop`, `set_volume`, `set_pitch` and `is_playing` take.",
+        "play_event": "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. Nil for a name nothing declared.",
         "play_on": "Start the node's own `sound` from the top, replacing what it had going, and return the new handle.",
+        "set_bus_volume": "Set one bus's gain and re-apply it to everything already playing on it \u2014 which is what a volume slider is.",
         "set_pitch": "Set a playing handle's speed multiplier, which carries its pitch with it.",
         "set_volume": "Set a playing handle's linear gain, where 1 is the file's own level.",
         "stop": "Silence the sound a handle names; a finished, stopped or unknown handle is left alone.",
@@ -2480,9 +2552,14 @@
         "stop_on": "Silence what the node's `sound` started; a node carrying none is left alone."
       },
       "functions": [
+        "bus_volume",
+        "buses",
+        "events",
         "is_playing",
         "play",
+        "play_event",
         "play_on",
+        "set_bus_volume",
         "set_pitch",
         "set_volume",
         "stop",
@@ -2491,9 +2568,14 @@
       ],
       "name": "audio",
       "signatures": {
+        "bus_volume": "String -> f32",
+        "buses": "() -> Value",
+        "events": "() -> Value",
         "is_playing": "i64 -> bool",
         "play": "(String, Option<Value>) -> u64",
+        "play_event": "String -> Value",
         "play_on": "NodeId -> u64",
+        "set_bus_volume": "(String, f32) -> ()",
         "set_pitch": "(i64, f32) -> ()",
         "set_volume": "(i64, f32) -> ()",
         "stop": "i64 -> ()",
@@ -2570,6 +2652,7 @@
         "reload_script": "Recompile one script by its project-relative key, for a tool editing files outside the watched root.",
         "tick": "Which frame this is, counted whole \u2014 what simulation code branches on instead of `time`.",
         "time": "Seconds of engine time since the app started, accumulated as a float.",
+        "timings": "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only \u2014 branching a `fixed_update` on wall time desyncs, and nothing records it.",
         "user_data_dir": "A writable per-user directory for saves and settings, created on first call and named after the project."
       },
       "functions": [
@@ -2579,6 +2662,7 @@
         "reload_script",
         "tick",
         "time",
+        "timings",
         "user_data_dir"
       ],
       "name": "engine",
@@ -2589,6 +2673,7 @@
         "reload_script": "(key: string)",
         "tick": "()",
         "time": "()",
+        "timings": "()",
         "user_data_dir": "()"
       }
     },
@@ -3490,7 +3575,11 @@
         "actions": "Every action `[input.actions]` declares, so a rebinding screen can list them.",
         "bind": "Rebind the action to one binding or a list of them, replacing what it had and saving to the user data directory.",
         "bindings": "What the action is bound to now, whether from the project or from the player's own rebinding.",
+        "declare_actions": "Declare the actions a project's `[input.actions]` would, from a table of name to binding list; for a host running a project other than its own, such as the editor.",
         "dropped_files": "The absolute paths of files dropped onto the window this frame, in drop order; desktop only.",
+        "feed_key": "Press or release a `KEY_*` key as if the window had reported it; the edge lasts this frame, the state until the opposite feed.",
+        "feed_mouse": "Move the cursor to a window-pixel position as if the window had reported it; the delta accumulates for this frame.",
+        "feed_mouse_button": "Press or release a `MOUSE_*` button as if the window had reported it.",
         "gamepad_axis": "How far the pad's `AXIS_*` stick or trigger is pushed, -1 to 1; zero at rest and for an absent pad.",
         "gamepad_down": "Whether the pad's `PAD_*` button is held down right now, however many frames it has been down.",
         "gamepad_just_pressed": "Whether the pad's `PAD_*` button went down this frame; true for that one frame only.",
@@ -3509,7 +3598,8 @@
         "scroll_delta": "How far the wheel turned this frame, as an (x, y) pair; zero when it did not turn.",
         "touches": "Every finger on the screen as `{ id, x, y }`, oldest first, in the same pixels as `mouse_position`.",
         "touches_ended": "The ids of the fingers that lifted or were cancelled this frame.",
-        "touches_started": "The ids of the fingers that touched down this frame."
+        "touches_started": "The ids of the fingers that touched down this frame.",
+        "typed": "The characters typed this frame, in order: what a text field appends, where `just_pressed` says which key went down."
       },
       "functions": [
         "action_just_pressed",
@@ -3519,7 +3609,11 @@
         "actions",
         "bind",
         "bindings",
+        "declare_actions",
         "dropped_files",
+        "feed_key",
+        "feed_mouse",
+        "feed_mouse_button",
         "gamepad_axis",
         "gamepad_down",
         "gamepad_just_pressed",
@@ -3538,7 +3632,8 @@
         "scroll_delta",
         "touches",
         "touches_ended",
-        "touches_started"
+        "touches_started",
+        "typed"
       ],
       "name": "input",
       "signatures": {
@@ -3549,7 +3644,11 @@
         "actions": "() -> Value",
         "bind": "(String, Value) -> ()",
         "bindings": "String -> Value",
+        "declare_actions": "Value -> ()",
         "dropped_files": "() -> Value",
+        "feed_key": "(String, bool) -> ()",
+        "feed_mouse": "(f32, f32) -> ()",
+        "feed_mouse_button": "(usize, bool) -> ()",
         "gamepad_axis": "(i64, String) -> f32",
         "gamepad_down": "(i64, String) -> bool",
         "gamepad_just_pressed": "(i64, String) -> bool",
@@ -3568,7 +3667,8 @@
         "scroll_delta": "() -> (f32, f32)",
         "touches": "() -> Value",
         "touches_ended": "() -> Value",
-        "touches_started": "() -> Value"
+        "touches_started": "() -> Value",
+        "typed": "() -> Value"
       }
     },
     {
@@ -3727,6 +3827,7 @@
         "call": "Call a method on the node's script and return what it gives back; nil when there is no such script or method.",
         "children": "The node's direct children, an empty list when it has none.",
         "component_names": "The names of every component on the node.",
+        "detach_script": "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay.",
         "get_component": "The named component's properties as a table, nil when the node does not carry it.",
         "get_node": "The node at an `A/B/C` path relative to this one, `..` climbing to the parent; nil when nothing matches.",
         "global_position": "The node's position in world space, as of the last transform sync.",
@@ -3759,6 +3860,7 @@
         "call",
         "children",
         "component_names",
+        "detach_script",
         "get_component",
         "get_node",
         "global_position",
@@ -3792,6 +3894,7 @@
         "call": "(method: string, args: any?)",
         "children": "()",
         "component_names": "()",
+        "detach_script": "()",
         "get_component": "(component: string)",
         "get_node": "(path: string)",
         "global_position": "()",
@@ -4298,6 +4401,9 @@
         "collider_mesh": [
           "collider3d"
         ],
+        "collider_volume": [
+          "collider3d"
+        ],
         "contacts": [
           "collider3d"
         ],
@@ -4307,8 +4413,14 @@
         "dominance": [
           "body3d"
         ],
+        "effective_dominance": [
+          "body3d"
+        ],
         "gravity_scale": [
           "body3d"
+        ],
+        "handles": [
+          "collider3d"
         ],
         "is_ccd": [
           "body3d"
@@ -4318,6 +4430,9 @@
         ],
         "is_grounded": [
           "character3d"
+        ],
+        "is_moving": [
+          "body3d"
         ],
         "is_sleeping": [
           "body3d"
@@ -4349,7 +4464,13 @@
         "overlaps": [
           "collider3d"
         ],
+        "potential_energy": [
+          "body3d"
+        ],
         "predict_position": [
+          "body3d"
+        ],
+        "predict_position_with_forces": [
           "body3d"
         ],
         "remove_joint": [
@@ -4421,6 +4542,9 @@
         "solve_ik": [
           "joint3d"
         ],
+        "swept_aabb": [
+          "collider3d"
+        ],
         "teleport": [
           "body3d"
         ],
@@ -4486,6 +4610,7 @@
       "doc": "The 3D rigid-body world: bodies and colliders on nodes, their velocities, and overlap queries. `physics` holds what spans both worlds.",
       "docs": {
         "aabb": "The world-space box the collider currently occupies, as its two opposite corners.",
+        "active_bodies": "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving.",
         "add_ball_collider": "Attach a sphere collider of the given radius.",
         "add_body": "Give the node a rigid body of the given kind (`BODY_DYNAMIC`, `BODY_STATIC`, `BODY_KINEMATIC`, `BODY_KINEMATIC_VELOCITY`).",
         "add_cuboid_collider": "Attach a box collider from its three half-extents.",
@@ -4497,21 +4622,26 @@
         "apply_impulse": "Add an instant change in momentum, as if the body were struck.",
         "apply_impulse_at_point": "Strike the body at a world point, which spins it as well as moves it.",
         "apply_torque_impulse": "Add an instant change in angular momentum, as if the body were spun.",
+        "bodies": "Every node with a rigid body, sorted.",
         "body_kind": "Whether the body is dynamic, static, kinematic or kinematic_velocity.",
         "box_hits": "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits.",
         "closest_points": "The nearest point on each of two nodes' colliders.",
         "collider_mass": "What this collider weighs, density and size together.",
         "collider_mesh": "The collider's shape as points and triangles \u2014 including a voxel grid's \u2014 for drawing it or for spawning the pieces it broke into.",
+        "collider_volume": "How much space the shape encloses.",
         "contacts": "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.",
         "damping": "This body's linear and angular damping.",
         "distance": "The gap between two nodes' colliders, zero when they touch or overlap.",
         "dominance": "This body's dominance group.",
+        "effective_dominance": "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with.",
         "gravity": "The 3D world's gravity.",
         "gravity_scale": "This body's gravity multiplier.",
+        "handles": "The rapier handles behind this node \u2014 its body and its colliders \u2014 as `#{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output.",
         "intersects": "Whether two nodes' colliders overlap right now, sensor or not.",
         "is_ccd": "Whether continuous collision detection is on for this body.",
         "is_enabled": "Whether the body is being simulated.",
         "is_grounded": "Whether the last move ended with ground under the character's feet.",
+        "is_moving": "Whether the body is awake and actually going somewhere.",
         "is_sleeping": "Whether the body is asleep and being skipped.",
         "joint_impulse": "How hard the joint is pulling right now: what a breakable one is measured against.",
         "kinetic_energy": "The body's kinetic energy, for a rest test the solver agrees with.",
@@ -4524,7 +4654,9 @@
         "next_position": "The pose a kinematic body has been told to move to.",
         "overlaps": "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.",
         "point_hits": "Every collider containing a world point.",
+        "potential_energy": "The body's gravitational potential energy over one step.",
         "predict_position": "Where the body will be after `dt` seconds at its current velocity.",
+        "predict_position_with_forces": "The same, with the forces already applied taken into account: where a thrust or a spring will have put it.",
         "raycast": "The first collider a ray meets: `#{ from = [x, y, z], dir = [x, y, z], max = 100.0, filter = #{ exclude = node, only = \"dynamic\" } }`. Returns `#{ node, point, normal, distance }`, or nothing.",
         "raycast_all": "Every collider a ray meets, nearest first.",
         "remove_joint": "Undo the node's joint, leaving both bodies free.",
@@ -4553,7 +4685,9 @@
         "shapecast": "Sweep a shape along a direction until it hits something: a thick raycast, and how a camera avoids walls.",
         "sleep": "Put the body to sleep now.",
         "solve_ik": "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits.",
+        "swept_aabb": "The box the collider covers over the next step, its motion included: what the broad phase actually tests.",
         "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick.",
+        "time_of_impact": "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max = 1.0 }`. Nothing when they never do.",
         "user_force": "The force the next step will integrate.",
         "user_torque": "The torque the next step will integrate.",
         "vehicle_speed": "How fast the chassis is going along its forward axis, in units per second.",
@@ -4566,6 +4700,7 @@
       },
       "functions": [
         "aabb",
+        "active_bodies",
         "add_ball_collider",
         "add_body",
         "add_cuboid_collider",
@@ -4577,21 +4712,26 @@
         "apply_impulse",
         "apply_impulse_at_point",
         "apply_torque_impulse",
+        "bodies",
         "body_kind",
         "box_hits",
         "closest_points",
         "collider_mass",
         "collider_mesh",
+        "collider_volume",
         "contacts",
         "damping",
         "distance",
         "dominance",
+        "effective_dominance",
         "gravity",
         "gravity_scale",
+        "handles",
         "intersects",
         "is_ccd",
         "is_enabled",
         "is_grounded",
+        "is_moving",
         "is_sleeping",
         "joint_impulse",
         "kinetic_energy",
@@ -4604,7 +4744,9 @@
         "next_position",
         "overlaps",
         "point_hits",
+        "potential_energy",
         "predict_position",
+        "predict_position_with_forces",
         "raycast",
         "raycast_all",
         "remove_joint",
@@ -4633,7 +4775,9 @@
         "shapecast",
         "sleep",
         "solve_ik",
+        "swept_aabb",
         "teleport",
+        "time_of_impact",
         "user_force",
         "user_torque",
         "vehicle_speed",
@@ -4647,6 +4791,7 @@
       "name": "physics3d",
       "signatures": {
         "aabb": "NodeId -> (f32, f32, f32, f32, f32, f32)",
+        "active_bodies": "() -> Value",
         "add_ball_collider": "(NodeId, f32) -> ()",
         "add_body": "(NodeId, String) -> ()",
         "add_cuboid_collider": "(NodeId, f32, f32, f32) -> ()",
@@ -4658,21 +4803,26 @@
         "apply_impulse": "(NodeId, f32, f32, f32) -> ()",
         "apply_impulse_at_point": "(NodeId, f32, f32, f32, f32, f32, f32) -> ()",
         "apply_torque_impulse": "(NodeId, f32, f32, f32) -> ()",
+        "bodies": "() -> Value",
         "body_kind": "NodeId -> String",
         "box_hits": "Value -> Value",
         "closest_points": "(NodeId, NodeId) -> Value",
         "collider_mass": "NodeId -> f32",
         "collider_mesh": "NodeId -> Value",
+        "collider_volume": "NodeId -> f32",
         "contacts": "NodeId -> Value",
         "damping": "NodeId -> (f32, f32)",
         "distance": "(NodeId, NodeId) -> Value",
         "dominance": "NodeId -> f32",
+        "effective_dominance": "NodeId -> f32",
         "gravity": "() -> (f32, f32, f32)",
         "gravity_scale": "NodeId -> f32",
+        "handles": "NodeId -> Value",
         "intersects": "(NodeId, NodeId) -> Value",
         "is_ccd": "NodeId -> bool",
         "is_enabled": "NodeId -> bool",
         "is_grounded": "NodeId -> bool",
+        "is_moving": "NodeId -> bool",
         "is_sleeping": "NodeId -> bool",
         "joint_impulse": "NodeId -> f32",
         "kinetic_energy": "NodeId -> f32",
@@ -4685,7 +4835,9 @@
         "next_position": "NodeId -> (f32, f32, f32)",
         "overlaps": "NodeId -> Vec<NodeId>",
         "point_hits": "Value -> Value",
+        "potential_energy": "NodeId -> f32",
         "predict_position": "(NodeId, f32) -> (f32, f32, f32)",
+        "predict_position_with_forces": "(NodeId, f32) -> (f32, f32, f32)",
         "raycast": "Value -> Value",
         "raycast_all": "Value -> Value",
         "remove_joint": "NodeId -> ()",
@@ -4714,13 +4866,15 @@
         "shapecast": "Value -> Value",
         "sleep": "NodeId -> ()",
         "solve_ik": "(NodeId, f32, f32, f32) -> ()",
+        "swept_aabb": "NodeId -> (f32, f32, f32, f32, f32, f32)",
         "teleport": "(NodeId, f32, f32, f32) -> ()",
+        "time_of_impact": "(NodeId, NodeId, Value) -> Value",
         "user_force": "NodeId -> (f32, f32, f32)",
         "user_torque": "NodeId -> (f32, f32, f32)",
         "vehicle_speed": "NodeId -> f32",
         "velocity_at_point": "(NodeId, f32, f32, f32) -> (f32, f32, f32)",
         "voxel": "(NodeId, i32, i32, i32) -> bool",
-        "voxel_at": "(NodeId, f32, f32, f32) -> (i32, i32, i32)",
+        "voxel_at": "(NodeId, f32, f32, f32) -> (i64, i64, i64)",
         "wake_all": "() -> ()",
         "wake_up": "NodeId -> ()",
         "wheel_state": "NodeId -> Value"
@@ -4852,10 +5006,12 @@
         "set_grid_colors",
         "set_rect",
         "set_shader_preview",
+        "set_shader_probe",
         "set_sprite",
         "set_sprite_frame",
         "set_sprite_sheet",
         "set_sprite_size",
+        "shader_probe",
         "shape2d",
         "shape3d",
         "sprite",
@@ -4894,10 +5050,12 @@
         "set_grid_colors": "(f32, f32, f32, f32, f32, f32) -> ()",
         "set_rect": "(NodeId, f32, f32) -> ()",
         "set_shader_preview": "(String, i64) -> ()",
+        "set_shader_probe": "(f64, f64) -> ()",
         "set_sprite": "(NodeId, String) -> ()",
         "set_sprite_frame": "(NodeId, u32) -> ()",
         "set_sprite_sheet": "(NodeId, String, u32, u32) -> ()",
         "set_sprite_size": "(NodeId, f32, f32) -> ()",
+        "shader_probe": "() -> Value",
         "shape2d": "NodeId -> (String, f32, f32)",
         "shape3d": "NodeId -> (String, f32, f32, f32)",
         "sprite": "NodeId -> (String, u32, u32, u32)",
@@ -4940,6 +5098,7 @@
         "record": "Start recording into a file; call it before the code whose session it records runs.",
         "recording": "The file being recorded into, or nil.",
         "seek": "Run recorded ticks until playback reaches the given tick; forward only.",
+        "session_name": "A file-safe name for a session starting now, so a list of them sorts by when they ran.",
         "state": "What playback is doing: `STATE_STOPPED`, `STATE_PLAYING`, `STATE_PAUSED` or `STATE_SEEKING`.",
         "stop": "Close the recording, naming why it ended, and return the file it wrote.",
         "unload": "Drop the loaded session and let the game run live again."
@@ -4978,6 +5137,7 @@
         "record": "(path: string, options: any?)",
         "recording": "()",
         "seek": "(tick: int)",
+        "session_name": "()",
         "state": "()",
         "stop": "(reason: string?)",
         "unload": "()"
@@ -5006,6 +5166,53 @@
         "random": "()",
         "range": "(low: float, high: float)",
         "seed": "(seed: int)"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "Rollback netcode from a script's side. The session decides each tick's inputs before the tick runs \u2014 the real one where it has arrived, a repeat of the player's last one where it has not \u2014 and `input` reads whichever it settled on. A tick may run more than once: when a late input contradicts a prediction, the engine restores the tick before it and simulates forward again, so anything a script does with an effect outside the simulation has to ask `is_resimulating` first.",
+      "docs": {
+        "input": "What that player is doing on the tick being simulated, real or predicted; nil outside a session or for a player it does not know.",
+        "is_resimulating": "Whether this tick is a re-run of one already simulated, so a script can skip anything it must not do twice."
+      },
+      "functions": [
+        "input",
+        "is_resimulating"
+      ],
+      "name": "rollback",
+      "signatures": {
+        "input": "i64 -> Value",
+        "is_resimulating": "() -> Value"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "Save games: a table in, a table out, stored per user rather than in the project. Nothing here is engine state \u2014 a save is whatever the game puts in it \u2014 so what the engine decides is only where it lives, that a half-written file cannot replace a good one, and what version it was written at. `[save] version` in `project.toml` sets that version and `[save] migrate` names the script whose `migrate_save(version, data)` brings an older file forward, one version per call.",
+      "docs": {
+        "read": "The table in a slot, brought forward to this build's version; nil when the slot was never written. An error when the file was written by a newer build, or when it needs a migration the project declares no script for.",
+        "remove": "Delete a slot. Not an error when it was not there.",
+        "slots": "Every slot that has been written, in name order.",
+        "version": "The save version this build writes, from `[save] version`.",
+        "write": "Write a table to a named slot, stamped with the project's save version. Written beside the target and renamed over it, so a crash mid-save cannot destroy the last one."
+      },
+      "functions": [
+        "read",
+        "remove",
+        "slots",
+        "version",
+        "write"
+      ],
+      "name": "save",
+      "signatures": {
+        "read": "(slot: string)",
+        "remove": "(slot: string)",
+        "slots": "()",
+        "version": "()",
+        "write": "(slot: string, data: any)"
       }
     },
     {
@@ -5133,6 +5340,34 @@
       "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "Localization: one `strings/<locale>.toml` per language, keys to strings. `[locale]` in `project.toml` sets the locale a run starts in and the one a missing key falls back to. A key neither has comes back as itself \u2014 visible in the game, which is how a missing string gets noticed rather than showing as a blank label.",
+      "docs": {
+        "locale": "The locale in force.",
+        "locales": "Every locale the project ships a `strings/<locale>.toml` for, in name order.",
+        "set_locale": "Switch locale; the next `tr` answers in it, which for a widget showing a key is the next frame.",
+        "set_root": "Read the catalogues from this directory instead of the project root, forgetting the ones already read; an empty string puts it back. For a host running a project other than its own \u2014 the editor, whose own root has no `strings/`, so without this every `text_key` in a played scene draws as its key.",
+        "tr": "The string for a key in the current locale. `{name}` in it is replaced by the argument called `name`, and an `n` argument also picks the plural form the locale's language calls for."
+      },
+      "functions": [
+        "locale",
+        "locales",
+        "set_locale",
+        "set_root",
+        "tr"
+      ],
+      "name": "strings",
+      "signatures": {
+        "locale": "()",
+        "locales": "()",
+        "set_locale": "(locale: string)",
+        "set_root": "(root: string)",
+        "tr": "(key: string, args: table?)"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
       "doc": "Waiting inside an async handler: `init` and event handlers may await, `update` is deliberately synchronous.",
       "docs": {
         "wait": "Park an async handler until the engine wakes the token it was given."
@@ -5217,20 +5452,29 @@
           "value": "button"
         },
         {
+          "name": "WIDGET_COLUMN",
+          "value": "column"
+        },
+        {
           "name": "WIDGET_LABEL",
           "value": "label"
         },
         {
           "name": "WIDGET_PANEL",
           "value": "panel"
+        },
+        {
+          "name": "WIDGET_ROW",
+          "value": "row"
         }
       ],
       "doc": "Immediate-mode UI, redrawn from a script's `draw_ui` every frame: panels, layout containers and the design system's widget shapes. HUD elements that live in the scene tree are the `widget` component instead.",
       "docs": {
+        "activate_focused": "Activate the focused widget, exactly as a click on it would.",
         "add_space": "Insert blank space along the current layout, in design pixels.",
         "available_height": "The height left in the current container, in design pixels.",
         "available_width": "The width left in the current container, in design pixels.",
-        "bottom_panel": "Dock a strip across the bottom of the window and draw the callback inside it; `height` is in design pixels.",
+        "bottom_panel": "Dock a strip across the bottom of the window and draw the callback inside it; `height` is in design pixels. Answers the height it ended up with.",
         "central_panel": "Draw the callback into whatever room the docked panels left over.",
         "central_rect": "The x, y, width and height of the surface being drawn into, in design pixels.",
         "circle_button": "Draw a round button holding one glyph, `d` design pixels across; true on the frame it was clicked.",
@@ -5241,23 +5485,27 @@
         "dot": "Draw a filled circle in a `#rrggbb` colour, `d` design pixels across.",
         "drag_value": "Draw a number dragged sideways to change it; returns the value and whether this frame changed it.",
         "dropdown": "Draw a pill-shaped select over a list of strings; returns the selection and whether it changed this frame.",
+        "focus_next": "Move focus to the next widget in scene order, wrapping past the last.",
+        "focus_previous": "Move focus to the previous widget in scene order, wrapping past the first.",
+        "focused": "The widget node focus is on, or nil.",
         "frame": "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels.",
         "horizontal": "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels.",
         "image": "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path.",
         "label": "Draw a line of text; `size`, `font`, `color`, `strong` and `wrap` style it.",
-        "left_panel": "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels.",
+        "left_panel": "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
         "menu_item": "Draw a row inside a context menu; true on the frame it was clicked, which also closes the menu.",
         "modal": "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked.",
         "overlay": "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer.",
         "pill": "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked.",
         "rect_stroke": "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked.",
         "right": "Lay the callback's widgets out against the right edge, still declared left to right.",
-        "right_panel": "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels.",
+        "right_panel": "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
         "scale": "The global UI scale: real pixels per design pixel.",
         "screen_size": "The window's width and height, in design pixels.",
         "scroll": "Put the callback in a vertical scroll area; `max_height` caps it and `stick_to_bottom` follows new content.",
         "separator": "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed.",
         "set_clipboard": "Copy text to the system clipboard.",
+        "set_focus": "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",
         "set_scale": "Set the global UI scale, clamped to between 0.5 and 3.0 real pixels per design pixel.",
         "set_text": "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone.",
         "set_theme": "Replace the colour tokens from a table of `name = \"#rrggbb\"` entries, plus `dark = true|false`.",
@@ -5267,12 +5515,13 @@
         "spacing": "Set the gap between the current container's widgets, in design pixels.",
         "text_field": "Draw a single-line text box keyed by `id`; returns its text, whether it changed, and whether Enter was pressed.",
         "toggle": "Draw an on/off switch; returns the state after this frame and whether it was clicked.",
-        "top_panel": "Dock a strip across the top of the window and draw the callback inside it; `height` is in design pixels.",
+        "top_panel": "Dock a strip across the top of the window and draw the callback inside it; `height` is in design pixels. Answers the height it ended up with.",
         "vertical": "Lay the callback's widgets out in a column.",
         "wants_keyboard": "Whether a UI widget holds keyboard focus, so the game should leave this frame's key presses alone.",
         "window": "Draw the callback in a floating window the user drags and resizes; false once its close button is used."
       },
       "functions": [
+        "activate_focused",
         "add_space",
         "available_height",
         "available_width",
@@ -5287,6 +5536,9 @@
         "dot",
         "drag_value",
         "dropdown",
+        "focus_next",
+        "focus_previous",
+        "focused",
         "frame",
         "horizontal",
         "image",
@@ -5304,6 +5556,7 @@
         "scroll",
         "separator",
         "set_clipboard",
+        "set_focus",
         "set_scale",
         "set_text",
         "set_theme",
@@ -5320,10 +5573,11 @@
       ],
       "name": "ui",
       "signatures": {
+        "activate_focused": "() -> ()",
         "add_space": "f32 -> ()",
         "available_height": "() -> f32",
         "available_width": "() -> f32",
-        "bottom_panel": "(String, Option<Value>, CallbackId) -> ()",
+        "bottom_panel": "(String, Option<Value>, CallbackId) -> f64",
         "central_panel": "(Option<Value>, CallbackId) -> ()",
         "central_rect": "() -> (f32, f32, f32, f32)",
         "circle_button": "(String, Option<Value>) -> bool",
@@ -5334,23 +5588,27 @@
         "dot": "(String, f32) -> ()",
         "drag_value": "(f64, Option<Value>) -> (f64, bool)",
         "dropdown": "(String, String, Value, Option<Value>) -> (String, bool)",
+        "focus_next": "() -> ()",
+        "focus_previous": "() -> ()",
+        "focused": "() -> Value",
         "frame": "(Option<Value>, CallbackId) -> ()",
         "horizontal": "(Option<Value>, CallbackId) -> ()",
         "image": "(String, Option<Value>) -> ()",
         "label": "(String, Option<Value>) -> ()",
-        "left_panel": "(String, Option<Value>, CallbackId) -> ()",
+        "left_panel": "(String, Option<Value>, CallbackId) -> f64",
         "menu_item": "(String, Option<Value>) -> bool",
         "modal": "(String, Option<Value>, CallbackId) -> bool",
         "overlay": "(String, Option<Value>, CallbackId) -> ()",
         "pill": "(String, Option<Value>) -> bool",
         "rect_stroke": "(f32, f32, f32, f32, Option<Value>) -> ()",
         "right": "CallbackId -> ()",
-        "right_panel": "(String, Option<Value>, CallbackId) -> ()",
+        "right_panel": "(String, Option<Value>, CallbackId) -> f64",
         "scale": "() -> f32",
         "screen_size": "() -> (f32, f32)",
         "scroll": "(String, Option<Value>, CallbackId) -> ()",
         "separator": "Option<String> -> ()",
         "set_clipboard": "String -> ()",
+        "set_focus": "NodeId -> ()",
         "set_scale": "f32 -> ()",
         "set_text": "(String, String) -> ()",
         "set_theme": "Value -> ()",
@@ -5360,7 +5618,7 @@
         "spacing": "(f32, f32) -> ()",
         "text_field": "(String, Option<String>, Option<Value>) -> (String, bool, bool)",
         "toggle": "(bool, Option<Value>) -> (bool, bool)",
-        "top_panel": "(String, Option<Value>, CallbackId) -> ()",
+        "top_panel": "(String, Option<Value>, CallbackId) -> f64",
         "vertical": "CallbackId -> ()",
         "wants_keyboard": "() -> bool",
         "window": "(String, Option<Value>, CallbackId) -> bool"

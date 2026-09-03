@@ -163,10 +163,16 @@ size = [1.0, 1.0, 1.0]
 cells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]
 ```
 
+### `widget_theme`
+
+Files: `themes/`. Used by: `widget.theme`.
+
+How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius` and `padding` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...). A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root.
+
 
 ## The `assets` script module
 
-`directory`, `duplicate`, `exists`, `load`, `reload`, `save`.
+`directory`, `duplicate`, `exists`, `invalidate`, `load`, `reload`, `save`.
 
 ## Plugins define asset types
 

@@ -562,10 +562,6 @@ pub fn compile_with(
 
 #[cfg(test)]
 mod tests {
-    // These assert a byte-exact round-trip through the uniform buffer, so an
-    // exact comparison is the assertion, not a measurement being rounded.
-    #![allow(clippy::float_cmp)]
-
     use super::*;
     use crate::shaders;
 
@@ -684,16 +680,28 @@ struct Params { a: vec3<f32>, b: f32, c: vec2<f32> }
         ];
         let bytes = pack(&fields, &params).unwrap();
         assert_eq!(bytes.len(), 32);
-        let at = |o: usize| f32::from_le_bytes(bytes[o..o + 4].try_into().unwrap());
-        assert_eq!(at(0), 2.0);
-        assert_eq!((at(16), at(20), at(24), at(28)), (0.25, 0.5, 0.75, 1.0));
+        // Bits, not values: what is asserted is a byte-exact round-trip.
+        let at = |o: usize| u32::from_le_bytes(bytes[o..o + 4].try_into().unwrap());
+        assert_eq!(at(0), 2.0f32.to_bits());
+        assert_eq!(
+            (at(16), at(20), at(24), at(28)),
+            (
+                0.25f32.to_bits(),
+                0.5f32.to_bits(),
+                0.75f32.to_bits(),
+                1.0f32.to_bits()
+            )
+        );
     }
 
     #[test]
     fn a_field_no_param_names_keeps_its_zero() {
         let fields = params_of(WITH_PARAMS);
         let bytes = pack(&fields, &[("speed".to_string(), Param::Float(3.0))]).unwrap();
-        assert_eq!(f32::from_le_bytes(bytes[16..20].try_into().unwrap()), 0.0);
+        assert_eq!(
+            u32::from_le_bytes(bytes[16..20].try_into().unwrap()),
+            0.0f32.to_bits()
+        );
     }
 
     #[test]

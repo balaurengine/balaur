@@ -12,16 +12,16 @@
 //! also why they are the only places to look when a `f64` build disagrees
 //! with an `f32` one.
 //!
-//! Clippy only ever sees the `f32` build, where every `Real::from` here is the
-//! identity; in the `f64` one it is the conversion this module exists for.
-#![allow(clippy::useless_conversion, clippy::unnecessary_cast)]
+//! Each conversion is written twice, once per build: in the `f32` one there is
+//! nothing to do, and writing that out says so instead of leaving a no-op
+//! `Real::from` for a reader (or clippy) to puzzle over.
 
 pub(crate) use crate::rapier2d::math::{Pose as Pose2, Rotation as Rotation2, Vector as Vector2};
 pub(crate) use crate::rapier3d::math::{Pose, Real, Rotation, Vector};
 
 /// A 3D vector from the three numbers a script or a scene wrote.
 pub(crate) fn v3(x: f32, y: f32, z: f32) -> Vector {
-    Vector::new(Real::from(x), Real::from(y), Real::from(z))
+    Vector::new(real(x), real(y), real(z))
 }
 
 /// The same, from the array a schema property parses to.
@@ -30,20 +30,33 @@ pub(crate) fn v3a(v: [f32; 3]) -> Vector {
 }
 
 pub(crate) fn v2(x: f32, y: f32) -> Vector2 {
-    Vector2::new(Real::from(x), Real::from(y))
+    Vector2::new(real(x), real(y))
 }
 
 pub(crate) fn v2a(v: [f32; 2]) -> Vector2 {
     v2(v[0], v[1])
 }
 
-/// A number on its way into rapier.
+/// A number on its way into rapier. The `f32` build is already there.
+#[cfg(not(feature = "f64"))]
+pub(crate) const fn real(value: f32) -> Real {
+    value
+}
+
+/// A number on its way into rapier; the `f64` build widens here.
+#[cfg(feature = "f64")]
 pub(crate) fn real(value: f32) -> Real {
     Real::from(value)
 }
 
-/// A number on its way back out, to a script or a `Transform`. The f64 build
-/// narrows here, on purpose and in one place.
+/// A number on its way back out, to a script or a `Transform`.
+#[cfg(not(feature = "f64"))]
+pub(crate) const fn f32_of(value: Real) -> f32 {
+    value
+}
+
+/// The same; the `f64` build narrows here, on purpose and in one place.
+#[cfg(feature = "f64")]
 pub(crate) fn f32_of(value: Real) -> f32 {
     value as f32
 }
@@ -101,8 +114,15 @@ pub(crate) fn position_of(v: Vector) -> glamx::Vec3 {
     glamx::Vec3::new(f32_of(v.x), f32_of(v.y), f32_of(v.z))
 }
 
-/// A voxel coordinate. The integer width follows the scalar too: a f64 world
-/// is big enough to want 64-bit cells.
+/// A voxel coordinate. The `f32` build's cells are already 32-bit.
+#[cfg(not(feature = "f64"))]
+pub(crate) fn cell(x: i32, y: i32, z: i32) -> crate::rapier3d::math::IVector {
+    crate::rapier3d::math::IVector::new(x, y, z)
+}
+
+/// The same; the integer width follows the scalar, and a `f64` world is big
+/// enough to want 64-bit cells.
+#[cfg(feature = "f64")]
 pub(crate) fn cell(x: i32, y: i32, z: i32) -> crate::rapier3d::math::IVector {
     crate::rapier3d::math::IVector::new(x.into(), y.into(), z.into())
 }

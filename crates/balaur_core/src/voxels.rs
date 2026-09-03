@@ -80,9 +80,6 @@ fn parse_definition(value: &toml::Value) -> Result<VoxelsData> {
 
 #[cfg(test)]
 mod tests {
-    // Parsed literals, so an exact comparison is the assertion.
-    #![allow(clippy::float_cmp)]
-
     use super::*;
 
     #[test]
@@ -90,7 +87,8 @@ mod tests {
         let value: toml::Value =
             toml::from_str("size = [0.5, 0.5, 0.5]\ncells = [[0, 0, 0], [1, 0, -2]]").unwrap();
         let data = parse_definition(&value).unwrap();
-        assert_eq!(data.size, [0.5; 3]);
+        // Bits, because what is asserted is that the literal survived parsing.
+        assert_eq!(data.size.map(f32::to_bits), [0.5f32.to_bits(); 3]);
         assert_eq!(data.cells, vec![[0, 0, 0], [1, 0, -2]]);
     }
 
