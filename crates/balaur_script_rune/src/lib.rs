@@ -36,12 +36,13 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use std::future::Future as _;
 
 use rune::alloc::clone::TryClone as _;
-use rune::ast::Spanned as _;
 use rune::runtime::{Function, RuntimeContext, Unit, VmExecution, VmResult};
 use rune::{Diagnostics, Source, Sources, TypeHash as _, Vm};
 
 pub use api::{api_json, rune_of};
 pub use inspect::Finding;
+use inspect::{public_functions, render, PublicSignature};
+use script_module::script_module;
 pub use bindings::{ApiEntry, RuneModule};
 pub use value::{Color, Node, Vec2, Vec3};
 

@@ -345,12 +345,11 @@ pub fn draw(S) {
     // is the one view with nothing to sit beside, so it still takes the whole
     // centre.
     let split = S.split && S.doctab != "events";
+    // Read by the widget layer, which is clipped to the viewport and would
+    // otherwise keep drawing the game's UI over a document.
+    S.viewport_live = split || !document;
     // Viewport tools belong to the viewport: with a document open the rail is
     // 46 px of dead column, and the code editor is the panel starved for it.
-    // A split has a viewport again, so the rail comes back with it.
-    // Published for the widget layer, which is clipped to the viewport and
-    // would otherwise keep drawing the game's UI over a document.
-    S.viewport_live = split || !document;
     S.rail_visible = S.viewport_live && defs::tools(S.persona).len() > 0;
     if S.rail_visible {
         rail(S, k);

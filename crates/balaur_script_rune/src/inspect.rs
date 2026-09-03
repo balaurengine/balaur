@@ -5,25 +5,28 @@
 //! Nothing here runs during a frame — the editor's inspector, the script
 //! checker and `script::functions` are the callers.
 
-use anyhow::Result;
+use std::path::PathBuf;
+
+use anyhow::{anyhow, Result};
 use rune::ast::Spanned as _;
+use rune::runtime::VmResult;
 use rune::{Diagnostics, Source, Sources};
 
-use crate::{public_functions, Finding, RuneHost, Script};
+use crate::{value, PackSourceLoader, RuneHost};
 
 /// A `pub fn` a script declares, read off its source text. The host owns
 /// the text, and a `pub fn` starting a line, signature on that line, is the
 /// whole public surface of the script model.
 #[derive(Clone, Debug)]
-struct PublicSignature {
-    name: String,
-    arity: usize,
-    is_async: bool,
+pub(crate) struct PublicSignature {
+    pub(crate) name: String,
+    pub(crate) arity: usize,
+    pub(crate) is_async: bool,
     /// 1-based, so a gutter can point at it.
-    line: usize,
+    pub(crate) line: usize,
 }
 
-fn public_functions(source: &str) -> Vec<PublicSignature> {
+pub(crate) fn public_functions(source: &str) -> Vec<PublicSignature> {
     let mut out = Vec::new();
     for (at, line) in source.lines().enumerate() {
         let mut rest = line.trim_start();
@@ -111,7 +114,7 @@ fn finding(
     }
 }
 
-fn render(diagnostics: &Diagnostics, sources: &Sources) -> String {
+pub(crate) fn render(diagnostics: &Diagnostics, sources: &Sources) -> String {
     let mut buf = rune::termcolor::Buffer::no_color();
     if diagnostics.emit(&mut buf, sources).is_err() {
         return "unprintable diagnostics".into();
@@ -121,7 +124,7 @@ fn render(diagnostics: &Diagnostics, sources: &Sources) -> String {
 
 /// `script::check`'s answer: one row per diagnostic, in the order the
 /// compiler reported them.
-fn finding_rows(found: &[Finding]) -> Result<rune::Value> {
+pub(crate) fn finding_rows(found: &[Finding]) -> Result<rune::Value> {
     let mut rows = Vec::with_capacity(found.len());
     for one in found {
         let mut row = rune::runtime::Object::new();
@@ -147,7 +150,7 @@ fn finding_rows(found: &[Finding]) -> Result<rune::Value> {
 
 /// `script::exports`' answer: one row per declared property, carrying the name,
 /// the default and the type to draw it at.
-fn export_rows(declared: &[(String, balaur_script::Value)]) -> Result<rune::Value> {
+pub(crate) fn export_rows(declared: &[(String, balaur_script::Value)]) -> Result<rune::Value> {
     let mut rows = Vec::with_capacity(declared.len());
     for (name, default) in declared {
         let mut row = rune::runtime::Object::new();

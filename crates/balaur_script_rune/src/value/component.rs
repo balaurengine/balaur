@@ -34,13 +34,13 @@ thread_local! {
 }
 
 fn intern(name: &str) -> &'static str {
-    NAMES.with_borrow_mut(|names| match names.get(name) {
-        Some(&existing) => existing,
-        None => {
-            let leaked: &'static str = Box::leak(name.to_string().into_boxed_str());
-            names.insert(leaked);
-            leaked
+    NAMES.with_borrow_mut(|names| {
+        if let Some(&existing) = names.get(name) {
+            return existing;
         }
+        let leaked: &'static str = Box::leak(name.to_string().into_boxed_str());
+        names.insert(leaked);
+        leaked
     })
 }
 

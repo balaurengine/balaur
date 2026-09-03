@@ -345,10 +345,9 @@ struct Build {
 /// Parse and build one scene document under `base`.
 fn build_scene(eng: &Engine, source: &str, base: Entity, build: &mut Build) -> Result<()> {
     let doc: SceneDoc = toml::from_str(source).context("parsing scene")?;
-    // The scene's own `[[assets]]` are in scope for every node in it, and only
-    // while it is being built, so `#id` never resolves against a sibling scene.
-    // A prefab's blocks are in scope for the prefab, and go out of scope with
-    // it, which is why this nests rather than accumulating.
+    // A scene's `[[assets]]` are in scope only while it is being built, so
+    // `#id` never resolves against a sibling scene; a prefab's own blocks nest
+    // inside that rather than accumulating.
     let previous = crate::assets::enter_scene_scope(eng, source, &doc.assets)?;
     let outcome = instantiate_nodes(eng, &doc, base, build);
     crate::assets::leave_scene_scope(eng, previous);
@@ -517,11 +516,9 @@ fn apply_overrides(
             let Some(value) = table.get(key) else {
                 continue;
             };
-            // An override *patches*: the prefab already described the whole
-            // component, and this changes one property of it. Going through
-            // the scene key handler would go through `components::add`, which
-            // starts from the schema defaults — so overriding a collider's
-            // `half_extents` would quietly reset its `kind`.
+            // An override *patches* one property of a component the prefab
+            // already described. The scene key handler would rebuild it from
+            // the schema defaults, resetting every property it does not name.
             let applied = if crate::components::is_registered(eng, key) {
                 crate::components::patch(eng, target, key, value)
             } else {

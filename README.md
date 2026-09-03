@@ -1,13 +1,123 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+  <img src="docs/assets/logo-light.svg" alt="" width="84" height="84">
+</picture>
+
 # Balaur
 
-A node-based game engine in Rust: fast to run, fast to iterate, easy to use.
+**A 2D &amp; 3D node-based game engine, fully deterministic, with scripts that reload in milliseconds.**
+
+Written in Rust. Fast to run, fast to iterate, easy to use — and one file to ship.
+
+[**Read the docs**](https://balaurengine.org/docs/intro) · [Features](https://balaurengine.org/features) · [Principles](https://balaurengine.org/docs/principles) · [Download](https://balaurengine.org/download) · [Roadmap](https://balaurengine.org/docs/roadmap)
+
+[![CI](https://github.com/balaurengine/balaur/actions/workflows/ci.yml/badge.svg)](https://github.com/balaurengine/balaur/actions/workflows/ci.yml) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+</div>
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+**Nodes and scenes**
+
+A game is a tree of named nodes with scripts attached. Scenes are plain TOML.
+
+</td>
+<td width="33%" valign="top">
+
+**Scripting in Rune**
+
+Rust's syntax, no build step, async/await, and a debugger in the editor.
+
+</td>
+<td width="33%" valign="top">
+
+**Instant hot reload**
+
+Save a script while the game runs: the new code is live in milliseconds, state intact.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+**Determinism, always on**
+
+Same inputs, same bits on every platform. Record a session and replay it, network replies included.
+
+</td>
+<td valign="top">
+
+**2D and 3D physics**
+
+Rapier under both, stepped on a fixed 60 Hz tick, declared in scenes or driven from scripts.
+
+</td>
+<td valign="top">
+
+**Rendering**
+
+3D and 2D on wgpu: windowed, offscreen for screenshots and CI, or fully headless.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+**Animation and skeletons**
+
+Clips and tweens, 2D bones with skinned polygons, 3D rigs from glTF, two-bone IK.
+
+</td>
+<td valign="top">
+
+**The editor**
+
+Itself a Balaur project: scene tree, inspector, gizmos, timeline, rig tools, play-in-editor.
+
+</td>
+<td valign="top">
+
+**Networking**
+
+HTTP and websockets with compression, delivered into the simulation once per tick.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+**Every platform**
+
+Windows, macOS and Linux today; iOS, Android and the web are cross-compiled in CI on every push.
+
+</td>
+<td valign="top">
+
+**One file to ship**
+
+Export fuses bytecode, scenes and assets onto the runtime: one self-contained binary per target, nothing to install.
+
+</td>
+<td valign="top">
+
+**Built on Rust**
+
+Safe Rust throughout, and the ecosystem as it is: Rapier, wgpu, egui, rodio, Rune.
+
+</td>
+</tr>
+</table>
 
 From a game developer's perspective, Balaur looks like Godot: a scene tree of
-named nodes, with scripts attached to them. Under the hood, every node is
-an ECS entity, every subsystem (physics, rendering, audio) is a plugin over
-one shared ECS world, and the editor is itself a Balaur project.
+named nodes, with scripts attached to them. Under the hood, every node is an
+ECS entity, every subsystem (physics, rendering, audio) is a plugin over one
+shared ECS world, and the editor is itself a Balaur project.
 
-Two features are load-bearing and non-negotiable:
+## Two load-bearing features
 
 - **Instant hot reload.** Saving a script swaps its code into the running game
   in milliseconds, preserving all live state. It is automatic, always on in
@@ -25,12 +135,12 @@ balaur replay session.blr --verify        # every tick, or the first that parted
 balaur replay session.blr --entries-at 4213
 ```
 
-  A recording carries each tick's input, the step it ran at, and the digest it
-  produced, so `--verify` re-feeds the session and stops at the first tick
-  that disagrees. `--entries-at` then prints that tick's labelled slices —
-  run it on both machines and diff to get `n_ball_7/body2d` rather than a
-  tick number. `--trace-digest run-a.txt` writes the digests alone when all
-  you want is a file to diff.
+A recording carries each tick's input, the step it ran at, and the digest it
+produced, so `--verify` re-feeds the session and stops at the first tick that
+disagrees. `--entries-at` then prints that tick's labelled slices — run it on
+both machines and diff to get `n_ball_7/body2d` rather than a tick number.
+`--trace-digest run-a.txt` writes the digests alone when all you want is a
+file to diff.
 
 ## Quickstart
 

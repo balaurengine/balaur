@@ -42,23 +42,20 @@ struct Module {
     doc: String,
 }
 
-/// Every module scripts can reach, with its functions and its constants:
-/// `{"modules": [{"name", "functions": [..], "constants": [{"name", "value"}],
-/// "signatures": {name: "args -> returns"}, "components": [..]}]}`.
-pub fn api_json(_host: &RuneHost) -> Result<String> {
+/// Everything declared, folded into one entry per module: the typed seam's
+/// own registrations, the docs a module spelled out, and the handful the host
+/// installs on Rune modules of its own.
+fn collect_modules() -> BTreeMap<String, Module> {
     let mut modules: BTreeMap<String, Module> = BTreeMap::new();
     for entry in api_entries() {
         let module = modules.entry(entry.module).or_default();
-        match entry.constant {
-            Some(value) => {
-                module.constants.insert(entry.name, value);
+        if let Some(value) = entry.constant {
+            module.constants.insert(entry.name, value);
+        } else {
+            if let Some(signature) = entry.signature {
+                module.signatures.insert(entry.name.clone(), signature);
             }
-            None => {
-                if let Some(signature) = entry.signature {
-                    module.signatures.insert(entry.name.clone(), signature);
-                }
-                module.functions.insert(entry.name);
-            }
+            module.functions.insert(entry.name);
         }
     }
     for entry in api_docs() {
@@ -83,10 +80,9 @@ pub fn api_json(_host: &RuneHost) -> Result<String> {
     for (name, doc) in api_module_docs() {
         modules.entry(name).or_default().doc = doc;
     }
-    // The host installs these on Rune modules of its own rather than through
-    // a plugin's `Bindings`, so nothing records them as they are declared;
-    // their entries are written out here instead, and `api_lints.py` checks
-    // this list against `RuneHost::context`.
+    // The host installs these itself rather than through a plugin's
+    // `Bindings`, so nothing records them as they are declared; `api_lints.py`
+    // checks this list against `RuneHost::context`.
     for (module, name, args, doc) in [
         ("script", "require", "(path: string)", "Load another script file as a module, compiled once and shared by every caller afterwards."),
         ("script", "attempt", "(f: fn)", "Call a function, answering `(true, value)` when it returned and `(false, message)` when it failed."),
@@ -113,6 +109,14 @@ pub fn api_json(_host: &RuneHost) -> Result<String> {
     ] {
         modules.entry(module.to_string()).or_default().doc = doc.to_string();
     }
+    modules
+}
+
+/// Every module scripts can reach, with its functions and its constants:
+/// `{"modules": [{"name", "functions": [..], "constants": [{"name", "value"}],
+/// "signatures": {name: "args -> returns"}, "components": [..]}]}`.
+pub fn api_json(_host: &RuneHost) -> Result<String> {
+    let modules = collect_modules();
     let mut out = String::from("{\n  \"modules\": [\n");
     let last = modules.len();
     for (i, (name, module)) in modules.iter().enumerate() {
@@ -165,8 +169,8 @@ pub fn api_json(_host: &RuneHost) -> Result<String> {
                 .acts_on
                 .iter()
                 .map(|(k, v)| {
-                    let list = v.iter().map(|c| quote(c)).collect::<Vec<_>>().join(", ");
-                    format!("{}: [{list}]", quote(k))
+                    let cases = v.iter().map(|c| quote(c)).collect::<Vec<_>>().join(", ");
+                    format!("{}: [{cases}]", quote(k))
                 })
                 .collect::<Vec<_>>()
                 .join(", "),

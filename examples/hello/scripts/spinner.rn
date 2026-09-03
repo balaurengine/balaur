@@ -1,7 +1,6 @@
 // Spins in place; the `reverse` action (Space, or the pad's south button)
 // flips it. `speed` and `clockwise` are exported, so the scene tunes them per
-// node and the inspector edits them — the file's defaults are what a node
-// that says nothing gets.
+// node and a node that says nothing gets the defaults here.
 
 pub fn exports() {
     #{ speed: 2.0, clockwise: true }

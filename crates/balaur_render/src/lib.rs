@@ -151,10 +151,9 @@ type DrawLineArgs = (
     Option<bool>,
 );
 
-// The buffers themselves live in `balaur_core::debug_lines`: physics and the
-// editor fill them too, and a producer must not have to depend on the
-// renderer to draw a line. Re-exported because `balaur::render::DebugLineBuffer`
-// is published API.
+/// The debug-line buffers, which live in `balaur_core` because physics and the
+/// editor fill them too and a producer must not depend on the renderer to draw
+/// a line. Re-exported: `balaur::render::DebugLineBuffer` is published API.
 pub use balaur_core::debug_lines::{DebugLine, DebugLine2d, DebugLineBuffer, DebugLineBuffer2d};
 
 /// Where the 2D camera looks (world center) and its zoom in logical pixels

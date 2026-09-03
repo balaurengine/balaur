@@ -127,9 +127,8 @@ fn feed_pointer(S, x, y) {
 }
 
 // The pointer walks to a place over `from`..`to` instead of appearing there.
-// Its start is only known when the walk begins — a sequence is built before a
-// frame of it runs — so the first frame of the span reads it and the rest
-// interpolate.
+// Where it starts is only known once the walk begins, so the span's first
+// frame reads it and the rest interpolate.
 fn glide(S, q, from, to, place) {
     let seg = #{ ready: false, x0: 0.0, y0: 0.0, x1: 0.0, y1: 0.0 };
     over(q, from, to, |p| {

@@ -370,13 +370,9 @@ pub fn node_icon(node) {
 // depth, so it can be generous.
 const INSTANCE_DEPTH = 8;
 
-// Read every `instance` node's prefab and add its nodes to the document as
-// rows the file does not own, so the tree the editor shows is the tree the
-// game will build.
-//
-// A virtual row carries `owner` (the id of the node that named the prefab)
-// and `at` (its path inside that instance). Those two are what turn an edit
-// into an `overrides` entry, and what keeps the row out of the file.
+// Read every `instance` node's prefab into the document as rows the file does
+// not own, each carrying `owner` (the node that named the prefab) and `at`
+// (its path inside): what turns an edit into an override and not a row.
 pub fn expand_instances(S) {
     let out = [];
     for node in S.doc {
@@ -416,13 +412,9 @@ fn expand_one(S, out, owner, rel, id_prefix, at_prefix, depth) {
         row.parent = if node.parent == "" { id_prefix } else { id_prefix + "/" + node.parent };
         row.owner = owner.id;
         row.at = at;
-        // What the prefab itself says, kept so an edit that lands back on it
-        // stops being an override — the same sparseness a script's exported
-        // properties get, one level up.
-        //
-        // Component keys are canonicalised first: a prefab may write
-        // `body3d = "dynamic"` where the editor writes the whole table, and
-        // those are the same component spelled two ways.
+        // What the prefab says, so an edit that lands back on it stops being
+        // an override. Canonicalised first: `body3d = "dynamic"` and the whole
+        // table are the same component spelled two ways.
         row.base = canonical(util::copy(row));
         // What the instance says about this node wins, property by property,
         // exactly as the engine patches it — over the canonical form, since
@@ -449,10 +441,9 @@ pub fn authored(doc) {
     out
 }
 
-// Whether this row came from a prefab rather than from the scene file. A
-// virtual row can be inspected and its properties overridden; it cannot be
-// renamed, reparented, duplicated or deleted, because structure is the
-// prefab's (`docs/PLAN-scenes-and-assets.md`).
+// Whether this row came from a prefab. Its properties can be overridden; it
+// cannot be renamed, reparented, duplicated or deleted, because structure is
+// the prefab's (`docs/PLAN-scenes-and-assets.md`).
 pub fn is_instanced(node) {
     node.contains_key("owner")
 }
@@ -793,9 +784,6 @@ fn name_taken(doc, candidate) {
     false
 }
 
-// Add a node under the selected one, in both document and mirror, optionally
-// applying a preset. A preset is a recipe: the components land on the node
-// and nothing records which one put them there.
 // Structure inside an instance belongs to the prefab: a node added, renamed
 // or removed here would have nowhere in the file to live. Property overrides
 // only (`docs/PLAN-scenes-and-assets.md`).
@@ -815,10 +803,9 @@ pub fn prefab_of(S, node) {
     }
 }
 
-// Every scene file under `scenes/`, which is what a prefab can be.
-//
-// The convention is the one the Assets dock already opens on: a `.toml` under
-// `scenes/` is a scene, anything else is an asset.
+// Every scene file under `scenes/`, which is what a prefab can be — the
+// convention the Assets dock already opens on: a `.toml` there is a scene,
+// anything else is an asset.
 pub fn scene_files(S) {
     let out = [];
     // `fs::list` answers with `{ name, is_dir }`, not bare names.
@@ -831,12 +818,9 @@ pub fn scene_files(S) {
     out
 }
 
-// Add a child of the selection that instances `rel`. The other half of
-// prefabs: without it the only way to place one is to type the key by hand.
-//
-// The child is a plain node carrying `instance`, so it keeps its own name and
-// transform and the prefab's roots become its children — the shape the engine
-// builds and `expand_instances` mirrors.
+// Add a child of the selection that instances `rel`, as a plain node carrying
+// `instance`: it keeps its own name and transform and the prefab's roots
+// become its children, the shape `expand_instances` mirrors.
 pub fn instance_scene(S, rel) {
     if refuse_structure(S, "instance a scene") {
         return;
@@ -906,6 +890,9 @@ pub fn open_prefab(S) {
     }
 }
 
+// Add a node under the selected one, in both document and mirror, optionally
+// applying a preset. A preset is a recipe: the components land on the node and
+// nothing records which one put them there.
 pub fn add_child(S, preset) {
     if refuse_structure(S, "add a node") {
         return;

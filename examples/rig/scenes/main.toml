@@ -1,7 +1,6 @@
-# A 2D rig: one figure, a body of three bones with an arm branching off the
-# top, each with a textured polygon skinned to it, and a clip on the character
-# root that swings the joints while the arm reaches for a target. Nothing here
-# is script driven; the bones are nodes and the clip addresses them by path.
+# A 2D rig: a body of three bones with an arm branching off the top, each with
+# a textured polygon skinned to it, and a clip on the character root swinging
+# the joints while the arm reaches. No scripts: bones are nodes, keyed by path.
 
 [[nodes]]
 id = "n_camera"

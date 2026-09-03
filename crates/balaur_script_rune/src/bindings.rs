@@ -34,16 +34,16 @@ thread_local! {
 
 /// One function's reference entry, as its module declared it.
 #[derive(Clone, Debug)]
-pub struct FnEntry {
-    pub module: String,
-    pub name: String,
+pub(crate) struct FnEntry {
+    pub(crate) module: String,
+    pub(crate) name: String,
     /// Components the function reads or writes; empty when it acts on none.
-    pub acts_on: Vec<String>,
+    pub(crate) acts_on: Vec<String>,
     /// The signature its module spelled out, for a function registered raw
     /// and so having no Rust types to read. Empty when the typed seam
     /// recorded one instead.
-    pub signature: String,
-    pub doc: String,
+    pub(crate) signature: String,
+    pub(crate) doc: String,
 }
 
 /// One declared script-facing name.

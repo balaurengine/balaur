@@ -380,9 +380,6 @@ pub fn picking(S) {
     log::info("selftest picking: done");
 }
 
-// Exported script properties: what the script declares, what the node
-// overrides, and the sparseness that keeps a default reaching every node
-// that left it alone.
 // The first numeric export in the scene, with the node carrying it. A number
 // is what the drag editors write; a string or a bool would be asserting a
 // different widget, which is its own test.
@@ -399,6 +396,9 @@ fn first_number_export(S) {
     None
 }
 
+// Exported script properties: what the script declares, what the node
+// overrides, and the sparseness that keeps a default reaching every node that
+// left it alone.
 pub fn script_props(S) {
     let found = first_number_export(S);
     let (i, export) = match found {
@@ -496,13 +496,8 @@ pub fn linting(S) {
 }
 
 // Prefabs in the editor: an instance's nodes are in the tree, an edit inside
-// one becomes an override on the node that named the prefab, an edit back to
-// the prefab's own value stops being one, and the file never gains a row it
-// does not own.
-//
-// Which component it edits is discovered, not named: a headless editor has no
-// renderer, so `color` is not registered here even though the scene declares
-// it.
+// one becomes an override and an edit back to the prefab's value stops being
+// one. Which component it edits is discovered — headless registers no `color`.
 pub fn instances(S) {
     let hit = first_instanced_float(S);
     let (i, comp, prop, spec) = match hit {
@@ -657,13 +652,9 @@ fn exported_and_check(S, d) {
     fs::remove(out);
 }
 
-// The profiler's data path. Drawing is what the dock does and a headless run
-// cannot exercise it; what it can check is that `engine::timings()` answers
-// with the shape the dock reads.
-//
-// A start-up state runs inside `init`, before the first frame has ended, so
-// every duration here is legitimately zero. That the numbers are real is
-// `crates/balaur_core/tests/timings.rs`' job — this is about the shape.
+// The profiler's data path: that `engine::timings()` answers with the shape
+// the dock reads. Every duration is legitimately zero inside `init`; that the
+// numbers are real is `crates/balaur_core/tests/timings.rs`' job.
 pub fn timings(S) {
     let t = engine::timings();
     if !check(t is Object, "engine::timings() answers with a table") {

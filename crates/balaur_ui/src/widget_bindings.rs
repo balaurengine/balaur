@@ -7,13 +7,13 @@
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, CallbackId, Value};
 use egui::{
-    pos2, vec2, Align, Align2, Color32, FontId, Layout, Margin, Rect, Sense, Stroke, StrokeKind,
+    pos2, vec2, Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKind,
 };
 
 use crate::bridge::{scale, scoped, with_ctx, with_ui};
 use crate::theme::{self, parse_hex};
 use crate::widgets::{
-    code_editor, draw_image, left_pill, panel_frame, pill_radius, sc, text, text_field, Opts,
+    code_editor, draw_image, panel_frame, pill_radius, sc, text, text_field, Opts,
 };
 use crate::{UiConfig, UiState};
 
@@ -75,10 +75,8 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
                             .frame(panel_frame(&opts))
                             .show_separator_line(opts.boolean("separator", true));
                         // A resizable panel keeps its own size in egui's
-                        // memory, so the caller's is only the starting one and
-                        // `min`/`max` bound the drag. The size it settled on is
-                        // the answer, which is how a script persists a split a
-                        // person dragged.
+                        // memory: the caller's is the starting one, `min`/`max`
+                        // bound the drag, and the settled size is the answer.
                         let panel = if opts.boolean("resizable", false) {
                             panel
                                 .resizable(true)

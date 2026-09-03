@@ -184,10 +184,9 @@ pub fn update(this, dt) {
         gizmo::update(S);
     }
     anim::update(S);
-    // Scene-tree UI widgets draw during play (and for preview in the
-    // Interface persona), clipped to the viewport — and only while there is
-    // one: with a document filling the centre the rect is the one the
-    // viewport last had, which is now the code pane.
+    // Scene-tree UI widgets draw during play (and for preview in the Interface
+    // persona), clipped to the viewport — and only while there is one, or the
+    // rect is the stale one a document is now filling.
     let rect = gizmo::viewport_rect(S);
     let widgets_on = (S.playing || S.persona == "ui") && S.viewport_live;
     ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.w, rect.h);

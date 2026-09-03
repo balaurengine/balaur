@@ -49,10 +49,9 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
             }
         })
         .build()?;
-    // `script::check("scripts/enemy.rn", source)` — every diagnostic the
-    // compiler has about that source, as `[#{ file, line, column,
-    // severity, message }]`. The source is the caller's, so an editor
-    // checks the buffer it is showing rather than the file on disk.
+    // `script::check(path, source)` — every diagnostic about that source, as
+    // `[#{ file, line, column, severity, message }]`. The source is the
+    // caller's, so an editor checks the buffer it is showing, not the file.
     script
         .function("check", move |path: &str, source: &str| {
             let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
@@ -68,11 +67,9 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
             }
         })
         .build()?;
-    // `script::exports("scripts/enemy.rn")` — what that script declares
-    // tunable, as `[#{ name, default, type }]` in name order. The type is
-    // the default's own, named in the schema vocabulary so the inspector
-    // reaches for the editor it already has. The inspector's Script
-    // properties section is drawn from this.
+    // `script::exports(path)` — what that script declares tunable, as
+    // `[#{ name, default, type }]` in name order, the type named in the schema
+    // vocabulary so the inspector reaches for an editor it already has.
     script
         .function("exports", move |path: &str| {
             let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());

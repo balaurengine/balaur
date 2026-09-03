@@ -346,6 +346,7 @@ fn prefixed_states() {
         ("show:", state_show),
         ("tool:", state_tool),
         ("dock:", state_dock),
+        ("tab:", state_tab),
         ("mode:", state_mode),
         ("select:", state_select),
         ("zoom:", state_zoom),
@@ -393,6 +394,16 @@ fn state_show(S, name) {
 
 fn state_tool(S, tool) {
     S.tool = tool;
+}
+
+// `tab:<id>` picks a document tab; `tab:split` opens the code beside the
+// viewport. Both are shell state a screenshot cannot otherwise reach.
+fn state_tab(S, tab) {
+    if tab == "split" {
+        S.split = true;
+    } else {
+        S.doctab = tab;
+    }
 }
 
 fn state_dock(S, dock) {

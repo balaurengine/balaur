@@ -47,7 +47,7 @@ pub(crate) enum Binding {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Half {
+pub(crate) enum Half {
     Both,
     Positive,
     Negative,
@@ -544,6 +544,14 @@ pub(crate) fn install_actions(m: &mut dyn Bindings<Engine>) {
             .declare(declared);
         Ok(())
     });
+    install_rebinding(m);
+}
+
+/// The half a player drives rather than the project: `bind` and the reset
+/// that undoes every one of them.
+fn install_rebinding(m: &mut dyn Bindings<Engine>) {
+    use balaur_script::{BindingsExt as _, Value};
+
     m.function("bind", |eng: &Engine, (name, bindings): (String, Value)| {
         let bindings = match bindings {
             Value::Str(one) => vec![one],

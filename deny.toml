@@ -20,10 +20,9 @@ unmaintained = "none"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-# Two forks, both in the root Cargo.toml. kiss3d: v0.46.0 plus the macOS
-# Command-modifier fix and iOS/Android support. rune: 0.14.2 with `f64::powf`
-# and `powi` moved onto `libm`, which is what makes scripts deterministic
-# across platforms (docs/DETERMINISM.md). Neither is on crates.io.
+# Two forks, neither on crates.io: kiss3d with the macOS Command-modifier fix
+# and mobile support, rune with `powf`/`powi` on `libm` for determinism
+# (docs/DETERMINISM.md). Both are pinned in the root Cargo.toml.
 allow-git = [
     "https://github.com/Ughuuu/kiss3d.git",
     "https://github.com/balaurengine/rune.git",
