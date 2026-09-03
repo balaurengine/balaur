@@ -240,11 +240,14 @@ pub(crate) fn install_material_check(m: &mut dyn Bindings<balaur_core::Engine>) 
 /// A material that will not link has no rows. What is wrong with it is
 /// `check_material`'s answer, not this one's.
 pub(crate) fn install_material_params(m: &mut dyn Bindings<balaur_core::Engine>) {
-    m.function("material_params", |eng: &balaur_core::Engine, path: String| {
-        Ok(balaur_script::Value::List(
-            material_params(eng, &path).unwrap_or_default(),
-        ))
-    });
+    m.function(
+        "material_params",
+        |eng: &balaur_core::Engine, path: String| {
+            Ok(balaur_script::Value::List(
+                material_params(eng, &path).unwrap_or_default(),
+            ))
+        },
+    );
 }
 
 /// The editor type a field is drawn as. A `vec4` is a colour: it is what one
@@ -292,7 +295,10 @@ fn material_params(eng: &balaur_core::Engine, path: &str) -> Result<Vec<balaur_s
                 .map(|(_, param)| *param);
             Value::Map(vec![
                 ("name".to_string(), Value::Str(field.name.clone())),
-                ("type".to_string(), Value::Str(row_type(field.ty).to_string())),
+                (
+                    "type".to_string(),
+                    Value::Str(row_type(field.ty).to_string()),
+                ),
                 ("value".to_string(), row_value(field.ty, set)),
             ])
         })
@@ -501,7 +507,7 @@ pub fn compile(material: &Material, source: &str) -> Result<Compiled> {
     let fields = fields(&linked.syntax)?;
     let params = pack(&fields, &material.params)?;
     Ok(Compiled {
-        wgsl: linked.to_string(),
+        wgsl: crate::shaders::wgsl(&linked),
         fields,
         params,
     })

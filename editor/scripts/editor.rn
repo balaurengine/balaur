@@ -20,6 +20,7 @@ mod plugins;
 mod polygon;
 mod rig;
 mod selftest;
+mod session;
 mod shell;
 mod style;
 mod theme;
@@ -71,6 +72,7 @@ pub fn init(this) {
         polygon: polygon::state(),
         anim: anim::state(),
         debug: shell::debug_state(),
+        session: session::state(),
         lint: lint::state(),
         assets: dock::assets_state(),
         // Where an editor plugin keeps its own state, by id.
@@ -147,7 +149,13 @@ pub fn update(this, dt) {
     if is2d {
         overlays::grid2d(S);
     }
-    gizmo::update(S);
+    session::update(S);
+    // A replay feeds the recorded pointer into the same snapshot the viewport
+    // tools read, so a drag would follow the recording rather than the mouse.
+    // Paused, the engine is held and the live pointer is harmless again.
+    if !session::scrubbing(S) {
+        gizmo::update(S);
+    }
     anim::update(S);
     // Scene-tree UI widgets draw during play (and for preview in the
     // Interface persona), clipped to the viewport.
@@ -160,7 +168,9 @@ pub fn update(this, dt) {
     gizmo::draw(S);
     plugins::draw_overlays(S);
     rig::draw(S);
-    polygon::idle(S);
+    if !session::scrubbing(S) {
+        polygon::idle(S);
+    }
     polygon::draw(S);
     let chips = util::obj(S.chip_state.get(S.persona).unwrap_or(#{}));
     if S.persona == "scene" && chips.get("guides").unwrap_or(false) {

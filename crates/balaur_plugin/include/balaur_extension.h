@@ -50,10 +50,14 @@ enum {
     BALAUR_CALLBACK = 9,
     BALAUR_LIST = 10,
     BALAUR_MAP = 11,
-    BALAUR_MANY = 12
+    BALAUR_MANY = 12,
+    /* Arbitrary bytes, in the `string` arm. Added after version 1; the
+     * layout did not change, so older extensions still read what they knew. */
+    BALAUR_BYTES = 13
 };
 
-/* UTF-8 bytes. NOT NUL-terminated: always pass a length. */
+/* UTF-8 for BALAUR_STR, arbitrary bytes for BALAUR_BYTES. NOT
+ * NUL-terminated: always pass a length. */
 typedef struct BalaurStr {
     const uint8_t *ptr;
     size_t len;

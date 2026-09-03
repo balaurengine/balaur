@@ -5,12 +5,16 @@ use anyhow::{anyhow, bail, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_core::{App, Engine};
+use balaur_script::{Bindings, BindingsExt, NodeId};
+use glamx::{EulerRot, Pose3, Quat, Vec3};
 use rapier3d::math::Vector;
-use rapier3d::prelude::{ColliderBuilder, ColliderHandle};
+use rapier3d::prelude::{
+    ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule, Collider,
+    ColliderBuilder, ColliderHandle, Group, InteractionGroups, RigidBodyHandle,
+};
 
-use crate::body::remove_body_and_colliders;
+use crate::vocabulary as v;
 use crate::{node_pose, PhysicsState};
-
 
 /// The geometry a mesh-backed collider names, through the same asset the
 /// renderer uses.
@@ -24,7 +28,6 @@ fn collider_mesh(eng: &Engine, params: &toml::Value) -> Result<balaur_core::mesh
         balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, reference)?;
     balaur_core::mesh::load_from(eng, &definition)
 }
-
 
 /// The collider kinds built from a `mesh` asset, so the model the renderer
 /// draws and the shape it collides with stay one authored thing.
@@ -66,7 +69,6 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
     }
 }
 
-
 /// Terrain from a `heightfield` asset. The extent belongs to the collider, so
 /// one grid can be placed at several sizes.
 fn heightfield_collider(
@@ -88,7 +90,6 @@ fn heightfield_collider(
         rapier3d::parry::utils::Array2::new(field.rows, field.columns, field.heights.clone());
     Ok(ColliderBuilder::heightfield(grid, extent))
 }
-
 
 /// The collider described by `params`, in the `collider` schema's own
 /// vocabulary — so a script table and a scene-file entry build the same thing.
@@ -130,12 +131,27 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
     // rapier measures these from the centre; `height` is the whole straight
     // part, matching what the `shape` component means by it.
     let half_height = (f("height", 1.0).max(0.01)) / 2.0;
+    // A rounded shape is a shape plus a border radius, not nine more kinds.
+    // Ball and capsule are already round, so they ignore it.
+    let border = f("border", 0.0).max(0.0);
+    let rounded = border > 0.0;
     let builder = match kind {
         "ball" => ColliderBuilder::ball(radius),
+        "cuboid" if rounded => {
+            ColliderBuilder::round_cuboid(he(0).max(0.01), he(1).max(0.01), he(2).max(0.01), border)
+        }
         "cuboid" => ColliderBuilder::cuboid(he(0).max(0.01), he(1).max(0.01), he(2).max(0.01)),
         "capsule" => ColliderBuilder::capsule_y(half_height, radius),
+        "cylinder" if rounded => ColliderBuilder::round_cylinder(half_height, radius, border),
         "cylinder" => ColliderBuilder::cylinder(half_height, radius),
+        "cone" if rounded => ColliderBuilder::round_cone(half_height, radius, border),
         "cone" => ColliderBuilder::cone(half_height, radius),
+        "triangle" if rounded => ColliderBuilder::round_triangle(
+            point("a", [0.0, 0.0, 0.0]),
+            point("b", [1.0, 0.0, 0.0]),
+            point("c", [0.0, 1.0, 0.0]),
+            border,
+        ),
         "triangle" => ColliderBuilder::triangle(
             point("a", [0.0, 0.0, 0.0]),
             point("b", [1.0, 0.0, 0.0]),
@@ -143,29 +159,271 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
         ),
         "trimesh" | "convex_hull" | "polyline" => mesh_collider(eng, params, kind)?,
         "heightfield" => heightfield_collider(eng, params, point("scale", [1.0, 1.0, 1.0]))?,
+        // An infinite plane, for a floor that needs no size and no triangles.
+        "halfspace" => {
+            let n = point("normal", [0.0, 1.0, 0.0]);
+            let normal = rapier3d::na::Unit::try_new(n, 1.0e-6)
+                .ok_or_else(|| anyhow!("a halfspace collider needs a non-zero `normal`"))?;
+            ColliderBuilder::halfspace(normal)
+        }
+        "segment" => {
+            ColliderBuilder::segment(point("a", [0.0, 0.0, 0.0]), point("b", [1.0, 0.0, 0.0]))
+        }
         other => return Err(anyhow!("unknown collider kind '{other}'")),
     };
-    Ok(builder
-        .restitution(f("restitution", 0.0))
-        .friction(f("friction", 0.5))
-        .density(f("density", 1.0).max(0.001))
-        .sensor(
-            params
-                .get("sensor")
-                .and_then(toml::Value::as_bool)
-                .unwrap_or(false),
-        ))
+    Ok(with_material(builder, params))
 }
 
+/// Everything a collider carries that is not its shape: what it is made of,
+/// what it collides with, and what it reports.
+///
+/// Shared by both dimensions' builders through their own `collider_builder`,
+/// because every one of these properties is dimension-free.
+pub(crate) fn with_material(builder: ColliderBuilder, params: &toml::Value) -> ColliderBuilder {
+    let mut builder = builder
+        .restitution(v::f(params, "restitution", 0.0))
+        .friction(v::f(params, "friction", 0.5))
+        .density(v::f(params, "density", 1.0).max(0.001))
+        .friction_combine_rule(combine_rule(v::text(params, "friction_combine", "average")))
+        .restitution_combine_rule(combine_rule(v::text(
+            params,
+            "restitution_combine",
+            "average",
+        )))
+        .contact_skin(v::f(params, "contact_skin", 0.0).max(0.0))
+        .contact_force_event_threshold(v::f(params, "contact_force_threshold", 0.0))
+        .collision_groups(interaction_groups(params, "layers", "mask"))
+        .solver_groups(interaction_groups(params, "solver_layers", "solver_mask"))
+        .active_collision_types(active_collision_types(params))
+        .active_events(active_events(params))
+        .active_hooks(active_hooks(params))
+        .enabled(v::boolean(params, "enabled", true))
+        .sensor(v::boolean(params, "sensor", false));
+    // An explicit mass overrides what the density works out to, which is what
+    // an author who typed a number in kilograms means.
+    let mass = v::f(params, "mass", 0.0);
+    if mass > 0.0 {
+        builder = builder.mass(mass);
+    }
+    builder
+}
+
+fn combine_rule(name: &str) -> CoefficientCombineRule {
+    match name {
+        "min" => CoefficientCombineRule::Min,
+        "multiply" => CoefficientCombineRule::Multiply,
+        "max" => CoefficientCombineRule::Max,
+        "clamped_sum" => CoefficientCombineRule::ClampedSum,
+        _ => CoefficientCombineRule::Average,
+    }
+}
+
+/// The 32 collision layers, as a `flags` property of layer numbers.
+///
+/// An empty `mask` means *every* layer: the alternative is 32 strings in every
+/// scene file that wants the default, and the default is what most colliders
+/// want.
+pub(crate) fn interaction_groups(
+    params: &toml::Value,
+    memberships_key: &str,
+    filter_key: &str,
+) -> InteractionGroups {
+    InteractionGroups::new(
+        Group::from_bits_truncate(v::layer_bits(params, memberships_key, false)),
+        Group::from_bits_truncate(v::layer_bits(params, filter_key, true)),
+    )
+}
+
+/// Which body-type pairs this collider is tested against. Rapier leaves
+/// static-static and kinematic-kinematic off, and a scene that wants a sensor
+/// on the ground to notice a kinematic platform has to say so.
+pub(crate) fn active_collision_types(params: &toml::Value) -> ActiveCollisionTypes {
+    ActiveCollisionTypes::from_bits_truncate(v::bits(
+        params,
+        "active_collisions",
+        &v::flags::collision_types(),
+    ))
+}
+
+/// Rapier reports nothing by default, for speed. A collider opts in here, and
+/// `crate::events` turns what it reports into a call on the node's script.
+pub(crate) fn active_events(params: &toml::Value) -> ActiveEvents {
+    ActiveEvents::from_bits_truncate(v::bits(params, "events", &v::flags::events()))
+}
+
+/// The hooks a collider asks rapier to call mid-step. `one_way` needs contact
+/// modification, so asking for the platform asks for the hook.
+pub(crate) fn active_hooks(params: &toml::Value) -> ActiveHooks {
+    let mut hooks = ActiveHooks::from_bits_truncate(v::bits(params, "hooks", &v::flags::hooks()));
+    // A one-way platform is contact modification with the answer written for
+    // you, so asking for the platform asks for the hook.
+    if v::boolean(params, "one_way", false) {
+        hooks |= ActiveHooks::MODIFY_SOLVER_CONTACTS;
+    }
+    hooks
+}
 
 /// Build and insert the collider described by `params`, replacing any
 /// existing one (attached to the entity's body when it has one).
 pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     let builder = collider_builder(eng, params)?;
+    let offset = Pose3::from_parts(Vec3::from(v::vec3(params, "offset", [0.0; 3])), {
+        let r = v::vec3(params, "offset_rotation", [0.0; 3]);
+        Quat::from_euler(EulerRot::XYZ, r[0], r[1], r[2])
+    });
     remove_colliders(eng, entity);
-    add_collider(eng, entity, builder)
+    add_collider_at(eng, entity, builder, offset)?;
+    if v::boolean(params, "one_way", false) {
+        let axis = v::vec3(params, "one_way_axis", [0.0, 1.0, 0.0]);
+        let state = eng.resource::<PhysicsState>();
+        let mut state = state.borrow_mut();
+        let handles = state.colliders.get(&entity).cloned().unwrap_or_default();
+        for handle in handles {
+            state.world.colliders[handle].user_data = encode_one_way(entity.to_bits().get(), axis);
+        }
+    }
+    Ok(())
 }
 
+/// The nearest body at or above `entity` in the scene tree, and the node that
+/// owns it.
+///
+/// This is what makes a compound shape authorable: a capsule and a sensor
+/// sphere as two child nodes under one body, each with its own transform and
+/// each pickable in the editor. Rapier has `compound`, but a compound shape is
+/// one collider with one material and no way to tell which part was hit.
+fn nearest_body(eng: &Engine, entity: Entity) -> Option<(Entity, RigidBodyHandle)> {
+    let state = eng.resource::<PhysicsState>();
+    let state = state.borrow();
+    let world = eng.world();
+    let mut current = entity;
+    loop {
+        if let Some(handle) = state.bodies.get(&current) {
+            return Some((current, *handle));
+        }
+        current = world.get::<&balaur_core::scene::Parent>(current).ok()?.0;
+    }
+}
+
+/// Where `entity` sits in `body_node`'s frame, so a child collider lands where
+/// its node is rather than on top of the body.
+fn pose_relative_to(eng: &Engine, entity: Entity, body_node: Entity) -> Result<Pose3> {
+    let here = node_pose(eng, entity)?;
+    if entity == body_node {
+        return Ok(Pose3::IDENTITY);
+    }
+    let there = node_pose(eng, body_node)?;
+    let inverse = there.rotation.inverse();
+    Ok(Pose3::from_parts(
+        inverse * (here.translation - there.translation),
+        inverse * here.rotation,
+    ))
+}
+
+/// A one-way platform's direction, packed above the entity id in a collider's
+/// `user_data`.
+///
+/// A hook cannot reach the component the axis was authored in — the step holds
+/// the world — so it travels with the collider. Six directions rather than a
+/// vector, because a platform's axis is a cardinal one in every game that has
+/// ever wanted this, and the encoding costs three bits.
+pub(crate) fn encode_one_way(entity_bits: u64, axis: [f32; 3]) -> u128 {
+    let mut index = 0;
+    for (i, value) in axis.iter().enumerate() {
+        if value.abs() > axis[index].abs() {
+            index = i;
+        }
+    }
+    let sign = u128::from(axis[index] < 0.0);
+    let code = (1 + index as u128 * 2 + sign) & 0b111;
+    u128::from(entity_bits) | (code << 64)
+}
+
+/// The axis [`encode_one_way`] packed, or `None` for an ordinary collider.
+pub(crate) fn decode_one_way(user_data: u128) -> Option<Vec3> {
+    let code = ((user_data >> 64) & 0b111) as u8;
+    if code == 0 {
+        return None;
+    }
+    let sign = if (code - 1) % 2 == 1 { -1.0 } else { 1.0 };
+    Some(match (code - 1) / 2 {
+        0 => Vec3::new(sign, 0.0, 0.0),
+        1 => Vec3::new(0.0, sign, 0.0),
+        _ => Vec3::new(0.0, 0.0, sign),
+    })
+}
+
+/// Insert a collider for `entity`, attached to the nearest ancestor body.
+///
+/// `offset` is the collider's own offset from its node, on top of wherever the
+/// node itself sits.
+pub(crate) fn add_collider_at(
+    eng: &Engine,
+    entity: Entity,
+    builder: ColliderBuilder,
+    offset: Pose3,
+) -> Result<()> {
+    let handle = match nearest_body(eng, entity) {
+        Some((body_node, body)) => {
+            let local = pose_relative_to(eng, entity, body_node)?;
+            let state = eng.resource::<PhysicsState>();
+            let mut state = state.borrow_mut();
+            warn_if_hollow_and_dynamic(&state, body, &builder);
+            state
+                .world
+                .insert_collider(builder.position(local * offset), Some(body))
+        }
+        None => {
+            // No body anywhere above: static world geometry at the node's pose.
+            let pose = node_pose(eng, entity)?;
+            let state = eng.resource::<PhysicsState>();
+            let mut state = state.borrow_mut();
+            state
+                .world
+                .insert_collider(builder.position(pose * offset), None)
+        }
+    };
+    let state = eng.resource::<PhysicsState>();
+    let mut state = state.borrow_mut();
+    // The entity behind a handle, in one lookup rather than a scan of every
+    // collider the world holds: every query result and every event needs it.
+    state.world.colliders[handle].user_data = u128::from(entity.to_bits().get());
+    state.colliders.entry(entity).or_default().push(handle);
+    Ok(())
+}
+
+/// Sitting on the node itself, which is what a script-built collider means.
+pub(crate) fn add_collider(eng: &Engine, entity: Entity, builder: ColliderBuilder) -> Result<()> {
+    add_collider_at(eng, entity, builder, Pose3::IDENTITY)
+}
+
+/// A hollow shape has no interior, so rapier cannot derive an inertia tensor
+/// for it. The body still simulates, badly; saying so beats leaving someone to
+/// wonder why it tumbles.
+fn warn_if_hollow_and_dynamic(
+    state: &PhysicsState,
+    body: RigidBodyHandle,
+    builder: &ColliderBuilder,
+) {
+    if state
+        .world
+        .bodies
+        .get(body)
+        .is_some_and(rapier3d::prelude::RigidBody::is_dynamic)
+        && matches!(
+            builder.shape.as_typed_shape(),
+            rapier3d::prelude::TypedShape::TriMesh(_)
+                | rapier3d::prelude::TypedShape::Polyline(_)
+                | rapier3d::prelude::TypedShape::HeightField(_)
+                | rapier3d::prelude::TypedShape::HalfSpace(_)
+        )
+    {
+        tracing::warn!(
+            "a dynamic body with a trimesh, polyline, heightfield or halfspace collider has no \
+             well-defined mass; give it a convex_hull or a primitive, or make it static"
+        );
+    }
+}
 
 pub(crate) fn remove_colliders(eng: &Engine, entity: Entity) {
     let state = eng.resource::<PhysicsState>();
@@ -176,7 +434,6 @@ pub(crate) fn remove_colliders(eng: &Engine, entity: Entity) {
         }
     }
 }
-
 
 /// The shape half of a `collider3d`'s params.
 ///
@@ -226,9 +483,43 @@ fn collider_shape_params(
         map.insert("c".into(), vec3(tri.c.x, tri.c.y, tri.c.z));
         return Some(map);
     }
+    if let Some(segment) = shape.as_segment() {
+        map.insert("kind".into(), "segment".into());
+        map.insert("a".into(), vec3(segment.a.x, segment.a.y, segment.a.z));
+        map.insert("b".into(), vec3(segment.b.x, segment.b.y, segment.b.z));
+        return Some(map);
+    }
+    if let Some(halfspace) = shape.as_halfspace() {
+        map.insert("kind".into(), "halfspace".into());
+        let n = halfspace.normal;
+        map.insert("normal".into(), vec3(n.x, n.y, n.z));
+        return Some(map);
+    }
+    // The rounded shapes report the shape they wrap plus the border that
+    // rounded it, which is exactly how the schema spells them.
+    if let Some(round) = shape.as_round_cuboid() {
+        let he = round.inner_shape.half_extents;
+        map.insert("kind".into(), "cuboid".into());
+        map.insert("half_extents".into(), vec3(he.x, he.y, he.z));
+        map.insert("border".into(), f(round.border_radius));
+        return Some(map);
+    }
+    if let Some(round) = shape.as_round_cylinder() {
+        map.insert("kind".into(), "cylinder".into());
+        map.insert("radius".into(), f(round.inner_shape.radius));
+        map.insert("height".into(), f(round.inner_shape.half_height * 2.0));
+        map.insert("border".into(), f(round.border_radius));
+        return Some(map);
+    }
+    if let Some(round) = shape.as_round_cone() {
+        map.insert("kind".into(), "cone".into());
+        map.insert("radius".into(), f(round.inner_shape.radius));
+        map.insert("height".into(), f(round.inner_shape.half_height * 2.0));
+        map.insert("border".into(), f(round.border_radius));
+        return Some(map);
+    }
     None
 }
-
 
 pub(crate) fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let state = eng.resource::<PhysicsState>();
@@ -236,122 +527,127 @@ pub(crate) fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::
     let handle = state.colliders.get(&entity)?.first()?;
     let collider = state.world.colliders.get(*handle)?;
     let mut map = collider_shape_params(collider.shape())?;
-    map.insert(
-        "restitution".into(),
-        toml::Value::Float(f64::from(collider.restitution())),
-    );
-    map.insert(
-        "friction".into(),
-        toml::Value::Float(f64::from(collider.friction())),
-    );
-    map.insert(
-        "density".into(),
-        toml::Value::Float(f64::from(collider.density())),
-    );
-    map.insert("sensor".into(), toml::Value::Boolean(collider.is_sensor()));
+    read_material(collider, &mut map);
     Some(toml::Value::Table(map))
 }
 
-
-pub(crate) fn add_collider(eng: &Engine, entity: Entity, builder: ColliderBuilder) -> Result<()> {
-    let handle;
-    {
-        let state = eng.resource::<PhysicsState>();
-        let mut state = state.borrow_mut();
-        if let Some(body) = state.bodies.get(&entity).copied() {
-            // A hollow shape has no interior, so rapier cannot derive an
-            // inertia tensor for it. The body still simulates, badly; saying so
-            // beats leaving someone to wonder why it tumbles.
-            if state
-                .world
-                .bodies
-                .get(body)
-                .is_some_and(rapier3d::prelude::RigidBody::is_dynamic)
-                && matches!(
-                    builder.shape.as_typed_shape(),
-                    rapier3d::prelude::TypedShape::TriMesh(_)
-                        | rapier3d::prelude::TypedShape::Polyline(_)
-                        | rapier3d::prelude::TypedShape::HeightField(_)
-                )
-            {
-                tracing::warn!(
-                    "a dynamic body with a trimesh, polyline or heightfield collider has no \
-                     well-defined mass; give it a convex_hull or a primitive, or make it static"
-                );
-            }
-            handle = state.world.insert_collider(builder, Some(body));
-        } else {
-            // No body: static world geometry at the node's current pose.
-            drop(state);
-            let pose = node_pose(eng, entity)?;
-            let state = eng.resource::<PhysicsState>();
-            handle = state
-                .borrow_mut()
-                .world
-                .insert_collider(builder.position(pose), None);
-        }
-    }
-    let state = eng.resource::<PhysicsState>();
-    state
-        .borrow_mut()
-        .colliders
-        .entry(entity)
-        .or_default()
-        .push(handle);
-    Ok(())
+/// The non-shape half of a collider, read back off it. The inverse of
+/// [`with_material`], property for property, so the inspector round-trips.
+pub(crate) fn read_material(collider: &Collider, map: &mut toml::map::Map<String, toml::Value>) {
+    let f = |value: f32| toml::Value::Float(f64::from(value));
+    map.insert("restitution".into(), f(collider.restitution()));
+    map.insert("friction".into(), f(collider.friction()));
+    map.insert("density".into(), f(collider.density()));
+    map.insert("mass".into(), f(collider.mass()));
+    map.insert("contact_skin".into(), f(collider.contact_skin()));
+    map.insert(
+        "contact_force_threshold".into(),
+        f(collider.contact_force_event_threshold()),
+    );
+    map.insert("sensor".into(), collider.is_sensor().into());
+    map.insert("enabled".into(), collider.is_enabled().into());
+    map.insert(
+        "friction_combine".into(),
+        combine_name(collider.friction_combine_rule()).into(),
+    );
+    map.insert(
+        "restitution_combine".into(),
+        combine_name(collider.restitution_combine_rule()).into(),
+    );
+    let groups = collider.collision_groups();
+    map.insert("layers".into(), v::layer_names(groups.memberships.bits()));
+    map.insert("mask".into(), v::layer_names(groups.filter.bits()));
+    let solver = collider.solver_groups();
+    map.insert(
+        "solver_layers".into(),
+        v::layer_names(solver.memberships.bits()),
+    );
+    map.insert("solver_mask".into(), v::layer_names(solver.filter.bits()));
+    map.insert(
+        "events".into(),
+        v::names(collider.active_events().bits(), &v::flags::events()),
+    );
+    map.insert(
+        "hooks".into(),
+        v::names(collider.active_hooks().bits(), &v::flags::hooks()),
+    );
+    map.insert(
+        "active_collisions".into(),
+        v::names(
+            collider.active_collision_types().bits(),
+            &v::flags::collision_types(),
+        ),
+    );
 }
 
-
-/// Nodes whose colliders intersect this node's, sorted by entity bits so the
-/// order is deterministic. Rapier tracks pairs only when one side is a sensor.
-pub fn overlaps(eng: &Engine, entity: Entity) -> Vec<Entity> {
-    let state = eng.resource::<PhysicsState>();
-    let state = state.borrow();
-    let Some(handles) = state.colliders.get(&entity) else {
-        return Vec::new();
-    };
-    let mut others: Vec<ColliderHandle> = Vec::new();
-    for &handle in handles {
-        for (h1, _, h2, _, intersecting) in state.world.intersection_pairs_with(handle) {
-            if intersecting {
-                others.push(if h1 == handle { h2 } else { h1 });
-            }
-        }
+fn combine_name(rule: CoefficientCombineRule) -> &'static str {
+    match rule {
+        CoefficientCombineRule::Min => "min",
+        CoefficientCombineRule::Multiply => "multiply",
+        CoefficientCombineRule::Max => "max",
+        CoefficientCombineRule::ClampedSum => "clamped_sum",
+        CoefficientCombineRule::Average => "average",
     }
-    let mut hits: Vec<Entity> = state
-        .colliders
-        .iter()
-        .filter(|&(&e, hs)| e != entity && hs.iter().any(|h| others.contains(h)))
-        .map(|(&e, _)| e)
-        .collect();
-    hits.sort_unstable_by_key(|e| e.to_bits());
-    hits
+}
+
+/// The 32 collision layers, as an `options` list. Numbers rather than names:
+/// a name would have to come from the project file, and no other component
+/// resolves its options at inspector time (see `docs/PLAN-rapier.md`).
+
+/// Everything a collider carries besides its shape, as schema text. Shared
+/// with `collider2d`: a material is dimension-free.
+pub(crate) fn shared_collider_schema() -> String {
+    let layers = v::layer_options();
+    format!(
+        r#"restitution = {{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness: 0 is a dead stop, 1 a full rebound" }}
+friction = {{ type = "float", default = 0.5, min = 0.0, description = "Surface friction; 0 is ice" }}
+density = {{ type = "float", default = 1.0, min = 0.001, description = "Mass per volume, so the shape's size sets its mass" }}
+mass = {{ type = "float", default = 0.0, min = 0.0, description = "Mass in kilograms, overriding what density works out to; 0 keeps the density" }}
+friction_combine = {{ type = "enum", default = "average", options = ["average", "min", "multiply", "max", "clamped_sum"], description = "How this surface's friction combines with the other one's" }}
+restitution_combine = {{ type = "enum", default = "average", options = ["average", "min", "multiply", "max", "clamped_sum"], description = "How this surface's bounciness combines with the other one's" }}
+contact_skin = {{ type = "float", default = 0.0, min = 0.0, description = "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering" }}
+sensor = {{ type = "bool", default = false, description = "Detects overlaps without colliding: bodies pass through and are reported" }}
+enabled = {{ type = "bool", default = true, description = "Collide at all; a disabled collider keeps its shape and costs nothing" }}
+layers = {{ type = "flags", default = ["0"], options = [{layers}], description = "The layers this collider is on" }}
+mask = {{ type = "flags", default = [], options = [{layers}], description = "The layers it collides with; empty means every layer" }}
+solver_layers = {{ type = "flags", default = ["0"], options = [{layers}], description = "Layers for the solver alone: a pair can be detected but not resolved" }}
+solver_mask = {{ type = "flags", default = [], options = [{layers}], description = "Which solver layers this one pushes against; empty means all of them" }}
+events = {{ type = "flags", default = [], options = ["collision", "contact_force"], description = "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force" }}
+contact_force_threshold = {{ type = "float", default = 0.0, min = 0.0, description = "How hard a contact must be before on_contact_force is called" }}
+hooks = {{ type = "flags", default = [], options = ["filter_contact", "filter_overlap", "modify_contacts"], description = "Mid-step questions this collider asks its node's script; each costs a call per candidate pair per step" }}
+active_collisions = {{ type = "flags", default = ["dynamic_dynamic", "dynamic_kinematic", "dynamic_static"], options = ["dynamic_dynamic", "dynamic_kinematic", "dynamic_static", "kinematic_kinematic", "kinematic_static", "static_static"], description = "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default" }}
+one_way = {{ type = "bool", default = false, description = "A platform bodies pass through from below and land on from above" }}
+"#
+    )
 }
 
 /// The `collider3d` key. Not backed by a component type either: it writes
 /// into [`crate::PhysicsState`].
 pub(crate) fn register_collider_component(app: &mut App) {
+    let schema = format!(
+        r#"kind = {{ type = "enum", default = "cuboid", options = ["ball", "cuboid", "capsule", "cylinder", "cone", "triangle", "segment", "halfspace", "trimesh", "convex_hull", "polyline", "heightfield"], description = "Collision shape" }}
+radius = {{ type = "float", default = 0.5, min = 0.01, description = "Radius, for ball, capsule, cylinder and cone" }}
+height = {{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, for capsule, cylinder and cone" }}
+half_extents = {{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }}
+border = {{ type = "float", default = 0.0, min = 0.0, description = "Rounds a cuboid, cylinder, cone or triangle by this radius; a rounded shape slides over seams instead of catching on them" }}
+a = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "First corner, when kind is triangle or segment" }}
+b = {{ type = "vec3", default = [1.0, 0.0, 0.0], description = "Second corner, when kind is triangle or segment" }}
+c = {{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Third corner, when kind is triangle" }}
+normal = {{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way the infinite plane faces, when kind is halfspace" }}
+mesh = {{ type = "asset", asset = "mesh", default = "", description = "Geometry for a trimesh, convex_hull or polyline collider" }}
+heightfield = {{ type = "asset", asset = "heightfield", default = "", description = "Terrain grid, when kind is heightfield" }}
+scale = {{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Cell size and height scale of a heightfield" }}
+one_way_axis = {{ type = "vec3", default = [0.0, 1.0, 0.0], description = "The direction a one-way platform lets bodies through from" }}
+offset = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the shape sits relative to the node" }}
+offset_rotation = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "How the shape is turned relative to the node, in radians" }}
+{}"#,
+        shared_collider_schema()
+    );
     app.register_component(
         "collider3d",
         ComponentDef {
-            doc: "The shape the 3D physics world sees for this node, and the surface it presents: friction, bounciness and density. With a `body3d` it moves with the body; on its own it is static geometry a scene can be built from. A sensor reports overlaps without pushing anything.",
-            schema: ComponentDef::parse_schema(
-                "collider3d",
-                r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid", "capsule", "cylinder", "cone", "triangle", "trimesh", "convex_hull", "polyline", "heightfield"], description = "Collision shape" }
-radius = { type = "float", default = 0.5, min = 0.01, description = "Radius, for ball, capsule, cylinder and cone" }
-height = { type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, for capsule, cylinder and cone" }
-half_extents = { type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }
-a = { type = "vec3", default = [0.0, 0.0, 0.0], description = "First corner, when kind is triangle" }
-b = { type = "vec3", default = [1.0, 0.0, 0.0], description = "Second corner, when kind is triangle" }
-c = { type = "vec3", default = [0.0, 1.0, 0.0], description = "Third corner, when kind is triangle" }
-mesh = { type = "asset", asset = "mesh", default = "", description = "Geometry for a trimesh, convex_hull or polyline collider" }
-heightfield = { type = "asset", asset = "heightfield", default = "", description = "Terrain grid, when kind is heightfield" }
-scale = { type = "vec3", default = [1.0, 1.0, 1.0], description = "Cell size and height scale of a heightfield" }
-restitution = { type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness: 0 is a dead stop, 1 a full rebound" }
-friction = { type = "float", default = 0.5, min = 0.0, description = "Surface friction; 0 is ice" }
-density = { type = "float", default = 1.0, min = 0.001, description = "Mass per volume, so the shape's size sets its mass" }
-sensor = { type = "bool", default = false, description = "Detects overlaps without colliding: bodies pass through and are reported" }"#,
-            ),
+            doc: "The shape the node collides with in 3D. On a node with a `body3d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
+            schema: ComponentDef::parse_schema("collider3d", &schema),
             tags: &["3d", "physics"],
             expects: &[],
             apply: Box::new(apply_collider),
@@ -362,4 +658,51 @@ sensor = { type = "bool", default = false, description = "Detects overlaps witho
             get: Box::new(get_collider_params),
         },
     );
+}
+
+/// Collider calls that are not about creating one: replacing the shape, and
+/// asking where it is.
+pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("set_collider", &["collider3d"], "", "Replace the node's collider from a `collider3d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component's own vocabulary."),
+        ("aabb", &["collider3d"], "", "The world-space box the collider currently occupies, as its two opposite corners."),
+        ("collider_mass", &["collider3d"], "", "What this collider weighs, density and size together."),
+    ]);
+    m.function(
+        "set_collider",
+        |eng: &Engine, (node, params): (NodeId, balaur_script::Value)| {
+            let params = balaur_core::node_api::to_toml(&params)?;
+            apply_collider(eng, balaur_core::entity_of(node)?, &params)
+        },
+    );
+    m.function("aabb", |eng: &Engine, node: NodeId| {
+        let entity = balaur_core::entity_of(node)?;
+        let state = eng.resource::<PhysicsState>();
+        let state = state.borrow();
+        let handle = state
+            .colliders
+            .get(&entity)
+            .and_then(|handles| handles.first())
+            .ok_or_else(|| anyhow!("node has no collider"))?;
+        let aabb = state.world.colliders[*handle].compute_aabb();
+        Ok((
+            aabb.mins.x,
+            aabb.mins.y,
+            aabb.mins.z,
+            aabb.maxs.x,
+            aabb.maxs.y,
+            aabb.maxs.z,
+        ))
+    });
+    m.function("collider_mass", |eng: &Engine, node: NodeId| {
+        let entity = balaur_core::entity_of(node)?;
+        let state = eng.resource::<PhysicsState>();
+        let state = state.borrow();
+        let handle = state
+            .colliders
+            .get(&entity)
+            .and_then(|handles| handles.first())
+            .ok_or_else(|| anyhow!("node has no collider"))?;
+        Ok(state.world.colliders[*handle].mass())
+    });
 }

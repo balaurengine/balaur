@@ -55,8 +55,11 @@ hecs = "0.11"
 # crate built without physics in its graph gets the same math, not the platform's.
 glamx = { version = "0.3", features = ["libm", "scalar-math"] }
 notify = "8"
-rapier3d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render"] }
-rapier2d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render"] }
+# `unsync-callbacks` drops rapier's `Sync` bound on hooks and event handlers,
+# which is what lets one reach the script host (an `Rc`). See
+# docs/PLAN-rapier.md, "Events and hooks".
+rapier3d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render", "unsync-callbacks"] }
+rapier2d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render", "unsync-callbacks"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.9"

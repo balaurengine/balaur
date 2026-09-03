@@ -128,13 +128,28 @@ fn an_empty_file_is_refused_rather_than_replayed_as_nothing() {
     assert!(Session::read(&path).is_err());
 }
 
-/// A dial that counts up on its own, so the world it produces depends on
-/// what it was fed and nothing else.
+/// Simulation state derived from the dial, so what the world becomes depends
+/// on what it was fed and nothing else.
+struct Total(pub i64);
+
+/// The dial as the outside world moves it, and the sum a simulation makes of
+/// it. The dial is a replay source, so it is fed rather than simulated: a
+/// value that is both would be overwritten every tick by its own recording.
 fn ratchet(app: &mut App) {
-    app.add_system(balaur_core::Stage::Update, |eng: &Engine, _| {
+    app.engine.insert_resource(Total(0));
+    app.add_system(balaur_core::Stage::First, |eng: &Engine, _| {
+        if balaur_core::replay::is_playing(eng) {
+            return;
+        }
         let dial = eng.resource::<Dial>();
         let n = dial.borrow().0;
         dial.borrow_mut().0 = n + 1;
+    });
+    // FixedUpdate, because that is the stage a freeze holds: a paused replay
+    // stops the simulation, not every system in the frame.
+    app.add_system(balaur_core::Stage::FixedUpdate, |eng: &Engine, _| {
+        let n = eng.resource::<Dial>().borrow().0;
+        eng.resource::<Total>().borrow_mut().0 += n;
     });
 }
 
@@ -155,11 +170,14 @@ fn a_session_records_and_replays_in_one_process() {
     let started_at = app.engine.tick();
     let token_at = app.engine.next_token();
 
+    // A recording holds what the world was fed, not the world it started
+    // from, so what a replay reproduces is the change over its own window.
+    let total_before = app.engine.resource::<Total>().borrow().0;
     replay::start_recording(&app.engine, &path, ".", "hash", true).unwrap();
     for _ in 0..4 {
         app.advance(1.0 / 60.0);
     }
-    let live_dial = app.engine.resource::<Dial>().borrow().0;
+    let recorded_total = app.engine.resource::<Total>().borrow().0 - total_before;
     let live_token = app.engine.next_token();
     replay::stop_recording(&app.engine, "stop").unwrap();
 
@@ -185,7 +203,7 @@ fn a_session_records_and_replays_in_one_process() {
         app.advance(1.0 / 60.0);
     }
     assert_eq!(app.engine.tick(), started_at + 4);
-    assert_eq!(app.engine.resource::<Dial>().borrow().0, live_dial);
+    assert_eq!(app.engine.resource::<Total>().borrow().0, recorded_total);
     assert_eq!(app.engine.next_token(), live_token);
     assert!(
         app.engine
@@ -215,14 +233,14 @@ fn a_diverging_replay_names_the_tick() {
     // The same session against a world that counts by two: the code changed
     // under the recording, which is what a hot reload does.
     let mut app = app_with_dial();
-    app.add_system(balaur_core::Stage::Update, |eng: &Engine, _| {
-        let dial = eng.resource::<Dial>();
-        let n = dial.borrow().0;
-        dial.borrow_mut().0 = n + 2;
+    app.engine.insert_resource(Total(0));
+    app.add_system(balaur_core::Stage::FixedUpdate, |eng: &Engine, _| {
+        let n = eng.resource::<Dial>().borrow().0;
+        eng.resource::<Total>().borrow_mut().0 += n * 2;
     });
-    app.add_digest_source("dial", |eng: &Engine, out| {
+    app.add_digest_source("total", |eng: &Engine, out| {
         let mut h = balaur_core::digest::Hasher::new();
-        h.write_u64(eng.resource::<Dial>().borrow().0 as u64);
+        h.write_u64(eng.resource::<Total>().borrow().0 as u64);
         out.push(balaur_core::digest::Entry {
             label: String::from("value"),
             digest: h.finish(),
@@ -259,14 +277,14 @@ fn a_paused_replay_holds_the_world_still() {
     replay::play(&app.engine);
     app.advance(1.0 / 60.0);
     app.advance(1.0 / 60.0);
-    let held = app.engine.resource::<Dial>().borrow().0;
+    let held = app.engine.resource::<Total>().borrow().0;
 
     app.engine.resource::<ReplayPlayer>().borrow_mut().state = PlayState::Paused;
     for _ in 0..5 {
         app.advance(1.0 / 60.0);
     }
     assert_eq!(
-        app.engine.resource::<Dial>().borrow().0,
+        app.engine.resource::<Total>().borrow().0,
         held,
         "a paused replay must not advance the world"
     );

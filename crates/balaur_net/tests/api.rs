@@ -145,7 +145,7 @@ fn serve_echo() -> String {
             let mut connection = tungstenite::accept(stream).unwrap();
             loop {
                 match connection.read() {
-                    Ok(message) if message.is_text() => {
+                    Ok(message) if message.is_text() || message.is_binary() => {
                         let _ = connection.send(message);
                     }
                     // Reading through the close frame lets tungstenite flush
@@ -203,6 +203,31 @@ fn a_websocket_opens_echoes_and_closes() {
     // The handle is gone once the close lands; sending is a quiet false.
     let state = app.engine.resource::<NetState>();
     assert!(!state.borrow_mut().send_text(id, "late"));
+}
+
+#[test]
+fn a_websocket_carries_binary_frames_that_are_not_utf8() {
+    let url = serve_echo();
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_net(dir.path());
+    let id = app.engine.next_token();
+    {
+        let state = app.engine.resource::<NetState>();
+        state
+            .borrow_mut()
+            .connect(&app.engine, id, &url, SocketOptions::default(), None);
+    }
+    wait_for(&mut app, |snapshot| socket_event(snapshot, "open"));
+
+    // A lone 0xff is not UTF-8, so a payload that survives proves the frame
+    // never went through a string.
+    let payload = vec![0x00, 0xff, 0x10, 0xfe, 0x7f];
+    {
+        let state = app.engine.resource::<NetState>();
+        assert!(state.borrow_mut().send_bytes(id, payload.clone()));
+    }
+    let event = wait_for(&mut app, |snapshot| socket_event(snapshot, "binary"));
+    assert_eq!(field(&event, "bytes"), Some(&Value::Bytes(payload)));
 }
 
 #[test]

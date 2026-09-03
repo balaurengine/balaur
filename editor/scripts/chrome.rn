@@ -68,17 +68,33 @@ pub fn persona_bar(S) {
                         }) {
                             shell::toggle_play(S);
                         }
-                        let paused = S.playing && physics::is_paused();
+                        // A loaded session pauses through the player: pausing
+                        // physics alone would let the scripts run on and the
+                        // replay would stop reproducing the recording.
+                        let replaying = crate::session::loaded(S);
+                        let paused = if replaying {
+                            replay::state() == replay::STATE_PAUSED
+                        } else {
+                            S.playing && physics::is_paused()
+                        };
                         if ui::circle_button("⏸", #{
                             d: 32, size: 14,
                             fill: if paused { k.accent_fill } else { "#00000000" },
                             color: if paused { k.on_accent } else { k.dim },
-                            tooltip: "Pause simulation",
+                            tooltip: if replaying { "Pause playback" } else { "Pause simulation" },
                         }) {
-                            physics::set_paused(!physics::is_paused());
+                            if replaying {
+                                crate::session::toggle_pause(S);
+                            } else {
+                                physics::set_paused(!physics::is_paused());
+                            }
                         }
                         if ui::circle_button("■", #{ d: 32, size: 12, color: k.dim, tooltip: "Stop" }) {
-                            shell::stop_play(S);
+                            if replaying {
+                                crate::session::close(S);
+                            } else {
+                                shell::stop_play(S);
+                            }
                         }
                     });
                 });

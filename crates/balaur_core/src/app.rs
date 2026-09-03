@@ -168,6 +168,7 @@ impl App {
         engine.insert_resource(crate::rng::RngState::default());
         engine.insert_resource(crate::digest::DigestRegistry::default());
         engine.insert_resource(crate::replay::ReplayRegistry::default());
+        engine.insert_resource(crate::replay::ReplaySetupRegistry::default());
         engine.insert_resource(crate::replay::ReplayFeed::default());
         engine.insert_resource(crate::replay::ReplayMode::default());
         engine.insert_resource(crate::replay::Recording::default());
@@ -253,7 +254,7 @@ impl App {
         // After deferred destruction, so a recorded digest describes the
         // world the next tick starts from, and after every plugin's Last work
         // so nothing this frame produced is left out of the events.
-        app.add_system(Stage::Last, crate::replay::record_frame);
+        app.add_system(Stage::Last, crate::replay::record_frame_system);
         Ok(app)
     }
 
@@ -289,6 +290,29 @@ impl App {
     ) -> &mut Self {
         let sources = self.engine.resource::<crate::replay::ReplayRegistry>();
         sources
+            .borrow_mut()
+            .0
+            .push((name.to_string(), Box::new(capture), Box::new(restore)));
+        self
+    }
+
+    /// Declare state this plugin *loads* rather than simulates, so a replay
+    /// derives from what the recording had rather than what this machine has.
+    ///
+    /// Captured once into the recording's header and restored before its
+    /// first tick — input bindings are the case that made it exist: a player
+    /// who rebinds jump after recording a session would otherwise replay it
+    /// with a different action firing, and nothing would say so.
+    pub fn add_replay_setup(
+        &mut self,
+        name: &str,
+        capture: impl Fn(&Engine) -> serde_json::Value + 'static,
+        restore: impl Fn(&Engine, &serde_json::Value) + 'static,
+    ) -> &mut Self {
+        let registry = self
+            .engine
+            .resource::<crate::replay::ReplaySetupRegistry>();
+        registry
             .borrow_mut()
             .0
             .push((name.to_string(), Box::new(capture), Box::new(restore)));
@@ -580,6 +604,12 @@ impl App {
             };
             self.tick(dt);
             crate::replay::after_frame(&self.engine);
+            // A seek arrives mid-budget, and a script may pause from inside
+            // the frame that just ran: either way the rest of the budget is
+            // no longer wanted.
+            if !crate::replay::is_advancing(&self.engine) {
+                break;
+            }
         }
     }
 

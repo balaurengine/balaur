@@ -1,10 +1,41 @@
-> **Status:** not started. Investigated and written down on 2026-09-02. The
-> record and replay machinery exists (`crates/balaur_core/src/replay.rs`) and
-> the CLI drives it; nothing in the editor does, there is no script-facing
-> API, and three seams break when a recording and its replay share one
-> long-lived process. Decided up front: no per-tick digest by default, a hot
-> reload ends the recording where it happened, and sessions are kept in a
-> small ring rather than overwritten.
+> **Status:** built on 2026-09-02 — format 2 with a session origin, optional
+> per-tick digests, events and a trailer; the `replay` script module; the
+> editor records every play and replays one; the Session dock. `balaur run
+> --record` and `balaur replay --verify` now drive the same player the editor
+> does. See [generated/](generated/) for what the code actually does.
+>
+> **Where the implementation decided differently:**
+>
+> 1. **The origin is settled by the first recorded frame, not by the call to
+>    `record`.** Whether the frame a recording starts in is itself recorded
+>    depends on where in that frame the call lands: from a script's `update`
+>    the tick's own `Stage::Last` records it, from between two frames the next
+>    one is first. The recorder therefore holds its header back until the
+>    first frame is written and derives the origin tick and time from it. The
+>    token counter is *not* deferred — it has to be the value in force when
+>    recording began, because a request made between then and the first frame
+>    belongs to that frame.
+> 2. **The feed does not carry `dt`.** The plan put the recorded step on
+>    `ReplayFeed`; `App::advance` both feeds a frame and runs it, so it passes
+>    the step straight to `tick` and the feed keeps its one field.
+> 3. **A paused replay is held apart from a debugger pause.**
+>    `Engine::set_frozen` is the debugger's and only the Rune host touches it.
+>    A second flag, `set_replay_hold`, holds the simulation for a paused
+>    replay, and `frozen_root` answers for either — otherwise resuming one
+>    would release the other, and a breakpoint hit during a replay is both at
+>    once.
+> 4. **The recorder writes the frames, not the caller.** Recording had been a
+>    system the CLI added after boot, which a script could not start mid-run.
+>    It is now a resource core writes at `Stage::Last`, so `replay.record(…)`
+>    from the editor and `--record` from the command line are the same path.
+> 5. **A recorder dropped without `finish` still closes its file.** A
+>    recording with no trailer means the session crashed, and every run that
+>    simply exited would otherwise look like one.
+> 6. **Input lanes are derived by the editor, not by core.** `replay.marks`
+>    answers "which ticks had a non-empty list under this key of this source",
+>    and the dock asks for `("input", "just_pressed")`. Core never learns the
+>    shape of the input plugin's snapshot, and a new source gets a lane
+>    without a change here.
 
 # Plan: session recording and replay in the editor
 

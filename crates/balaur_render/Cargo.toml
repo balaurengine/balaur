@@ -35,7 +35,9 @@ balaur_ui = { workspace = true, optional = true }
 image = { version = "0.25", default-features = false, features = ["png"] }
 # Not optional either: linking a shader is CPU work with no GPU in it, and a
 # shader that fails to link is a bug only a headless test would catch.
-wesl = "0.4"
+# `eval` is the CPU evaluator: it validates a shader before naga would and
+# lets a `@const` function be asserted on in a test, both without a GPU.
+wesl = { version = "0.4", features = ["eval"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6", optional = true }

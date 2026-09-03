@@ -204,9 +204,10 @@ and components: those are the instance's, and its position moves the whole
 prefab.
 
 `overrides` is keyed by path from the instance node and holds scene keys —
-components and the transform both — applied once the prefab is built. A path
-that names nothing is reported and kept rather than dropped: the prefab may
-have moved the node, and the edit is still in the file.
+components, the transform, and `script`, whose `props` merge over the ones the
+prefab set, so one enemy file becomes a fast enemy and a slow one. A path that
+names nothing is reported and kept rather than dropped: the prefab may have
+moved the node, and the edit is still in the file.
 
 Identity is what makes two instances of one file distinguishable: every
 `StableId` inside an instance is prefixed by the instance's own id, so the
@@ -217,6 +218,15 @@ replay's `--entries-at` prints and the one a replication layer will address.
 A prefab that contains itself is an error naming the cycle, not a hang.
 Scripts inside an instance attach when the *outermost* scene is finished, so
 `init` can still look up anything the whole tree declares.
+
+**In the editor** an instance's nodes are read from its file and shown in the
+tree in place, one shade quieter, so what you see is the tree the game will
+build. Those rows are not the scene file's: editing one writes an `overrides`
+entry on the node that named the prefab, and an edit that lands back on the
+prefab's own value removes it again — the same sparseness a script's exported
+properties get, one level up. Structure is refused: adding, duplicating or
+deleting a node inside an instance would have nowhere in the file to live, and
+the editor says which prefab to open instead.
 
 ### Hot reload (core feature)
 
@@ -1189,6 +1199,13 @@ so a recording holds the keys that were pressed and the actions are derived
 from them again on the way back. Nothing about an action is recorded, and
 nothing about it is state a rollback has to carry.
 
+The binding table itself *is* recorded, in the header beside the RNG seed.
+Bindings are loaded state, not simulation: a player who rebinds jump after
+recording a session would otherwise replay it with a different action firing
+and nothing would say so. `App::add_replay_setup` is the seam — a once-at-start
+twin of `add_replay_source` for anything a plugin loads rather than simulates
+— and a recording made before a plugin declared its setup still plays.
+
 `input.bind("jump", "gamepad:North")` rebinds one action and saves every
 rebinding to `input.toml` in the user data directory, where the next boot
 reads it; `input.reset_bindings()` goes back to the project's. An action
@@ -1255,13 +1272,12 @@ website's roadmap is the short form of this list.
 | Debugger over the Debug Adapter Protocol | `docs/PLAN-debugger.md` phase 6 |
 | `#[export]` on a script constant, in place of the `exports` table | `docs/PLAN-scripting.md` phase 3 |
 | Stable asset ids, rename refactoring, sprite-sheet import | `docs/PLAN-scenes-and-assets.md` phases 3, 5, 6 |
-| Prefabs in the editor: instance rows, open-in-place, overrides from the inspector | `docs/PLAN-scenes-and-assets.md` phase 2 |
 | Extensions tier two: components, systems, calling back into scripts | `docs/PLAN-c-api.md` "What Tier 1 does not do" |
 | Joints, character controller, queries, collision events, voxels — the rest of Rapier's current API | `docs/PLAN-rapier.md` |
 | Soft bodies, tearing, fluids, granular materials | `docs/PLAN-physics.md` |
 | Animation blending, blend trees, state machines, 3D IK | `docs/PLAN-animation-and-resources.md` §6 |
 | 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |
-| Custom shaders and materials, written in WESL | `docs/PLAN-shaders.md` |
+| Shader channel views, the caret value preview, headless shader tests, post-process materials | `docs/PLAN-shaders.md` phases 6-9 |
 | Game UI toolkit, save games, localization, audio buses | `docs/PLAN-batteries.md` phases 2-6 |
 | Binary websocket frames, stable ids and respawn for run-time nodes, rollback netcode, WebTransport (QUIC) native and in the browser, replication and RPC, Gamend sessions, WebRTC for browser peer-to-peer; never raw UDP | `docs/PLAN-networking.md` §2, §3 |
 | Signed binary releases, published benchmarks | `docs/PLAN-release.md` |

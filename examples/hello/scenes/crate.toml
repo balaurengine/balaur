@@ -6,7 +6,12 @@
 id = "n_crate"
 name = "Crate"
 body3d = "dynamic"
-color = [0.72, 0.52, 0.28]
+
+# The canonical spelling. `color = [r, g, b]` is the shorthand and means the
+# same thing, but an editor override is written this way, so a prefab that
+# expects to be overridden reads better in full.
+[nodes.color]
+rgba = [0.72, 0.52, 0.28, 1.0]
 
 [nodes.collider3d]
 half_extents = [0.35, 0.35, 0.35]
@@ -21,7 +26,9 @@ id = "n_lid"
 name = "Lid"
 parent = "n_crate"
 position = [0, 0.4, 0]
-color = [0.45, 0.32, 0.17]
+
+[nodes.color]
+rgba = [0.45, 0.32, 0.17, 1.0]
 
 [nodes.shape3d]
 half_extents = [0.37, 0.05, 0.37]

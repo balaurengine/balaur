@@ -980,6 +980,9 @@ pub fn to_json(v: &Value) -> Result<serde_json::Value> {
         Value::Node(_) | Value::Callback(_) => {
             return Err(anyhow!("a node or callback is not JSON data"))
         }
+        // JSON has no byte string, and guessing an encoding here would make
+        // the round trip lossy in a way the caller never asked for.
+        Value::Bytes(_) => return Err(anyhow!("bytes are not JSON data; encode them first")),
         Value::Many(_) => return Err(anyhow!("several values are not one JSON document")),
         Value::Vec2(a) => json_number_list(a)?,
         Value::Vec3(a) => json_number_list(a)?,

@@ -90,6 +90,9 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
     if let Ok(s) = v.borrow_string_ref() {
         return Ok(Neutral::Str(s.to_string()));
     }
+    if let Ok(b) = v.borrow_ref::<rune::runtime::Bytes>() {
+        return Ok(Neutral::Bytes(b.as_slice().to_vec()));
+    }
     // Borrow rather than convert: `from_value` on a Rune `Any` moves the value
     // out of its shared cell, so reading a node would destroy it.
     if let Ok(n) = v.borrow_ref::<Node>() {
@@ -153,6 +156,9 @@ pub(crate) fn to_plain(v: &rune::Value) -> Option<Neutral> {
     if let Ok(s) = v.borrow_string_ref() {
         return Some(Neutral::Str(s.to_string()));
     }
+    if let Ok(b) = v.borrow_ref::<rune::runtime::Bytes>() {
+        return Some(Neutral::Bytes(b.as_slice().to_vec()));
+    }
     if let Ok(n) = v.borrow_ref::<Node>() {
         return Some(Neutral::Node(n.id));
     }
@@ -199,6 +205,8 @@ pub(crate) fn from_neutral(v: &Neutral) -> Result<rune::Value> {
         Neutral::Int(i) => rune::to_value(*i)?,
         Neutral::Num(n) => rune::to_value(*n)?,
         Neutral::Str(s) => rune::to_value(s.clone())?,
+        // Rune has its own allocator, so a std `Vec<u8>` crosses by slice.
+        Neutral::Bytes(b) => rune::to_value(rune::runtime::Bytes::from_slice(b.as_slice())?)?,
         Neutral::Node(id) => rune::to_value(Node { id: *id })?,
         Neutral::Vec2([x, y]) => rune::to_value(Vec2 {
             x: f64::from(*x),

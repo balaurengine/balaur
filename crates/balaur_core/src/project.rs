@@ -102,6 +102,10 @@ struct SceneNode {
 enum ScriptRef {
     Source(String),
     Tuned {
+        /// Absent in an override, which retunes the script the prefab already
+        /// gave the node rather than replacing it. A node's own `script` must
+        /// name one, and is told so if it does not.
+        #[serde(default)]
         source: String,
         #[serde(default)]
         props: toml::Table,
@@ -431,6 +435,9 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
             }
         }
         if let Some(script) = &node.script {
+            if script.source().is_empty() {
+                bail!("node '{}' has a script key with no source", node.name);
+            }
             let props = script
                 .props()
                 .with_context(|| format!("script properties on node '{}'", node.name))?;
@@ -441,7 +448,7 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
         if let Some(prefab) = &node.instance {
             build_instance(eng, node, &ids[index], entity, build)
                 .with_context(|| format!("instance '{prefab}' on node '{}'", node.name))?;
-            apply_overrides(eng, node, entity, handlers);
+            apply_overrides(eng, node, entity, handlers, build);
         }
     }
     Ok(())
@@ -483,6 +490,7 @@ fn apply_overrides(
     node: &SceneNode,
     entity: Entity,
     handlers: &[(String, SceneKeyHandler)],
+    build: &mut Build,
 ) {
     for (path, table) in &node.overrides {
         let Some(target) = scene::find_node(&eng.world(), entity, path) else {
@@ -500,6 +508,11 @@ fn apply_overrides(
             continue;
         };
         apply_transform_keys(eng, target, table);
+        if let Some(script) = table.get("script") {
+            if let Err(err) = override_script(build, target, script) {
+                tracing::error!("override '{path}.script' on node '{}': {err:#}", node.name);
+            }
+        }
         for (key, handler) in handlers {
             if let Some(value) = table.get(key) {
                 if let Err(err) = handler(eng, target, value) {
@@ -508,7 +521,10 @@ fn apply_overrides(
             }
         }
         for key in table.keys() {
-            if !TRANSFORM_KEYS.contains(&key.as_str()) && !handlers.iter().any(|(k, _)| k == key) {
+            if key != "script"
+                && !TRANSFORM_KEYS.contains(&key.as_str())
+                && !handlers.iter().any(|(k, _)| k == key)
+            {
                 tracing::warn!(
                     "override '{path}.{key}' on node '{}' has no registered handler",
                     node.name
@@ -516,6 +532,32 @@ fn apply_overrides(
             }
         }
     }
+}
+
+/// Retune a prefab node's script from the instance that named it: the
+/// override's `props` are merged over the ones the prefab set, and its
+/// `source` replaces the file.
+///
+/// This edits the pending attachment rather than the node, because a script
+/// is attached once the whole tree exists — which has not happened yet. An
+/// override on a node the prefab gave no script to is one nothing can act on,
+/// so it says so.
+fn override_script(build: &mut Build, target: Entity, value: &toml::Value) -> Result<()> {
+    let over: ScriptRef = value.clone().try_into().context("reading the script key")?;
+    let props = over.props()?;
+    let Some(pending) = build.pending.iter_mut().find(|(e, _, _)| *e == target) else {
+        bail!("the node it names has no script to retune");
+    };
+    if !over.source().is_empty() {
+        pending.1 = over.source().to_string();
+    }
+    for (name, value) in props {
+        match pending.2.iter_mut().find(|(n, _)| *n == name) {
+            Some(slot) => slot.1 = value,
+            None => pending.2.push((name, value)),
+        }
+    }
+    Ok(())
 }
 
 /// The keys every node has, which an override may set like any other.

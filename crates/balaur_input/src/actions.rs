@@ -252,13 +252,7 @@ impl InputActions {
 /// identical to the one that was played, edges included.
 pub(crate) fn tick(eng: &Engine) {
     let actions = eng.resource::<InputActions>();
-    if !actions.borrow().loaded {
-        let loaded = load(eng);
-        let mut actions = actions.borrow_mut();
-        actions.bound = loaded;
-        actions.loaded = true;
-        apply_saved_rebindings(eng, &mut actions);
-    }
+    ensure_loaded(eng);
     let keys = eng.resource::<InputSnapshot>();
     let pads = eng.resource::<GamepadState>();
     let keys = keys.borrow();
@@ -274,6 +268,68 @@ pub(crate) fn tick(eng: &Engine) {
         slot.previous = slot.value;
         slot.value = value;
     }
+}
+
+/// Load the project's table and the player's rebindings over it, once.
+///
+/// Lazy because the manifest is read when the project loads, which is after
+/// every plugin has been built — and because a recording's header may have
+/// put a table here first, in which case there is nothing to load.
+fn ensure_loaded(eng: &Engine) {
+    let actions = eng.resource::<InputActions>();
+    if actions.borrow().loaded {
+        return;
+    }
+    let loaded = load(eng);
+    let mut actions = actions.borrow_mut();
+    actions.bound = loaded;
+    actions.loaded = true;
+    apply_saved_rebindings(eng, &mut actions);
+}
+
+/// What a recording carries, so a replay derives its actions from the
+/// bindings that were in force when it was made.
+///
+/// Every binding, not only the rebound ones: the project's table can change
+/// between recording and replay too.
+fn capture_bindings(eng: &Engine) -> serde_json::Value {
+    ensure_loaded(eng);
+    let actions = eng.resource::<InputActions>();
+    let actions = actions.borrow();
+    let table: BTreeMap<String, Vec<String>> = actions
+        .bound
+        .keys()
+        .map(|name| (name.clone(), actions.bindings(name)))
+        .collect();
+    serde_json::to_value(table).unwrap_or(serde_json::Value::Null)
+}
+
+/// Put a recording's bindings in front of the session, and mark the table
+/// loaded so nothing overwrites them with this machine's.
+fn restore_bindings(eng: &Engine, value: &serde_json::Value) {
+    let Ok(table) = serde_json::from_value::<BTreeMap<String, Vec<String>>>(value.clone()) else {
+        tracing::warn!("the recording's input bindings did not parse; using this project's");
+        return;
+    };
+    let actions = eng.resource::<InputActions>();
+    let mut actions = actions.borrow_mut();
+    actions.bound.clear();
+    actions.overrides.clear();
+    actions.state.clear();
+    actions.loaded = true;
+    for (name, bindings) in table {
+        if let Err(why) = actions.rebind(&name, &bindings) {
+            tracing::warn!("recorded binding for '{name}': {why}");
+        }
+    }
+    // `rebind` files everything as an override; a replay's table is not the
+    // player's, so it must not be written back to their file.
+    actions.overrides.clear();
+}
+
+/// Register the header seam. Called from the plugin's `build`.
+pub(crate) fn add_replay_setup(app: &mut balaur_core::App) {
+    app.add_replay_setup("input_bindings", capture_bindings, restore_bindings);
 }
 
 /// The `[input.actions]` table of the project's manifest.

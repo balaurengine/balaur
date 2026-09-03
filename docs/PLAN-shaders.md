@@ -10,7 +10,12 @@
 > `render::material_params` gives the inspector a row per field the shader
 > declares, written straight back to the material file; and a `.wesl` opens
 > in the code editor, highlighted as WESL, from the material that names it.
-> Phases 5-9 are not started.
+> Phase 5 came with the asset: `[features]` picks a variant at link time.
+> Phase 8 is built — WESL validation catches a call to a name nothing
+> declares, and `shaders::eval_floats` runs a `@const` shader function on the
+> CPU, so the lighting is asserted on headless. Phase 7's rewrite is built
+> (`balaur_render::preview`); drawing it and reading a texel back are not.
+> Phases 6 and 9 are not started.
 >
 > **Where the implementation decided differently:**
 >
@@ -68,7 +73,26 @@
 >    aims the existing editor at a `.wesl`; the hooks panel and the
 >    breakpoint gutter stand down, because neither means anything in a
 >    shader, and saving writes the file rather than rebuilding a unit.
-> 13. **2D has no room for a fifth group either.** The sprite material already
+> 13. **Validation catches names, not types.** With wesl's `eval` feature on,
+>    `validate: true` rejects a call to a function nothing declares — which
+>    otherwise reaches naga and so needs a GPU to find. It does not check
+>    types: a `vec4` function returning `1.0` still links. naga stays the
+>    type checker.
+> 14. **`@const` is stripped on the way out, not at link.** The attribute is
+>    what lets `eval_floats` call a shader function, so it has to survive
+>    linking; WGSL has no such thing, so `shaders::wgsl` drops it from what a
+>    backend compiles. Stripping it earlier makes the evaluator refuse its
+>    own helpers.
+> 15. **The preview is a derived source, not `@if(debug)` in the author's
+>    file.** The plan put the channel behind a feature flag; a rewrite that
+>    produces a second source is simpler, leaves the file alone and needs no
+>    flag, and the channel is what ships nowhere.
+> 16. **The preview needs the type written.** WESL's type checker is not
+>    exposed (`wgsl-types` has it, `wesl` does not re-export it), so
+>    `preview` reads the type off an annotation or a constructor and says
+>    what to write when there is neither. Guessing would draw a shader that
+>    does not compile.
+> 17. **2D has no room for a fifth group either.** The sprite material already
 >    uses frame, object, texture and params. When `docs/PLAN-rendering.md`
 >    adds 2D lights they fold into the frame group; they cannot take a group
 >    of their own.

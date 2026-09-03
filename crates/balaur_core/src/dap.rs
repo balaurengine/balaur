@@ -112,6 +112,10 @@ impl Server {
     ///
     /// # Errors
     /// If no client finishes configuring in time.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "waits for a debugger before the frame loop exists, outside simulation"
+    )]
     pub fn wait_for_attach(&self, timeout: Duration) -> Result<()> {
         let deadline = Instant::now() + timeout;
         while Instant::now() < deadline {
@@ -709,5 +713,6 @@ fn render(value: &Value) -> String {
         Value::Callback(_) => "function".into(),
         Value::List(items) | Value::Many(items) => format!("[{} items]", items.len()),
         Value::Map(entries) => format!("{{{} fields}}", entries.len()),
+        Value::Bytes(b) => format!("{} bytes", b.len()),
     }
 }

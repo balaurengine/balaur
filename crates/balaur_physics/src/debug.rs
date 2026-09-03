@@ -13,7 +13,7 @@ use rapier3d::pipeline::{
     DebugRenderBackend, DebugRenderMode, DebugRenderObject, DebugRenderPipeline,
 };
 
-use crate::vocabulary::{map, Opts};
+use crate::vocabulary::Opts;
 use crate::{PhysicsState, PhysicsState2d};
 
 /// What the physics debug draw shows. Written by scripts and the editor, read
@@ -71,7 +71,7 @@ struct Lines3d<'a> {
 impl DebugRenderBackend for Lines3d<'_> {
     fn draw_line(
         &mut self,
-        _object: DebugRenderObject,
+        _object: DebugRenderObject<'_>,
         a: rapier3d::math::Vector,
         b: rapier3d::math::Vector,
         color: [f32; 4],
@@ -88,7 +88,7 @@ struct Lines2d<'a> {
 impl rapier2d::pipeline::DebugRenderBackend for Lines2d<'_> {
     fn draw_line(
         &mut self,
-        _object: rapier2d::pipeline::DebugRenderObject,
+        _object: rapier2d::pipeline::DebugRenderObject<'_>,
         a: rapier2d::math::Vector,
         b: rapier2d::math::Vector,
         color: [f32; 4],
@@ -126,26 +126,25 @@ fn draw_system(eng: &Engine, _dt: f32) {
     let mut debug = debug.borrow_mut();
     let debug = &mut *debug;
     debug.pipeline.mode = config.mode;
-    debug.pipeline_2d.mode = rapier2d::pipeline::DebugRenderMode::from_bits_truncate(
-        config.mode.bits(),
-    );
+    debug.pipeline_2d.mode =
+        rapier2d::pipeline::DebugRenderMode::from_bits_truncate(config.mode.bits());
     if let Some(buffer) = eng.try_resource::<DebugLineBuffer>() {
         let state = eng.resource::<PhysicsState>();
-        state
-            .borrow()
-            .world
-            .debug_render(&mut debug.pipeline, &mut Lines3d {
+        state.borrow().world.debug_render(
+            &mut debug.pipeline,
+            &mut Lines3d {
                 out: &mut buffer.borrow_mut(),
-            });
+            },
+        );
     }
     if let Some(buffer) = eng.try_resource::<DebugLineBuffer2d>() {
         let state = eng.resource::<PhysicsState2d>();
-        state
-            .borrow()
-            .world
-            .debug_render(&mut debug.pipeline_2d, &mut Lines2d {
+        state.borrow().world.debug_render(
+            &mut debug.pipeline_2d,
+            &mut Lines2d {
                 out: &mut buffer.borrow_mut(),
-            });
+            },
+        );
     }
 }
 
@@ -190,7 +189,10 @@ pub(crate) fn install_debug_api(m: &mut dyn Bindings<Engine>) {
         let config = config.borrow();
         let mut out = vec![("enabled".to_string(), Value::Bool(config.enabled))];
         for (name, flag) in DEBUG_MODES {
-            out.push(((*name).to_string(), Value::Bool(config.mode.contains(*flag))));
+            out.push((
+                (*name).to_string(),
+                Value::Bool(config.mode.contains(*flag)),
+            ));
         }
         Ok(Value::Map(out))
     });

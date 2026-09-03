@@ -52,6 +52,17 @@ pub type RestoreFn = Box<dyn Fn(&Engine, &serde_json::Value)>;
 #[derive(Default)]
 pub struct ReplayRegistry(pub Vec<(String, CaptureFn, RestoreFn)>);
 
+/// The same seam for state that is decided once, before the first tick, and
+/// then read all session: input bindings, a locale, an audio mix.
+///
+/// Per-tick capture would be waste — the value does not change — but leaving
+/// it out entirely means a replay derives from whatever the *replaying*
+/// machine has, which is how a rebound key silently changes what a recording
+/// reproduces. This is the RNG seed's treatment for everything else that is
+/// loaded rather than simulated.
+#[derive(Default)]
+pub struct ReplaySetupRegistry(pub Vec<(String, CaptureFn, RestoreFn)>);
+
 /// The frame the next tick will be fed, set by whoever drives a replay.
 ///
 /// A resource rather than a system the driver adds, because the restore has
@@ -242,6 +253,11 @@ pub struct Header {
     /// When the session started, for naming and listing it.
     #[serde(default)]
     pub started: String,
+    /// Loaded state a plugin declared through `App::add_replay_setup`, keyed
+    /// by its name. Restored before the first tick, so what a recording
+    /// derives is what it derived when it was made.
+    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub setup: serde_json::Map<String, serde_json::Value>,
 }
 
 /// One recorded tick.
@@ -294,6 +310,32 @@ pub fn capture(eng: &Engine) -> serde_json::Map<String, serde_json::Value> {
         }
     }
     out
+}
+
+/// Everything the setup registry declares, for a recording's header.
+fn capture_setup(eng: &Engine) -> serde_json::Map<String, serde_json::Value> {
+    let mut out = serde_json::Map::new();
+    if let Some(registry) = eng.try_resource::<ReplaySetupRegistry>() {
+        for (name, capture, _) in &registry.borrow().0 {
+            out.insert(name.clone(), capture(eng));
+        }
+    }
+    out
+}
+
+/// Put a recording's setup back before its first tick. A name the file does
+/// not carry is left alone, so a recording made before a plugin declared its
+/// setup still plays — with that plugin reading whatever this machine has,
+/// which is what it did before this existed.
+fn restore_setup(eng: &Engine, setup: &serde_json::Map<String, serde_json::Value>) {
+    let Some(registry) = eng.try_resource::<ReplaySetupRegistry>() else {
+        return;
+    };
+    for (name, _, restore) in &registry.borrow().0 {
+        if let Some(value) = setup.get(name) {
+            restore(eng, value);
+        }
+    }
 }
 
 /// Feed a recorded tick back in. A source missing from the file keeps
@@ -357,10 +399,9 @@ impl Recorder {
     /// worth having recorded.
     pub fn write(&mut self, frame: &Frame) -> Result<()> {
         if let Some(mut header) = self.header.take() {
-            // The first frame says where the session really starts, which the
-            // moment `record` was called could not: a call from inside a
-            // frame is recorded from that frame, a call between two from the
-            // next one.
+            // Only the first frame says where the session really starts: a
+            // `record` call inside a frame is recorded from that frame, one
+            // between two frames from the next.
             header.origin.tick = frame.tick.saturating_sub(1);
             header.origin.time -= f64::from(frame.step());
             self.write_line(&header)?;
@@ -463,6 +504,7 @@ pub struct Recording(pub Option<Recorder>);
 /// Written here rather than taken from a date crate because this is the only
 /// date the engine formats, and the civil-date conversion is shorter than the
 /// dependency.
+#[allow(clippy::disallowed_methods, reason = "names a recording file, not simulation")]
 pub fn timestamp() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -507,6 +549,7 @@ pub fn start_recording(
         origin: Origin::of(eng),
         scripts: scripts.to_string(),
         started: timestamp(),
+        setup: capture_setup(eng),
     };
     let recorder = Recorder::create(path, header, per_tick_digest)?;
     *eng.resource::<ReplayMode>().borrow_mut() = ReplayMode::Recording;
@@ -539,7 +582,7 @@ pub fn stop_recording(eng: &Engine, reason: &str) -> Option<PathBuf> {
 ///
 /// Core runs this at the end of every frame, after deferred destruction, so a
 /// digest describes the world the next tick starts from.
-pub(crate) fn record_frame(eng: &Engine, dt: f32) {
+pub(crate) fn record_frame_system(eng: &Engine, dt: f32) {
     let recording = eng.resource::<Recording>();
     if let Some(recorder) = recording.borrow_mut().0.as_mut() {
         let mut events = std::mem::take(&mut eng.resource::<EventLog>().borrow_mut().0);
@@ -787,6 +830,7 @@ impl ReplayPlayer {
 /// suppressed, and one that takes a token must take the recorded one.
 pub fn begin(eng: &Engine, session: Session) {
     session.header.origin.restore(eng);
+    restore_setup(eng, &session.header.setup);
     let seed = session.header.seed;
     crate::rng::with_rng(eng, |rng| *rng = crate::rng::Pcg32::from_state(seed));
     *eng.resource::<ReplayMode>().borrow_mut() = ReplayMode::Playing;
@@ -808,6 +852,14 @@ pub fn play(eng: &Engine) {
     if player.remaining() > 0 {
         player.state = PlayState::Playing;
     }
+}
+
+/// Whether the player would feed another frame right now.
+pub fn is_advancing(eng: &Engine) -> bool {
+    eng.try_resource::<ReplayPlayer>().is_some_and(|p| {
+        let p = p.borrow();
+        matches!(p.state, PlayState::Playing | PlayState::Seeking) && p.remaining() > 0
+    })
 }
 
 /// Whether a loaded session still has frames to feed.

@@ -4,6 +4,7 @@
 use crate::anim;
 use crate::lint;
 use crate::model;
+use crate::session;
 use crate::shell;
 use crate::style;
 use crate::util;
@@ -12,7 +13,7 @@ fn tab_row(S, k) {
     ui::horizontal(#{ height: 34 }, || {
         ui::spacing(6, 0);
         ui::add_space(6);
-        let tabs = ["output", "problems", "assets", "timeline", "debugger"];
+        let tabs = ["output", "problems", "assets", "timeline", "debugger", "session"];
         for entry in S.registry.docks {
             tabs.push(entry.id);
         }
@@ -671,9 +672,178 @@ fn open_at(S, f) {
     S.doctab = "scene";
 }
 
+// Session: the recordings this game has made, and the one being played back.
+// The lanes are the Animate timeline's over ticks instead of seconds, and
+// clicking the ruler seeks — backwards by rebuilding and running to it again.
+fn session_view(S, k) {
+    ui::add_space(4);
+    if !session::loaded(S) {
+        session_list(S, k);
+        return;
+    }
+    let first = S.session.first;
+    let last = S.session.last;
+    let span = util::max(1.0, util::f(last - first));
+    let name_w = 120.0;
+    let lane_w = util::max(120.0, ui::available_width() - name_w - 60.0);
+
+    ui::horizontal(#{ height: 26 }, || {
+        ui::add_space(8);
+        ui::horizontal(#{ height: 26, width: name_w - 12.0 }, || {
+            let playing = replay::state() == replay::STATE_PLAYING;
+            if ui::pill(if playing { "⏸ Pause" } else { "▶ Play" }, #{
+                height: 22, size: 11, strong: true,
+                fill: k.accent_soft, color: k.accent,
+            }) {
+                session::toggle_pause(S);
+            }
+            if ui::pill("■ Close", #{
+                height: 22, size: 11, strong: true, tooltip: "Back to the edited scene",
+                fill: k.sunken, color: k.dim,
+            }) {
+                session::close(S);
+                return;
+            }
+        });
+        let at = util::f(replay::position() - first);
+        let (t, scrubbed) = ui::slider(at, 0.0, span, #{
+            width: lane_w,
+            rail: k.sunken, fill: k.accent_fill, knob: k.bg,
+        });
+        if scrubbed {
+            session::seek(S, first + util::i(t));
+        }
+        ui::add_space(6);
+        ui::label(format!("{} / {}", replay::position(), last), style::mono_sm(k.faint));
+    });
+
+    // A divergence is information, not a failure: the replay ran, and this is
+    // the tick at which it stopped reproducing what was recorded.
+    let split = replay::diverged();
+    if split is Object {
+        ui::horizontal(#{ height: 20 }, || {
+            ui::add_space(8);
+            ui::label(format!("parted from the recording at tick {}", split.tick),
+                style::mono_sm(k.accent));
+        });
+    }
+
+    ui::scroll("session-lanes", (), || {
+        ui::spacing(4, 2);
+        for lane in S.session.lanes {
+            ui::horizontal(#{ height: 20 }, || {
+                ui::add_space(8);
+                ui::horizontal(#{ height: 20, width: name_w - 12.0 }, || {
+                    ui::label(lane.name, style::mono_sm(k.dim));
+                });
+                lane_marks(S, k, lane, first, span, lane_w);
+            });
+        }
+        detail(S, k);
+    });
+}
+
+// One lane's dots, placed by tick. Drawn as a row of fixed-width slots rather
+// than free-positioned marks, because the widget seam has no canvas.
+fn lane_marks(S, k, lane, first, span, lane_w) {
+    let slots = util::i(util::max(24.0, util::min(160.0, lane_w / 6.0)));
+    let hits = [];
+    for _ in 0..slots {
+        hits.push(());
+    }
+    for mark in lane.marks {
+        let at = util::f(mark.tick - first) / span;
+        let i = util::i(util::clamp(at * util::f(slots - 1), 0.0, util::f(slots - 1)));
+        hits[i] = mark;
+    }
+    let w = lane_w / util::f(slots);
+    for (i, hit) in hits.iter().enumerate() {
+        ui::horizontal(#{ height: 20, width: w }, || {
+            if hit is Object {
+                let behind = hit.tick <= replay::position();
+                if ui::pill("", #{
+                    height: 8, width: util::max(4.0, w - 2.0), tooltip: format!("{}: {}", hit.tick, hit.label),
+                    fill: if behind { k.accent } else { k.line_soft }, color: k.dim,
+                }) {
+                    session::seek(S, hit.tick);
+                }
+            }
+        });
+    }
+}
+
+// Everything recorded at the tick the playhead is on, in the order it
+// happened.
+fn detail(S, k) {
+    let at = S.session.at;
+    let rows = util::vec(replay::events(at, at));
+    if rows.len() == 0 {
+        return;
+    }
+    ui::add_space(6);
+    for e in rows {
+        ui::horizontal(#{ height: 18 }, || {
+            ui::add_space(8);
+            ui::label(format!("{}", e.tick), style::mono_sm(k.faint));
+            ui::label(e.kind, style::mono_sm(k.dim));
+            ui::label(e.label, style::mono_sm(k.text));
+        });
+    }
+}
+
+// Every recording this game has made, newest first. "Keep" renames one out of
+// the ring that prunes the oldest, so a session worth returning to survives
+// the next ten runs.
+fn session_list(S, k) {
+    let names = session::listing(S);
+    if names.len() == 0 {
+        ui::horizontal(#{ height: 26 }, || {
+            ui::add_space(8);
+            ui::label("no sessions yet — press Play and the run is recorded",
+                style::mono(k.faint));
+        });
+        return;
+    }
+    ui::scroll("session-list", (), || {
+        ui::spacing(4, 2);
+        for name in names {
+            ui::horizontal(#{ height: 22 }, || {
+                ui::add_space(8);
+                if ui::pill("▶", #{
+                    height: 20, size: 11, strong: true, tooltip: "Replay this session",
+                    fill: k.accent_soft, color: k.accent,
+                }) {
+                    session::open(S, name);
+                    return;
+                }
+                ui::label(name, style::mono_sm(k.text));
+                ui::right(|| {
+                    ui::add_space(8);
+                    if ui::pill("delete", #{
+                        height: 20, size: 10, strong: true,
+                        fill: k.sunken, color: k.faint,
+                    }) {
+                        session::remove(S, name);
+                        return;
+                    }
+                    if !name.starts_with("kept-") && ui::pill("keep", #{
+                        height: 20, size: 10, strong: true,
+                        tooltip: "Never prune this one",
+                        fill: k.sunken, color: k.dim,
+                    }) {
+                        session::keep(S, name);
+                        return;
+                    }
+                });
+            });
+        }
+    });
+}
+
 pub fn draw(S) {
     let k = S.theme;
-    let height = if S.dock == "timeline" || S.dock == "debugger" { 212 } else { 150 };
+    let tall = S.dock == "timeline" || S.dock == "debugger" || S.dock == "session";
+    let height = if tall { 212 } else { 150 };
     ui::bottom_panel("dock", #{ height: height, fill: k.panel }, || {
         tab_row(S, k);
         if S.dock == "problems" {
@@ -684,6 +854,8 @@ pub fn draw(S) {
             timeline(S, k);
         } else if S.dock == "debugger" {
             debugger_view(S, k);
+        } else if S.dock == "session" {
+            session_view(S, k);
         } else {
             match crate::plugins::dock(S, S.dock) {
                 Some(entry) => {

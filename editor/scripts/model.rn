@@ -127,6 +127,7 @@ pub fn set_script_prop(S, prop, value) {
         props[prop] = stored;
     }
     node.script = if props.is_empty() { rel } else { #{ source: rel, props: props } };
+    record_override(S, node, "script");
 }
 
 // The editors all drag floats, so an export declared as a whole number is
@@ -359,6 +360,103 @@ pub fn node_icon(node) {
     }
 }
 
+// How deep prefabs may nest before the editor stops following them. The
+// engine refuses a cycle outright; this is only a guard on pathological
+// depth, so it can be generous.
+const INSTANCE_DEPTH = 8;
+
+// Read every `instance` node's prefab and add its nodes to the document as
+// rows the file does not own, so the tree the editor shows is the tree the
+// game will build.
+//
+// A virtual row carries `owner` (the id of the node that named the prefab)
+// and `at` (its path inside that instance). Those two are what turn an edit
+// into an `overrides` entry, and what keeps the row out of the file.
+pub fn expand_instances(S) {
+    let out = [];
+    for node in S.doc {
+        if node.contains_key("owner") {
+            continue;
+        }
+        out.push(node);
+        if node.contains_key("instance") {
+            expand_one(S, out, node, node.instance, node.id, "", 0);
+        }
+    }
+    S.doc = out;
+}
+
+fn expand_one(S, out, owner, rel, id_prefix, at_prefix, depth) {
+    if depth >= INSTANCE_DEPTH {
+        log::warn(format!("prefabs nest deeper than {} in {}", INSTANCE_DEPTH, rel));
+        return;
+    }
+    let text = match source(S, rel) {
+        Some(text) => text,
+        None => {
+            log::warn("instance '" + rel + "' on '" + owner.name + "' names no file");
+            return;
+        }
+    };
+    let inner = util::vec(util::obj(toml::parse(text)).get("nodes").unwrap_or([]));
+    normalize(inner);
+    let overrides = util::obj(owner.get("overrides").unwrap_or(#{}));
+    for node in inner {
+        let at = at_prefix + node_path(inner, node);
+        let row = #{};
+        for (key, value) in node.iter() {
+            row[key] = value;
+        }
+        row.id = id_prefix + "/" + node.id;
+        row.parent = if node.parent == "" { id_prefix } else { id_prefix + "/" + node.parent };
+        row.owner = owner.id;
+        row.at = at;
+        // What the prefab itself says, kept so an edit that lands back on it
+        // stops being an override — the same sparseness a script's exported
+        // properties get, one level up.
+        row.base = util::copy(row);
+        // What the instance says about this node wins, key by key, exactly as
+        // the engine applies it.
+        for (key, value) in util::obj(overrides.get(at).unwrap_or(#{})).iter() {
+            row[key] = value;
+        }
+        out.push(row);
+        if row.contains_key("instance") {
+            expand_one(S, out, owner, row.instance, row.id, at + "/", depth + 1);
+        }
+    }
+}
+
+// The rows the scene file owns — everything the editor writes, and everything
+// the mirror is built from, since the engine expands an instance itself.
+pub fn authored(doc) {
+    let out = [];
+    for node in doc {
+        if !node.contains_key("owner") {
+            out.push(node);
+        }
+    }
+    out
+}
+
+// Whether this row came from a prefab rather than from the scene file. A
+// virtual row can be inspected and its properties overridden; it cannot be
+// renamed, reparented, duplicated or deleted, because structure is the
+// prefab's (`docs/PLAN-scenes-and-assets.md`).
+pub fn is_instanced(node) {
+    node.contains_key("owner")
+}
+
+// Structural equality through the encoder, because a scene key's value is a
+// table or an array as often as it is a number, and one spelling of "equal"
+// for all of them is what keeps an override sparse.
+fn same_value(a, b) {
+    match b {
+        Some(b) => toml::encode(#{ v: a }) == toml::encode(#{ v: b }),
+        None => false,
+    }
+}
+
 // The engine repairs a missing id at load; the editor has to arrive at the
 // same one or its refs point at nothing.
 fn normalize(doc) {
@@ -394,6 +492,7 @@ pub fn load(S) {
     let doc = toml::parse(must_read(S.scene_path));
     S.doc = util::vec(doc.get("nodes").unwrap_or([]));
     normalize(S.doc);
+    expand_instances(S);
     S.sel = 0;
     history::reset(S);
     build_mirror(S);
@@ -466,7 +565,7 @@ pub fn build_mirror(S) {
     debugger::set_scope(S.mirror);
     // The document, not the file: a mirror read from disk cannot hold an
     // unsaved edit, which left a duplicated node with no live node at all.
-    scene::instantiate(toml::encode(#{ nodes: absolute_files(S, S.doc) }), S.mirror, #{ scripts: false });
+    scene::instantiate(toml::encode(#{ nodes: absolute_files(S, authored(S.doc)) }), S.mirror, #{ scripts: false });
     physics::set_paused(true);
     S.playing = false;
     S.refs = [];
@@ -542,6 +641,7 @@ pub fn set_transform(S, i, parts) {
         match parts.get(key) {
             Some(v) => {
                 node[key] = v;
+                record_override(S, node, key);
                 match target {
                     Some(t) => apply_transform(t, key, v),
                     None => (),
@@ -584,7 +684,7 @@ pub fn selected_node(S) {
 // Write the document back to the scene file (hot reload on the game side is
 // the game's watcher's business; the editor is a plain writer).
 pub fn save(S) {
-    fs::write(S.scene_path, toml::encode(#{ nodes: S.doc }));
+    fs::write(S.scene_path, toml::encode(#{ nodes: authored(S.doc) }));
     forget(S, None);
     history::mark_saved(S);
     log::info("saved " + S.scene_rel);
@@ -602,7 +702,29 @@ fn name_taken(doc, candidate) {
 // Add a node under the selected one, in both document and mirror, optionally
 // applying a preset. A preset is a recipe: the components land on the node
 // and nothing records which one put them there.
+// Structure inside an instance belongs to the prefab: a node added, renamed
+// or removed here would have nowhere in the file to live. Property overrides
+// only (`docs/PLAN-scenes-and-assets.md`).
+fn refuse_structure(S, what) {
+    if !is_instanced(S.doc[S.sel]) {
+        return false;
+    }
+    log::warn("cannot " + what + " inside an instance; open " + prefab_of(S, S.doc[S.sel]) + " to change its structure");
+    true
+}
+
+// The prefab file a virtual row came from, for a message that says where to go.
+pub fn prefab_of(S, node) {
+    match by_id(S.doc, node.get("owner").unwrap_or("")) {
+        Some(owner) => owner.get("instance").unwrap_or("the prefab"),
+        None => "the prefab",
+    }
+}
+
 pub fn add_child(S, preset) {
+    if refuse_structure(S, "add a node") {
+        return;
+    }
     history::record(S, "add node", None);
     let parent = S.doc[S.sel];
     let base = "Node";
@@ -658,6 +780,7 @@ pub fn open_scene(S, rel) {
     let doc = toml::parse(fs::read(S.scene_path));
     S.doc = util::vec(doc.get("nodes").unwrap_or([]));
     normalize(S.doc);
+    expand_instances(S);
     S.sel = 0;
     history::reset(S);
     build_mirror(S);
@@ -704,6 +827,38 @@ pub fn sync_component_doc(S, name) {
         node[name] = doc_value(S, name, data, node.get(name));
     } else {
         node.remove(name);
+    }
+    record_override(S, node, name);
+}
+
+// An edit to a row inside an instance is not written to the file — the row is
+// not in it. It becomes an `overrides` entry on the node that named the
+// prefab, which is.
+pub fn record_override(S, node, key) {
+    if !is_instanced(node) {
+        return;
+    }
+    let owner = match by_id(S.doc, node.owner) {
+        Some(owner) => owner,
+        None => return,
+    };
+    let table = util::obj(owner.get("overrides").unwrap_or(#{}));
+    let entry = util::obj(table.get(node.at).unwrap_or(#{}));
+    let base = util::obj(node.get("base").unwrap_or(#{}));
+    if node.contains_key(key) && !same_value(node[key], base.get(key)) {
+        entry[key] = node[key];
+    } else {
+        entry.remove(key);
+    }
+    if entry.is_empty() {
+        table.remove(node.at);
+    } else {
+        table[node.at] = entry;
+    }
+    if table.is_empty() {
+        owner.remove("overrides");
+    } else {
+        owner.overrides = table;
     }
 }
 
@@ -782,6 +937,9 @@ pub fn set_component_prop(S, name, prop, value) {
 
 // Duplicate the selected node (without children), then rebuild the mirror.
 pub fn duplicate_selected(S) {
+    if refuse_structure(S, "duplicate a node") {
+        return;
+    }
     history::record(S, "duplicate node", None);
     let src = S.doc[S.sel];
     let copy = #{};
@@ -854,6 +1012,9 @@ pub fn paste_nodes(S, text) {
 pub fn delete_selected(S) {
     if S.doc.len() <= 1 {
         log::warn("cannot delete the last node");
+        return;
+    }
+    if refuse_structure(S, "delete a node") {
         return;
     }
     history::record(S, format!("delete {}", S.doc[S.sel].name), None);

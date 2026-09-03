@@ -160,6 +160,12 @@ for ex in examples/*/; do
   printf '  props ...  '
   edit_step "$name: props" "$ex" propsdemo
   printf 'ok\n'
+
+  # Prefabs: an instance's rows are in the tree, an edit inside one becomes an
+  # override, and the file never gains a row it does not own.
+  printf '  inst ...   '
+  edit_step "$name: instances" "$ex" instancedemo
+  printf 'ok\n'
 done
 
 printf '\npack digests (compared across platforms in CI):\n'

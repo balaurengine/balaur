@@ -5,6 +5,7 @@
 // Exposes one function with a plain-C surface; the Rust side in
 // src/emscripten.rs owns all allocation and event routing.
 #include <emscripten/fetch.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -194,6 +195,11 @@ int balaur_ws_connect(const char *url, void *user,
 
 void balaur_ws_send_text(int socket, const char *text) {
   emscripten_websocket_send_utf8_text((EMSCRIPTEN_WEBSOCKET_T)socket, text);
+}
+
+void balaur_ws_send_binary(int socket, const void *data, int len) {
+  emscripten_websocket_send_binary((EMSCRIPTEN_WEBSOCKET_T)socket, (void *)data,
+                                   (uint32_t)len);
 }
 
 void balaur_ws_close(int socket, int code, const char *reason) {

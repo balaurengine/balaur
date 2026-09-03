@@ -87,7 +87,7 @@ fn vertex(in: VertexInput) -> VertexOutput {
 }
 
 // How much light `light` puts on a point, direction included.
-fn contribution(light: Light, world: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
+@const fn contribution(light: Light, world: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
     let kind = light.position_kind.w;
     var to_light = -light.direction_radius.xyz;
     var attenuation = 1.0;

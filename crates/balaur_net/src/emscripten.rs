@@ -36,6 +36,7 @@ extern "C" {
         on_error: extern "C" fn(*mut c_void),
     ) -> c_int;
     fn balaur_ws_send_text(socket: c_int, text: *const c_char);
+    fn balaur_ws_send_binary(socket: c_int, data: *const c_void, len: c_int);
     fn balaur_ws_close(socket: c_int, code: c_int, reason: *const c_char);
 }
 
@@ -150,22 +151,23 @@ extern "C" fn ws_opened(user: *mut c_void) {
 
 extern "C" fn ws_received(user: *mut c_void, data: *const c_char, len: c_int, is_text: c_int) {
     let state = unsafe { &*user.cast::<SocketState>() };
-    if is_text == 0 {
-        tracing::warn!(
-            "websocket {}: binary frame dropped (text only)",
-            state.socket
-        );
-        return;
-    }
     let bytes = if data.is_null() || len <= 0 {
         &[][..]
     } else {
         unsafe { std::slice::from_raw_parts(data.cast::<u8>(), len as usize) }
     };
-    let _ = state.events.send(NetEvent::SocketMessage {
-        socket: state.socket,
-        text: String::from_utf8_lossy(bytes).into_owned(),
-    });
+    let event = if is_text == 0 {
+        NetEvent::SocketBinary {
+            socket: state.socket,
+            bytes: bytes.to_vec(),
+        }
+    } else {
+        NetEvent::SocketMessage {
+            socket: state.socket,
+            text: String::from_utf8_lossy(bytes).into_owned(),
+        }
+    };
+    let _ = state.events.send(event);
 }
 
 extern "C" fn ws_closed(user: *mut c_void, _code: c_int, reason: *const c_char) {
@@ -248,6 +250,13 @@ pub(crate) fn pump() {
                             unsafe { balaur_ws_send_text(entry.handle, text.as_ptr()) };
                         }
                     }
+                    Ok(SocketCommand::SendBytes(bytes)) => unsafe {
+                        balaur_ws_send_binary(
+                            entry.handle,
+                            bytes.as_ptr().cast::<c_void>(),
+                            c_int::try_from(bytes.len()).unwrap_or(c_int::MAX),
+                        );
+                    },
                     Ok(SocketCommand::Close) | Err(TryRecvError::Disconnected) => {
                         let reason = CString::new("bye").expect("a literal without NUL bytes");
                         unsafe { balaur_ws_close(entry.handle, 1000, reason.as_ptr()) };

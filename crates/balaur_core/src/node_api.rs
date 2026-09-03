@@ -516,6 +516,9 @@ pub fn to_toml(v: &Value) -> Result<toml::Value> {
             return Err(anyhow!("a node or callback is not component data"))
         }
         Value::Many(_) => return Err(anyhow!("several values are not component data")),
+        // TOML has no byte string, and a component that wanted one would be
+        // asking for an asset reference instead.
+        Value::Bytes(_) => return Err(anyhow!("bytes are not component data")),
         Value::Vec2(a) => number_list(a),
         Value::Vec3(a) => number_list(a),
         Value::Color(a) => number_list(a),

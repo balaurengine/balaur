@@ -40,8 +40,8 @@ fn linked_shader() -> String {
         "package::skinned_2d",
         &[],
     )
+    .map(|linked| shaders::wgsl(&linked))
     .expect("the engine's own shader must link")
-    .to_string()
 }
 
 /// The most bones one polygon may name. Three `vec4` per joint keeps the

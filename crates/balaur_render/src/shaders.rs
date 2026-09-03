@@ -52,9 +52,10 @@ pub fn link(
     }
     let mut compiler = wesl::Wesl::new("").set_custom_resolver(resolver);
     compiler.set_options(wesl::CompileOptions {
-        // wesl validates only with its `eval` feature; naga validates the
-        // linked output at `create_shader_module` either way.
-        validate: false,
+        // Catches a call to a name nothing declares, which otherwise reaches
+        // naga and so needs a GPU to find. It does not check types; naga
+        // still does that at `create_shader_module`.
+        validate: true,
         ..Default::default()
     });
     compiler.use_sourcemap(true);
@@ -67,6 +68,42 @@ pub fn link(
     compiler
         .compile(&root_path)
         .map_err(|e| anyhow!("linking {root}: {e}"))
+}
+
+/// The linked WGSL a backend compiles, with WESL's own `@const` dropped.
+///
+/// The attribute is what lets [`eval_floats`] call a function, so it has to
+/// survive linking; WGSL has no such thing, so it must not survive this.
+pub fn wgsl(linked: &wesl::CompileResult) -> String {
+    let mut unit = linked.syntax.clone();
+    for declaration in &mut unit.global_declarations {
+        if let wesl::syntax::GlobalDeclaration::Function(function) = declaration.node_mut() {
+            function
+                .attributes
+                .retain(|a| !matches!(a.node(), wesl::syntax::Attribute::Const));
+        }
+    }
+    unit.to_string()
+}
+
+/// Evaluate a WGSL expression against a linked shader, as floats.
+///
+/// The functions it may call are the ones the shader marks `@const`, so a
+/// shader helper is testable the way a Rust function is — no GPU, which is
+/// the only kind of test this project's CI can run.
+pub fn eval_floats(linked: &wesl::CompileResult, expression: &str) -> Result<Vec<f32>> {
+    let mut result = linked
+        .eval(expression)
+        .map_err(|e| anyhow!("evaluating `{expression}`: {e}"))?;
+    let bytes = result
+        .to_buffer()
+        .ok_or_else(|| anyhow!("`{expression}` is not a value with a byte layout"))?;
+    Ok(bytes
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|b| f32::from_le_bytes(*b))
+        .collect())
 }
 
 #[cfg(test)]
@@ -100,6 +137,94 @@ mod tests {
             "imports must be resolved away: {wgsl}"
         );
         assert!(wgsl.contains("mat3x3<f32>(a.xyz, b.xyz, c.xyz)"), "{wgsl}");
+    }
+
+    /// A shader that exists to be asserted on. The wrappers are declared at
+    /// the root because an imported name is mangled and a root one is not,
+    /// and `@const` is what lets `eval_floats` call them.
+    const PROBE: &str = r"
+import package::mesh::{Light, contribution, VertexInput, VertexOutput, vertex};
+
+@const fn directional(direction: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+    var light: Light;
+    light.position_kind = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    light.direction_radius = vec4<f32>(direction, 0.0);
+    light.color_intensity = vec4<f32>(1.0, 1.0, 1.0, 1.0);
+    return contribution(light, vec3<f32>(0.0), normal);
+}
+
+@const fn point(position: vec3<f32>, radius: f32) -> vec3<f32> {
+    var light: Light;
+    light.position_kind = vec4<f32>(position, 1.0);
+    light.direction_radius = vec4<f32>(0.0, 0.0, 0.0, radius);
+    light.color_intensity = vec4<f32>(1.0, 1.0, 1.0, 1.0);
+    return contribution(light, vec3<f32>(0.0), vec3<f32>(0.0, 1.0, 0.0));
+}
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput {
+    return vertex(in);
+}
+
+@fragment fn fs_main() -> @location(0) vec4<f32> {
+    let a = directional(vec3<f32>(0.0, -1.0, 0.0), vec3<f32>(0.0, 1.0, 0.0));
+    return vec4<f32>(a + point(vec3<f32>(0.0, 1.0, 0.0), 4.0), 1.0);
+}
+";
+
+    fn probe() -> wesl::CompileResult {
+        link(&[("package::probe", PROBE)], "package::probe", &[])
+            .expect("the probe shader must link")
+    }
+
+    #[test]
+    fn the_const_attribute_never_reaches_the_output() {
+        // WGSL has no `@const`; a shader carrying one is one naga rejects.
+        let linked = probe();
+        assert!(linked.to_string().contains("@const"), "linking keeps it");
+        assert!(!wgsl(&linked).contains("@const"), "the output drops it");
+    }
+
+    #[test]
+    fn a_light_straight_on_contributes_its_whole_colour() {
+        let lit = eval_floats(
+            &probe(),
+            "directional(vec3<f32>(0.0, -1.0, 0.0), vec3<f32>(0.0, 1.0, 0.0))",
+        )
+        .unwrap();
+        assert_eq!(lit, vec![1.0, 1.0, 1.0]);
+    }
+
+    #[test]
+    fn a_light_behind_the_surface_contributes_nothing() {
+        let lit = eval_floats(
+            &probe(),
+            "directional(vec3<f32>(0.0, -1.0, 0.0), vec3<f32>(0.0, -1.0, 0.0))",
+        )
+        .unwrap();
+        assert_eq!(lit, vec![0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn a_point_light_past_its_radius_contributes_nothing() {
+        let lit = eval_floats(&probe(), "point(vec3<f32>(0.0, 10.0, 0.0), 4.0)").unwrap();
+        assert_eq!(lit, vec![0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn a_point_light_inside_its_radius_contributes_something() {
+        let lit = eval_floats(&probe(), "point(vec3<f32>(0.0, 1.0, 0.0), 4.0)").unwrap();
+        assert!(lit[0] > 0.0, "{lit:?}");
+    }
+
+    #[test]
+    fn a_call_to_a_name_nothing_declares_is_caught_without_a_gpu() {
+        let source = "@fragment fn fs_main() -> @location(0) vec4<f32> {
+            return vec4<f32>(nonesuch(1.0));
+        }";
+        let err = link(&[("package::bad", source)], "package::bad", &[])
+            .err()
+            .expect("validation must reject a call to nothing");
+        assert!(format!("{err:#}").contains("nonesuch"), "{err:#}");
     }
 
     #[test]

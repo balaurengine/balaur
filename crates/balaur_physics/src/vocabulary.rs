@@ -11,7 +11,10 @@ use balaur_script::Value;
 
 /// A property of a component's TOML params table, as f32.
 pub(crate) fn f(params: &toml::Value, key: &str, default: f32) -> f32 {
-    params.get(key).and_then(as_f64).map_or(default, |v| v as f32)
+    params
+        .get(key)
+        .and_then(as_f64)
+        .map_or(default, |v| v as f32)
 }
 
 pub(crate) fn boolean(params: &toml::Value, key: &str, default: bool) -> bool {
@@ -22,7 +25,10 @@ pub(crate) fn boolean(params: &toml::Value, key: &str, default: bool) -> bool {
 }
 
 pub(crate) fn text<'a>(params: &'a toml::Value, key: &str, default: &'a str) -> &'a str {
-    params.get(key).and_then(toml::Value::as_str).unwrap_or(default)
+    params
+        .get(key)
+        .and_then(toml::Value::as_str)
+        .unwrap_or(default)
 }
 
 /// One component of a vector-typed property.
@@ -142,10 +148,133 @@ impl<'a> Opts<'a> {
 /// A `Value::Map` from pairs, which is what every query and character call
 /// returns.
 pub(crate) fn map<const N: usize>(pairs: [(&str, Value); N]) -> Value {
-    Value::Map(
-        pairs
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), v))
+    Value::Map(pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+}
+
+/// The flag tables both dimensions read and write.
+///
+/// The bit values come from rapier3d's own constants rather than being spelled
+/// out here, and rapier2d's identically-named flags take the same bits — the
+/// two crates are one source compiled twice. So a name means the same thing in
+/// both dimensions by construction, not by a comment asking for it.
+pub(crate) mod flags {
+    use rapier3d::prelude::{ActiveCollisionTypes, ActiveEvents, ActiveHooks};
+
+    pub(crate) fn events() -> [(&'static str, u32); 2] {
+        [
+            ("collision", ActiveEvents::COLLISION_EVENTS.bits()),
+            ("contact_force", ActiveEvents::CONTACT_FORCE_EVENTS.bits()),
+        ]
+    }
+
+    pub(crate) fn hooks() -> [(&'static str, u32); 3] {
+        [
+            ("filter_contact", ActiveHooks::FILTER_CONTACT_PAIRS.bits()),
+            (
+                "filter_overlap",
+                ActiveHooks::FILTER_INTERSECTION_PAIR.bits(),
+            ),
+            (
+                "modify_contacts",
+                ActiveHooks::MODIFY_SOLVER_CONTACTS.bits(),
+            ),
+        ]
+    }
+
+    pub(crate) fn collision_types() -> [(&'static str, u16); 6] {
+        [
+            (
+                "dynamic_dynamic",
+                ActiveCollisionTypes::DYNAMIC_DYNAMIC.bits(),
+            ),
+            (
+                "dynamic_kinematic",
+                ActiveCollisionTypes::DYNAMIC_KINEMATIC.bits(),
+            ),
+            ("dynamic_static", ActiveCollisionTypes::DYNAMIC_FIXED.bits()),
+            (
+                "kinematic_kinematic",
+                ActiveCollisionTypes::KINEMATIC_KINEMATIC.bits(),
+            ),
+            (
+                "kinematic_static",
+                ActiveCollisionTypes::KINEMATIC_FIXED.bits(),
+            ),
+            ("static_static", ActiveCollisionTypes::FIXED_FIXED.bits()),
+        ]
+    }
+}
+
+/// The bits a `flags` property sets, given the table for that property.
+pub(crate) fn bits<T: Copy + std::ops::BitOrAssign + Default>(
+    params: &toml::Value,
+    key: &str,
+    table: &[(&str, T)],
+) -> T {
+    let mut out = T::default();
+    for (name, bit) in table {
+        if flag(params, key, name) {
+            out |= *bit;
+        }
+    }
+    out
+}
+
+/// The names a bit set holds, as a `flags` property's array.
+pub(crate) fn names<T: Copy + Into<u32>>(set: T, table: &[(&str, T)]) -> toml::Value {
+    let set: u32 = set.into();
+    toml::Value::Array(
+        table
+            .iter()
+            .filter(|(_, bit)| {
+                let bit: u32 = (*bit).into();
+                bit != 0 && set & bit == bit
+            })
+            .map(|(name, _)| toml::Value::String((*name).to_string()))
             .collect(),
     )
+}
+
+/// The 32 collision layers a `flags` property names, as a bit set.
+///
+/// An empty membership means layer 0 and an empty filter means every layer:
+/// the alternative is 32 strings in every scene file that wants the default.
+pub(crate) fn layer_bits(params: &toml::Value, key: &str, empty_is_all: bool) -> u32 {
+    let mut bits = 0u32;
+    for name in balaur_core::components::as_flags(params.get(key)) {
+        if let Ok(layer) = name.parse::<u32>() {
+            if layer < 32 {
+                bits |= 1 << layer;
+            }
+        }
+    }
+    if bits != 0 {
+        bits
+    } else if empty_is_all {
+        u32::MAX
+    } else {
+        1
+    }
+}
+
+/// A layer set as the numbers a `flags` property holds; every layer reads back
+/// as the empty list, which is how the schema spells "everything".
+pub(crate) fn layer_names(bits: u32) -> toml::Value {
+    if bits == u32::MAX {
+        return toml::Value::Array(Vec::new());
+    }
+    toml::Value::Array(
+        (0..32)
+            .filter(|bit| bits & (1 << bit) != 0)
+            .map(|bit| toml::Value::String(bit.to_string()))
+            .collect(),
+    )
+}
+
+/// The 32 collision layers, as an `options` list for a `flags` property.
+pub(crate) fn layer_options() -> String {
+    (0..32)
+        .map(|i| format!("\"{i}\""))
+        .collect::<Vec<_>>()
+        .join(", ")
 }

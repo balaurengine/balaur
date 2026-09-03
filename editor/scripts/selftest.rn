@@ -494,3 +494,58 @@ pub fn linting(S) {
     S.dock = "problems";
     log::info("selftest lint: done");
 }
+
+// Prefabs in the editor: an instance's nodes are in the tree, an edit inside
+// one becomes an override on the node that named the prefab, an edit back to
+// the prefab's own value stops being one, and the file never gains a row it
+// does not own.
+pub fn instances(S) {
+    let target = ();
+    for (i, node) in S.doc.iter().enumerate() {
+        if model::is_instanced(node) && node.contains_key("color") {
+            target = Some(i);
+            break;
+        }
+    }
+    let found = target;
+    let i = match found {
+        Some(i) => i,
+        None => {
+            log::info("selftest instances: no scene here instances a prefab, skipped");
+            return;
+        }
+    };
+    let authored_before = model::authored(S.doc).len();
+    check(authored_before < S.doc.len(), "the document holds rows the file does not");
+
+    shell::choose(S, i);
+    let node = S.doc[i];
+    let owner = model::by_id(S.doc, node.owner).unwrap();
+    let was = util::vec(util::obj(node.color).get("rgba").unwrap_or([]));
+    check(!owner.contains_key("overrides") || !util::obj(owner.overrides).contains_key(node.at),
+        format!("{} starts with no override of its own", node.at));
+
+    model::set_component_prop(S, "color", "rgba", [0.1, 0.9, 0.2, 1.0]);
+    let table = util::obj(owner.get("overrides").unwrap_or(#{}));
+    check(table.contains_key(node.at),
+        format!("editing {} wrote an override on {}", node.at, owner.name));
+    check(model::authored(S.doc).len() == authored_before,
+        "and added no row to the file");
+
+    // Back to the prefab's own value: the override has nothing left to say.
+    model::set_component_prop(S, "color", "rgba", was);
+    let after = util::obj(owner.get("overrides").unwrap_or(#{}));
+    let entry = util::obj(after.get(node.at).unwrap_or(#{}));
+    check(!entry.contains_key("color"),
+        "a value back at the prefab's stops being an override");
+
+    // Structure is the prefab's.
+    let before = S.doc.len();
+    model::add_child(S, None);
+    check(S.doc.len() == before, "adding a node inside an instance is refused");
+    model::delete_selected(S);
+    check(S.doc.len() == before, "deleting a node inside an instance is refused");
+
+    check(mirror_resolves(S), "every row still resolves, instanced ones included");
+    log::info("selftest instances: done");
+}

@@ -228,6 +228,9 @@ impl Plugin for InputPlugin {
             |eng, value| gamepad::restore(&mut eng.resource::<GamepadState>().borrow_mut(), value),
         );
         app.add_replay_resource::<InputSnapshot>("input");
+        // Bindings are loaded, not simulated: the recording carries them so a
+        // player who rebinds a key does not change what a replay reproduces.
+        actions::add_replay_setup(app);
 
         // Controllers are not window events, so they are polled inside the
         // tick rather than by the windowed backend: a headless run with a pad

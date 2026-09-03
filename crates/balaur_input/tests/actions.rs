@@ -210,3 +210,43 @@ fn the_same_keys_produce_the_same_actions_every_run() {
     }
     assert_eq!(runs[0], runs[1]);
 }
+
+/// A recording carries the bindings that were in force, so rebinding after
+/// the fact cannot change what a replay reproduces — `docs/PLAN-batteries.md`
+/// open question 2.
+#[test]
+fn a_recordings_bindings_survive_a_rebinding() {
+    let (dir, mut recorded) = app(MANIFEST);
+    frame(&mut recorded, &[]);
+    let session = dir.path().join("session.blr");
+    balaur_core::replay::start_recording(&recorded.engine, &session, "t", "", false).unwrap();
+    frame(&mut recorded, &[("Space", true)]);
+    assert!(pressed(&recorded, "jump"));
+    balaur_core::replay::stop_recording(&recorded.engine, "test");
+
+    // The player rebinds jump onto another key and plays the session back.
+    let (_dir2, mut replay) = app(MANIFEST);
+    frame(&mut replay, &[]);
+    replay
+        .engine
+        .resource::<InputActions>()
+        .borrow_mut()
+        .rebind("jump", &[String::from("J")])
+        .unwrap();
+    let loaded = balaur_core::replay::Session::read(&session).unwrap();
+    balaur_core::replay::begin(&replay.engine, loaded);
+
+    frame(&mut replay, &[("Space", true)]);
+    assert!(
+        pressed(&replay, "jump"),
+        "the recording's own binding is what the replay derives from"
+    );
+    assert_eq!(
+        replay
+            .engine
+            .resource::<InputActions>()
+            .borrow()
+            .bindings("jump"),
+        vec![String::from("Space"), String::from("gamepad:South")]
+    );
+}

@@ -27,7 +27,7 @@
 
 use std::sync::mpsc::{channel, Sender};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
@@ -171,6 +171,7 @@ impl NetConfig {
 /// What the engine thread asks a connection's worker thread to do.
 pub(crate) enum SocketCommand {
     SendText(String),
+    SendBytes(Vec<u8>),
     Close,
 }
 
@@ -193,6 +194,12 @@ pub(crate) enum NetEvent {
     SocketMessage {
         socket: u64,
         text: String,
+    },
+    /// A binary frame. Its own variant rather than a payload enum inside
+    /// `SocketMessage` so recordings made before binary frames still decode.
+    SocketBinary {
+        socket: u64,
+        bytes: Vec<u8>,
     },
     SocketClosed {
         socket: u64,
@@ -283,9 +290,18 @@ impl NetState {
     /// Queue a text frame. False when the connection is gone — a script
     /// racing a close should not take the frame down.
     pub fn send_text(&mut self, socket: u64, text: &str) -> bool {
+        self.send_command(socket, SocketCommand::SendText(text.into()))
+    }
+
+    /// Queue a binary frame, on the same terms as [`Self::send_text`].
+    pub fn send_bytes(&mut self, socket: u64, bytes: Vec<u8>) -> bool {
+        self.send_command(socket, SocketCommand::SendBytes(bytes))
+    }
+
+    fn send_command(&mut self, socket: u64, command: SocketCommand) -> bool {
         self.sockets
             .get(&socket)
-            .is_some_and(|commands| commands.send(SocketCommand::SendText(text.into())).is_ok())
+            .is_some_and(|commands| commands.send(command).is_ok())
     }
 
     /// Ask the connection to close. The `closed` event still arrives through
@@ -337,7 +353,9 @@ fn pump_net_system(eng: &Engine, _: f32) {
                     state.sockets.shift_remove(socket);
                     state.socket_handlers.shift_remove(socket)
                 }
-                NetEvent::SocketOpen { socket } | NetEvent::SocketMessage { socket, .. } => {
+                NetEvent::SocketOpen { socket }
+                | NetEvent::SocketMessage { socket, .. }
+                | NetEvent::SocketBinary { socket, .. } => {
                     state.socket_handlers.get(socket).cloned()
                 }
             };
@@ -405,6 +423,11 @@ fn event_value(event: NetEvent) -> Value {
             ("socket".into(), int(socket)),
             ("kind".into(), Value::Str("message".into())),
             ("text".into(), Value::Str(text)),
+        ],
+        NetEvent::SocketBinary { socket, bytes } => vec![
+            ("socket".into(), int(socket)),
+            ("kind".into(), Value::Str("binary".into())),
+            ("bytes".into(), Value::Bytes(bytes)),
         ],
         NetEvent::SocketClosed { socket, reason } => vec![
             ("socket".into(), int(socket)),
@@ -601,19 +624,20 @@ fn socket_options_of(opts: Option<&Value>, config: &NetConfig) -> Result<SocketO
     })
 }
 
-/// `websocket.*`. Text frames only: the value model has no bytes, and a
-/// binary frame is logged and dropped in the reader thread.
+/// `websocket.*`. Text and binary frames both cross as themselves: a text
+/// frame arrives as `Value::Str`, a binary one as `Value::Bytes`.
 fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "A long-lived text connection. Its events are a stream, not a result: \
-         each one reaches the connecting node's handler method \
-         (`on_websocket_event` unless `on_event` names another) as a map \
-         `{ socket, kind, .. }` with kind `open`, `message`, `closed` or \
+        "A long-lived connection carrying text or binary frames. Its events \
+         are a stream, not a result: each one reaches the connecting node's \
+         handler method (`on_websocket_event` unless `on_event` names \
+         another) as a map `{ socket, kind, .. }` with kind `open`, \
+         `message` (with `text`), `binary` (with `bytes`), `closed` or \
          `error`, and nothing awaits a socket id.",
     );
     m.describe(&[
         ("connect", &[], "", "Open a connection and return the id `send` and `close` take; options are `on_event`, `compression` and `headers`."),
-        ("send", &[], "", "Queue a text frame on the connection; false when it is already gone."),
+        ("send", &[], "", "Queue a frame on the connection, text for a string and binary for bytes; false when it is already gone."),
         ("close", &[], "", "Ask the connection to close, which still delivers a `closed` event; false when it was already gone."),
     ]);
     // Events fire as `{ socket, kind, ... }` with kind `open`, `message`,
@@ -630,9 +654,16 @@ fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
             Ok(int(id))
         },
     );
-    m.function("send", |eng: &Engine, (socket, text): (i64, String)| {
+    m.function("send", |eng: &Engine, (socket, payload): (i64, Value)| {
         let state = eng.resource::<NetState>();
-        let sent = u64::try_from(socket).is_ok_and(|id| state.borrow_mut().send_text(id, &text));
+        let Ok(id) = u64::try_from(socket) else {
+            return Ok(Value::Bool(false));
+        };
+        let sent = match payload {
+            Value::Str(text) => state.borrow_mut().send_text(id, &text),
+            Value::Bytes(bytes) => state.borrow_mut().send_bytes(id, bytes),
+            other => bail!("websocket.send takes a string or bytes, got {}", other.type_name()),
+        };
         Ok(Value::Bool(sent))
     });
     m.function("close", |eng: &Engine, socket: i64| {

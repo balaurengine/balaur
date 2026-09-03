@@ -1,0 +1,584 @@
+//! `body2d`: the 2D half of `crate::body`, against rapier2d.
+//!
+//! The two dimensions share their vocabulary (`crate::vocabulary`) and not
+//! their calls: rapier2d and rapier3d are separate crates whose types do not
+//! meet, and a macro over both would cost every reader of this file more than
+//! the duplication does.
+//!
+//! Where a property is shaped by the dimension it is spelled differently and
+//! deliberately: 2D locks translation on two axes and rotation on one, and
+//! its angular velocity and inertia are single numbers.
+
+use anyhow::{anyhow, Result};
+use balaur_core::components::ComponentDef;
+use balaur_core::entity_of;
+use balaur_core::hecs::Entity;
+use balaur_core::{App, Engine};
+use balaur_script::{Bindings, BindingsExt, NodeId};
+use glamx::Vec2;
+use rapier2d::prelude::{
+    LockedAxes, MassProperties, RigidBody, RigidBodyActivation,
+    RigidBodyBuilder as RigidBodyBuilder2, RigidBodyHandle as RigidBodyHandle2, RigidBodyType,
+};
+
+use crate::body::SHARED_BODY_SCHEMA;
+use crate::dim2::collider::{apply_collider, get_collider_params};
+use crate::dim2::{node_pose_2d, PhysicsState2d};
+use crate::vocabulary as v;
+
+fn body_type(kind: &str) -> Result<RigidBodyType> {
+    Ok(match kind {
+        "dynamic" => RigidBodyType::Dynamic,
+        "static" => RigidBodyType::Fixed,
+        "kinematic" => RigidBodyType::KinematicPositionBased,
+        "kinematic_velocity" => RigidBodyType::KinematicVelocityBased,
+        other => return Err(anyhow!("unknown body kind '{other}'")),
+    })
+}
+
+fn kind_name(body: &RigidBody) -> &'static str {
+    match body.body_type() {
+        RigidBodyType::Dynamic => "dynamic",
+        RigidBodyType::Fixed => "static",
+        RigidBodyType::KinematicPositionBased => "kinematic",
+        RigidBodyType::KinematicVelocityBased => "kinematic_velocity",
+    }
+}
+
+pub(crate) fn add_body(eng: &Engine, entity: Entity, kind: &str) -> Result<()> {
+    let pose = node_pose_2d(eng, entity)?;
+    let builder = RigidBodyBuilder2::new(body_type(kind)?).pose(pose);
+    let state = eng.resource::<PhysicsState2d>();
+    let mut state = state.borrow_mut();
+    let builder = if state.sleeping_allowed {
+        builder
+    } else {
+        builder.can_sleep(false)
+    };
+    let handle = state.world.insert_body(builder);
+    state.bodies.insert(entity, handle);
+    Ok(())
+}
+
+/// 2D locks two translation axes and the one rotation there is, so the flag
+/// set is built by hand rather than shared with 3D.
+fn locked_axes(params: &toml::Value) -> LockedAxes {
+    let mut axes = LockedAxes::empty();
+    if v::flag(params, "lock_translation", "x") {
+        axes |= LockedAxes::TRANSLATION_LOCKED_X;
+    }
+    if v::flag(params, "lock_translation", "y") {
+        axes |= LockedAxes::TRANSLATION_LOCKED_Y;
+    }
+    if v::boolean(params, "lock_rotation", false) {
+        axes |= LockedAxes::ROTATION_LOCKED;
+    }
+    axes
+}
+
+pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_sleep: bool) {
+    if let Ok(kind) = body_type(v::text(params, "kind", "dynamic")) {
+        if body.body_type() != kind {
+            body.set_body_type(kind, true);
+        }
+    }
+    body.set_linear_damping(v::f(params, "linear_damping", 0.0));
+    body.set_angular_damping(v::f(params, "angular_damping", 0.0));
+    body.set_gravity_scale(v::f(params, "gravity_scale", 1.0), true);
+    body.set_dominance_group(v::f(params, "dominance", 0.0).clamp(-127.0, 127.0) as i8);
+    body.set_additional_solver_iterations(v::f(params, "solver_iterations", 0.0).max(0.0) as usize);
+    body.set_locked_axes(locked_axes(params), true);
+    body.enable_ccd(v::boolean(params, "ccd", false));
+    body.set_soft_ccd_prediction(v::f(params, "soft_ccd", 0.0));
+    body.set_allow_fast_rotation(v::boolean(params, "fast_rotation", false));
+    body.set_enabled(v::boolean(params, "enabled", true));
+    write_mass(body, params);
+    let may_sleep = world_may_sleep && v::boolean(params, "can_sleep", true);
+    *body.activation_mut() = if may_sleep {
+        let mut activation = RigidBodyActivation::default();
+        activation.time_until_sleep = v::f(params, "sleep_time", 0.5).max(0.0);
+        activation
+    } else {
+        body.wake_up(true);
+        RigidBodyActivation::cannot_sleep()
+    };
+}
+
+/// In 2D the angular inertia is one number, so `inertia` is a float here and
+/// a vec3 in 3D — the same property, shaped by the dimension.
+fn write_mass(body: &mut RigidBody, params: &toml::Value) {
+    let mass = v::f(params, "mass", 0.0).max(0.0);
+    let inertia = v::f(params, "inertia", 0.0);
+    let com = v::vec2(params, "center_of_mass", [0.0; 2]);
+    if mass <= 0.0 {
+        body.set_additional_mass(0.0, false);
+    } else if inertia == 0.0 && com == [0.0; 2] {
+        body.set_additional_mass(mass, true);
+    } else {
+        let com = Vec2::new(com[0], com[1]);
+        body.set_additional_mass_properties(MassProperties::new(com, mass, inertia), true);
+    }
+}
+
+pub(crate) fn apply_body(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
+    let exists = {
+        let state = eng.resource::<PhysicsState2d>();
+        let exists = state.borrow().bodies.contains_key(&entity);
+        exists
+    };
+    if !exists {
+        add_body(eng, entity, v::text(params, "kind", "dynamic"))?;
+        if let Some(collider) = get_collider_params(eng, entity) {
+            apply_collider(eng, entity, &collider)?;
+        }
+    }
+    with_body(eng, entity, |state, handle| {
+        let may_sleep = state.sleeping_allowed;
+        write_body(&mut state.world.bodies[handle], params, may_sleep);
+    })
+}
+
+pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
+    let state = eng.resource::<PhysicsState2d>();
+    let state = state.borrow();
+    let body = &state.world.bodies[*state.bodies.get(&entity)?];
+    let axes = body.locked_axes();
+    let f = |value: f32| toml::Value::Float(f64::from(value));
+    let mut map = toml::map::Map::new();
+    map.insert("kind".into(), kind_name(body).into());
+    map.insert("linear_damping".into(), f(body.linear_damping()));
+    map.insert("angular_damping".into(), f(body.angular_damping()));
+    map.insert("gravity_scale".into(), f(body.gravity_scale()));
+    map.insert("dominance".into(), f(f32::from(body.dominance_group())));
+    map.insert(
+        "solver_iterations".into(),
+        f(body.additional_solver_iterations() as f32),
+    );
+    map.insert(
+        "lock_translation".into(),
+        toml::Value::Array(
+            [
+                ("x", LockedAxes::TRANSLATION_LOCKED_X),
+                ("y", LockedAxes::TRANSLATION_LOCKED_Y),
+            ]
+            .into_iter()
+            .filter(|(_, flag)| axes.contains(*flag))
+            .map(|(name, _)| toml::Value::String(name.to_string()))
+            .collect(),
+        ),
+    );
+    map.insert(
+        "lock_rotation".into(),
+        axes.contains(LockedAxes::ROTATION_LOCKED).into(),
+    );
+    map.insert("ccd".into(), body.is_ccd_enabled().into());
+    map.insert("soft_ccd".into(), f(body.soft_ccd_prediction()));
+    map.insert(
+        "fast_rotation".into(),
+        body.is_fast_rotation_allowed().into(),
+    );
+    map.insert("enabled".into(), body.is_enabled().into());
+    map.insert(
+        "can_sleep".into(),
+        (body.activation().normalized_linear_threshold >= 0.0).into(),
+    );
+    map.insert("sleep_time".into(), f(body.activation().time_until_sleep));
+    Some(toml::Value::Table(map))
+}
+
+pub(crate) fn with_body<R>(
+    eng: &Engine,
+    entity: Entity,
+    f: impl FnOnce(&mut PhysicsState2d, RigidBodyHandle2) -> R,
+) -> Result<R> {
+    let state = eng.resource::<PhysicsState2d>();
+    let mut state = state.borrow_mut();
+    let handle = state
+        .bodies
+        .get(&entity)
+        .copied()
+        .ok_or_else(|| anyhow!("node has no 2D rigid body"))?;
+    Ok(f(&mut state, handle))
+}
+
+pub(crate) fn read_body<R>(
+    eng: &Engine,
+    entity: Entity,
+    f: impl FnOnce(&RigidBody) -> R,
+) -> Result<R> {
+    let state = eng.resource::<PhysicsState2d>();
+    let state = state.borrow();
+    let handle = state
+        .bodies
+        .get(&entity)
+        .copied()
+        .ok_or_else(|| anyhow!("node has no 2D rigid body"))?;
+    Ok(f(&state.world.bodies[handle]))
+}
+
+pub(crate) fn remove_body_and_colliders(eng: &Engine, entity: Entity) {
+    let state = eng.resource::<PhysicsState2d>();
+    let mut state = state.borrow_mut();
+    state.colliders.swap_remove(&entity);
+    if let Some(handle) = state.bodies.swap_remove(&entity) {
+        state.world.remove_body(handle);
+    }
+}
+
+/// The 2D twin of `crate::body::install_body_state_api`. Every function here
+/// has a 3D sibling under the same name in `physics3d`; where the shapes
+/// differ, the dimension is the reason.
+pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("velocity_at_point", &["body2d"], "", "How fast a world point on the body is moving, spin included."),
+        ("mass", &["body2d"], "", "The body's total mass, colliders included."),
+        ("kinetic_energy", &["body2d"], "", "The body's kinetic energy, for a rest test the solver agrees with."),
+        ("teleport", &["body2d"], "", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick."),
+        ("set_body_kind", &["body2d"], "", "Change the body between dynamic, static and kinematic in place, keeping its velocity."),
+        ("body_kind", &["body2d"], "", "Whether the body is dynamic, static, kinematic or kinematic_velocity."),
+        ("set_gravity_scale", &["body2d"], "", "Scale world gravity for this body alone."),
+        ("gravity_scale", &["body2d"], "", "This body's gravity multiplier."),
+        ("set_damping", &["body2d"], "", "Set linear and angular damping together."),
+        ("damping", &["body2d"], "", "This body's linear and angular damping."),
+        ("set_lock_translation", &["body2d"], "", "Freeze the body's movement along x and y."),
+        ("set_lock_rotation", &["body2d"], "", "Freeze the body's spin: how a 2D character stays upright."),
+        ("locked_axes", &["body2d"], "", "Whether x, y and rotation are frozen."),
+        ("set_ccd", &["body2d"], "", "Sweep this body's whole path each step so it cannot pass through a wall."),
+        ("is_ccd", &["body2d"], "", "Whether continuous collision detection is on for this body."),
+        ("set_dominance", &["body2d"], "", "Set the group that decides which of two bodies can push the other."),
+        ("dominance", &["body2d"], "", "This body's dominance group."),
+        ("set_enabled", &["body2d"], "", "Simulate this body or leave it out entirely, keeping its state."),
+        ("is_enabled", &["body2d"], "", "Whether the body is being simulated."),
+        ("sleep", &["body2d"], "", "Put the body to sleep now."),
+        ("wake_up", &["body2d"], "", "Wake the body, so the next step moves it."),
+        ("is_sleeping", &["body2d"], "", "Whether the body is asleep and being skipped."),
+        ("predict_position", &["body2d"], "", "Where the body will be after `dt` seconds at its current velocity."),
+        ("next_position", &["body2d"], "", "The position a kinematic body has been told to move to."),
+        ("wake_all", &[], "()", "Wake every sleeping body in the 2D world."),
+        ("gravity", &[], "", "The 2D world's gravity."),
+    ]);
+    m.function(
+        "velocity_at_point",
+        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+            read_body(eng, entity_of(node)?, |body| {
+                let v = body.velocity_at_point(Vec2::new(x, y));
+                (v.x, v.y)
+            })
+        },
+    );
+    m.function("mass", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, RigidBody::mass)
+    });
+    m.function("kinetic_energy", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, RigidBody::kinetic_energy)
+    });
+    m.function(
+        "teleport",
+        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                let body = &mut state.world.bodies[handle];
+                body.set_translation(Vec2::new(x, y), true);
+                body.set_linvel(Vec2::ZERO, true);
+                body.set_angvel(0.0, true);
+            })
+        },
+    );
+    m.function(
+        "set_body_kind",
+        |eng: &Engine, (node, kind): (NodeId, String)| {
+            let kind = body_type(&kind)?;
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].set_body_type(kind, true);
+            })
+        },
+    );
+    m.function("body_kind", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, |body| kind_name(body).to_string())
+    });
+    m.function(
+        "set_gravity_scale",
+        |eng: &Engine, (node, scale): (NodeId, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].set_gravity_scale(scale, true);
+            })
+        },
+    );
+    m.function("gravity_scale", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, RigidBody::gravity_scale)
+    });
+    m.function(
+        "set_damping",
+        |eng: &Engine, (node, linear, angular): (NodeId, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                let body = &mut state.world.bodies[handle];
+                body.set_linear_damping(linear);
+                body.set_angular_damping(angular);
+            })
+        },
+    );
+    m.function("damping", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, |body| {
+            (body.linear_damping(), body.angular_damping())
+        })
+    });
+    m.function(
+        "set_lock_translation",
+        |eng: &Engine, (node, x, y): (NodeId, bool, bool)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                let body = &mut state.world.bodies[handle];
+                let mut axes = body.locked_axes();
+                axes.set(LockedAxes::TRANSLATION_LOCKED_X, x);
+                axes.set(LockedAxes::TRANSLATION_LOCKED_Y, y);
+                body.set_locked_axes(axes, true);
+            })
+        },
+    );
+    m.function(
+        "set_lock_rotation",
+        |eng: &Engine, (node, locked): (NodeId, bool)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                let body = &mut state.world.bodies[handle];
+                let mut axes = body.locked_axes();
+                axes.set(LockedAxes::ROTATION_LOCKED, locked);
+                body.set_locked_axes(axes, true);
+            })
+        },
+    );
+    m.function("locked_axes", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, |body| {
+            let axes = body.locked_axes();
+            (
+                axes.contains(LockedAxes::TRANSLATION_LOCKED_X),
+                axes.contains(LockedAxes::TRANSLATION_LOCKED_Y),
+                axes.contains(LockedAxes::ROTATION_LOCKED),
+            )
+        })
+    });
+    m.function("set_ccd", |eng: &Engine, (node, on): (NodeId, bool)| {
+        with_body(eng, entity_of(node)?, |state, handle| {
+            state.world.bodies[handle].enable_ccd(on);
+        })
+    });
+    m.function("is_ccd", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, RigidBody::is_ccd_enabled)
+    });
+    m.function(
+        "set_dominance",
+        |eng: &Engine, (node, group): (NodeId, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].set_dominance_group(group.clamp(-127.0, 127.0) as i8);
+            })
+        },
+    );
+    m.function("dominance", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, |body| {
+            f32::from(body.dominance_group())
+        })
+    });
+    m.function("set_enabled", |eng: &Engine, (node, on): (NodeId, bool)| {
+        with_body(eng, entity_of(node)?, |state, handle| {
+            state.world.bodies[handle].set_enabled(on);
+        })
+    });
+    m.function("is_enabled", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, RigidBody::is_enabled)
+    });
+    m.function("sleep", |eng: &Engine, node: NodeId| {
+        with_body(eng, entity_of(node)?, |state, handle| {
+            state.world.bodies[handle].sleep();
+        })
+    });
+    m.function("wake_up", |eng: &Engine, node: NodeId| {
+        with_body(eng, entity_of(node)?, |state, handle| {
+            state.world.bodies[handle].wake_up(true);
+        })
+    });
+    m.function("is_sleeping", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, RigidBody::is_sleeping)
+    });
+    m.function(
+        "predict_position",
+        |eng: &Engine, (node, dt): (NodeId, f32)| {
+            read_body(eng, entity_of(node)?, |body| {
+                let p = body.predict_position_using_velocity(dt).translation;
+                (p.x, p.y)
+            })
+        },
+    );
+    m.function("next_position", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, |body| {
+            let p = body.next_position().translation;
+            (p.x, p.y)
+        })
+    });
+    m.function("wake_all", |eng: &Engine, ()| {
+        let state = eng.resource::<PhysicsState2d>();
+        state.borrow_mut().world.wake_up_all(true);
+        Ok(())
+    });
+    m.function("gravity", |eng: &Engine, ()| {
+        let state = eng.resource::<PhysicsState2d>();
+        let g = state.borrow().world.gravity;
+        Ok((g.x, g.y))
+    });
+}
+
+/// Forces and impulses on a 2D body. Torque is a single number here, which is
+/// the whole difference from the 3D file.
+pub(crate) fn install_body2d_force_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        (
+            "apply_impulse_at_point",
+            &["body2d"],
+            "",
+            "Strike the body at a world point, which spins it as well as moves it.",
+        ),
+        (
+            "apply_torque_impulse",
+            &["body2d"],
+            "",
+            "Add an instant change in angular momentum, as if the body were spun.",
+        ),
+        (
+            "add_force",
+            &["body2d"],
+            "",
+            "Push the body until the force is reset; unlike an impulse this is spread over time.",
+        ),
+        (
+            "add_force_at_point",
+            &["body2d"],
+            "",
+            "Push at a world point, which also turns the body.",
+        ),
+        (
+            "add_torque",
+            &["body2d"],
+            "",
+            "Turn the body until the torque is reset.",
+        ),
+        (
+            "reset_forces",
+            &["body2d"],
+            "",
+            "Drop every force added since the last step.",
+        ),
+        (
+            "reset_torques",
+            &["body2d"],
+            "",
+            "Drop every torque added since the last step.",
+        ),
+        (
+            "user_force",
+            &["body2d"],
+            "",
+            "The force the next step will integrate.",
+        ),
+        (
+            "user_torque",
+            &["body2d"],
+            "",
+            "The torque the next step will integrate.",
+        ),
+    ]);
+    m.function(
+        "apply_impulse_at_point",
+        |eng: &Engine, (node, x, y, px, py): (NodeId, f32, f32, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].apply_impulse_at_point(
+                    Vec2::new(x, y),
+                    Vec2::new(px, py),
+                    true,
+                );
+            })
+        },
+    );
+    m.function(
+        "apply_torque_impulse",
+        |eng: &Engine, (node, torque): (NodeId, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].apply_torque_impulse(torque, true);
+            })
+        },
+    );
+    m.function(
+        "add_force",
+        |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].add_force(Vec2::new(x, y), true);
+            })
+        },
+    );
+    m.function(
+        "add_force_at_point",
+        |eng: &Engine, (node, x, y, px, py): (NodeId, f32, f32, f32, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].add_force_at_point(
+                    Vec2::new(x, y),
+                    Vec2::new(px, py),
+                    true,
+                );
+            })
+        },
+    );
+    m.function(
+        "add_torque",
+        |eng: &Engine, (node, torque): (NodeId, f32)| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].add_torque(torque, true);
+            })
+        },
+    );
+    m.function("reset_forces", |eng: &Engine, node: NodeId| {
+        with_body(eng, entity_of(node)?, |state, handle| {
+            state.world.bodies[handle].reset_forces(true);
+        })
+    });
+    m.function("reset_torques", |eng: &Engine, node: NodeId| {
+        with_body(eng, entity_of(node)?, |state, handle| {
+            state.world.bodies[handle].reset_torques(true);
+        })
+    });
+    m.function("user_force", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, |body| {
+            let f = body.user_force();
+            (f.x, f.y)
+        })
+    });
+    m.function("user_torque", |eng: &Engine, node: NodeId| {
+        read_body(eng, entity_of(node)?, RigidBody::user_torque)
+    });
+}
+
+/// The `body2d` key. Like `body3d`, backed by no component type: it writes
+/// into [`crate::PhysicsState2d`].
+pub(crate) fn register_body2d_component(app: &mut App) {
+    let schema = format!(
+        r#"kind = {{ type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic", "kinematic_velocity"], shorthand = true, description = "How 2D physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}
+lock_translation = {{ type = "flags", default = [], options = ["x", "y"], description = "Axes the body may not move along" }}
+lock_rotation = {{ type = "bool", default = false, description = "Stop the body turning; how a 2D character stays upright" }}
+center_of_mass = {{ type = "vec2", default = [0.0, 0.0], description = "Where the extra mass sits, in the node's own space; only read when mass is set" }}
+inertia = {{ type = "float", default = 0.0, min = 0.0, description = "Resistance to spin; 0 lets rapier derive it from the mass" }}
+{SHARED_BODY_SCHEMA}"#
+    );
+    app.register_component(
+        "body2d",
+        ComponentDef {
+            doc: "Makes the node a 2D rigid body rapier simulates, in the xy plane: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. Add a `collider2d` for it to collide with anything.",
+            schema: ComponentDef::parse_schema("body2d", &schema),
+            tags: &["2d", "physics"],
+            expects: &[],
+            apply: Box::new(apply_body),
+            remove: Box::new(|eng, entity| {
+                let collider = get_collider_params(eng, entity);
+                remove_body_and_colliders(eng, entity);
+                if let Some(params) = collider {
+                    apply_collider(eng, entity, &params)?;
+                }
+                Ok(())
+            }),
+            get: Box::new(get_body_params),
+        },
+    );
+}

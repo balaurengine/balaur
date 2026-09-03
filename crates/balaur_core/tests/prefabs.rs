@@ -284,3 +284,21 @@ instance = "scenes/enemy.toml"
         "the prefab's roots are the instance's children"
     );
 }
+
+/// The most useful override there is: the same prefab, tuned. Asserted here
+/// on the scene key rather than on a live instance — `balaur_script_rune`'s
+/// `props` suite runs the script half.
+#[test]
+fn a_script_key_with_no_source_is_refused_on_a_node_of_its_own() {
+    let dir = project(&[("scenes/enemy.toml", ENEMY)]);
+    let app = app_in(dir.path());
+    let root = app.engine.root();
+    let err = balaur_core::project::instantiate_scene(
+        &app.engine,
+        "[[nodes]]\nname = \"Enemy\"\nscript = { props = { speed = 1.0 } }\n",
+        root,
+        false,
+    )
+    .unwrap_err();
+    assert!(format!("{err:#}").contains("no source"), "{err:#}");
+}

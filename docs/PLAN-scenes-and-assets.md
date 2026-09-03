@@ -1,6 +1,8 @@
-> **Status:** phase 1 built on 2026-09-02 — the `instance` scene key,
-> `overrides`, prefixed stable ids, cycle detection, and `examples/hello`'s
-> two crates. Phase 4 turned out to be half built already: the Rune host's
+> **Status:** phases 1 and 2 built on 2026-09-02 — the `instance` scene key,
+> `overrides` (components, the transform and `script` props), prefixed stable
+> ids, cycle detection, `examples/hello`'s two crates, and the editor showing
+> an instance's rows in place, writing edits inside one as overrides and
+> refusing structural edits. Phase 4 turned out to be half built already: the Rune host's
 > watcher reloads `.toml` assets on save (`pump_reloads`), so what is left
 > there is the binary types — a re-saved PNG or `.glb` is not noticed.
 > Phases 2 (the editor), 3 (rename refactoring), 5 (`.aseprite`) and 6 (the
@@ -24,10 +26,34 @@
 >    or a prefab's `init` could not look up a sibling the scene declares.
 > 4. **A prefab that contains itself is an error naming the cycle.** Not in
 >    the plan, and the first thing anyone does by accident.
-> 5. **The editor needed nothing to show one.** `absolute_files` already
+> 5. **The editor needed nothing to *show* one.** `absolute_files` already
 >    rewrites any string naming a file, `instance` included, so the mirror
->    builds prefabs as-is. The tree marks an instance row; editing inside one
->    is phase 2.
+>    builds prefabs as-is.
+> 6. **Editing inside one is virtual rows, not a second document.** The
+>    editor's model is a flat list of node tables and a mirror node per row.
+>    A prefab's nodes are read at load and appended as rows carrying `owner`
+>    (the instance's id) and `at` (their path inside it); `node_path` walks
+>    parent ids, so they resolve in the mirror with no change at all. The
+>    file and the mirror are both built from the rows *without* an `owner`,
+>    since the engine expands the instance itself. Everything else — the
+>    inspector, the gizmos, undo — works because the row is an ordinary one.
+> 7. **Overrides are sparse against the prefab.** Each virtual row keeps the
+>    prefab's own table as `base`; an edit equal to it removes the override
+>    rather than writing it, so a change to the prefab still reaches the
+>    instance. That is the same rule `props` follows against a script's
+>    exported defaults, one level up, and it is why both had to compare
+>    values structurally (through the TOML encoder) rather than by identity.
+>    The limit: a prefab written in a component's *shorthand* (`color = [r,
+>    g, b]`) and an override written by the editor (`color = { rgba = ... }`)
+>    are the same value spelled two ways, and the comparison does not know
+>    it, so such an override stays written even at the prefab's own value.
+>    Nothing renders differently; canonicalising would mean expanding a
+>    shorthand outside the component that owns it.
+> 8. **`script` is an override key.** Not in the plan, which said component
+>    keys. Retuning a prefab's exported properties per instance is the most
+>    useful override there is — one enemy file, a fast one and a slow one —
+>    and it lands as a merge into the pending attachment rather than on the
+>    node, because a script attaches after the whole tree exists.
 
 # Plan: prefabs, stable asset ids, sprite sheets
 

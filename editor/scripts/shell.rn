@@ -33,6 +33,7 @@ fn step(S, label, moved) {
     // Rebuilding stops play, so read the flag before it is cleared: a
     // keystroke aimed at the document should not silently kill the game.
     let was_playing = S.playing;
+    crate::session::finish(S, "stop");
     model::build_mirror(S);
     if was_playing {
         log::info(format!("{} stopped the running scene", label));
@@ -81,6 +82,10 @@ pub fn toggle_play(S) {
     if S.playing {
         stop_play(S);
     } else {
+        // Recording starts before the scripts attach: an `init` that opens a
+        // socket belongs inside the session, and one that takes an await
+        // token has to take the id the replay will hand back.
+        crate::session::start(S);
         // Real play-in-editor: attach the game's scripts to the mirrored
         // nodes (their init sets up physics etc.), then run.
         model::attach_game_scripts(S);
@@ -98,6 +103,7 @@ pub fn stop_play(S) {
     if S.playing {
         log::info("stop: scene reset");
     }
+    crate::session::finish(S, "stop");
     model::build_mirror(S);
     // The game may have restyled the viewport (background, camera).
     theme::apply(S);
@@ -242,6 +248,10 @@ pub fn save_active(S) {
             fs::write(abs, buffer);
             model::forget(S, Some(rel));
             S.script_dirty.remove(abs);
+            // A recording cannot survive its own code changing: the frames
+            // after a reload came from a different game. The session ends
+            // here, and what it caught until now is kept.
+            crate::session::finish(S, "reload");
             // The reload is also the compile: it builds the unit whether or
             // not the script is live, and leaves the old one running on a
             // failure, so a save that does not compile can say so.
@@ -294,6 +304,7 @@ fn states() {
         "assetdemo": crate::selftest::assets,
         "pickdemo": crate::selftest::picking,
         "propsdemo": crate::selftest::script_props,
+        "instancedemo": crate::selftest::instances,
         "lintdemo": crate::selftest::linting,
     }
 }

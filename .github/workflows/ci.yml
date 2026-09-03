@@ -138,3 +138,39 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check advisories bans sources
+
+  # A frame budget nothing measures is a wish. The ceilings in
+  # crates/balaur_bench/budgets.toml carry 4x headroom, so a regression in kind
+  # fails here and a slow morning on a shared runner does not.
+  benchmarks:
+    name: benchmarks are within budget
+    # Push only: eight minutes of criterion on every pull request buys nothing
+    # that the same ceilings do not catch when the branch lands.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libudev-dev
+      - uses: Swatinem/rust-cache@v2
+      - name: Bench
+        run: python3 scripts/bench.py --quick --check
+
+  # The promise is that one binary reproduces a simulation everywhere. If the
+  # binary is not reproducible from one runner's own sources, that promise is
+  # not testable and a divergence cannot be bisected.
+  reproducible-build:
+    name: the same sources build the same binary
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libudev-dev
+      - uses: Swatinem/rust-cache@v2
+      - name: Build twice, compare
+        run: ./scripts/reproducible_build.sh

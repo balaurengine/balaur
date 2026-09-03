@@ -1,0 +1,289 @@
+// Recorded play sessions: recording one, playing it back, and the dock that
+// shows what happened in it. `replay::*` is the engine side; this is the
+// editor's policy about where files go and how many are kept.
+
+use crate::model;
+use crate::shell;
+use crate::style;
+use crate::util;
+
+// How many sessions are kept per game before the oldest is pruned. A kept
+// one is renamed out of the ring and never counted here.
+const KEEP = 10;
+
+pub fn state() {
+    #{
+        // The file the running play session records into, "" when none.
+        recording: "",
+        // The file playback is reading, "" when none.
+        loaded: "",
+        header: (),
+        length: 0,
+        first: 0,
+        last: 0,
+        // Lanes built once at load: each `#{ id, name, marks }`.
+        lanes: [],
+        // The tick the detail list describes.
+        at: 0,
+        // Cached listing of the sessions directory, and when it was read.
+        list: [],
+        listed_at: -1.0,
+        // What a rebuild-and-seek is aiming at, while one is running.
+        seeking_to: -1,
+    }
+}
+
+// Where this game's sessions live: under the editor's own data directory,
+// not the game's, so nothing lands in the project or its version control.
+pub fn dir(S) {
+    engine::user_data_dir() + "/sessions/" + S.game_name
+}
+
+// A fingerprint of the scripts the session is about to run, so a replay can
+// say when the code under it has changed. Mtimes rather than contents: the
+// question is "has this been edited since", and a stat answers it.
+pub fn fingerprint(S) {
+    let parts = [];
+    for node in S.doc {
+        if let Some(rel) = model::script_rel(node) {
+            let stamp = fs::mtime(S.game_root + "/" + rel);
+            parts.push(format!("{}:{}", rel, stamp));
+        }
+    }
+    parts.sort();
+    util::join(parts, ",")
+}
+
+// Start recording the play session that is about to run. Called before the
+// game's scripts attach: an `init` that opens a socket has to be inside the
+// recording, and one that takes an await token has to take the recorded id.
+pub fn start(S) {
+    let path = dir(S) + "/" + replay::session_name() + ".blr";
+    let (ok, why) = script::attempt(|| replay::record(path, #{ scripts: fingerprint(S) }));
+    if ok {
+        S.session.recording = path;
+        S.session.listed_at = -1.0;
+    } else {
+        log::warn(format!("not recording this session: {}", why));
+        S.session.recording = "";
+    }
+}
+
+// Close the recording, if one is open. `reason` is what the dock shows for
+// how the session ended: "stop", "reload" or "quit".
+pub fn finish(S, reason) {
+    if S.session.recording == "" {
+        return;
+    }
+    S.session.recording = "";
+    S.session.listed_at = -1.0;
+    replay::stop(reason);
+    prune(S);
+}
+
+// Keep the newest `KEEP`; a session renamed to `kept-*` is out of the ring.
+fn prune(S) {
+    let names = [];
+    for entry in util::vec(fs::list(dir(S))) {
+        let name = util::obj(entry).get("name").unwrap_or("");
+        if name.ends_with(".blr") && !name.starts_with("kept-") {
+            names.push(name);
+        }
+    }
+    names.sort();
+    let extra = names.len() - KEEP;
+    if extra <= 0 {
+        return;
+    }
+    for i in 0..extra {
+        fs::remove(dir(S) + "/" + names[i]);
+    }
+}
+
+// The sessions on disk, newest first, re-read at most twice a second: the
+// dock draws every frame and a directory listing is a syscall per entry.
+pub fn listing(S) {
+    let now = engine::time();
+    if S.session.listed_at >= 0.0 && now - S.session.listed_at < 0.5 {
+        return S.session.list;
+    }
+    S.session.listed_at = now;
+    let names = [];
+    for entry in util::vec(fs::list(dir(S))) {
+        let name = util::obj(entry).get("name").unwrap_or("");
+        if name.ends_with(".blr") {
+            names.push(name);
+        }
+    }
+    names.sort();
+    names.reverse();
+    S.session.list = names;
+    names
+}
+
+// Put a session in front of the engine and start it. The mirror is rebuilt
+// first: the recording holds what the game was fed, not the world it started
+// from, and the same inputs into a different world are a different game.
+pub fn open(S, name) {
+    let path = dir(S) + "/" + name;
+    shell::stop_play(S);
+    let (ok, why) = script::attempt(|| replay::load(path));
+    if !ok {
+        log::warn(format!("{}: {}", name, why));
+        return;
+    }
+    S.session.loaded = path;
+    S.session.header = replay::header();
+    let span = util::obj(replay::length());
+    S.session.length = span.get("frames").unwrap_or(0);
+    S.session.first = span.get("first").unwrap_or(0);
+    S.session.last = span.get("last").unwrap_or(0);
+    S.session.at = S.session.first;
+    S.session.lanes = build_lanes();
+    // Loading puts the clock back to where the session started, so every
+    // cache that ages against `engine::time()` now thinks it is fresh until
+    // the clock catches up.
+    S.sources = #{};
+    S.listings = #{};
+    S.session.listed_at = -1.0;
+    S.lint.at = -1.0;
+    warn_if_stale(S, name);
+    model::attach_game_scripts(S);
+    S.playing = true;
+    S.dock = "session";
+    physics::set_paused(false);
+    replay::play();
+}
+
+// A replay whose scripts have been edited since still plays; it just cannot
+// promise to reproduce what was seen.
+fn warn_if_stale(S, name) {
+    let recorded = util::obj(S.session.header).get("scripts").unwrap_or("");
+    if recorded != "" && recorded != fingerprint(S) {
+        log::warn(format!("{}: the scripts have changed since this was recorded", name));
+    }
+}
+
+// One row per kind of thing that happens, built once because a session does
+// not change while it is loaded.
+fn build_lanes() {
+    let lanes = [];
+    lanes.push(#{ id: "keys", name: "Keys", marks: named_marks("input", "just_pressed") });
+    lanes.push(#{ id: "mouse", name: "Mouse", marks: index_marks("input", "mouse_just_pressed") });
+    lanes.push(#{ id: "net", name: "Net", marks: event_marks(["net.request"]) });
+    lanes.push(#{ id: "log", name: "Log", marks: event_marks(["log"]) });
+    lanes.push(#{ id: "stops", name: "Stops", marks: event_marks(["debug.pause"]) });
+    lanes
+}
+
+// Input edges come out of the recorded snapshot rather than an event: the
+// engine records what the frame was fed, and the key names are already in it.
+fn named_marks(source, key) {
+    let out = [];
+    for mark in util::vec(replay::marks(source, key)) {
+        out.push(#{ tick: mark.tick, label: util::join(util::vec(mark.values), " ") });
+    }
+    out
+}
+
+// The mouse buttons arrive as a flag per button, so the mark names the ones
+// that were true.
+fn index_marks(source, key) {
+    let out = [];
+    for mark in util::vec(replay::marks(source, key)) {
+        let names = [];
+        for (i, down) in util::vec(mark.values).iter().enumerate() {
+            if down == true {
+                names.push(format!("button {}", i));
+            }
+        }
+        if names.len() > 0 {
+            out.push(#{ tick: mark.tick, label: util::join(names, " ") });
+        }
+    }
+    out
+}
+
+fn event_marks(kinds) {
+    let out = [];
+    for e in util::vec(replay::events(0, 1000000000)) {
+        if kinds.iter().any(|k| k == e.kind) {
+            out.push(#{ tick: e.tick, label: e.label });
+        }
+    }
+    out
+}
+
+// Stop playback and put the edited scene back.
+pub fn close(S) {
+    if S.session.loaded == "" {
+        return;
+    }
+    S.session.loaded = "";
+    S.session.lanes = [];
+    replay::unload();
+    shell::stop_play(S);
+}
+
+// Rename a session out of the ring that prunes the oldest.
+pub fn keep(S, name) {
+    fs::rename(dir(S) + "/" + name, dir(S) + "/kept-" + name);
+    S.session.listed_at = -1.0;
+    log::info("keeping " + name);
+}
+
+pub fn remove(S, name) {
+    fs::remove(dir(S) + "/" + name);
+    S.session.listed_at = -1.0;
+    log::info("deleted " + name);
+}
+
+pub fn loaded(S) {
+    S.session.loaded != ""
+}
+
+// Whether recorded input is being fed into the snapshot the viewport tools
+// read. True while playing or seeking; a paused session hands the pointer
+// back, because nothing is fed and the engine is held.
+pub fn scrubbing(S) {
+    loaded(S) && replay::state() != replay::STATE_PAUSED
+}
+
+pub fn toggle_pause(S) {
+    if replay::state() == replay::STATE_PAUSED {
+        replay::play();
+    } else {
+        replay::pause();
+    }
+}
+
+// Seek to `tick`. Forward is the engine's; backward means rebuilding the
+// world and running from the session's start again, because a snapshot does
+// not yet cover nodes spawned or freed since.
+pub fn seek(S, tick) {
+    if S.session.loaded == "" {
+        return;
+    }
+    S.session.at = tick;
+    if replay::position() <= tick {
+        replay::seek(tick);
+        return;
+    }
+    let path = S.session.loaded;
+    let name = util::last_segment(path);
+    S.session.seeking_to = tick;
+    open(S, name);
+    replay::seek(tick);
+    S.session.seeking_to = -1;
+}
+
+// Follow the playhead while a session runs, so the detail list describes the
+// tick on screen.
+pub fn update(S) {
+    if S.session.loaded == "" {
+        return;
+    }
+    if replay::state() != replay::STATE_PAUSED {
+        S.session.at = replay::position();
+    }
+}

@@ -69,10 +69,20 @@ example on Linux, macOS and Windows.
 balaur run my-game --fixed-tick --record session.blr
 ```
 
-The file is JSON Lines: a header, then one line per tick carrying that tick's
-external input, the step it ran at, and the digest it produced. It records
-**input, not state** — the world is rebuilt by re-running your game against
-the same input.
+The file is JSON Lines: a header, one line per tick carrying that tick's
+external input and the step it ran at, and a trailer saying how the session
+ended. It records **input, not state** — the world is rebuilt by re-running
+your game against the same input.
+
+A run from the command line also writes a digest on every tick, which is what
+`--verify` compares. That costs a walk of every node per frame, so the editor
+records without them and writes one at the end instead: a play session answers
+"what happened", and only a run you mean to verify needs "and where did it
+part".
+
+The editor records every play session on its own, into its data directory, and
+the Session dock plays them back with a timeline of the input, requests, log
+lines and stops that went by. Nothing needs turning on.
 
 Play it back, re-checking every tick:
 
@@ -148,7 +158,7 @@ are the ones to watch.
 | `x.powf(y)`, `x.powi(n)` | Handled — Rune's own, and our fork of it routes both through `libm` |
 | `engine::time()`, `engine::delta()` | **Your problem** — both accumulate real frame time. Use `engine::tick()`, or `fixed_update`'s `dt` |
 | Iterating the keys of an object | **Your problem** — `#{}` is hash-ordered, not insertion-ordered. Iterate a `Vec`, or `sort()` the keys first |
-| Hot reload mid-session | **Your problem** — changing code changes behaviour. Turn it off for a run you intend to verify |
+| Hot reload mid-session | Handled — a reload ends the recording where it happened, and the header's script fingerprint says when the sources have moved on since |
 
 Every float method Rune exposes is now safe to call directly. `sqrt`, `abs`,
 `floor`, `ceil`, `round`, `min` and `max` are exactly rounded by IEEE-754, so
@@ -193,4 +203,12 @@ the digest, so a divergence in it is caught:
 ```rust
 // `body3d` reports its kind, not its velocity — and velocity diverges first.
 app.add_digest_source("physics", |eng, out| { /* push labelled entries */ });
+```
+
+**A subsystem that does something a timeline should show** records an event.
+Free when nothing is recording, so it can be called unconditionally:
+
+```rust
+// The outbound half of a request: only the reply is a replay source.
+replay::event(eng, "net.request", format!("{method} {url}"), None);
 ```

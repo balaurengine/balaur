@@ -145,6 +145,28 @@ fn transform_section(S, k) {
     });
 }
 
+// A row that came from a prefab says so, and says where an edit will land.
+fn instance_note(S, k) {
+    let node = model::selected_node(S);
+    if !model::is_instanced(node) {
+        return;
+    }
+    ui::add_space(6);
+    ui::horizontal((), || {
+        ui::add_space(8);
+        ui::frame(#{ fill: k.sunken, radius: 12, padding_x: 10 }, || {
+            ui::horizontal(#{ height: 24 }, || {
+                ui::label("⧉ from " + model::prefab_of(S, node), style::mono_sm(k.dim));
+            });
+        });
+    });
+    ui::horizontal((), || {
+        ui::add_space(10);
+        ui::label("edits become overrides on " + node.at, style::mono_sm(k.faint));
+    });
+    ui::add_space(4);
+}
+
 fn script_section(S, k, title) {
     let node = model::selected_node(S);
     if !section(S, k, title) {
@@ -1037,6 +1059,7 @@ pub fn draw(S) {
         });
 
         ui::scroll("inspector-scroll", #{ max_height: ui::available_height() - 50.0 }, || {
+            instance_note(S, k);
             if S.persona == "phys" {
                 component_sections(S, k, Some(["body", "collider", "body2d", "collider2d"]));
                 polygon_section(S, k);

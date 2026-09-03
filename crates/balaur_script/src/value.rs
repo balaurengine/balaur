@@ -15,6 +15,9 @@ pub enum Value {
     Int(i64),
     Num(f64),
     Str(String),
+    /// A binary payload: a websocket frame, and later a datagram. Separate
+    /// from `Str` because a frame's bytes need not be UTF-8.
+    Bytes(Vec<u8>),
     Vec2([f32; 2]),
     Vec3([f32; 3]),
     Color([f32; 4]),
@@ -44,6 +47,7 @@ impl Value {
             Self::Int(_) => "int",
             Self::Num(_) => "number",
             Self::Str(_) => "string",
+            Self::Bytes(_) => "bytes",
             Self::Vec2(_) => "vec2",
             Self::Vec3(_) => "vec3",
             Self::Color(_) => "color",

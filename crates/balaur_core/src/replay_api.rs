@@ -97,6 +97,11 @@ pub const REPLAY_OPS: &[EngineOp] = &[
         name: "diverged",
         call: diverged,
     },
+    EngineOp {
+        module: "replay",
+        name: "session_name",
+        call: session_name,
+    },
 ];
 
 /// Declare the module's functions and the `STATE_*` constants `state` answers
@@ -368,6 +373,14 @@ fn diverged(eng: &Engine, _: &[Value]) -> Result<Value> {
                 ("replayed".into(), Value::Str(format!("{:016x}", d.replayed))),
             ])
         }))
+}
+
+/// A file name for a session starting now: the header's timestamp with the
+/// characters a Windows path refuses taken out, so it still sorts by time.
+fn session_name(_: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::Str(
+        replay::timestamp().replace(':', "-").replace(' ', "_"),
+    ))
 }
 
 fn header_value(session: &Session) -> Value {

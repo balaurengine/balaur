@@ -84,6 +84,10 @@ pub const BALAUR_CALLBACK: u32 = 9;
 pub const BALAUR_LIST: u32 = 10;
 pub const BALAUR_MAP: u32 = 11;
 pub const BALAUR_MANY: u32 = 12;
+/// Arbitrary bytes, in the `string` arm of the payload. A new tag rather than
+/// a layout change, so an extension built against version 1 still reads every
+/// value it already knew.
+pub const BALAUR_BYTES: u32 = 13;
 
 /// UTF-8 bytes, not NUL-terminated. Borrowed for the length of the call.
 #[repr(C)]
@@ -154,9 +158,13 @@ impl BalaurValue {
 
 impl BalaurStr {
     fn borrowed(text: &str) -> Self {
+        Self::borrowed_bytes(text.as_bytes())
+    }
+
+    fn borrowed_bytes(bytes: &[u8]) -> Self {
         Self {
-            ptr: text.as_ptr(),
-            len: text.len(),
+            ptr: bytes.as_ptr(),
+            len: bytes.len(),
         }
     }
 
@@ -165,10 +173,17 @@ impl BalaurStr {
     /// reference is used. The lifetime is unbounded, so callers must keep it
     /// inside the call that produced it.
     unsafe fn as_str<'a>(self) -> Option<&'a str> {
+        std::str::from_utf8(unsafe { self.as_bytes() }).ok()
+    }
+
+    /// # Safety
+    /// Same as [`Self::as_str`]: valid for `len` bytes for the returned
+    /// reference's use.
+    unsafe fn as_bytes<'a>(self) -> &'a [u8] {
         if self.ptr.is_null() {
-            return (self.len == 0).then_some("");
+            return &[];
         }
-        std::str::from_utf8(unsafe { std::slice::from_raw_parts(self.ptr, self.len) }).ok()
+        unsafe { std::slice::from_raw_parts(self.ptr, self.len) }
     }
 }
 
@@ -362,6 +377,12 @@ fn to_c(value: &Value, arena: &mut Arena) -> BalaurValue {
                 string: BalaurStr::borrowed(s),
             },
         ),
+        Value::Bytes(bytes) => (
+            BALAUR_BYTES,
+            BalaurPayload {
+                string: BalaurStr::borrowed_bytes(bytes),
+            },
+        ),
         Value::Vec2([x, y]) => (
             BALAUR_VEC2,
             BalaurPayload {
@@ -435,6 +456,7 @@ unsafe fn from_c(value: &BalaurValue) -> Result<Value> {
                 .ok_or_else(|| anyhow::anyhow!("extension returned a string that is not UTF-8"))?;
             Value::Str(text.to_string())
         }
+        BALAUR_BYTES => Value::Bytes(unsafe { payload.string.as_bytes() }.to_vec()),
         BALAUR_VEC2 => {
             let v = unsafe { payload.vector };
             Value::Vec2([v[0], v[1]])

@@ -299,3 +299,44 @@ fn a_packed_game_builds_its_prefabs() {
     let body = node_named(&app, "Enemy/Body");
     assert_eq!(number(&app, body, "seen_speed"), Some(6.5));
 }
+
+/// Retuning a prefab from the instance that named it: two enemies from one
+/// file, differing only in a property the scene overrode.
+#[test]
+fn an_override_retunes_a_prefabs_script() {
+    let dir = project(&[
+        ("scripts/enemy.rn", ENEMY),
+        (
+            "scenes/enemy.toml",
+            "[[nodes]]\n\
+             id = \"n_body\"\n\
+             name = \"Body\"\n\
+             script = { source = \"scripts/enemy.rn\", props = { speed = 1.5 } }\n",
+        ),
+    ]);
+    let app = app_in(dir.path());
+    let root = app.engine.root();
+    balaur_core::project::instantiate_scene(
+        &app.engine,
+        "[[nodes]]\n\
+         id = \"n_slow\"\n\
+         name = \"Slow\"\n\
+         instance = \"scenes/enemy.toml\"\n\
+         \n\
+         [[nodes]]\n\
+         id = \"n_fast\"\n\
+         name = \"Fast\"\n\
+         instance = \"scenes/enemy.toml\"\n\
+         \n\
+         [nodes.overrides.\"Body\".script.props]\n\
+         speed = 12.0\n",
+        root,
+        true,
+    )
+    .unwrap();
+
+    assert_eq!(number(&app, node_named(&app, "Slow/Body"), "seen_speed"), Some(1.5));
+    assert_eq!(number(&app, node_named(&app, "Fast/Body"), "seen_speed"), Some(12.0));
+    // Untouched by the override, so both still take the export's default.
+    assert_eq!(number(&app, node_named(&app, "Fast/Body"), "seen_jumps"), Some(2.0));
+}

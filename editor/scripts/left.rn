@@ -63,7 +63,15 @@ fn tree_row(S, k, row) {
             icon_color: if selected { k.on_accent } else { icon_color },
             fill: if selected { k.accent_fill } else { "#00000000" },
             hover_fill: k.raised,
-            color: if selected { k.on_accent } else { k.text },
+            // A row from a prefab reads as one level quieter: it is real, and
+            // it is not this file's to restructure.
+            color: if selected {
+                k.on_accent
+            } else if model::is_instanced(node) {
+                k.dim
+            } else {
+                k.text
+            },
             // An instance's own children come from another file and are not
             // in this document, so the row says so rather than looking empty.
             trailing: if node.contains_key("instance") {

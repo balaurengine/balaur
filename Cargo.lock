@@ -3917,6 +3917,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "proc-macro-error-attr2"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96de42df36bb9bba5542fe9f1a054b8cc87e172759a1868aa05c1f3acc89dfc5"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
+
+[[package]]
+name = "proc-macro-error2"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11ec05c52be0a07b08061f7dd003e7d7092e0472bc731b4af7bb1ef876109802"
+dependencies = [
+ "proc-macro-error-attr2",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5265,6 +5287,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "token_stream_flatten"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a84dee1c47b2bb20c681c923f68d1700bf04a83a6b316151634bb1915c5ddd7"
+dependencies = [
+ "proc-macro2",
+]
+
+[[package]]
+name = "tokrepr"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e45a78afc8866f3b814539399590346083be88990c642bf9d95aa9ee0d93627e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "tokrepr-derive",
+]
+
+[[package]]
+name = "tokrepr-derive"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc2d9fffd3c8ace307ee6735c35ee6fe87d8d4ef64b6a23dc54a15e076692f1b"
+dependencies = [
+ "itertools 0.14.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "toml"
 version = "0.9.12+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5839,6 +5893,7 @@ dependencies = [
  "num-traits",
  "thiserror 2.0.20",
  "wesl-macros",
+ "wesl-quote",
  "wgsl-parse",
  "wgsl-types",
 ]
@@ -5853,6 +5908,21 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.4",
+]
+
+[[package]]
+name = "wesl-quote"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "659e7252f989d786164fae280144eb6c262a702ae80de4c68bba1f6a6af3a166"
+dependencies = [
+ "itertools 0.15.0",
+ "proc-macro-error2",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.4",
+ "token_stream_flatten",
+ "wgsl-parse",
 ]
 
 [[package]]
@@ -6052,6 +6122,7 @@ dependencies = [
  "lexical",
  "logos",
  "thiserror 2.0.20",
+ "tokrepr",
  "wgsl-types",
 ]
 
@@ -6064,6 +6135,7 @@ dependencies = [
  "half",
  "itertools 0.15.0",
  "num-traits",
+ "tokrepr",
 ]
 
 [[package]]

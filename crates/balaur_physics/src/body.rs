@@ -15,7 +15,8 @@ use rapier3d::prelude::{
     RigidBodyHandle, RigidBodyType,
 };
 
-use crate::collider::{add_collider, apply_collider, get_collider_params, overlaps};
+use crate::collider::{add_collider, apply_collider, get_collider_params};
+use crate::query::overlaps_value;
 use crate::vocabulary as v;
 use crate::{node_pose, PhysicsState};
 
@@ -218,7 +219,10 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
     );
     map.insert("ccd".into(), body.is_ccd_enabled().into());
     map.insert("soft_ccd".into(), f(body.soft_ccd_prediction()));
-    map.insert("fast_rotation".into(), body.is_fast_rotation_allowed().into());
+    map.insert(
+        "fast_rotation".into(),
+        body.is_fast_rotation_allowed().into(),
+    );
     map.insert("enabled".into(), body.is_enabled().into());
     map.insert(
         "can_sleep".into(),
@@ -321,8 +325,11 @@ pub(crate) fn install_body_api(m: &mut dyn Bindings<Engine>) {
         "apply_impulse_at_point",
         |eng: &Engine, (node, x, y, z, px, py, pz): (NodeId, f32, f32, f32, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle]
-                    .apply_impulse_at_point(Vec3::new(x, y, z), Vec3::new(px, py, pz), true);
+                state.world.bodies[handle].apply_impulse_at_point(
+                    Vec3::new(x, y, z),
+                    Vec3::new(px, py, pz),
+                    true,
+                );
             })
         },
     );
@@ -387,10 +394,7 @@ pub(crate) fn install_body_api(m: &mut dyn Bindings<Engine>) {
     // Sensor pairs only: rapier's narrow phase reports an intersection only
     // when at least one of the two colliders is a sensor.
     m.function("overlaps", |eng: &Engine, node: NodeId| {
-        Ok(overlaps(eng, entity_of(node)?)
-            .into_iter()
-            .map(balaur_core::node_id_of)
-            .collect::<Vec<_>>())
+        overlaps_value(eng, node)
     });
     m.function("set_gravity", |eng: &Engine, (x, y, z): (f32, f32, f32)| {
         let state = eng.resource::<PhysicsState>();
@@ -578,13 +582,14 @@ pub(crate) fn install_body_state_api(m: &mut dyn Bindings<Engine>) {
         "set_dominance",
         |eng: &Engine, (node, group): (NodeId, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle]
-                    .set_dominance_group(group.clamp(-127.0, 127.0) as i8);
+                state.world.bodies[handle].set_dominance_group(group.clamp(-127.0, 127.0) as i8);
             })
         },
     );
     m.function("dominance", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| f32::from(body.dominance_group()))
+        read_body(eng, entity_of(node)?, |body| {
+            f32::from(body.dominance_group())
+        })
     });
     m.function("set_enabled", |eng: &Engine, (node, on): (NodeId, bool)| {
         with_body(eng, entity_of(node)?, |state, handle| {

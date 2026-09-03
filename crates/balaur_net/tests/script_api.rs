@@ -105,7 +105,7 @@ fn serve_echo() -> String {
             let mut connection = tungstenite::accept(stream).unwrap();
             loop {
                 match connection.read() {
-                    Ok(message) if message.is_text() => {
+                    Ok(message) if message.is_text() || message.is_binary() => {
                         let _ = connection.send(message);
                     }
                     // Reading through the close frame lets tungstenite flush
@@ -216,4 +216,31 @@ pub fn on_websocket_event(this, e) {{
             "rune-websocket-closed",
         ],
     );
+}
+
+#[test]
+fn a_rune_script_sends_and_receives_a_binary_frame() {
+    if !e2e_enabled() {
+        return;
+    }
+    let echo = serve_echo();
+    let source = format!(
+        r#"
+pub fn init(this) {{
+    this.socket = websocket::connect(this.node, "{echo}");
+}}
+
+pub fn on_websocket_event(this, e) {{
+    if e["kind"] == "open" {{
+        websocket::send(this.socket, Bytes::from_vec([0, 255, 16, 254]));
+    }} else if e["kind"] == "binary" {{
+        log::info(`rune-binary ${{e["bytes"].len()}}`);
+        websocket::close(this.socket);
+    }} else if e["kind"] == "closed" {{
+        log::info("rune-binary-closed");
+    }}
+}}
+"#
+    );
+    run_until(&source, &["rune-binary 4", "rune-binary-closed"]);
 }

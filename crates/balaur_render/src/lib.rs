@@ -18,6 +18,7 @@ pub mod mesh;
 mod particles;
 mod pick;
 mod polygon;
+pub mod preview;
 pub mod shaders;
 mod shape;
 mod sprite;
@@ -1111,7 +1112,8 @@ fn install_texture_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "texture_size",
         &[],
-        "", "An image's width and height in pixels, read from the file's own header.",
+        "",
+        "An image's width and height in pixels, read from the file's own header.",
     )]);
     m.function("texture_size", |eng: &Engine, path: String| {
         let bytes = eng

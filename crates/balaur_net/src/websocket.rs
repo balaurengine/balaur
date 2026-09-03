@@ -425,9 +425,7 @@ fn handle(
     Ok(None)
 }
 
-/// A finished message to the engine thread: inflated if it came compressed,
-/// and text only — the value model has no bytes, and dropping loudly beats a
-/// silent stall when a server switches to a binary protocol.
+/// A finished message to the engine thread, inflated if it came compressed.
 fn deliver(
     socket: u64,
     message: Incoming,
@@ -442,12 +440,13 @@ fn deliver(
     } else {
         message.bytes
     };
-    if !message.text {
-        tracing::warn!("websocket {socket}: binary frame dropped (text only)");
-        return Ok(());
-    }
-    let text = String::from_utf8(bytes).context("a text frame was not UTF-8")?;
-    let _ = events.send(NetEvent::SocketMessage { socket, text });
+    let event = if message.text {
+        let text = String::from_utf8(bytes).context("a text frame was not UTF-8")?;
+        NetEvent::SocketMessage { socket, text }
+    } else {
+        NetEvent::SocketBinary { socket, bytes }
+    };
+    let _ = events.send(event);
     Ok(())
 }
 
@@ -478,7 +477,12 @@ fn drain_commands(
 ) -> Result<()> {
     loop {
         match commands.try_recv() {
-            Ok(SocketCommand::SendText(text)) => send_text(connection, deflate, text)?,
+            Ok(SocketCommand::SendText(text)) => {
+                send_message(connection, deflate, text.into_bytes(), Data::Text)?;
+            }
+            Ok(SocketCommand::SendBytes(bytes)) => {
+                send_message(connection, deflate, bytes, Data::Binary)?;
+            }
             // Closing twice (a script's close racing shutdown) is a no-op,
             // not a failure worth reporting.
             Ok(SocketCommand::Close) => request_close(connection, closing),
@@ -500,13 +504,18 @@ fn request_close(connection: &mut Socket, closing: &mut bool) {
     }
 }
 
-/// One text message, compressed when the connection negotiated it.
-fn send_text(connection: &mut Socket, deflate: &mut Option<Deflate>, text: String) -> Result<()> {
+/// One message, compressed when the connection negotiated it.
+fn send_message(
+    connection: &mut Socket,
+    deflate: &mut Option<Deflate>,
+    bytes: Vec<u8>,
+    kind: Data,
+) -> Result<()> {
     let (payload, compressed) = match deflate {
-        Some(deflate) => (deflate.deflate(text.as_bytes())?, true),
-        None => (text.into_bytes(), false),
+        Some(deflate) => (deflate.deflate(&bytes)?, true),
+        None => (bytes, false),
     };
-    let mut frame = Frame::message(payload, OpCode::Data(Data::Text), true);
+    let mut frame = Frame::message(payload, OpCode::Data(kind), true);
     frame.header_mut().rsv1 = compressed;
     send(connection, frame)?;
     Ok(())

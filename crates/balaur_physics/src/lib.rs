@@ -8,39 +8,36 @@
 //! simulated pose is written to the local transform). Nest them under
 //! non-moving parents only.
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
 
 use balaur_core::collections::DetHashMap;
-
-use balaur_core::entity_of;
 
 use balaur_core::hecs::Entity;
 
 use balaur_core::{App, Engine, Plugin, Stage, Transform};
 
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Bindings, BindingsExt};
 
-use glamx::{Pose3, Vec3};
+use glamx::Pose3;
 
 use rapier3d::pipeline::PhysicsWorld;
 
 use rapier3d::prelude::{ColliderHandle, RigidBodyHandle};
 
-
 pub mod body;
 pub mod collider;
 pub mod debug;
 pub mod dim2;
+pub mod events;
+pub mod query;
 mod vocabulary;
 
-pub use collider::overlaps;
 pub use dim2::PhysicsState2d;
-
+pub use query::overlaps;
 
 use balaur_core::digest::{node_label, Entry, Hasher};
 
 use balaur_core::FIXED_DT;
-
 
 pub struct PhysicsState {
     pub world: PhysicsWorld,
@@ -58,7 +55,6 @@ pub struct PhysicsState {
     pub sleeping_allowed: bool,
 }
 
-
 impl PhysicsState {
     fn new() -> Self {
         Self {
@@ -71,9 +67,7 @@ impl PhysicsState {
     }
 }
 
-
 pub struct PhysicsPlugin;
-
 
 impl Plugin for PhysicsPlugin {
     fn name(&self) -> &'static str {
@@ -102,6 +96,8 @@ impl Plugin for PhysicsPlugin {
         install_constants(&mut *m, BODY_KINDS, SHAPE_KINDS);
         body::install_body_api(&mut *m);
         body::install_body_state_api(&mut *m);
+        collider::install_collider_api(&mut *m);
+        query::install_query_api(&mut *m);
         body::register_body_component(app);
         collider::register_collider_component(app);
         register_physics_presets(app)?;
@@ -110,7 +106,6 @@ impl Plugin for PhysicsPlugin {
         Ok(())
     }
 }
-
 
 /// Velocity and sleep state, which no component `get` reports: two peers
 /// can agree on every position and still be about to diverge.
@@ -137,7 +132,6 @@ fn build_physics_digest(app: &mut App) {
     });
 }
 
-
 /// The rapier world plus the maps tying it to entities.
 ///
 /// The whole world rather than a per-body summary: rapier's own
@@ -153,7 +147,6 @@ struct PhysicsFrame {
     sleeping_allowed: bool,
 }
 
-
 /// The save side borrows: a rollback ring holds many of these, and
 /// `PhysicsWorld` is not `Clone` precisely because copying one is expensive.
 #[derive(serde::Serialize)]
@@ -164,7 +157,6 @@ struct PhysicsFrameRef<'a> {
     paused: bool,
     sleeping_allowed: bool,
 }
-
 
 fn build_physics_snapshot(app: &mut App) {
     app.add_snapshot_source(
@@ -216,7 +208,6 @@ fn build_physics_snapshot(app: &mut App) {
     );
 }
 
-
 /// The 3D body presets. Both dimensions carry their marker (D5).
 fn register_physics_presets(app: &mut App) -> Result<()> {
     app.register_preset(
@@ -238,7 +229,6 @@ fn register_physics_presets(app: &mut App) -> Result<()> {
     Ok(())
 }
 
-
 pub(crate) fn node_pose(eng: &Engine, entity: Entity) -> Result<Pose3> {
     // Make sure globals are up to date even before the first frame ran.
     let root = eng.root();
@@ -250,54 +240,61 @@ pub(crate) fn node_pose(eng: &Engine, entity: Entity) -> Result<Pose3> {
     Ok(Pose3::from_parts(global.position, global.rotation))
 }
 
-
 fn step_system(eng: &Engine, _dt: f32) {
-    let state = eng.resource::<PhysicsState>();
-    let mut state = state.borrow_mut();
-    let state = &mut *state;
-    if state.paused {
-        return;
-    }
+    let events = {
+        let state = eng.resource::<PhysicsState>();
+        let mut state = state.borrow_mut();
+        let state = &mut *state;
+        if state.paused {
+            return;
+        }
 
-    // Prune bodies whose node died, and feed kinematic targets in.
-    {
-        let world = eng.world();
-        state.bodies.retain(|&entity, handle| {
-            if !world.contains(entity) {
-                state.world.remove_body(*handle);
-                return false;
-            }
-            true
-        });
-        for (&entity, &handle) in &state.bodies {
-            let body = &mut state.world.bodies[handle];
-            if body.is_kinematic() {
-                if let Ok(t) = world.get::<&Transform>(entity) {
-                    body.set_next_kinematic_position(Pose3::from_parts(t.position, t.rotation));
+        // Prune bodies whose node died, and feed kinematic targets in.
+        {
+            let world = eng.world();
+            state.bodies.retain(|&entity, handle| {
+                if !world.contains(entity) {
+                    state.world.remove_body(*handle);
+                    return false;
+                }
+                true
+            });
+            for (&entity, &handle) in &state.bodies {
+                let body = &mut state.world.bodies[handle];
+                if body.is_kinematic() {
+                    if let Ok(t) = world.get::<&Transform>(entity) {
+                        body.set_next_kinematic_position(Pose3::from_parts(t.position, t.rotation));
+                    }
                 }
             }
         }
-    }
 
-    // Exactly one step: Stage::FixedUpdate already repeats at FIXED_DT, and a
-    // second accumulator here would drift out of step with the scripts.
-    state.world.integration_parameters.dt = FIXED_DT;
-    state.world.step();
+        // Exactly one step: Stage::FixedUpdate already repeats at FIXED_DT, and a
+        // second accumulator here would drift out of step with the scripts.
+        state.world.integration_parameters.dt = FIXED_DT;
+        let collector = events::Collector::default();
+        state
+            .world
+            .step_with_events(&events::Hooks { eng }, &collector);
 
-    // Write simulated poses back to the scene tree.
-    let world = eng.world();
-    for (&entity, &handle) in &state.bodies {
-        let body = &state.world.bodies[handle];
-        if body.is_fixed() || body.is_kinematic() {
-            continue;
+        // Write simulated poses back to the scene tree.
+        let world = eng.world();
+        for (&entity, &handle) in &state.bodies {
+            let body = &state.world.bodies[handle];
+            if body.is_fixed() || body.is_kinematic() {
+                continue;
+            }
+            if let Ok(mut t) = world.get::<&mut Transform>(entity) {
+                t.position = body.translation();
+                t.rotation = *body.rotation();
+            }
         }
-        if let Ok(mut t) = world.get::<&mut Transform>(entity) {
-            t.position = body.translation();
-            t.rotation = *body.rotation();
-        }
-    }
+        collector.take()
+    };
+    // Delivered with the world no longer borrowed: a handler is ordinary
+    // script code and may move the body it was just told about.
+    events::deliver(eng, events);
 }
-
 
 /// Pause, sleeping and gravity.
 fn install_world_controls(m: &mut dyn Bindings<Engine>) {
@@ -377,7 +374,6 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-
 /// Body kinds the 3D and 2D worlds both accept, so a script writes
 /// `physics3d.BODY_DYNAMIC` rather than spelling "dynamic" and finding out at
 /// runtime that "Dynamic" silently fell through to the default.
@@ -388,14 +384,11 @@ pub const BODY_KINDS: &[(&str, &str)] = &[
     ("BODY_KINEMATIC_VELOCITY", "kinematic_velocity"),
 ];
 
-
 /// Collider shapes for the 3D world.
 pub const SHAPE_KINDS: &[(&str, &str)] = &[("SHAPE_BALL", "ball"), ("SHAPE_CUBOID", "cuboid")];
 
-
 /// Collider shapes for the 2D world.
 pub const SHAPE_KINDS_2D: &[(&str, &str)] = &[("SHAPE_CIRCLE", "circle"), ("SHAPE_RECT", "rect")];
-
 
 pub(crate) fn install_constants(
     m: &mut dyn Bindings<Engine>,

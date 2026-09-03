@@ -23,11 +23,13 @@
 >    action is what lets a stick pushed past the threshold fire
 >    `just_pressed` the way a key does. It is derived from the recorded raw
 >    input each frame, so a replay reproduces it.
-> 5. **Open question 2 is still open.** A replay reproduces actions from
->    keys, which is phase 1's bar, but the *binding table* is not in the
->    recording's header yet: replaying a session against a project whose
->    bindings changed derives different actions, and nothing says so. That
->    wants the header work the question describes.
+> 5. **Open question 2 is closed, with a seam rather than a field.** The
+>    recording's header carries the binding table and restores it before the
+>    first tick, so rebinding after a session cannot change what it replays.
+>    Rather than teaching core the word "bindings", `App::add_replay_setup`
+>    is a once-at-start twin of `add_replay_source` for anything a plugin
+>    loads rather than simulates — a locale and an audio mix will want it
+>    too. A recording made before a plugin declared its setup still plays.
 > 6. **`ManifestSource` had to exist.** A plugin reading its own table out of
 >    `project.toml` through `ProjectFiles` finds nothing in a packed game —
 >    a pack carries the manifest beside the assets, not among them. The raw
