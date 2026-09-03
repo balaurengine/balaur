@@ -214,3 +214,97 @@ pub fn fixed_update(this, dt) {
 "#,
     );
 }
+
+/// Every phase owes the snapshot a round trip: a joint, a motor and a voxel
+/// edit must all come back the way they went in, or a rollback quietly
+/// rebuilds a different world.
+#[test]
+fn joints_and_shape_edits_survive_a_snapshot() {
+    use balaur_core::hecs::Entity;
+    use balaur_core::scene::{self, Transform};
+    use balaur_core::{components, snapshot, App, AppConfig};
+    use balaur_physics::{PhysicsPlugin, PhysicsState};
+
+    let mut app = App::new(AppConfig {
+        project_root: std::path::PathBuf::from("."),
+        pack: None,
+        watch: false,
+        script_args: Vec::new(),
+        script_backend: None,
+    })
+    .unwrap();
+    app.add_plugin(PhysicsPlugin).unwrap();
+
+    let root = app.engine.root();
+    let spawn = |name: &str, x: f32| -> Entity {
+        let e = scene::spawn_node(&mut app.engine.world_mut(), name, root);
+        app.engine
+            .world()
+            .get::<&mut Transform>(e)
+            .unwrap()
+            .position
+            .x = x;
+        components::add(
+            &app.engine,
+            e,
+            "body3d",
+            Some(&toml::from_str("kind = \"dynamic\"").unwrap()),
+        )
+        .unwrap();
+        components::add(
+            &app.engine,
+            e,
+            "collider3d",
+            Some(&toml::from_str("kind = \"ball\"\nradius = 0.2").unwrap()),
+        )
+        .unwrap();
+        e
+    };
+    let anchor = spawn("Anchor", 0.0);
+    let hanging = spawn("Hanging", 1.0);
+    components::add(
+        &app.engine,
+        hanging,
+        "joint3d",
+        Some(
+            &toml::from_str("kind = \"revolute\"\nbody = \"/Anchor\"\nbreak_force = 500.0")
+                .unwrap(),
+        ),
+    )
+    .unwrap();
+    let _ = anchor;
+
+    for _ in 0..10 {
+        app.tick(1.0 / 60.0);
+    }
+    let taken = snapshot::capture(&app.engine);
+    let before = {
+        let state = app.engine.resource::<PhysicsState>();
+        let state = state.borrow();
+        (
+            state.joints.len(),
+            state.world.bodies[state.bodies[&hanging]].translation().y,
+        )
+    };
+    assert_eq!(before.0, 1, "the joint was never made");
+
+    for _ in 0..30 {
+        app.tick(1.0 / 60.0);
+    }
+    snapshot::restore(&app.engine, &taken);
+    let after = {
+        let state = app.engine.resource::<PhysicsState>();
+        let state = state.borrow();
+        (
+            state.joints.len(),
+            state.world.bodies[state.bodies[&hanging]].translation().y,
+        )
+    };
+    assert_eq!(after.0, before.0, "the joint did not come back");
+    assert!(
+        (after.1 - before.1).abs() < 1e-6,
+        "the body came back at {} rather than {}",
+        after.1,
+        before.1
+    );
+}

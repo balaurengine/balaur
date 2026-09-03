@@ -33,6 +33,37 @@ pub struct PreviewRequest {
     pub line: usize,
 }
 
+/// The pixel a preview is asked the value of, in framebuffer coordinates.
+#[derive(Default)]
+pub struct ProbeRequest {
+    pub at: [f32; 2],
+}
+
+/// What the shader wrote for that pixel, one frame ago.
+#[derive(Default)]
+pub struct ProbeReading {
+    pub value: [f32; 4],
+}
+
+/// The pixel a preview is asked about, or `None` when nobody asked.
+#[cfg(feature = "kiss3d")]
+pub(crate) fn probe_at(eng: &Engine) -> Option<[f32; 2]> {
+    eng.try_resource::<ProbeRequest>()
+        .map(|request| request.borrow().at)
+}
+
+/// Record what the shader wrote, for `render::shader_probe` to answer with.
+///
+/// `None` clears it: a pixel that drew nothing has no value, and leaving the
+/// last one standing would report a number for empty space.
+#[cfg(feature = "kiss3d")]
+pub(crate) fn publish_probe(eng: &Engine, value: Option<[f32; 4]>) {
+    match value {
+        Some(value) => eng.insert_resource(ProbeReading { value }),
+        None => eng.remove_resource::<ProbeReading>(),
+    }
+}
+
 /// Which channel a backend is drawing, or empty for the scene as it is.
 #[cfg(feature = "kiss3d")]
 pub(crate) fn channel_view(eng: &Engine) -> String {
@@ -83,4 +114,26 @@ pub(crate) fn install_debug_view_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
+    // Ask what a previewed line computed at one pixel. The answer arrives
+    // through `shader_probe` a frame later: reading it waits on the GPU, and
+    // a frame does not.
+    m.function("set_shader_probe", |eng: &Engine, (x, y): (f64, f64)| {
+        eng.insert_resource(ProbeRequest {
+            at: [x as f32, y as f32],
+        });
+        Ok(())
+    });
+    m.function("shader_probe", |eng: &Engine, ()| {
+        Ok(eng
+            .try_resource::<ProbeReading>()
+            .map_or(balaur_script::Value::Nil, |reading| {
+                let value = reading.borrow().value;
+                balaur_script::Value::List(
+                    value
+                        .iter()
+                        .map(|v| balaur_script::Value::Num(f64::from(*v)))
+                        .collect(),
+                )
+            }))
+    });
 }

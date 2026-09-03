@@ -134,6 +134,11 @@ for ex in examples/*/; do
   edit_step "$name: polygon" "$ex" polydemo
   printf 'ok\n'
 
+  # The showcase seam: a scripted sequence feeds input and drives the
+  # editor; ninety frames of it is enough to fail on a broken call.
+  printf '  show ...   '
+  edit_step "$name: showcase" "$ex" "show:input,input"
+
   # The editor plugin seam, from editor/plugins/counter.rn: a dock tab, a
   # window, a palette command, an inspector section and this state itself.
   printf '  plugin ... '

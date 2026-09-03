@@ -20,7 +20,7 @@ fn run(script: &str) -> Vec<String> {
     .unwrap();
     std::fs::write(
         dir.path().join("main.toml"),
-        r#"[[assets]]
+        r##"[[assets]]
 id = "pillar"
 type = "voxels"
 size = [1.0, 1.0, 1.0]
@@ -39,8 +39,8 @@ script = "scripts/s.rn"
 
 [nodes.collider3d]
 kind = "voxels"
-voxels = "pillar"
-"#,
+voxels = "#pillar"
+"##,
     )
     .unwrap();
     std::fs::write(dir.path().join("scripts/s.rn"), script).unwrap();
@@ -66,14 +66,14 @@ fn run_clean(script: &str) {
 #[test]
 fn a_voxel_grid_can_be_dug_into() {
     run_clean(
-        r#"pub fn init(this) {
+        r##"pub fn init(this) {
     assert!(physics3d::voxel(this.node, 0, 1, 0), "the middle cell should be filled");
     physics3d::set_voxel(this.node, 0, 1, 0, false);
     assert!(!physics3d::voxel(this.node, 0, 1, 0), "digging left the cell filled");
     physics3d::set_voxel(this.node, 5, 5, 5, true);
     assert!(physics3d::voxel(this.node, 5, 5, 5), "a new cell was not added");
 }
-"#,
+"##,
     );
 }
 
@@ -82,12 +82,12 @@ fn a_voxel_grid_can_be_dug_into() {
 #[test]
 fn a_voxel_collider_can_be_turned_into_a_mesh() {
     run_clean(
-        r#"pub fn init(this) {
+        r##"pub fn init(this) {
     let mesh = physics3d::collider_mesh(this.node);
     assert!(mesh.points.len() > 0, "the grid tessellated to nothing");
     assert!(mesh.indices.len() % 3 == 0, "the triangles are not triples");
 }
-"#,
+"##,
     );
 }
 
@@ -95,16 +95,16 @@ fn a_voxel_collider_can_be_turned_into_a_mesh() {
 #[test]
 fn the_mesh_backed_shapes_build() {
     run_clean(
-        r#"pub fn init(this) {
+        r##"pub fn init(this) {
     for kind in ["convex_hull", "convex_decomposition", "trimesh"] {
-        physics3d::set_collider(this.node, #{ kind: kind, mesh: "wedge" });
+        physics3d::set_collider(this.node, #{ kind: kind, mesh: "#wedge" });
     }
     for fit in ["aabb", "obb", "convex_hull"] {
-        physics3d::set_collider(this.node, #{ kind: "fit", fit: fit, mesh: "wedge" });
+        physics3d::set_collider(this.node, #{ kind: "fit", fit: fit, mesh: "#wedge" });
     }
-    physics3d::set_collider(this.node, #{ kind: "voxelized_mesh", mesh: "wedge", voxel_size: 0.25 });
+    physics3d::set_collider(this.node, #{ kind: "voxelized_mesh", mesh: "#wedge", voxel_size: 0.25 });
 }
-"#,
+"##,
     );
 }
 
@@ -112,7 +112,7 @@ fn the_mesh_backed_shapes_build() {
 #[test]
 fn the_solver_knobs_are_set_and_read_back() {
     run_clean(
-        r#"pub fn init(this) {
+        r##"pub fn init(this) {
     physics::set_tuning(#{ solver_iterations: 8.0, length_unit: 64.0, ccd_substeps: 2.0 });
     let tuning = physics::tuning();
     assert!(tuning.solver_iterations == 8.0, "iterations read back as {}", tuning.solver_iterations);
@@ -121,7 +121,7 @@ fn the_solver_knobs_are_set_and_read_back() {
     assert!(physics::quarantined().len() == 0, "something was quarantined in a still world");
     assert!(physics::threads() >= 1, "a build always has at least one thread");
 }
-"#,
+"##,
     );
 }
 
@@ -129,20 +129,20 @@ fn the_solver_knobs_are_set_and_read_back() {
 #[test]
 fn the_geometry_toolkit_works_on_a_mesh() {
     run_clean(
-        r#"pub fn init(this) {
-    let hull = geometry3d::convex_hull("wedge");
+        r##"pub fn init(this) {
+    let hull = geometry3d::convex_hull("#wedge");
     assert!(hull.points.len() >= 4, "the hull of a tetrahedron has four points, not {}", hull.points.len());
 
-    let pieces = geometry3d::convex_decomposition("wedge", #{ resolution: 16.0 });
+    let pieces = geometry3d::convex_decomposition("#wedge", #{ resolution: 16.0 });
     assert!(pieces.len() >= 1, "the decomposition found no pieces");
 
-    let grid = geometry3d::voxelize("wedge", #{ resolution: 8.0 });
+    let grid = geometry3d::voxelize("#wedge", #{ resolution: 8.0 });
     assert!(grid.cells.len() > 0, "voxelising found no cells");
 
-    let halves = geometry3d::split("wedge", #{ point: [0.25, 0.0, 0.0], normal: [1.0, 0.0, 0.0] });
+    let halves = geometry3d::split("#wedge", #{ point: [0.25, 0.0, 0.0], normal: [1.0, 0.0, 0.0] });
     assert!(halves.len() == 2, "a cut gives two halves, not {}", halves.len());
 }
-"#,
+"##,
     );
 }
 
@@ -150,7 +150,7 @@ fn the_geometry_toolkit_works_on_a_mesh() {
 #[test]
 fn debug_draw_is_set_and_read_back() {
     run_clean(
-        r#"pub fn init(this) {
+        r##"pub fn init(this) {
     physics::set_debug_draw(true);
     assert!(physics::debug_draw().enabled, "the switch did not stay on");
     physics::set_debug_draw(#{ colliders: true, joints: true, contacts: false });
@@ -160,6 +160,6 @@ fn debug_draw_is_set_and_read_back() {
     physics::set_debug_draw(false);
     assert!(!physics::debug_draw().enabled, "the switch did not go off");
 }
-"#,
+"##,
     );
 }

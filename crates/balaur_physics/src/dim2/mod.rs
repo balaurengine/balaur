@@ -4,15 +4,18 @@
 //!
 //! Determinism matches the 3D world: enhanced-determinism rapier, ordered
 //! collections, fixed timestep.
+use crate::rapier2d::pipeline::PhysicsWorld as PhysicsWorld2;
+use crate::rapier2d::prelude::{
+    ColliderHandle as ColliderHandle2, RigidBodyHandle as RigidBodyHandle2,
+};
+use crate::scalar::{self, Pose2, Rotation2};
 use anyhow::{anyhow, Result};
 use balaur_core::collections::DetHashMap;
 use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
 use balaur_core::{App, Engine, Stage, Transform};
 use balaur_script::{Bindings, BindingsExt, NodeId};
-use glamx::{EulerRot, Pose2, Quat, Rot2, Vec2};
-use rapier2d::pipeline::PhysicsWorld as PhysicsWorld2;
-use rapier2d::prelude::{ColliderHandle as ColliderHandle2, RigidBodyHandle as RigidBodyHandle2};
+use glamx::{EulerRot, Quat};
 
 pub mod body;
 pub mod character;
@@ -51,7 +54,7 @@ pub struct PhysicsState2d {
 impl PhysicsState2d {
     fn new() -> Self {
         let world = PhysicsWorld2 {
-            gravity: Vec2::new(0.0, -9.81),
+            gravity: scalar::v2(0.0, -9.81),
             ..Default::default()
         };
         Self {
@@ -78,8 +81,8 @@ pub(crate) fn node_pose_2d(eng: &Engine, entity: Entity) -> Result<Pose2> {
         .map_err(|_| anyhow!("node is dead or not in the scene tree"))?;
     let (angle, _, _) = global.rotation.to_euler(EulerRot::ZYX);
     Ok(Pose2::from_parts(
-        Vec2::new(global.position.x, global.position.y),
-        Rot2::from_angle(angle),
+        scalar::v2(global.position.x, global.position.y),
+        Rotation2::from_angle(scalar::real(angle)),
     ))
 }
 
@@ -130,8 +133,8 @@ fn step_system(eng: &Engine, _dt: f32) {
                     if let Ok(t) = world.get::<&Transform>(entity) {
                         let (angle, _, _) = t.rotation.to_euler(EulerRot::ZYX);
                         body.set_next_kinematic_position(Pose2::from_parts(
-                            Vec2::new(t.position.x, t.position.y),
-                            Rot2::from_angle(angle),
+                            scalar::v2(t.position.x, t.position.y),
+                            Rotation2::from_angle(scalar::real(angle)),
                         ));
                     }
                 }
@@ -140,7 +143,7 @@ fn step_system(eng: &Engine, _dt: f32) {
 
         // Exactly one step: Stage::FixedUpdate already repeats at FIXED_DT, and a
         // second accumulator here would drift out of step with the scripts.
-        state.world.integration_parameters.dt = FIXED_DT;
+        state.world.integration_parameters.dt = scalar::real(FIXED_DT);
         let collector = events::Collector::default();
         state
             .world
@@ -155,9 +158,9 @@ fn step_system(eng: &Engine, _dt: f32) {
             }
             if let Ok(mut t) = world.get::<&mut Transform>(entity) {
                 let pos = body.translation();
-                t.position.x = pos.x;
-                t.position.y = pos.y;
-                t.rotation = Quat::from_rotation_z(body.rotation().angle());
+                t.position.x = scalar::f32_of(pos.x);
+                t.position.y = scalar::f32_of(pos.y);
+                t.rotation = Quat::from_rotation_z(scalar::f32_of(body.rotation().angle()));
             }
         }
         (collector.take(), joint::broken(state))
@@ -193,7 +196,7 @@ pub fn set_paused(eng: &Engine, paused: bool) {
 }
 
 pub fn set_sleeping_allowed(eng: &Engine, allowed: bool) {
-    use rapier2d::prelude::RigidBodyActivation;
+    use crate::rapier2d::prelude::RigidBodyActivation;
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     state.sleeping_allowed = allowed;
@@ -219,11 +222,15 @@ pub fn build(app: &mut App) -> Result<()> {
         body::install_body2d_force_api(&mut *m);
         body::install_body2d_state_api(&mut *m);
         body::install_body2d_tuning_api(&mut *m);
+        body::install_body2d_ccd_api(&mut *m);
+        body::install_body2d_lock_api(&mut *m);
         body::install_body2d_sleep_api(&mut *m);
         body::install_body2d_force_reader_api(&mut *m);
         query::install_physics2d_query_api(&mut *m);
         query::install_physics2d_shapecast_api(&mut *m);
         query::install_physics2d_volume_query_api(&mut *m);
+        query::install_physics2d_shape_query_api(&mut *m);
+        query::install_physics2d_pair_query_api(&mut *m);
         joint::install_joint2d_api(&mut *m);
         character::install_character2d_api(&mut *m);
     }
@@ -355,7 +362,8 @@ fn build_physics2d_digest(app: &mut App) {
             let v = body.linvel();
             let mut h = Hasher::new();
             for value in [v.x, v.y, body.angvel()] {
-                h.write_f32(value);
+                // Whatever width this build runs at (see `crate::scalar`).
+                h.write_f64(f64::from(value));
             }
             h.write(&[u8::from(body.is_sleeping())]);
             out.push(Entry {
@@ -407,14 +415,14 @@ fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
     // to read it back.
     m.function("set_gravity", |eng: &Engine, (x, y): (f32, f32)| {
         let state = eng.resource::<PhysicsState2d>();
-        state.borrow_mut().world.gravity = Vec2::new(x, y);
+        state.borrow_mut().world.gravity = scalar::v2(x, y);
         Ok(())
     });
     m.function(
         "apply_impulse",
         |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].apply_impulse(Vec2::new(x, y), true);
+                state.world.bodies[handle].apply_impulse(scalar::v2(x, y), true);
             })
         },
     );
@@ -422,7 +430,7 @@ fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
         "set_linear_velocity",
         |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
-                state.world.bodies[handle].set_linvel(Vec2::new(x, y), true);
+                state.world.bodies[handle].set_linvel(scalar::v2(x, y), true);
             })
         },
     );
@@ -435,6 +443,7 @@ fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_angular_velocity",
         |eng: &Engine, (node, w): (NodeId, f32)| {
+            let w = scalar::real(w);
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].set_angvel(w, true);
             })

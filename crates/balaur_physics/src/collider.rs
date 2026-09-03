@@ -1,17 +1,18 @@
 //! The `collider3d` component: every shape it can take, and the overlap
 //! query that reads them back.
 
+use crate::rapier3d::math::Vector;
 use anyhow::{anyhow, bail, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_core::{App, Engine};
 use balaur_script::{Bindings, BindingsExt, NodeId};
-use glamx::{EulerRot, Pose3, Quat, Vec3};
-use rapier3d::math::Vector;
-use rapier3d::prelude::{
+
+use crate::rapier3d::prelude::{
     ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule, Collider,
     ColliderBuilder, Group, InteractionGroups, InteractionTestMode, RigidBodyHandle,
 };
+use crate::scalar::{self, Pose, Real};
 
 use crate::vocabulary as v;
 use crate::{node_pose, PhysicsState};
@@ -33,26 +34,22 @@ fn collider_mesh(eng: &Engine, params: &toml::Value) -> Result<balaur_core::mesh
 /// draws and the shape it collides with stay one authored thing.
 fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<ColliderBuilder> {
     let mesh = collider_mesh(eng, params)?;
-    let points: Vec<Vector> = mesh
-        .positions
-        .iter()
-        .map(|p| Vector::new(p[0], p[1], p[2]))
-        .collect();
+    let points: Vec<Vector> = mesh.positions.iter().map(|p| scalar::v3a(*p)).collect();
     match kind {
         // The flags are what stop a character controller catching on the seam
         // between two triangles of a flat floor.
         "trimesh" => {
-            let mut flags = rapier3d::prelude::TriMeshFlags::empty();
+            let mut flags = crate::rapier3d::prelude::TriMeshFlags::empty();
             if v::boolean(params, "fix_internal_edges", true) {
-                flags |= rapier3d::prelude::TriMeshFlags::FIX_INTERNAL_EDGES;
+                flags |= crate::rapier3d::prelude::TriMeshFlags::FIX_INTERNAL_EDGES;
             }
             if v::boolean(params, "clean", false) {
-                flags |= rapier3d::prelude::TriMeshFlags::MERGE_DUPLICATE_VERTICES
-                    | rapier3d::prelude::TriMeshFlags::DELETE_DEGENERATE_TRIANGLES
-                    | rapier3d::prelude::TriMeshFlags::DELETE_BAD_TOPOLOGY_TRIANGLES;
+                flags |= crate::rapier3d::prelude::TriMeshFlags::MERGE_DUPLICATE_VERTICES
+                    | crate::rapier3d::prelude::TriMeshFlags::DELETE_DEGENERATE_TRIANGLES
+                    | crate::rapier3d::prelude::TriMeshFlags::DELETE_BAD_TOPOLOGY_TRIANGLES;
             }
             if v::boolean(params, "oriented", false) {
-                flags |= rapier3d::prelude::TriMeshFlags::ORIENTED;
+                flags |= crate::rapier3d::prelude::TriMeshFlags::ORIENTED;
             }
             ColliderBuilder::trimesh_with_flags(points, mesh.indices.clone(), flags)
                 .map_err(|e| anyhow!("that mesh cannot be a trimesh collider: {e}"))
@@ -67,10 +64,12 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
         // oriented box, or a hull, whichever `fit` asks for.
         "fit" => {
             let converter = match v::text(params, "fit", "convex_hull") {
-                "aabb" => rapier3d::prelude::MeshConverter::Aabb,
-                "obb" => rapier3d::prelude::MeshConverter::Obb,
-                "convex_decomposition" => rapier3d::prelude::MeshConverter::ConvexDecomposition,
-                _ => rapier3d::prelude::MeshConverter::ConvexHull,
+                "aabb" => crate::rapier3d::prelude::MeshConverter::Aabb,
+                "obb" => crate::rapier3d::prelude::MeshConverter::Obb,
+                "convex_decomposition" => {
+                    crate::rapier3d::prelude::MeshConverter::ConvexDecomposition
+                }
+                _ => crate::rapier3d::prelude::MeshConverter::ConvexHull,
             };
             ColliderBuilder::converted_trimesh(points, mesh.indices.clone(), converter)
                 .map_err(|e| anyhow!("that mesh cannot be fitted: {e}"))
@@ -84,9 +83,9 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
                 points.len()
             );
             ColliderBuilder::cuboid(
-                ((max[0] - min[0]) / 2.0).max(0.01),
-                ((max[1] - min[1]) / 2.0).max(0.01),
-                ((max[2] - min[2]) / 2.0).max(0.01),
+                scalar::real(((max[0] - min[0]) / 2.0).max(0.01)),
+                scalar::real(((max[1] - min[1]) / 2.0).max(0.01)),
+                scalar::real(((max[2] - min[2]) / 2.0).max(0.01)),
             )
         })),
         _ => {
@@ -112,12 +111,12 @@ fn voxel_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder>
         .filter(|s| !s.is_empty())
         .ok_or_else(|| anyhow!("a voxels collider needs a `voxels` asset"))?;
     let grid = balaur_core::assets::load_typed::<balaur_core::voxels::VoxelsData>(eng, reference)?;
-    let cells: Vec<rapier3d::math::IVector> = grid
+    let cells: Vec<crate::rapier3d::math::IVector> = grid
         .cells
         .iter()
-        .map(|c| rapier3d::math::IVector::new(c[0], c[1], c[2]))
+        .map(|c| crate::rapier3d::math::IVector::new(c[0].into(), c[1].into(), c[2].into()))
         .collect();
-    let size = Vector::new(grid.size[0], grid.size[1], grid.size[2]);
+    let size = scalar::v3a(grid.size);
     Ok(ColliderBuilder::voxels(size, &cells))
 }
 
@@ -125,16 +124,12 @@ fn voxel_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder>
 /// without anyone authoring a cell list.
 fn voxelized_mesh_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder> {
     let mesh = collider_mesh(eng, params)?;
-    let points: Vec<Vector> = mesh
-        .positions
-        .iter()
-        .map(|p| Vector::new(p[0], p[1], p[2]))
-        .collect();
-    let size = v::f(params, "voxel_size", 0.25).max(0.001);
+    let points: Vec<Vector> = mesh.positions.iter().map(|p| scalar::v3a(*p)).collect();
+    let size = scalar::real(v::f(params, "voxel_size", 0.25).max(0.001));
     let fill = if v::text(params, "fill", "solid") == "surface" {
-        rapier3d::parry::transformation::voxelization::FillMode::SurfaceOnly
+        crate::rapier3d::parry::transformation::voxelization::FillMode::SurfaceOnly
     } else {
-        rapier3d::parry::transformation::voxelization::FillMode::FloodFill {
+        crate::rapier3d::parry::transformation::voxelization::FillMode::FloodFill {
             detect_cavities: false,
         }
     };
@@ -163,8 +158,9 @@ fn heightfield_collider(
     )?;
     // The asset checked its own shape, so Array2's assert cannot fire. Through
     // rapier's re-export, so parry cannot drift from rapier's own version.
-    let grid =
-        rapier3d::parry::utils::Array2::new(field.rows, field.columns, field.heights.clone());
+    // The asset is f32; a f64 build widens each height here, once, on load.
+    let heights: Vec<Real> = field.heights.iter().map(|h| scalar::real(*h)).collect();
+    let grid = crate::rapier3d::parry::utils::Array2::new(field.rows, field.columns, heights);
     Ok(ColliderBuilder::heightfield(grid, extent))
 }
 
@@ -181,13 +177,13 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
             .and_then(balaur_core::components::as_f64)
             .unwrap_or(default) as f32
     };
-    let he = |i: usize| {
+    let he = |i: usize| -> Real {
         params
             .get("half_extents")
             .and_then(|v| v.as_array())
             .and_then(|a| a.get(i))
             .and_then(balaur_core::components::as_f64)
-            .unwrap_or(0.5) as f32
+            .unwrap_or(0.5) as Real
     };
     let point = |key: &str, fallback: [f32; 3]| {
         let read = |i: usize| {
@@ -196,21 +192,21 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
                 .and_then(|v| v.as_array())
                 .and_then(|a| a.get(i))
                 .and_then(balaur_core::components::as_f64)
-                .map(|v| v as f32)
+                .map(|v| v as Real)
         };
         Vector::new(
-            read(0).unwrap_or(fallback[0]),
-            read(1).unwrap_or(fallback[1]),
-            read(2).unwrap_or(fallback[2]),
+            read(0).unwrap_or(Real::from(fallback[0])),
+            read(1).unwrap_or(Real::from(fallback[1])),
+            read(2).unwrap_or(Real::from(fallback[2])),
         )
     };
-    let radius = f("radius", 0.5).max(0.01);
+    let radius = scalar::real(f("radius", 0.5)).max(0.01);
     // rapier measures these from the centre; `height` is the whole straight
     // part, matching what the `shape` component means by it.
-    let half_height = (f("height", 1.0).max(0.01)) / 2.0;
+    let half_height = (scalar::real(f("height", 1.0)).max(0.01)) / 2.0;
     // A rounded shape is a shape plus a border radius, not nine more kinds.
     // Ball and capsule are already round, so they ignore it.
-    let border = f("border", 0.0).max(0.0);
+    let border = scalar::real(f("border", 0.0)).max(0.0);
     let rounded = border > 0.0;
     let builder = match kind {
         "ball" => ColliderBuilder::ball(radius),
@@ -246,7 +242,9 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
             if n.length_squared() < 1.0e-12 {
                 bail!("a halfspace collider needs a non-zero `normal`");
             }
-            ColliderBuilder::new(rapier3d::prelude::SharedShape::halfspace(n.normalize()))
+            ColliderBuilder::new(crate::rapier3d::prelude::SharedShape::halfspace(
+                n.normalize(),
+            ))
         }
         "segment" => {
             ColliderBuilder::segment(point("a", [0.0, 0.0, 0.0]), point("b", [1.0, 0.0, 0.0]))
@@ -263,17 +261,17 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
 /// because every one of these properties is dimension-free.
 pub(crate) fn with_material(builder: ColliderBuilder, params: &toml::Value) -> ColliderBuilder {
     let mut builder = builder
-        .restitution(v::f(params, "restitution", 0.0))
-        .friction(v::f(params, "friction", 0.5))
-        .density(v::f(params, "density", 1.0).max(0.001))
+        .restitution(scalar::real(v::f(params, "restitution", 0.0)))
+        .friction(scalar::real(v::f(params, "friction", 0.5)))
+        .density(scalar::real(v::f(params, "density", 1.0).max(0.001)))
         .friction_combine_rule(combine_rule(v::text(params, "friction_combine", "average")))
         .restitution_combine_rule(combine_rule(v::text(
             params,
             "restitution_combine",
             "average",
         )))
-        .contact_skin(v::f(params, "contact_skin", 0.0).max(0.0))
-        .contact_force_event_threshold(v::f(params, "contact_force_threshold", 0.0))
+        .contact_skin(scalar::real(v::f(params, "contact_skin", 0.0).max(0.0)))
+        .contact_force_event_threshold(scalar::real(v::f(params, "contact_force_threshold", 0.0)))
         .collision_groups(interaction_groups(params, "layers", "mask"))
         .solver_groups(interaction_groups(params, "solver_layers", "solver_mask"))
         .active_collision_types(active_collision_types(params))
@@ -283,7 +281,7 @@ pub(crate) fn with_material(builder: ColliderBuilder, params: &toml::Value) -> C
         .sensor(v::boolean(params, "sensor", false));
     // An explicit mass overrides what the density works out to, which is what
     // an author who typed a number in kilograms means.
-    let mass = v::f(params, "mass", 0.0);
+    let mass = scalar::real(v::f(params, "mass", 0.0));
     if mass > 0.0 {
         builder = builder.mass(mass);
     }
@@ -353,9 +351,14 @@ pub(crate) fn active_hooks(params: &toml::Value) -> ActiveHooks {
 /// existing one (attached to the entity's body when it has one).
 pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     let builder = collider_builder(eng, params)?;
-    let offset = Pose3::from_parts(Vec3::from(v::vec3(params, "offset", [0.0; 3])), {
+    let offset = Pose::from_parts(scalar::v3a(v::vec3(params, "offset", [0.0; 3])), {
         let r = v::vec3(params, "offset_rotation", [0.0; 3]);
-        Quat::from_euler(EulerRot::XYZ, r[0], r[1], r[2])
+        scalar::rotation_of(glamx::Quat::from_euler(
+            glamx::EulerRot::XYZ,
+            r[0],
+            r[1],
+            r[2],
+        ))
     });
     remove_colliders(eng, entity);
     add_collider_at(eng, entity, builder, offset)?;
@@ -400,14 +403,14 @@ fn nearest_body(eng: &Engine, entity: Entity) -> Option<(Entity, RigidBodyHandle
 
 /// Where `entity` sits in `body_node`'s frame, so a child collider lands where
 /// its node is rather than on top of the body.
-fn pose_relative_to(eng: &Engine, entity: Entity, body_node: Entity) -> Result<Pose3> {
+fn pose_relative_to(eng: &Engine, entity: Entity, body_node: Entity) -> Result<Pose> {
     let here = node_pose(eng, entity)?;
     if entity == body_node {
-        return Ok(Pose3::IDENTITY);
+        return Ok(Pose::IDENTITY);
     }
     let there = node_pose(eng, body_node)?;
     let inverse = there.rotation.inverse();
-    Ok(Pose3::from_parts(
+    Ok(Pose::from_parts(
         inverse * (here.translation - there.translation),
         inverse * here.rotation,
     ))
@@ -433,16 +436,16 @@ pub(crate) fn encode_one_way(entity_bits: u64, axis: [f32; 3]) -> u128 {
 }
 
 /// The axis [`encode_one_way`] packed, or `None` for an ordinary collider.
-pub(crate) fn decode_one_way(user_data: u128) -> Option<Vec3> {
+pub(crate) fn decode_one_way(user_data: u128) -> Option<Vector> {
     let code = ((user_data >> 64) & 0b111) as u8;
     if code == 0 {
         return None;
     }
-    let sign = if (code - 1) % 2 == 1 { -1.0 } else { 1.0 };
+    let sign: Real = if (code - 1) % 2 == 1 { -1.0 } else { 1.0 };
     Some(match (code - 1) / 2 {
-        0 => Vec3::new(sign, 0.0, 0.0),
-        1 => Vec3::new(0.0, sign, 0.0),
-        _ => Vec3::new(0.0, 0.0, sign),
+        0 => Vector::new(sign, 0.0, 0.0),
+        1 => Vector::new(0.0, sign, 0.0),
+        _ => Vector::new(0.0, 0.0, sign),
     })
 }
 
@@ -454,7 +457,7 @@ pub(crate) fn add_collider_at(
     eng: &Engine,
     entity: Entity,
     builder: ColliderBuilder,
-    offset: Pose3,
+    offset: Pose,
 ) -> Result<()> {
     let handle = match nearest_body(eng, entity) {
         Some((body_node, body)) => {
@@ -489,7 +492,7 @@ pub(crate) fn add_collider_at(
 
 /// Sitting on the node itself, which is what a script-built collider means.
 pub(crate) fn add_collider(eng: &Engine, entity: Entity, builder: ColliderBuilder) -> Result<()> {
-    add_collider_at(eng, entity, builder, Pose3::IDENTITY)
+    add_collider_at(eng, entity, builder, Pose::IDENTITY)
 }
 
 /// A hollow shape has no interior, so rapier cannot derive an inertia tensor
@@ -504,13 +507,13 @@ fn warn_if_hollow_and_dynamic(
         .world
         .bodies
         .get(body)
-        .is_some_and(rapier3d::prelude::RigidBody::is_dynamic)
+        .is_some_and(crate::rapier3d::prelude::RigidBody::is_dynamic)
         && matches!(
             builder.shape.as_typed_shape(),
-            rapier3d::prelude::TypedShape::TriMesh(_)
-                | rapier3d::prelude::TypedShape::Polyline(_)
-                | rapier3d::prelude::TypedShape::HeightField(_)
-                | rapier3d::prelude::TypedShape::HalfSpace(_)
+            crate::rapier3d::prelude::TypedShape::TriMesh(_)
+                | crate::rapier3d::prelude::TypedShape::Polyline(_)
+                | crate::rapier3d::prelude::TypedShape::HeightField(_)
+                | crate::rapier3d::prelude::TypedShape::HalfSpace(_)
         )
     {
         tracing::warn!(
@@ -537,10 +540,10 @@ pub(crate) fn remove_colliders(eng: &Engine, entity: Entity) {
 /// `None` for the asset-backed kinds: rapier keeps the geometry, not the
 /// file it came from, so there is nothing to write back.
 fn collider_shape_params(
-    shape: &dyn rapier3d::geometry::Shape,
+    shape: &dyn crate::rapier3d::geometry::Shape,
 ) -> Option<toml::map::Map<String, toml::Value>> {
-    let f = |v: f32| toml::Value::Float(f64::from(v));
-    let vec3 = |x: f32, y: f32, z: f32| toml::Value::Array(vec![f(x), f(y), f(z)]);
+    let f = |v: Real| toml::Value::Float(f64::from(v));
+    let vec3 = |x: Real, y: Real, z: Real| toml::Value::Array(vec![f(x), f(y), f(z)]);
     let mut map = toml::map::Map::new();
     if let Some(ball) = shape.as_ball() {
         map.insert("kind".into(), "ball".into());
@@ -641,7 +644,7 @@ pub(crate) fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::
 /// The non-shape half of a collider, read back off it. The inverse of
 /// [`with_material`], property for property, so the inspector round-trips.
 pub(crate) fn read_material(collider: &Collider, map: &mut toml::map::Map<String, toml::Value>) {
-    let f = |value: f32| toml::Value::Float(f64::from(value));
+    let f = |value: Real| toml::Value::Float(f64::from(value));
     map.insert("restitution".into(), f(collider.restitution()));
     map.insert("friction".into(), f(collider.friction()));
     map.insert("density".into(), f(collider.density()));
@@ -707,7 +710,7 @@ fn combine_name(rule: CoefficientCombineRule) -> &'static str {
 fn with_voxels(
     eng: &Engine,
     node: NodeId,
-    f: impl FnOnce(&mut rapier3d::parry::shape::Voxels),
+    f: impl FnOnce(&mut crate::rapier3d::parry::shape::Voxels),
 ) -> Result<()> {
     let entity = balaur_core::entity_of(node)?;
     let state = eng.resource::<PhysicsState>();
@@ -741,13 +744,13 @@ fn collider_mesh_value(eng: &Engine, node: NodeId) -> Result<balaur_script::Valu
     let (points, indices) = state.world.colliders[handle]
         .shape()
         .as_voxels()
-        .map(rapier3d::parry::shape::Voxels::to_trimesh)
+        .map(crate::rapier3d::parry::shape::Voxels::to_trimesh)
         .ok_or_else(|| {
             anyhow!("only a voxel collider can be turned into a mesh so far; ask for another shape")
         })?;
     let points = points
         .into_iter()
-        .map(|p| balaur_script::Value::Vec3([p.x, p.y, p.z]))
+        .map(|p| balaur_script::Value::Vec3(scalar::a3(p)))
         .collect();
     let indices = indices
         .into_iter()
@@ -880,7 +883,7 @@ pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
         "set_voxel",
         |eng: &Engine, (node, x, y, z, filled): (NodeId, i32, i32, i32, bool)| {
             with_voxels(eng, node, |voxels| {
-                voxels.set_voxel(rapier3d::math::IVector::new(x, y, z), filled);
+                voxels.set_voxel(scalar::cell(x, y, z), filled);
             })
         },
     );
@@ -900,7 +903,7 @@ pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
                 .as_voxels()
                 .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
             Ok(voxels
-                .voxel_state(rapier3d::math::IVector::new(x, y, z))
+                .voxel_state(scalar::cell(x, y, z))
                 .is_some_and(|state| !state.is_empty()))
         },
     );
@@ -922,9 +925,9 @@ pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
                 .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
             // The grid is in the collider's own space, so a world point has to
             // come home first.
-            let local = collider.position().inverse() * Vec3::new(x, y, z);
+            let local = collider.position().inverse() * scalar::v3(x, y, z);
             let cell = voxels.voxel_at_point(local);
-            Ok((cell.x, cell.y, cell.z))
+            Ok((cell.x as i64, cell.y as i64, cell.z as i64))
         },
     );
     m.function("collider_mesh", |eng: &Engine, node: NodeId| {

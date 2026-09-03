@@ -497,7 +497,11 @@ fn timeline(S, k) {
 // A local as one line; a table is its JSON, cut short.
 fn value_text(v) {
     if v is Object || v is Vec {
-        let text = json::encode(v);
+        // A node or a closure inside has no JSON form.
+        let (ok, text) = script::attempt(|| json::encode(v));
+        if !ok {
+            return "‹object›";
+        }
         if text.len() > 96 { text[..93] + "…" } else { text }
     } else if v is String {
         v
@@ -699,7 +703,13 @@ fn session_view(S, k) {
             }) {
                 session::toggle_pause(S);
             }
-            if ui::pill("■ Close", #{
+            if ui::pill("⇥", #{
+                height: 22, size: 11, strong: true, tooltip: "One recorded tick forward",
+                fill: k.sunken, color: k.dim,
+            }) {
+                session::step(S);
+            }
+            if ui::pill("■", #{
                 height: 22, size: 11, strong: true, tooltip: "Back to the edited scene",
                 fill: k.sunken, color: k.dim,
             }) {
@@ -815,8 +825,8 @@ fn session_list(S, k) {
             }
         });
     });
-    let names = session::listing(S);
-    if names.len() == 0 {
+    let rows = session::listing(S);
+    if rows.len() == 0 {
         ui::horizontal(#{ height: 26 }, || {
             ui::add_space(8);
             ui::label("no sessions yet — press Play", style::mono(k.faint));
@@ -825,30 +835,47 @@ fn session_list(S, k) {
     }
     ui::scroll("session-list", (), || {
         ui::spacing(4, 2);
-        for name in names {
+        for r in rows {
             ui::horizontal(#{ height: 22 }, || {
                 ui::add_space(8);
                 if ui::pill("▶", #{
                     height: 20, size: 11, strong: true, tooltip: "Replay this session",
                     fill: k.accent_soft, color: k.accent,
                 }) {
-                    session::open(S, name);
+                    session::open(S, r.name);
                 }
-                ui::label(name, style::mono_sm(k.text));
+                let when = if r.started == "" { r.name } else { r.started };
+                ui::label(when, style::mono_sm(k.text));
+                ui::label(format!("{} ticks · {:.1}s", r.ticks, r.seconds),
+                    style::mono_sm(k.faint));
+                // How it ended, and whether its code has moved on since.
+                if r.reason != "stop" {
+                    ui::label(r.reason, style::mono_sm(k.accent));
+                }
+                if r.stale {
+                    ui::label("scripts changed", style::mono_sm(k.accent));
+                }
                 ui::right(|| {
                     ui::add_space(8);
                     if ui::pill("delete", #{
                         height: 20, size: 10, strong: true,
                         fill: k.sunken, color: k.faint,
                     }) {
-                        session::remove(S, name);
+                        session::remove(S, r.name);
                     }
-                    if !name.starts_with("kept-") && ui::pill("keep", #{
+                    if ui::pill("export", #{
+                        height: 20, size: 10, strong: true,
+                        tooltip: "Copy into the project, for a bug report or `balaur replay`",
+                        fill: k.sunken, color: k.dim,
+                    }) {
+                        session::export(S, r.name);
+                    }
+                    if !r.name.starts_with("kept-") && ui::pill("keep", #{
                         height: 20, size: 10, strong: true,
                         tooltip: "Never prune this one",
                         fill: k.sunken, color: k.dim,
                     }) {
-                        session::keep(S, name);
+                        session::keep(S, r.name);
                     }
                 });
             });

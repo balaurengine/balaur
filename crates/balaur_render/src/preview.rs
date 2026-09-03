@@ -12,15 +12,42 @@
 
 use anyhow::{anyhow, bail, Result};
 use wesl::syntax::{
-    Attribute, CompoundStatement, Expression, GlobalDeclaration, Statement, StatementNode,
-    TranslationUnit,
+    Attribute, BuiltinValue, CompoundStatement, Expression, Function, GlobalDeclaration, Statement,
+    StatementNode, TranslationUnit,
 };
 
 /// The channel the rewritten shader draws through. Zero-initialised, so a
 /// pixel that never reached the line reports `false`.
 const CHANNEL: &str = "var<private> balaur_preview: vec4<f32>;
 var<private> balaur_preview_hit: bool;
+@group(3) @binding(1) var<storage, read_write> balaur_probe: array<vec4<f32>>;
+@group(3) @binding(2) var<uniform> balaur_probe_at: vec4<f32>;
 ";
+
+/// The write that copies the previewed value out for one pixel.
+///
+/// Bindings, not a fifth bind group: WebGPU caps the groups at four and this
+/// rides in the material's own. `balaur_probe_at` is the pixel asked about,
+/// so exactly one invocation writes and the value read back is the shader's
+/// own float — not the tonemapped colour a frame grab would give.
+const PROBE: &str = "if balaur_preview_hit && \
+all(floor(POSITION.xy) == floor(balaur_probe_at.xy)) { \
+balaur_probe[0] = balaur_preview; }\n    ";
+
+/// The byte just past the last `import ...;` statement, or 0 with none.
+fn after_imports(source: &str) -> usize {
+    let mut end = 0;
+    let mut at = 0;
+    for line in source.split_inclusive('\n') {
+        if line.trim_start().starts_with("import ") {
+            if let Some(semi) = source[at..].find(';') {
+                end = at + semi + 1;
+            }
+        }
+        at += line.len();
+    }
+    end
+}
 
 /// A shader rewritten to draw one of its own values.
 #[derive(Debug)]
@@ -31,6 +58,9 @@ pub struct Preview {
     pub name: String,
     /// Its type, which is what decided the encoding.
     pub ty: String,
+    /// Whether the rewrite can also answer with the value at one pixel. False
+    /// for a fragment stage that takes no framebuffer position.
+    pub probes: bool,
 }
 
 /// `source` rewritten to draw a value, when a preview asks for one of this
@@ -104,6 +134,48 @@ fn walk<'a>(body: &'a CompoundStatement, out: &mut Vec<&'a StatementNode>) {
     }
 }
 
+/// Whether `attributes` carry `@builtin(position)`.
+fn is_position(attributes: &wesl::syntax::Attributes) -> bool {
+    attributes
+        .iter()
+        .any(|a| matches!(a.node(), Attribute::Builtin(BuiltinValue::Position)))
+}
+
+/// How the fragment stage names its framebuffer position — the parameter
+/// itself, or the member of its struct that carries the builtin.
+///
+/// Read rather than assumed: the entry point's parameter is named by whoever
+/// wrote the shader, and so is the member.
+fn position_of(unit: &TranslationUnit, fragment: &Function) -> Option<String> {
+    // The parameter's struct is often imported rather than declared here, so
+    // the contracts are searched too — that is where `VertexOutput` lives.
+    let contracts: Vec<TranslationUnit> = [crate::shaders::SPRITE, crate::shaders::MESH]
+        .iter()
+        .filter_map(|source| source.parse().ok())
+        .collect();
+    for parameter in &fragment.parameters {
+        if is_position(&parameter.attributes) {
+            return Some(parameter.ident.name().to_string());
+        }
+        let wanted = parameter.ty.ident.name().to_string();
+        let member = std::iter::once(unit)
+            .chain(contracts.iter())
+            .flat_map(|unit| unit.global_declarations.iter())
+            .find_map(|d| match d.node() {
+                GlobalDeclaration::Struct(s) if s.ident.name().as_str() == wanted => s
+                    .members
+                    .iter()
+                    .find(|m| is_position(&m.attributes))
+                    .map(|m| m.ident.name().to_string()),
+                _ => None,
+            });
+        if let Some(member) = member {
+            return Some(format!("{}.{member}", parameter.ident.name()));
+        }
+    }
+    None
+}
+
 /// How a value of `ty` becomes the four channels the preview draws.
 fn encode(ty: &str, name: &str) -> Result<String> {
     Ok(match ty {
@@ -147,6 +219,7 @@ pub fn preview(source: &str, line: usize) -> Result<Preview> {
 
     let mut statements = Vec::new();
     let mut fragment = Vec::new();
+    let mut stage = None;
     for global in &unit.global_declarations {
         let GlobalDeclaration::Function(function) = global.node() else {
             continue;
@@ -158,11 +231,15 @@ pub fn preview(source: &str, line: usize) -> Result<Preview> {
             .any(|a| matches!(a.node(), Attribute::Fragment))
         {
             walk(&function.body, &mut fragment);
+            stage = Some(function);
         }
     }
-    if fragment.is_empty() {
+    let Some(stage) = stage else {
         bail!("the shader has no fragment stage, so it draws nothing to replace");
-    }
+    };
+    // Without a framebuffer position there is no way to say which pixel was
+    // asked about, so the preview still draws but answers no number.
+    let position = position_of(&unit, stage);
 
     // Innermost first: `walk` pushes a block before what it contains.
     let found = statements
@@ -180,15 +257,27 @@ pub fn preview(source: &str, line: usize) -> Result<Preview> {
     let name = declaration.ident.name().to_string();
     let ty = declared_type(declaration)?;
 
+    // The channel goes after the imports, which WESL requires first. An import
+    // carries no span, so the last one is found in the text; a declaration's
+    // span can start at a comment above it, which may sit above the imports.
+    let channel_at = unit
+        .global_declarations
+        .first()
+        .map_or(0, |d| d.span().start)
+        .max(after_imports(source));
+
     // Highest offset first, so earlier edits do not move later ones.
-    let mut edits: Vec<(usize, usize, String)> = vec![(
-        found.span().end,
-        found.span().end,
-        format!(
-            " balaur_preview = {}; balaur_preview_hit = true;",
-            encode(&ty, &name)?
+    let mut edits: Vec<(usize, usize, String)> = vec![
+        (channel_at, channel_at, CHANNEL.to_string()),
+        (
+            found.span().end,
+            found.span().end,
+            format!(
+                " balaur_preview = {}; balaur_preview_hit = true;",
+                encode(&ty, &name)?
+            ),
         ),
-    )];
+    ];
     for statement in &fragment {
         let Statement::Return(returning) = statement.node() else {
             continue;
@@ -205,6 +294,10 @@ pub fn preview(source: &str, line: usize) -> Result<Preview> {
                 &source[span.start..span.end]
             ),
         ));
+        if let Some(position) = &position {
+            let at = statement.span().start;
+            edits.push((at, at, PROBE.replace("POSITION", position)));
+        }
     }
     edits.sort_by_key(|(start, ..)| std::cmp::Reverse(*start));
 
@@ -213,9 +306,10 @@ pub fn preview(source: &str, line: usize) -> Result<Preview> {
         out.replace_range(start..end, &text);
     }
     Ok(Preview {
-        source: format!("{CHANNEL}{out}"),
+        source: out,
         name,
         ty,
+        probes: position.is_some(),
     })
 }
 
@@ -267,6 +361,69 @@ fn lift(x: f32) -> f32 {
         let wgsl = linked(&preview.source);
         assert!(wgsl.contains("fn lift"), "{wgsl}");
         assert!(wgsl.contains("balaur_preview_hit = true"), "{wgsl}");
+    }
+
+    /// The case the unit tests missed and a real run caught: WESL wants
+    /// imports first, so the channel cannot simply be prepended.
+    #[test]
+    fn a_shader_that_imports_still_links_once_rewritten() {
+        let source = r"
+import package::mesh::{VertexInput, VertexOutput, vertex, diffuse};
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput {
+    return vertex(in);
+}
+
+@fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let lit: vec3<f32> = diffuse(in);
+    return vec4<f32>(lit, 1.0);
+}
+";
+        let preview = preview(source, 9).unwrap();
+        assert_eq!(preview.name, "lit");
+        assert!(preview.probes);
+        let wgsl = linked(&preview.source);
+        assert!(wgsl.contains("balaur_probe"), "{wgsl}");
+        assert!(wgsl.contains("in.clip_position.xy"), "{wgsl}");
+    }
+
+    #[test]
+    fn a_probe_names_the_members_the_shader_gave_its_position() {
+        let source = r"
+struct Out {
+    @builtin(position) where_it_lands: vec4<f32>,
+    @location(0) tint: vec4<f32>,
+}
+
+@fragment fn fs_main(bits: Out) -> @location(0) vec4<f32> {
+    let shade: vec3<f32> = bits.tint.rgb * 0.5;
+    return vec4<f32>(shade, 1.0);
+}
+";
+        let preview = preview(source, 8).unwrap();
+        assert!(preview.probes);
+        assert!(
+            preview.source.contains("bits.where_it_lands.xy"),
+            "{}",
+            preview.source
+        );
+    }
+
+    #[test]
+    fn a_fragment_with_no_position_still_draws_but_cannot_probe() {
+        let source = r"
+@fragment fn fs_main() -> @location(0) vec4<f32> {
+    let shade: vec3<f32> = vec3<f32>(0.5, 0.5, 0.5);
+    return vec4<f32>(shade, 1.0);
+}
+";
+        let preview = preview(source, 3).unwrap();
+        assert!(!preview.probes);
+        assert!(
+            !preview.source.contains("balaur_probe["),
+            "{}",
+            preview.source
+        );
     }
 
     #[test]

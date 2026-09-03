@@ -6,13 +6,13 @@
 //! 2D game should not have to learn a second set of names — and no node has
 //! both a `collider2d` and a `collider3d` in practice.
 
-use balaur_core::hecs::Entity;
-use balaur_core::Engine;
-use balaur_script::Value;
-use rapier2d::prelude::{
+use crate::rapier2d::prelude::{
     ColliderHandle, ColliderSet, CollisionEvent, ContactForceEvent, ContactModificationContext,
     EventHandler, PairFilterContext, PhysicsHooks, SolverFlags,
 };
+use balaur_core::hecs::Entity;
+use balaur_core::Engine;
+use balaur_script::Value;
 use std::cell::RefCell;
 
 pub(crate) enum Event {
@@ -53,10 +53,10 @@ fn entity_of(colliders: &ColliderSet, handle: ColliderHandle) -> Option<Entity> 
 impl EventHandler for Collector {
     fn handle_collision_event(
         &self,
-        _bodies: &rapier2d::prelude::RigidBodySet,
+        _bodies: &crate::rapier2d::prelude::RigidBodySet,
         colliders: &ColliderSet,
         event: CollisionEvent,
-        _pair: Option<&rapier2d::prelude::ContactPair>,
+        _pair: Option<&crate::rapier2d::prelude::ContactPair>,
     ) {
         let (Some(a), Some(b)) = (
             entity_of(colliders, event.collider1()),
@@ -73,11 +73,11 @@ impl EventHandler for Collector {
 
     fn handle_contact_force_event(
         &self,
-        dt: f32,
-        _bodies: &rapier2d::prelude::RigidBodySet,
+        dt: crate::scalar::Real,
+        _bodies: &crate::rapier2d::prelude::RigidBodySet,
         colliders: &ColliderSet,
-        pair: &rapier2d::prelude::ContactPair,
-        total_force_magnitude: f32,
+        pair: &crate::rapier2d::prelude::ContactPair,
+        total_force_magnitude: crate::scalar::Real,
     ) {
         let event = ContactForceEvent::from_contact_pair(dt, pair, total_force_magnitude);
         let (Some(a), Some(b)) = (
@@ -87,9 +87,12 @@ impl EventHandler for Collector {
             return;
         };
         let d = event.max_force_direction;
-        self.events
-            .borrow_mut()
-            .push(Event::Force(a, b, event.total_force_magnitude, [d.x, d.y]));
+        self.events.borrow_mut().push(Event::Force(
+            a,
+            b,
+            crate::scalar::f32_of(event.total_force_magnitude),
+            crate::scalar::a2(d),
+        ));
     }
 }
 
@@ -177,14 +180,14 @@ impl PhysicsHooks for Hooks<'_> {
 
 /// The 2D reading of the axis `crate::collider::encode_one_way` packed: the
 /// same three bits, two of the six directions unused.
-fn decode_one_way(user_data: u128) -> Option<glamx::Vec2> {
+fn decode_one_way(user_data: u128) -> Option<crate::rapier2d::math::Vector> {
     let code = ((user_data >> 64) & 0b111) as u8;
     if code == 0 {
         return None;
     }
-    let sign = if (code - 1) % 2 == 1 { -1.0 } else { 1.0 };
+    let sign: crate::scalar::Real = if (code - 1) % 2 == 1 { -1.0 } else { 1.0 };
     Some(match (code - 1) / 2 {
-        0 => glamx::Vec2::new(sign, 0.0),
-        _ => glamx::Vec2::new(0.0, sign),
+        0 => crate::rapier2d::math::Vector::new(sign, 0.0),
+        _ => crate::rapier2d::math::Vector::new(0.0, sign),
     })
 }

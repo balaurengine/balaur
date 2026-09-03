@@ -23,6 +23,7 @@ use kiss3d::resource::{
 use kiss3d::scene::{InstancesBuffer2d, ObjectData2d};
 
 use crate::material::{Compiled, PARAMS_GROUP};
+use crate::probe::Probe;
 
 /// Matches `FrameUniforms` in `shaders/sprite.wesl`.
 #[repr(C)]
@@ -206,31 +207,48 @@ fn bind_group_layouts() -> [wgpu::BindGroupLayout; 3] {
     ]
 }
 
-/// Group 3 and the buffer behind it, for a shader that declares `Params`.
+/// The material's own bind group: its `Params` at binding 0, and a preview's
+/// probe at 1 and 2 when the shader carries one.
 ///
-/// `None` otherwise: a uniform buffer cannot be zero-sized, and a layout
-/// entry with nothing behind it is a validation error.
-fn params_group(values: &[u8]) -> Option<(wgpu::BindGroupLayout, wgpu::BindGroup)> {
-    if values.is_empty() {
+/// `None` when it wants neither. A uniform buffer cannot be zero-sized, so a
+/// probing shader with no `Params` still gets a placeholder at binding 0.
+fn material_group(
+    values: &[u8],
+    probe: Option<&Probe>,
+) -> Option<(wgpu::BindGroupLayout, wgpu::BindGroup)> {
+    if values.is_empty() && probe.is_none() {
         return None;
     }
     let ctxt = Context::get();
+    let mut layout_entries = vec![uniform_entry(0)];
+    if probe.is_some() {
+        layout_entries.extend(Probe::layout_entries());
+    }
     let layout = ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("material_params_layout"),
-        entries: &[uniform_entry(0)],
+        entries: &layout_entries,
     });
+    let placeholder = [0u8; 16];
     let buffer = ctxt.create_buffer_init(
         Some("material_params_uniform"),
-        values,
+        if values.is_empty() {
+            &placeholder
+        } else {
+            values
+        },
         wgpu::BufferUsages::UNIFORM,
     );
+    let mut entries = vec![wgpu::BindGroupEntry {
+        binding: 0,
+        resource: buffer.as_entire_binding(),
+    }];
+    if let Some(probe) = probe {
+        entries.extend(probe.entries());
+    }
     let group = ctxt.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("material_params_bind_group"),
         layout: &layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: buffer.as_entire_binding(),
-        }],
+        entries: &entries,
     });
     Some((layout, group))
 }
@@ -276,10 +294,10 @@ fn build_pipeline(layout: wgpu::PipelineLayout, shader: wgpu::ShaderModule) -> P
 
 impl ShaderMaterial {
     /// Build the pipeline for one linked material.
-    pub(crate) fn new(compiled: &Compiled) -> Self {
+    pub(crate) fn new(compiled: &Compiled, probe: Option<&Probe>) -> Self {
         let ctxt = Context::get();
         let [frame_layout, object_layout, texture_layout] = bind_group_layouts();
-        let params = params_group(&compiled.params);
+        let params = material_group(&compiled.params, probe);
         let mut groups = vec![
             Some(&frame_layout),
             Some(&object_layout),
@@ -500,6 +518,8 @@ pub(crate) struct MaterialCache {
     channel: Option<(String, SharedMaterial)>,
     /// The channel the last frame drew; a change rebuilds every node.
     active: String,
+    /// The previewing material's probe, shared with it.
+    probe: Option<std::rc::Rc<Probe>>,
 }
 
 /// What kiss3d takes on a node.
@@ -526,6 +546,22 @@ impl MaterialCache {
         }
         self.linked.clear();
         had
+    }
+
+    /// Point the previewing material's probe at a pixel and read what the
+    /// frame before wrote there. The 3D counterpart's doc has the details.
+    pub(crate) fn answer_probe(&self, app: &balaur_core::App) {
+        let Some(at) = crate::debug_view::probe_at(&app.engine) else {
+            return;
+        };
+        crate::debug_view::publish_probe(&app.engine, self.probe(at));
+    }
+
+    fn probe(&self, at: [f32; 2]) -> Option<[f32; 4]> {
+        let probe = self.probe.as_ref()?;
+        let read = probe.read();
+        probe.aim(at);
+        read
     }
 
     /// Whether the channel view changed since the last frame.
@@ -574,11 +610,15 @@ impl MaterialCache {
             &features,
         )
         .map(|unit| {
-            ShaderMaterial::new(&crate::material::Compiled {
-                wgsl: crate::shaders::wgsl(&unit),
-                fields: Vec::new(),
-                params: Vec::new(),
-            })
+            ShaderMaterial::new(
+                &crate::material::Compiled {
+                    wgsl: crate::shaders::wgsl(&unit),
+                    fields: Vec::new(),
+                    params: Vec::new(),
+                    probes: false,
+                },
+                None,
+            )
         })
         .inspect_err(|why| tracing::error!(channel, "{why:#}"))
         .ok()?;
@@ -606,7 +646,8 @@ impl MaterialCache {
         let built = build(app, reference)
             .inspect_err(|why| tracing::error!(material = reference, "{why:#}"))
             .ok()
-            .map(|material| {
+            .map(|(material, probe)| {
+                self.probe = probe;
                 let shared: SharedMaterial = std::rc::Rc::new(std::cell::RefCell::new(Box::new(
                     material,
                 )
@@ -630,12 +671,18 @@ fn manager_name(reference: &str) -> String {
     format!("balaur:{reference}")
 }
 
-fn build(app: &balaur_core::App, reference: &str) -> anyhow::Result<ShaderMaterial> {
+/// A material and, when its shader carries one, the probe it writes into.
+fn build(
+    app: &balaur_core::App,
+    reference: &str,
+) -> anyhow::Result<(ShaderMaterial, Option<std::rc::Rc<Probe>>)> {
     let asset =
         balaur_core::assets::load_typed::<crate::material::Material>(&app.engine, reference)?;
-    let source = balaur_core::project::scene_text(&app.engine, &asset.shader)?;
+    let source = crate::material::shader_text(&app.engine, reference, &asset.shader)?;
     let source = crate::preview::requested(&app.engine, &asset.shader, source);
     let modules = crate::shaders::plugin_modules(&app.engine);
     let compiled = crate::material::compile_with(&asset, &source, &modules)?;
-    Ok(ShaderMaterial::new(&compiled))
+    let probe = compiled.probes.then(|| std::rc::Rc::new(Probe::new()));
+    let material = ShaderMaterial::new(&compiled, probe.as_deref());
+    Ok((material, probe))
 }

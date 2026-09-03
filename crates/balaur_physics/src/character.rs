@@ -9,16 +9,16 @@
 //! `move_character` reads the query pipeline, so it belongs in `fixed_update`
 //! — the binding says so, and so does the docs page.
 
+use crate::rapier3d::control::{
+    CharacterAutostep, CharacterCollision, CharacterLength, KinematicCharacterController,
+};
+use crate::rapier3d::prelude::QueryFilter;
+use crate::scalar::{self, Vector};
 use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_core::{entity_of, App, Engine, Transform};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
-use glamx::{Pose3, Vec3};
-use rapier3d::control::{
-    CharacterAutostep, CharacterCollision, CharacterLength, KinematicCharacterController,
-};
-use rapier3d::prelude::QueryFilter;
 
 use crate::vocabulary::{map, Opts};
 use crate::{PhysicsState, FIXED_DT};
@@ -44,9 +44,10 @@ lengths = { type = "enum", default = "absolute", options = ["absolute", "relativ
 /// Cheap — the struct is a dozen floats — and it means a script that changes
 /// `max_climb_angle` mid-game is obeyed on the next move rather than at the
 /// next scene load.
-pub(crate) fn controller_of(params: &toml::Value, up: Vec3) -> KinematicCharacterController {
+pub(crate) fn controller_of(params: &toml::Value, up: Vector) -> KinematicCharacterController {
     let relative = crate::vocabulary::text(params, "lengths", "absolute") == "relative";
     let length = |value: f32| {
+        let value = scalar::real(value);
         if relative {
             CharacterLength::Relative(value)
         } else {
@@ -63,13 +64,17 @@ pub(crate) fn controller_of(params: &toml::Value, up: Vec3) -> KinematicCharacte
             min_width: length(crate::vocabulary::f(params, "autostep_min_width", 0.2)),
             include_dynamic_bodies: crate::vocabulary::boolean(params, "autostep_dynamic", false),
         }),
-        max_slope_climb_angle: crate::vocabulary::f(params, "max_climb_angle", 45.0).to_radians(),
-        min_slope_slide_angle: crate::vocabulary::f(params, "min_slide_angle", 30.0).to_radians(),
+        max_slope_climb_angle: scalar::real(
+            crate::vocabulary::f(params, "max_climb_angle", 45.0).to_radians(),
+        ),
+        min_slope_slide_angle: scalar::real(
+            crate::vocabulary::f(params, "min_slide_angle", 30.0).to_radians(),
+        ),
         snap_to_ground: {
             let distance = crate::vocabulary::f(params, "snap_to_ground", 0.2);
             (distance > 0.0).then(|| length(distance))
         },
-        normal_nudge_factor: crate::vocabulary::f(params, "normal_nudge", 0.0001),
+        normal_nudge_factor: scalar::real(crate::vocabulary::f(params, "normal_nudge", 0.0001)),
     }
 }
 
@@ -78,7 +83,7 @@ pub(crate) fn controller_of(params: &toml::Value, up: Vec3) -> KinematicCharacte
 /// The effective translation is written to the node's transform: a character
 /// *is* its node, and a caller that had to apply the result itself would get
 /// it wrong the first time and every time after.
-pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vec3) -> Result<Value> {
+pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) -> Result<Value> {
     let params = {
         let world = eng.world();
         let character = world
@@ -86,9 +91,9 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vec3) ->
             .map_err(|_| anyhow!("node has no character3d"))?;
         character.0.clone()
     };
-    let up = Vec3::from(crate::vocabulary::vec3(&params, "up", [0.0, 1.0, 0.0]));
+    let up = scalar::v3a(crate::vocabulary::vec3(&params, "up", [0.0, 1.0, 0.0]));
     let up = if up.length_squared() < 1.0e-12 {
-        Vec3::Y
+        Vector::Y
     } else {
         up.normalize()
     };
@@ -111,7 +116,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vec3) ->
         let mut collisions = Vec::new();
         let filter = QueryFilter::default().exclude_collider(handle);
         let movement = controller.move_shape(
-            FIXED_DT,
+            scalar::real(FIXED_DT),
             &state.world.query_pipeline_with_filter(filter),
             shape.as_ref(),
             &pose,
@@ -133,7 +138,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vec3) ->
                 filter,
             );
             controller.solve_character_collision_impulses(
-                FIXED_DT,
+                scalar::real(FIXED_DT),
                 &mut queries,
                 shape.as_ref(),
                 mass,
@@ -156,15 +161,15 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vec3) ->
 
 /// Write the effective translation onto the node, and onto its body when it
 /// has one, so the next step starts where the character actually is.
-fn apply_movement(eng: &Engine, entity: Entity, translation: Vec3) {
+fn apply_movement(eng: &Engine, entity: Entity, translation: Vector) {
     let pose = {
         let world = eng.world();
         let transform = world.get::<&mut Transform>(entity);
         let Ok(mut transform) = transform else {
             return;
         };
-        transform.position += translation;
-        Pose3::from_parts(transform.position, transform.rotation)
+        transform.position += scalar::position_of(translation);
+        scalar::pose_of(transform.position, transform.rotation)
     };
     let state = eng.resource::<PhysicsState>();
     let mut state = state.borrow_mut();
@@ -202,15 +207,11 @@ fn collision_list(eng: &Engine, collisions: &[CharacterCollision]) -> Value {
             other.to_bits().get(),
             map([
                 ("node", Value::Node(other.to_bits().get())),
-                ("point", Value::Vec3([point.x, point.y, point.z])),
-                ("normal", Value::Vec3([normal.x, normal.y, normal.z])),
+                ("point", Value::Vec3(scalar::a3(point))),
+                ("normal", Value::Vec3(scalar::a3(normal))),
                 (
                     "remaining",
-                    Value::Vec3([
-                        collision.translation_remaining.x,
-                        collision.translation_remaining.y,
-                        collision.translation_remaining.z,
-                    ]),
+                    Value::Vec3(scalar::a3(collision.translation_remaining)),
                 ),
             ]),
         ));
@@ -228,13 +229,13 @@ pub(crate) fn install_character_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "move_character",
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
-            move_character(eng, entity_of(node)?, Vec3::new(x, y, z))
+            move_character(eng, entity_of(node)?, scalar::v3(x, y, z))
         },
     );
     // A move away from nothing: what a script asks when it wants the answer
     // without the motion, such as before a jump.
     m.function("is_grounded", |eng: &Engine, node: NodeId| {
-        let value = move_character(eng, entity_of(node)?, Vec3::ZERO)?;
+        let value = move_character(eng, entity_of(node)?, Vector::ZERO)?;
         Ok(matches!(
             Opts(Some(&value)).get("grounded"),
             Some(Value::Bool(true))

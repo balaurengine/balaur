@@ -312,7 +312,11 @@ Animate timeline's vocabulary:
    back into a rebuilt scene, reproduces it tick for tick, and closing hands
    the editor back. It is what found the four bugs above.
 
-Later, in no order: spawn and free events; keyframe snapshots for instant
-seek once snapshot handles spawn and free; delta-encoded input if sessions
-grow; text input in the snapshot; `balaur replay` reading format 2 with
-`--verify` skipping frames that carry no digest.
+Built since: spawn and free events, from `scene.spawn` and the deferred free;
+text input, as `input.typed`, fed from the window backend's character events
+and recorded with the rest of the snapshot; `--verify` compares only the
+frames that carry a digest and says so when a recording carries none.
+
+Later, in no order: keyframe snapshots for instant seek, once a snapshot
+covers nodes spawned and freed since it was taken; delta-encoded input, if
+sessions ever grow enough to be worth it.

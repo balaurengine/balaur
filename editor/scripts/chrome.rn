@@ -115,7 +115,8 @@ pub fn status_bar(S) {
             let mode = if stopped {
                 format!("paused · {}:{}", S.debug.paused_rel, S.debug.paused.line)
             } else if S.playing {
-                format!("playing · {} fps", S.fps as i64)
+                let recording = if S.session.recording != "" { "recording · " } else { "" };
+                format!("playing · {}{} fps", recording, S.fps as i64)
             } else {
                 "editing"
             };

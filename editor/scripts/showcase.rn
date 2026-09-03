@@ -1,0 +1,436 @@
+// Showcase sequences: the clips the manual shows. Each is a frame-paced list
+// of the calls the UI would make plus the input a person would feed, so a
+// clip is retaken with `--state show:<name>` and nobody at the mouse.
+
+use crate::anim;
+use crate::history;
+use crate::model;
+use crate::session;
+use crate::shell;
+use crate::util;
+
+// Where the node tree's first row sits and how tall a row is, in design px,
+// so the pointer lands on the row it selects.
+const TREE_TOP = 110.0;
+const ROW = 27.0;
+
+pub fn state() {
+    ()
+}
+
+// Whether a fed button is held: the pointer is the game's then, and a gizmo
+// reading the same snapshot would drag the selection along with it.
+pub fn feeding(S) {
+    S.showcase is Object && input::is_mouse_down(input::MOUSE_LEFT)
+}
+
+pub fn start(S, name) {
+    let q = #{ name: name, at: 0, steps: [], spans: [], acts: [], spans_ui: [], kept: #{} };
+    match name {
+        "scenes" => scenes(S, q),
+        "scripting" => scripting(S, q),
+        "animation" => animation(S, q),
+        "physics" => physics(S, q),
+        "input" => input_clip(S, q),
+        "determinism" => determinism(S, q),
+        "shaders" => shaders(S, q),
+        _ => {
+            log::warn(format!("show:{}: no such showcase", name));
+            return;
+        }
+    }
+    S.show_input = true;
+    S.showcase = q;
+    log::info(format!("showcase {}: {} steps, {} acts", name, q.steps.len() + q.spans.len(), q.acts.len() + q.spans_ui.len()));
+}
+
+// The update phase: input is fed here, before the game's own update reads
+// the frame's snapshot. Steps fire on their frame; spans run every frame
+// from `from` to `to` with their progress.
+pub fn step(S) {
+    let q = S.showcase;
+    if !(q is Object) {
+        return;
+    }
+    q.at = q.at + 1;
+    run_phase(q.steps, q.spans, q.at);
+}
+
+// The UI phase, from `draw_ui`: what a click on the chrome would do runs
+// here, after the game's update, as a click does.
+pub fn draw(S) {
+    let q = S.showcase;
+    if !(q is Object) {
+        return;
+    }
+    run_phase(q.acts, q.spans_ui, q.at);
+}
+
+fn run_phase(steps, spans, t) {
+    for s in steps {
+        if s.at == t {
+            (s.run)();
+        }
+    }
+    for sp in spans {
+        if t >= sp.from && t <= sp.to {
+            let p = ((t - sp.from) as f64) / ((sp.to - sp.from) as f64);
+            (sp.run)(p);
+        }
+    }
+}
+
+fn at(q, frame, run) {
+    q.steps.push(#{ at: frame, run: run });
+}
+
+fn over(q, from, to, run) {
+    q.spans.push(#{ from: from, to: to, run: run });
+}
+
+fn act(q, frame, run) {
+    q.acts.push(#{ at: frame, run: run });
+}
+
+fn over_ui(q, from, to, run) {
+    q.spans_ui.push(#{ from: from, to: to, run: run });
+}
+
+fn ease(p) {
+    p * p * (3.0 - 2.0 * p)
+}
+
+fn lerp(a, b, p) {
+    a + (b - a) * p
+}
+
+// Design px to the window px the snapshot holds.
+fn feed_pointer(S, x, y) {
+    let (_, _, _, _, _, _, _, dpi) = render::camera_pose();
+    input::feed_mouse(x * S.ui_scale * dpi, y * S.ui_scale * dpi);
+}
+
+// A 2D world point in design px, through the camera the viewport draws with.
+fn design_of_world(S, wx, wy) {
+    let (cx, cy, zoom) = render::camera_2d();
+    let sw = S.screen_w * S.ui_scale;
+    let sh = S.screen_h * S.ui_scale;
+    ((sw / 2.0 + (wx - cx) * zoom) / S.ui_scale, (sh / 2.0 - (wy - cy) * zoom) / S.ui_scale)
+}
+
+fn point_at_world(S, wx, wy) {
+    let (x, y) = design_of_world(S, wx, wy);
+    feed_pointer(S, x, y);
+}
+
+fn point_at_row(S, i) {
+    feed_pointer(S, 110.0, TREE_TOP + (i as f64) * ROW);
+}
+
+fn point_at_selection(S) {
+    let found = model::live(S, S.sel);
+    if let Some(node) = found {
+        let p = node.global_position();
+        point_at_world(S, p.x, p.y);
+    }
+}
+
+fn press(S) {
+    input::feed_mouse_button(input::MOUSE_LEFT, true);
+}
+
+fn release(S) {
+    input::feed_mouse_button(input::MOUSE_LEFT, false);
+}
+
+fn tap(q, frame, key) {
+    at(q, frame, || input::feed_key(key, true));
+    at(q, frame + 8, || input::feed_key(key, false));
+}
+
+fn index_of(S, name) {
+    for (i, node) in S.doc.iter().enumerate() {
+        if node.name == name {
+            return Some(i);
+        }
+    }
+    None
+}
+
+// Select a node the way a click on its row would, pointer included.
+fn choose(S, name) {
+    let found = index_of(S, name);
+    if let Some(i) = found {
+        shell::choose(S, i);
+        point_at_row(S, i);
+    }
+}
+
+fn line_of(S, rel, needle) {
+    let text = model::source(S, rel).unwrap_or("");
+    let lines = text.split('\n').collect::<Vec>();
+    for (i, line) in lines.iter().enumerate() {
+        if line.contains(needle) {
+            return i + 1;
+        }
+    }
+    0
+}
+
+// Change the open buffer the way typing would; `save_active` writes it.
+fn edit_source(S, rel, from, to) {
+    let abs = S.game_root + "/" + rel;
+    let current = match S.script_buffers.get(abs) {
+        Some(text) => text,
+        None => model::source(S, rel).unwrap_or(""),
+    };
+    let text = current.replace(from, to);
+    ui::set_text("edit:" + abs, text);
+    S.script_buffers[abs] = text;
+    S.script_dirty[abs] = true;
+}
+
+// Put the file back as it was when the clip began.
+fn restore_source(S, rel, q) {
+    let abs = S.game_root + "/" + rel;
+    let original = q.kept.get(rel).unwrap_or("");
+    if original == "" {
+        return;
+    }
+    ui::set_text("edit:" + abs, original);
+    S.script_buffers[abs] = original;
+    shell::save_active(S);
+}
+
+// The angrynerds level framed for the viewport: the game's own camera is set
+// for a whole window, and the editor's panels cover its edges.
+fn fit_level(S) {
+    render::set_camera_2d(1.0, 2.2, 30.0);
+}
+
+// The slingshot: grab the bird, pull down and left, let go.
+fn fling(S, q, from) {
+    at(q, from, || point_at_world(S, -8.0, 2.2));
+    at(q, from + 10, || press(S));
+    over(q, from + 10, from + 70, |p| {
+        let e = ease(p);
+        point_at_world(S, lerp(-8.0, -10.2, e), lerp(2.2, 1.3, e));
+    });
+    at(q, from + 80, || release(S));
+}
+
+fn open_newest(S) {
+    let rows = session::listing(S);
+    if rows.len() > 0 {
+        session::open(S, rows[0].name);
+    }
+}
+
+// Scenes and nodes, `examples/hello`: the tree, the inspector following the
+// selection, an edit, and its undo.
+fn scenes(S, q) {
+    act(q, 1, || {
+        shell::set_persona(S, "scene");
+        choose(S, "Platform");
+    });
+    act(q, 120, || choose(S, "Ball"));
+    act(q, 210, || choose(S, "Spinner"));
+    act(q, 300, || choose(S, "CrateB"));
+    act(q, 390, || choose(S, "Spinner"));
+    act(q, 420, || history::record(S, "scale Spinner", None));
+    over_ui(q, 420, 510, |p| {
+        let s = lerp(1.0, 2.4, ease(p));
+        model::set_transform(S, S.sel, #{ scale: [s, s, s] });
+    });
+    act(q, 600, || shell::undo(S));
+}
+
+// Scripting, `examples/hello`: a change saved while the scene runs, then a
+// breakpoint stepped in the Debugger dock.
+fn scripting(S, q) {
+    let rel = "scripts/spinner.rn";
+    act(q, 1, || {
+        shell::set_persona(S, "script");
+        choose(S, "Spinner");
+        q.kept[rel] = model::source(S, rel).unwrap_or("");
+    });
+    act(q, 60, || shell::toggle_play(S));
+    act(q, 200, || edit_source(S, rel, "(this.speed + nudge", "(this.speed * 4.0 + nudge"));
+    act(q, 320, || shell::save_active(S));
+    act(q, 480, || shell::toggle_breakpoint(S, rel, line_of(S, rel, "let nudge")));
+    act(q, 600, || {
+        if S.debug.paused is Object {
+            shell::resume(S, debugger::STEP_OVER);
+        }
+    });
+    act(q, 680, || {
+        if S.debug.paused is Object {
+            shell::resume(S, debugger::STEP_OVER);
+        }
+    });
+    act(q, 760, || {
+        shell::toggle_breakpoint(S, rel, line_of(S, rel, "let nudge"));
+        if S.debug.paused is Object {
+            shell::resume(S, debugger::CONTINUE);
+        }
+    });
+    act(q, 860, || restore_source(S, rel, q));
+}
+
+// Animation, `examples/rig`: scrub the clip, pose the thigh, key it, play.
+fn animation(S, q) {
+    act(q, 1, || {
+        shell::set_persona(S, "anim");
+        choose(S, "Thigh");
+        S.tool = "bone";
+    });
+    over_ui(q, 40, 220, |p| anim::seek(S, 2.0 * ease(p)));
+    act(q, 250, || anim::seek(S, 1.0));
+    act(q, 280, || {
+        history::record(S, "pose Thigh", None);
+        point_at_selection(S);
+    });
+    over_ui(q, 280, 370, |p| {
+        model::set_transform(S, S.sel, #{ rotation_euler: [0.0, 0.0, lerp(0.5, 1.5, ease(p))] });
+        point_at_selection(S);
+    });
+    act(q, 420, || anim::add_key(S, S.anim.time));
+    act(q, 500, || shell::toggle_play(S));
+}
+
+// Physics, `examples/angrynerds`: the collider overlays, then play and a
+// shot at the towers.
+fn physics(S, q) {
+    act(q, 1, || {
+        shell::set_persona(S, "phys");
+        shell::set_zoom(S, 45.0);
+        choose(S, "Bird");
+    });
+    act(q, 60, || shell::toggle_play(S));
+    act(q, 66, || fit_level(S));
+    fling(S, q, 100);
+}
+
+// Input, `examples/hello`: the overlay, fed the keys and clicks a person
+// would press.
+fn input_clip(S, q) {
+    act(q, 1, || {
+        shell::set_persona(S, "scene");
+        choose(S, "Spinner");
+    });
+    act(q, 30, || shell::toggle_play(S));
+    tap(q, 90, "Space");
+    at(q, 150, || input::feed_key("A", true));
+    at(q, 240, || input::feed_key("A", false));
+    at(q, 270, || input::feed_key("D", true));
+    at(q, 360, || input::feed_key("D", false));
+    over(q, 380, 430, |p| {
+        let v = S.viewport;
+        let e = ease(p);
+        feed_pointer(S, util::f(v.x) + util::f(v.w) * lerp(0.3, 0.55, e),
+            util::f(v.y) + util::f(v.h) * lerp(0.6, 0.45, e));
+    });
+    at(q, 440, || press(S));
+    at(q, 452, || release(S));
+    tap(q, 500, "Space");
+    at(q, 540, || {
+        input::feed_key("LShift", true);
+        input::feed_key("W", true);
+    });
+    at(q, 590, || {
+        input::feed_key("LShift", false);
+        input::feed_key("W", false);
+    });
+}
+
+// Determinism, `examples/angrynerds`: play records, the bird flies, stop;
+// open the session and it flies again with nobody at the mouse; scrub back,
+// pause, play on.
+fn determinism(S, q) {
+    act(q, 1, || {
+        shell::set_persona(S, "scene");
+        shell::set_zoom(S, 45.0);
+        choose(S, "Bird");
+        S.session.verify = true;
+        S.dock = "session";
+    });
+    act(q, 60, || {
+        shell::toggle_play(S);
+        S.dock = "session";
+    });
+    act(q, 66, || fit_level(S));
+    fling(S, q, 100);
+    act(q, 420, || {
+        shell::stop_play(S);
+        S.dock = "session";
+    });
+    act(q, 500, || open_newest(S));
+    act(q, 506, || fit_level(S));
+    act(q, 900, || session::seek(S, S.session.first + 10));
+    act(q, 906, || fit_level(S));
+    act(q, 1260, || session::toggle_pause(S));
+    act(q, 1380, || session::toggle_pause(S));
+}
+
+// Off until the 2D material pipeline binds the preview's probe.
+const PREVIEW = false;
+
+fn preview(S, rel, needle) {
+    let line = line_of(S, rel, needle);
+    if PREVIEW && line > 0 {
+        shell::toggle_shader_preview(S, rel, line);
+    }
+}
+
+// Shaders, `examples/shaders`: the material in the inspector, its shader in
+// the code editor, three lines' values drawn in the viewport, a channel
+// view, and a save that relinks the sprite.
+fn shaders(S, q) {
+    let rel = "shaders/glow.wesl";
+    act(q, 1, || {
+        shell::set_persona(S, "scene");
+        choose(S, "Logo");
+        q.kept[rel] = model::source(S, rel).unwrap_or("");
+    });
+    act(q, 120, || {
+        S.shader_rel = rel;
+        S.doctab = "script";
+    });
+    act(q, 240, || preview(S, rel, "let uv"));
+    act(q, 330, || {
+        S.doctab = "scene";
+    });
+    act(q, 420, || {
+        S.doctab = "script";
+        preview(S, rel, "let wave");
+    });
+    act(q, 480, || {
+        S.doctab = "scene";
+    });
+    act(q, 570, || {
+        S.doctab = "script";
+        preview(S, rel, "let ramp");
+    });
+    act(q, 630, || {
+        S.doctab = "scene";
+    });
+    act(q, 720, || {
+        if S.preview_line > 0 {
+            shell::toggle_shader_preview(S, rel, S.preview_line);
+        }
+        render::set_channel("uv");
+    });
+    act(q, 800, || render::set_channel(""));
+    act(q, 830, || {
+        S.doctab = "script";
+        edit_source(S, rel, "dist * params.rings", "dist * params.rings * 3.0");
+    });
+    act(q, 860, || shell::save_active(S));
+    act(q, 900, || {
+        S.doctab = "scene";
+    });
+    act(q, 1000, || {
+        S.doctab = "script";
+        restore_source(S, rel, q);
+    });
+}

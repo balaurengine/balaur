@@ -10,6 +10,7 @@ mod gizmo;
 mod gizmo2d;
 mod highlight;
 mod history;
+mod inputview;
 mod inspector;
 mod left;
 mod lint;
@@ -22,6 +23,7 @@ mod rig;
 mod selftest;
 mod session;
 mod shell;
+mod showcase;
 mod style;
 mod theme;
 mod util;
@@ -55,6 +57,10 @@ pub fn init(this) {
         fps: 0.0,
         frame: 0,
         shot: None,
+        // `frames=<dir>`: a PNG every `every` frames from `from`, numbered.
+        capture: (),
+        // The input overlay: keys, buttons, actions and the pointer.
+        show_input: false,
         screen_w: 1280.0,
         screen_h: 800.0,
         viewport: #{ x: 308.0, y: 94.0, w: 664.0, h: 528.0 },
@@ -76,6 +82,8 @@ pub fn init(this) {
         anim: anim::state(),
         debug: shell::debug_state(),
         session: session::state(),
+        showcase: showcase::state(),
+        inputview: inputview::state(),
         lint: lint::state(),
         assets: dock::assets_state(),
         // Where an editor plugin keeps its own state, by id.
@@ -125,6 +133,11 @@ pub fn update(this, dt) {
             render::screenshot(shot);
         }
     }
+    let cap = S.capture;
+    if cap is Object && S.frame >= cap.from && (S.frame - cap.from) % cap.every == 0 {
+        render::screenshot(format!("{}/{}.png", cap.dir, padded(cap.n)));
+        cap.n = cap.n + 1;
+    }
     let paused = debugger::paused();
     if paused is Object && !(S.debug.paused is Object) {
         shell::on_pause(S, paused);
@@ -156,10 +169,10 @@ pub fn update(this, dt) {
     if S.session.demo is Object {
         selftest::session_step(S);
     }
-    // A replay feeds the recorded pointer into the same snapshot the viewport
-    // tools read, so a drag would follow the recording rather than the mouse.
-    // Paused, the engine is held and the live pointer is harmless again.
-    if !session::scrubbing(S) {
+    showcase::step(S);
+    // A replay or a showcase feeds the pointer into the snapshot the viewport
+    // tools read, so a drag would follow the feed rather than the mouse.
+    if !session::scrubbing(S) && !showcase::feeding(S) {
         gizmo::update(S);
     }
     anim::update(S);
@@ -270,6 +283,7 @@ pub fn draw_ui(this) {
         }
     }
 
+    showcase::draw(S);
     // Fixed skeleton: outer chrome, then dock, rail, tabs, then the center.
     chrome::persona_bar(S);
     chrome::status_bar(S);
@@ -278,7 +292,19 @@ pub fn draw_ui(this) {
     dock::draw(S);
     center::draw(S);
     plugins::draw_windows(S, S.theme);
+    if S.show_input {
+        inputview::draw(S);
+    }
     palette::draw(S);
+}
+
+// Six digits, so a frame directory sorts as it was captured.
+fn padded(n) {
+    let s = format!("{}", n);
+    while s.len() < 6 {
+        s = "0" + s;
+    }
+    s
 }
 
 pub fn hot_reload(this) {

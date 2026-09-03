@@ -249,6 +249,8 @@ pub fn save_active(S) {
         if let Some(buffer) = S.script_buffers.get(abs) {
             fs::write(abs, buffer);
             S.script_dirty.remove(abs);
+            // The watcher covers the editor's own root, not the game's.
+            assets::invalidate();
             log::info("saved " + S.shader_rel);
         }
         return;
@@ -308,6 +310,7 @@ fn states() {
         "palette": state_palette,
         "light": state_light,
         "play": state_play,
+        "input": state_input,
         "rotdemo": state_rotdemo,
         "animdemo": state_animdemo,
         "undodemo": crate::selftest::undo,
@@ -330,10 +333,13 @@ fn states() {
 fn prefixed_states() {
     [
         ("shot=", state_shot),
+        ("frames=", state_frames),
+        ("show:", state_show),
         ("tool:", state_tool),
         ("dock:", state_dock),
         ("mode:", state_mode),
         ("select:", state_select),
+        ("zoom:", state_zoom),
     ]
 }
 
@@ -363,6 +369,18 @@ pub fn apply_start_state(S, start) {
 fn state_shot(S, path) {
     S.shot = Some(path);
 }
+// Every other frame from frame 30, so a clip is 30 fps and skips the frames
+// the layout takes to settle.
+fn state_frames(S, dir) {
+    fs::mkdir(dir);
+    S.capture = #{ dir: dir, from: 30, every: 2, n: 0 };
+}
+fn state_input(S) {
+    S.show_input = true;
+}
+fn state_show(S, name) {
+    crate::showcase::start(S, name);
+}
 
 fn state_tool(S, tool) {
     S.tool = tool;
@@ -379,6 +397,10 @@ fn state_mode(S, mode) {
 // Self-test state: select a node by name (e.g. select:Pig1).
 fn state_select(S, name) {
     select_named(S, name);
+}
+fn state_zoom(S, pct) {
+    let (ok, v) = script::attempt(|| json::parse(pct));
+    set_zoom(S, if ok { util::f(v) } else { 100.0 });
 }
 
 fn state_palette(S) {

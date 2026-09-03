@@ -159,6 +159,8 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_LABEL", "label"),
     ("WIDGET_BUTTON", "button"),
     ("WIDGET_PANEL", "panel"),
+    ("WIDGET_ROW", "row"),
+    ("WIDGET_COLUMN", "column"),
 ];
 
 /// Font families the theme registers.

@@ -1116,6 +1116,12 @@ impl RuneHost {
             balaur_core::assets::invalidate(&self.engine);
         }
         for key in assets {
+            // A strings file is not an asset — nothing references it — so the
+            // catalogue has its own forgetting.
+            if key.starts_with("strings/") {
+                let _ = balaur_core::strings::reload(&self.engine);
+                continue;
+            }
             if let Err(err) = balaur_core::assets::reload(&self.engine, &key) {
                 tracing::warn!("could not reload asset {key}: {err}");
             }

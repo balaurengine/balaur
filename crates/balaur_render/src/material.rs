@@ -17,6 +17,27 @@ use wesl::syntax::{GlobalDeclaration, TranslationUnit};
 /// The asset type name, and what an `asset`-typed property asks for.
 pub const MATERIAL_ASSET_TYPE: &str = "material";
 
+/// The shader a material names, read against the material's own project. A
+/// material handed in by absolute path — the editor mirrors a game's files
+/// that way — names its shader relative to that game, not this engine's root.
+pub(crate) fn shader_text(eng: &Engine, reference: &str, shader: &str) -> Result<String> {
+    let material = std::path::Path::new(reference);
+    if material.is_absolute() {
+        let mut dir = material.parent();
+        while let Some(d) = dir {
+            if d.join("project.toml").exists() {
+                let full = d.join(shader);
+                if full.exists() {
+                    return Ok(std::fs::read_to_string(full)?);
+                }
+                break;
+            }
+            dir = d.parent();
+        }
+    }
+    balaur_core::project::scene_text(eng, shader)
+}
+
 /// The struct a shader declares to take a material's values.
 const PARAMS_STRUCT: &str = "Params";
 
@@ -282,7 +303,7 @@ fn material_params(eng: &balaur_core::Engine, path: &str) -> Result<Vec<balaur_s
     let files = eng.resource::<balaur_core::project::ProjectFiles>();
     let text = String::from_utf8(files.borrow().read(path)?)?;
     let material = parse(&toml::from_str::<toml::Value>(&text)?)?;
-    let source = String::from_utf8(files.borrow().read(&material.shader)?)?;
+    let source = shader_text(eng, path, &material.shader)?;
     let compiled = compile_with(&material, &source, &crate::shaders::plugin_modules(eng))?;
     Ok(compiled
         .fields
@@ -310,7 +331,7 @@ fn check_material(eng: &balaur_core::Engine, path: &str) -> Result<()> {
     let files = eng.resource::<balaur_core::project::ProjectFiles>();
     let text = String::from_utf8(files.borrow().read(path)?)?;
     let material = parse(&toml::from_str::<toml::Value>(&text)?)?;
-    let source = String::from_utf8(files.borrow().read(&material.shader)?)?;
+    let source = shader_text(eng, path, &material.shader)?;
     let modules = crate::shaders::plugin_modules(eng);
     compile_with(&material, &source, &modules).map(|_| ())
 }
@@ -486,6 +507,9 @@ pub struct Compiled {
     /// The values, laid out for the uniform buffer; empty for a shader that
     /// declares no `Params`.
     pub params: Vec<u8>,
+    /// Whether the shader writes a previewed value out for one pixel — true
+    /// only for a source `preview` rewrote.
+    pub probes: bool,
 }
 
 /// Link `material`'s shader and pack its values against what it declares.
@@ -522,10 +546,17 @@ pub fn compile_with(
         .map_err(|why| anyhow!("{}", format!("{why:#}").replace(root, &material.shader)))?;
     let fields = fields(&linked.syntax)?;
     let params = pack(&fields, &material.params)?;
+    // Read off the linked output rather than threaded down from whoever
+    // rewrote it: the binding either survived stripping or it did not.
+    let probes = linked.syntax.global_declarations.iter().any(|d| {
+        matches!(d.node(), GlobalDeclaration::Declaration(v)
+            if v.ident.name().as_str() == "balaur_probe")
+    });
     Ok(Compiled {
         wgsl: crate::shaders::wgsl(&linked),
         fields,
         params,
+        probes,
     })
 }
 

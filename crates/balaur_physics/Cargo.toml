@@ -10,13 +10,18 @@ authors.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 balaur_core.workspace = true
-rapier3d.workspace = true
-rapier2d.workspace = true
-# Cutting a mesh and intersecting two of them are parry's, behind its `spade`
-# feature — which rapier leaves off. Named here so the same parry rapier uses
-# gains it; the version tracks rapier's exactly.
-parry3d = { version = "0.30.2", features = ["spade"] }
-parry2d = { version = "0.30.2", features = ["spade"] }
+# One pair is compiled, chosen by the `f64` feature; `lib.rs` names either
+# `rapier3d`, and `scalar.rs` is the seam.
+rapier3d = { workspace = true, optional = true }
+rapier2d = { workspace = true, optional = true }
+rapier3d_f64 = { package = "rapier3d-f64", version = "0.35", optional = true, features = ["enhanced-determinism", "serde-serialize", "debug-render", "unsync-callbacks"] }
+rapier2d_f64 = { package = "rapier2d-f64", version = "0.35", optional = true, features = ["enhanced-determinism", "serde-serialize", "debug-render", "unsync-callbacks"] }
+# Cutting and intersecting meshes need parry's `spade` feature, which rapier
+# leaves off; naming parry here turns it on for the copy rapier uses.
+parry3d = { version = "0.30.2", features = ["spade"], optional = true }
+parry2d = { version = "0.30.2", features = ["spade"], optional = true }
+parry3d_f64 = { package = "parry3d-f64", version = "0.30.2", features = ["spade"], optional = true }
+parry2d_f64 = { package = "parry2d-f64", version = "0.30.2", features = ["spade"], optional = true }
 glamx.workspace = true
 anyhow.workspace = true
 balaur_script.workspace = true
@@ -26,13 +31,14 @@ toml.workspace = true
 rayon = { version = "1", optional = true }
 
 [features]
-# Rapier's parallel solver, narrow phase and BVH refresh, through rayon.
-#
-# The solver is coloured and staged — "results depend only on the coloring,
-# not on batch distribution", says its own doc — so the thread count does not
-# change results. `tests/determinism.rs` holds that to it rather than trusting
-# it. Off by default because the digest matrix has to pass first.
-parallel = ["rapier3d/parallel", "rapier2d/parallel", "dep:rayon"]
+default = ["f32"]
+# The scalar physics runs at; `f64` buys room for a world tens of kilometres
+# across. See docs/PLAN-rapier.md, phase 13.
+f32 = ["dep:rapier3d", "dep:rapier2d", "dep:parry3d", "dep:parry2d"]
+f64 = ["dep:rapier3d_f64", "dep:rapier2d_f64", "dep:parry3d_f64", "dep:parry2d_f64"]
+# Rapier's parallel solver, through rayon. Its colouring makes the thread
+# count irrelevant to the result; `tests/scalar_and_threads.rs` holds it to that.
+parallel = ["rapier3d?/parallel", "rapier2d?/parallel", "rapier3d_f64?/parallel", "rapier2d_f64?/parallel", "dep:rayon"]
 
 [dev-dependencies]
 balaur.workspace = true

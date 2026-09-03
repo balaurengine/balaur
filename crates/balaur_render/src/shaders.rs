@@ -19,11 +19,11 @@ pub static SKINNED_2D: &str = include_str!("shaders/skinned_2d.wesl");
 /// The contract a project's 2D material shader draws against, mounted as
 /// `package::sprite`: the uniforms the pipeline binds and the vertex work
 /// every such shader would otherwise repeat.
-static SPRITE: &str = include_str!("shaders/sprite.wesl");
+pub(crate) static SPRITE: &str = include_str!("shaders/sprite.wesl");
 
 /// The 3D counterpart, mounted as `package::mesh`: the same uniforms in three
 /// dimensions, plus the scene's lights and fog.
-static MESH: &str = include_str!("shaders/mesh.wesl");
+pub(crate) static MESH: &str = include_str!("shaders/mesh.wesl");
 
 /// What a channel view draws: one entry point per channel, chosen by feature.
 pub static CHANNEL: &str = include_str!("shaders/channel.wesl");

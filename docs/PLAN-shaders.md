@@ -20,8 +20,9 @@
 > like any other. Phase 6 is built: `render::set_channel` draws normals, UVs,
 > depth or the bare texture instead of the picture, in 2D and 3D, from the
 > command palette. Phase 7 draws: clicking a shader's gutter previews that
-> line's value. Its *number* is not built — see open question 8 — and
-> publishing the helpers as a crates.io package is a release action. All of
+> line's value, and `render::shader_probe` answers with the float it computed
+> at one pixel. Publishing the helpers as a crates.io package is a release
+> action, and the only thing left. All of
 > it is verified on a GPU: `balaur run --offscreen` with `render.screenshot`
 > draws through the real pipeline with no window.
 >
@@ -116,12 +117,27 @@
 > 20. **Two bugs only running found.** `GpuMesh3d`'s `coords_buffer` and its
 >    siblings are unfinished stubs that always answer `None` — the 3D
 >    material drew nothing at all, with no error anywhere; the buffers live
->    behind the lock, which is what kiss3d's own materials read. And a
+>    behind the lock, which is what kiss3d's own materials read — the fork
+>    now implements them by cloning the handle, since a `wgpu::Buffer` is
+>    reference-counted and returning the *reference* is what could not be
+>    done. And a
 >    light's intensity is radiance, so Lambert's `1/π` is what turns it into
 >    reflected colour: without it the engine's default intensity of 3.0 drew
 >    white. Neither could have been caught by a compiler, a linker or a
 >    headless test.
-> 21. **2D has no room for a fifth group either.** The sprite material already
+> 21. **The preview's number is bindings, not a fifth group.** This page
+>    said an exact readback was blocked because the material's four bind
+>    groups were spent. That was wrong: WebGPU caps *groups*, not bindings,
+>    so the probe's storage buffer and its pixel sit at `@group(3)
+>    @binding(1)` and `(2)` beside `Params`. Reading the drawn frame would
+>    give the tonemapped 8-bit colour; this gives the shader's own float.
+> 22. **Two more only running found.** WESL wants imports first, so the
+>    channel is spliced before the first *declaration* rather than at the top
+>    of the file — prepending it makes a shader that imports fail to link.
+>    And `@builtin(position)` reports pixel centres, so a probe comparing
+>    `abs(pos - asked) < 0.5` misses by exactly a half; whole pixels are
+>    compared with `floor`.
+> 23. **2D has no room for a fifth group either.** The sprite material already
 >    uses frame, object, texture and params. When `docs/PLAN-rendering.md`
 >    adds 2D lights they fold into the frame group; they cannot take a group
 >    of their own.
@@ -424,13 +440,7 @@ it is the argument for turning the feature on.
    and calls, and the output is readable WESL a user can take over. Every
    graph built on string concatenation regrets it. If it is ever built,
    it is built on this.
-8. **The preview's number needs a buffer, not the frame.** Reading a pixel
-   back through `snap_image` gives the *tonemapped 8-bit* colour, not the
-   value the shader computed — a plausible-looking number that is wrong.
-   An exact read means the preview writing to a storage buffer, and the
-   material's four bind groups are already spent (frame, object, texture,
-   params), so it waits on the group budget being reworked.
-9. **Compute shaders.** Out of scope. A compute pass that wrote back into
+8. **Compute shaders.** Out of scope. A compute pass that wrote back into
    simulation state would break the observer rule; one that only feeds
    rendering (particles on the GPU) is a later plan, and needs the same
    headless answer particles already have.

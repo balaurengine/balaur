@@ -4,16 +4,16 @@
 //! then by entity bits before it crosses the binding seam, because rapier
 //! walks a BVH and a replay may not depend on BVH order.
 
+use crate::rapier2d::parry::query::{Ray, ShapeCastOptions};
+use crate::rapier2d::prelude::{
+    Collider, ColliderHandle, Group, InteractionGroups, InteractionTestMode, QueryFilter,
+    QueryFilterFlags,
+};
+use crate::scalar::{self, Pose2, Real};
 use anyhow::{anyhow, Result};
 use balaur_core::hecs::Entity;
 use balaur_core::{entity_of, node_id_of, Engine};
 use balaur_script::{Bindings, BindingsExt, CallbackHost, NodeId, Value};
-use glamx::{Pose2, Vec2};
-use rapier2d::parry::query::{Ray, ShapeCastOptions};
-use rapier2d::prelude::{
-    Collider, ColliderHandle, Group, InteractionGroups, InteractionTestMode, QueryFilter,
-    QueryFilterFlags,
-};
 
 use crate::dim2::PhysicsState2d;
 use crate::vocabulary::{map, Opts};
@@ -116,7 +116,7 @@ fn allowed(eng: &Engine, opts: &Opts<'_>, entity: Entity) -> Result<bool> {
     }
 }
 
-fn hit_value(entity: Entity, point: [f32; 2], normal: [f32; 2], distance: f32) -> Value {
+fn hit_value(entity: Entity, point: [f32; 2], normal: [f32; 2], distance: Real) -> Value {
     map([
         ("node", Value::Node(entity.to_bits().get())),
         ("point", Value::Vec2(point)),
@@ -125,14 +125,23 @@ fn hit_value(entity: Entity, point: [f32; 2], normal: [f32; 2], distance: f32) -
     ])
 }
 
-fn ray_of(opts: &Opts<'_>) -> (Ray, f32, bool) {
+fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
     let from = opts.vec2("from", [0.0; 2]);
     let dir = opts.vec2("dir", [0.0, -1.0]);
     (
-        Ray::new(Vec2::from(from), Vec2::from(dir)),
-        opts.f32("max", 1000.0),
+        Ray::new(scalar::v2a(from), scalar::v2a(dir)),
+        scalar::real(opts.f32("max", 1000.0)),
         opts.boolean("solid", true),
     )
+}
+
+/// Sorted by distance, then by entity bits, as in 3D.
+fn sort_hits(hits: &mut [(Entity, Real, [f32; 2], [f32; 2])]) {
+    hits.sort_by(|a, b| {
+        a.1.partial_cmp(&b.1)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.0.to_bits().cmp(&b.0.to_bits()))
+    });
 }
 
 fn node_list(hits: &mut Vec<Entity>) -> Value {
@@ -177,28 +186,20 @@ pub(crate) fn install_physics2d_query_api(m: &mut dyn Bindings<Engine>) {
                     continue;
                 }
                 if let Some(entity) = entity_of_collider(collider) {
+                    let point = ray.point_at(hit.time_of_impact);
                     candidates.push((
                         entity,
                         hit.time_of_impact,
-                        ray.point_at(hit.time_of_impact),
-                        hit.normal,
+                        scalar::a2(point),
+                        scalar::a2(hit.normal),
                     ));
                 }
             }
         }
-        candidates.sort_by(|a, b| {
-            a.1.partial_cmp(&b.1)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| a.0.to_bits().cmp(&b.0.to_bits()))
-        });
+        sort_hits(&mut candidates);
         for (entity, toi, point, normal) in candidates {
             if allowed(eng, &opts, entity)? {
-                return Ok(hit_value(
-                    entity,
-                    [point.x, point.y],
-                    [normal.x, normal.y],
-                    toi,
-                ));
+                return Ok(hit_value(entity, point, normal, toi));
             }
         }
         Ok(Value::Nil)
@@ -227,17 +228,13 @@ pub(crate) fn install_physics2d_query_api(m: &mut dyn Bindings<Engine>) {
                     hits.push((
                         entity,
                         hit.time_of_impact,
-                        [point.x, point.y],
-                        [hit.normal.x, hit.normal.y],
+                        scalar::a2(point),
+                        scalar::a2(hit.normal),
                     ));
                 }
             }
         }
-        hits.sort_by(|a, b| {
-            a.1.partial_cmp(&b.1)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| a.0.to_bits().cmp(&b.0.to_bits()))
-        });
+        sort_hits(&mut hits);
         let mut out = Vec::new();
         for (entity, toi, point, normal) in hits {
             if allowed(eng, &opts, entity)? {
@@ -252,18 +249,21 @@ pub(crate) fn install_physics2d_query_api(m: &mut dyn Bindings<Engine>) {
 ///
 /// Split from [`install_physics2d_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_physics2d_shapecast_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[
-        ("shapecast", &[], "(opts: table)", "Sweep a shape along a direction until it hits something: a thick raycast."),
-    ]);
+    m.describe(&[(
+        "shapecast",
+        &[],
+        "(opts: table)",
+        "Sweep a shape along a direction until it hits something: a thick raycast.",
+    )]);
     m.function("shapecast", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
         let builder = crate::dim2::collider::collider_builder(eng, &params)?;
-        let from = Vec2::from(opts.vec2("from", [0.0; 2]));
-        let dir = Vec2::from(opts.vec2("dir", [0.0, -1.0]));
+        let from = scalar::v2a(opts.vec2("from", [0.0; 2]));
+        let dir = scalar::v2a(opts.vec2("dir", [0.0, -1.0]));
         let options = ShapeCastOptions {
-            max_time_of_impact: opts.f32("max", 1000.0),
+            max_time_of_impact: scalar::real(opts.f32("max", 1000.0)),
             stop_at_penetration: opts.boolean("stop_at_penetration", true),
             ..ShapeCastOptions::default()
         };
@@ -285,30 +285,59 @@ pub(crate) fn install_physics2d_shapecast_api(m: &mut dyn Bindings<Engine>) {
         };
         Ok(hit_value(
             entity,
-            [hit.witness1.x, hit.witness1.y],
-            [hit.normal1.x, hit.normal1.y],
+            scalar::a2(hit.witness1),
+            scalar::a2(hit.normal1),
             hit.time_of_impact,
         ))
     });
 }
-
 
 /// The 2D queries that ask about a place rather than a line.
 ///
 /// Split from [`install_physics2d_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("nearest_point", &[], "(opts: table)", "The closest point on any collider to a world point."),
-        ("point_hits", &[], "(opts: table)", "Every collider containing a world point: what a mouse click asks."),
-        ("shape_hits", &[], "(opts: table)", "Every collider a shape overlaps where it stands."),
-        ("box_hits", &[], "(opts: table)", "Every collider whose bounds meet an axis-aligned box."),
-        ("distance", &[], "(a: node, b: node)", "The gap between two nodes' colliders, zero when they touch."),
-        ("intersects", &[], "(a: node, b: node)", "Whether two nodes' colliders overlap right now, sensor or not."),
+        (
+            "nearest_point",
+            &[],
+            "(opts: table)",
+            "The closest point on any collider to a world point.",
+        ),
+        (
+            "point_hits",
+            &[],
+            "(opts: table)",
+            "Every collider containing a world point: what a mouse click asks.",
+        ),
+        (
+            "shape_hits",
+            &[],
+            "(opts: table)",
+            "Every collider a shape overlaps where it stands.",
+        ),
+        (
+            "box_hits",
+            &[],
+            "(opts: table)",
+            "Every collider whose bounds meet an axis-aligned box.",
+        ),
+        (
+            "distance",
+            &[],
+            "(a: node, b: node)",
+            "The gap between two nodes' colliders, zero when they touch.",
+        ),
+        (
+            "intersects",
+            &[],
+            "(a: node, b: node)",
+            "Whether two nodes' colliders overlap right now, sensor or not.",
+        ),
     ]);
     m.function("nearest_point", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
-        let point = Vec2::from(opts.vec2("point", [0.0; 2]));
+        let point = scalar::v2a(opts.vec2("point", [0.0; 2]));
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
         let mut groups = None;
@@ -316,7 +345,11 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
         let found = state
             .world
             .query_pipeline_with_filter(filter)
-            .project_point(point, opts.f32("max", 1000.0), opts.boolean("solid", true));
+            .project_point(
+                point,
+                scalar::real(opts.f32("max", 1000.0)),
+                opts.boolean("solid", true),
+            );
         let Some((handle, projection)) = found else {
             return Ok(Value::Nil);
         };
@@ -326,7 +359,7 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
         let p = projection.point;
         Ok(map([
             ("node", Value::Node(entity.to_bits().get())),
-            ("point", Value::Vec2([p.x, p.y])),
+            ("point", Value::Vec2(scalar::a2(p))),
             ("inside", Value::Bool(projection.is_inside)),
             ("distance", Value::Num(f64::from((p - point).length()))),
         ]))
@@ -334,7 +367,7 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
     m.function("point_hits", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
-        let point = Vec2::from(opts.vec2("point", [0.0; 2]));
+        let point = scalar::v2a(opts.vec2("point", [0.0; 2]));
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
         let mut groups = None;
@@ -347,12 +380,19 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .collect();
         Ok(node_list(&mut hits))
     });
+}
+
+/// The 2D queries that take a shape rather than a point.
+///
+/// Split from [`install_physics2d_volume_query_api`] under `MAX_FN_LINES`.
+pub(crate) fn install_physics2d_shape_query_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[]);
     m.function("shape_hits", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
         let builder = crate::dim2::collider::collider_builder(eng, &params)?;
-        let at = Vec2::from(opts.vec2("at", [0.0; 2]));
+        let at = scalar::v2a(opts.vec2("at", [0.0; 2]));
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
         let mut groups = None;
@@ -368,8 +408,8 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
     m.function("box_hits", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
-        let min = Vec2::from(opts.vec2("min", [0.0; 2]));
-        let max = Vec2::from(opts.vec2("max", [0.0; 2]));
+        let min = scalar::v2a(opts.vec2("min", [0.0; 2]));
+        let max = scalar::v2a(opts.vec2("max", [0.0; 2]));
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
         let mut groups = None;
@@ -377,14 +417,21 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
         let mut hits: Vec<Entity> = state
             .world
             .query_pipeline_with_filter(filter)
-            .intersect_aabb_conservative(rapier2d::prelude::Aabb::new(min, max))
+            .intersect_aabb_conservative(crate::rapier2d::prelude::Aabb::new(min, max))
             .filter_map(|(_, collider)| entity_of_collider(collider))
             .collect();
         Ok(node_list(&mut hits))
     });
+}
+
+/// The 2D questions asked about two nodes rather than about the world.
+///
+/// Split from [`install_physics2d_volume_query_api`] under `MAX_FN_LINES`.
+pub(crate) fn install_physics2d_pair_query_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[]);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
         with_pair(eng, a, b, |first, second| {
-            rapier2d::parry::query::distance(
+            crate::rapier2d::parry::query::distance(
                 first.position(),
                 first.shape(),
                 second.position(),
@@ -396,7 +443,7 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("intersects", |eng: &Engine, (a, b): (NodeId, NodeId)| {
         with_pair(eng, a, b, |first, second| {
-            rapier2d::parry::query::intersection_test(
+            crate::rapier2d::parry::query::intersection_test(
                 first.position(),
                 first.shape(),
                 second.position(),
@@ -407,7 +454,6 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
         })
     });
 }
-
 
 fn with_pair(
     eng: &Engine,

@@ -485,3 +485,19 @@ kind = "circle"
 radius = 0.04
 color = [0.1, 0.1, 0.12, 1.0]
 
+
+[[nodes]]
+id = "n_restart"
+name = "Restart"
+parent = ""
+script = "scripts/restart_button.rn"
+
+[nodes.widget]
+kind = "button"
+text = "Restart"
+anchor = "bottom_right"
+x = 20
+y = 14
+font_size = 15
+text_color = "#2b2b2b"
+on_click = "on_restart"

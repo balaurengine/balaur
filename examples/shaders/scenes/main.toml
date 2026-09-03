@@ -1,0 +1,48 @@
+# A sprite drawn with a material: the shader's rings and tint are the
+# material's params, editable in the inspector. The plain sprite beside it
+# draws with the built-in material, for comparison.
+
+[[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = ""
+position = [0, 0, 0]
+
+[nodes.camera]
+kind = "2d"
+zoom = 90
+
+[[nodes]]
+id = "n_logo"
+name = "Logo"
+parent = ""
+position = [-2.2, 0, 0]
+
+[nodes.sprite]
+texture = "art/logo.png"
+material = "materials/glow.toml"
+pixels_per_unit = 128
+
+[[nodes]]
+id = "n_plain"
+name = "Plain"
+parent = ""
+position = [2.2, 0, 0]
+
+[nodes.sprite]
+texture = "art/logo.png"
+pixels_per_unit = 128
+
+[[nodes]]
+id = "n_hud"
+name = "Hud"
+parent = ""
+
+[nodes.widget]
+kind = "label"
+text = "shaders · balaur"
+anchor = "top_left"
+x = 16
+y = 16
+font_size = 16
+text_color = "#f9f4ed"

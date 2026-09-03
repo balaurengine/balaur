@@ -1,0 +1,26 @@
+// The menu's own script. Each button's `on_click` names a method here, and
+// the buttons say nothing about where they sit — the panel lays them out.
+
+pub fn init(this) {
+    this.spinner = scene::get_node("World/Spinner");
+}
+
+pub fn on_faster(this) {
+    nudge(this, 1.5);
+}
+
+pub fn on_slower(this) {
+    nudge(this, 1.0 / 1.5);
+}
+
+pub fn on_reverse(this) {
+    if this.spinner is balaur::Node {
+        this.spinner.call("reverse");
+    }
+}
+
+fn nudge(this, factor) {
+    if this.spinner is balaur::Node {
+        this.spinner.call("scale_speed", factor);
+    }
+}

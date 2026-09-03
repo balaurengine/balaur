@@ -175,6 +175,7 @@ fn insert_core_resources(engine: &Engine, config: &AppConfig) {
     engine.insert_resource(crate::replay::ReplayRegistry::default());
     engine.insert_resource(crate::replay::ReplaySetupRegistry::default());
     engine.insert_resource(crate::timings::Timings::default());
+    engine.insert_resource(crate::strings::Strings::default());
     engine.insert_resource(crate::replay::ReplayFeed::default());
     engine.insert_resource(crate::replay::ReplayMode::default());
     engine.insert_resource(crate::replay::Recording::default());
@@ -256,12 +257,19 @@ impl App {
                 match cmd {
                     Command::Free(entity) => {
                         let subtree = scene::collect_subtree(&eng.world(), entity);
+                        let label = crate::digest::node_label(&eng.world(), entity);
                         if let Some(host) = eng.script_host() {
                             for &e in &subtree {
                                 host.detach(crate::node_id_of(e));
                             }
                         }
                         scene::free_subtree(&mut eng.world_mut(), entity);
+                        crate::replay::event(
+                            eng,
+                            "scene.free",
+                            format!("freed {label}"),
+                            Some(serde_json::json!({ "node": label })),
+                        );
                     }
                 }
             }

@@ -181,9 +181,43 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     #[cfg(feature = "gamend")]
     balaur_plugin::load(&mut app, &mut GamendPlugin::default())?;
     app.add_plugin(UiPlugin)?;
+    drive_ui_focus(&mut app);
     #[cfg(feature = "extensions")]
     load_project_extensions(&mut app)?;
     Ok(app)
+}
+
+/// Let a pad walk a menu, by mapping three actions onto the focus verbs.
+///
+/// Here rather than in either plugin: `balaur_ui` reads its input from egui,
+/// which has keys but no pads, and `balaur_input` knows nothing about
+/// widgets. This crate is the one that knows about both, which is what
+/// assembling them means. A project that declares none of these three
+/// actions gets a keyboard-only menu and no system worth the name.
+fn drive_ui_focus(app: &mut App) {
+    use balaur_ui::{Move, UiFocus};
+    app.add_system(balaur_core::Stage::First, |eng: &balaur_core::Engine, _| {
+        let Some(actions) = eng.try_resource::<balaur_input::InputActions>() else {
+            return;
+        };
+        let asked = {
+            let actions = actions.borrow();
+            // Accept first: a frame that both moved and accepted meant the
+            // accept, and one press cannot sensibly do two things.
+            if actions.just_pressed("ui_accept") {
+                Some(Move::Accept)
+            } else if actions.just_pressed("ui_next") {
+                Some(Move::Next)
+            } else if actions.just_pressed("ui_previous") {
+                Some(Move::Previous)
+            } else {
+                None
+            }
+        };
+        if let Some(asked) = asked {
+            eng.resource::<UiFocus>().borrow_mut().pending = Some(asked);
+        }
+    });
 }
 
 /// Load every extension in the project's `extensions/` directory.

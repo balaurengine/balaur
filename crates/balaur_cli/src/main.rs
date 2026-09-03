@@ -717,6 +717,7 @@ fn record_to(app: &App, path: &Path, project: &Path) -> Result<()> {
 fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<()> {
     let session = balaur::replay::Session::read(file)?;
     let frames = session.frames.len();
+    let checked = session.frames.iter().filter(|f| f.digest.is_some()).count();
     let mut app = balaur::standard_app(AppConfig::dev(&session.header.project))?;
     // Before load_project: a script's `init` can open a socket, and that must
     // not reach the network either. It can also take an await token, and the
@@ -758,7 +759,15 @@ fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<
         anyhow::bail!("the recording stops before that tick");
     }
     if verify {
-        println!("{frames} ticks replayed, every digest matched");
+        // A session recorded without per-tick digests has nothing to compare,
+        // and saying every digest matched would be saying nothing matched.
+        if checked == 0 {
+            println!(
+                "{frames} ticks replayed; the recording carries no digests, so nothing was checked"
+            );
+        } else {
+            println!("{checked} ticks replayed, every digest matched");
+        }
     }
     Ok(())
 }

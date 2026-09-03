@@ -158,7 +158,7 @@ pub(crate) fn map<const N: usize>(pairs: [(&str, Value); N]) -> Value {
 /// two crates are one source compiled twice. So a name means the same thing in
 /// both dimensions by construction, not by a comment asking for it.
 pub(crate) mod flags {
-    use rapier3d::prelude::{ActiveCollisionTypes, ActiveEvents, ActiveHooks};
+    use crate::rapier3d::prelude::{ActiveCollisionTypes, ActiveEvents, ActiveHooks};
 
     pub(crate) fn events() -> [(&'static str, u32); 2] {
         [

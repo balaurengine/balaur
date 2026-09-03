@@ -789,6 +789,127 @@ app the game would boot (`AppConfig::export`) and compiles through its host.
 Compiling against a bare `rune::Context` instead — which is what it used to do
 — rejects every script that touches the engine.
 
+## Game UI: widgets are nodes
+
+A `widget` is a component on a scene node, so a menu is a subtree and the
+editor edits it the way it edits anything. What the layer did not do until
+now was *read* that tree: every widget was anchored to a screen corner on its
+own, and a menu meant placing each entry by pixel offset.
+
+`row`, `column` and `panel` lay their widget children out — along the
+container's direction, `gap` apart, `padding` inside its edge, `align`ed
+across it. A child's own `anchor`, `x` and `y` are ignored: it is placed by
+its parent, and a menu that moved when you nudged one entry would not be a
+menu. A widget's parent is its nearest *widget* ancestor rather than its
+parent node, so a grouping node between a panel and its buttons changes
+nothing.
+
+```toml
+[nodes.widget]
+kind = "panel"
+anchor = "bottom_left"
+padding = 6
+gap = 6
+
+# ... with button children; none of them says where it goes.
+```
+
+The layout is egui's own — `left_to_right`, `top_down`, item spacing, frame
+margins — rather than a layout crate. The renderer is egui either way, this
+is the same arithmetic the editor's own panels use, and it is one fewer
+dependency to vet against determinism. Layout is presentation and never
+touches the digest; a wrapping or percentage-based layout is what would
+justify reaching for `taffy`, and nothing asks for one yet.
+
+Only containers adopt what is under them, so a label with nodes beneath it
+still leaves them anchored on their own, and a panel with no children is the
+panel it always was — which is what every existing scene's panels are.
+
+### Focus
+
+One focused widget per screen — the thing an *accept* would activate — held
+as a resource rather than on a widget, so moving it is one write. Focus walks
+the widgets in the order the scene declares them and wraps, because a menu is
+a ring. Whether a widget is a stop is **derived, not declared**: focus exists
+to activate something, so a widget with nothing to activate is never on the
+way to one. `focusable = false` can take a candidate out; it cannot put one
+in. A widget that is hidden, freed or made unfocusable releases focus rather
+than holding it invisibly.
+
+An accept is a click by another name — the same `clicked`, the same
+`on_click` — so a menu written for the mouse works on a pad without changing
+a line. `on_focus` fires only when focus *arrives*, since a handler running
+every frame focus merely stayed would be a different event and not a useful
+one.
+
+The keyboard drives focus through egui, which is where the widget layer's
+input already comes from: arrows and Tab move, Enter and Space accept, and no
+dependency on the input plugin is needed for a menu to work. A pad reaches
+focus through `ui.focus_next()`, `ui.focus_previous()` and
+`ui.activate_focused()`, and `standard_app` maps the actions `ui_next`,
+`ui_previous` and `ui_accept` onto them for a project that declares those
+names. That wiring lives in the assembling crate on purpose: `balaur_ui`
+reads egui, which has keys but no pads, and `balaur_input` knows nothing
+about widgets. The crate that knows about both is the one that joins them.
+
+### Themes
+
+What a widget owns is what it says and where it sits. What a `widget_theme`
+asset owns is how its *kind* is drawn — `fill`, `stroke`, `stroke_width`,
+`radius`, `padding`, under a table named for the kind — which is exactly the
+set that was hardcoded until now.
+
+```toml
+type = "widget_theme"
+
+[panel]
+fill = "#1b1f27d0"
+radius = 10
+padding = 10
+```
+
+A widget takes the theme of the nearest ancestor that names one, so a screen
+is themed by its root and a dialog can differ inside it. A kind the file
+leaves out keeps the built-in look, so a theme that restyles buttons alone is
+three lines and says only what it changes. Parsing never fails: a bad colour
+is reported and dropped, because a game that would not start over one is
+worse than a game that starts plain.
+
+The split is what keeps the two from fighting. A theme cannot say what a
+button reads, and a widget cannot say what every button looks like — so
+neither has a value the other could contradict, and no widget property needed
+a "unset" sentinel to make room for one.
+
+## Localization
+
+One `strings/<locale>.toml` per language, keys to strings, and
+`strings.tr("menu.play")` to read one.
+
+```toml
+"menu.play" = "Play"
+"menu.items" = { one = "{n} item", other = "{n} items" }
+```
+
+A key missing from the current locale is looked for in the project's fallback
+— one hop, not a chain, because two means two files to hold in mind and the
+second is always the language the game was written in. A key neither has comes
+back **as itself**: visible in the game, which is how a missing string gets
+noticed, where an empty label is a bug that hides.
+
+`{name}` is replaced by the argument called `name`; a placeholder nothing was
+passed for is left alone so the hole is visible to whoever fills it. An `n`
+argument also picks the plural form. The rules are a named handful — English,
+Romanian, the Slavic shape, French, and the languages with one form — rather
+than the whole CLDR table, which is a generated artefact of some size; a
+language nobody listed gets the English rule, which is also the right rule for
+most of the table. A form the file does not carry falls to `other`, so a
+translator who wrote two forms for a three-form language still reads sensibly.
+
+A widget takes part through `text_key`, resolved every frame, so
+`strings.set_locale("ro")` shows on the next one without anything having to be
+told. Saving a strings file forgets the catalogues, so a translation edit hot
+reloads like a script.
+
 ## Save games
 
 `save.write(slot, data)` and `save.read(slot)`, per user rather than per
@@ -1343,6 +1464,29 @@ reads it; `input.reset_bindings()` goes back to the project's. An action
 nobody declared reads 0 and warns once, the same neutral answer a headless
 run gives, so a script asking for one is never the thing that fails.
 
+## Showcase: the manual's pictures are a test
+
+Every image and clip on the website comes out of `scripts/showcase.sh`, which
+drives the editor offscreen with `--state` and never a hand on the mouse. A
+still is `shot=<png>` at frame 60; a clip is `show:<name>` — a sequence in
+`editor/scripts/showcase.rn`, one per clip, of the calls the UI would make
+plus the input a person would feed, paced by frame — captured by
+`frames=<dir>` every other frame and encoded by ffmpeg at 30 fps. Offscreen
+frames advance on the fixed step, so a clip is the same clip every time.
+
+The input a sequence feeds goes through `input.feed_key`, `feed_mouse` and
+`feed_mouse_button`, which call the snapshot's own feeders: a fed frame is
+indistinguishable from a window's, so the recorder records it and a replay
+reproduces it — the determinism clip records a fed slingshot pull and then
+replays it, which is the feature it shows. The pointer is drawn by the input
+overlay (`editor/scripts/inputview.rn`), which reads the snapshot rather than
+the OS cursor for the same reason: during a replay it is the recording's
+pointer that moves. The gizmo stands down while a sequence runs, since the
+fed pointer is the game's and not the editor's.
+
+A sequence that edits an example's files restores them on its last step,
+and the script runs `git checkout -- examples` after each clip regardless.
+
 ## Camera and screenshots
 
 The `render` module exposes `render.set_camera(ex, ey, ez, tx, ty, tz)`
@@ -1407,7 +1551,7 @@ website's roadmap is the short form of this list.
 | Animation blending, blend trees, state machines, 3D IK | `docs/PLAN-animation-and-resources.md` §6 |
 | 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |
 | Shader channel views, the caret value preview, headless shader tests, post-process materials | `docs/PLAN-shaders.md` phases 6-9 |
-| Game UI toolkit, localization, audio buses | `docs/PLAN-batteries.md` phases 2, 4-6 |
+| Audio buses, more widget kinds | `docs/PLAN-batteries.md` phases 2, 6 |
 | Binary websocket frames, stable ids and respawn for run-time nodes, rollback netcode, WebTransport (QUIC) native and in the browser, replication and RPC, Gamend sessions, WebRTC for browser peer-to-peer; never raw UDP | `docs/PLAN-networking.md` §2, §3 |
 | Signed binary releases, published benchmarks | `docs/PLAN-release.md` |
 | Web export | `docs/PLAN-mobile-export.md` "Web" |

@@ -316,7 +316,12 @@ pub fn body2d_kind(node) {
 pub fn is_2d(S) {
     for node in S.doc {
         if node.contains_key("shape2d") || node.contains_key("body2d") || node.contains_key("collider2d")
-            || node.contains_key("polygon") || node.contains_key("bone2d") {
+            || node.contains_key("polygon") || node.contains_key("bone2d") || node.contains_key("sprite")
+            || node.contains_key("tilemap") {
+            return true;
+        }
+        let camera = node.get("camera").unwrap_or(());
+        if camera is Object && camera.get("kind") == Some("2d") {
             return true;
         }
     }

@@ -101,3 +101,58 @@ font_size = 16
 text = "hello · balaur"
 x = 16
 y = 16
+
+# A menu is nodes. The panel lays its children out in a column; each entry is
+# a button whose `on_click` names a method on the menu's own script, and none
+# of them says where it goes — the container decides that.
+[[nodes]]
+id = "n_menu"
+name = "Menu"
+parent = ""
+script = "scripts/menu.rn"
+
+[nodes.widget]
+kind = "panel"
+anchor = "bottom_left"
+x = 16
+y = 16
+text_key = "menu.title"
+font_size = 13
+padding = 6
+gap = 6
+text_color = "#8d8478"
+# Named once on the menu's root; every button under it is drawn this way.
+theme = "themes/menu.toml"
+
+[[nodes]]
+id = "n_menu_faster"
+name = "Faster"
+parent = "n_menu"
+
+[nodes.widget]
+kind = "button"
+text_key = "menu.faster"
+font_size = 13
+on_click = "on_faster"
+
+[[nodes]]
+id = "n_menu_slower"
+name = "Slower"
+parent = "n_menu"
+
+[nodes.widget]
+kind = "button"
+text_key = "menu.slower"
+font_size = 13
+on_click = "on_slower"
+
+[[nodes]]
+id = "n_menu_reverse"
+name = "Reverse"
+parent = "n_menu"
+
+[nodes.widget]
+kind = "button"
+text_key = "menu.reverse"
+font_size = 13
+on_click = "on_reverse"

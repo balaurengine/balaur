@@ -3,16 +3,16 @@
 //! Same controller, same properties, one axis fewer. `up` is a `vec2`, and a
 //! platformer's is `[0, 1]`.
 
+use crate::rapier2d::control::{
+    CharacterAutostep, CharacterCollision, CharacterLength, KinematicCharacterController,
+};
+use crate::rapier2d::prelude::QueryFilter;
+use crate::scalar::{self, Pose2, Vector2};
 use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_core::{entity_of, App, Engine, Transform};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
-use glamx::{Pose2, Vec2};
-use rapier2d::control::{
-    CharacterAutostep, CharacterCollision, CharacterLength, KinematicCharacterController,
-};
-use rapier2d::prelude::QueryFilter;
 
 use crate::character::SHARED_CHARACTER_SCHEMA;
 use crate::dim2::PhysicsState2d;
@@ -21,9 +21,10 @@ use crate::FIXED_DT;
 
 pub struct Character2d(pub toml::Value);
 
-fn controller_of(params: &toml::Value, up: Vec2) -> KinematicCharacterController {
+fn controller_of(params: &toml::Value, up: Vector2) -> KinematicCharacterController {
     let relative = crate::vocabulary::text(params, "lengths", "absolute") == "relative";
     let length = |value: f32| {
+        let value = scalar::real(value);
         if relative {
             CharacterLength::Relative(value)
         } else {
@@ -40,17 +41,21 @@ fn controller_of(params: &toml::Value, up: Vec2) -> KinematicCharacterController
             min_width: length(crate::vocabulary::f(params, "autostep_min_width", 0.2)),
             include_dynamic_bodies: crate::vocabulary::boolean(params, "autostep_dynamic", false),
         }),
-        max_slope_climb_angle: crate::vocabulary::f(params, "max_climb_angle", 45.0).to_radians(),
-        min_slope_slide_angle: crate::vocabulary::f(params, "min_slide_angle", 30.0).to_radians(),
+        max_slope_climb_angle: scalar::real(
+            crate::vocabulary::f(params, "max_climb_angle", 45.0).to_radians(),
+        ),
+        min_slope_slide_angle: scalar::real(
+            crate::vocabulary::f(params, "min_slide_angle", 30.0).to_radians(),
+        ),
         snap_to_ground: {
             let distance = crate::vocabulary::f(params, "snap_to_ground", 0.2);
             (distance > 0.0).then(|| length(distance))
         },
-        normal_nudge_factor: crate::vocabulary::f(params, "normal_nudge", 0.0001),
+        normal_nudge_factor: scalar::real(crate::vocabulary::f(params, "normal_nudge", 0.0001)),
     }
 }
 
-pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vec2) -> Result<Value> {
+pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2) -> Result<Value> {
     let params = {
         let world = eng.world();
         let character = world
@@ -58,9 +63,9 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vec2) ->
             .map_err(|_| anyhow!("node has no character2d"))?;
         character.0.clone()
     };
-    let up = Vec2::from(crate::vocabulary::vec2(&params, "up", [0.0, 1.0]));
+    let up = scalar::v2a(crate::vocabulary::vec2(&params, "up", [0.0, 1.0]));
     let up = if up.length_squared() < 1.0e-12 {
-        Vec2::Y
+        Vector2::Y
     } else {
         up.normalize()
     };
@@ -83,7 +88,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vec2) ->
         let mut collisions = Vec::new();
         let filter = QueryFilter::default().exclude_collider(handle);
         let movement = controller.move_shape(
-            FIXED_DT,
+            scalar::real(FIXED_DT),
             &state.world.query_pipeline_with_filter(filter),
             shape.as_ref(),
             &pose,
@@ -103,7 +108,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vec2) ->
                 filter,
             );
             controller.solve_character_collision_impulses(
-                FIXED_DT,
+                scalar::real(FIXED_DT),
                 &mut queries,
                 shape.as_ref(),
                 mass,
@@ -119,9 +124,9 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vec2) ->
         let Ok(mut transform) = transform else {
             return Ok(Value::Nil);
         };
-        transform.position.x += movement.translation.x;
-        transform.position.y += movement.translation.y;
-        Pose2::from_translation(Vec2::new(transform.position.x, transform.position.y))
+        transform.position.x += scalar::f32_of(movement.translation.x);
+        transform.position.y += scalar::f32_of(movement.translation.y);
+        Pose2::from_translation(scalar::v2(transform.position.x, transform.position.y))
     };
     {
         let state = eng.resource::<PhysicsState2d>();
@@ -166,14 +171,11 @@ fn collision_list(eng: &Engine, collisions: &[CharacterCollision]) -> Value {
             other.to_bits().get(),
             map([
                 ("node", Value::Node(other.to_bits().get())),
-                ("point", Value::Vec2([point.x, point.y])),
-                ("normal", Value::Vec2([normal.x, normal.y])),
+                ("point", Value::Vec2(scalar::a2(point))),
+                ("normal", Value::Vec2(scalar::a2(normal))),
                 (
                     "remaining",
-                    Value::Vec2([
-                        collision.translation_remaining.x,
-                        collision.translation_remaining.y,
-                    ]),
+                    Value::Vec2(scalar::a2(collision.translation_remaining)),
                 ),
             ]),
         ));
@@ -190,11 +192,11 @@ pub(crate) fn install_character2d_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "move_character",
         |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
-            move_character(eng, entity_of(node)?, Vec2::new(x, y))
+            move_character(eng, entity_of(node)?, scalar::v2(x, y))
         },
     );
     m.function("is_grounded", |eng: &Engine, node: NodeId| {
-        let value = move_character(eng, entity_of(node)?, Vec2::ZERO)?;
+        let value = move_character(eng, entity_of(node)?, Vector2::ZERO)?;
         Ok(matches!(
             Opts(Some(&value)).get("grounded"),
             Some(Value::Bool(true))

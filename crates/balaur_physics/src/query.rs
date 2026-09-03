@@ -10,16 +10,16 @@
 //! a `predicate` that calls back into `physics3d` gets an error saying so
 //! rather than a panic from the `RefCell`.
 
+use crate::rapier3d::parry::query::{Ray, ShapeCastOptions};
+use crate::rapier3d::prelude::{
+    Collider, ColliderHandle, Group, InteractionGroups, InteractionTestMode, QueryFilter,
+    QueryFilterFlags,
+};
+use crate::scalar::{self, Pose, Real};
 use anyhow::{anyhow, Result};
 use balaur_core::hecs::Entity;
 use balaur_core::{entity_of, node_id_of, Engine};
 use balaur_script::{Bindings, BindingsExt, CallbackHost, NodeId, Value};
-use glamx::{Pose3, Vec3};
-use rapier3d::parry::query::{Ray, ShapeCastOptions};
-use rapier3d::prelude::{
-    Collider, ColliderHandle, Group, InteractionGroups, InteractionTestMode, QueryFilter,
-    QueryFilterFlags,
-};
 
 use crate::vocabulary::{map, Opts};
 use crate::PhysicsState;
@@ -147,7 +147,7 @@ fn allowed(eng: &Engine, opts: &Opts<'_>, entity: Entity) -> Result<bool> {
 }
 
 /// One hit, in the shape every query here returns.
-fn hit_value(entity: Entity, point: [f32; 3], normal: [f32; 3], distance: f32) -> Value {
+fn hit_value(entity: Entity, point: [f32; 3], normal: [f32; 3], distance: Real) -> Value {
     map([
         ("node", Value::Node(entity.to_bits().get())),
         ("point", Value::Vec3(point)),
@@ -157,27 +157,24 @@ fn hit_value(entity: Entity, point: [f32; 3], normal: [f32; 3], distance: f32) -
 }
 
 /// The ray an options table describes.
-fn ray_of(opts: &Opts<'_>) -> (Ray, f32, bool) {
+fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
     let from = opts.vec3("from", [0.0; 3]);
     let dir = opts.vec3("dir", [0.0, -1.0, 0.0]);
     (
-        Ray::new(Vec3::from(from), Vec3::from(dir)),
-        opts.f32("max", 1000.0),
+        Ray::new(scalar::v3a(from), scalar::v3a(dir)),
+        scalar::real(opts.f32("max", 1000.0)),
         opts.boolean("solid", true),
     )
 }
 
 /// Sorted by distance, then by entity bits: two machines must agree on the
 /// order, and rapier's is its BVH's.
-fn sorted(mut hits: Vec<(Entity, f32, [f32; 3], [f32; 3])>) -> Vec<Value> {
+fn sort_hits(hits: &mut [(Entity, Real, [f32; 3], [f32; 3])]) {
     hits.sort_by(|a, b| {
         a.1.partial_cmp(&b.1)
             .unwrap_or(std::cmp::Ordering::Equal)
             .then_with(|| a.0.to_bits().cmp(&b.0.to_bits()))
     });
-    hits.into_iter()
-        .map(|(entity, distance, point, normal)| hit_value(entity, point, normal, distance))
-        .collect()
 }
 
 pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
@@ -209,27 +206,19 @@ pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
                 let Some(entity) = entity_of_collider(collider) else {
                     continue;
                 };
+                let point = ray.point_at(hit.time_of_impact);
                 candidates.push((
                     entity,
                     hit.time_of_impact,
-                    ray.point_at(hit.time_of_impact),
-                    hit.normal,
+                    scalar::a3(point),
+                    scalar::a3(hit.normal),
                 ));
             }
         }
-        candidates.sort_by(|a, b| {
-            a.1.partial_cmp(&b.1)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| a.0.to_bits().cmp(&b.0.to_bits()))
-        });
+        sort_hits(&mut candidates);
         for (entity, toi, point, normal) in candidates {
             if allowed(eng, &opts, entity)? {
-                return Ok(hit_value(
-                    entity,
-                    [point.x, point.y, point.z],
-                    [normal.x, normal.y, normal.z],
-                    toi,
-                ));
+                return Ok(hit_value(entity, point, normal, toi));
             }
         }
         Ok(Value::Nil)
@@ -258,26 +247,21 @@ pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
                     hits.push((
                         entity,
                         hit.time_of_impact,
-                        [point.x, point.y, point.z],
-                        [hit.normal.x, hit.normal.y, hit.normal.z],
+                        scalar::a3(point),
+                        scalar::a3(hit.normal),
                     ));
                 }
             }
         }
+        // Sorted first, then filtered: the predicate sees the hits in the
+        // order a script will, and reading the node back out of a built value
+        // to ask about it would be the long way round.
+        sort_hits(&mut hits);
         let mut out = Vec::new();
-        for hit in sorted(hits) {
-            let node = match &hit {
-                Value::Map(fields) => fields.iter().find(|(k, _)| k == "node").map(|(_, v)| v),
-                _ => None,
-            };
-            if let Some(Value::Node(bits)) = node {
-                if let Some(entity) = Entity::from_bits(*bits) {
-                    if !allowed(eng, &opts, entity)? {
-                        continue;
-                    }
-                }
+        for (entity, distance, point, normal) in hits {
+            if allowed(eng, &opts, entity)? {
+                out.push(hit_value(entity, point, normal, distance));
             }
-            out.push(hit);
         }
         Ok(Value::List(out))
     });
@@ -296,10 +280,10 @@ pub(crate) fn install_shapecast_api(m: &mut dyn Bindings<Engine>) {
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
         let builder = crate::collider::collider_builder(eng, &params)?;
-        let from = Vec3::from(opts.vec3("from", [0.0; 3]));
-        let dir = Vec3::from(opts.vec3("dir", [0.0, -1.0, 0.0]));
+        let from = scalar::v3a(opts.vec3("from", [0.0; 3]));
+        let dir = scalar::v3a(opts.vec3("dir", [0.0, -1.0, 0.0]));
         let options = ShapeCastOptions {
-            max_time_of_impact: opts.f32("max", 1000.0),
+            max_time_of_impact: scalar::real(opts.f32("max", 1000.0)),
             stop_at_penetration: opts.boolean("stop_at_penetration", true),
             ..ShapeCastOptions::default()
         };
@@ -308,7 +292,7 @@ pub(crate) fn install_shapecast_api(m: &mut dyn Bindings<Engine>) {
         let mut groups = None;
         let filter = filter_of(&opts, &mut groups);
         let hit = state.world.query_pipeline_with_filter(filter).cast_shape(
-            &Pose3::from_translation(from),
+            &Pose::from_translation(from),
             dir,
             builder.shape.as_ref(),
             options,
@@ -321,13 +305,12 @@ pub(crate) fn install_shapecast_api(m: &mut dyn Bindings<Engine>) {
         };
         Ok(hit_value(
             entity,
-            [hit.witness1.x, hit.witness1.y, hit.witness1.z],
-            [hit.normal1.x, hit.normal1.y, hit.normal1.z],
+            scalar::a3(hit.witness1),
+            scalar::a3(hit.normal1),
             hit.time_of_impact,
         ))
     });
 }
-
 
 /// The queries that ask about a place rather than a line: what is at a point,
 /// inside a shape, or within a box.
@@ -343,7 +326,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
     m.function("nearest_point", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
-        let point = Vec3::from(opts.vec3("point", [0.0; 3]));
+        let point = scalar::v3a(opts.vec3("point", [0.0; 3]));
         let state = eng.resource::<PhysicsState>();
         let state = state.borrow();
         let mut groups = None;
@@ -351,7 +334,11 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
         let found = state
             .world
             .query_pipeline_with_filter(filter)
-            .project_point(point, opts.f32("max", 1000.0), opts.boolean("solid", true));
+            .project_point(
+                point,
+                scalar::real(opts.f32("max", 1000.0)),
+                opts.boolean("solid", true),
+            );
         let Some((handle, projection)) = found else {
             return Ok(Value::Nil);
         };
@@ -361,7 +348,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
         let p = projection.point;
         Ok(map([
             ("node", Value::Node(entity.to_bits().get())),
-            ("point", Value::Vec3([p.x, p.y, p.z])),
+            ("point", Value::Vec3(scalar::a3(p))),
             ("inside", Value::Bool(projection.is_inside)),
             ("distance", Value::Num(f64::from((p - point).length()))),
         ]))
@@ -369,7 +356,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
     m.function("point_hits", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
-        let point = Vec3::from(opts.vec3("point", [0.0; 3]));
+        let point = scalar::v3a(opts.vec3("point", [0.0; 3]));
         let state = eng.resource::<PhysicsState>();
         let state = state.borrow();
         let mut groups = None;
@@ -387,7 +374,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
         let builder = crate::collider::collider_builder(eng, &params)?;
-        let at = Vec3::from(opts.vec3("at", [0.0; 3]));
+        let at = scalar::v3a(opts.vec3("at", [0.0; 3]));
         let state = eng.resource::<PhysicsState>();
         let state = state.borrow();
         let mut groups = None;
@@ -395,7 +382,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
         let mut hits: Vec<Entity> = state
             .world
             .query_pipeline_with_filter(filter)
-            .intersect_shape(Pose3::from_translation(at), builder.shape.as_ref())
+            .intersect_shape(Pose::from_translation(at), builder.shape.as_ref())
             .filter_map(|(_, collider)| entity_of_collider(collider))
             .collect();
         Ok(node_list(&mut hits))
@@ -403,13 +390,13 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
     m.function("box_hits", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
-        let min = Vec3::from(opts.vec3("min", [0.0; 3]));
-        let max = Vec3::from(opts.vec3("max", [0.0; 3]));
+        let min = scalar::v3a(opts.vec3("min", [0.0; 3]));
+        let max = scalar::v3a(opts.vec3("max", [0.0; 3]));
         let state = eng.resource::<PhysicsState>();
         let state = state.borrow();
         let mut groups = None;
         let filter = filter_of(&opts, &mut groups);
-        let aabb = rapier3d::prelude::Aabb::new(min, max);
+        let aabb = crate::rapier3d::prelude::Aabb::new(min, max);
         let mut hits: Vec<Entity> = state
             .world
             .query_pipeline_with_filter(filter)
@@ -434,7 +421,7 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
     ]);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
         with_pair(eng, a, b, |world, first, second| {
-            rapier3d::parry::query::distance(
+            crate::rapier3d::parry::query::distance(
                 first.position(),
                 first.shape(),
                 second.position(),
@@ -451,21 +438,21 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
         "closest_points",
         |eng: &Engine, (a, b): (NodeId, NodeId)| {
             with_pair(eng, a, b, |_, first, second| {
-                let found = rapier3d::parry::query::closest_points(
+                let found = crate::rapier3d::parry::query::closest_points(
                     first.position(),
                     first.shape(),
                     second.position(),
                     second.shape(),
-                    f32::MAX,
+                    Real::MAX,
                 )
                 .map_err(|e| anyhow!("those two shapes have no closest points: {e}"))?;
                 Ok(match found {
-                    rapier3d::parry::query::ClosestPoints::Intersecting => Value::Nil,
-                    rapier3d::parry::query::ClosestPoints::WithinMargin(p, q) => map([
-                        ("a", Value::Vec3([p.x, p.y, p.z])),
-                        ("b", Value::Vec3([q.x, q.y, q.z])),
+                    crate::rapier3d::parry::query::ClosestPoints::Intersecting => Value::Nil,
+                    crate::rapier3d::parry::query::ClosestPoints::WithinMargin(p, q) => map([
+                        ("a", Value::Vec3(scalar::a3(p))),
+                        ("b", Value::Vec3(scalar::a3(q))),
                     ]),
-                    rapier3d::parry::query::ClosestPoints::Disjoint => Value::Nil,
+                    crate::rapier3d::parry::query::ClosestPoints::Disjoint => Value::Nil,
                 })
             })
         },
@@ -478,7 +465,7 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("intersects", |eng: &Engine, (a, b): (NodeId, NodeId)| {
         with_pair(eng, a, b, |_, first, second| {
-            rapier3d::parry::query::intersection_test(
+            crate::rapier3d::parry::query::intersection_test(
                 first.position(),
                 first.shape(),
                 second.position(),
@@ -489,8 +476,6 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
         })
     });
 }
-
-
 
 /// Every contact point on a node's colliders, in the order rapier holds them
 /// within a pair and by entity bits between pairs.
@@ -520,8 +505,8 @@ fn contact_list(eng: &Engine, node: NodeId) -> Result<Value> {
                         other.to_bits().get(),
                         map([
                             ("node", Value::Node(other.to_bits().get())),
-                            ("point", Value::Vec3([p.x, p.y, p.z])),
-                            ("normal", Value::Vec3([normal.x, normal.y, normal.z])),
+                            ("point", Value::Vec3(scalar::a3(p))),
+                            ("normal", Value::Vec3(scalar::a3(normal))),
                             ("impulse", Value::Num(f64::from(point.data.impulse))),
                         ]),
                     ));
@@ -535,14 +520,14 @@ fn contact_list(eng: &Engine, node: NodeId) -> Result<Value> {
 
 /// The hardest contact a node took, which is what a damage threshold reads.
 /// 2D has had this since it shipped; 3D gets it here.
-fn max_contact_impulse(eng: &Engine, node: NodeId) -> Result<f32> {
+fn max_contact_impulse(eng: &Engine, node: NodeId) -> Result<Real> {
     let entity = entity_of(node)?;
     let state = eng.resource::<PhysicsState>();
     let state = state.borrow();
     let Some(handles) = state.colliders.get(&entity) else {
         return Ok(0.0);
     };
-    let mut max = 0.0f32;
+    let mut max: Real = 0.0;
     for &handle in handles {
         for pair in state.world.contact_pairs_with(handle) {
             for manifold in &pair.manifolds {
@@ -581,7 +566,7 @@ fn with_pair(
     eng: &Engine,
     a: NodeId,
     b: NodeId,
-    f: impl FnOnce(&rapier3d::pipeline::PhysicsWorld, &Collider, &Collider) -> Result<Value>,
+    f: impl FnOnce(&crate::rapier3d::pipeline::PhysicsWorld, &Collider, &Collider) -> Result<Value>,
 ) -> Result<Value> {
     let (a, b) = (entity_of(a)?, entity_of(b)?);
     let state = eng.resource::<PhysicsState>();

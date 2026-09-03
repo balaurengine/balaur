@@ -31,6 +31,7 @@ use kiss3d::resource::{
 use kiss3d::scene::{InstancesBuffer3d, ObjectData3d};
 
 use crate::material::{Compiled, PARAMS_GROUP};
+use crate::probe::Probe;
 
 /// The most lights one frame sends. Matches `MAX_LIGHTS` in
 /// `shaders/mesh.wesl`; the two must move together.
@@ -254,28 +255,50 @@ fn bind_group_layouts() -> [wgpu::BindGroupLayout; 3] {
     ]
 }
 
-/// Group 3 and the buffer behind it, for a shader that declares `Params`.
-fn params_group(values: &[u8]) -> Option<(wgpu::BindGroupLayout, wgpu::BindGroup)> {
-    if values.is_empty() {
+/// The material's own bind group: its `Params` at binding 0, and a preview's
+/// probe at 1 and 2 when the shader carries one.
+///
+/// `None` when the shader wants neither. A uniform buffer cannot be
+/// zero-sized, so a probing shader with no `Params` still gets a placeholder
+/// at binding 0 — extra bindings a shader ignores are allowed, a missing one
+/// it uses is not.
+fn material_group(
+    values: &[u8],
+    probe: Option<&Probe>,
+) -> Option<(wgpu::BindGroupLayout, wgpu::BindGroup)> {
+    if values.is_empty() && probe.is_none() {
         return None;
     }
     let ctxt = Context::get();
+    let mut layout_entries = vec![uniform_entry(0)];
+    if probe.is_some() {
+        layout_entries.extend(Probe::layout_entries());
+    }
     let layout = ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("material3d_params_layout"),
-        entries: &[uniform_entry(0)],
+        entries: &layout_entries,
     });
+    let placeholder = [0u8; 16];
     let buffer = ctxt.create_buffer_init(
         Some("material3d_params_uniform"),
-        values,
+        if values.is_empty() {
+            &placeholder
+        } else {
+            values
+        },
         wgpu::BufferUsages::UNIFORM,
     );
+    let mut entries = vec![wgpu::BindGroupEntry {
+        binding: 0,
+        resource: buffer.as_entire_binding(),
+    }];
+    if let Some(probe) = probe {
+        entries.extend(probe.entries());
+    }
     let group = ctxt.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("material3d_params_bind_group"),
         layout: &layout,
-        entries: &[wgpu::BindGroupEntry {
-            binding: 0,
-            resource: buffer.as_entire_binding(),
-        }],
+        entries: &entries,
     });
     Some((layout, group))
 }
@@ -332,10 +355,10 @@ fn build_pipeline(
 }
 
 impl ShaderMaterial3d {
-    pub(crate) fn new(compiled: &Compiled) -> Self {
+    pub(crate) fn new(compiled: &Compiled, probe: Option<&Probe>) -> Self {
         let ctxt = Context::get();
         let [frame_layout, object_layout, texture_layout] = bind_group_layouts();
-        let params = params_group(&compiled.params);
+        let params = material_group(&compiled.params, probe);
         let mut groups = vec![
             Some(&frame_layout),
             Some(&object_layout),
@@ -521,10 +544,8 @@ impl Material3d for ShaderMaterial3d {
             .expect("kiss3d panicked while writing the mesh's faces")
             .load_to_gpu();
 
-        // Read through the lock rather than `mesh.coords_buffer()`: those
-        // accessors answer `None` for everyone until the fork's fix lands,
-        // and a material that draws nothing looks like one with nothing to
-        // draw.
+        // Read through the lock: `mesh.coords_buffer()` and its siblings
+        // answer `None` for every caller until the fork's fix lands.
         let coords = mesh
             .coords()
             .read()
@@ -592,6 +613,9 @@ pub(crate) struct MaterialCache3d {
     channel: Option<(String, Shared3d)>,
     /// The channel the last frame drew; a change rebuilds every node.
     active: String,
+    /// The previewing material's probe, shared with it so the value can be
+    /// read without reaching back through `dyn Material3d`.
+    probe: Option<std::rc::Rc<Probe>>,
 }
 
 impl MaterialCache3d {
@@ -611,6 +635,26 @@ impl MaterialCache3d {
         }
         self.linked.clear();
         had
+    }
+
+    /// Point the previewing material's probe at a pixel and read back what
+    /// the frame before wrote there.
+    ///
+    /// One frame behind, which is what a pointer hovering a viewport wants
+    /// anyway: the read stalls until the GPU catches up, so it happens once
+    /// per ask and not once per draw.
+    pub(crate) fn answer_probe(&self, app: &balaur_core::App) {
+        let Some(at) = crate::debug_view::probe_at(&app.engine) else {
+            return;
+        };
+        crate::debug_view::publish_probe(&app.engine, self.probe(at));
+    }
+
+    fn probe(&self, at: [f32; 2]) -> Option<[f32; 4]> {
+        let probe = self.probe.as_ref()?;
+        let read = probe.read();
+        probe.aim(at);
+        read
     }
 
     /// Whether the channel view changed since the last frame.
@@ -659,11 +703,15 @@ impl MaterialCache3d {
             &features,
         )
         .map(|unit| {
-            ShaderMaterial3d::new(&crate::material::Compiled {
-                wgsl: crate::shaders::wgsl(&unit),
-                fields: Vec::new(),
-                params: Vec::new(),
-            })
+            ShaderMaterial3d::new(
+                &crate::material::Compiled {
+                    wgsl: crate::shaders::wgsl(&unit),
+                    fields: Vec::new(),
+                    params: Vec::new(),
+                    probes: false,
+                },
+                None,
+            )
         })
         .inspect_err(|why| tracing::error!(channel, "{why:#}"))
         .ok()?;
@@ -684,7 +732,8 @@ impl MaterialCache3d {
         let built = build(app, reference)
             .inspect_err(|why| tracing::error!(material = reference, "{why:#}"))
             .ok()
-            .map(|material| {
+            .map(|(material, probe)| {
+                self.probe = probe;
                 let shared: Shared3d = std::rc::Rc::new(std::cell::RefCell::new(
                     Box::new(material) as Box<dyn Material3d>,
                 ));
@@ -705,12 +754,18 @@ fn manager_name(reference: &str) -> String {
     format!("balaur3d:{reference}")
 }
 
-fn build(app: &balaur_core::App, reference: &str) -> anyhow::Result<ShaderMaterial3d> {
+/// A material and, when its shader carries one, the probe it writes into.
+fn build(
+    app: &balaur_core::App,
+    reference: &str,
+) -> anyhow::Result<(ShaderMaterial3d, Option<std::rc::Rc<Probe>>)> {
     let asset =
         balaur_core::assets::load_typed::<crate::material::Material>(&app.engine, reference)?;
-    let source = balaur_core::project::scene_text(&app.engine, &asset.shader)?;
+    let source = crate::material::shader_text(&app.engine, reference, &asset.shader)?;
     let source = crate::preview::requested(&app.engine, &asset.shader, source);
     let modules = crate::shaders::plugin_modules(&app.engine);
     let compiled = crate::material::compile_with(&asset, &source, &modules)?;
-    Ok(ShaderMaterial3d::new(&compiled))
+    let probe = compiled.probes.then(|| std::rc::Rc::new(Probe::new()));
+    let material = ShaderMaterial3d::new(&compiled, probe.as_deref());
+    Ok((material, probe))
 }

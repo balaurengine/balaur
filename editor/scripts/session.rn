@@ -124,8 +124,9 @@ fn prune(S) {
     }
 }
 
-// The sessions on disk, newest first, re-read at most twice a second: the
-// dock draws every frame and a directory listing is a syscall per entry.
+// The sessions on disk, newest first, each with what the dock shows about it.
+// Re-read at most twice a second: the dock draws every frame, and this reads
+// the header of every file it lists.
 pub fn listing(S) {
     let now = engine::time();
     if S.session.listed_at >= 0.0 && now - S.session.listed_at < 0.5 {
@@ -141,14 +142,61 @@ pub fn listing(S) {
     }
     names.sort();
     // Newest first, which is the one a bug was just seen in.
-    let newest = [];
+    let rows = [];
+    let mine = fingerprint(S);
     let i = names.len();
     while i > 0 {
         i -= 1;
-        newest.push(names[i]);
+        rows.push(row(S, names[i], mine));
     }
-    S.session.list = newest;
-    newest
+    S.session.list = rows;
+    rows
+}
+
+// One row of the list. A file being written, or half-written by a run that
+// crashed, still lists — it just says so instead of showing counts.
+fn row(S, name, mine) {
+    let (ok, head) = script::attempt(|| replay::info(dir(S) + "/" + name));
+    if !ok {
+        return #{ name: name, started: "", ticks: 0, seconds: 0.0, reason: "unreadable", stale: false };
+    }
+    let head = util::obj(head);
+    let first = head.get("first").unwrap_or(0);
+    let last = head.get("last").unwrap_or(0);
+    let recorded = head.get("scripts").unwrap_or("");
+    #{
+        name: name,
+        started: head.get("started").unwrap_or(""),
+        ticks: head.get("frames").unwrap_or(0),
+        // Ticks are the fixed 60 Hz step, so seconds follow from the count.
+        seconds: util::f(last - first + 1) / 60.0,
+        reason: match head.get("reason") {
+            Some(r) => if r is String { r } else { "crashed" },
+            None => "crashed",
+        },
+        stale: recorded != "" && recorded != mine,
+    }
+}
+
+// Copy a session out of the editor's data directory and into the project, so
+// it can be attached to a bug report or handed to `balaur replay --verify`.
+pub fn export(S, name) {
+    let text = fs::read(dir(S) + "/" + name);
+    if !(text is String) {
+        log::warn(format!("{} could not be read", name));
+        return;
+    }
+    let out = S.game_root + "/" + name;
+    fs::write(out, text);
+    log::info("wrote " + out);
+}
+
+// One recorded tick forward, for reading a timeline a frame at a time.
+pub fn step(S) {
+    if S.session.loaded == "" {
+        return;
+    }
+    seek(S, replay::position() + 1);
 }
 
 // Put a session in front of the engine and start it. The mirror is rebuilt
@@ -204,6 +252,7 @@ fn build_lanes() {
     lanes.push(#{ id: "keys", name: "Keys", marks: named_marks("input", "just_pressed") });
     lanes.push(#{ id: "mouse", name: "Mouse", marks: index_marks("input", "mouse_just_pressed") });
     lanes.push(#{ id: "net", name: "Net", marks: event_marks(["net.request"]) });
+    lanes.push(#{ id: "scene", name: "Scene", marks: event_marks(["scene.spawn", "scene.free"]) });
     lanes.push(#{ id: "log", name: "Log", marks: event_marks(["log"]) });
     lanes.push(#{ id: "stops", name: "Stops", marks: event_marks(["debug.pause"]) });
     lanes

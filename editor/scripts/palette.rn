@@ -36,6 +36,9 @@ fn commands(S) {
         command("Save scene", "◇", "⌘S", || model::save(S)),
         command("Reload scripts", "⟳", "⇧R", || log::info("scripts hot reload on save")),
         command("Toggle dark chrome", "☾", "⌥L", || theme::set_dark(S, !S.theme.dark)),
+        command(if S.show_input { "Hide input overlay" } else { "Show input overlay" }, "⌨", "", || {
+            S.show_input = !S.show_input;
+        }),
         command("Open animation timeline", "◷", "⌥3", || { S.dock = "timeline"; }),
         command("Duplicate selected node", "⧉", "", || model::duplicate_selected(S)),
         command("Copy selected node", "⧉", "⌘C", || ui::set_clipboard(model::copy_selected(S))),

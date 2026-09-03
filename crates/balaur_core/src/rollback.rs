@@ -31,6 +31,7 @@ use std::collections::BTreeMap;
 use balaur_script::Value;
 
 use crate::app::App;
+use crate::digest::{self, Digest};
 use crate::engine::Engine;
 use crate::snapshot::{self, SnapshotRing};
 
@@ -93,6 +94,12 @@ pub struct Session {
     dirty: Option<u64>,
     /// Inputs that arrived for a tick the ring had already dropped.
     stale: u64,
+    /// What each tick digested to, rewritten when a tick is re-simulated.
+    ///
+    /// This is what peers compare. Kept here rather than by the caller
+    /// because only the session knows when a tick has actually run, and a
+    /// re-run has to overwrite the number the first run produced.
+    digests: BTreeMap<u64, Digest>,
 }
 
 impl Session {
@@ -110,6 +117,7 @@ impl Session {
             used: BTreeMap::new(),
             dirty: None,
             stale: 0,
+            digests: BTreeMap::new(),
         }
     }
 
@@ -149,6 +157,15 @@ impl Session {
     #[must_use]
     pub const fn stale_inputs(&self) -> u64 {
         self.stale
+    }
+
+    /// What the world digested to at the end of `tick`.
+    ///
+    /// `None` for a tick that has not run, or one old enough to have been
+    /// forgotten with its snapshot.
+    #[must_use]
+    pub fn digest_at(&self, tick: u64) -> Option<Digest> {
+        self.digests.get(&tick).copied()
     }
 
     /// Run one tick, rolling back first when a late input asked for it.
@@ -198,6 +215,12 @@ impl Session {
             slot.borrow_mut().0 = inputs;
         }
         app.tick(dt);
+        self.digests.insert(tick, digest::digest(&app.engine));
+        // A tick the ring has dropped can never be re-run, so its digest can
+        // never change and nobody can still be asking about it.
+        if let Some(earliest) = self.ring.earliest() {
+            self.digests.retain(|at, _| *at >= earliest);
+        }
     }
 
     /// Each player's input for `tick`: what arrived, or the prediction.

@@ -1,7 +1,8 @@
-> **Status:** phases 1 to 12 built on 2026-09-03, in `crates/balaur_physics`.
-> Phase 13 (f64) is **not** started — see the note below. The tables are kept
-> in the present tense as the record of what was decided; read the phase list
-> as done rather than as a to-do.
+> **Status:** built on 2026-09-03, all thirteen phases, in
+> `crates/balaur_physics`. The tables are kept in the present tense as the
+> record of what was decided; read the phase list as done rather than as a
+> to-do. Three builds are tested: `f32` (the default), `--no-default-features
+> --features f64`, and `--features parallel`.
 >
 > **What the implementation decided differently:**
 >
@@ -37,11 +38,19 @@
 >    hook runs while the world is borrowed by the step and cannot go and read
 >    a component, so the axis rides with the collider as one of six cardinal
 >    directions.
-> 10. **f64 is not scaffolded.** Swapping `rapier3d` for `rapier3d-f64` is a
->     dependency swap, but every binding, `Transform`, and `glamx::Vec3` in the
->     engine is `f32`: the work is making the engine's math scalar-generic,
->     which is open question 5, not a feature flag. Adding a `f64` feature that
->     does not build would be worse than not having one.
+> 10. **f64 is a scalar seam, not a dependency swap.** Swapping `rapier3d` for
+>     `rapier3d-f64` is one line of Cargo; the work was that every binding,
+>     `Transform` and scene file is `f32`. The crate now uses **rapier's own**
+>     `math` types — which follow the scalar — instead of glamx's directly, and
+>     `scalar.rs` is the one place a number changes width. The engine around it
+>     is untouched and still `f32`: a `f64` build widens at the seam and
+>     narrows on the way back. Submodules reach the swapped crate through
+>     `crate::rapier3d`, because a `use` in a submodule resolves against the
+>     extern prelude rather than the crate root.
+> 11. **The digest hashes the build's own width.** It compares two runs of the
+>     same engine, so an `f32` digest and an `f64` one were never going to
+>     match; `write_f64` over whatever `Real` is keeps each build honest with
+>     itself.
 
 # Plan: the rest of Rapier
 
@@ -603,8 +612,10 @@ gap is widest.
     1/2/8-thread digest matrix on all three CI OSes. *Done when* the matrix
     agrees bit for bit, and scene load refuses `hooks` with a message on a
     parallel build.
-13. **f64.** The `f64` feature and its digest matrix. *Done when* a body at
-    100 km from the origin rests without jitter.
+13. **f64.** The `f64` feature, the scalar seam it needs, and its own test
+    run. *Done when* a body at 100 km from the origin rests without jitter —
+    which it does under `f64` and does not under `f32`, which is the whole
+    point of the feature.
 
 Every phase carries the same four-line acceptance beyond its own: a test in
 `crates/balaur_physics/tests/`, a row in the cross-OS determinism digest, a

@@ -1,0 +1,15 @@
+# How each widget kind is drawn. A kind this file leaves out keeps the
+# built-in look, so a theme says only what it changes.
+type = "widget_theme"
+
+[panel]
+fill = "#1b1f27d0"
+stroke = "#2f3644"
+radius = 10
+padding = 10
+
+[button]
+fill = "#242a35"
+stroke = "#d5814e"
+stroke_width = 1.5
+radius = 6

@@ -20,12 +20,14 @@ mod particles;
 mod pick;
 mod polygon;
 pub mod preview;
+#[cfg(feature = "kiss3d")]
+mod probe;
 pub mod shaders;
 mod shape;
 mod sprite;
 mod tilemap;
 pub use camera::{Camera, CameraKind};
-pub use debug_view::{ChannelView, PreviewRequest};
+pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
 pub use particles::Particles;
 pub use polygon::PolygonMesh;
 pub use tilemap::{Tilemap, Tileset, TILESET_ASSET_TYPE};

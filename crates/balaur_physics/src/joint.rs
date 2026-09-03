@@ -10,17 +10,17 @@
 //! coordinates — no drift and no wasted solver work, at the price of no loops
 //! — and it is what an articulated arm with inverse kinematics wants.
 
+use crate::rapier3d::prelude::{
+    FixedJointBuilder, GenericJoint, GenericJointBuilder, ImpulseJointHandle, JointAxesMask,
+    JointAxis, MotorModel, MultibodyJointHandle, PrismaticJointBuilder, RevoluteJointBuilder,
+    RigidBodyHandle, RopeJointBuilder, SphericalJointBuilder, SpringJointBuilder,
+};
+use crate::scalar::{self, Real, Vector};
 use anyhow::{anyhow, Result};
 use balaur_core::components::{as_node, ComponentDef};
 use balaur_core::hecs::Entity;
 use balaur_core::{entity_of, App, Engine};
 use balaur_script::{Bindings, BindingsExt, NodeId};
-use glamx::Vec3;
-use rapier3d::prelude::{
-    FixedJointBuilder, GenericJoint, GenericJointBuilder, ImpulseJointHandle, JointAxesMask,
-    JointAxis, MotorModel, MultibodyJointHandle, PrismaticJointBuilder, RevoluteJointBuilder,
-    RigidBodyHandle, RopeJointBuilder, SphericalJointBuilder, SpringJointBuilder,
-};
 
 use crate::vocabulary as v;
 use crate::PhysicsState;
@@ -41,7 +41,7 @@ pub enum JointHandle {
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct JointRef {
     pub handle: JointHandle,
-    pub break_force: f32,
+    pub break_force: Real,
 }
 
 /// The axis a kind's limits and motor act on.
@@ -79,17 +79,17 @@ fn locked_axes(params: &toml::Value) -> JointAxesMask {
 /// The joint a `joint3d` table describes.
 pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
     let kind = v::text(params, "kind", "fixed");
-    let axis = Vec3::from(v::vec3(params, "axis", [0.0, 0.0, 1.0]));
+    let axis = scalar::v3a(v::vec3(params, "axis", [0.0, 0.0, 1.0]));
     let axis = if axis.length_squared() < 1.0e-12 {
-        Vec3::Z
+        Vector::Z
     } else {
         axis.normalize()
     };
-    let anchor1 = Vec3::from(v::vec3(params, "anchor", [0.0; 3]));
-    let anchor2 = Vec3::from(v::vec3(params, "other_anchor", [0.0; 3]));
-    let length = v::f(params, "length", 0.0);
-    let stiffness = v::f(params, "stiffness", 0.0);
-    let damping = v::f(params, "damping", 1.0);
+    let anchor1 = scalar::v3a(v::vec3(params, "anchor", [0.0; 3]));
+    let anchor2 = scalar::v3a(v::vec3(params, "other_anchor", [0.0; 3]));
+    let length = scalar::real(v::f(params, "length", 0.0));
+    let stiffness = scalar::real(v::f(params, "stiffness", 0.0));
+    let damping = scalar::real(v::f(params, "damping", 1.0));
     let mut joint: GenericJoint = match kind {
         "fixed" => FixedJointBuilder::new()
             .local_anchor1(anchor1)
@@ -140,19 +140,19 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
 /// maximum are the same is either locked or unlimited, and locked is what
 /// `locked_axes` is for.
 fn write_limits_and_motor(joint: &mut GenericJoint, params: &toml::Value, kind: &str) {
-    let limits = v::vec2(params, "limits", [0.0; 2]);
+    let limits = scalar::v2a(v::vec2(params, "limits", [0.0; 2]));
     let motor = v::text(params, "motor", "off");
-    let target = v::f(params, "motor_target", 0.0);
-    let max_force = v::f(params, "motor_max_force", 0.0);
-    let stiffness = v::f(params, "stiffness", 0.0);
-    let damping = v::f(params, "damping", 1.0);
+    let target = scalar::real(v::f(params, "motor_target", 0.0));
+    let max_force = scalar::real(v::f(params, "motor_max_force", 0.0));
+    let stiffness = scalar::real(v::f(params, "stiffness", 0.0));
+    let damping = scalar::real(v::f(params, "damping", 1.0));
     let model = match v::text(params, "motor_model", "acceleration") {
         "force" => MotorModel::ForceBased,
         _ => MotorModel::AccelerationBased,
     };
     for axis in free_axes(kind).iter().copied() {
-        if limits[0] < limits[1] {
-            joint.set_limits(axis, limits);
+        if limits.x < limits.y {
+            joint.set_limits(axis, [limits.x, limits.y]);
         }
         match motor {
             "velocity" => {
@@ -231,7 +231,7 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
         entity,
         JointRef {
             handle,
-            break_force: v::f(params, "break_force", 0.0),
+            break_force: scalar::real(v::f(params, "break_force", 0.0)),
         },
     );
     Ok(())
@@ -270,8 +270,8 @@ pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Val
             multibody.link(link)?.joint.data
         }
     };
-    let f = |value: f32| toml::Value::Float(f64::from(value));
-    let vec3 = |v: Vec3| toml::Value::Array(vec![f(v.x), f(v.y), f(v.z)]);
+    let f = |value: Real| toml::Value::Float(f64::from(value));
+    let vec3 = |v: Vector| toml::Value::Array(vec![f(v.x), f(v.y), f(v.z)]);
     let mut map = authored;
     map.insert("anchor".into(), vec3(data.local_anchor1()));
     map.insert("other_anchor".into(), vec3(data.local_anchor2()));
@@ -297,13 +297,13 @@ pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Val
 ///
 /// Rapier keeps the reaction as six components — three linear, three angular —
 /// and a breakable joint wants their magnitude.
-fn impulse_magnitude(impulses: &[f32; 6]) -> f32 {
-    impulses.iter().map(|i| i * i).sum::<f32>().sqrt()
+fn impulse_magnitude(impulses: &[Real; 6]) -> Real {
+    impulses.iter().map(|i| i * i).sum::<Real>().sqrt()
 }
 
 /// The same, for the 2D world's three-component reaction (two linear, one
 /// angular), which rapier hands back as a vector.
-pub(crate) fn impulse_magnitude_2d(impulses: &glamx::Vec3) -> f32 {
+pub(crate) fn impulse_magnitude_2d(impulses: &crate::rapier2d::math::SpatialVector) -> Real {
     impulses.length()
 }
 
@@ -377,6 +377,7 @@ pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_motor_velocity",
         |eng: &Engine, (node, target, factor): (NodeId, f32, f32)| {
+            let (target, factor) = (scalar::real(target), scalar::real(factor));
             with_joint(eng, node, |joint, kind| {
                 for axis in free_axes(kind).iter().copied() {
                     joint.set_motor_velocity(axis, target, factor);
@@ -387,6 +388,11 @@ pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_motor_position",
         |eng: &Engine, (node, target, stiffness, damping): (NodeId, f32, f32, f32)| {
+            let (target, stiffness, damping) = (
+                scalar::real(target),
+                scalar::real(stiffness),
+                scalar::real(damping),
+            );
             with_joint(eng, node, |joint, kind| {
                 for axis in free_axes(kind).iter().copied() {
                     joint.set_motor_position(axis, target, stiffness, damping);
@@ -397,6 +403,7 @@ pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_joint_limits",
         |eng: &Engine, (node, min, max): (NodeId, f32, f32)| {
+            let (min, max) = (scalar::real(min), scalar::real(max));
             with_joint(eng, node, |joint, kind| {
                 for axis in free_axes(kind).iter().copied() {
                     joint.set_limits(axis, [min, max]);
@@ -420,7 +427,7 @@ pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "solve_ik",
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
-            solve_ik(eng, entity_of(node)?, Vec3::new(x, y, z))
+            solve_ik(eng, entity_of(node)?, scalar::v3(x, y, z))
         },
     );
 }
@@ -469,7 +476,7 @@ fn with_joint(eng: &Engine, node: NodeId, f: impl FnOnce(&mut GenericJoint, &str
 /// Rapier's own solver, damped least squares, every joint's limits respected.
 /// Impulse joints have no such thing — there are no generalised coordinates to
 /// solve for — so this is `solver = "reduced"` only, and says so.
-fn solve_ik(eng: &Engine, entity: Entity, target: Vec3) -> Result<()> {
+fn solve_ik(eng: &Engine, entity: Entity, target: Vector) -> Result<()> {
     let state = eng.resource::<PhysicsState>();
     let mut state = state.borrow_mut();
     let state = &mut *state;
@@ -478,8 +485,8 @@ fn solve_ik(eng: &Engine, entity: Entity, target: Vec3) -> Result<()> {
             "inverse kinematics needs a chain of reduced-coordinates joints (solver = \"reduced\")"
         ));
     };
-    let options = rapier3d::dynamics::InverseKinematicsOption::default();
-    let pose = glamx::Pose3::from_translation(target);
+    let options = crate::rapier3d::dynamics::InverseKinematicsOption::default();
+    let pose = scalar::Pose::from_translation(target);
     // The solver reads the bodies and writes the chain, so the two borrows are
     // taken one after the other rather than together.
     let displacements = {
@@ -488,7 +495,7 @@ fn solve_ik(eng: &Engine, entity: Entity, target: Vec3) -> Result<()> {
             .multibody_joints
             .get(handle)
             .ok_or_else(|| anyhow!("this node's joint is gone"))?;
-        let mut displacements = rapier3d::na::DVector::zeros(multibody.ndofs());
+        let mut displacements = crate::rapier3d::na::DVector::zeros(multibody.ndofs());
         multibody.inverse_kinematics(
             &state.world.bodies,
             link,

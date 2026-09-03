@@ -6,3 +6,9 @@ main_scene = "scenes/main.toml"
 [input.actions]
 reverse = ["Space", "gamepad:South"]
 spin = ["keys:A,D", "axis:LeftStickX"]
+
+# The language a run starts in, and where a key it lacks is looked for next.
+# `strings.set_locale("ro")` switches at run time.
+[locale]
+default = "en"
+fallback = "en"

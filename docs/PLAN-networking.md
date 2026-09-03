@@ -1,13 +1,15 @@
-> **Status:** steps 1-4 done (bytes on the wire; identity and lifecycle for
-> run-time nodes; rollback on one machine; the transport trait with a
-> websocket under it). Written down on 2026-09-02 so the order was decided
-> before the first line: node identity and lifecycle first, because rollback
-> and replication both stand on it and it is the piece that can invalidate
-> the determinism work; rollback next, because determinism makes it cheap
-> here; replication after a session exists, factored so both ride the same
-> identity, property access and clock; QUIC under both, as WebTransport, so
-> one transport runs native and in the browser. `ARCHITECTURE.md`
-> "Networking and state sync" has the reasoning; §3 is the work, in order.
+> **Status:** steps 1-5 done — bytes on the wire, identity and lifecycle for
+> run-time nodes, rollback on one machine, the transport trait with a
+> websocket under it, and two engines playing in lockstep over loopback.
+>
+> Written down on 2026-09-02 so the order was decided before the first line:
+> node identity and lifecycle first, because rollback and replication both
+> stand on it and it is the piece that can invalidate the determinism work;
+> rollback next, because determinism makes it cheap here; replication after a
+> session exists, factored so both ride the same identity, property access
+> and clock; QUIC under both, as WebTransport, so one transport runs native
+> and in the browser. `ARCHITECTURE.md` "Networking and state sync" has the
+> reasoning; §3 is the work, in order.
 
 # Plan: multiplayer
 
@@ -30,19 +32,19 @@ Built, and not built for networking:
 | An id for every run-time spawn, and a snapshot that restores the node set | `ids`, `snapshot`'s `nodes` source |
 | Rollback in one process: a session, an input journal, prediction and re-simulation | `rollback` |
 | A transport trait with reliable and unreliable delivery, over a websocket | `core::transport`, `net::transport` |
+| Accepting connections, and a session that plays over them | `net::listener`, `core::netsession` |
 
 Missing:
 
-- Nothing sends a tick's inputs to another machine. Rollback works within one
-  process; no transport carries a journal between two.
 - Every transport is still TCP under the trait. No UDP, no QUIC, no
   WebTransport, no WebRTC: one lost packet stalls everything behind it, and a
   datagram is unreliable in name only.
-- Nothing accepts a connection. Every socket is outbound, so two engines
-  cannot meet without a server between them.
-- No replication, no RPC, no authority, no interest management, no
-  prediction, no delta encoding.
+- No replication, no RPC, no authority, no interest management, no delta
+  encoding. Inputs are predicted; state is not.
 - No lobbies or matchmaking beyond a Gamend room.
+- A networked session is not in the recording. Inputs reach the journal from
+  a transport rather than through a replay source, so a session replays only
+  if the journal is recorded — which nothing does yet.
 - A run-time `scene.instantiate` still reuses the file's ids, so two
   instances of one scene collide.
 
@@ -150,9 +152,19 @@ that works.
    socket. The QUIC crate is decided (§4.4). Open: one reliable channel
    rather than many, so a big reliable message would block small ones behind
    it; nothing sends one yet.
-5. **Rollback over the wire.** Two engines on loopback play a scene in
-   lockstep with rollback, and a test injects a desync and asserts both stop
-   on the same tick.
+5. **Rollback over the wire.** *Done.* `WebsocketListener` accepts
+   connections, which the engine had never done, and hands back the same
+   `WebsocketTransport` the dialling side produces. `NetSession` puts a
+   rollback session behind peers: each sends its own input for the tick it is
+   about to run as a datagram, predicts the rest, and rolls back when a real
+   one contradicts a prediction. Digests for a tick a few behind travel
+   reliably and are compared; a mismatch names the tick and latches. Two
+   engines in one process agree on every settled tick, and a peer whose
+   simulation genuinely differs is caught by both ends on the same tick.
+   Two bugs fell out: the websocket worker never unmasked client-to-server
+   frames, because only a client had ever run it, and the snapshot ring
+   appended re-simulated ticks instead of replacing them, so a
+   rollback-heavy session forgot ticks it still needed.
 6. **WebTransport, native.** The chosen crate behind the same trait, client
    and server: datagrams for inputs, a stream for the handshake and digests.
    The loopback tests of step 5 run again over it.

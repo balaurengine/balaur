@@ -262,7 +262,7 @@ fn script_props_rows(S, k, node) {
         editor(S, k, SCRIPT_PROPS, export.name, spec, value);
         if overridden {
             ui::horizontal((), || {
-                ui::add_space(LABEL_W + 8);
+                ui::add_space(LABEL_W + 8.0);
                 if ui::pill("reset", #{
                     height: 18, size: 9, fill: k.sunken, color: k.faint,
                     tooltip: "Back to the script's default",

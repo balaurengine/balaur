@@ -12,8 +12,10 @@
 //! saying which it was. A peer that is not this transport will not understand
 //! them, which is fine: both ends of a session run this code.
 
+use std::sync::mpsc::{channel, Receiver, Sender};
+
 use anyhow::{bail, Result};
-use balaur_core::replay::ExternalIo;
+use balaur_core::replay;
 use balaur_core::transport::{Delivery, LinkState, Received, Transport};
 use balaur_core::Engine;
 
@@ -30,9 +32,13 @@ const TAG_DATAGRAM: u8 = 1;
 const MAX_DATAGRAM: usize = 60 * 1024;
 
 /// One link to one peer, over one websocket.
+///
+/// The same type on both ends: [`WebsocketTransport::connect`] dials out and
+/// a [`crate::listener::WebsocketListener`] hands back the other side, so a
+/// session cannot tell which end it is holding.
 pub struct WebsocketTransport {
-    io: ExternalIo<NetEvent>,
-    commands: Option<std::sync::mpsc::Sender<SocketCommand>>,
+    events: Receiver<NetEvent>,
+    commands: Option<Sender<SocketCommand>>,
     state: LinkState,
 }
 
@@ -46,15 +52,29 @@ impl WebsocketTransport {
     /// intended outcome, since neither should be talking to anyone.
     #[must_use]
     pub fn connect(eng: &Engine, url: &str, options: SocketOptions) -> Self {
-        let (sender, receiver) = std::sync::mpsc::channel();
-        let io = ExternalIo::<NetEvent>::default();
-        let url = url.to_string();
-        let started = io.start(eng, move |report| {
-            backend::spawn_socket(0, url, options, receiver, report);
-        });
+        let (commands, command_rx) = channel();
+        let (event_tx, events) = channel();
+        // Same rule `ExternalIo::start` enforces, asked directly because a
+        // transport owns its channel rather than borrowing one.
+        let started = !replay::suppressed(eng);
+        if started {
+            // The worker's socket id routes events inside `NetState`; a
+            // transport owns its channel, so there is nothing to route.
+            backend::spawn_socket(0, url.to_string(), options, command_rx, &event_tx);
+        }
         Self {
-            io,
-            commands: started.then_some(sender),
+            events,
+            commands: started.then_some(commands),
+            state: LinkState::Connecting,
+        }
+    }
+
+    /// The peer side of a link a listener accepted.
+    #[cfg(not(target_family = "wasm"))]
+    pub(crate) fn from_accepted(accepted: crate::listener::Accepted) -> Self {
+        Self {
+            events: accepted.events,
+            commands: Some(accepted.commands),
             state: LinkState::Connecting,
         }
     }
@@ -94,7 +114,11 @@ impl Transport for WebsocketTransport {
 
     fn receive(&mut self) -> Vec<Received> {
         let mut out = Vec::new();
-        for event in self.io.drain() {
+        let mut arrivals = Vec::new();
+        while let Ok(event) = self.events.try_recv() {
+            arrivals.push(event);
+        }
+        for event in arrivals {
             match event {
                 NetEvent::SocketOpen { .. } => self.state = LinkState::Open,
                 NetEvent::SocketBinary { bytes, .. } => {

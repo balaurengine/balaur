@@ -404,6 +404,65 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
                 },
             );
     }
+    install_focus(m);
+}
+
+/// `ui.*` bindings: which widget the keyboard and the pad are pointing at.
+///
+/// The keyboard drives focus on its own, through egui. These exist for the
+/// pad: a game maps its `ui_next` / `ui_previous` / `ui_accept` actions onto
+/// them, and `standard_app` does it for a project that declares those names.
+fn install_focus(m: &mut dyn Bindings<Engine>) {
+    use crate::widget_layer::Move;
+    m.describe(&[
+        ("focused", &[], "()", "The widget node focus is on, or nil."),
+        (
+            "set_focus",
+            &[],
+            "(node: node)",
+            "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",
+        ),
+        (
+            "focus_next",
+            &[],
+            "()",
+            "Move focus to the next widget in scene order, wrapping past the last.",
+        ),
+        (
+            "focus_previous",
+            &[],
+            "()",
+            "Move focus to the previous widget in scene order, wrapping past the first.",
+        ),
+        (
+            "activate_focused",
+            &[],
+            "()",
+            "Activate the focused widget, exactly as a click on it would.",
+        ),
+    ]);
+    m.function("focused", |eng: &Engine, ()| {
+        let focus = eng.resource::<crate::UiFocus>();
+        let focused = focus.borrow().focused;
+        Ok(focused.map_or(balaur_script::Value::Nil, |e| {
+            balaur_script::Value::Node(balaur_core::node_id_of(e).0)
+        }))
+    });
+    m.function("set_focus", |eng: &Engine, node: balaur_script::NodeId| {
+        let entity = balaur_core::entity_of(node)?;
+        eng.resource::<crate::UiFocus>().borrow_mut().focused = Some(entity);
+        Ok(())
+    });
+    for (name, asked) in [
+        ("focus_next", Move::Next),
+        ("focus_previous", Move::Previous),
+        ("activate_focused", Move::Accept),
+    ] {
+        m.function(name, move |eng: &Engine, ()| {
+            eng.resource::<crate::UiFocus>().borrow_mut().pending = Some(asked);
+            Ok(())
+        });
+    }
 }
 
 /// `ui.*` bindings: scale.

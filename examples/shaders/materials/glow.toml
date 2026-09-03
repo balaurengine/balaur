@@ -1,0 +1,8 @@
+# The glow material: `shaders/glow.wesl` and the values its Params take.
+type = "material"
+shader = "shaders/glow.wesl"
+
+[params]
+speed = 2.0
+rings = 5.0
+tint = "#ffb347"

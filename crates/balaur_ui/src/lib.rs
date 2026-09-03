@@ -22,6 +22,7 @@ mod bridge;
 mod theme;
 mod widget_bindings;
 mod widget_layer;
+mod widget_theme;
 mod widgets;
 
 use anyhow::Result;
@@ -29,7 +30,8 @@ use balaur_core::{App, Engine, Plugin};
 use std::collections::{HashMap, HashSet};
 
 pub use theme::ThemeTokens;
-pub use widget_layer::{Widget, WidgetLayerConfig};
+pub use widget_layer::{Move, UiFocus, Widget, WidgetLayerConfig};
+pub use widget_theme::WidgetTheme;
 pub use widgets::{ANCHORS, FONTS, MODIFIERS, WIDGET_KINDS};
 
 /// What scripts ask the UI to look like: the theme tokens `ui.set_theme`
@@ -84,6 +86,15 @@ impl Plugin for UiPlugin {
         app.engine.insert_resource(UiConfig::default());
         app.engine.insert_resource(UiState::default());
         app.engine.insert_resource(WidgetLayerConfig::default());
+        app.engine.insert_resource(UiFocus::default());
+        app.register_asset_type(
+            widget_theme::ASSET_TYPE,
+            "themes",
+            widget_theme::ASSET_DOC,
+            |value| {
+                Ok(std::rc::Rc::new(widget_theme::parse(value)) as std::rc::Rc<dyn std::any::Any>)
+            },
+        );
         widgets::install_ui_api(app)?;
         widget_layer::register_widget_component(app);
         Ok(())

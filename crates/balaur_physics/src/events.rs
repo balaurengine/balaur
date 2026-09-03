@@ -16,13 +16,13 @@
 //! `physics3d` call from inside one gets an error saying so (see
 //! [`crate::state_mut`]), never a `RefCell` panic.
 
-use balaur_core::hecs::Entity;
-use balaur_core::Engine;
-use balaur_script::Value;
-use rapier3d::prelude::{
+use crate::rapier3d::prelude::{
     ColliderHandle, ColliderSet, CollisionEvent, ContactForceEvent, ContactModificationContext,
     EventHandler, PairFilterContext, PhysicsHooks, SolverFlags,
 };
+use balaur_core::hecs::Entity;
+use balaur_core::Engine;
+use balaur_script::Value;
 use std::cell::RefCell;
 
 use crate::vocabulary::map;
@@ -72,10 +72,10 @@ fn entity_of(colliders: &ColliderSet, handle: ColliderHandle) -> Option<Entity> 
 impl EventHandler for Collector {
     fn handle_collision_event(
         &self,
-        _bodies: &rapier3d::prelude::RigidBodySet,
+        _bodies: &crate::rapier3d::prelude::RigidBodySet,
         colliders: &ColliderSet,
         event: CollisionEvent,
-        _pair: Option<&rapier3d::prelude::ContactPair>,
+        _pair: Option<&crate::rapier3d::prelude::ContactPair>,
     ) {
         let (h1, h2) = (event.collider1(), event.collider2());
         let (Some(a), Some(b)) = (entity_of(colliders, h1), entity_of(colliders, h2)) else {
@@ -90,11 +90,11 @@ impl EventHandler for Collector {
 
     fn handle_contact_force_event(
         &self,
-        _dt: f32,
-        _bodies: &rapier3d::prelude::RigidBodySet,
+        _dt: crate::scalar::Real,
+        _bodies: &crate::rapier3d::prelude::RigidBodySet,
         colliders: &ColliderSet,
-        pair: &rapier3d::prelude::ContactPair,
-        total_force_magnitude: f32,
+        pair: &crate::rapier3d::prelude::ContactPair,
+        total_force_magnitude: crate::scalar::Real,
     ) {
         let event = ContactForceEvent::from_contact_pair(_dt, pair, total_force_magnitude);
         let (Some(a), Some(b)) = (
@@ -107,8 +107,8 @@ impl EventHandler for Collector {
         self.events.borrow_mut().push(Event::Force(
             a,
             b,
-            event.total_force_magnitude,
-            [d.x, d.y, d.z],
+            crate::scalar::f32_of(event.total_force_magnitude),
+            crate::scalar::a3(d),
         ));
     }
 }
@@ -218,14 +218,14 @@ impl PhysicsHooks for Hooks<'_> {
             return;
         };
         for (node, other) in [(a, b), (b, a)] {
-            let normal = *context.normal;
+            let normal = crate::scalar::a3(*context.normal);
             let answer = host.call_on(
                 balaur_core::node_id_of(node),
                 "modify_contacts",
                 &[
                     Value::Node(other.to_bits().get()),
                     map([
-                        ("normal", Value::Vec3([normal.x, normal.y, normal.z])),
+                        ("normal", Value::Vec3(normal)),
                         ("points", Value::Num(context.solver_contacts.len() as f64)),
                     ]),
                 ],
@@ -243,7 +243,7 @@ impl PhysicsHooks for Hooks<'_> {
 /// cannot go and read the component. Six directions rather than a vector,
 /// because a platform's axis is a cardinal one in every game that has ever
 /// wanted this, and the encoding costs three bits.
-fn one_way_axis(context: &ContactModificationContext<'_>) -> Option<glamx::Vec3> {
+fn one_way_axis(context: &ContactModificationContext<'_>) -> Option<crate::rapier3d::math::Vector> {
     let collider = context.colliders.get(context.collider1)?;
     crate::collider::decode_one_way(collider.user_data)
 }
@@ -256,10 +256,10 @@ fn apply_contact_answer(context: &mut ContactModificationContext<'_>, answer: Op
     // Friction and restitution are the pair's, not each contact point's:
     // rapier already combined the two materials before asking.
     if let Some(Value::Num(friction)) = opts.get("friction") {
-        *context.friction = *friction as f32;
+        *context.friction = *friction as crate::scalar::Real;
     }
     if let Some(Value::Num(restitution)) = opts.get("restitution") {
-        *context.restitution = *restitution as f32;
+        *context.restitution = *restitution as crate::scalar::Real;
     }
     if !opts.boolean("solid", true) {
         context.solver_contacts.clear();

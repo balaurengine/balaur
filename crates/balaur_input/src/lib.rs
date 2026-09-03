@@ -35,9 +35,9 @@ pub enum TouchPhase {
 /// One frame of input, republished by whichever backend owns the OS events.
 ///
 /// The backend calls [`InputSnapshot::begin_frame`] and then the `*_event`
-/// feeders once per frame; everything else reads. Scripts must never write it
-/// — there is no binding that does, and a written edge would be erased by the
-/// next `begin_frame` anyway.
+/// feeders once per frame; everything else reads. The one script-side writer
+/// is `input.feed_*`, the automation seam: it calls the same feeders, so a
+/// fed frame records and replays like one the window fed.
 ///
 /// **Under a headless backend the entry exists but nothing ever feeds it**, so
 /// it keeps its `Default` forever: no key is down, no edge ever fires, the
@@ -64,6 +64,15 @@ pub struct InputSnapshot {
     touches_ended: Vec<u64>,
     /// Files dropped onto the window this frame, in drop order.
     dropped_files: Vec<String>,
+    /// Characters typed this frame, in order. Keys say which key went down;
+    /// this says what it produced, which is what a text field needs and what
+    /// a keyboard layout decides.
+    ///
+    /// Defaulted, so a session recorded before this field existed still
+    /// restores: without it the whole snapshot fails to parse and the tick is
+    /// fed nothing at all, which is a divergence with no message.
+    #[serde(default)]
+    typed: String,
 }
 
 impl InputSnapshot {
@@ -79,6 +88,7 @@ impl InputSnapshot {
         self.touches_started.clear();
         self.touches_ended.clear();
         self.dropped_files.clear();
+        self.typed.clear();
     }
 
     /// One finger's report from the backend. `Start` and `Move` update the
@@ -108,6 +118,17 @@ impl InputSnapshot {
 
     pub fn file_drop_event(&mut self, path: String) {
         self.dropped_files.push(path);
+    }
+
+    /// One character the window backend received. Control characters are the
+    /// backend's to filter: what reaches here is what was typed.
+    pub fn char_event(&mut self, c: char) {
+        self.typed.push(c);
+    }
+
+    /// What was typed this frame, in order, or empty.
+    pub fn typed(&self) -> &str {
+        &self.typed
     }
 
     /// Active touches as `(id, x, y)`, oldest finger first.
@@ -556,9 +577,43 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
         let v = state.borrow().mouse_just_released(button);
         Ok(v)
     });
+    install_feed_api(m);
     install_touch_api(m);
     install_gamepad_api(m);
     actions::install(m);
+}
+
+/// `input.feed_*`: the window backend's feeders, for a script that stands in
+/// for a person — a showcase, a test, an automation client. Fed edges last
+/// until the next frame's `begin_frame`, exactly like an OS event's.
+fn install_feed_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("feed_key", &[], "(key: string, down: bool)", "Press or release a `KEY_*` key as if the window had reported it; the edge lasts this frame, the state until the opposite feed."),
+        ("feed_mouse", &[], "(x: float, y: float)", "Move the cursor to a window-pixel position as if the window had reported it; the delta accumulates for this frame."),
+        ("feed_mouse_button", &[], "(button: int, down: bool)", "Press or release a `MOUSE_*` button as if the window had reported it."),
+    ]);
+    m.function("feed_key", |eng: &Engine, (key, down): (String, bool)| {
+        check_key(&key);
+        eng.resource::<InputSnapshot>()
+            .borrow_mut()
+            .key_event(&key, down);
+        Ok(())
+    });
+    m.function("feed_mouse", |eng: &Engine, (x, y): (f32, f32)| {
+        eng.resource::<InputSnapshot>()
+            .borrow_mut()
+            .set_mouse_pos(x, y);
+        Ok(())
+    });
+    m.function(
+        "feed_mouse_button",
+        |eng: &Engine, (button, down): (usize, bool)| {
+            eng.resource::<InputSnapshot>()
+                .borrow_mut()
+                .mouse_button_event(button, down);
+            Ok(())
+        },
+    );
 }
 
 /// `input.touches*` and `input.dropped_files` — the per-frame lists the
@@ -569,6 +624,7 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
         ("touches_started", &[], "", "The ids of the fingers that touched down this frame."),
         ("touches_ended", &[], "", "The ids of the fingers that lifted or were cancelled this frame."),
         ("dropped_files", &[], "", "The absolute paths of files dropped onto the window this frame, in drop order; desktop only."),
+        ("typed", &[], "", "The characters typed this frame, in order: what a text field appends, where `just_pressed` says which key went down."),
     ]);
     // Active touches as `{ id, x, y }` maps, oldest finger first. Pixel
     // coordinates, same space as `mouse_position`.
@@ -607,6 +663,13 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
             .map(|id| Value::Int(id.cast_signed()))
             .collect();
         Ok(Value::List(ids))
+    });
+    // What the keyboard produced this frame, which is not what it pressed: a
+    // layout decides, and a text field wants the result.
+    m.function("typed", |eng: &Engine, ()| {
+        let state = eng.resource::<InputSnapshot>();
+        let typed = state.borrow().typed().to_string();
+        Ok(Value::Str(typed))
     });
     // Files dropped onto the window this frame, absolute paths in drop order.
     // Desktop only: browsers and phones have no window to drop onto.

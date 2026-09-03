@@ -1,17 +1,18 @@
 //! `collider2d`: shapes, their material, and the overlap and contact
 //! queries that read them back.
 
+use crate::rapier2d::math::Vector;
 use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_core::{App, Engine};
-use glamx::{Pose2, Rot2, Vec2};
-use rapier2d::math::Vector;
-use rapier2d::prelude::{
+
+use crate::rapier2d::prelude::{
     ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule, Collider,
     ColliderBuilder as ColliderBuilder2, Group, InteractionGroups, InteractionTestMode,
     RigidBodyHandle,
 };
+use crate::scalar::{self, Pose2, Real, Rotation2};
 
 use crate::dim2::{node_pose_2d, PhysicsState2d};
 use crate::vocabulary as v;
@@ -96,15 +97,12 @@ pub(crate) fn remove_colliders(eng: &Engine, entity: Entity) {
 /// vocabulary — so a script table and a scene-file entry build the same thing.
 pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder2> {
     let kind = v::text(params, "kind", "rect");
-    let radius = v::f(params, "radius", 0.5).max(0.01);
+    let radius = scalar::real(v::f(params, "radius", 0.5)).max(0.01);
     // `height` is the straight part, caps excluded, as it is in 3D.
-    let half_height = (v::f(params, "height", 1.0).max(0.01)) / 2.0;
-    let he = |i: usize| v::axis(params, "half_extents", i, 0.5).max(0.01);
-    let point = |key: &str, fallback: [f32; 2]| {
-        let p = v::vec2(params, key, fallback);
-        Vector::new(p[0], p[1])
-    };
-    let border = v::f(params, "border", 0.0).max(0.0);
+    let half_height = scalar::real(v::f(params, "height", 1.0).max(0.01)) / 2.0;
+    let he = |i: usize| scalar::real(v::axis(params, "half_extents", i, 0.5)).max(0.01);
+    let point = |key: &str, fallback: [f32; 2]| scalar::v2a(v::vec2(params, key, fallback));
+    let border = scalar::real(v::f(params, "border", 0.0)).max(0.0);
     let rounded = border > 0.0;
     let builder = match kind {
         "circle" => ColliderBuilder2::ball(radius),
@@ -128,7 +126,9 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
             if n.length_squared() < 1.0e-12 {
                 return Err(anyhow!("a halfspace collider needs a non-zero `normal`"));
             }
-            ColliderBuilder2::new(rapier2d::prelude::SharedShape::halfspace(n.normalize()))
+            ColliderBuilder2::new(crate::rapier2d::prelude::SharedShape::halfspace(
+                n.normalize(),
+            ))
         }
         "trimesh" | "convex_hull" | "polyline" => mesh_collider(eng, params, kind)?,
         "heightfield" => heightfield_collider(eng, params)?,
@@ -152,7 +152,7 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
     let points: Vec<Vector> = mesh
         .positions
         .iter()
-        .map(|p| Vector::new(p[0], p[1]))
+        .map(|p| scalar::v2(p[0], p[1]))
         .collect();
     match kind {
         "trimesh" => ColliderBuilder2::trimesh(points, mesh.indices.clone())
@@ -181,10 +181,9 @@ fn heightfield_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBu
     let field = balaur_core::assets::load_typed::<balaur_core::heightfield::HeightfieldData>(
         eng, reference,
     )?;
-    let scale = v::vec2(params, "scale", [1.0, 1.0]);
     Ok(ColliderBuilder2::heightfield(
-        field.heights.clone(),
-        Vector::new(scale[0], scale[1]),
+        field.heights.iter().map(|h| scalar::real(*h)).collect(),
+        scalar::v2a(v::vec2(params, "scale", [1.0, 1.0])),
     ))
 }
 
@@ -193,17 +192,17 @@ fn heightfield_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBu
 /// are per-dimension.
 fn with_material(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBuilder2 {
     let mut builder = builder
-        .restitution(v::f(params, "restitution", 0.0))
-        .friction(v::f(params, "friction", 0.5))
-        .density(v::f(params, "density", 1.0).max(0.001))
+        .restitution(scalar::real(v::f(params, "restitution", 0.0)))
+        .friction(scalar::real(v::f(params, "friction", 0.5)))
+        .density(scalar::real(v::f(params, "density", 1.0).max(0.001)))
         .friction_combine_rule(combine_rule(v::text(params, "friction_combine", "average")))
         .restitution_combine_rule(combine_rule(v::text(
             params,
             "restitution_combine",
             "average",
         )))
-        .contact_skin(v::f(params, "contact_skin", 0.0).max(0.0))
-        .contact_force_event_threshold(v::f(params, "contact_force_threshold", 0.0))
+        .contact_skin(scalar::real(v::f(params, "contact_skin", 0.0).max(0.0)))
+        .contact_force_event_threshold(scalar::real(v::f(params, "contact_force_threshold", 0.0)))
         .collision_groups(InteractionGroups::new(
             Group::from_bits_truncate(v::layer_bits(params, "layers", false)),
             Group::from_bits_truncate(v::layer_bits(params, "mask", true)),
@@ -227,7 +226,7 @@ fn with_material(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBui
         .active_hooks(active_hooks(params))
         .enabled(v::boolean(params, "enabled", true))
         .sensor(v::boolean(params, "sensor", false));
-    let mass = v::f(params, "mass", 0.0);
+    let mass = scalar::real(v::f(params, "mass", 0.0));
     if mass > 0.0 {
         builder = builder.mass(mass);
     }
@@ -268,10 +267,9 @@ fn combine_name(rule: CoefficientCombineRule) -> &'static str {
 /// existing one.
 pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     let builder = collider_builder(eng, params)?;
-    let offset = v::vec2(params, "offset", [0.0; 2]);
     let offset = Pose2::from_parts(
-        Vec2::new(offset[0], offset[1]),
-        Rot2::from_angle(v::f(params, "offset_rotation", 0.0)),
+        scalar::v2a(v::vec2(params, "offset", [0.0; 2])),
+        Rotation2::from_angle(scalar::real(v::f(params, "offset_rotation", 0.0))),
     );
     remove_colliders(eng, entity);
     add_collider_at(eng, entity, builder, offset)
@@ -290,8 +288,8 @@ pub(crate) fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::
 /// The shape half of a `collider2d`'s params. `None` for the asset-backed
 /// kinds: rapier keeps the geometry, not the file it came from.
 fn shape_params(collider: &Collider) -> Option<toml::map::Map<String, toml::Value>> {
-    let f = |value: f32| toml::Value::Float(f64::from(value));
-    let vec2 = |x: f32, y: f32| toml::Value::Array(vec![f(x), f(y)]);
+    let f = |value: Real| toml::Value::Float(f64::from(value));
+    let vec2 = |x: Real, y: Real| toml::Value::Array(vec![f(x), f(y)]);
     let shape = collider.shape();
     let mut map = toml::map::Map::new();
     if let Some(ball) = shape.as_ball() {
@@ -345,7 +343,7 @@ fn shape_params(collider: &Collider) -> Option<toml::map::Map<String, toml::Valu
 
 /// The 2D twin of `crate::collider::read_material`, property for property.
 fn read_material(collider: &Collider, map: &mut toml::map::Map<String, toml::Value>) {
-    let f = |value: f32| toml::Value::Float(f64::from(value));
+    let f = |value: Real| toml::Value::Float(f64::from(value));
     map.insert("restitution".into(), f(collider.restitution()));
     map.insert("friction".into(), f(collider.friction()));
     map.insert("density".into(), f(collider.density()));
@@ -393,13 +391,13 @@ fn read_material(collider: &Collider, map: &mut toml::map::Map<String, toml::Val
 
 /// Largest contact normal impulse currently applied to the node's colliders
 /// (0 when untouched). Gameplay uses this for impact damage.
-pub(crate) fn max_contact_impulse(eng: &Engine, entity: Entity) -> f32 {
+pub(crate) fn max_contact_impulse(eng: &Engine, entity: Entity) -> Real {
     let state = eng.resource::<PhysicsState2d>();
     let state = state.borrow();
     let Some(handles) = state.colliders.get(&entity) else {
         return 0.0;
     };
-    let mut max = 0.0f32;
+    let mut max: Real = 0.0;
     for &handle in handles {
         for pair in state.world.narrow_phase.contact_pairs_with(handle) {
             for manifold in &pair.manifolds {

@@ -348,7 +348,7 @@ impl Inbox {
 }
 
 /// Serve one open connection until it ends, returning the closing event.
-fn run(
+pub(crate) fn run(
     socket: u64,
     mut connection: Socket,
     mut deflate: Option<Deflate>,
@@ -393,7 +393,7 @@ fn run(
     }
 }
 
-/// One frame from the server, answered or assembled; `Some` when the
+/// One frame from the peer, answered or assembled; `Some` when the
 /// connection is over.
 fn handle(
     socket: u64,
@@ -405,11 +405,12 @@ fn handle(
     events: &Sender<NetEvent>,
 ) -> Result<Option<NetEvent>> {
     let header = frame.header().clone();
+    let payload = unmasked(&frame, &header);
     match header.opcode {
-        OpCode::Control(Control::Ping) => send(connection, Frame::pong(frame.into_payload()))?,
+        OpCode::Control(Control::Ping) => send(connection, Frame::pong(payload.into_owned()))?,
         OpCode::Control(Control::Pong) => {}
         OpCode::Control(Control::Close) => {
-            let reason = close_reason(frame.payload());
+            let reason = close_reason(&payload);
             if !closing {
                 let _ = send(connection, Frame::close(None));
             }
@@ -417,12 +418,29 @@ fn handle(
         }
         OpCode::Control(Control::Reserved(code)) => bail!("reserved control opcode {code}"),
         OpCode::Data(kind) => {
-            if let Some(message) = inbox.push(kind, &header, frame.payload())? {
+            if let Some(message) = inbox.push(kind, &header, &payload)? {
                 deliver(socket, message, deflate, events)?;
             }
         }
     }
     Ok(None)
+}
+
+/// A frame's payload with its mask taken back off.
+///
+/// Every client-to-server frame is masked (RFC 6455 §5.3) and tungstenite's
+/// `FrameSocket` parses the key but leaves the payload alone, so the server
+/// side has to undo it. A server-to-client frame carries no mask, so the
+/// client side borrows and copies nothing.
+fn unmasked<'a>(frame: &'a Frame, header: &FrameHeader) -> std::borrow::Cow<'a, [u8]> {
+    let Some(mask) = header.mask else {
+        return std::borrow::Cow::Borrowed(frame.payload());
+    };
+    let mut bytes = frame.payload().to_vec();
+    for (at, byte) in bytes.iter_mut().enumerate() {
+        *byte ^= mask[at % 4];
+    }
+    std::borrow::Cow::Owned(bytes)
 }
 
 /// A finished message to the engine thread, inflated if it came compressed.

@@ -8,15 +8,15 @@
 //! The chassis is the node with the `vehicle3d`; each child with a `wheel3d`
 //! is a wheel, and its position on the chassis is where its ray starts.
 
+use crate::rapier3d::control::{DynamicRayCastVehicleController, WheelTuning};
+use crate::rapier3d::prelude::QueryFilter;
+use crate::scalar::{self, Real, Vector};
 use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{Children, Transform};
 use balaur_core::{entity_of, App, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
-use glamx::Vec3;
-use rapier3d::control::{DynamicRayCastVehicleController, WheelTuning};
-use rapier3d::prelude::QueryFilter;
 
 use crate::vocabulary::{self as v, map};
 use crate::{PhysicsState, FIXED_DT};
@@ -69,7 +69,7 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
                 };
                 let at = world
                     .get::<&Transform>(*child)
-                    .map_or(Vec3::ZERO, |t| t.position);
+                    .map_or(glamx::Vec3::ZERO, |t| t.position);
                 wheels.push((*child, wheel.0.clone(), at));
             }
         }
@@ -89,23 +89,24 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
     controller.index_up_axis = v::f(&params, "up_axis", 1.0).clamp(0.0, 2.0) as usize;
     controller.index_forward_axis = v::f(&params, "forward_axis", 2.0).clamp(0.0, 2.0) as usize;
     for (entity, wheel_params, at) in &wheels {
+        let real = |key: &str, default: f32| scalar::real(v::f(wheel_params, key, default));
         let tuning = WheelTuning {
-            suspension_stiffness: v::f(wheel_params, "stiffness", 30.0),
-            suspension_compression: v::f(wheel_params, "compression", 0.82),
-            suspension_damping: v::f(wheel_params, "damping", 0.88),
-            max_suspension_travel: v::f(wheel_params, "max_travel", 5.0),
-            side_friction_stiffness: v::f(wheel_params, "side_friction", 1.0),
-            friction_slip: v::f(wheel_params, "friction_slip", 10.5),
-            max_suspension_force: v::f(wheel_params, "max_force", 6000.0),
+            suspension_stiffness: real("stiffness", 30.0),
+            suspension_compression: real("compression", 0.82),
+            suspension_damping: real("damping", 0.88),
+            max_suspension_travel: real("max_travel", 5.0),
+            side_friction_stiffness: real("side_friction", 1.0),
+            friction_slip: real("friction_slip", 10.5),
+            max_suspension_force: real("max_force", 6000.0),
         };
-        let direction = Vec3::from(v::vec3(wheel_params, "direction", [0.0, -1.0, 0.0]));
-        let axle = Vec3::from(v::vec3(wheel_params, "axle", [-1.0, 0.0, 0.0]));
+        let direction = scalar::v3a(v::vec3(wheel_params, "direction", [0.0, -1.0, 0.0]));
+        let axle = scalar::v3a(v::vec3(wheel_params, "axle", [-1.0, 0.0, 0.0]));
         let wheel = controller.add_wheel(
-            *at,
+            scalar::v3(at.x, at.y, at.z),
             direction,
             axle,
-            v::f(wheel_params, "rest_length", 0.3),
-            v::f(wheel_params, "radius", 0.4).max(0.01),
+            real("rest_length", 0.3),
+            real("radius", 0.4).max(0.01),
             &tuning,
         );
         // The inputs a script set since the last step, kept per wheel node so
@@ -124,7 +125,7 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
         &mut state.world.colliders,
         QueryFilter::default().exclude_rigid_body(handle),
     );
-    controller.update_vehicle(FIXED_DT, queries);
+    controller.update_vehicle(scalar::real(FIXED_DT), queries);
     // Keep what the step worked out, so the wheel's rotation and its ground
     // contact are readable and survive into the next rebuild.
     for ((entity, _, _), wheel) in wheels.iter().zip(controller.wheels()) {
@@ -142,11 +143,11 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
 /// every step, and these are the four numbers that must not be.
 #[derive(Clone, Copy, Default)]
 pub struct WheelInput {
-    pub engine_force: f32,
-    pub brake: f32,
-    pub steering: f32,
-    pub rotation: f32,
-    pub suspension_force: f32,
+    pub engine_force: Real,
+    pub brake: Real,
+    pub steering: Real,
+    pub rotation: Real,
+    pub suspension_force: Real,
     pub grounded: bool,
 }
 
@@ -161,16 +162,18 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_engine_force",
         |eng: &Engine, (node, force): (NodeId, f32)| {
-            with_wheel(eng, node, |input| input.engine_force = force)
+            with_wheel(eng, node, |input| input.engine_force = scalar::real(force))
         },
     );
     m.function("set_brake", |eng: &Engine, (node, brake): (NodeId, f32)| {
-        with_wheel(eng, node, |input| input.brake = brake.max(0.0))
+        with_wheel(eng, node, |input| {
+            input.brake = scalar::real(brake.max(0.0))
+        })
     });
     m.function(
         "set_steering",
         |eng: &Engine, (node, angle): (NodeId, f32)| {
-            with_wheel(eng, node, |input| input.steering = angle)
+            with_wheel(eng, node, |input| input.steering = scalar::real(angle))
         },
     );
     m.function("wheel_state", |eng: &Engine, node: NodeId| {
@@ -199,7 +202,7 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
             .get(&entity)
             .ok_or_else(|| anyhow!("a vehicle3d needs a body3d on the same node"))?;
         let body = &state.world.bodies[handle];
-        let forward = body.rotation() * Vec3::Z;
+        let forward = body.rotation() * Vector::Z;
         Ok(body.linvel().dot(forward))
     });
 }

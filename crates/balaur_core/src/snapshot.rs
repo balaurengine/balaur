@@ -94,7 +94,17 @@ impl SnapshotRing {
         }
     }
 
+    /// Record the world at `tick`, replacing what was there.
+    ///
+    /// Replacing matters: a rollback re-runs ticks that are already in the
+    /// ring, and appending them again would fill it with duplicates, so a
+    /// ring of thirty-two would hold far fewer than thirty-two distinct
+    /// ticks and drop the oldest long before it had to.
     pub fn push(&mut self, tick: u64, snapshot: Snapshot) {
+        if let Some(slot) = self.frames.iter_mut().find(|(at, _)| *at == tick) {
+            slot.1 = snapshot;
+            return;
+        }
         if self.frames.len() == self.capacity {
             self.frames.pop_front();
         }

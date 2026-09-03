@@ -91,6 +91,18 @@ pub fn is_playing(eng: &Engine) -> bool {
         .is_some_and(|mode| *mode.borrow() == ReplayMode::Playing)
 }
 
+/// Whether outbound work must not happen: a recording is playing, or the
+/// rollback session is running a tick for the second time.
+///
+/// [`ExternalIo::start`] is the enforced form of this, and what a subsystem
+/// should reach for. A listener asks directly, because what it hands back per
+/// connection is a live channel rather than serializable data, which is the
+/// one thing `ExternalIo` cannot wrap.
+#[must_use]
+pub fn suppressed(eng: &Engine) -> bool {
+    is_playing(eng) || crate::rollback::is_resimulating(eng)
+}
+
 /// A subsystem's channel to the outside world, with recording built in.
 ///
 /// Wraps the three things every I/O subsystem needs — the worker channel,
@@ -123,9 +135,7 @@ impl<E: Clone + Serialize + DeserializeOwned> ExternalIo<E> {
     /// Returns whether `spawn` ran, for the caller that must skip bookkeeping
     /// of its own.
     pub fn start(&self, eng: &Engine, spawn: impl FnOnce(&Sender<E>)) -> bool {
-        // A replay must not reach the network, and neither must a tick the
-        // session is running for the second time.
-        if is_playing(eng) || crate::rollback::is_resimulating(eng) {
+        if suppressed(eng) {
             return false;
         }
         spawn(&self.report);

@@ -34,6 +34,8 @@ use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 #[cfg(not(target_family = "wasm"))]
 mod http;
+#[cfg(not(target_family = "wasm"))]
+pub mod listener;
 pub mod transport;
 #[cfg(not(target_family = "wasm"))]
 mod websocket;

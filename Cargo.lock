@@ -536,9 +536,13 @@ dependencies = [
  "balaur_script",
  "glamx",
  "parry2d",
+ "parry2d-f64",
  "parry3d",
+ "parry3d-f64",
  "rapier2d",
+ "rapier2d-f64",
  "rapier3d",
+ "rapier3d-f64",
  "rayon",
  "serde",
  "serde_json",
@@ -3682,6 +3686,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "parry2d-f64"
+version = "0.30.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc4dc9d407475690de5f87740b33254163d11e98df650690d8ae6ce690c42fc2"
+dependencies = [
+ "approx",
+ "arrayvec",
+ "bitflags 2.13.1",
+ "downcast-rs 2.0.2",
+ "either",
+ "ena",
+ "foldhash 0.2.0",
+ "glamx",
+ "hashbrown 0.17.1",
+ "indexmap",
+ "log",
+ "num-derive",
+ "num-traits",
+ "ordered-float",
+ "rayon",
+ "serde",
+ "serde_arrays",
+ "simba",
+ "slab",
+ "smallvec",
+ "spade",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "parry3d"
 version = "0.30.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3710,6 +3744,37 @@ dependencies = [
  "smallvec",
  "spade",
  "static_assertions",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "parry3d-f64"
+version = "0.30.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c5f71cd1d7f0c475116a52c61baa8d0de69fc258bc4debf86cb4c4ca8f35f3f"
+dependencies = [
+ "approx",
+ "arrayvec",
+ "bitflags 2.13.1",
+ "downcast-rs 2.0.2",
+ "either",
+ "ena",
+ "foldhash 0.2.0",
+ "glamx",
+ "hashbrown 0.17.1",
+ "indexmap",
+ "log",
+ "num-derive",
+ "num-traits",
+ "ordered-float",
+ "rayon",
+ "rstar",
+ "serde",
+ "serde_arrays",
+ "simba",
+ "slab",
+ "smallvec",
+ "spade",
  "thiserror 2.0.20",
 ]
 
@@ -4133,6 +4198,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "rapier2d-f64"
+version = "0.35.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60d083d6e7bebb42db54d1a82c2e8db19c7adffbe6bf2bf0c8ebfb4cde78bae0"
+dependencies = [
+ "approx",
+ "arrayvec",
+ "bitflags 2.13.1",
+ "glamx",
+ "log",
+ "nalgebra",
+ "num-traits",
+ "parry2d-f64",
+ "profiling",
+ "rayon",
+ "serde",
+ "simba",
+ "static_assertions",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "rapier3d"
 version = "0.35.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4153,6 +4240,28 @@ dependencies = [
  "static_assertions",
  "thiserror 2.0.20",
  "wide",
+]
+
+[[package]]
+name = "rapier3d-f64"
+version = "0.35.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1de28806014bf4f5e24be5d99ce7564c4f3cbd5b06b430eaa2192c1a0cd1dfba"
+dependencies = [
+ "approx",
+ "arrayvec",
+ "bitflags 2.13.1",
+ "glamx",
+ "log",
+ "nalgebra",
+ "num-traits",
+ "parry3d-f64",
+ "profiling",
+ "rayon",
+ "serde",
+ "simba",
+ "static_assertions",
+ "thiserror 2.0.20",
 ]
 
 [[package]]

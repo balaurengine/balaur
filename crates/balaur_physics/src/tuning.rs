@@ -6,11 +6,11 @@
 //! so `[physics]` in `project.toml` is the truth a game ships with, and the
 //! script setters are for a game that tunes at run time and knows it.
 
+use crate::rapier3d::dynamics::IntegrationParameters;
 use anyhow::Result;
 use balaur_core::hecs::Entity;
 use balaur_core::{App, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
-use rapier3d::dynamics::IntegrationParameters;
 
 use crate::vocabulary::{map, Opts};
 use crate::{PhysicsState, PhysicsState2d};
@@ -23,18 +23,22 @@ use crate::{PhysicsState, PhysicsState2d};
 macro_rules! write_parameters {
     ($p:expr, $f:expr, $boolean:expr) => {{
         let p = $p;
-        let f = $f;
+        // Every knob is rapier's own scalar; the caller hands `f32` because
+        // scenes and scripts do.
+        let f = |key: &str, default: crate::scalar::Real| -> crate::scalar::Real {
+            crate::scalar::real(($f)(key, crate::scalar::f32_of(default)))
+        };
         let boolean = $boolean;
         p.num_solver_iterations =
-            f("solver_iterations", p.num_solver_iterations as f32).max(1.0) as usize;
+            f("solver_iterations", p.num_solver_iterations as _).max(1.0) as usize;
         p.num_internal_pgs_iterations =
-            f("internal_iterations", p.num_internal_pgs_iterations as f32).max(0.0) as usize;
+            f("internal_iterations", p.num_internal_pgs_iterations as _).max(0.0) as usize;
         p.num_internal_stabilization_iterations = f(
             "stabilization_iterations",
-            p.num_internal_stabilization_iterations as f32,
+            p.num_internal_stabilization_iterations as _,
         )
         .max(0.0) as usize;
-        p.max_ccd_substeps = f("ccd_substeps", p.max_ccd_substeps as f32).max(0.0) as usize;
+        p.max_ccd_substeps = f("ccd_substeps", p.max_ccd_substeps as _).max(0.0) as usize;
         p.min_ccd_dt = f("min_ccd_dt", p.min_ccd_dt);
         // The one knob a 2D game in pixels cannot do without: every tolerance
         // in the solver is scaled by it, and at 64 pixels per metre the
@@ -224,7 +228,10 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
                 "narrow_phase_ms",
                 Value::Num(counters.cd.narrow_phase_time.time_ms()),
             ),
-            ("contact_pairs", Value::Num(counters.cd.ncontact_pairs as f64)),
+            (
+                "contact_pairs",
+                Value::Num(counters.cd.ncontact_pairs as f64),
+            ),
         ]))
     });
 }

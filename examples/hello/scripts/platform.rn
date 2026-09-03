@@ -25,8 +25,8 @@ pub fn on_reached_end(this) {
     // same fixed step a clip asset goes through.
     animation::tween(this.node, #{
         "steps": [
-            #{ "property": "color/rgba", "to": [1.0, 0.8, 0.25, 1.0], "duration": 0.25 },
-            #{ "property": "color/rgba", "to": [0.55, 0.35, 0.8, 1.0], "duration": 0.75, "ease": "out_quad" },
+            #{ "property": "shape3d/color", "to": [1.0, 0.8, 0.25, 1.0], "duration": 0.25 },
+            #{ "property": "shape3d/color", "to": [0.55, 0.35, 0.8, 1.0], "duration": 0.75, "ease": "out_quad" },
         ],
     });
     println!("platform turned {} time(s)", this.turns);

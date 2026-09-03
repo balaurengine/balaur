@@ -1,0 +1,6 @@
+// The Restart button. `on_click` names a method on the button's own node, so
+// this one forwards to the game script next door.
+
+pub fn on_restart(this) {
+    this.node.get_node("../Game").call("restart");
+}

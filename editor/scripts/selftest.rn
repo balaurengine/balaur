@@ -600,12 +600,17 @@ fn stop_and_check(S, d) {
     shell::stop_play(S);
     check(S.session.recording == "", "stop closes the recording");
     check(util::is_nil(replay::recording()), "and the engine has none open");
-    let names = crate::session::listing(S);
-    if !check(names.len() > 0, "the session it wrote is on disk") {
+    let rows = crate::session::listing(S);
+    if !check(rows.len() > 0, "the session it wrote is on disk") {
         S.session.demo = ();
         return;
     }
-    d.file = names[0];
+    let row = rows[0];
+    d.file = row.name;
+    check(row.started != "", "the list says when it ran");
+    check(row.ticks > 0, format!("and how long: {} ticks", row.ticks));
+    check(row.reason == "stop", format!("and how it ended: {}", row.reason));
+    check(!row.stale, "its scripts are the ones on disk");
 }
 
 // Replaying rebuilds the scene, feeds the recording into it, and hands the
@@ -635,12 +640,21 @@ fn replayed_and_check(S, d) {
     check(replay::state() == replay::STATE_PAUSED, "a spent session parks");
     check(util::is_nil(replay::diverged()), "and reproduced what was recorded");
     crate::session::close(S);
+    exported_and_check(S, d);
     check(!crate::session::loaded(S), "closing unloads the session");
     check(!S.playing, "and puts the edited scene back");
     // A self-test that leaves files behind fills the ring it is testing.
     fs::remove(crate::session::dir(S) + "/" + d.file);
     S.session.demo = ();
     log::info("selftest session: done");
+}
+
+// Export puts a copy where a bug report or `balaur replay` can reach it.
+fn exported_and_check(S, d) {
+    crate::session::export(S, d.file);
+    let out = S.game_root + "/" + d.file;
+    check(fs::exists(out), "export copies the session into the project");
+    fs::remove(out);
 }
 
 // The profiler's data path. Drawing is what the dock does and a headless run

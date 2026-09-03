@@ -18,11 +18,27 @@ use balaur_core::{App, Engine, Plugin, Stage, Transform};
 
 use balaur_script::{Bindings, BindingsExt};
 
-use glamx::Pose3;
+use crate::rapier3d::pipeline::PhysicsWorld;
 
-use rapier3d::pipeline::PhysicsWorld;
+use crate::rapier3d::prelude::{ColliderHandle, RigidBodyHandle};
 
-use rapier3d::prelude::{ColliderHandle, RigidBodyHandle};
+#[cfg(not(any(feature = "f32", feature = "f64")))]
+compile_error!(
+    "balaur_physics needs a scalar: build with the `f32` feature (the default) or with \
+     `--no-default-features --features f64`"
+);
+
+// The `f64` build swaps rapier for its f64 twin under the same names, so
+// every `use crate::rapier3d::..` below and in the submodules follows the scalar.
+// `scalar.rs` is the seam where a number changes width.
+#[cfg(not(feature = "f64"))]
+pub use ::rapier2d;
+#[cfg(feature = "f64")]
+pub use ::rapier2d_f64 as rapier2d;
+#[cfg(not(feature = "f64"))]
+pub use ::rapier3d;
+#[cfg(feature = "f64")]
+pub use ::rapier3d_f64 as rapier3d;
 
 pub mod body;
 pub mod character;
@@ -33,6 +49,7 @@ pub mod events;
 pub mod geometry;
 pub mod joint;
 pub mod query;
+pub(crate) mod scalar;
 pub mod tuning;
 pub mod vehicle;
 mod vocabulary;
@@ -136,8 +153,11 @@ impl Plugin for PhysicsPlugin {
         install_constants(&mut *m, BODY_KINDS, SHAPE_KINDS);
         body::install_body_api(&mut *m);
         body::install_force_api(&mut *m);
+        body::install_force_reader_api(&mut *m);
         body::install_body_state_api(&mut *m);
         body::install_body_tuning_api(&mut *m);
+        body::install_body_ccd_api(&mut *m);
+        body::install_body_lock_api(&mut *m);
         body::install_body_pose_api(&mut *m);
         body::install_body_sleep_api(&mut *m);
         collider::install_collider_api(&mut *m);
@@ -189,7 +209,9 @@ fn build_physics_digest(app: &mut App) {
             let (v, w) = (body.linvel(), body.angvel());
             let mut h = Hasher::new();
             for value in [v.x, v.y, v.z, w.x, w.y, w.z] {
-                h.write_f32(value);
+                // Whatever width this build runs at: a digest compares two
+                // runs of the same engine, not an f32 run against an f64 one.
+                h.write_f64(f64::from(value));
             }
             h.write(&[u8::from(body.is_sleeping())]);
             out.push(Entry {
@@ -313,7 +335,7 @@ fn register_physics_presets(app: &mut App) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn node_pose(eng: &Engine, entity: Entity) -> Result<Pose3> {
+pub(crate) fn node_pose(eng: &Engine, entity: Entity) -> Result<scalar::Pose> {
     // Make sure globals are up to date even before the first frame ran.
     let root = eng.root();
     balaur_core::scene::propagate_transforms(&mut eng.world_mut(), root);
@@ -321,7 +343,7 @@ pub(crate) fn node_pose(eng: &Engine, entity: Entity) -> Result<Pose3> {
     let global = world
         .get::<&balaur_core::GlobalTransform>(entity)
         .map_err(|_| anyhow!("node is dead or not in the scene tree"))?;
-    Ok(Pose3::from_parts(global.position, global.rotation))
+    Ok(scalar::pose_of(global.position, global.rotation))
 }
 
 fn step_system(eng: &Engine, _dt: f32) {
@@ -348,7 +370,7 @@ fn step_system(eng: &Engine, _dt: f32) {
                 let body = &mut state.world.bodies[handle];
                 if body.is_kinematic() {
                     if let Ok(t) = world.get::<&Transform>(entity) {
-                        body.set_next_kinematic_position(Pose3::from_parts(t.position, t.rotation));
+                        body.set_next_kinematic_position(scalar::pose_of(t.position, t.rotation));
                     }
                 }
             }
@@ -356,7 +378,7 @@ fn step_system(eng: &Engine, _dt: f32) {
 
         // Exactly one step: Stage::FixedUpdate already repeats at FIXED_DT, and a
         // second accumulator here would drift out of step with the scripts.
-        state.world.integration_parameters.dt = FIXED_DT;
+        state.world.integration_parameters.dt = scalar::real(FIXED_DT);
         // The step rebuilds the broad phase itself.
         state.queries_ready = true;
         let collector = events::Collector::default();
@@ -372,8 +394,8 @@ fn step_system(eng: &Engine, _dt: f32) {
                 continue;
             }
             if let Ok(mut t) = world.get::<&mut Transform>(entity) {
-                t.position = body.translation();
-                t.rotation = *body.rotation();
+                t.position = scalar::position_of(body.translation());
+                t.rotation = scalar::quat_of(*body.rotation());
             }
         }
         (collector.take(), joint::broken(state))
@@ -457,7 +479,7 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
     // "Sleep bodies" toggle). Spans BOTH worlds, and applies to bodies
     // added later as well as to the ones alive now.
     m.function("set_sleeping_allowed", |eng: &Engine, allowed: bool| {
-        use rapier3d::prelude::RigidBodyActivation;
+        use crate::rapier3d::prelude::RigidBodyActivation;
         let state = eng.resource::<PhysicsState>();
         let mut state = state.borrow_mut();
         state.sleeping_allowed = allowed;

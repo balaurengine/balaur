@@ -544,6 +544,12 @@ fn pump_input(app: &App, window: &Window) {
                     Action::Release => input.mouse_button_event(idx, false),
                 }
             }
+            WindowEvent::Char(c) | WindowEvent::CharModifiers(c, _) => {
+                // Control characters are key presses that produced no text.
+                if !c.is_control() {
+                    input.char_event(c);
+                }
+            }
             WindowEvent::CursorPos(x, y, _) => input.set_mouse_pos(x as f32, y as f32),
             WindowEvent::Scroll(dx, dy, _) => input.add_scroll(dx as f32, dy as f32),
             WindowEvent::Touch(id, x, y, action, _) => {
@@ -590,7 +596,7 @@ fn take_screenshot_if_due(app: &App, window: &Window, frame: u64) {
     }
     let image = window.snap_image();
     match image.save(&path) {
-        Ok(()) => tracing::info!("saved screenshot to {}", path.display()),
+        Ok(()) => tracing::debug!("saved screenshot to {}", path.display()),
         Err(err) => tracing::error!("screenshot failed: {err}"),
     }
     app.engine.remove_resource::<ScreenshotRequest>();
@@ -604,12 +610,12 @@ fn sync(
     materials: &mut crate::shader_material_3d::MaterialCache3d,
 ) {
     let world = app.engine.world();
-    // A saved shader or material relinks, and the nodes holding the old
-    // pipeline have to be built again against the new one. A channel view
-    // changes every node, whether or not it names a material.
+    // A relink rebuilds the nodes holding the old pipeline; a channel view
+    // rebuilds every node, whether or not it names a material.
     let channel = crate::debug_view::channel_view(&app.engine);
     let relinked = materials.refresh(app);
     let channel_changed = materials.channel_changed(&channel);
+    materials.answer_probe(app);
 
     let mut seen: HashSet<Entity> = HashSet::new();
     for (entity, renderable, global) in
@@ -1003,12 +1009,12 @@ fn sync_2d(
     let world = app.engine.world();
     let order = draw_order_2d(&world, app.engine.root(), slots, order_cache);
 
-    // A saved shader or material relinks, and the nodes holding the old
-    // pipeline have to be built again against the new one. A channel view
-    // changes every node, whether or not it names a material.
+    // A relink rebuilds the nodes holding the old pipeline; a channel view
+    // rebuilds every node, whether or not it names a material.
     let channel = crate::debug_view::channel_view(&app.engine);
     let relinked = materials.refresh(app);
     let channel_changed = materials.channel_changed(&channel);
+    materials.answer_probe(app);
 
     let mut seen: HashSet<Entity> = HashSet::new();
     for &entity in &order {

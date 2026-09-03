@@ -169,6 +169,22 @@ fn a_rolled_back_spawn_mints_the_id_it_minted_before() {
     assert_eq!(first, "local:0");
 }
 
+/// A re-simulated tick overwrites its slot. Without this a rollback-heavy
+/// session fills the ring with duplicates and forgets ticks it still needs.
+#[test]
+fn pushing_a_tick_twice_replaces_it_rather_than_filling_the_ring() {
+    let app = app();
+    let mut ring = SnapshotRing::new(4);
+    for tick in 1..=3 {
+        ring.push(tick, snapshot::capture(&app.engine));
+    }
+    for _ in 0..10 {
+        ring.push(2, snapshot::capture(&app.engine));
+    }
+    assert_eq!(ring.len(), 3, "still three distinct ticks");
+    assert_eq!(ring.earliest(), Some(1), "and tick 1 was never crowded out");
+}
+
 #[test]
 fn the_ring_keeps_the_newest_and_forgets_the_oldest() {
     let app = app();

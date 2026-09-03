@@ -1,0 +1,118 @@
+// The input overlay: the keys, buttons, actions and pointer the game is fed
+// this frame, read off the game's own snapshot — so a replay shows its
+// recording's input, and a fed frame shows what fed it.
+
+use crate::util;
+
+// The keys worth a chip; the rest of the key list is media and numpad keys.
+const KEYS = [
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+    "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+    "Key0", "Key1", "Key2", "Key3", "Key4", "Key5", "Key6", "Key7", "Key8", "Key9",
+    "Space", "Return", "Escape", "Tab", "Back", "Left", "Right", "Up", "Down",
+    "LShift", "RShift", "LControl", "RControl", "LAlt", "RAlt", "LWin", "RWin",
+];
+const BUTTONS = ["LMB", "RMB", "MMB"];
+// How many frames a click's ripple grows for.
+const RIPPLE = 18;
+
+pub fn state() {
+    #{ ripples: [] }
+}
+
+fn key_label(key) {
+    match key {
+        "Return" => "Enter",
+        "Back" => "Backspace",
+        "LShift" => "Shift",
+        "RShift" => "Shift",
+        "LControl" => "Ctrl",
+        "RControl" => "Ctrl",
+        "LAlt" => "Alt",
+        "RAlt" => "Alt",
+        "LWin" => "Cmd",
+        "RWin" => "Cmd",
+        _ => if key.starts_with("Key") { key[3..] } else { key },
+    }
+}
+
+// The pointer in design px.
+pub fn pointer(S) {
+    let (px, py) = input::mouse_position();
+    let (_, _, _, _, _, _, _, dpi) = render::camera_pose();
+    (px / (dpi * S.ui_scale), py / (dpi * S.ui_scale))
+}
+
+pub fn draw(S) {
+    let k = S.theme;
+    let v = S.viewport;
+    let vx = util::f(v.x);
+    let vy = util::f(v.y);
+    let vh = util::f(v.h);
+    let iv = S.inputview;
+    let (x, y) = pointer(S);
+    for b in 0..3 {
+        if input::mouse_just_pressed(b) {
+            iv.ripples.push(#{ x: x, y: y, age: 0 });
+        }
+    }
+    let chips = [];
+    for key in KEYS {
+        if input::is_down(key) {
+            chips.push(key_label(key));
+        }
+    }
+    for (i, name) in BUTTONS.iter().enumerate() {
+        if input::is_mouse_down(i) {
+            chips.push(name);
+        }
+    }
+    let actions = [];
+    for name in util::vec(input::actions()) {
+        if input::action_pressed(name) {
+            actions.push(name);
+        }
+    }
+    if chips.len() > 0 || actions.len() > 0 {
+        ui::overlay("input-chips", #{ x: vx + 130.0, y: vy + vh - 46.0 }, || {
+            ui::horizontal(#{ height: 30 }, || {
+                for chip in chips {
+                    ui::pill(chip, #{
+                        height: 28, size: 12.5, strong: true,
+                        fill: k.accent_fill, color: k.on_accent,
+                    });
+                    ui::add_space(4);
+                }
+                for name in actions {
+                    ui::pill(name, #{
+                        height: 28, size: 12.5, strong: true,
+                        fill: k.sunken, stroke: k.accent, color: k.accent,
+                    });
+                    ui::add_space(4);
+                }
+            });
+        });
+    }
+    // Nothing has placed the pointer yet: a run with no mouse would otherwise
+    // show one parked in the corner.
+    if x > 0.0 || y > 0.0 {
+        ui::overlay("input-pointer", #{ x: x - 5.0, y: y - 5.0 }, || {
+            ui::dot(k.accent, 10);
+        });
+    }
+    let kept = [];
+    for (i, r) in iv.ripples.iter().enumerate() {
+        let d = 12.0 + 40.0 * (r.age as f64) / (RIPPLE as f64);
+        ui::overlay(format!("input-ripple-{}", i), #{ x: r.x - d / 2.0, y: r.y - d / 2.0 }, || {
+            ui::frame(#{
+                fill: "#00000000", stroke: k.accent, radius: d / 2.0,
+                padding_x: d / 2.0, padding_y: d / 2.0,
+            }, || {});
+        });
+        r.age = r.age + 1;
+        if r.age < RIPPLE {
+            kept.push(r);
+        }
+    }
+    iv.ripples = kept;
+}

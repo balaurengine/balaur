@@ -1,5 +1,23 @@
-> **Status:** planned, 2026-09-03. Nothing here is built yet except the
-> pieces the *Have* rows name.
+> **Status:** built on 2026-09-03. `scripts/showcase.sh` takes every image
+> and clip; the editor gained `frames=`, `input`, `show:<name>` and the
+> input overlay; `input.feed_*` and `assets.invalidate` are the engine side.
+>
+> **Where the implementation decided differently:**
+>
+> 1. **Sequences are a built-in module, not a plugin.** `showcase.rn` sits
+>    beside `selftest.rn` and is stepped from the editor's `update`; a plugin
+>    has no per-frame hook, and its overlay callback is the wrong place to
+>    drive edits from.
+> 2. **No committed `.blr`.** The gameplay in a clip is fed input
+>    (`input.feed_*`), so the determinism clip records a real session on the
+>    way and replays that. A recording made by hand would have gone stale
+>    with every scene edit; a fed sequence is retaken with the rest.
+> 3. **Media lands in the website repository directly.** The script writes
+>    into `../balaur-website/static/{img/manual,video}`; the engine repository
+>    keeps no PNGs or videos.
+> 4. **The tree does not change during the replay.** angrynerds pops a pig's
+>    components rather than freeing the node, so the viewport, the HUD, the
+>    Session dock's lanes and its event rows carry that part of clip 10.
 
 # Plan: showcase media for the manual
 

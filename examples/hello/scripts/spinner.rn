@@ -12,6 +12,19 @@ pub fn init(this) {
     this.direction = if this.clockwise { 1.0 } else { -1.0 };
 }
 
+// Called by the menu's buttons, not by anything here.
+pub fn reverse(this) {
+    this.direction = -this.direction;
+}
+
+pub fn scale_speed(this, factor) {
+    this.speed = util_clamp(this.speed * factor, 0.25, 32.0);
+}
+
+fn util_clamp(v, lo, hi) {
+    if v < lo { lo } else if v > hi { hi } else { v }
+}
+
 pub fn update(this, dt) {
     if input::action_just_pressed("reverse") {
         this.direction = -this.direction;

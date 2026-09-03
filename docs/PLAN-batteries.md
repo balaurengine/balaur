@@ -1,4 +1,14 @@
-> **Status:** phases 1 and 3 built. Phase 3 (save games) on 2026-09-03:
+> **Status:** phases 1, 3, 4 and 5 built. Phase 5 (localization) on
+> 2026-09-03: `crates/balaur_core/src/strings.rs`, the `strings` module,
+> `[locale]` in `project.toml`, plural rules for the shapes a translator
+> actually writes, `widget.text_key`, and `examples/hello` in English and
+> Romanian. Phase 4 on 2026-09-03 — `row`,
+> `column` and a `panel` that lays out, with `padding`, `gap` and `align`;
+> focus with keyboard navigation, `focusable`, `on_focus` and the `ui.focus_*`
+> verbs a pad reaches it through; and the `widget_theme` asset, inherited down
+> the widget tree. `examples/hello` gains a themed menu that drives the
+> spinner. Phases 2 (audio buses), 5 (localization) and 6 (more widget kinds)
+> are not started. Phase 3 (save games) on 2026-09-03:
 > `crates/balaur_core/src/save.rs`, the `save` script module, `[save]` in
 > `project.toml`, and migrations run one version step at a time. Phase 1
 > (input actions) on 2026-09-02 —
@@ -33,7 +43,46 @@
 >    is a once-at-start twin of `add_replay_source` for anything a plugin
 >    loads rather than simulates — a locale and an audio mix will want it
 >    too. A recording made before a plugin declared its setup still plays.
-> 6. **A migration is a project-declared script, not a per-node hook.** The
+> 6. **No `taffy`.** The plan names it for the arithmetic; egui already does
+>    row, column and grid layout with spacing and margins, it is what the
+>    editor's own panels use, and the renderer is egui either way. A layout
+>    crate earns its place at wrapping and percentages, which nothing has
+>    asked for. Layout is presentation, so neither choice reaches the digest.
+> 7. **A container's parent is the nearest *widget* ancestor.** Not the
+>    parent node: a menu is usually a panel with a grouping node or two
+>    inside it, and the layout should not care.
+> 8. **`panel` lays out too.** The plan lists containers as new kinds beside
+>    the existing ones; a panel is already a frame, and a frame with things
+>    in it is what a menu is made of. One with no children is unchanged,
+>    which every existing scene depends on.
+> 9. **Focusability is derived, not declared.** The plan gives focus its own
+>     flag; a flag alone would let focus land on a label, where an accept has
+>     nothing to do. So a stop is a widget that can be activated, and the flag
+>     can only remove one.
+> 10. **The keyboard is egui's, the pad is the assembly's.** `balaur_ui`
+>     already takes its input from egui, so keys cost nothing. Pads live in
+>     `balaur_input`, which knows nothing about widgets, so `standard_app` —
+>     the crate that knows about both — maps `ui_next` / `ui_previous` /
+>     `ui_accept` onto the focus verbs. Neither plugin grew a dependency.
+> 11. **A theme owns chrome, not content.** The plan says "fonts, colours,
+>     nine-slice panels, per widget kind". Colours and geometry per kind is
+>     what landed; text and size stayed the widget's. That division is what
+>     avoided the real problem — every widget property has a schema default,
+>     so there is no "unset" for a theme to fill in, and a theme that could
+>     set `text_color` would have no way to know whether the author meant the
+>     default or merely accepted it. Nine-slice waits for an image-backed
+>     panel to exist.
+> 12. **Plural rules are a named handful, not CLDR.** The plan says "by CLDR
+>     rules"; the full table is a generated artefact of some size, and what a
+>     game needs is the shapes its own translators write in. English,
+>     Romanian, the Slavic one, French and the one-form languages are named;
+>     everything else gets the English rule, which is also the right rule for
+>     most of the table. Widening it is adding a match arm.
+> 13. **A missing key comes back as itself.** Not in the plan. A blank label
+>     is a bug that hides and a key on screen is a bug that reports itself.
+> 14. **One fallback hop, not a chain.** Two means two files to hold in mind,
+>     and the second is always the language the game was written in.
+> 15. **A migration is a project-declared script, not a per-node hook.** The
 >    plan says "a script declares `migrate_save`", which leaves open *which*
 >    script — a game has many, and a save belongs to none of them.
 >    `[save] migrate = "scripts/saves.rn"` names one, and the engine calls it

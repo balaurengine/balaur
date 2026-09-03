@@ -155,6 +155,26 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: save_version,
     },
     EngineOp {
+        module: "strings",
+        name: "tr",
+        call: strings_tr,
+    },
+    EngineOp {
+        module: "strings",
+        name: "locale",
+        call: strings_locale,
+    },
+    EngineOp {
+        module: "strings",
+        name: "set_locale",
+        call: strings_set_locale,
+    },
+    EngineOp {
+        module: "strings",
+        name: "locales",
+        call: strings_locales,
+    },
+    EngineOp {
         module: "skeleton",
         name: "apply_rest",
         call: crate::skeleton::apply_rest_op,
@@ -188,6 +208,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         module: "assets",
         name: "reload",
         call: assets_reload,
+    },
+    EngineOp {
+        module: "assets",
+        name: "invalidate",
+        call: assets_invalidate,
     },
     EngineOp {
         module: "assets",
@@ -358,6 +383,7 @@ fn document(module: &str, m: &mut dyn balaur_script::Bindings<Engine>) {
         "assets" => document_assets(m),
         "log" => document_log(m),
         "save" => document_save(m),
+        "strings" => document_strings(m),
         "rng" => document_rng(m),
         "fs" => document_fs(m),
         "toml" => document_toml(m),
@@ -431,8 +457,25 @@ fn document_assets(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("duplicate", &[], "(reference: string)", "A private copy of a definition, read past the cache, so editing it disturbs no other holder of that reference."),
         ("exists", &[], "(reference: string)", "Whether a reference resolves to a definition that is really there; false rather than an error when it does not."),
         ("reload", &[], "(reference: string)", "Forget a reference so the next load re-reads its file, along with every entry cut from that same file."),
+        ("invalidate", &[], "()", "Declare everything derived from project files stale — a shader a material links, say — so it is rebuilt from disk; for a file the watcher does not cover."),
         ("save", &[], "(reference: string, definition: any)", "Write a definition table to the project-relative file a reference names; an error unless it names a whole file."),
         ("directory", &[], "(type_name: string)", "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none."),
+    ]);
+}
+
+fn document_strings(m: &mut dyn balaur_script::Bindings<Engine>) {
+    m.module_doc(
+        "Localization: one `strings/<locale>.toml` per language, keys to \
+         strings. `[locale]` in `project.toml` sets the locale a run starts \
+         in and the one a missing key falls back to. A key neither has comes \
+         back as itself — visible in the game, which is how a missing string \
+         gets noticed rather than showing as a blank label.",
+    );
+    m.describe(&[
+        ("tr", &[], "(key: string, args: table?)", "The string for a key in the current locale. `{name}` in it is replaced by the argument called `name`, and an `n` argument also picks the plural form the locale's language calls for."),
+        ("locale", &[], "()", "The locale in force."),
+        ("set_locale", &[], "(locale: string)", "Switch locale; the next `tr` answers in it, which for a widget showing a key is the next frame."),
+        ("locales", &[], "()", "Every locale the project ships a `strings/<locale>.toml` for, in name order."),
     ]);
 }
 
@@ -618,9 +661,21 @@ fn get_node(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn spawn(eng: &Engine, args: &[Value]) -> Result<Value> {
     let parent = optional_node(args, 1)?.unwrap_or_else(|| eng.root());
-    let mut world = eng.world_mut();
-    let entity = scene::spawn_node(&mut world, text(args, 0)?, parent);
-    crate::ids::assign(eng, &mut world, entity);
+    let name = text(args, 0)?.to_string();
+    let entity = {
+        let mut world = eng.world_mut();
+        let entity = scene::spawn_node(&mut world, &name, parent);
+        crate::ids::assign(eng, &mut world, entity);
+        entity
+    };
+    // A game that spawns is a game whose world changed, which is what a
+    // session timeline is for. Scene loading does not come through here.
+    crate::replay::event(
+        eng,
+        "scene.spawn",
+        format!("spawned {name}"),
+        Some(serde_json::json!({ "name": name })),
+    );
     Ok(Value::Node(crate::node_id_of(entity).0))
 }
 
@@ -744,6 +799,36 @@ fn component_schema(eng: &Engine, args: &[Value]) -> Result<Value> {
     })
 }
 
+fn strings_tr(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let args_table = match args.get(1) {
+        Some(Value::Map(fields)) => fields.clone(),
+        _ => Vec::new(),
+    };
+    Ok(Value::Str(crate::strings::tr(
+        eng,
+        text(args, 0)?,
+        &args_table,
+    )))
+}
+
+fn strings_locale(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::Str(crate::strings::locale(eng)))
+}
+
+fn strings_set_locale(eng: &Engine, args: &[Value]) -> Result<Value> {
+    crate::strings::set_locale(eng, text(args, 0)?);
+    Ok(Value::Nil)
+}
+
+fn strings_locales(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::List(
+        crate::strings::locales(eng)
+            .into_iter()
+            .map(Value::Str)
+            .collect(),
+    ))
+}
+
 fn save_write(eng: &Engine, args: &[Value]) -> Result<Value> {
     crate::save::write(eng, text(args, 0)?, args.get(1).unwrap_or(&Value::Nil))?;
     Ok(Value::Nil)
@@ -827,6 +912,11 @@ fn assets_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// calls after writing an asset file.
 fn assets_reload(eng: &Engine, args: &[Value]) -> Result<Value> {
     crate::assets::reload(eng, text(args, 0)?)?;
+    Ok(Value::Nil)
+}
+
+fn assets_invalidate(eng: &Engine, _args: &[Value]) -> Result<Value> {
+    crate::assets::invalidate(eng);
     Ok(Value::Nil)
 }
 

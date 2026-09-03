@@ -6,12 +6,12 @@
 //! and so is this: the lines are produced after the step from state the step
 //! already wrote, and nothing here can reach the tick.
 
+use crate::rapier3d::pipeline::{
+    DebugRenderBackend, DebugRenderMode, DebugRenderObject, DebugRenderPipeline,
+};
 use balaur_core::debug_lines::{DebugLineBuffer, DebugLineBuffer2d};
 use balaur_core::{App, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
-use rapier3d::pipeline::{
-    DebugRenderBackend, DebugRenderMode, DebugRenderObject, DebugRenderPipeline,
-};
 
 use crate::vocabulary::Opts;
 use crate::{PhysicsState, PhysicsState2d};
@@ -41,7 +41,7 @@ impl Default for PhysicsDebugConfig {
 #[derive(Default)]
 pub struct PhysicsDebugState {
     pipeline: DebugRenderPipeline,
-    pipeline_2d: rapier2d::pipeline::DebugRenderPipeline,
+    pipeline_2d: crate::rapier2d::pipeline::DebugRenderPipeline,
 }
 
 /// The mode flags a script can name, in the vocabulary the engine uses for
@@ -72,12 +72,12 @@ impl DebugRenderBackend for Lines3d<'_> {
     fn draw_line(
         &mut self,
         _object: DebugRenderObject<'_>,
-        a: rapier3d::math::Vector,
-        b: rapier3d::math::Vector,
+        a: crate::rapier3d::math::Vector,
+        b: crate::rapier3d::math::Vector,
         color: [f32; 4],
     ) {
         self.out
-            .push([a.x, a.y, a.z], [b.x, b.y, b.z], hsl_rgb(color));
+            .push(crate::scalar::a3(a), crate::scalar::a3(b), hsl_rgb(color));
     }
 }
 
@@ -85,15 +85,16 @@ struct Lines2d<'a> {
     out: &'a mut DebugLineBuffer2d,
 }
 
-impl rapier2d::pipeline::DebugRenderBackend for Lines2d<'_> {
+impl crate::rapier2d::pipeline::DebugRenderBackend for Lines2d<'_> {
     fn draw_line(
         &mut self,
-        _object: rapier2d::pipeline::DebugRenderObject<'_>,
-        a: rapier2d::math::Vector,
-        b: rapier2d::math::Vector,
+        _object: crate::rapier2d::pipeline::DebugRenderObject<'_>,
+        a: crate::rapier2d::math::Vector,
+        b: crate::rapier2d::math::Vector,
         color: [f32; 4],
     ) {
-        self.out.push([a.x, a.y], [b.x, b.y], hsl_rgb(color));
+        self.out
+            .push(crate::scalar::a2(a), crate::scalar::a2(b), hsl_rgb(color));
     }
 }
 
@@ -127,7 +128,7 @@ fn draw_system(eng: &Engine, _dt: f32) {
     let debug = &mut *debug;
     debug.pipeline.mode = config.mode;
     debug.pipeline_2d.mode =
-        rapier2d::pipeline::DebugRenderMode::from_bits_truncate(config.mode.bits());
+        crate::rapier2d::pipeline::DebugRenderMode::from_bits_truncate(config.mode.bits());
     if let Some(buffer) = eng.try_resource::<DebugLineBuffer>() {
         let state = eng.resource::<PhysicsState>();
         state.borrow().world.debug_render(
