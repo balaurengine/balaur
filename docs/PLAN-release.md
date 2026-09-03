@@ -40,7 +40,7 @@ opens without a warning and updates itself.
 
 ## Cutting a release
 
-Versioning began at **0.2.0** (2026-09-03). The engine is pre-1.0, so a minor
+Versioning began at **0.1.0** (2026-09-03). The engine is pre-1.0, so a minor
 bump carries breaking changes and the changelog's `### Breaking` section is
 what says which.
 

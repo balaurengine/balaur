@@ -384,12 +384,12 @@ fn scripting(S, q) {
 
 // The rig scene carries a `camera` node, which outvotes the editor's own
 // zoom every frame, so the clip's framing is that node's.
-fn fit_leg(S) {
+fn fit_figure(S) {
     let held = S.sel;
     match index_of(S, "Camera") {
         Some(i) => {
             S.sel = i;
-            model::set_transform(S, i, #{ position: [-0.2, 0.25, 0.0] });
+            model::set_transform(S, i, #{ position: [0.6, 0.1, 0.0] });
             model::set_component_prop(S, "camera", "zoom", 150.0);
         }
         None => (),
@@ -399,7 +399,7 @@ fn fit_leg(S) {
 
 // Animation, `examples/rig`: scrub the clip, pose the thigh, key it, play.
 fn animation(S, q) {
-    act(q, 1, || fit_leg(S));
+    act(q, 1, || fit_figure(S));
     click(S, q, 20, || spot(S, "anim_tab"), || shell::set_persona(S, "anim"));
     click_row(S, q, 90, "Thigh");
     click(S, q, 150, || spot(S, "bone_tool"), || {

@@ -167,6 +167,7 @@ impl Plugin for PhysicsPlugin {
         query::install_shapecast_api(&mut *m);
         query::install_volume_query_api(&mut *m);
         query::install_pair_query_api(&mut *m);
+        query::install_world_list_api(&mut *m);
         joint::install_joint_api(&mut *m);
         character::install_character_api(&mut *m);
         vehicle::install_vehicle_api(&mut *m);

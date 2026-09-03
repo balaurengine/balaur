@@ -1619,7 +1619,7 @@ What does not exist yet, each with the plan that says how it will. The
 website's roadmap is the short form of this list, and `CHANGELOG.md` is what
 each release added.
 
-The engine is at **0.2.0**. One version for the whole workspace; a release is
+The engine is at **0.1.0**. One version for the whole workspace; a release is
 a `v*` tag whose notes are that version's changelog section, and cutting one
 means moving `Unreleased` into a dated section, bumping
 `[workspace.package] version`, and striking from this table whatever the
@@ -1637,7 +1637,7 @@ release finished.
 | 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |
 | Shader channel views, the caret value preview, headless shader tests, post-process materials | `docs/PLAN-shaders.md` phases 6-9 |
 | More widget kinds, as games ask for them | `docs/PLAN-batteries.md` phase 6 |
-| WebTransport (QUIC) native and in the browser, replication and RPC, Gamend sessions, WebRTC for browser peer-to-peer; never raw UDP | `docs/PLAN-networking.md` §2.4-2.6. Binary frames, run-time stable ids and rollback (one machine and over a socket) shipped in 0.2.0 |
+| WebTransport (QUIC) native and in the browser, replication and RPC, Gamend sessions, WebRTC for browser peer-to-peer; never raw UDP | `docs/PLAN-networking.md` §2.4-2.6. Binary frames, run-time stable ids and rollback (one machine and over a socket) shipped in 0.1.0 |
 | Signed binary releases, published benchmarks | `docs/PLAN-release.md` |
 | Web export | `docs/PLAN-mobile-export.md` "Web" |
 | Parallel system execution, once profiling demands it | no plan yet; the gameplay tick is serial by design |

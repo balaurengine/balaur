@@ -1,11 +1,9 @@
 # Changelog
 
-One line per feature. Versions are the workspace's; a release is a `v*` tag
-whose notes are that version's section.
+One line per feature. Nothing has been released yet, so everything is under
+Unreleased; a release is a `v*` tag whose notes become that version's section.
 
 ## Unreleased
-
-## 0.2.0 — 2026-09-03
 
 ### Scripting
 
@@ -37,12 +35,25 @@ whose notes are that version's section.
 - 2D and 3D skeletal animation: `bone2d`, `bone3d`, the `skeleton` module, CPU skinning.
 - `modifier2d`: `look_at` and `two_bone_ik`, run after the clip.
 - `rotation` clip tracks take quaternion keys.
+- `examples/rig` is one figure: the arm's bone chain branches off the body's top bone rather than hanging beside it from the character root, so one clip drives one skeleton.
 - New 3D shapes (capsule, cylinder, cone, plane, mesh) and 2D shapes (capsule, polyline).
 
 ### Physics
 
-- The rest of Rapier: joints of every kind, motors, limits, breakable, character controllers.
-- New colliders: 3D capsule, cylinder, cone, triangle, trimesh, convex hull, polyline, heightfield; 2D capsule.
+- The rest of Rapier, in both dimensions (`docs/PLAN-rapier.md`): every rigid-body property rapier has — damping, gravity scale, axis locks, CCD, dominance, mass, per-body sleep, forces and torques.
+- Joints: fixed, revolute, prismatic, spherical, rope, spring, pin-slot and generic, with motors, limits, `break_force`, and impulse or reduced-coordinate solvers.
+- Inverse kinematics on a reduced-coordinate chain: `physics3d.solve_ik`.
+- Character controllers: `character3d` / `character2d` and `move_character`, sliding, stepping, slope limits, ground snapping, and pushing what they walk into.
+- The whole query pipeline: raycasts, shape casts, point, shape and box queries, pairwise distance and time of impact, filtered by body kind, layers, an excluded node or a script predicate.
+- Collision and contact-force events reach the node's script as `on_collision_start`, `on_collision_stop` and `on_contact_force`; a broken joint as `on_joint_break`.
+- The three physics hooks — `filter_contact`, `filter_overlap`, `modify_contacts` — and one-way platforms.
+- New colliders: 3D capsule, cylinder, cone, triangle, segment, halfspace, trimesh, convex hull, convex decomposition, polyline, heightfield, voxels, voxelized and mesh-fitted; 2D gained all of them but the solids.
+- Colliders carry offsets, 32 collision layers, solver layers, combine rules, contact skin and per-collider mass; one on a child node belongs to the body above it, which is how a body carries several shapes.
+- Voxel terrain is editable while the game runs: `physics3d.set_voxel`, and `collider_mesh` tessellates any grid for drawing.
+- A ray-cast vehicle: `vehicle3d` with `wheel3d` children, suspension tuning, engine force, brake and steering.
+- `geometry3d`: convex hulls, convex decomposition, voxelising, cutting a mesh with a plane, boolean intersection, and separating a mesh into its pieces.
+- Physics debug draw (`physics.set_debug_draw`), the solver's own tuning through `[physics]` in `project.toml` or `physics.set_tuning`, quarantine reporting and step counters.
+- Two build-time choices: `parallel` runs rapier's coloured solver on rayon, and `f64` swaps in double precision for worlds tens of kilometres across.
 
 ### Determinism and networking
 

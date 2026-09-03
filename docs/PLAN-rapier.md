@@ -108,7 +108,7 @@ a weekend of `m.function(...)` calls.
 | `add_force`, `add_torque`, `add_force_at_point`, `reset_forces`, `reset_torques`, `user_force`, `user_torque` | same names | Continuous force, as against today's impulse-only; the readers show what a step is about to integrate |
 | `apply_torque_impulse`, `apply_impulse_at_point` | same names | |
 | `set_angvel`, `angvel` (3D) | `set_angular_velocity`, `angular_velocity` | Exists in 2D only today — a pure asymmetry |
-| `velocity_at_point`, `mass`, `kinetic_energy`, `gravitational_potential_energy`, `is_moving` | same names | Readers N8 already wants |
+| `velocity_at_point`, `mass`, `kinetic_energy`, `gravitational_potential_energy`, `is_moving` | `velocity_at_point`, `mass`, `kinetic_energy`, `potential_energy`, `is_moving` | Readers N8 already wants |
 | `predict_position_using_velocity`, `predict_position_using_velocity_and_forces`, `next_position` | `predict_position(node, dt, forces)`, `next_position` | Where a body will be, for aiming and cameras |
 | `sleep`, `wake_up`, `is_sleeping`, `PhysicsWorld::wake_up_all` | `sleep`, `wake_up`, `is_sleeping`, `physics3d.wake_all` | |
 | `set_position` on a dynamic body | `teleport` | See Open question 1 |

@@ -1,6 +1,7 @@
-# A 2D rig: three bones in a chain, a textured polygon skinned to them, and a
-# clip on the character root that swings the joints. Nothing here is script
-# driven; the bones are nodes and the clip addresses them by path.
+# A 2D rig: one figure, a body of three bones with an arm branching off the
+# top, each with a textured polygon skinned to it, and a clip on the character
+# root that swings the joints while the arm reaches for a target. Nothing here
+# is script driven; the bones are nodes and the clip addresses them by path.
 
 [[nodes]]
 id = "n_camera"
@@ -72,7 +73,7 @@ keys = [
 
 [nodes.modifier2d]
 kind = "two_bone_ik"
-bone = "Shoulder"
+bone = "Hip/Thigh/Shin/Shoulder"
 target = "Target"
 
 [[nodes]]
@@ -137,9 +138,9 @@ weights = [0, 0, 0, 0.5, 1, 1, 0.5, 0]
 [[nodes]]
 id = "n_shoulder"
 name = "Shoulder"
-parent = "n_hero"
-position = [0.4, 2.1, 0]
-bone2d = { rest_position = [0.4, 2.1], rest_rotation = 0.0 }
+parent = "n_shin"
+position = [0.4, 0.4, 0]
+bone2d = { rest_position = [0.4, 0.4], rest_rotation = 0.0 }
 
 [[nodes]]
 id = "n_elbow"
@@ -169,8 +170,8 @@ color = [0.9, 0.35, 0.3, 1.0]
 [[nodes]]
 id = "n_sleeve"
 name = "Sleeve"
-parent = "n_hero"
-position = [0.4, 2.1, 0]
+parent = "n_shin"
+position = [0.4, 0.4, 0]
 
 [nodes.polygon]
 texture = "art/limb.png"
@@ -209,7 +210,7 @@ parent = ""
 anchor = "top_left"
 kind = "label"
 font_size = 16
-text = "rig · a skinned leg on a clip, a skinned arm on two-bone IK"
+text = "rig · one figure: a clip swings the body, two-bone IK reaches the arm"
 text_color = "#f9f4ed"
 x = 16
 y = 16

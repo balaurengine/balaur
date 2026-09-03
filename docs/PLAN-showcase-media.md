@@ -146,7 +146,10 @@ Built, in the order it landed:
    widget whose `on_click` forwards to the game script; `examples/shaders` is
    a sprite on a `material` whose `.wesl` computes UV, a ring wave and a
    colour ramp as separate typed `let`s.
-5. **`scripts/showcase.sh [website-dir] [name...]`.** Every image and clip as
+5. **`scripts/showcase.sh [website-dir] [name...]`.** The poster is a frame
+   from the middle of the take rather than its first: a clip opens on a click
+   already in flight, with nothing selected yet, which made a poor still.
+   Otherwise: Every image and clip as
    one line — project, state, output — written straight into the website's
    `static/img/manual/` and `static/video/`. A named argument takes one; a
    failed take is reported and the rest are still taken. `BALAUR_BIN` skips
@@ -186,6 +189,10 @@ each persona's picture moves to the page about its feature.
   clip for editing a scene under a recording.
 - **The input overlay names the key and the action**, side by side: a key
   chip per key or button held, then a pill per action they drive.
-- **The rig clip frames the leg through the scene's own camera node**, which
-  outvotes the editor's zoom every frame, and keys a small rotation: a large
-  one shears the skin, which reads as a joint coming apart.
+- **The rig clip frames the figure through the scene's own camera node**,
+  which outvotes the editor's zoom every frame, and keys a small rotation: a
+  large one shears the skin, which reads as a joint coming apart.
+- **`examples/rig` is one figure.** Its arm used to hang off the character
+  root beside the body, so the clip swung the body out from under it and it
+  read as a joint that had come apart. The arm's chain now branches off the
+  body's top bone and rides it.

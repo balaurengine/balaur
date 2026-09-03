@@ -43,6 +43,15 @@ slot() { printf '%s/orig-%s' "$work" "${1//\//_}"; }
 backup_examples() { local f; for f in "${edited[@]}"; do cp "$f" "$(slot "$f")"; done; }
 reset_examples() { local f; for f in "${edited[@]}"; do cp "$(slot "$f")" "$f"; done; }
 
+# The poster is a frame from the middle of the take, not its first: a clip
+# opens on a click already in flight, with nothing selected yet.
+poster() { # poster <name>
+  local frames pick
+  frames=("$work/$1"/*.png)
+  pick=${frames[$(( ${#frames[@]} * 2 / 5 ))]}
+  cp "$pick" "$img/$1.png"
+}
+
 # A failed take is reported and the rest are still taken.
 failed() { echo "FAILED"; tail -5 "$work/$1.log" | cut -c1-200; failed+=("$1"); }
 
@@ -71,7 +80,7 @@ clip() { # clip <name> <project> <frames> <state>
     -c:v libvpx-vp9 -crf 34 -b:v 0 -pix_fmt yuv420p "$vid/$1.webm"
   ffmpeg -y -loglevel error -framerate 30 -pattern_type glob -i "$work/$1/*.png" \
     -c:v libx264 -crf 24 -pix_fmt yuv420p -movflags +faststart "$vid/$1.mp4"
-  cp "$work/$1/000000.png" "$img/$1.png"
+  poster "$1"
   echo "ok $(du -h "$vid/$1.webm" | cut -f1)"
 }
 

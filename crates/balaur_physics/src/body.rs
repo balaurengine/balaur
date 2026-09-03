@@ -494,6 +494,9 @@ pub(crate) fn install_force_reader_api(m: &mut dyn Bindings<Engine>) {
 /// a body about itself or changes how it is simulated.
 pub(crate) fn install_body_state_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
+        ("potential_energy", &["body3d"], "", "The body's gravitational potential energy over one step."),
+        ("is_moving", &["body3d"], "", "Whether the body is awake and actually going somewhere."),
+        ("effective_dominance", &["body3d"], "", "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with."),
         (
             "set_linear_velocity",
             &["body3d"],

@@ -419,8 +419,6 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
         ("contacts", &["collider3d"], "", "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
         ("max_contact_impulse", &["collider3d"], "", "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number."),
         ("time_of_impact", &[], "(a: node, b: node, opts: table)", "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max = 1.0 }`. Nothing when they never do."),
-        ("bodies", &[], "()", "Every node with a rigid body, sorted."),
-        ("active_bodies", &[], "()", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
     ]);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
         with_pair(eng, a, b, |world, first, second| {
@@ -460,6 +458,75 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
             })
         },
     );
+    m.function(
+        "time_of_impact",
+        |eng: &Engine, (a, b, opts): (NodeId, NodeId, Value)| {
+            let opts = Opts(Some(&opts));
+            let (va, vb) = (
+                scalar::v3a(opts.vec3("velocity_a", [0.0; 3])),
+                scalar::v3a(opts.vec3("velocity_b", [0.0; 3])),
+            );
+            let options = ShapeCastOptions {
+                max_time_of_impact: scalar::real(opts.f32("max", 1.0)),
+                stop_at_penetration: opts.boolean("stop_at_penetration", true),
+                ..ShapeCastOptions::default()
+            };
+            with_pair(eng, a, b, |_, first, second| {
+                let hit = crate::rapier3d::parry::query::cast_shapes(
+                    first.position(),
+                    va,
+                    first.shape(),
+                    second.position(),
+                    vb,
+                    second.shape(),
+                    options,
+                )
+                .map_err(|e| anyhow!("those two shapes cannot be swept: {e}"))?;
+                Ok(hit.map_or(Value::Nil, |hit| {
+                    map([
+                        ("distance", Value::Num(f64::from(hit.time_of_impact))),
+                        ("point", Value::Vec3(scalar::a3(hit.witness1))),
+                        ("normal", Value::Vec3(scalar::a3(hit.normal1))),
+                    ])
+                }))
+            })
+        },
+    );
+}
+
+/// What the world holds: every body, and every body that is awake.
+///
+/// Split from [`install_pair_query_api`] under `MAX_FN_LINES`.
+pub(crate) fn install_world_list_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("bodies", &[], "()", "Every node with a rigid body, sorted."),
+        ("active_bodies", &[], "()", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
+    ]);
+    m.function("bodies", |eng: &Engine, ()| {
+        let state = eng.resource::<PhysicsState>();
+        let state = state.borrow();
+        let mut nodes: Vec<Entity> = state.bodies.keys().copied().collect();
+        Ok(node_list(&mut nodes))
+    });
+    // Awake bodies only: a game that walks every body each frame to read a
+    // position is doing the one thing sleeping was meant to save.
+    m.function("active_bodies", |eng: &Engine, ()| {
+        let state = eng.resource::<PhysicsState>();
+        let state = state.borrow();
+        let mut nodes: Vec<Entity> = state
+            .bodies
+            .iter()
+            .filter(|(_, handle)| {
+                state
+                    .world
+                    .bodies
+                    .get(**handle)
+                    .is_some_and(|body| !body.is_sleeping())
+            })
+            .map(|(entity, _)| *entity)
+            .collect();
+        Ok(node_list(&mut nodes))
+    });
     m.function("contacts", |eng: &Engine, node: NodeId| {
         contact_list(eng, node)
     });
