@@ -12,7 +12,7 @@ use balaur_platform::{Call, PlatformEvent, Player, Score};
 use block2::RcBlock;
 use objc2::runtime::AnyObject;
 use objc2::{msg_send, AllocAnyThread};
-use objc2_foundation::{NSArray, NSError, NSRange, NSString};
+use objc2_foundation::{NSArray, NSError, NSRange, NSString, NSURL};
 use objc2_game_kit::{
     GKAchievement, GKLeaderboard, GKLeaderboardEntry, GKLeaderboardPlayerScope,
     GKLeaderboardTimeScope, GKLocalPlayer,
@@ -48,7 +48,7 @@ pub(crate) fn platform_call(request: u64, call: &Call, report: &Sender<PlatformE
     }
 }
 
-pub(crate) fn apple_call(request: u64, call: &AppleCall, report: &Sender<AppleEvent>) {
+pub(crate) fn apple_call(request: u64, call: AppleCall, report: &Sender<AppleEvent>) {
     match call {
         AppleCall::Identity => identity(request, report),
         AppleCall::SignIn => crate::signin::sign_in(request, report),
@@ -159,7 +159,7 @@ fn scores(request: u64, board: &str, count: u32, report: &Sender<PlatformEvent>)
                 });
                 return;
             }
-            let found = unsafe { boards.as_ref() }.and_then(|boards| boards.firstObject());
+            let found = unsafe { boards.as_ref() }.and_then(NSArray::firstObject);
             let Some(board) = found else {
                 let _ = report.send(PlatformEvent::Failed {
                     request,
@@ -236,7 +236,7 @@ fn identity(request: u64, report: &Sender<AppleEvent>) {
     let id = unsafe { player.gamePlayerID() }.to_string();
     let report = report.clone();
     let fetched = RcBlock::new(
-        move |url: *mut objc2_foundation::NSURL,
+        move |url: *mut NSURL,
               signature: *mut objc2_foundation::NSData,
               salt: *mut objc2_foundation::NSData,
               timestamp: u64,
@@ -251,7 +251,7 @@ fn identity(request: u64, report: &Sender<AppleEvent>) {
                     request,
                     player: id.clone(),
                     url: unsafe { url.as_ref() }
-                        .and_then(|url| url.absoluteString())
+                        .and_then(NSURL::absoluteString)
                         .map(|url| url.to_string())
                         .unwrap_or_default(),
                     // Base64 rather than bytes: what these are for is a JSON

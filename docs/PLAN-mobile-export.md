@@ -76,8 +76,11 @@ asset or preloaded into the emscripten filesystem. It still needs the window
 problem solved: a wgpu surface on a canvas.
 
 `scripts/package_template.sh web` builds and packages that `.wasm` on every
-push, with default features — so what CI proves today is that the simulation
-links for the browser, not that anything draws.
+push. The target is `wasm32-unknown-unknown` with wasm-bindgen, not
+emscripten: kiss3d and wgpu only support the browser there
+(`docs/PLAN-web-editor.md` §5 question 1). The job builds with `window` on
+and prints the raw, gzip and brotli size, so the download cost is a number in
+every run rather than a guess.
 
 Of the three, **web is the one to do first** — it has one blocker instead of
 three, and it is the platform where "click a link and play it" is worth most.

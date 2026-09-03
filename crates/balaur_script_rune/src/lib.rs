@@ -62,9 +62,10 @@ pub fn factory() -> balaur_core::ScriptHostFactory {
 /// Compiles `.rn` sources for an export pack.
 ///
 /// A pack ships the compiled unit, not the source: startup costs a
-/// deserialise instead of a compile, and the source stays out of the shipped
-/// game. Rune promises nothing about a unit surviving a version change, which
-/// is why [`packed`] stamps a format number and refuses anything else.
+/// deserialise instead of a compile, and no source text goes out with the
+/// game. Names do — see [`packed`] for exactly what survives. Rune promises
+/// nothing about a unit surviving a version change, which is why that module
+/// stamps a format number and refuses anything else.
 ///
 /// The compile runs through the live host, not a bare context. Rune resolves
 /// `input::just_pressed` and friends at compile time, so a context without the
@@ -303,6 +304,14 @@ impl rune::compile::SourceLoader for PackSourceLoader {
         for candidate in [base.join("mod.rn"), base.with_extension("rn")] {
             let key = candidate.to_string_lossy().replace('\\', "/");
             if let Some(bytes) = self.scripts.get(&key) {
+                // A compiled pack has already folded its modules into each
+                // unit, so nothing should be compiling against one here.
+                if packed::is_encoded(bytes) {
+                    return Err(rune::compile::Error::msg(
+                        span,
+                        format!("module {key} is compiled, not source"),
+                    ));
+                }
                 let text = String::from_utf8_lossy(bytes);
                 return Ok(Source::with_path(key.as_str(), text.as_ref(), &candidate)?);
             }
@@ -342,7 +351,20 @@ impl std::future::Future for WaitFuture {
     }
 }
 
+/// What one script cost a frame. Instructions rather than nanoseconds: two
+/// runs of a deterministic simulation execute the same instructions, so a
+/// regression here is a real change in what the script does, not noise from
+/// the machine it ran on.
+#[derive(Clone, Copy, Default)]
+pub struct ScriptCost {
+    pub calls: u64,
+    pub instructions: u64,
+}
+
 struct State {
+    /// Per-script cost since profiling was turned on. `None` when it is off,
+    /// which is the check the hot path makes.
+    profile: Option<HashMap<Rc<str>, ScriptCost>>,
     /// Stop where a script threw instead of logging it past.
     break_on_error: bool,
     /// A debugger asked to stop; the next line a script runs is where.
@@ -400,6 +422,7 @@ impl RuneHost {
         Ok(Self {
             engine,
             state: Rc::new(RefCell::new(State {
+                profile: None,
                 break_on_error: false,
                 break_next: false,
                 project_root,
@@ -420,6 +443,51 @@ impl RuneHost {
 
     pub fn engine(&self) -> Engine {
         self.engine.clone()
+    }
+
+    /// Start or stop counting what each script costs. Turning it on clears
+    /// what was counted before.
+    ///
+    /// Only synchronous calls are counted. An async method runs on a VM the
+    /// future owns, and its instructions land wherever it is resumed.
+    pub fn set_profiling(&self, on: bool) {
+        self.state.borrow_mut().profile = on.then(HashMap::new);
+    }
+
+    pub fn profiling(&self) -> bool {
+        self.state.borrow().profile.is_some()
+    }
+
+    /// What each script has cost since profiling started, dearest first.
+    pub fn script_costs(&self) -> Vec<(String, ScriptCost)> {
+        let state = self.state.borrow();
+        let Some(profile) = &state.profile else {
+            return Vec::new();
+        };
+        let mut out: Vec<(String, ScriptCost)> = profile
+            .iter()
+            .map(|(key, cost)| (key.to_string(), *cost))
+            .collect();
+        out.sort_by(|a, b| {
+            b.1.instructions
+                .cmp(&a.1.instructions)
+                .then_with(|| a.0.cmp(&b.0))
+        });
+        out
+    }
+
+    /// Attribute `instructions` to `key`. A no-op while profiling is off.
+    fn charge(&self, key: &str, instructions: u64) {
+        let mut state = self.state.borrow_mut();
+        let Some(profile) = &mut state.profile else {
+            return;
+        };
+        let cost = match profile.get_mut(key) {
+            Some(cost) => cost,
+            None => profile.entry(Rc::from(key)).or_default(),
+        };
+        cost.calls = cost.calls.wrapping_add(1);
+        cost.instructions = cost.instructions.wrapping_add(instructions);
     }
 
     /// Fold every registered module into a context.

@@ -65,6 +65,11 @@ pub fn ui(name) {
         "instance" => "\u{e1ca}",
         "events" => "\u{e2e2}",
         "split" => "\u{e546}",
+        "collapse" => "\u{e134}",
+        "caret-left" => "\u{e138}",
+        "arrow-line-left" => "\u{e062}",
+        "arrow-line-right" => "\u{e064}",
+        "arrow-line-down" => "\u{e05c}",
         "scriptfile" => "\u{e914}",
         _ => "\u{ecde}",
     }

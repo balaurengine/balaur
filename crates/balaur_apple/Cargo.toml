@@ -53,9 +53,10 @@ objc2-game-kit = { version = "0.3.2", default-features = false, features = [
     "GKLeaderboardEntry",
 ] }
 
+# No facade here: what these tests drive is the plugin and the seam under it,
+# and pulling the whole engine in to do that costs a script backend.
 [dev-dependencies]
 tempfile = "3"
-balaur = { workspace = true, features = ["apple"] }
 
 [lints]
 workspace = true

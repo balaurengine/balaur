@@ -61,7 +61,7 @@ mod backend {
         });
     }
 
-    pub(crate) fn apple_call(request: u64, call: &AppleCall, report: &Sender<AppleEvent>) {
+    pub(crate) fn apple_call(request: u64, call: AppleCall, report: &Sender<AppleEvent>) {
         let _ = report.send(AppleEvent::Unsupported {
             request,
             call: call.name().to_string(),
@@ -78,7 +78,7 @@ mod backend {
 pub const AVAILABLE: bool = backend::AVAILABLE;
 
 /// A call only Apple answers.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum AppleCall {
     /// The items a server needs to check that a Game Center player is who
     /// the device says: `fetchItemsForIdentityVerificationSignature`.
@@ -184,7 +184,7 @@ impl AppleState {
             Some(serde_json::json!({ "id": id, "call": call.name() })),
         );
         self.io
-            .start(eng, |report| backend::apple_call(id, &call, report));
+            .start(eng, |report| backend::apple_call(id, call, report));
     }
 }
 
@@ -273,7 +273,8 @@ pub struct ApplePlugin {
 impl Default for ApplePlugin {
     fn default() -> Self {
         Self {
-            manifest: balaur_plugin::Manifest::new("apple", env!("CARGO_PKG_VERSION")),
+            manifest: balaur_plugin::Manifest::new("apple", env!("CARGO_PKG_VERSION"))
+                .requiring(&["platform"]),
         }
     }
 }

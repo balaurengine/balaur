@@ -108,29 +108,58 @@ MANIFEST
   ;;
 
 web)
-  target=wasm32-unknown-emscripten
-  step "build ($target)"
+  target=wasm32-unknown-unknown
+  step "build ($target, windowed)"
   rustup target add "$target"
-  # The link tolerates undefined symbols (.cargo/config.toml) because egui's
-  # web-sys dependency leaves wasm-bindgen intrinsics unresolved on emscripten.
-  # So the link no longer catches a missing symbol of ours; this does.
-  build_log=$(mktemp)
-  cargo build --release -p balaur_cli --target "$target" 2>&1 | tee "$build_log"
-  stray=$(grep -oE 'undefined symbol: [A-Za-z0-9_]+' "$build_log" |
-    sed 's/undefined symbol: //' | grep -vE '^__wb(indgen|g_)' | sort -u || true)
-  rm -f "$build_log"
-  if [ -n "$stray" ]; then
-    printf '::error::undefined symbols that are not wasm-bindgen intrinsics: %s\n' "$(tr '\n' ' ' <<<"$stray")"
+  # wasm-bindgen, not emscripten: kiss3d declares its web dependencies under
+  # [target.wasm32-unknown-unknown] and wgpu reaches WebGPU only through
+  # web-sys. See docs/PLAN-web-editor.md §5 question 1.
+  #
+  # webtransport is left out because it has no wasm backend: its Cargo.toml
+  # puts every dependency behind cfg(not(wasm)) while its source imports them
+  # unconditionally. Put it back once it grows the stub http and websocket
+  # already have.
+  cargo build --profile web --target "$target" -p balaur_cli \
+    --no-default-features --features audio,http,websocket,gamend,window
+
+  wasm="target/$target/web/balaur.wasm"
+  [ -f "$wasm" ] || { printf '::error::no %s\n' "$wasm"; exit 1; }
+
+  # The CLI must match the wasm-bindgen the build linked against; read it off
+  # Cargo.lock rather than pinning a second copy of the number here.
+  step "bindgen"
+  want=$(awk '/^name = "wasm-bindgen"$/{getline; gsub(/[" ]/,""); sub(/version=/,""); print; exit}' Cargo.lock)
+  have=$(wasm-bindgen --version 2>/dev/null | awk '{print $2}' || true)
+  if [ "$want" != "$have" ]; then
+    printf '::error::wasm-bindgen CLI is %s, Cargo.lock wants %s\n' "${have:-missing}" "$want"
     exit 1
   fi
-  # emcc emits the .wasm beside the .js loader that instantiates it. Either one
-  # alone is unusable, and `[ -f ] && cp` in a loop exits the script with no
-  # message when the last file is missing, which is how this went unnoticed.
-  for f in balaur.wasm balaur.js; do
-    from="target/$target/release/$f"
-    [ -f "$from" ] || { printf '::error::emscripten produced no %s\n' "$f"; exit 1; }
-    cp "$from" "$dist/$f"
-  done
+  wasm-bindgen --target web --no-typescript --out-dir "$dist" --out-name balaur "$wasm"
+
+  # -Oz after bindgen, never before: bindgen rewrites the module and would
+  # undo the pass.
+  step "wasm-opt"
+  wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int \
+    -o "$dist/balaur_bg.wasm" "$dist/balaur_bg.wasm"
+
+  # The number that decides whether a browser can be asked to load this.
+  # Brotli is what a static host actually serves.
+  step "size"
+  raw=$(wc -c <"$dist/balaur_bg.wasm")
+  gz=$(gzip -9 -c "$dist/balaur_bg.wasm" | wc -c)
+  br=$(command -v brotli >/dev/null && brotli -q 11 -c "$dist/balaur_bg.wasm" | wc -c || echo 0)
+  printf 'wasm raw    %8.2f MB\n' "$(echo "$raw/1048576" | bc -l)"
+  printf 'wasm gzip   %8.2f MB\n' "$(echo "$gz/1048576" | bc -l)"
+  [ "$br" -gt 0 ] && printf 'wasm brotli %8.2f MB\n' "$(echo "$br/1048576" | bc -l)"
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    {
+      printf '### Web template size\n\n'
+      printf '| | MB |\n| --- | --- |\n'
+      printf '| raw | %.2f |\n' "$(echo "$raw/1048576" | bc -l)"
+      printf '| gzip | %.2f |\n' "$(echo "$gz/1048576" | bc -l)"
+      [ "$br" -gt 0 ] && printf '| brotli | %.2f |\n' "$(echo "$br/1048576" | bc -l)"
+    } >>"$GITHUB_STEP_SUMMARY"
+  fi
   ;;
 
 *)

@@ -18,8 +18,8 @@ use anyhow::{Context, Result};
 use balaur_core::transport::{Delivery, Received};
 use web_transport_quinn::{ClientBuilder, RecvStream, SendStream, ServerBuilder, Session};
 
-use crate::tls::{Accept, Certificate};
-use crate::{reason, LinkCommand, LinkEvent};
+use crate::tls::Certificate;
+use crate::{reason, Accept, LinkCommand, LinkEvent};
 
 /// How often the worker looks for outbound commands. The engine queues at
 /// most one datagram a tick, so anything under a frame is invisible; this is
@@ -34,8 +34,8 @@ const MAX_RELIABLE: u32 = 16 * 1024 * 1024;
 pub(crate) fn dial(
     url: &str,
     accept: Accept,
-    commands: &Receiver<LinkCommand>,
-    events: &Sender<LinkEvent>,
+    commands: Receiver<LinkCommand>,
+    events: Sender<LinkEvent>,
 ) {
     let runtime = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -47,7 +47,9 @@ pub(crate) fn dial(
             return;
         }
     };
-    runtime.block_on(async {
+    // A `LocalSet`: the pump's tasks hold channel ends that are not `Send`.
+    let local = tokio::task::LocalSet::new();
+    local.block_on(&runtime, async {
         let session = match connect(url, accept).await {
             Ok(session) => session,
             Err(e) => {
@@ -61,7 +63,7 @@ pub(crate) fn dial(
         match stream {
             Ok((send, recv)) => {
                 let _ = events.send(LinkEvent::Open);
-                let ended = pump(session, send, recv, commands, events).await;
+                let ended = pump(session, send, recv, commands, events.clone()).await;
                 let _ = events.send(LinkEvent::Closed(ended));
             }
             Err(e) => {
@@ -152,7 +154,7 @@ pub(crate) fn listen(
                 // One task per peer, all on this thread's runtime: a session
                 // is IO-bound and there is no work to spread.
                 tokio::task::spawn_local(async move {
-                    serve(session, &command_rx, &event_tx).await;
+                    serve(session, command_rx, event_tx).await;
                 });
             }
         });
@@ -165,11 +167,11 @@ pub(crate) fn listen(
 }
 
 /// The accepting side: wait for the dialler's reliable stream, then pump.
-async fn serve(session: Session, commands: &Receiver<LinkCommand>, events: &Sender<LinkEvent>) {
+async fn serve(session: Session, commands: Receiver<LinkCommand>, events: Sender<LinkEvent>) {
     match session.accept_bi().await {
         Ok((send, recv)) => {
             let _ = events.send(LinkEvent::Open);
-            let ended = pump(session, send, recv, commands, events).await;
+            let ended = pump(session, send, recv, commands, events.clone()).await;
             let _ = events.send(LinkEvent::Closed(ended));
         }
         Err(e) => {
@@ -179,76 +181,135 @@ async fn serve(session: Session, commands: &Receiver<LinkCommand>, events: &Send
 }
 
 /// Move payloads both ways until something ends the link, and say what did.
+///
+/// Three tasks rather than one `select!`, because `read_exact` is not
+/// cancel-safe: a `select!` that drops it half way through a message loses
+/// the bytes it had already taken off the stream, and every message after it
+/// is framed against the wrong offset. Loopback hides this — a small message
+/// arrives whole — and a fragmented one on a real link would not.
 async fn pump(
     session: Session,
-    mut send: SendStream,
-    mut recv: RecvStream,
-    commands: &Receiver<LinkCommand>,
-    events: &Sender<LinkEvent>,
+    send: SendStream,
+    recv: RecvStream,
+    commands: Receiver<LinkCommand>,
+    events: Sender<LinkEvent>,
 ) -> String {
-    let mut length = [0u8; 4];
+    // Whichever task ends first says why; the rest are then torn down.
+    let (done, mut ended) = tokio::sync::mpsc::channel::<String>(3);
+
+    let datagrams = {
+        let session = session.clone();
+        let events = events.clone();
+        let done = done.clone();
+        tokio::task::spawn_local(async move {
+            let reason = read_datagrams(&session, &events).await;
+            let _ = done.send(reason).await;
+        })
+    };
+    let reliable = {
+        let events = events.clone();
+        let done = done.clone();
+        tokio::task::spawn_local(async move {
+            let reason = read_reliable(recv, &events).await;
+            let _ = done.send(reason).await;
+        })
+    };
+    let outbound = {
+        let session = session.clone();
+        tokio::task::spawn_local(async move {
+            let reason = write_outbound(&session, send, &commands).await;
+            let _ = done.send(reason).await;
+        })
+    };
+
+    let reason = ended
+        .recv()
+        .await
+        .unwrap_or_else(|| String::from("the link ended"));
+    datagrams.abort();
+    reliable.abort();
+    outbound.abort();
+    reason
+}
+
+/// Datagrams, whole or not at all — no framing, which is half the reason to
+/// use them.
+async fn read_datagrams(session: &Session, events: &Sender<LinkEvent>) -> String {
     loop {
-        tokio::select! {
-            // A datagram, whole or not at all.
-            datagram = session.read_datagram() => match datagram {
-                Ok(bytes) => {
-                    let payload = Received { delivery: Delivery::Datagram, bytes: bytes.to_vec() };
-                    if events.send(LinkEvent::Payload(payload)).is_err() {
-                        return String::from("the engine dropped the link");
-                    }
-                }
-                Err(e) => return format!("the session ended: {e}"),
-            },
-            // One length-prefixed message off the reliable stream.
-            header = recv.read_exact(&mut length) => {
-                if let Err(e) = header {
-                    return format!("the reliable stream ended: {e}");
-                }
-                let want = u32::from_be_bytes(length);
-                if want > MAX_RELIABLE {
-                    return format!("a peer announced a {want} byte message");
-                }
-                let mut bytes = vec![0u8; want as usize];
-                if let Err(e) = recv.read_exact(&mut bytes).await {
-                    return format!("a reliable message was cut short: {e}");
-                }
-                let payload = Received { delivery: Delivery::Reliable, bytes };
+        match session.read_datagram().await {
+            Ok(bytes) => {
+                let payload = Received {
+                    delivery: Delivery::Datagram,
+                    bytes: bytes.to_vec(),
+                };
                 if events.send(LinkEvent::Payload(payload)).is_err() {
                     return String::from("the engine dropped the link");
                 }
             }
-            // Outbound work the engine queued since the last look.
-            () = tokio::time::sleep(COMMAND_POLL) => {
-                loop {
-                    match commands.try_recv() {
-                        Ok(LinkCommand::Send(Delivery::Datagram, bytes)) => {
-                            if let Err(e) = session.send_datagram(bytes.into()) {
-                                tracing::warn!(error = %e, "a datagram was dropped");
-                            }
-                        }
-                        Ok(LinkCommand::Send(Delivery::Reliable, bytes)) => {
-                            let Ok(len) = u32::try_from(bytes.len()) else {
-                                tracing::warn!("a reliable message was too long to frame");
-                                continue;
-                            };
-                            if let Err(e) = send.write_all(&len.to_be_bytes()).await {
-                                return format!("the reliable stream closed: {e}");
-                            }
-                            if let Err(e) = send.write_all(&bytes).await {
-                                return format!("the reliable stream closed: {e}");
-                            }
-                        }
-                        Ok(LinkCommand::Close) => {
-                            session.close(0, b"closed by the engine");
-                            return String::from("closed by the engine");
-                        }
-                        Err(TryRecvError::Empty) => break,
-                        Err(TryRecvError::Disconnected) => {
-                            return String::from("the engine dropped the link")
-                        }
-                    }
+            Err(e) => return format!("the session ended: {e}"),
+        }
+    }
+}
+
+/// Length-prefixed messages off the one reliable stream. Nothing cancels
+/// these reads, so a message half-arrived stays half-arrived until the rest
+/// of it turns up.
+async fn read_reliable(mut recv: RecvStream, events: &Sender<LinkEvent>) -> String {
+    let mut length = [0u8; 4];
+    loop {
+        if let Err(e) = recv.read_exact(&mut length).await {
+            return format!("the reliable stream ended: {e}");
+        }
+        let want = u32::from_be_bytes(length);
+        if want > MAX_RELIABLE {
+            return format!("a peer announced a {want} byte message");
+        }
+        let mut bytes = vec![0u8; want as usize];
+        if let Err(e) = recv.read_exact(&mut bytes).await {
+            return format!("a reliable message was cut short: {e}");
+        }
+        let payload = Received {
+            delivery: Delivery::Reliable,
+            bytes,
+        };
+        if events.send(LinkEvent::Payload(payload)).is_err() {
+            return String::from("the engine dropped the link");
+        }
+    }
+}
+
+/// Outbound work the engine queued. The command channel is the engine's
+/// synchronous one, so this polls it rather than awaiting it.
+async fn write_outbound(
+    session: &Session,
+    mut send: SendStream,
+    commands: &Receiver<LinkCommand>,
+) -> String {
+    loop {
+        match commands.try_recv() {
+            Ok(LinkCommand::Send(Delivery::Datagram, bytes)) => {
+                if let Err(e) = session.send_datagram(bytes.into()) {
+                    tracing::warn!(error = %e, "a datagram was dropped");
                 }
             }
+            Ok(LinkCommand::Send(Delivery::Reliable, bytes)) => {
+                let Ok(len) = u32::try_from(bytes.len()) else {
+                    tracing::warn!("a reliable message was too long to frame");
+                    continue;
+                };
+                if let Err(e) = send.write_all(&len.to_be_bytes()).await {
+                    return format!("the reliable stream closed: {e}");
+                }
+                if let Err(e) = send.write_all(&bytes).await {
+                    return format!("the reliable stream closed: {e}");
+                }
+            }
+            Ok(LinkCommand::Close) => {
+                session.close(0, b"closed by the engine");
+                return String::from("closed by the engine");
+            }
+            Err(TryRecvError::Empty) => tokio::time::sleep(COMMAND_POLL).await,
+            Err(TryRecvError::Disconnected) => return String::from("the engine dropped the link"),
         }
     }
 }

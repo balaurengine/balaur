@@ -250,9 +250,13 @@ that works.
    passes a real certificate and key instead. The reliable channel is one
    bidirectional stream, and a stream is bytes rather than messages, so a
    reliable payload travels behind a four byte length; a datagram needs no
-   framing, which is half the reason to use one. On by default, like audio and
-   Gamend: the split is what makes turning it off possible, which is a
-   different question from what a batteries-included facade should ship.
+   framing, which is half the reason to use one — and the reads are their own
+   tasks rather than arms of a `select!`, because `read_exact` is not
+   cancel-safe and a cancelled one loses the bytes it had already taken.
+   On by default, like audio and Gamend: the split is what makes turning it
+   off possible, which is a different question from what a batteries-included
+   facade should ship. Step 5's lockstep test runs again over it, two engines
+   agreeing tick for tick with the inputs on real datagrams.
 
    Nothing keeps the old name for the sake of the old name. `net` described a
    crate that held two unrelated protocols, and now that it holds none, the

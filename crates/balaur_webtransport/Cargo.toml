@@ -6,12 +6,17 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
-# QUIC is native-only. The browser reaches WebTransport through its own API,
-# which is a separate backend and a separate step in PLAN-networking.md.
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
+# The link type, its Transport impl and Accept are the same everywhere; only
+# the QUIC stack below is native.
+[dependencies]
 balaur_core.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
+
+# QUIC is native-only: a browser has no UDP socket and reaches WebTransport
+# through its own API instead (src/browser.rs). rcgen, rustls and ring go with
+# it — a browser is a client, and pins a hash rather than holding a key.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
 # `ring` rather than the default `aws-lc-rs`: it matches the rustls backend
 # the websocket crate already picks, and needs no C toolchain.
 web-transport-quinn = { version = "0.12", default-features = false, features = ["ring"] }

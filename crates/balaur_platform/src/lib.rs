@@ -217,13 +217,13 @@ impl PlatformState {
             self.pending.push((clock.tick, id, call));
             return;
         }
-        self.issue(eng, id, call);
+        self.issue(eng, id, &call);
     }
 
-    fn issue(&mut self, eng: &Engine, id: u64, call: Call) {
+    fn issue(&mut self, eng: &Engine, id: u64, call: &Call) {
         let Self { io, backend, .. } = self;
         io.start(eng, |report| match backend {
-            Some(backend) => backend.start(id, &call, report),
+            Some(backend) => backend.start(id, call, report),
             None => {
                 let _ = report.send(PlatformEvent::Unsupported {
                     request: id,
@@ -249,7 +249,7 @@ impl PlatformState {
             !final_tick
         });
         for (id, call) in ready {
-            self.issue(eng, id, call);
+            self.issue(eng, id, &call);
         }
     }
 }

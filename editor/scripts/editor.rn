@@ -318,6 +318,7 @@ pub fn draw_ui(this) {
     }
     chrome::persona_bar(S);
     chrome::command_bar(S);
+    chrome::status_row(S);
     plugins::draw_windows(S, S.theme);
     if S.show_input {
         inputview::draw(S);

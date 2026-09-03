@@ -9,44 +9,62 @@
 //! ```
 
 pub use balaur_anim::AnimationPlugin;
-#[cfg(feature = "apple")]
-pub use balaur_apple::ApplePlugin;
-#[cfg(feature = "audio")]
-pub use balaur_audio::AudioPlugin;
 pub use balaur_core::*;
-#[cfg(feature = "gamend")]
-pub use balaur_gamend::GamendPlugin;
-#[cfg(feature = "http")]
-pub use balaur_http::HttpPlugin;
 pub use balaur_input::InputPlugin;
 pub use balaur_physics::PhysicsPlugin;
 pub use balaur_platform::PlatformPlugin;
 pub use balaur_render::RenderPlugin;
 pub use balaur_ui::UiPlugin;
-#[cfg(feature = "websocket")]
-pub use balaur_websocket::WebsocketPlugin;
 
 pub use balaur_anim as animation;
-#[cfg(feature = "apple")]
-pub use balaur_apple as apple;
-#[cfg(feature = "audio")]
-pub use balaur_audio as audio;
-#[cfg(feature = "gamend")]
-pub use balaur_gamend as gamend;
-#[cfg(feature = "http")]
-pub use balaur_http as http;
 pub use balaur_input as input;
 pub use balaur_physics as physics;
 pub use balaur_platform as platform;
 pub use balaur_render as render;
 pub use balaur_script_rune as rune;
 pub use balaur_ui as ui;
-#[cfg(feature = "websocket")]
-pub use balaur_websocket as websocket;
+
+// A `Transport` a project names at run time, not a plugin: nothing to load.
 #[cfg(feature = "webtransport")]
 pub use balaur_webtransport as webtransport;
 
 use anyhow::{Context, Result};
+
+/// Every optional module: the name it goes by, the cargo feature that
+/// switches it on, and the plugin it registers.
+///
+/// One line each. A module used to be the same fact written four times, and
+/// the three restatements are what went stale.
+macro_rules! modules {
+    ($($alias:ident = $feature:literal => $krate:ident::$plugin:ident),* $(,)?) => {
+        $(
+            #[cfg(feature = $feature)]
+            pub use $krate::$plugin;
+            #[cfg(feature = $feature)]
+            pub use $krate as $alias;
+        )*
+
+        /// The optional modules this build linked in, ordered by what they
+        /// require and then by name.
+        fn load_modules(app: &mut App) -> Result<()> {
+            #[allow(unused_mut, reason = "a build with no optional module pushes nothing")]
+            let mut found: Vec<Box<dyn balaur_plugin::Plugin>> = Vec::new();
+            $(
+                #[cfg(feature = $feature)]
+                found.push(Box::new($krate::$plugin::default()));
+            )*
+            balaur_plugin::load_all(app, &mut found)
+        }
+    };
+}
+
+modules! {
+    apple = "apple" => balaur_apple::ApplePlugin,
+    audio = "audio" => balaur_audio::AudioPlugin,
+    gamend = "gamend" => balaur_gamend::GamendPlugin,
+    http = "http" => balaur_http::HttpPlugin,
+    websocket = "websocket" => balaur_websocket::WebsocketPlugin,
+}
 
 /// The script backend a project asks for in its `project.toml`. Rune is the
 /// one language this build ships; the field stays so a project states it.
@@ -186,18 +204,10 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     app.add_plugin(PhysicsPlugin)?;
     app.add_plugin(AnimationPlugin)?;
     app.add_plugin(RenderPlugin)?;
-    #[cfg(feature = "audio")]
-    balaur_plugin::load(&mut app, &mut AudioPlugin::default())?;
-    #[cfg(feature = "http")]
-    balaur_plugin::load(&mut app, &mut HttpPlugin::default())?;
-    #[cfg(feature = "websocket")]
-    balaur_plugin::load(&mut app, &mut WebsocketPlugin::default())?;
-    #[cfg(feature = "gamend")]
-    balaur_plugin::load(&mut app, &mut GamendPlugin::default())?;
-    // Before any store's plugin: a backend registers into what this inserts.
+    // Ahead of the optional modules: `apple` requires it by name, and a store
+    // backend registers into what this inserts.
     balaur_plugin::load(&mut app, &mut PlatformPlugin::default())?;
-    #[cfg(feature = "apple")]
-    balaur_plugin::load(&mut app, &mut ApplePlugin::default())?;
+    load_modules(&mut app)?;
     app.add_plugin(UiPlugin)?;
     drive_ui_focus(&mut app);
     #[cfg(feature = "extensions")]

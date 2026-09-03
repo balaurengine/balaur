@@ -212,13 +212,21 @@ over.
 
 ## 5. Open questions
 
-1. **Emscripten or `wasm32-unknown-unknown` with wasm-bindgen?** The tree is
-   on emscripten because the C shims and the audio stack wanted it, and the
-   cost is written into `.cargo/config.toml`: egui pulls web-sys on every
-   wasm32 target, its intrinsics resolve to nothing, and the link only
-   succeeds because undefined symbols are tolerated. That is a smell, and
-   the editor is the build where it stops being cosmetic — egui *is* the
-   editor. Settle this before step 1, not after.
+1. **Emscripten or `wasm32-unknown-unknown` with wasm-bindgen?** *Settled
+   on 2026-09-03: wasm-bindgen.* The deciding evidence is not size or speed
+   but the renderer — kiss3d declares its web dependencies under
+   `[target.wasm32-unknown-unknown.dependencies]` (wasm-bindgen, web-sys,
+   `HtmlCanvasElement`, the pointer and key events) and already carries a
+   canvas backend in `src/window/wgpu_canvas.rs`; wgpu reaches WebGPU only
+   through web-sys. Those `#[cfg(target_arch = "wasm32")]` blocks would
+   activate on emscripten too — emscripten *is* wasm32 — against
+   dependencies that are not declared there, which is the same defect
+   `.cargo/config.toml` already tolerates at link. `cargo check -p
+   balaur_render --features kiss3d --target wasm32-unknown-unknown` passes
+   with wgpu 30, naga, glow and egui 0.36 all resolving. The cost is the
+   synchronous filesystem §1 leans on: OPFS sync access handles exist only
+   inside a worker, so the engine runs in one, and the canvas becomes an
+   `OffscreenCanvas`. That is step 2's problem, and it is a known pattern.
 2. **How big is the editor?** The whole engine plus egui plus the Rune
    compiler in one module, and the number decides whether the front page can
    link to it. The floor is now measured: the headless template is 13.6 MB

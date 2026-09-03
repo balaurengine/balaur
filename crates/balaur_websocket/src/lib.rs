@@ -46,28 +46,13 @@ mod backend {
     pub(crate) use crate::emscripten::{pump, spawn_socket};
 }
 
-/// The stub for wasm outside emscripten: no websocket stack exists there yet,
-/// so every connect resolves to an error event and scripts keep running.
+/// The browser outside emscripten: the WebSocket API through web-sys.
+#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+mod browser;
+
 #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
 mod backend {
-    use std::sync::mpsc::{Receiver, Sender};
-
-    use crate::{SocketCommand, SocketEvent, SocketOptions};
-
-    pub(crate) fn spawn_socket(
-        socket: u64,
-        _url: String,
-        _options: SocketOptions,
-        _commands: Receiver<SocketCommand>,
-        events: &Sender<SocketEvent>,
-    ) {
-        let _ = events.send(SocketEvent::Failed {
-            socket,
-            reason: "no websocket backend compiles for wasm".into(),
-        });
-    }
-
-    pub(crate) fn pump() {}
+    pub(crate) use crate::browser::{pump, spawn_socket};
 }
 
 /// How one `websocket.connect` opens its connection.

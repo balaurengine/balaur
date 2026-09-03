@@ -127,11 +127,15 @@ pub fn command_bar(S) {
     });
 }
 
-/// The status strip, drawn at the foot of the bottom dock.
+/// The status strip, drawn inside the bottom dock's foot.
 pub fn status_row(S) {
     let k = S.theme;
-    ui::separator(k.line_soft);
-    ui::horizontal(#{ height: 23 }, || {
+    let r = S.layout.status;
+    if r.w <= 0.0 {
+        return;
+    }
+    ui::overlay("status", #{ x: r.x, y: r.y, w: r.w, h: r.h, padding_x: 10 }, || {
+    ui::horizontal(#{ height: 22 }, || {
         ui::spacing(14, 0);
         ui::add_space(4);
         let stopped = S.debug.paused is Object;
@@ -156,5 +160,6 @@ pub fn status_row(S) {
             let pname = defs::persona_name(S.persona);
             ui::label(format!("{} · {}", pname, defs::tool_name(S.tool)), style::mono_sm(k.faint));
         });
+    });
     });
 }

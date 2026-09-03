@@ -103,7 +103,7 @@ pub fn output(S, k) {
     let counts = #{ shown: 0, hidden: 0 };
     // The buffer holds 500; asking for 60 threw away most of the session.
     let entries = util::vec(log::recent(500));
-    ui::scroll("output", #{ stick_to_bottom: true }, || {
+    ui::scroll("output", #{ stick_to_bottom: true, max_height: S.layout.body_h - 6.0 }, || {
         ui::spacing(4, 2);
         for entry in entries {
             let level = severity(entry.level);
@@ -162,21 +162,24 @@ pub fn output(S, k) {
 }
 
 const CARD_W = 96.0;
-const CARD_H = 66.0;
+const CARD_H = 58.0;
 
-// Icon and tint by extension, so a directory of assets reads at a glance.
+// Icon and ink by extension, so a directory of assets reads at a glance. The
+// tile is one fill for every card; only the mark is typed.
 fn asset_look(name, is_dir) {
     if is_dir {
-        ("▸", "sunken")
-    } else if name.ends_with(".rn") {
-        ("‹›", "sage_soft")
-    } else if name.ends_with(".toml") {
-        ("◇", "accent_soft")
-    } else if name.ends_with(".png") || name.ends_with(".jpg") {
-        ("▧", "accent_soft")
-    } else {
-        ("▫", "sunken")
+        return (crate::icons::panel("assets"), "dim");
     }
+    if name.ends_with(".rn") {
+        return (crate::icons::ui("scriptfile"), "sage");
+    }
+    if name.ends_with(".toml") {
+        return (crate::icons::panel("scene"), "accent");
+    }
+    if name.ends_with(".png") || name.ends_with(".jpg") {
+        return (crate::icons::persona("ui"), "accent");
+    }
+    return (crate::icons::ui("dot"), "faint");
 }
 
 // Opening a file means the thing the editor can actually do with it: jump to
@@ -325,7 +328,7 @@ pub fn assets(S, k) {
     });
     // Cards wrap into rows: the row count is what the dock's height scrolls.
     let per_row = util::max(1, ((ui::available_width() - 24.0) / (CARD_W + 12.0)) as i64);
-    ui::scroll("assets", (), || {
+    ui::scroll("assets", #{ max_height: S.layout.body_h - 24.0 }, || {
         ui::add_space(6);
         let index = 0;
         while index < files.len() {
@@ -339,12 +342,14 @@ pub fn assets(S, k) {
                         None => break,
                     };
                     let rel = if dir == "" { f.name } else { format!("{}/{}", dir, f.name) };
-                    let (icon, tint) = asset_look(f.name, f.is_dir);
+                    let (icon, ink) = asset_look(f.name, f.is_dir);
+                    let chosen = S.assets.sel == rel;
                     ui::vertical(|| {
+                        ui::spacing(0, 0);
                         if ui::pill(icon, #{
-                            height: CARD_H, min_width: CARD_W, size: 20, radius: 12,
-                            fill: if S.assets.sel == rel { k.accent_soft } else { k[tint] },
-                            color: if S.assets.sel == rel { k.accent } else { k.dim },
+                            height: CARD_H, min_width: CARD_W, size: 20, radius: 6,
+                            fill: if chosen { k.accent_soft } else { k.sunken },
+                            color: if chosen { k.accent } else { k[ink] },
                             tooltip: rel,
                         }) {
                             // A second click on the selected card opens it,
@@ -361,8 +366,14 @@ pub fn assets(S, k) {
                                 S.assets.renaming = false;
                             }
                         }
-                        let short = if f.name.len() > 14 { f.name[..14] } else { f.name };
-                        ui::label(short, style::mono_sm(k.dim));
+                        // The name belongs to the card, not to the gap under it.
+                        let short = if f.name.len() > 13 { f.name[..12] + "…" } else { f.name };
+                        ui::pill(short, #{
+                            height: 20, min_width: CARD_W, size: 10, radius: 6, align: "center",
+                            font: "mono",
+                            fill: if chosen { k.accent_soft } else { k.sunken },
+                            color: if chosen { k.accent } else { k.dim },
+                        });
                     });
                 }
             });
@@ -406,70 +417,114 @@ pub fn timeline(S, k) {
         }
     };
     let length = anim::length(def);
-    let name_w = 186.0;
-    let lane_w = util::max(120.0, ui::available_width() - name_w - 60.0);
-    // Ruler row: playhead scrubber + key controls. The name column and the
-    // lane share their origin with the track rows below so keys line up
-    // with the scrubber.
-    ui::horizontal(#{ height: 26 }, || {
+    let tracks = anim::tracks(def);
+    let name_w = 150.0;
+    let lane_x = name_w + 14.0;
+    let lane_w = util::max(120.0, ui::available_width() - lane_x - 24.0);
+    let lanes_h = (tracks.len() as f64) * LANE_H;
+
+    // The ruler carries the scale the lanes are read against: a rule per tick
+    // straight down through them, and the playhead over the top.
+    ui::horizontal(#{ height: 22 }, || {
         ui::add_space(8);
-        ui::horizontal(#{ height: 26, width: name_w - 12.0 }, || {
+        ui::horizontal(#{ height: 22, width: name_w }, || {
             if ui::pill("＋ Key", #{
-                height: 22, size: 11, strong: true, tooltip: "Insert keyframe at playhead (or press K)",
-                fill: k.accent_soft, color: k.accent,
+                role: "chip_on", tooltip: "Insert keyframe at playhead (or press K)",
             }) {
                 anim::add_key(S, S.anim.time);
             }
-            if ui::pill("− Key", #{
-                height: 22, size: 11, strong: true, tooltip: "Delete keyframe at playhead",
-                fill: k.sunken, color: k.dim,
-            }) {
+            if ui::pill("− Key", #{ role: "chip", tooltip: "Delete keyframe at playhead" }) {
                 anim::delete_key_at(S, S.anim.time);
             }
         });
-        let (t, scrubbed) = ui::slider(S.anim.time, 0.0, length, #{
-            width: lane_w,
-            rail: k.sunken, fill: k.accent_fill, knob: k.bg,
+        ui::right(|| {
+            ui::add_space(8);
+            ui::label(format!("{:.2} / {:.2} s", S.anim.time, length), style::mono_sm(k.faint));
         });
-        if scrubbed {
-            anim::seek(S, t);
-        }
-        ui::add_space(6);
-        ui::label(format!("{:.2} / {:.2} s", S.anim.time, length), style::mono_sm(k.faint));
     });
-    // One lane per track, key dots filled before the playhead and hollow after;
-    // component and method tracks render the same way transform tracks do.
-    ui::scroll("timeline-tracks", (), || {
-        for (index, track) in anim::tracks(def).iter().enumerate() {
+    let step = tick_step(length);
+    ui::horizontal(#{ height: 16 }, || {
+        ui::add_space(8.0 + lane_x);
+        let t = 0.0;
+        let cursor = 0.0;
+        while t <= length + 1e-4 {
+            let x = (t / length) * lane_w;
+            if x - cursor > 0.0 {
+                ui::add_space(x - cursor);
+            }
+            ui::label(format!("{:.2}", t), style::mono_sm(k.faint));
+            cursor = x + 26.0;
+            t += step;
+        }
+    });
+    // Rules and playhead, drawn from the sheet's corner so they cross lanes.
+    let top = ui::cursor_y();
+    let t = 0.0;
+    while t <= length + 1e-4 {
+        let x = 8.0 + lane_x + (t / length) * lane_w;
+        ui::rect_stroke(x, top, 0.6, lanes_h, #{ color: k.line, width: 1.0 });
+        t += step;
+    }
+    let head_x = 8.0 + lane_x + (S.anim.time / util::max(length, 1e-4)) * lane_w;
+    ui::rect_stroke(head_x, top - 6.0, 0.6, lanes_h + 6.0, #{ color: k.accent, width: 1.5 });
+
+    ui::scroll("timeline-tracks", #{ max_height: util::min(lanes_h, S.layout.body_h - 60.0) }, || {
+        for (index, track) in tracks.iter().enumerate() {
             let label = anim::track_label(track);
             let color = if index % 2 == 0 { k.accent } else { k.sage };
-            ui::horizontal(#{ height: 30 }, || {
+            ui::horizontal(#{ height: LANE_H }, || {
                 ui::add_space(8);
-                ui::horizontal(#{ height: 30, width: name_w - 12.0 }, || {
-                    ui::frame(#{ fill: k.sunken, radius: 15, padding_x: 10 }, || {
-                        ui::horizontal(#{ height: 30, tight: true }, || {
-                            ui::dot(color, 7);
-                            ui::add_space(4);
-                            ui::label(label, style::mono_lg(k.text));
-                        });
-                    });
+                ui::horizontal(#{ height: LANE_H, width: name_w }, || {
+                    ui::dot(color, 6);
+                    ui::add_space(6);
+                    ui::label(label, style::mono_sm(k.text));
                 });
+                ui::add_space(14);
                 let cursor = 0.0;
                 for key in util::vec(track.get("keys").unwrap_or([])) {
                     let t = util::f(key.get("t").unwrap_or(0.0));
                     let x = util::max(0.0, (t / length) * lane_w - 5.0);
-                    let gap = x - cursor;
-                    if gap > 0.0 {
-                        ui::add_space(gap);
+                    if x - cursor > 0.0 {
+                        ui::add_space(x - cursor);
                         cursor = x;
                     }
                     let before = t <= S.anim.time + 1e-4;
-                    ui::label(if before { "●" } else { "○" }, #{ size: 11, color: color });
-                    cursor += 14.0;
+                    // A key is a target: clicking one seeks to it.
+                    if ui::pill("", #{
+                        height: 11, min_width: 11, radius: 10,
+                        fill: if before { color } else { k.bg },
+                        stroke: color,
+                        tooltip: format!("{:.2} s", t),
+                    }) {
+                        anim::seek(S, t);
+                    }
+                    cursor += 13.0;
                 }
             });
         }
     });
+    // The scrubber sits under the lanes, spanning exactly the lane column.
+    ui::horizontal(#{ height: 20 }, || {
+        ui::add_space(8.0 + lane_x);
+        let (t, scrubbed) = ui::slider(S.anim.time, 0.0, length, #{
+            width: lane_w, rail: k.sunken, fill: k.accent, knob: k.bg,
+        });
+        if scrubbed {
+            anim::seek(S, t);
+        }
+    });
+}
+
+const LANE_H = 26.0;
+
+// A tick every 0.25/0.5/1/2/5 s, whichever gives four to eight labels.
+fn tick_step(length) {
+    for step in [0.25, 0.5, 1.0, 2.0, 5.0, 10.0] {
+        if length / step <= 8.0 {
+            return step;
+        }
+    }
+    length / 8.0
 }
 
 // A local as one line; a table is its JSON, cut short.
@@ -557,7 +612,7 @@ pub fn debugger_view(S, k) {
             break_on_error_pill(k);
         });
     });
-    ui::scroll("debug-frames", (), || {
+    ui::scroll("debug-frames", #{ max_height: S.layout.body_h - 30.0 }, || {
         ui::spacing(4, 2);
         for (i, frame) in p.frames.iter().enumerate() {
             let chosen = i == S.debug.frame;
@@ -608,7 +663,7 @@ pub fn problems(S, k) {
             rows.push(f);
         }
     }
-    ui::scroll("problems", (), || {
+    ui::scroll("problems", #{ max_height: S.layout.body_h - 6.0 }, || {
         ui::spacing(4, 2);
         if rows.len() == 0 {
             ui::horizontal((), || {

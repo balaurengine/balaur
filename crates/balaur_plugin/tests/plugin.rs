@@ -1,5 +1,5 @@
 use balaur_core::{App, AppConfig, Engine, Stage};
-use balaur_plugin::{load, load_order, Fingerprint, Manifest, Plugin, Registry};
+use balaur_plugin::{load, load_all, load_order, Fingerprint, Manifest, Plugin, Registry};
 use balaur_script::BindingsExt as _;
 
 fn app() -> App {
@@ -27,6 +27,12 @@ impl Probe {
     fn new(name: &str) -> Self {
         Self {
             manifest: Manifest::new(name, "1.0.0"),
+        }
+    }
+
+    fn requiring(name: &str, needs: &[&str]) -> Self {
+        Self {
+            manifest: Manifest::new(name, "1.0.0").requiring(needs),
         }
     }
 
@@ -247,7 +253,10 @@ fn a_requirement_loaded_first_is_accepted() {
 
     load(&mut app, &mut probe).unwrap();
     assert_eq!(
-        app.plugins().iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
+        app.plugins()
+            .iter()
+            .map(|p| p.name.as_str())
+            .collect::<Vec<_>>(),
         ["early", "late"]
     );
 }
@@ -279,4 +288,48 @@ impl Plugin for Failing {
     fn declare(&mut self, _: &mut Registry<'_>) -> anyhow::Result<()> {
         anyhow::bail!("no")
     }
+}
+
+#[test]
+fn a_set_loads_in_dependency_order_whatever_order_it_was_given_in() {
+    let mut app = app();
+    let mut set: Vec<Box<dyn Plugin>> = vec![
+        Box::new(Probe::requiring("late", &["early"])),
+        Box::new(Probe::new("early")),
+    ];
+
+    load_all(&mut app, &mut set).unwrap();
+    assert_eq!(
+        app.plugins()
+            .iter()
+            .map(|p| p.name.as_str())
+            .collect::<Vec<_>>(),
+        ["early", "late"]
+    );
+}
+
+#[test]
+fn a_set_with_a_missing_requirement_registers_none_of_itself() {
+    let mut app = app();
+    let mut set: Vec<Box<dyn Plugin>> = vec![
+        Box::new(Probe::new("present")),
+        Box::new(Probe::requiring("needy", &["absent"])),
+    ];
+
+    let err = load_all(&mut app, &mut set).unwrap_err().to_string();
+    assert!(err.contains("absent"), "unhelpful: {err}");
+    assert!(
+        app.plugins().is_empty(),
+        "half the set registered before the refusal"
+    );
+}
+
+#[test]
+fn a_set_may_require_something_loaded_before_it() {
+    let mut app = app();
+    load(&mut app, &mut Probe::new("early")).unwrap();
+    let mut set: Vec<Box<dyn Plugin>> = vec![Box::new(Probe::requiring("late", &["early"]))];
+
+    load_all(&mut app, &mut set).unwrap();
+    assert!(balaur_core::plugins::is_loaded(&app.engine, "late"));
 }

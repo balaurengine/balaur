@@ -257,17 +257,17 @@ asserts the centre now, and the screenshots below are from after the fix.
 | D3 | *Fixed.* **A ghost code gutter sat between viewport and inspector.** A ~25 px `code_bg` strip with the selected script's line numbers is drawn in every persona whenever the selection has a script. It also clips the document-tab hint to `no…`. | centre layout | `01`, `08`, `13`, `20` |
 | D4 | *Improved, not fixed — values no longer clip off the window, the panel still widens.* **Long property names blow the inspector out of the window.** `angular_damping`, `center_of_mass` widen the label column, the panel takes the full width, values clip off the right edge and the dock is overdrawn. | `inspector::row`'s label column | `02`, `20` |
 | D5 | *Fixed in the viewport; still overflows in a split.* **The zoom pill drew on top of the inspector**, over the `SCRIPT` heading. The overlay is wider than the viewport it belongs to. | `center::viewport` overlay rect | `01`, `15`, `17` |
-| D6 | **Glyphs are missing from the shipped font.** `⌥` renders as `~` in every palette shortcut; the Translate tool's `✥` renders as an empty box in every rail. | `defs::tool_icon`, `palette::commands` | `07`, `10`, `20` |
+| D6 | *Fixed — Phosphor is bundled and every glyph goes through `icons.rn`.* **Glyphs were missing from the shipped font.** `⌥` renders as `~` in every palette shortcut; the Translate tool's `✥` renders as an empty box in every rail. | `defs::tool_icon`, `palette::commands` | `07`, `10`, `20` |
 | D7 | **The dock's right-hand hint lies.** Session, Profiler and plugin tabs all fall through to the animation branch and print `no clip`. | `dock::tab_row` | `10`, `13`, `14`, `19` |
-| D8 | **Plugin windows are unthemed.** `ui::window` draws egui's stock frame — pale title bar, centred serif title, native close button — against the editor's dark chrome, and it opens over the persona bar. | `plugins::draw_windows` | `19` |
-| D9 | **Tall docks are mostly empty.** Debugger, Profiler and Problems reserve 212 / 150 px and fill one row; ~180 px of dead panel. | `dock::draw` height | `10`, `12`, `14` |
+| D8 | *Fixed.* **Plugin windows were unthemed.** `ui::window` draws egui's stock frame — pale title bar, centred serif title, native close button — against the editor's dark chrome, and it opens over the persona bar. | `plugins::draw_windows` | `19` |
+| D9 | *Fixed — the dock collapses to its tab row.* **Tall docks were mostly empty.** Debugger, Profiler and Problems reserve 212 / 150 px and fill one row; ~180 px of dead panel. | `dock::draw` height | `10`, `12`, `14` |
 | D10 | **The Script persona's inspector is ~500 px of nothing** between Events and Add component. | `inspector::draw` | `03`, `12` |
-| D11 | **The timeline has no time axis.** No ruler, no ticks, no playhead line down the lanes; keys are `●`/`○` text glyphs, and track pills are ragged widths. | `dock::timeline` | `15` |
-| D12 | **Asset cards are unreadable.** Near-black tiles on a near-black panel, no thumbnails, filenames flush against the dock's bottom edge. | `dock::assets` | `11`, `25` |
+| D11 | *Fixed — ruler, ticks, playhead and clickable keys; dragging a key is still not possible.* **The timeline had no time axis.** No ruler, no ticks, no playhead line down the lanes; keys are `●`/`○` text glyphs, and track pills are ragged widths. | `dock::timeline` | `15` |
+| D12 | *Fixed.* **Asset cards were unreadable.** Near-black tiles on a near-black panel, no thumbnails, filenames flush against the dock's bottom edge. | `dock::assets` | `11`, `25` |
 | D13 | **The palette card has no edge.** Card fill ≈ scrimmed background, the first-row highlight is narrower than the rows, and the list clips mid-row with no scroll cue. | `palette::draw` | `07` |
 | D14 | **Script identity is stated four times** — the tree's `‹›` glyph, the Rune modules list, the hooks sidebar, the inspector's Events section and the events document tab. Five, counting the tab. | across | `03`, `16` |
 | D15 | **The dock tab row is 12 controls wide** — 8 tabs, a filter field, three level pills and clear — with no grouping. | `dock::tab_row` | `01` |
-| D16 | **The tree's connector rails are mono text.** `├─`/`└─`/`│ ` glyphs drift out of alignment with the 27 px rows and the depth indent. | `left::tree_row` | `01`, `03` |
+| D16 | *Fixed.* **The tree's connector rails were mono text.** `├─`/`└─`/`│ ` glyphs drift out of alignment with the 27 px rows and the depth indent. | `left::tree_row` | `01`, `03` |
 | D17 | **The log's columns do not line up.** The severity mark, the timestamp, the `s`, and the tag each start where the last one ended. | `dock::output` | `01` |
 
 That those four were one bug is the argument for the plan's §2. They were not

@@ -21,7 +21,7 @@ pub use loader::{load_extension, load_extensions_in, refuse_mismatch, Extension}
 pub use manifest::{Fingerprint, Manifest, ENGINE_VERSION, REGISTRY_ABI};
 pub use registry::Registry;
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use balaur_core::plugins::PluginInfo;
 use balaur_core::App;
 
@@ -63,6 +63,26 @@ pub fn load(app: &mut App, plugin: &mut dyn Plugin) -> Result<()> {
     app.record_plugin(
         PluginInfo::new(&manifest.name, &manifest.version).requiring(&manifest.requires),
     );
+    Ok(())
+}
+
+/// Load every plugin in `plugins`, in the order [`load_order`] gives.
+///
+/// The set is ordered as a whole before any of it registers, so a requirement
+/// is refused before half the set has already changed the app.
+///
+/// # Errors
+/// If the set cannot be ordered, or any plugin refuses to load.
+pub fn load_all(app: &mut App, plugins: &mut [Box<dyn Plugin>]) -> Result<()> {
+    let manifests: Vec<Manifest> = plugins.iter().map(|p| p.manifest().clone()).collect();
+    let already = balaur_core::plugins::names(&app.engine);
+    for name in load_order(&manifests, &already)? {
+        let at = plugins
+            .iter()
+            .position(|p| p.manifest().name == name)
+            .ok_or_else(|| anyhow!("`{name}` was ordered but is not in the set"))?;
+        load(app, plugins[at].as_mut())?;
+    }
     Ok(())
 }
 

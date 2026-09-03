@@ -1,6 +1,6 @@
 # Plugins: one trait, one order, one switch
 
-Status: **phase 1 in progress.** Phases 2-4 are not started.
+Status: **phases 1 and 2 shipped.** Phases 3 and 4 are not started.
 
 A module is declared in four places today — a cargo feature, an optional
 dependency, two `pub use` lines, and a `load` call under `#[cfg]`. Extensions
@@ -74,7 +74,18 @@ require a module the binary linked in.
 
 **2. One table.** A `modules!` macro in `balaur` generates the crate alias,
 the plugin re-export and the constructor for each optional module, so a module
-is one line in one file instead of four lines in two.
+is one line in one file instead of four lines in two. It expands to a
+`load_modules` that hands the set to `balaur_plugin::load_all`, which orders
+the whole set before any of it registers — a missing requirement is refused
+before half the set has already changed the app.
+
+Two things the implementation decided differently. `webtransport` is a
+`Transport` a project names at run time, not a plugin, so it stays a plain
+re-export and the table holds only what registers. And `apple` turned out to
+be the first real `requires` in tree: it calls `balaur_platform::set_backend`
+from `declare`, which had been held by a comment and by hand-ordering.
+`PlatformPlugin` moved ahead of the optional block and `apple` names it, so
+the constraint is now enforced rather than remembered.
 
 **3. One trait.** The core five move to `manifest()` + `declare()`.
 `Registry` gains `register_asset_type` (animation, render and ui all want it)

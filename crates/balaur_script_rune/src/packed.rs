@@ -2,10 +2,15 @@
 //!
 //! A dev run compiles `.rn` off disk. A shipped pack carries the unit the
 //! exporter already built, so startup costs a deserialise rather than a
-//! compile, and the source does not ship. What stays readable in a unit is
-//! string literals, object field names and type paths; control flow and
-//! function names do not. That is a long way from shipping the source and a
-//! long way from encryption — treat it as "not casually readable".
+//! compile, and the source does not ship.
+//!
+//! What a unit still spells out, checked by `tests/packed.rs`: every function
+//! name, private ones included, because rune keeps them as static strings;
+//! object field names; and string literals. What it does not: any source
+//! text — no expressions, no control flow, no comments, no names of locals.
+//! So a reader learns the shape of the API and nothing about the algorithm.
+//! That is a long way from shipping the source and a long way from
+//! encryption. Treat it as "not casually readable", not as protection.
 //!
 //! Rune promises no stability for a serialised unit across its own versions.
 //! It does not have to: balaur pins one fork commit, and [`FORMAT`] is bumped
@@ -13,7 +18,7 @@
 //! any other version is rejected here rather than deserialised into nonsense.
 
 use anyhow::{anyhow, bail, Result};
-use rune::runtime::Unit;
+use rune::runtime::{Logic, Unit};
 
 use crate::inspect::PublicSignature;
 
@@ -24,12 +29,16 @@ const FORMAT: u32 = 1;
 
 /// Serialise a compiled unit and its public signatures for the pack.
 ///
+/// The unit's `Logic` rather than the unit: `Unit` flattens that field, which
+/// serialises as a map of unknown length, and a length-prefixed format cannot
+/// write one. It also means the debug half cannot reach the file by accident.
+///
 /// Written as a pair rather than a struct so the writing side can borrow and
-/// the reading side can own, without `Unit` having to be `Clone`.
+/// the reading side can own, without `Logic` having to be `Clone`.
 pub(crate) fn encode(unit: &Unit, functions: &[PublicSignature]) -> Result<Vec<u8>> {
     let mut out = Vec::from(*MAGIC);
     out.extend_from_slice(&FORMAT.to_le_bytes());
-    bincode::serialize_into(&mut out, &(unit, functions))?;
+    bincode::serialize_into(&mut out, &(unit.logic(), functions))?;
     Ok(out)
 }
 
@@ -45,7 +54,8 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<(Unit, Vec<PublicSignature>)> {
     if version != FORMAT {
         bail!("compiled script is format {version}, this build reads {FORMAT}");
     }
-    Ok(bincode::deserialize(rest)?)
+    let (logic, functions): (Logic, Vec<PublicSignature>) = bincode::deserialize(rest)?;
+    Ok((Unit::from_parts(logic, None)?, functions))
 }
 
 /// Whether `bytes` look like [`encode`]'s output rather than script source.

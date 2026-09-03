@@ -162,8 +162,8 @@ fn tab_row(S, k, side, d) {
         }
         ui::right(|| {
             ui::add_space(4);
-            if ui::pill(icons::ui("minimise"), #{
-                role: "icon_button", height: 22, size: 13,
+            if ui::pill(icons::ui("collapse"), #{
+                role: "icon_button", height: 22, size: 12,
                 tooltip: format!("Minimise to the {}", if side == "bottom" { "bottom" } else { side }),
             }) {
                 S.docks[side].shut = true;
@@ -227,7 +227,6 @@ fn rail(S, k, side, r) {
                     }
                 });
             });
-            crate::chrome::status_row(S);
             return;
         }
         ui::vertical(|| {
@@ -264,18 +263,6 @@ pub fn draw(S, k, side) {
     }
     style::sheet(k, side, r, 8, 0, || {
         tab_row(S, k, side, d);
-        // The status strip is the dock's foot: one sheet fewer floating, and
-        // every piece of status in one place.
-        let body_h = if side == "bottom" { r.h - 30.0 - 24.0 } else { 0.0 };
-        if body_h > 0.0 {
-            ui::vertical(|| {
-                ui::horizontal(#{ height: body_h }, || {
-                    ui::vertical(|| body(S, k, d.active));
-                });
-                crate::chrome::status_row(S);
-            });
-            return;
-        }
         body(S, k, d.active);
     });
 }

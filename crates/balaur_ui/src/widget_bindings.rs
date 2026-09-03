@@ -633,6 +633,7 @@ pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("image", &[], "", "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path."),
         ("rect_stroke", &[], "", "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked."),
+        ("cursor_y", &[], "", "How far down the current panel the next widget will land, in design pixels — the same origin `rect_stroke` measures from."),
     ]);
     {
         m.function(
@@ -643,6 +644,14 @@ pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
             },
         );
     }
+    // Where the next widget lands, in `rect_stroke`'s coordinates, so a rule
+    // can be drawn down through rows that have not been laid out yet.
+    m.function("cursor_y", |_eng: &Engine, (): ()| {
+        with_ui(|ui| {
+            let top = ui.max_rect().min.y;
+            Ok(f64::from((ui.cursor().min.y - top) / scale()))
+        })
+    });
     // An outline rectangle painted at (x, y, w, h) in design px relative to
     // the current panel (viewport overlays: safe area, guides).
     m.function(
@@ -817,8 +826,10 @@ fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
         |_eng: &Engine, (on, opts): (bool, Option<Value>)| {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
-                let (rect, response) =
-                    ui.allocate_exact_size(vec2(sc(42.0), sc(24.0)), Sense::click());
+                // Sized from the theme: a switch as tall as its row, not a
+                // slab that dwarfs the fields beside it.
+                let h = opts.px("height", sc(18.0) / scale());
+                let (rect, response) = ui.allocate_exact_size(vec2(h * 1.75, h), Sense::click());
                 let on = if response.clicked() { !on } else { on };
                 let track = if on {
                     opts.color("on_fill", Color32::from_rgb(0xd5, 0x81, 0x4e))
@@ -830,14 +841,15 @@ fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
                 } else {
                     opts.color("off_knob", Color32::from_rgb(0x76, 0x7e, 0x88))
                 };
-                ui.painter().rect_filled(rect, sc(12.0), track);
+                ui.painter().rect_filled(rect, h / 2.0, track);
+                let inset = h / 2.0;
                 let x = if on {
-                    rect.max.x - sc(12.0)
+                    rect.max.x - inset
                 } else {
-                    rect.min.x + sc(12.0)
+                    rect.min.x + inset
                 };
                 ui.painter()
-                    .circle_filled(pos2(x, rect.center().y), sc(9.0), knob);
+                    .circle_filled(pos2(x, rect.center().y), h * 0.34, knob);
                 Ok((on, response.clicked()))
             })
         },
@@ -936,9 +948,15 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
                 if response.hovered() {
                     ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
                 }
+                let radius = opts.px("radius", 0.0);
+                let corner = if radius > 0.0 {
+                    pill_radius(radius * 2.0)
+                } else {
+                    pill_radius(sc(5.0) * 2.0)
+                };
                 ui.painter().rect(
                     rect,
-                    pill_radius(h),
+                    corner,
                     opts.color("fill", Color32::from_rgb(0x10, 0x12, 0x15)),
                     Stroke::new(
                         1.0,
@@ -946,7 +964,7 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
                     ),
                     StrokeKind::Inside,
                 );
-                let mut x = rect.min.x + sc(11.0);
+                let mut x = rect.min.x + sc(7.0);
                 if let Some(prefix) = opts.string("prefix") {
                     let color = opts.color("prefix_color", Color32::from_rgb(0xf0, 0xa2, 0x73));
                     let galley = ui.painter().layout_no_wrap(

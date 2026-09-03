@@ -54,22 +54,13 @@ mod backend {
     pub(crate) fn pump() {}
 }
 
-/// The stub for wasm outside emscripten: no HTTP stack exists there yet, so
-/// every request resolves to an error event and scripts keep running.
+/// The browser outside emscripten: the Fetch API through web-sys.
+#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+mod browser;
+
 #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
 mod backend {
-    use std::sync::mpsc::Sender;
-
-    use crate::{HttpCall, HttpEvent};
-
-    pub(crate) fn spawn_request(call: HttpCall, events: Sender<HttpEvent>) {
-        let _ = events.send(HttpEvent::Error {
-            request: call.id,
-            message: "no http backend compiles for wasm".into(),
-        });
-    }
-
-    pub(crate) fn pump() {}
+    pub(crate) use crate::browser::{pump, spawn_request};
 }
 
 /// One `http.request`, on its way to a worker thread.

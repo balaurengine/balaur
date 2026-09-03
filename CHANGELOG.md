@@ -80,6 +80,7 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Audio buses: `[audio.buses]`, routing per sound, `audio.set_bus_volume`.
 - Audio events: `audio/events.toml`, variations taken in turn.
 - Loaded plugins are recorded: `balaur_core::plugins`, and a plugin's `requires` is checked at load.
+- Optional modules are one line in `balaur`'s `modules!` table, loaded in requirement-then-name order.
 
 ### Platform services
 
@@ -107,6 +108,12 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - The editor's look is a theme asset: `editor/themes/*.toml` holds colour tokens and named roles a widget takes with `role:`.
 - Bundled type: Alegreya, Source Sans 3, JetBrains Mono and Phosphor icons, with the OS chained for scripts balaur does not ship.
 - Fixed: a sheet's content spilled over its neighbours; `ui::overlay` clips to the rect it was given.
+- The status strip moved into the bottom dock's foot; sheets separate by tone rather than an outline.
+- Viewport chips recede until the pointer comes for them.
+- Asset cards carry their own name and a typed mark; the timeline has a ruler, a playhead and keys that can be clicked.
+- `ui::cursor_y` reports where the next widget lands, so a rule can be drawn through rows not yet laid out.
+- The persona bar centres on the document column; the inspector reaches the bottom gutter; `ui::toggle` takes its size from the theme.
+- Vector fields are inputs, not pills; node marks come from the icon set and lost their disc; minimise points at the edge it goes to.
 
 ### Breaking
 

@@ -535,3 +535,46 @@ fn a_shared_closure_is_callable_from_another_unit() {
         balaur_core::logbuf::recent(10)
     );
 }
+
+/// Rune hands object iteration order to scripts, and upstream seeds its maps
+/// from the OS once per process — so the order differed between two runs of
+/// the same binary. The fork hashes with `XxHash64` at a fixed seed instead.
+///
+/// A single process cannot observe the old bug directly; what it can check is
+/// that the order is a specific one rather than whatever this run produced.
+#[test]
+fn object_iteration_order_does_not_move_between_runs() {
+    let dir = project(&[(
+        "keys.rn",
+        "pub fn init(this) {\n\
+         \x20   let o = #{ angle: 1, speed: 2, health: 3, target: 4, name: 5 };\n\
+         \x20   let out = \"\";\n\
+         \x20   for k in o.keys() { out += k; out += \",\"; }\n\
+         \x20   this.order = out;\n\
+         }\n\
+         pub fn update(this, dt) {}\n",
+    )]);
+    let app = app_in(dir.path());
+    let host = app.engine.script_host().unwrap();
+    let node = spawn(&app, "n");
+    host.attach(balaur_core::node_id_of(node), "keys.rn")
+        .unwrap();
+
+    let saved = host.save_state();
+    let (_, state) = saved.first().expect("one instance");
+    let balaur_script::Value::Map(fields) = state else {
+        panic!("expected a map, got {state:?}");
+    };
+    let order = fields
+        .iter()
+        .find(|(k, _)| k == "order")
+        .map(|(_, v)| v)
+        .expect("order was written");
+
+    // The literal is a tripwire, not a meaningful order: if the seed or the
+    // hasher moves, this changes and two builds no longer agree.
+    assert_eq!(
+        order,
+        &balaur_script::Value::Str("angle,target,speed,health,name,".into())
+    );
+}

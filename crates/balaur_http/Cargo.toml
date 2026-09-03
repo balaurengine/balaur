@@ -21,6 +21,21 @@ toml.workspace = true
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 ureq.workspace = true
 
+# The browser outside emscripten: the Fetch API through web-sys. No threads —
+# a promise settles between frames and feeds the same channel.
+[target.'cfg(all(target_family = "wasm", not(target_os = "emscripten")))'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Request",
+    "RequestInit",
+    "Headers",
+    "Response",
+    "AbortSignal",
+] }
+
 # Compiles the emscripten fetch shim for web builds only; see build.rs.
 [build-dependencies]
 cc = "1"

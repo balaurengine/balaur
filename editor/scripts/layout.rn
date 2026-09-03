@@ -31,14 +31,16 @@ pub fn state() {
         tabs: rect(0.0, 0.0, 0.0, 0.0), right: rect(0.0, 0.0, 0.0, 0.0),
         bottom: rect(0.0, 0.0, 0.0, 0.0), status: rect(0.0, 0.0, 0.0, 0.0),
         stage: rect(0.0, 0.0, 0.0, 0.0), doc: rect(0.0, 0.0, 0.0, 0.0),
-        hooks: rect(0.0, 0.0, 0.0, 0.0), split_w: 560.0,
+        hooks: rect(0.0, 0.0, 0.0, 0.0), split_w: 560.0, body_h: 96.0,
     }
 }
 
 /// The sheets that can sit under the pointer, in draw order.
 pub fn sheets(S) {
     let m = S.layout;
-    let all = [m.bar, m.cmd, m.left, m.right, m.bottom, m.status, m.tabs];
+    // `status` is a strip inside the bottom dock, not a sheet of its own: the
+    // dock already owns that rect and the pointer with it.
+    let all = [m.bar, m.cmd, m.left, m.right, m.bottom, m.tabs];
     if S.rail_visible {
         all.push(m.rail);
     }
@@ -69,7 +71,7 @@ pub fn compute(S) {
     let insp_w = if S.docks.right.shut { SHUT_W } else { util::clamp(m.insp_w, 220.0, w * 0.32) };
     let dock_h = (if S.docks.bottom.shut { SHUT_H } else { m.dock_h }) + STATUS_H;
     let top = GUTTER + BAR_H + 12.0;
-    let bottom = dock_bottom_edge(h) - 12.0;
+    let bottom = dock_bottom_edge(h);
 
     let tree_gap = if tree_w > 0.0 { GAP } else { 0.0 };
     let content_x = GUTTER + tree_w + tree_gap;
@@ -83,14 +85,22 @@ pub fn compute(S) {
     let stage_y = top + TABS_H + 6.0;
     let below = dock_y - 12.0;
 
-    m.bar = rect((w - bar_w(S)) / 2.0, GUTTER, bar_w(S), BAR_H);
+    // Centred on the document column, not the window: the tool rail shifts
+    // it, and the bar has to sit over what it commands.
+    let bar_mid = (doc_x + content_r) / 2.0;
+    m.bar = rect(bar_mid - bar_w(S) / 2.0, GUTTER, bar_w(S), BAR_H);
     m.cmd = rect(w - GUTTER - CMD_W, GUTTER + 7.0, CMD_W, 30.0);
     m.left = rect(GUTTER, top, tree_w, bottom - top);
     m.rail = rect(content_x, top, RAIL_W, rail_h(S));
     m.tabs = rect(doc_x, top, content_r - doc_x, TABS_H);
-    m.right = rect(insp_x, top, insp_w, below - top);
+    m.right = rect(insp_x, top, insp_w, bottom - top);
     m.bottom = rect(content_x, dock_y, content_r - content_x, dock_h);
-    m.status = rect(0.0, 0.0, 0.0, 0.0);
+    // What a dock panel may scroll: the sheet less its tab row and the status
+    // strip sharing its foot.
+    m.body_h = dock_h - 30.0 - STATUS_H;
+    // Inside the dock's sheet, drawn separately so a tall panel cannot push
+    // it off the bottom.
+    m.status = rect(content_x, dock_y + dock_h - STATUS_H, content_r - content_x, STATUS_H);
 
     // The hooks list is its own sheet, so the code pane never has to nest a
     // panel inside an overlay.

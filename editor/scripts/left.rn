@@ -41,13 +41,8 @@ fn tree_row(S, k, row) {
         } else {
             ui::add_space(16);
         }
-        let (icon, role) = model::node_icon(node);
-        let icon_color = match role {
-            "sage" => k.sage,
-            "accent" => k.accent,
-            "dim" => k.dim,
-            _ => k.faint,
-        };
+        let (icon, token) = model::node_icon(node);
+        let icon_color = k.get(token).unwrap_or(k.faint);
         // Row spans the rest of the panel, content left-aligned.
         if ui::pill(node.name, #{
             role: if selected { "row_on" } else { "row" },

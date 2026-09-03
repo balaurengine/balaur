@@ -29,6 +29,12 @@ k_com = "#6b7683"
 k_fn = "#e6e9ee"
 k_type = "#b7d3cc"
 k_punc = "#98a3ae"
+node_plain = "#8b96a2"
+node_2d = "#c9a86a"
+node_3d = "#6fa4d8"
+node_ui = "#a98fd0"
+node_phys = "#8fb8b0"
+node_bone = "#d08a5f"
 
 # Text. A call site names one of these and says nothing else about type.
 [roles.title]
@@ -81,18 +87,20 @@ fill = "panel"
 [roles.row]
 height = 23
 radius = 5
-size = 12
+size = 11.5
 align = "left"
 color = "text"
 hover_fill = "raised"
+font = "mono"
 
 [roles.row_on]
 height = 23
 radius = 5
-size = 12
+size = 11.5
 align = "left"
 fill = "accent_fill"
 color = "on_accent"
+font = "mono"
 
 [roles.list_item]
 height = 25
@@ -206,3 +214,22 @@ radius = 6
 size = 10.5
 strong = true
 color = "dim"
+
+[roles.toggle]
+height = 17
+
+[roles.row_action]
+height = 20
+radius = 4
+size = 10
+strong = true
+fill = "sunken"
+color = "dim"
+
+[roles.row_action_on]
+height = 20
+radius = 4
+size = 10
+strong = true
+fill = "accent_soft"
+color = "accent"

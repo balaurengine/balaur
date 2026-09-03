@@ -83,14 +83,3 @@ impl Certificate {
         self.key.clone_key()
     }
 }
-
-/// What a client is willing to trust in a server.
-#[derive(Clone, Debug)]
-pub enum Accept {
-    /// Pin exactly these certificate hashes. What a self-signed server needs,
-    /// and what a browser accepts for one.
-    Hashes(Vec<Vec<u8>>),
-    /// Trust anything a public authority signed, as a browser does for a
-    /// website. What a shipped server uses.
-    SystemRoots,
-}

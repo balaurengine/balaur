@@ -19,20 +19,47 @@
 //! self-signed certificate by hash too, but only while it is valid for at
 //! most two weeks.
 
+#[cfg(not(target_family = "wasm"))]
 use std::net::SocketAddr;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
-use anyhow::{bail, Context, Result};
+#[cfg(not(target_family = "wasm"))]
+use anyhow::Context;
+use anyhow::{bail, Result};
 use balaur_core::replay;
 use balaur_core::transport::{Delivery, LinkState, Received, Transport};
 use balaur_core::Engine;
 
+#[cfg(target_family = "wasm")]
+mod browser;
+#[cfg(not(target_family = "wasm"))]
 mod link;
+#[cfg(not(target_family = "wasm"))]
 mod tls;
 
-pub use tls::{Accept, Certificate};
+#[cfg(not(target_family = "wasm"))]
+pub use tls::Certificate;
+
+/// What a client is willing to trust in a server.
+///
+/// Target-independent on purpose: both arms mean something in a browser too,
+/// where `Hashes` is the WebTransport API's `serverCertificateHashes` and
+/// `SystemRoots` is what it does by default.
+#[derive(Clone, Debug)]
+pub enum Accept {
+    /// Pin exactly these certificate hashes. What a self-signed server needs,
+    /// and what a browser accepts for one.
+    Hashes(Vec<Vec<u8>>),
+    /// Trust anything a public authority signed, as a browser does for a
+    /// website. What a shipped server uses.
+    SystemRoots,
+}
 
 /// What a worker thread reports back to the frame loop.
+#[cfg_attr(
+    target_family = "wasm",
+    allow(dead_code, reason = "the browser backend reports only Closed until it is built")
+)]
 enum LinkEvent {
     Open,
     /// A payload and the promise it was sent under.
@@ -41,6 +68,10 @@ enum LinkEvent {
 }
 
 /// What the frame loop asks a worker thread to do.
+#[cfg_attr(
+    target_family = "wasm",
+    allow(dead_code, reason = "nothing in a browser drains these until the backend does")
+)]
 enum LinkCommand {
     Send(Delivery, Vec<u8>),
     Close,
@@ -73,20 +104,23 @@ impl WebTransportLink {
     /// `Connecting` — the intended outcome, since neither should be talking
     /// to anyone.
     ///
-    /// `accept` names the certificates to trust: [`Certificate::hashes`] for
-    /// a self-signed server, or the system roots for a real one.
+    /// `accept` names what to trust: the hashes of a self-signed server's
+    /// certificate, or the system roots for a real one.
     ///
     /// # Errors
     /// When the url or the trust settings are unusable. A failure to reach
     /// the peer is not an error here — it arrives as a `Closed` state.
-    pub fn connect(eng: &Engine, url: &str, accept: tls::Accept) -> Result<Self> {
+    pub fn connect(eng: &Engine, url: &str, accept: Accept) -> Result<Self> {
         let (commands, command_rx) = channel();
         let (event_tx, events) = channel();
         if replay::suppressed(eng) {
             return Ok(Self::idle(events));
         }
         let url = url.to_string();
-        std::thread::spawn(move || link::dial(&url, accept, &command_rx, &event_tx));
+        #[cfg(not(target_family = "wasm"))]
+        std::thread::spawn(move || link::dial(&url, accept, command_rx, event_tx));
+        #[cfg(target_family = "wasm")]
+        browser::dial(&url, accept, command_rx, &event_tx);
         Ok(Self {
             events,
             commands: Some(commands),
@@ -105,6 +139,7 @@ impl WebTransportLink {
         }
     }
 
+    #[cfg(not(target_family = "wasm"))]
     fn from_accepted(events: Receiver<LinkEvent>, commands: Sender<LinkCommand>) -> Self {
         Self {
             events,
@@ -180,12 +215,17 @@ impl Transport for WebTransportLink {
 }
 
 /// A bound UDP port accepting QUIC sessions.
+///
+/// Native-only, and permanently so rather than pending a backend: a browser
+/// has no listening socket.
+#[cfg(not(target_family = "wasm"))]
 pub struct WebTransportServer {
     addr: SocketAddr,
     arrivals: Receiver<(Receiver<LinkEvent>, Sender<LinkCommand>)>,
     certificate: Certificate,
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl WebTransportServer {
     /// Bind and start accepting, with a freshly generated self-signed
     /// certificate.
@@ -252,6 +292,7 @@ impl WebTransportServer {
 }
 
 /// Turn a failure into the reason a link reports, rather than losing it.
+#[cfg(not(target_family = "wasm"))]
 fn reason(error: &anyhow::Error) -> String {
     format!("{error:#}")
 }

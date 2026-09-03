@@ -95,6 +95,43 @@ fn the_standard_app_records_every_plugin_it_loaded() {
     assert!(names.contains(&"audio".to_string()), "{names:?}");
 }
 
+/// Every optional module the build linked in, whatever `standard_app` names.
+fn optional_modules(names: &[String]) -> Vec<String> {
+    const OPTIONAL: [&str; 5] = ["apple", "audio", "gamend", "http", "websocket"];
+    names
+        .iter()
+        .filter(|n| OPTIONAL.contains(&n.as_str()))
+        .cloned()
+        .collect()
+}
+
+#[test]
+fn the_optional_modules_load_in_name_order() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path(), None, RUNE);
+    let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let names: Vec<String> = app.plugins().into_iter().map(|p| p.name).collect();
+
+    let found = optional_modules(&names);
+    let mut sorted = found.clone();
+    sorted.sort();
+    assert_eq!(found, sorted, "{names:?}");
+}
+
+#[test]
+fn platform_loads_before_the_modules_that_register_a_backend_into_it() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path(), None, RUNE);
+    let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let names: Vec<String> = app.plugins().into_iter().map(|p| p.name).collect();
+
+    let at = |name: &str| names.iter().position(|n| n == name);
+    let platform = at("platform").unwrap_or_else(|| panic!("platform is not loaded: {names:?}"));
+    for module in optional_modules(&names) {
+        assert!(at(&module) > Some(platform), "`{module}` beat platform");
+    }
+}
+
 #[test]
 fn the_standard_app_has_every_plugin_registered() {
     let dir = tempfile::tempdir().unwrap();

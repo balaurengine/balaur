@@ -335,34 +335,24 @@ pub fn node_icon(node) {
         None => body2d_kind(node),
     };
     if node.contains_key("widget") {
-        ("▤", "accent")
-    } else if kind == Some("dynamic") {
-        ("●", "sage")
-    } else if kind == Some("kinematic") {
-        ("◐", "sage")
-    } else if kind.is_some() {
-        ("▣", "sage")
-    } else if node.contains_key("bone2d") || node.contains_key("bone3d") {
-        ("⋈", "dim")
-    } else if node.contains_key("polygon") {
-        ("⬟", "accent")
-    } else if node.contains_key("shape3d") {
-        if util::obj(node.shape3d).get("kind") == Some("ball") {
-            ("◯", "accent")
-        } else {
-            ("◆", "accent")
-        }
-    } else if node.contains_key("shape2d") {
-        if util::obj(node.shape2d).get("kind") == Some("circle") {
-            ("◯", "accent")
-        } else {
-            ("▭", "accent")
-        }
-    } else if node.contains_key("script") {
-        ("⚙", "dim")
-    } else {
-        ("○", "faint")
+        return (crate::icons::persona("ui"), "node_ui");
     }
+    if kind.is_some() {
+        return (crate::icons::persona("phys"), "node_phys");
+    }
+    if node.contains_key("bone2d") || node.contains_key("bone3d") {
+        return (crate::icons::tool("bone"), "node_bone");
+    }
+    if node.contains_key("polygon") || node.contains_key("shape2d") || node.contains_key("sprite") {
+        return (crate::icons::tool("polygon"), "node_2d");
+    }
+    if node.contains_key("shape3d") || node.contains_key("mesh") {
+        return (crate::icons::persona("scene"), "node_3d");
+    }
+    if node.contains_key("script") {
+        return (crate::icons::ui("scriptfile"), "node_plain");
+    }
+    return (crate::icons::node("world"), "node_plain");
 }
 
 // How deep prefabs may nest before the editor stops following them. The

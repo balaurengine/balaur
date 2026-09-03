@@ -63,7 +63,8 @@ jobs:
 
   # Runtime templates for the non-desktop platforms, each packaged as the
   # shape its OS actually starts (scripts/package_template.sh). Web is
-  # emscripten: the template was built and tested against it.
+  # wasm-bindgen on wasm32-unknown-unknown, which is the target kiss3d and
+  # wgpu support in a browser; the job prints the download size.
   build-platforms:
     name: build ${{ matrix.platform }}
     runs-on: ${{ matrix.host }}
@@ -83,7 +84,7 @@ jobs:
             target: aarch64-linux-android
             host: ubuntu-latest
           - platform: web
-            target: wasm32-unknown-emscripten
+            target: wasm32-unknown-unknown
             host: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -103,17 +104,16 @@ jobs:
             echo "AR_aarch64_linux_android=$bin/llvm-ar"
             echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android26-clang"
           } >> "$GITHUB_ENV"
-      # Pinned, not `latest`: this build blocks the release now, so an
-      # upstream emscripten release must not be able to turn CI red on its own.
-      - name: Emscripten
+      # The bindgen CLI has to be the exact version the build links against, so
+      # the pin is read off Cargo.lock rather than written down twice.
+      # binaryen is wasm-opt; brotli is what a static host serves.
+      - name: Web toolchain
         if: matrix.platform == 'web'
-        env:
-          EMSDK_VERSION: 4.0.11
         run: |
-          git clone --depth 1 https://github.com/emscripten-core/emsdk.git
-          ./emsdk/emsdk install "$EMSDK_VERSION"
-          ./emsdk/emsdk activate "$EMSDK_VERSION"
-          echo "$PWD/emsdk/upstream/emscripten" >> "$GITHUB_PATH"
+          sudo apt-get update && sudo apt-get install -y binaryen brotli bc
+          want=$(awk '/^name = "wasm-bindgen"$/{getline; gsub(/[" ]/,""); sub(/version=/,""); print; exit}' Cargo.lock)
+          echo "wasm-bindgen-cli $want (from Cargo.lock)"
+          cargo install wasm-bindgen-cli --version "$want" --locked
       - uses: Swatinem/rust-cache@v2
         with:
           key: platform-${{ matrix.target }}

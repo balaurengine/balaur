@@ -13,6 +13,7 @@ use crate::util;
 const LABEL_W = 82.0;
 // Control area width: 308 panel − 24 padding − 84 label − spacing.
 const CONTROL_W = 184.0;
+// Replaced by `control_w(S)` wherever the panel width is reachable.
 
 // A section heading that folds its rows away on click. Returns whether the
 // caller should draw them; the fold state lives on `S.collapsed` beside the
@@ -62,7 +63,7 @@ fn vec3_row(S, k, label, getter, setter) {
     let cell = #{ v: getter(node, found), changed: false };
     row(k, label, || {
         let axes = ["x", "y", "z"];
-        let w = control_w(S) / 3.0 - 4.0;
+        let w = control_w(S) / 3.0 - 3.0;
         for i in 0..3 {
             let (nv, ch) = ui::drag_value(cell.v[i], #{
                 width: w, speed: 0.02, decimals: 2,
@@ -83,7 +84,7 @@ fn vec3_row(S, k, label, getter, setter) {
 
 fn value_field(k, value, opts) {
     ui::drag_value(value, #{
-        width: opts.get("width").unwrap_or(186.0),
+        width: opts.get("width").unwrap_or(184.0),
         speed: opts.get("speed").unwrap_or(0.02),
         decimals: opts.get("decimals").unwrap_or(2),
         suffix: opts.get("suffix").unwrap_or(()),
@@ -92,12 +93,12 @@ fn value_field(k, value, opts) {
 }
 
 // A select shell: a value the user cannot change here yet.
-fn select_row(k, label, value) {
+fn select_row(S, k, label, value) {
     row(k, label, || {
         ui::pill(value, #{
             height: 28, size: 12, align: "left",
-            min_width: CONTROL_W,
-            fill: k.sunken, stroke: k.line_soft, color: k.text,
+            min_width: control_w(S),
+            fill: k.sunken, color: k.text,
             trailing: "▼", trailing_color: k.faint, trailing_size: 10,
         });
     });
@@ -207,15 +208,15 @@ fn script_section(S, k, title) {
         return;
     }
     row(k, "Script", || {
-        ui::frame(#{ fill: k.sage_soft, stroke: k.sage, radius: 14, padding_x: 11 }, || {
-            ui::horizontal(#{ height: 28 }, || {
+        ui::frame(#{ fill: k.sage_soft, radius: 5, padding_x: 8 }, || {
+            ui::horizontal(#{ height: 22, width: control_w(S) - 18.0 }, || {
                 let name = model::script_rel(node).unwrap_or("— none —");
-                ui::label(name, style::mono(k.sage));
+                ui::label(name, #{ role: "value", color: k.sage });
                 ui::right(|| {
                     let has = node.contains_key("script");
                     let action = if has { "open" } else { "add" };
                     if ui::pill(action, #{
-                        height: 20, size: 10, strong: true,
+                        height: 18, size: 9.5, radius: 4, strong: true,
                         fill: k.panel, color: k.dim,
                     }) {
                         if has {
@@ -265,10 +266,10 @@ fn script_props_rows(S, k, node) {
         };
         editor(S, k, SCRIPT_PROPS, export.name, spec, value);
         if overridden {
-            ui::horizontal((), || {
+            ui::horizontal(#{ height: 16 }, || {
                 ui::add_space(LABEL_W + 8.0);
                 if ui::pill("reset", #{
-                    height: 18, size: 9, fill: k.sunken, color: k.faint,
+                    height: 15, size: 9, radius: 3, fill: k.sunken, color: k.faint,
                     tooltip: "Back to the script's default",
                 }) {
                     model::set_script_prop(S, export.name, export["default"]);
@@ -325,9 +326,8 @@ fn skeleton_section(S, k) {
         ui::label(format!("{} · {}", count, what), style::mono(k.text));
         ui::right(|| {
             if ui::pill("＋ bone", #{
-                height: 20, size: 10, strong: true,
+                role: "row_action_on",
                 tooltip: "Grow a bone under this node (in 2D, the Rig bone tool places one by clicking)",
-                fill: k.accent_soft, color: k.accent,
             }) {
                 if let Some(found) = model::live(S, S.sel) {
                     let p = found.global_position();
@@ -341,17 +341,15 @@ fn skeleton_section(S, k) {
     }
     row(k, "Rest pose", || {
         if ui::pill("reset", #{
-            height: 24, size: 11, strong: true,
+            role: "row_action",
             tooltip: "Reset to Rest Pose: pose every bone here at its rest",
-            fill: k.sunken, color: k.dim,
         }) {
             rig::apply_rest(S);
         }
         ui::add_space(6);
         if ui::pill("overwrite", #{
-            height: 24, size: 11, strong: true,
+            role: "row_action", fill: k.sage_soft, color: k.sage,
             tooltip: "Overwrite Rest Pose: the pose every bone is in now becomes its rest",
-            fill: k.sage_soft, color: k.sage,
         }) {
             rig::overwrite_rest(S);
         }
@@ -507,7 +505,7 @@ fn animation_section(S, k) {
         // The engine's own vocabulary, not a boolean: pingpong is a third
         // answer and a toggle cannot say it.
         let (v, ch) = ui::dropdown(format!("loop:{}", S.sel), def.get("loop").unwrap_or("none"), ["none", "loop", "pingpong"], #{
-            width: CONTROL_W, size: 12, height: 28, color: k.text,
+            width: control_w(S), size: 11.5, height: 22, color: k.text,
         });
         if ch {
             def["loop"] = v;
@@ -535,7 +533,7 @@ fn interface_section(S, k) {
             S.chip_state["ui"] = #{};
         }
         let chips = S.chip_state["ui"];
-        let (on, ch) = ui::toggle(chips.get("safe").unwrap_or(false) == true, #{
+        let (on, ch) = ui::toggle(chips.get("safe").unwrap_or(false) == true, #{ role: "toggle",
             on_fill: k.accent_fill, off_fill: k.sunken,
             on_knob: k.on_accent, off_knob: k.faint,
         });
@@ -715,7 +713,7 @@ fn edit_float(S, k, comp, prop, spec, value) {
 
 fn edit_bool(S, k, comp, prop, spec, value) {
     row(k, prop, || {
-        let (on, ch) = ui::toggle(value == true, #{
+        let (on, ch) = ui::toggle(value == true, #{ role: "toggle",
             on_fill: k.accent_fill, off_fill: k.sunken,
             on_knob: k.on_accent, off_knob: k.faint,
         });
@@ -728,7 +726,7 @@ fn edit_bool(S, k, comp, prop, spec, value) {
 fn edit_enum(S, k, comp, prop, spec, value) {
     row(k, prop, || {
         let (v, changed) = ui::dropdown(format!("sel:{}:{}:{}", comp, prop, S.sel), as_text(value), util::vec(spec.get("options").unwrap_or([])), #{
-            width: CONTROL_W, size: 12, height: 28, color: k.text,
+            width: control_w(S), size: 11.5, height: 22, color: k.text,
         });
         if changed {
             write(S, comp, prop, v);
@@ -1079,9 +1077,9 @@ pub fn body(S, k) {
     let node = model::selected_node(S);
     ui::add_space(8);
         ui::horizontal(#{ height: 34 }, || {
-            let (icon, _) = model::node_icon(node);
-            ui::circle_button(icon, #{ d: 30, size: 15, fill: k.accent_soft, color: k.accent });
-            ui::add_space(6);
+            let (icon, token) = model::node_icon(node);
+            ui::label(icon, #{ size: 17, color: k.get(token).unwrap_or(k.accent) });
+            ui::add_space(9);
             ui::vertical(|| {
                 ui::spacing(4, 1);
                 ui::label(node.name, #{ size: 16, font: "heading", strong: true, color: k.text });
@@ -1098,8 +1096,8 @@ pub fn body(S, k) {
                 script_section(S, k, "Script");
             } else if S.persona == "script" {
                 script_section(S, k, "Attached script");
-                select_row(k, "Language", "Rune");
-                select_row(k, "Hot reload", "on save");
+                select_row(S, k, "Language", "Rune");
+                select_row(S, k, "Hot reload", "on save");
             } else if S.persona == "anim" {
                 skeleton_section(S, k);
                 polygon_section(S, k);
@@ -1124,7 +1122,6 @@ pub fn body(S, k) {
         });
 
         // Footer: full-width accent button.
-        ui::separator(k.line_soft);
         ui::add_space(6);
         if ui::pill(icons::ui("add") + "  Add component", #{
             role: "button", height: 34, min_width: S.layout.right.w - 26.0,

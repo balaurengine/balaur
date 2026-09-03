@@ -405,7 +405,6 @@ name = "balaur_apple"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "balaur",
  "balaur_core",
  "balaur_platform",
  "balaur_plugin",
@@ -536,12 +535,16 @@ dependencies = [
  "balaur_plugin",
  "balaur_script",
  "cc",
+ "js-sys",
  "serde",
  "serde_json",
  "tempfile",
  "toml",
  "tracing",
  "ureq",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
@@ -693,6 +696,7 @@ dependencies = [
  "cc",
  "flate2",
  "httparse",
+ "js-sys",
  "rand 0.9.5",
  "rustls",
  "serde",
@@ -701,6 +705,8 @@ dependencies = [
  "toml",
  "tracing",
  "tungstenite",
+ "wasm-bindgen",
+ "web-sys",
  "webpki-roots 0.26.11",
 ]
 

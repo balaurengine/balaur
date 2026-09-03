@@ -42,7 +42,6 @@ impl RuneHost {
                 .breakpoints
                 .get(key)
                 .is_some_and(|b| !b.ips.is_empty());
-
             let sync = state
                 .scripts
                 .get(key)
@@ -61,7 +60,9 @@ impl RuneHost {
         // one gets its own, because the future it returns holds on to it.
         let outcome = if found.immediate {
             let mut vm = self.take_vm(key)?;
+            let before = vm.instruction_count();
             let outcome = vm.call(found.hash, args);
+            self.charge(key, vm.instruction_count().wrapping_sub(before));
             self.return_vm(key, vm);
             outcome
         } else {
