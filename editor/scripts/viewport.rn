@@ -2,6 +2,7 @@
 // selection palette, the world-per-pixel scale, and the three questions a
 // tool asks about the current drag.
 
+use crate::layout;
 use crate::util;
 
 /// steadyum's selection orange.
@@ -41,4 +42,12 @@ pub fn hot_part(S) {
 pub fn manipulates(tool, mode2d) {
     let core = tool == "move" || tool == "rotate" || tool == "scale" || tool == "zoom";
     core || (mode2d && (tool == "bone" || tool == "polygon"))
+}
+
+/// Whether the pointer belongs to the scene. Under Stage the scene is the
+/// whole window, so this is the inverse of the old test: it is the viewport's
+/// unless a sheet is over it.
+pub fn owns_pointer(S, x, y) {
+    let over = layout::over_sheet(S, x, y);
+    !over
 }

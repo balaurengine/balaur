@@ -375,8 +375,7 @@ pub fn update(S, vp) {
     let (pmx, pmy) = input::mouse_position();
     pmx = pmx / (dpi * S.ui_scale);
     pmy = pmy / (dpi * S.ui_scale);
-    let over_viewport = pmx > vp.x && pmx < vp.x + vp.w
-        && pmy > vp.y + 44.0 && pmy < vp.y + vp.h - 40.0;
+    let over_viewport = viewport::owns_pointer(S, pmx, pmy);
 
     // The Rig bone and Polygon tools own the click: no gizmo hover, no
     // camera drag.

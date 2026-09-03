@@ -10,21 +10,29 @@ name = "balaur"
 path = "src/main.rs"
 
 [features]
-default = ["audio", "net", "gamend"]
+default = ["audio", "http", "websocket", "webtransport", "gamend"]
 # Build with a real window (kiss3d/wgpu). Without it, runs are headless.
 window = ["balaur/window"]
 # Sound. Off, the build drops rodio, cpal and the platform audio stack.
 audio = ["balaur/audio"]
 # Load extensions from a project's extensions/ directory.
 extensions = ["balaur/extensions"]
-# `http.*` and `websocket.*` for scripts. Off, the build drops ureq,
-# tungstenite and the TLS stack.
-net = ["balaur/net"]
+# `http.*` for scripts. Off, the build drops ureq and its TLS stack.
+http = ["balaur/http"]
+# `websocket.*` for scripts, and the websocket `Transport`.
+websocket = ["balaur/websocket"]
+# The WebTransport `Transport`, over QUIC.
+webtransport = ["balaur/webtransport"]
 # `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks).
 gamend = ["balaur/gamend"]
+# `apple.*` for scripts, and Game Center and iCloud under `platform.*`. The
+# Apple templates ship with it on, because a template is prebuilt and a game
+# cannot add a framework to one it was handed.
+apple = ["balaur/apple"]
 
 [dependencies]
 balaur = { workspace = true, default-features = false }
+balaur_export.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 serde_json.workspace = true

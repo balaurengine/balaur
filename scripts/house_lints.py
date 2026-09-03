@@ -58,7 +58,7 @@ KNOWN_RESOURCES = {
     "AudioState", "CameraConfig", "CameraConfig2d", "CameraInputConfig",
     "ClearColorConfig", "ComponentRegistry", "DebugLineBuffer", "DebugLineBuffer2d",
     "GamendSnapshot", "GamendState",
-    "GridConfig", "InputSnapshot", "NetSnapshot", "NetState", "PhysicsState",
+    "GridConfig", "HttpSnapshot", "HttpState", "InputSnapshot", "PhysicsState", "WebsocketSnapshot", "WebsocketState",
     "PhysicsState2d", "ProjectRoot",
     "RngState", "SceneKeyRegistry", "ScreenshotRequest", "ScriptArgs", "UiConfig",
     "UiState", "ViewportSnapshot", "ViewportSnapshot2d", "WidgetLayerConfig",

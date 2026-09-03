@@ -185,9 +185,9 @@ fn a_missing_file_is_an_error_rather_than_a_panic() {
 #[test]
 fn an_empty_directory_yields_no_extensions() {
     let dir = tempfile::tempdir().unwrap();
-    let found = unsafe { load_extensions_in(dir.path()) }.unwrap();
+    let found = unsafe { load_extensions_in(dir.path(), &[]) }.unwrap();
     assert!(found.is_empty());
-    let absent = unsafe { load_extensions_in(Path::new("/nowhere")) }.unwrap();
+    let absent = unsafe { load_extensions_in(Path::new("/nowhere"), &[]) }.unwrap();
     assert!(absent.is_empty());
 }
 
@@ -198,7 +198,7 @@ fn a_directory_of_extensions_loads_them_all() {
     let copy = dir.path().join(format!("greeter.{}", library_suffix()));
     std::fs::copy(&source, &copy).unwrap();
 
-    let found = unsafe { load_extensions_in(dir.path()) }.unwrap();
+    let found = unsafe { load_extensions_in(dir.path(), &[]) }.unwrap();
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].manifest().name, "greeter");
     assert_eq!(found[0].path(), copy);
@@ -250,7 +250,7 @@ fn the_file_name_does_not_decide_the_plugin_name() {
         .join(format!("zzz_last_alphabetically.{}", library_suffix()));
     std::fs::copy(greeter(), &renamed).unwrap();
 
-    let found = unsafe { load_extensions_in(dir.path()) }.unwrap();
+    let found = unsafe { load_extensions_in(dir.path(), &[]) }.unwrap();
     assert_eq!(found[0].manifest().name, "greeter");
 }
 

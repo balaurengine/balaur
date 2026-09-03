@@ -9,96 +9,74 @@ use crate::shell;
 use crate::style;
 use crate::util;
 
-fn tab_row(S, k) {
-    ui::horizontal(#{ height: 34 }, || {
-        ui::spacing(6, 0);
-        ui::add_space(6);
-        let tabs = ["output", "problems", "assets", "timeline", "debugger", "session", "profiler"];
-        for entry in S.registry.docks {
-            tabs.push(entry.id);
+/// The right-hand hint for a panel, one table rather than an `if` chain that
+/// fell through to the animation branch for everything unlisted.
+pub fn hint(S, id) {
+    if id == "assets" {
+        // A project-relative path: the absolute one is this machine's, and
+        // lands in every screenshot.
+        return format!("res:// · {}", S.game_name);
+    }
+    if id == "debugger" {
+        if S.debug.paused is Object {
+            return S.debug.paused.reason;
         }
-        for tab in tabs {
-            let active = S.dock == tab;
-            let label = match crate::plugins::dock(S, tab) {
-                Some(entry) => entry.name,
-                None => tab[..1].to_uppercase() + tab[1..],
-            };
-            // The count belongs on the tab: a problem nobody opened the dock
-            // for is exactly the one worth seeing.
-            if tab == "problems" {
-                let (errors, warnings) = lint::counts(S);
-                if errors + warnings > 0 {
-                    label += format!(" {}", errors + warnings);
-                }
+        return "F5 run · F10 over · F11 into · ⇧F11 out";
+    }
+    if id == "timeline" {
+        let (node, _, _) = anim::player(S);
+        let text = match anim::definition(S) {
+            None => "no clip",
+            Some(def) => {
+                let name = anim::clip_name(node);
+                format!("0.00 – {:.2} s · {} · {}",
+                    anim::length(def),
+                    if name == "" { "unnamed" } else { name },
+                    anim::library_path(node).unwrap_or("inline"))
             }
-            if ui::pill(label, #{
-                height: 24, size: 11.5, strong: true,
-                fill: if active { k.accent_fill } else { k.sunken },
-                color: if active { k.on_accent } else { k.dim },
-            }) {
-                S.dock = tab;
-            }
+        };
+        return text;
+    }
+    ""
+}
+
+/// Output owns the tab row's slot when it is showing: a log without a filter,
+/// a level and a clear is unusable.
+pub fn output_tools(S, k, room) {
+    if room < 90.0 {
+        return;
+    }
+    ui::add_space(6);
+    if ui::pill("clear", #{
+        height: 22, size: 11, strong: true, tooltip: "Empty the log buffer",
+        fill: k.sunken, color: k.dim,
+    }) {
+        log::clear();
+    }
+    if room < 200.0 {
+        return;
+    }
+    for level in ["error", "warn", "all"] {
+        let active = S.log_level == level;
+        if ui::pill(level, #{
+            height: 22, size: 11, strong: true,
+            tooltip: format!("Show {} and above", level),
+            fill: if active { k.accent_soft } else { k.sunken },
+            color: if active { k.accent } else { k.dim },
+        }) {
+            S.log_level = level;
         }
-        // Output owns the right side of its own tab row: filter, search and
-        // clear are the controls a log is unusable without.
-        if S.dock == "output" {
-            ui::right(|| {
-                ui::add_space(8);
-                if ui::pill("clear", #{
-                    height: 22, size: 11, strong: true, tooltip: "Empty the log buffer",
-                    fill: k.sunken, color: k.dim,
-                }) {
-                    log::clear();
-                }
-                for level in ["error", "warn", "all"] {
-                    let active = S.log_level == level;
-                    if ui::pill(level, #{
-                        height: 22, size: 11, strong: true,
-                        tooltip: format!("Show {} and above", level),
-                        fill: if active { k.accent_soft } else { k.sunken },
-                        color: if active { k.accent } else { k.dim },
-                    }) {
-                        S.log_level = level;
-                    }
-                }
-                if S.compact {
-                    // No field on screen, so no invisible filter hiding rows.
-                    S.log_query = "";
-                } else {
-                    let (query, _, _) = ui::text_field("log-search", "filter…", #{
-                        size: 11, font: "mono", width: 130, height: 22,
-                        fill: k.sunken, stroke: k.line_soft, color: k.text,
-                    });
-                    S.log_query = query;
-                }
-            });
-        } else if !S.compact {
-            ui::right(|| {
-                ui::add_space(8);
-                let hint = if S.dock == "assets" {
-                    // A project-relative path: the absolute one is this
-                    // machine's, and lands in every screenshot.
-                    format!("res:// · {}", S.game_name)
-                } else if S.dock == "debugger" {
-                    if S.debug.paused is Object { S.debug.paused.reason } else { "F5 run · F10 over · F11 into · ⇧F11 out" }
-                } else {
-                    let (node, _, _) = anim::player(S);
-                    match anim::definition(S) {
-                        None => "no clip",
-                        Some(def) => {
-                            let name = anim::clip_name(node);
-                            format!("0.00 – {:.2} s · {} · {}",
-                                anim::length(def),
-                                if name == "" { "unnamed" } else { name },
-                                anim::library_path(node).unwrap_or("inline"))
-                        }
-                    }
-                };
-                ui::label(hint, style::mono_sm(k.faint));
-            });
-        }
-    });
-    ui::separator(k.line_soft);
+    }
+    if S.compact || room < 350.0 {
+        // No field on screen, so no invisible filter hiding rows.
+        S.log_query = "";
+    } else {
+        let (query, _, _) = ui::text_field("log-search", "filter…", #{
+            size: 11, font: "mono", width: 130, height: 22,
+            fill: k.sunken, stroke: k.line_soft, color: k.text,
+        });
+        S.log_query = query;
+    }
 }
 
 // How loud an entry is, so `error` and `warn` stop looking identical.
@@ -119,7 +97,7 @@ fn floor_of(level) {
     }
 }
 
-fn output(S, k) {
+pub fn output(S, k) {
     let floor = floor_of(S.log_level);
     let query = S.log_query.to_lowercase();
     let counts = #{ shown: 0, hidden: 0 };
@@ -317,7 +295,7 @@ pub fn delete_asset(S) {
     S.assets.sel = "";
 }
 
-fn assets(S, k) {
+pub fn assets(S, k) {
     let dir = S.assets.dir;
     let files = model::list(S, dir);
     // Breadcrumb: where we are, and the way back up.
@@ -402,7 +380,7 @@ fn assets(S, k) {
 
 // Keyframe timeline over the engine's clip (scripts/anim.rn is the adapter):
 // scrubbing seeks the engine's player, so the viewport shows the engine's pose.
-fn timeline(S, k) {
+pub fn timeline(S, k) {
     let (node, _, _) = anim::player(S);
     ui::add_space(4);
     let def = match anim::definition(S) {
@@ -525,7 +503,7 @@ fn break_on_error_pill(k) {
     }
 }
 
-fn debugger_view(S, k) {
+pub fn debugger_view(S, k) {
     let p = S.debug.paused;
     if !(p is Object) {
         ui::horizontal(#{ height: 30 }, || {
@@ -618,7 +596,7 @@ fn debugger_view(S, k) {
 
 // Problems: every finding the last sweep produced, worst first, each row a
 // file and a line the click opens at.
-fn problems(S, k) {
+pub fn problems(S, k) {
     let rows = [];
     for f in S.lint.found {
         if f.severity == "error" {
@@ -680,7 +658,7 @@ fn open_at(S, f) {
 // Session: the recordings this game has made, and the one being played back.
 // The lanes are the Animate timeline's over ticks instead of seconds, and
 // clicking the ruler seeks — backwards by rebuilding and running to it again.
-fn session_view(S, k) {
+pub fn session_view(S, k) {
     ui::add_space(4);
     if !session::loaded(S) {
         session_list(S, k);
@@ -898,7 +876,7 @@ fn fixed(v, decimals) {
     }
 }
 
-fn profiler(S, k) {
+pub fn profiler(S, k) {
     let timings = engine::timings();
     if !(timings is Object) {
         ui::add_space(12);
@@ -986,33 +964,3 @@ fn rows(k, table, kind) {
     }
 }
 
-pub fn draw(S) {
-    let k = S.theme;
-    let tall = S.dock == "timeline" || S.dock == "debugger" || S.dock == "session"
-        || S.dock == "profiler";
-    let height = if tall { 212 } else { 150 };
-    ui::bottom_panel("dock", #{ height: height, fill: k.panel }, || {
-        tab_row(S, k);
-        if S.dock == "problems" {
-            problems(S, k);
-        } else if S.dock == "assets" {
-            assets(S, k);
-        } else if S.dock == "timeline" {
-            timeline(S, k);
-        } else if S.dock == "debugger" {
-            debugger_view(S, k);
-        } else if S.dock == "session" {
-            session_view(S, k);
-        } else if S.dock == "profiler" {
-            profiler(S, k);
-        } else {
-            match crate::plugins::dock(S, S.dock) {
-                Some(entry) => {
-                    let draw = entry.draw;
-                    draw(S, k);
-                }
-                None => output(S, k),
-            }
-        }
-    });
-}

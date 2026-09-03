@@ -2,6 +2,7 @@
 
 use crate::anim;
 use crate::history;
+use crate::icons;
 use crate::model;
 use crate::polygon;
 use crate::rig;
@@ -9,9 +10,9 @@ use crate::shell;
 use crate::style;
 use crate::util;
 
-const LABEL_W = 84.0;
+const LABEL_W = 82.0;
 // Control area width: 308 panel − 24 padding − 84 label − spacing.
-const CONTROL_W = 186.0;
+const CONTROL_W = 184.0;
 
 // A section heading that folds its rows away on click. Returns whether the
 // caller should draw them; the fold state lives on `S.collapsed` beside the
@@ -19,10 +20,12 @@ const CONTROL_W = 186.0;
 fn section(S, k, title) {
     let key = format!("inspector/{}", title);
     let open = !S.collapsed.contains_key(key);
-    ui::add_space(12);
-    ui::horizontal((), || {
+    ui::add_space(11);
+    ui::horizontal(#{ height: 15 }, || {
+        ui::add_space(2);
         if ui::pill(title.to_uppercase(), util::merge(style::heading(k), #{
-            icon: if open { "▾" } else { "▸" }, height: 18,
+            height: 15, radius: 4, align: "left",
+            icon: if open { icons::ui("caret-open") } else { icons::ui("caret-shut") }, icon_size: 7, icon_color: k.faint,
         })) {
             if open {
                 S.collapsed[key] = true;
@@ -30,26 +33,27 @@ fn section(S, k, title) {
                 S.collapsed.remove(key);
             }
         }
-        ui::add_space(8);
-        ui::separator(k.line_soft);
     });
-    if open {
-        ui::add_space(8);
-    }
+    ui::add_space(5);
     open
 }
 
 fn row(k, label, body) {
-    ui::horizontal(#{ height: 28 }, || {
-        ui::spacing(8, 0);
+    ui::horizontal(#{ height: 24 }, || {
+        ui::spacing(6, 0);
         // Fixed label column so control widths stay inside the panel
         // regardless of the label's length.
-        ui::horizontal(#{ height: 28, width: LABEL_W }, || {
-            ui::label(label, #{ size: 12, color: k.dim });
+        ui::horizontal(#{ height: 24, width: LABEL_W }, || {
+            ui::label(label, #{ size: 11.5, color: k.dim });
         });
         body();
     });
-    ui::add_space(4);
+    ui::add_space(2);
+}
+
+// The control column is what the panel leaves after the label column.
+fn control_w(S) {
+    util::clamp(S.layout.right.w - 22.0 - LABEL_W, 120.0, 320.0)
 }
 
 // A draggable vector field writing straight back to doc + live node.
@@ -58,7 +62,7 @@ fn vec3_row(S, k, label, getter, setter) {
     let cell = #{ v: getter(node, found), changed: false };
     row(k, label, || {
         let axes = ["x", "y", "z"];
-        let w = CONTROL_W / 3.0 - 5.0;
+        let w = control_w(S) / 3.0 - 4.0;
         for i in 0..3 {
             let (nv, ch) = ui::drag_value(cell.v[i], #{
                 width: w, speed: 0.02, decimals: 2,
@@ -79,7 +83,7 @@ fn vec3_row(S, k, label, getter, setter) {
 
 fn value_field(k, value, opts) {
     ui::drag_value(value, #{
-        width: opts.get("width").unwrap_or(CONTROL_W),
+        width: opts.get("width").unwrap_or(186.0),
         speed: opts.get("speed").unwrap_or(0.02),
         decimals: opts.get("decimals").unwrap_or(2),
         suffix: opts.get("suffix").unwrap_or(()),
@@ -1071,12 +1075,9 @@ fn events_section(S, k) {
     }
 }
 
-pub fn draw(S) {
-    let k = S.theme;
+pub fn body(S, k) {
     let node = model::selected_node(S);
-    ui::right_panel("inspector", #{ width: 308, fill: k.bg, padding_x: 12 }, || {
-        // Header.
-        ui::add_space(12);
+    ui::add_space(8);
         ui::horizontal(#{ height: 34 }, || {
             let (icon, _) = model::node_icon(node);
             ui::circle_button(icon, #{ d: 30, size: 15, fill: k.accent_soft, color: k.accent });
@@ -1088,7 +1089,7 @@ pub fn draw(S) {
             });
         });
 
-        ui::scroll("inspector-scroll", #{ max_height: ui::available_height() - 50.0 }, || {
+        ui::scroll("inspector-scroll", #{ max_height: ui::available_height() - 58.0 }, || {
             instance_note(S, k);
             instance_source_row(S, k, node);
             if S.persona == "phys" {
@@ -1125,13 +1126,10 @@ pub fn draw(S) {
         // Footer: full-width accent button.
         ui::separator(k.line_soft);
         ui::add_space(6);
-        if ui::pill("＋  Add component", #{
-            height: 34, size: 13, font: "heading", strong: true,
-            min_width: 282,
-            fill: k.accent_fill, color: k.on_accent,
+        if ui::pill(icons::ui("add") + "  Add component", #{
+            role: "button", height: 34, min_width: S.layout.right.w - 26.0,
         }) {
             shell::open_palette(S, "add ");
         }
-        ui::add_space(6);
-    });
+    ui::add_space(6);
 }

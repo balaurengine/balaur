@@ -17,7 +17,7 @@ use crate::{value, PackSourceLoader, RuneHost};
 /// A `pub fn` a script declares, read off its source text. The host owns
 /// the text, and a `pub fn` starting a line, signature on that line, is the
 /// whole public surface of the script model.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PublicSignature {
     pub(crate) name: String,
     pub(crate) arity: usize,

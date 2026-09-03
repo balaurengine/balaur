@@ -7,14 +7,22 @@
 //! (the pointer never outlives the closure that pushed it).
 
 use balaur_core::Engine;
-use balaur_script::{CallbackHost, CallbackId};
+use balaur_script::{CallbackHost, CallbackId, Value};
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 thread_local! {
     static CTX: RefCell<Option<egui::Context>> = const { RefCell::new(None) };
     static ROOT: RefCell<Option<Box<egui::Ui>>> = const { RefCell::new(None) };
     static UI_STACK: RefCell<Vec<*mut egui::Ui>> = const { RefCell::new(Vec::new()) };
     static SCALE: std::cell::Cell<f32> = const { std::cell::Cell::new(1.0) };
+    static ROLES: RefCell<HashMap<String, Vec<(String, Value)>>> =
+        RefCell::new(HashMap::new());
+}
+
+/// A role's option map, as `Opts` merges it under the caller's.
+pub(crate) fn role(name: &str) -> Vec<(String, Value)> {
+    ROLES.with(|r| r.borrow().get(name).cloned().unwrap_or_default())
 }
 
 /// The pass's UI scale: every widget dimension is multiplied by this.
@@ -22,8 +30,13 @@ pub(crate) fn scale() -> f32 {
     SCALE.with(std::cell::Cell::get)
 }
 
-pub(crate) fn enter_pass(ctx: &egui::Context, ui_scale: f32) {
+pub(crate) fn enter_pass(
+    ctx: &egui::Context,
+    ui_scale: f32,
+    roles: HashMap<String, Vec<(String, Value)>>,
+) {
     SCALE.with(|s| s.set(ui_scale));
+    ROLES.with(|r| *r.borrow_mut() = roles);
     CTX.with(|c| *c.borrow_mut() = Some(ctx.clone()));
     // The root Ui spanning the viewport; panels carve regions out of it
     // (this mirrors what `Context::run_ui` builds internally).

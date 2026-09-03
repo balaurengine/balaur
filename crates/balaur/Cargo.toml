@@ -7,9 +7,9 @@ license.workspace = true
 authors.workspace = true
 
 [features]
-default = ["audio", "net", "gamend", "f32"]
+default = ["audio", "http", "websocket", "webtransport", "gamend", "f32"]
 # The scalar physics runs at, forwarded to `balaur_physics`. A f64 game builds
-# with `--no-default-features --features "f64,audio,net,gamend"`.
+# with `--no-default-features --features "f64,audio,http,websocket,gamend"`.
 f32 = ["balaur_physics/f32"]
 f64 = ["balaur_physics/f64"]
 # Rapier's parallel solver, likewise forwarded.
@@ -20,11 +20,21 @@ window = ["balaur_render/kiss3d"]
 audio = ["dep:balaur_audio"]
 # Load extensions from a project's extensions/ directory at run time.
 extensions = ["balaur_plugin/dylib"]
-# `http.*` and `websocket.*` for scripts. Off, a build drops ureq,
-# tungstenite and the TLS stack.
-net = ["dep:balaur_net"]
+# `http.*` for scripts. Off, a build drops ureq and its TLS stack.
+http = ["dep:balaur_http"]
+# `websocket.*` for scripts, and the websocket `Transport`. Off, a build drops
+# tungstenite, rustls and the frame codec.
+websocket = ["dep:balaur_websocket"]
+# The WebTransport `Transport`, over QUIC: the transport rollback and
+# replication are meant to run on. Off, a build drops quinn, its runtime and
+# the certificate machinery, which is most of what a networked build costs.
+webtransport = ["dep:balaur_webtransport"]
 # `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks).
 gamend = ["dep:balaur_gamend"]
+# `apple.*` for scripts, and Game Center and iCloud under `platform.*`. Off,
+# a build drops GameKit and the objc2 bindings to it. `platform.*` is always
+# there; with no store behind it every call answers `unsupported`.
+apple = ["dep:balaur_apple"]
 
 [dependencies]
 balaur_core.workspace = true
@@ -36,8 +46,12 @@ balaur_anim.workspace = true
 balaur_render.workspace = true
 balaur_audio = { workspace = true, optional = true }
 balaur_input.workspace = true
-balaur_net = { workspace = true, optional = true }
+balaur_http = { workspace = true, optional = true }
+balaur_websocket = { workspace = true, optional = true }
+balaur_webtransport = { workspace = true, optional = true }
 balaur_gamend = { workspace = true, optional = true }
+balaur_platform.workspace = true
+balaur_apple = { workspace = true, optional = true }
 balaur_ui.workspace = true
 anyhow.workspace = true
 tracing.workspace = true

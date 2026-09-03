@@ -37,6 +37,19 @@ comment. If a comment feels necessary, first try renaming the thing.
 in the tree, not just Rust — including the length cap: a plain-comment block
 longer than three lines fails CI.
 
+## Rune
+
+`obj.field = a || b` and `obj.field = a && b` **overwrite `a`** when `a` is a
+local: the short-circuit result lands in the local's slot as well as in the
+field. Parentheses do not help. Compute into a local first, then assign:
+
+    let live = split || !document;
+    S.viewport_live = live;
+
+The same shape with an index target (`arr[i] = a || b`) is affected. A plain
+`let`, a call argument and an `if` condition are all safe, and a left operand
+that is itself a field is safe.
+
 ## Tests
 
 A test's name is a sentence about behaviour, not a label for a function:

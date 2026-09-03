@@ -1,4 +1,5 @@
-# The browser backend's C shim needs these at link (crates/balaur_net/build.rs);
+# The browser backends' C shims need these at link (balaur_http/build.rs and
+# balaur_websocket/build.rs);
 # cargo cannot propagate link args out of the library that owns them. Setting
 # the RUSTFLAGS env var replaces this wholesale.
 [target.wasm32-unknown-emscripten]

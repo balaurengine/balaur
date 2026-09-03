@@ -1,0 +1,35 @@
+[package]
+name = "balaur_webtransport"
+description = "Balaur WebTransport plugin: a QUIC Transport for rollback sessions"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+# QUIC is native-only. The browser reaches WebTransport through its own API,
+# which is a separate backend and a separate step in PLAN-networking.md.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+balaur_core.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+# `ring` rather than the default `aws-lc-rs`: it matches the rustls backend
+# the websocket crate already picks, and needs no C toolchain.
+web-transport-quinn = { version = "0.12", default-features = false, features = ["ring"] }
+# The crate is async; one current-thread runtime per link bridges it to the
+# engine's polled model. No multi-thread scheduler: a link is one socket.
+tokio = { version = "1", default-features = false, features = ["rt", "net", "sync", "macros", "time"] }
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
+rcgen = "0.13"
+# Certificate hashes, the way a client pins a self-signed server. Already in
+# the tree under rustls; taken directly so the digest is not reimplemented.
+ring = "0.17"
+# `Client::connect` takes a parsed url, not a string.
+url = "2"
+
+[dev-dependencies]
+balaur_core.workspace = true
+# The lockstep test drives a real session, whose inputs are script values.
+balaur_script.workspace = true
+
+[lints]
+workspace = true

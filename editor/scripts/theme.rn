@@ -1,45 +1,35 @@
-// Design tokens: ink on paper with one blue wash, the same palette as the
-// website. Two complete sets; #f6f8fb is the fixed on-accent text in both.
-// The active set lives on `S.theme`.
+// The look lives in `themes/*.toml`, not here: colour tokens and the named
+// roles a widget takes with `role:`. This module only loads one and applies it.
+
+use crate::util;
+
+/// A theme asset, flattened into the shape `ui::set_theme` and every script's
+/// `k.<token>` lookup both want.
+pub fn load(name) {
+    let doc = toml::parse(fs::read("themes/" + name + ".toml"));
+    let t = #{ dark: doc.dark, roles: doc.roles };
+    for (key, value) in doc.colors {
+        t[key] = value;
+    }
+    t
+}
 
 pub fn dark() {
-    #{
-        dark: true,
-        bg: "#0b0e12", panel: "#12161c", sunken: "#080a0e", raised: "#1a2028",
-        line: "#232a33", line_soft: "#1a2028",
-        text: "#e6e9ee", dim: "#98a3ae", faint: "#6b7683",
-        accent: "#6fa4d8", accent_fill: "#4287cc", accent_soft: "#1a2c40",
-        sage: "#8fb8b0", sage_soft: "#1f3230",
-        grid: "#151a21", grid_major: "#232a33", code_bg: "#0d1015",
-        on_accent: "#f6f8fb",
-        k_key: "#6fa4d8", k_str: "#8fb8b0", k_num: "#9fc2e5", k_com: "#6b7683",
-        k_fn: "#e6e9ee", k_type: "#b7d3cc", k_punc: "#98a3ae",
-    }
+    load("dark")
 }
 
 pub fn light() {
-    #{
-        dark: false,
-        bg: "#f8f7f3", panel: "#f1f3f6", sunken: "#e3e7ec", raised: "#ffffff",
-        line: "#d0d6dd", line_soft: "#e3e7ec",
-        text: "#14181d", dim: "#5b6670", faint: "#8e99a5",
-        accent: "#2f6a9e", accent_fill: "#3577b1", accent_soft: "#dce8f3",
-        sage: "#4f7f78", sage_soft: "#dbe8e6",
-        grid: "#e9ebed", grid_major: "#d0d6dd", code_bg: "#ffffff",
-        on_accent: "#f6f8fb",
-        k_key: "#2b6291", k_str: "#3f6e67", k_num: "#2f6a9e", k_com: "#8e99a5",
-        k_fn: "#1c2128", k_type: "#4f7f78", k_punc: "#6b7683",
-    }
+    load("light")
 }
 
-// Push the active token set into egui and the 3D viewport.
+// Push the active theme into egui and the 3D viewport.
 pub fn apply(S) {
     let t = S.theme;
     ui::set_theme(t);
-    let (r, g, b) = crate::util::hex_to_rgb(t.bg);
+    let (r, g, b) = util::hex_to_rgb(t.bg);
     render::set_background(r, g, b);
-    let (mr, mg, mb) = crate::util::hex_to_rgb(t.grid);
-    let (jr, jg, jb) = crate::util::hex_to_rgb(t.grid_major);
+    let (mr, mg, mb) = util::hex_to_rgb(t.grid);
+    let (jr, jg, jb) = util::hex_to_rgb(t.grid_major);
     render::set_grid_colors(mr, mg, mb, jr, jg, jb);
 }
 

@@ -2,14 +2,14 @@
 //! becoming the pause, the pause letting go, and the breakpoints resolved
 //! against each unit.
 
-use std::collections::HashSet;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use anyhow::Result;
 use balaur_script::{Pause, StepMode};
 use hecs::Entity;
 use rune::alloc::clone::TryClone as _;
-use rune::runtime::{VmExecution, VmResult};
+use rune::runtime::VmExecution;
 use rune::{TypeHash as _, Vm};
 
 use crate::debugger::{self, Hit, Lines, Outcome, StepPlan, Stops};
@@ -42,6 +42,7 @@ impl RuneHost {
                 .breakpoints
                 .get(key)
                 .is_some_and(|b| !b.ips.is_empty());
+
             let sync = state
                 .scripts
                 .get(key)
@@ -55,9 +56,19 @@ impl RuneHost {
         if stepping {
             return self.invoke_stepping(owner, key, name, args);
         }
-        let f = self.method(key, name)?;
-        match f.call::<rune::Value>(args) {
-            VmResult::Ok(value) => {
+        let found = self.resolve(key, name)?;
+        // A synchronous function runs on a VM the script keeps warm. An async
+        // one gets its own, because the future it returns holds on to it.
+        let outcome = if found.immediate {
+            let mut vm = self.take_vm(key)?;
+            let outcome = vm.call(found.hash, args);
+            self.return_vm(key, vm);
+            outcome
+        } else {
+            found.function.call::<rune::Value>(args).into_result()
+        };
+        match outcome {
+            Ok(value) => {
                 if !allow_async && value.type_hash() == rune::runtime::Future::HASH {
                     tracing::error!(
                         "[{key}] {name} cannot be async; suspend in init or a handler instead"
@@ -66,8 +77,8 @@ impl RuneHost {
                 }
                 self.settle_call(owner, key, name, value)
             }
-            VmResult::Err(err) => {
-                tracing::error!("[{key}] {name}: {err}");
+            Err(err) => {
+                self.report(key, name, &err);
                 None
             }
         }
@@ -119,7 +130,7 @@ impl RuneHost {
         plan: Option<StepPlan>,
         leaving: Option<usize>,
     ) -> Option<balaur_script::Value> {
-        let (ips, stops) = {
+        let (halts, ips, stops) = {
             let state = self.state.borrow();
             let ips = state
                 .breakpoints
@@ -129,14 +140,21 @@ impl RuneHost {
             // A step already names where to stop; an asked-for break waits
             // for the step to arrive rather than cutting it short.
             let break_next = state.break_next && plan.is_none();
-            (ips, Stops { plan, break_next })
+            // Stepping and pausing may stop at any line, so the VM has to give
+            // control back at every one. A plain breakpoint does not.
+            let halts = if plan.is_some() || break_next {
+                lines.stops()
+            } else {
+                ips.clone()
+            };
+            (halts, ips, Stops { plan, break_next })
         };
-        match debugger::run(&mut exec, lines, &ips, stops, leaving) {
+        match debugger::run(&mut exec, lines, &halts, &ips, stops, leaving) {
             Outcome::Finished(value) => {
                 self.settle_call(callee.owner, callee.key, callee.label, value)
             }
             Outcome::Failed { error, line } => {
-                tracing::error!("[{}] {}: {error}", callee.key, callee.label);
+                self.report(callee.key, callee.label, &error);
                 if self.state.borrow().break_on_error {
                     let hit = Hit {
                         line,
@@ -183,7 +201,7 @@ impl RuneHost {
         );
         self.state.borrow_mut().paused = Some(Paused {
             owner,
-            key: key.to_string(),
+            key: Rc::from(key),
             label: label.to_string(),
             exec,
             ip,
@@ -321,7 +339,7 @@ impl RuneHost {
             return;
         };
         let mut landed = Vec::new();
-        let mut ips = HashSet::new();
+        let mut ips = Vec::new();
         for line in &b.requested {
             if let Some((at, on)) = lines.breakpoint(*line) {
                 landed.push(at);
@@ -331,7 +349,7 @@ impl RuneHost {
         landed.sort_unstable();
         landed.dedup();
         b.landed = landed;
-        b.ips = ips;
+        b.ips = Arc::new(rune::runtime::HaltSet::from_ips(ips).unwrap_or_default());
     }
 
     /// Whether the debugger keeps `entity` from running: it is the paused
@@ -349,7 +367,7 @@ impl RuneHost {
     /// detach or spawn during its own update without the host state being
     /// borrowed. The paused instance and everything under the frozen root
     /// stay out.
-    pub(crate) fn live_batch(&self) -> Vec<(Entity, String, rune::Value)> {
+    pub(crate) fn live_batch(&self) -> Vec<(Entity, Rc<str>, rune::Value)> {
         let state = self.state.borrow();
         state
             .instances
@@ -365,7 +383,7 @@ impl RuneHost {
         &self,
         method: &str,
         dt: f32,
-        batch: Vec<(Entity, String, rune::Value)>,
+        batch: Vec<(Entity, Rc<str>, rune::Value)>,
     ) {
         let dt_value = match rune::to_value(f64::from(dt)) {
             Ok(value) => value,

@@ -7,9 +7,6 @@ use anyhow::{Context, Result};
 use balaur::{App, AppConfig, Pack};
 use clap::{Parser, Subcommand};
 
-use crate::bundle::{export_bundle, export_macos_app, find_bundle_template, Bundle};
-
-mod bundle;
 mod lsp;
 mod templates;
 mod update;
@@ -264,16 +261,22 @@ fn main() -> Result<()> {
             no_download,
             app,
             sign,
-        } => export_project(&ExportOpts {
-            path,
-            output,
-            target,
-            template,
-            download,
-            no_download,
-            app,
-            sign,
-        }),
+        } => {
+            // The two policies balaur_export deliberately does not hold: where
+            // the per-user cache is (keyed by this binary's build id), and
+            // whether a missing template may be fetched.
+            let fetch = move |wanted: &str| templates::obtain(wanted, download);
+            balaur_export::export(&balaur_export::Options {
+                path,
+                output,
+                target,
+                template,
+                app,
+                sign,
+                template_roots: balaur_export::default_roots(templates::cache_dir()),
+                obtain: if no_download { None } else { Some(&fetch) },
+            })
+        }
         Command::Check { path, strict } => check_project(&path, strict),
         Command::Lsp { path } => lsp::run(&path),
         Command::Update { tag, check } => update::run(tag.as_deref(), check),
@@ -297,151 +300,6 @@ fn main() -> Result<()> {
 /// Frames a standalone game should run before quitting, from `BALAUR_FRAMES`.
 fn frame_budget() -> Option<u64> {
     std::env::var("BALAUR_FRAMES").ok()?.parse().ok()
-}
-
-/// Everything `balaur export` was asked for.
-struct ExportOpts {
-    path: PathBuf,
-    output: Option<PathBuf>,
-    target: Option<String>,
-    template: Option<PathBuf>,
-    download: bool,
-    no_download: bool,
-    app: bool,
-    sign: Option<String>,
-}
-
-/// Write a `.bpak`, or a standalone game when a template is in play.
-fn export_project(opts: &ExportOpts) -> Result<()> {
-    let pack = balaur::build_pack(&opts.path)?;
-    let name = opts
-        .path
-        .canonicalize()
-        .ok()
-        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
-        .unwrap_or_else(|| "game".to_string());
-    let target = opts.target.as_deref();
-    let output = opts.output.clone();
-    // Mobile ships a bundle, not an executable: the pack goes inside it as a
-    // resource rather than onto the end of a binary.
-    if let Some(kind) = target.and_then(Bundle::for_target) {
-        let template = match opts.template.clone() {
-            Some(explicit) => explicit,
-            None => find_bundle_template(kind)?,
-        };
-        return export_bundle(kind, &template, &pack.encode(), &name, output);
-    }
-    let template = match (opts.template.clone(), target) {
-        (Some(explicit), _) => Some(explicit),
-        (None, Some(target)) => Some(match find_template(target) {
-            Ok(found) => found,
-            Err(missing) if !opts.no_download => {
-                templates::obtain(target, opts.download).with_context(|| missing.to_string())?
-            }
-            Err(missing) => return Err(missing),
-        }),
-        (None, None) => None,
-    };
-    // A macOS game that will be signed has to be a .app: appending to a flat
-    // binary is exactly what a signature cannot cover.
-    if opts.app || opts.sign.is_some() {
-        let template = template.context("--app needs --target or --template")?;
-        if let Some(t) = target.filter(|t| !t.starts_with("macos")) {
-            anyhow::bail!("--app builds a macOS bundle, but the target is {t}");
-        }
-        return export_macos_app(
-            &template,
-            &pack.encode(),
-            &name,
-            output,
-            opts.sign.as_deref(),
-        );
-    }
-    let Some(template) = template else {
-        let output = output.unwrap_or_else(|| PathBuf::from(format!("{name}.bpak")));
-        std::fs::write(&output, pack.encode())?;
-        tracing::info!(
-            "exported {} scripts, {} scenes -> {}",
-            pack.scripts.len(),
-            pack.scenes.len(),
-            output.display()
-        );
-        return Ok(());
-    };
-    let bytes = std::fs::read(&template)
-        .with_context(|| format!("reading template {}", template.display()))?;
-    // Windows will not run a file without the extension, whatever its contents.
-    let output = output.unwrap_or_else(|| {
-        let windows = target.is_some_and(|t| t.contains("windows"))
-            || template.extension().is_some_and(|e| e == "exe");
-        PathBuf::from(if windows {
-            format!("{name}.exe")
-        } else {
-            name.clone()
-        })
-    });
-    let game = balaur::standalone::build(&bytes, &pack.encode());
-    balaur::standalone::write_executable(&output, &game, &template)?;
-    tracing::info!(
-        "exported {} scripts, {} scenes onto {} -> {}",
-        pack.scripts.len(),
-        pack.scenes.len(),
-        template.display(),
-        output.display()
-    );
-    Ok(())
-}
-
-/// Where templates are looked for: an explicit directory first, then the one
-/// that ships beside the binary in the editor download, then the per-user
-/// cache downloads land in.
-fn template_roots() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Ok(dir) = std::env::var("BALAUR_TEMPLATES") {
-        roots.push(PathBuf::from(dir));
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            roots.push(dir.join("templates"));
-        }
-    }
-    if let Some(cache) = templates::cache_dir() {
-        roots.push(cache);
-    }
-    roots
-}
-
-fn roots_for_message() -> String {
-    template_roots()
-        .iter()
-        .map(|r| r.display().to_string())
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-/// Find the runtime template for `target`.
-///
-/// Templates are what CI publishes per platform, unpacked next to the binary
-/// (or wherever BALAUR_TEMPLATES points). Exporting for a platform you have no
-/// template for has to say so plainly — it is the most common way this fails.
-fn find_template(target: &str) -> Result<PathBuf> {
-    let roots = template_roots();
-    for root in &roots {
-        for name in [
-            format!("balaur-runtime-{target}.exe"),
-            format!("balaur-runtime-{target}"),
-        ] {
-            let candidate = root.join(&name);
-            if candidate.is_file() {
-                return Ok(candidate);
-            }
-        }
-    }
-    let looked = roots_for_message();
-    anyhow::bail!(
-        "no runtime template for \"{target}\" (looked in: {looked}). \
-         Download the templates for this release, or pass --template <file>."
-    )
 }
 
 /// Where a run puts its frames. `--headless` and `--offscreen` are one choice

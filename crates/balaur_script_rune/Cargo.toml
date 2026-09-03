@@ -9,6 +9,10 @@ authors.workspace = true
 balaur_core.workspace = true
 balaur_script.workspace = true
 rune = "0.14"
+# The pack ships compiled units; this is the format rune's own `.rnc`
+# bytecode cache uses.
+bincode.workspace = true
+serde.workspace = true
 hecs.workspace = true
 notify.workspace = true
 indexmap.workspace = true
@@ -18,8 +22,6 @@ tracing.workspace = true
 [dev-dependencies]
 libm.workspace = true
 tempfile = "3"
-# A test declares a replay source, and a source's captured value is JSON.
-serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 

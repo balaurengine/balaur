@@ -24,7 +24,7 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
     m.function(
         "horizontal",
         |eng: &Engine, (opts, cb): (Option<Value>, CallbackId)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let mut result = Ok(());
                 let layout = Layout::left_to_right(Align::Center);
@@ -77,7 +77,7 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
     m.function(
         "frame",
         |eng: &Engine, (opts, cb): (Option<Value>, CallbackId)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let mut result = Ok(());
                 let mut frame = egui::Frame::new()
@@ -112,7 +112,7 @@ pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
     m.function(
         "scroll",
         |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let mut result = Ok(());
                 let mut area = egui::ScrollArea::vertical()
@@ -173,7 +173,7 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
     m.function(
         "pill",
         |eng: &Engine, (s, opts): (String, Option<Value>)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 if opts.string("align").as_deref() == Some("left") {
                     return left_pill(eng, ui, &s, &opts);
@@ -196,13 +196,16 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                     opts.boolean("strong", false),
                 );
                 let fill = opts.color("fill", Color32::TRANSPARENT);
-                // Default rounding is fully-round, which is what a pill is;
-                // `radius` is for the shapes that are tiles, not pills.
+                // Tiles by default: a shell of capsules reads as loose and
+                // never lines up. `round` is for the few controls that are
+                // genuinely circular.
                 let radius = opts.px("radius", 0.0);
                 let corner = if radius > 0.0 {
                     pill_radius(radius * 2.0)
-                } else {
+                } else if opts.boolean("round", false) {
                     pill_radius(h)
+                } else {
+                    pill_radius(sc(5.0) * 2.0)
                 };
                 let mut button = egui::Button::new(rt)
                     .fill(fill)
@@ -230,7 +233,7 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
     m.function(
         "menu_item",
         |_eng: &Engine, (s, opts): (String, Option<Value>)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let (rect, response) =
                     ui.allocate_exact_size(vec2(sc(180.0), sc(26.0)), Sense::click());
@@ -269,7 +272,7 @@ pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
     m.function(
         "circle_button",
         |_eng: &Engine, (glyph, opts): (String, Option<Value>)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let d = opts.px("d", 32.0);
                 let rt = text(

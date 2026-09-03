@@ -3,6 +3,7 @@
 
 use crate::defs;
 use crate::highlight;
+use crate::icons;
 use crate::history;
 use crate::lint;
 use crate::model;
@@ -11,26 +12,35 @@ use crate::shell;
 use crate::style;
 use crate::util;
 
-// The central hole, measured rather than re-derived: it is published on `S`
-// for the gizmo, the widget layer and the overlay, and a panel of a size this
-// module does not know about used to break all three.
-fn publish_viewport(S) {
-    let (x, y, w, h) = ui::central_rect();
-    S.viewport = #{ x: x, y: y, w: w, h: h };
+// Which of the centre's surfaces are showing. Decided before the layout is
+// computed, because the rail and the document both change what is left for
+// the scene.
+pub fn modes(S) {
+    let code = S.persona == "script" || S.doctab == "script";
+    let document = S.doctab == "events" || code;
+    let split = S.split && (S.doctab != "events");
+    let live = split || !document;
+    S.viewport_live = live;
+    S.doc_open = document || split;
+    let has_tools = defs::tools(S.persona).len() > 0;
+    let rail_on = S.viewport_live && has_tools;
+    S.rail_visible = rail_on;
+    // The hooks list only earns its 172 px when the code has the centre to
+    // itself; a split is already two columns.
+    let hooks_on = code && !split;
+    S.hooks_open = hooks_on;
 }
 
 fn rail(S, k) {
-    ui::left_panel("rail", #{ width: 46, fill: k.bg, padding_y: 8 }, || {
+    style::sheet(k, "rail", S.layout.rail, 0, 7, || {
         ui::vertical(|| {
             ui::spacing(4, 3);
             for tool in defs::tools(S.persona) {
                 ui::horizontal((), || {
-                    ui::add_space(3);
+                    ui::add_space(6);
                     let active = S.tool == tool;
                     if ui::circle_button(defs::tool_icon(tool), #{
-                        d: 32, size: 15,
-                        fill: if active { k.accent_soft } else { "#00000000" },
-                        color: if active { k.accent } else { k.dim },
+                        role: if active { "tool_on" } else { "tool" },
                         tooltip: defs::tool_name(tool),
                     }) {
                         S.tool = tool;
@@ -43,8 +53,8 @@ fn rail(S, k) {
 
 fn doc_tabs(S, k) {
     let node = model::selected_node(S);
-    ui::top_panel("tabs", #{ height: 38, fill: k.panel, padding_x: 12 }, || {
-        ui::horizontal(#{ height: 38 }, || {
+    style::bar(k, "tabs", S.layout.tabs, 10, || {
+        ui::horizontal(#{ height: 36 }, || {
             ui::spacing(6, 0);
             let scene_name = util::last_segment(S.scene_rel);
             let script_label = match model::script_rel(node) {
@@ -55,16 +65,14 @@ fn doc_tabs(S, k) {
                 None => "no script",
             };
             let tabs = [
-                #{ id: "scene", icon: "◇", label: scene_name + (if history::dirty(S) { " ●" } else { "" }) },
-                #{ id: "script", icon: "‹›", label: script_label },
-                #{ id: "events", icon: "⚯", label: "events" },
+                #{ id: "scene", icon: icons::panel("scene"), label: scene_name + (if history::dirty(S) { " ●" } else { "" }) },
+                #{ id: "script", icon: icons::ui("scriptfile"), label: script_label },
+                #{ id: "events", icon: icons::ui("events"), label: "events" },
             ];
             for tab in tabs {
                 let active = S.doctab == tab.id;
                 if ui::pill(tab.label, #{
-                    height: 27, size: 12, icon: tab.icon,
-                    fill: if active { k.accent_soft } else { "#00000000" },
-                    color: if active { k.accent } else { k.dim },
+                    role: if active { "doctab_on" } else { "doctab" }, icon: tab.icon,
                 }) {
                     S.doctab = tab.id;
                     if tab.id == "script" {
@@ -74,9 +82,7 @@ fn doc_tabs(S, k) {
             }
             ui::add_space(4);
             if ui::pill("Split", #{
-                height: 27, size: 12, icon: "◫",
-                fill: if S.split { k.accent_soft } else { "#00000000" },
-                color: if S.split { k.accent } else { k.dim },
+                role: if S.split { "doctab_on" } else { "doctab" }, icon: icons::ui("split"),
                 tooltip: "Show the code and the viewport at once (⌘\\)",
             }) {
                 shell::toggle_split(S);
@@ -96,7 +102,7 @@ fn doc_tabs(S, k) {
     });
 }
 
-fn chip(S, k, key, label, default_on) {
+fn chip(S, k, key, label, default_on, near) {
     if !S.chip_state.contains_key(S.persona) {
         S.chip_state[S.persona] = #{};
     }
@@ -111,12 +117,14 @@ fn chip(S, k, key, label, default_on) {
         Some(live) => live,
         None => state.get(key).unwrap_or(false),
     };
-    if ui::pill(label, #{
-        height: 26, size: 11, strong: true,
-        fill: if on { k.accent_soft } else { k.panel },
-        stroke: k.line_soft,
-        color: if on { k.accent } else { k.dim },
-    }) {
+    let role = if on {
+        if near { "chip_on" } else { "chip_on_quiet" }
+    } else if near {
+        "chip"
+    } else {
+        "chip_quiet"
+    };
+    if ui::pill(label, #{ role: role }) {
         if live.is_none() {
             state[key] = !on;
         }
@@ -124,33 +132,37 @@ fn chip(S, k, key, label, default_on) {
     }
 }
 
+// The pointer inside the stage's top band, where the chips live.
+fn chips_wanted(S, vp) {
+    let (px, py) = crate::inputview::pointer(S);
+    px >= vp.x && px <= vp.x + vp.w && py >= vp.y - 8.0 && py <= vp.y + 64.0
+}
+
 fn viewport(S, k) {
-    // The central panel is a transparent hole for the 3D scene; the chrome on
-    // top of it goes in the overlay layer, which is the only thing that draws
-    // above a previewed widget (panels all share egui's background layer).
-    ui::central_panel(#{ transparent: true }, || {
-        publish_viewport(S);
-    });
-    let vp = S.viewport;
-    ui::overlay("viewport", #{ x: vp.x + 12.0, y: vp.y + 12.0, w: vp.w - 24.0, h: vp.h - 24.0 }, || {
-        let vw = vp.w - 24.0;
-        let vh = vp.h - 24.0;
-        // Interface persona overlays: safe-area inset and 16:9 frame.
-        let chips_ui = util::obj(S.chip_state.get(S.persona).unwrap_or(#{}));
-        if S.persona == "ui" && chips_ui.get("safe").unwrap_or(true) {
-            ui::rect_stroke(34.0, 34.0, vw - 68.0, vh - 68.0, #{ color: k.accent_fill, dashed: true });
-        }
-        if S.persona == "ui" && chips_ui.get("res").unwrap_or(false) {
-            let target = 16.0 / 9.0;
-            let w = vw;
-            let h = vw / target;
-            if h > vh {
-                h = vh;
-                w = vh * target;
+    let vp = S.layout.stage;
+    // Interface overlays: the safe-area inset and the 16:9 frame.
+    let chips_ui = util::obj(S.chip_state.get(S.persona).unwrap_or(#{}));
+    if S.persona == "ui" {
+        ui::overlay("vp-frames", #{ x: vp.x, y: vp.y, w: vp.w, h: vp.h }, || {
+            if chips_ui.get("safe").unwrap_or(true) {
+                ui::rect_stroke(34.0, 34.0, vp.w - 68.0, vp.h - 68.0, #{ color: k.accent_fill, dashed: true });
             }
-            ui::rect_stroke((vw - w) / 2.0, (vh - h) / 2.0, w, h, #{ color: k.line, dashed: true });
-        }
-        // Overlay chips, top-left.
+            if chips_ui.get("res").unwrap_or(false) {
+                let target = 16.0 / 9.0;
+                let w = vp.w;
+                let h = vp.w / target;
+                if h > vp.h {
+                    h = vp.h;
+                    w = vp.h * target;
+                }
+                ui::rect_stroke((vp.w - w) / 2.0, (vp.h - h) / 2.0, w, h, #{ color: k.line, dashed: true });
+            }
+        });
+    }
+    // The scene is the document: the chips step back until the pointer comes
+    // for them, the way a canvas tool's context bar does.
+    let near = chips_wanted(S, vp);
+    ui::overlay("vp-chips", #{ x: vp.x, y: vp.y }, || {
         ui::horizontal((), || {
             ui::spacing(6, 0);
             for c in defs::chips(S.persona) {
@@ -158,7 +170,7 @@ fn viewport(S, k) {
                 if c[0] == "proj" && S.mode2d {
                     label = "2D · Orthographic";
                 }
-                chip(S, k, c[0], label, if c.len() > 2 { Some(c[2]) } else { None });
+                chip(S, k, c[0], label, if c.len() > 2 { Some(c[2]) } else { None }, near);
             }
             // The Polygon tool's modes sit with the chips: Godot's UV editor
             // tabs, in the viewport rather than a window.
@@ -167,8 +179,8 @@ fn viewport(S, k) {
                 polygon::mode_chips(S, k);
             }
         });
-        // Bottom row: axis pill (left), zoom pill (right).
-        ui::add_space(vh - 26.0 - 34.0);
+    });
+    ui::overlay("vp-hud", #{ x: vp.x, y: vp.y + vp.h - 28.0, w: vp.w, h: 28.0 }, || {
         ui::horizontal(#{ height: 28 }, || {
             ui::frame(#{ fill: k.panel, stroke: k.line_soft, radius: 14, padding_x: 10 }, || {
                 ui::horizontal(#{ height: 28, tight: true }, || {
@@ -196,22 +208,55 @@ fn viewport(S, k) {
     });
 }
 
-fn script_editor(S, k) {
-    ui::central_panel(#{ fill: k.code_bg }, || code_pane(S, k, true));
+// A document sheet: `code_bg` rather than `panel`, and never full-bleed —
+// text under a floating sheet cannot be read.
+fn document_sheet(S, k, id) {
+    let r = S.layout.doc;
+    ui::overlay(id, #{
+        x: r.x, y: r.y, w: r.w, h: r.h,
+        fill: k.code_bg, stroke: k.line, radius: 11,
+    }, || code_pane(S, k));
 }
 
-// The code side of a split: the same pane in a column the divider sizes.
-// The width egui settles on is kept, so a drag survives the next frame and
-// every later persona switch.
+// The file's engine-facing surface, beside the code rather than inside it.
+fn hooks_sheet(S, k) {
+    let shading = S.shader_rel != "";
+    let rel = if shading { S.shader_rel } else { model::script_rel(model::selected_node(S)).unwrap_or("") };
+    style::sheet(k, "hooks", S.layout.hooks, 12, 0, || {
+        ui::add_space(11);
+        ui::label(if shading { "SHADER" } else { "HOOKS IN FILE" }, style::heading(k));
+        ui::add_space(9);
+        if !shading {
+            for hook in S.hooks_live {
+                ui::frame(#{ fill: k.sunken, radius: 14, padding_x: 10 }, || {
+                    ui::horizontal(#{ height: 27 }, || {
+                        let color = if hook.name == "init" || hook.name == "update" { k.accent } else { k.sage };
+                        ui::dot(color, 6);
+                        ui::add_space(4);
+                        ui::label(hook.name, style::mono_sm(k.text));
+                    });
+                });
+                ui::add_space(4);
+            }
+        }
+        if S.script_dirty.contains_key(S.game_root + "/" + rel) {
+            ui::add_space(8);
+            ui::label("● unsaved · ⌘S", util::merge(style::mono(k.accent), #{ size: 10 }));
+        }
+    });
+}
+
+fn script_editor(S, k) {
+    document_sheet(S, k, "code");
+}
+
+// The code side of a split, beside the scene rather than over it.
 fn split_code(S, k) {
-    S.split_w = ui::right_panel("split", #{
-        width: S.split_w, min: 280, max: S.screen_w - 420.0,
-        resizable: true, fill: k.code_bg,
-    }, || code_pane(S, k, false));
+    document_sheet(S, k, "split");
 }
 
 // `hooks` is off in a split, where 172 px of a narrowed pane is the code's.
-fn code_pane(S, k, hooks_panel) {
+fn code_pane(S, k) {
     let node = model::selected_node(S);
     // A shader opened from a material takes the pane; otherwise the
     // selected node's script does.
@@ -247,30 +292,7 @@ fn code_pane(S, k, hooks_panel) {
         let (_, parsed) = highlight::analyze(current);
         S.hooks_live = parsed;
     }
-    let hooks = if shading { [] } else { S.hooks_live };
-    if hooks_panel {
-        ui::right_panel("hooks", #{ width: 172, fill: k.panel, padding_x: 12 }, || {
-            ui::add_space(11);
-            ui::label(if shading { "SHADER" } else { "HOOKS IN FILE" }, style::heading(k));
-            ui::add_space(9);
-            for hook in hooks {
-                ui::frame(#{ fill: k.sunken, radius: 14, padding_x: 10 }, || {
-                    ui::horizontal(#{ height: 27 }, || {
-                        let color = if hook.name == "init" || hook.name == "update" { k.accent } else { k.sage };
-                        ui::dot(color, 6);
-                        ui::add_space(4);
-                        ui::label(hook.name, style::mono_sm(k.text));
-                    });
-                });
-                ui::add_space(4);
-            }
-            if S.script_dirty.contains_key(path) {
-                ui::add_space(8);
-                ui::label("● unsaved · ⌘S", util::merge(style::mono(k.accent), #{ size: 10 }));
-            }
-        });
-    }
-    // Editable, syntax-highlighted buffer (persists per file; ⌘S saves
+        // Editable, syntax-highlighted buffer (persists per file; ⌘S saves
     // and hot reloads the game code).
     ui::scroll("code", (), || {
         ui::add_space(12);
@@ -311,7 +333,12 @@ fn code_pane(S, k, hooks_panel) {
 
 // The `events` document tab: every script's engine-facing hooks, per node.
 fn events_view(S, k) {
-    ui::central_panel(#{ fill: k.bg, padding_x: 24, padding_y: 16 }, || {
+    let r = S.layout.doc;
+    ui::overlay("events", #{
+        x: r.x, y: r.y, w: r.w, h: r.h,
+        fill: k.bg, stroke: k.line, radius: 11,
+        padding_x: 20, padding_y: 14,
+    }, || {
         ui::label("EVENT BINDINGS", style::heading(k));
         ui::add_space(8);
         for node in S.doc {
@@ -339,32 +366,26 @@ fn events_view(S, k) {
 
 pub fn draw(S) {
     let k = S.theme;
-    let code = S.persona == "script" || S.doctab == "script";
-    let document = S.doctab == "events" || code;
-    // A split is both panes at once, whichever document tab is lit; `events`
-    // is the one view with nothing to sit beside, so it still takes the whole
-    // centre.
-    let split = S.split && S.doctab != "events";
-    // Read by the widget layer, which is clipped to the viewport and would
-    // otherwise keep drawing the game's UI over a document.
-    S.viewport_live = split || !document;
-    // Viewport tools belong to the viewport: with a document open the rail is
-    // 46 px of dead column, and the code editor is the panel starved for it.
-    S.rail_visible = S.viewport_live && defs::tools(S.persona).len() > 0;
+    // The scene is the window: a transparent central panel is the hole egui
+    // leaves for it, and every sheet floats above in the overlay layer.
+    ui::central_panel(#{ transparent: true }, || {});
     if S.rail_visible {
         rail(S, k);
     }
     doc_tabs(S, k);
-    if split {
-        // The code column is carved first; the viewport takes what is left,
-        // which is what `central_rect` then publishes to the gizmo.
-        split_code(S, k);
+    if S.viewport_live {
         viewport(S, k);
-    } else if S.doctab == "events" {
-        events_view(S, k);
-    } else if code {
-        script_editor(S, k);
-    } else {
-        viewport(S, k);
+    }
+    if S.doc_open {
+        if S.doctab == "events" {
+            events_view(S, k);
+        } else if S.viewport_live {
+            split_code(S, k);
+        } else {
+            script_editor(S, k);
+            if S.hooks_open {
+                hooks_sheet(S, k);
+            }
+        }
     }
 }

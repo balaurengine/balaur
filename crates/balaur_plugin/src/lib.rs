@@ -22,6 +22,7 @@ pub use manifest::{Fingerprint, Manifest, ENGINE_VERSION, REGISTRY_ABI};
 pub use registry::Registry;
 
 use anyhow::{bail, Result};
+use balaur_core::plugins::PluginInfo;
 use balaur_core::App;
 
 pub trait Plugin {
@@ -35,7 +36,8 @@ pub trait Plugin {
 /// Load `plugin` into `app`, refusing a build that cannot share this process.
 ///
 /// # Errors
-/// If the fingerprints disagree, or the plugin's own registration fails.
+/// If the fingerprints disagree, something it requires is not loaded, or
+/// the plugin's own registration fails.
 pub fn load(app: &mut App, plugin: &mut dyn Plugin) -> Result<()> {
     let manifest = plugin.manifest().clone();
     let host = Fingerprint::current();
@@ -48,8 +50,20 @@ pub fn load(app: &mut App, plugin: &mut dyn Plugin) -> Result<()> {
             differences.join("; ")
         );
     }
+    for required in &manifest.requires {
+        if !balaur_core::plugins::is_loaded(&app.engine, required) {
+            bail!(
+                "plugin `{}` requires `{required}`, which is not loaded",
+                manifest.name
+            );
+        }
+    }
     let mut registry = Registry::new(app, &manifest.name);
-    plugin.declare(&mut registry)
+    plugin.declare(&mut registry)?;
+    app.record_plugin(
+        PluginInfo::new(&manifest.name, &manifest.version).requiring(&manifest.requires),
+    );
+    Ok(())
 }
 
 /// Load order for a set of plugins: dependencies first, ties broken by name.
@@ -58,14 +72,19 @@ pub fn load(app: &mut App, plugin: &mut dyn Plugin) -> Result<()> {
 /// not deterministic across machines, and load order decides registration
 /// order, which decides the simulation.
 ///
+/// `already_loaded` names plugins that registered before this set, so an
+/// extension may require a module the binary linked in.
+///
 /// # Errors
 /// If a required plugin is missing, or the requirements form a cycle.
-pub fn load_order(manifests: &[Manifest]) -> Result<Vec<String>> {
+pub fn load_order(manifests: &[Manifest], already_loaded: &[String]) -> Result<Vec<String>> {
     let mut names: Vec<&str> = manifests.iter().map(|m| m.name.as_str()).collect();
     names.sort_unstable();
     for manifest in manifests {
         for required in &manifest.requires {
-            if !names.contains(&required.as_str()) {
+            if !names.contains(&required.as_str())
+                && !already_loaded.iter().any(|name| name == required)
+            {
                 bail!(
                     "plugin `{}` requires `{required}`, which is not loaded",
                     manifest.name

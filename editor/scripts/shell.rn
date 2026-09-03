@@ -55,7 +55,7 @@ pub fn set_persona(S, id) {
     S.persona = id;
     S.tool = "select";
     S.doctab = if id == "script" { "script" } else { "scene" };
-    S.dock = if id == "anim" { "timeline" } else { "output" };
+    crate::docks::show(S, if id == "anim" { "timeline" } else { "output" });
 }
 
 // Show the code and the viewport at once, or go back to one at a time. The
@@ -99,7 +99,7 @@ pub fn toggle_play(S) {
         // nodes (their init sets up physics etc.), then run.
         model::attach_game_scripts(S);
         S.playing = true;
-        S.dock = "output";
+        crate::docks::show(S, "output");
         physics::set_paused(false);
         // The mirror was built with every player held (model::build_mirror);
         // play is what lets the engine advance them.
@@ -195,7 +195,7 @@ pub fn on_pause(S, p) {
         }
     }
     set_persona(S, "script");
-    S.dock = "debugger";
+    crate::docks::show(S, "debugger");
     log::info(format!("paused at {}:{} ({})", S.debug.paused_rel, p.line, p.reason));
 }
 
@@ -322,6 +322,8 @@ fn states() {
         "input": state_input,
         "rotdemo": state_rotdemo,
         "animdemo": state_animdemo,
+        "layoutdemo": crate::selftest::layout,
+        "fontdemo": state_fontdemo,
         "undodemo": crate::selftest::undo,
         "breakdemo": break_demo,
         "rigdemo": crate::selftest::rigging,
@@ -347,6 +349,8 @@ fn prefixed_states() {
         ("tool:", state_tool),
         ("dock:", state_dock),
         ("tab:", state_tab),
+        ("shut:", state_shut),
+        ("move:", state_move),
         ("mode:", state_mode),
         ("select:", state_select),
         ("zoom:", state_zoom),
@@ -406,8 +410,25 @@ fn state_tab(S, tab) {
     }
 }
 
+// `shut:left`, `shut:bottom`, `shut:right`: minimise a dock to its edge.
+fn state_fontdemo(S) {
+    S.fontdemo = true;
+}
+
+fn state_shut(S, side) {
+    S.docks[side].shut = true;
+}
+
+// `move:<panel>:<side>`: put a panel in another dock, as its tab menu does.
+fn state_move(S, arg) {
+    let parts = arg.split(':').collect::<Vec>();
+    if parts.len() == 2 {
+        crate::docks::move_to(S, parts[0], parts[1]);
+    }
+}
+
 fn state_dock(S, dock) {
-    S.dock = dock;
+    crate::docks::show(S, dock);
 }
 
 fn state_mode(S, mode) {

@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 
 use crate::engine::{Command, Engine};
 use crate::pack::Pack;
+use crate::plugins::{PluginInfo, PluginRegistry};
 use crate::project::{self, ProjectManifest, ProjectRoot, SceneKeyRegistry};
 use crate::scene;
 
@@ -135,7 +136,6 @@ pub trait Plugin {
 pub struct App {
     pub engine: Engine,
     systems: Vec<Vec<SystemFn>>,
-    plugins: Vec<String>,
     pack: Option<Pack>,
     project_root: PathBuf,
     manifest: Option<ProjectManifest>,
@@ -150,6 +150,7 @@ pub struct App {
 fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(SceneKeyRegistry::default());
     eng.insert_resource(crate::components::ComponentRegistry::default());
+    eng.insert_resource(crate::plugins::PluginRegistry::default());
     eng.insert_resource(crate::presets::PresetRegistry::default());
     eng.insert_resource(crate::assets::AssetTypeRegistry::default());
     eng.insert_resource(crate::assets::AssetState::default());
@@ -171,6 +172,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(crate::ids::IdAllocator::default());
     eng.insert_resource(crate::rollback::TickInputs::default());
     eng.insert_resource(crate::rollback::Resimulating::default());
+    eng.insert_resource(crate::rollback::Clock::default());
     eng.insert_resource(crate::digest::DigestRegistry::default());
     eng.insert_resource(crate::replay::ReplayRegistry::default());
     eng.insert_resource(crate::replay::ReplaySetupRegistry::default());
@@ -202,7 +204,6 @@ impl App {
         let mut app = Self {
             engine,
             systems: (0..STAGE_COUNT).map(|_| Vec::new()).collect(),
-            plugins: Vec::new(),
             pack: config.pack,
             project_root: config.project_root,
             manifest: None,
@@ -285,8 +286,27 @@ impl App {
         plugin
             .build(self)
             .with_context(|| format!("building plugin {}", plugin.name()))?;
-        self.plugins.push(plugin.name().to_string());
+        // In-tree plugins ship at the workspace version, which is this crate's.
+        self.record_plugin(PluginInfo::new(plugin.name(), env!("CARGO_PKG_VERSION")));
         Ok(self)
+    }
+
+    /// Note that a plugin finished registering.
+    ///
+    /// Called once the plugin's own work succeeded, so a plugin that failed
+    /// is not one another can claim to require.
+    pub fn record_plugin(&mut self, info: PluginInfo) {
+        self.engine
+            .resource::<PluginRegistry>()
+            .borrow_mut()
+            .0
+            .push(info);
+    }
+
+    /// Every plugin that registered, in load order.
+    #[must_use]
+    pub fn plugins(&self) -> Vec<PluginInfo> {
+        crate::plugins::loaded(&self.engine)
     }
 
     /// Run the simulation at a fixed step, ignoring wall-clock jitter.

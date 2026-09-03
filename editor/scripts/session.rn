@@ -230,7 +230,7 @@ pub fn open(S, name) {
     // with every animation player held, and only this lets them run.
     model::attach_game_scripts(S);
     S.playing = true;
-    S.dock = "session";
+    crate::docks::show(S, "session");
     physics::set_paused(false);
     anim::resume_all(S);
     replay::play();

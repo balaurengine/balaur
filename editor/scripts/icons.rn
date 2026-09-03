@@ -1,0 +1,82 @@
+// Every glyph the shell draws, named for what it means. Phosphor Regular, in
+// the icons chain each font family falls back to; swapping the set is this
+// file and nothing else.
+
+/// A viewport tool, by `defs::tools` id.
+pub fn tool(id) {
+    match id {
+        "select" => "\u{e1dc}",
+        "move" => "\u{e0a4}",
+        "rotate" => "\u{e036}",
+        "scale" => "\u{e0a2}",
+        "zoom" => "\u{e30c}",
+        "key" => "\u{e1ec}",
+        "bone" => "\u{e7f2}",
+        "polygon" => "\u{e6d0}",
+        _ => "\u{e1dc}",
+    }
+}
+
+/// A persona, by `defs::personas` id.
+pub fn persona(id) {
+    match id {
+        "scene" => "\u{e1da}",
+        "script" => "\u{e1bc}",
+        "anim" => "\u{e19a}",
+        "phys" => "\u{e6ce}",
+        "ui" => "\u{e6d6}",
+        _ => "\u{e1da}",
+    }
+}
+
+/// A dock panel, by its tab id.
+pub fn panel(id) {
+    match id {
+        "scene" => "\u{e67c}",
+        "outline" => "\u{e2f0}",
+        "inspector" => "\u{e432}",
+        "output" => "\u{eae8}",
+        "problems" => "\u{e4e0}",
+        "assets" => "\u{e24a}",
+        "timeline" => "\u{e792}",
+        "debugger" => "\u{e5f4}",
+        "session" => "\u{e3ee}",
+        "profiler" => "\u{e150}",
+        _ => "\u{e546}",
+    }
+}
+
+/// The shell's own controls.
+pub fn ui(name) {
+    match name {
+        "add" => "\u{e3d4}",
+        "close" => "\u{e4f6}",
+        "minimise" => "\u{e32a}",
+        "open" => "\u{e13c}",
+        "shut" => "\u{e136}",
+        "caret-open" => "\u{e136}",
+        "caret-shut" => "\u{e13a}",
+        "search" => "\u{e30c}",
+        "dark" => "\u{e330}",
+        "light" => "\u{e472}",
+        "play" => "\u{e3d0}",
+        "pause" => "\u{e39e}",
+        "stop" => "\u{e46c}",
+        "instance" => "\u{e1ca}",
+        "events" => "\u{e2e2}",
+        "split" => "\u{e546}",
+        "scriptfile" => "\u{e914}",
+        _ => "\u{ecde}",
+    }
+}
+
+/// A node's kind in the tree, by the role `model::node_icon` reports.
+pub fn node(role) {
+    match role {
+        "sage" => "\u{ebe4}",
+        "accent" => "\u{e1da}",
+        "dim" => "\u{e6d6}",
+        "world" => "\u{e18a}",
+        _ => "\u{e18a}",
+    }
+}

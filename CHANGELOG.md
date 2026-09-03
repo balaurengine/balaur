@@ -62,6 +62,8 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Record and replay: `run --record`, `replay --verify` / `--entries-at`.
 - Rollback on one machine: snapshot ring, input journal, re-simulation from a late input.
 - Rollback across spawns: run-time nodes get stable ids and the node set is restored.
+- The networking crate is now one crate per protocol: `balaur_http`, `balaur_websocket` and `balaur_webtransport`, each its own plugin and its own cargo feature. `[net]` in project.toml becomes `[http]` and `[websocket]`, with the keys dropping the prefix their table now carries.
+- WebTransport over QUIC behind the same `Transport` trait, so a datagram is finally a real unreliable datagram. A server generates a short-lived self-signed certificate by default and the client pins it by hash. Off by default: it is the expensive dependency, and its own switch.
 - Two engines play in lockstep over a socket: `NetSession` over a `Transport` trait.
 - Websockets carry binary frames and negotiate `permessage-deflate`.
 - `App::add_replay_setup`: loaded state goes in the recording's header, restored before tick one.
@@ -77,6 +79,15 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - `widget_theme` asset: fill, stroke, radius and padding per widget kind, inherited.
 - Audio buses: `[audio.buses]`, routing per sound, `audio.set_bus_volume`.
 - Audio events: `audio/events.toml`, variations taken in turn.
+- Loaded plugins are recorded: `balaur_core::plugins`, and a plugin's `requires` is checked at load.
+
+### Platform services
+
+- `platform.*`: sign-in, achievements, leaderboards, cloud saves and presence over one module, whichever store is loaded. With none, every call answers `unsupported`.
+- Apple: Game Center behind `platform.*`, iCloud key-value cloud saves, and `apple.identity` for the server that verifies a player.
+- A store write made on a tick a rollback could still take back waits until that tick settles; reads go out at once.
+- `[apple]` in `project.toml`: bundle id, team, version, deployment target, extra `Info.plist` keys, and the capabilities an export turns into entitlements.
+- `balaur export` writes `Info.plist` and `<game>.entitlements` from that table, and hands the entitlements to `codesign` for a macOS `.app`.
 
 ### Editor
 
@@ -86,6 +97,16 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Ray picking, the Assets dock's filesystem verbs, in-editor linting with a language server.
 - Profiler dock; `balaur run --timings` prints per-stage mean, worst and share of a frame.
 - Showcase pipeline: `scripts/showcase.sh` retakes the website's images and clips.
+- `scripts/uiaudit.sh` captures one screenshot per editor screen; `--state tab:<id>` picks a document.
+- Fixed: the centre ran the split branch every frame, so a collapsed code pane sat over the viewport.
+- Stage shell: the scene fills the window and every panel is a sheet over it, sized by `layout.rn`.
+- The bottom dock collapses to its tab row; plugin windows use the editor's own chrome.
+- Left, bottom and right are tabbed docks: a tab's menu moves it to another, and each minimises to its edge.
+- The brand is the edited project's `icon.png` and name when it ships one.
+- `ui::pill`, `ui::text_field` and `ui::dropdown` are tiles unless asked for `round`.
+- The editor's look is a theme asset: `editor/themes/*.toml` holds colour tokens and named roles a widget takes with `role:`.
+- Bundled type: Alegreya, Source Sans 3, JetBrains Mono and Phosphor icons, with the OS chained for scripts balaur does not ship.
+- Fixed: a sheet's content spilled over its neighbours; `ui::overlay` clips to the rect it was given.
 
 ### Breaking
 
@@ -94,3 +115,4 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Luau is removed: `.luau`, `language = "luau"`/`"mixed"` and `balaur_script_luau` are gone.
 - `animation.is_running` is `animation.is_tween_running`.
 - `ui.select` is `ui.dropdown`.
+- `load_order` and `load_extensions_in` take the names already loaded; `App::plugins` returns `PluginInfo`.

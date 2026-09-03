@@ -39,7 +39,7 @@ fn commands(S) {
         command(if S.show_input { "Hide input overlay" } else { "Show input overlay" }, "⌨", "", || {
             S.show_input = !S.show_input;
         }),
-        command("Open animation timeline", "◷", "⌥3", || { S.dock = "timeline"; }),
+        command("Open animation timeline", "◷", "⌥3", || crate::docks::show(S, "timeline")),
         command("Duplicate selected node", "⧉", "", || model::duplicate_selected(S)),
         command("Copy selected node", "⧉", "⌘C", || ui::set_clipboard(model::copy_selected(S))),
         command("Delete selected node", "✕", "", || model::delete_selected(S)),

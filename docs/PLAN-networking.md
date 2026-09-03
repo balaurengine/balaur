@@ -1,6 +1,7 @@
-> **Status:** steps 1-5 done — bytes on the wire, identity and lifecycle for
+> **Status:** steps 1-6 done — bytes on the wire, identity and lifecycle for
 > run-time nodes, rollback on one machine, the transport trait with a
-> websocket under it, and two engines playing in lockstep over loopback.
+> websocket under it, two engines playing in lockstep over loopback, and one
+> crate per protocol with QUIC under the trait.
 >
 > Written down on 2026-09-02 so the order was decided before the first line:
 > node identity and lifecycle first, because rollback and replication both
@@ -32,16 +33,14 @@ Built, and not built for networking:
 | An id for every run-time spawn, and a snapshot that restores the node set | `ids`, `snapshot`'s `nodes` source |
 | Rollback in one process: a session, an input journal, prediction and re-simulation | `rollback` |
 | A transport trait with reliable and unreliable delivery, over a websocket | `core::transport`, `net::transport` |
-| Accepting connections, and a session that plays over them | `net::listener`, `core::netsession` |
+| Accepting connections, and a session that plays over them | `websocket::listener`, `core::netsession` |
+| One crate per protocol, and real QUIC datagrams under the trait | `balaur_http`, `balaur_websocket`, `balaur_webtransport` |
 
 Missing:
 
-- Every transport is still TCP under the trait. No UDP, no QUIC, no
-  WebTransport, no WebRTC: one lost packet stalls everything behind it, and a
-  datagram is unreliable in name only.
-- One crate carries HTTP and websockets together, so a game that wants
-  neither still compiles both, and a QUIC stack would have nowhere to go but
-  in beside them.
+- No WebRTC, so two browsers cannot reach each other without a relay.
+- The browser has no WebTransport backend yet, so a web build still falls
+  back to websockets.
 - No replication, no RPC, no authority, no delta encoding. Inputs are
   predicted; state is not: no client-side prediction of the local player
   against a server, no reconciliation of the correction that comes back, no
@@ -230,7 +229,7 @@ that works.
    frames, because only a client had ever run it, and the snapshot ring
    appended re-simulated ticks instead of replacing them, so a
    rollback-heavy session forgot ticks it still needed.
-6. **One crate per protocol, and WebTransport native.** `balaur_net` becomes
+6. **One crate per protocol, and WebTransport native.** *Done.* `balaur_net` became
    three plugin crates: `balaur_http`, `balaur_websocket` and
    `balaur_webtransport`. Nothing shared is left behind, because the shared
    part is already in core — `ExternalIo` for the delivery contract,
@@ -243,13 +242,17 @@ that works.
    `balaur_webtransport` puts `quinn` behind the same trait, through
    `web-transport-quinn` (§4.4), client and server: datagrams for inputs, a
    stream for the handshake and digests. The crate is async and the engine is
-   polled, so a link owns a worker thread with a single-threaded runtime and
+   polled, so a link owns a worker thread with a current-thread runtime and
    speaks the same two channels the websocket worker does — no runtime
    anywhere near the frame loop. QUIC is always TLS: a server generates a
-   self-signed certificate by default, so two engines on one machine need no
-   setup, and takes a real certificate and key from disk for anything
-   shipped. The loopback tests of step 5 run again over it, parameterised
-   over the transport rather than copied.
+   short-lived self-signed certificate by default and the client pins it by
+   hash, so two engines on one machine need no setup, and a shipped server
+   passes a real certificate and key instead. The reliable channel is one
+   bidirectional stream, and a stream is bytes rather than messages, so a
+   reliable payload travels behind a four byte length; a datagram needs no
+   framing, which is half the reason to use one. On by default, like audio and
+   Gamend: the split is what makes turning it off possible, which is a
+   different question from what a batteries-included facade should ship.
 
    Nothing keeps the old name for the sake of the old name. `net` described a
    crate that held two unrelated protocols, and now that it holds none, the

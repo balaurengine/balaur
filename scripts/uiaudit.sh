@@ -31,6 +31,20 @@ shot() { # shot <name> <project> <state>
   if [ -f "$out/$1.png" ]; then echo ok; else echo FAILED; failed+=("$1"); fi
 }
 
+# Offscreen means a frame really is drawn, which is the only place the
+# centre's layout assertions can run.
+check_layout() {
+  [ ${#only[@]} -eq 0 ] || return 0
+  printf '%-24s ' layout
+  if "$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 40 \
+      --state layoutdemo 2>&1 | grep -q "selftest FAILED"; then
+    echo FAILED; failed+=(layout)
+  else
+    echo ok
+  fi
+}
+check_layout
+
 shot 01-scene-3d        examples/hello      "scene,select:Spinner"
 shot 02-scene-2d        examples/angrynerds "scene,select:Bird,zoom:45"
 shot 03-script          examples/hello      "script,select:Spinner"
@@ -56,6 +70,9 @@ shot 22-shaders         examples/shaders    "scene"
 shot 23-scene-rig3d     examples/rig3d      "scene"
 shot 24-light-script    examples/hello      "script,select:Spinner,light"
 shot 25-assets-light    examples/hello      "scene,dock:assets,light"
+shot 28-fonts          examples/hello      "scene,fontdemo"
+shot 26-docks-minimised examples/hello      "scene,select:Spinner,shut:left,shut:right"
+shot 27-docks-moved     examples/hello      "scene,select:Spinner,move:output:left,move:assets:right"
 
 if [ ${#failed[@]} -gt 0 ]; then
   echo "failed: ${failed[*]}" >&2

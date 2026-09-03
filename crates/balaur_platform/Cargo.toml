@@ -1,0 +1,23 @@
+[package]
+name = "balaur_platform"
+description = "Balaur platform services: one script module over every store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+balaur_core.workspace = true
+balaur_plugin.workspace = true
+balaur_script.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+balaur = { workspace = true }
+
+[lints]
+workspace = true

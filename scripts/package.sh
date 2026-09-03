@@ -31,8 +31,10 @@ if [ "$target" = macos-universal ]; then
   # One binary for both Apple Silicon and Intel. Shipping two macOS downloads
   # and asking the user which Mac they have is a worse answer than lipo.
   rustup target add aarch64-apple-darwin x86_64-apple-darwin
-  cargo build --release -p balaur_cli --features window --target aarch64-apple-darwin
-  cargo build --release -p balaur_cli --features window --target x86_64-apple-darwin
+  # `apple` is in because the template is prebuilt: a game exported onto it
+  # cannot link GameKit afterwards. It costs bytes and no entitlement.
+  cargo build --release -p balaur_cli --features "window,apple" --target aarch64-apple-darwin
+  cargo build --release -p balaur_cli --features "window,apple" --target x86_64-apple-darwin
   bin="target/balaur-universal"
   lipo -create -output "$bin" \
     "target/aarch64-apple-darwin/release/balaur" \

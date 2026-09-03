@@ -9,30 +9,42 @@
 //! ```
 
 pub use balaur_anim::AnimationPlugin;
+#[cfg(feature = "apple")]
+pub use balaur_apple::ApplePlugin;
 #[cfg(feature = "audio")]
 pub use balaur_audio::AudioPlugin;
 pub use balaur_core::*;
 #[cfg(feature = "gamend")]
 pub use balaur_gamend::GamendPlugin;
+#[cfg(feature = "http")]
+pub use balaur_http::HttpPlugin;
 pub use balaur_input::InputPlugin;
-#[cfg(feature = "net")]
-pub use balaur_net::NetPlugin;
 pub use balaur_physics::PhysicsPlugin;
+pub use balaur_platform::PlatformPlugin;
 pub use balaur_render::RenderPlugin;
 pub use balaur_ui::UiPlugin;
+#[cfg(feature = "websocket")]
+pub use balaur_websocket::WebsocketPlugin;
 
 pub use balaur_anim as animation;
+#[cfg(feature = "apple")]
+pub use balaur_apple as apple;
 #[cfg(feature = "audio")]
 pub use balaur_audio as audio;
 #[cfg(feature = "gamend")]
 pub use balaur_gamend as gamend;
+#[cfg(feature = "http")]
+pub use balaur_http as http;
 pub use balaur_input as input;
-#[cfg(feature = "net")]
-pub use balaur_net as net;
 pub use balaur_physics as physics;
+pub use balaur_platform as platform;
 pub use balaur_render as render;
 pub use balaur_script_rune as rune;
 pub use balaur_ui as ui;
+#[cfg(feature = "websocket")]
+pub use balaur_websocket as websocket;
+#[cfg(feature = "webtransport")]
+pub use balaur_webtransport as webtransport;
 
 use anyhow::{Context, Result};
 
@@ -176,10 +188,16 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     app.add_plugin(RenderPlugin)?;
     #[cfg(feature = "audio")]
     balaur_plugin::load(&mut app, &mut AudioPlugin::default())?;
-    #[cfg(feature = "net")]
-    balaur_plugin::load(&mut app, &mut NetPlugin::default())?;
+    #[cfg(feature = "http")]
+    balaur_plugin::load(&mut app, &mut HttpPlugin::default())?;
+    #[cfg(feature = "websocket")]
+    balaur_plugin::load(&mut app, &mut WebsocketPlugin::default())?;
     #[cfg(feature = "gamend")]
     balaur_plugin::load(&mut app, &mut GamendPlugin::default())?;
+    // Before any store's plugin: a backend registers into what this inserts.
+    balaur_plugin::load(&mut app, &mut PlatformPlugin::default())?;
+    #[cfg(feature = "apple")]
+    balaur_plugin::load(&mut app, &mut ApplePlugin::default())?;
     app.add_plugin(UiPlugin)?;
     drive_ui_focus(&mut app);
     #[cfg(feature = "extensions")]
@@ -228,9 +246,10 @@ fn drive_ui_focus(app: &mut App) {
 #[cfg(feature = "extensions")]
 fn load_project_extensions(app: &mut App) -> Result<()> {
     let dir = app.project_root().join("extensions");
+    let modules = balaur_core::plugins::names(&app.engine);
     // Safety: opening a library runs its initialisers, and the fingerprint
     // check inside refuses a build that cannot share this process.
-    let mut loaded = unsafe { balaur_plugin::load_extensions_in(&dir) }?;
+    let mut loaded = unsafe { balaur_plugin::load_extensions_in(&dir, &modules) }?;
     for extension in &mut loaded {
         let name = extension.manifest().name.clone();
         balaur_plugin::load(app, extension.plugin_mut())

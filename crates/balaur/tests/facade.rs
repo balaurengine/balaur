@@ -78,6 +78,24 @@ fn an_unknown_language_is_a_named_error() {
 }
 
 #[test]
+fn the_standard_app_records_every_plugin_it_loaded() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path(), None, RUNE);
+    let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let names: Vec<String> = app.plugins().into_iter().map(|p| p.name).collect();
+    for expected in ["input", "physics", "animation", "render", "ui"] {
+        assert!(
+            names.contains(&expected.to_string()),
+            "`{expected}` is missing from {names:?}"
+        );
+    }
+    #[cfg(feature = "http")]
+    assert!(names.contains(&"http".to_string()), "{names:?}");
+    #[cfg(feature = "audio")]
+    assert!(names.contains(&"audio".to_string()), "{names:?}");
+}
+
+#[test]
 fn the_standard_app_has_every_plugin_registered() {
     let dir = tempfile::tempdir().unwrap();
     project(dir.path(), None, RUNE);

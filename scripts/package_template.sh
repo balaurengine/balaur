@@ -24,7 +24,7 @@ ios)
   step "build ($target, windowed, min iOS $ios_min)"
   rustup target add "$target"
   IPHONEOS_DEPLOYMENT_TARGET=$ios_min \
-    cargo build --release -p balaur_cli --features window --target "$target"
+    cargo build --release -p balaur_cli --features "window,apple" --target "$target"
 
   # The smallest bundle iOS will launch: the executable and a plist naming it.
   # Unsigned on purpose — signing certificates must never live in this repo's CI.

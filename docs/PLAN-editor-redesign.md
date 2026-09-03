@@ -1,6 +1,17 @@
 # Plan: redesigning the editor shell
 
-> **Status:** not started. Written 2026-09-03 against the screen catalogue in
+> **Status:** Stage is standing (2026-09-03). Phases 1–2 are done: `layout.rn`
+> owns every rect, `viewport::owns_pointer` inverts the hit test, and every
+> panel now draws through `ui::overlay` as a sheet over a full-bleed scene.
+> `layoutdemo` asserts nine invariants, including that no two sheets overlap.
+> §5.1 (documents are not full-bleed), §5.2 (the dock is a drawer) and the
+> plugin-window half of §5.5 came with it, and §5.3's tab row. The three
+> panels are now one dock model (`docks.rn`): tabs move between left, bottom
+> and right, and each dock minimises to its edge. Phase 3 (§4) has started —
+> the radius ladder and the inspector grid are done; the composites, the
+> icon font and §5.4–5.6 are not.
+>
+> Written 2026-09-03 against the screen catalogue in
 > [EDITOR-SCREENS.md](EDITOR-SCREENS.md), captured by `scripts/uiaudit.sh` at
 > 1280 × 800 design px. `D1`…`D17` are that file's defect numbers.
 >

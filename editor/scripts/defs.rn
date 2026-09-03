@@ -1,12 +1,14 @@
 // Static editor vocabulary: personas, tools, palette commands.
 
+use crate::icons;
+
 pub fn personas() {
     [
-        #{ id: "scene", name: "Scene", icon: "⌖" },
-        #{ id: "script", name: "Script", icon: "‹›" },
-        #{ id: "anim", name: "Animate", icon: "◷" },
-        #{ id: "phys", name: "Physics", icon: "▣" },
-        #{ id: "ui", name: "Interface", icon: "▤" },
+        #{ id: "scene", name: "Scene", icon: icons::persona("scene") },
+        #{ id: "script", name: "Script", icon: icons::persona("script") },
+        #{ id: "anim", name: "Animate", icon: icons::persona("anim") },
+        #{ id: "phys", name: "Physics", icon: icons::persona("phys") },
+        #{ id: "ui", name: "Interface", icon: icons::persona("ui") },
     ]
 }
 
@@ -46,17 +48,7 @@ pub fn tool_name(tool) {
 }
 
 pub fn tool_icon(tool) {
-    match tool {
-        "select" => "⌖",
-        "move" => "✥",
-        "rotate" => "⟳",
-        "scale" => "⤢",
-        "zoom" => "⌕",
-        "key" => "◆",
-        "bone" => "⋈",
-        "polygon" => "⬟",
-        _ => "·",
-    }
+    icons::tool(tool)
 }
 
 // Viewport overlay chips per persona: `[key, label, default_on]`. A chip with

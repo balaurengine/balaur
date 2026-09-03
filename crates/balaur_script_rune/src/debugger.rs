@@ -1,15 +1,21 @@
-//! Breakpoints and stepping over Rune's instruction-level executor.
+//! Breakpoints and stepping over Rune's executor.
 //!
-//! A unit with breakpoints runs one instruction at a time through
-//! `VmExecution::step`, checking the instruction pointer against the
-//! breakpoint set before each; a unit without keeps the run-to-completion
-//! call, so an unhit breakpoint costs nothing elsewhere.
+//! The VM stops itself: it is handed a set of instruction pointers and halts
+//! before any of them, so it runs at full speed in between. A plain
+//! breakpoint costs the script nothing until it is hit. Stepping hands over
+//! the first instruction of every line instead, so a step over a call that
+//! runs a hundred thousand instructions is one resume, not a hundred thousand
+//! round trips through the executor.
+//!
+//! A unit with nothing to stop for gets no set at all and keeps the
+//! run-to-completion call.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use balaur_script::{Frame, PauseReason, StepMode};
 use rune::runtime::debug::DebugArgs;
-use rune::runtime::{InstAddress, Unit, Vm, VmError, VmExecution, VmResult};
+use rune::runtime::{HaltSet, InstAddress, Unit, Vm, VmError, VmExecution, VmResult};
 
 /// Where a unit's instructions sit in its source, and where its functions
 /// start.
@@ -17,6 +23,10 @@ pub(crate) struct Lines {
     line_of_ip: HashMap<usize, usize>,
     /// Function start ips, ascending.
     starts: Vec<usize>,
+    /// The first instruction of every line of every function: everywhere a
+    /// step or a pause may come to rest. Handed to the VM whole, so it runs
+    /// between two lines without asking.
+    stops: Arc<HaltSet>,
 }
 
 impl Lines {
@@ -37,7 +47,34 @@ impl Lines {
             starts.extend(info.functions_rev.keys().copied());
         }
         starts.sort_unstable();
-        Self { line_of_ip, starts }
+        let mut lines = Self {
+            line_of_ip,
+            starts,
+            stops: Arc::new(HaltSet::new()),
+        };
+        lines.stops = Arc::new(lines.line_start_ips());
+        lines
+    }
+
+    /// The first instruction of each line, per function, so a line reached
+    /// from two call sites stops in both.
+    fn line_start_ips(&self) -> HaltSet {
+        let mut first: HashMap<(Option<usize>, usize), usize> = HashMap::new();
+        for (ip, line) in &self.line_of_ip {
+            if *line == 0 {
+                continue;
+            }
+            first
+                .entry((self.function_start(*ip), *line))
+                .and_modify(|at| *at = (*at).min(*ip))
+                .or_insert(*ip);
+        }
+        HaltSet::from_ips(first.into_values()).unwrap_or_default()
+    }
+
+    /// Everywhere a step or a pause may stop.
+    pub(crate) fn stops(&self) -> Arc<HaltSet> {
+        self.stops.clone()
     }
 
     /// The source line of an instruction; 0 for one with no span.
@@ -110,60 +147,63 @@ pub(crate) struct Stops {
 }
 
 /// Drive `exec` until a breakpoint, a stop in `stops`, an error or the end.
-/// `leaving` is the instruction it is parked on, which runs without
-/// breaking again.
+///
+/// `halts` is where the VM gives control back: the breakpoint set on its own
+/// when nothing is stepping, every line start when something is. `leaving` is
+/// the instruction it is parked on, which runs without breaking again.
 pub(crate) fn run(
     exec: &mut VmExecution<Vm>,
     lines: &Lines,
-    breakpoints: &HashSet<usize>,
+    halts: &Arc<HaltSet>,
+    breakpoints: &Arc<HaltSet>,
     stops: Stops,
-    mut leaving: Option<usize>,
+    leaving: Option<usize>,
 ) -> Outcome {
+    exec.vm_mut().set_halts(Some(halts.clone()));
+    exec.vm_mut().set_resuming(leaving);
     loop {
-        let ip = exec.vm().ip();
-        let skip = leaving.take().is_some_and(|l| l == ip);
-        if !skip {
-            let line = lines.line(ip);
-            let depth = exec.vm().call_frames().len();
-            if stops.break_next && line > 0 {
-                return Outcome::Broke(Hit {
-                    line,
-                    reason: PauseReason::Pause,
-                });
-            }
-            if let Some(plan) = stops.plan {
-                let arrived = match plan.mode {
-                    StepMode::Continue => false,
-                    StepMode::Into => line != plan.line || depth != plan.depth,
-                    StepMode::Over => {
-                        depth < plan.depth || (depth == plan.depth && line != plan.line)
-                    }
-                    StepMode::Out => depth < plan.depth,
-                };
-                if arrived && line > 0 {
-                    return Outcome::Broke(Hit {
-                        line,
-                        reason: PauseReason::Step,
-                    });
-                }
-            }
-            if breakpoints.contains(&ip) {
-                return Outcome::Broke(Hit {
-                    line,
-                    reason: PauseReason::Breakpoint,
-                });
-            }
-        }
-        match exec.step() {
-            VmResult::Ok(None) => {}
+        match exec.run_to_break() {
             VmResult::Ok(Some(value)) => return Outcome::Finished(value),
             VmResult::Err(err) => {
+                // The ip has already moved past the instruction that threw.
                 return Outcome::Failed {
                     error: err,
-                    line: lines.line(ip),
-                }
+                    line: lines.line(exec.vm().last_ip()),
+                };
+            }
+            VmResult::Ok(None) => {}
+        }
+        let ip = exec.vm().ip();
+        let line = lines.line(ip);
+        let depth = exec.vm().call_frames().len();
+        if stops.break_next && line > 0 {
+            return Outcome::Broke(Hit {
+                line,
+                reason: PauseReason::Pause,
+            });
+        }
+        if let Some(plan) = stops.plan {
+            let arrived = match plan.mode {
+                StepMode::Continue => false,
+                StepMode::Into => line != plan.line || depth != plan.depth,
+                StepMode::Over => depth < plan.depth || (depth == plan.depth && line != plan.line),
+                StepMode::Out => depth < plan.depth,
+            };
+            if arrived && line > 0 {
+                return Outcome::Broke(Hit {
+                    line,
+                    reason: PauseReason::Step,
+                });
             }
         }
+        if breakpoints.contains(ip) {
+            return Outcome::Broke(Hit {
+                line,
+                reason: PauseReason::Breakpoint,
+            });
+        }
+        // A halt the predicate did not want: go on past it.
+        exec.vm_mut().set_resuming(Some(ip));
     }
 }
 

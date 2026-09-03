@@ -105,7 +105,10 @@ fn dependencies_load_before_the_plugins_that_need_them() {
         Manifest::new("physics", "1").requiring(&["core"]),
         Manifest::new("core", "1"),
     ];
-    assert_eq!(load_order(&manifests).unwrap(), ["core", "physics", "game"]);
+    assert_eq!(
+        load_order(&manifests, &[]).unwrap(),
+        ["core", "physics", "game"]
+    );
 }
 
 #[test]
@@ -116,7 +119,7 @@ fn independent_plugins_load_in_name_order() {
         Manifest::new("middle", "1"),
     ];
     assert_eq!(
-        load_order(&manifests).unwrap(),
+        load_order(&manifests, &[]).unwrap(),
         ["alpha", "middle", "zebra"]
     );
 }
@@ -133,13 +136,16 @@ fn the_order_does_not_depend_on_how_the_plugins_were_listed() {
         Manifest::new("b", "1"),
         Manifest::new("a", "1").requiring(&["b"]),
     ];
-    assert_eq!(load_order(&one).unwrap(), load_order(&other).unwrap());
+    assert_eq!(
+        load_order(&one, &[]).unwrap(),
+        load_order(&other, &[]).unwrap()
+    );
 }
 
 #[test]
 fn a_missing_requirement_names_what_is_absent() {
     let manifests = vec![Manifest::new("game", "1").requiring(&["nowhere"])];
-    let err = load_order(&manifests).unwrap_err().to_string();
+    let err = load_order(&manifests, &[]).unwrap_err().to_string();
     assert!(
         err.contains("nowhere") && err.contains("game"),
         "unhelpful: {err}"
@@ -152,14 +158,17 @@ fn plugins_that_require_each_other_are_refused() {
         Manifest::new("a", "1").requiring(&["b"]),
         Manifest::new("b", "1").requiring(&["a"]),
     ];
-    let err = load_order(&manifests).unwrap_err().to_string();
+    let err = load_order(&manifests, &[]).unwrap_err().to_string();
     assert!(err.contains("cycle"), "unhelpful: {err}");
 }
 
 #[test]
 fn a_plugin_with_no_requirements_still_loads() {
-    assert_eq!(load_order(&[Manifest::new("solo", "1")]).unwrap(), ["solo"]);
-    assert!(load_order(&[]).unwrap().is_empty());
+    assert_eq!(
+        load_order(&[Manifest::new("solo", "1")], &[]).unwrap(),
+        ["solo"]
+    );
+    assert!(load_order(&[], &[]).unwrap().is_empty());
 }
 
 /// The check that decides whether loading foreign code is safe is only worth
@@ -186,4 +195,88 @@ fn the_fingerprint_survives_the_fixed_size_abi_tag() {
         Fingerprint::current(),
         "a field was truncated on the way into the tag"
     );
+}
+
+#[test]
+fn a_requirement_is_satisfied_by_a_module_loaded_before_the_set() {
+    let manifests = vec![Manifest::new("mod_of_mine", "1").requiring(&["http"])];
+    let loaded = ["http".to_string()];
+    assert_eq!(
+        load_order(&manifests, &loaded).unwrap(),
+        ["mod_of_mine"],
+        "an already-loaded module does not order with the set"
+    );
+    assert!(load_order(&manifests, &[]).is_err());
+}
+
+#[test]
+fn loading_a_plugin_records_who_it_is() {
+    let mut app = app();
+    load(&mut app, &mut Probe::new("probe")).unwrap();
+
+    let loaded = app.plugins();
+    assert_eq!(loaded.len(), 1, "{loaded:?}");
+    assert_eq!(loaded[0].name, "probe");
+    assert_eq!(loaded[0].version, "1.0.0");
+    assert!(balaur_core::plugins::is_loaded(&app.engine, "probe"));
+}
+
+#[test]
+fn a_plugin_that_requires_an_unloaded_one_is_refused() {
+    let mut app = app();
+    let mut probe = Probe::new("late");
+    probe.manifest = probe.manifest.clone().requiring(&["early"]);
+
+    let err = load(&mut app, &mut probe).unwrap_err().to_string();
+    assert!(
+        err.contains("late") && err.contains("early"),
+        "unhelpful: {err}"
+    );
+    assert!(
+        app.plugins().is_empty(),
+        "a refused plugin was recorded as loaded"
+    );
+}
+
+#[test]
+fn a_requirement_loaded_first_is_accepted() {
+    let mut app = app();
+    load(&mut app, &mut Probe::new("early")).unwrap();
+    let mut probe = Probe::new("late");
+    probe.manifest = probe.manifest.clone().requiring(&["early"]);
+
+    load(&mut app, &mut probe).unwrap();
+    assert_eq!(
+        app.plugins().iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
+        ["early", "late"]
+    );
+}
+
+#[test]
+fn a_plugin_whose_registration_fails_is_not_recorded() {
+    let mut app = app();
+    load(&mut app, &mut Failing::new("broken")).unwrap_err();
+    assert!(app.plugins().is_empty());
+}
+
+struct Failing {
+    manifest: Manifest,
+}
+
+impl Failing {
+    fn new(name: &str) -> Self {
+        Self {
+            manifest: Manifest::new(name, "1.0.0"),
+        }
+    }
+}
+
+impl Plugin for Failing {
+    fn manifest(&self) -> &Manifest {
+        &self.manifest
+    }
+
+    fn declare(&mut self, _: &mut Registry<'_>) -> anyhow::Result<()> {
+        anyhow::bail!("no")
+    }
 }

@@ -1,0 +1,61 @@
+[package]
+name = "balaur_apple"
+description = "Balaur Apple platform services: Game Center, iCloud and Sign in with Apple"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+balaur_core.workspace = true
+balaur_platform.workspace = true
+balaur_plugin.workspace = true
+balaur_script.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+
+# The frameworks, on the platforms that have them. Everywhere else the crate
+# still compiles and every call answers `unsupported`, so a game's scripts and
+# its tests do not change shape between a Mac and a CI runner.
+[target.'cfg(target_vendor = "apple")'.dependencies]
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "NSArray",
+    "NSData",
+    "NSError",
+    "NSObject",
+    "NSString",
+    "NSURL",
+    "NSUbiquitousKeyValueStore",
+] }
+objc2-authentication-services = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "ASAuthorization",
+    "ASAuthorizationController",
+    "ASAuthorizationCredential",
+    "ASAuthorizationRequest",
+    "ASAuthorizationOpenIDRequest",
+    "ASAuthorizationAppleIDProvider",
+    "ASAuthorizationAppleIDRequest",
+] }
+objc2-game-kit = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "block2",
+    "GKBasePlayer",
+    "GKPlayer",
+    "GKLocalPlayer",
+    "GKAchievement",
+    "GKLeaderboard",
+    "GKLeaderboardEntry",
+] }
+
+[dev-dependencies]
+tempfile = "3"
+balaur = { workspace = true, features = ["apple"] }
+
+[lints]
+workspace = true

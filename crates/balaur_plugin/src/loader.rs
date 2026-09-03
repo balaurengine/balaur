@@ -173,7 +173,8 @@ pub fn refuse_mismatch(path: &Path, theirs: &Fingerprint) -> Result<()> {
 ///
 /// Discovery is sorted and the order comes from the manifests, because a
 /// directory listing is not deterministic and load order decides registration
-/// order.
+/// order. `already_loaded` names the modules the binary linked in, so an
+/// extension may require one.
 ///
 /// # Errors
 /// If a library fails to load, requires something absent, or the requirements
@@ -181,7 +182,7 @@ pub fn refuse_mismatch(path: &Path, theirs: &Fingerprint) -> Result<()> {
 ///
 /// # Safety
 /// Each library is opened, which runs its initialisers.
-pub unsafe fn load_extensions_in(dir: &Path) -> Result<Vec<Extension>> {
+pub unsafe fn load_extensions_in(dir: &Path, already_loaded: &[String]) -> Result<Vec<Extension>> {
     let mut paths: Vec<PathBuf> = match std::fs::read_dir(dir) {
         Ok(entries) => entries
             .flatten()
@@ -198,7 +199,7 @@ pub unsafe fn load_extensions_in(dir: &Path) -> Result<Vec<Extension>> {
     }
 
     let manifests: Vec<Manifest> = loaded.iter().map(|e| e.manifest().clone()).collect();
-    let order = crate::load_order(&manifests)?;
+    let order = crate::load_order(&manifests, already_loaded)?;
     let mut ordered = Vec::with_capacity(loaded.len());
     for name in order {
         let at = loaded

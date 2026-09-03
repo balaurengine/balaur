@@ -174,19 +174,29 @@ pub fn draw_overlays(S) {
     }
 }
 
-/// Every open plugin window, drawn as a floating surface.
+/// Every open plugin window, drawn as a sheet like every other surface.
 pub fn draw_windows(S, k) {
+    let n = 0;
     for entry in S.registry.windows {
         if S.registry.open.get(entry.id).unwrap_or(false) != true {
             continue;
         }
+        let r = crate::layout::window_rect(S, n);
+        n = n + 1;
         let draw = entry.draw;
-        let still_open = ui::window(entry.id, #{ title: entry.title, width: 260 }, || {
+        crate::style::sheet(k, entry.id, r, 12, 0, || {
+            ui::horizontal(#{ height: 30 }, || {
+                ui::label(entry.title, #{ size: 13, font: "heading", strong: true, color: k.text });
+                ui::right(|| {
+                    if ui::circle_button("✕", #{ d: 20, size: 10, color: k.dim, tooltip: "Close" }) {
+                        S.registry.open[entry.id] = false;
+                    }
+                });
+            });
+            ui::separator(k.line_soft);
+            ui::add_space(6);
             draw(S, k);
         });
-        if !still_open {
-            S.registry.open[entry.id] = false;
-        }
     }
 }
 

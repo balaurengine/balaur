@@ -666,13 +666,20 @@ They implement the same `balaur_plugin::Plugin` trait — `manifest()` and
 `declare(&mut Registry)` — so one source ships either way. `Registry` is
 deliberately narrow (resources, systems, components, script modules) and free
 of generics and trait objects in its signatures, because a `fn` pointer crosses
-an ABI boundary where an `impl Trait` does not. Nothing in tree uses its
-`app()` escape hatch, which is the evidence those four operations are the right
-ones.
+an ABI boundary where an `impl Trait` does not. `balaur_http` and
+`balaur_websocket` reach through its `app()` escape hatch for `ProjectFiles`,
+and everything reached that way is Rust-only: that short list is what the C
+boundary still has to grow, which is what the hatch is for.
 
-Load order is sorted by name and then by declared requirements, never by
-directory iteration: load order decides registration order, which decides the
-simulation.
+Every plugin that finishes registering is appended to `PluginRegistry`
+(`balaur_core::plugins`), and a plugin's `requires` is checked against it at
+load, so a name may reach across the module/extension boundary in either
+direction. Load order is sorted by name and then by declared requirements,
+never by directory iteration: load order decides registration order, which
+decides the simulation.
+
+`docs/PLAN-plugins.md` carries the rest — one trait, one sorted order for
+modules and extensions alike, and a `[plugins]` table in `project.toml`.
 
 **Two boundaries, because Rust has no stable ABI.** A dylib passing Rust types
 across `dlopen` needs the identical compiler on both sides, and a mismatch is
@@ -994,6 +1001,52 @@ migration hook possible — calling a public function in a script *file*, with
 no instance, for the case where the engine knows which file to ask and there
 is no node to ask it of.
 
+## Store and platform services
+
+`docs/PLAN-apple.md`, `docs/PLAN-google.md` and `docs/PLAN-steam.md` are one
+plan per store. Two things are shared, and both are decided here.
+
+**Two modules, not one.** `platform.*` carries the verbs every store has —
+sign in, the current player, unlock, progress, submit a score, read scores,
+cloud read and write, presence. `apple.*` carries what only that platform has,
+like Game Center's identity signature. The portable module is not a lowest
+common denominator, because the native one is always beside it, and a verb the
+loaded store lacks answers `unsupported` rather than pretending: Game Center
+has no presence, and saying so beats an empty success.
+
+`balaur_platform` owns the seam and one backend fills it, registered by the
+store's plugin (which therefore loads after it). With none — the editor, a
+desktop dev run, a replay — every call still answers, so a script written
+against `platform.*` runs everywhere.
+
+**Delivery is the engine's usual one.** Every store SDK is asynchronous and
+answers on a queue the engine does not own, which is the shape `balaur_http`
+already solved: the call returns an id, the answer crosses a channel, and
+`ExternalIo` lands it at `Stage::First` of a later tick — recorded in that
+tick's snapshot, replayed from the file with no store present, and dispatched
+to the node's `on_platform` method and to whoever awaits the id.
+
+**A write waits for its tick to settle.** `ExternalIo::start` already refuses
+to reach the outside world while a recording plays or a tick is being
+re-simulated. That is right for a socket and not enough for an achievement:
+the run that awarded it may be the *predicted* one, and a rollback cannot take
+an achievement back. So a call that changes the outside world is held until
+the tick that made it can no longer be re-run, which is the tick falling out of
+the rollback session's snapshot ring; `rollback::Clock` is that horizon, and a
+game with no session leaves it at `u64::MAX`, where every tick is final the
+moment it happens. Reads are never held — repeating one costs a round trip and
+nothing else.
+
+**Capabilities are export-side.** What a store grants is decided by the bundle,
+not by the code: `[apple]` in `project.toml` names the identifier, the team,
+the deployment target and the capabilities, and `balaur export` writes the
+`Info.plist` and the `.entitlements` file from it, refusing a capability the
+declared minimum OS cannot satisfy. Signing stays the developer's. The
+frameworks themselves are linked into the Apple templates unconditionally,
+because a template is prebuilt and a game exported onto one cannot add a
+framework afterwards; an app that never calls them pays bytes and no
+entitlement.
+
 ## Timings
 
 `App::tick` measures each stage and publishes the frame whole, so a reader
@@ -1145,7 +1198,7 @@ Three design points:
   only inside `ExternalIo::start` — which does nothing while a replay is
   playing. The check cannot be forgotten because there is no other way to
   reach the outside. The handler is still registered either way, so the
-  recorded reply has somewhere to land. `balaur_net`'s tests bind a listener
+  recorded reply has somewhere to land. `balaur_http`'s tests bind a listener
   and assert it never accepts.
 - **The step is recorded per tick, not assumed.** A recording made at a
   variable frame rate still replays exactly, because each frame carries the
@@ -1340,14 +1393,20 @@ technique and where it sits.
 
 ### Transport
 
-Today: HTTP and WebSocket (`balaur_net`), plus the Gamend backend. WebSocket
-runs over TCP, so one lost packet stalls every update behind it — fine for
-turn-based play and for lockstep at low tick rates, wrong for anything
-twitchy. The websocket worker speaks frames itself (tungstenite's upgrade
-request and frame codec, its own protocol loop) so that `permessage-deflate`
-can set the reserved bit tungstenite's message API refuses; compression,
-upgrade headers and the HTTP timeout are per-call options over the `[net]`
-table of `project.toml`.
+Today: HTTP (`balaur_http`) and WebSocket (`balaur_websocket`), plus the
+Gamend backend. One crate per protocol, because a QUIC stack is a large
+dependency and a game that only wants `http.request` should not compile one;
+nothing shared sits under them, since the shared parts — `ExternalIo`,
+`Transport`, `Handler`, the await-token space — are already in core.
+WebSocket runs over TCP, so one lost packet stalls every update behind it —
+fine for turn-based play and for lockstep at low tick rates, wrong for
+anything twitchy. The websocket worker speaks frames itself (tungstenite's
+upgrade request and frame codec, its own protocol loop) so that
+`permessage-deflate` can set the reserved bit tungstenite's message API
+refuses, and so a listener can unmask the client-to-server frames tungstenite
+leaves masked. Compression, upgrade headers and the request timeout are
+per-call options over the `[websocket]` and `[http]` tables of
+`project.toml`.
 
 `balaur_core::transport::Transport` is the seam all of this sits behind: one
 reliable ordered channel, unreliable datagrams, and a `receive` that is polled
@@ -1357,6 +1416,17 @@ websocket offers, so a transport missing a guarantee fakes it — the websocket
 implementation sends a datagram reliably, which costs latency and is never
 wrong. Opening a link goes through `ExternalIo::start`, so a replay or a
 re-simulated tick opens no socket at all.
+
+`balaur_webtransport` is the one where a datagram is genuinely a datagram,
+putting `quinn` behind that trait through `web-transport-quinn`. The crate is
+async and the frame loop is not, so a link owns a worker thread with a
+current-thread runtime and speaks the same two channels the websocket worker
+does; no runtime goes near the tick. Its reliable channel is one bidirectional
+stream, and a QUIC stream is bytes rather than messages, so a reliable payload
+travels behind a four byte length — a datagram needs no framing, which is half
+the reason to use one. QUIC is always TLS, so a server generates a short-lived
+self-signed certificate and the client pins it by hash, which is also what a
+browser accepts; a shipped server passes real files instead.
 
 The target is QUIC/WebTransport as the *single* transport (`web-transport-quinn`,
 decided over `wtransport` for a smaller server side): reliable-ordered streams and unreliable datagrams in
@@ -1653,6 +1723,7 @@ release finished.
 | Item | Plan |
 | --- | --- |
 | Tilemap editor, curve editor and onion skin | `docs/PLAN-editor.md` §6 |
+| The editor in a browser: the same wasm build with a canvas under it, files in the browser's origin-private filesystem, and a project kept on Gamend | `docs/PLAN-web-editor.md`. The editor is a Balaur project and the engine already builds for `wasm32-unknown-emscripten` headless, so the missing halves are a surface on a canvas and a backend under `fs` |
 | `#[export]` on a script constant, in place of the `exports` table | `docs/PLAN-scripting.md` phase 3 |
 | Stable asset ids, rename refactoring, sprite-sheet import | `docs/PLAN-scenes-and-assets.md` phases 3, 5, 6 |
 | Asset streaming: a load that runs off the tick, a scene added to one already running, and an asset dropped when nothing names it | no plan yet; a pack is held whole in memory today. `ExternalIo` already lands background work on a tick boundary and records it for replay, `assets` caches by reference, and `pack` hashes every entry |
@@ -1678,9 +1749,10 @@ release finished.
 | Replaying a networked session, and a link that can be given latency, loss and reordering in a test; round-trip time, loss and bytes a second per peer | `docs/PLAN-networking.md` step 7 |
 | Voice in a session | no plan yet; the transport carries unreliable datagrams and audio has buses to mix a stream into. What is missing is a codec |
 | A crash report that reproduces itself: the recording, the log and the build id in one file | no plan yet; `replay` already writes a file that re-runs a session bit for bit and `logbuf` holds the log — nothing packages the two when a game falls over |
-| Store and platform services: achievements, cloud saves, rich presence, in-app purchase | these ship as C extensions rather than engine code (`docs/PLAN-c-api.md`); `save` is what a cloud save syncs, and Gamend already has login and REST |
+| Store and platform services: sign-in, achievements, leaderboards, cloud saves, rich presence, in-app purchase | One plan per store, sharing a portable `platform` script module: `docs/PLAN-steam.md` (Steamworks, and the module itself), `docs/PLAN-apple.md` (Sign in with Apple, Game Center, iCloud, StoreKit), `docs/PLAN-google.md` (Play Games Services, Sign in with Google, Play Billing, Play Integrity). Engine crates behind features, not C extensions: every one of these APIs is asynchronous, and a Tier 1 extension has no `ExternalIo`, no await token and no way to call back into a script (`docs/PLAN-c-api.md` "What Tier 1 does not do"). `save` is what a cloud save syncs, Gamend is where a ticket is verified, and `ExternalIo` is how a completion reaches a tick |
 | Signed binary releases, published benchmarks | `docs/PLAN-release.md` |
-| Web export | `docs/PLAN-mobile-export.md` "Web" |
+| Web export: a wgpu surface on a canvas, a shell page, and the pack fetched beside the wasm | `docs/PLAN-mobile-export.md` "Web". The headless wasm template already links and is packaged on every push (`scripts/package_template.sh web`); the window is what is missing, and it blocks `docs/PLAN-web-editor.md` too |
+| One-click deploy: a game on a URL or on a phone from one command or one button, rather than a bundle in `dist/` | `docs/PLAN-deploy.md`. `balaur export` builds and signs; nothing sends the result anywhere, and the three store plans each end at a file on the developer's disk |
 | Console export: Switch, PlayStation, Xbox | no plan yet, and not a target flag: `balaur export --target` and the pack shape travel, but each console's graphics, input and store layer is an NDA SDK that is not wgpu, winit or gilrs |
 | XR: OpenXR on desktop and standalone headsets, WebXR in the browser — stereo views, tracked poses, controller and hand input | no plan yet; the wgpu device, the offscreen path that renders with no OS window, and input actions (the shape an OpenXR action set wants) are the reusable half. kiss3d owning the window and the swapchain is what is in the way, and a 60 Hz fixed tick against a 90 Hz display is the open question |
 | Parallel system execution, once profiling demands it | no plan yet; the gameplay tick is serial by design |

@@ -1,10 +1,32 @@
 // Persona bar (56 px) and status bar (28 px).
 
 use crate::defs;
+use crate::icons;
 use crate::model;
 use crate::shell;
 use crate::style;
 use crate::theme;
+
+// The edited project's mark, when it ships one, else balaur's. A project
+// that brought its own logo gets its own name beside it too.
+fn brand_logo(S) {
+    for rel in ["icon.png", "assets/icon.png", "assets/logo.png"] {
+        if fs::exists(S.game_root + "/" + rel) {
+            return S.game_root + "/" + rel;
+        }
+    }
+    ""
+}
+
+fn brand(S) {
+    let logo = brand_logo(S);
+    // `return`: a bare tuple after an `if` block parses as a call on the
+    // block's value.
+    if logo == "" {
+        return ("assets/balaur-logo.png", "balaur");
+    }
+    return (logo, S.game_name);
+}
 
 fn plural(n, word) {
     if n == 1 { word } else { word + "s" }
@@ -12,125 +34,127 @@ fn plural(n, word) {
 
 pub fn persona_bar(S) {
     let k = S.theme;
-    ui::top_panel("persona", #{ height: 56, fill: k.panel, padding_x: 12 }, || {
-        ui::horizontal(#{ height: 56 }, || {
-            // Brand: the balaur mark + wordmark.
-            ui::image("assets/balaur-logo.png", #{ height: 24, radius: 12, bg: "#ffffff", padding: 3 });
-            ui::add_space(5);
-            ui::label("balaur", #{ size: 17, font: "heading", strong: true, color: k.text });
-            ui::add_space(12);
-
-            // Persona group: sunken pill container.
-            ui::frame(#{ fill: k.sunken, stroke: k.line_soft, radius: 19, padding_x: 3, padding_y: 3 }, || {
-                ui::horizontal(#{ height: 32, tight: true }, || {
-                    ui::spacing(2, 0);
-                    for p in defs::personas() {
-                        let active = S.persona == p.id;
-                        let label = if S.compact { "" } else { p.name };
-                        if ui::pill(label, #{
-                            height: 32, size: 13, font: "heading",
-                            icon: p.icon, tooltip: p.name,
-                            fill: if active { k.accent_fill } else { "#00000000" },
-                            color: if active { k.on_accent } else { k.dim },
-                        }) {
-                            shell::set_persona(S, p.id);
-                        }
-                    }
-                });
-            });
-
+    style::bar(k, "persona", S.layout.bar, 12, || {
+        ui::horizontal(#{ height: 40 }, || {
+            ui::add_space(2);
+            let (logo, name) = brand(S);
+            ui::image(logo, #{ height: 26, radius: 13, bg: "#ffffff", padding: 3 });
+            if !S.compact {
+                ui::add_space(5);
+                ui::label(name, #{ size: 16, font: "heading", strong: true, color: k.text });
+            }
+            ui::add_space(10);
+            for p in defs::personas() {
+                let active = S.persona == p.id;
+                let label = if S.compact { "" } else { p.name };
+                if ui::pill(label, #{
+                    role: if active { "chip_on" } else { "chip" },
+                    height: 28, size: 12,
+                    icon: p.icon, tooltip: p.name,
+                }) {
+                    shell::set_persona(S, p.id);
+                }
+            }
             ui::right(|| {
-                // Theme button.
-                if ui::circle_button(if k.dark { "☾" } else { "☀" }, #{
-                    d: 32, size: 15, fill: k.sunken, stroke: k.line_soft,
-                    color: k.dim, tooltip: "Toggle theme",
-                }) {
-                    theme::set_dark(S, !k.dark);
-                }
-                ui::add_space(8);
-                // Command pill.
-                if ui::pill(if S.compact { "" } else { "Run a command" }, #{
-                    height: 32, size: 12, icon: "⌕", fill: k.sunken,
-                    stroke: k.line_soft, color: k.faint, tooltip: "⌘K",
-                }) {
-                    shell::open_palette(S, "");
-                }
-                ui::add_space(12);
-                // Transport: stop, pause, play (declared right to left).
-                ui::frame(#{ fill: k.sunken, stroke: k.line_soft, radius: 19, padding_x: 3, padding_y: 3 }, || {
-                    ui::horizontal(#{ height: 32, width: 106 }, || {
-                        ui::spacing(2, 0);
-                        if ui::circle_button("▶", #{
-                            d: 32, size: 14,
-                            fill: if S.playing { k.accent_fill } else { "#00000000" },
-                            color: if S.playing { k.on_accent } else { k.dim },
-                            tooltip: "Run scene",
-                        }) {
-                            shell::toggle_play(S);
-                        }
-                        // A loaded session pauses through the player: pausing
-                        // physics alone would let the scripts run on and the
-                        // replay would stop reproducing the recording.
-                        let replaying = crate::session::loaded(S);
-                        let paused = if replaying {
-                            replay::state() == replay::STATE_PAUSED
-                        } else {
-                            S.playing && physics::is_paused()
-                        };
-                        if ui::circle_button("⏸", #{
-                            d: 32, size: 14,
-                            fill: if paused { k.accent_fill } else { "#00000000" },
-                            color: if paused { k.on_accent } else { k.dim },
-                            tooltip: if replaying { "Pause playback" } else { "Pause simulation" },
-                        }) {
-                            if replaying {
-                                crate::session::toggle_pause(S);
-                            } else {
-                                physics::set_paused(!physics::is_paused());
-                            }
-                        }
-                        if ui::circle_button("■", #{ d: 32, size: 12, color: k.dim, tooltip: "Stop" }) {
-                            if replaying {
-                                crate::session::close(S);
-                            } else {
-                                shell::stop_play(S);
-                            }
-                        }
-                    });
-                });
+                ui::add_space(2);
+                transport(S, k);
             });
         });
     });
 }
 
-pub fn status_bar(S) {
-    let k = S.theme;
-    ui::bottom_panel("status", #{ height: 28, fill: k.panel, padding_x: 12 }, || {
-        ui::horizontal(#{ height: 28 }, || {
-            ui::spacing(16, 0);
-            let stopped = S.debug.paused is Object;
-            ui::dot(if stopped { k.accent } else if S.playing { k.sage } else { k.faint }, 6);
-            // Measured, not asserted: the bar used to claim 60 fps whatever
-            // the frame actually cost.
-            let mode = if stopped {
-                format!("paused · {}:{}", S.debug.paused_rel, S.debug.paused.line)
-            } else if S.playing {
-                let recording = if S.session.recording != "" { "recording · " } else { "" };
-                format!("playing · {}{} fps", recording, S.fps as i64)
+// Play, pause and stop. A loaded session pauses through the player: pausing
+// physics alone would let the scripts run on and the replay would stop
+// reproducing the recording.
+fn transport(S, k) {
+    ui::frame(#{ fill: k.sunken, stroke: k.line_soft, radius: 16, padding_x: 3, padding_y: 3 }, || {
+        ui::horizontal(#{ height: 30, width: 100 }, || {
+            ui::spacing(2, 0);
+            if ui::circle_button(icons::ui("play"), #{
+                role: if S.playing { "transport_on" } else { "transport" },
+                tooltip: "Run scene",
+            }) {
+                shell::toggle_play(S);
+            }
+            let replaying = crate::session::loaded(S);
+            let paused = if replaying {
+                replay::state() == replay::STATE_PAUSED
             } else {
-                "editing"
+                S.playing && (physics::is_paused())
             };
-            ui::label(mode, style::mono_sm(k.dim));
-            let (nodes, scripts) = model::stats(S);
-            ui::label(format!("{} {} · {} {}", nodes, plural(nodes, "node"), scripts, plural(scripts, "script")),
-                style::mono_sm(k.dim));
-            ui::dot(k.sage, 6);
-            ui::label("Rune VM warm", style::mono_sm(k.dim));
-            ui::label("kiss3d · wgpu", style::mono_sm(k.dim));
+            if ui::circle_button(icons::ui("pause"), #{
+                role: if paused { "transport_on" } else { "transport" },
+                tooltip: if replaying { "Pause playback" } else { "Pause simulation" },
+            }) {
+                if replaying {
+                    crate::session::toggle_pause(S);
+                } else {
+                    physics::set_paused(!physics::is_paused());
+                }
+            }
+            if ui::circle_button(icons::ui("stop"), #{ role: "transport", tooltip: "Stop" }) {
+                if replaying {
+                    crate::session::close(S);
+                } else {
+                    shell::stop_play(S);
+                }
+            }
+        });
+    });
+}
+
+// The command pill and the theme switch, opposite the persona bar.
+pub fn command_bar(S) {
+    let k = S.theme;
+    let r = S.layout.cmd;
+    ui::overlay("cmd", #{ x: r.x, y: r.y, w: r.w, h: r.h }, || {
+        ui::horizontal(#{ height: 30 }, || {
+            if ui::pill(if S.compact { "" } else { "Run a command" }, #{
+                height: 30, size: 12, icon: icons::ui("search"), fill: k.panel,
+                stroke: k.line, color: k.faint, tooltip: "⌘K",
+            }) {
+                shell::open_palette(S, "");
+            }
             ui::right(|| {
-                let pname = defs::persona_name(S.persona);
-                ui::label(format!("{} persona · {}", pname, defs::tool_name(S.tool)), style::mono_sm(k.dim));
+                if ui::circle_button(if k.dark { icons::ui("dark") } else { icons::ui("light") }, #{
+                    d: 30, size: 15, fill: k.panel, stroke: k.line,
+                    color: k.dim, tooltip: "Toggle theme",
+                }) {
+                    theme::set_dark(S, !k.dark);
+                }
             });
+        });
+    });
+}
+
+/// The status strip, drawn at the foot of the bottom dock.
+pub fn status_row(S) {
+    let k = S.theme;
+    ui::separator(k.line_soft);
+    ui::horizontal(#{ height: 23 }, || {
+        ui::spacing(14, 0);
+        ui::add_space(4);
+        let stopped = S.debug.paused is Object;
+        ui::dot(if stopped { k.accent } else if S.playing { k.sage } else { k.faint }, 5);
+        let mode = if stopped {
+            format!("paused · {}:{}", S.debug.paused_rel, S.debug.paused.line)
+        } else if S.playing {
+            let recording = if S.session.recording != "" { "recording · " } else { "" };
+            format!("playing · {}{} fps", recording, S.fps as i64)
+        } else {
+            "editing"
+        };
+        ui::label(mode, style::mono_sm(k.dim));
+        let (nodes, scripts) = model::stats(S);
+        ui::label(format!("{} {} · {} {}", nodes, plural(nodes, "node"), scripts, plural(scripts, "script")),
+            style::mono_sm(k.faint));
+        if !S.compact {
+            ui::label("kiss3d · wgpu", style::mono_sm(k.faint));
+        }
+        ui::right(|| {
+            ui::add_space(4);
+            let pname = defs::persona_name(S.persona);
+            ui::label(format!("{} · {}", pname, defs::tool_name(S.tool)), style::mono_sm(k.faint));
         });
     });
 }

@@ -2,30 +2,68 @@
 // is then one edit, and `util::merge` covers the per-call overrides Rune has
 // no spread syntax for.
 
-/// A mono label at the editor's default size, in `color`.
+/// A mono label, in `color`. Size and family come from the theme.
 pub fn mono(color) {
-    #{ size: 11.5, font: "mono", color: color }
+    #{ role: "mono", color: color }
 }
 
 /// One step down, for dense rows.
 pub fn mono_sm(color) {
-    #{ size: 11, font: "mono", color: color }
+    #{ role: "meta", color: color }
 }
 
 /// One step up, for a value that carries the row.
 pub fn mono_lg(color) {
-    #{ size: 12, font: "mono", color: color }
+    #{ role: "code", color: color }
 }
 
-/// A panel section heading: small, strong, and drawn upper case by the caller.
+/// A panel section heading; the caller draws it upper case.
 pub fn heading(k) {
-    #{ size: 10, font: "heading", strong: true, color: k.dim }
+    #{ role: "heading" }
 }
 
 /// A mono text field of `width`: the inspector's editable value row.
 pub fn field(k, width) {
-    #{
-        size: 11.5, font: "mono", width: width, height: 28,
-        fill: k.sunken, stroke: k.line_soft, color: k.text,
-    }
+    #{ role: "field", width: width }
+}
+
+/// A floating panel: Stage's one surface. `r` is a rect from `layout`, and
+/// the body draws inside it.
+pub fn sheet(k, id, r, pad_x, pad_y, cb) {
+    ui::overlay(id, #{
+        role: "sheet", x: r.x, y: r.y, w: r.w, h: r.h,
+        padding_x: pad_x, padding_y: pad_y,
+    }, cb);
+}
+
+/// The same surface as a pill, for the bars that hug their row.
+pub fn bar(k, id, r, pad_x, cb) {
+    ui::overlay(id, #{
+        role: "sheet", x: r.x, y: r.y, w: r.w, h: r.h,
+        radius: r.h / 2.0, padding_x: pad_x,
+    }, cb);
+}
+
+/// A section label: the shell's one way of naming a group of rows.
+pub fn section_label(k, title) {
+    ui::add_space(11);
+    ui::horizontal(#{ height: 15 }, || {
+        ui::add_space(2);
+        ui::label(title.to_uppercase(), #{ role: "heading" });
+    });
+    ui::add_space(5);
+}
+
+/// A full-width row tile: the shape a list uses everywhere in the shell.
+pub fn list_row(k, height) {
+    #{ role: "list_item", height: height, min_width: ui::available_width() }
+}
+
+/// What a panel says when it has nothing: one line, centred, quiet.
+pub fn empty(k, text) {
+    ui::add_space(14);
+    ui::horizontal(#{ height: 20 }, || {
+        ui::add_space(10);
+        ui::label(text, mono_sm(k.faint));
+    });
 }

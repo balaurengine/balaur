@@ -16,12 +16,13 @@ mod api;
 mod bindings;
 mod debugger;
 mod inspect;
+mod packed;
 mod pause;
 mod script_module;
 mod value;
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc::Receiver;
@@ -60,34 +61,70 @@ pub fn factory() -> balaur_core::ScriptHostFactory {
 
 /// Compiles `.rn` sources for an export pack.
 ///
-/// Rune has no stable serialised unit format, so a pack stores the source and
-/// the shipped game compiles it at load. That is the honest tradeoff: startup
-/// costs a compile, and a pack stays portable across Rune versions.
+/// A pack ships the compiled unit, not the source: startup costs a
+/// deserialise instead of a compile, and the source stays out of the shipped
+/// game. Rune promises nothing about a unit surviving a version change, which
+/// is why [`packed`] stamps a format number and refuses anything else.
 ///
-/// The compile still happens at export, purely to fail the build on a broken
-/// script — and it runs through the live host, not a bare context. Rune
-/// resolves `input::just_pressed` and friends at compile time, so a context
-/// without the engine's modules rejects every script that touches the engine.
-/// That is why the exporter boots an app (`AppConfig::export`) and compiles
-/// through its host rather than constructing a compiler out of thin air.
+/// The compile runs through the live host, not a bare context. Rune resolves
+/// `input::just_pressed` and friends at compile time, so a context without the
+/// engine's modules rejects every script that touches the engine. That is why
+/// the exporter boots an app (`AppConfig::export`) and compiles through its
+/// host rather than constructing a compiler out of thin air.
 impl balaur_script::ScriptCompiler for RuneHost {
     fn extensions(&self) -> &[&str] {
         &["rn"]
     }
 
     fn compile(&self, rel: &str, source: &str) -> Result<Vec<u8>> {
-        self.compile_unit(rel, source)
+        let (unit, _) = self
+            .compile_unit(rel, source, Purpose::Export)
             .map_err(|e| anyhow!("{rel}: {e}"))?;
-        Ok(source.as_bytes().to_vec())
+        packed::encode(&unit, &public_functions(source)).map_err(|e| anyhow!("{rel}: {e}"))
     }
+}
+
+/// Why a script is being compiled. A dev run keeps debug info so a breakpoint
+/// and an error report can find a line; an export drops it.
+#[derive(Clone, Copy)]
+enum Purpose {
+    Dev,
+    Export,
+}
+
+/// How many VMs one script keeps warm. A tick uses one; the rest cover a
+/// script that re-enters itself through a host binding before returning.
+const VM_POOL: usize = 4;
+
+/// A resolved script function.
+#[derive(Clone)]
+struct Method {
+    /// Kept for the paths that hand a callable back to Rune. Behind an `Rc`
+    /// because `Function` is not `Clone` and this is cached, not consumed.
+    function: Rc<Function>,
+    /// Precomputed, so a call does not hash the name again.
+    hash: rune::Hash,
+    /// Whether the function runs to completion on the VM that called it. An
+    /// async, generator or stream function's return value holds on to its VM,
+    /// so it cannot use a pooled one.
+    immediate: bool,
 }
 
 struct Script {
     unit: Arc<Unit>,
     source: String,
+    /// The sources the unit was compiled from, kept so a runtime error can be
+    /// rendered against them. `VmError` carries instruction pointers; only
+    /// the sources turn those into a file, a line and a caret. `None` for a
+    /// packed script, which ships without them.
+    sources: Option<Rc<Sources>>,
     /// Resolved lifecycle and signal handlers. A miss is cached too: most
     /// scripts define none of `on_free`, and asking every frame is not free.
-    methods: HashMap<String, Option<Function>>,
+    methods: HashMap<String, Option<Method>>,
+    /// VMs to reuse. Building one is cheap but its stack is not: a fresh VM
+    /// grows a fresh stack on every call, which at one call per node per
+    /// frame is the largest thing a tick allocates.
+    vms: Vec<Vm>,
     lines: Rc<debugger::Lines>,
     functions: Vec<PublicSignature>,
     /// `exports()` evaluated once, since it is the same table for every node
@@ -97,13 +134,31 @@ struct Script {
 }
 
 impl Script {
-    fn new(unit: Arc<Unit>, source: String) -> Self {
+    fn new(unit: Arc<Unit>, source: String, sources: Sources) -> Self {
         let lines = Rc::new(debugger::Lines::of(&unit, &source));
         let functions = public_functions(&source);
         Self {
             unit,
             source,
+            sources: Some(Rc::new(sources)),
             methods: HashMap::new(),
+            vms: Vec::new(),
+            lines,
+            functions,
+            exports: None,
+        }
+    }
+
+    /// A script read back from a pack: the unit is already built, and there is
+    /// no source behind it to render a span against or to hot reload from.
+    fn compiled(unit: Arc<Unit>, functions: Vec<PublicSignature>) -> Self {
+        let lines = Rc::new(debugger::Lines::of(&unit, ""));
+        Self {
+            unit,
+            source: String::new(),
+            sources: None,
+            methods: HashMap::new(),
+            vms: Vec::new(),
             lines,
             functions,
             exports: None,
@@ -112,7 +167,10 @@ impl Script {
 }
 
 struct Instance {
-    key: String,
+    /// Shared with every other record naming this script: a tick collects one
+    /// key per instance per frame, and a `String` there is an allocation per
+    /// node per frame for a name that never changes.
+    key: Rc<str>,
     state: rune::Value,
 }
 
@@ -123,7 +181,7 @@ struct RuneTask {
     owner: Entity,
     /// The script key, so reloading the script cancels its tasks rather than
     /// resuming code that no longer exists.
-    key: String,
+    key: Rc<str>,
     /// What to blame in an error report when the resumed code fails.
     label: String,
     future: std::pin::Pin<Box<rune::runtime::Future>>,
@@ -135,13 +193,14 @@ struct RuneTask {
 struct Breakpoints {
     requested: Vec<usize>,
     landed: Vec<usize>,
-    ips: HashSet<usize>,
+    /// Handed to the VM, which halts before any of them.
+    ips: Arc<rune::runtime::HaltSet>,
 }
 
 /// An execution the debugger parked, with the rest of the tick it cut short.
 struct Paused {
     owner: Entity,
-    key: String,
+    key: Rc<str>,
     label: String,
     exec: VmExecution<Vm>,
     /// The instruction it is parked on, run without breaking again on resume.
@@ -149,7 +208,7 @@ struct Paused {
     lines: Rc<debugger::Lines>,
     pause: Pause,
     /// Instances the interrupted tick had not reached, run on resume.
-    remaining: Vec<(Entity, String, rune::Value)>,
+    remaining: Vec<(Entity, Rc<str>, rune::Value)>,
     method: Option<(String, f32)>,
 }
 
@@ -422,7 +481,12 @@ impl RuneHost {
 
     /// The source carries its on-disk path so `mod name;` finds `name.rn`
     /// beside it.
-    fn compile_unit(&self, key: &str, source: &str) -> Result<Arc<Unit>> {
+    fn compile_unit(
+        &self,
+        key: &str,
+        source: &str,
+        purpose: Purpose,
+    ) -> Result<(Arc<Unit>, Sources)> {
         let (ctx, _) = self.context()?;
         // A packed script's `mod` resolves inside the pack, keyed the way
         // `Pack::build` keyed it; a dev run reads beside the file on disk.
@@ -441,35 +505,96 @@ impl RuneHost {
         let mut loader = PackSourceLoader {
             scripts: packed.clone().unwrap_or_default(),
         };
+        let mut options = rune::Options::from_default_env()?;
+        // An exported unit ships without its source, so nothing can render a
+        // span against it anyway. Dropping the debug info makes the unit
+        // smaller and leaves fewer names in the shipped file.
+        options.debug_info(matches!(purpose, Purpose::Dev));
         let mut prepared = rune::prepare(&mut sources)
             .with_context(&ctx)
+            .with_options(&options)
             .with_diagnostics(&mut diagnostics);
         if packed.is_some() {
             prepared = prepared.with_source_loader(&mut loader);
         }
         let built = prepared.build();
         match built {
-            Ok(unit) => Ok(Arc::new(unit)),
+            Ok(unit) => Ok((Arc::new(unit), sources)),
             Err(_) => Err(anyhow!("{}", render(&diagnostics, &sources))),
         }
+    }
+
+    /// Log a runtime error at the line that threw, with the script backtrace
+    /// under it.
+    ///
+    /// `VmError` on its own prints the message and nothing else. Rendering it
+    /// against the unit's sources is what turns "field not found" into a file,
+    /// a line and the frames that led there.
+    fn report(&self, key: &str, label: &str, err: &rune::runtime::VmError) {
+        let sources = self
+            .state
+            .borrow()
+            .scripts
+            .get(key)
+            .and_then(|s| s.sources.clone());
+        // A packed script has no sources; there is nothing to render against.
+        let Some(sources) = sources else {
+            tracing::error!("[{key}] {label}: {err}");
+            return;
+        };
+        let mut buf = rune::termcolor::Buffer::no_color();
+        if err.emit(&mut buf, &sources).is_err() {
+            tracing::error!("[{key}] {label}: {err}");
+            return;
+        }
+        let rendered = String::from_utf8_lossy(buf.as_slice());
+        tracing::error!("[{key}] {label}:\n{}", rendered.trim_end());
     }
 
     fn load(&self, key: &str) -> Result<Arc<Unit>> {
         if let Some(script) = self.state.borrow().scripts.get(key) {
             return Ok(script.unit.clone());
         }
-        let source = self.source_of(key)?;
-        let unit = self.compile_unit(key, &source)?;
-        self.state
-            .borrow_mut()
-            .scripts
-            .insert(key.to_string(), Script::new(unit.clone(), source));
+        let script = match self.packed_script(key)? {
+            Some(script) => script,
+            None => {
+                let source = self.source_of(key)?;
+                let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
+                Script::new(unit, source, sources)
+            }
+        };
+        let unit = script.unit.clone();
+        self.state.borrow_mut().scripts.insert(key.to_string(), script);
         self.apply_breakpoints(key);
         Ok(unit)
     }
 
+    /// A pack's compiled script, or `None` when this run has no pack or the
+    /// pack still holds source — an older pack, or one a test wrote by hand.
+    fn packed_script(&self, key: &str) -> Result<Option<Script>> {
+        let bytes = {
+            let state = self.state.borrow();
+            let Some(pack) = &state.pack else {
+                return Ok(None);
+            };
+            match pack.scripts.get(key) {
+                Some(bytes) if packed::is_encoded(bytes) => bytes.clone(),
+                _ => return Ok(None),
+            }
+        };
+        let (unit, functions) =
+            packed::decode(&bytes).with_context(|| format!("reading {key} from the pack"))?;
+        Ok(Some(Script::compiled(Arc::new(unit), functions)))
+    }
+
     /// Look up a script function, returning `None` when it is not defined.
     fn method(&self, key: &str, name: &str) -> Option<Function> {
+        let found = self.resolve(key, name)?;
+        found.function.as_ref().try_clone().ok()
+    }
+
+    /// Resolve `name` in `key`'s unit, caching the miss as well as the hit.
+    fn resolve(&self, key: &str, name: &str) -> Option<Method> {
         if let Some(hit) = self
             .state
             .borrow()
@@ -477,16 +602,52 @@ impl RuneHost {
             .get(key)
             .and_then(|s| s.methods.get(name))
         {
-            return hit.as_ref().and_then(|f| f.try_clone().ok());
+            return hit.clone();
         }
         let unit = self.load(key).ok()?;
         let (_, runtime) = self.context().ok()?;
-        let found = Vm::new(runtime, unit).lookup_function([name]).ok();
-        let cached = found.as_ref().and_then(|f| f.try_clone().ok());
+        let hash = rune::Hash::type_hash([name]);
+        let found = Vm::new(runtime, unit.clone())
+            .lookup_function([name])
+            .ok()
+            .map(|function| Method {
+                function: Rc::new(function),
+                hash,
+                immediate: unit.is_immediate(hash),
+            });
         if let Some(script) = self.state.borrow_mut().scripts.get_mut(key) {
-            script.methods.insert(name.to_string(), cached);
+            script.methods.insert(name.to_string(), found.clone());
         }
         found
+    }
+
+    /// A VM to run `key`'s code on: a pooled one, or a new one when the pool
+    /// is empty because this script is already running further up the stack.
+    fn take_vm(&self, key: &str) -> Option<Vm> {
+        if let Some(vm) = self
+            .state
+            .borrow_mut()
+            .scripts
+            .get_mut(key)
+            .and_then(|s| s.vms.pop())
+        {
+            return Some(vm);
+        }
+        let unit = self.load(key).ok()?;
+        let (_, runtime) = self.context().ok()?;
+        Some(Vm::new(runtime, unit))
+    }
+
+    /// Put a VM back, keeping its stack allocation for the next call.
+    ///
+    /// Dropped rather than pooled once the pool is full, and dropped when the
+    /// script has been reloaded out from under it — its unit is stale.
+    fn return_vm(&self, key: &str, vm: Vm) {
+        if let Some(script) = self.state.borrow_mut().scripts.get_mut(key) {
+            if script.vms.len() < VM_POOL && vm.is_same_unit(&script.unit) {
+                script.vms.push(vm);
+            }
+        }
     }
 
     pub fn attach(&self, entity: Entity, path: &str) -> Result<()> {
@@ -527,10 +688,11 @@ impl RuneHost {
             )?;
         }
         let state = rune::to_value(obj)?;
+        let shared: Rc<str> = Rc::from(key.as_str());
         self.state.borrow_mut().instances.insert(
             entity,
             Instance {
-                key: key.clone(),
+                key: shared,
                 state: state.try_clone()?,
             },
         );
@@ -555,8 +717,8 @@ impl RuneHost {
         }
         if let Some(inst) = inst {
             if let Some(on_free) = self.method(&inst.key, "on_free") {
-                if let VmResult::Err(err) = on_free.call::<()>((inst.state,)) {
-                    tracing::error!("[{}] on_free: {err}", inst.key);
+                if let Err(err) = on_free.call::<()>((inst.state,)).into_result() {
+                    self.report(&inst.key, "on_free", &err);
                 }
             }
         }
@@ -580,7 +742,7 @@ impl RuneHost {
     /// defines `save_state` says what matters, one that does not gets its
     /// plain fields captured. `node` is skipped -- the host reinstates it.
     pub fn save_state(&self) -> Vec<(balaur_script::NodeId, balaur_script::Value)> {
-        let batch: Vec<(Entity, String, rune::Value)> = self
+        let batch: Vec<(Entity, Rc<str>, rune::Value)> = self
             .state
             .borrow()
             .instances
@@ -591,13 +753,13 @@ impl RuneHost {
         for (entity, key, state) in batch {
             let node = balaur_core::node_id_of(entity);
             if let Some(f) = self.method(&key, "save_state") {
-                match f.call::<rune::Value>((state,)) {
-                    VmResult::Ok(value) => {
+                match f.call::<rune::Value>((state,)).into_result() {
+                    Ok(value) => {
                         if let Some(plain) = value::to_plain(&value) {
                             out.push((node, plain));
                         }
                     }
-                    VmResult::Err(err) => tracing::error!("[{key}] save_state: {err}"),
+                    Err(err) => self.report(&key, "save_state", &err),
                 }
                 continue;
             }
@@ -637,8 +799,8 @@ impl RuneHost {
             if let Some(f) = self.method(&key, "load_state") {
                 match value::from_neutral(value) {
                     Ok(arg) => {
-                        if let VmResult::Err(err) = f.call::<rune::Value>((state, arg)) {
-                            tracing::error!("[{key}] load_state: {err}");
+                        if let Err(err) = f.call::<rune::Value>((state, arg)).into_result() {
+                            self.report(&key, "load_state", &err);
                         }
                     }
                     Err(err) => tracing::error!("[{key}] load_state: {err}"),
@@ -734,7 +896,7 @@ impl RuneHost {
         };
         self.state.borrow_mut().tasks.push(RuneTask {
             owner,
-            key: key.to_string(),
+            key: Rc::from(key),
             label: label.to_string(),
             future: Box::pin(future),
         });
@@ -755,7 +917,7 @@ impl RuneHost {
             match task.future.as_mut().poll(&mut context) {
                 std::task::Poll::Ready(VmResult::Ok(_)) => {}
                 std::task::Poll::Ready(VmResult::Err(err)) => {
-                    tracing::error!("[{}] {}: {err}", task.key, task.label);
+                    self.report(&task.key, &task.label, &err);
                 }
                 std::task::Poll::Pending => kept.push(task),
             }
@@ -847,15 +1009,15 @@ impl RuneHost {
         {
             return Ok(());
         }
-        let unit = self.compile_unit(key, &source)?;
+        let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
         let paused = {
             let mut state = self.state.borrow_mut();
             // A task suspended in the old unit must not resume into it.
-            state.tasks.retain(|t| t.key != key);
+            state.tasks.retain(|t| &*t.key != key);
             state
                 .scripts
-                .insert(key.to_string(), Script::new(unit, source));
-            state.paused.take_if(|p| p.key == key)
+                .insert(key.to_string(), Script::new(unit, source, sources));
+            state.paused.take_if(|p| &*p.key == key)
         };
         if let Some(paused) = paused {
             self.drop_pause(&paused);

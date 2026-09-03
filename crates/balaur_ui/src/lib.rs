@@ -132,7 +132,8 @@ pub fn run_pass(eng: &Engine, ctx: &egui::Context) {
         }
     }
     let scale = config.borrow().scale;
-    bridge::enter_pass(ctx, scale);
+    let roles = eng.resource::<UiConfig>().borrow().theme.roles.clone();
+    bridge::enter_pass(ctx, scale, roles);
     if let Some(host) = eng.script_host() {
         host.call_all("draw_ui");
     }

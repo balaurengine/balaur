@@ -113,12 +113,6 @@ fn mouse_design_px(S, cam) {
     (mx / cam.dpi / S.ui_scale, my / cam.dpi / S.ui_scale)
 }
 
-fn in_viewport(cam, mx, my) {
-    let r = cam.vp;
-    // Leave the chip row and the bottom pill row to egui.
-    mx > r.x && mx < r.x + r.w && my > r.y + 44.0 && my < r.y + r.h - 40.0
-}
-
 // Project a world point to design-px screen coordinates using the
 // renderer's exact projection*view matrix (`None` if behind the camera).
 pub fn project(cam, p) {
@@ -587,7 +581,7 @@ pub fn update(S) {
     let cam = camera_frame(S);
     let (mx, my) = mouse_design_px(S, cam);
     let geo = geometry(S);
-    let over_viewport = in_viewport(cam, mx, my);
+    let over_viewport = viewport::owns_pointer(S, mx, my);
 
     let on_screen = |p| project(cam, p);
     // The Rig bone tool owns the click in 3D too: a bone under the cursor is

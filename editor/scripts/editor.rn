@@ -6,12 +6,15 @@ mod center;
 mod chrome;
 mod defs;
 mod dock;
+mod docks;
 mod gizmo;
 mod gizmo2d;
 mod highlight;
 mod history;
+mod icons;
 mod inputview;
 mod inspector;
+mod layout;
 mod left;
 mod lint;
 mod model;
@@ -40,12 +43,10 @@ pub fn init(this) {
         // The shader line the viewport draws the value of; 0 draws the scene.
         preview_line: 0,
         preview_rel: "",
-        dock: "output",
+        docks: docks::state(),
         // The centre split: code and viewport side by side, instead of the
-        // document tabs swapping one for the other. `split_w` is the code
-        // side's width in design px, as the divider was last dragged.
+        // document tabs swapping one for the other.
         split: false,
-        split_w: 620.0,
         zoom: 100.0,
         playing: false,
         palette: false,
@@ -60,6 +61,8 @@ pub fn init(this) {
         script_dirty: #{},
         collapsed: #{},
         fps: 0.0,
+        // -1 when the layout self-test is not running.
+        layout_demo: -1,
         frame: 0,
         shot: None,
         // `frames=<dir>`: a PNG every `every` frames from `from`, numbered.
@@ -68,8 +71,13 @@ pub fn init(this) {
         show_input: false,
         screen_w: 1280.0,
         screen_h: 800.0,
-        viewport: #{ x: 308.0, y: 94.0, w: 664.0, h: 528.0 },
+        viewport: #{ x: 322.0, y: 112.0, w: 640.0, h: 482.0, at: 0 },
         rail_visible: false,
+        fontdemo: false,
+        // A document is over the scene; the hooks list is beside it.
+        doc_open: false,
+        hooks_open: false,
+        layout: layout::state(),
         // Whether the centre is showing the viewport this frame, rather than
         // a document over it.
         viewport_live: true,
@@ -176,6 +184,9 @@ pub fn update(this, dt) {
     session::update(S);
     if S.session.demo is Object {
         selftest::session_step(S);
+    }
+    if S.layout_demo >= 0 {
+        selftest::layout_step(S);
     }
     showcase::step(S);
     // A replay or a showcase feeds the pointer into the snapshot the viewport
@@ -296,16 +307,23 @@ pub fn draw_ui(this) {
     }
 
     showcase::draw(S);
-    // Fixed skeleton: outer chrome, then dock, rail, tabs, then the center.
-    chrome::persona_bar(S);
-    chrome::status_bar(S);
-    left::draw(S);
-    inspector::draw(S);
-    dock::draw(S);
+    // Stage: decide what is showing, size every sheet once, then draw them.
+    // Nothing below computes a rect of its own.
+    center::modes(S);
+    S.layout.dock_h = if docks::bottom_tall(S) { 212.0 } else { 150.0 };
+    layout::compute(S);
     center::draw(S);
+    for side in docks::sides() {
+        docks::draw(S, S.theme, side);
+    }
+    chrome::persona_bar(S);
+    chrome::command_bar(S);
     plugins::draw_windows(S, S.theme);
     if S.show_input {
         inputview::draw(S);
+    }
+    if S.fontdemo {
+        selftest::font_sheet(S);
     }
     palette::draw(S);
 }

@@ -54,6 +54,34 @@ pub struct TickInputs(pub Vec<(PlayerId, Input)>);
 #[derive(Default)]
 pub struct Resimulating(pub bool);
 
+/// Where the session stands, for anything whose effect leaves the
+/// simulation: the tick being run, and the tick before which nothing can be
+/// taken back — a tick the snapshot ring no longer holds can never be re-run.
+///
+/// A game with no session leaves `settled` at `u64::MAX`: nothing rolls back
+/// there, so an achievement unlocked this frame is final this frame.
+#[derive(Clone, Copy)]
+pub struct Clock {
+    pub tick: u64,
+    pub settled: u64,
+}
+
+impl Default for Clock {
+    fn default() -> Self {
+        Self {
+            tick: 0,
+            settled: u64::MAX,
+        }
+    }
+}
+
+/// Where the session stands this tick.
+#[must_use]
+pub fn clock(eng: &Engine) -> Clock {
+    eng.try_resource::<Clock>()
+        .map_or_else(Clock::default, |clock| *clock.borrow())
+}
+
 /// Whether this tick is a re-run of one already simulated.
 ///
 /// Anything with an effect outside the simulation has to ask. Live-read
@@ -220,6 +248,7 @@ impl Session {
     /// tick started from — which is what restoring that tick has to mean.
     fn run_tick(&mut self, app: &mut App, tick: u64, dt: f32) {
         self.ring.push(tick, snapshot::capture(&app.engine));
+        set_clock(&app.engine, tick, self.ring.earliest().unwrap_or(0));
         let inputs = self.inputs_for(tick);
         for (player, value) in &inputs {
             self.used.insert((tick, *player), value.clone());
@@ -259,6 +288,12 @@ impl Session {
             .rev()
             .find(|((_, id), _)| *id == player)
             .map_or(Value::Nil, |(_, value)| value.clone())
+    }
+}
+
+fn set_clock(eng: &Engine, tick: u64, settled: u64) {
+    if let Some(clock) = eng.try_resource::<Clock>() {
+        *clock.borrow_mut() = Clock { tick, settled };
     }
 }
 

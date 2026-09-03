@@ -20,7 +20,7 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "set_theme",
         &[],
-        "", "Replace the colour tokens from a table of `name = \"#rrggbb\"` entries, plus `dark = true|false`.",
+        "", "Replace the theme: `name = \"#rrggbb\"` colour tokens, `dark = true|false`, and a `roles` table of named looks a widget takes with `role:`.",
     )]);
     {
         // No reader by design (N8): `UiConfig::theme` already holds every
@@ -33,15 +33,42 @@ pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
             let config = eng.resource::<UiConfig>();
             let mut config = config.borrow_mut();
             config.theme.colors.clear();
+            config.theme.roles.clear();
+            // Colours first: a role names them, so they have to resolve.
+            let mut hex: std::collections::HashMap<String, String> =
+                std::collections::HashMap::new();
             for (key, value) in entries {
                 match (key.as_str(), value) {
                     ("dark", Value::Bool(dark)) => config.theme.dark = *dark,
-                    (_, Value::Str(hex)) => {
-                        if let Some(color) = parse_hex(hex) {
+                    (_, Value::Str(text)) => {
+                        if let Some(color) = parse_hex(text) {
                             config.theme.colors.insert(key.clone(), color);
+                            hex.insert(key.clone(), text.clone());
                         }
                     }
                     _ => {}
+                }
+            }
+            for (key, value) in entries {
+                let (Value::Map(roles), "roles") = (value, key.as_str()) else {
+                    continue;
+                };
+                for (name, body) in roles {
+                    let Value::Map(fields) = body else { continue };
+                    let resolved = fields
+                        .iter()
+                        .map(|(k, v)| {
+                            let v = match v {
+                                Value::Str(text) => match hex.get(text) {
+                                    Some(found) => Value::Str(found.clone()),
+                                    None => v.clone(),
+                                },
+                                other => other.clone(),
+                            };
+                            (k.clone(), v)
+                        })
+                        .collect();
+                    config.theme.roles.insert(name.clone(), resolved);
                 }
             }
             config.changed = true;
@@ -65,7 +92,7 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
             m.function(
                 $name,
                 |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
-                    let opts = Opts(opts);
+                    let opts = Opts::with_roles(opts);
                     with_ui(|parent| {
                         let mut result = Ok(());
                         let size = opts.px($size_key, 32.0);
@@ -101,7 +128,7 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
     m.function(
         "central_panel",
         |eng: &Engine, (opts, cb): (Option<Value>, CallbackId)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ui(|parent| {
                 let mut result = Ok(());
                 egui::CentralPanel::default()
@@ -118,7 +145,7 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
     m.function(
         "overlay",
         |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ctx(|ctx| {
                 let x = opts.px("x", 0.0);
                 let y = opts.px("y", 0.0);
@@ -141,12 +168,15 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
                             frame = frame.stroke(Stroke::new(1.0, stroke));
                         }
                         frame.show(ui, |ui| {
-                            // The caller's size is the sheet's; the frame's
-                            // padding comes out of it, not on top of it.
+                            // Padding comes out of the caller's size, not on
+                            // top of it; the clip stops taller content
+                            // spilling over the sheet below.
                             if w > 0.0 && h > 0.0 {
                                 let inner = vec2(w - 2.0 * pad_x, h - 2.0 * pad_y);
                                 ui.set_min_size(inner);
                                 ui.set_max_size(inner);
+                                let at = ui.min_rect().min;
+                                ui.shrink_clip_rect(egui::Rect::from_min_size(at, inner));
                             }
                             result = scoped(eng, ui, cb);
                         });
@@ -174,7 +204,7 @@ pub(crate) fn install_text(m: &mut dyn Bindings<Engine>) {
     m.function(
         "label",
         |_eng: &Engine, (s, opts): (String, Option<Value>)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let fam = opts.string("font").unwrap_or_else(|| "ui".into());
                 let rt = text(
@@ -217,7 +247,7 @@ pub(crate) fn install_text_input(m: &mut dyn Bindings<Engine>) {
         m.function(
             "text_field",
             |eng: &Engine, (id, placeholder, opts): (String, Option<String>, Option<Value>)| {
-                let opts = Opts(opts);
+                let opts = Opts::with_roles(opts);
                 text_field(eng, &id, placeholder.as_deref().unwrap_or(""), &opts)
             },
         );
@@ -246,7 +276,7 @@ pub(crate) fn install_code(m: &mut dyn Bindings<Engine>) {
     m.function(
         "code_line",
         |_eng: &Engine, (gutter, spans, opts): (String, Value, Option<Value>)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let size = opts.px("size", 12.5);
                 let row_h = size * opts.f32("line_height", 1.78);
@@ -320,7 +350,7 @@ pub(crate) fn install_window(m: &mut dyn Bindings<Engine>) {
     m.function(
         "window",
         |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ctx(|ctx| {
                 let mut open = true;
                 let mut window =
@@ -360,7 +390,7 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
     m.function(
         "modal",
         |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ctx(|ctx| {
                 let screen = ctx.viewport_rect();
                 let scrim = opts.color("scrim", Color32::from_rgba_unmultiplied(23, 25, 28, 107));
@@ -529,7 +559,7 @@ pub(crate) fn install_code_editor(m: &mut dyn Bindings<Engine>) {
         m.function(
             "code_editor",
             |eng: &Engine, (id, source, opts): (String, String, Option<Value>)| {
-                let opts = Opts(opts);
+                let opts = Opts::with_roles(opts);
                 code_editor(eng, &id, &source, &opts)
             },
         );
@@ -546,7 +576,7 @@ pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
     m.function(
         "dropdown",
         |_eng: &Engine, (id, current, options, opts): (String, String, Value, Option<Value>)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let items: Vec<String> = match &options {
                     Value::List(vs) => vs
@@ -564,7 +594,7 @@ pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
                 let mut selected = current.clone();
                 ui.scope(|ui| {
                     // Pill-shaped shell and menu items for this widget only.
-                    let radius = pill_radius(opts.px("height", 28.0));
+                    let radius = pill_radius(sc(5.0) * 2.0);
                     let visuals = &mut ui.style_mut().visuals;
                     visuals.widgets.inactive.corner_radius = radius;
                     visuals.widgets.hovered.corner_radius = radius;
@@ -608,7 +638,7 @@ pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
         m.function(
             "image",
             |eng: &Engine, (path, opts): (String, Option<Value>)| {
-                let opts = Opts(opts);
+                let opts = Opts::with_roles(opts);
                 draw_image(eng, &path, &opts)
             },
         );
@@ -618,7 +648,7 @@ pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
     m.function(
         "rect_stroke",
         |_eng: &Engine, (x, y, w, h, opts): (f32, f32, f32, f32, Option<Value>)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let origin = ui.max_rect().min;
                 let rect = Rect::from_min_size(
@@ -785,7 +815,7 @@ fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
     m.function(
         "toggle",
         |_eng: &Engine, (on, opts): (bool, Option<Value>)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let (rect, response) =
                     ui.allocate_exact_size(vec2(sc(42.0), sc(24.0)), Sense::click());
@@ -815,7 +845,7 @@ fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
     m.function(
         "slider",
         |_eng: &Engine, (value, min, max, opts): (f32, f32, f32, Option<Value>)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let w = {
                     let w = opts.px("width", 0.0);
@@ -881,7 +911,7 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
     m.function(
         "drag_value",
         |_eng: &Engine, (value, opts): (f64, Option<Value>)| {
-            let opts = Opts(opts);
+            let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let h = opts.px("height", 28.0);
                 let w = {

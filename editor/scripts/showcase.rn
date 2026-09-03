@@ -509,18 +509,18 @@ fn determinism(S, q) {
         shell::set_persona(S, "scene");
         shell::set_zoom(S, 45.0);
         S.session.verify = true;
-        S.dock = "session";
+        crate::docks::show(S, "session");
     });
     click_row(S, q, 40, "Bird");
     click(S, q, 120, || spot(S, "play"), || {
         shell::toggle_play(S);
-        S.dock = "session";
+        crate::docks::show(S, "session");
     });
     act(q, 130, || fit_level(S));
     fling(S, q, 200);
     click(S, q, 520, || spot(S, "stop"), || {
         shell::stop_play(S);
-        S.dock = "session";
+        crate::docks::show(S, "session");
     });
     click(S, q, 640, || spot(S, "session"), || open_newest(S));
     act(q, 650, || fit_level(S));
@@ -574,7 +574,7 @@ fn shaders(S, q) {
     act(q, 1, || {
         shell::set_persona(S, "scene");
         // The dock names each previewed line and its type as it is asked for.
-        S.dock = "output";
+        crate::docks::show(S, "output");
         q.kept[rel] = model::source(S, rel).unwrap_or("");
     });
     click_row(S, q, 40, "Logo");

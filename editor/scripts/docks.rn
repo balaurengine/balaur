@@ -1,0 +1,281 @@
+// The shell's three docks — left, bottom, right — and the panels in them. A
+// panel lives in exactly one dock; its tab menu moves it to another.
+
+use crate::dock;
+use crate::icons;
+use crate::inspector;
+use crate::left;
+use crate::style;
+use crate::util;
+
+pub fn sides() {
+    ["left", "bottom", "right"]
+}
+
+pub fn state() {
+    #{
+        left: #{ tabs: ["scene", "outline"], active: "scene", shut: false },
+        bottom: #{
+            tabs: ["output", "problems", "assets", "timeline", "debugger", "session", "profiler"],
+            active: "output", shut: false,
+        },
+        right: #{ tabs: ["inspector"], active: "inspector", shut: false },
+    }
+}
+
+// Name and icon per panel; `tall` asks the bottom dock for its taller size.
+// A plugin's dock joins the table so it moves like everything else.
+pub fn panels(S) {
+    let table = #{
+        "scene": #{ name: "Scene", icon: icons::panel("scene"), tall: false },
+        "outline": #{ name: left::outline_title(S), icon: icons::panel("outline"), tall: false },
+        "inspector": #{ name: "Inspector", icon: icons::panel("inspector"), tall: false },
+        "output": #{ name: "Output", icon: icons::panel("output"), tall: false },
+        "problems": #{ name: "Problems", icon: icons::panel("problems"), tall: false },
+        "assets": #{ name: "Assets", icon: icons::panel("assets"), tall: false },
+        "timeline": #{ name: "Timeline", icon: icons::panel("timeline"), tall: true },
+        "debugger": #{ name: "Debugger", icon: icons::panel("debugger"), tall: true },
+        "session": #{ name: "Session", icon: icons::panel("session"), tall: true },
+        "profiler": #{ name: "Profiler", icon: icons::panel("profiler"), tall: true },
+    };
+    for entry in S.registry.docks {
+        table[entry.id] = #{ name: entry.name, icon: icons::panel(entry.id), tall: false };
+    }
+    table
+}
+
+fn panel(S, id) {
+    panels(S).get(id).unwrap_or(#{ name: id, icon: icons::panel(id), tall: false })
+}
+
+/// Which dock holds `id`, or `None` when a plugin has been unloaded.
+pub fn side_of(S, id) {
+    for side in sides() {
+        if S.docks[side].tabs.iter().any(|t| t == id) {
+            return Some(side);
+        }
+    }
+    None
+}
+
+/// Whether `id` is the panel its dock is showing. Replaces the old
+/// `S.dock == "..."`, which assumed everything lived at the bottom.
+pub fn showing(S, id) {
+    match side_of(S, id) {
+        Some(side) => S.docks[side].active == id && !S.docks[side].shut,
+        None => false,
+    }
+}
+
+/// Bring `id` up wherever it lives, opening its dock.
+pub fn show(S, id) {
+    let found = side_of(S, id);
+    if let Some(side) = found {
+        S.docks[side].active = id;
+        S.docks[side].shut = false;
+    }
+}
+
+/// Move a panel to another dock, and leave its old dock showing something.
+pub fn move_to(S, id, side) {
+    let from = side_of(S, id);
+    if let Some(old) = from {
+        if old == side {
+            return;
+        }
+        let kept = [];
+        for t in S.docks[old].tabs {
+            if t != id {
+                kept.push(t);
+            }
+        }
+        S.docks[old].tabs = kept;
+        if S.docks[old].active == id {
+            S.docks[old].active = kept.get(0).unwrap_or("");
+        }
+    }
+    S.docks[side].tabs.push(id);
+    S.docks[side].active = id;
+    S.docks[side].shut = false;
+}
+
+/// The taller bottom dock, asked before the layout is computed.
+pub fn bottom_tall(S) {
+    let d = S.docks.bottom;
+    if d.shut || d.active == "" {
+        return false;
+    }
+    panel(S, d.active).tall
+}
+
+fn body(S, k, id) {
+    match id {
+        "scene" => left::tree_body(S, k),
+        "outline" => left::outline_body(S, k),
+        "inspector" => inspector::body(S, k),
+        "output" => dock::output(S, k),
+        "problems" => dock::problems(S, k),
+        "assets" => dock::assets(S, k),
+        "timeline" => dock::timeline(S, k),
+        "debugger" => dock::debugger_view(S, k),
+        "session" => dock::session_view(S, k),
+        "profiler" => dock::profiler(S, k),
+        _ => match crate::plugins::dock(S, id) {
+            Some(entry) => {
+                let draw = entry.draw;
+                draw(S, k);
+            }
+            None => (),
+        },
+    }
+}
+
+fn tab_row(S, k, side, d) {
+    ui::horizontal(#{ height: 30 }, || {
+        ui::spacing(4, 0);
+        ui::add_space(2);
+        for id in d.tabs {
+            let p = panel(S, id);
+            let active = d.active == id;
+            let label = p.name;
+            if id == "problems" {
+                let (errors, warnings) = crate::lint::counts(S);
+                if errors + warnings > 0 {
+                    label += format!(" {}", errors + warnings);
+                }
+            }
+            if ui::pill(label, #{
+                role: if active { "tab_on" } else { "tab" },
+                menu: || {
+                    ui::menu_item(format!("Move {} to", p.name), #{ color: k.faint });
+                    for other in sides() {
+                        if other != side {
+                            if ui::menu_item(format!("   {}", other), #{ color: k.text }) {
+                                move_to(S, id, other);
+                            }
+                        }
+                    }
+                },
+            }) {
+                S.docks[side].active = id;
+            }
+        }
+        ui::right(|| {
+            ui::add_space(4);
+            if ui::pill(icons::ui("minimise"), #{
+                role: "icon_button", height: 22, size: 13,
+                tooltip: format!("Minimise to the {}", if side == "bottom" { "bottom" } else { side }),
+            }) {
+                S.docks[side].shut = true;
+            }
+            tools(S, k, d.active, S.layout[side].w);
+        });
+    });
+    ui::separator(k.line_soft);
+}
+
+// The controls that belong to the panel showing, in the tab row's one slot.
+// The controls that belong to the panel showing, in the tab row's one slot.
+// A narrow dock keeps its tabs: the tools are what give way, not the names.
+fn tools(S, k, id, width) {
+    if id == "scene" {
+        left::tree_tools(S, k);
+        return;
+    }
+    let room = width - 60.0 - 26.0 * (S.docks[side_for(S, id)].tabs.len() as f64);
+    if id == "output" {
+        dock::output_tools(S, k, room);
+        return;
+    }
+    if S.compact || room < 150.0 {
+        return;
+    }
+    let hint = dock::hint(S, id);
+    if hint != "" {
+        ui::add_space(6);
+        ui::label(hint, style::mono_sm(k.faint));
+    }
+}
+
+fn side_for(S, id) {
+    match side_of(S, id) {
+        Some(side) => side,
+        None => "bottom",
+    }
+}
+
+// Minimised: a strip of the dock's tabs on its own edge.
+fn rail(S, k, side, r) {
+    let d = S.docks[side];
+    style::sheet(k, side + "-rail", r, 0, 0, || {
+        if side == "bottom" {
+            ui::horizontal(#{ height: 32 }, || {
+                ui::spacing(4, 0);
+                ui::add_space(6);
+                for id in d.tabs {
+                    let p = panel(S, id);
+                    if ui::pill(p.name, #{
+                        role: if d.active == id { "chip_on" } else { "tab" },
+                    }) {
+                        show(S, id);
+                    }
+                }
+                ui::right(|| {
+                    ui::add_space(4);
+                    if ui::pill(icons::ui("open"), #{ height: 22, size: 12, color: k.dim, tooltip: "Open the dock" }) {
+                        S.docks[side].shut = false;
+                    }
+                });
+            });
+            crate::chrome::status_row(S);
+            return;
+        }
+        ui::vertical(|| {
+            ui::spacing(3, 4);
+            ui::add_space(6);
+            for id in d.tabs {
+                let p = panel(S, id);
+                ui::horizontal((), || {
+                    ui::add_space(3);
+                    if ui::circle_button(p.icon, #{
+                        role: if d.active == id { "tool_on" } else { "tool" },
+                        d: 28, size: 13, tooltip: p.name,
+                    }) {
+                        show(S, id);
+                    }
+                });
+            }
+        });
+    });
+}
+
+pub fn draw(S, k, side) {
+    let d = S.docks[side];
+    let r = S.layout[side];
+    if r.w <= 0.0 || r.h <= 0.0 {
+        return;
+    }
+    if d.shut {
+        rail(S, k, side, r);
+        return;
+    }
+    if d.tabs.len() == 0 {
+        return;
+    }
+    style::sheet(k, side, r, 8, 0, || {
+        tab_row(S, k, side, d);
+        // The status strip is the dock's foot: one sheet fewer floating, and
+        // every piece of status in one place.
+        let body_h = if side == "bottom" { r.h - 30.0 - 24.0 } else { 0.0 };
+        if body_h > 0.0 {
+            ui::vertical(|| {
+                ui::horizontal(#{ height: body_h }, || {
+                    ui::vertical(|| body(S, k, d.active));
+                });
+                crate::chrome::status_row(S);
+            });
+            return;
+        }
+        body(S, k, d.active);
+    });
+}

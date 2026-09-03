@@ -9,7 +9,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 BALAUR_E2E=1 cargo test \
-  -p balaur_net --test script_api \
+  -p balaur_http --test script_api \
+  -p balaur_websocket --test script_api \
   -p balaur_gamend --test script_api \
+  -p balaur_platform --test script_api \
   -p balaur --test mixed \
   "$@"

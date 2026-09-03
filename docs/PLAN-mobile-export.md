@@ -75,8 +75,15 @@ output is a `.wasm` plus a small HTML/JS shell, and the pack can be a fetched
 asset or preloaded into the emscripten filesystem. It still needs the window
 problem solved: a wgpu surface on a canvas.
 
+`scripts/package_template.sh web` builds and packages that `.wasm` on every
+push, with default features — so what CI proves today is that the simulation
+links for the browser, not that anything draws.
+
 Of the three, **web is the one to do first** — it has one blocker instead of
 three, and it is the platform where "click a link and play it" is worth most.
+Two plans wait behind this one: `docs/PLAN-web-editor.md` needs the same
+canvas to run the editor in a tab, and `docs/PLAN-deploy.md`'s most valuable
+destination is a URL that needs a web build to put at it.
 
 ## Suggested order
 

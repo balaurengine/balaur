@@ -1,0 +1,19 @@
+[package]
+name = "balaur_export"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+balaur = { workspace = true, default-features = false }
+anyhow.workspace = true
+serde.workspace = true
+toml.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

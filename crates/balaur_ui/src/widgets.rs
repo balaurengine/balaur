@@ -21,6 +21,29 @@ use crate::UiState;
 pub(crate) struct Opts(pub(crate) Option<Value>);
 
 impl Opts {
+    /// The caller's options over the named role's. A call site then says only
+    /// what it changes, and the look lives in the theme asset.
+    pub(crate) fn with_roles(opts: Option<Value>) -> Self {
+        let Some(Value::Map(given)) = opts.as_ref() else {
+            return Self(opts);
+        };
+        let Some(Value::Str(name)) = given.iter().find(|(k, _)| k == "role").map(|(_, v)| v) else {
+            return Self(opts);
+        };
+        let defaults = crate::bridge::role(name);
+        if defaults.is_empty() {
+            return Self(opts);
+        }
+        // The caller's entries first: `get` takes the first match.
+        let mut merged = given.clone();
+        for (key, value) in defaults {
+            if !merged.iter().any(|(k, _)| *k == key) {
+                merged.push((key, value));
+            }
+        }
+        Self(Some(Value::Map(merged)))
+    }
+
     fn get(&self, key: &str) -> Option<&Value> {
         match self.0.as_ref()? {
             Value::Map(entries) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
@@ -264,10 +287,12 @@ pub(crate) fn text_field(
             edit = edit.desired_width((w - pad * 2.0).max(sc(8.0)));
         }
         let response = if h > 0.0 {
+            let radius = opts.px("radius", 0.0);
+            let corner = if radius > 0.0 { pill_radius(radius * 2.0) } else { pill_radius(sc(5.0) * 2.0) };
             egui::Frame::new()
                 .fill(opts.color("fill", Color32::TRANSPARENT))
                 .stroke(Stroke::new(1.0, opts.color("stroke", Color32::TRANSPARENT)))
-                .corner_radius(pill_radius(h))
+                .corner_radius(corner)
                 .inner_margin(Margin::symmetric(pad as i8, 0))
                 .show(ui, |ui| {
                     ui.set_min_height(h);
@@ -825,13 +850,22 @@ pub(crate) fn left_pill(
             fill = hover;
         }
     }
+    // Tiles by default, like every other pill; `round` opts back in.
+    let asked = opts.px("radius", 0.0);
+    let corner = if asked > 0.0 {
+        pill_radius(asked * 2.0)
+    } else if opts.boolean("round", false) {
+        pill_radius(h)
+    } else {
+        pill_radius(sc(5.0) * 2.0)
+    };
     if fill != Color32::TRANSPARENT {
-        ui.painter().rect_filled(rect, pill_radius(h), fill);
+        ui.painter().rect_filled(rect, corner, fill);
     }
     if let Some(stroke) = opts.opt_color("stroke") {
         ui.painter().rect(
             rect,
-            pill_radius(h),
+            corner,
             Color32::TRANSPARENT,
             Stroke::new(1.0, stroke),
             StrokeKind::Inside,

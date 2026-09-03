@@ -123,6 +123,11 @@ for ex in examples/*/; do
   edit_step "$name: undo" "$ex" undodemo
   printf 'ok\n'
 
+  # The centre's layout: with no document open the viewport must fill it.
+  printf '  layout ... '
+  edit_step "$name: layout" "$ex" layoutdemo
+  printf 'ok\n'
+
   # Rigging: grow a bone, round-trip the rest pose, key it by path, undo.
   # A scene with no bones skips itself and says so.
   printf '  rig ...    '

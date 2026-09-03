@@ -16,6 +16,10 @@ use egui::{Color32, CornerRadius, FontFamily, Shadow, Stroke};
 pub struct ThemeTokens {
     pub dark: bool,
     pub colors: HashMap<String, Color32>,
+    /// Named looks — `field`, `tab`, `heading` — as the option map a widget
+    /// would otherwise have been given at the call site. Colour entries are
+    /// already resolved from token name to `#rrggbb`.
+    pub roles: HashMap<String, Vec<(String, balaur_script::Value)>>,
 }
 
 impl Default for ThemeTokens {
@@ -23,6 +27,7 @@ impl Default for ThemeTokens {
         Self {
             dark: true,
             colors: HashMap::new(),
+            roles: HashMap::new(),
         }
     }
 }
@@ -30,6 +35,11 @@ impl Default for ThemeTokens {
 impl ThemeTokens {
     pub fn color(&self, name: &str, fallback: Color32) -> Color32 {
         self.colors.get(name).copied().unwrap_or(fallback)
+    }
+
+    /// The option map a role stands for, empty when nothing declares it.
+    pub fn role(&self, name: &str) -> &[(String, balaur_script::Value)] {
+        self.roles.get(name).map_or(&[], Vec::as_slice)
     }
 }
 
@@ -115,6 +125,7 @@ pub(crate) fn family(name: &str) -> FontFamily {
     match name {
         "heading" => FontFamily::Name("heading".into()),
         "mono" => FontFamily::Name("mono".into()),
+        "icon" => FontFamily::Name("icon".into()),
         _ => FontFamily::Name("ui".into()),
     }
 }
@@ -123,70 +134,123 @@ pub(crate) fn family(name: &str) -> FontFamily {
 /// (Caprasimo, Figtree, JetBrains Mono per the design), they take priority;
 /// otherwise the families alias egui's built-in fonts so everything still
 /// renders.
+/// Faces the operating system already ships, appended to every chain so a
+/// script balaur does not vendor draws instead of tofu. Never bundled: a
+/// single CJK weight is larger than the whole editor.
+#[cfg(target_os = "macos")]
+const SYSTEM_FACES: &[&str] = &[
+    "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+    "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+    "/System/Library/Fonts/GeezaPro.ttc",
+    "/System/Library/Fonts/ArialHB.ttc",
+    "/System/Library/Fonts/Kohinoor.ttc",
+    "/System/Library/Fonts/ThonburiUI.ttc",
+    "/System/Library/Fonts/Apple Symbols.ttf",
+];
+
+#[cfg(target_os = "windows")]
+const SYSTEM_FACES: &[&str] = &[
+    "C:\\Windows\\Fonts\\segoeui.ttf",
+    "C:\\Windows\\Fonts\\YuGothM.ttc",
+    "C:\\Windows\\Fonts\\malgun.ttf",
+    "C:\\Windows\\Fonts\\msyh.ttc",
+    "C:\\Windows\\Fonts\\seguisym.ttf",
+];
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+const SYSTEM_FACES: &[&str] = &[
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
+];
+
+/// Which chain a bundled file joins, from its name. Explicit, because a
+/// guess put every new face in the UI chain and nothing said so.
+fn chain_of(stem: &str) -> Option<&'static str> {
+    let lower = stem.to_lowercase();
+    for prefix in ["heading", "ui", "mono", "icons"] {
+        if lower.starts_with(&format!("{prefix}-")) {
+            return Some(match prefix {
+                "heading" => "heading",
+                "mono" => "mono",
+                "icons" => "icons",
+                _ => "ui",
+            });
+        }
+    }
+    // Pre-convention names, kept so an existing project's fonts still load.
+    if lower.contains("mono") {
+        return Some("mono");
+    }
+    if lower.contains("caprasimo") || lower.contains("display") {
+        return Some("heading");
+    }
+    if lower.ends_with(".ttf") || lower.ends_with(".otf") {
+        return Some("ui");
+    }
+    Some("ui")
+}
+
+/// Load the four named families into `ctx`. A project's own `fonts/*.ttf`
+/// come first, then what the editor bundles, then the system's — so a game
+/// can ship the face its language needs without patching the editor.
 pub(crate) fn load_fonts(eng: &Engine, ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     let mut heading_chain: Vec<String> = Vec::new();
     let mut ui_chain: Vec<String> = Vec::new();
     let mut mono_chain: Vec<String> = Vec::new();
+    let mut icon_chain: Vec<String> = Vec::new();
 
     if let Some(files) = eng.try_resource::<ProjectFiles>() {
         let files = files.borrow();
-        {
-            let paths: Vec<String> = files
-                .list("fonts")
-                .into_iter()
-                .filter(|p| {
-                    matches!(
-                        std::path::Path::new(p).extension().and_then(|e| e.to_str()),
-                        Some("ttf" | "otf")
-                    )
-                })
-                .collect();
-            for rel in paths {
-                let path = std::path::PathBuf::from(&rel);
-                let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
-                    continue;
-                };
-                let Ok(bytes) = files.read(&rel) else {
-                    continue;
-                };
-                let name = stem.to_string();
-                fonts.font_data.insert(
-                    name.clone(),
-                    std::sync::Arc::new(egui::FontData::from_owned(bytes)),
-                );
-                let lower = name.to_lowercase();
-                if lower.contains("mono") {
-                    mono_chain.push(name);
-                } else if lower.contains("caprasimo") || lower.contains("display") {
-                    heading_chain.push(name);
-                } else {
-                    ui_chain.push(name);
-                }
-                tracing::info!("ui: loaded font {stem}");
+        let mut paths: Vec<String> = files
+            .list("fonts")
+            .into_iter()
+            .filter(|p| {
+                matches!(
+                    std::path::Path::new(p).extension().and_then(|e| e.to_str()),
+                    Some("ttf" | "otf" | "ttc")
+                )
+            })
+            .collect();
+        paths.sort();
+        for rel in paths {
+            let path = std::path::PathBuf::from(&rel);
+            let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+                continue;
+            };
+            let Ok(bytes) = files.read(&rel) else {
+                continue;
+            };
+            let name = stem.to_string();
+            fonts.font_data.insert(
+                name.clone(),
+                std::sync::Arc::new(egui::FontData::from_owned(bytes)),
+            );
+            match chain_of(stem) {
+                Some("heading") => heading_chain.push(name),
+                Some("mono") => mono_chain.push(name),
+                Some("icons") => icon_chain.push(name),
+                _ => ui_chain.push(name),
             }
+            tracing::info!("ui: loaded font {stem}");
         }
     }
 
-    // On macOS, add Apple Symbols (loaded from the system, not bundled) as a
-    // fallback so geometric icon glyphs used by tools/editors resolve.
-    #[cfg(target_os = "macos")]
-    {
-        let path = "/System/Library/Fonts/Apple Symbols.ttf";
-        if let Ok(bytes) = std::fs::read(path) {
-            fonts.font_data.insert(
-                "apple-symbols".into(),
-                std::sync::Arc::new(egui::FontData::from_owned(bytes)),
-            );
-            for chain in [&mut heading_chain, &mut ui_chain, &mut mono_chain] {
-                chain.push("apple-symbols".into());
-            }
-            for family in [FontFamily::Proportional, FontFamily::Monospace] {
-                if let Some(chain) = fonts.families.get_mut(&family) {
-                    chain.push("apple-symbols".into());
-                }
-            }
-        }
+    let mut system_chain: Vec<String> = Vec::new();
+    for path in SYSTEM_FACES {
+        let Ok(bytes) = std::fs::read(path) else {
+            continue;
+        };
+        let name = format!("system:{path}");
+        fonts.font_data.insert(
+            name.clone(),
+            std::sync::Arc::new(egui::FontData::from_owned(bytes)),
+        );
+        system_chain.push(name);
     }
 
     // Fall back to the built-ins so the named families always resolve.
@@ -203,6 +267,23 @@ pub(crate) fn load_fonts(eng: &Engine, ctx: &egui::Context) {
     if heading_chain.is_empty() {
         heading_chain.clone_from(&ui_chain);
     }
+    // Icons resolve wherever a glyph is written, so they join every chain.
+    for chain in [&mut heading_chain, &mut ui_chain, &mut mono_chain] {
+        chain.extend(icon_chain.iter().cloned());
+    }
+    for chain in [
+        &mut heading_chain,
+        &mut ui_chain,
+        &mut mono_chain,
+        &mut icon_chain,
+    ] {
+        chain.extend(system_chain.iter().cloned());
+    }
+    for family in [FontFamily::Proportional, FontFamily::Monospace] {
+        if let Some(chain) = fonts.families.get_mut(&family) {
+            chain.extend(system_chain.iter().cloned());
+        }
+    }
     heading_chain.extend(default_prop.clone());
     ui_chain.extend(default_prop);
     mono_chain.extend(default_mono);
@@ -216,5 +297,8 @@ pub(crate) fn load_fonts(eng: &Engine, ctx: &egui::Context) {
     fonts
         .families
         .insert(FontFamily::Name("mono".into()), mono_chain);
+    fonts
+        .families
+        .insert(FontFamily::Name("icon".into()), icon_chain);
     ctx.set_fonts(fonts);
 }

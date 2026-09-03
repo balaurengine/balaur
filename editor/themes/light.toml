@@ -1,0 +1,208 @@
+# The editor's whole look. A call site names a role and says only what it
+# changes; nothing here is spelled in a script.
+type = "editor_theme"
+dark = false
+
+[colors]
+bg = "#f8f7f3"
+panel = "#f1f3f6"
+sunken = "#e3e7ec"
+raised = "#ffffff"
+line = "#d0d6dd"
+line_soft = "#e3e7ec"
+text = "#14181d"
+dim = "#5b6670"
+faint = "#8e99a5"
+accent = "#2f6a9e"
+accent_fill = "#3577b1"
+accent_soft = "#dce8f3"
+sage = "#4f7f78"
+sage_soft = "#dbe8e6"
+grid = "#e9ebed"
+grid_major = "#d0d6dd"
+code_bg = "#ffffff"
+on_accent = "#f6f8fb"
+k_key = "#2b6291"
+k_str = "#3f6e67"
+k_num = "#2f6a9e"
+k_com = "#8e99a5"
+k_fn = "#1c2128"
+k_type = "#4f7f78"
+k_punc = "#6b7683"
+
+# Text. A call site names one of these and says nothing else about type.
+[roles.title]
+font = "heading"
+size = 16
+strong = true
+color = "text"
+
+[roles.heading]
+font = "heading"
+size = 9.5
+strong = true
+color = "dim"
+
+[roles.body]
+font = "ui"
+size = 11.5
+color = "text"
+
+[roles.label]
+font = "ui"
+size = 11
+color = "dim"
+
+[roles.mono]
+font = "mono"
+size = 11.5
+color = "text"
+
+[roles.value]
+font = "mono"
+size = 11
+color = "text"
+
+[roles.meta]
+font = "mono"
+size = 10.5
+color = "faint"
+
+[roles.code]
+font = "mono"
+size = 12.5
+color = "text"
+
+# Shapes. Radii are tiles; `round = true` is the exception, not the rule.
+[roles.sheet]
+radius = 8
+fill = "panel"
+
+[roles.row]
+height = 23
+radius = 5
+size = 12
+align = "left"
+color = "text"
+hover_fill = "raised"
+
+[roles.row_on]
+height = 23
+radius = 5
+size = 12
+align = "left"
+fill = "accent_fill"
+color = "on_accent"
+
+[roles.list_item]
+height = 25
+radius = 5
+size = 11.5
+align = "left"
+fill = "sunken"
+color = "text"
+
+[roles.tab]
+height = 22
+radius = 5
+size = 11
+strong = true
+color = "faint"
+
+[roles.tab_on]
+height = 22
+radius = 5
+size = 11
+strong = true
+fill = "accent_soft"
+color = "accent"
+
+[roles.doctab]
+height = 24
+radius = 5
+size = 11.5
+color = "faint"
+
+[roles.doctab_on]
+height = 24
+radius = 5
+size = 11.5
+fill = "accent_soft"
+color = "accent"
+
+[roles.field]
+height = 22
+radius = 5
+size = 11
+font = "mono"
+fill = "sunken"
+color = "text"
+
+[roles.chip]
+height = 22
+radius = 6
+size = 10.5
+strong = true
+fill = "sunken"
+color = "dim"
+
+[roles.chip_on]
+height = 22
+radius = 6
+size = 10.5
+strong = true
+fill = "accent_soft"
+color = "accent"
+
+[roles.button]
+height = 28
+radius = 5
+size = 12
+font = "ui"
+strong = true
+fill = "sunken"
+color = "accent"
+
+[roles.icon_button]
+height = 21
+radius = 4
+size = 12
+color = "dim"
+
+[roles.tool]
+d = 28
+size = 13
+color = "dim"
+
+[roles.tool_on]
+d = 28
+size = 13
+fill = "accent_soft"
+color = "accent"
+
+[roles.transport]
+d = 28
+size = 13
+round = true
+color = "dim"
+
+[roles.transport_on]
+d = 28
+size = 13
+round = true
+fill = "accent_fill"
+color = "on_accent"
+
+[roles.chip_quiet]
+height = 22
+radius = 6
+size = 10.5
+strong = true
+color = "faint"
+
+[roles.chip_on_quiet]
+height = 22
+radius = 6
+size = 10.5
+strong = true
+color = "dim"

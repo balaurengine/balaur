@@ -4,10 +4,12 @@ Every surface the editor draws, as an ASCII mockup next to the screenshot that
 proves what it actually looks like. This is the review sheet: read a mockup,
 open the PNG beside it, write the complaint under the screen.
 
-This file records the shell **as it is**. The shell it is becoming is Stage —
-scene edge to edge, panels as sheets floating on it — planned in
-[PLAN-editor-redesign.md](PLAN-editor-redesign.md). Keep this file describing
-what the screenshots show, not what the plan wants.
+The shell is **Stage** as of 2026-09-03: the scene runs edge to edge and every
+panel is a sheet floating on it, at a rect `editor/scripts/layout.rn` computes.
+The skeleton in §1 below is the docked shell it replaced, kept because the
+defect table still refers to it; the rects that matter now are the table in
+[PLAN-editor-redesign.md](PLAN-editor-redesign.md) §1. Re-capture before
+reading further — the screenshots are regenerated, the prose is not.
 
 Regenerate the PNGs into `target/uiaudit/` with:
 
@@ -239,13 +241,22 @@ plugin's component gets a section for free — and so does its label width.
 Ordered by how much of the shell it spoils. Each is reproducible from the
 state in the last column.
 
+**D1, D2, D3 and D5 are fixed** (2026-09-03), and they were one bug:
+`center::draw` wrote `S.viewport_live = split || !document` straight to the
+field, which in Rune 0.14 also overwrites the local on the left of a
+short-circuit — so `split` became true on every frame, in every persona. The
+centre carved a code pane it was never asked for, and every rect derived from
+`ui::central_rect()` was wrong: the viewport, the overlay chrome and the
+widget layer alike. The pitfall is written up in `AGENTS.md`; `layoutdemo`
+asserts the centre now, and the screenshots below are from after the fix.
+
 | # | Defect | Where | Seen in |
 |---|---|---|---|
-| D1 | **Game widgets escape the viewport.** The widget layer paints over the document tabs, the tool rail, the axis pill and the dock tab row; in the Interface persona the HUD and the dashed safe-area rect run across the inspector. | `editor.rn:update` `ui::set_widget_layer`, `gizmo::viewport_rect` | `06`, `14`, `18` |
-| D2 | **Split is unusable.** The code column collapses to ~25 px — gutter only, no code — whatever `split_w` says. | `center::split_code` | `17` |
-| D3 | **A ghost code gutter sits between viewport and inspector.** A ~25 px `code_bg` strip with the selected script's line numbers is drawn in every persona whenever the selection has a script. It also clips the document-tab hint to `no…`. | centre layout | `01`, `08`, `13`, `20` |
-| D4 | **Long property names blow the inspector out of the window.** `angular_damping`, `center_of_mass` widen the label column, the panel takes the full width, values clip off the right edge and the dock is overdrawn. | `inspector::row`'s label column | `02`, `20` |
-| D5 | **The zoom pill draws on top of the inspector**, over the `SCRIPT` heading. The overlay is wider than the viewport it belongs to. | `center::viewport` overlay rect | `01`, `15`, `17` |
+| D1 | *Fixed.* **Game widgets escaped the viewport.** The widget layer paints over the document tabs, the tool rail, the axis pill and the dock tab row; in the Interface persona the HUD and the dashed safe-area rect run across the inspector. | `editor.rn:update` `ui::set_widget_layer`, `gizmo::viewport_rect` | `06`, `14`, `18` |
+| D2 | *Fixed.* **Split was unusable.** The code column collapses to ~25 px — gutter only, no code — whatever `split_w` says. | `center::split_code` | `17` |
+| D3 | *Fixed.* **A ghost code gutter sat between viewport and inspector.** A ~25 px `code_bg` strip with the selected script's line numbers is drawn in every persona whenever the selection has a script. It also clips the document-tab hint to `no…`. | centre layout | `01`, `08`, `13`, `20` |
+| D4 | *Improved, not fixed — values no longer clip off the window, the panel still widens.* **Long property names blow the inspector out of the window.** `angular_damping`, `center_of_mass` widen the label column, the panel takes the full width, values clip off the right edge and the dock is overdrawn. | `inspector::row`'s label column | `02`, `20` |
+| D5 | *Fixed in the viewport; still overflows in a split.* **The zoom pill drew on top of the inspector**, over the `SCRIPT` heading. The overlay is wider than the viewport it belongs to. | `center::viewport` overlay rect | `01`, `15`, `17` |
 | D6 | **Glyphs are missing from the shipped font.** `⌥` renders as `~` in every palette shortcut; the Translate tool's `✥` renders as an empty box in every rail. | `defs::tool_icon`, `palette::commands` | `07`, `10`, `20` |
 | D7 | **The dock's right-hand hint lies.** Session, Profiler and plugin tabs all fall through to the animation branch and print `no clip`. | `dock::tab_row` | `10`, `13`, `14`, `19` |
 | D8 | **Plugin windows are unthemed.** `ui::window` draws egui's stock frame — pale title bar, centred serif title, native close button — against the editor's dark chrome, and it opens over the persona bar. | `plugins::draw_windows` | `19` |
@@ -259,10 +270,10 @@ state in the last column.
 | D16 | **The tree's connector rails are mono text.** `├─`/`└─`/`│ ` glyphs drift out of alignment with the 27 px rows and the depth indent. | `left::tree_row` | `01`, `03` |
 | D17 | **The log's columns do not line up.** The severity mark, the timestamp, the `s`, and the tag each start where the last one ended. | `dock::output` | `01` |
 
-D1, D3 and D5 are one defect wearing three hats: a panel drawing where the
-layout said it would not. Stage does not remove that class — it makes it the
-normal case, which is why §2 of the plan is one module owning every rect and
-why nothing else starts before it.
+That those four were one bug is the argument for the plan's §2. They were not
+four places drawing badly; they were one wrong rect, read by four consumers
+that each derived their own. Stage makes that class of bug the normal case,
+which is why one module owning every rect comes before anything else.
 
 ### Where the measurements live
 

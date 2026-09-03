@@ -9,6 +9,7 @@ use crate::model;
 use crate::polygon;
 use crate::rig;
 use crate::shell;
+use crate::style;
 use crate::util;
 
 fn check(ok, what) {
@@ -491,7 +492,7 @@ pub fn linting(S) {
     lint::run(S);
     check(found_in(S, rel, "error").len() == 0, "restoring the buffer clears the findings");
     S.script_buffers.remove(abs);
-    S.dock = "problems";
+    crate::docks::show(S, "problems");
     log::info("selftest lint: done");
 }
 
@@ -567,6 +568,135 @@ fn first_instanced_float(S) {
 const REC_UNTIL = 9;
 const OPEN_AT = 10;
 const CHECK_AT = 28;
+
+// The centre must be showing the viewport when no document is open: a stray
+// split used to leave a collapsed code pane over it in every persona.
+pub fn layout(S) {
+    S.layout_demo = 0;
+}
+
+pub fn layout_step(S) {
+    S.layout_demo = S.layout_demo + 1;
+    if S.layout_demo != 3 {
+        return;
+    }
+    S.layout_demo = -1;
+    let m = S.layout;
+    let stage = m.stage;
+    // A headless run never draws, so the rect is still the one `init` set.
+    if S.viewport.at == 0 {
+        log::info("layoutdemo: skipped, nothing drew this run");
+        return;
+    }
+    check(!S.split, "the split is off unless asked for");
+    check(S.viewport_live, "the scene is showing");
+    check(S.rail_visible, "and the tool rail with it");
+    // Stage's invariants: the sheets tile the window without touching, and
+    // what is left is the scene's.
+    check(stage.x >= 0.0 && stage.y >= 0.0
+        && stage.x + stage.w <= S.screen_w && stage.y + stage.h <= S.screen_h,
+        "the stage is inside the window");
+    check(stage.w > S.screen_w * 0.35 && stage.h > S.screen_h * 0.4,
+        format!("the stage is most of the window ({} × {})", stage.w as i64, stage.h as i64));
+    check(!overlapping(crate::layout::sheets(S)), "no two sheets overlap");
+    check(!crate::layout::over_sheet(S, stage.x + stage.w / 2.0, stage.y + stage.h / 2.0),
+        "the middle of the stage belongs to the scene");
+    check(covered(S, crate::layout::sheets(S)), "and the middle of every sheet does not");
+    check(S.viewport.w == stage.w && S.viewport.h == stage.h,
+        "the widget layer gets the stage rect");
+}
+
+// Sheets may abut, never overlap: an overlap is a rect two owners believe in.
+fn overlapping(rects) {
+    for (i, a) in rects.iter().enumerate() {
+        for j in (i + 1)..rects.len() {
+            let b = rects[j];
+            if a.w > 0.0 && a.h > 0.0 && b.w > 0.0 && b.h > 0.0
+                && a.x < b.x + b.w && b.x < a.x + a.w
+                && a.y < b.y + b.h && b.y < a.y + a.h {
+                log::warn(format!("sheets overlap: {},{} {}x{} and {},{} {}x{}",
+                    a.x as i64, a.y as i64, a.w as i64, a.h as i64,
+                    b.x as i64, b.y as i64, b.w as i64, b.h as i64));
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn covered(S, rects) {
+    for r in rects {
+        if r.w > 0.0 && r.h > 0.0
+            && !crate::layout::over_sheet(S, r.x + r.w / 2.0, r.y + r.h / 2.0) {
+            return false;
+        }
+    }
+    true
+}
+
+// Tofu is the failure this catches: a row of boxes in the screenshot means
+// the chain lost a script, and a missing icon means the font did not load.
+pub fn font_sheet(S) {
+    let k = S.theme;
+    let r = S.layout.stage;
+    ui::overlay("fontsheet", #{
+        x: r.x, y: r.y, w: r.w, h: r.h,
+        fill: k.panel, stroke: k.line, radius: 11, padding_x: 16, padding_y: 12,
+    }, || {
+        ui::label("SCRIPTS", style::heading(k));
+        ui::add_space(6);
+        for (name, sample) in scripts() {
+            ui::horizontal(#{ height: 24 }, || {
+                ui::horizontal(#{ height: 24, width: 92 }, || {
+                    ui::label(name, style::mono_sm(k.faint));
+                });
+                ui::label(sample, #{ size: 15, color: k.text });
+            });
+        }
+        ui::add_space(10);
+        ui::label("FACES", style::heading(k));
+        ui::add_space(6);
+        ui::label("heading  Alegreya", #{ size: 15, font: "heading", strong: true, color: k.text });
+        ui::label("ui  Source Sans 3", #{ size: 14, color: k.text });
+        ui::label("mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃", style::mono(k.text));
+        ui::add_space(10);
+        ui::label("ICONS", style::heading(k));
+        ui::add_space(6);
+        ui::horizontal(#{ height: 26 }, || {
+            ui::spacing(8, 0);
+            for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
+                ui::label(crate::icons::tool(id), #{ size: 16, color: k.text });
+            }
+            for id in ["scene", "script", "anim", "phys", "ui"] {
+                ui::label(crate::icons::persona(id), #{ size: 16, color: k.accent });
+            }
+        });
+        ui::horizontal(#{ height: 26 }, || {
+            ui::spacing(8, 0);
+            for id in ["output", "problems", "assets", "timeline", "debugger", "session", "profiler"] {
+                ui::label(crate::icons::panel(id), #{ size: 16, color: k.text });
+            }
+            for id in ["add", "close", "minimise", "search", "dark", "play", "pause", "stop", "instance", "split"] {
+                ui::label(crate::icons::ui(id), #{ size: 16, color: k.sage });
+            }
+        });
+    });
+}
+
+fn scripts() {
+    [
+        ("latin", "Plataforma Ångström"),
+        ("greek", "Διάστημα"),
+        ("cyrillic", "Вращатель"),
+        ("japanese", "ボール 平台"),
+        ("korean", "플랫폼"),
+        ("chinese", "平台 旋转"),
+        ("arabic", "لوحة"),
+        ("hebrew", "פלטפורמה"),
+        ("devanagari", "मंच"),
+        ("thai", "แพลตฟอร์ม"),
+    ]
+}
 
 pub fn sessions(S) {
     S.session.demo = #{ n: 0, file: "", was: 0 };

@@ -1,0 +1,34 @@
+[package]
+name = "balaur_http"
+description = "Balaur HTTP plugin: requests off the frame, for scripts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+balaur_core.workspace = true
+balaur_plugin.workspace = true
+balaur_script.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+toml.workspace = true
+
+# No HTTP stack compiles for wasm; those get the emscripten fetch backend or,
+# outside emscripten, a stub whose every request resolves to an error event.
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+ureq.workspace = true
+
+# Compiles the emscripten fetch shim for web builds only; see build.rs.
+[build-dependencies]
+cc = "1"
+
+[dev-dependencies]
+tempfile = "3"
+balaur = { workspace = true, features = ["http"] }
+balaur_plugin.workspace = true
+
+[lints]
+workspace = true
