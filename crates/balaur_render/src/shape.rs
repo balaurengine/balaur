@@ -3,7 +3,8 @@
 
 use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
-use balaur_core::{entity_of, App, Engine};
+use balaur_core::{entity_of, Engine};
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::{
@@ -141,8 +142,8 @@ fn shape_to_params(shape: Shape) -> Option<toml::Value> {
     Some(toml::Value::Table(map))
 }
 
-pub(crate) fn register_shape_component(app: &mut App) {
-    app.register_component(
+pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
+    reg.register_component(
         "shape3d",
         ComponentDef {
             doc: "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone or plane -- sized in world units and tinted by `color`.",
@@ -251,8 +252,8 @@ fn shape2d_from_params(params: &toml::Value) -> Result<(Shape2d, Option<String>)
 }
 
 /// The `shape2d` component: 2D primitives.
-pub(crate) fn register_shape2d_component(app: &mut App) {
-    app.register_component(
+pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
+    reg.register_component(
         "shape2d",
         ComponentDef {
             doc: "An untextured 2D primitive drawn at the node -- circle, rect, capsule or a polyline traced through a mesh asset's points -- sized in world units.",

@@ -7,12 +7,10 @@ use crate::model;
 use crate::shell;
 use crate::util;
 
-// How many sessions are kept per game before the oldest is pruned. A kept
-// one is renamed out of the ring and never counted here. The Sessions
-// settings page is where this is set; the fallback is what a fresh editor
-// with no preferences file uses.
-fn keep() {
-    let n = settings::get("sessions", "keep");
+// How many sessions are kept per game before the oldest is pruned; a kept
+// one is renamed out of the ring. Set on the settings screen.
+fn ring_size() {
+    let n = settings::get("editor/sessions/keep");
     if n is Tuple { 10 } else { crate::util::f(n) as i64 }
 }
 
@@ -121,11 +119,11 @@ fn prune(S) {
     names.sort();
     // Compared, not subtracted: a length is unsigned and the shortfall would
     // underflow every time there are fewer sessions than the ring holds.
-    let keep = keep();
-    if names.len() <= keep {
+    let ring = ring_size();
+    if names.len() <= ring {
         return;
     }
-    for i in 0..(names.len() - keep) {
+    for i in 0..(names.len() - ring) {
         fs::remove(dir(S) + "/" + names[i]);
     }
 }

@@ -18,7 +18,8 @@ use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
-use balaur_core::{App, Engine};
+use balaur_core::Engine;
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::body::SHARED_BODY_SCHEMA;
@@ -692,7 +693,7 @@ pub(crate) fn install_body2d_force_reader_api(m: &mut dyn Bindings<Engine>) {
 
 /// The `body2d` key. Like `body3d`, backed by no component type: it writes
 /// into [`crate::PhysicsState2d`].
-pub(crate) fn register_body2d_component(app: &mut App) {
+pub(crate) fn register_body2d_component(reg: &mut Registry<'_>) {
     let schema = format!(
         r#"kind = {{ type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic", "kinematic_velocity"], shorthand = true, description = "How 2D physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}
 lock_translation = {{ type = "flags", default = [], options = ["x", "y"], description = "Axes the body may not move along" }}
@@ -701,7 +702,7 @@ center_of_mass = {{ type = "vec2", default = [0.0, 0.0], description = "Where th
 inertia = {{ type = "float", default = 0.0, min = 0.0, description = "Resistance to spin; 0 lets rapier derive it from the mass" }}
 {SHARED_BODY_SCHEMA}"#
     );
-    app.register_component(
+    reg.register_component(
         "body2d",
         ComponentDef {
             doc: "Makes the node a 2D rigid body rapier simulates, in the xy plane: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. Add a `collider2d` for it to collide with anything.",

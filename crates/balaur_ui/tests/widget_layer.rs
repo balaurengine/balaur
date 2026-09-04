@@ -406,6 +406,43 @@ fn grow_divides_what_the_fixed_children_leave() {
     );
 }
 
+/// A panel of `draw` nodes should need one script, not one each: the rect is
+/// the node's, and what fills it belongs to whatever owns the state.
+#[test]
+fn a_draw_node_asks_the_nearest_scripted_ancestor() {
+    let script = "pub fn fill(this) {\n    ui::label(\"from the ancestor\", #{ size: 20 });\n}\n";
+    let (_dir, app) = app_with_script(script);
+    let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", app.engine.root());
+    app.engine
+        .script_host()
+        .unwrap()
+        .attach(balaur::node_id_of(owner), "scripts/paint.rn")
+        .unwrap();
+    let column = add_child_widget(
+        &app,
+        owner,
+        "column",
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 200.0 height = 120.0 }.into(),
+    );
+    add_child_widget(
+        &app,
+        column,
+        "body",
+        &toml::toml! { kind = "draw" draw = "fill" grow = 1.0 }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let out = pass(&app, &ctx, vec![]);
+    let drew = out.shapes.iter().any(|shape| match &shape.shape {
+        egui::epaint::Shape::Text(text) => text.galley.text() == "from the ancestor",
+        _ => false,
+    });
+    assert!(
+        drew,
+        "the draw node did not reach the script two levels above it"
+    );
+}
+
 /// Two roots, two surfaces: the whole reason the editor's own chrome cannot
 /// share the rect a game's HUD is confined to.
 #[test]

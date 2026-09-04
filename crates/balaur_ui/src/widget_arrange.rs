@@ -59,6 +59,12 @@ pub(crate) fn roll_measurements() {
         });
         next.borrow_mut().clear();
     });
+}
+
+/// Publish this frame's rects, at the end of the draw rather than the start
+/// of the next one: a script reading them back is a frame behind either way,
+/// and this is the smaller frame.
+pub(crate) fn settle_rects() {
     PLACING.with(|next| {
         PLACED.with(|now| {
             now.borrow_mut().clone_from(&next.borrow());
@@ -306,61 +312,107 @@ pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
     let widget = &at.arena[index].widget;
     let scale = at.scale;
     let pad = widget.padding * scale;
-    egui::Frame::new()
-        .inner_margin(egui::Margin::same(pad as i8))
-        .show(ui, |ui| {
-            let min = (box_of(widget, at.assigned, scale) - egui::Vec2::splat(pad * 2.0))
-                .max(egui::Vec2::ZERO);
-            hold_to(ui, min);
-            let held = std::mem::replace(&mut at.bounds, min);
-            lay_out(ui, at, index, axis);
-            at.bounds = held;
-        });
+    // The padding comes off in floats rather than through a `Margin`, which
+    // is whole device pixels: a 14 px gutter at 1.25 scale is not one, and
+    // the truncation moved every sheet in the editor's shell by 0.4 px.
+    let box_size = box_of(widget, at.assigned, scale);
+    let room = ui.max_rect();
+    let outer = egui::Rect::from_min_size(
+        room.min,
+        vec2(
+            if box_size.x > 0.0 {
+                box_size.x
+            } else {
+                room.width()
+            },
+            if box_size.y > 0.0 {
+                box_size.y
+            } else {
+                room.height()
+            },
+        ),
+    )
+    .shrink(pad);
+    let min = (box_size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);
+    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(outer));
+    hold_to(&mut inner, min);
+    let held = std::mem::replace(&mut at.bounds, min);
+    lay_out(&mut inner, at, index, axis);
+    at.bounds = held;
+    // What the children took, with the padding back on: a container that
+    // states no size is still as big as what is inside it.
+    ui.advance_cursor_after_rect(inner.min_rect().expand(pad));
 }
 
-/// What each child asks for along the axis: `None` where it grows, since a
-/// grower's size is not known until the fixed ones are in.
-///
-/// Also the total those fixed ones spend (gaps and the growers' floors
-/// included) and the sum of the `grow` shares waiting on the leftover.
+/// What one child asks for along the container's axis.
+#[derive(Clone, Copy)]
+enum Ask {
+    /// This many pixels, 0 included: a box with nothing in it is not a box
+    /// that wants everything.
+    Fixed(f32),
+    /// A share of the leftover, once the fixed ones are in.
+    Grows,
+    /// Whatever is left here. Only for what cannot be measured ahead — a
+    /// script's rect, a scroll's contents — and only until it has drawn once.
+    Rest,
+}
+
+/// What each child asks for, the total the fixed ones spend (gaps included)
+/// and the sum of the `grow` shares waiting on the leftover.
 fn share_out(
     at: &Painting<'_>,
     ui: &egui::Ui,
     children: &[usize],
     axis: Axis,
     gap: f32,
-) -> (Vec<Option<f32>>, f32, f32) {
+) -> (Vec<Ask>, f32, f32) {
     let scale = at.scale;
     let mut asked = Vec::with_capacity(children.len());
-    let mut spent = gap * (children.len().saturating_sub(1) as f32);
+    let mut spent = 0.0f32;
     let mut shares = 0.0f32;
+    let mut seams = 0.0f32;
     let mut measure = Measure::new(at.eng, at.arena, ui, scale);
     for child in children {
         let widget = &at.arena[*child].widget;
         let (stated, floor) = asked_of(widget, axis, scale);
-        if widget.grow > 0.0 {
+        let ask = if widget.grow > 0.0 {
             shares += widget.grow;
-            asked.push(None);
             spent += floor;
-            continue;
-        }
-        let size = if stated > 0.0 {
-            stated.max(floor)
+            Ask::Grows
+        } else if stated > 0.0 {
+            let size = stated.max(floor);
+            spent += size;
+            Ask::Fixed(size)
         } else {
             // What it will need, asked of the fonts rather than remembered
-            // from last frame. A `draw` node is the one thing that cannot
-            // answer, so that is the one thing still remembered.
-            let wanted = axis.along(measure.of(*child, &at.theme));
-            if wanted > 0.0 {
-                wanted.max(floor)
+            // from last frame. What the measure cannot answer for falls back
+            // to what it drew, and to the leftover before even that.
+            let wanted = axis.along(measure.of(*child, &at.theme)).max(floor);
+            let known = if wanted > 0.0 || can_measure(&widget.kind) {
+                wanted
             } else {
                 axis.along(measured_of(at.arena[*child].entity)).max(floor)
+            };
+            if known <= 0.0 && !can_measure(&widget.kind) {
+                Ask::Rest
+            } else {
+                spent += known;
+                Ask::Fixed(known)
             }
         };
-        asked.push(Some(size));
-        spent += size;
+        // A box with no size takes no seam either: a hidden rail must not
+        // leave a gap where it would have been.
+        if !matches!(ask, Ask::Fixed(size) if size <= 0.0) {
+            seams += gap;
+        }
+        asked.push(ask);
     }
-    (asked, spent, shares)
+    (asked, spent + (seams - gap).max(0.0), shares)
+}
+
+/// Whether the measure pass can answer for a kind, or only the last frame can.
+fn can_measure(kind: &str) -> bool {
+    !matches!(kind, "draw" | "scroll")
 }
 
 /// The children themselves: each given a rect along the container's axis,
@@ -405,36 +457,40 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
     };
     let mut head = axis.along(outer.min.to_vec2());
     let far = head + axis.along(outer.size());
+    let mut laid = 0usize;
     for (slot, child) in children.iter().enumerate() {
         let entity = at.arena[*child].entity;
-        let size = asked[slot].unwrap_or_else(|| {
-            let widget = &at.arena[*child].widget;
-            let (_, floor) = asked_of(widget, axis, scale);
-            floor + free * (widget.grow / shares)
-        });
-        // Zero means "nothing measured yet": let it take the rest of the
-        // container this once, and record what it used so the next frame can
-        // divide properly.
-        let hug = size <= 0.0;
-        let extent = if hug { (far - head).max(0.0) } else { size };
+        let (size, hug) = match asked[slot] {
+            Ask::Fixed(size) => (size, false),
+            Ask::Grows => {
+                let widget = &at.arena[*child].widget;
+                let (_, floor) = asked_of(widget, axis, scale);
+                (floor + free * (widget.grow / shares), false)
+            }
+            Ask::Rest => ((far - head).max(0.0), true),
+        };
         let breadth = axis.across(outer.size());
+        if size <= 0.0 && !hug {
+            // Nothing to place, and no seam either. The rect is still
+            // recorded, flat along the axis, so a script asking where it went
+            // gets an empty box in the right place rather than nothing.
+            record_rect(
+                entity,
+                egui::Rect::from_min_size(rect_head(outer, head, axis), axis.vec(0.0, breadth)),
+            );
+            continue;
+        }
+        if laid > 0 {
+            head += gap;
+        }
+        laid += 1;
+        let extent = size;
         // Filling the cross is the container's default, and it is what `align`
         // opts out of: a centred child that filled its box would have nothing
         // left to centre in. A container free to grow fills nothing.
         let fills = cross == egui::Align::Min && axis.across(bounded) > 0.0;
-        let rect = egui::Rect::from_min_size(
-            pos2(
-                match axis {
-                    Axis::Row => head,
-                    Axis::Column => outer.min.x,
-                },
-                match axis {
-                    Axis::Row => outer.min.y,
-                    Axis::Column => head,
-                },
-            ),
-            axis.vec(extent, breadth),
-        );
+        let rect =
+            egui::Rect::from_min_size(rect_head(outer, head, axis), axis.vec(extent, breadth));
         let restore = at.assigned;
         at.assigned = axis.vec(
             if hug { 0.0 } else { extent },
@@ -465,7 +521,14 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
             );
             drag_seam(ui, at, &children, slot, axis, seam);
         }
-        head += gap;
+    }
+}
+
+/// Where a child starts, given how far along the axis the container has got.
+fn rect_head(outer: egui::Rect, head: f32, axis: Axis) -> egui::Pos2 {
+    match axis {
+        Axis::Row => pos2(head, outer.min.y),
+        Axis::Column => pos2(outer.min.x, head),
     }
 }
 

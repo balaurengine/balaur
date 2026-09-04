@@ -13,7 +13,8 @@ use anyhow::{anyhow, Result};
 use balaur_core::collections::DetHashMap;
 use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
-use balaur_core::{App, Engine, Stage, Transform};
+use balaur_core::{Engine, Stage, Transform};
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{EulerRot, Quat};
 
@@ -212,11 +213,11 @@ pub fn set_sleeping_allowed(eng: &Engine, allowed: bool) {
     }
 }
 
-pub fn build(app: &mut App) -> Result<()> {
-    build_physics2d(app);
+pub fn build(reg: &mut Registry<'_>) -> Result<()> {
+    build_physics2d(reg);
 
     {
-        let mut m = app.script_module("physics2d")?;
+        let mut m = reg.script_module("physics2d")?;
         crate::install_constants(&mut *m, crate::BODY_KINDS, crate::SHAPE_KINDS_2D);
         install_physics2d_api(&mut *m);
         body::install_body2d_force_api(&mut *m);
@@ -234,12 +235,12 @@ pub fn build(app: &mut App) -> Result<()> {
         joint::install_joint2d_api(&mut *m);
         character::install_character2d_api(&mut *m);
     }
-    body::register_body2d_component(app);
-    collider::register_collider2d_component(app);
-    joint::register_joint2d_component(app);
-    character::register_character2d_component(app);
+    body::register_body2d_component(reg);
+    collider::register_collider2d_component(reg);
+    joint::register_joint2d_component(reg);
+    character::register_character2d_component(reg);
 
-    app.register_preset(
+    reg.register_preset(
         "rigid_body2d",
         balaur_core::presets::preset(
             "A 2D body physics simulates, with a rect collider",
@@ -247,7 +248,7 @@ pub fn build(app: &mut App) -> Result<()> {
             &[("body2d", Some("kind = \"dynamic\"")), ("collider2d", None)],
         )?,
     );
-    app.register_preset(
+    reg.register_preset(
         "static_body2d",
         balaur_core::presets::preset(
             "An immovable 2D body with a rect collider: ground, walls",
@@ -260,11 +261,11 @@ pub fn build(app: &mut App) -> Result<()> {
 }
 
 /// The 2D world and the system that steps it, mirroring `PhysicsPlugin::build`.
-fn build_physics2d(app: &mut App) {
-    app.engine.insert_resource(PhysicsState2d::new());
-    app.add_system(Stage::FixedUpdate, step_system);
-    build_physics2d_digest(app);
-    build_physics2d_snapshot(app);
+fn build_physics2d(reg: &mut Registry<'_>) {
+    reg.insert_resource(PhysicsState2d::new());
+    reg.add_system(Stage::FixedUpdate, step_system);
+    build_physics2d_digest(reg);
+    build_physics2d_snapshot(reg);
 }
 
 /// The 2D twin of the 3D snapshot source.
@@ -288,8 +289,8 @@ struct PhysicsFrameRef2d<'a> {
     sleeping_allowed: bool,
 }
 
-fn build_physics2d_snapshot(app: &mut App) {
-    app.add_snapshot_source(
+fn build_physics2d_snapshot(reg: &mut Registry<'_>) {
+    reg.add_snapshot_source(
         "physics2d",
         |eng| {
             let state = eng.resource::<PhysicsState2d>();
@@ -350,8 +351,8 @@ fn build_physics2d_snapshot(app: &mut App) {
 
 /// The 2D twin of the 3D source: velocity and sleep state, which no
 /// component `get` reports.
-fn build_physics2d_digest(app: &mut App) {
-    app.add_digest_source("physics2d", |eng, out| {
+fn build_physics2d_digest(reg: &mut Registry<'_>) {
+    reg.add_digest_source("physics2d", |eng, out| {
         let Some(state) = eng.try_resource::<PhysicsState2d>() else {
             return;
         };

@@ -7,13 +7,14 @@
 //! script reads back and what the backend uploads. Nothing GPU-shaped is
 //! decided at draw time.
 
+use balaur_plugin::Registry;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use balaur_core::components::{as_f64, ComponentDef};
 use balaur_core::hecs::Entity;
 use balaur_core::mesh::{MeshData, MeshSkin};
-use balaur_core::{App, Engine};
+use balaur_core::Engine;
 use glamx::Vec2;
 
 use crate::{color_from_params, color_to_toml, set_color, set_polygon, Renderable2d, Shape2d};
@@ -58,8 +59,8 @@ color = { type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, a
 
 /// The `polygon` component: writes `Shape2d::Polygon` and a [`PolygonMesh`]
 /// into `Renderable2d`.
-pub(crate) fn register_polygon_component(app: &mut App) {
-    app.register_component(
+pub(crate) fn register_polygon_component(reg: &mut Registry<'_>) {
+    reg.register_component(
         "polygon",
         ComponentDef {
             doc: "A filled, textured 2D polygon from a `mesh` asset's points and triangles, deformed by the rig `skeleton` names when the mesh carries skin weights.",

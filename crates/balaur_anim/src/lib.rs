@@ -44,13 +44,14 @@ pub mod sampler;
 mod system;
 pub mod tween;
 
+use balaur_plugin::Registry;
 use std::any::Any;
 use std::rc::Rc;
 
 use anyhow::Result;
 use balaur_core::components::{as_f64, ComponentDef};
 use balaur_core::hecs::Entity;
-use balaur_core::{App, Engine, Stage};
+use balaur_core::{Engine, Stage};
 
 pub use crate::bindings::install_animation_api;
 pub use crate::player::{
@@ -104,17 +105,16 @@ impl balaur_plugin::Plugin for AnimationPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
-        let app = reg.app();
-        app.engine.insert_resource(AnimationState::default());
-        app.add_system(Stage::Update, system::advance_system);
+        reg.insert_resource(AnimationState::default());
+        reg.add_system(Stage::Update, system::advance_system);
         // After the clip has posed the rig, so a modifier has the last word.
-        app.add_system(Stage::Update, modifier::modify_system);
-        modifier::register_modifier2d_component(app);
-        app.register_asset_type(CLIP_ASSET_TYPE, "animations", CLIP_ASSET_DOC, |value| {
+        reg.add_system(Stage::Update, modifier::modify_system);
+        modifier::register_modifier2d_component(reg);
+        reg.register_asset_type(CLIP_ASSET_TYPE, "animations", CLIP_ASSET_DOC, |value| {
             Ok(Rc::new(clip::parse(value)?) as Rc<dyn Any>)
         });
-        register_animation_component(app);
-        let mut m = app.script_module("animation")?;
+        register_animation_component(reg);
+        let mut m = reg.script_module("animation")?;
         install_animation_api(&mut *m);
         Ok(())
     }
@@ -126,8 +126,8 @@ impl balaur_plugin::Plugin for AnimationPlugin {
 /// It backs no component of its own: what it writes is a [`Playback`] in
 /// [`AnimationState`], keyed by entity, because the clip is shared between
 /// nodes and the playhead is not.
-fn register_animation_component(app: &mut App) {
-    app.register_component(
+fn register_animation_component(reg: &mut Registry<'_>) {
+    reg.register_component(
         "animation",
         ComponentDef {
             doc: "Plays animation clips on a node: the library to play them from, one to start \

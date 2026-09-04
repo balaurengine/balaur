@@ -2,7 +2,6 @@
 // shell and edit the game given to `balaur edit`; `S` is its one state object.
 
 mod anim;
-mod arrange;
 mod center;
 mod chrome;
 mod defs;
@@ -25,6 +24,7 @@ mod plugins;
 mod polygon;
 mod rig;
 mod selftest;
+mod search;
 mod session;
 mod settings;
 mod window;
@@ -104,6 +104,8 @@ pub fn init(this) {
         session: session::state(),
         settings: settings::state(),
         window: window::state(),
+        // Every dock's search text, by dock id; see `search::field`.
+        search: #{},
         showcase: showcase::state(),
         inputview: inputview::state(),
         lint: lint::state(),

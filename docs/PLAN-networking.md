@@ -12,8 +12,16 @@ What a game needs that the engine does not have.
 ## 0. What is missing
 
 - No WebRTC, so two browsers cannot reach each other without a relay.
-- The browser has no WebTransport backend yet, so a web build still falls
-  back to websockets.
+- The browser has no WebTransport backend it can reach: `browser.rs` is a
+  wasm-bindgen client gated on `target_family = "wasm"`, which the
+  emscripten web target matches but cannot run, so a web build still falls
+  back to websockets. The decision — a C shim beside `emscripten_websocket.c`,
+  or a gate on `not(target_os = "emscripten")` — is step 13.
+- Nothing bounds a session yet: the rollback journal's `arrived` and `used`
+  are never pruned, a peer may name any tick and any player, the websocket
+  client and listener have no connect or handshake timeout, and a
+  WebTransport link never learns the datagram size the session negotiated.
+  `docs/PLAN-hardening.md` phases 1 and 2 carry those.
 - No replication, no RPC, no authority, no delta encoding. Inputs are
   predicted; state is not: no client-side prediction of the local player
   against a server, no reconciliation of the correction that comes back, no

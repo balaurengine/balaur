@@ -8,7 +8,8 @@
 
 use anyhow::{anyhow, Result};
 use balaur_core::hecs::Entity;
-use balaur_core::{App, Engine, Stage};
+use balaur_core::{Engine, Stage};
+use balaur_plugin::Registry;
 use balaur_script::Bindings;
 
 mod camera;
@@ -763,23 +764,21 @@ impl balaur_plugin::Plugin for RenderPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
-        let app = reg.app();
-        app.engine.insert_resource(CameraConfig::default());
-        app.engine.insert_resource(ClearColorConfig {
+        reg.insert_resource(CameraConfig::default());
+        reg.insert_resource(ClearColorConfig {
             color: [0.09, 0.098, 0.11],
             changed: true,
         });
-        app.engine.insert_resource(WindowConfig::default());
-        app.engine.insert_resource(GridConfig::default());
-        app.engine.insert_resource(DebugLineBuffer::default());
-        app.engine.insert_resource(DebugLineBuffer2d::default());
-        app.engine.insert_resource(CameraConfig2d::default());
-        app.engine.insert_resource(PostConfig::default());
-        app.engine.insert_resource(ViewportSnapshot2d::default());
-        app.engine.insert_resource(ViewportSnapshot::default());
-        app.engine
-            .insert_resource(CameraInputConfig { enabled: true });
-        let mut m = app.script_module("render")?;
+        reg.insert_resource(WindowConfig::default());
+        reg.insert_resource(GridConfig::default());
+        reg.insert_resource(DebugLineBuffer::default());
+        reg.insert_resource(DebugLineBuffer2d::default());
+        reg.insert_resource(CameraConfig2d::default());
+        reg.insert_resource(PostConfig::default());
+        reg.insert_resource(ViewportSnapshot2d::default());
+        reg.insert_resource(ViewportSnapshot::default());
+        reg.insert_resource(CameraInputConfig { enabled: true });
+        let mut m = reg.script_module("render")?;
         m.module_doc(
             "What a frame is made of: the shape, sprite, mesh or emitter a \
              node draws, the 2D and 3D cameras, the OS window, and the \
@@ -797,26 +796,26 @@ impl balaur_plugin::Plugin for RenderPlugin {
         script_api::install_sprite_api(&mut *m);
         script_api::install_sprite_state_api(&mut *m);
         script_api::install_texture_api(&mut *m);
-        shape::register_shape_component(app);
-        shape::register_shape2d_component(app);
-        register_render_presets(app)?;
-        sprite::register_sprite_component(app);
-        polygon::register_polygon_component(app);
-        camera::register_camera_component(app);
-        light::register_light2d_component(app);
-        light::register_occluder2d_component(app);
-        mesh::register_mesh_component(app);
-        material::register_material_asset(app);
-        tilemap::register_tileset_asset(app);
-        tilemap::register_tilemap_component(app);
-        particles::register_particles_component(app);
+        shape::register_shape_component(reg);
+        shape::register_shape2d_component(reg);
+        register_render_presets(reg)?;
+        sprite::register_sprite_component(reg);
+        polygon::register_polygon_component(reg);
+        camera::register_camera_component(reg);
+        light::register_light2d_component(reg);
+        light::register_occluder2d_component(reg);
+        mesh::register_mesh_component(reg);
+        material::register_material_asset(reg);
+        tilemap::register_tileset_asset(reg);
+        tilemap::register_tilemap_component(reg);
+        particles::register_particles_component(reg);
         // SceneSync, and after the core propagation system registered at
         // `App::new`: the camera follows the node's settled global pose.
-        app.add_system(Stage::SceneSync, camera::drive_camera_system);
+        reg.add_system(Stage::SceneSync, camera::drive_camera_system);
         // Same stage, after the camera: an outline follows the collider or
         // shape the node has settled on this tick.
-        app.add_system(Stage::SceneSync, light::resolve_occluders_system);
-        app.add_system(Stage::Render, clear_debug_lines_system);
+        reg.add_system(Stage::SceneSync, light::resolve_occluders_system);
+        reg.add_system(Stage::Render, clear_debug_lines_system);
 
         Ok(())
     }
@@ -844,12 +843,12 @@ fn clear_debug_lines_system(eng: &Engine, _dt: f32) {
 
 /// Presets over the render components. `2d` is terminal and lowercase; 3D
 /// names carry no marker (N/D5).
-fn register_render_presets(app: &mut App) -> Result<()> {
-    app.register_preset(
+fn register_render_presets(reg: &mut Registry<'_>) -> Result<()> {
+    reg.register_preset(
         "sprite2d",
         balaur_core::presets::preset("A textured 2D quad", &["2d", "render"], &[("sprite", None)])?,
     );
-    app.register_preset(
+    reg.register_preset(
         "rect2d",
         balaur_core::presets::preset(
             "An untextured 2D rectangle",
@@ -857,7 +856,7 @@ fn register_render_presets(app: &mut App) -> Result<()> {
             &[("shape2d", Some("kind = \"rect\""))],
         )?,
     );
-    app.register_preset(
+    reg.register_preset(
         "tilemap2d",
         balaur_core::presets::preset(
             "A grid of tiles from one tileset",
@@ -865,7 +864,7 @@ fn register_render_presets(app: &mut App) -> Result<()> {
             &[("tilemap", None)],
         )?,
     );
-    app.register_preset(
+    reg.register_preset(
         "polygon2d",
         balaur_core::presets::preset(
             "A textured polygon that a rig can deform",

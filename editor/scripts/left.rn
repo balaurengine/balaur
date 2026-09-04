@@ -261,6 +261,12 @@ pub fn tree_tools(S, k) {
 
 pub fn tree_body(S, k) {
     ui::add_space(4);
+    let query = crate::search::field(S, k, "tree", "Find a node…", S.layout.left.w - 24.0);
+    ui::add_space(4);
+    if query != "" {
+        filtered_tree(S, k, query);
+        return;
+    }
     let kids = #{};
     for (i, node) in S.doc.iter().enumerate() {
         let parent = node.get("parent").unwrap_or("");
@@ -269,9 +275,29 @@ pub fn tree_body(S, k) {
         }
         kids[parent].push(i);
     }
-    ui::scroll("tree", #{ max_height: S.layout.left.h - 44.0 }, || {
+    ui::scroll("tree", #{ max_height: S.layout.left.h - 72.0 }, || {
         ui::spacing(4, 1);
         walk(S, k, kids, "", 0, "");
+    });
+}
+
+// Every node whose name or type matches, as a flat list.
+fn filtered_tree(S, k, query) {
+    let any = false;
+    ui::scroll("tree", #{ max_height: S.layout.left.h - 72.0 }, || {
+        ui::spacing(4, 1);
+        for (i, node) in S.doc.iter().enumerate() {
+            let text = format!("{} {}", node.name, model::node_type(node));
+            if !crate::search::matches(query, text) {
+                continue;
+            }
+            any = true;
+            tree_row(S, k, #{ index: i, depth: 0, rails: "", is_last: true, has_kids: false });
+        }
+        if !any {
+            ui::add_space(8);
+            crate::search::nothing(k, query);
+        }
     });
 }
 

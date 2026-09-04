@@ -9,7 +9,8 @@
 use crate::rapier3d::dynamics::IntegrationParameters;
 use anyhow::Result;
 use balaur_core::hecs::Entity;
-use balaur_core::{App, Engine, Stage};
+use balaur_core::{Engine, Stage};
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 use crate::vocabulary::{map, Opts};
@@ -75,10 +76,9 @@ macro_rules! write_parameters {
 
 /// Applied once, after the project has loaded, from `[physics]` in
 /// `project.toml`. A game with no such section keeps rapier's defaults.
-pub(crate) fn build(app: &mut App) {
-    app.engine
-        .insert_resource(ManifestTuning { applied: false });
-    app.add_system(Stage::First, manifest_tuning_system);
+pub(crate) fn build(reg: &mut Registry<'_>) {
+    reg.insert_resource(ManifestTuning { applied: false });
+    reg.add_system(Stage::First, manifest_tuning_system);
 }
 
 /// Whether the manifest's `[physics]` table has been read yet.

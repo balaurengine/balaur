@@ -58,10 +58,13 @@ pub fn persona_bar(S) {
                     shell::set_persona(S, p.id);
                 }
             }
-            // What the row actually used, so the next frame's rect is its
-            // content and the personas land centred.
-            let used = (S.layout.bar.w - 2.0 * PAD_X) - ui::available_width();
-            S.layout.bar_fit = used + SIDE_W + 2.0 * PAD_X;
+            // What the row used, so the next frame's rect is its content and
+            // the personas land centred. A sheet with no size yet measures
+            // its own width instead, and overshoots by the transport.
+            if S.layout.bar.w > 0.0 && S.layout.bar.h > 0.0 {
+                let used = (S.layout.bar.w - 2.0 * PAD_X) - ui::available_width();
+                S.layout.bar_fit = used + SIDE_W + 2.0 * PAD_X;
+            }
             ui::right(|| {
                 ui::horizontal(#{ height: 36, width: SIDE_W }, || {
                     ui::right(|| transport(S, k));

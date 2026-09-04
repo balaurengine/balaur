@@ -1,17 +1,25 @@
-// The settings screen: a page carries a component-shaped schema and this
-// renders what is in it, so a plugin adding a page needs no editor change.
+// The settings screen: every setting the engine, its plugins and this game
+// declare, grouped by the first segment of its path and searchable by any.
 
-use crate::icons;
 use crate::style;
 use crate::util;
 
 pub fn state() {
     #{
-        // The category showing, "" until the first page is picked.
+        // The category showing, "" until the first is picked.
         at: "",
-        // Set when a value changed and the file has not caught up yet.
+        // Set when a value changed and the files have not caught up.
         dirty: false,
+        // The search box. Non-empty means the list is results, not categories.
+        query: "",
     }
+}
+
+// Open on a search, for a screenshot or a "configure this" link that knows
+// the word but not the page.
+pub fn open_search(S, query) {
+    open(S);
+    S.settings.query = query;
 }
 
 // Open at a named category, for a screenshot or a deep link from a dock.
@@ -22,15 +30,15 @@ pub fn open_at(S, category) {
 
 pub fn open(S) {
     crate::window::show(S, "settings");
-    // Start from what the project actually says rather than the defaults, so
-    // an unsaved manifest edit is not silently reverted on the next write.
+    // Start from what the files actually say rather than the defaults, so an
+    // unsaved hand edit is not silently reverted on the next write.
     let manifest = fs::read(S.game_root + "/project.toml");
     if manifest is String {
-        settings::load_project(manifest);
+        settings::load(manifest);
     }
     let prefs = fs::read(prefs_path());
     if prefs is String {
-        settings::load_project(prefs);
+        settings::load(prefs);
     }
     apply(S);
 }
@@ -44,46 +52,87 @@ fn prefs_path() {
     engine::user_data_dir() + "/settings.toml"
 }
 
-// Pages in declaration order, project first: a game author looks for what
+// Categories in definition order, project first: a game author looks for what
 // ships far more often than for what does not.
-fn pages() {
-    let project = [];
-    let editor = [];
-    for page in settings::pages() {
-        if page.scope == "project" {
-            project.push(page);
-        } else {
-            editor.push(page);
+fn categories() {
+    let seen = [];
+    for scope in ["project", "editor"] {
+        for def in settings::all() {
+            if def.scope == scope && !seen.iter().any(|c| c == def.category) {
+                seen.push(def.category);
+            }
         }
     }
-    let all = [];
-    for page in project { all.push(page); }
-    for page in editor { all.push(page); }
-    all
+    seen
+}
+
+fn scope_of(category) {
+    for def in settings::all() {
+        if def.category == category {
+            return def.scope;
+        }
+    }
+    "project"
 }
 
 fn current(S) {
-    let all = pages();
+    let all = categories();
     if all.is_empty() {
-        return ();
+        return "";
     }
-    for page in all {
-        if page.category == S.settings.at {
-            return page;
-        }
+    if all.iter().any(|c| c == S.settings.at) {
+        return S.settings.at;
     }
     all[0]
 }
 
-// Write both files. Project settings only touch the keys a page declares, so
-// a hand-written comment or an unrelated table survives.
+// What the list shows: the search results when there is a query, otherwise
+// everything in the chosen category.
+fn showing(S) {
+    let query = S.settings.query.to_lowercase();
+    let rows = [];
+    for def in settings::all() {
+        let matches = if query == "" {
+            def.category == current(S)
+        } else {
+            // The path and the help both, so "packet" finds `netcode/loss`
+            // by its sentence when its name does not say it.
+            def.path.to_lowercase().contains(query)
+                || util::obj(def.spec).get("help").unwrap_or("").to_lowercase().contains(query)
+        };
+        if matches {
+            rows.push(def);
+        }
+    }
+    rows.sort_by(|a, b| order_of(a).partial_cmp(order_of(b)).unwrap());
+    rows
+}
+
+fn order_of(def) {
+    util::f(util::obj(def.spec).get("order").unwrap_or(1000.0))
+}
+
+// `editor/appearance/theme` groups under "appearance"; `physics/gravity`
+// under nothing, since there is nothing between its category and its key.
+fn group_of(def) {
+    let parts = def.label.split('/').collect::<Vec>();
+    if parts.len() < 2 { "" } else { parts[0] }
+}
+
+// The last segment: what a row is labelled inside its group.
+fn key_of(def) {
+    let parts = def.path.split('/').collect::<Vec>();
+    parts[parts.len() - 1]
+}
+
+// Write both files. Only the paths a scope defines are touched, so a comment
+// or an unrelated table in project.toml survives.
 fn commit(S) {
     let path = S.game_root + "/project.toml";
     let existing = fs::read(path);
-    let manifest = if existing is String { existing } else { "" };
-    let written = settings::project_toml(manifest);
-    fs::write(path, written);
-    fs::write(prefs_path(), settings::editor_toml());
+    fs::write(path, settings::to_toml("project", if existing is String { existing } else { "" }));
+    let prefs = fs::read(prefs_path());
+    fs::write(prefs_path(), settings::to_toml("editor", if prefs is String { prefs } else { "" }));
     S.settings.dirty = false;
 }
 
@@ -91,9 +140,9 @@ pub fn draw(S) {
     let k = S.theme;
     crate::window::sheet(S, "settings", "Settings", || { save_button(S, k); }, || {
         ui::horizontal(#{ height: 0 }, || {
-            categories(S, k);
+            sidebar(S, k);
             ui::add_space(20);
-            page_body(S, k);
+            body(S, k);
         });
     });
 }
@@ -107,135 +156,135 @@ fn save_button(S, k) {
     }
 }
 
-fn categories(S, k) {
+fn sidebar(S, k) {
     ui::vertical(|| {
+        S.settings.query = crate::search::field(S, k, "settings", "Search settings…", 190.0);
+        ui::add_space(10);
         let scope = "";
-        for page in pages() {
-            // One heading per scope, so the difference between "ships with
-            // the game" and "mine" is visible rather than documented.
-            if page.scope != scope {
-                scope = page.scope;
-                ui::add_space(8);
+        for category in categories() {
+            let here = scope_of(category);
+            if here != scope {
+                scope = here;
+                ui::add_space(6);
                 ui::label(
                     if scope == "project" { "PROJECT" } else { "THIS EDITOR" },
                     style::mono_sm(k.faint),
                 );
                 ui::add_space(4);
             }
-            let here = current(S);
-            let on = here is Object && here.category == page.category;
-            if ui::pill(page.category, #{
-                height: 26, size: 12, radius: 8, min_width: 160,
+            let on = S.settings.query == "" && category == current(S);
+            if ui::pill(category, #{
+                height: 26, size: 12, radius: 8, min_width: 190,
                 fill: if on { k.sunken } else { k.panel },
                 color: if on { k.text } else { k.dim },
             }) {
-                S.settings.at = page.category;
+                S.settings.query = "";
+                S.settings.at = category;
             }
         }
     });
 }
 
-fn page_body(S, k) {
-    let page = current(S);
-    if !(page is Object) {
-        ui::label("No settings are declared.", style::mono(k.dim));
-        return;
-    }
+fn body(S, k) {
+    let rows = showing(S);
     ui::vertical(|| {
-        ui::label(
-            if page.scope == "project" {
-                "Written to project.toml, and shipped with the game."
-            } else {
-                "Kept in this editor only, and never written to the project."
-            },
-            style::mono_sm(k.faint),
-        );
+        if S.settings.query != "" {
+            ui::label(format!("{} matching \"{}\"", rows.len(), S.settings.query), style::mono_sm(k.faint));
+        } else if scope_of(current(S)) == "project" {
+            ui::label("Written to project.toml, and shipped with the game.", style::mono_sm(k.faint));
+        } else {
+            ui::label("Kept in this editor only, and never written to the project.", style::mono_sm(k.faint));
+        }
         ui::add_space(10);
-        for key in ordered(page.schema) {
-            row(S, k, page.table, key, page.schema[key]);
+        if rows.is_empty() {
+            crate::search::nothing(k, S.settings.query);
+            return;
+        }
+        // Grouped by the middle of the path, in the order the first setting
+        // of each group asks for. A search result skips the headings: its
+        // rows show whole paths, and a heading would say the same thing.
+        let searching = S.settings.query != "";
+        // Starts as the empty group, so ungrouped rows at the top of a page
+        // get no heading and the first real group does.
+        let group = "";
+        for def in rows {
+            let here = group_of(def);
+            if !searching && here != group {
+                group = here;
+                if group != "" {
+                    ui::add_space(6);
+                    ui::label(group.to_uppercase(), style::mono_sm(k.faint));
+                    ui::add_space(4);
+                }
+            }
+            row(S, k, def);
         }
     });
 }
 
-// Settings in the order the page declares, which is what puts a toggle that
-// gates the rest above them. A schema arrives alphabetical, so a page says
-// what it wants with `order`; anything without one sorts after by name.
-fn ordered(schema) {
-    let rows = [];
-    for key in util::keys_sorted(schema) {
-        let at = util::obj(schema[key]).get("order").unwrap_or(1000.0);
-        rows.push(#{ key: key, at: util::f(at) });
-    }
-    rows.sort_by(|a, b| a.at.partial_cmp(b.at).unwrap());
-    let keys = [];
-    for row in rows {
-        keys.push(row.key);
-    }
-    keys
-}
-
-// One setting: its name, its editor, and the line of help underneath.
-fn row(S, k, table, key, spec) {
-    let value = settings::get(table, key);
+// One setting: its path, its editor, and the line of help underneath. A
+// search result shows the whole path, since the category is not on screen.
+fn row(S, k, def) {
+    let name = if S.settings.query == "" { key_of(def) } else { def.path };
     ui::horizontal(#{ height: 26 }, || {
-        ui::label(key, style::mono(k.text));
+        ui::label(name, style::mono(k.text));
         ui::right(|| {
-            edit(S, k, table, key, spec, value);
+            edit(S, k, def);
         });
     });
+    let spec = util::obj(def.spec);
     let help = spec.get("help").unwrap_or("");
     if help != "" {
-        ui::label(help, style::mono_sm(k.faint));
+        let suffix = if def.applies_now { "" } else { "  ·  takes effect on the next run" };
+        ui::label(help + suffix, style::mono_sm(k.faint));
     }
     ui::add_space(8);
 }
 
-fn edit(S, k, table, key, spec, value) {
+fn edit(S, k, def) {
+    let spec = util::obj(def.spec);
     let datatype = spec.get("type").unwrap_or("string");
+    let value = settings::get(def.path);
     if datatype == "bool" {
         let (on, changed) = ui::toggle(value == true, #{ role: "toggle",
             on_fill: k.accent_fill, off_fill: k.sunken,
             on_knob: k.on_accent, off_knob: k.faint,
         });
         if changed {
-            write(S, table, key, on);
+            write(S, def.path, on);
         }
     } else if datatype == "float" {
         let low = util::f(spec.get("min").unwrap_or(0.0));
         let high = util::f(spec.get("max").unwrap_or(1.0));
         let (v, changed) = ui::slider(util::f(value), low, high, #{ width: 220 });
         if changed {
-            write(S, table, key, v);
+            write(S, def.path, v);
         }
     } else if datatype == "enum" {
-        let options = util::vec(spec.get("options").unwrap_or([]));
         let (v, changed) = ui::dropdown(
-            format!("set:{}:{}", table, key),
+            "set:" + def.path,
             if value is String { value } else { "" },
-            options,
+            util::vec(spec.get("options").unwrap_or([])),
             #{ width: 220, size: 11.5, height: 22, color: k.text },
         );
         if changed {
-            write(S, table, key, v);
+            write(S, def.path, v);
         }
     } else {
         // Committed on submit rather than per keystroke: a settings file
         // rewritten on every character is noise in a diff.
-        let (text, _, submitted) = ui::text_field(
-            format!("set:{}:{}", table, key),
-            "",
+        let (text, _, submitted) = ui::text_field("set:" + def.path, "",
             util::merge(style::field(k, 220.0), #{
                 value: if value is String { value } else { "" },
-            }),
-        );
+            }));
         if submitted {
-            write(S, table, key, text);
+            write(S, def.path, text);
         }
     }
 }
 
-fn write(S, table, key, value) {
-    settings::set(table, key, value);
+fn write(S, path, value) {
+    settings::set(path, value);
     S.settings.dirty = true;
     apply(S);
 }
@@ -243,19 +292,19 @@ fn write(S, table, key, value) {
 // Editor settings take effect as they change, not on save: a theme you have
 // to save to see is a theme you cannot preview.
 pub fn apply(S) {
-    let theme_name = settings::get("appearance", "theme");
+    let theme_name = settings::get("editor/appearance/theme");
     if theme_name is String {
         crate::theme::set_dark(S, theme_name == "dark");
     }
-    let scale = settings::get("appearance", "ui_scale");
+    let scale = settings::get("editor/appearance/ui_scale");
     if !(scale is Tuple) {
         crate::shell::set_ui_scale(S, util::f(scale));
     }
-    let compact = settings::get("appearance", "compact");
+    let compact = settings::get("editor/appearance/compact");
     if compact is bool {
         S.compact = compact;
     }
-    let verify = settings::get("sessions", "verify");
+    let verify = settings::get("editor/sessions/verify");
     if verify is bool {
         S.session.verify = verify;
     }

@@ -20,6 +20,17 @@ pad does other than rumble, motion from a phone or tablet, a gamepad backend
 on iOS or Android, and a way for a script to stand in for a pad the way it
 already can for a keyboard.
 
+Three things the first backend got wrong, found on 2026-09-04 by reading
+`sensors.rs` and `actions.rs`: over Bluetooth a PlayStation pad keeps sending
+the short report `0x01` until a calibration feature report is read, and
+nothing reads one, so on macOS and Windows the full report never arrives
+(step 2 fixes this as a side effect); two identical pads are matched by index
+in gilrs order against hidapi's enumeration order, which nothing keeps in
+step, so twins can swap sensors — match by HID path or serial; and
+`input.reset_bindings` reloads the host's `project.toml`, discarding a table
+`declare_actions` declared, which under the editor resets a played game's
+actions to the editor's own.
+
 ## 1. Design
 
 Five rules already hold, and the point of writing them down is that every

@@ -321,8 +321,7 @@ impl balaur_plugin::Plugin for WebsocketPlugin {
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         let config = {
             let files = reg
-                .app()
-                .engine
+                .engine()
                 .resource::<balaur_core::project::ProjectFiles>();
             let files = files.borrow();
             WebsocketConfig::load(&files)
@@ -332,19 +331,16 @@ impl balaur_plugin::Plugin for WebsocketPlugin {
         reg.insert_resource(WebsocketSnapshot::default());
         reg.add_system(Stage::First, pump_websocket_system);
         reg.add_replay_source("websocket", capture, restore);
-        balaur_core::settings::register(
-            &reg.app().engine,
-            balaur_core::settings::SettingsPage {
-                category: String::from("WebSocket"),
-                table: String::from("websocket"),
-                scope: balaur_core::settings::Scope::Project,
-                schema: balaur_core::ComponentDef::parse_schema(
-                    "settings.websocket",
-                    r#"
+        balaur_core::settings::define_group(
+            reg.engine(),
+            "websocket",
+            balaur_core::settings::Scope::Project,
+            &balaur_core::ComponentDef::parse_schema(
+                "settings.websocket",
+                r#"
 compression = { type = "bool", default = true, help = "Offer permessage-deflate on every connection; the server decides whether frames are compressed." }
 "#,
-                ),
-            },
+            ),
         );
         let mut m = reg.script_module("websocket")?;
         install_websocket_api(&mut *m);

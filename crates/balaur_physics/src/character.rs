@@ -17,7 +17,8 @@ use crate::scalar::{self, Vector};
 use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
-use balaur_core::{entity_of, App, Engine, Transform};
+use balaur_core::{entity_of, Engine, Transform};
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 use crate::vocabulary::{map, Opts};
@@ -252,12 +253,12 @@ pub struct Character3d(pub toml::Value);
 
 /// The character component writes no rapier state of its own: it is read at
 /// the moment a script moves the node, and the collider does the rest.
-pub(crate) fn register_character_component(app: &mut App) {
+pub(crate) fn register_character_component(reg: &mut Registry<'_>) {
     let schema = format!(
         r#"up = {{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way is up for this character: the axis it stands along and measures slopes against" }}
 {SHARED_CHARACTER_SCHEMA}"#
     );
-    app.register_component(
+    reg.register_component(
         "character3d",
         ComponentDef {
             doc: "Moves a node the way a player expects rather than the way physics would: `physics3d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider3d`; a `body3d` of kind kinematic lets it push what it walks into.",

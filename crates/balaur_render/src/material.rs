@@ -9,8 +9,8 @@
 
 use anyhow::{anyhow, bail, Result};
 use balaur_core::hecs::Entity;
-use balaur_core::App;
 use balaur_core::Engine;
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt};
 use wesl::syntax::{GlobalDeclaration, TranslationUnit};
 
@@ -215,8 +215,8 @@ pub(crate) fn set_material_3d(eng: &Engine, entity: Entity, reference: &str) -> 
 }
 
 /// The `material` asset type: files live in `materials/`.
-pub(crate) fn register_material_asset(app: &mut App) {
-    app.register_asset_type(
+pub(crate) fn register_material_asset(reg: &mut Registry<'_>) {
+    reg.register_asset_type(
         MATERIAL_ASSET_TYPE,
         "materials",
         MATERIAL_ASSET_DOC,

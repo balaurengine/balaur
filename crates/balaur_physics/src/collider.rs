@@ -5,7 +5,8 @@ use crate::rapier3d::math::Vector;
 use anyhow::{anyhow, bail, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
-use balaur_core::{App, Engine};
+use balaur_core::Engine;
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::rapier3d::prelude::{
@@ -805,7 +806,7 @@ one_way = {{ type = "bool", default = false, description = "A platform bodies pa
 
 /// The `collider3d` key. Not backed by a component type either: it writes
 /// into [`crate::PhysicsState`].
-pub(crate) fn register_collider_component(app: &mut App) {
+pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
     let schema = format!(
         r#"kind = {{ type = "enum", default = "cuboid", options = ["ball", "cuboid", "capsule", "cylinder", "cone", "triangle", "segment", "halfspace", "trimesh", "convex_hull", "convex_decomposition", "polyline", "heightfield", "voxels", "voxelized_mesh", "fit"], description = "Collision shape" }}
 radius = {{ type = "float", default = 0.5, min = 0.01, description = "Radius, for ball, capsule, cylinder and cone" }}
@@ -832,7 +833,7 @@ offset_rotation = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Ho
 {}"#,
         shared_collider_schema()
     );
-    app.register_component(
+    reg.register_component(
         "collider3d",
         ComponentDef {
             doc: "The shape the node collides with in 3D. On a node with a `body3d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",

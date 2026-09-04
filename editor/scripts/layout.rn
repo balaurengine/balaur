@@ -1,8 +1,7 @@
 // The only place a rect is decided; everything else reads `S.layout`. The
-// shape is `scenes/shell.toml`; what is left here is what a tree of boxes
-// cannot say — the sizes that move, and the sheets that float over a box.
+// shape is the `widget` tree under `Editor/Shell` in `scenes/main.toml`: this
+// states the sizes that move and reads back what the engine laid out.
 
-use crate::arrange;
 use crate::defs;
 use crate::util;
 
@@ -18,7 +17,8 @@ const CMD_W = 168.0;
 const SHUT_W = 36.0;
 const SHUT_H = 34.0;
 const HOOKS_W = 172.0;
-const SHELL = "scenes/shell.toml";
+// Every box the shell tree names, by the path `scene::get_node` takes.
+const SHELL = "Editor/Shell";
 
 fn rect(x, y, w, h) {
     #{ x: x, y: y, w: w, h: h }
@@ -36,10 +36,70 @@ pub fn state() {
         hooks: rect(0.0, 0.0, 0.0, 0.0), split_w: 560.0, body_h: 96.0,
         // What the persona bar measured last frame; 0 until it has drawn.
         bar_fit: 0.0,
-        // The shell's shape, read once: the file is the editor's own and
+        // The shell's nodes, resolved once: the tree is the editor's own and
         // does not change under a running editor.
-        shell: arrange::read(SHELL),
+        nodes: #{},
+        // What was last written to a node, so a size that has not moved is
+        // not a component write every frame.
+        sent: #{},
     }
+}
+
+/// The shell's boxes, by the name `S.layout` publishes them under.
+fn node(S, id) {
+    let m = S.layout;
+    if let Some(found) = m.nodes.get(id) {
+        return found;
+    }
+    let path = match id {
+        "shell" => SHELL,
+        "head" => SHELL + "/Head",
+        "left" => SHELL + "/Body/Left",
+        "right" => SHELL + "/Body/Right",
+        "bottom" => SHELL + "/Body/Centre/Bottom",
+        "railslot" => SHELL + "/Body/Centre/Upper/RailSlot",
+        "work" => SHELL + "/Body/Centre/Upper/Work",
+        "tabs" => SHELL + "/Body/Centre/Upper/Work/Tabs",
+        "canvas" => SHELL + "/Body/Centre/Upper/Work/Canvas",
+        "stage" => SHELL + "/Body/Centre/Upper/Work/Canvas/Stage",
+        "hooks" => SHELL + "/Body/Centre/Upper/Work/Canvas/Hooks",
+        _ => "",
+    };
+    let found = scene::get_node(path);
+    m.nodes[id] = found;
+    found
+}
+
+/// State a box's size, when it has moved. A component write rebuilds the
+/// widget, so the same number twice is a write worth skipping.
+fn size(S, id, key, value) {
+    let m = S.layout;
+    let mark = id + ":" + key;
+    if m.sent.get(mark) == Some(value) {
+        return;
+    }
+    let found = node(S, id);
+    if util::is_nil(found) {
+        return;
+    }
+    let params = util::obj(found.get_component("widget"));
+    params[key] = value;
+    found.set_component("widget", params);
+    m.sent[mark] = value;
+}
+
+/// Where a box was laid out, in design pixels; a zero rect until it has
+/// drawn once, which is the frame before the editor's first.
+fn box_of(S, id) {
+    let found = node(S, id);
+    if util::is_nil(found) {
+        return rect(0.0, 0.0, 0.0, 0.0);
+    }
+    let r = ui::widget_rect(found);
+    if r is Object {
+        return rect(r.x, r.y, r.w, r.h);
+    }
+    rect(0.0, 0.0, 0.0, 0.0)
 }
 
 /// The sheets that can sit under the pointer, in draw order.
@@ -75,13 +135,29 @@ pub fn compute(S) {
     let rail_w = if S.rail_visible { (if S.rail_shut { 34.0 } else { RAIL_W }) } else { 0.0 };
     let hooks_w = if S.hooks_open { HOOKS_W } else { 0.0 };
 
-    let r = arrange::run(m.shell, rect(0.0, 0.0, w, h), #{
-        left: tree_w,
-        right: insp_w,
-        bottom: dock_h,
-        railslot: rail_w,
-        hooks: hooks_w,
-    });
+    size(S, "shell", "width", w);
+    size(S, "shell", "height", h);
+    size(S, "left", "width", tree_w);
+    size(S, "right", "width", insp_w);
+    size(S, "bottom", "height", dock_h);
+    size(S, "railslot", "width", rail_w);
+    size(S, "hooks", "width", hooks_w);
+
+    // The widget layer draws after `draw_ui`, so these are a frame behind.
+    // A size that just changed shows on the next one, the way `bar_fit` has
+    // always worked.
+    let r = #{
+        head: box_of(S, "head"),
+        left: box_of(S, "left"),
+        right: box_of(S, "right"),
+        bottom: box_of(S, "bottom"),
+        railslot: box_of(S, "railslot"),
+        work: box_of(S, "work"),
+        tabs: box_of(S, "tabs"),
+        canvas: box_of(S, "canvas"),
+        stage: box_of(S, "stage"),
+        hooks: box_of(S, "hooks"),
+    };
 
     m.left = r.left;
     m.right = r.right;
@@ -122,7 +198,6 @@ pub fn compute(S) {
     // the widget layer all read it. `at` is the frame it was set on, so a
     // self-test can tell a headless run from a drawn one.
     S.viewport = #{ x: m.stage.x, y: m.stage.y, w: m.stage.w, h: m.stage.h, at: S.frame };
-
 }
 
 /// A plugin window: stacked down the left of the stage, so it never lands on

@@ -300,7 +300,13 @@ pub fn delete_asset(S) {
 
 pub fn assets(S, k) {
     let dir = S.assets.dir;
-    let files = model::list(S, dir);
+    let query = crate::search::query(S, "assets");
+    let files = [];
+    for f in model::list(S, dir) {
+        if crate::search::matches(query, f.name) {
+            files.push(f);
+        }
+    }
     // Breadcrumb: where we are, and the way back up.
     ui::horizontal(#{ height: 24 }, || {
         ui::add_space(12);
@@ -324,6 +330,8 @@ pub fn assets(S, k) {
             ui::label(format!("{} items", files.len()), style::mono_sm(k.faint));
             ui::add_space(12);
             asset_verbs(S, k);
+            ui::add_space(8);
+            crate::search::field(S, k, "assets", "filter…", 140.0);
         });
     });
     // Cards wrap into rows: the row count is what the dock's height scrolls.

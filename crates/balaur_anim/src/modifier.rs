@@ -14,7 +14,8 @@ use balaur_core::components::ComponentDef;
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Children, Parent, Transform};
 use balaur_core::skeleton::{affine_2d, quat_about_z, Bone};
-use balaur_core::{App, Engine};
+use balaur_core::Engine;
+use balaur_plugin::Registry;
 use glamx::{Mat3, Vec2};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -42,8 +43,8 @@ flip = { type = "bool", default = false, description = "Bend the two-bone chain 
 enabled = { type = "bool", default = true, description = "Whether the modifier runs; off leaves the clip's pose alone" }"#;
 
 /// The `modifier2d` component: writes one [`Modifier2d`] on the node.
-pub(crate) fn register_modifier2d_component(app: &mut App) {
-    app.register_component(
+pub(crate) fn register_modifier2d_component(reg: &mut Registry<'_>) {
+    reg.register_component(
         "modifier2d",
         ComponentDef {
             doc: "Aims a 2D bone at a target node every frame, after the clip has posed the rig: \

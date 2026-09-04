@@ -11,7 +11,8 @@ use crate::scalar::{self, Pose2, Vector2};
 use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
-use balaur_core::{entity_of, App, Engine, Transform};
+use balaur_core::{entity_of, Engine, Transform};
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 use crate::character::SHARED_CHARACTER_SCHEMA;
@@ -204,12 +205,12 @@ pub(crate) fn install_character2d_api(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-pub(crate) fn register_character2d_component(app: &mut App) {
+pub(crate) fn register_character2d_component(reg: &mut Registry<'_>) {
     let schema = format!(
         r#"up = {{ type = "vec2", default = [0.0, 1.0], description = "Which way is up for this character: the axis it stands along and measures slopes against" }}
 {SHARED_CHARACTER_SCHEMA}"#
     );
-    app.register_component(
+    reg.register_component(
         "character2d",
         ComponentDef {
             doc: "Moves a node the way a 2D player expects: `physics2d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider2d`.",

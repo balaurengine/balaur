@@ -9,12 +9,13 @@
 //! non-moving parents only.
 
 use anyhow::{anyhow, Result};
+use balaur_plugin::Registry;
 
 use balaur_core::collections::DetHashMap;
 
 use balaur_core::hecs::Entity;
 
-use balaur_core::{App, Engine, Stage, Transform};
+use balaur_core::{Engine, Stage, Transform};
 
 use balaur_script::{Bindings, BindingsExt};
 
@@ -139,16 +140,13 @@ impl balaur_plugin::Plugin for PhysicsPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
-        let app = reg.app();
-        balaur_core::settings::register(
-            &app.engine,
-            balaur_core::settings::SettingsPage {
-                category: String::from("Physics"),
-                table: String::from("physics"),
-                scope: balaur_core::settings::Scope::Project,
-                schema: balaur_core::ComponentDef::parse_schema(
-                    "settings.physics",
-                    r#"
+        balaur_core::settings::define_group(
+            reg.engine(),
+            "physics",
+            balaur_core::settings::Scope::Project,
+            &balaur_core::ComponentDef::parse_schema(
+                "settings.physics",
+                r#"
 solver_iterations = { type = "float", default = 4.0, min = 1.0, max = 64.0, help = "Solver iterations per step. More is stabler and slower; every value here changes results, so a recording only replays against the same numbers." }
 ccd_substeps = { type = "float", default = 1.0, min = 0.0, max = 16.0, help = "Substeps for continuous collision detection, which stops a fast body tunnelling through a thin one." }
 length_unit = { type = "float", default = 1.0, min = 0.000001, max = 1000.0, help = "How many of the game's units make a metre. A pixel game sets this rather than scaling every body." }
@@ -158,25 +156,24 @@ allowed_linear_error = { type = "float", default = 0.001, min = 0.0, max = 1.0, 
 max_corrective_velocity = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "A cap on how fast the solver may push overlapping bodies apart." }
 prediction_distance = { type = "float", default = 0.002, min = 0.0, max = 1.0, help = "How far ahead contacts are predicted." }
 "#,
-                ),
-            },
+            ),
         );
-        app.engine.insert_resource(PhysicsState::new());
-        app.add_system(Stage::FixedUpdate, step_system);
-        build_physics_digest(app);
-        build_physics_snapshot(app);
-        debug::build(app);
-        tuning::build(app);
-        vehicle::build(app);
+        reg.insert_resource(PhysicsState::new());
+        reg.add_system(Stage::FixedUpdate, step_system);
+        build_physics_digest(reg);
+        build_physics_snapshot(reg);
+        debug::build(reg);
+        tuning::build(reg);
+        vehicle::build(reg);
 
         // `physics` holds what spans both worlds; each dimension has its own.
         {
-            let mut m = app.script_module("physics")?;
+            let mut m = reg.script_module("physics")?;
             install_world_controls(&mut *m);
             debug::install_debug_api(&mut *m);
             tuning::install_tuning_api(&mut *m);
         }
-        let mut m = app.script_module("physics3d")?;
+        let mut m = reg.script_module("physics3d")?;
         m.module_doc(
             "The 3D rigid-body world: bodies and colliders on nodes, their \
              velocities, and overlap queries. `physics` holds what spans both \
@@ -203,28 +200,28 @@ prediction_distance = { type = "float", default = 0.002, min = 0.0, max = 1.0, h
         joint::install_joint_api(&mut *m);
         character::install_character_api(&mut *m);
         vehicle::install_vehicle_api(&mut *m);
-        body::register_body_component(app);
-        collider::register_collider_component(app);
-        joint::register_joint_component(app);
-        character::register_character_component(app);
-        vehicle::register_vehicle_components(app);
-        register_physics_presets(app)?;
+        body::register_body_component(reg);
+        collider::register_collider_component(reg);
+        joint::register_joint_component(reg);
+        character::register_character_component(reg);
+        vehicle::register_vehicle_components(reg);
+        register_physics_presets(reg)?;
 
         {
-            let mut m = app.script_module("geometry3d")?;
+            let mut m = reg.script_module("geometry3d")?;
             geometry::install_geometry_api(&mut *m);
             geometry::install_mesh_edit_api(&mut *m);
         }
 
-        dim2::build(app)?;
+        dim2::build(reg)?;
         Ok(())
     }
 }
 
 /// Velocity and sleep state, which no component `get` reports: two peers
 /// can agree on every position and still be about to diverge.
-fn build_physics_digest(app: &mut App) {
-    app.add_digest_source("physics", |eng, out| {
+fn build_physics_digest(reg: &mut Registry<'_>) {
+    reg.add_digest_source("physics", |eng, out| {
         let Some(state) = eng.try_resource::<PhysicsState>() else {
             return;
         };
@@ -287,8 +284,8 @@ struct PhysicsFrameRef<'a> {
     sleeping_allowed: bool,
 }
 
-fn build_physics_snapshot(app: &mut App) {
-    app.add_snapshot_source(
+fn build_physics_snapshot(reg: &mut Registry<'_>) {
+    reg.add_snapshot_source(
         "physics",
         |eng| {
             let state = eng.resource::<PhysicsState>();
@@ -350,8 +347,8 @@ fn build_physics_snapshot(app: &mut App) {
 }
 
 /// The 3D body presets. Both dimensions carry their marker (D5).
-fn register_physics_presets(app: &mut App) -> Result<()> {
-    app.register_preset(
+fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
+    reg.register_preset(
         "rigid_body3d",
         balaur_core::presets::preset(
             "A body physics simulates, with a box collider",
@@ -359,7 +356,7 @@ fn register_physics_presets(app: &mut App) -> Result<()> {
             &[("body3d", Some("kind = \"dynamic\"")), ("collider3d", None)],
         )?,
     );
-    app.register_preset(
+    reg.register_preset(
         "static_body3d",
         balaur_core::presets::preset(
             "An immovable body with a box collider: ground, walls",

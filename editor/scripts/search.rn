@@ -1,0 +1,48 @@
+// One search box for every list in the editor, and one rule for what a query
+// matches. A dock that grows a filter uses these rather than its own, so
+// "find in the tree" and "find in settings" feel like the same gesture.
+
+use crate::style;
+use crate::util;
+
+/// Draw a search field and return its current text. `id` keeps the text
+/// between frames; state lives in `S.search[id]`, so a dock that hides its
+/// field can clear it and no invisible filter hides rows.
+pub fn field(S, k, id, placeholder, width) {
+    let current = S.search.get(id).unwrap_or("");
+    let (text, _, _) = ui::text_field("search:" + id, placeholder,
+        util::merge(style::field(k, width), #{ value: current, size: 11, font: "mono", height: 22 }));
+    S.search[id] = text;
+    text
+}
+
+/// The query a dock is filtering by, "" when it is not.
+pub fn query(S, id) {
+    S.search.get(id).unwrap_or("")
+}
+
+pub fn clear(S, id) {
+    S.search.remove(id);
+}
+
+/// Whether `text` satisfies `query`. Case-insensitive, and every word of the
+/// query has to appear somewhere, so "ball body" finds a node named Ball with
+/// a body component when both texts are joined before the test.
+pub fn matches(query, text) {
+    if query == "" {
+        return true;
+    }
+    let hay = text.to_lowercase();
+    for word in query.to_lowercase().split(' ') {
+        if word != "" && !hay.contains(word) {
+            return false;
+        }
+    }
+    true
+}
+
+/// A line the dock shows when a filter left nothing, so an empty list reads
+/// as "nothing matched" rather than "nothing exists".
+pub fn nothing(k, query) {
+    ui::label(format!("nothing matches \"{}\"", query), style::mono_sm(k.faint));
+}

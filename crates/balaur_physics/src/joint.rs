@@ -19,7 +19,8 @@ use crate::scalar::{self, Real, Vector};
 use anyhow::{anyhow, Result};
 use balaur_core::components::{as_node, ComponentDef};
 use balaur_core::hecs::Entity;
-use balaur_core::{entity_of, App, Engine};
+use balaur_core::{entity_of, Engine};
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::vocabulary as v;
@@ -544,7 +545,7 @@ solver = { type = "enum", default = "impulse", options = ["impulse", "reduced"],
 enabled = { type = "bool", default = true, description = "Hold the two bodies together at all" }
 "#;
 
-pub(crate) fn register_joint_component(app: &mut App) {
+pub(crate) fn register_joint_component(reg: &mut Registry<'_>) {
     let schema = format!(
         r#"kind = {{ type = "enum", default = "fixed", options = ["fixed", "revolute", "prismatic", "spherical", "rope", "spring", "generic"], shorthand = true, description = "How the two bodies may move relative to each other" }}
 body = {{ type = "node", default = "", description = "The node at the joint's other end; this node is the first end" }}
@@ -555,7 +556,7 @@ limits = {{ type = "vec2", default = [0.0, 0.0], description = "How far the join
 locked_axes = {{ type = "flags", default = [], options = ["x", "y", "z", "ang_x", "ang_y", "ang_z"], description = "Which of the six freedoms a generic joint takes away" }}
 {SHARED_JOINT_SCHEMA}"#
     );
-    app.register_component(
+    reg.register_component(
         "joint3d",
         ComponentDef {
             doc: "Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`.",

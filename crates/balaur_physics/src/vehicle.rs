@@ -15,7 +15,8 @@ use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{Children, Transform};
-use balaur_core::{entity_of, App, Engine, Stage};
+use balaur_core::{entity_of, Engine, Stage};
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 use crate::vocabulary::{self as v, map};
@@ -27,10 +28,10 @@ pub struct Vehicle3d(pub toml::Value);
 /// One wheel's settings, held on its own node.
 pub struct Wheel3d(pub toml::Value);
 
-pub(crate) fn build(app: &mut App) {
+pub(crate) fn build(reg: &mut Registry<'_>) {
     // After the physics step: a vehicle reads the world the step just wrote,
     // and writes forces the next step will integrate.
-    app.add_system(Stage::FixedUpdate, drive_system);
+    reg.add_system(Stage::FixedUpdate, drive_system);
 }
 
 /// Rebuild the controller for a vehicle whose wheels changed, then step it.
@@ -215,8 +216,8 @@ fn with_wheel(eng: &Engine, node: NodeId, f: impl FnOnce(&mut WheelInput)) -> Re
     Ok(())
 }
 
-pub(crate) fn register_vehicle_components(app: &mut App) {
-    app.register_component(
+pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
+    reg.register_component(
         "vehicle3d",
         ComponentDef {
             doc: "Makes this node's body a car chassis, driven by the `wheel3d` children under it. Rapier casts a ray down from each wheel and pushes the chassis along a spring, which is how driving games model cars: it never jams and never tunnels.",
@@ -242,7 +243,7 @@ forward_axis = { type = "float", default = 2.0, min = 0.0, max = 2.0, descriptio
             }),
         },
     );
-    app.register_component(
+    reg.register_component(
         "wheel3d",
         ComponentDef {
             doc: "One wheel of the `vehicle3d` above it. Where the node sits on the chassis is where the wheel's ray starts; the rest is suspension tuning. Drive it with `physics3d.set_engine_force`, `set_brake` and `set_steering`.",

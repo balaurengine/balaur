@@ -4,7 +4,8 @@
 //! entirely script-defined.
 
 use anyhow::Result;
-use balaur_core::{App, Engine};
+use balaur_core::Engine;
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, CallbackId, Value};
 use egui::{pos2, vec2, Align2, Color32, CornerRadius, FontId, Margin, Sense, Stroke, StrokeKind};
 
@@ -200,11 +201,11 @@ pub const MODIFIERS: &[(&str, &str)] = &[
     ("MOD_SHIFT", "shift"),
 ];
 
-/// Declare `ui.*`. Takes the `App` rather than a module because it opens the
-/// module itself: through `App`, so a scriptless app builds the plugin
-/// instead of panicking.
-pub(crate) fn install_ui_api(app: &mut App) -> Result<()> {
-    let mut m = app.script_module("ui")?;
+/// Declare `ui.*`. Takes the `Registry` rather than a module because it opens
+/// the module itself: through the registry, so a scriptless app builds the
+/// plugin instead of panicking.
+pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
+    let mut m = reg.script_module("ui")?;
     let m: &mut dyn Bindings<Engine> = &mut *m;
 
     m.module_doc(

@@ -267,8 +267,7 @@ impl balaur_plugin::Plugin for HttpPlugin {
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         let config = {
             let files = reg
-                .app()
-                .engine
+                .engine()
                 .resource::<balaur_core::project::ProjectFiles>();
             let files = files.borrow();
             HttpConfig::load(&files)
@@ -278,19 +277,16 @@ impl balaur_plugin::Plugin for HttpPlugin {
         reg.insert_resource(HttpSnapshot::default());
         reg.add_system(Stage::First, pump_http_system);
         reg.add_replay_source("http", capture, restore);
-        balaur_core::settings::register(
-            &reg.app().engine,
-            balaur_core::settings::SettingsPage {
-                category: String::from("HTTP"),
-                table: String::from("http"),
-                scope: balaur_core::settings::Scope::Project,
-                schema: balaur_core::ComponentDef::parse_schema(
-                    "settings.http",
-                    r#"
+        balaur_core::settings::define_group(
+            reg.engine(),
+            "http",
+            balaur_core::settings::Scope::Project,
+            &balaur_core::ComponentDef::parse_schema(
+                "settings.http",
+                r#"
 timeout = { type = "float", default = 10.0, min = 0.1, max = 600.0, help = "Seconds for a whole request, when the call names none." }
 "#,
-                ),
-            },
+            ),
         );
         let mut m = reg.script_module("http")?;
         install_http_api(&mut *m);

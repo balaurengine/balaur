@@ -2,13 +2,13 @@
 //! writes (`SpriteTexture` inside `Renderable2d`) lives in the crate root.
 
 use balaur_core::components::ComponentDef;
-use balaur_core::App;
+use balaur_plugin::Registry;
 
 use crate::{set_sprite, Renderable2d, Shape2d, SpriteSheet2d, SpriteTexture};
 
 /// The `sprite` component: a textured 2D quad.
-pub(crate) fn register_sprite_component(app: &mut App) {
-    app.register_component(
+pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
+    reg.register_component(
         "sprite",
         ComponentDef {
             doc: "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` sheet makes it a flipbook `frame` steps through.",

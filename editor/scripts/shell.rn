@@ -345,6 +345,8 @@ fn states() {
 // States written `<prefix><argument>`, which take the rest of the string.
 fn prefixed_states() {
     [
+        ("find:", state_find),
+        ("settings?", state_settings_search),
         ("settings:", state_settings),
         ("shot=", state_shot),
         ("frames=", state_frames),
@@ -363,6 +365,15 @@ fn prefixed_states() {
 
 fn state_settings(S, category) {
     crate::settings::open_at(S, category);
+}
+
+fn state_settings_search(S, query) {
+    crate::settings::open_search(S, query);
+}
+
+// `find:<query>` fills the scene tree's search, for a screenshot.
+fn state_find(S, query) {
+    S.search["tree"] = query;
 }
 
 // One start-up state, mirroring the design prototype's startPersona prop.

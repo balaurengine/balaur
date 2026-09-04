@@ -5,7 +5,7 @@
 //! crate. What lives here is the component that points a node at one.
 
 use balaur_core::mesh::{MeshData, MESH_ASSET_TYPE};
-use balaur_core::App;
+use balaur_plugin::Registry;
 
 /// The `mesh` component: authored geometry on a node.
 ///
@@ -13,8 +13,8 @@ use balaur_core::App;
 /// `shape2d`'s polyline use — the shape enum carries parameters, the
 /// renderable carries the reference. A mesh whose asset carries a skin
 /// deforms with the rig `skeleton` names.
-pub(crate) fn register_mesh_component(app: &mut App) {
-    app.register_component(
+pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
+    reg.register_component(
         MESH_ASSET_TYPE,
         balaur_core::components::ComponentDef {
             doc: "Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.",

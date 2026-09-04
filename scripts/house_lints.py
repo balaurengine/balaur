@@ -263,12 +263,16 @@ def seam_rules(rel, i, line, lines, ctx, crate, impl_name) -> list[Finding]:
                             f"bare `fn {verb}(` in a crate with a plugin seam: say what it "
                             f"fills — `{verb}_<thing>` — or use a different verb (N10)", "ERROR")]
         return []
-    want = "&mut dyn Bindings" if verb == "install" else "&mut App"
+    want = "&mut dyn Bindings" if verb == "install" else "&mut Registry"
     param = first_param(signature(lines, i - 1))
     if want in param:
         return []
-    # An inherent method on App is `&mut App` under another spelling.
-    if verb == "register" and param.startswith("&mut self") and impl_name == "App":
+    # `Registry` lives in a crate that depends on core, so core's own
+    # registrations take the `App` they are building.
+    if verb == "register" and crate == "balaur_core" and "&mut App" in param:
+        return []
+    # An inherent method on either is that type under another spelling.
+    if verb == "register" and param.startswith("&mut self") and impl_name in ("App", "Registry"):
         return []
     types = re.findall(r"[A-Z][A-Za-z0-9]*", param)
     if noted_at_declaration(lines, i - 1, types[-1] if types else param):

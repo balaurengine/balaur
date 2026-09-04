@@ -252,24 +252,23 @@ impl balaur_plugin::Plugin for InputPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
-        let app = reg.app();
-        app.engine.insert_resource(InputSnapshot::default());
-        app.engine.insert_resource(GamepadState::default());
-        app.engine.insert_resource(InputActions::default());
-        app.add_replay_source(
+        reg.insert_resource(InputSnapshot::default());
+        reg.insert_resource(GamepadState::default());
+        reg.insert_resource(InputActions::default());
+        reg.add_replay_source(
             "gamepad",
             |eng| gamepad::capture(&eng.resource::<GamepadState>().borrow()),
             |eng, value| gamepad::restore(&mut eng.resource::<GamepadState>().borrow_mut(), value),
         );
-        app.add_replay_resource::<InputSnapshot>("input");
+        reg.add_replay_resource::<InputSnapshot>("input");
         // Bindings are loaded, not simulated: the recording carries them so a
         // player who rebinds a key does not change what a replay reproduces.
-        actions::add_replay_setup(app);
+        actions::add_replay_setup(reg);
 
         // Controllers are not window events, so they are polled inside the
         // tick rather than by the windowed backend: a headless run with a pad
         // plugged in sees it too. First, so scripts read this frame's state.
-        app.add_system(Stage::First, |eng, _| {
+        reg.add_system(Stage::First, |eng, _| {
             // Not while replaying: the recorded pads were restored moments
             // ago and polling the real hardware would overwrite them.
             if balaur_core::replay::is_playing(eng) {
@@ -279,9 +278,9 @@ impl balaur_plugin::Plugin for InputPlugin {
         });
         // After the poll and after a replay restored the recording's snapshot,
         // so an action is derived from exactly the input that was recorded.
-        app.add_system(Stage::First, |eng, _| actions::tick(eng));
+        reg.add_system(Stage::First, |eng, _| actions::tick(eng));
 
-        let mut m = app.script_module("input")?;
+        let mut m = reg.script_module("input")?;
         install_input_api(&mut m);
         Ok(())
     }

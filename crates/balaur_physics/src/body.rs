@@ -12,7 +12,8 @@ use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
-use balaur_core::{App, Engine};
+use balaur_core::Engine;
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::collider::{add_collider, apply_collider, get_collider_params};
@@ -914,7 +915,7 @@ pub(crate) fn install_body_sleep_api(m: &mut dyn Bindings<Engine>) {
 ///
 /// The `body = "dynamic"` shorthand keeps working via the schema's
 /// `shorthand` marker.
-pub(crate) fn register_body_component(app: &mut App) {
+pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
     let schema = format!(
         r#"kind = {{ type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic", "kinematic_velocity"], shorthand = true, description = "How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}
 lock_translation = {{ type = "flags", default = [], options = ["x", "y", "z"], description = "World axes the body may not move along" }}
@@ -923,7 +924,7 @@ center_of_mass = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Whe
 inertia = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Resistance to spin about each axis; 0 lets rapier derive it from the mass" }}
 {SHARED_BODY_SCHEMA}"#
     );
-    app.register_component(
+    reg.register_component(
         "body3d",
         ComponentDef {
             doc: "Makes the node a 3D rigid body rapier simulates: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. On its own a body has no shape; add a `collider3d` for it to collide with anything.",

@@ -5,7 +5,8 @@ use crate::rapier2d::math::Vector;
 use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
-use balaur_core::{App, Engine};
+use balaur_core::Engine;
+use balaur_plugin::Registry;
 
 use crate::rapier2d::prelude::{
     ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule, Collider,
@@ -409,7 +410,7 @@ pub(crate) fn max_contact_impulse(eng: &Engine, entity: Entity) -> Real {
 
 /// The `collider2d` key, backed by no component type: it writes into
 /// [`crate::PhysicsState2d`].
-pub(crate) fn register_collider2d_component(app: &mut App) {
+pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
     let schema = format!(
         r#"kind = {{ type = "enum", default = "rect", options = ["circle", "rect", "capsule", "triangle", "segment", "halfspace", "trimesh", "convex_hull", "polyline", "heightfield"], description = "Collision shape" }}
 radius = {{ type = "float", default = 0.5, min = 0.01, description = "Circle radius, when kind is circle or capsule" }}
@@ -429,7 +430,7 @@ one_way_axis = {{ type = "vec2", default = [0.0, 1.0], description = "The direct
 {}"#,
         crate::collider::shared_collider_schema()
     );
-    app.register_component(
+    reg.register_component(
         "collider2d",
         ComponentDef {
             doc: "The shape the node collides with in 2D. On a node with a `body2d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",

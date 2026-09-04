@@ -66,6 +66,8 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Record and replay: `run --record`, `replay --verify` / `--entries-at`.
 - Rollback on one machine: snapshot ring, input journal, re-simulation from a late input.
 - Rollback across spawns: run-time nodes get stable ids and the node set is restored.
+- A settings screen. Every setting the engine, its plugins and a game declare is addressed by path the way Godot does it — `physics/solver_iterations`, `editor/appearance/theme` — and the path is also where it is stored in the file. Project settings ship with the game; editor settings never leave the machine. Searchable, grouped by path, and a game defines its own with `settings.define`. The Netcode page turns fault injection on for every session link.
+- Search in the scene tree, the inspector and the assets dock, through one shared field and one matching rule. `ui.modal` gained a `height`.
 - A networked session is recordable and replayable: peer payloads travel through a `session` replay source, so a desync reproduces from a file with no peer attached. `transport::Faulty` adds delay, jitter and datagram loss to any transport, and `NetSession::stats` reports round-trip time, loss and bytes each way.
 - Inputs now repeat: every datagram carries the last twelve ticks of a player's input, so a dropped packet no longer diverges the tick it carried. Found by testing against 5% loss.
 - The networking crate is now one crate per protocol: `balaur_http`, `balaur_websocket` and `balaur_webtransport`, each its own plugin and its own cargo feature. `[net]` in project.toml becomes `[http]` and `[websocket]`, with the keys dropping the prefix their table now carries.
@@ -89,6 +91,9 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - `handle` on a row or column: draggable seams that write the new size onto whichever neighbour states one.
 - Widgets are measured before they are placed, from the font atlas rather than from last frame, so a container divides its room by what its children need now.
 - Widget presets: `label`, `button`, `panel`, `row`, `column`, `scroll`, `tab` and `draw`, so the picker offers "Column" beside "Sprite2D".
+- Widget surfaces: a root's `layer` names where it draws, `ui.set_widget_surface` places one, and an unconfigured name is the whole screen — so a tool's own chrome and a game's HUD no longer share one rect.
+- `ui.widget_rect(node)`: where a widget node was last drawn, for a script placing something against it.
+- A `draw` node with no script of its own asks the nearest scripted ancestor.
 - Audio buses: `[audio.buses]`, routing per sound, `audio.set_bus_volume`.
 - Audio events: `audio/events.toml`, variations taken in turn.
 - Positional audio: a `listener` node, `positional` sounds with distance attenuation, stereo pan and doppler, and a `position` in `audio.play` and `audio.play_event`.
@@ -97,7 +102,7 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Pad motion and touchpad: `input.gamepad_gyro`, `gamepad_acceleration`, `gamepad_touches`, read from a PlayStation pad's HID reports over USB or Bluetooth, recorded and replayed like every other input.
 - Loaded plugins are recorded: `balaur_core::plugins`, and a plugin's `requires` is checked at load.
 - Optional modules are one line in `balaur`'s `modules!` table, loaded in requirement-then-name order.
-- Every plugin loads from one ordered set; `balaur_plugin::Builtin` gives an `App`-shaped plugin a manifest.
+- Every plugin loads from one ordered set, sorted by requirement then name.
 - `[plugins]` in `project.toml` turns a module off; asking for one the build has not got is an error.
 - `engine.plugins` and `engine.has_plugin` for scripts.
 
@@ -131,7 +136,7 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Left, bottom and right are tabbed docks: a tab's menu moves it to another, and each minimises to its edge.
 - The brand is the edited project's `icon.png` and name when it ships one.
 - `ui::pill`, `ui::text_field` and `ui::dropdown` are tiles unless asked for `round`.
-- The editor's shell is a tree: `editor/scenes/shell.toml` holds the boxes, `arrange.rn` turns them into rects, and `layout.rn` states only the sizes that move.
+- The editor's shell is `widget` nodes the engine lays out: `Editor/Shell` in `scenes/main.toml` holds the boxes, `layout.rn` states only the sizes that move and reads the rects back.
 - The editor's look is a theme asset: `editor/themes/*.toml` holds colour tokens and named roles a widget takes with `role:`.
 - Bundled type: Source Sans 3 at two weights, JetBrains Mono and Phosphor icons, with the OS chained for scripts balaur does not ship.
 - Fixed: a sheet's content spilled over its neighbours; `ui::overlay` clips to the rect it was given.
@@ -158,3 +163,4 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - `ui.select` is `ui.dropdown`.
 - `load_order` and `load_extensions_in` take the names already loaded; `App::plugins` returns `PluginInfo`.
 - One plugin trait: `balaur_core::Plugin` and `App::add_plugin` are gone, `balaur_plugin::Plugin` is it.
+- Plugins register through `Registry` alone: presets, asset types, digests, snapshots, replay setup, `engine()`.

@@ -1,10 +1,9 @@
 # Plugins: one trait, one order, one switch
 
 Status: **shipped.** All four phases are in — a plugin is one declaration in
-`balaur`'s `modules!` table, ordered by requirement then name, switchable from
-`[plugins]` in `project.toml`, and `balaur_plugin::Builtin` gives an
-`App`-shaped plugin a manifest. ARCHITECTURE.md's plugin section is the
-record. What is left is below.
+`balaur`'s `modules!` table, implements one trait, is ordered by requirement
+then name, and is switchable from `[plugins]` in `project.toml`.
+ARCHITECTURE.md's plugin section is the record. What is left is below.
 
 ## Open
 
@@ -16,3 +15,5 @@ record. What is left is below.
 - `[plugins]` values are booleans, not tables of per-plugin config: audio,
   http and websocket each read their own file through `ProjectFiles` already,
   and a second place to configure them would be a second place to look.
+- `engine.plugins` gives names only, no versions: it is what a `has_plugin`
+  check needs and no more.

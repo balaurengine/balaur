@@ -1,7 +1,136 @@
-# The editor is a regular balaur project: one node, one script, the whole
-# shell drawn through the `ui` module.
+# One node with the script, and the shell as `widget` nodes the engine lays
+# out for `layout.rn` to read back. They paint nothing and have their own
+# surface, so the rect a game's HUD is confined to never reaches them.
 
 [[nodes]]
 id = "n_editor"
 name = "Editor"
 script = "scripts/editor.rn"
+
+[[nodes]]
+id = "shell"
+name = "Shell"
+parent = "n_editor"
+[nodes.widget]
+kind = "column"
+layer = "shell"
+anchor = "top_left"
+x = 0
+y = 0
+padding = 14
+gap = 12
+
+# The persona bar and the command field float over this row; it is here to
+# hold the height they need and to push the body down.
+[[nodes]]
+id = "head"
+name = "Head"
+parent = "shell"
+[nodes.widget]
+kind = "row"
+height = 36
+
+[[nodes]]
+id = "body"
+name = "Body"
+parent = "shell"
+[nodes.widget]
+kind = "row"
+grow = 1
+gap = 12
+
+[[nodes]]
+id = "left"
+name = "Left"
+parent = "body"
+[nodes.widget]
+kind = "row"
+width = 236
+
+[[nodes]]
+id = "centre"
+name = "Centre"
+parent = "body"
+[nodes.widget]
+kind = "column"
+grow = 1
+gap = 12
+
+[[nodes]]
+id = "right"
+name = "Right"
+parent = "body"
+[nodes.widget]
+kind = "row"
+width = 288
+
+# Everything above the bottom dock. The tool rail sits in its own column so
+# the tabs and the scene start clear of it, while the dock below does not.
+[[nodes]]
+id = "upper"
+name = "Upper"
+parent = "centre"
+[nodes.widget]
+kind = "row"
+grow = 1
+gap = 12
+
+[[nodes]]
+id = "bottom"
+name = "Bottom"
+parent = "centre"
+[nodes.widget]
+kind = "row"
+height = 174
+
+[[nodes]]
+id = "railslot"
+name = "RailSlot"
+parent = "upper"
+[nodes.widget]
+kind = "row"
+width = 44
+
+[[nodes]]
+id = "work"
+name = "Work"
+parent = "upper"
+[nodes.widget]
+kind = "column"
+grow = 1
+gap = 6
+
+[[nodes]]
+id = "tabs"
+name = "Tabs"
+parent = "work"
+[nodes.widget]
+kind = "row"
+height = 36
+
+[[nodes]]
+id = "canvas"
+name = "Canvas"
+parent = "work"
+[nodes.widget]
+kind = "row"
+grow = 1
+gap = 12
+
+# What is left of the canvas once the hooks list has taken its width. The
+# code pane and the scene share it; `layout.rn` decides how.
+[[nodes]]
+id = "stage"
+name = "Stage"
+parent = "canvas"
+[nodes.widget]
+kind = "row"
+grow = 1
+
+[[nodes]]
+id = "hooks"
+name = "Hooks"
+parent = "canvas"
+[nodes.widget]
+kind = "row"
+width = 0

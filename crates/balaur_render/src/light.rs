@@ -8,7 +8,8 @@
 use anyhow::{anyhow, Result};
 use balaur_core::components::{as_f64, ComponentDef};
 use balaur_core::hecs::{Entity, World};
-use balaur_core::{App, Engine, GlobalTransform};
+use balaur_core::{Engine, GlobalTransform};
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Vec2, Vec3};
 
@@ -189,8 +190,8 @@ shadows = { type = "bool", default = true, description = "Whether `occluder2d` o
 
 /// The `light2d` component. The node's position places it and its rotation
 /// aims it; the light map pass in the backend draws it.
-pub(crate) fn register_light2d_component(app: &mut App) {
-    app.register_component(
+pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
+    reg.register_component(
         "light2d",
         ComponentDef {
             doc: "A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it — sprites, polygons, tiles, a 3D scene behind them — is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.",
@@ -253,8 +254,8 @@ closed = { type = "bool", default = true, description = "Whether the last point 
 /// The `occluder2d` component. An outline with no `mesh` is derived every
 /// tick by [`resolve_occluders_system`], so a collider added after the
 /// occluder still fills it in.
-pub(crate) fn register_occluder2d_component(app: &mut App) {
-    app.register_component(
+pub(crate) fn register_occluder2d_component(reg: &mut Registry<'_>) {
+    reg.register_component(
         "occluder2d",
         ComponentDef {
             doc: "The outline this node blocks 2D light with. Left empty it follows the node's `collider2d`, or failing that its circle, capsule, rect or sprite shape, so the thing a player sees is the thing that casts the shadow. Every edge casts, so an occluder stands in its own shadow: a node that should stay lit wants a smaller outline or a light with `shadows = false`.",

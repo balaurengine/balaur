@@ -33,6 +33,12 @@ step; the digest already covers bone transforms.
 
 ## Also deferred
 
+- **The player is in neither the snapshot nor the digest.** `balaur_anim`
+  registers no `snapshot` or `digest` source, so a rollback rewinds the
+  transforms a clip wrote and not the playhead that wrote them, and the
+  accumulator keeps its residual across a record restart. First item of
+  `docs/PLAN-hardening.md` phase 1; nothing above should be built on top of
+  a player that rollback cannot put back.
 - **Skinning, rigs and retargeting** shipped since, in 2D and 3D; retargeting
   a clip from one rig to another did not.
 - **Stable asset ids** (`uid://`, GUIDs) — paths until renames actually hurt.

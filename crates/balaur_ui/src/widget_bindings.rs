@@ -417,8 +417,11 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
                 let screen = ctx.viewport_rect();
                 let scrim = opts.color("scrim", Color32::from_rgba_unmultiplied(23, 25, 28, 107));
                 let mut scrim_clicked = false;
+                // Above `Foreground`, which is where every overlay and dock
+                // sheet already sits: a modal that shares their order is on
+                // top only when egui's memory happens to say so.
                 egui::Area::new(egui::Id::new(format!("{id}-scrim")))
-                    .order(egui::Order::Foreground)
+                    .order(egui::Order::Tooltip)
                     .fixed_pos(screen.min)
                     .show(ctx, |ui| {
                         ui.painter().rect_filled(screen, 0.0, scrim);
@@ -429,7 +432,7 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
                 let top = screen.height() * opts.f32("top", 0.11);
                 let mut result = Ok(());
                 egui::Area::new(egui::Id::new(id))
-                    .order(egui::Order::Foreground)
+                    .order(egui::Order::Tooltip)
                     .fixed_pos(pos2(screen.center().x - width / 2.0, top))
                     .show(ctx, |ui| {
                         let mut frame = egui::Frame::new()
@@ -498,39 +501,45 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
             );
         m.function(
             "set_widget_surface",
-            |eng: &Engine, (name, enabled, x, y, w, h): (
-                    String,
-                    bool,
-                    Option<f32>,
-                    Option<f32>,
-                    Option<f32>,
-                    Option<f32>,
-                )| {
-                    let layer = eng.resource::<crate::WidgetLayerConfig>();
-                    layer.borrow_mut().layers.insert(
-                        name,
-                        crate::widget_layer::Surface {
-                            enabled,
-                            rect: rect_of(x, y, w, h),
+            |eng: &Engine,
+             (name, enabled, x, y, w, h): (
+                String,
+                bool,
+                Option<f32>,
+                Option<f32>,
+                Option<f32>,
+                Option<f32>,
+            )| {
+                let layer = eng.resource::<crate::WidgetLayerConfig>();
+                layer.borrow_mut().layers.insert(
+                    name,
+                    crate::widget_layer::Surface {
+                        enabled,
+                        rect: rect_of(x, y, w, h),
+                    },
+                );
+                Ok(())
+            },
+        );
+        m.function(
+            "widget_rect",
+            |_eng: &Engine, node: balaur_script::NodeId| {
+                let scale = scale();
+                Ok(
+                    crate::widget_layer::drawn_at(balaur_core::entity_of(node)?).map_or(
+                        Value::Nil,
+                        |r| {
+                            Value::Map(vec![
+                                ("x".into(), Value::Num(f64::from(r.min.x / scale))),
+                                ("y".into(), Value::Num(f64::from(r.min.y / scale))),
+                                ("w".into(), Value::Num(f64::from(r.width() / scale))),
+                                ("h".into(), Value::Num(f64::from(r.height() / scale))),
+                            ])
                         },
-                    );
-                    Ok(())
-                },
-            );
-        m.function("widget_rect", |_eng: &Engine, node: balaur_script::NodeId| {
-            let scale = scale();
-            Ok(
-                crate::widget_layer::drawn_at(balaur_core::entity_of(node)?)
-                    .map_or(Value::Nil, |r| {
-                        Value::Map(vec![
-                            ("x".into(), Value::Num(f64::from(r.min.x / scale))),
-                            ("y".into(), Value::Num(f64::from(r.min.y / scale))),
-                            ("w".into(), Value::Num(f64::from(r.width() / scale))),
-                            ("h".into(), Value::Num(f64::from(r.height() / scale))),
-                        ])
-                    }),
-            )
-        });
+                    ),
+                )
+            },
+        );
     }
     install_focus(m);
 }

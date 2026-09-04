@@ -578,7 +578,10 @@ pub fn layout(S) {
 
 pub fn layout_step(S) {
     S.layout_demo = S.layout_demo + 1;
-    if S.layout_demo != 3 {
+    // The shell is laid out by the engine and read back a frame later, so
+    // this waits for a rect rather than for a frame number. The count is the
+    // fallback: a headless run never gets one, and still has to report.
+    if S.layout.stage.w <= 0.0 && S.layout_demo < 10 {
         return;
     }
     S.layout_demo = -1;

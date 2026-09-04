@@ -8,7 +8,8 @@
 //! does not link is a bug a headless test can catch.
 
 use anyhow::{anyhow, Result};
-use balaur_core::{App, Engine};
+use balaur_core::Engine;
+use balaur_plugin::Registry;
 
 /// Helpers any shader may `import package::common::…`.
 static COMMON: &str = include_str!("shaders/common.wesl");
@@ -52,13 +53,13 @@ pub struct ShaderModules(pub Vec<(String, String)>);
 ///
 /// For a plugin shipping shader code of its own: a project's material imports
 /// it exactly as it imports `package::sprite`.
-pub fn register_shader_module(app: &mut App, path: &str, source: &str) {
+pub fn register_shader_module(reg: &mut Registry<'_>, path: &str, source: &str) {
     let entry = (path.to_string(), source.to_string());
-    if let Some(modules) = app.engine.try_resource::<ShaderModules>() {
+    if let Some(modules) = reg.engine().try_resource::<ShaderModules>() {
         modules.borrow_mut().0.push(entry);
         return;
     }
-    app.engine.insert_resource(ShaderModules(vec![entry]));
+    reg.insert_resource(ShaderModules(vec![entry]));
 }
 
 /// What plugins registered, for a caller about to link.

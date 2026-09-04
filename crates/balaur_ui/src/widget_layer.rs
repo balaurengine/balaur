@@ -7,20 +7,21 @@
 //! Buttons record clicks into the component (`clicked` in `get_component`,
 //! reset each frame).
 
+use balaur_plugin::Registry;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use anyhow::Result;
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
-use balaur_core::{App, Engine};
+use balaur_core::Engine;
 use egui::{pos2, vec2, Align2, Color32, Stroke};
 
 use crate::theme::family;
 pub(crate) use crate::widget_arrange::drawn_at;
 use crate::widget_arrange::{
-    record_rect,
-    box_of, contain, hold_to, lay_out, roll_measurements, scroller, tabs, Axis,
+    box_of, contain, hold_to, lay_out, record_rect, roll_measurements, scroller, settle_rects,
+    tabs, Axis,
 };
 use crate::widget_theme::WidgetTheme;
 
@@ -77,8 +78,9 @@ pub struct Widget {
     /// The author's floor, whatever the content measures.
     pub min_width: f32,
     pub min_height: f32,
-    /// What fills a `draw` widget's rect: a method on this node's script, or
-    /// `file.rn:function` for a free function that needs no instance.
+    /// What fills a `draw` widget's rect: a method on this node's script or
+    /// the nearest scripted ancestor's, or `file.rn:function` for a free
+    /// function that needs no instance.
     pub draw: String,
     /// How wide a grab the seams between this container's children get, in
     /// design pixels; 0 leaves them fixed.
@@ -150,8 +152,8 @@ impl Default for WidgetLayerConfig {
 /// `clicked` is declared `readonly`: the widget layer writes it every frame
 /// (see `settle_clicks`) and `apply` always clears it, but it is in the
 /// schema so that `get`'s output round-trips and the inspector can see it.
-pub(crate) fn register_widget_component(app: &mut App) {
-    app.register_component(
+pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
+    reg.register_component(
         "widget",
         ComponentDef {
             doc: "A HUD element the widget layer draws every frame: a label, button or panel \
@@ -181,7 +183,7 @@ clicked = { type = "bool", default = false, readonly = true, description = "True
 grow = { type = "float", default = 0.0, min = 0.0, description = "Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for" }
 min_width = { type = "float", default = 0.0, min = 0.0, description = "Smallest width a container may give this widget, in design pixels" }
 min_height = { type = "float", default = 0.0, min = 0.0, description = "Smallest height a container may give this widget, in design pixels" }
-draw = { type = "string", default = "", description = "What fills a `draw` widget: a script method on this node, or `scripts/file.rn:function` for a free function" }
+draw = { type = "string", default = "", description = "What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function" }
 handle = { type = "float", default = 0.0, min = 0.0, description = "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one" }
 active = { type = "string", default = "", description = "Which child a `tab` shows, by node name; empty shows the first" }
 layer = { type = "string", default = "", description = "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured is the whole screen" }"#,
@@ -279,11 +281,15 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
 ///
 /// Presets, not node types: balaur has no classes, and one for UI alone would
 /// be a second model of what a node is (`balaur_core::presets`).
-pub(crate) fn register_widget_presets(app: &mut App) -> Result<()> {
+pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
     use balaur_core::presets::preset;
     let recipes = [
         ("label", "A line of text", "kind = \"label\""),
-        ("button", "Text that reports its clicks", "kind = \"button\""),
+        (
+            "button",
+            "Text that reports its clicks",
+            "kind = \"button\"",
+        ),
         (
             "panel",
             "A framed box that lays out what is inside it",
@@ -316,7 +322,7 @@ pub(crate) fn register_widget_presets(app: &mut App) -> Result<()> {
         ),
     ];
     for (name, description, params) in recipes {
-        app.register_preset(
+        reg.register_preset(
             name,
             preset(description, &["ui"], &[("widget", Some(params))])?,
         );
@@ -619,6 +625,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
         // asking `ui.widget_rect` should get an answer for the whole tree.
         record_rect(placed[root].entity, shown.response.rect);
     }
+    settle_rects();
     let edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
     let widgets: Vec<(Entity, Widget)> = placed
@@ -671,7 +678,11 @@ pub(crate) enum Edit {
 /// Resolved once per frame per root rather than per widget, because a screen
 /// has one look and walking up the tree for every button to find it out would
 /// be work with a known answer.
-pub(crate) fn theme_of(eng: &Engine, reference: &str, inherited: &Rc<WidgetTheme>) -> Rc<WidgetTheme> {
+pub(crate) fn theme_of(
+    eng: &Engine,
+    reference: &str,
+    inherited: &Rc<WidgetTheme>,
+) -> Rc<WidgetTheme> {
     if reference.is_empty() {
         return inherited.clone();
     }

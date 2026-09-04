@@ -274,13 +274,48 @@ Nothing needs moving to core: `UiPlugin` is unconditional in `standard_app`,
 so the `widget` component and every container here is already available to any
 project, not just to the editor.
 
-**The shell is not widget nodes.** `layout.rn` re-implements the arrange in
-Rune rather than spawning `widget` components, because the widget layer has
-one global rect and the editor already points it at the viewport so a game's
-own HUD can draw there. Two implementations of one algorithm is the cost, and
-what would remove it is a widget layer that takes a rect per root — worth
-doing when phase 4 wants `split` and `tab` in the editor's own chrome, not
-before.
+### One algorithm
+
+For a while the shell was a tree the editor arranged *itself*, in Rune — two
+implementations of one set of rules. Three things stood in the way of using
+the engine's, and all three are gone:
+
+| was | now |
+|---|---|
+| one global widget-layer rect, pointed at the viewport for a game's HUD | `layer` on a root names a **surface**; `ui.set_widget_surface` places each one. A name nothing configured is the whole screen and on |
+| nothing could read back where a widget was placed | `ui.widget_rect(node)` returns the rect it was drawn at |
+| a `draw` node had to carry its own script instance | it asks the nearest scripted ancestor, so a shell of them needs one script, not one per panel |
+
+So `Editor/Shell` in `scenes/main.toml` is now `widget` nodes on a `shell`
+surface. `layout.rn` states the five sizes that move — the two side docks, the
+bottom dock, the tool rail, the hooks list — and reads every rect back; the
+Rune arrange is deleted. The nodes paint nothing, an unthemed `row` being a
+pure layout box, so every panel still draws through `ui::overlay` at the rect
+it is given.
+
+**Verified against the editor it replaced**: all 30 audit screens, every
+published rect identical to a tenth of a pixel, and `layoutdemo`'s nine
+invariants pass.
+
+Three real bugs came out of holding it to that standard:
+
+- **A container's padding went through egui's `Margin`, which is whole device
+  pixels.** A 14 px gutter at 1.25 scale is 17.5, truncated to 17, and every
+  sheet in the shell sat 0.4 px off. `contain` now takes the padding off the
+  rect in floats.
+- **A box with nothing in it took the rest of its container**, because "no
+  size" meant "hug" and hugging meant "take what is left". Now the measure
+  pass answers 0 for an empty box, and only what cannot be measured ahead — a
+  script's rect, a scroll's contents — asks for the leftover. A zero-size box
+  takes no seam either, which is what a hidden tool rail needs.
+- **The persona bar measured itself against a sheet that had no height yet**
+  and overshot by exactly the width of the transport controls. It now waits
+  for a sheet with both.
+
+The cost is one frame: the widget layer draws after `draw_ui`, so a rect read
+back is the previous frame's. Rects are published at the end of the draw
+rather than the start of the next one, which is the smaller of the two lags
+available, and `layoutdemo` waits for a shell rather than for a frame number.
 
 ## 6. What this does not change
 

@@ -121,6 +121,36 @@ impl<'a> Registry<'a> {
         self.app.add_replay_resource::<T>(name);
     }
 
+    /// What this plugin contributes to a tick's digest, for spotting a
+    /// desync in the subsystem that owns the state.
+    pub fn add_digest_source(
+        &mut self,
+        name: &str,
+        source: fn(&Engine, &mut Vec<balaur_core::digest::Entry>),
+    ) {
+        self.app.add_digest_source(name, source);
+    }
+
+    /// What this plugin saves and restores when a session rolls back.
+    pub fn add_snapshot_source(
+        &mut self,
+        name: &str,
+        save: fn(&Engine) -> serde_json::Value,
+        load: fn(&Engine, &serde_json::Value),
+    ) {
+        self.app.add_snapshot_source(name, save, load);
+    }
+
+    /// The engine this plugin is registering into, for the settings groups,
+    /// backends and project files a plugin reads while declaring.
+    ///
+    /// A borrow, not the `App`: registration goes through the verbs above, and
+    /// an engine handle is what a C extension would be given anyway.
+    #[must_use]
+    pub fn engine(&self) -> &Engine {
+        &self.app.engine
+    }
+
     /// Escape hatch for what the operations above do not cover yet.
     ///
     /// Anything reached through here is Rust-only and will not survive the move

@@ -135,7 +135,10 @@ fn connect(faults: Faults) -> Pair {
     let mut guest = NetSession::new(GUEST, &[HOST, GUEST], 64);
     // A different seed, so the two directions do not drop and delay in
     // lockstep with each other.
-    guest.add_peer(&guest_app.engine, Box::new(Faulty::new(two, faults, 0xd1ce)));
+    guest.add_peer(
+        &guest_app.engine,
+        Box::new(Faulty::new(two, faults, 0xd1ce)),
+    );
     Pair {
         host_app,
         host,

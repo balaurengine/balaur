@@ -9,7 +9,8 @@
 use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
-use balaur_core::{App, Engine};
+use balaur_core::Engine;
+use balaur_plugin::Registry;
 
 /// What the `particles` component wrote on the node: emitter settings only.
 /// Live particles are backend state the simulation never sees.
@@ -46,8 +47,8 @@ fn set_particles(eng: &Engine, entity: Entity, next: Particles) -> Result<()> {
 
 /// The `particles` component. Writes a [`Particles`] on the node; the kiss3d
 /// backend keeps the live particles and draws them as 2D points.
-pub(crate) fn register_particles_component(app: &mut App) {
-    app.register_component(
+pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
+    reg.register_component(
         "particles",
         ComponentDef {
             doc: "A purely visual 2D emitter at the node: rate, lifetime, speed, cone and gravity. The live particles and the randomness scattering them are backend state the simulation never sees.",

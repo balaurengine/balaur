@@ -219,7 +219,7 @@ impl App {
         crate::skeleton::register_bone3d_component(&mut app);
         crate::snapshot::build_core_sources(&mut app);
         crate::netsession::build_session_source(&mut app);
-        crate::settings::build_core_pages(&app.engine);
+        crate::settings::build_core_settings(&app.engine);
         // Before every plugin's First work, so a subsystem that dispatches
         // incoming traffic there sees the recording rather than the network.
         app.add_system(Stage::First, |eng, _| {

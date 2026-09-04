@@ -113,7 +113,11 @@ impl<'a> Measure<'a> {
             if size == egui::Vec2::ZERO {
                 continue;
             }
-            let (a, c) = if row { (size.x, size.y) } else { (size.y, size.x) };
+            let (a, c) = if row {
+                (size.x, size.y)
+            } else {
+                (size.y, size.x)
+            };
             along += a;
             across = across.max(c);
             drawn += 1;

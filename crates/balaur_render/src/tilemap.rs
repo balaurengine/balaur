@@ -5,7 +5,8 @@
 use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
-use balaur_core::{App, Engine};
+use balaur_core::Engine;
+use balaur_plugin::Registry;
 
 /// The asset type name a `tileset` definition declares.
 pub const TILESET_ASSET_TYPE: &str = "tileset";
@@ -71,8 +72,8 @@ columns = 8
 ```"#;
 
 /// The `tileset` asset type: files live in `tilesets/`.
-pub(crate) fn register_tileset_asset(app: &mut App) {
-    app.register_asset_type(TILESET_ASSET_TYPE, "tilesets", TILESET_ASSET_DOC, |value| {
+pub(crate) fn register_tileset_asset(reg: &mut Registry<'_>) {
+    reg.register_asset_type(TILESET_ASSET_TYPE, "tilesets", TILESET_ASSET_DOC, |value| {
         Ok(std::rc::Rc::new(parse_tileset(value)?) as std::rc::Rc<dyn std::any::Any>)
     });
 }
@@ -134,8 +135,8 @@ fn set_tilemap(eng: &Engine, entity: Entity, next: Tilemap) -> Result<()> {
 /// The `tilemap` component. Writes a [`Tilemap`] on the node; the kiss3d
 /// backend mirrors it as one atlas-textured mesh, rebuilt only when
 /// [`Tilemap::version`] moves — a tilemap is static between edits.
-pub(crate) fn register_tilemap_component(app: &mut App) {
-    app.register_component(
+pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
+    reg.register_component(
         "tilemap",
         ComponentDef {
             doc: "A grid of tiles cut from one `tileset` atlas and centred on the node, one character per cell, drawn at `pixels_per_unit` tile-texture pixels per world unit.",

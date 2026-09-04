@@ -96,12 +96,11 @@ impl balaur_plugin::Plugin for UiPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
-        let app = reg.app();
-        app.engine.insert_resource(UiConfig::default());
-        app.engine.insert_resource(UiState::default());
-        app.engine.insert_resource(WidgetLayerConfig::default());
-        app.engine.insert_resource(UiFocus::default());
-        app.register_asset_type(
+        reg.insert_resource(UiConfig::default());
+        reg.insert_resource(UiState::default());
+        reg.insert_resource(WidgetLayerConfig::default());
+        reg.insert_resource(UiFocus::default());
+        reg.register_asset_type(
             widget_theme::ASSET_TYPE,
             "themes",
             widget_theme::ASSET_DOC,
@@ -109,9 +108,9 @@ impl balaur_plugin::Plugin for UiPlugin {
                 Ok(std::rc::Rc::new(widget_theme::parse(value)) as std::rc::Rc<dyn std::any::Any>)
             },
         );
-        widgets::install_ui_api(app)?;
-        widget_layer::register_widget_component(app);
-        widget_layer::register_widget_presets(app)?;
+        widgets::install_ui_api(reg)?;
+        widget_layer::register_widget_component(reg);
+        widget_layer::register_widget_presets(reg)?;
         Ok(())
     }
 }

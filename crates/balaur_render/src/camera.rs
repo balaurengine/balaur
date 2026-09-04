@@ -3,7 +3,8 @@
 
 use anyhow::anyhow;
 use balaur_core::components::ComponentDef;
-use balaur_core::{App, Engine, GlobalTransform};
+use balaur_core::{Engine, GlobalTransform};
+use balaur_plugin::Registry;
 
 use crate::{color_to_toml, CameraConfig, CameraConfig2d, PostConfig};
 
@@ -216,8 +217,8 @@ fn camera_from_params(params: &toml::Value) -> anyhow::Result<Camera> {
 
 /// The `camera` component. Writes a [`Camera`] on the node;
 /// [`drive_camera_system`] mirrors the current one into the camera resources.
-pub(crate) fn register_camera_component(app: &mut App) {
-    app.register_component(
+pub(crate) fn register_camera_component(reg: &mut Registry<'_>) {
+    reg.register_component(
         "camera",
         ComponentDef {
             doc: "The view the scene is drawn from, following the node's global pose: `look_at` aims the 3D camera, `zoom` scales the 2D one in logical pixels per world unit. The last `current` camera of a kind, in tree order, drives that view.",

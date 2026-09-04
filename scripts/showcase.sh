@@ -89,6 +89,18 @@ shot editor_overview   examples/angrynerds "scene,select:Bird,dock:output,zoom:4
 shot scenes_tree       examples/hello      "scene,select:Platform"
 shot scripting_editor  examples/hello      "script,select:Spinner"
 shot ui_widgets        examples/angrynerds "ui,select:Restart,play"
+# One still per persona for the editor page, plus the pages that had no picture.
+shot hello_open        examples/hello      "scene,select:World,dock:output"
+shot persona_scene     examples/angrynerds "scene,select:Bird"
+shot persona_script    examples/hello      "script,select:Spinner"
+shot persona_animate   examples/rig        "anim,select:Thigh"
+shot persona_physics   examples/angrynerds "phys,select:Bird"
+shot persona_interface examples/angrynerds "ui,select:Restart,play"
+shot physics_overlays  examples/angrynerds "phys,select:Bird"
+shot extensions_greeter examples/extension_greeter "scene"
+# Stills for the website's examples page.
+shot example_rig3d      examples/rig3d      "scene"
+shot example_c_counter  examples/extension_c_counter "scene"
 
 clip scenes_inspect    examples/hello      800  "show:scenes"
 clip scripting_live    examples/hello      950  "show:scripting"

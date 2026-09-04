@@ -1022,12 +1022,19 @@ fn component_sections(S, k, filter) {
     for warning in util::vec(scene::unmet_expectations(found)) {
         unmet[warning.component] = util::join(util::vec(warning.expects), ", ");
     }
+    let query = crate::search::query(S, "inspector");
     for comp in found.component_names() {
         let shown = match filter {
             Some(filter) => util::contains(filter, comp),
             None => true,
         };
         if !shown {
+            continue;
+        }
+        // The component's name and every property it has, so a query for a
+        // property finds the section that holds it.
+        let props = util::join(util::keys_sorted(S.schemas.get(comp).unwrap_or(#{})), " ");
+        if !crate::search::matches(query, format!("{} {}", comp, props)) {
             continue;
         }
         // Section header: a fold toggle with a right-aligned remove button.
@@ -1130,6 +1137,8 @@ pub fn body(S, k) {
             });
         });
 
+        ui::add_space(6);
+        let query = crate::search::field(S, k, "inspector", "Find a property…", panel_w(S) - 16.0);
         ui::scroll("inspector-scroll", #{ max_height: ui::available_height() - 58.0 }, || {
             instance_note(S, k);
             instance_source_row(S, k, node);

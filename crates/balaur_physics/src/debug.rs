@@ -10,7 +10,8 @@ use crate::rapier3d::pipeline::{
     DebugRenderBackend, DebugRenderMode, DebugRenderObject, DebugRenderPipeline,
 };
 use balaur_core::debug_lines::{DebugLineBuffer, DebugLineBuffer2d};
-use balaur_core::{App, Engine, Stage};
+use balaur_core::{Engine, Stage};
+use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 use crate::vocabulary::Opts;
@@ -55,12 +56,12 @@ pub const DEBUG_MODES: &[(&str, DebugRenderMode)] = &[
     ("solver_contacts", DebugRenderMode::SOLVER_CONTACTS),
 ];
 
-pub(crate) fn build(app: &mut App) {
-    app.engine.insert_resource(PhysicsDebugConfig::default());
-    app.engine.insert_resource(PhysicsDebugState::default());
+pub(crate) fn build(reg: &mut Registry<'_>) {
+    reg.insert_resource(PhysicsDebugConfig::default());
+    reg.insert_resource(PhysicsDebugState::default());
     // Before Stage::Render, which is where a windowed backend draws the
     // buffer and a headless one clears it.
-    app.add_system(Stage::SceneSync, draw_system);
+    reg.add_system(Stage::SceneSync, draw_system);
 }
 
 /// Collects rapier's lines into a `DebugLineBuffer`.

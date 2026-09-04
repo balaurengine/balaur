@@ -499,7 +499,7 @@ impl balaur_plugin::Plugin for ApplePlugin {
         reg.insert_resource(AppleSnapshot::default());
         reg.add_system(Stage::First, pump_apple_system);
         reg.add_replay_source("apple", capture, restore);
-        balaur_platform::set_backend(&reg.app().engine, Box::new(AppleBackend))?;
+        balaur_platform::set_backend(reg.engine(), Box::new(AppleBackend))?;
         let mut m = reg.script_module("apple")?;
         install_apple_api(&mut *m);
         Ok(())

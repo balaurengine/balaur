@@ -349,8 +349,8 @@ fn restore_bindings(eng: &Engine, value: &serde_json::Value) {
 }
 
 /// Register the header seam. Called from the plugin's `build`.
-pub(crate) fn add_replay_setup(app: &mut balaur_core::App) {
-    app.add_replay_setup("input_bindings", capture_bindings, restore_bindings);
+pub(crate) fn add_replay_setup(reg: &mut balaur_plugin::Registry<'_>) {
+    reg.add_replay_setup("input_bindings", capture_bindings, restore_bindings);
 }
 
 /// The `[input.actions]` table of the project's manifest.

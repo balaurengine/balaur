@@ -2896,6 +2896,8 @@
       "docs": {
         "args": "The command-line arguments the app was started with, empty when it was given none.",
         "delta": "Seconds the frame in progress covers, the same number a system is handed.",
+        "has_plugin": "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there.",
+        "plugins": "Every plugin this build loaded, named, in load order.",
         "quit": "Ask the app to shut down; the frame in flight still finishes.",
         "reload_script": "Recompile one script by its project-relative key, for a tool editing files outside the watched root.",
         "tick": "Which frame this is, counted whole \u2014 what simulation code branches on instead of `time`.",
@@ -2919,6 +2921,8 @@
       "signatures": {
         "args": "()",
         "delta": "()",
+        "has_plugin": "(name: string)",
+        "plugins": "()",
         "quit": "()",
         "reload_script": "(key: string)",
         "tick": "()",
@@ -5859,7 +5863,7 @@
         "label": "Draw a line of text; `size`, `font`, `color`, `strong`, `wrap` and `truncate` style it.",
         "left_panel": "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
         "menu_item": "Draw a row inside a context menu; true on the frame it was clicked, which also closes the menu.",
-        "modal": "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked.",
+        "modal": "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked. `width`, `height` and `top` size and place it, `fill`, `stroke` and `scrim` colour it; height follows the content when it is not given.",
         "overlay": "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `w`/`h` fix its size, and `fill`, `stroke`, `radius` and padding make it a sheet.",
         "pill": "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked.",
         "rect_stroke": "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked.",

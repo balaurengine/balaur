@@ -669,12 +669,13 @@ sources and setup, and script modules, and is free of trait objects and of
 generics but for the two that name a Rust type: a `fn` pointer crosses an ABI
 boundary where an `impl Trait` does not.
 
-What still reaches through its `app()` escape hatch measures the gap. The
-engine's own five take the whole `App` in one call because roughly thirty of
-their registration helpers are written against it — `register_body_component`,
-`dim2::build`, `widgets::install_ui_api` — and `balaur_http` and
-`balaur_websocket` reach it for `ProjectFiles`. Everything reached that way is
-Rust-only, and that list is what the C boundary has left to grow.
+Nothing in tree reaches its `app()` escape hatch. That is the measure worth
+keeping: every registration a plugin performs, down to
+`register_body_component` and `dim2::build`, is spelled in verbs that a C
+extension could be handed. `engine()` covers what a plugin reads while
+declaring — a settings group, a store backend, the project's files — as a
+borrow rather than the `App`, because an engine handle is what a C extension
+would be given anyway.
 
 Every plugin that finishes registering is appended to `PluginRegistry`
 (`balaur_core::plugins`), and a plugin's `requires` is checked against it at
@@ -1423,6 +1424,38 @@ has to resync out of, not a log line.
 What it does not do yet: replicate state. Inputs are all that cross, and a
 game that cannot have every peer simulate everything needs the model below.
 
+## Settings
+
+Every setting the engine, its plugins and a game declare lives in one registry
+(`balaur_core::settings`), addressed by a path the way Godot addresses one:
+`physics/solver_iterations`, `netcode/faults`, `editor/appearance/theme`. The
+first segment is the category the editor groups under, the last is the key,
+and the segments between nest into headings. The path is also the storage:
+`editor/appearance/theme` is `[editor.appearance] theme` in the file, so what
+you read in TOML is what you write in code, and there is no second registry
+of tables to keep in step with the registry of names.
+
+A setting is declared with the same property spec a component uses — type,
+default, range, options, help — so the editor renders a settings row and an
+inspector row with the same code, and a plugin adds settings the way it adds
+components: from `build`, with `settings::define_group`. A game does the same
+from a script with `settings.define`, and its settings appear beside the
+engine's; nothing distinguishes them afterwards.
+
+Two scopes, and the distinction is load-bearing. A `Project` setting is the
+game's: written to `project.toml`, shipped, version-controlled. An `Editor`
+setting is the person's: written to the editor's own data directory and never
+to the project. Fault injection is editor-scoped for exactly this reason — a
+developer turning on packet loss to test rollback must not be able to commit
+that into a shipped manifest, and a test asserts the editor scope can never
+reach `project.toml`. Writing back touches only the paths a scope declares,
+so a hand-written comment or an unrelated table in the manifest survives.
+
+Editor settings take effect as they change rather than on save, since a theme
+you have to save to preview is not a preview; project settings do not, since
+they belong to the game. A setting the engine only reads while starting says
+`applies = "restart"` and the editor shows it.
+
 ## Networking and state sync
 
 Transport, session and rollback are built; replication is not.
@@ -1854,6 +1887,7 @@ release finished.
 
 | Item | Plan |
 | --- | --- |
+| A green `main`, and the holes the 2026-09-04 audit found: widget clicks and the animation player outside the digest and the snapshot, colliders that outlive their node, a bus mix that never reaches `master`, an `fs` module with no root, a `f64` switch that leaves `f32` on | `docs/PLAN-hardening.md`. Phase 0 is CI: every push since 2026-09-03 has failed it, for six independent reasons, and nothing blocks a red push |
 | Tilemap editor, curve editor and onion skin | `docs/PLAN-editor.md` §6 |
 | The editor in a browser: the same wasm build with a canvas under it, files in the browser's origin-private filesystem, and a project kept on Gamend | `docs/PLAN-web-editor.md`. The editor is a Balaur project and the engine already builds for `wasm32-unknown-emscripten` headless, so the missing halves are a surface on a canvas and a backend under `fs` |
 | `#[export]` on a script constant, in place of the `exports` table | `docs/PLAN-scripting.md` |

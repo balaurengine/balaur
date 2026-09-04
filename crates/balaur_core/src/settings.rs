@@ -1,23 +1,28 @@
-//! Every setting the engine and its plugins have, in one place.
+//! Every setting the engine, its plugins and a game declare, addressed by
+//! path.
 //!
-//! Settings were scattered before this: some in `project.toml` tables that
-//! only their own crate knew about, some in an editor flag that vanished on
-//! restart, and some — fault injection, most obviously — reachable from a
-//! Rust test and nowhere else. A game author had no list of what was
-//! adjustable, and no plugin could add to one.
+//! A setting is named the way Godot names one: `physics/solver_iterations`,
+//! `netcode/faults`, `editor/appearance/theme`. The first segment is the
+//! category the editor groups under, the last is the key, and everything
+//! between nests. That is the whole addressing scheme — there is no second
+//! way to refer to a setting, and no registry of tables to keep in step with
+//! a registry of names.
 //!
-//! A page is declared with the same schema a component uses, so a setting is
-//! described exactly the way a component property is: a type, a default, a
-//! range or a set of options, and a line of help. The editor renders both
-//! from the same code, and a plugin adds a page the way it adds a component.
+//! The path is also the storage: `physics/solver_iterations` is
+//! `[physics] solver_iterations`, and `editor/appearance/theme` is
+//! `[editor.appearance] theme`. What you read in the file is what you write
+//! in code.
 //!
 //! **Two scopes, and the difference matters.** A [`Scope::Project`] setting
 //! is the game's: it lives in `project.toml`, ships with the build and
-//! belongs in version control, so changing it changes what every player gets.
-//! A [`Scope::Editor`] setting is the person's: it lives in the editor's own
-//! data directory and never touches the project, so one developer turning on
-//! packet loss cannot ship that to anyone. Putting a debug toggle in the
-//! manifest would be a bug, not a convenience.
+//! belongs in version control. A [`Scope::Editor`] setting is the person's:
+//! it lives in the editor's own data directory and never touches the project,
+//! so one developer turning on packet loss cannot ship that to anyone.
+//!
+//! **Anyone may define one.** A plugin declares its settings from `build`; a
+//! game declares its own from a script with `settings.define`. Nothing
+//! distinguishes them afterwards, which is what makes the screen a complete
+//! list rather than a curated one.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -35,295 +40,329 @@ pub enum Scope {
     Editor,
 }
 
-/// One page of settings, as the editor shows it.
-pub struct SettingsPage {
-    /// What the page is called, and the order it sorts under.
-    pub category: String,
-    /// The `project.toml` table these live in, or the prefs key for an editor
-    /// page. `""` puts them at the manifest's top level.
-    pub table: String,
+/// One setting: where it lives, whose it is, and what it accepts.
+#[derive(Clone)]
+pub struct SettingDef {
+    /// `physics/solver_iterations`. Never empty, and never starts or ends
+    /// with a slash.
+    pub path: String,
     pub scope: Scope,
-    /// A component-style schema: one entry per setting, with its type,
-    /// default and help.
-    pub schema: toml::Value,
+    /// A component-style property spec: `type`, `default`, `min`, `max`,
+    /// `options`, `help`, and `order` for where it sits on its page.
+    pub spec: toml::Value,
 }
 
-/// Every page, in registration order.
-#[derive(Default)]
-pub struct SettingsRegistry(pub Vec<SettingsPage>);
+impl SettingDef {
+    /// The category the editor groups this under: the path's first segment.
+    #[must_use]
+    pub fn category(&self) -> &str {
+        self.path.split('/').next().unwrap_or(&self.path)
+    }
 
-/// The values a page's settings currently hold, by table then key.
-///
-/// Kept apart from the registry because the registry is what a plugin
-/// declares once and this is what changes.
+    /// What the row is labelled: everything after the category.
+    #[must_use]
+    pub fn label(&self) -> &str {
+        self.path
+            .split_once('/')
+            .map_or(self.path.as_str(), |(_, rest)| rest)
+    }
+
+    /// Whether changing this takes effect straight away. A setting the engine
+    /// only reads while starting says so, so the editor can too.
+    #[must_use]
+    pub fn applies_now(&self) -> bool {
+        self.spec
+            .get("applies")
+            .and_then(toml::Value::as_str)
+            .is_none_or(|when| when == "now")
+    }
+}
+
+/// Every setting, in definition order.
+#[derive(Default)]
+pub struct SettingsRegistry(pub Vec<SettingDef>);
+
+/// The values settings currently hold, as the nested tables they are stored
+/// in.
 #[derive(Default)]
 pub struct SettingsValues(pub toml::value::Table);
 
-/// Declare a page. Called from a plugin's `declare`, or by core for its own.
-pub fn register(eng: &Engine, page: SettingsPage) {
+/// Define one setting.
+pub fn define(eng: &Engine, def: SettingDef) {
     if let Some(registry) = eng.try_resource::<SettingsRegistry>() {
-        registry.borrow_mut().0.push(page);
+        let mut registry = registry.borrow_mut();
+        // Redefining replaces, so a game may override a default the engine
+        // shipped without two rows appearing.
+        if let Some(at) = registry.0.iter().position(|d| d.path == def.path) {
+            registry.0[at] = def;
+        } else {
+            registry.0.push(def);
+        }
     }
 }
 
-/// Every declared page, for an editor or a `--settings` listing.
+/// Define a group at once: every key in `schema` becomes `<prefix>/<key>`.
+///
+/// A key may itself contain slashes, so one block can declare
+/// `appearance/theme` and `sessions/keep` under the same prefix.
+pub fn define_group(eng: &Engine, prefix: &str, scope: Scope, schema: &toml::Value) {
+    let Some(table) = schema.as_table() else {
+        return;
+    };
+    for (key, spec) in table {
+        define(
+            eng,
+            SettingDef {
+                path: format!("{prefix}/{key}"),
+                scope,
+                spec: spec.clone(),
+            },
+        );
+    }
+}
+
+/// Every defined setting, for the editor or a listing.
 #[must_use]
-pub fn pages(eng: &Engine) -> Rc<RefCell<SettingsRegistry>> {
+pub fn all(eng: &Engine) -> Rc<RefCell<SettingsRegistry>> {
     eng.resource::<SettingsRegistry>()
 }
 
-/// One setting's current value: what was set, else what the schema defaults
-/// to, else nil.
+/// One setting's definition.
 #[must_use]
-pub fn get(eng: &Engine, table: &str, key: &str) -> Option<toml::Value> {
-    if let Some(values) = eng.try_resource::<SettingsValues>() {
-        let values = values.borrow();
-        let found = if table.is_empty() {
-            values.0.get(key).cloned()
-        } else {
-            values
-                .0
-                .get(table)
-                .and_then(|t| t.as_table())
-                .and_then(|t| t.get(key))
-                .cloned()
-        };
-        if found.is_some() {
-            return found;
-        }
-    }
-    default_of(eng, table, key)
+pub fn def(eng: &Engine, path: &str) -> Option<SettingDef> {
+    let registry = eng.try_resource::<SettingsRegistry>()?;
+    let found = registry.borrow().0.iter().find(|d| d.path == path).cloned();
+    found
 }
 
-/// Change one setting. The value is not written to disk until [`save`].
-pub fn set(eng: &Engine, table: &str, key: &str, value: toml::Value) {
+/// A path split into the tables it nests through and the key it ends at.
+fn split(path: &str) -> Option<(Vec<&str>, &str)> {
+    let mut parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    let key = parts.pop()?;
+    Some((parts, key))
+}
+
+/// One setting's value: what was set, else what its definition defaults to.
+#[must_use]
+pub fn get(eng: &Engine, path: &str) -> Option<toml::Value> {
+    if let Some(values) = eng.try_resource::<SettingsValues>() {
+        if let Some((tables, key)) = split(path) {
+            let values = values.borrow();
+            let mut at: &toml::value::Table = &values.0;
+            let mut reached = true;
+            for table in tables {
+                match at.get(table).and_then(toml::Value::as_table) {
+                    Some(next) => at = next,
+                    None => {
+                        reached = false;
+                        break;
+                    }
+                }
+            }
+            if reached {
+                if let Some(found) = at.get(key) {
+                    return Some(found.clone());
+                }
+            }
+        }
+    }
+    def(eng, path).and_then(|d| d.spec.get("default").cloned())
+}
+
+/// Change one setting. Not written to disk until a caller asks for the text.
+pub fn set(eng: &Engine, path: &str, value: toml::Value) {
     let Some(values) = eng.try_resource::<SettingsValues>() else {
         return;
     };
-    let mut values = values.borrow_mut();
-    if table.is_empty() {
-        values.0.insert(key.to_string(), value);
+    let Some((tables, key)) = split(path) else {
         return;
+    };
+    let mut values = values.borrow_mut();
+    let mut at: &mut toml::value::Table = &mut values.0;
+    for table in tables {
+        let entry = at
+            .entry(table.to_string())
+            .or_insert_with(|| toml::Value::Table(toml::value::Table::new()));
+        if !entry.is_table() {
+            *entry = toml::Value::Table(toml::value::Table::new());
+        }
+        // Just replaced with a table if it was not one.
+        at = entry.as_table_mut().expect("made a table above");
     }
-    let entry = values
-        .0
-        .entry(table.to_string())
-        .or_insert_with(|| toml::Value::Table(toml::value::Table::new()));
-    if let Some(entry) = entry.as_table_mut() {
-        entry.insert(key.to_string(), value);
-    }
+    at.insert(key.to_string(), value);
 }
 
-/// What the schema says a setting starts at.
-fn default_of(eng: &Engine, table: &str, key: &str) -> Option<toml::Value> {
-    let registry = eng.try_resource::<SettingsRegistry>()?;
-    let registry = registry.borrow();
-    let page = registry.0.iter().find(|page| page.table == table)?;
-    page.schema
-        .get(key)
-        .and_then(|spec| spec.get("default"))
-        .cloned()
-}
-
-/// Read every value out of a manifest's text, so the editor starts from what
-/// the project actually says rather than from the defaults.
+/// Read every value out of a manifest's text.
 ///
 /// # Errors
 /// When the text is not valid TOML.
-pub fn load_project(eng: &Engine, manifest: &str) -> Result<()> {
-    let parsed: toml::value::Table =
-        toml::from_str(manifest).context("parsing project.toml for settings")?;
+pub fn load(eng: &Engine, text: &str) -> Result<()> {
+    let parsed: toml::value::Table = toml::from_str(text).context("parsing settings")?;
     if let Some(values) = eng.try_resource::<SettingsValues>() {
-        values.borrow_mut().0 = parsed;
+        merge(&mut values.borrow_mut().0, parsed);
     }
     Ok(())
 }
 
-/// The manifest text these settings would write, starting from `manifest` so
-/// anything the settings do not describe survives.
+/// Fold one table into another, table by table rather than wholesale, so
+/// loading the editor's file after the project's does not drop the project's.
+fn merge(into: &mut toml::value::Table, from: toml::value::Table) {
+    for (key, value) in from {
+        match (into.get_mut(&key), value) {
+            (Some(toml::Value::Table(existing)), toml::Value::Table(incoming)) => {
+                merge(existing, incoming);
+            }
+            (_, value) => {
+                into.insert(key, value);
+            }
+        }
+    }
+}
+
+/// The text one scope's settings would write, starting from `existing` so
+/// anything no setting describes survives.
 ///
-/// Rewriting the parsed table rather than the text loses comments and order,
-/// which a hand-edited manifest is entitled to keep. Only the keys a page
-/// declares are touched.
+/// Only the paths that scope defines are touched, which is what lets a
+/// manifest keep its comments, its ordering and its unrelated tables.
 ///
 /// # Errors
-/// When the existing text is not valid TOML.
-pub fn project_toml(eng: &Engine, manifest: &str) -> Result<String> {
-    let mut doc: toml::value::Table = if manifest.trim().is_empty() {
+/// When `existing` is not valid TOML, or the result cannot be written.
+pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
+    let mut doc: toml::value::Table = if existing.trim().is_empty() {
         toml::value::Table::new()
     } else {
-        toml::from_str(manifest).context("parsing project.toml")?
+        toml::from_str(existing).context("parsing the file being written")?
     };
     let Some(registry) = eng.try_resource::<SettingsRegistry>() else {
-        return toml::to_string_pretty(&doc).context("writing project.toml");
+        return toml::to_string_pretty(&doc).context("writing settings");
     };
-    let registry = registry.borrow();
-    for page in registry.0.iter().filter(|p| p.scope == Scope::Project) {
-        let Some(schema) = page.schema.as_table() else {
+    let paths: Vec<String> = registry
+        .borrow()
+        .0
+        .iter()
+        .filter(|d| d.scope == scope)
+        .map(|d| d.path.clone())
+        .collect();
+    for path in paths {
+        let Some(value) = get(eng, &path) else {
             continue;
         };
-        for key in schema.keys() {
-            let Some(value) = get(eng, &page.table, key) else {
-                continue;
-            };
-            if page.table.is_empty() {
-                doc.insert(key.clone(), value);
-                continue;
-            }
-            let entry = doc
-                .entry(page.table.clone())
+        let Some((tables, key)) = split(&path) else {
+            continue;
+        };
+        let mut at: &mut toml::value::Table = &mut doc;
+        for table in tables {
+            let entry = at
+                .entry(table.to_string())
                 .or_insert_with(|| toml::Value::Table(toml::value::Table::new()));
-            if let Some(entry) = entry.as_table_mut() {
-                entry.insert(key.clone(), value);
+            if !entry.is_table() {
+                *entry = toml::Value::Table(toml::value::Table::new());
             }
+            at = entry.as_table_mut().expect("made a table above");
         }
+        at.insert(key.to_string(), value);
     }
-    toml::to_string_pretty(&doc).context("writing project.toml")
+    toml::to_string_pretty(&doc).context("writing settings")
 }
 
-/// The editor's own settings as TOML, for its preferences file.
-///
-/// # Errors
-/// When the values cannot be serialized.
-pub fn editor_toml(eng: &Engine) -> Result<String> {
-    let mut doc = toml::value::Table::new();
-    let Some(registry) = eng.try_resource::<SettingsRegistry>() else {
-        return Ok(String::new());
-    };
-    let registry = registry.borrow();
-    for page in registry.0.iter().filter(|p| p.scope == Scope::Editor) {
-        let Some(schema) = page.schema.as_table() else {
-            continue;
-        };
-        let mut table = toml::value::Table::new();
-        for key in schema.keys() {
-            if let Some(value) = get(eng, &page.table, key) {
-                table.insert(key.clone(), value);
-            }
-        }
-        doc.insert(page.table.clone(), toml::Value::Table(table));
-    }
-    toml::to_string_pretty(&doc).context("writing the editor's settings")
-}
-
-/// Core's own pages: what a project is, how it saves, and what language it
-/// speaks. Plugins add theirs from their own `declare`.
-pub(crate) fn build_core_pages(eng: &Engine) {
-    register(
+/// Core's own settings. Plugins define theirs from their own `build`.
+pub(crate) fn build_core_settings(eng: &Engine) {
+    let parse = |name: &str, text: &str| crate::components::ComponentDef::parse_schema(name, text);
+    define_group(
         eng,
-        SettingsPage {
-            category: String::from("General"),
-            table: String::new(),
-            scope: Scope::Project,
-            schema: crate::components::ComponentDef::parse_schema(
-                "settings.general",
-                r#"
-name = { type = "string", default = "", help = "The game's name, used for its window title and its data directory." }
-main_scene = { type = "string", default = "", help = "The scene a run opens with." }
-language = { type = "enum", default = "rune", options = ["rune"], help = "Which scripting language this project is written in." }
+        "application",
+        Scope::Project,
+        &parse(
+            "settings.application",
+            r#"
+name = { type = "string", default = "", order = 1, help = "The game's name, used for its window title and its data directory." }
+main_scene = { type = "string", default = "", order = 2, help = "The scene a run opens with." }
+language = { type = "enum", default = "rune", options = ["rune"], order = 3, applies = "restart", help = "Which scripting language this project is written in." }
 "#,
-            ),
-        },
+        ),
     );
-    register(
+    define_group(
         eng,
-        SettingsPage {
-            category: String::from("Saves"),
-            table: String::from("save"),
-            scope: Scope::Project,
-            schema: crate::components::ComponentDef::parse_schema(
-                "settings.save",
-                r#"
+        "save",
+        Scope::Project,
+        &parse(
+            "settings.save",
+            r#"
 version = { type = "float", default = 1.0, min = 1.0, max = 9999.0, help = "The save version this build writes. A lower file is migrated; a higher one is refused." }
 migrate = { type = "string", default = "", help = "A script whose migrate_save(version, data) brings a file forward one version per call." }
 "#,
-            ),
-        },
+        ),
     );
-    register(
+    define_group(
         eng,
-        SettingsPage {
-            category: String::from("Language"),
-            table: String::from("locale"),
-            scope: Scope::Project,
-            schema: crate::components::ComponentDef::parse_schema(
-                "settings.locale",
-                r#"
+        "locale",
+        Scope::Project,
+        &parse(
+            "settings.locale",
+            r#"
 default = { type = "string", default = "en", help = "The locale a fresh run starts in." }
 fallback = { type = "string", default = "en", help = "Where a key missing from the current locale is looked for next." }
 "#,
-            ),
-        },
+        ),
     );
-    register(
+    define_group(
         eng,
-        SettingsPage {
-            category: String::from("Appearance"),
-            table: String::from("appearance"),
-            scope: Scope::Editor,
-            schema: crate::components::ComponentDef::parse_schema(
-                "settings.appearance",
-                r#"
-theme = { type = "enum", default = "dark", options = ["dark", "light"], help = "Which chrome the editor wears." }
-ui_scale = { type = "float", default = 1.25, min = 0.75, max = 2.5, help = "How large the editor's own text and controls are drawn." }
-compact = { type = "bool", default = false, help = "Drop labels the icon already says, for a narrow window." }
-"#,
-            ),
-        },
-    );
-    register(
-        eng,
-        SettingsPage {
-            category: String::from("Sessions"),
-            table: String::from("sessions"),
-            scope: Scope::Editor,
-            schema: crate::components::ComponentDef::parse_schema(
-                "settings.sessions",
-                r#"
-keep = { type = "float", default = 10.0, min = 1.0, max = 200.0, help = "How many recorded play sessions are kept per game before the oldest is pruned." }
-verify = { type = "bool", default = false, help = "Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame." }
-"#,
-            ),
-        },
-    );
-    register(
-        eng,
-        SettingsPage {
-            category: String::from("Netcode"),
-            table: String::from("netcode"),
-            scope: Scope::Editor,
-            schema: crate::components::ComponentDef::parse_schema(
-                "settings.netcode",
-                r#"
+        "netcode",
+        Scope::Editor,
+        &parse(
+            "settings.netcode",
+            r#"
 faults = { type = "bool", default = false, order = 1, help = "Put delay, jitter and packet loss on every session link, to test rollback against a link that misbehaves." }
 delay = { type = "float", default = 9.0, min = 0.0, max = 60.0, order = 2, help = "Ticks every payload waits before delivery. Nine is about 150 ms at 60 Hz." }
 jitter = { type = "float", default = 3.0, min = 0.0, max = 30.0, order = 3, help = "Extra ticks drawn per payload. Jitter is what reorders a stream." }
 loss = { type = "float", default = 0.05, min = 0.0, max = 1.0, order = 4, help = "The fraction of datagrams dropped. Datagrams only: losing a reliable payload would break the transport's contract." }
 "#,
-            ),
-        },
+        ),
+    );
+    // A prefix may nest, so a subsystem with many settings declares them a
+    // group at a time and the editor shows each group under its own heading.
+    define_group(
+        eng,
+        "editor/appearance",
+        Scope::Editor,
+        &parse(
+            "settings.editor.appearance",
+            r#"
+theme = { type = "enum", default = "dark", options = ["dark", "light"], order = 1, help = "Which chrome the editor wears." }
+ui_scale = { type = "float", default = 1.25, min = 0.75, max = 2.5, order = 2, help = "How large the editor's own text and controls are drawn." }
+compact = { type = "bool", default = false, order = 3, help = "Drop labels the icon already says, for a narrow window." }
+"#,
+        ),
+    );
+    define_group(
+        eng,
+        "editor/sessions",
+        Scope::Editor,
+        &parse(
+            "settings.editor.sessions",
+            r#"
+keep = { type = "float", default = 10.0, min = 1.0, max = 200.0, order = 10, help = "How many recorded play sessions are kept per game before the oldest is pruned." }
+verify = { type = "bool", default = false, order = 11, help = "Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame." }
+"#,
+        ),
     );
 }
 
-/// The faults the Netcode page currently asks for, or `None` when it is off.
-///
-/// Read by whoever builds a session's transports, so turning the toggle on
-/// and starting a play session is all a developer has to do.
+/// The faults the `netcode` settings ask for, or `None` when they are off.
 #[must_use]
 pub fn faults(eng: &Engine) -> Option<crate::transport::Faults> {
-    let on = get(eng, "netcode", "faults")?.as_bool()?;
-    if !on {
+    if !get(eng, "netcode/faults")?.as_bool()? {
         return None;
     }
-    let number = |key: &str| get(eng, "netcode", key).and_then(|v| v.as_float());
+    let number = |path: &str| get(eng, path).and_then(|v| v.as_float());
     #[allow(
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
         reason = "a tick count from a bounded setting"
     )]
     Some(crate::transport::Faults {
-        delay: number("delay").unwrap_or(0.0) as u32,
-        jitter: number("jitter").unwrap_or(0.0) as u32,
-        loss: number("loss").unwrap_or(0.0) as f32,
+        delay: number("netcode/delay").unwrap_or(0.0) as u32,
+        jitter: number("netcode/jitter").unwrap_or(0.0) as u32,
+        loss: number("netcode/loss").unwrap_or(0.0) as f32,
     })
 }
