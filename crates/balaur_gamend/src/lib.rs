@@ -9,7 +9,7 @@
 //!
 //! The sequential shape reads like this:
 //!
-//! ```lua
+//! ```rune
 //! function S:init()
 //!     gamend.configure("http://localhost:4000")
 //!     local login = await(gamend.login({ device_id = "player-1" }))

@@ -1,5 +1,6 @@
 [package]
 name = "balaur_script_rune"
+description = "The Rune scripting backend: host, hot reload, packs and the debugger"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -1,5 +1,6 @@
 [package]
 name = "balaur_export"
+description = "Exporting a project: packs, fused executables, and the platform bundles"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

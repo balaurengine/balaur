@@ -116,6 +116,11 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - `[plugins]` in `project.toml` turns a module off; asking for one the build has not got is an error.
 - `engine.plugins` and `engine.has_plugin` for scripts.
 
+- `export -o <dir>` refuses a directory that is not an earlier export of this game, rather than removing it.
+- `macos-universal` is the macOS target's name everywhere; `macos-arm64` named a template CI never builds.
+- `scripts/lint.sh` runs exactly what CI runs, and `.githooks/pre-push` runs it before a push.
+- Every example is traced for cross-platform determinism, not just two.
+
 ### Platform services
 
 - `platform.*`: sign-in, achievements, leaderboards, cloud saves and presence over one module, whichever store is loaded. With none, every call answers `unsupported`.

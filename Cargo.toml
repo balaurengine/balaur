@@ -7,8 +7,14 @@ exclude = ["examples/extension_greeter"]
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
+# Pinned to the toolchain, so a build that cannot work fails saying so.
+rust-version = "1.98.0"
 license = "MIT"
-authors = ["Sébastien Crozet <sebcrozet@dimforge.com>"]
+authors = ["Dragos Daian <daian.dragos@yahoo.com>"]
+repository = "https://github.com/balaurengine/balaur"
+homepage = "https://balaurengine.org"
+keywords = ["gamedev", "game-engine", "deterministic", "2d", "3d"]
+categories = ["game-engines"]
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
@@ -40,7 +46,7 @@ balaur_core = { path = "crates/balaur_core", version = "0.1.0" }
 balaur_plugin = { path = "crates/balaur_plugin", version = "0.1.0" }
 balaur_script = { path = "crates/balaur_script", version = "0.1.0" }
 balaur_script_rune = { path = "crates/balaur_script_rune", version = "0.1.0" }
-balaur_physics = { path = "crates/balaur_physics", version = "0.1.0" }
+balaur_physics = { path = "crates/balaur_physics", version = "0.1.0", default-features = false }
 balaur_anim = { path = "crates/balaur_anim", version = "0.1.0" }
 balaur_render = { path = "crates/balaur_render", version = "0.1.0" }
 balaur_audio = { path = "crates/balaur_audio", version = "0.1.0" }

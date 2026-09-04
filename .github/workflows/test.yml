@@ -11,9 +11,9 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  # No RUSTFLAGS here: setting it replaces .cargo/config.toml's rustflags
-  # wholesale, which drops the Swift rpath and aborts every macOS test.
-  # Warnings are lint.yml's job, where clippy denies them over every target.
+  # No RUSTFLAGS here: it replaces .cargo/config.toml's wholesale, dropping
+  # the Swift rpath. Warnings are lint.yml's, where clippy denies them.
+
   # The cargo e2e suites (full app boots over real sockets) gate on this so
   # a plain local `cargo test` skips them; CI always runs everything.
   BALAUR_E2E: "1"
@@ -83,6 +83,24 @@ jobs:
         with:
           name: traces-${{ matrix.os }}
           path: target/determinism/traces.txt
+
+  # The two build-time choices nothing else compiles: a f64 world, and
+  # rapier's coloured solver on rayon. `scalar_and_threads.rs` asserts one
+  # thread and eight produce the same digest, and only runs under `parallel`.
+  scalars:
+    name: physics at either scalar, and threaded
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: Swatinem/rust-cache@v2
+      - name: f64
+        run: cargo test -p balaur_physics --no-default-features --features f64
+      - name: parallel
+        run: cargo test -p balaur_physics --features parallel
+      # A subsystem switched off is the point of having features, and nothing
+      # else runs the tests with them off.
+      - name: Tests without the optional subsystems
+        run: cargo test -p balaur_core -p balaur_physics --no-default-features --features balaur_physics/f32
 
   # The multi-platform half of the determinism promise; see
   # scripts/compare_packs.sh for what it does and does not claim.

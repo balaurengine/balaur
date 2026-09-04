@@ -718,7 +718,7 @@ dependencies = [
  "flate2",
  "httparse",
  "js-sys",
- "rand 0.9.5",
+ "rand 0.10.2",
  "rustls",
  "serde",
  "serde_json",

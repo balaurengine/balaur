@@ -25,7 +25,7 @@ tungstenite.workspace = true
 # compression and masking.
 httparse = "1"
 flate2 = "1"
-rand = "0.9"
+rand = "0.10"
 rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
 webpki-roots = "0.26"
 

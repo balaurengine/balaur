@@ -12,7 +12,7 @@ balaur.workspace = true
 balaur_core.workspace = true
 balaur_script.workspace = true
 balaur_script_rune.workspace = true
-balaur_physics.workspace = true
+balaur_physics = { workspace = true, features = ["f32"] }
 hecs.workspace = true
 anyhow.workspace = true
 tempfile = "3"

@@ -1,6 +1,6 @@
 [package]
 name = "balaur_input"
-description = "Balaur input plugin: backend-agnostic input state and the `input` Lua module"
+description = "Balaur input plugin: backend-agnostic input state and the `input` script module"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

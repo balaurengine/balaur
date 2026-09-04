@@ -58,6 +58,11 @@ jobs:
       # tests that load one at run time.
       - name: Feature `extensions`
         run: cargo clippy -p balaur_plugin -p balaur --features balaur/extensions --all-targets -- -D warnings
+      # Game Center, StoreKit and the objc2 bindings compile on a Mac and
+      # nowhere else, so no sweep above has ever reached them.
+      - name: Feature `apple`
+        if: runner.os == 'macOS'
+        run: cargo clippy -p balaur_apple -p balaur --features balaur/apple --all-targets -- -D warnings
       # extension_greeter is deliberately outside the workspace, so nothing
       # above reaches it. It is the only thing proving an extension builds
       # without the engine's build tree.

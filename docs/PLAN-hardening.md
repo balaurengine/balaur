@@ -1,4 +1,9 @@
-> **Status:** not started. Written 2026-09-04 from an audit of every crate,
+> **Status:** phase 0 is done — clippy, rustfmt and the house, comment and
+> API lints are green across the workspace, the macOS Swift abort and the
+> Linux build-script failure are fixed, `scripts/lint.sh` and CI run the same
+> list, and a `pre-push` hook runs it. Phases 1-3 and 5 landed with the work
+> the audit asked for; phase 4 and phase 6 are what is left. Written 2026-09-04
+> from an audit of every crate,
 > the editor's scripts, the CI and the documents, done by reading rather than
 > by running: every line below names a file, and the ones marked *verified*
 > were re-read a second time before they were written down. Phase 0 comes
@@ -66,9 +71,11 @@ switch enables both scalar widths. Each is in its phase below with the line.
 ### Phase 0 — green, and kept green
 
 1. The six fixes in the table above, one commit each, verified by the run.
-2. Branch protection on `main` requiring the four called workflows, with
-   `workflow_dispatch` of `build.yml` no longer able to move the `nightly`
-   tag from an arbitrary branch (`draft_release.sh` deletes and recreates it).
+2. **Open, and the owner's to set:** branch protection on `main` requiring
+   the four called workflows. Nothing else here can stop a red push from
+   landing. Done alongside it: `draft-release` now runs only on a push, so a
+   `workflow_dispatch` from a side branch can no longer move the rolling
+   `nightly` tag (`draft_release.sh` deletes and recreates it).
 3. `scripts/lint.sh` and `lint.yml` become one list: `api_lints.py` and
    `third_party_notices.py --check` join CI; the `window`, `extensions` and
    out-of-tree clippy passes join the script. A `pre-push` hook under

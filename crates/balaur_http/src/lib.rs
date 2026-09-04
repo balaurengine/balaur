@@ -9,7 +9,7 @@
 //! the pump dispatches it as a method call — the same signal shape a widget's
 //! `on_click` or an animation key uses:
 //!
-//! ```lua
+//! ```rune
 //! function S:init()
 //!     self.request = http.request(self.node, "https://example.com")
 //! end
