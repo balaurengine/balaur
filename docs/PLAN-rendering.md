@@ -1,5 +1,6 @@
-> **Status:** not started. Written 2026-09-02. Two pieces the renderer lacks:
-> lit 2D, and skinning 3D meshes on the GPU instead of the CPU.
+> **Status:** phases 1 and 2 shipped 2026-09-04 — `light2d`, `occluder2d`,
+> `camera.ambient` and the light-map pass. Phases 3 to 5 (GPU skinning in 3D,
+> post-processing, the editor's gizmos) are open. Written 2026-09-02.
 
 # Plan: 2D lights and shadows, GPU skinning in 3D
 
@@ -49,11 +50,28 @@ CPU-deformed vertices, and a windowed test reads back one frame and
 compares within a tolerance, so the GPU path cannot drift from the numbers
 a digest would see.
 
+## What shipped
+
+Both 2D phases, in one pass in the kiss3d backend (`balaur_render::light`
+resolves the scene, `light_map` rasterises it). Two departures from the
+sketch above:
+
+- The multiply is one full-screen draw added last to the 2D scene, not a
+  material on every sprite. It reaches tiles, polygons and anything else
+  already drawn, and a scene with no `light2d` adds no draw at all — an
+  unlit frame is byte-for-byte the frame it was before.
+- A shadow-casting light gets a render pass of its own with a stencil,
+  rather than subtracting its shadow polygons from the accumulated map.
+  Subtracting eats the other lights wherever two occluders overlap.
+
+`occluder2d` takes its outline from an authored `mesh`, else from the node's
+`collider2d`, else from its circle, capsule, rect or sprite shape.
+
 ## Phases
 
-1. `light2d` without shadows and `ambient` on the camera; the light map
+1. ✅ `light2d` without shadows and `ambient` on the camera; the light map
    pass.
-2. `occluder2d` and shadow polygons; default occluders from `collider2d`.
+2. ✅ `occluder2d` and shadow polygons; default occluders from `collider2d`.
 3. The 3D skinning material; the CPU path kept for headless and as the
    reference in tests.
 4. Post-processing on the camera: bloom first, since the light map already

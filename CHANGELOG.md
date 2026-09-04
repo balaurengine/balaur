@@ -32,6 +32,7 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Shaders in WESL, linked to WGSL at run time; `material` asset type; `sprite` takes a material.
 - `sprite` component: textured 2D quads with sheets.
 - `polygon` component: a textured 2D polygon, GPU-skinned to a rig.
+- 2D lights and shadows: `light2d`, `occluder2d`, `camera.ambient`, and a light-map pass every sprite, polygon and tile is multiplied by.
 - 2D and 3D skeletal animation: `bone2d`, `bone3d`, the `skeleton` module, CPU skinning.
 - `modifier2d`: `look_at` and `two_bone_ik`, run after the clip.
 - `rotation` clip tracks take quaternion keys.
@@ -85,6 +86,7 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Pad motion in the snapshot and the recording: `input.gamepad_gyro`, `gamepad_acceleration`, `gamepad_touches`.
 - Loaded plugins are recorded: `balaur_core::plugins`, and a plugin's `requires` is checked at load.
 - Optional modules are one line in `balaur`'s `modules!` table, loaded in requirement-then-name order.
+- Every plugin loads from one ordered set; `balaur_plugin::Builtin` gives an `App`-shaped plugin a manifest.
 
 ### Platform services
 

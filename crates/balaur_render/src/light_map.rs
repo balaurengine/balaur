@@ -8,6 +8,9 @@
 //! frame by the camera's ambient plus what the light map holds — so sprites,
 //! polygons and tiles are lit without any of them knowing about it.
 //!
+//! The multiply lands on everything already drawn, a 3D scene under the 2D
+//! one included; debug lines and particles draw after it and stay unlit.
+//!
 //! Nothing here runs when the scene has no `light2d`: the node is detached
 //! and the frame draws exactly as an unlit one does.
 
@@ -24,7 +27,7 @@ use kiss3d::resource::{
 };
 use kiss3d::scene::{InstancesBuffer2d, Object2d, ObjectData2d, SceneNode2d};
 
-use crate::light::{lights, occluder_edges, shadow_quad, LightKind2d, LitLight2d};
+use crate::light::{lights as scene_lights, occluder_edges, shadow_quad, LightKind2d, LitLight2d};
 use crate::{shaders, CameraConfig2d};
 
 /// The most lights one frame draws. A shadow-casting light costs a render
@@ -82,25 +85,38 @@ impl LightMap {
         }
     }
 
-    /// Collect this frame's lights and occluders, and keep the composite node
-    /// last in the 2D scene so it multiplies everything drawn before it.
+    /// Take the composite out of the 2D scene, before the frame's other 2D
+    /// syncs put nodes after it.
     ///
-    /// Called after every other 2D sync: kiss3d draws 2D nodes in insertion
-    /// order, so "last" has to be re-asserted once the others have settled.
+    /// kiss3d removes a child by swapping the last one into its place, so a
+    /// node can only be detached without reordering the rest while it is the
+    /// last one — which this is, from [`Self::sync`] until anything else is
+    /// added. Hence a call at the top of the frame rather than one inside
+    /// `sync`.
+    pub(crate) fn detach(&mut self) {
+        if let Some(node) = &mut self.node {
+            node.detach();
+        }
+    }
+
+    /// Collect this frame's lights and occluders, and put the composite node
+    /// back as the last child so it multiplies everything drawn before it.
+    ///
+    /// Called after every other 2D sync; [`Self::detach`] must have run this
+    /// frame, which kiss3d's own `add_child` asserts.
     pub(crate) fn sync(&mut self, app: &balaur_core::App, scene_2d: &mut SceneNode2d) {
         let mut lights = {
             let world = app.engine.world();
-            lights(&world, app.engine.root())
+            scene_lights(&world, app.engine.root())
         };
         if lights.len() > MAX_LIGHTS {
             warn_once_about_light_count(lights.len());
             lights.truncate(MAX_LIGHTS);
         }
+        // The node is left built rather than dropped: a light switched off
+        // and on again must not rebuild three pipelines and two textures.
         if lights.is_empty() {
-            if let Some(node) = &mut self.node {
-                node.detach();
-            }
-            self.node = None;
+            self.scene.borrow_mut().lights.clear();
             return;
         }
         let casting = lights.iter().any(|light| light.shadows);
@@ -122,7 +138,6 @@ impl LightMap {
         let node = self
             .node
             .get_or_insert_with(|| build_node(Rc::clone(&self.scene)));
-        node.detach();
         scene_2d.add_child(node.clone());
     }
 }
@@ -490,7 +505,7 @@ fn build_offscreen_pipelines(
 /// draws inside the frame's own 2D pass, whose MSAA is not ours to choose.
 fn build_composite_pipeline(
     layout: wgpu::PipelineLayout,
-    shader: wgpu::ShaderModule,
+    shader: Rc<wgpu::ShaderModule>,
 ) -> PipelineCache {
     PipelineCache::new(move |sample_count| {
         Context::get().create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -536,12 +551,10 @@ impl LightMapMaterial {
             bind_group_layouts: &[Some(&frame_layout), Some(&texture_layout)],
             immediate_size: 0,
         });
-        let source = linked_shader();
-        let shader = ctxt.create_shader_module(Some("light_map_shader"), &source);
+        let shader = Rc::new(ctxt.create_shader_module(Some("light_map_shader"), &linked_shader()));
         let (light_pipeline, shadow_pipeline) =
             build_offscreen_pipelines(&offscreen_layout, &shader);
-        let composite_shader = ctxt.create_shader_module(Some("light_map_composite"), &source);
-        let composite_pipeline = build_composite_pipeline(composite_layout, composite_shader);
+        let composite_pipeline = build_composite_pipeline(composite_layout, Rc::clone(&shader));
         let frame_uniform = ctxt.create_buffer(&wgpu::BufferDescriptor {
             label: Some("light_map_frame_uniform"),
             size: std::mem::size_of::<FrameUniforms>() as u64,
@@ -615,39 +628,11 @@ impl LightMapMaterial {
 
     /// Draw the light map: one pass for every light that casts no shadow,
     /// then a pass per light that does, each masked by its own stencil.
-    fn encode(&self, target: &Target, count: usize) {
+    fn encode(&self, target: &Target) {
         let ctxt = Context::get();
         let mut encoder = ctxt.create_command_encoder(Some("light_map"));
-        let attachments = |clear_color: bool| {
-            (
-                wgpu::RenderPassColorAttachment {
-                    view: &target.light,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: if clear_color {
-                            wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)
-                        } else {
-                            wgpu::LoadOp::Load
-                        },
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                },
-                wgpu::RenderPassDepthStencilAttachment {
-                    view: &target.stencil,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Discard,
-                    }),
-                    stencil_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                },
-            )
-        };
         {
-            let (color, depth) = attachments(true);
+            let (color, depth) = attachments(target, true);
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("light_map_unshadowed"),
                 color_attachments: &[Some(color)],
@@ -657,18 +642,17 @@ impl LightMapMaterial {
                 multiview_mask: None,
             });
             pass.set_stencil_reference(1);
-            for index in 0..count {
-                if self.ranges[index].count == 0 {
+            for (index, range) in self.ranges.iter().enumerate() {
+                if range.count == 0 {
                     self.draw_light(&mut pass, index);
                 }
             }
         }
-        for index in 0..count {
-            let range = &self.ranges[index];
+        for (index, range) in self.ranges.iter().enumerate() {
             if range.count == 0 {
                 continue;
             }
-            let (color, depth) = attachments(false);
+            let (color, depth) = attachments(target, false);
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("light_map_shadowed"),
                 color_attachments: &[Some(color)],
@@ -698,6 +682,44 @@ impl LightMapMaterial {
         pass.set_vertex_buffer(0, self.instances.buffer.slice(start..start + stride));
         pass.draw(0..6, 0..1);
     }
+}
+
+/// The light map and its stencil as one pass's attachments. The first pass
+/// of a frame clears the colour; the per-light passes after it load what the
+/// ones before accumulated, and every pass clears the stencil for itself.
+fn attachments(
+    target: &Target,
+    clear_color: bool,
+) -> (
+    wgpu::RenderPassColorAttachment<'_>,
+    wgpu::RenderPassDepthStencilAttachment<'_>,
+) {
+    (
+        wgpu::RenderPassColorAttachment {
+            view: &target.light,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: if clear_color {
+                    wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)
+                } else {
+                    wgpu::LoadOp::Load
+                },
+                store: wgpu::StoreOp::Store,
+            },
+            depth_slice: None,
+        },
+        wgpu::RenderPassDepthStencilAttachment {
+            view: &target.stencil,
+            depth_ops: Some(wgpu::Operations {
+                load: wgpu::LoadOp::Clear(1.0),
+                store: wgpu::StoreOp::Discard,
+            }),
+            stencil_ops: Some(wgpu::Operations {
+                load: wgpu::LoadOp::Clear(0),
+                store: wgpu::StoreOp::Store,
+            }),
+        },
+    )
 }
 
 /// How far a directional light's shadows must reach to leave the view: the
@@ -764,7 +786,7 @@ impl Material2d for LightMapMaterial {
         }
         self.build_geometry(&scene, view_reach(&view, &proj));
         if let Some(target) = &self.target {
-            self.encode(target, scene.lights.len());
+            self.encode(target);
         }
     }
 

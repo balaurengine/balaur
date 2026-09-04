@@ -674,9 +674,18 @@ boundary still has to grow, which is what the hatch is for.
 Every plugin that finishes registering is appended to `PluginRegistry`
 (`balaur_core::plugins`), and a plugin's `requires` is checked against it at
 load, so a name may reach across the module/extension boundary in either
-direction. Load order is sorted by name and then by declared requirements,
-never by directory iteration: load order decides registration order, which
-decides the simulation.
+direction. `standard_app` builds one set and hands it to `load_all`, which
+orders the whole set before any of it registers: a missing requirement is
+refused rather than found halfway through. Load order is sorted by name and
+then by declared requirements, never by directory iteration: load order
+decides registration order, which decides the simulation.
+
+The engine's own five (input, physics, animation, render, ui) are written
+against the whole `App` rather than against `Registry`, because asset types,
+presets, components and closure-taking replay sources are not on it.
+`balaur_plugin::Builtin` wraps one in a manifest so it joins the same ordered
+set — the shape a plugin is written in, adapted at the boundary, not a second
+way to load one.
 
 `docs/PLAN-plugins.md` carries the rest — one trait, one sorted order for
 modules and extensions alike, and a `[plugins]` table in `project.toml`.
@@ -1331,14 +1340,30 @@ much time was owed, and a re-run could take a different number of fixed steps
 than the run it repeats. At the fixed step the accumulator is back at zero
 every time, so the question cannot arise.
 
-What it does not do yet: replicate state. `core::netsession` puts this
-session behind a `Transport`, so two engines already exchange inputs and
-digests over a wire — but inputs are all that cross, and a game that cannot
-have every peer simulate everything needs the model below. An input older
-than the ring cannot be answered — the tick it belongs to is gone, so this
-peer keeps a prediction it now knows was wrong. `Session::stale_inputs`
-counts those, because that is a divergence the caller has to resync out of,
-not a log line.
+`core::netsession` puts this session behind a `Transport`, so two engines
+exchange inputs and digests over a wire. Every datagram carries the last
+twelve ticks of that player's input rather than only the newest: inputs go
+unreliably and are never retransmitted, so one sent once and dropped would be
+lost for good, and a tick simulated on a prediction nobody ever corrects is a
+permanent divergence rather than a recoverable one. Repeating costs a few
+bytes and lets one packet arriving repair every gap behind it. The gap was
+invisible against loopback and surfaced the moment `transport::Faulty` put
+five percent loss on the link.
+
+Payloads reach the session through `PeerTraffic`, an `ExternalIo` behind a
+`session` replay source, so a recorded session replays with nothing on the
+other end and a desync is reproducible from a file. `NetSession::stats`
+measures each link — round trip, loss counted from sequence gaps, bytes each
+way — and publishes it as `SessionStats`: an observer in the sense
+`engine.timings()` is, never recorded, replayed or hashed.
+
+An input older than the ring still cannot be answered — the tick it belongs
+to is gone, so this peer keeps a prediction it now knows was wrong.
+`Session::stale_inputs` counts those, because that is a divergence the caller
+has to resync out of, not a log line.
+
+What it does not do yet: replicate state. Inputs are all that cross, and a
+game that cannot have every peer simulate everything needs the model below.
 
 ## Networking and state sync
 

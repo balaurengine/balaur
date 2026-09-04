@@ -7,7 +7,7 @@
 //! (the pointer never outlives the closure that pushed it).
 
 use balaur_core::Engine;
-use balaur_script::{CallbackHost, CallbackId, Value};
+use balaur_script::{CallbackHost, CallbackId, NodeId, Value};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -90,4 +90,30 @@ pub(crate) fn scoped(eng: &Engine, ui: &mut egui::Ui, callback: CallbackId) -> a
         s.borrow_mut().pop();
     });
     result
+}
+
+/// Run a *named* script function with `ui` as the current target: what a
+/// `draw` widget hands its rect to.
+///
+/// `target` is a method on the node's own script, or `file.rn:function` for a
+/// free function — a scene node that only reserves a rect should not have to
+/// carry a script instance to fill it.
+pub(crate) fn scoped_named(eng: &Engine, ui: &mut egui::Ui, node: NodeId, target: &str) {
+    let Some(host) = eng.script_host() else {
+        return;
+    };
+    UI_STACK.with(|s| s.borrow_mut().push(std::ptr::from_mut::<egui::Ui>(ui)));
+    let result = match target.split_once(':') {
+        Some((path, function)) => host.call_in(path, function, &[]).map(|_| ()),
+        None => {
+            host.call_on(node, target, &[]);
+            Ok(())
+        }
+    };
+    UI_STACK.with(|s| {
+        s.borrow_mut().pop();
+    });
+    if let Err(err) = result {
+        tracing::warn!("widget draw '{target}': {err:#}");
+    }
 }

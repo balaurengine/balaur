@@ -1,6 +1,6 @@
 # Plugins: one trait, one order, one switch
 
-Status: **phases 1 and 2 shipped.** Phases 3 and 4 are not started.
+Status: **phases 1-3 shipped.** Phase 4 is not started.
 
 A module is declared in four places today — a cargo feature, an optional
 dependency, two `pub use` lines, and a `load` call under `#[cfg]`. Extensions
@@ -87,12 +87,24 @@ from `declare`, which had been held by a comment and by hand-ordering.
 `PlatformPlugin` moved ahead of the optional block and `apple` names it, so
 the constraint is now enforced rather than remembered.
 
-**3. One trait.** The core five move to `manifest()` + `declare()`.
-`Registry` gains `register_asset_type` (animation, render and ui all want it)
-and keeps `app()` for the rest. Everything reached through `app()` is Rust-only
-and is the list of what the C ABI still has to grow, which is what that hatch
-was always for. Then every plugin, module and extension alike, goes into one
-`Vec` and through `load_order` once.
+**3. One order.** Every plugin goes into one `Vec` and through `load_all`
+once, so `standard_app` is a list rather than a sequence and `requires` is
+believed wherever it is written.
+
+The plan said "one trait" and the code stopped short of it, deliberately. The
+engine's own five build against the whole `App` — asset types, presets,
+components, closure-taking replay sources — and none of that is on `Registry`.
+Rewriting five crates to reach it all back through `app()` would have bought
+the word "one" and nothing else. Instead `balaur_plugin::Builtin` wraps a
+`balaur_core::Plugin` in a manifest, which is what the ordered set actually
+needs, and leaves those five untouched.
+
+So two traits remain, but not two paths: `balaur_core::Plugin` is now the
+shape an in-tree plugin is *written* in, adapted at the boundary, rather than
+a second way to load one. Collapsing it needs `Registry` to grow asset types,
+presets, components and a closure-taking replay source — the same list the C
+boundary needs, which is the argument for doing both at once rather than
+neither.
 
 **4. One switch.** `[plugins]` in `project.toml`:
 
@@ -113,12 +125,12 @@ boots through `standard_app`.
 
 ## The one risky change, and why it is safe
 
-Phase 3 replaces a written sequence with a sorted one. Today:
+Phase 3 replaced a written sequence with a sorted one. Before:
 
-    input, physics, animation, render, [audio, http, websocket, gamend], ui
+    input, physics, animation, render, platform, [apple, audio, gamend, http, websocket], ui
 
-Sorted: `animation, audio, gamend, http, input, physics, render, ui,
-websocket`. Registration order is system order within a stage, and system
+After: `animation, audio, gamend, http, input, physics, platform, render, ui,
+websocket`, with `apple` pulled up behind `platform` by its requirement. Registration order is system order within a stage, and system
 order is the simulation, so this needs an argument rather than a hope.
 
 No built-in plugin requires another. Presets and components are registered
@@ -132,8 +144,12 @@ the tick digest is unchanged. `drive_ui_focus` is added by the facade after
 every plugin and stays last in `First`, which is what makes it read the
 actions of the frame it runs in.
 
-`requires` stays, and earns its keep for extensions and for whatever module
-lands next; it is empty for all nine today.
+Two further checks the sort turned out to need. `balaur_anim` depends on no
+other plugin crate, and nothing in `balaur_ui`'s build reads a resource
+another plugin inserts, so moving `animation` to the front and `ui` ahead of
+`websocket` changes nothing. And `scripts/gen_docs.py` sorts components,
+asset types and `api.json` keys, so registration order does not reach the
+generated reference.
 
 ## Open
 

@@ -747,7 +747,8 @@ impl Plugin for RenderPlugin {
         sprite::register_sprite_component(app);
         polygon::register_polygon_component(app);
         camera::register_camera_component(app);
-        light::register(app);
+        light::register_light2d_component(app);
+        light::register_occluder2d_component(app);
         mesh::register_mesh_component(app);
         material::register_material_asset(app);
         tilemap::register_tileset_asset(app);
@@ -756,6 +757,9 @@ impl Plugin for RenderPlugin {
         // SceneSync, and after the core propagation system registered at
         // `App::new`: the camera follows the node's settled global pose.
         app.add_system(Stage::SceneSync, camera::drive_camera_system);
+        // Same stage, after the camera: an outline follows the collider or
+        // shape the node has settled on this tick.
+        app.add_system(Stage::SceneSync, light::resolve_occluders_system);
         app.add_system(Stage::Render, clear_debug_lines_system);
 
         Ok(())

@@ -117,7 +117,12 @@ fn a_directional_light_is_aimed_by_the_nodes_rotation() {
 fn an_occluder_defaults_to_the_nodes_collider_outline() {
     let mut app = physics_app();
     let wall = node(&app);
-    add(&app, wall, "collider2d", "kind = \"rect\"\nhalf_extents = [2.0, 0.5]");
+    add(
+        &app,
+        wall,
+        "collider2d",
+        "kind = \"rect\"\nhalf_extents = [2.0, 0.5]",
+    );
     add(&app, wall, "occluder2d", "");
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
@@ -147,7 +152,12 @@ fn an_occluder_declared_before_its_collider_still_resolves() {
     add(&app, wall, "collider2d", "kind = \"circle\"\nradius = 1.0");
     app.tick(1.0 / 60.0);
     assert_eq!(
-        app.engine.world().get::<&Occluder2d>(wall).unwrap().points.len(),
+        app.engine
+            .world()
+            .get::<&Occluder2d>(wall)
+            .unwrap()
+            .points
+            .len(),
         16
     );
 }
@@ -156,7 +166,12 @@ fn an_occluder_declared_before_its_collider_still_resolves() {
 fn an_occluder_falls_back_to_the_nodes_2d_shape() {
     let mut app = app();
     let crate_node = node(&app);
-    add(&app, crate_node, "shape2d", "kind = \"rect\"\nhalf_extents = [1.0, 1.0]");
+    add(
+        &app,
+        crate_node,
+        "shape2d",
+        "kind = \"rect\"\nhalf_extents = [1.0, 1.0]",
+    );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
@@ -172,11 +187,18 @@ fn a_closed_occluder_edge_list_wraps_around() {
     let mut app = app();
     let crate_node = node(&app);
     place(&app, crate_node, Vec3::new(5.0, 0.0, 0.0), Quat::IDENTITY);
-    add(&app, crate_node, "shape2d", "kind = \"rect\"\nhalf_extents = [1.0, 1.0]");
+    add(
+        &app,
+        crate_node,
+        "shape2d",
+        "kind = \"rect\"\nhalf_extents = [1.0, 1.0]",
+    );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
-    let world = app.engine.world();
-    let edges = occluder_edges(&world, app.engine.root());
+    let edges = {
+        let world = app.engine.world();
+        occluder_edges(&world, app.engine.root())
+    };
     assert_eq!(edges.len(), 4, "{edges:?}");
     // The node's own transform is applied: the outline is in world space.
     for edge in &edges {
@@ -186,6 +208,7 @@ fn a_closed_occluder_edge_list_wraps_around() {
     }
     add(&app, crate_node, "occluder2d", "closed = false");
     app.tick(1.0 / 60.0);
+    let world = app.engine.world();
     let edges = occluder_edges(&world, app.engine.root());
     assert_eq!(edges.len(), 3, "an open outline is a chain: {edges:?}");
 }
@@ -207,7 +230,11 @@ fn point_light(position: Vec2, radius: f32) -> LitLight2d {
 #[test]
 fn a_shadow_quad_reaches_past_the_lights_radius() {
     let light = point_light(Vec2::ZERO, 10.0);
-    let quad = shadow_quad([Vec2::new(1.0, -1.0), Vec2::new(1.0, 1.0)], &light, light.radius);
+    let quad = shadow_quad(
+        [Vec2::new(1.0, -1.0), Vec2::new(1.0, 1.0)],
+        &light,
+        light.radius,
+    );
     assert_close(quad[0], Vec2::new(1.0, -1.0));
     assert_close(quad[1], Vec2::new(1.0, 1.0));
     for far in [quad[2], quad[3]] {
@@ -284,7 +311,12 @@ fn the_components_round_trip() {
     assert_eq!(table["mesh"].as_str().unwrap(), "");
 
     let cam = node(&app);
-    add(&app, cam, "camera", "kind = \"2d\"\nambient = [0.1, 0.2, 0.3, 1.0]");
+    add(
+        &app,
+        cam,
+        "camera",
+        "kind = \"2d\"\nambient = [0.1, 0.2, 0.3, 1.0]",
+    );
     let saved = components::get(&app.engine, cam, "camera").unwrap();
     let ambient = saved.as_table().unwrap()["ambient"].as_array().unwrap();
     assert!((ambient[1].as_float().unwrap() - 0.2).abs() < 1e-6);

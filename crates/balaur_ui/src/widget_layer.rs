@@ -72,6 +72,9 @@ pub struct Widget {
     /// The author's floor, whatever the content measures.
     pub min_width: f32,
     pub min_height: f32,
+    /// What fills a `draw` widget's rect: a method on this node's script, or
+    /// `file.rn:function` for a free function that needs no instance.
+    pub draw: String,
 }
 
 /// Whether focus can land on this widget.
@@ -122,7 +125,7 @@ pub(crate) fn register_widget_component(app: &mut App) {
                   records its click in `clicked` and calls the node's `on_click` method.",
             schema: ComponentDef::parse_schema(
                 "widget",
-                r#"kind = { type = "enum", default = "label", options = ["label", "button", "panel", "row", "column"], description = "The HUD element the widget layer draws" }
+                r#"kind = { type = "enum", default = "label", options = ["label", "button", "panel", "row", "column", "draw"], description = "The HUD element the widget layer draws" }
 text = { type = "string", default = "label", description = "Label or button caption" }
 visible = { type = "bool", default = true, description = "Draw the widget; hidden widgets keep their state" }
 anchor = { type = "enum", default = "top_left", options = ["top_left", "top_right", "bottom_left", "bottom_right", "center"], description = "Screen corner or center the offset is measured from" }
@@ -143,7 +146,8 @@ on_click = { type = "string", default = "", description = "Script method called 
 clicked = { type = "bool", default = false, readonly = true, description = "True on the frame the button was clicked" }
 grow = { type = "float", default = 0.0, min = 0.0, description = "Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for" }
 min_width = { type = "float", default = 0.0, min = 0.0, description = "Smallest width a container may give this widget, in design pixels" }
-min_height = { type = "float", default = 0.0, min = 0.0, description = "Smallest height a container may give this widget, in design pixels" }"#,
+min_height = { type = "float", default = 0.0, min = 0.0, description = "Smallest height a container may give this widget, in design pixels" }
+draw = { type = "string", default = "", description = "What fills a `draw` widget: a script method on this node, or `scripts/file.rn:function` for a free function" }"#,
             ),
             tags: &["ui"],
             expects: &[],
@@ -206,6 +210,16 @@ min_height = { type = "float", default = 0.0, min = 0.0, description = "Smallest
                     "text_key".into(),
                     toml::Value::String(widget.text_key.clone()),
                 );
+                map.insert("grow".into(), toml::Value::Float(f64::from(widget.grow)));
+                map.insert(
+                    "min_width".into(),
+                    toml::Value::Float(f64::from(widget.min_width)),
+                );
+                map.insert(
+                    "min_height".into(),
+                    toml::Value::Float(f64::from(widget.min_height)),
+                );
+                map.insert("draw".into(), toml::Value::String(widget.draw.clone()));
                 Some(toml::Value::Table(map))
             }),
         },
@@ -270,6 +284,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         grow: f("grow", 0.0),
         min_width: f("min_width", 0.0),
         min_height: f("min_height", 0.0),
+        draw: s("draw", ""),
     }
 }
 
@@ -672,6 +687,20 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         }
         "row" => contain(ui, at, index, Axis::Row),
         "column" => contain(ui, at, index, Axis::Column),
+        // The rect a script fills. The node owns the placement, the script
+        // owns everything inside it, and neither has to know the other.
+        "draw" => {
+            if widget.draw.is_empty() {
+                return;
+            }
+            let rect = ui.max_rect();
+            let entity = placed.entity;
+            let target = widget.draw.clone();
+            let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+            inner.set_clip_rect(rect.intersect(ui.clip_rect()));
+            crate::bridge::scoped_named(at.eng, &mut inner, balaur_core::node_id_of(entity), &target);
+            ui.advance_cursor_after_rect(rect);
+        }
         _ => {
             ui.label(egui::RichText::new(&caption).font(font).color(color));
         }

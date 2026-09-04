@@ -333,8 +333,15 @@ impl NetSession {
     }
 
     /// Ping every so often, and forget any that never came back.
+    ///
+    /// The clock is what a round trip is; nothing here reaches the
+    /// simulation, in the sense `crate::timings` sets out.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "an observer, never a simulation input"
+    )]
     fn measure(&mut self, tick: u64) {
-        if tick % PING_EVERY != 0 {
+        if !tick.is_multiple_of(PING_EVERY) {
             return;
         }
         self.pinged.insert(tick, std::time::Instant::now());

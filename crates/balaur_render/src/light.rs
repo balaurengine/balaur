@@ -8,13 +8,13 @@
 use anyhow::{anyhow, Result};
 use balaur_core::components::{as_f64, ComponentDef};
 use balaur_core::hecs::{Entity, World};
-use balaur_core::{App, Engine, GlobalTransform, Stage};
+use balaur_core::{App, Engine, GlobalTransform};
 use glamx::{Vec2, Vec3};
 
 use crate::{color_from_params, color_to_toml, Renderable2d, Shape2d};
 
 /// Which way a `light2d` throws light.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LightKind2d {
     /// Radiates from the node, fading to nothing at `radius`.
     Point,
@@ -108,10 +108,7 @@ pub fn occluder_edges(world: &World, root: Entity) -> Vec<[Vec2; 2]> {
         let to_world = |p: Vec2| {
             let scaled = Vec3::new(p.x * global.scale.x, p.y * global.scale.y, 0.0);
             let turned = global.rotation * scaled;
-            Vec2::new(
-                global.position.x + turned.x,
-                global.position.y + turned.y,
-            )
+            Vec2::new(global.position.x + turned.x, global.position.y + turned.y)
         };
         let points: Vec<Vec2> = occluder.points.iter().copied().map(to_world).collect();
         for pair in points.windows(2) {
@@ -167,7 +164,7 @@ pub(crate) fn register_light2d_component(app: &mut App) {
     app.register_component(
         "light2d",
         ComponentDef {
-            doc: "A 2D light: the node's position places it, its rotation aims a directional one, and every sprite, polygon and tile is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`.",
+            doc: "A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it — sprites, polygons, tiles, a 3D scene behind them — is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.",
             schema: ComponentDef::parse_schema("light2d", LIGHT_SCHEMA),
             tags: &["2d", "render"],
             expects: &[],
@@ -231,7 +228,7 @@ pub(crate) fn register_occluder2d_component(app: &mut App) {
     app.register_component(
         "occluder2d",
         ComponentDef {
-            doc: "The outline this node blocks 2D light with. Left empty it follows the node's `collider2d`, or failing that its circle, capsule, rect or sprite shape, so the thing a player sees is the thing that casts the shadow.",
+            doc: "The outline this node blocks 2D light with. Left empty it follows the node's `collider2d`, or failing that its circle, capsule, rect or sprite shape, so the thing a player sees is the thing that casts the shadow. Every edge casts, so an occluder stands in its own shadow: a node that should stay lit wants a smaller outline or a light with `shadows = false`.",
             schema: ComponentDef::parse_schema("occluder2d", OCCLUDER_SCHEMA),
             tags: &["2d", "render"],
             expects: &[],
@@ -284,9 +281,8 @@ pub(crate) fn register_occluder2d_component(app: &mut App) {
 /// load is warned about and occludes nothing: one bad asset must not take the
 /// scene down.
 fn mesh_outline(eng: &Engine, reference: &str) -> Vec<Vec2> {
-    let loaded =
-        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, reference)
-            .and_then(|definition| balaur_core::mesh::load_from(eng, &definition));
+    let loaded = balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, reference)
+        .and_then(|definition| balaur_core::mesh::load_from(eng, &definition));
     match loaded {
         Ok(data) => data
             .positions
@@ -309,12 +305,13 @@ fn mesh_outline(eng: &Engine, reference: &str) -> Vec<Vec2> {
 pub(crate) fn resolve_occluders_system(eng: &Engine, _dt: f32) {
     let derived: Vec<Entity> = {
         let world = eng.world();
-        world
-            .query::<&Occluder2d>()
-            .iter()
-            .filter(|(_, occluder)| occluder.mesh.is_empty())
-            .map(|(entity, _)| entity)
-            .collect()
+        let mut derived = Vec::new();
+        for (entity, occluder) in &mut world.query::<(Entity, &Occluder2d)>() {
+            if occluder.mesh.is_empty() {
+                derived.push(entity);
+            }
+        }
+        derived
     };
     // Outlines first, world borrows after: `collider_outline` reaches through
     // the registry into another plugin, which takes its own borrows.
@@ -348,7 +345,10 @@ fn collider_outline(eng: &Engine, entity: Entity) -> Option<Vec<Vec2>> {
         (def.get)(eng, entity)?
     };
     let num = |key: &str, default: f32| {
-        params.get(key).and_then(as_f64).map_or(default, |v| v as f32)
+        params
+            .get(key)
+            .and_then(as_f64)
+            .map_or(default, |v| v as f32)
     };
     let point = |key: &str| {
         let axis = |i: usize| {
@@ -428,14 +428,8 @@ fn capsule_outline(radius: f32, height: f32) -> Vec<Vec2> {
         points.push(on_circle(radius, i as f32 * step) + Vec2::new(0.0, half));
     }
     for i in 0..=arc {
-        points.push(on_circle(radius, std::f32::consts::PI + i as f32 * step) - Vec2::new(0.0, half));
+        points
+            .push(on_circle(radius, std::f32::consts::PI + i as f32 * step) - Vec2::new(0.0, half));
     }
     points
-}
-
-/// Register both components and the system that fills in derived outlines.
-pub(crate) fn register(app: &mut App) {
-    register_light2d_component(app);
-    register_occluder2d_component(app);
-    app.add_system(Stage::SceneSync, resolve_occluders_system);
 }

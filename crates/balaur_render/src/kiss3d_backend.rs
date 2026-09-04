@@ -126,6 +126,8 @@ impl Frontend {
         apply_clear_color(app, window);
         pump_input(app, window);
         app.advance(dt);
+        // Before the 2D syncs move nodes around underneath it.
+        self.light_map.detach();
         sync(
             app,
             &mut self.scene,
