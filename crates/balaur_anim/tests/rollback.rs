@@ -112,7 +112,10 @@ fn re_simulating_from_a_snapshot_reaches_the_same_pose() {
     snapshot::restore(&app.engine, &frame);
     tick(&mut app, 20);
 
-    assert_ne!(expected, 0, "a clip that never moved would pass this vacuously");
+    assert_ne!(
+        expected, 0,
+        "a clip that never moved would pass this vacuously"
+    );
     assert_eq!(
         height(&app, node).to_bits(),
         expected,

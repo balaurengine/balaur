@@ -106,7 +106,7 @@ fn focus_walks_the_menu_in_scene_order_and_wraps() {
 
 #[test]
 fn accepting_the_focused_widget_is_a_click() {
-    let (_dir, app) = app();
+    let (_dir, mut app) = app();
     let (_column, buttons) = menu(&app);
     keyboard(&app);
     let ctx = egui::Context::default();
@@ -116,6 +116,7 @@ fn accepting_the_focused_widget_is_a_click() {
     assert_eq!(focused(&app), Some(buttons[1]));
 
     pass(&app, &ctx, key(egui::Key::Enter));
+    consume_input(&mut app);
     assert!(clicked(&app, buttons[1]), "accept did not click the focus");
     assert!(!clicked(&app, buttons[0]), "it clicked the wrong one");
 }

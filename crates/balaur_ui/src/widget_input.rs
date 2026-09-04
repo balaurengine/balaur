@@ -73,7 +73,10 @@ pub(crate) fn record(
     let (hit, arrived, changes) = {
         let world = eng.world();
         (
-            clicked.iter().map(|&e| key_of(&world, e)).collect::<Vec<_>>(),
+            clicked
+                .iter()
+                .map(|&e| key_of(&world, e))
+                .collect::<Vec<_>>(),
             focused.map(|e| key_of(&world, e)),
             edits
                 .into_iter()

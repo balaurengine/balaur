@@ -9,7 +9,7 @@ use support::*;
 
 #[test]
 fn a_hidden_widget_draws_nothing_and_takes_no_clicks() {
-    let (_dir, app) = app();
+    let (_dir, mut app) = app();
     let params = toml::toml! { kind = "button" text = "hit" x = 0.0 y = 0.0 };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -22,6 +22,7 @@ fn a_hidden_widget_draws_nothing_and_takes_no_clicks() {
     let target = pos2(10.0, 10.0);
     pass(&app, &ctx, press(target, true));
     pass(&app, &ctx, press(target, false));
+    consume_input(&mut app);
     assert!(
         clicked(&app, entity),
         "control: the visible button did not take the click"
@@ -37,6 +38,7 @@ fn a_hidden_widget_draws_nothing_and_takes_no_clicks() {
     );
     pass(&app, &ctx, press(target, true));
     pass(&app, &ctx, press(target, false));
+    consume_input(&mut app);
     assert!(!clicked(&app, entity), "a hidden button took a click");
 }
 
@@ -181,7 +183,7 @@ fn a_childs_own_offset_is_ignored_inside_a_container() {
 
 #[test]
 fn a_button_inside_a_container_still_takes_its_click() {
-    let (_dir, app) = app();
+    let (_dir, mut app) = app();
     let column = add_widget(
         &app,
         &toml::toml! { kind = "column" x = 0.0 y = 0.0 padding = 0.0 gap = 0.0 }.into(),
@@ -201,6 +203,7 @@ fn a_button_inside_a_container_still_takes_its_click() {
     let target = rect.center();
     pass(&app, &ctx, press(target, true));
     pass(&app, &ctx, press(target, false));
+    consume_input(&mut app);
     assert!(
         clicked(&app, button),
         "a laid-out button took no click at {target:?} inside {rect:?}"
@@ -610,7 +613,7 @@ fn a_tab_shows_the_page_it_names_and_only_that_one() {
 /// to; between two growers there is nothing a drag could mean.
 #[test]
 fn a_handle_is_only_a_grab_where_a_neighbour_states_a_size() {
-    let (_dir, app) = app();
+    let (_dir, mut app) = app();
     let row = add_widget(
         &app,
         &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 height = 100.0 gap = 8.0 handle = 8.0 }
@@ -649,6 +652,12 @@ fn a_handle_is_only_a_grab_where_a_neighbour_states_a_size() {
         vec![egui::Event::PointerMoved(pos2(seam.x + 40.0, seam.y))],
     );
     pass(&app, &ctx, press(pos2(seam.x + 40.0, seam.y), false));
+    consume_input(&mut app);
+    let width_of = |entity: Entity| {
+        balaur::components::get(&app.engine, entity, "widget")
+            .and_then(|w| w.get("width").and_then(toml::Value::as_float))
+            .expect("the widget reports its width")
+    };
     let after = width_of(fixed);
     assert!(
         after > 130.0,
@@ -755,7 +764,7 @@ fn a_panels_own_padding_applies() {
 /// is what the schema says `active` holds.
 #[test]
 fn clicking_a_tab_writes_the_pages_node_name() {
-    let (_dir, app) = app();
+    let (_dir, mut app) = app();
     let tabs = add_widget(
         &app,
         &toml::toml! { kind = "tab" x = 0.0 y = 0.0 width = 300.0 height = 200.0 }.into(),
@@ -788,6 +797,7 @@ fn clicking_a_tab_writes_the_pages_node_name() {
 
     pass(&app, &ctx, press(target, true));
     pass(&app, &ctx, press(target, false));
+    consume_input(&mut app);
     let active = balaur::components::get(&app.engine, tabs, "widget")
         .and_then(|w| w.get("active").and_then(|v| v.as_str().map(str::to_owned)))
         .expect("the tab reports its active page");

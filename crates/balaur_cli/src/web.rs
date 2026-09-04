@@ -34,6 +34,11 @@ pub async fn start(canvas_id: String, pack_url: String) -> Result<(), JsValue> {
 /// the same shape `balaur edit <game>` hands it on a desktop.
 const PROJECT_ROOT: &str = "/project";
 
+/// Where the editor's own project is unpacked. It reads its themes through
+/// `fs`, so it needs a directory of its own even though its scripts and
+/// scenes come from the pack.
+const EDITOR_ROOT: &str = "/editor";
+
 /// Open the editor on `project_pack_url`, drawing on the canvas with id
 /// `canvas_id`.
 ///
@@ -58,11 +63,13 @@ pub async fn start_editor(
     let project = fetch_bytes(&project_pack_url).await?;
     let project = balaur::Pack::decode(&project).map_err(err)?;
 
+    let editor_pack = balaur::Pack::decode(&editor).map_err(err)?;
     let fs = std::rc::Rc::new(balaur::files::MemoryFs::new());
+    fs.seed(std::path::Path::new(EDITOR_ROOT), editor_pack.entries());
     fs.seed(std::path::Path::new(PROJECT_ROOT), project.entries());
     balaur::files::set_default(fs);
 
-    balaur::boot_editor_on_canvas(&editor, PROJECT_ROOT, &canvas_id)
+    balaur::boot_editor_on_canvas(&editor, EDITOR_ROOT, PROJECT_ROOT, &canvas_id)
         .await
         .map_err(err)
 }

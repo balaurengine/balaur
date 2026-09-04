@@ -453,11 +453,16 @@ pub async fn boot_pack_on_canvas(bytes: &[u8], canvas_id: &str) -> Result<()> {
 #[cfg(feature = "window")]
 pub async fn boot_editor_on_canvas(
     editor_pack: &[u8],
+    editor_root: &str,
     game_root: &str,
     canvas_id: &str,
 ) -> Result<()> {
     let pack = Pack::decode(editor_pack)?;
     let mut config = AppConfig::packed(pack);
+    // The editor's scripts and scenes come from the pack, but it reads its own
+    // themes and layouts through `fs` like any project would, so its root has
+    // to be a directory that exists — in a browser, one the caller seeded.
+    config.project_root = std::path::PathBuf::from(editor_root);
     config.script_args = vec![game_root.to_string()];
     let mut app = standard_app(config)?;
     file_api::add_root(&app.engine, game_root);
