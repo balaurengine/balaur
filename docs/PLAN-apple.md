@@ -314,22 +314,28 @@ actually protects the simulation.
 
 ## 5. Open questions
 
-1. **Which view controller does Game Center's UI present from?** kiss3d owns
-   the window through winit. The candidates are reaching the key window's
-   root controller through `objc2-ui-kit`, or the engine holding one it
-   created. The second is more code and fewer surprises; neither is decided.
-2. **Does `platform.sign_in` mean Game Center or Sign in with Apple?**
-   They are different accounts with different lifetimes, and a game may want
-   both. Likely answer: `platform.sign_in` is Game Center on Apple platforms,
-   because it is the one that owns achievements, and Sign in with Apple stays
-   `apple.sign_in`.
-3. **Where do tokens live between runs?** The Keychain is the answer on
-   Apple's side, and `save`'s directory is the answer everywhere else. A
-   `platform.credential_*` pair over both is more surface; the alternative is
-   that a token is not persisted and every launch signs in again, which
-   Game Center does anyway.
-4. **Does the macOS build get the same plugin?** GameKit and StoreKit are
-   there, Sign in with Apple is there, and the `.app` is already signed. The
-   cost is that a macOS game shipped outside the App Store must not link
-   StoreKit expecting a receipt. Probably: same crate, capability table
-   decides.
+1. ~~Which view controller does Game Center's UI present from?~~ **The window
+   the application already has.** The key window's root view controller on
+   iOS, `GKDialogController` on macOS, both reached by message so neither
+   AppKit nor UIKit becomes a dependency. A game with no window yet is told
+   so rather than left waiting.
+2. ~~Does `platform.sign_in` mean Game Center or Sign in with Apple?~~
+   **Game Center**, because it is the account achievements belong to. Sign in
+   with Apple stays `apple.sign_in`, and the two can both be used: they are
+   different accounts with different lifetimes.
+3. ~~Where do tokens live between runs?~~ **With the game, through `save`.**
+   The engine stores no accounts; what it offers is `apple.credential_state`,
+   which says whether the account a game saved is still authorized, revoked,
+   transferred or unknown. Game Center re-authenticates every launch anyway.
+4. ~~Does the macOS build get the same plugin?~~ **Yes** — one crate, and the
+   `[apple]` capability table decides what the bundle declares. A macOS game
+   shipped outside the App Store simply declares no `in-app-purchase`.
+5. **A URL the game was launched with is still not delivered.** It reaches
+   the application delegate before the engine has booted, and the proxy goes
+   up after. Reading it would mean the window layer holding the launch
+   options for us, which is a change to kiss3d rather than to this crate.
+6. **Should buying become portable?** `apple.purchase` is Apple's, because
+   `platform.*` carries what every store shares and no second store here has
+   implemented purchases yet. Play Billing and Steam's inventory are shaped
+   differently enough that the portable verb should be designed against two
+   of them, not one.

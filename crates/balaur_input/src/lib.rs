@@ -17,9 +17,10 @@ use balaur_script::{Bindings, BindingsExt, Value};
 
 pub mod actions;
 pub mod gamepad;
+pub mod haptics;
 
 pub use actions::InputActions;
-pub use gamepad::{GamepadState, PAD_AXIS_NAMES, PAD_BUTTON_NAMES};
+pub use gamepad::{GamepadState, Motion, PadTouch, PAD_AXIS_NAMES, PAD_BUTTON_NAMES};
 
 const MOUSE_BUTTONS: usize = 8;
 
@@ -767,6 +768,9 @@ fn install_gamepad_api(m: &mut dyn Bindings<Engine>) {
         let v = state.borrow().pad(id).map_or(0.0, |p| p.axis(&axis));
         Ok(v)
     });
+    gamepad::install_motion_api(m);
+    gamepad::install_touchpad_api(m);
+    haptics::install_haptics_api(m);
 }
 
 /// `PAD_SOUTH` from `South`, `AXIS_LEFT_STICK_X` from `LeftStickX` — the same

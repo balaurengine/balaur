@@ -106,16 +106,32 @@ fn optional_modules(names: &[String]) -> Vec<String> {
 }
 
 #[test]
-fn the_optional_modules_load_in_name_order() {
+fn every_plugin_loads_in_name_order() {
     let dir = tempfile::tempdir().unwrap();
     project(dir.path(), None, RUNE);
     let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     let names: Vec<String> = app.plugins().into_iter().map(|p| p.name).collect();
 
-    let found = optional_modules(&names);
-    let mut sorted = found.clone();
+    // `apple` is pulled up behind `platform` by its requirement; the rest sort.
+    let ordered: Vec<&String> = names.iter().filter(|n| *n != "apple").collect();
+    let mut sorted = ordered.clone();
     sorted.sort();
-    assert_eq!(found, sorted, "{names:?}");
+    assert_eq!(ordered, sorted, "{names:?}");
+}
+
+#[test]
+fn the_engines_own_plugins_are_ordered_with_the_rest() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path(), None, RUNE);
+    let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+    let names: Vec<String> = app.plugins().into_iter().map(|p| p.name).collect();
+
+    for expected in ["animation", "input", "physics", "platform", "render", "ui"] {
+        assert!(
+            names.contains(&expected.to_string()),
+            "`{expected}` is missing from {names:?}"
+        );
+    }
 }
 
 #[test]

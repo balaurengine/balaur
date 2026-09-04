@@ -272,10 +272,8 @@ impl NetSession {
     /// decode below cannot tell the difference.
     fn read_peers(&mut self, eng: &Engine) {
         let traffic = eng.resource::<PeerTraffic>();
-        // Measured here rather than after the drain, because the traffic
-        // channel merges every peer and a replay reads it with no peer at
-        // all: a link's numbers describe a live link or they describe
-        // nothing.
+        // Measured here, not after the drain: the traffic channel merges
+        // every peer, and a replay reads it with no link to describe.
         let peers = &mut self.peers;
         let links = &mut self.links;
         traffic.borrow().0.start(eng, |report| {

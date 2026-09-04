@@ -13,6 +13,7 @@ use balaur_script::Bindings;
 
 mod camera;
 mod debug_view;
+pub mod light;
 pub mod material;
 pub mod mesh;
 mod particles;
@@ -28,6 +29,7 @@ mod sprite;
 mod tilemap;
 pub use camera::{Camera, CameraKind};
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
+pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
 pub use particles::Particles;
 pub use polygon::PolygonMesh;
 pub use tilemap::{Tilemap, Tileset, TILESET_ASSET_TYPE};
@@ -36,6 +38,8 @@ pub use tilemap::{Tilemap, Tileset, TILESET_ASSET_TYPE};
 pub mod kiss3d_backend;
 #[cfg(feature = "kiss3d")]
 mod kiss3d_camera;
+#[cfg(feature = "kiss3d")]
+mod light_map;
 #[cfg(feature = "kiss3d")]
 mod shader_material;
 #[cfg(feature = "kiss3d")]
@@ -163,6 +167,10 @@ pub use balaur_core::debug_lines::{DebugLine, DebugLine2d, DebugLineBuffer, Debu
 pub struct CameraConfig2d {
     pub center: [f32; 2],
     pub zoom: f32,
+    /// Light every 2D surface gets before any `light2d`, from the current 2D
+    /// camera. Read every frame rather than applied on a change, so it is not
+    /// what `changed` is about.
+    pub ambient: [f32; 3],
     pub changed: bool,
 }
 
@@ -171,6 +179,7 @@ impl Default for CameraConfig2d {
         Self {
             center: [0.0, 0.0],
             zoom: 60.0,
+            ambient: [0.0, 0.0, 0.0],
             changed: false,
         }
     }
@@ -738,6 +747,7 @@ impl Plugin for RenderPlugin {
         sprite::register_sprite_component(app);
         polygon::register_polygon_component(app);
         camera::register_camera_component(app);
+        light::register(app);
         mesh::register_mesh_component(app);
         material::register_material_asset(app);
         tilemap::register_tileset_asset(app);

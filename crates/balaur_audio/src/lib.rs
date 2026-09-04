@@ -3,6 +3,8 @@
 //! `audio.play` hands back an integer handle; `stop`, `set_volume`,
 //! `set_pitch` and `is_playing` address it. The `sound` component gives a
 //! node a configured sound, triggered by `audio.play_on` / `audio.stop_on`.
+//! A sound with a place in the world — a `positional` component, or a `play`
+//! given a `position` — is heard from the `listener` node: see [`spatial`].
 //!
 //! Audio is a pure observer of the simulation. If no output device is
 //! available (CI, headless servers) the plugin logs a warning once, every
@@ -17,22 +19,82 @@
 
 use anyhow::{anyhow, bail, Result};
 use balaur_core::components::{as_f64, ComponentDef};
+use balaur_core::glamx::Vec3;
 use balaur_core::hecs::Entity;
 use balaur_core::project::ProjectFiles;
-use balaur_core::{entity_of, DetHashMap, Engine, Stage};
+use balaur_core::{entity_of, scene, DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 pub mod bus;
 pub mod event;
+pub mod spatial;
+
+use spatial::{Emitter, Listener, ListenerPose, Placement};
 
 /// The rodio/cpal backend: every target with a real audio stack.
 #[cfg(not(target_family = "wasm"))]
 mod backend {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
     use anyhow::Result;
+    use rodio::source::{ChannelVolume, Source};
     use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player};
 
     pub(crate) struct Device(MixerDeviceSink);
-    pub(crate) struct Sound(Player);
+
+    pub(crate) struct Sound {
+        player: Player,
+        /// Set for a positional sound, whose left and right gains the mixer
+        /// re-reads as it plays.
+        pan: Option<Arc<Pan>>,
+    }
+
+    /// The stereo gains a live positional sound is at. Atomics rather than a
+    /// lock: the mixer callback must never block on the frame that is
+    /// writing them.
+    struct Pan([AtomicU32; 2]);
+
+    impl Pan {
+        fn new(gains: [f32; 2]) -> Self {
+            Self([
+                AtomicU32::new(gains[0].to_bits()),
+                AtomicU32::new(gains[1].to_bits()),
+            ])
+        }
+
+        fn store(&self, gains: [f32; 2]) {
+            self.0[0].store(gains[0].to_bits(), Ordering::Relaxed);
+            self.0[1].store(gains[1].to_bits(), Ordering::Relaxed);
+        }
+
+        fn load(&self) -> [f32; 2] {
+            [
+                f32::from_bits(self.0[0].load(Ordering::Relaxed)),
+                f32::from_bits(self.0[1].load(Ordering::Relaxed)),
+            ]
+        }
+    }
+
+    /// Mix a source down to mono and spread it across the two channels at
+    /// gains the frame can move. Positioning a stereo file means giving up
+    /// the channels it came with: a sound in one place has one direction.
+    fn spread<S>(source: S, pan: &Arc<Pan>) -> impl Source
+    where
+        S: Source,
+    {
+        let gains = pan.load();
+        let pan = pan.clone();
+        ChannelVolume::new(source, vec![gains[0], gains[1]]).periodic_access(
+            Duration::from_millis(5),
+            move |channels| {
+                let gains = pan.load();
+                channels.set_volume(0, gains[0]);
+                channels.set_volume(1, gains[1]);
+            },
+        )
+    }
 
     pub(crate) fn open_default() -> Result<Device> {
         #[cfg(windows)]
@@ -63,40 +125,62 @@ mod backend {
     /// Decode sound bytes and start them on the device's mixer. Bytes, not a
     /// path: a packed game carries its audio inside the pack. rodio has no
     /// loop toggle on a live player, so looping is requested at decode time.
+    /// `pan` is the stereo placement a positional sound starts at.
     pub(crate) fn play(
         device: &Device,
         bytes: Vec<u8>,
         volume: f32,
         pitch: f32,
         looped: bool,
+        pan: Option<[f32; 2]>,
     ) -> Result<Sound> {
         let decoder = rodio::Decoder::try_from(std::io::Cursor::new(bytes))?;
         let player = Player::connect_new(device.0.mixer());
         player.set_volume(volume);
         player.set_speed(pitch);
+        let Some(gains) = pan else {
+            if looped {
+                player.append(Source::repeat_infinite(decoder));
+            } else {
+                player.append(decoder);
+            }
+            return Ok(Sound { player, pan: None });
+        };
+        let pan = Arc::new(Pan::new(gains));
         if looped {
-            player.append(rodio::source::Source::repeat_infinite(decoder));
+            player.append(spread(Source::repeat_infinite(decoder), &pan));
         } else {
-            player.append(decoder);
+            player.append(spread(decoder, &pan));
         }
-        Ok(Sound(player))
+        Ok(Sound {
+            player,
+            pan: Some(pan),
+        })
     }
 
     impl Sound {
         pub(crate) fn stop(&self) {
-            self.0.stop();
+            self.player.stop();
         }
 
         pub(crate) fn set_volume(&self, volume: f32) {
-            self.0.set_volume(volume);
+            self.player.set_volume(volume);
         }
 
         pub(crate) fn set_pitch(&self, pitch: f32) {
-            self.0.set_speed(pitch);
+            self.player.set_speed(pitch);
+        }
+
+        /// Move a positional sound between the speakers. A sound started
+        /// without a pan keeps the channels it came with.
+        pub(crate) fn set_pan(&self, gains: [f32; 2]) {
+            if let Some(pan) = &self.pan {
+                pan.store(gains);
+            }
         }
 
         pub(crate) fn finished(&self) -> bool {
-            self.0.empty()
+            self.player.empty()
         }
     }
 }
@@ -117,7 +201,14 @@ mod backend {
         bail!("no audio backend compiles for wasm")
     }
 
-    pub(crate) fn play(device: &Device, _: Vec<u8>, _: f32, _: f32, _: bool) -> Result<Sound> {
+    pub(crate) fn play(
+        device: &Device,
+        _: Vec<u8>,
+        _: f32,
+        _: f32,
+        _: bool,
+        _: Option<[f32; 2]>,
+    ) -> Result<Sound> {
         match *device {}
     }
 
@@ -131,6 +222,10 @@ mod backend {
         }
 
         pub(crate) fn set_pitch(&self, _: f32) {
+            match *self {}
+        }
+
+        pub(crate) fn set_pan(&self, _: [f32; 2]) {
             match *self {}
         }
 
@@ -156,6 +251,14 @@ pub struct Sound {
     pub looped: bool,
     /// The bus this plays through; empty is `master`.
     pub bus: String,
+    /// Whether this sound is heard from where its node is, rather than flat.
+    pub positional: bool,
+    /// Full volume within this distance of the listener.
+    pub min_distance: f32,
+    /// Silent beyond it.
+    pub max_distance: f32,
+    /// How much the closing speed bends the pitch: 0 is off, 1 physical.
+    pub doppler: f32,
     /// The playback this node started, `None` until autoplay or `play_on`
     /// starts one and again after `stop_on`. A finished sink does not clear
     /// it: intent must read the same headless as with a device.
@@ -171,10 +274,20 @@ impl Default for Sound {
             pitch: 1.0,
             looped: false,
             bus: String::new(),
+            positional: false,
+            min_distance: DEFAULT_MIN_DISTANCE,
+            max_distance: DEFAULT_MAX_DISTANCE,
+            doppler: 0.0,
             handle: None,
         }
     }
 }
+
+/// The radius a positional sound is at full volume inside, and the one it is
+/// cut at. Metres, for a game whose unit is a metre; the pair is what sets a
+/// sound's carry, so both are per-sound.
+const DEFAULT_MIN_DISTANCE: f32 = 1.0;
+const DEFAULT_MAX_DISTANCE: f32 = 50.0;
 
 pub struct AudioState {
     device: Option<backend::Device>,
@@ -188,9 +301,42 @@ pub struct AudioState {
     /// Every node's `sound` component, keyed the way `AnimationState` keys
     /// its players.
     pub nodes: DetHashMap<Entity, Sound>,
+    /// Where each positional handle plays from. A handle absent here is
+    /// flat: no attenuation, no pan, no doppler.
+    spatial: DetHashMap<u64, Emitter>,
+    /// Every node's `listener` component. Insertion-ordered, so "the last
+    /// current one" is the same node on every run.
+    listeners: DetHashMap<Entity, Listener>,
+    /// Where the ears are, as of the last frame.
+    listener: ListenerPose,
     /// Counts up from 1 and never reuses, so a held handle names nothing
     /// rather than something else once its sound is gone.
     next_handle: u64,
+}
+
+/// One `play`: how loud and fast, looping or not, on which bus at what chain
+/// gain, and — for a positional sound — where it plays from.
+pub struct Cue {
+    pub volume: f32,
+    pub pitch: f32,
+    pub looped: bool,
+    pub bus: String,
+    /// The bus chain's gain, resolved by the caller.
+    pub gain: f32,
+    pub emitter: Option<Emitter>,
+}
+
+impl Default for Cue {
+    fn default() -> Self {
+        Self {
+            volume: 1.0,
+            pitch: 1.0,
+            looped: false,
+            bus: String::new(),
+            gain: 1.0,
+            emitter: None,
+        }
+    }
 }
 
 impl AudioState {
@@ -200,6 +346,7 @@ impl AudioState {
             sink.stop();
         }
         self.routing.clear();
+        self.spatial.clear();
         for sound in self.nodes.values_mut() {
             sound.handle = None;
         }
@@ -228,12 +375,51 @@ impl AudioState {
         bus: &str,
         gain: f32,
     ) -> u64 {
+        self.play_cue(
+            bytes,
+            Cue {
+                volume,
+                pitch,
+                looped,
+                bus: bus.to_string(),
+                gain,
+                emitter: None,
+            },
+        )
+    }
+
+    /// Start a whole cue, positional or not, and hand back its handle.
+    ///
+    /// A cue carrying an emitter is placed here rather than waiting for the
+    /// next frame's pass: a sound the far side of the level must not be heard
+    /// at full volume for the frame before it is placed.
+    pub fn play_cue(&mut self, bytes: Vec<u8>, cue: Cue) -> u64 {
         let handle = self.next_handle;
         self.next_handle += 1;
-        let volume = volume.max(0.0);
-        self.routing.insert(handle, (bus.to_string(), volume));
+        let volume = cue.volume.max(0.0);
+        let pitch = cue.pitch.max(MIN_PITCH);
+        self.routing.insert(handle, (cue.bus, volume));
+        let placement = match cue.emitter {
+            Some(mut emitter) => {
+                emitter.pitch = pitch;
+                emitter.placement = spatial::place(&self.listener, &emitter);
+                let placement = emitter.placement;
+                self.spatial.insert(handle, emitter);
+                Some(placement)
+            }
+            None => None,
+        };
         if let Some(device) = &self.device {
-            match backend::play(device, bytes, volume * gain, pitch.max(MIN_PITCH), looped) {
+            let placed = placement.unwrap_or_default();
+            let played = backend::play(
+                device,
+                bytes,
+                volume * cue.gain * placed.gain,
+                (pitch * placed.pitch).max(MIN_PITCH),
+                cue.looped,
+                placement.map(|placed| spatial::stereo_gains(placed.pan)),
+            );
+            match played {
                 Ok(sound) => {
                     self.playing.insert(handle, sound);
                 }
@@ -245,6 +431,9 @@ impl AudioState {
 
     /// Re-apply `gain` to every live sound on `bus`. What moving a slider
     /// does to what is already playing.
+    ///
+    /// Positional handles are left to the next frame's placement pass, which
+    /// reads the same bus gain and would otherwise overwrite this.
     pub fn reroute(&mut self, bus: &str, gain: f32) {
         for (handle, (on, volume)) in &self.routing {
             let on = if on.is_empty() {
@@ -252,7 +441,7 @@ impl AudioState {
             } else {
                 on.as_str()
             };
-            if on != bus {
+            if on != bus || self.spatial.contains_key(handle) {
                 continue;
             }
             if let Some(sink) = self.playing.get(handle) {
@@ -270,21 +459,67 @@ impl AudioState {
     /// Stop one handle's sound. A finished, stopped or unknown handle no-ops.
     pub fn stop(&mut self, handle: u64) {
         self.routing.shift_remove(&handle);
+        self.spatial.shift_remove(&handle);
         if let Some(sink) = self.playing.shift_remove(&handle) {
             sink.stop();
         }
     }
 
+    /// Set a live handle's own volume, before its bus and its distance. The
+    /// stored one moves with it, so a bus slider and the next placement pass
+    /// both recompute from what was asked for last.
     pub fn set_volume(&mut self, handle: u64, volume: f32) {
+        let volume = volume.max(0.0);
+        if let Some((_, stored)) = self.routing.get_mut(&handle) {
+            *stored = volume;
+        }
         if let Some(sink) = self.playing.get(&handle) {
-            sink.set_volume(volume.max(0.0));
+            sink.set_volume(volume);
         }
     }
 
     pub fn set_pitch(&mut self, handle: u64, pitch: f32) {
-        if let Some(sink) = self.playing.get(&handle) {
-            sink.set_pitch(pitch.max(MIN_PITCH));
+        let pitch = pitch.max(MIN_PITCH);
+        if let Some(emitter) = self.spatial.get_mut(&handle) {
+            emitter.pitch = pitch;
         }
+        if let Some(sink) = self.playing.get(&handle) {
+            sink.set_pitch(pitch);
+        }
+    }
+
+    /// Where a positional handle plays from, and `None` for a flat one.
+    #[must_use]
+    pub fn emitter_position(&self, handle: u64) -> Option<Vec3> {
+        self.spatial.get(&handle).map(|emitter| emitter.position)
+    }
+
+    /// Move a positional handle's emitter. The frame's pass takes its
+    /// velocity from how far it moved, so doppler follows a script that
+    /// drives a sound around as it does a node that carries one.
+    pub fn set_emitter_position(&mut self, handle: u64, position: Vec3) {
+        if let Some(emitter) = self.spatial.get_mut(&handle) {
+            emitter.position = position;
+        }
+    }
+
+    /// What the last frame decided about a positional handle: its distance
+    /// gain, its pan and its doppler. `None` for a flat or unknown handle.
+    #[must_use]
+    pub fn placement_of(&self, handle: u64) -> Option<Placement> {
+        self.spatial.get(&handle).map(|emitter| emitter.placement)
+    }
+
+    /// Where the ears are, and how fast they are moving.
+    #[must_use]
+    pub const fn listener(&self) -> &ListenerPose {
+        &self.listener
+    }
+
+    /// Put the ears somewhere by hand, for a game whose camera is not a node.
+    /// A `listener` node in the scene overrides this on the next frame.
+    pub fn set_listener(&mut self, position: Vec3) {
+        self.listener.place(position);
     }
 
     /// Whether a handle's sound is still audible. Always false headless.
@@ -312,29 +547,46 @@ pub fn play_on(eng: &Engine, entity: Entity) -> Result<u64> {
     bus::ensure_loaded(eng);
     let state = eng.resource::<AudioState>();
     let mut state = state.borrow_mut();
-    let (file, volume, pitch, looped, on, current) = {
+    let (file, current, mut cue) = {
         let sound = state
             .nodes
             .get(&entity)
             .ok_or_else(|| anyhow!("this node has no `sound` component to play"))?;
         (
             sound.file.clone(),
-            sound.volume,
-            sound.pitch,
-            sound.looped,
-            sound.bus.clone(),
             sound.handle,
+            Cue {
+                volume: sound.volume,
+                pitch: sound.pitch,
+                looped: sound.looped,
+                bus: sound.bus.clone(),
+                gain: 1.0,
+                emitter: sound.positional.then(|| {
+                    Emitter::new(
+                        Vec3::ZERO,
+                        sound.min_distance,
+                        sound.max_distance,
+                        sound.doppler,
+                    )
+                }),
+            },
         )
     };
     if file.trim().is_empty() {
         bail!("the node's `sound` component names no `file`");
     }
     let bytes = read_sound(eng, &file)?;
+    if let Some(emitter) = &mut cue.emitter {
+        // Composed here rather than read off `GlobalTransform`: a node that
+        // entered the scene this frame has not been through a scene sync, and
+        // a sound must not start from the origin and jump.
+        emitter.position = scene::composed_global(&eng.world(), entity).position;
+    }
     if let Some(current) = current {
         state.stop(current);
     }
-    let gain = eng.resource::<bus::Buses>().borrow().gain(&on);
-    let handle = state.play_on_bus(bytes, volume, pitch, looped, &on, gain);
+    cue.gain = eng.resource::<bus::Buses>().borrow().gain(&cue.bus);
+    let handle = state.play_cue(bytes, cue);
     if let Some(sound) = state.nodes.get_mut(&entity) {
         sound.handle = Some(handle);
     }
@@ -372,8 +624,14 @@ impl Default for AudioPlugin {
 fn sweep_sounds_system(eng: &Engine, _: f32) {
     let state = eng.resource::<AudioState>();
     let mut state = state.borrow_mut();
-    let AudioState { nodes, playing, .. } = &mut *state;
     let world = eng.world();
+    spatial::sweep_listeners(&mut state, &world);
+    let AudioState {
+        nodes,
+        playing,
+        spatial,
+        ..
+    } = &mut *state;
     // A `Sound` lives here, not on the entity, so this is where a freed
     // node's playback stops.
     nodes.retain(|&entity, sound| {
@@ -381,13 +639,20 @@ fn sweep_sounds_system(eng: &Engine, _: f32) {
             return true;
         }
         if let Some(handle) = sound.handle {
+            spatial.shift_remove(&handle);
             if let Some(sink) = playing.shift_remove(&handle) {
                 sink.stop();
             }
         }
         false
     });
-    playing.retain(|_, sink| !sink.finished());
+    playing.retain(|handle, sink| {
+        if sink.finished() {
+            spatial.shift_remove(handle);
+            return false;
+        }
+        true
+    });
 }
 
 impl balaur_plugin::Plugin for AudioPlugin {
@@ -408,13 +673,18 @@ impl balaur_plugin::Plugin for AudioPlugin {
             playing: DetHashMap::default(),
             routing: DetHashMap::default(),
             nodes: DetHashMap::default(),
+            spatial: DetHashMap::default(),
+            listeners: DetHashMap::default(),
+            listener: ListenerPose::default(),
             next_handle: 1,
         });
         reg.insert_resource(bus::Buses::default());
         reg.insert_resource(event::Events::default());
 
         reg.add_system(Stage::PostUpdate, sweep_sounds_system);
+        reg.add_system(Stage::SceneSync, spatial::spatialize_system);
         register_sound_component(reg);
+        spatial::register_listener_component(reg);
 
         let mut m = reg.script_module("audio")?;
         install_audio_api(&mut m);
@@ -433,7 +703,8 @@ fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
         ComponentDef {
             doc: "A sound of the node's own: which file, at what volume and pitch, \
                   looping or not. `audio.play_on` and `audio.stop_on` trigger it, and \
-                  `autoplay` starts it when the node enters the scene.",
+                  `autoplay` starts it when the node enters the scene. A `positional` \
+                  sound is heard from where the node is, relative to the `listener`.",
             schema: ComponentDef::parse_schema(
                 "sound",
                 r#"file = { type = "string", default = "", description = "Audio file, project-relative; required to play" }
@@ -441,7 +712,11 @@ autoplay = { type = "bool", default = false, description = "Start playing when t
 volume = { type = "float", default = 1.0, min = 0.0, description = "Linear gain; 1 is the file's own level" }
 pitch = { type = "float", default = 1.0, min = 0.01, description = "Playback speed multiplier" }
 loop = { type = "bool", default = false, description = "Restart the sound when it ends" }
-bus = { type = "string", default = "", description = "Audio bus this plays through; empty is `master`" }"#,
+bus = { type = "string", default = "", description = "Audio bus this plays through; empty is `master`" }
+positional = { type = "bool", default = false, description = "Place the sound where the node is, heard from the `listener`" }
+min_distance = { type = "float", default = 1.0, min = 0.001, description = "Full volume within this distance of the listener" }
+max_distance = { type = "float", default = 50.0, min = 0.001, description = "Silent beyond this distance from the listener" }
+doppler = { type = "float", default = 0.0, min = 0.0, description = "How much the closing speed bends the pitch; 0 is off, 1 physical" }"#,
             ),
             tags: &["audio"],
             expects: &[],
@@ -465,8 +740,8 @@ fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
         .unwrap_or_default()
         .to_string();
     let flag = |key: &str| params.get(key).and_then(toml::Value::as_bool) == Some(true);
-    let level = |key: &str| params.get(key).and_then(as_f64).unwrap_or(1.0) as f32;
-    let (autoplay, volume, pitch) = (flag("autoplay"), level("volume"), level("pitch"));
+    let level = |key: &str, default: f64| params.get(key).and_then(as_f64).unwrap_or(default) as f32;
+    let (autoplay, volume, pitch) = (flag("autoplay"), level("volume", 1.0), level("pitch", 1.0));
     let has_file = !file.trim().is_empty();
     let start = {
         let state = eng.resource::<AudioState>();
@@ -484,6 +759,10 @@ fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
                 .and_then(toml::Value::as_str)
                 .unwrap_or_default()
                 .to_string();
+            sound.positional = flag("positional");
+            sound.min_distance = level("min_distance", f64::from(DEFAULT_MIN_DISTANCE));
+            sound.max_distance = level("max_distance", f64::from(DEFAULT_MAX_DISTANCE));
+            sound.doppler = level("doppler", 0.0);
             // A `sound` now naming another file drops the old playback.
             if file_changed {
                 (true, sound.handle.take())
@@ -533,6 +812,11 @@ fn sound_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     out.insert("volume".into(), f64::from(sound.volume).into());
     out.insert("pitch".into(), f64::from(sound.pitch).into());
     out.insert("loop".into(), sound.looped.into());
+    out.insert("bus".into(), sound.bus.clone().into());
+    out.insert("positional".into(), sound.positional.into());
+    out.insert("min_distance".into(), f64::from(sound.min_distance).into());
+    out.insert("max_distance".into(), f64::from(sound.max_distance).into());
+    out.insert("doppler".into(), f64::from(sound.doppler).into());
     Some(toml::Value::Table(out))
 }
 
@@ -554,6 +838,49 @@ fn number(value: Option<&Value>) -> Option<f32> {
     }
 }
 
+/// A point from a script value: a vector, or a list of two or three numbers
+/// so a 2D game may write `[x, y]` and mean the plane it plays on.
+fn point(value: Option<&Value>) -> Option<Vec3> {
+    match value? {
+        Value::Vec3([x, y, z]) => Some(Vec3::new(*x, *y, *z)),
+        Value::Vec2([x, y]) => Some(Vec3::new(*x, *y, 0.0)),
+        Value::List(items) if items.len() >= 2 => Some(Vec3::new(
+            number(items.first())?,
+            number(items.get(1))?,
+            number(items.get(2)).unwrap_or(0.0),
+        )),
+        _ => None,
+    }
+}
+
+/// Three numbers or one vector, so `set_listener(v)` and
+/// `set_listener(x, y, z)` both work — the spelling `node.set_position` takes.
+fn xyz(x: &Value, y: Option<&Value>, z: Option<&Value>) -> Result<Vec3> {
+    if let Some(point) = point(Some(x)) {
+        return Ok(point);
+    }
+    let axis = |value: Option<&Value>, name: &str| {
+        number(value).ok_or_else(|| anyhow!("expected a vector or three numbers; {name} is not a number"))
+    };
+    Ok(Vec3::new(
+        axis(Some(x), "x")?,
+        axis(y, "y")?,
+        axis(z, "z")?,
+    ))
+}
+
+/// The emitter an options table asks for, or `None` when it names no
+/// `position` — which is what makes a sound flat rather than placed.
+fn emitter_from(opts: Option<&Value>) -> Option<Emitter> {
+    let position = point(opt(opts, "position"))?;
+    Some(Emitter::new(
+        position,
+        number(opt(opts, "min_distance")).unwrap_or(DEFAULT_MIN_DISTANCE),
+        number(opt(opts, "max_distance")).unwrap_or(DEFAULT_MAX_DISTANCE),
+        number(opt(opts, "doppler")).unwrap_or(0.0),
+    ))
+}
+
 /// A script-supplied handle. Negative numbers wrap to values `play` never
 /// hands out, so they answer false and no-op rather than erroring.
 const fn handle_of(raw: i64) -> u64 {
@@ -565,11 +892,12 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
         "Sound playback: a file plays under an integer handle, with `volume`, \
          `pitch` and `loop` options, and the `sound` component gives a node a \
-         sound of its own. With no output device every call still works and \
-         nothing is heard.",
+         sound of its own. Give a `play` a `position` and it is heard from \
+         where the `listener` is. With no output device every call still \
+         works and nothing is heard.",
     );
     m.describe(&[
-        ("play", &[], "", "Start the audio file at a path and return the handle `stop`, `set_volume`, `set_pitch` and `is_playing` take."),
+        ("play", &[], "", "Start the audio file at a path and return the handle `stop`, `set_volume`, `set_pitch` and `is_playing` take. The options table takes `volume`, `pitch`, `loop`, `bus`, and a `position` with `min_distance`, `max_distance` and `doppler`."),
         ("stop", &[], "", "Silence the sound a handle names; a finished, stopped or unknown handle is left alone."),
         ("set_volume", &[], "", "Set a playing handle's linear gain, where 1 is the file's own level."),
         ("set_pitch", &[], "", "Set a playing handle's speed multiplier, which carries its pitch with it."),
@@ -585,20 +913,22 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
         "play",
         |eng: &Engine, (path, opts): (String, Option<Value>)| {
             let opts = opts.as_ref();
-            let volume = number(opt(opts, "volume")).unwrap_or(1.0);
-            let pitch = number(opt(opts, "pitch")).unwrap_or(1.0);
-            let looped = matches!(opt(opts, "loop"), Some(Value::Bool(true)));
-            let on = match opt(opts, "bus") {
-                Some(Value::Str(name)) => name.clone(),
-                _ => String::new(),
+            let cue = Cue {
+                volume: number(opt(opts, "volume")).unwrap_or(1.0),
+                pitch: number(opt(opts, "pitch")).unwrap_or(1.0),
+                looped: matches!(opt(opts, "loop"), Some(Value::Bool(true))),
+                bus: match opt(opts, "bus") {
+                    Some(Value::Str(name)) => name.clone(),
+                    _ => String::new(),
+                },
+                gain: 1.0,
+                emitter: emitter_from(opts),
             };
             let bytes = read_sound(eng, &path)?;
             bus::ensure_loaded(eng);
-            let gain = eng.resource::<bus::Buses>().borrow().gain(&on);
+            let gain = eng.resource::<bus::Buses>().borrow().gain(&cue.bus);
             let state = eng.resource::<AudioState>();
-            let handle = state
-                .borrow_mut()
-                .play_on_bus(bytes, volume, pitch, looped, &on, gain);
+            let handle = state.borrow_mut().play_cue(bytes, Cue { gain, ..cue });
             Ok(handle)
         },
     );
@@ -637,6 +967,7 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
         play_on(eng, entity_of(node)?)
     });
     install_mixing_api(m);
+    install_positional_api(m);
     m.function("stop_on", |eng: &Engine, node: NodeId| {
         stop_on(eng, entity_of(node)?);
         Ok(())
@@ -654,7 +985,7 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
         ("bus_volume", &[], "(bus: string)", "One bus's own gain, without its parents'."),
         ("set_bus_volume", &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it — which is what a volume slider is."),
         ("events", &[], "()", "Every sound named in `audio/events.toml`, in name order."),
-        ("play_event", &[], "(name: string)", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. Nil for a name nothing declared."),
+        ("play_event", &[], "(name: string, options: map)", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared."),
     ]);
     m.function("events", |eng: &Engine, ()| {
         event::ensure_loaded(eng);
@@ -663,32 +994,48 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
     });
     // The script says *what happened*; the events file says what that sounds
     // like. Tuning one never touches the other.
-    m.function("play_event", |eng: &Engine, name: String| {
-        event::ensure_loaded(eng);
-        bus::ensure_loaded(eng);
-        let played = {
-            let events = eng.resource::<event::Events>();
-            let events = events.borrow();
-            events
-                .get(&name)
-                .map(|event| (event.clone(), events.next_file(&name)))
-        };
-        let Some((event, Some(file))) = played else {
-            tracing::warn!("audio event '{name}' is not declared, or names no files");
-            return Ok(Value::Nil);
-        };
-        let bytes = read_sound(eng, &file)?;
-        let gain = eng.resource::<bus::Buses>().borrow().gain(&event.bus);
-        let handle = eng.resource::<AudioState>().borrow_mut().play_on_bus(
-            bytes,
-            event.volume,
-            event.pitch,
-            event.looped,
-            &event.bus,
-            gain,
-        );
-        Ok(Value::Int(i64::try_from(handle).unwrap_or(i64::MAX)))
-    });
+    m.function(
+        "play_event",
+        |eng: &Engine, (name, opts): (String, Option<Value>)| {
+            event::ensure_loaded(eng);
+            bus::ensure_loaded(eng);
+            let played = {
+                let events = eng.resource::<event::Events>();
+                let events = events.borrow();
+                events
+                    .get(&name)
+                    .map(|event| (event.clone(), events.next_file(&name)))
+            };
+            let Some((event, Some(file))) = played else {
+                tracing::warn!("audio event '{name}' is not declared, or names no files");
+                return Ok(Value::Nil);
+            };
+            let bytes = read_sound(eng, &file)?;
+            let gain = eng.resource::<bus::Buses>().borrow().gain(&event.bus);
+            // Where an impact happened is the caller's to say; how far it
+            // carries is the events file's.
+            let emitter = point(opt(opts.as_ref(), "position")).map(|position| {
+                Emitter::new(
+                    position,
+                    event.min_distance,
+                    event.max_distance,
+                    event.doppler,
+                )
+            });
+            let handle = eng.resource::<AudioState>().borrow_mut().play_cue(
+                bytes,
+                Cue {
+                    volume: event.volume,
+                    pitch: event.pitch,
+                    looped: event.looped,
+                    bus: event.bus,
+                    gain,
+                    emitter,
+                },
+            );
+            Ok(Value::Int(i64::try_from(handle).unwrap_or(i64::MAX)))
+        },
+    );
     m.function("buses", |eng: &Engine, ()| {
         bus::ensure_loaded(eng);
         let names = eng.resource::<bus::Buses>().borrow().names();
@@ -714,4 +1061,63 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
+}
+
+/// `audio.*`: where a sound is and where it is heard from.
+///
+/// Its own group because the rest of `audio` is about what plays, and this
+/// is about where — the `listener` node's own half of the pair, and the
+/// emitter behind a handle that was played with a `position`.
+fn install_positional_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("listener", &["listener"], "()", "Where the ears are: the current `listener` node's world position, or what `set_listener` last put there."),
+        ("set_listener", &["listener"], "(x: float, y: float, z: float)", "Put the ears at a point by hand, for a game whose view is not a node; a `listener` node in the scene takes it back on the next frame."),
+        ("emitter_position", &[], "(handle: int)", "Where a handle played with a `position` is; nil for a flat or unknown one."),
+        ("set_emitter_position", &[], "(handle: int, x: float, y: float, z: float)", "Move what a handle plays from, so a sound follows something the script is driving; the frame takes its doppler from how far it moved."),
+        ("distance_gain", &[], "(handle: int)", "The gain the distance to the listener is costing a positional handle right now: 1 up close, 0 out of range."),
+        ("pan", &[], "(handle: int)", "Where a positional handle sits between the speakers: -1 hard left, 0 centred, 1 hard right."),
+    ]);
+    m.function("listener", |eng: &Engine, ()| {
+        let state = eng.resource::<AudioState>();
+        let position = state.borrow().listener().position;
+        Ok(Value::Vec3([position.x, position.y, position.z]))
+    });
+    m.function(
+        "set_listener",
+        |eng: &Engine, (x, y, z): (Value, Option<Value>, Option<Value>)| {
+            let position = xyz(&x, y.as_ref(), z.as_ref())?;
+            eng.resource::<AudioState>()
+                .borrow_mut()
+                .set_listener(position);
+            Ok(())
+        },
+    );
+    m.function("emitter_position", |eng: &Engine, handle: i64| {
+        let state = eng.resource::<AudioState>();
+        let position = state.borrow().emitter_position(handle_of(handle));
+        Ok(position.map_or(Value::Nil, |at| Value::Vec3([at.x, at.y, at.z])))
+    });
+    m.function(
+        "set_emitter_position",
+        |eng: &Engine, (handle, x, y, z): (i64, Value, Option<Value>, Option<Value>)| {
+            let position = xyz(&x, y.as_ref(), z.as_ref())?;
+            eng.resource::<AudioState>()
+                .borrow_mut()
+                .set_emitter_position(handle_of(handle), position);
+            Ok(())
+        },
+    );
+    // The two halves of a placement, so a script can show what the mix is
+    // doing -- a debug overlay, or a subtitle that only shows for a sound
+    // near enough to hear.
+    m.function("distance_gain", |eng: &Engine, handle: i64| {
+        let state = eng.resource::<AudioState>();
+        let placement = state.borrow().placement_of(handle_of(handle));
+        Ok(placement.map_or(Value::Nil, |placed| Value::Num(f64::from(placed.gain))))
+    });
+    m.function("pan", |eng: &Engine, handle: i64| {
+        let state = eng.resource::<AudioState>();
+        let placement = state.borrow().placement_of(handle_of(handle));
+        Ok(placement.map_or(Value::Nil, |placed| Value::Num(f64::from(placed.pan))))
+    });
 }

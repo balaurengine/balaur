@@ -22,7 +22,7 @@ use crate::AppleEvent;
 
 /// Ask the OS for a push token. The token itself arrives at the delegate,
 /// which is why this installs one.
-pub(crate) fn register_for_push() -> bool {
+pub(crate) fn request_push_token() -> bool {
     if !install() {
         return false;
     }

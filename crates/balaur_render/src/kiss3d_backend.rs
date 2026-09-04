@@ -65,6 +65,7 @@ struct Frontend {
     emitter_slots: HashMap<Entity, crate::particles::EmitterSlot>,
     materials: crate::shader_material::MaterialCache,
     materials_3d: crate::shader_material_3d::MaterialCache3d,
+    light_map: crate::light_map::LightMap,
     order_2d: Vec<Entity>,
     frame: u64,
     /// Whether the on-screen keyboard was summoned last frame, so it is
@@ -99,6 +100,7 @@ impl Frontend {
             emitter_slots: HashMap::new(),
             materials: crate::shader_material::MaterialCache::default(),
             materials_3d: crate::shader_material_3d::MaterialCache3d::default(),
+            light_map: crate::light_map::LightMap::new(),
             order_2d: Vec::new(),
             frame: 0,
             keyboard_shown: false,
@@ -138,6 +140,9 @@ impl Frontend {
             &mut self.materials,
         );
         crate::tilemap::sync_tilemaps(app, &mut self.scene_2d, &mut self.tilemap_slots);
+        // Last of the 2D syncs: the composite draws over everything the two
+        // above just put in the scene.
+        self.light_map.sync(app, &mut self.scene_2d);
         // The step the frame actually ran, which under --fixed-tick is not
         // the measured one.
         let dt = app.engine.delta();

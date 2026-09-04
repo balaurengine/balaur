@@ -47,7 +47,7 @@ mod ui;
 
 #[cfg(target_vendor = "apple")]
 mod backend {
-    pub(crate) use crate::arrivals::{register_for_push, watch_urls};
+    pub(crate) use crate::arrivals::{request_push_token, watch_urls};
     pub(crate) use crate::gamekit::{apple_call, authenticated, platform_call};
     pub(crate) use crate::notify::cancel as cancel_notification;
     pub(crate) use crate::ui::access_point;
@@ -90,7 +90,7 @@ mod backend {
         false
     }
 
-    pub(crate) const fn register_for_push() -> bool {
+    pub(crate) const fn request_push_token() -> bool {
         false
     }
 
@@ -556,48 +556,75 @@ fn install_apple_api(m: &mut dyn Bindings<Engine>) {
             "",
             "Ask whether a saved Sign in with Apple account is still authorized, revoked, transferred or unknown.",
         ),
-        (
-            "show_dashboard",
-            &[],
-            "",
-            "Open Game Center's dashboard, and answer when the player closes it. `state` in the options picks the screen: \"default\", \"leaderboards\", \"achievements\", \"challenges\", \"profile\", \"dashboard\" or \"friends\".",
-        ),
-        (
-            "access_point",
-            &[],
-            "",
-            "Show or hide Game Center's access point badge; `location` in the options is a corner. Returns whether this system has one.",
-        ),
-        (
-            "products",
-            &[],
-            "",
-            "Ask the App Store about a list of product ids, and answer with what it knows: title, description, price and display price.",
-        ),
-        (
-            "purchase",
-            &[],
-            "",
-            "Buy a product. The answer is `purchased`, `cancelled` or `pending`, and a purchase carries the signed `jws` a server checks.",
-        ),
-        (
-            "entitlements",
-            &[],
-            "",
-            "What this player currently owns, each with the signed transaction a server checks.",
-        ),
-        (
-            "restore_purchases",
-            &[],
-            "",
-            "Ask the App Store to hand this device's purchases back — the button a review expects a game to have.",
-        ),
-        (
-            "finish_purchase",
-            &[],
-            "",
-            "Tell StoreKit a transaction is dealt with. One that is never finished comes back on every launch.",
-        ),
+    ]);
+    m.function("available", |_: &Engine, ()| Ok(Value::Bool(AVAILABLE)));
+    m.function("authenticated", |_: &Engine, ()| {
+        Ok(Value::Bool(backend::authenticated()))
+    });
+    m.function(
+        "identity",
+        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
+            let (node, opts) = node_and_options(first, second);
+            start_call(eng, node, opts, AppleCall::Identity)
+        },
+    );
+    m.function(
+        "sign_in",
+        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
+            let (node, opts) = node_and_options(first, second);
+            start_call(eng, node, opts, AppleCall::SignIn)
+        },
+    );
+    m.function(
+        "credential_state",
+        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
+            let (node, user, opts) = node_and_one(first, second, third)?;
+            let Value::Str(user) = user else {
+                return Err(anyhow!("the user id should be a string, got {user:?}"));
+            };
+            start_call(eng, node, opts, AppleCall::CredentialState { user })
+        },
+    );
+    install_screens_api(m);
+    install_store_api(m);
+    install_arrivals_api(m);
+}
+
+/// Game Center's own screens.
+fn install_screens_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[]);
+    m.function(
+        "show_dashboard",
+        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
+            let (node, opts) = node_and_options(first, second);
+            let state = match opt(opts.as_ref(), "state") {
+                Some(Value::Str(name)) => screen(name)?,
+                Some(other) => return Err(anyhow!("`state` should be a string, got {other:?}")),
+                None => DEFAULT_SCREEN,
+            };
+            start_call(eng, node, opts, AppleCall::Dashboard { state })
+        },
+    );
+    m.function(
+        "access_point",
+        |_: &Engine, (first, second): (Value, Option<Value>)| {
+            let Value::Bool(active) = first else {
+                return Err(anyhow!("argument 0 should be true or false, got {first:?}"));
+            };
+            let corner = match opt(second.as_ref(), "location") {
+                Some(Value::Str(name)) => corner_of(name)?,
+                Some(other) => return Err(anyhow!("`location` should be a string, got {other:?}")),
+                None => DEFAULT_CORNER,
+            };
+            Ok(Value::Bool(backend::access_point(active, corner)))
+        },
+    );
+}
+
+/// Notifications, push and URLs — everything that arrives rather than
+/// answers.
+fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
         (
             "watch",
             &[],
@@ -635,67 +662,6 @@ fn install_apple_api(m: &mut dyn Bindings<Engine>) {
             "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them.",
         ),
     ]);
-    m.function("available", |_: &Engine, ()| Ok(Value::Bool(AVAILABLE)));
-    m.function("authenticated", |_: &Engine, ()| {
-        Ok(Value::Bool(backend::authenticated()))
-    });
-    m.function(
-        "identity",
-        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
-            let (node, opts) = node_and_options(first, second);
-            start_call(eng, node, opts, AppleCall::Identity)
-        },
-    );
-    m.function(
-        "sign_in",
-        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
-            let (node, opts) = node_and_options(first, second);
-            start_call(eng, node, opts, AppleCall::SignIn)
-        },
-    );
-    m.function(
-        "credential_state",
-        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
-            let (node, user, opts) = node_and_one(first, second, third)?;
-            let Value::Str(user) = user else {
-                return Err(anyhow!("the user id should be a string, got {user:?}"));
-            };
-            start_call(eng, node, opts, AppleCall::CredentialState { user })
-        },
-    );
-    m.function(
-        "show_dashboard",
-        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
-            let (node, opts) = node_and_options(first, second);
-            let state = match opt(opts.as_ref(), "state") {
-                Some(Value::Str(name)) => screen(name)?,
-                Some(other) => return Err(anyhow!("`state` should be a string, got {other:?}")),
-                None => DEFAULT_SCREEN,
-            };
-            start_call(eng, node, opts, AppleCall::Dashboard { state })
-        },
-    );
-    m.function(
-        "access_point",
-        |_: &Engine, (first, second): (Value, Option<Value>)| {
-            let Value::Bool(active) = first else {
-                return Err(anyhow!("argument 0 should be true or false, got {first:?}"));
-            };
-            let corner = match opt(second.as_ref(), "location") {
-                Some(Value::Str(name)) => corner_of(name)?,
-                Some(other) => return Err(anyhow!("`location` should be a string, got {other:?}")),
-                None => DEFAULT_CORNER,
-            };
-            Ok(Value::Bool(backend::access_point(active, corner)))
-        },
-    );
-    install_store_api(m);
-    install_arrivals_api(m);
-}
-
-/// Notifications, push and URLs — everything that arrives rather than
-/// answers.
-fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "watch",
         |eng: &Engine, (node, opts): (Value, Option<Value>)| {
@@ -763,7 +729,7 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
         Ok(Value::Bool(true))
     });
     m.function("register_for_push", |_: &Engine, ()| {
-        Ok(Value::Bool(backend::register_for_push()))
+        Ok(Value::Bool(backend::request_push_token()))
     });
     m.function("watch_urls", |_: &Engine, ()| {
         Ok(Value::Bool(backend::watch_urls()))
@@ -772,6 +738,38 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
 
 /// The store's own calls, all of them one payload or none.
 fn install_store_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        (
+            "products",
+            &[],
+            "",
+            "Ask the App Store about a list of product ids, and answer with what it knows: title, description, price and display price.",
+        ),
+        (
+            "purchase",
+            &[],
+            "",
+            "Buy a product. The answer is `purchased`, `cancelled` or `pending`, and a purchase carries the signed `jws` a server checks.",
+        ),
+        (
+            "entitlements",
+            &[],
+            "",
+            "What this player currently owns, each with the signed transaction a server checks.",
+        ),
+        (
+            "restore_purchases",
+            &[],
+            "",
+            "Ask the App Store to hand this device's purchases back — the button a review expects a game to have.",
+        ),
+        (
+            "finish_purchase",
+            &[],
+            "",
+            "Tell StoreKit a transaction is dealt with. One that is never finished comes back on every launch.",
+        ),
+    ]);
     m.function(
         "products",
         |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {

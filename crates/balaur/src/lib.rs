@@ -44,16 +44,15 @@ macro_rules! modules {
             pub use $krate as $alias;
         )*
 
-        /// The optional modules this build linked in, ordered by what they
-        /// require and then by name.
-        fn load_modules(app: &mut App) -> Result<()> {
+        /// The optional modules this build linked in.
+        fn optional_modules() -> Vec<Box<dyn balaur_plugin::Plugin>> {
             #[allow(unused_mut, reason = "a build with no optional module pushes nothing")]
             let mut found: Vec<Box<dyn balaur_plugin::Plugin>> = Vec::new();
             $(
                 #[cfg(feature = $feature)]
                 found.push(Box::new($krate::$plugin::default()));
             )*
-            balaur_plugin::load_all(app, &mut found)
+            found
         }
     };
 }
@@ -200,19 +199,30 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
         config.script_backend = Some(backend_for(&config)?);
     }
     let mut app = App::new(config)?;
-    app.add_plugin(InputPlugin)?;
-    app.add_plugin(PhysicsPlugin)?;
-    app.add_plugin(AnimationPlugin)?;
-    app.add_plugin(RenderPlugin)?;
-    // Ahead of the optional modules: `apple` requires it by name, and a store
-    // backend registers into what this inserts.
-    balaur_plugin::load(&mut app, &mut PlatformPlugin::default())?;
-    load_modules(&mut app)?;
-    app.add_plugin(UiPlugin)?;
+    balaur_plugin::load_all(&mut app, &mut standard_plugins())?;
     drive_ui_focus(&mut app);
     #[cfg(feature = "extensions")]
     load_project_extensions(&mut app)?;
     Ok(app)
+}
+
+/// Every plugin a standard app registers, for `load_all` to order.
+///
+/// The engine's own five build against the whole `App`, so they arrive
+/// wrapped in a manifest; the rest carry theirs. One set rather than two
+/// sequences is what lets `apple` say it requires `platform` and be believed.
+fn standard_plugins() -> Vec<Box<dyn balaur_plugin::Plugin>> {
+    use balaur_plugin::Builtin;
+    let mut all: Vec<Box<dyn balaur_plugin::Plugin>> = vec![
+        Box::new(Builtin::new(AnimationPlugin)),
+        Box::new(Builtin::new(InputPlugin)),
+        Box::new(Builtin::new(PhysicsPlugin)),
+        Box::new(Builtin::new(RenderPlugin)),
+        Box::new(Builtin::new(UiPlugin)),
+        Box::new(PlatformPlugin::default()),
+    ];
+    all.extend(optional_modules());
+    all
 }
 
 /// Let a pad walk a menu, by mapping three actions onto the focus verbs.

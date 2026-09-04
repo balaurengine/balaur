@@ -35,6 +35,12 @@ pub struct Event {
     /// Restart when it ends — for an ambience declared as an event.
     #[serde(rename = "loop")]
     pub looped: bool,
+    /// How far the sound carries, when a caller plays it at a position: full
+    /// volume inside `min_distance`, silent past `max_distance`, and
+    /// `doppler` of the closing speed in its pitch.
+    pub min_distance: f32,
+    pub max_distance: f32,
+    pub doppler: f32,
 }
 
 impl Default for Event {
@@ -45,6 +51,9 @@ impl Default for Event {
             volume: 1.0,
             pitch: 1.0,
             looped: false,
+            min_distance: 1.0,
+            max_distance: 50.0,
+            doppler: 0.0,
         }
     }
 }

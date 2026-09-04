@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use balaur_core::components::ComponentDef;
 use balaur_core::{App, Engine, GlobalTransform};
 
-use crate::{CameraConfig, CameraConfig2d};
+use crate::{color_to_toml, CameraConfig, CameraConfig2d};
 
 /// Which view a `camera` component drives: `"3d"` in a scene file is the
 /// perspective camera, `"2d"` the orthographic one.
@@ -13,6 +13,25 @@ use crate::{CameraConfig, CameraConfig2d};
 pub enum CameraKind {
     Perspective,
     Orthographic,
+}
+
+/// A colour property read by name, defaulting to black — `color_from_params`
+/// reads the property called `color` and defaults to the renderable grey.
+fn color_from_params_named(params: &toml::Value, key: &str) -> [f32; 4] {
+    let channel = |i: usize, default: f64| {
+        params
+            .get(key)
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.get(i))
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or(default) as f32
+    };
+    [
+        channel(0, 0.0),
+        channel(1, 0.0),
+        channel(2, 0.0),
+        channel(3, 1.0),
+    ]
 }
 
 /// The `camera` component's authored state. `drive_camera_system` copies
@@ -25,6 +44,9 @@ pub struct Camera {
     pub look_at: glamx::Vec3,
     /// 2D zoom in logical pixels per world unit.
     pub zoom: f32,
+    /// Light every 2D surface gets before any `light2d`. Read from the
+    /// current 2D camera only; the light map is a 2D pass.
+    pub ambient: [f32; 4],
 }
 
 /// Runs in `SceneSync` after transform propagation, so the view follows the
@@ -49,7 +71,11 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
             match cam.kind {
                 CameraKind::Perspective => spatial = Some((global.position, cam.look_at)),
                 CameraKind::Orthographic => {
-                    flat = Some(([global.position.x, global.position.y], cam.zoom));
+                    flat = Some((
+                        [global.position.x, global.position.y],
+                        cam.zoom,
+                        cam.ambient,
+                    ));
                 }
             }
         }
@@ -64,9 +90,12 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
             config.changed = true;
         }
     }
-    if let Some((center, zoom)) = flat {
+    if let Some((center, zoom, ambient)) = flat {
         let config = eng.resource::<CameraConfig2d>();
         let mut config = config.borrow_mut();
+        // Ambient is read every frame rather than applied on a change, so it
+        // is not part of "did the view move".
+        config.ambient = [ambient[0], ambient[1], ambient[2]];
         // Bit-exact "did it move": the compared values are the ones this
         // system wrote last frame, not the result of drifting arithmetic.
         let same = config.center[0].to_bits() == center[0].to_bits()
@@ -92,7 +121,8 @@ pub(crate) fn register_camera_component(app: &mut App) {
                 r#"kind = { type = "enum", default = "3d", options = ["3d", "2d"], description = "Which camera this node drives" }
 current = { type = "bool", default = true, description = "Whether this camera drives the view; the last current one wins" }
 look_at = { type = "vec3", default = [0.0, 0.0, 0.0], description = "World point the 3D camera looks at" }
-zoom = { type = "float", default = 60.0, min = 1.0, description = "2D zoom in logical pixels per world unit" }"#,
+zoom = { type = "float", default = 60.0, min = 1.0, description = "2D zoom in logical pixels per world unit" }
+ambient = { type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`; only a `2d` camera's is read" }"#,
             ),
             tags: &["3d", "render"],
             expects: &[],
@@ -116,6 +146,7 @@ zoom = { type = "float", default = 60.0, min = 1.0, description = "2D zoom in lo
                     .unwrap_or(60.0) as f32;
                 let camera = Camera {
                     kind,
+                    ambient: color_from_params_named(params, "ambient"),
                     current: params
                         .get("current")
                         .and_then(toml::Value::as_bool)
@@ -157,6 +188,7 @@ zoom = { type = "float", default = 60.0, min = 1.0, description = "2D zoom in lo
                     ),
                 );
                 map.insert("zoom".into(), toml::Value::Float(f64::from(camera.zoom)));
+                map.insert("ambient".into(), color_to_toml(camera.ambient));
                 Some(toml::Value::Table(map))
             }),
         },

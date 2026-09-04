@@ -62,6 +62,8 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Record and replay: `run --record`, `replay --verify` / `--entries-at`.
 - Rollback on one machine: snapshot ring, input journal, re-simulation from a late input.
 - Rollback across spawns: run-time nodes get stable ids and the node set is restored.
+- A networked session is recordable and replayable: peer payloads travel through a `session` replay source, so a desync reproduces from a file with no peer attached. `transport::Faulty` adds delay, jitter and datagram loss to any transport, and `NetSession::stats` reports round-trip time, loss and bytes each way.
+- Inputs now repeat: every datagram carries the last twelve ticks of a player's input, so a dropped packet no longer diverges the tick it carried. Found by testing against 5% loss.
 - The networking crate is now one crate per protocol: `balaur_http`, `balaur_websocket` and `balaur_webtransport`, each its own plugin and its own cargo feature. `[net]` in project.toml becomes `[http]` and `[websocket]`, with the keys dropping the prefix their table now carries.
 - WebTransport over QUIC behind the same `Transport` trait, so a datagram is finally a real unreliable datagram. A server generates a short-lived self-signed certificate by default and the client pins it by hash. Off by default: it is the expensive dependency, and its own switch.
 - Two engines play in lockstep over a socket: `NetSession` over a `Transport` trait.
@@ -79,6 +81,8 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - `widget_theme` asset: fill, stroke, radius and padding per widget kind, inherited.
 - Audio buses: `[audio.buses]`, routing per sound, `audio.set_bus_volume`.
 - Audio events: `audio/events.toml`, variations taken in turn.
+- Gamepad rumble: `input.gamepad_rumble` / `stop_rumble` / `can_rumble`, both motors.
+- Pad motion in the snapshot and the recording: `input.gamepad_gyro`, `gamepad_acceleration`, `gamepad_touches`.
 - Loaded plugins are recorded: `balaur_core::plugins`, and a plugin's `requires` is checked at load.
 - Optional modules are one line in `balaur`'s `modules!` table, loaded in requirement-then-name order.
 

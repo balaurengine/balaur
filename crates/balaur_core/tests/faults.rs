@@ -282,3 +282,38 @@ fn a_recorded_session_replays_with_no_peer() {
         "the replay reached the same world without a peer to talk to"
     );
 }
+
+/// The link reports what it is doing. Measurement, not simulation: none of
+/// these numbers is recorded, replayed or hashed.
+#[test]
+fn a_session_measures_its_link() {
+    let mut pair = connect(Faults {
+        delay: 0,
+        jitter: 0,
+        loss: 0.20,
+    });
+    for tick in 1..=90 {
+        step(&mut pair, tick);
+    }
+
+    let stats = pair.guest.stats();
+    assert_eq!(stats.len(), 1, "one peer, one link");
+    let link = stats[0];
+    assert!(link.bytes_in > 0, "the guest heard something");
+    assert!(link.bytes_out > 0, "and said something");
+    assert!(
+        link.loss > 0.05 && link.loss < 0.40,
+        "one datagram in five was dropped; the link says {}",
+        link.loss
+    );
+    // A round trip on an in-memory link is under a millisecond, so the useful
+    // assertion is that a ping came back at all rather than what it measured.
+    assert!(link.rtt_ms >= 0.0);
+
+    // And the same numbers are published for a dock or a meter to read.
+    let published = pair
+        .guest_app
+        .engine
+        .resource::<balaur_core::netsession::SessionStats>();
+    assert_eq!(published.borrow().0.len(), 1);
+}

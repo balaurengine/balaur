@@ -1,5 +1,5 @@
 use balaur_core::{App, AppConfig, Engine, Stage};
-use balaur_plugin::{load, load_all, load_order, Fingerprint, Manifest, Plugin, Registry};
+use balaur_plugin::{load, load_all, load_order, Builtin, Fingerprint, Manifest, Plugin, Registry};
 use balaur_script::BindingsExt as _;
 
 fn app() -> App {
@@ -332,4 +332,53 @@ fn a_set_may_require_something_loaded_before_it() {
 
     load_all(&mut app, &mut set).unwrap();
     assert!(balaur_core::plugins::is_loaded(&app.engine, "late"));
+}
+
+struct Wired(&'static str);
+
+impl balaur_core::Plugin for Wired {
+    fn name(&self) -> &str {
+        self.0
+    }
+
+    fn build(&mut self, app: &mut App) -> anyhow::Result<()> {
+        app.engine.insert_resource(Marker(3));
+        Ok(())
+    }
+}
+
+#[test]
+fn a_plugin_that_builds_against_the_app_is_recorded_like_any_other() {
+    let mut app = app();
+    load(&mut app, &mut Builtin::new(Wired("wired"))).unwrap();
+
+    assert_eq!(app.engine.resource::<Marker>().borrow().0, 3);
+    assert_eq!(app.plugins()[0].name, "wired");
+}
+
+#[test]
+fn a_wrapped_plugin_orders_with_the_ones_carrying_their_own_manifest() {
+    let mut app = app();
+    let mut set: Vec<Box<dyn Plugin>> = vec![
+        Box::new(Probe::requiring("probe", &["wired"])),
+        Box::new(Builtin::new(Wired("wired"))),
+    ];
+
+    load_all(&mut app, &mut set).unwrap();
+    assert_eq!(
+        app.plugins()
+            .iter()
+            .map(|p| p.name.as_str())
+            .collect::<Vec<_>>(),
+        ["wired", "probe"]
+    );
+}
+
+#[test]
+fn a_wrapped_plugin_may_declare_what_it_requires() {
+    let mut app = app();
+    let mut wrapped = Builtin::new(Wired("wired")).requiring(&["absent"]);
+
+    let err = load(&mut app, &mut wrapped).unwrap_err().to_string();
+    assert!(err.contains("absent"), "unhelpful: {err}");
 }

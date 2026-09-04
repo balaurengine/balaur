@@ -1,7 +1,8 @@
-> **Status:** steps 1-6 done — bytes on the wire, identity and lifecycle for
+> **Status:** steps 1-7 done — bytes on the wire, identity and lifecycle for
 > run-time nodes, rollback on one machine, the transport trait with a
-> websocket under it, two engines playing in lockstep over loopback, and one
-> crate per protocol with QUIC under the trait.
+> websocket under it, two engines playing in lockstep over loopback, one
+> crate per protocol with QUIC under the trait, and a recorded session tested
+> against a link that drops and delays.
 >
 > Written down on 2026-09-02 so the order was decided before the first line:
 > node identity and lifecycle first, because rollback and replication both
@@ -35,6 +36,7 @@ Built, and not built for networking:
 | A transport trait with reliable and unreliable delivery, over a websocket | `core::transport`, `net::transport` |
 | Accepting connections, and a session that plays over them | `websocket::listener`, `core::netsession` |
 | One crate per protocol, and real QUIC datagrams under the trait | `balaur_http`, `balaur_websocket`, `balaur_webtransport` |
+| A recordable session, fault injection, and per-link measurement | `netsession`, `transport::Faulty` |
 
 Missing:
 
@@ -277,14 +279,22 @@ that works.
      for what they are — `http`, `websocket`, `webtransport` — and each crate
      re-exported under its own name, so a game reaches for `balaur::http`
      rather than for a bundle that happens to contain it.
-7. **Recording a session, and measuring the link.** Inputs reach the journal
-   from a transport rather than through a replay source, so a networked
-   session cannot be replayed; routing them through one makes a desync
-   reproducible from a file. With it, a transport that can be told to hold
-   packets back, drop them or reorder them, and per-peer round-trip time,
-   loss and bytes a second published the way `engine.timings()` is. Cheap,
-   and every step after it is tested against 150 ms and 5% loss rather than
-   against loopback.
+7. **Recording a session, and measuring the link.** *Done.* Peer payloads go
+   through `PeerTraffic`, an `ExternalIo` behind a `session` replay source,
+   so a recorded session replays with no peer on the other end and a desync
+   is reproducible from a file. `transport::Faulty` wraps any transport and
+   adds the three faults loopback does not have — delay, jitter and datagram
+   loss — counted in polls rather than wall time, so the same seed holds the
+   same payloads for the same ticks. `NetSession::stats` reports round-trip
+   time, loss from sequence gaps, and bytes each way, published as
+   `SessionStats` the way `engine.timings()` is.
+
+   Turning the faults on immediately found a real gap: inputs were sent once,
+   unreliably, and never repeated, so a dropped one was lost for good and the
+   tick it belonged to diverged permanently. Every datagram now carries the
+   last twelve ticks of that player's input, so one packet arriving repairs
+   every gap behind it. At one datagram in twenty lost, twelve in a row is
+   about one run in 2^52.
 8. **Sessions from Gamend.** A room becomes a session, and the relay for
    browser peers; matchmaking and presence stay on the server side. First
    point at which a real game ships on this stack, which is why it comes

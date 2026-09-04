@@ -16,6 +16,10 @@ static COMMON: &str = include_str!("shaders/common.wesl");
 /// The 2D skinning material's shader.
 pub static SKINNED_2D: &str = include_str!("shaders/skinned_2d.wesl");
 
+/// The 2D light map's shader: the lights, the shadow polygons that mask
+/// them, and the full-screen draw that multiplies the frame by the result.
+pub static LIGHT_2D: &str = include_str!("shaders/light2d.wesl");
+
 /// The contract a project's 2D material shader draws against, mounted as
 /// `package::sprite`: the uniforms the pipeline binds and the vertex work
 /// every such shader would otherwise repeat.
@@ -157,6 +161,25 @@ mod tests {
         .to_string();
         assert!(wgsl.contains("fn vs_main"), "{wgsl}");
         assert!(wgsl.contains("fn fs_main"), "{wgsl}");
+    }
+
+    /// The light map's three pipelines share one module, so a link that
+    /// dropped an entry point would fail at pipeline creation, on a GPU.
+    #[test]
+    fn the_light_map_shader_keeps_every_entry_point() {
+        let wgsl = link(&[("package::light2d", LIGHT_2D)], "package::light2d", &[])
+            .expect("the engine's own shader must link")
+            .to_string();
+        for entry in [
+            "fn vs_light",
+            "fn fs_light",
+            "fn vs_shadow",
+            "fn fs_shadow",
+            "fn vs_composite",
+            "fn fs_composite",
+        ] {
+            assert!(wgsl.contains(entry), "{entry} was dropped: {wgsl}");
+        }
     }
 
     #[test]

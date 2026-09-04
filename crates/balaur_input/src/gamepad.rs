@@ -9,8 +9,18 @@
 //! Polling runs inside the tick (`Stage::First`), not in the windowed
 //! backend: controllers are not window events, and this way a headless run
 //! on a desk with a pad plugged in sees it too.
+//!
+//! Buttons and axes are what gilrs reads. Motion and the touchpad are part of
+//! the snapshot and of the recording, but nothing fills them today: gilrs
+//! exposes neither, so they wait for a backend that does — Steam Input
+//! (`docs/PLAN-steam.md`) or a platform layer — which writes them through
+//! [`GamepadState::set_motion`] and [`GamepadState::set_touchpad`] after the
+//! poll. Carrying them now is what keeps that backend from being a replay
+//! format change.
 
 use balaur_core::collections::DetHashSet;
+use balaur_core::Engine;
+use balaur_script::{Bindings, BindingsExt, Value};
 
 /// Buttons scripts can ask about, in gilrs's naming. The list is the
 /// vocabulary (same contract as `KEY_NAMES`): queries validate against it,
@@ -47,6 +57,23 @@ pub const PAD_AXIS_NAMES: &[&str] = &[
     "DPadY",
 ];
 
+/// A pad's motion sensors, in the units a script integrates directly: gyro as
+/// radians per second about each axis, acceleration in g with gravity in it.
+#[derive(Clone, Copy, Default, PartialEq, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Motion {
+    pub gyro: [f32; 3],
+    pub acceleration: [f32; 3],
+}
+
+/// One finger on a pad's touchpad. `x` and `y` run 0..1 across the surface, so
+/// a script never needs to know the pad's own resolution.
+#[derive(Clone, Copy, PartialEq, Debug, serde::Serialize, serde::Deserialize)]
+pub struct PadTouch {
+    pub id: i64,
+    pub x: f32,
+    pub y: f32,
+}
+
 /// A pad on its way into or out of a recording.
 ///
 /// Separate from [`Pad`] for one reason: an axis name is a `&'static str`
@@ -60,6 +87,14 @@ struct PadFrame {
     just_pressed: Vec<String>,
     just_released: Vec<String>,
     axes: Vec<(String, f32)>,
+    /// Defaulted for the same reason `InputSnapshot::typed` is: without it an
+    /// older recording fails to parse and the tick is fed nothing at all.
+    #[serde(default)]
+    motion: Motion,
+    #[serde(default)]
+    touches: Vec<PadTouch>,
+    #[serde(default)]
+    rumble: bool,
 }
 
 /// Every pad's state this tick, for a recording.
@@ -78,6 +113,9 @@ pub(crate) fn capture(state: &GamepadState) -> serde_json::Value {
                 .iter()
                 .map(|(name, value)| ((*name).to_string(), *value))
                 .collect(),
+            motion: pad.motion,
+            touches: pad.touches.clone(),
+            rumble: pad.rumble,
         })
         .collect();
     serde_json::to_value(pads).unwrap_or(serde_json::Value::Null)
@@ -111,6 +149,9 @@ pub(crate) fn restore(state: &mut GamepadState, value: &serde_json::Value) {
                         .map(|known| (*known, value))
                 })
                 .collect(),
+            motion: frame.motion,
+            touches: frame.touches,
+            rumble: frame.rumble,
         })
         .collect();
 }
@@ -123,6 +164,9 @@ pub struct Pad {
     just_pressed: DetHashSet<String>,
     just_released: DetHashSet<String>,
     axes: Vec<(&'static str, f32)>,
+    motion: Motion,
+    touches: Vec<PadTouch>,
+    rumble: bool,
 }
 
 impl Pad {
@@ -144,6 +188,22 @@ impl Pad {
             .find(|(name, _)| *name == axis)
             .map_or(0.0, |(_, v)| *v)
     }
+
+    /// Zero on every axis unless a backend wrote this frame's reading.
+    pub const fn motion(&self) -> Motion {
+        self.motion
+    }
+
+    /// Fingers on the pad's touchpad, in the order they landed.
+    pub fn touches(&self) -> &[PadTouch] {
+        &self.touches
+    }
+
+    /// Whether the pad has motors. Recorded, so a script that branches on it
+    /// takes the same branch on a machine whose pad has none.
+    pub const fn can_rumble(&self) -> bool {
+        self.rumble
+    }
 }
 
 /// Every connected pad, rebuilt once per frame by [`GamepadState::poll`].
@@ -155,6 +215,8 @@ pub struct GamepadState {
     pads: Vec<Pad>,
     #[cfg(not(target_family = "wasm"))]
     runtime: Option<Runtime>,
+    #[cfg(not(target_family = "wasm"))]
+    haptics: crate::haptics::Rumble,
 }
 
 /// `None` inside means the platform backend failed to open (no udev in a bare
@@ -210,6 +272,47 @@ impl GamepadState {
         self.pads.iter().find(|p| p.id == id)
     }
 
+    /// This frame's motion reading for a pad the poll already listed. A
+    /// backend calls it after the poll, every frame it has one: like the rest
+    /// of the snapshot, motion is republished rather than remembered.
+    pub fn set_motion(&mut self, id: i64, motion: Motion) {
+        if let Some(pad) = self.pads.iter_mut().find(|p| p.id == id) {
+            pad.motion = motion;
+        }
+    }
+
+    /// This frame's touchpad fingers, same contract as [`Self::set_motion`].
+    pub fn set_touchpad(&mut self, id: i64, touches: Vec<PadTouch>) {
+        if let Some(pad) = self.pads.iter_mut().find(|p| p.id == id) {
+            pad.touches = touches;
+        }
+    }
+
+    /// Rumble the pad's two motors at 0..1 for `seconds`. False when the pad
+    /// is gone, has no motors, or the build has no force feedback at all.
+    pub fn rumble(&mut self, id: i64, strong: f32, weak: f32, seconds: f32) -> bool {
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let Some(gilrs) = self.runtime.as_mut().and_then(|r| r.gilrs.as_mut()) else {
+                return false;
+            };
+            self.haptics.play(gilrs, id, strong, weak, seconds)
+        }
+        #[cfg(target_family = "wasm")]
+        {
+            let _ = (id, strong, weak, seconds);
+            false
+        }
+    }
+
+    /// Silence the pad now rather than at the end of its rumble.
+    pub fn stop_rumble(&mut self, id: i64) {
+        #[cfg(not(target_family = "wasm"))]
+        self.haptics.stop(id);
+        #[cfg(target_family = "wasm")]
+        let _ = id;
+    }
+
     /// Refresh the snapshot from the platform. Edges (`just_*`) come from
     /// diffing against the previous frame, so a button that was down last
     /// frame and is down now reports held, not pressed.
@@ -255,6 +358,9 @@ impl GamepadState {
                 just_pressed: DetHashSet::default(),
                 just_released: DetHashSet::default(),
                 axes: Vec::with_capacity(AXES.len()),
+                motion: Motion::default(),
+                touches: Vec::new(),
+                rumble: gamepad.is_ff_supported(),
             };
             for (name, button) in BUTTONS {
                 let down = gamepad.is_pressed(*button);
@@ -278,12 +384,86 @@ impl GamepadState {
         }
         fresh.sort_by_key(|p| p.id);
         self.pads = fresh;
+        let connected: Vec<i64> = self.pads.iter().map(|p| p.id).collect();
+        self.haptics.retain_pads(&connected);
     }
+}
+
+/// `input.gamepad_gyro` and `input.gamepad_acceleration`.
+pub(crate) fn install_motion_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[
+        ("gamepad_gyro", &[], "", "How fast the pad is turning, in radians per second about each axis. Recorded and replayed, but no backend reports motion yet, so today this is always zero."),
+        ("gamepad_acceleration", &[], "", "The pad's acceleration in g, gravity included, so a pad at rest reads 1 on one axis. Recorded and replayed, but no backend reports motion yet, so today this is always zero."),
+    ]);
+    m.function("gamepad_gyro", |eng: &Engine, id: i64| {
+        let state = eng.resource::<GamepadState>();
+        let v = state.borrow().pad(id).map_or([0.0; 3], |p| p.motion().gyro);
+        Ok(Value::Vec3(v))
+    });
+    m.function("gamepad_acceleration", |eng: &Engine, id: i64| {
+        let state = eng.resource::<GamepadState>();
+        let v = state
+            .borrow()
+            .pad(id)
+            .map_or([0.0; 3], |p| p.motion().acceleration);
+        Ok(Value::Vec3(v))
+    });
+}
+
+/// `input.gamepad_touches`, shaped like `input.touches` so a script reads a
+/// pad's touchpad the way it reads a screen.
+pub(crate) fn install_touchpad_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[(
+        "gamepad_touches",
+        &[],
+        "",
+        "Every finger on the pad's touchpad as `{ id, x, y }`, oldest first, with x and y running 0 to 1 across the surface. Recorded and replayed, but no backend reports a touchpad yet, so today this is always empty.",
+    )]);
+    m.function("gamepad_touches", |eng: &Engine, id: i64| {
+        let state = eng.resource::<GamepadState>();
+        let touches = state.borrow().pad(id).map_or_else(Vec::new, |pad| {
+            pad.touches()
+                .iter()
+                .map(|touch| {
+                    Value::Map(vec![
+                        ("id".to_string(), Value::Int(touch.id)),
+                        ("x".to_string(), Value::Num(f64::from(touch.x))),
+                        ("y".to_string(), Value::Num(f64::from(touch.y))),
+                    ])
+                })
+                .collect()
+        });
+        Ok(Value::List(touches))
+    });
 }
 
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tests {
-    use super::{AXES, BUTTONS, PAD_AXIS_NAMES, PAD_BUTTON_NAMES};
+    use super::{
+        capture, restore, GamepadState, Motion, Pad, PadTouch, AXES, BUTTONS, PAD_AXIS_NAMES,
+        PAD_BUTTON_NAMES,
+    };
+    use balaur_core::collections::DetHashSet;
+
+    fn close(got: [f32; 3], want: [f32; 3]) -> bool {
+        got.iter().zip(&want).all(|(a, b)| (a - b).abs() < 1e-6)
+    }
+
+    fn state_with_pad(id: i64) -> GamepadState {
+        let mut state = GamepadState::default();
+        state.pads.push(Pad {
+            id,
+            name: "Test Pad".to_string(),
+            down: DetHashSet::default(),
+            just_pressed: DetHashSet::default(),
+            just_released: DetHashSet::default(),
+            axes: Vec::new(),
+            motion: Motion::default(),
+            touches: Vec::new(),
+            rumble: true,
+        });
+        state
+    }
 
     /// The script-facing vocabulary and the gilrs mapping are two lists; this
     /// is what keeps them from drifting apart.
@@ -293,5 +473,97 @@ mod tests {
         assert_eq!(button_names, PAD_BUTTON_NAMES);
         let axis_names: Vec<&str> = AXES.iter().map(|(name, _)| *name).collect();
         assert_eq!(axis_names, PAD_AXIS_NAMES);
+    }
+
+    /// Motion is written after the poll, so it has to survive into the same
+    /// frame's recording and come back out of it unchanged.
+    #[test]
+    fn motion_and_the_touchpad_round_trip_through_a_recording() {
+        let mut state = state_with_pad(0);
+        state.set_motion(
+            0,
+            Motion {
+                gyro: [0.5, -1.5, 0.25],
+                acceleration: [0.0, 1.0, 0.0],
+            },
+        );
+        state.set_touchpad(
+            0,
+            vec![PadTouch {
+                id: 7,
+                x: 0.25,
+                y: 0.75,
+            }],
+        );
+
+        let recorded = capture(&state);
+        let mut replayed = GamepadState::default();
+        restore(&mut replayed, &recorded);
+
+        let pad = replayed.pad(0).expect("the pad came back");
+        assert!(close(pad.motion().gyro, [0.5, -1.5, 0.25]));
+        assert!(close(pad.motion().acceleration, [0.0, 1.0, 0.0]));
+        assert_eq!(
+            pad.touches(),
+            [PadTouch {
+                id: 7,
+                x: 0.25,
+                y: 0.75
+            }]
+        );
+        assert!(
+            pad.can_rumble(),
+            "whether the pad has motors is recorded too"
+        );
+    }
+
+    /// The fields are `#[serde(default)]` for this: without it the whole
+    /// snapshot fails to parse and the tick replays with no pads at all.
+    #[test]
+    fn a_recording_made_before_motion_existed_still_replays() {
+        let older = serde_json::json!([{
+            "id": 3,
+            "name": "Older Pad",
+            "down": ["South"],
+            "just_pressed": [],
+            "just_released": [],
+            "axes": [["LeftStickX", 0.5]],
+        }]);
+        let mut state = GamepadState::default();
+        restore(&mut state, &older);
+
+        let pad = state.pad(3).expect("the pad still restored");
+        assert!(pad.is_down("South"));
+        assert!((pad.axis("LeftStickX") - 0.5).abs() < 1e-6);
+        assert_eq!(pad.motion(), Motion::default());
+        assert!(pad.touches().is_empty());
+        assert!(!pad.can_rumble());
+    }
+
+    /// The neutral-answer rule: a pad that is not there reads zero rather
+    /// than failing, so the same script runs headless.
+    #[test]
+    fn an_absent_pad_reads_neutral_and_cannot_be_written() {
+        let mut state = state_with_pad(0);
+        state.set_motion(
+            1,
+            Motion {
+                gyro: [9.0; 3],
+                acceleration: [9.0; 3],
+            },
+        );
+        state.set_touchpad(
+            1,
+            vec![PadTouch {
+                id: 0,
+                x: 1.0,
+                y: 1.0,
+            }],
+        );
+
+        assert!(state.pad(1).is_none(), "writing did not invent a pad");
+        assert_eq!(state.pad(0).unwrap().motion(), Motion::default());
+        assert!(!state.rumble(1, 1.0, 1.0, 0.1), "no pad, no rumble");
+        state.stop_rumble(1);
     }
 }
