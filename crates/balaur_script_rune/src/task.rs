@@ -129,6 +129,11 @@ impl RuneHost {
             let Some(events) = &state.events else { return };
             while let Ok(event) = events.try_recv() {
                 let Ok(event) = event else { continue };
+                // inotify reports every open and read; only a write changes
+                // what a path holds.
+                if matches!(event.kind, notify::EventKind::Access(_)) {
+                    continue;
+                }
                 for path in event.paths {
                     let Ok(rel) = path.strip_prefix(&state.project_root) else {
                         continue;

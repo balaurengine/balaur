@@ -58,12 +58,6 @@ fn rune(app: &App) -> balaur_script_rune::RuneHost {
         .clone()
 }
 
-/// Pump the watcher until `check` holds, or give up. A file watcher is
-/// asynchronous on every platform this runs on, so the wait is a real one.
-#[allow(
-    clippy::disallowed_methods,
-    reason = "the wait is on an OS file watcher, not on simulation"
-)]
 /// Swallow the watcher's own start-up events.
 ///
 /// `project` writes the scripts and `app_in` then watches the directory they
@@ -77,6 +71,12 @@ fn settle_watcher(host: &balaur_script_rune::RuneHost) {
     host.pump_reloads();
 }
 
+/// Pump the watcher until `check` holds, or give up. A file watcher is
+/// asynchronous on every platform this runs on, so the wait is a real one.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the wait is on an OS file watcher, not on simulation"
+)]
 fn pump_until(host: &balaur_script_rune::RuneHost, check: impl Fn() -> bool) -> bool {
     let deadline = Instant::now() + Duration::from_secs(5);
     while Instant::now() < deadline {
