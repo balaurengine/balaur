@@ -9,7 +9,7 @@ use anyhow::{anyhow, Result};
 use balaur_core::components::{as_f64, ComponentDef};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::{App, Engine, GlobalTransform};
-use balaur_script::{Bindings, NodeId};
+use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Vec2, Vec3};
 
 use crate::{color_from_params, color_to_toml, Renderable2d, Shape2d};
@@ -141,7 +141,7 @@ pub(crate) fn install_occluder_api(m: &mut dyn Bindings<Engine>) {
         "The outline this node blocks 2D light with, in world space: x then y for each point in turn, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.",
     )]);
     m.function("outline", |eng: &Engine, node: NodeId| {
-        let entity = balaur_core::entity_of(eng, node)?;
+        let entity = balaur_core::entity_of(node)?;
         let world = eng.world();
         Ok(outline(&world, entity)
             .into_iter()

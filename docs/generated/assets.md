@@ -112,7 +112,7 @@ params = { speed = 0.4, tint = "#3aa0ff" }
 
 ### `mesh`
 
-Files: `models/`. Used by: `collider2d.mesh`, `collider3d.mesh`, `mesh.source`, `polygon.mesh`, `shape2d.mesh`.
+Files: `models/`. Used by: `collider2d.mesh`, `collider3d.mesh`, `mesh.source`, `occluder2d.mesh`, `polygon.mesh`, `shape2d.mesh`.
 
 Geometry for `mesh`-typed properties. A definition either names a `source`
 model file to import or carries the vertices itself as `positions` and

@@ -83,6 +83,8 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Game UI containers: `row`, `column` and a `panel` that lays out, with `padding`, `gap`, `align`.
 - Widget focus, keyboard and pad, with `focusable`, `on_focus` and the `ui.focus_*` verbs.
 - `widget_theme` asset: fill, stroke, radius and padding per widget kind, inherited.
+- Containers assign rects: `grow` divides a container's leftover along its own direction, `min_width`/`min_height` are the author's floor, and a child that overflows no longer moves its siblings.
+- `kind = "draw"`: a rect the scene places and a script fills, named `method` on the node's own script or `scripts/file.rn:function`.
 - Audio buses: `[audio.buses]`, routing per sound, `audio.set_bus_volume`.
 - Audio events: `audio/events.toml`, variations taken in turn.
 - Positional audio: a `listener` node, `positional` sounds with distance attenuation, stereo pan and doppler, and a `position` in `audio.play` and `audio.play_event`.
@@ -106,6 +108,7 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - `apple.sign_in` carries the player's name, and `apple.credential_state` says whether a saved account is still good.
 - A sign-in handler stays subscribed: signing out in the OS reaches the same method.
 - `platform.scores` takes `scope`, `period` and `start`.
+- A Mac with no Swift toolchain still builds the engine; purchases say so instead of failing to link.
 
 ### Editor
 

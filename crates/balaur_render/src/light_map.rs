@@ -374,8 +374,8 @@ fn stencil_state(write: bool) -> wgpu::DepthStencilState {
     };
     wgpu::DepthStencilState {
         format: wgpu::TextureFormat::Depth24PlusStencil8,
-        depth_write_enabled: false,
-        depth_compare: wgpu::CompareFunction::Always,
+        depth_write_enabled: Some(false),
+        depth_compare: Some(wgpu::CompareFunction::Always),
         stencil: wgpu::StencilState {
             front: face,
             back: face,
@@ -454,7 +454,7 @@ fn build_offscreen_pipelines(
         vertex: wgpu::VertexState {
             module: shader,
             entry_point: Some("vs_light"),
-            buffers: &[LIGHT_LAYOUT],
+            buffers: &[Some(LIGHT_LAYOUT)],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -479,7 +479,7 @@ fn build_offscreen_pipelines(
         vertex: wgpu::VertexState {
             module: shader,
             entry_point: Some("vs_shadow"),
-            buffers: &[SHADOW_LAYOUT],
+            buffers: &[Some(SHADOW_LAYOUT)],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
         fragment: Some(wgpu::FragmentState {

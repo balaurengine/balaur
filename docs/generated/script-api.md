@@ -9,15 +9,16 @@ cannot drift from what scripts actually see.
 | Module | Functions | Constants | Declared by |
 | --- | ---: | ---: | --- |
 | [`animation`](#animation) | 14 | 0 | the engine |
+| [`apple`](#apple) | 18 | 0 | the engine |
 | [`assets`](#assets) | 7 | 0 | the engine |
-| [`audio`](#audio) | 13 | 0 | the engine |
+| [`audio`](#audio) | 19 | 0 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
 | [`engine`](#engine) | 8 | 0 | the engine |
 | [`fs`](#fs) | 8 | 0 | the engine |
 | [`gamend`](#gamend) | 9 | 0 | the engine |
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
 | [`http`](#http) | 1 | 0 | the engine |
-| [`input`](#input) | 32 | 190 | the engine |
+| [`input`](#input) | 38 | 190 | the engine |
 | [`json`](#json) | 2 | 0 | the engine |
 | [`log`](#log) | 5 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
@@ -26,7 +27,7 @@ cannot drift from what scripts actually see.
 | [`physics2d`](#physics2d) | 62 | 6 | the engine |
 | [`physics3d`](#physics3d) | 88 | 6 | the engine |
 | [`platform`](#platform) | 11 | 0 | the engine |
-| [`render`](#render) | 41 | 0 | the engine |
+| [`render`](#render) | 42 | 0 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
 | [`rng`](#rng) | 4 | 0 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
@@ -37,12 +38,16 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 5 | 0 | the engine |
 | [`task`](#task) | 1 | 0 | the engine |
 | [`toml`](#toml) | 2 | 0 | the engine |
-| [`ui`](#ui) | 50 | 16 | the engine |
+| [`ui`](#ui) | 50 | 17 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
 ## `animation`
 
 **Functions:** `current`, `define`, `is_playing`, `is_tween_running`, `just_finished`, `pause`, `play`, `queue`, `resume`, `seek`, `stop`, `time`, `tween`, `tween_to`
+
+## `apple`
+
+**Functions:** `access_point`, `authenticated`, `available`, `cancel_notification`, `credential_state`, `entitlements`, `finish_purchase`, `identity`, `notify`, `products`, `purchase`, `register_for_push`, `request_notifications`, `restore_purchases`, `show_dashboard`, `sign_in`, `watch`, `watch_urls`
 
 ## `assets`
 
@@ -50,7 +55,7 @@ cannot drift from what scripts actually see.
 
 ## `audio`
 
-**Functions:** `bus_volume`, `buses`, `events`, `is_playing`, `play`, `play_event`, `play_on`, `set_bus_volume`, `set_pitch`, `set_volume`, `stop`, `stop_all`, `stop_on`
+**Functions:** `bus_volume`, `buses`, `distance_gain`, `emitter_position`, `events`, `is_playing`, `listener`, `pan`, `play`, `play_event`, `play_on`, `set_bus_volume`, `set_emitter_position`, `set_listener`, `set_pitch`, `set_volume`, `stop`, `stop_all`, `stop_on`
 
 ## `debugger`
 
@@ -87,7 +92,7 @@ cannot drift from what scripts actually see.
 
 ## `input`
 
-**Functions:** `action_just_pressed`, `action_just_released`, `action_pressed`, `action_value`, `actions`, `bind`, `bindings`, `declare_actions`, `dropped_files`, `feed_key`, `feed_mouse`, `feed_mouse_button`, `gamepad_axis`, `gamepad_down`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepads`, `is_down`, `is_mouse_down`, `just_pressed`, `just_released`, `mouse_delta`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `reset_bindings`, `scroll_delta`, `touches`, `touches_ended`, `touches_started`, `typed`
+**Functions:** `action_just_pressed`, `action_just_released`, `action_pressed`, `action_value`, `actions`, `bind`, `bindings`, `declare_actions`, `dropped_files`, `feed_key`, `feed_mouse`, `feed_mouse_button`, `gamepad_acceleration`, `gamepad_axis`, `gamepad_can_rumble`, `gamepad_down`, `gamepad_gyro`, `gamepad_just_pressed`, `gamepad_just_released`, `gamepad_name`, `gamepad_rumble`, `gamepad_stop_rumble`, `gamepad_touches`, `gamepads`, `is_down`, `is_mouse_down`, `just_pressed`, `just_released`, `mouse_delta`, `mouse_just_pressed`, `mouse_just_released`, `mouse_position`, `reset_bindings`, `scroll_delta`, `touches`, `touches_ended`, `touches_started`, `typed`
 
 **Constants** (190):
 
@@ -184,7 +189,7 @@ cannot drift from what scripts actually see.
 
 ## `render`
 
-**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `channel`, `channels`, `check_material`, `color`, `draw_line`, `draw_line_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `pick_ray`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_channel`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `shader_probe`, `shape2d`, `shape3d`, `sprite`, `texture_size`
+**Functions:** `camera_2d`, `camera_matrix`, `camera_pose`, `channel`, `channels`, `check_material`, `color`, `draw_line`, `draw_line_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_channel`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `shader_probe`, `shape2d`, `shape3d`, `sprite`, `texture_size`
 
 ## `replay`
 
@@ -239,7 +244,7 @@ cannot drift from what scripts actually see.
 
 **Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `window`
 
-**Constants** (16):
+**Constants** (17):
 
 | Name | Value |
 | --- | --- |
@@ -256,6 +261,7 @@ cannot drift from what scripts actually see.
 | `MOD_SHIFT` | `shift` |
 | `WIDGET_BUTTON` | `button` |
 | `WIDGET_COLUMN` | `column` |
+| `WIDGET_DRAW` | `draw` |
 | `WIDGET_LABEL` | `label` |
 | `WIDGET_PANEL` | `panel` |
 | `WIDGET_ROW` | `row` |

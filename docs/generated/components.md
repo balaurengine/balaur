@@ -271,6 +271,23 @@ On a node carrying `joint2d`, as `node.joint2d.<method>`:
 </tbody>
 </table>
 
+### `light2d`
+
+`2d` · `render` · 5 properties
+
+A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it — sprites, polygons, tiles, a 3D scene behind them — is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>Light colour, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>intensity</code></td><td>float</td><td><code>1.0</code></td><td>Brightness multiplier; over 1 blows past white At least 0.0.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>point</code></td><td>A point light fades to nothing at `radius`; a directional one lights the whole view One of <code>point</code>, <code>directional</code>.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>6.0</code></td><td>How far a point light reaches, in world units At least 0.0.</td></tr>
+<tr><td><code>shadows</code></td><td>bool</td><td><code>true</code></td><td>Whether `occluder2d` outlines cast shadows from this light</td></tr>
+</tbody>
+</table>
+
 ### `modifier2d`
 
 `2d` · `animation` · 5 properties
@@ -285,6 +302,29 @@ Aims a 2D bone at a target node every frame, after the clip has posed the rig: `
 <tr><td><code>flip</code></td><td>bool</td><td><code>false</code></td><td>Bend the two-bone chain the other way</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>look_at</code></td><td>Aim one bone at the target, or bend a root, middle, tip chain so the tip reaches it One of <code>look_at</code>, <code>two_bone_ik</code>.</td></tr>
 <tr><td><code>target</code></td><td>string</td><td>—</td><td>Node path to the point to aim at, relative to this node</td></tr>
+</tbody>
+</table>
+
+### `occluder2d`
+
+`2d` · `render` · 2 properties · 1 method
+
+The outline this node blocks 2D light with. Left empty it follows the node's `collider2d`, or failing that its circle, capsule, rect or sprite shape, so the thing a player sees is the thing that casts the shadow. Every edge casts, so an occluder stands in its own shadow: a node that should stay lit wants a smaller outline or a light with `shadows = false`.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>closed</code></td><td>bool</td><td><code>true</code></td><td>Whether the last point joins the first, making the outline a loop</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Outline points in order, [x, y] in the node&#x27;s space; empty derives the outline from the node&#x27;s `collider2d`, then from its 2D shape</td></tr>
+</tbody>
+</table>
+
+On a node carrying `occluder2d`, as `node.occluder2d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>outlineNodeId</code></td><td><code>Vec&lt;f32&gt;</code></td><td>The outline this node blocks 2D light with, in world space: x then y for each point in turn, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.</td><td><code>render</code></td></tr>
 </tbody>
 </table>
 
@@ -513,16 +553,20 @@ On a node carrying `bone3d`, as `node.bone3d.<method>`:
 
 ### `camera`
 
-`3d` · `render` · 4 properties
+`3d` · `render` · 8 properties
 
 The view the scene is drawn from, following the node's global pose: `look_at` aims the 3D camera, `zoom` scales the 2D one in logical pixels per world unit. The last `current` camera of a kind, in tree order, drives that view.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>ambient</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 1.0]</code></td><td>Light every 2D surface gets before any `light2d`; only a `2d` camera&#x27;s is read</td></tr>
+<tr><td><code>bloom_intensity</code></td><td>float</td><td><code>0.6</code></td><td>How much of the bloom is added back over the frame At least 0.0.</td></tr>
+<tr><td><code>bloom_threshold</code></td><td>float</td><td><code>1.0</code></td><td>Brightness a pixel has to pass to bloom At least 0.0.</td></tr>
 <tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether this camera drives the view; the last current one wins</td></tr>
 <tr><td><code>kind</code></td><td>enum</td><td><code>3d</code></td><td>Which camera this node drives One of <code>3d</code>, <code>2d</code>.</td></tr>
 <tr><td><code>look_at</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>World point the 3D camera looks at</td></tr>
+<tr><td><code>post</code></td><td>flags</td><td><code>[]</code></td><td>Screen-space effects the frame resolves through; `ssao`, `ssr` and `dof` are 3D only One of <code>bloom</code>, <code>ssao</code>, <code>ssr</code>, <code>dof</code>.</td></tr>
 <tr><td><code>zoom</code></td><td>float</td><td><code>60.0</code></td><td>2D zoom in logical pixels per world unit At least 1.0.</td></tr>
 </tbody>
 </table>
@@ -857,20 +901,37 @@ On a node carrying `animation`, as `node.animation.<method>`:
 
 ## Audio
 
+### `listener`
+
+`audio` · 1 property
+
+The ears a positional sound is heard from: its distance to this node sets its volume, and its offset across this node's right sets its pan. The last `current` listener applied wins; with no listener in the scene at all, every sound plays flat.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>current</code></td><td>bool</td><td><code>true</code></td><td>Whether the mix is heard from this node; the last current one wins</td></tr>
+</tbody>
+</table>
+
 ### `sound`
 
-`audio` · 6 properties · 2 methods
+`audio` · 10 properties · 2 methods
 
-A sound of the node's own: which file, at what volume and pitch, looping or not. `audio.play_on` and `audio.stop_on` trigger it, and `autoplay` starts it when the node enters the scene.
+A sound of the node's own: which file, at what volume and pitch, looping or not. `audio.play_on` and `audio.stop_on` trigger it, and `autoplay` starts it when the node enters the scene. A `positional` sound is heard from where the node is, relative to the `listener`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>autoplay</code></td><td>bool</td><td><code>false</code></td><td>Start playing when the node enters the scene</td></tr>
 <tr><td><code>bus</code></td><td>string</td><td>—</td><td>Audio bus this plays through; empty is `master`</td></tr>
+<tr><td><code>doppler</code></td><td>float</td><td><code>0.0</code></td><td>How much the closing speed bends the pitch; 0 is off, 1 physical At least 0.0.</td></tr>
 <tr><td><code>file</code></td><td>string</td><td>—</td><td>Audio file, project-relative; required to play</td></tr>
 <tr><td><code>loop</code></td><td>bool</td><td><code>false</code></td><td>Restart the sound when it ends</td></tr>
+<tr><td><code>max_distance</code></td><td>float</td><td><code>50.0</code></td><td>Silent beyond this distance from the listener At least 0.001.</td></tr>
+<tr><td><code>min_distance</code></td><td>float</td><td><code>1.0</code></td><td>Full volume within this distance of the listener At least 0.001.</td></tr>
 <tr><td><code>pitch</code></td><td>float</td><td><code>1.0</code></td><td>Playback speed multiplier At least 0.01.</td></tr>
+<tr><td><code>positional</code></td><td>bool</td><td><code>false</code></td><td>Place the sound where the node is, heard from the `listener`</td></tr>
 <tr><td><code>volume</code></td><td>float</td><td><code>1.0</code></td><td>Linear gain; 1 is the file&#x27;s own level At least 0.0.</td></tr>
 </tbody>
 </table>
@@ -889,7 +950,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 19 properties
+`ui` · 23 properties
 
 A HUD element the widget layer draws every frame: a label, button or panel anchored to a screen corner or the center, offset in design pixels. A button records its click in `clicked` and calls the node's `on_click` method.
 
@@ -899,11 +960,15 @@ A HUD element the widget layer draws every frame: a label, button or panel ancho
 <tr><td><code>align</code></td><td>enum</td><td><code>start</code></td><td>Where a container puts its children across its own direction One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
 <tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Screen corner or center the offset is measured from One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>.</td></tr>
 <tr><td><code>clicked</code></td><td>bool</td><td><code>false</code></td><td>True on the frame the button was clicked Read-only: engine output the inspector shows but never writes.</td></tr>
+<tr><td><code>draw</code></td><td>string</td><td>—</td><td>What fills a `draw` widget: a script method on this node, or `scripts/file.rn:function` for a free function</td></tr>
 <tr><td><code>focusable</code></td><td>bool</td><td><code>true</code></td><td>Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be</td></tr>
 <tr><td><code>font_size</code></td><td>float</td><td><code>16.0</code></td><td>Text size in design pixels At least 6.0.</td></tr>
 <tr><td><code>gap</code></td><td>float</td><td><code>8.0</code></td><td>Space between a container&#x27;s children, in design pixels At least 0.0.</td></tr>
+<tr><td><code>grow</code></td><td>float</td><td><code>0.0</code></td><td>Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for At least 0.0.</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>0.0</code></td><td>Panel height in design pixels; 0 sizes to content At least 0.0.</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>draw</code>.</td></tr>
+<tr><td><code>min_height</code></td><td>float</td><td><code>0.0</code></td><td>Smallest height a container may give this widget, in design pixels At least 0.0.</td></tr>
+<tr><td><code>min_width</code></td><td>float</td><td><code>0.0</code></td><td>Smallest width a container may give this widget, in design pixels At least 0.0.</td></tr>
 <tr><td><code>on_click</code></td><td>string</td><td>—</td><td>Script method called on this node when the button is clicked</td></tr>
 <tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called on this node when focus arrives</td></tr>
 <tr><td><code>padding</code></td><td>float</td><td><code>0.0</code></td><td>Space inside a container&#x27;s edge, in design pixels At least 0.0.</td></tr>

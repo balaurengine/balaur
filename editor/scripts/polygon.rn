@@ -26,7 +26,8 @@ pub fn modes(S) {
     if target(S.doc[S.sel]) == Some("occluder2d") {
         return ["points"];
     }
-    ["points", "polygons", "uv", "weights"]
+    // An explicit return: a block followed by `[` parses as an index.
+    return ["points", "polygons", "uv", "weights"];
 }
 
 pub fn mode_name(id) {

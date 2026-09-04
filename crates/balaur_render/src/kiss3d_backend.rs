@@ -858,7 +858,7 @@ fn build_polygon_node(
     }
     let (mut node, skin) = crate::skinned_2d::build(scene, polygon);
     attach_texture(app, &mut node, &polygon.texture);
-    Some((node, skin, geometry))
+    Some((node, skin))
 }
 
 /// Give a freshly built node its image. Once per rebuild: kiss3d's

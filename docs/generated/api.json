@@ -42,13 +42,16 @@
     "collider3d": "The shape the node collides with in 3D. On a node with a `body3d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
     "joint2d": "Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`.",
     "joint3d": "Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`.",
+    "light2d": "A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it \u2014 sprites, polygons, tiles, a 3D scene behind them \u2014 is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.",
+    "listener": "The ears a positional sound is heard from: its distance to this node sets its volume, and its offset across this node's right sets its pan. The last `current` listener applied wins; with no listener in the scene at all, every sound plays flat.",
     "mesh": "Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.",
     "modifier2d": "Aims a 2D bone at a target node every frame, after the clip has posed the rig: `look_at` turns one bone toward the target, `two_bone_ik` bends a root, middle and tip chain so the tip reaches it.",
+    "occluder2d": "The outline this node blocks 2D light with. Left empty it follows the node's `collider2d`, or failing that its circle, capsule, rect or sprite shape, so the thing a player sees is the thing that casts the shadow. Every edge casts, so an occluder stands in its own shadow: a node that should stay lit wants a smaller outline or a light with `shadows = false`.",
     "particles": "A purely visual 2D emitter at the node: rate, lifetime, speed, cone and gravity. The live particles and the randomness scattering them are backend state the simulation never sees.",
     "polygon": "A filled, textured 2D polygon from a `mesh` asset's points and triangles, deformed by the rig `skeleton` names when the mesh carries skin weights.",
     "shape2d": "An untextured 2D primitive drawn at the node -- circle, rect, capsule or a polyline traced through a mesh asset's points -- sized in world units.",
     "shape3d": "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone or plane -- sized in world units and tinted by `color`.",
-    "sound": "A sound of the node's own: which file, at what volume and pitch, looping or not. `audio.play_on` and `audio.stop_on` trigger it, and `autoplay` starts it when the node enters the scene.",
+    "sound": "A sound of the node's own: which file, at what volume and pitch, looping or not. `audio.play_on` and `audio.stop_on` trigger it, and `autoplay` starts it when the node enters the scene. A `positional` sound is heard from where the node is, relative to the `listener`.",
     "sprite": "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` sheet makes it a flipbook `frame` steps through.",
     "tilemap": "A grid of tiles cut from one `tileset` atlas and centred on the node, one character per cell, drawn at `pixels_per_unit` tile-texture pixels per world unit.",
     "vehicle3d": "Makes this node's body a car chassis, driven by the `wheel3d` children under it. Rapier casts a ray down from each wheel and pushes the chassis along a spring, which is how driving games model cars: it never jams and never tunnels.",
@@ -103,6 +106,13 @@
       "3d",
       "physics"
     ],
+    "light2d": [
+      "2d",
+      "render"
+    ],
+    "listener": [
+      "audio"
+    ],
     "mesh": [
       "3d",
       "render"
@@ -110,6 +120,10 @@
     "modifier2d": [
       "2d",
       "animation"
+    ],
+    "occluder2d": [
+      "2d",
+      "render"
     ],
     "particles": [
       "render"
@@ -476,6 +490,28 @@
       }
     },
     "camera": {
+      "ambient": {
+        "default": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "description": "Light every 2D surface gets before any `light2d`; only a `2d` camera's is read",
+        "type": "color"
+      },
+      "bloom_intensity": {
+        "default": 0.6,
+        "description": "How much of the bloom is added back over the frame",
+        "min": 0.0,
+        "type": "float"
+      },
+      "bloom_threshold": {
+        "default": 1.0,
+        "description": "Brightness a pixel has to pass to bloom",
+        "min": 0.0,
+        "type": "float"
+      },
       "current": {
         "default": true,
         "description": "Whether this camera drives the view; the last current one wins",
@@ -498,6 +534,17 @@
         ],
         "description": "World point the 3D camera looks at",
         "type": "vec3"
+      },
+      "post": {
+        "default": [],
+        "description": "Screen-space effects the frame resolves through; `ssao`, `ssr` and `dof` are 3D only",
+        "options": [
+          "bloom",
+          "ssao",
+          "ssr",
+          "dof"
+        ],
+        "type": "flags"
       },
       "zoom": {
         "default": 60.0,
@@ -1792,6 +1839,51 @@
         "type": "float"
       }
     },
+    "light2d": {
+      "color": {
+        "default": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "description": "Light colour, as channel floats or #rrggbb / #rrggbbaa",
+        "type": "color"
+      },
+      "intensity": {
+        "default": 1.0,
+        "description": "Brightness multiplier; over 1 blows past white",
+        "min": 0.0,
+        "type": "float"
+      },
+      "kind": {
+        "default": "point",
+        "description": "A point light fades to nothing at `radius`; a directional one lights the whole view",
+        "options": [
+          "point",
+          "directional"
+        ],
+        "type": "enum"
+      },
+      "radius": {
+        "default": 6.0,
+        "description": "How far a point light reaches, in world units",
+        "min": 0.0,
+        "type": "float"
+      },
+      "shadows": {
+        "default": true,
+        "description": "Whether `occluder2d` outlines cast shadows from this light",
+        "type": "bool"
+      }
+    },
+    "listener": {
+      "current": {
+        "default": true,
+        "description": "Whether the mix is heard from this node; the last current one wins",
+        "type": "bool"
+      }
+    },
     "mesh": {
       "material": {
         "asset": "material",
@@ -1845,6 +1937,19 @@
         "default": "",
         "description": "Node path to the point to aim at, relative to this node",
         "type": "string"
+      }
+    },
+    "occluder2d": {
+      "closed": {
+        "default": true,
+        "description": "Whether the last point joins the first, making the outline a loop",
+        "type": "bool"
+      },
+      "mesh": {
+        "asset": "mesh",
+        "default": "",
+        "description": "Outline points in order, [x, y] in the node's space; empty derives the outline from the node's `collider2d`, then from its 2D shape",
+        "type": "asset"
       }
     },
     "particles": {
@@ -2070,6 +2175,12 @@
         "description": "Audio bus this plays through; empty is `master`",
         "type": "string"
       },
+      "doppler": {
+        "default": 0.0,
+        "description": "How much the closing speed bends the pitch; 0 is off, 1 physical",
+        "min": 0.0,
+        "type": "float"
+      },
       "file": {
         "default": "",
         "description": "Audio file, project-relative; required to play",
@@ -2080,11 +2191,28 @@
         "description": "Restart the sound when it ends",
         "type": "bool"
       },
+      "max_distance": {
+        "default": 50.0,
+        "description": "Silent beyond this distance from the listener",
+        "min": 0.001,
+        "type": "float"
+      },
+      "min_distance": {
+        "default": 1.0,
+        "description": "Full volume within this distance of the listener",
+        "min": 0.001,
+        "type": "float"
+      },
       "pitch": {
         "default": 1.0,
         "description": "Playback speed multiplier",
         "min": 0.01,
         "type": "float"
+      },
+      "positional": {
+        "default": false,
+        "description": "Place the sound where the node is, heard from the `listener`",
+        "type": "bool"
       },
       "volume": {
         "default": 1.0,
@@ -2296,6 +2424,11 @@
         "readonly": true,
         "type": "bool"
       },
+      "draw": {
+        "default": "",
+        "description": "What fills a `draw` widget: a script method on this node, or `scripts/file.rn:function` for a free function",
+        "type": "string"
+      },
       "focusable": {
         "default": true,
         "description": "Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be",
@@ -2313,6 +2446,12 @@
         "min": 0.0,
         "type": "float"
       },
+      "grow": {
+        "default": 0.0,
+        "description": "Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for",
+        "min": 0.0,
+        "type": "float"
+      },
       "height": {
         "default": 0.0,
         "description": "Panel height in design pixels; 0 sizes to content",
@@ -2327,9 +2466,22 @@
           "button",
           "panel",
           "row",
-          "column"
+          "column",
+          "draw"
         ],
         "type": "enum"
+      },
+      "min_height": {
+        "default": 0.0,
+        "description": "Smallest height a container may give this widget, in design pixels",
+        "min": 0.0,
+        "type": "float"
+      },
+      "min_width": {
+        "default": 0.0,
+        "description": "Smallest width a container may give this widget, in design pixels",
+        "min": 0.0,
+        "type": "float"
       },
       "on_click": {
         "default": "",
@@ -2492,6 +2644,71 @@
       "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "Apple platform services that `platform.*` does not cover. `identity` fetches what a server needs to verify a Game Center player \u2014 url, signature, salt and timestamp \u2014 and answers on a later tick as a map carrying `kind`, both to the node's `on_apple` method and to whoever awaits the id. Achievements, leaderboards, sign-in and cloud saves are `platform.*`, which speaks Game Center here.",
+      "docs": {
+        "authenticated": "Whether Game Center has a signed-in player right now.",
+        "available": "Whether this build has Apple's frameworks behind it.",
+        "cancel_notification": "Drop a scheduled notification, and take a delivered one out of the shade.",
+        "credential_state": "Ask whether a saved Sign in with Apple account is still authorized, revoked, transferred or unknown.",
+        "entitlements": "What this player currently owns, each with the signed transaction a server checks.",
+        "finish_purchase": "Tell StoreKit a transaction is dealt with. One that is never finished comes back on every launch.",
+        "identity": "Fetch the items a server needs to verify this Game Center player, and return the id the answer carries.",
+        "notify": "Schedule a local notification. The options take `title`, `after` in seconds and an `id` to cancel or recognise it by.",
+        "products": "Ask the App Store about a list of product ids, and answer with what it knows: title, description, price and display price.",
+        "purchase": "Buy a product. The answer is `purchased`, `cancelled` or `pending`, and a purchase carries the signed `jws` a server checks.",
+        "register_for_push": "Ask the OS for a push token. It arrives at everything watching, not at the caller, because the OS hands it over whenever it likes.",
+        "request_notifications": "Ask the player to allow notifications, and answer with what they said.",
+        "restore_purchases": "Ask the App Store to hand this device's purchases back \u2014 the button a review expects a game to have.",
+        "sign_in": "Sign in with Apple, and return the id the identity token comes back on. Game Center's own sign-in is `platform.sign_in`.",
+        "watch": "Subscribe a node's method to everything that arrives unasked: a notification tapped, a URL opened, a push token, a transaction that landed elsewhere.",
+        "watch_urls": "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them."
+      },
+      "functions": [
+        "access_point",
+        "authenticated",
+        "available",
+        "cancel_notification",
+        "credential_state",
+        "entitlements",
+        "finish_purchase",
+        "identity",
+        "notify",
+        "products",
+        "purchase",
+        "register_for_push",
+        "request_notifications",
+        "restore_purchases",
+        "show_dashboard",
+        "sign_in",
+        "watch",
+        "watch_urls"
+      ],
+      "name": "apple",
+      "signatures": {
+        "access_point": "(Value, Option<Value>) -> Value",
+        "authenticated": "() -> Value",
+        "available": "() -> Value",
+        "cancel_notification": "(Value,) -> Value",
+        "credential_state": "(Value, Option<Value>, Option<Value>) -> Value",
+        "entitlements": "(Option<Value>, Option<Value>) -> Value",
+        "finish_purchase": "(Value, Option<Value>, Option<Value>) -> Value",
+        "identity": "(Option<Value>, Option<Value>) -> Value",
+        "notify": "(Value, Option<Value>, Option<Value>) -> Value",
+        "products": "(Value, Option<Value>, Option<Value>) -> Value",
+        "purchase": "(Value, Option<Value>, Option<Value>) -> Value",
+        "register_for_push": "() -> Value",
+        "request_notifications": "(Option<Value>, Option<Value>) -> Value",
+        "restore_purchases": "(Option<Value>, Option<Value>) -> Value",
+        "show_dashboard": "(Option<Value>, Option<Value>) -> Value",
+        "sign_in": "(Option<Value>, Option<Value>) -> Value",
+        "watch": "(Value, Option<Value>) -> Value",
+        "watch_urls": "() -> Value"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
       "doc": "Asset definitions by reference: a project-relative file path, `file#entry` for one entry inside it, or `#id` for a block the scene declares. A script gets the definition table, not the parsed object the owning plugin builds from it.",
       "docs": {
         "directory": "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none.",
@@ -2535,16 +2752,22 @@
         "sound"
       ],
       "constants": [],
-      "doc": "Sound playback: a file plays under an integer handle, with `volume`, `pitch` and `loop` options, and the `sound` component gives a node a sound of its own. With no output device every call still works and nothing is heard.",
+      "doc": "Sound playback: a file plays under an integer handle, with `volume`, `pitch` and `loop` options, and the `sound` component gives a node a sound of its own. Give a `play` a `position` and it is heard from where the `listener` is. With no output device every call still works and nothing is heard.",
       "docs": {
         "bus_volume": "One bus's own gain, without its parents'.",
         "buses": "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order.",
+        "distance_gain": "The gain the distance to the listener is costing a positional handle right now: 1 up close, 0 out of range.",
+        "emitter_position": "Where a handle played with a `position` is; nil for a flat or unknown one.",
         "events": "Every sound named in `audio/events.toml`, in name order.",
         "is_playing": "Whether a handle's sound is still audible; false once it ends, and always false with no output device.",
-        "play": "Start the audio file at a path and return the handle `stop`, `set_volume`, `set_pitch` and `is_playing` take.",
-        "play_event": "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. Nil for a name nothing declared.",
+        "listener": "Where the ears are: the current `listener` node's world position, or what `set_listener` last put there.",
+        "pan": "Where a positional handle sits between the speakers: -1 hard left, 0 centred, 1 hard right.",
+        "play": "Start the audio file at a path and return the handle `stop`, `set_volume`, `set_pitch` and `is_playing` take. The options table takes `volume`, `pitch`, `loop`, `bus`, and a `position` with `min_distance`, `max_distance` and `doppler`.",
+        "play_event": "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared.",
         "play_on": "Start the node's own `sound` from the top, replacing what it had going, and return the new handle.",
         "set_bus_volume": "Set one bus's gain and re-apply it to everything already playing on it \u2014 which is what a volume slider is.",
+        "set_emitter_position": "Move what a handle plays from, so a sound follows something the script is driving; the frame takes its doppler from how far it moved.",
+        "set_listener": "Put the ears at a point by hand, for a game whose view is not a node; a `listener` node in the scene takes it back on the next frame.",
         "set_pitch": "Set a playing handle's speed multiplier, which carries its pitch with it.",
         "set_volume": "Set a playing handle's linear gain, where 1 is the file's own level.",
         "stop": "Silence the sound a handle names; a finished, stopped or unknown handle is left alone.",
@@ -2554,12 +2777,18 @@
       "functions": [
         "bus_volume",
         "buses",
+        "distance_gain",
+        "emitter_position",
         "events",
         "is_playing",
+        "listener",
+        "pan",
         "play",
         "play_event",
         "play_on",
         "set_bus_volume",
+        "set_emitter_position",
+        "set_listener",
         "set_pitch",
         "set_volume",
         "stop",
@@ -2570,12 +2799,18 @@
       "signatures": {
         "bus_volume": "String -> f32",
         "buses": "() -> Value",
+        "distance_gain": "i64 -> Value",
+        "emitter_position": "i64 -> Value",
         "events": "() -> Value",
         "is_playing": "i64 -> bool",
+        "listener": "() -> Value",
+        "pan": "i64 -> Value",
         "play": "(String, Option<Value>) -> u64",
-        "play_event": "String -> Value",
+        "play_event": "(String, Option<Value>) -> Value",
         "play_on": "NodeId -> u64",
         "set_bus_volume": "(String, f32) -> ()",
+        "set_emitter_position": "(i64, Value, Option<Value>, Option<Value>) -> ()",
+        "set_listener": "(Value, Option<Value>, Option<Value>) -> ()",
         "set_pitch": "(i64, f32) -> ()",
         "set_volume": "(i64, f32) -> ()",
         "stop": "i64 -> ()",
@@ -3580,11 +3815,17 @@
         "feed_key": "Press or release a `KEY_*` key as if the window had reported it; the edge lasts this frame, the state until the opposite feed.",
         "feed_mouse": "Move the cursor to a window-pixel position as if the window had reported it; the delta accumulates for this frame.",
         "feed_mouse_button": "Press or release a `MOUSE_*` button as if the window had reported it.",
+        "gamepad_acceleration": "The pad's acceleration in g, gravity included, so a pad at rest reads 1 on one axis. Read from PlayStation pads on desktop; zero for a pad with no accelerometer.",
         "gamepad_axis": "How far the pad's `AXIS_*` stick or trigger is pushed, -1 to 1; zero at rest and for an absent pad.",
+        "gamepad_can_rumble": "Whether the pad has motors to rumble; false for a pad that is not connected, and on a build with no force feedback.",
         "gamepad_down": "Whether the pad's `PAD_*` button is held down right now, however many frames it has been down.",
+        "gamepad_gyro": "How fast the pad is turning, in radians per second about each axis. Read from PlayStation pads on desktop; zero for a pad with no gyroscope.",
         "gamepad_just_pressed": "Whether the pad's `PAD_*` button went down this frame; true for that one frame only.",
         "gamepad_just_released": "Whether the pad's `PAD_*` button came up this frame; true for that one frame only.",
         "gamepad_name": "The pad's name as the platform reports it, empty when no pad has that id.",
+        "gamepad_rumble": "Rumble the pad, `{ strong, weak, duration }` \u2014 the two motors at 0..1 for that many seconds. Returns whether it started; a second rumble replaces the first.",
+        "gamepad_stop_rumble": "Silence the pad now, rather than waiting out the rumble's duration.",
+        "gamepad_touches": "Every finger on the pad's touchpad as `{ id, x, y }`, oldest first, with x and y running 0 to 1 across the surface. Read from PlayStation pads on desktop; empty for a pad with no touchpad.",
         "gamepads": "The ids of every connected pad, ordered so the list is stable from frame to frame.",
         "is_down": "Whether the `KEY_*` key is held down right now, however many frames it has been down.",
         "is_mouse_down": "Whether the `MOUSE_*` button is held down right now, however many frames it has been down.",
@@ -3614,11 +3855,17 @@
         "feed_key",
         "feed_mouse",
         "feed_mouse_button",
+        "gamepad_acceleration",
         "gamepad_axis",
+        "gamepad_can_rumble",
         "gamepad_down",
+        "gamepad_gyro",
         "gamepad_just_pressed",
         "gamepad_just_released",
         "gamepad_name",
+        "gamepad_rumble",
+        "gamepad_stop_rumble",
+        "gamepad_touches",
         "gamepads",
         "is_down",
         "is_mouse_down",
@@ -3649,11 +3896,17 @@
         "feed_key": "(String, bool) -> ()",
         "feed_mouse": "(f32, f32) -> ()",
         "feed_mouse_button": "(usize, bool) -> ()",
+        "gamepad_acceleration": "i64 -> Value",
         "gamepad_axis": "(i64, String) -> f32",
+        "gamepad_can_rumble": "i64 -> bool",
         "gamepad_down": "(i64, String) -> bool",
+        "gamepad_gyro": "i64 -> Value",
         "gamepad_just_pressed": "(i64, String) -> bool",
         "gamepad_just_released": "(i64, String) -> bool",
         "gamepad_name": "i64 -> String",
+        "gamepad_rumble": "(i64, Option<Value>) -> bool",
+        "gamepad_stop_rumble": "i64 -> ()",
+        "gamepad_touches": "i64 -> Value",
         "gamepads": "() -> Value",
         "is_down": "String -> bool",
         "is_mouse_down": "usize -> bool",
@@ -4891,9 +5144,9 @@
         "cloud_write": "Write a value for the store to sync between the player's devices.",
         "player": "Who the store says is playing, or nil before a sign-in has landed.",
         "progress": "Report an achievement's completion, 0 to 100.",
-        "scores": "Read a leaderboard's top entries; `count` in the options caps how many.",
+        "scores": "Read a leaderboard's entries. The options take `count`, `start` (a rank, from 1), `scope` (\"global\" or \"friends\") and `period` (\"today\", \"week\" or \"all_time\").",
         "set_presence": "Say what the player is doing, where the store shows it.",
-        "sign_in": "Ask the store who is playing, and return the id its answer carries.",
+        "sign_in": "Ask the store who is playing, and return the id its answer carries. A node given here keeps hearing: a later sign-out reaches the same method.",
         "signed_in": "Whether a sign-in has landed.",
         "submit_score": "Post a score to a leaderboard.",
         "unlock": "Award an achievement whole."
@@ -4933,6 +5186,9 @@
           "shape2d",
           "shape3d",
           "sprite"
+        ],
+        "outline": [
+          "occluder2d"
         ],
         "set_ball": [
           "shape3d"
@@ -4976,6 +5232,7 @@
         ]
       },
       "components": [
+        "occluder2d",
         "particles",
         "polygon",
         "shape2d",
@@ -4994,6 +5251,7 @@
         "draw_line_2d": "Draw one 2D world-space line for this frame; width is in pixels.",
         "mouse_ray": "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units.",
         "mouse_world_2d": "The mouse position in 2D world coordinates, for picking.",
+        "outline": "The outline this node blocks 2D light with, in world space: x then y for each point in turn, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.",
         "pick_ray": "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz.",
         "screenshot": "Save the next rendered frame as a PNG at a project-relative path; a run with no renderer says so.",
         "set_app_icon": "Set the application icon (the dock or taskbar one) from a PNG in the project, named by its path.",
@@ -5033,6 +5291,7 @@
         "material_params",
         "mouse_ray",
         "mouse_world_2d",
+        "outline",
         "pick_ray",
         "screenshot",
         "set_app_icon",
@@ -5077,6 +5336,7 @@
         "material_params": "String -> Value",
         "mouse_ray": "() -> (f32, f32, f32, f32, f32, f32)",
         "mouse_world_2d": "() -> (f32, f32)",
+        "outline": "NodeId -> Vec<f32>",
         "pick_ray": "(f64, f64, f64, f64, f64, f64) -> Option<NodeId>",
         "screenshot": "String -> ()",
         "set_app_icon": "String -> ()",
@@ -5500,6 +5760,10 @@
         {
           "name": "WIDGET_COLUMN",
           "value": "column"
+        },
+        {
+          "name": "WIDGET_DRAW",
+          "value": "draw"
         },
         {
           "name": "WIDGET_LABEL",

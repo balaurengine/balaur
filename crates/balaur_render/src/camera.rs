@@ -172,6 +172,48 @@ fn drive_post(eng: &Engine, post: Post) {
     config.changed = true;
 }
 
+/// The authored camera a full property table describes.
+fn camera_from_params(params: &toml::Value) -> anyhow::Result<Camera> {
+    let kind = match params.get("kind").and_then(|v| v.as_str()).unwrap_or("3d") {
+        "3d" => CameraKind::Perspective,
+        "2d" => CameraKind::Orthographic,
+        other => return Err(anyhow!("unknown camera kind '{other}'")),
+    };
+    let num = |key: &str, default: f64| {
+        params
+            .get(key)
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or(default) as f32
+    };
+    let la = |i: usize| {
+        params
+            .get("look_at")
+            .and_then(|v| v.as_array())
+            .and_then(|a| a.get(i))
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or(0.0) as f32
+    };
+    let flag = |name| balaur_core::components::has_flag(params.get("post"), name);
+    Ok(Camera {
+        kind,
+        ambient: color_from_params_named(params, "ambient"),
+        post: Post {
+            bloom: flag("bloom"),
+            ssao: flag("ssao"),
+            ssr: flag("ssr"),
+            dof: flag("dof"),
+            bloom_threshold: num("bloom_threshold", 1.0).max(0.0),
+            bloom_intensity: num("bloom_intensity", 0.6).max(0.0),
+        },
+        current: params
+            .get("current")
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(true),
+        look_at: glamx::Vec3::new(la(0), la(1), la(2)),
+        zoom: num("zoom", 60.0).max(1.0),
+    })
+}
+
 /// The `camera` component. Writes a [`Camera`] on the node;
 /// [`drive_camera_system`] mirrors the current one into the camera resources.
 pub(crate) fn register_camera_component(app: &mut App) {
@@ -193,48 +235,7 @@ bloom_intensity = { type = "float", default = 0.6, min = 0.0, description = "How
             tags: &["3d", "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let kind = match params.get("kind").and_then(|v| v.as_str()).unwrap_or("3d") {
-                    "3d" => CameraKind::Perspective,
-                    "2d" => CameraKind::Orthographic,
-                    other => return Err(anyhow!("unknown camera kind '{other}'")),
-                };
-                let la = |i: usize| {
-                    params
-                        .get("look_at")
-                        .and_then(|v| v.as_array())
-                        .and_then(|a| a.get(i))
-                        .and_then(balaur_core::components::as_f64)
-                        .unwrap_or(0.0) as f32
-                };
-                let zoom = params
-                    .get("zoom")
-                    .and_then(balaur_core::components::as_f64)
-                    .unwrap_or(60.0) as f32;
-                let flag = |name| balaur_core::components::has_flag(params.get("post"), name);
-                let num = |key: &str, default: f64| {
-                    params
-                        .get(key)
-                        .and_then(balaur_core::components::as_f64)
-                        .unwrap_or(default) as f32
-                };
-                let camera = Camera {
-                    kind,
-                    ambient: color_from_params_named(params, "ambient"),
-                    post: Post {
-                        bloom: flag("bloom"),
-                        ssao: flag("ssao"),
-                        ssr: flag("ssr"),
-                        dof: flag("dof"),
-                        bloom_threshold: num("bloom_threshold", 1.0).max(0.0),
-                        bloom_intensity: num("bloom_intensity", 0.6).max(0.0),
-                    },
-                    current: params
-                        .get("current")
-                        .and_then(toml::Value::as_bool)
-                        .unwrap_or(true),
-                    look_at: glamx::Vec3::new(la(0), la(1), la(2)),
-                    zoom: zoom.max(1.0),
-                };
+                let camera = camera_from_params(params)?;
                 let mut world = eng.world_mut();
                 if let Ok(mut c) = world.get::<&mut Camera>(entity) {
                     *c = camera;

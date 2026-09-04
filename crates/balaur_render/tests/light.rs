@@ -39,7 +39,7 @@ fn add(app: &App, entity: balaur_core::hecs::Entity, key: &str, params: &str) {
 }
 
 fn place(app: &App, entity: balaur_core::hecs::Entity, position: Vec3, rotation: Quat) {
-    let mut world = app.engine.world_mut();
+    let world = app.engine.world_mut();
     let mut transform = world.get::<&mut Transform>(entity).unwrap();
     transform.position = position;
     transform.rotation = rotation;
@@ -226,7 +226,7 @@ fn an_outline_comes_back_in_world_space_and_closed() {
         Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
     );
     {
-        let mut world = app.engine.world_mut();
+        let world = app.engine.world_mut();
         world.get::<&mut Transform>(crate_node).unwrap().scale = Vec3::new(2.0, 1.0, 1.0);
     }
     add(
@@ -322,10 +322,10 @@ fn the_cameras_ambient_reaches_the_2d_config() {
     let mut app = app();
     let cam = node(&app);
     add(&app, cam, "camera", "kind = \"2d\"\nambient = \"#402010\"");
-    assert_eq!(
-        app.engine.resource::<CameraConfig2d>().borrow().ambient,
-        [0.0; 3],
-        "control: nothing has driven the camera yet"
+    let before = app.engine.resource::<CameraConfig2d>().borrow().ambient;
+    assert!(
+        before.iter().all(|c| c.abs() < 1e-6),
+        "control: nothing has driven the camera yet, got {before:?}"
     );
     app.tick(1.0 / 60.0);
     let ambient = app.engine.resource::<CameraConfig2d>().borrow().ambient;
@@ -374,7 +374,6 @@ fn an_unknown_light_kind_is_an_error_not_a_panic() {
     let lamp = node(&app);
     let table: toml::Value = toml::from_str("kind = \"spot\"").unwrap();
     let err = components::add(&app.engine, lamp, "light2d", Some(&table))
-        .err()
-        .expect("an unknown kind must be refused");
+        .expect_err("an unknown kind must be refused");
     assert!(format!("{err:#}").contains("spot"), "{err:#}");
 }

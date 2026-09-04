@@ -169,20 +169,18 @@ pub fn lights2d(S) {
         };
         if let Some(light) = node.get("light2d") {
             if light is Object {
-                light_gizmo(S, found, light);
+                light_gizmo(found, light);
             }
         }
-        if let Some(occluder) = node.get("occluder2d") {
-            if occluder is Object || occluder == () {
-                occluder_outline(S, found);
-            }
+        if node.get("occluder2d").is_some() {
+            occluder_outline(S, found);
         }
     }
 }
 
 // One light: a point's reach as a circle, a directional one's aim as a comb
 // of strokes through the node, both in the light's own colour.
-fn light_gizmo(S, found, light) {
+fn light_gizmo(found, light) {
     let c = component_rgb(light.get("color").unwrap_or(()), [1.0, 1.0, 1.0]);
     let p = found.global_position();
     let angle = found.global_rotation_euler().z;
