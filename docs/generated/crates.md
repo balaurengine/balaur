@@ -238,7 +238,7 @@ Balaur WebTransport plugin: a QUIC Transport for rollback sessions
 WebTransport over QUIC, behind [`Transport`].
 
 - **workspace deps:** `balaur_core`
-- **external deps:** 8 (anyhow, rcgen, ring, rustls, tokio, tracing, url, web-transport-quinn)
+- **external deps:** 10 (anyhow, js-sys, rcgen, ring, rustls, tokio, tracing, url, …)
 - **public surface:** 3 struct, 1 enum
 - **structs:** `Certificate`, `WebTransportLink`, `WebTransportServer`
 - **enums:** `Accept`

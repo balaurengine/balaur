@@ -20228,8 +20228,7 @@ Apache License
 
 | File | Family | Version | Licence |
 |---|---|---|---|
-| `heading-Alegreya-Bold.ttf` | Alegreya, Huerta Tipográfica | static instance at wght 700 of Google Fonts' `Alegreya[wght].ttf` | SIL Open Font License 1.1 |
-| `ui-SourceSans3-Regular.ttf`, `ui-SourceSans3-Semibold.ttf` | Source Sans 3, Adobe | 3.052R | SIL Open Font License 1.1 |
+| `ui-SourceSans3-Regular.ttf`, `heading-SourceSans3-Semibold.ttf` | Source Sans 3, Adobe | 3.052R | SIL Open Font License 1.1 |
 | `mono-JetBrainsMono-Regular.ttf` | JetBrains Mono | 2.304 | SIL Open Font License 1.1 |
 | `icons-Phosphor.ttf` | Phosphor Icons | web 2.1.2, Regular weight | MIT |
 

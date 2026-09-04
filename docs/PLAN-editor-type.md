@@ -187,10 +187,14 @@ migration is a codepoint table, not an API change.
 
 ## 4. Chosen
 
-**Text A** and **Phosphor**, on 2026-09-03. Vendored, 1.8 MB total:
-`heading-Alegreya-Bold.ttf` (a wght 700 static cut from Google Fonts'
-variable Alegreya, since upstream ships no statics), `ui-SourceSans3-Regular`
-and `-Semibold`, `mono-JetBrainsMono-Regular`, `icons-Phosphor`.
+**Text A** and **Phosphor**, on 2026-09-03 — then **Alegreya was dropped from
+the editor the same day**: a serif reads as a document, not as a tool, and a
+game engine is a tool. The editor's heading face is now Source Sans 3
+Semibold, so `heading` and `ui` are one family at two weights and the
+hierarchy comes from weight alone. The website keeps Alegreya; its job is to
+be read, and the identity still lives there. Vendored, 1.8 MB total:
+`heading-SourceSans3-Semibold`, `ui-SourceSans3-Regular`,
+`mono-JetBrainsMono-Regular`, `icons-Phosphor` — 1.6 MB.
 
 Noto was asked about and not chosen. It is the right thing to *fall back to*
 and the right thing for a **game** to bundle, but the wrong thing for the

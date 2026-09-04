@@ -8,14 +8,19 @@
 
 use std::sync::mpsc::Sender;
 
-use balaur_platform::{Call, PlatformEvent, Player, Score};
+use balaur_platform::{Call, Period, PlatformEvent, Player, Scope, Score};
 use block2::RcBlock;
-use objc2::runtime::AnyObject;
+use core::ptr::NonNull;
+
+use objc2::rc::Retained;
+use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
 use objc2::{msg_send, AllocAnyThread};
-use objc2_foundation::{NSArray, NSError, NSRange, NSString, NSURL};
+use objc2_foundation::{
+    NSArray, NSError, NSNotification, NSNotificationCenter, NSRange, NSString, NSURL,
+};
 use objc2_game_kit::{
     GKAchievement, GKLeaderboard, GKLeaderboardEntry, GKLeaderboardPlayerScope,
-    GKLeaderboardTimeScope, GKLocalPlayer,
+    GKLeaderboardTimeScope, GKLocalPlayer, GKPlayerAuthenticationDidChangeNotificationName,
 };
 
 use crate::{AppleCall, AppleEvent};
@@ -34,7 +39,13 @@ pub(crate) fn platform_call(request: u64, call: &Call, report: &Sender<PlatformE
             percent,
         } => report_achievement(request, achievement, *percent, report),
         Call::SubmitScore { board, score } => submit_score(request, board, *score, report),
-        Call::Scores { board, count } => scores(request, board, *count, report),
+        Call::Scores {
+            board,
+            count,
+            scope,
+            period,
+            start,
+        } => scores(request, board, *count, *scope, *period, *start, report),
         Call::CloudRead { key } => crate::icloud::read(request, key, report),
         Call::CloudWrite { key, value } => crate::icloud::write(request, key, value, report),
         // Game Center has no presence, and answering `done` to a call that
@@ -48,14 +59,20 @@ pub(crate) fn platform_call(request: u64, call: &Call, report: &Sender<PlatformE
     }
 }
 
-pub(crate) fn apple_call(request: u64, call: AppleCall, report: &Sender<AppleEvent>) {
+pub(crate) fn apple_call(request: u64, call: &AppleCall, report: &Sender<AppleEvent>) {
     match call {
         AppleCall::Identity => identity(request, report),
         AppleCall::SignIn => crate::signin::sign_in(request, report),
+        AppleCall::CredentialState { user } => {
+            crate::signin::credential_state(request, user, report);
+        }
+        AppleCall::Dashboard { state } => crate::ui::show_dashboard(request, *state, report),
+        AppleCall::Store(call) => crate::storekit::call(request, call, report),
     }
 }
 
 fn sign_in(request: u64, report: &Sender<PlatformEvent>) {
+    watch_authentication();
     let player = unsafe { GKLocalPlayer::localPlayer() };
     if unsafe { player.isAuthenticated() } {
         let _ = report.send(signed_in(request, &player));
@@ -79,10 +96,14 @@ fn sign_in(request: u64, report: &Sender<PlatformEvent>) {
                 request,
                 message: "Game Center has no signed-in player".into(),
             }
+        } else if crate::ui::present(sheet) {
+            // The sheet is up; GameKit calls this handler again with the
+            // answer, so there is nothing to report yet.
+            return;
         } else {
             PlatformEvent::Failed {
                 request,
-                message: "Game Center wants its sign-in sheet, which nothing presents yet".into(),
+                message: "no window to present Game Center's sign-in sheet over".into(),
             }
         };
         let _ = report.send(event);
@@ -93,6 +114,44 @@ fn sign_in(request: u64, report: &Sender<PlatformEvent>) {
     unsafe {
         let _: () = msg_send![&player, setAuthenticateHandler: &*handler];
     }
+}
+
+/// Hear about the player signing in or out while the game runs — in the OS's
+/// own settings, or on another device. Installed on the first sign-in, so a
+/// game that never asks never listens.
+///
+/// The answers arrive under request 0, which no call is ever given:
+/// `Engine::next_token` starts at 1.
+fn watch_authentication() {
+    if WATCHING.with(|installed| installed.replace(true)) {
+        return;
+    }
+    let changed = RcBlock::new(move |_note: NonNull<NSNotification>| {
+        let player = unsafe { GKLocalPlayer::localPlayer() };
+        let event = if unsafe { player.isAuthenticated() } {
+            signed_in(0, &player)
+        } else {
+            PlatformEvent::SignedOut { request: 0 }
+        };
+        crate::queue::push_store(event);
+    });
+    let token = unsafe {
+        NSNotificationCenter::defaultCenter().addObserverForName_object_queue_usingBlock(
+            Some(GKPlayerAuthenticationDidChangeNotificationName),
+            None,
+            None,
+            &changed,
+        )
+    };
+    OBSERVER.with_borrow_mut(|held| *held = Some(token));
+}
+
+thread_local! {
+    static WATCHING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The notification centre keeps its own reference; this one is ours, so
+    /// the observation can be named and, one day, removed.
+    static OBSERVER: std::cell::RefCell<Option<Retained<ProtocolObject<dyn NSObjectProtocol>>>> =
+        const { std::cell::RefCell::new(None) };
 }
 
 fn signed_in(request: u64, player: &GKLocalPlayer) -> PlatformEvent {
@@ -146,7 +205,19 @@ fn submit_score(request: u64, board: &str, score: i64, report: &Sender<PlatformE
     }
 }
 
-fn scores(request: u64, board: &str, count: u32, report: &Sender<PlatformEvent>) {
+#[allow(
+    clippy::too_many_arguments,
+    reason = "a leaderboard read is this many knobs"
+)]
+fn scores(
+    request: u64,
+    board: &str,
+    count: u32,
+    scope: Scope,
+    period: Period,
+    start: u32,
+    report: &Sender<PlatformEvent>,
+) {
     let ids = NSArray::from_retained_slice(&[NSString::from_str(board)]);
     let report = report.clone();
     let wanted = board.to_string();
@@ -193,10 +264,17 @@ fn scores(request: u64, board: &str, count: u32, report: &Sender<PlatformEvent>)
             );
             unsafe {
                 board.loadEntriesForPlayerScope_timeScope_range_completionHandler(
-                    GKLeaderboardPlayerScope::Global,
-                    GKLeaderboardTimeScope::AllTime,
+                    match scope {
+                        Scope::Friends => GKLeaderboardPlayerScope::FriendsOnly,
+                        Scope::Global => GKLeaderboardPlayerScope::Global,
+                    },
+                    match period {
+                        Period::Today => GKLeaderboardTimeScope::Today,
+                        Period::Week => GKLeaderboardTimeScope::Week,
+                        Period::AllTime => GKLeaderboardTimeScope::AllTime,
+                    },
                     // Ranks start at 1, and GameKit refuses a range of none.
-                    NSRange::new(1, count.max(1) as usize),
+                    NSRange::new(start.max(1) as usize, count.max(1) as usize),
                     &entries,
                 );
             }

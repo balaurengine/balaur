@@ -73,6 +73,7 @@ pub fn init(this) {
         screen_h: 800.0,
         viewport: #{ x: 322.0, y: 112.0, w: 640.0, h: 482.0, at: 0 },
         rail_visible: false,
+        rail_shut: false,
         fontdemo: false,
         // A document is over the scene; the hooks list is beside it.
         doc_open: false,

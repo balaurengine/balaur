@@ -106,7 +106,7 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - The brand is the edited project's `icon.png` and name when it ships one.
 - `ui::pill`, `ui::text_field` and `ui::dropdown` are tiles unless asked for `round`.
 - The editor's look is a theme asset: `editor/themes/*.toml` holds colour tokens and named roles a widget takes with `role:`.
-- Bundled type: Alegreya, Source Sans 3, JetBrains Mono and Phosphor icons, with the OS chained for scripts balaur does not ship.
+- Bundled type: Source Sans 3 at two weights, JetBrains Mono and Phosphor icons, with the OS chained for scripts balaur does not ship.
 - Fixed: a sheet's content spilled over its neighbours; `ui::overlay` clips to the rect it was given.
 - The status strip moved into the bottom dock's foot; sheets separate by tone rather than an outline.
 - Viewport chips recede until the pointer comes for them.
@@ -116,6 +116,11 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Vector fields are inputs, not pills; node marks come from the icon set and lost their disc.
 - Node marks are coloured by kind — 2D, 3D, physics, bone, interface — from tokens in the theme.
 - The tree is set in the mono face; every dock minimises with the same glyph; the tree and inspector reach the dock's bottom edge.
+- Fixed: sheets stacked in the top-left corner on a small window — egui was dragging an overflowing area back on screen.
+- A narrow window sheds status columns and shrinks the inspector's label column instead of overflowing; `--state scale:<f>` captures it.
+- The tree draws real depth guides with an elbow at the last child; the tool rail collapses like the docks; the transport lost its nested frame.
+- One gap between every sheet and one corner radius across the shell; the bars are no longer capsules.
+- The persona bar and the document tabs are one object: same height, same tab, same corner, centred on the same axis.
 
 ### Breaking
 

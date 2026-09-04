@@ -5,10 +5,11 @@ use crate::defs;
 use crate::util;
 
 const GUTTER = 14.0;
-// Between a sheet and whatever sits beside it.
-const GAP = 16.0;
-const BAR_H = 40.0;
-const TABS_H = 34.0;
+// Between any two sheets, in every direction. One value, so no seam
+// reads as deliberate when the next one does not.
+const GAP = 12.0;
+const BAR_H = 36.0;
+const TABS_H = 36.0;
 const RAIL_W = 44.0;
 const STATUS_H = 24.0;
 // The dock reaches the bottom gutter and carries the status row.
@@ -32,6 +33,8 @@ pub fn state() {
         bottom: rect(0.0, 0.0, 0.0, 0.0), status: rect(0.0, 0.0, 0.0, 0.0),
         stage: rect(0.0, 0.0, 0.0, 0.0), doc: rect(0.0, 0.0, 0.0, 0.0),
         hooks: rect(0.0, 0.0, 0.0, 0.0), split_w: 560.0, body_h: 96.0,
+        // What the persona bar measured last frame; 0 until it has drawn.
+        bar_fit: 0.0,
     }
 }
 
@@ -70,7 +73,7 @@ pub fn compute(S) {
     let tree_w = if S.docks.left.shut { SHUT_W } else { util::clamp(m.tree_w, 180.0, w * 0.28) };
     let insp_w = if S.docks.right.shut { SHUT_W } else { util::clamp(m.insp_w, 220.0, w * 0.32) };
     let dock_h = (if S.docks.bottom.shut { SHUT_H } else { m.dock_h }) + STATUS_H;
-    let top = GUTTER + BAR_H + 12.0;
+    let top = GUTTER + BAR_H + GAP;
     let bottom = dock_bottom_edge(h);
 
     let tree_gap = if tree_w > 0.0 { GAP } else { 0.0 };
@@ -79,11 +82,11 @@ pub fn compute(S) {
     let insp_gap = if insp_w > 0.0 { GAP } else { GUTTER };
     let content_r = insp_x - insp_gap;
 
-    let rail_w = if S.rail_visible { RAIL_W + 12.0 } else { 0.0 };
+    let rail_w = if S.rail_visible { (if S.rail_shut { 34.0 } else { RAIL_W }) + GAP } else { 0.0 };
     let doc_x = content_x + rail_w;
     let dock_y = h - DOCK_BOTTOM - dock_h;
     let stage_y = top + TABS_H + 6.0;
-    let below = dock_y - 12.0;
+    let below = dock_y - GAP;
 
     // Centred on the document column, not the window: the tool rail shifts
     // it, and the bar has to sit over what it commands.
@@ -91,7 +94,7 @@ pub fn compute(S) {
     m.bar = rect(bar_mid - bar_w(S) / 2.0, GUTTER, bar_w(S), BAR_H);
     m.cmd = rect(w - GUTTER - CMD_W, GUTTER + 7.0, CMD_W, 30.0);
     m.left = rect(GUTTER, top, tree_w, bottom - top);
-    m.rail = rect(content_x, top, RAIL_W, rail_h(S));
+    m.rail = rect(content_x, top, if S.rail_shut { 34.0 } else { RAIL_W }, rail_h(S));
     m.tabs = rect(doc_x, top, content_r - doc_x, TABS_H);
     m.right = rect(insp_x, top, insp_w, bottom - top);
     m.bottom = rect(content_x, dock_y, content_r - content_x, dock_h);
@@ -107,7 +110,7 @@ pub fn compute(S) {
     let hooks_w = if S.hooks_open { 172.0 } else { 0.0 };
     let hooks_x = content_r - hooks_w;
     m.hooks = rect(hooks_x, stage_y, hooks_w, below - stage_y);
-    let doc_r = if S.hooks_open { hooks_x - 12.0 } else { content_r };
+    let doc_r = if S.hooks_open { hooks_x - GAP } else { content_r };
 
     // A document is not full-bleed: text under a sheet is unreadable. Sharing
     // with the scene puts the code on the right and the scene on the left.
@@ -136,17 +139,25 @@ pub fn window_rect(S, n) {
     rect(m.stage.x + 12.0, m.stage.y + 12.0 + (n as f64) * 176.0, 260.0, 164.0)
 }
 
-// Counted rather than measured: the bar is centred, so its width is needed
-// before it draws.
+// A row of text cannot be counted before it is laid out, so the bar reports
+// what it used and the next frame is exact.
 fn bar_w(S) {
+    let m = S.layout;
+    if m.bar_fit > 0.0 {
+        return util::min(S.screen_w - 2.0 * GUTTER, m.bar_fit);
+    }
     let personas = defs::personas().len() as f64;
-    let per = if S.compact { 42.0 } else { 94.0 };
-    util::min(S.screen_w - 2.0 * GUTTER, 132.0 + personas * per + 116.0)
+    let per = if S.compact { 40.0 } else { 76.0 };
+    util::min(S.screen_w - 2.0 * GUTTER, 228.0 + personas * per)
 }
 
 fn rail_h(S) {
+    if S.rail_shut {
+        return 42.0;
+    }
     let tools = defs::tools(S.persona).len() as f64;
-    14.0 + tools * 33.0
+    // The tools, then the button that hides them.
+    14.0 + tools * 33.0 + 26.0
 }
 
 /// Whether `x`,`y` in design px is over a sheet. Under Stage the scene is the

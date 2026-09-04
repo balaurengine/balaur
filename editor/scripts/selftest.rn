@@ -644,6 +644,8 @@ pub fn font_sheet(S) {
         x: r.x, y: r.y, w: r.w, h: r.h,
         fill: k.panel, stroke: k.line, radius: 11, padding_x: 16, padding_y: 12,
     }, || {
+        ui::label("FONT COVERAGE  ·  --state fontdemo", style::heading(k));
+        ui::add_space(10);
         ui::label("SCRIPTS", style::heading(k));
         ui::add_space(6);
         for (name, sample) in scripts() {
@@ -657,8 +659,8 @@ pub fn font_sheet(S) {
         ui::add_space(10);
         ui::label("FACES", style::heading(k));
         ui::add_space(6);
-        ui::label("heading  Alegreya", #{ size: 15, font: "heading", strong: true, color: k.text });
-        ui::label("ui  Source Sans 3", #{ size: 14, color: k.text });
+        ui::label("heading  Source Sans 3 Semibold", #{ size: 15, font: "heading", color: k.text });
+        ui::label("ui  Source Sans 3 Regular", #{ size: 14, color: k.text });
         ui::label("mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃", style::mono(k.text));
         ui::add_space(10);
         ui::label("ICONS", style::heading(k));

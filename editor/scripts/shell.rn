@@ -427,6 +427,10 @@ fn state_scale(S, arg) {
 }
 
 fn state_shut(S, side) {
+    if side == "rail" {
+        S.rail_shut = true;
+        return;
+    }
     S.docks[side].shut = true;
 }
 

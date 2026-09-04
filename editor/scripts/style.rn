@@ -36,11 +36,11 @@ pub fn sheet(k, id, r, pad_x, pad_y, cb) {
     }, cb);
 }
 
-/// The same surface as a pill, for the bars that hug their row.
+/// A bar is a sheet that hugs its row. Same corner as every other surface:
+/// one radius across the shell, not a capsule here and a tile there.
 pub fn bar(k, id, r, pad_x, cb) {
     ui::overlay(id, #{
-        role: "sheet", x: r.x, y: r.y, w: r.w, h: r.h,
-        radius: r.h / 2.0, padding_x: pad_x,
+        role: "sheet", x: r.x, y: r.y, w: r.w, h: r.h, padding_x: pad_x,
     }, cb);
 }
 

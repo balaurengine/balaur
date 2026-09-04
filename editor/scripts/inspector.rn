@@ -498,7 +498,7 @@ fn animation_section(S, k) {
     row(S, k, "Clip", || {
         let id = format!("clipname:{}", S.sel);
         let (text, _, submitted) = ui::text_field(id, "unnamed",
-            util::merge(style::field(k, CONTROL_W), #{ value: anim::clip_name(node) }));
+            util::merge(style::field(k, control_w(S)), #{ value: anim::clip_name(node) }));
         if submitted {
             // The name is `autoplay`: what the scene starts is what the
             // Timeline edits, so there is one clip to get wrong instead of two.
@@ -944,7 +944,7 @@ fn edit_text(S, k, comp, prop, spec, value) {
     row(S, k, prop, || {
         let id = format!("comp:{}:{}:{}", comp, prop, S.sel);
         let (text, _, submitted) = ui::text_field(id, "— empty —",
-            util::merge(style::field(k, CONTROL_W),
+            util::merge(style::field(k, control_w(S)),
                 #{ value: model::relative_file(S, as_text(value)) }));
         if submitted {
             write(S, comp, prop, text);

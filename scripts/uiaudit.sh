@@ -71,6 +71,10 @@ shot 23-scene-rig3d     examples/rig3d      "scene"
 shot 24-light-script    examples/hello      "script,select:Spinner,light"
 shot 25-assets-light    examples/hello      "scene,dock:assets,light"
 shot 28-fonts          examples/hello      "scene,fontdemo"
+# A small window has few design pixels, which is where the sheets used to
+# stack in the corner. Two scales stand in for it.
+shot 29-narrow          examples/angrynerds "scene,select:Bird,scale:1.8"
+shot 30-narrower        examples/angrynerds "scene,select:Bird,scale:2.4"
 shot 26-docks-minimised examples/hello      "scene,select:Spinner,shut:left,shut:right"
 shot 27-docks-moved     examples/hello      "scene,select:Spinner,move:output:left,move:assets:right"
 

@@ -29,6 +29,21 @@ balaur=$PWD/target/release/balaur
 
 step "export a game"
 "$balaur" new "$work/project" >/dev/null
+# The capabilities an Apple game declares are export-side, so the check needs a
+# project that declares some. See docs/PLAN-apple.md.
+if [ "$platform" = ios ]; then
+  cat >>"$work/project/project.toml" <<'TOML'
+
+[apple]
+bundle_id = "org.balaur.example"
+team = "AB12CD34EF"
+min_os = "15.0"
+capabilities = ["applesignin", "game-center", "icloud-kv"]
+
+[apple.plist]
+ITSAppUsesNonExemptEncryption = false
+TOML
+fi
 (cd "$work" && BALAUR_TEMPLATES="$work/templates" "$balaur" export project --target "$platform")
 
 case $platform in
@@ -46,6 +61,25 @@ ios)
     build=$(vtool -show-build "$app/Balaur" 2>/dev/null || true)
     grep -qiE 'platform +IOS|LC_VERSION_MIN_IPHONEOS' <<<"$build" ||
       fail "the .app executable was not built for iOS: $(tr '\n' ' ' <<<"$build")"
+  fi
+  grep -q '<string>org.balaur.example</string>' "$app/Info.plist" ||
+    fail "Info.plist does not carry the project's own bundle identifier"
+  grep -q 'ITSAppUsesNonExemptEncryption' "$app/Info.plist" ||
+    fail "Info.plist dropped the keys the project declared"
+  ent="$work/project.entitlements"
+  [ -f "$ent" ] || fail "no entitlements file beside the .app"
+  for key in com.apple.developer.applesignin com.apple.developer.game-center \
+    com.apple.developer.ubiquity-kvstore-identifier; do
+    grep -q "$key" "$ent" || fail "the entitlements are missing $key"
+  done
+  # Nothing expands $(TeamIdentifierPrefix) outside Xcode, so the identifier
+  # has to carry the real team.
+  grep -q '<string>AB12CD34EF.org.balaur.example</string>' "$ent" ||
+    fail "the iCloud store identifier does not carry the team"
+  # A plist codesign cannot parse is one nobody finds until they try to sign.
+  if command -v plutil >/dev/null 2>&1; then
+    plutil -lint "$app/Info.plist" >/dev/null || fail "Info.plist is not a valid plist"
+    plutil -lint "$ent" >/dev/null || fail "the entitlements are not a valid plist"
   fi
   printf '\nexported %s\n' "$app"
   (cd "$work" && tar -czf "$dist/balaur-example-ios.tar.gz" "project.app")

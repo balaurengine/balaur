@@ -396,6 +396,7 @@ flow nothing checks.
 - a theme can be set from a script
 - a theme is inherited by everything under it
 - a throw is logged and passed over unless break on error is on
+- a throw is reported at the line that threw
 - a tick publishes the frame it just ran
 - a tilemap parses cells and round trips
 - a tileset that declares no grid is refused

@@ -125,16 +125,16 @@ strong = true
 fill = "accent_soft"
 color = "accent"
 
-[roles.doctab]
-height = 24
+[roles.navtab]
+height = 26
 radius = 5
-size = 11.5
+size = 12
 color = "faint"
 
-[roles.doctab_on]
-height = 24
+[roles.navtab_on]
+height = 26
 radius = 5
-size = 11.5
+size = 12
 fill = "accent_soft"
 color = "accent"
 

@@ -252,6 +252,7 @@ asserts the centre now, and the screenshots below are from after the fix.
 
 | # | Defect | Where | Seen in |
 |---|---|---|---|
+| D18 | *Fixed 2026-09-03.* **Every sheet stacked in the top-left on a small window.** `ui::overlay` left egui's area constraint on, so an area whose content overflowed its rect was dragged back onto the screen — and with three of them, all three landed in the corner. `constrain(false)` makes the editor's rect the only one that decides. | `ui::overlay` | `29-narrow`, `30-narrower` |
 | D1 | *Fixed.* **Game widgets escaped the viewport.** The widget layer paints over the document tabs, the tool rail, the axis pill and the dock tab row; in the Interface persona the HUD and the dashed safe-area rect run across the inspector. | `editor.rn:update` `ui::set_widget_layer`, `gizmo::viewport_rect` | `06`, `14`, `18` |
 | D2 | *Fixed.* **Split was unusable.** The code column collapses to ~25 px — gutter only, no code — whatever `split_w` says. | `center::split_code` | `17` |
 | D3 | *Fixed.* **A ghost code gutter sat between viewport and inspector.** A ~25 px `code_bg` strip with the selected script's line numbers is drawn in every persona whenever the selection has a script. It also clips the document-tab hint to `no…`. | centre layout | `01`, `08`, `13`, `20` |

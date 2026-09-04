@@ -41,13 +41,35 @@ const DEFAULT_SCORES: u32 = 10;
 #[derive(Clone, Debug)]
 pub enum Call {
     SignIn,
-    Unlock { achievement: String },
-    Progress { achievement: String, percent: f64 },
-    SubmitScore { board: String, score: i64 },
-    Scores { board: String, count: u32 },
-    CloudRead { key: String },
-    CloudWrite { key: String, value: String },
-    SetPresence { text: String },
+    Unlock {
+        achievement: String,
+    },
+    Progress {
+        achievement: String,
+        percent: f64,
+    },
+    SubmitScore {
+        board: String,
+        score: i64,
+    },
+    Scores {
+        board: String,
+        count: u32,
+        scope: Scope,
+        period: Period,
+        /// The rank to read from, counting from 1.
+        start: u32,
+    },
+    CloudRead {
+        key: String,
+    },
+    CloudWrite {
+        key: String,
+        value: String,
+    },
+    SetPresence {
+        text: String,
+    },
 }
 
 impl Call {
@@ -84,6 +106,49 @@ impl Call {
     }
 }
 
+/// Whose scores a leaderboard read returns.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Scope {
+    #[default]
+    Global,
+    Friends,
+}
+
+/// How far back a leaderboard read reaches. A store that keeps one table per
+/// leaderboard and no others answers the same thing whatever this says.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Period {
+    Today,
+    Week,
+    #[default]
+    AllTime,
+}
+
+impl Scope {
+    fn parse(text: &str) -> Result<Self> {
+        match text {
+            "global" => Ok(Self::Global),
+            "friends" => Ok(Self::Friends),
+            other => Err(anyhow!(
+                "`scope` should be \"global\" or \"friends\", got {other:?}"
+            )),
+        }
+    }
+}
+
+impl Period {
+    fn parse(text: &str) -> Result<Self> {
+        match text {
+            "today" => Ok(Self::Today),
+            "week" => Ok(Self::Week),
+            "all_time" => Ok(Self::AllTime),
+            other => Err(anyhow!(
+                "`period` should be \"today\", \"week\" or \"all_time\", got {other:?}"
+            )),
+        }
+    }
+}
+
 /// Who the store says is playing.
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Player {
@@ -109,6 +174,11 @@ pub enum PlatformEvent {
     SignedIn {
         request: u64,
         player: Player,
+    },
+    /// The player signed out, or the store lost them. Unsolicited: it
+    /// arrives under request 0, which no call is ever given.
+    SignedOut {
+        request: u64,
     },
     /// A write the store accepted: an unlock, a score, a cloud file.
     Done {
@@ -140,6 +210,7 @@ impl PlatformEvent {
     const fn request(&self) -> u64 {
         match self {
             Self::SignedIn { request, .. }
+            | Self::SignedOut { request }
             | Self::Done { request, .. }
             | Self::Scores { request, .. }
             | Self::Read { request, .. }
@@ -162,6 +233,11 @@ pub trait PlatformBackend {
     /// Once per tick, for a backend whose SDK dispatches its own callbacks
     /// rather than pushing from a thread.
     fn pump(&mut self, _report: &Sender<PlatformEvent>) {}
+
+    /// Called instead of [`PlatformBackend::pump`] on a tick the engine may
+    /// not reach the outside world on — a replay, or a re-simulation. What
+    /// arrived meanwhile is not this run's to deliver.
+    fn discard(&mut self) {}
 }
 
 /// The calls in flight, the channel every backend reports into, and the
@@ -174,6 +250,11 @@ pub struct PlatformState {
     /// `(tick, request, call)` for writes made on a tick that could still be
     /// rolled back. See [`Call::writes`].
     pending: Vec<(u64, u64, Call)>,
+    /// Handlers a sign-in left subscribed. Signing in is the one call whose
+    /// answer can change again later — the player signs out in the OS, or
+    /// signs in as someone else — and the method that took the first answer
+    /// is the one that should hear about it.
+    watchers: Vec<Handler>,
     player: Option<Player>,
 }
 
@@ -204,6 +285,9 @@ impl PlatformState {
     /// else goes out now.
     pub fn start(&mut self, eng: &Engine, id: u64, call: Call, handler: Option<Handler>) {
         if let Some(handler) = handler {
+            if matches!(call, Call::SignIn) && !self.watching(&handler) {
+                self.watchers.push(handler.clone());
+            }
             self.handlers.insert(id, handler);
         }
         balaur_core::replay::event(
@@ -218,6 +302,12 @@ impl PlatformState {
             return;
         }
         self.issue(eng, id, &call);
+    }
+
+    fn watching(&self, handler: &Handler) -> bool {
+        self.watchers
+            .iter()
+            .any(|w| w.node == handler.node && w.method == handler.method)
     }
 
     fn issue(&mut self, eng: &Engine, id: u64, call: &Call) {
@@ -267,7 +357,7 @@ pub struct PlatformSnapshot {
 /// dispatch each to its handler — in arrival order throughout.
 fn pump_platform_system(eng: &Engine, _: f32) {
     let clock = balaur_core::rollback::clock(eng);
-    let mut dispatches: Vec<(Option<Handler>, u64, Value)> = Vec::new();
+    let mut dispatches: Vec<(Vec<Handler>, u64, Value)> = Vec::new();
     {
         let state = eng.resource::<PlatformState>();
         let snapshot = eng.resource::<PlatformSnapshot>();
@@ -280,26 +370,50 @@ fn pump_platform_system(eng: &Engine, _: f32) {
         {
             let PlatformState { io, backend, .. } = &mut *state;
             if let Some(backend) = backend {
-                io.start(eng, |report| backend.pump(report));
+                if !io.start(eng, |report| backend.pump(report)) {
+                    backend.discard();
+                }
             }
         }
         snapshot.events.clear();
         for event in state.io.drain() {
             let request = event.request();
-            if let PlatformEvent::SignedIn { player, .. } = &event {
-                state.player = Some(player.clone());
-            }
+            // Who is playing is the one answer that changes on its own, so
+            // these two also go to everything watching, not just to whoever
+            // asked.
+            let announcement = match &event {
+                PlatformEvent::SignedIn { player, .. } => {
+                    state.player = Some(player.clone());
+                    true
+                }
+                PlatformEvent::SignedOut { .. } => {
+                    state.player = None;
+                    true
+                }
+                _ => false,
+            };
             // shift_remove: the remaining entries keep their insertion order,
             // so iteration stays deterministic.
-            let handler = state.handlers.shift_remove(&request);
+            let mut targets: Vec<Handler> =
+                state.handlers.shift_remove(&request).into_iter().collect();
+            if announcement {
+                for watcher in &state.watchers {
+                    if !targets
+                        .iter()
+                        .any(|h| h.node == watcher.node && h.method == watcher.method)
+                    {
+                        targets.push(watcher.clone());
+                    }
+                }
+            }
             let value = event_value(event);
             snapshot.events.push(value.clone());
-            dispatches.push((handler, request, value));
+            dispatches.push((targets, request, value));
         }
     }
     if let Some(host) = eng.script_host() {
-        for (handler, token, value) in dispatches {
-            if let Some(handler) = handler {
+        for (targets, token, value) in dispatches {
+            for handler in targets {
                 host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
             }
             host.wake(token, &value);
@@ -322,6 +436,9 @@ fn event_value(event: PlatformEvent) -> Value {
             pairs.push(("player".into(), player_value(&player)));
             pairs.push(("id".into(), Value::Str(player.id)));
             pairs.push(("alias".into(), Value::Str(player.alias)));
+        }
+        PlatformEvent::SignedOut { .. } => {
+            pairs.push(("kind".into(), Value::Str("signed_out".into())));
         }
         PlatformEvent::Done { call, .. } => {
             pairs.push(("kind".into(), Value::Str("done".into())));
@@ -459,6 +576,15 @@ fn number(value: Option<&Value>, what: &str) -> Result<f64> {
     }
 }
 
+/// A whole-number option, or `fallback` when the call names none.
+fn counted(opts: Option<&Value>, key: &str, fallback: u32) -> Result<u32> {
+    match opt(opts, key) {
+        Some(Value::Int(n)) => Ok(u32::try_from(*n).unwrap_or(fallback)),
+        Some(other) => Err(anyhow!("`{key}` should be a whole number, got {other:?}")),
+        None => Ok(fallback),
+    }
+}
+
 fn start_call(eng: &Engine, node: &Value, opts: Option<&Value>, call: Call) -> Result<Value> {
     let handler = handler_of(node, opts, "on_platform", "on_platform")?;
     let id = eng.next_token();
@@ -498,7 +624,7 @@ fn install_platform_api(m: &mut dyn Bindings<Engine>) {
             "sign_in",
             &[],
             "",
-            "Ask the store who is playing, and return the id its answer carries.",
+            "Ask the store who is playing, and return the id its answer carries. A node given here keeps hearing: a later sign-out reaches the same method.",
         ),
         ("unlock", &[], "", "Award an achievement whole."),
         (
@@ -512,7 +638,7 @@ fn install_platform_api(m: &mut dyn Bindings<Engine>) {
             "scores",
             &[],
             "",
-            "Read a leaderboard's top entries; `count` in the options caps how many.",
+            "Read a leaderboard's entries. The options take `count`, `start` (a rank, from 1), `scope` (\"global\" or \"friends\") and `period` (\"today\", \"week\" or \"all_time\").",
         ),
         (
             "cloud_read",
@@ -632,12 +758,31 @@ fn install_platform_leaderboards(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
             let (node, board, opts) = split(first, second, third);
             let board = text(board.as_ref(), "a leaderboard id")?;
-            let count = match opt(opts.as_ref(), "count") {
-                Some(Value::Int(n)) => u32::try_from(*n).unwrap_or(DEFAULT_SCORES),
-                Some(other) => return Err(anyhow!("`count` should be a number, got {other:?}")),
-                None => DEFAULT_SCORES,
+            let opts = opts.as_ref();
+            let count = counted(opts, "count", DEFAULT_SCORES)?;
+            let start = counted(opts, "start", 1)?.max(1);
+            let scope = match opt(opts, "scope") {
+                Some(Value::Str(text)) => Scope::parse(text)?,
+                Some(other) => return Err(anyhow!("`scope` should be a string, got {other:?}")),
+                None => Scope::default(),
             };
-            start_call(eng, &node, opts.as_ref(), Call::Scores { board, count })
+            let period = match opt(opts, "period") {
+                Some(Value::Str(text)) => Period::parse(text)?,
+                Some(other) => return Err(anyhow!("`period` should be a string, got {other:?}")),
+                None => Period::default(),
+            };
+            start_call(
+                eng,
+                &node,
+                opts,
+                Call::Scores {
+                    board,
+                    count,
+                    scope,
+                    period,
+                    start,
+                },
+            )
         },
     );
 }

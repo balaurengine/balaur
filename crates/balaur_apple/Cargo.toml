@@ -30,16 +30,20 @@ objc2 = "0.6"
 block2 = "0.6"
 objc2-foundation = { version = "0.3.2", default-features = false, features = [
     "std",
+    "block2",
     "NSArray",
     "NSData",
     "NSError",
+    "NSNotification",
     "NSObject",
+    "NSOperation",
     "NSString",
     "NSURL",
     "NSUbiquitousKeyValueStore",
 ] }
 objc2-authentication-services = { version = "0.3.2", default-features = false, features = [
     "std",
+    "block2",
     "ASAuthorization",
     "ASAuthorizationController",
     "ASAuthorizationCredential",
