@@ -224,7 +224,7 @@ Immediate-mode UI for scripts, rendered with egui.
 
 Balaur websocket plugin: connections for scripts, and a Transport for sessions
 
-Websockets as a Balaur plugin: `websocket.*` for scripts, and a [`Transport`](balaur_core::transport::Transport) for sessions.
+Websockets as a Balaur plugin: `websocket.*` for scripts, and a `balaur_core::transport::Transport` for sessions.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
 - **external deps:** 14 (anyhow, flate2, httparse, js-sys, rand, rustls, serde, serde_json, …)

@@ -6,6 +6,7 @@ Every test in the workspace, as a sentence. A flow that is not here is a
 flow nothing checks.
 
 - a 2d camera component drives center and zoom
+- a 2d camera matching the defaults still reaches the backend
 - a 2d capsule collider applies
 - a 2d shape component puts a 2d renderable on the node
 - a 3d collider takes friction restitution and density

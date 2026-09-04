@@ -1,5 +1,5 @@
 //! Websockets as a Balaur plugin: `websocket.*` for scripts, and a
-//! [`Transport`](balaur_core::transport::Transport) for sessions.
+//! `balaur_core::transport::Transport` for sessions.
 //!
 //! Connections run on background threads; events cross back over a channel
 //! and enter the simulation once per tick, at [`Stage::First`], recorded in
@@ -332,6 +332,20 @@ impl balaur_plugin::Plugin for WebsocketPlugin {
         reg.insert_resource(WebsocketSnapshot::default());
         reg.add_system(Stage::First, pump_websocket_system);
         reg.add_replay_source("websocket", capture, restore);
+        balaur_core::settings::register(
+            &reg.app().engine,
+            balaur_core::settings::SettingsPage {
+                category: String::from("WebSocket"),
+                table: String::from("websocket"),
+                scope: balaur_core::settings::Scope::Project,
+                schema: balaur_core::ComponentDef::parse_schema(
+                    "settings.websocket",
+                    r#"
+compression = { type = "bool", default = true, help = "Offer permessage-deflate on every connection; the server decides whether frames are compressed." }
+"#,
+                ),
+            },
+        );
         let mut m = reg.script_module("websocket")?;
         install_websocket_api(&mut *m);
         Ok(())
