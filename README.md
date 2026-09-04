@@ -177,3 +177,7 @@ In this repository:
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Balaur is [MIT licensed](LICENSE).
+
+## Star History
+
+[![Star History Chart](https://star-history.dera.page/svg?repos=balaurengine/balaur&type=date&legend=top-left)](https://star-history.dera.page/#balaurengine/balaur&type=date&legend=top-left)

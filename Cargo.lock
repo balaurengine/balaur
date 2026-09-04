@@ -2765,7 +2765,7 @@ dependencies = [
 [[package]]
 name = "kiss3d"
 version = "0.46.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=mobile-fixes#6079595fcc31faef478191b7866cf570653e19ca"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=web-fixes#3c6a149f012005e6f4e044d9267e71a6f3ba994a"
 dependencies = [
  "android-activity",
  "bitflags 2.13.1",
@@ -2800,7 +2800,7 @@ dependencies = [
 [[package]]
 name = "kiss3d-macro"
 version = "0.36.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=mobile-fixes#6079595fcc31faef478191b7866cf570653e19ca"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=web-fixes#3c6a149f012005e6f4e044d9267e71a6f3ba994a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7929,7 +7929,3 @@ checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
 dependencies = [
  "zune-core",
 ]
-
-[[patch.unused]]
-name = "kiss3d"
-version = "0.46.0"

@@ -29,6 +29,9 @@ pub(crate) use fetch::{download, expected_sha256, fetch_text, obtain};
 
 #[cfg(not(target_family = "wasm"))]
 mod fetch {
+    // Anonymous: `std::io::Write` is here too, and only the `write!` into a
+    // String needs the `fmt` one.
+    use std::fmt::Write as _;
     use std::io::{IsTerminal, Read, Write};
     use std::path::{Path, PathBuf};
 
@@ -181,7 +184,12 @@ mod fetch {
             file.write_all(&buf[..n])?;
         }
         drop(file);
-        let got = format!("{:x}", hasher.finalize());
+        // sha2 0.11 hands back an `Array`, which has no `LowerHex`; folded
+        // rather than mapped into Strings, as `pack::content_hash` does.
+        let got = hasher.finalize().iter().fold(String::new(), |mut out, b| {
+            let _ = write!(out, "{b:02x}");
+            out
+        });
         if let Some(expected) = expected {
             if got != expected {
                 std::fs::remove_file(&partial).ok();

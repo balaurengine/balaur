@@ -38,7 +38,7 @@ pub struct Light2d {
 /// The `occluder2d` component: the outline this node blocks light with.
 pub struct Occluder2d {
     /// The `mesh` asset the outline came from; empty means it is derived
-    /// from the node's `collider2d` or 2D shape by [`resolve_occluders_system`].
+    /// from the node's `collider2d` or 2D shape by `resolve_occluders_system`.
     pub mesh: String,
     pub closed: bool,
     /// The outline in the node's own space, in order.

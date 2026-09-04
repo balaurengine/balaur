@@ -114,12 +114,7 @@ strip = true
 # platform, break points in the VM, an instruction counter. Rune installs its
 # stdlib wholesale and nothing can be overridden, so a fork is the only way.
 rune = { git = "https://github.com/balaurengine/rune.git", branch = "deterministic-pow" }
-# v0.46.0 + the macOS Command-modifier fix for egui + iOS/Android support.
-kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "mobile-fixes" }
-
-# TEMPORARY, for verifying the canvas alpha fix. kiss3d configures a surface
-# with `alpha_modes[0]`, which a WebGPU canvas reports as premultiplied, so the
-# browser composites the page through every pixel — the renderer never writes
-# alpha. Remove this once the fix is on the fork's mobile-fixes branch.
-[patch."https://github.com/Ughuuu/kiss3d.git"]
-kiss3d = { path = "/tmp/kiss3d-alpha" }
+# Upstream master (v0.46.0, the egui Command-modifier fix and iOS/Android
+# support, all merged) plus one web fix: present the canvas opaque, or a
+# browser composites the page through a frame whose alpha nothing ever sets.
+kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "web-fixes" }

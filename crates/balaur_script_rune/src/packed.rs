@@ -29,7 +29,10 @@ use crate::inspect::PublicSignature;
 const MAGIC: &[u8; 4] = b"BLRU";
 
 /// Bump when the pinned rune fork changes `Unit`'s serialised shape.
-const FORMAT: u32 = 1;
+///
+/// 2: stack offsets travel as `u32`, so a unit compiled on a 64-bit machine
+/// reads back on a 32-bit one.
+const FORMAT: u32 = 2;
 
 /// Serialise a compiled unit and its public signatures for the pack.
 ///
@@ -70,24 +73,19 @@ const LEGACY: bincode::config::Configuration<
     bincode::config::Fixint,
 > = bincode::config::legacy();
 
-/// Decode bounded by the bytes actually on hand.
+/// What a length prefix inside a compiled script may ask for.
 ///
-/// A crafted length prefix would otherwise reserve gigabytes before a single
-/// field was validated. bincode takes the bound as a const, so the length
-/// picks the smallest bucket that covers it rather than the exact count.
+/// A crafted one would otherwise reserve gigabytes before a single field was
+/// validated. bincode 2 takes the bound as a const generic, so this is one
+/// ceiling rather than the exact byte count: far above any real compiled
+/// script, far below a denial of service.
+const DECODE_LIMIT: usize = 1 << 28;
+
+/// Decode under [`DECODE_LIMIT`].
 fn decode_bounded(
     rest: &[u8],
 ) -> Result<(Logic, Vec<PublicSignature>), bincode::error::DecodeError> {
-    macro_rules! bucketed {
-        ($($limit:expr),+ $(,)?) => {{
-            $(if rest.len() <= $limit {
-                let config = LEGACY.with_limit::<{ $limit }>();
-                return bincode::serde::decode_from_slice(rest, config).map(|(value, _)| value);
-            })+
-        }};
-    }
-    bucketed!(1 << 16, 1 << 20, 1 << 24, 1 << 28);
-    let config = LEGACY.with_limit::<{ usize::MAX }>();
+    let config = LEGACY.with_limit::<DECODE_LIMIT>();
     bincode::serde::decode_from_slice(rest, config).map(|(value, _)| value)
 }
 

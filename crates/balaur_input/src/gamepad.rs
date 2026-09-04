@@ -11,7 +11,7 @@
 //! on a desk with a pad plugged in sees it too.
 //!
 //! Buttons and axes are what gilrs reads. Motion and the touchpad it does not
-//! read at all, so those come from [`crate::sensors`], which opens the same
+//! read at all, so those come from the crate's `sensors` module, which opens the same
 //! pad over raw HID and decodes the report gilrs discards — PlayStation pads
 //! today, since they are the ones carrying a gyroscope and a touchpad. Both
 //! land in the same snapshot and the same recording, and a second backend
