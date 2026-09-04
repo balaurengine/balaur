@@ -13,7 +13,8 @@ cannot drift from what scripts actually see.
 | [`assets`](#assets) | 7 | 0 | the engine |
 | [`audio`](#audio) | 19 | 0 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
-| [`engine`](#engine) | 10 | 0 | the engine |
+| [`engine`](#engine) | 11 | 0 | the engine |
+| [`events`](#events) | 4 | 0 | the engine |
 | [`fs`](#fs) | 8 | 0 | the engine |
 | [`gamend`](#gamend) | 9 | 0 | the engine |
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
@@ -22,7 +23,7 @@ cannot drift from what scripts actually see.
 | [`json`](#json) | 2 | 0 | the engine |
 | [`log`](#log) | 5 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
-| [`node`](#node) | 31 | 0 | the engine |
+| [`node`](#node) | 35 | 0 | the engine |
 | [`physics`](#physics) | 13 | 0 | the engine |
 | [`physics2d`](#physics2d) | 62 | 6 | the engine |
 | [`physics3d`](#physics3d) | 88 | 6 | the engine |
@@ -32,14 +33,14 @@ cannot drift from what scripts actually see.
 | [`rng`](#rng) | 4 | 0 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
 | [`save`](#save) | 5 | 0 | the engine |
-| [`scene`](#scene) | 13 | 0 | the engine |
+| [`scene`](#scene) | 15 | 0 | the engine |
 | [`script`](#script) | 6 | 0 | the engine |
 | [`settings`](#settings) | 6 | 0 | the engine |
 | [`skeleton`](#skeleton) | 3 | 0 | the engine |
 | [`strings`](#strings) | 5 | 0 | the engine |
 | [`task`](#task) | 1 | 0 | the engine |
-| [`toml`](#toml) | 2 | 0 | the engine |
-| [`ui`](#ui) | 50 | 19 | the engine |
+| [`toml`](#toml) | 3 | 0 | the engine |
+| [`ui`](#ui) | 53 | 20 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
 ## `animation`
@@ -73,7 +74,11 @@ cannot drift from what scripts actually see.
 
 ## `engine`
 
-**Functions:** `args`, `delta`, `has_plugin`, `plugins`, `quit`, `reload_script`, `tick`, `time`, `timings`, `user_data_dir`
+**Functions:** `args`, `delta`, `has_plugin`, `plugin_version`, `plugins`, `quit`, `reload_script`, `tick`, `time`, `timings`, `user_data_dir`
+
+## `events`
+
+**Functions:** `emit`, `emitted`, `subscribe`, `unsubscribe`
 
 ## `fs`
 
@@ -148,7 +153,7 @@ cannot drift from what scripts actually see.
 
 ## `node`
 
-**Functions:** `add_child`, `attach_script`, `call`, `children`, `component_names`, `detach_script`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `is_valid`, `name`, `parent`, `path`, `position`, `queue_free`, `remove_component`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_parent`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `translate`
+**Functions:** `add_child`, `attach_script`, `call`, `children`, `component_names`, `descendants`, `detach_script`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `has_component`, `has_method`, `is_valid`, `name`, `parent`, `patch_component`, `path`, `position`, `queue_free`, `remove_component`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_parent`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `stable_id`, `translate`
 
 ## `physics`
 
@@ -219,7 +224,7 @@ cannot drift from what scripts actually see.
 
 ## `scene`
 
-**Functions:** `apply_preset`, `component_properties`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `preset_info`, `presets`, `root`, `source`, `spawn`, `unmet_expectations`
+**Functions:** `apply_preset`, `component_properties`, `component_schema`, `component_tags`, `component_types`, `get_node`, `instantiate`, `node_by_id`, `preset_info`, `presets`, `root`, `source`, `spawn`, `unmet_expectations`, `with_component`
 
 ## `script`
 
@@ -227,7 +232,7 @@ cannot drift from what scripts actually see.
 
 ## `settings`
 
-**Functions:** `editor_toml`, `get`, `load_project`, `pages`, `project_toml`, `set`
+**Functions:** `all`, `define`, `get`, `load`, `set`, `to_toml`
 
 ## `skeleton`
 
@@ -243,13 +248,13 @@ cannot drift from what scripts actually see.
 
 ## `toml`
 
-**Functions:** `encode`, `parse`
+**Functions:** `encode`, `parse`, `patch`
 
 ## `ui`
 
-**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `window`
+**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `widget_rect`, `window`
 
-**Constants** (19):
+**Constants** (20):
 
 | Name | Value |
 | --- | --- |
@@ -267,6 +272,7 @@ cannot drift from what scripts actually see.
 | `WIDGET_BUTTON` | `button` |
 | `WIDGET_COLUMN` | `column` |
 | `WIDGET_DRAW` | `draw` |
+| `WIDGET_IMAGE` | `image` |
 | `WIDGET_LABEL` | `label` |
 | `WIDGET_PANEL` | `panel` |
 | `WIDGET_ROW` | `row` |

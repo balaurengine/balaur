@@ -108,14 +108,15 @@ kiss3d owns the OS event loop outside the map. Fix that doc line.
 
 ### D2 — Module names are the noun for what the module owns.
 
-Every script module besides `assets`, `settings` and `strings` is singular:
-`audio`, `engine`, `fs`, `gamend`, `http`, `input`, `json`, `log`, `node`,
+Every script module besides `assets`, `settings`, `strings` and `events` is
+singular: `audio`, `engine`, `fs`, `gamend`, `http`, `json`, `log`, `node`,
 `physics`, `physics2d`, `render`, `rng`, `rollback`, `scene`, `toml`, `ui`,
-`websocket`. The three plurals are deliberate: a module is plural only when it
+`websocket`. The four plurals are deliberate: a module is plural only when it
 is a **keyed store** of many things. `assets` qualifies; `settings` qualifies
 for the same reason — pages keyed by their table, values keyed by their name,
-with nothing that reads as one setting; and `strings` holds one translation
-per key per locale. Do not add a fourth without adding a line here.
+with nothing that reads as one setting; `strings` holds one translation per key
+per locale; and `events` holds subscribers by event name. Do not add a fifth
+without adding a line here.
 
 ### D3 — Six suffixes, chosen by ownership and lifetime — never by subject.
 
@@ -459,7 +460,7 @@ constants}]}`), which `scripts/gen_docs.py:92` already consumes:
 | `is-prefix-nonboolean` | ERROR | `is_*` on a function whose declared return is not a boolean. N7. |
 | `setter-without-reader` | REPORT | `set_x` with no `x` or `is_x` in the same module and no justification comment at the declaration. N8. |
 | `abbreviation` | ERROR | any function or constant name containing a segment from a small denylist (`str`, `h`+noun, `cfg`, `buf`, `idx`, `pos` where it is not `position`). D4. |
-| `module-plural` | ERROR | a module name ending in `s` that is not on the allowlist (`assets`, `settings`, `strings`). D2. |
+| `module-plural` | ERROR | a module name ending in `s` that is not on the allowlist (`assets`, `settings`, `strings`, `events`). D2. |
 | `schema-vocabulary` | ERROR | over the registered schemas: every property spec has a `type` key from the closed set and no `kind` meta key; every tagged union's discriminant property is named `kind`; every key in a component's `get` output is declared in its schema. N6. |
 
 **Sequencing.** `scripts/house_lints_baseline.txt` does not exist — the tree

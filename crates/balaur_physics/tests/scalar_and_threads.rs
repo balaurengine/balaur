@@ -71,9 +71,18 @@ fn residual_speed(x: f32) -> f32 {
     let state = app.engine.resource::<PhysicsState>();
     let state = state.borrow();
     let velocity = state.world.bodies[state.bodies[&ball]].linvel();
-    // The f64 build narrows here, so both builds compare the same way.
+    narrow(velocity.length())
+}
 
-    velocity.length()
+/// The f64 build narrows here, so both builds compare the same way.
+#[cfg(feature = "f64")]
+fn narrow(value: f64) -> f32 {
+    value as f32
+}
+
+#[cfg(not(feature = "f64"))]
+fn narrow(value: f32) -> f32 {
+    value
 }
 
 /// Near the origin, both scalars hold a body still. This is the control: if

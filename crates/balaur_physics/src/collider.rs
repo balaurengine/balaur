@@ -116,7 +116,7 @@ fn voxel_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder>
     let cells: Vec<crate::rapier3d::math::IVector> = grid
         .cells
         .iter()
-        .map(|c| crate::rapier3d::math::IVector::new(c[0], c[1], c[2]))
+        .map(|c| scalar::cell(c[0], c[1], c[2]))
         .collect();
     let size = scalar::v3a(grid.size);
     Ok(ColliderBuilder::voxels(size, &cells))

@@ -5,8 +5,15 @@
 
 use balaur_core::logbuf;
 
+/// One global buffer, and `capture_for_test` replaces it: two of these running
+/// at once clear each other's entries.
+static CAPTURE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[test]
 fn events_carry_their_structured_fields() {
+    let _guard = CAPTURE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     logbuf::capture_for_test();
     logbuf::clear();
 
@@ -24,6 +31,9 @@ fn events_carry_their_structured_fields() {
 
 #[test]
 fn the_buffer_is_bounded_and_keeps_the_newest() {
+    let _guard = CAPTURE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     logbuf::capture_for_test();
     logbuf::clear();
 

@@ -235,11 +235,6 @@
         "description": "Multiplier on world gravity for this body: 0 hangs in the air, negative floats up",
         "type": "float"
       },
-      "gyroscopic": {
-        "default": false,
-        "description": "Model the wobble a spinning body's own inertia gives it, as a thrown American football has",
-        "type": "bool"
-      },
       "inertia": {
         "default": 0.0,
         "description": "Resistance to spin; 0 lets rapier derive it from the mass",
@@ -2431,7 +2426,7 @@
       },
       "draw": {
         "default": "",
-        "description": "What fills a `draw` widget: a script method on this node, or `scripts/file.rn:function` for a free function",
+        "description": "What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function",
         "type": "string"
       },
       "focusable": {
@@ -2480,9 +2475,15 @@
           "column",
           "scroll",
           "tab",
-          "draw"
+          "draw",
+          "image"
         ],
         "type": "enum"
+      },
+      "layer": {
+        "default": "",
+        "description": "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface",
+        "type": "string"
       },
       "min_height": {
         "default": 0.0,
@@ -2512,10 +2513,25 @@
         "min": 0.0,
         "type": "float"
       },
+      "source": {
+        "default": "",
+        "description": "The project-relative image an `image` widget draws",
+        "type": "string"
+      },
       "text": {
         "default": "label",
         "description": "Label or button caption",
         "type": "string"
+      },
+      "text_align": {
+        "default": "start",
+        "description": "Where text sits in the width the widget was given",
+        "options": [
+          "start",
+          "center",
+          "end"
+        ],
+        "type": "enum"
       },
       "text_color": {
         "default": [
@@ -2548,6 +2564,11 @@
         "description": "Panel width in design pixels; 0 sizes to content",
         "min": 0.0,
         "type": "float"
+      },
+      "wrap": {
+        "default": false,
+        "description": "Break text to the width the widget was given instead of running past it on one line",
+        "type": "bool"
       },
       "x": {
         "default": 16.0,
@@ -2659,6 +2680,7 @@
       "constants": [],
       "doc": "Apple platform services that `platform.*` does not cover. `identity` fetches what a server needs to verify a Game Center player \u2014 url, signature, salt and timestamp \u2014 and answers on a later tick as a map carrying `kind`, both to the node's `on_apple` method and to whoever awaits the id. Achievements, leaderboards, sign-in and cloud saves are `platform.*`, which speaks Game Center here.",
       "docs": {
+        "access_point": "Show or hide Game Center's floating access point, and answer whether it is showing; `location` is a corner \u2014 top_leading, top_trailing, bottom_leading or bottom_trailing.",
         "authenticated": "Whether Game Center has a signed-in player right now.",
         "available": "Whether this build has Apple's frameworks behind it.",
         "cancel_notification": "Drop a scheduled notification, and take a delivered one out of the shade.",
@@ -2672,6 +2694,7 @@
         "register_for_push": "Ask the OS for a push token. It arrives at everything watching, not at the caller, because the OS hands it over whenever it likes.",
         "request_notifications": "Ask the player to allow notifications, and answer with what they said.",
         "restore_purchases": "Ask the App Store to hand this device's purchases back \u2014 the button a review expects a game to have.",
+        "show_dashboard": "Open Game Center's dashboard over the game; `state` picks the page \u2014 default, leaderboards, achievements, challenges, profile, dashboard or friends.",
         "sign_in": "Sign in with Apple, and return the id the identity token comes back on. Game Center's own sign-in is `platform.sign_in`.",
         "watch": "Subscribe a node's method to everything that arrives unasked: a notification tapped, a URL opened, a push token, a transaction that landed elsewhere.",
         "watch_urls": "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them."
@@ -2897,6 +2920,7 @@
         "args": "The command-line arguments the app was started with, empty when it was given none.",
         "delta": "Seconds the frame in progress covers, the same number a system is handed.",
         "has_plugin": "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there.",
+        "plugin_version": "The version of one loaded plugin, or nil when it did not load.",
         "plugins": "Every plugin this build loaded, named, in load order.",
         "quit": "Ask the app to shut down; the frame in flight still finishes.",
         "reload_script": "Recompile one script by its project-relative key, for a tool editing files outside the watched root.",
@@ -2909,6 +2933,7 @@
         "args",
         "delta",
         "has_plugin",
+        "plugin_version",
         "plugins",
         "quit",
         "reload_script",
@@ -2922,6 +2947,7 @@
         "args": "()",
         "delta": "()",
         "has_plugin": "(name: string)",
+        "plugin_version": "(name: string)",
         "plugins": "()",
         "quit": "()",
         "reload_script": "(key: string)",
@@ -2929,6 +2955,31 @@
         "time": "()",
         "timings": "()",
         "user_data_dir": "()"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "Named events between scripts. A node subscribes to a name and hears it as its script's `on_<name>` method; anything may emit. Delivery is at the top of the next frame's update, in emission then subscription order, so a handler never runs inside the call that emitted. `emitted` is the asking twin, for a script that would rather look than declare a method.",
+      "docs": {
+        "emit": "Queue an event for every subscriber, delivered at the top of the next frame's update.",
+        "emitted": "The payloads delivered under this name this frame, in emission order; empty when none were.",
+        "subscribe": "Hear an event on this node, as its script's `on_<name>(payload)`. Subscribing twice is once.",
+        "unsubscribe": "Stop hearing an event on this node. Not an error when it was never subscribed."
+      },
+      "functions": [
+        "emit",
+        "emitted",
+        "subscribe",
+        "unsubscribe"
+      ],
+      "name": "events",
+      "signatures": {
+        "emit": "(String, Option<Value>) -> ()",
+        "emitted": "String -> Value",
+        "subscribe": "(NodeId, String) -> ()",
+        "unsubscribe": "(NodeId, String) -> ()"
       }
     },
     {
@@ -4099,6 +4150,7 @@
         "call": "Call a method on the node's script and return what it gives back; nil when there is no such script or method.",
         "children": "The node's direct children, an empty list when it has none.",
         "component_names": "The names of every component on the node.",
+        "descendants": "Every node under this one, in tree order, the node itself excluded.",
         "detach_script": "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay.",
         "get_component": "The named component's properties as a table, nil when the node does not carry it.",
         "get_node": "The node at an `A/B/C` path relative to this one, `..` climbing to the parent; nil when nothing matches.",
@@ -4106,9 +4158,11 @@
         "global_rotation_euler": "The node's world rotation as euler angles in radians, as of the last transform sync.",
         "global_scale": "The node's scale in world space, as of the last transform sync.",
         "has_component": "Whether the node carries the named component.",
+        "has_method": "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\".",
         "is_valid": "Whether the node is still in the world; false rather than an error when the value is not a node.",
         "name": "The node's own name, empty when it carries none.",
         "parent": "The node's parent, nil at the root.",
+        "patch_component": "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds.",
         "path": "The node's slash-separated path, built by climbing parents from the node up to the root.",
         "position": "The node's position in its parent's space.",
         "queue_free": "Destroy the node and its subtree at the end of the frame.",
@@ -4117,13 +4171,14 @@
         "rotation_euler": "The node's local rotation as euler angles in radians, x then y then z.",
         "scale": "The node's scale relative to its parent.",
         "script_path": "The path of the script attached to the node, nil when it has none.",
-        "set_component": "Give the node the named component, built from the given table over the component's schema defaults.",
+        "set_component": "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest.",
         "set_name": "Rename the node, doing nothing when it carries no name.",
         "set_parent": "Move the node under another, keeping where it is in the world; an error for a cycle or a dead parent.",
         "set_position": "Move the node to a local position, given as three numbers or one vector.",
         "set_rotation_degrees": "Set the node's local rotation from euler angles in degrees.",
         "set_rotation_euler": "Set the node's local rotation from euler angles in radians.",
         "set_scale": "Set the node's scale relative to its parent, as three numbers or one vector.",
+        "stable_id": "The node's stable id \u2014 what a scene file declared or what `ids::mint` gave a spawned node \u2014 empty when it carries none. Survives rename and reparent, which a path does not.",
         "translate": "Move the node by an offset in its parent's space, given as three numbers or one vector."
       },
       "functions": [
@@ -4132,6 +4187,7 @@
         "call",
         "children",
         "component_names",
+        "descendants",
         "detach_script",
         "get_component",
         "get_node",
@@ -4139,9 +4195,11 @@
         "global_rotation_euler",
         "global_scale",
         "has_component",
+        "has_method",
         "is_valid",
         "name",
         "parent",
+        "patch_component",
         "path",
         "position",
         "queue_free",
@@ -4157,6 +4215,7 @@
         "set_rotation_degrees",
         "set_rotation_euler",
         "set_scale",
+        "stable_id",
         "translate"
       ],
       "name": "node",
@@ -4166,6 +4225,7 @@
         "call": "(method: string, args: any?)",
         "children": "()",
         "component_names": "()",
+        "descendants": "()",
         "detach_script": "()",
         "get_component": "(component: string)",
         "get_node": "(path: string)",
@@ -4173,9 +4233,11 @@
         "global_rotation_euler": "()",
         "global_scale": "()",
         "has_component": "(component: string)",
+        "has_method": "(method: string)",
         "is_valid": "()",
         "name": "()",
         "parent": "()",
+        "patch_component": "(component: string, params: table)",
         "path": "()",
         "position": "()",
         "queue_free": "()",
@@ -4191,6 +4253,7 @@
         "set_rotation_degrees": "(x: float, y: float, z: float)",
         "set_rotation_euler": "(x: float, y: float, z: float)",
         "set_scale": "(x: float, y: float, z: float)",
+        "stable_id": "()",
         "translate": "(x: float, y: float, z: float)"
       }
     },
@@ -4201,7 +4264,7 @@
       "doc": "What spans both physics worlds at once: pausing, sleeping and clearing. Bodies and colliders live in `physics2d` and `physics3d`.",
       "docs": {
         "clear": "Remove every body and collider from both worlds, as a play-in-editor session does on stop.",
-        "counters": "What the last step spent its time on. Zeroes unless the engine was built with rapier's profiler.",
+        "counters": "What the last step spent its time on. The first call turns rapier's profiler on, so the numbers arrive from the step after it.",
         "debug_draw": "What the debug renderer is drawing now, as a table of `enabled` and one flag per mode.",
         "is_paused": "Whether stepping is stopped.",
         "quarantined": "The nodes rapier disabled this step because their position or velocity stopped being a number. Empty is the normal answer.",
@@ -5200,17 +5263,26 @@
     },
     {
       "acts_on": {
+        "channel": [
+          "material"
+        ],
         "color": [
           "polygon",
           "shape2d",
           "shape3d",
           "sprite"
         ],
+        "material_params": [
+          "material"
+        ],
         "outline": [
           "occluder2d"
         ],
         "set_ball": [
           "shape3d"
+        ],
+        "set_channel": [
+          "material"
         ],
         "set_circle": [
           "shape2d"
@@ -5228,6 +5300,12 @@
         "set_rect": [
           "shape2d"
         ],
+        "set_shader_preview": [
+          "material"
+        ],
+        "set_shader_probe": [
+          "material"
+        ],
         "set_sprite": [
           "sprite"
         ],
@@ -5240,6 +5318,9 @@
         "set_sprite_size": [
           "sprite"
         ],
+        "shader_probe": [
+          "material"
+        ],
         "shape2d": [
           "shape2d"
         ],
@@ -5251,6 +5332,7 @@
         ]
       },
       "components": [
+        "material",
         "occluder2d",
         "particles",
         "polygon",
@@ -5264,10 +5346,13 @@
         "camera_2d": "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window.",
         "camera_matrix": "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window.",
         "camera_pose": "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale.",
+        "channel": "Which channel the viewport is drawing instead of the scene's colour, or empty for the scene as it is.",
+        "channels": "Every channel name `set_channel` accepts, as a list.",
         "check_material": "Every diagnostic about the material at that path, as `[#{ file, line, column, severity, message }]`; empty when it links.",
         "color": "The node's tint as r, g, b, a channel floats; opaque white when the node draws nothing at all.",
         "draw_line": "Draw one 3D world-space line for this frame; the width is in pixels unless perspective scales it with distance.",
         "draw_line_2d": "Draw one 2D world-space line for this frame; width is in pixels.",
+        "material_params": "The material's editable rows, one `#{ name, type, value }` per field its linked shader declares; empty when it will not link.",
         "mouse_ray": "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units.",
         "mouse_world_2d": "The mouse position in 2D world coordinates, for picking.",
         "outline": "The outline this node blocks 2D light with, in world space: x then y for each point in turn, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.",
@@ -5279,6 +5364,7 @@
         "set_camera": "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units.",
         "set_camera_2d": "Point the 2D camera: the world centre xy, then the zoom in logical pixels per world unit.",
         "set_camera_input": "Allow or inhibit the backend's own mouse camera controls, so an editor can take the pointer for a drag.",
+        "set_channel": "Draw one channel of the scene \u2014 normals, uv, depth or albedo \u2014 instead of its colour; an empty name puts the picture back.",
         "set_circle": "Draw the node as a circle of the given radius in world units, replacing any other 2D shape.",
         "set_color": "Tint whatever the node draws, as r, g, b channel floats and an optional alpha, one meaning opaque.",
         "set_cuboid": "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape.",
@@ -5288,10 +5374,13 @@
         "set_grid": "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent.",
         "set_grid_colors": "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats.",
         "set_rect": "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape.",
+        "set_shader_preview": "Draw the value a shader's line computes for every pixel that reaches it; line 0 puts the picture back.",
+        "set_shader_probe": "Ask what the previewed line computed at one framebuffer pixel; the answer arrives through `shader_probe` a frame later.",
         "set_sprite": "Draw the node as a quad textured with a project image, sized from it at 100 texture pixels per world unit.",
         "set_sprite_frame": "Show a sheet cell, numbered left to right then top to bottom; only the UVs move, so it is cheap per frame.",
         "set_sprite_sheet": "Draw the node as one cell of a columns-by-rows sheet, sizing the quad to a single frame, not the whole image.",
         "set_sprite_size": "Override the size the sprite took from its image, giving half-extents in world units instead.",
+        "shader_probe": "The four channels the previewed line wrote at the probed pixel, or `()` when nothing has been read yet.",
         "shape2d": "The 2D shape's kind and its two dimensions in world units; empty and zeros when the node has no 2D shape.",
         "shape3d": "The 3D shape's kind and its three dimensions in world units; empty and zeros when the node has no 3D shape.",
         "sprite": "The texture path, sheet columns and rows, and current frame; empty and zeros when the node has no sprite.",
@@ -5553,12 +5642,14 @@
         "component_types": "The names of every registered component type, not the components on any node.",
         "get_node": "The node at an `A/B/C` path from the root, where `..` climbs to the parent; nil when nothing matches.",
         "instantiate": "Build a scene document \u2014 TOML text, not a path \u2014 under a parent; `{ scripts: false }` leaves scripts unattached.",
+        "node_by_id": "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree.",
         "preset_info": "A preset's description, tags and the components it adds; nil for a name nothing registered.",
         "presets": "The names of every registered preset.",
         "root": "The tree's root node.",
         "source": "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing.",
         "spawn": "Create one empty named node under the given parent, or under the root when none is given.",
-        "unmet_expectations": "Components on the node whose expectations nothing satisfies, as `{ component, expects }`; advisory only."
+        "unmet_expectations": "Components on the node whose expectations nothing satisfies, as `{ component, expects }`; advisory only.",
+        "with_component": "Every node carrying the named component, in tree order. What a script asks instead of walking the tree itself."
       },
       "functions": [
         "apply_preset",
@@ -5568,12 +5659,14 @@
         "component_types",
         "get_node",
         "instantiate",
+        "node_by_id",
         "preset_info",
         "presets",
         "root",
         "source",
         "spawn",
-        "unmet_expectations"
+        "unmet_expectations",
+        "with_component"
       ],
       "name": "scene",
       "signatures": {
@@ -5584,12 +5677,14 @@
         "component_types": "()",
         "get_node": "(path: string)",
         "instantiate": "(source: string, parent: node?, opts: any?)",
+        "node_by_id": "(id: string, under: node?)",
         "preset_info": "(name: string)",
         "presets": "()",
         "root": "()",
         "source": "(path: string)",
         "spawn": "(name: string, parent: node?)",
-        "unmet_expectations": "(node: node)"
+        "unmet_expectations": "(node: node)",
+        "with_component": "(component: string)"
       }
     },
     {
@@ -5627,31 +5722,31 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Every setting the engine and its plugins declare, in pages. A page names a category, the table it is stored under, whether it belongs to the project or to this editor, and a schema in the same shape a component uses \u2014 so a settings page renders with the same code an inspector does. Values are held in memory until `project_toml` or `editor_toml` turns them back into the file they came from.",
+      "doc": "Every setting the engine, its plugins and this game declare, addressed by path: `physics/solver_iterations`, `netcode/faults`, `editor/appearance/theme`. The first segment is the category, the last is the key, and the path is also where the value is stored \u2014 `physics/solver_iterations` is `[physics] solver_iterations` in project.toml. A project setting ships with the game; an editor one stays on the machine that set it. Define your own with `define` and it appears in the settings screen beside the engine's.",
       "docs": {
-        "editor_toml": "The editor-scope settings as TOML, for a preferences file.",
-        "get": "One setting's value: what was set, else what the schema defaults to, else nil.",
-        "load_project": "Read every value out of a project.toml's text, so a page starts from what the project says.",
-        "pages": "Every declared page as `{ category, table, scope, schema }`, in registration order.",
-        "project_toml": "The manifest text these settings would write, starting from the given text so anything they do not describe survives.",
-        "set": "Change one setting, in memory; write it out with `project_toml` or `editor_toml`."
+        "all": "Every defined setting as `{ path, scope, spec }`, in definition order.",
+        "define": "Declare a setting of your own: `type`, `default`, and optionally `min`, `max`, `options`, `help`, `order` and `applies`. A path starting `editor/` is kept on this machine; anything else ships with the game.",
+        "get": "One setting's value: what was set, else what its definition defaults to, else nil.",
+        "load": "Read values out of a TOML text, folding them onto what is already loaded.",
+        "set": "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`.",
+        "to_toml": "The text one scope would write, starting from `existing` so anything no setting describes survives. Scope is \"project\" or \"editor\"."
       },
       "functions": [
-        "editor_toml",
+        "all",
+        "define",
         "get",
-        "load_project",
-        "pages",
-        "project_toml",
-        "set"
+        "load",
+        "set",
+        "to_toml"
       ],
       "name": "settings",
       "signatures": {
-        "editor_toml": "() -> Value",
-        "get": "(String, String) -> Value",
-        "load_project": "String -> Value",
-        "pages": "() -> Value",
-        "project_toml": "String -> Value",
-        "set": "(String, String, Value) -> Value"
+        "all": "() -> Value",
+        "define": "(String, Value) -> Value",
+        "get": "String -> Value",
+        "load": "String -> Value",
+        "set": "(String, Value) -> Value",
+        "to_toml": "(String, String) -> Value"
       }
     },
     {
@@ -5743,16 +5838,19 @@
       "doc": "TOML text to and from script tables: the format scene files, asset definitions and component properties are all written in.",
       "docs": {
         "encode": "A table written back out as TOML text; a node or callback in it is not data and is an error.",
-        "parse": "The table a TOML document describes; an error on text that does not parse."
+        "parse": "The table a TOML document describes; an error on text that does not parse.",
+        "patch": "The document's text with this table's keys written into it, keeping every comment, the key order and any table the value does not name. What a tool saving a hand-written file uses instead of `encode`."
       },
       "functions": [
         "encode",
-        "parse"
+        "parse",
+        "patch"
       ],
       "name": "toml",
       "signatures": {
         "encode": "(value: any)",
-        "parse": "(text: string)"
+        "parse": "(text: string)",
+        "patch": "(existing: string, table: any)"
       }
     },
     {
@@ -5816,6 +5914,10 @@
           "value": "draw"
         },
         {
+          "name": "WIDGET_IMAGE",
+          "value": "image"
+        },
+        {
           "name": "WIDGET_LABEL",
           "value": "label"
         },
@@ -5875,10 +5977,12 @@
         "separator": "Draw a one-pixel rule across the container, in the given `#rrggbb` colour when one is passed.",
         "set_clipboard": "Copy text to the system clipboard.",
         "set_focus": "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",
+        "set_keyboard_focus": "Let the arrows, Tab, Enter and Space move and activate the focused widget. Off unless asked for, so a game that moves with the arrows does not click its own HUD; `standard_app` turns it on for a project declaring the `ui_*` actions.",
         "set_scale": "Set the global UI scale, clamped to between 0.5 and 3.0 real pixels per design pixel.",
         "set_text": "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone.",
         "set_theme": "Replace the theme: `name = \"#rrggbb\"` colour tokens, `dark = true|false`, and a `roles` table of named looks a widget takes with `role:`.",
         "set_widget_layer": "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
+        "set_widget_surface": "The same for one named surface: roots whose `layer` is this name draw here instead. A name nothing has set takes the default surface.",
         "shortcut": "Whether this chord was pressed this frame, consuming it; `mods` is `\"cmd+shift\"`, from the `MOD_*` constants.",
         "slider": "Draw a horizontal slider between `min` and `max`; returns the value after this frame and whether it moved.",
         "spacing": "Set the gap between the current container's widgets, in design pixels.",
@@ -5887,6 +5991,7 @@
         "top_panel": "Dock a strip across the top of the window and draw the callback inside it; `height` is in design pixels. Answers the height it ended up with.",
         "vertical": "Lay the callback's widgets out in a column.",
         "wants_keyboard": "Whether a UI widget holds keyboard focus, so the game should leave this frame's key presses alone.",
+        "widget_rect": "Where a `widget` node was last drawn, as `#{ x, y, w, h }` in design pixels; empty until it has drawn once.",
         "window": "Draw the callback in a floating window the user drags and resizes; false once its close button is used."
       },
       "functions": [
@@ -5927,10 +6032,12 @@
         "separator",
         "set_clipboard",
         "set_focus",
+        "set_keyboard_focus",
         "set_scale",
         "set_text",
         "set_theme",
         "set_widget_layer",
+        "set_widget_surface",
         "shortcut",
         "slider",
         "spacing",
@@ -5939,6 +6046,7 @@
         "top_panel",
         "vertical",
         "wants_keyboard",
+        "widget_rect",
         "window"
       ],
       "name": "ui",
@@ -5980,10 +6088,12 @@
         "separator": "Option<String> -> ()",
         "set_clipboard": "String -> ()",
         "set_focus": "NodeId -> ()",
+        "set_keyboard_focus": "bool -> ()",
         "set_scale": "f32 -> ()",
         "set_text": "(String, String) -> ()",
         "set_theme": "Value -> ()",
         "set_widget_layer": "(bool, Option<f32>, Option<f32>, Option<f32>, Option<f32>) -> ()",
+        "set_widget_surface": "(String, bool, Option<f32>, Option<f32>, Option<f32>, Option<f32>) -> ()",
         "shortcut": "(String, String) -> bool",
         "slider": "(f32, f32, f32, Option<Value>) -> (f32, bool)",
         "spacing": "(f32, f32) -> ()",
@@ -5992,6 +6102,7 @@
         "top_panel": "(String, Option<Value>, CallbackId) -> f64",
         "vertical": "CallbackId -> ()",
         "wants_keyboard": "() -> bool",
+        "widget_rect": "NodeId -> Value",
         "window": "(String, Option<Value>, CallbackId) -> bool"
       }
     },
