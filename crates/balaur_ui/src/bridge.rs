@@ -103,12 +103,11 @@ pub(crate) fn scoped_named(eng: &Engine, ui: &mut egui::Ui, node: NodeId, target
         return;
     };
     UI_STACK.with(|s| s.borrow_mut().push(std::ptr::from_mut::<egui::Ui>(ui)));
-    let result = match target.split_once(':') {
-        Some((path, function)) => host.call_in(path, function, &[]).map(|_| ()),
-        None => {
-            host.call_on(node, target, &[]);
-            Ok(())
-        }
+    let result = if let Some((path, function)) = target.split_once(':') {
+        host.call_in(path, function, &[]).map(|_| ())
+    } else {
+        host.call_on(node, target, &[]);
+        Ok(())
     };
     UI_STACK.with(|s| {
         s.borrow_mut().pop();

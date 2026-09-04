@@ -20,6 +20,7 @@
 
 mod bridge;
 mod theme;
+mod widget_arrange;
 mod widget_bindings;
 mod widget_layer;
 mod widget_layout;
@@ -27,7 +28,7 @@ mod widget_theme;
 mod widgets;
 
 use anyhow::Result;
-use balaur_core::{App, Engine, Plugin};
+use balaur_core::{App, Engine};
 use std::collections::{HashMap, HashSet};
 
 pub use theme::ThemeTokens;
@@ -76,14 +77,25 @@ pub struct UiState {
     pub textures: HashMap<String, egui::TextureHandle>,
 }
 
-pub struct UiPlugin;
+pub struct UiPlugin {
+    manifest: balaur_plugin::Manifest,
+}
 
-impl Plugin for UiPlugin {
-    fn name(&self) -> &'static str {
-        "ui"
+impl Default for UiPlugin {
+    fn default() -> Self {
+        Self {
+            manifest: balaur_plugin::Manifest::new("ui", env!("CARGO_PKG_VERSION")),
+        }
+    }
+}
+
+impl balaur_plugin::Plugin for UiPlugin {
+    fn manifest(&self) -> &balaur_plugin::Manifest {
+        &self.manifest
     }
 
-    fn build(&mut self, app: &mut App) -> Result<()> {
+    fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
+        let app = reg.app();
         app.engine.insert_resource(UiConfig::default());
         app.engine.insert_resource(UiState::default());
         app.engine.insert_resource(WidgetLayerConfig::default());

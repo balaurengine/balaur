@@ -11,3 +11,21 @@ rustflags = [
     # them. package_template.sh checks that only those stay undefined.
     "-Clink-arg=-sERROR_ON_UNDEFINED_SYMBOLS=0",
 ]
+
+# A binary with the StoreKit shim in it (crates/balaur_apple/swift) needs
+# Swift's concurrency runtime, which ships with the OS under /usr/lib/swift
+# and sits on no default search path — Xcode adds this rpath, and a cargo
+# build has to as well. Here rather than in that crate's build.rs for the
+# reason above: a link arg does not propagate out of the library that owns it,
+# and the binary that needs the rpath is the game.
+[target.aarch64-apple-darwin]
+rustflags = ["-Clink-arg=-Wl,-rpath,/usr/lib/swift"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-Clink-arg=-Wl,-rpath,/usr/lib/swift"]
+
+[target.aarch64-apple-ios]
+rustflags = ["-Clink-arg=-Wl,-rpath,/usr/lib/swift"]
+
+[target.aarch64-apple-ios-sim]
+rustflags = ["-Clink-arg=-Wl,-rpath,/usr/lib/swift"]

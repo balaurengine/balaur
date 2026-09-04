@@ -85,6 +85,8 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - `widget_theme` asset: fill, stroke, radius and padding per widget kind, inherited.
 - Containers assign rects: `grow` divides a container's leftover along its own direction, `min_width`/`min_height` are the author's floor, and a child that overflows no longer moves its siblings.
 - `kind = "draw"`: a rect the scene places and a script fills, named `method` on the node's own script or `scripts/file.rn:function`.
+- `kind = "scroll"`: a box that holds its size and clips what runs past it; `kind = "tab"`: one child showing, `active` naming it, written back when a tab is clicked.
+- `handle` on a row or column: draggable seams that write the new size onto whichever neighbour states one.
 - Audio buses: `[audio.buses]`, routing per sound, `audio.set_bus_volume`.
 - Audio events: `audio/events.toml`, variations taken in turn.
 - Positional audio: a `listener` node, `positional` sounds with distance attenuation, stereo pan and doppler, and a `position` in `audio.play` and `audio.play_event`.
@@ -94,6 +96,7 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Loaded plugins are recorded: `balaur_core::plugins`, and a plugin's `requires` is checked at load.
 - Optional modules are one line in `balaur`'s `modules!` table, loaded in requirement-then-name order.
 - Every plugin loads from one ordered set; `balaur_plugin::Builtin` gives an `App`-shaped plugin a manifest.
+- `[plugins]` in `project.toml` turns a module off; asking for one the build has not got is an error.
 
 ### Platform services
 
@@ -125,6 +128,7 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Left, bottom and right are tabbed docks: a tab's menu moves it to another, and each minimises to its edge.
 - The brand is the edited project's `icon.png` and name when it ships one.
 - `ui::pill`, `ui::text_field` and `ui::dropdown` are tiles unless asked for `round`.
+- The editor's shell is a tree: `editor/scenes/shell.toml` holds the boxes, `arrange.rn` turns them into rects, and `layout.rn` states only the sizes that move.
 - The editor's look is a theme asset: `editor/themes/*.toml` holds colour tokens and named roles a widget takes with `role:`.
 - Bundled type: Source Sans 3 at two weights, JetBrains Mono and Phosphor icons, with the OS chained for scripts balaur does not ship.
 - Fixed: a sheet's content spilled over its neighbours; `ui::overlay` clips to the rect it was given.

@@ -184,6 +184,9 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_PANEL", "panel"),
     ("WIDGET_ROW", "row"),
     ("WIDGET_COLUMN", "column"),
+    ("WIDGET_SCROLL", "scroll"),
+    ("WIDGET_TAB", "tab"),
+    ("WIDGET_DRAW", "draw"),
 ];
 
 /// Font families the theme registers.
@@ -288,7 +291,11 @@ pub(crate) fn text_field(
         }
         let response = if h > 0.0 {
             let radius = opts.px("radius", 0.0);
-            let corner = if radius > 0.0 { pill_radius(radius * 2.0) } else { pill_radius(sc(5.0) * 2.0) };
+            let corner = if radius > 0.0 {
+                pill_radius(radius * 2.0)
+            } else {
+                pill_radius(sc(5.0) * 2.0)
+            };
             egui::Frame::new()
                 .fill(opts.color("fill", Color32::TRANSPARENT))
                 .stroke(Stroke::new(1.0, opts.color("stroke", Color32::TRANSPARENT)))

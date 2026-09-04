@@ -12,7 +12,7 @@
 use anyhow::Result;
 use balaur_core::collections::DetHashSet;
 use balaur_core::Engine;
-use balaur_core::{App, Plugin, Stage};
+use balaur_core::{App, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
 
 pub mod actions;
@@ -234,14 +234,25 @@ impl InputSnapshot {
     }
 }
 
-pub struct InputPlugin;
+pub struct InputPlugin {
+    manifest: balaur_plugin::Manifest,
+}
 
-impl Plugin for InputPlugin {
-    fn name(&self) -> &'static str {
-        "input"
+impl Default for InputPlugin {
+    fn default() -> Self {
+        Self {
+            manifest: balaur_plugin::Manifest::new("input", env!("CARGO_PKG_VERSION")),
+        }
+    }
+}
+
+impl balaur_plugin::Plugin for InputPlugin {
+    fn manifest(&self) -> &balaur_plugin::Manifest {
+        &self.manifest
     }
 
-    fn build(&mut self, app: &mut App) -> Result<()> {
+    fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
+        let app = reg.app();
         app.engine.insert_resource(InputSnapshot::default());
         app.engine.insert_resource(GamepadState::default());
         app.engine.insert_resource(InputActions::default());

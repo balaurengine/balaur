@@ -14,7 +14,7 @@ fn app() -> App {
         script_backend: None,
     })
     .unwrap();
-    app.add_plugin(RenderPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
     app
 }
 

@@ -1,9 +1,10 @@
 # Research: layout as nodes
 
-> **Status:** research, with a working spike. Written 2026-09-04 to answer
-> whether balaur can have Godot's Control-style layout — a tree of nodes that
-> own their rects — rather than UI assembled by code. **It can**, and the
-> enabling change is smaller than the feature list suggests. Nothing is built.
+> **Status:** phases 1–4 are built; §5 records what is left. Written
+> 2026-09-04 to answer whether balaur can have Godot's Control-style layout —
+> a tree of nodes that own their rects — rather than UI assembled by code.
+> **It can**, and the enabling change was smaller than the feature list
+> suggests.
 >
 > Supersedes §2 option 3 of [PLAN-editor-as-scene.md](PLAN-editor-as-scene.md),
 > which proposed a hybrid because this had not been researched yet.
@@ -34,19 +35,22 @@ matches.
 
 `widget` component, drawn by `crates/balaur_ui/src/widget_layer.rs`:
 
-| Godot | balaur today |
-|---|---|
-| anchors + offsets, per node | `anchor` (one of five corners) + `x`/`y`, **root only** |
-| minimum size, queryable | implicit — egui measures while drawing; nothing can ask |
-| size flags, stretch ratio | **none** |
-| containers assign rects | `row`/`column` delegate to `egui::Layout`; children place themselves |
-| Split, Scroll, Tab, Grid | **none** |
-| Theme resource | `widget_theme` asset — per-kind fill, stroke, radius, padding, inherited |
+This was the table when the research was written; phases 1–2 struck the
+middle three rows.
 
-The decisive difference is the fourth row. balaur's containers do not lay
+| Godot | balaur then | balaur now |
+|---|---|---|
+| anchors + offsets, per node | `anchor` (one of five corners) + `x`/`y`, **root only** | unchanged |
+| minimum size, queryable | implicit — egui measures while drawing; nothing can ask | last frame's measurement, plus `min_width`/`min_height` |
+| size flags, stretch ratio | **none** | `grow` |
+| containers assign rects | `row`/`column` delegate to `egui::Layout`; children place themselves | `row`/`column`/`panel` place every child |
+| Split, Scroll, Tab, Grid | **none** | `scroll` and `tab`; a split is `handle` on any row or column. No Grid |
+| Theme resource | `widget_theme` asset — per-kind fill, stroke, radius, padding, inherited | unchanged |
+
+The decisive difference was the fourth row. balaur's containers did not lay
 anything out; they set an `egui::Layout` and let egui flow the children.
-Nothing ever computes a rect, so nothing can divide leftover space, and no
-sibling can be told "take what remains".
+Nothing ever computed a rect, so nothing could divide leftover space, and no
+sibling could be told "take what remains".
 
 ## 2. Is it possible
 
@@ -138,19 +142,104 @@ The editor's shell then becomes `editor/scenes/shell.toml`, and each dock's
 body is a `draw` node naming the Rune function that fills it — the way
 `on_click` already names a method. Panel bodies do not change.
 
+(Phase 3 built the first half of that. The `draw` nodes wait on a widget layer
+that can hold more than one rect; see below.)
+
 ## 5. Order
 
-| Phase | What | Why here |
-|---|---|---|
-| 1 | `grow`, `min_*`, and rect-assigning `row`/`column` | The enabling change; the spike is the algorithm |
-| 2 | `draw` kind | Lets a node host an immediate-mode body, which is what makes the editor expressible |
-| 3 | The editor's shell as a scene; `layout.rn` reads the tree | Proves it on the hardest real case |
-| 4 | `split`, `scroll`, `tab` containers | Each unlocks a thing the editor hand-rolls today |
-| 5 | A measure pass over text | Removes the "author your sizes" restriction for everyone |
+| Phase | What | Why here | |
+|---|---|---|---|
+| 1 | `grow`, `min_*`, and rect-assigning `row`/`column` | The enabling change; the spike is the algorithm | **done** |
+| 2 | `draw` kind | Lets a node host an immediate-mode body, which is what makes the editor expressible | **done** |
+| 3 | The editor's shell as a scene; `layout.rn` reads the tree | Proves it on the hardest real case | **done** |
+| 4 | `split`, `scroll`, `tab` containers | Each unlocks a thing the editor hand-rolls today | **done** |
+| 5 | A measure pass over text | Removes the "author your sizes" restriction for everyone | |
 
 Phases 1–2 are what decides whether this is right. If the editor's shell comes
 out of phase 3 looking like it does now, the model is proven on the hardest
 case balaur has.
+
+### What phase 1 changed
+
+`row`, `column` and `panel` now **place** their children. Each child is given
+a rect — its stated size, else what it measured last frame, with the leftover
+divided between the `grow` shares — and drawn in a child `Ui` built at that
+rect. A child that overflows what it was given no longer moves its siblings,
+which is what a frame stroke used to do: 2 px per panel, compounding down a
+column until the last sheet hung 19 px past the shell.
+
+A child fills the rect it was assigned on the cross axis too, unless the
+container's `align` is `center` or `end` — a centred child that filled its box
+would have nothing left to centre in. A container free to grow (a root with no
+stated size) hands out nothing, so every scene written before `grow` lays out
+exactly as it did. What it divides is what is left where the children start,
+not its declared box: a panel that drew a caption first has that much less to
+give, and dividing the box instead pushed its children past their own frame.
+
+The test scene is the shell from §2, at 1250 × 770: `tree 236`, `inspector
+288`, `dock 174`, and the stage taking what is left, closing on the declared
+box to the pixel.
+
+### What phase 2 changed
+
+`kind = "draw"`: a node that reserves a rect and calls a script to fill it,
+with the `ui::*` bindings pointed at that rect for the length of the call.
+`draw = "body"` names a method on the node's own script; `draw =
+"scripts/shell.rn:dock"` names a free function in a file, so a node that only
+reserves a rect does not have to carry a script instance to fill it.
+
+### What phase 3 changed
+
+`editor/scenes/shell.toml` is the shell: a tree of `row`/`column`/`panel`
+nodes carrying the `widget` component's own properties. `arrange.rn` turns it
+into rects by the same rules the Rust containers use, and `layout.rn` states
+the four sizes a file cannot know — the two side docks, the bottom dock and
+the tool rail — then publishes the result as `S.layout`. Nothing else in the
+editor changed: every panel still draws through `ui::overlay` at the rect it
+is given.
+
+Verified by capturing every audit screen twice, from the editor at `HEAD` and
+from this one, and diffing the rects rather than the pixels — several screens
+are animated and differ run to run. 26 of 30 come out byte-identical. The
+four that differ are the same difference: a hidden tool rail now has a
+zero-width rect instead of the 44 the old code gave a rail nobody draws.
+
+### What phase 4 changed
+
+Three container features, all in the widget layer:
+
+- `kind = "scroll"` — a box that holds the size its parent gave it and lets
+  its children run past it, clipped, with bars. It paints its theme entry the
+  way a panel does, defaulting to nothing so an unthemed scroll is invisible.
+- `kind = "tab"` — one child showing, with a strip of the rest above it. A
+  page is labelled by its `text`, or its node name where it has none, and
+  `active` names the one showing. Clicking a tab writes `active` back to the
+  component, so what the player picked is readable from a script.
+- `handle` on any `row` or `column` — how wide a grab its seams get, in
+  design pixels; 0 leaves them fixed. Dragging one writes the new `width` or
+  `height` onto whichever neighbour states a size, so the other keeps growing
+  into what is left. Between two growers there is nothing a drag could mean,
+  and the seam is not a handle at all.
+
+A split is not a fourth kind: it is a row with a `handle`. That composes with
+`grow` and with the rest of the layout instead of sitting beside it.
+
+Both write-backs go through one path — a list of edits the draw collects and
+applies after the pass, because the tree it walks is a snapshot and writing
+mid-walk would lay the rest of the frame out against numbers half of it had
+never seen.
+
+`widget_layer.rs` went over the 1200-line house limit, so the sizing rules and
+the containers that apply them are now `widget_arrange.rs`; what is left is
+the component and the walk over the world.
+
+**The shell is not widget nodes.** `layout.rn` re-implements the arrange in
+Rune rather than spawning `widget` components, because the widget layer has
+one global rect and the editor already points it at the viewport so a game's
+own HUD can draw there. Two implementations of one algorithm is the cost, and
+what would remove it is a widget layer that takes a rect per root — worth
+doing when phase 4 wants `split` and `tab` in the editor's own chrome, not
+before.
 
 ## 6. What this does not change
 

@@ -4,10 +4,10 @@ use balaur_core::{App, Engine, Stage};
 
 /// What a plugin may do to the engine while registering.
 ///
-/// Deliberately narrow, and deliberately free of generics and trait objects in
-/// its signatures: an out-of-process extension will one day reach these same
-/// five operations across a C ABI, and a `fn` pointer crosses that boundary
-/// where an `impl Trait` cannot.
+/// Deliberately free of trait objects and, but for the two that name a Rust
+/// type, of generics: an out-of-process extension will one day reach these
+/// operations across a C ABI, and a `fn` pointer crosses that boundary where
+/// an `impl Trait` cannot.
 pub struct Registry<'a> {
     app: &'a mut App,
     plugin: String,
@@ -73,7 +73,52 @@ impl<'a> Registry<'a> {
         self.app.script_module(name)
     }
 
-    /// Escape hatch for what the five operations above do not cover yet.
+    /// A named preset: a recipe of components, applied to one node.
+    pub fn register_preset(&mut self, name: &str, def: balaur_core::presets::PresetDef) {
+        self.app.register_preset(name, def);
+    }
+
+    /// A parser for one asset type, and the directory it is read from.
+    ///
+    /// A `fn` pointer rather than a closure, for the reason
+    /// [`Registry::add_system`] takes one: a parser that captures nothing is
+    /// all an asset type needs, and it is what can cross a C ABI.
+    pub fn register_asset_type(
+        &mut self,
+        name: &str,
+        directory: &str,
+        doc: &'static str,
+        parse: fn(&toml::Value) -> Result<std::rc::Rc<dyn std::any::Any>>,
+    ) {
+        self.app.register_asset_type(name, directory, doc, parse);
+    }
+
+    /// What this plugin loads rather than simulates, restored once before the
+    /// first tick: bindings, a locale, an audio mix.
+    ///
+    /// The twin of [`Registry::add_replay_source`], for state a recording
+    /// carries in its header instead of per tick.
+    pub fn add_replay_setup(
+        &mut self,
+        name: &str,
+        capture: fn(&Engine) -> serde_json::Value,
+        restore: fn(&Engine, &serde_json::Value),
+    ) {
+        self.app.add_replay_setup(name, capture, restore);
+    }
+
+    /// A whole resource as this plugin's replay source, serialised as it is.
+    ///
+    /// Generic, so Rust-only, for the same reason
+    /// [`Registry::insert_resource`] is: the C path names a type by id.
+    pub fn add_replay_resource<T>(&mut self, name: &str)
+    where
+        T: serde::Serialize + serde::de::DeserializeOwned + 'static,
+    {
+        self.app.add_replay_resource::<T>(name);
+    }
+
+    /// Escape hatch for what the operations above do not cover yet.
     ///
     /// Anything reached through here is Rust-only and will not survive the move
     /// to a C ABI, so it is the list of things still to design rather than a

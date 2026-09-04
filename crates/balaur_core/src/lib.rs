@@ -39,6 +39,8 @@ pub mod rollback;
 pub mod rollback_api;
 pub mod save;
 pub mod scene;
+pub mod settings;
+pub mod settings_api;
 pub mod skeleton;
 pub mod snapshot;
 pub mod standalone;
@@ -49,8 +51,8 @@ pub mod triangulate;
 pub mod voxels;
 
 pub use app::{
-    App, AppConfig, Plugin, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage, FIXED_DT,
-    MAX_SUBSTEPS, TICK_HZ,
+    App, AppConfig, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage, FIXED_DT, MAX_SUBSTEPS,
+    TICK_HZ,
 };
 pub use assets::{AssetRef, AssetState, AssetTypeRegistry};
 pub use collections::{DetHashMap, DetHashSet};

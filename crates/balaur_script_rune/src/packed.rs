@@ -112,7 +112,6 @@ impl rune::compile::SourceLoader for PackSourceLoader {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::{decode, is_encoded, FORMAT, MAGIC};

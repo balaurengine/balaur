@@ -16,7 +16,7 @@
 use balaur_core::components::ComponentDef;
 use balaur_core::glamx::Vec3;
 use balaur_core::hecs::Entity;
-use balaur_core::{Engine, GlobalTransform};
+use balaur_core::{scene, Engine, GlobalTransform};
 
 use crate::bus::{self, Buses};
 use crate::{AudioState, MIN_PITCH};
@@ -197,7 +197,8 @@ fn doppler(listener: &ListenerPose, emitter: &Emitter, to_emitter: Vec3, distanc
     }
     let to_listener = -to_emitter / distance;
     let ceiling = SPEED_OF_SOUND * 0.9;
-    let along = |velocity: Vec3| (velocity.dot(to_listener) * emitter.doppler).clamp(-ceiling, ceiling);
+    let along =
+        |velocity: Vec3| (velocity.dot(to_listener) * emitter.doppler).clamp(-ceiling, ceiling);
     let heard = SPEED_OF_SOUND - along(listener.velocity);
     let sounded = SPEED_OF_SOUND - along(emitter.velocity);
     (heard / sounded).clamp(1.0 / MAX_DOPPLER, MAX_DOPPLER)
@@ -211,8 +212,8 @@ fn doppler(listener: &ListenerPose, emitter: &Emitter, to_emitter: Vec3, distanc
 /// (DETERMINISM.md), and this shape needs no exemption.
 #[must_use]
 pub fn stereo_gains(pan: f32) -> [f32; 2] {
-    let pan = pan.clamp(-1.0, 1.0);
-    [((1.0 - pan) * 0.5).sqrt(), ((1.0 + pan) * 0.5).sqrt()]
+    let right = f32::midpoint(pan.clamp(-1.0, 1.0), 1.0);
+    [(1.0 - right).sqrt(), right.sqrt()]
 }
 
 /// Follow the listener node, then re-place every positional sound.
@@ -317,11 +318,15 @@ pub(crate) fn register_listener_component(reg: &mut balaur_plugin::Registry<'_>)
                     .get("current")
                     .and_then(toml::Value::as_bool)
                     .unwrap_or(true);
+                // Composed and placed as the component is applied: a sound
+                // started before the first scene sync would hear the origin.
+                let pose = current.then(|| scene::composed_global(&eng.world(), entity));
                 let state = eng.resource::<AudioState>();
-                state
-                    .borrow_mut()
-                    .listeners
-                    .insert(entity, Listener { current });
+                let mut state = state.borrow_mut();
+                state.listeners.insert(entity, Listener { current });
+                if let Some(pose) = pose {
+                    state.listener.follow(&pose);
+                }
                 Ok(())
             }),
             remove: Box::new(|eng, entity| {

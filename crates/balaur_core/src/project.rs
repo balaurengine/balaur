@@ -12,7 +12,7 @@
 //! core does not know are dispatched to plugin-registered handlers, so a
 //! plugin can teach scenes new keys (e.g. `shape = "ball"`).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use crate::assets::SceneAsset;
 use crate::collections::DetHashMap;
@@ -38,6 +38,10 @@ pub struct ProjectManifest {
     /// a dev run always reads the source tree.
     #[serde(default)]
     pub assets: AssetSource,
+    /// Which plugins this project wants. Every module the build linked in
+    /// loads unless it is named `false` here.
+    #[serde(default)]
+    pub plugins: BTreeMap<String, bool>,
 }
 
 fn default_language() -> String {

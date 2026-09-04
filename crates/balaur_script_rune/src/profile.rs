@@ -62,5 +62,4 @@ impl RuneHost {
         cost.calls = cost.calls.wrapping_add(1);
         cost.instructions = cost.instructions.wrapping_add(instructions);
     }
-
 }

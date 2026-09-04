@@ -1,6 +1,6 @@
 # Plugins: one trait, one order, one switch
 
-Status: **phases 1-3 shipped.** Phase 4 is not started.
+Status: **shipped.** All four phases are in; what is left is listed under Open.
 
 A module is declared in four places today — a cargo feature, an optional
 dependency, two `pub use` lines, and a `load` call under `#[cfg]`. Extensions
@@ -113,11 +113,20 @@ neither.
 http = false
 ```
 
-Loaded by default when compiled in; `false` turns one off; a name the build
-does not have is an error naming its feature; a name that is neither a module
-nor an extension is an error. Turning off something another plugin requires
-already produces the right message from `load_order`. `ProjectManifest` does
-not deny unknown fields, so the table is backwards-compatible.
+Loaded by default when compiled in; `false` turns one off. `ProjectManifest`
+does not deny unknown fields, so the table is backwards-compatible.
+
+The asymmetry is deliberate. Asking *for* something nothing registered is an
+error naming the feature to rebuild with — a project that says `http = true`
+and silently gets no http is the failure this whole plan exists to avoid.
+Turning *off* something the build has not got is not an error: the project
+already has what it asked for, and saying so would be noise.
+
+Two more refusals. `render = false` is refused rather than ignored, because a
+setting that cannot be honoured must not look like it was. And the check for
+what never registered runs *after* extensions load, against the phase-1
+registry — which is what lets one rule cover a module and an extension without
+knowing which a name is.
 
 An export inherits the switch, and should: a project that disables http and
 ships a script calling `http.get` fails `build_pack`, because `build_pack`
@@ -153,7 +162,12 @@ generated reference.
 
 ## Open
 
-- Whether `[plugins]` values should be tables carrying per-plugin config, or
-  stay booleans while each plugin keeps reading its own file through
-  `ProjectFiles`. The second is what audio, http and websocket do now.
+- `Registry` still has no asset types, presets, components or closure-taking
+  replay source, which is why `balaur_core::Plugin` survives as the shape the
+  engine's own five are written in. The same list is what the C boundary needs,
+  so both collapse together or neither does.
+- `[plugins]` values are booleans, not tables of per-plugin config: audio,
+  http and websocket each read their own file through `ProjectFiles` already,
+  and a second place to configure them would be a second place to look.
 - Whether a script should be able to ask what is loaded, or only tooling.
+  `balaur_core::plugins` can answer either; nothing exposes it to scripts yet.

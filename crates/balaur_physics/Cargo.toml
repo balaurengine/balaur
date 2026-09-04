@@ -10,6 +10,7 @@ authors.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 balaur_core.workspace = true
+balaur_plugin.workspace = true
 # One pair is compiled, chosen by the `f64` feature; `lib.rs` names either
 # `rapier3d`, and `scalar.rs` is the seam.
 rapier3d = { workspace = true, optional = true }

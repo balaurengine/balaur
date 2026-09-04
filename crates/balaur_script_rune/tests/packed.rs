@@ -48,7 +48,11 @@ fn a_packed_script_is_a_unit_not_its_source() {
     let pack = pack_of(dir.path());
     let bytes = pack.scripts.get("s.rn").expect("s.rn is in the pack");
 
-    assert_ne!(bytes.as_slice(), SOURCE.as_bytes(), "the source was shipped");
+    assert_ne!(
+        bytes.as_slice(),
+        SOURCE.as_bytes(),
+        "the source was shipped"
+    );
 
     let text = String::from_utf8_lossy(bytes);
     // No source text at all: no syntax, no expressions, no control flow.
@@ -106,4 +110,3 @@ fn a_packed_script_runs_and_keeps_its_exported_defaults() {
     assert_eq!(get("hits"), Some(&balaur_script::Value::Int(2)));
     assert_eq!(get("speed"), Some(&balaur_script::Value::Num(3.0)));
 }
-

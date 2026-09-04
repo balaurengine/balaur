@@ -221,7 +221,6 @@ impl RuneHost {
         tracing::error!("[{key}] {label}:\n{}", rendered.trim_end());
     }
 
-
     /// Compile `key` from `source` and report every diagnostic instead of
     /// the first error's rendered text — the caller wants a list, not a page.
     ///

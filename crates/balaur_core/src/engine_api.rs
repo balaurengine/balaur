@@ -324,6 +324,16 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: fs_mtime,
     },
     EngineOp {
+        module: "engine",
+        name: "plugins",
+        call: loaded_plugins,
+    },
+    EngineOp {
+        module: "engine",
+        name: "has_plugin",
+        call: has_plugin,
+    },
+    EngineOp {
         module: "toml",
         name: "parse",
         call: toml_parse,
@@ -382,6 +392,8 @@ pub fn install_engine_api(eng: &Engine) -> Result<()> {
     crate::math_api::install_math_api(&mut *math);
     let mut rollback = host.module("rollback")?;
     crate::rollback_api::install_rollback_api(&mut *rollback);
+    let mut settings = host.module("settings")?;
+    crate::settings_api::install_settings_api(&mut *settings);
     Ok(())
 }
 
@@ -582,6 +594,23 @@ fn document_json(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("parse", &[], "(text: string)", "The value a JSON document describes; an error on text that does not parse."),
         ("encode", &[], "(value: any)", "A value written back out as JSON text; NaN, infinity, a node or a callback has no JSON form and is an error."),
     ]);
+}
+
+/// Which plugins this build loaded, in load order.
+///
+/// A game shipped without `http` can say so rather than call into a module
+/// that is not there.
+fn loaded_plugins(eng: &Engine, _: &[Value]) -> Result<Value> {
+    Ok(Value::List(
+        crate::plugins::names(eng)
+            .into_iter()
+            .map(Value::Str)
+            .collect(),
+    ))
+}
+
+fn has_plugin(eng: &Engine, args: &[Value]) -> Result<Value> {
+    Ok(Value::Bool(crate::plugins::is_loaded(eng, text(args, 0)?)))
 }
 
 fn time(eng: &Engine, _: &[Value]) -> Result<Value> {

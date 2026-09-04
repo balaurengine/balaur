@@ -17,7 +17,7 @@ fn registered_options(component: &str, field: &str) -> Vec<String> {
         script_backend: None,
     })
     .unwrap();
-    app.add_plugin(PhysicsPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
     let registry = registry.borrow();
     let def = registry

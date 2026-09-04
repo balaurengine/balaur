@@ -126,13 +126,6 @@ impl AppConfig {
     }
 }
 
-/// A plugin wires a subsystem into the app: resources, per-frame systems,
-/// script modules, scene keys.
-pub trait Plugin {
-    fn name(&self) -> &str;
-    fn build(&mut self, app: &mut App) -> Result<()>;
-}
-
 pub struct App {
     pub engine: Engine,
     systems: Vec<Vec<SystemFn>>,
@@ -170,6 +163,8 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(ScriptArgs(config.script_args.clone()));
     eng.insert_resource(crate::rng::RngState::default());
     eng.insert_resource(crate::ids::IdAllocator::default());
+    eng.insert_resource(crate::settings::SettingsRegistry::default());
+    eng.insert_resource(crate::settings::SettingsValues::default());
     eng.insert_resource(crate::netsession::PeerTraffic::default());
     eng.insert_resource(crate::netsession::SessionStats::default());
     eng.insert_resource(crate::rollback::TickInputs::default());
@@ -224,6 +219,7 @@ impl App {
         crate::skeleton::register_bone3d_component(&mut app);
         crate::snapshot::build_core_sources(&mut app);
         crate::netsession::build_session_source(&mut app);
+        crate::settings::build_core_pages(&app.engine);
         // Before every plugin's First work, so a subsystem that dispatches
         // incoming traffic there sees the recording rather than the network.
         app.add_system(Stage::First, |eng, _| {
@@ -283,15 +279,6 @@ impl App {
         // so nothing this frame produced is left out of the events.
         app.add_system(Stage::Last, crate::replay::record_frame_system);
         Ok(app)
-    }
-
-    pub fn add_plugin(&mut self, mut plugin: impl Plugin) -> Result<&mut Self> {
-        plugin
-            .build(self)
-            .with_context(|| format!("building plugin {}", plugin.name()))?;
-        // In-tree plugins ship at the workspace version, which is this crate's.
-        self.record_plugin(PluginInfo::new(plugin.name(), env!("CARGO_PKG_VERSION")));
-        Ok(self)
     }
 
     /// Note that a plugin finished registering.

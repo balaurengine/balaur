@@ -311,6 +311,240 @@ fn a_panel_with_children_grows_around_them() {
     );
 }
 
+/// An app whose project also holds `scripts/paint.rn`, for the `draw` kind.
+fn app_with_script(body: &str) -> (tempfile::TempDir, App) {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "name = \"w\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("main.toml"), "").unwrap();
+    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
+    std::fs::write(dir.path().join("scripts/paint.rn"), body).unwrap();
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    (dir, standard_app(config).unwrap())
+}
+
+/// A `draw` widget is a rect the scene places and a script fills: the node
+/// owns where it is, the script owns what is in it.
+#[test]
+fn a_draw_widget_hands_its_rect_to_a_script() {
+    let script = "pub fn fill() {\n    ui::label(\"filled from a script\", #{ size: 20 });\n}\n";
+    let shapes = |target: &str| {
+        let (_dir, app) = app_with_script(script);
+        let params = toml::toml! {
+            kind = "draw"
+            x = 0.0
+            y = 0.0
+            width = 200.0
+            height = 80.0
+            draw = target
+        };
+        let entity = add_widget(&app, &params.into());
+        let ctx = egui::Context::default();
+        pass(&app, &ctx, vec![]);
+        pass(&app, &ctx, vec![]);
+        let out = pass(&app, &ctx, vec![]);
+        let rect = ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))));
+        (out.shapes.len(), rect)
+    };
+    let (drawn, rect) = shapes("scripts/paint.rn:fill");
+    let (empty, _) = shapes("");
+    assert!(
+        drawn > empty,
+        "the script drew nothing into the rect: {drawn} shapes against {empty}"
+    );
+    let rect = rect.expect("the draw widget reserved a rect");
+    assert!(
+        (rect.width() - 200.0).abs() < 2.0 && (rect.height() - 80.0).abs() < 2.0,
+        "the draw widget did not take the size it states: {rect:?}"
+    );
+}
+
+/// A container hands out the leftover along its own direction, so a shell
+/// written as a tree lands on the rects the code used to compute.
+#[test]
+fn grow_divides_what_the_fixed_children_leave() {
+    let (_dir, app) = app();
+    let column = add_widget(
+        &app,
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 gap = 0.0 width = 300.0 height = 400.0 }
+            .into(),
+    );
+    let bar = add_child_widget(
+        &app,
+        column,
+        "bar",
+        &toml::toml! { kind = "panel" text = "" height = 40.0 }.into(),
+    );
+    let body = add_child_widget(
+        &app,
+        column,
+        "body",
+        &toml::toml! { kind = "panel" text = "" grow = 1.0 }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+
+    let seen = |entity: Entity| {
+        app.engine
+            .world()
+            .get::<&balaur_ui::Widget>(entity)
+            .is_ok_and(|w| w.kind == "panel")
+    };
+    assert!(seen(bar) && seen(body), "both panels are still panels");
+    let column_rect = ctx
+        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", column))))
+        .expect("the column drew");
+    // 400 tall less the 40 the bar states: the grower takes the rest, and
+    // nothing overflows the box the column was given.
+    assert!(
+        (column_rect.height() - 400.0).abs() < 2.0,
+        "the column did not hold its stated height: {column_rect:?}"
+    );
+}
+
+/// A scroll holds its box whatever is inside it: that is the difference
+/// between a list that scrolls and one that stretches its panel.
+#[test]
+fn a_scroll_keeps_its_box_however_long_its_contents() {
+    let measure = |kind: &str| {
+        let (_dir, app) = app();
+        let holder = add_widget(
+            &app,
+            &toml::toml! { kind = kind x = 0.0 y = 0.0 width = 200.0 height = 120.0 gap = 0.0 }
+                .into(),
+        );
+        for n in 0..40 {
+            let text = format!("line {n}");
+            add_child_widget(
+                &app,
+                holder,
+                "line",
+                &toml::toml! { kind = "label" text = text }.into(),
+            );
+        }
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", holder))))
+            .expect("it drew")
+            .height()
+    };
+    let scrolled = measure("scroll");
+    // The control: the same forty labels in a column, which does stretch.
+    let stretched = measure("column");
+    assert!(
+        scrolled < 200.0,
+        "the scroll grew with its contents: {scrolled}"
+    );
+    assert!(
+        stretched > scrolled + 200.0,
+        "control: a column of the same labels should be far taller ({stretched} against {scrolled})"
+    );
+}
+
+/// A tab shows one page and names the rest, so adding a page is adding a node.
+#[test]
+fn a_tab_shows_the_page_it_names_and_only_that_one() {
+    let show = |active: &str| {
+        let (_dir, app) = app();
+        let tabs = add_widget(
+            &app,
+            &toml::toml! { kind = "tab" x = 0.0 y = 0.0 width = 300.0 height = 200.0 active = active }
+                .into(),
+        );
+        for label in ["First", "Second"] {
+            add_child_widget(
+                &app,
+                tabs,
+                label,
+                &toml::toml! { kind = "panel" text = label width = 120.0 height = 60.0 }.into(),
+            );
+        }
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        let out = pass(&app, &ctx, vec![]);
+        // Every page's name is on the strip; only the shown one draws twice,
+        // as its own caption.
+        let mut seen = std::collections::BTreeMap::new();
+        for shape in &out.shapes {
+            if let egui::epaint::Shape::Text(text) = &shape.shape {
+                *seen.entry(text.galley.text().to_string()).or_insert(0) += 1;
+            }
+        }
+        seen
+    };
+    let first = show("First");
+    assert_eq!(
+        first.get("First"),
+        Some(&2),
+        "the named page is not showing"
+    );
+    assert_eq!(
+        first.get("Second"),
+        Some(&1),
+        "the other page is more than a tab: {first:?}"
+    );
+    let second = show("Second");
+    assert_eq!(
+        second.get("Second"),
+        Some(&2),
+        "naming the other page did not switch to it: {second:?}"
+    );
+}
+
+/// A seam only takes a drag when one of the pair states a size to write it
+/// to; between two growers there is nothing a drag could mean.
+#[test]
+fn a_handle_is_only_a_grab_where_a_neighbour_states_a_size() {
+    let (_dir, app) = app();
+    let row = add_widget(
+        &app,
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 height = 100.0 gap = 8.0 handle = 8.0 }
+            .into(),
+    );
+    let fixed = add_child_widget(
+        &app,
+        row,
+        "fixed",
+        &toml::toml! { kind = "panel" text = "" width = 120.0 }.into(),
+    );
+    add_child_widget(
+        &app,
+        row,
+        "rest",
+        &toml::toml! { kind = "panel" text = "" grow = 1.0 }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let width_of = |entity: Entity| {
+        balaur::components::get(&app.engine, entity, "widget")
+            .and_then(|w| w.get("width").and_then(toml::Value::as_float))
+            .expect("the widget reports its width")
+    };
+    assert!(
+        (width_of(fixed) - 120.0).abs() < 0.5,
+        "control: it starts at 120"
+    );
+
+    // The seam sits in the gap after the first child.
+    let seam = pos2(124.0, 50.0);
+    pass(&app, &ctx, press(seam, true));
+    pass(
+        &app,
+        &ctx,
+        vec![egui::Event::PointerMoved(pos2(seam.x + 40.0, seam.y))],
+    );
+    pass(&app, &ctx, press(pos2(seam.x + 40.0, seam.y), false));
+    let after = width_of(fixed);
+    assert!(
+        after > 130.0,
+        "dragging the seam did not widen the child that states a size: {after}"
+    );
+}
+
 /// A grouping node with no widget of its own should not break the chain: a
 /// menu is usually a panel with an empty node or two inside it.
 #[test]

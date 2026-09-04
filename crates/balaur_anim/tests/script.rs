@@ -76,7 +76,7 @@ fn app_in(dir: &std::path::Path) -> App {
         script_backend: Some(balaur::rune::factory()),
     })
     .unwrap();
-    app.add_plugin(AnimationPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
     app
 }
 

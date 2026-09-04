@@ -15,7 +15,7 @@ fn app() -> App {
         script_backend: None,
     })
     .unwrap();
-    app.add_plugin(PhysicsPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
     app
 }
 

@@ -232,7 +232,7 @@ fn joints_and_shape_edits_survive_a_snapshot() {
         script_backend: None,
     })
     .unwrap();
-    app.add_plugin(PhysicsPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
 
     let root = app.engine.root();
     let spawn = |name: &str, x: f32| -> Entity {

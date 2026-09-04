@@ -33,43 +33,6 @@ pub trait Plugin {
     fn declare(&mut self, reg: &mut Registry<'_>) -> Result<()>;
 }
 
-/// A [`balaur_core::Plugin`] given a manifest, so it can be ordered with the
-/// rest of the set.
-///
-/// The plugins that build against the whole `App` stay that shape: asset
-/// types, presets, components and closure-taking replay sources are not on
-/// [`Registry`], and widening it is what the C boundary still has to grow.
-/// Wrapping is what lets one sorted set hold them beside the modules and
-/// extensions that carry their own manifests.
-pub struct Builtin<P> {
-    plugin: P,
-    manifest: Manifest,
-}
-
-impl<P: balaur_core::Plugin> Builtin<P> {
-    #[must_use]
-    pub fn new(plugin: P) -> Self {
-        let manifest = Manifest::new(plugin.name(), ENGINE_VERSION);
-        Self { plugin, manifest }
-    }
-
-    #[must_use]
-    pub fn requiring(mut self, names: &[&str]) -> Self {
-        self.manifest = self.manifest.requiring(names);
-        self
-    }
-}
-
-impl<P: balaur_core::Plugin> Plugin for Builtin<P> {
-    fn manifest(&self) -> &Manifest {
-        &self.manifest
-    }
-
-    fn declare(&mut self, reg: &mut Registry<'_>) -> Result<()> {
-        self.plugin.build(reg.app())
-    }
-}
-
 /// Load `plugin` into `app`, refusing a build that cannot share this process.
 ///
 /// # Errors

@@ -122,8 +122,8 @@ the theme the only place a look is decided.
 
 | Where | Change |
 |---|---|
-| `widget` component | a `draw` kind: a rect the widget layer reserves and a script fills, named the way `on_click` names a method |
-| `widget` component | `dock`/`sheet` geometry — a rect from the parent's split, not an anchor and an offset |
+| `widget` component | ~~a `draw` kind: a rect the widget layer reserves and a script fills, named the way `on_click` names a method~~ — built |
+| `widget` component | ~~`dock`/`sheet` geometry — a rect from the parent's split, not an anchor and an offset~~ — built as `grow` and rect-assigning containers |
 | `editor/scenes/shell.toml` | new: the bars, sheets and docks as nodes |
 | `editor/scripts/layout.rn` | reads the scene's tree instead of computing from constants |
 | `editor/scripts/docks.rn` | the tab model stays; placement comes from the scene |

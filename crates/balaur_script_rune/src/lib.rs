@@ -17,10 +17,10 @@ mod bindings;
 mod debugger;
 mod inspect;
 mod packed;
-mod profile;
-mod task;
 mod pause;
+mod profile;
 mod script_module;
+mod task;
 mod value;
 
 use std::cell::RefCell;
@@ -44,9 +44,9 @@ use rune::{Diagnostics, Source, Sources, Vm};
 pub use api::{api_json, rune_of};
 pub use bindings::{ApiEntry, RuneModule};
 pub use inspect::Finding;
-pub use profile::ScriptCost;
 use inspect::{public_functions, render, PublicSignature};
 use packed::PackSourceLoader;
+pub use profile::ScriptCost;
 use script_module::script_module;
 use task::WaitFuture;
 pub use value::{Color, Node, Vec2, Vec3};
@@ -479,7 +479,10 @@ impl RuneHost {
             Script::new(unit, source, sources)
         };
         let unit = script.unit.clone();
-        self.state.borrow_mut().scripts.insert(key.to_string(), script);
+        self.state
+            .borrow_mut()
+            .scripts
+            .insert(key.to_string(), script);
         self.apply_breakpoints(key);
         Ok(unit)
     }

@@ -24,7 +24,7 @@ fn app_in(root: &std::path::Path) -> App {
         script_backend: None,
     })
     .unwrap();
-    app.add_plugin(RenderPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
     app
 }
 

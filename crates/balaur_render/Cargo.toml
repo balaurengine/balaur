@@ -14,6 +14,7 @@ kiss3d = ["dep:kiss3d", "dep:pollster", "dep:balaur_input", "dep:balaur_ui", "de
 
 [dependencies]
 balaur_core.workspace = true
+balaur_plugin.workspace = true
 glamx.workspace = true
 anyhow.workspace = true
 balaur_script.workspace = true

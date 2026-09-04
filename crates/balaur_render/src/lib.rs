@@ -8,7 +8,7 @@
 
 use anyhow::{anyhow, Result};
 use balaur_core::hecs::Entity;
-use balaur_core::{App, Engine, Plugin, Stage};
+use balaur_core::{App, Engine, Stage};
 use balaur_script::Bindings;
 
 mod camera;
@@ -745,14 +745,25 @@ pub(crate) fn set_color(eng: &Engine, entity: Entity, color: [f32; 4]) -> Result
     Ok(())
 }
 
-pub struct RenderPlugin;
+pub struct RenderPlugin {
+    manifest: balaur_plugin::Manifest,
+}
 
-impl Plugin for RenderPlugin {
-    fn name(&self) -> &'static str {
-        "render"
+impl Default for RenderPlugin {
+    fn default() -> Self {
+        Self {
+            manifest: balaur_plugin::Manifest::new("render", env!("CARGO_PKG_VERSION")),
+        }
+    }
+}
+
+impl balaur_plugin::Plugin for RenderPlugin {
+    fn manifest(&self) -> &balaur_plugin::Manifest {
+        &self.manifest
     }
 
-    fn build(&mut self, app: &mut App) -> Result<()> {
+    fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
+        let app = reg.app();
         app.engine.insert_resource(CameraConfig::default());
         app.engine.insert_resource(ClearColorConfig {
             color: [0.09, 0.098, 0.11],

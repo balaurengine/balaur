@@ -411,7 +411,7 @@ impl AudioState {
         };
         if let Some(device) = &self.device {
             let placed = placement.unwrap_or_default();
-            let played = backend::play(
+            let started = backend::play(
                 device,
                 bytes,
                 volume * cue.gain * placed.gain,
@@ -419,7 +419,7 @@ impl AudioState {
                 cue.looped,
                 placement.map(|placed| spatial::stereo_gains(placed.pan)),
             );
-            match played {
+            match started {
                 Ok(sound) => {
                     self.playing.insert(handle, sound);
                 }
@@ -740,7 +740,8 @@ fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
         .unwrap_or_default()
         .to_string();
     let flag = |key: &str| params.get(key).and_then(toml::Value::as_bool) == Some(true);
-    let level = |key: &str, default: f64| params.get(key).and_then(as_f64).unwrap_or(default) as f32;
+    let level =
+        |key: &str, default: f64| params.get(key).and_then(as_f64).unwrap_or(default) as f32;
     let (autoplay, volume, pitch) = (flag("autoplay"), level("volume", 1.0), level("pitch", 1.0));
     let has_file = !file.trim().is_empty();
     let start = {
@@ -860,13 +861,10 @@ fn xyz(x: &Value, y: Option<&Value>, z: Option<&Value>) -> Result<Vec3> {
         return Ok(point);
     }
     let axis = |value: Option<&Value>, name: &str| {
-        number(value).ok_or_else(|| anyhow!("expected a vector or three numbers; {name} is not a number"))
+        number(value)
+            .ok_or_else(|| anyhow!("expected a vector or three numbers; {name} is not a number"))
     };
-    Ok(Vec3::new(
-        axis(Some(x), "x")?,
-        axis(y, "y")?,
-        axis(z, "z")?,
-    ))
+    Ok(Vec3::new(axis(Some(x), "x")?, axis(y, "y")?, axis(z, "z")?))
 }
 
 /// The emitter an options table asks for, or `None` when it names no

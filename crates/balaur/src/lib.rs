@@ -28,7 +28,9 @@ pub use balaur_ui as ui;
 #[cfg(feature = "webtransport")]
 pub use balaur_webtransport as webtransport;
 
-use anyhow::{Context, Result};
+use std::collections::BTreeMap;
+
+use anyhow::{bail, Context, Result};
 
 /// Every optional module: the name it goes by, the cargo feature that
 /// switches it on, and the plugin it registers.
@@ -45,8 +47,10 @@ macro_rules! modules {
         )*
 
         /// The optional modules this build linked in.
+        // Pushed rather than `vec![]` because `#[cfg]` does not apply to an
+        // element inside it; a build with no optional module pushes nothing.
+        #[allow(unused_mut, clippy::vec_init_then_push, reason = "see above")]
         fn optional_modules() -> Vec<Box<dyn balaur_plugin::Plugin>> {
-            #[allow(unused_mut, reason = "a build with no optional module pushes nothing")]
             let mut found: Vec<Box<dyn balaur_plugin::Plugin>> = Vec::new();
             $(
                 #[cfg(feature = $feature)]
@@ -65,17 +69,23 @@ modules! {
     websocket = "websocket" => balaur_websocket::WebsocketPlugin,
 }
 
+/// The project's manifest, read the way `standard_app` needs it: before the
+/// app exists, so it cannot come from `App::manifest`.
+///
+/// A manifest that will not parse reads as absent. `App::load_project` is
+/// where that becomes the error a person can act on.
+fn manifest_of(config: &AppConfig) -> Option<balaur_core::project::ProjectManifest> {
+    let text = match &config.pack {
+        Some(pack) => pack.manifest.clone(),
+        None => std::fs::read_to_string(config.project_root.join("project.toml")).ok()?,
+    };
+    balaur_core::project::ProjectManifest::parse(&text).ok()
+}
+
 /// The script backend a project asks for in its `project.toml`. Rune is the
 /// one language this build ships; the field stays so a project states it.
 fn backend_for(config: &AppConfig) -> Result<balaur_core::ScriptHostFactory> {
-    let manifest = match &config.pack {
-        Some(pack) => Some(pack.manifest.clone()),
-        None => std::fs::read_to_string(config.project_root.join("project.toml")).ok(),
-    };
-    let language = manifest
-        .as_deref()
-        .and_then(|m| balaur_core::project::ProjectManifest::parse(m).ok())
-        .map_or_else(|| "rune".to_string(), |m| m.language);
+    let language = manifest_of(config).map_or_else(|| "rune".to_string(), |m| m.language);
     match language.as_str() {
         "rune" => Ok(balaur_script_rune::factory()),
         other => Err(anyhow::anyhow!(
@@ -198,31 +208,67 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     if config.script_backend.is_none() {
         config.script_backend = Some(backend_for(&config)?);
     }
+    let asked = manifest_of(&config).map(|m| m.plugins).unwrap_or_default();
     let mut app = App::new(config)?;
-    balaur_plugin::load_all(&mut app, &mut standard_plugins())?;
+    balaur_plugin::load_all(&mut app, &mut standard_plugins(&asked)?)?;
     drive_ui_focus(&mut app);
     #[cfg(feature = "extensions")]
-    load_project_extensions(&mut app)?;
+    load_project_extensions(&mut app, &asked)?;
+    refuse_absent(&app, &asked)?;
     Ok(app)
 }
 
+/// What a project asked of `[plugins]`: a name, and whether it wants it.
+type Selection = BTreeMap<String, bool>;
+
 /// Every plugin a standard app registers, for `load_all` to order.
 ///
-/// The engine's own five build against the whole `App`, so they arrive
-/// wrapped in a manifest; the rest carry theirs. One set rather than two
-/// sequences is what lets `apple` say it requires `platform` and be believed.
-fn standard_plugins() -> Vec<Box<dyn balaur_plugin::Plugin>> {
-    use balaur_plugin::Builtin;
-    let mut all: Vec<Box<dyn balaur_plugin::Plugin>> = vec![
-        Box::new(Builtin::new(AnimationPlugin)),
-        Box::new(Builtin::new(InputPlugin)),
-        Box::new(Builtin::new(PhysicsPlugin)),
-        Box::new(Builtin::new(RenderPlugin)),
-        Box::new(Builtin::new(UiPlugin)),
+/// One set rather than two sequences is what lets `apple` say it requires
+/// `platform` and be believed.
+fn standard_plugins(asked: &Selection) -> Result<Vec<Box<dyn balaur_plugin::Plugin>>> {
+    let always: Vec<Box<dyn balaur_plugin::Plugin>> = vec![
+        Box::new(AnimationPlugin::default()),
+        Box::new(InputPlugin::default()),
+        Box::new(PhysicsPlugin::default()),
+        Box::new(RenderPlugin::default()),
+        Box::new(UiPlugin::default()),
         Box::new(PlatformPlugin::default()),
     ];
-    all.extend(optional_modules());
-    all
+    for plugin in &always {
+        let name = &plugin.manifest().name;
+        if asked.get(name) == Some(&false) {
+            bail!("project.toml turns off `{name}`, which every build has");
+        }
+    }
+    let mut all = always;
+    all.extend(
+        optional_modules()
+            .into_iter()
+            .filter(|module| asked.get(&module.manifest().name) != Some(&false)),
+    );
+    Ok(all)
+}
+
+/// Refuse a project that asked for a plugin nothing registered.
+///
+/// Only what it asked *for*: a project turning off something this build has
+/// not got already has what it wanted, and saying so would be noise.
+fn refuse_absent(app: &App, asked: &Selection) -> Result<()> {
+    let loaded = balaur_core::plugins::names(&app.engine);
+    let missing: Vec<&str> = asked
+        .iter()
+        .filter(|(_, &wanted)| wanted)
+        .map(|(name, _)| name.as_str())
+        .filter(|name| !loaded.iter().any(|n| n == name))
+        .collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    bail!(
+        "project.toml asks for `{}`, which nothing registered: this build has          no such module (try --features {}) and no extension declares it",
+        missing.join("`, `"),
+        missing.join(","),
+    )
 }
 
 /// Let a pad walk a menu, by mapping three actions onto the focus verbs.
@@ -264,7 +310,7 @@ fn drive_ui_focus(app: &mut App) {
 /// If a library fails to load, disagrees about the build, or requires
 /// something absent.
 #[cfg(feature = "extensions")]
-fn load_project_extensions(app: &mut App) -> Result<()> {
+fn load_project_extensions(app: &mut App, asked: &Selection) -> Result<()> {
     let dir = app.project_root().join("extensions");
     let modules = balaur_core::plugins::names(&app.engine);
     // Safety: opening a library runs its initialisers, and the fingerprint
@@ -272,6 +318,10 @@ fn load_project_extensions(app: &mut App) -> Result<()> {
     let mut loaded = unsafe { balaur_plugin::load_extensions_in(&dir, &modules) }?;
     for extension in &mut loaded {
         let name = extension.manifest().name.clone();
+        if asked.get(&name) == Some(&false) {
+            tracing::info!(extension = %name, "off in project.toml");
+            continue;
+        }
         balaur_plugin::load(app, extension.plugin_mut())
             .with_context(|| format!("extension `{name}`"))?;
         tracing::info!(extension = %name, "loaded");

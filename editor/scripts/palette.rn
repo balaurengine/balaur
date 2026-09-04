@@ -35,6 +35,7 @@ fn commands(S) {
         command("Run scene", "▶", "F5", || shell::toggle_play(S)),
         command("Save scene", "◇", "⌘S", || model::save(S)),
         command("Reload scripts", "⟳", "⇧R", || log::info("scripts hot reload on save")),
+        command("Settings…", "⚙", "⌘,", || crate::settings::open(S)),
         command("Toggle dark chrome", "☾", "⌥L", || theme::set_dark(S, !S.theme.dark)),
         command(if S.show_input { "Hide input overlay" } else { "Show input overlay" }, "⌨", "", || {
             S.show_input = !S.show_input;

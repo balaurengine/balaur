@@ -687,8 +687,14 @@ presets, components and closure-taking replay sources are not on it.
 set — the shape a plugin is written in, adapted at the boundary, not a second
 way to load one.
 
-`docs/PLAN-plugins.md` carries the rest — one trait, one sorted order for
-modules and extensions alike, and a `[plugins]` table in `project.toml`.
+A project picks from what the build linked in, through `[plugins]` in
+`project.toml`: every module loads unless named `false` there. Asking for one
+nothing registered is an error naming the feature to rebuild with, and turning
+off one every build has is refused rather than ignored — a setting that cannot
+be honoured must not look like it was. The check runs after extensions load,
+against `PluginRegistry`, so one rule covers a module and an extension without
+knowing which a name is. `docs/PLAN-plugins.md` carries the reasoning and what
+is still open.
 
 **Two boundaries, because Rust has no stable ABI.** A dylib passing Rust types
 across `dlopen` needs the identical compiler on both sides, and a mismatch is
@@ -1712,6 +1718,30 @@ reads it; `input.reset_bindings()` goes back to the project's. An action
 nobody declared reads 0 and warns once, the same neutral answer a headless
 run gives, so a script asking for one is never the thing that fails.
 
+### Gamepads, motion and rumble
+
+Pads are polled inside the tick (`Stage::First`), not by the windowed backend:
+a controller is not a window event, and polling here means a headless run on a
+desk with a pad plugged in sees it too. Not while replaying — the recorded
+pads were restored moments earlier and the hardware would overwrite them.
+
+**Two readers, one pad, no overlap.** gilrs reads buttons and axes and has no
+notion of a sensor, so gyro, accelerometer and touchpad come from
+`sensors.rs`, which opens the same pad over raw HID and decodes the report
+gilrs discards — DualSense and DualShock 4 today, USB and Bluetooth, with the
+offsets taken from Linux's `hid-playstation.c`. They are matched by the
+vendor and product gilrs already reports, and two identical pads are told
+apart by order. The split is deliberate and the rule is that a backend
+covering both readings replaces both rather than joining them (Steam Input is
+the case that will): two readings of one value is a bug with a name.
+
+Rumble runs the other way, through `gilrs::ff`. It is output, so a recording
+never carries it — the script that asked re-runs on replay and asks again.
+What *is* recorded is `can_rumble`, because a script may branch on whether a
+pad has motors and a replay has to take the same branch on a machine whose pad
+has none. A pad with no gyroscope, a platform with no HID and an absent pad
+all read the same zero.
+
 ## Showcase: the manual's pictures are a test
 
 Every image and clip on the website comes out of `scripts/showcase.sh`, which
@@ -1841,13 +1871,13 @@ release finished.
 | More widget kinds, as games ask for them | `docs/PLAN-batteries.md` phase 6 |
 | Accessibility: a screen reader over the widget tree, text scaling, captions, colour-blind-safe defaults | no plan yet; the retained `widget` tree already carries text, `focusable` and a focus order, which is what a reader walks; egui can emit an AccessKit tree, localization is there for captions, and actions already rebind |
 | Navigation: a navmesh baked from the scene, A* over it or over a grid, agents that avoid each other | no plan yet; nothing in the tree pathfinds. Behaviour over it stays a script's job |
-| Haptics and motion: gamepad rumble, gyro, touchpad | no plan yet; gilrs already polls the pads and ships force feedback (`gilrs::ff`), which nothing calls |
+| Motion and haptics beyond a PlayStation pad: Switch Pro and Joy-Con gyro, per-unit sensor calibration, adaptive triggers and light bars, waveform haptics, device motion on a phone, gamepads on iOS and Android | `docs/PLAN-input.md` §2 and steps 2-7. Rumble over `gilrs::ff`, and gyro, accelerometer and touchpad decoded from DualSense and DualShock 4 HID reports, shipped in 0.1.0 |
 | WebTransport (QUIC) native and in the browser, Gamend sessions and matchmaking, WebRTC data channels for browser peer-to-peer; never raw UDP, never ENet | `docs/PLAN-networking.md` §2 and steps 6, 8, 13, 14. Binary frames, run-time stable ids and rollback (one machine and over a socket) shipped in 0.1.0 |
 | Replication and RPC, client-side prediction, server reconciliation, interpolation of unowned nodes, lag compensation, interest management, a bandwidth budget; join in progress; a client-authoritative hit is never planned | `docs/PLAN-networking.md` §1 "Hiding latency" and steps 9 to 12 |
 | Replaying a networked session, and a link that can be given latency, loss and reordering in a test; round-trip time, loss and bytes a second per peer | `docs/PLAN-networking.md` step 7 |
 | Voice in a session | no plan yet; the transport carries unreliable datagrams and audio has buses to mix a stream into. What is missing is a codec |
 | A crash report that reproduces itself: the recording, the log and the build id in one file | no plan yet; `replay` already writes a file that re-runs a session bit for bit and `logbuf` holds the log — nothing packages the two when a game falls over |
-| Store and platform services: sign-in, achievements, leaderboards, cloud saves, rich presence, in-app purchase | One plan per store, sharing a portable `platform` script module: `docs/PLAN-steam.md` (Steamworks, and the module itself), `docs/PLAN-apple.md` (Sign in with Apple, Game Center, iCloud, StoreKit), `docs/PLAN-google.md` (Play Games Services, Sign in with Google, Play Billing, Play Integrity). Engine crates behind features, not C extensions: every one of these APIs is asynchronous, and a Tier 1 extension has no `ExternalIo`, no await token and no way to call back into a script (`docs/PLAN-c-api.md` "What Tier 1 does not do"). `save` is what a cloud save syncs, Gamend is where a ticket is verified, and `ExternalIo` is how a completion reaches a tick |
+| Store and platform services on Steam and Google Play: sign-in, achievements, leaderboards, cloud saves, rich presence, in-app purchase | `docs/PLAN-steam.md` and `docs/PLAN-google.md`. Apple shipped in 0.1.0 (`docs/PLAN-apple.md`) and built what both plug into: the `platform` script module, the `PlatformBackend` seam, and the rule that a store write waits for its tick to settle. Both remaining plans start with work that is worth doing anyway — Steam's redistributable beside the executable, and an Android package id, app bundle and 16 KB page alignment |
 | Signed binary releases, published benchmarks | `docs/PLAN-release.md` |
 | Web export: a wgpu surface on a canvas, a shell page, and the pack fetched beside the wasm | `docs/PLAN-mobile-export.md` "Web". The headless wasm template already links and is packaged on every push (`scripts/package_template.sh web`); the window is what is missing, and it blocks `docs/PLAN-web-editor.md` too |
 | One-click deploy: a game on a URL or on a phone from one command or one button, rather than a bundle in `dist/` | `docs/PLAN-deploy.md`. `balaur export` builds and signs; nothing sends the result anywhere, and the three store plans each end at a file on the developer's disk |

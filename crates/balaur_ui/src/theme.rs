@@ -169,29 +169,26 @@ const SYSTEM_FACES: &[&str] = &[
 
 /// Which chain a bundled file joins, from its name. Explicit, because a
 /// guess put every new face in the UI chain and nothing said so.
-fn chain_of(stem: &str) -> Option<&'static str> {
+fn chain_of(stem: &str) -> &'static str {
     let lower = stem.to_lowercase();
     for prefix in ["heading", "ui", "mono", "icons"] {
         if lower.starts_with(&format!("{prefix}-")) {
-            return Some(match prefix {
+            return match prefix {
                 "heading" => "heading",
                 "mono" => "mono",
                 "icons" => "icons",
                 _ => "ui",
-            });
+            };
         }
     }
     // Pre-convention names, kept so an existing project's fonts still load.
     if lower.contains("mono") {
-        return Some("mono");
+        return "mono";
     }
     if lower.contains("caprasimo") || lower.contains("display") {
-        return Some("heading");
+        return "heading";
     }
-    if lower.ends_with(".ttf") || lower.ends_with(".otf") {
-        return Some("ui");
-    }
-    Some("ui")
+    "ui"
 }
 
 /// Load the four named families into `ctx`. A project's own `fonts/*.ttf`
@@ -231,9 +228,9 @@ pub(crate) fn load_fonts(eng: &Engine, ctx: &egui::Context) {
                 std::sync::Arc::new(egui::FontData::from_owned(bytes)),
             );
             match chain_of(stem) {
-                Some("heading") => heading_chain.push(name),
-                Some("mono") => mono_chain.push(name),
-                Some("icons") => icon_chain.push(name),
+                "heading" => heading_chain.push(name),
+                "mono" => mono_chain.push(name),
+                "icons" => icon_chain.push(name),
                 _ => ui_chain.push(name),
             }
             tracing::info!("ui: loaded font {stem}");

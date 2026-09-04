@@ -445,7 +445,10 @@ fn a_throw_is_reported_at_the_line_that_threw() {
         .map(|e| e.message.clone())
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(logged.contains("[s.rn] update"), "not attributed:\n{logged}");
+    assert!(
+        logged.contains("[s.rn] update"),
+        "not attributed:\n{logged}"
+    );
     // `let bad = 1 + "two";` is line 3, and the caret goes under it.
     assert!(logged.contains("s.rn:3"), "no line number:\n{logged}");
     assert!(

@@ -1,6 +1,8 @@
-// The only place a rect is decided; everything else reads `S.layout`. Under
-// Stage nothing carves the window: the scene is edge to edge, panels float.
+// The only place a rect is decided; everything else reads `S.layout`. The
+// shape is `scenes/shell.toml`; what is left here is what a tree of boxes
+// cannot say — the sizes that move, and the sheets that float over a box.
 
+use crate::arrange;
 use crate::defs;
 use crate::util;
 
@@ -8,16 +10,15 @@ const GUTTER = 14.0;
 // Between any two sheets, in every direction. One value, so no seam
 // reads as deliberate when the next one does not.
 const GAP = 12.0;
-const BAR_H = 36.0;
-const TABS_H = 36.0;
 const RAIL_W = 44.0;
+// The dock carries the status row inside its own sheet.
 const STATUS_H = 24.0;
-// The dock reaches the bottom gutter and carries the status row.
-const DOCK_BOTTOM = 14.0;
 const CMD_W = 168.0;
 // A minimised side dock is this wide; the bottom one keeps its tab row.
 const SHUT_W = 36.0;
 const SHUT_H = 34.0;
+const HOOKS_W = 172.0;
+const SHELL = "scenes/shell.toml";
 
 fn rect(x, y, w, h) {
     #{ x: x, y: y, w: w, h: h }
@@ -35,6 +36,9 @@ pub fn state() {
         hooks: rect(0.0, 0.0, 0.0, 0.0), split_w: 560.0, body_h: 96.0,
         // What the persona bar measured last frame; 0 until it has drawn.
         bar_fit: 0.0,
+        // The shell's shape, read once: the file is the editor's own and
+        // does not change under a running editor.
+        shell: arrange::read(SHELL),
     }
 }
 
@@ -59,11 +63,6 @@ pub fn sheets(S) {
 /// Rects for the current window, published as `S.layout`. Sizes are exact:
 /// nothing hugs, because the stage is what is left over and a measured sheet
 /// could not be subtracted from it.
-// Where the dock's sheet ends: the tree and the inspector stop level with it.
-fn dock_bottom_edge(h) {
-    h - GUTTER
-}
-
 pub fn compute(S) {
     let w = S.screen_w;
     let h = S.screen_h;
@@ -73,63 +72,57 @@ pub fn compute(S) {
     let tree_w = if S.docks.left.shut { SHUT_W } else { util::clamp(m.tree_w, 180.0, w * 0.28) };
     let insp_w = if S.docks.right.shut { SHUT_W } else { util::clamp(m.insp_w, 220.0, w * 0.32) };
     let dock_h = (if S.docks.bottom.shut { SHUT_H } else { m.dock_h }) + STATUS_H;
-    let top = GUTTER + BAR_H + GAP;
-    let bottom = dock_bottom_edge(h);
+    let rail_w = if S.rail_visible { (if S.rail_shut { 34.0 } else { RAIL_W }) } else { 0.0 };
+    let hooks_w = if S.hooks_open { HOOKS_W } else { 0.0 };
 
-    let tree_gap = if tree_w > 0.0 { GAP } else { 0.0 };
-    let content_x = GUTTER + tree_w + tree_gap;
-    let insp_x = w - GUTTER - insp_w;
-    let insp_gap = if insp_w > 0.0 { GAP } else { GUTTER };
-    let content_r = insp_x - insp_gap;
+    let r = arrange::run(m.shell, rect(0.0, 0.0, w, h), #{
+        left: tree_w,
+        right: insp_w,
+        bottom: dock_h,
+        railslot: rail_w,
+        hooks: hooks_w,
+    });
 
-    let rail_w = if S.rail_visible { (if S.rail_shut { 34.0 } else { RAIL_W }) + GAP } else { 0.0 };
-    let doc_x = content_x + rail_w;
-    let dock_y = h - DOCK_BOTTOM - dock_h;
-    let stage_y = top + TABS_H + 6.0;
-    let below = dock_y - GAP;
-
+    m.left = r.left;
+    m.right = r.right;
+    m.tabs = r.tabs;
+    m.bottom = r.bottom;
+    m.hooks = r.hooks;
+    // The rail is only as tall as its tools, so it takes the top of its
+    // column rather than the whole of it.
+    m.rail = rect(r.railslot.x, r.railslot.y, r.railslot.w, rail_h(S));
     // Centred on the document column, not the window: the tool rail shifts
     // it, and the bar has to sit over what it commands.
-    let bar_mid = (doc_x + content_r) / 2.0;
-    m.bar = rect(bar_mid - bar_w(S) / 2.0, GUTTER, bar_w(S), BAR_H);
-    m.cmd = rect(w - GUTTER - CMD_W, GUTTER + 7.0, CMD_W, 30.0);
-    m.left = rect(GUTTER, top, tree_w, bottom - top);
-    m.rail = rect(content_x, top, if S.rail_shut { 34.0 } else { RAIL_W }, rail_h(S));
-    m.tabs = rect(doc_x, top, content_r - doc_x, TABS_H);
-    m.right = rect(insp_x, top, insp_w, bottom - top);
-    m.bottom = rect(content_x, dock_y, content_r - content_x, dock_h);
+    let bar_mid = r.work.x + r.work.w / 2.0;
+    m.bar = rect(bar_mid - bar_w(S) / 2.0, r.head.y, bar_w(S), r.head.h);
+    m.cmd = rect(w - GUTTER - CMD_W, r.head.y + 7.0, CMD_W, 30.0);
     // What a dock panel may scroll: the sheet less its tab row and the status
     // strip sharing its foot.
-    m.body_h = dock_h - 30.0 - STATUS_H;
+    m.body_h = r.bottom.h - 30.0 - STATUS_H;
     // Inside the dock's sheet, drawn separately so a tall panel cannot push
     // it off the bottom.
-    m.status = rect(content_x, dock_y + dock_h - STATUS_H, content_r - content_x, STATUS_H);
-
-    // The hooks list is its own sheet, so the code pane never has to nest a
-    // panel inside an overlay.
-    let hooks_w = if S.hooks_open { 172.0 } else { 0.0 };
-    let hooks_x = content_r - hooks_w;
-    m.hooks = rect(hooks_x, stage_y, hooks_w, below - stage_y);
-    let doc_r = if S.hooks_open { hooks_x - GAP } else { content_r };
+    m.status = rect(r.bottom.x, r.bottom.y + r.bottom.h - STATUS_H, r.bottom.w, STATUS_H);
 
     // A document is not full-bleed: text under a sheet is unreadable. Sharing
     // with the scene puts the code on the right and the scene on the left.
+    let box = r.stage;
     if S.doc_open && S.viewport_live {
-        let room = doc_r - doc_x;
-        let code_w = util::clamp(m.split_w, 260.0, util::max(260.0, room - 260.0));
-        m.doc = rect(doc_r - code_w, stage_y, code_w, below - stage_y);
-        m.stage = rect(doc_x, stage_y, (doc_r - code_w - GAP) - doc_x, below - stage_y);
+        let code_w = util::clamp(m.split_w, 260.0, util::max(260.0, box.w - 260.0));
+        m.doc = rect(box.x + box.w - code_w, box.y, code_w, box.h);
+        m.stage = rect(box.x, box.y, box.w - code_w - GAP, box.h);
     } else if S.doc_open {
-        m.doc = rect(doc_x, stage_y, doc_r - doc_x, below - stage_y);
-        m.stage = m.doc;
+        m.doc = box;
+        m.stage = box;
     } else {
-        m.stage = rect(doc_x, stage_y, content_r - doc_x, below - stage_y);
+        // Nothing to read, so the scene takes the hooks list's width too.
+        m.stage = r.canvas;
         m.doc = m.stage;
     }
     // The scene's rect under its old name: the gizmos, the input overlay and
     // the widget layer all read it. `at` is the frame it was set on, so a
     // self-test can tell a headless run from a drawn one.
     S.viewport = #{ x: m.stage.x, y: m.stage.y, w: m.stage.w, h: m.stage.h, at: S.frame };
+
 }
 
 /// A plugin window: stacked down the left of the stage, so it never lands on

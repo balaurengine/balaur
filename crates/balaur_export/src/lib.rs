@@ -209,7 +209,9 @@ mod tests {
     #[test]
     fn a_missing_template_names_where_it_looked() {
         let roots = vec![std::path::PathBuf::from("/nowhere/templates")];
-        let err = find_template("macos-arm64", &roots).unwrap_err().to_string();
+        let err = find_template("macos-arm64", &roots)
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("macos-arm64"), "{err}");
         assert!(err.contains("/nowhere/templates"), "{err}");
     }

@@ -58,7 +58,10 @@ pub enum Accept {
 /// What a worker thread reports back to the frame loop.
 #[cfg_attr(
     target_family = "wasm",
-    allow(dead_code, reason = "the browser backend reports only Closed until it is built")
+    allow(
+        dead_code,
+        reason = "the browser backend reports only Closed until it is built"
+    )
 )]
 enum LinkEvent {
     Open,
@@ -70,7 +73,10 @@ enum LinkEvent {
 /// What the frame loop asks a worker thread to do.
 #[cfg_attr(
     target_family = "wasm",
-    allow(dead_code, reason = "nothing in a browser drains these until the backend does")
+    allow(
+        dead_code,
+        reason = "nothing in a browser drains these until the backend does"
+    )
 )]
 enum LinkCommand {
     Send(Delivery, Vec<u8>),

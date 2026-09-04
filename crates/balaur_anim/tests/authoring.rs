@@ -19,7 +19,7 @@ fn app_in(project_root: &std::path::Path) -> App {
         script_backend: None,
     })
     .unwrap();
-    app.add_plugin(AnimationPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
     app
 }
 

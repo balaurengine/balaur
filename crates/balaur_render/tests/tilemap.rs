@@ -12,7 +12,7 @@ fn app() -> App {
         script_backend: None,
     })
     .expect("App::new builds headless");
-    app.add_plugin(balaur_render::RenderPlugin)
+    balaur_plugin::load(&mut app, &mut balaur_render::RenderPlugin::default())
         .expect("the render plugin builds headless");
     app
 }

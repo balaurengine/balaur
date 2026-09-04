@@ -14,7 +14,7 @@ fn registered_options(field: &str) -> Vec<String> {
         script_backend: None,
     })
     .unwrap();
-    app.add_plugin(balaur_ui::UiPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_ui::UiPlugin::default()).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
     let registry = registry.borrow();
     registry

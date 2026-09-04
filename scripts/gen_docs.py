@@ -75,7 +75,17 @@ def module_doc(path):
         if not line:
             break
         para.append(line)
-    return " ".join(para)
+    return plain_links(" ".join(para))
+
+
+def plain_links(text):
+    """Drop rustdoc's intra-doc links, keeping what they read as.
+
+    `[`Transport`](balaur_core::transport::Transport)` resolves inside
+    rustdoc and nowhere else; rendered as markdown it is a link to a page
+    that does not exist, which fails the website's build.
+    """
+    return re.sub(r"\[(`[^`\]]+`)\]\([^)\s]*::[^)\s]*\)", r"\1", text)
 
 
 def public_surface(crate):

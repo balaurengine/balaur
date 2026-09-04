@@ -18,13 +18,13 @@ fn app() -> App {
         script_backend: None,
     })
     .unwrap();
-    app.add_plugin(RenderPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
     app
 }
 
 fn physics_app() -> App {
     let mut app = app();
-    app.add_plugin(balaur::PhysicsPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::PhysicsPlugin::default()).unwrap();
     app
 }
 

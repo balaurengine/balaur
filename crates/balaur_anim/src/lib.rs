@@ -50,7 +50,7 @@ use std::rc::Rc;
 use anyhow::Result;
 use balaur_core::components::{as_f64, ComponentDef};
 use balaur_core::hecs::Entity;
-use balaur_core::{App, Engine, Plugin, Stage};
+use balaur_core::{App, Engine, Stage};
 
 pub use crate::bindings::install_animation_api;
 pub use crate::player::{
@@ -59,7 +59,17 @@ pub use crate::player::{
 };
 pub use crate::tween::{Tween, TweenId};
 
-pub struct AnimationPlugin;
+pub struct AnimationPlugin {
+    manifest: balaur_plugin::Manifest,
+}
+
+impl Default for AnimationPlugin {
+    fn default() -> Self {
+        Self {
+            manifest: balaur_plugin::Manifest::new("animation", env!("CARGO_PKG_VERSION")),
+        }
+    }
+}
 
 /// What a definition table holds, for the generated reference.
 const CLIP_ASSET_DOC: &str = r#"A clip keys node properties over time. `length` is in seconds and may be
@@ -88,12 +98,13 @@ keys = [
 ]
 ```"#;
 
-impl Plugin for AnimationPlugin {
-    fn name(&self) -> &'static str {
-        "animation"
+impl balaur_plugin::Plugin for AnimationPlugin {
+    fn manifest(&self) -> &balaur_plugin::Manifest {
+        &self.manifest
     }
 
-    fn build(&mut self, app: &mut App) -> Result<()> {
+    fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
+        let app = reg.app();
         app.engine.insert_resource(AnimationState::default());
         app.add_system(Stage::Update, system::advance_system);
         // After the clip has posed the rig, so a modifier has the last word.

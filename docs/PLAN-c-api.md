@@ -80,7 +80,10 @@ and it is additive: an addon extends what scripts can call.
 - Cost: a C mirror of `Value`, one registration entry point, and the plumbing
   below. No ECS types cross the boundary.
 - Gets you: native code behind a script API. Image loaders, networking,
-  physics queries, platform integrations.
+  physics queries. **Not** a platform's own services, as the store work found
+  out: a Tier 1 extension has no `ExternalIo`, no await token and no way to
+  call back into a script, so it cannot land an asynchronous answer on a tick.
+  Those are engine crates behind features (`docs/PLAN-apple.md`).
 - Does not get you: components, systems, or scene-file vocabulary.
 
 **Tier 2 — components and systems.** Add registering a component type, a

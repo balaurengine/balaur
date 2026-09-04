@@ -12,7 +12,9 @@ default = []
 dylib = ["dep:libloading"]
 
 [dependencies]
+serde.workspace = true
 serde_json.workspace = true
+toml.workspace = true
 balaur_core.workspace = true
 balaur_script.workspace = true
 anyhow.workspace = true

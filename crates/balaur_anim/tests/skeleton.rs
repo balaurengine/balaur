@@ -18,7 +18,7 @@ fn app() -> App {
         script_backend: None,
     })
     .unwrap();
-    app.add_plugin(AnimationPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
     app
 }
 

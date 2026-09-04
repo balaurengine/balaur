@@ -28,7 +28,7 @@ fn app(manifest: &str) -> (tempfile::TempDir, App) {
         script_backend: None,
     })
     .unwrap();
-    app.add_plugin(InputPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut InputPlugin::default()).unwrap();
     app.load_project().unwrap();
     (dir, app)
 }

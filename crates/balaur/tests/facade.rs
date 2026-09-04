@@ -95,14 +95,78 @@ fn the_standard_app_records_every_plugin_it_loaded() {
     assert!(names.contains(&"audio".to_string()), "{names:?}");
 }
 
-/// Every optional module the build linked in, whatever `standard_app` names.
-fn optional_modules(names: &[String]) -> Vec<String> {
-    const OPTIONAL: [&str; 5] = ["apple", "audio", "gamend", "http", "websocket"];
-    names
-        .iter()
-        .filter(|n| OPTIONAL.contains(&n.as_str()))
-        .cloned()
-        .collect()
+/// A project whose `project.toml` carries a `[plugins]` table.
+fn project_asking(dir: &std::path::Path, plugins: &str) {
+    project(dir, None, RUNE);
+    let manifest = std::fs::read_to_string(dir.join("project.toml")).unwrap();
+    std::fs::write(
+        dir.join("project.toml"),
+        format!("{manifest}\n[plugins]\n{plugins}\n"),
+    )
+    .unwrap();
+}
+
+fn booted(dir: &std::path::Path) -> anyhow::Result<Vec<String>> {
+    let app = standard_app(AppConfig::dev(dir.to_string_lossy().as_ref()))?;
+    Ok(app.plugins().into_iter().map(|p| p.name).collect())
+}
+
+#[cfg(feature = "http")]
+#[test]
+fn a_module_the_project_turns_off_does_not_load() {
+    let dir = tempfile::tempdir().unwrap();
+    project_asking(dir.path(), "http = false");
+
+    let names = booted(dir.path()).unwrap();
+    assert!(!names.contains(&"http".to_string()), "{names:?}");
+    assert!(names.contains(&"render".to_string()), "{names:?}");
+}
+
+#[cfg(feature = "http")]
+#[test]
+fn a_module_the_project_asks_for_still_loads() {
+    let dir = tempfile::tempdir().unwrap();
+    project_asking(dir.path(), "http = true");
+
+    assert!(booted(dir.path()).unwrap().contains(&"http".to_string()));
+}
+
+#[test]
+fn a_project_that_names_no_plugins_gets_every_module() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path(), None, RUNE);
+
+    let named = booted(dir.path()).unwrap();
+    let dir2 = tempfile::tempdir().unwrap();
+    project_asking(dir2.path(), "");
+    assert_eq!(named, booted(dir2.path()).unwrap());
+}
+
+#[test]
+fn asking_for_a_plugin_this_build_has_not_got_is_a_named_error() {
+    let dir = tempfile::tempdir().unwrap();
+    project_asking(dir.path(), "nowhere = true");
+
+    let err = format!("{:#}", booted(dir.path()).unwrap_err());
+    assert!(err.contains("nowhere"), "does not name it: {err}");
+    assert!(err.contains("--features"), "no way out of it: {err}");
+}
+
+#[test]
+fn turning_off_a_plugin_this_build_has_not_got_is_not_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+    project_asking(dir.path(), "nowhere = false");
+
+    booted(dir.path()).expect("the project already has what it asked for");
+}
+
+#[test]
+fn turning_off_a_plugin_every_build_has_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    project_asking(dir.path(), "render = false");
+
+    let err = format!("{:#}", booted(dir.path()).unwrap_err());
+    assert!(err.contains("render"), "does not name it: {err}");
 }
 
 #[test]
@@ -135,16 +199,22 @@ fn the_engines_own_plugins_are_ordered_with_the_rest() {
 }
 
 #[test]
-fn platform_loads_before_the_modules_that_register_a_backend_into_it() {
+fn nothing_loads_before_what_it_requires() {
     let dir = tempfile::tempdir().unwrap();
     project(dir.path(), None, RUNE);
     let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
-    let names: Vec<String> = app.plugins().into_iter().map(|p| p.name).collect();
+    let loaded = app.plugins();
 
-    let at = |name: &str| names.iter().position(|n| n == name);
-    let platform = at("platform").unwrap_or_else(|| panic!("platform is not loaded: {names:?}"));
-    for module in optional_modules(&names) {
-        assert!(at(&module) > Some(platform), "`{module}` beat platform");
+    let at = |name: &str| loaded.iter().position(|p| p.name == name);
+    assert!(at("platform").is_some(), "{loaded:?}");
+    for plugin in &loaded {
+        for required in &plugin.requires {
+            assert!(
+                at(required) < at(&plugin.name),
+                "`{}` loaded before `{required}`",
+                plugin.name
+            );
+        }
     }
 }
 

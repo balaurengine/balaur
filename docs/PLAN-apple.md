@@ -97,7 +97,16 @@
 >    `apple.identity`'s url, signature, salt and timestamp, `apple.sign_in`'s
 >    identity token and authorization code, and a purchase's `jws` — base64
 >    where the source is bytes, because the destination is JSON.
-> 14. **The Apple templates carry the feature.** `scripts/package.sh` and
+> 14. **Swift's runtime needs an rpath the linker does not add.** A binary
+>    with the shim in it loads `libswift_Concurrency.dylib`, which ships with
+>    the OS under `/usr/lib/swift` and is on no default search path — Xcode
+>    adds that rpath and a cargo build has to as well. It sits in
+>    `.cargo/config.toml`, beside the emscripten link args, for the reason
+>    stated there: a link arg does not propagate out of the library that owns
+>    it, and the binary that needs it is the game. Without it everything links
+>    and nothing launches, which is exactly the failure the macOS test job
+>    catches, because running a test binary is running the shim.
+> 15. **The Apple templates carry the feature.** `scripts/package.sh` and
 >    `scripts/package_template.sh` build the macOS and iOS templates with
 >    `--features "window,apple"`, because a template is prebuilt and a game
 >    exported onto one cannot link a framework afterwards.
@@ -298,8 +307,9 @@ step leaves something that works.
 `scripts/export_mobile.sh` already draws this line for the bundle, and this
 plan does not move it. What a runner can check:
 
-- the crate compiles for `aarch64-apple-ios` and for macOS, and the shim
-  compiles with it
+- the crate compiles for `aarch64-apple-ios` and for macOS, and the Swift
+  shim compiles and *links* with it — the macOS test job launches a binary
+  with the shim in it, which is what catches a missing runtime path
 - an exported bundle carries the identifier, the plist keys and the
   entitlements the project declared — a file comparison, not a device
 - `codesign` accepts the entitlements file against an ad-hoc identity

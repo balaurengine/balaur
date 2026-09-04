@@ -14,7 +14,7 @@ use balaur_core::collections::DetHashMap;
 
 use balaur_core::hecs::Entity;
 
-use balaur_core::{App, Engine, Plugin, Stage, Transform};
+use balaur_core::{App, Engine, Stage, Transform};
 
 use balaur_script::{Bindings, BindingsExt};
 
@@ -121,14 +121,46 @@ impl PhysicsState {
     }
 }
 
-pub struct PhysicsPlugin;
+pub struct PhysicsPlugin {
+    manifest: balaur_plugin::Manifest,
+}
 
-impl Plugin for PhysicsPlugin {
-    fn name(&self) -> &'static str {
-        "physics"
+impl Default for PhysicsPlugin {
+    fn default() -> Self {
+        Self {
+            manifest: balaur_plugin::Manifest::new("physics", env!("CARGO_PKG_VERSION")),
+        }
+    }
+}
+
+impl balaur_plugin::Plugin for PhysicsPlugin {
+    fn manifest(&self) -> &balaur_plugin::Manifest {
+        &self.manifest
     }
 
-    fn build(&mut self, app: &mut App) -> Result<()> {
+    fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
+        let app = reg.app();
+        balaur_core::settings::register(
+            &app.engine,
+            balaur_core::settings::SettingsPage {
+                category: String::from("Physics"),
+                table: String::from("physics"),
+                scope: balaur_core::settings::Scope::Project,
+                schema: balaur_core::ComponentDef::parse_schema(
+                    "settings.physics",
+                    r#"
+solver_iterations = { type = "float", default = 4.0, min = 1.0, max = 64.0, help = "Solver iterations per step. More is stabler and slower; every value here changes results, so a recording only replays against the same numbers." }
+ccd_substeps = { type = "float", default = 1.0, min = 0.0, max = 16.0, help = "Substeps for continuous collision detection, which stops a fast body tunnelling through a thin one." }
+length_unit = { type = "float", default = 1.0, min = 0.000001, max = 1000.0, help = "How many of the game's units make a metre. A pixel game sets this rather than scaling every body." }
+contact_clustering = { type = "bool", default = true, help = "Group contacts before solving them." }
+contact_recycling = { type = "bool", default = true, help = "Reuse contact state between steps." }
+allowed_linear_error = { type = "float", default = 0.001, min = 0.0, max = 1.0, help = "How far a body may sink into another before the solver pushes back." }
+max_corrective_velocity = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "A cap on how fast the solver may push overlapping bodies apart." }
+prediction_distance = { type = "float", default = 0.002, min = 0.0, max = 1.0, help = "How far ahead contacts are predicted." }
+"#,
+                ),
+            },
+        );
         app.engine.insert_resource(PhysicsState::new());
         app.add_system(Stage::FixedUpdate, step_system);
         build_physics_digest(app);

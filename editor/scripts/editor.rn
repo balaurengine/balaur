@@ -2,6 +2,7 @@
 // shell and edit the game given to `balaur edit`; `S` is its one state object.
 
 mod anim;
+mod arrange;
 mod center;
 mod chrome;
 mod defs;
@@ -25,6 +26,7 @@ mod polygon;
 mod rig;
 mod selftest;
 mod session;
+mod settings;
 mod shell;
 mod showcase;
 mod style;
@@ -99,6 +101,7 @@ pub fn init(this) {
         anim: anim::state(),
         debug: shell::debug_state(),
         session: session::state(),
+        settings: settings::state(),
         showcase: showcase::state(),
         inputview: inputview::state(),
         lint: lint::state(),
@@ -330,6 +333,9 @@ pub fn draw_ui(this) {
     if S.fontdemo {
         selftest::font_sheet(S);
     }
+    // Over everything but the palette: settings is a sheet you work in, the
+    // palette is a thing you summon on top of whatever you are working in.
+    settings::draw(S);
     palette::draw(S);
 }
 

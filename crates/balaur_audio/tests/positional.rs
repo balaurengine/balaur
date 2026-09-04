@@ -107,7 +107,10 @@ fn pan_of(app: &App, handle: u64) -> f32 {
 #[test]
 fn a_sound_within_min_distance_is_at_full_volume_and_centred() {
     let listener = ears_at(Vec3::ZERO);
-    let placement = spatial::place(&listener, &Emitter::new(Vec3::new(0.5, 0.0, 0.0), 1.0, 50.0, 0.0));
+    let placement = spatial::place(
+        &listener,
+        &Emitter::new(Vec3::new(0.5, 0.0, 0.0), 1.0, 50.0, 0.0),
+    );
     assert!((placement.gain - 1.0).abs() < 1e-6, "{placement:?}");
     assert!(placement.pan.abs() < 0.51, "half a unit is not a hard pan");
     assert!((placement.pitch - 1.0).abs() < 1e-6, "nothing is moving");
@@ -132,7 +135,7 @@ fn volume_halves_with_every_doubling_past_min_distance() {
 fn a_sound_past_max_distance_is_silent() {
     let listener = ears_at(Vec3::ZERO);
     let emitter = Emitter::new(Vec3::new(0.0, 0.0, 60.0), 1.0, 50.0, 0.0);
-    assert_eq!(spatial::place(&listener, &emitter).gain, 0.0);
+    assert!(spatial::place(&listener, &emitter).gain < 1e-6);
 }
 
 /// The listener's right is where the pan comes from, so a sound off to that
@@ -140,14 +143,23 @@ fn a_sound_past_max_distance_is_silent() {
 #[test]
 fn a_sound_to_the_listeners_right_leans_right() {
     let listener = ears_at(Vec3::ZERO);
-    let right = spatial::place(&listener, &Emitter::new(Vec3::new(10.0, 0.0, 0.0), 1.0, 50.0, 0.0));
-    let left = spatial::place(&listener, &Emitter::new(Vec3::new(-10.0, 0.0, 0.0), 1.0, 50.0, 0.0));
+    let right = spatial::place(
+        &listener,
+        &Emitter::new(Vec3::new(10.0, 0.0, 0.0), 1.0, 50.0, 0.0),
+    );
+    let left = spatial::place(
+        &listener,
+        &Emitter::new(Vec3::new(-10.0, 0.0, 0.0), 1.0, 50.0, 0.0),
+    );
     assert!((right.pan - 1.0).abs() < 1e-6, "{right:?}");
     assert!((left.pan + 1.0).abs() < 1e-6, "{left:?}");
 
     let [l, r] = spatial::stereo_gains(right.pan);
     assert!(r > l, "a sound on the right is louder on the right");
-    let ahead = spatial::place(&listener, &Emitter::new(Vec3::new(0.0, 0.0, 10.0), 1.0, 50.0, 0.0));
+    let ahead = spatial::place(
+        &listener,
+        &Emitter::new(Vec3::new(0.0, 0.0, 10.0), 1.0, 50.0, 0.0),
+    );
     assert!(ahead.pan.abs() < 1e-6, "straight ahead is centred");
 }
 
@@ -177,7 +189,7 @@ fn doppler_stays_off_until_a_sound_asks_for_it() {
     let listener = ears_at(Vec3::ZERO);
     let mut emitter = Emitter::new(Vec3::new(0.0, 0.0, 50.0), 1.0, 500.0, 0.0);
     emitter.velocity = Vec3::new(0.0, 0.0, -300.0);
-    assert_eq!(spatial::place(&listener, &emitter).pitch, 1.0);
+    assert!((spatial::place(&listener, &emitter).pitch - 1.0).abs() < 1e-6);
 }
 
 /// A pitch a listener could not survive is a bug in the scene, not something
@@ -198,9 +210,9 @@ fn with_no_listener_a_positional_sound_plays_flat() {
         &ListenerPose::default(),
         &Emitter::new(Vec3::new(0.0, 0.0, 900.0), 1.0, 50.0, 1.0),
     );
-    assert_eq!(placement.gain, 1.0);
-    assert_eq!(placement.pan, 0.0);
-    assert_eq!(placement.pitch, 1.0);
+    assert!((placement.gain - 1.0).abs() < 1e-6);
+    assert!(placement.pan.abs() < 1e-6);
+    assert!((placement.pitch - 1.0).abs() < 1e-6);
 }
 
 #[test]
@@ -310,7 +322,10 @@ fn freeing_a_listener_node_leaves_the_ears_where_they_were() {
 
     let state = app.engine.resource::<AudioState>();
     let state = state.borrow();
-    assert!(state.listener().placed, "the ears are still where they were");
+    assert!(
+        state.listener().placed,
+        "the ears are still where they were"
+    );
     assert!((state.listener().position.x - 10.0).abs() < 1e-6);
 }
 
@@ -358,4 +373,21 @@ fn a_listener_node_overrules_one_set_by_hand() {
 
     app.tick(1.0 / 60.0);
     assert!((state.borrow().listener().position.x - 7.0).abs() < 1e-6);
+}
+
+/// A scene's first `update` runs before that frame's scene sync, so a
+/// listener has to place the ears as it is applied — or the one-shot a script
+/// fires there is heard from the origin.
+#[test]
+fn a_listener_places_the_ears_as_soon_as_it_is_applied() {
+    let dir = tempfile::tempdir().unwrap();
+    write_wav(dir.path(), "chime.wav");
+    let app = app_in(dir.path());
+    let ears = node_at(&app, "Ears", Vec3::new(100.0, 0.0, 0.0));
+    components::add(&app.engine, ears, "listener", None).unwrap();
+    let (_, handle) = placed_sound(&app, POSITIONAL, Vec3::new(150.0, 0.0, 0.0));
+
+    let gain = gain_of(&app, handle);
+    assert!(gain < 0.5, "fifty units away, with no tick yet: {gain}");
+    assert!(pan_of(&app, handle) > 0.0, "and off to the right");
 }

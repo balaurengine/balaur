@@ -1,0 +1,129 @@
+> **Status:** partly built. Keyboard, mouse, touch and the action layer have
+> been there for a while; rumble and PlayStation motion landed 2026-09-04.
+> Written down after that rather than before, because the first sensor backend
+> is what made the shape of the rest visible: one pad family is covered, and
+> every other device — another pad, a phone, a Steam Deck — is the same
+> backend problem behind the same snapshot.
+
+# Plan: Input
+
+Everything a player touches: keyboard, mouse, wheel, touch screen, gamepads,
+the sensors inside them and the motors that push back. All of it arrives as
+one snapshot per frame, and all of it is recorded, because input is the half
+of a simulation the engine does not compute.
+
+## 0. Where the tree is today
+
+| Have | Where |
+| --- | --- |
+| Keys, mouse buttons, position, wheel and typed text, one snapshot a frame | `InputSnapshot`, `crates/balaur_input/src/lib.rs` |
+| Touch points with their edges, and files dropped on the window | `InputSnapshot::touch_event`, `dropped_files` |
+| Actions bound to keys, mouse, pad buttons, axes and key pairs, rebindable and saved per user | `crates/balaur_input/src/actions.rs` |
+| Gamepad buttons and axes, polled inside the tick so a headless run sees a pad | `gamepad.rs`, gilrs 0.11 |
+| Rumble on both motors, with `can_rumble` recorded so a replay branches the same way | `haptics.rs`, gilrs force feedback |
+| Gyro, accelerometer and touchpad on DualSense and DualShock 4, USB and Bluetooth | `sensors.rs`, hidapi 2.6, layouts from Linux's `hid-playstation.c` |
+| Every one of those recorded and replayed bit for bit, bindings included | `App::add_replay_source`, `add_replay_resource` |
+| A script seam standing in for a person, for keyboard and mouse | `input.feed_key`, `feed_mouse`, `feed_mouse_button` |
+
+Not built: motion on any pad that is not Sony's, per-unit sensor calibration,
+anything a pad does other than rumble, motion from a phone or tablet, a
+gamepad backend on iOS or Android, and a way for a script to stand in for a
+pad the way it already can for a keyboard.
+
+## 1. Design
+
+Five rules already hold, and the point of writing them down is that every
+backend below has to keep holding them.
+
+1. **One snapshot per frame.** A backend writes it, everything else reads it.
+   No script reaches a device.
+2. **Neutral answers, never failure.** An absent pad, a headless run, a pad
+   with no gyroscope and a platform with no HID all read the same zero. This
+   is what lets one game run in CI and in a window.
+3. **What a script can read is recorded.** Otherwise a replay diverges. That
+   is why `can_rumble` is in the snapshot rather than asked of the hardware:
+   a script may branch on it, and the branch has to be the same on replay.
+4. **Output is not recorded.** A rumble is re-asked by the script that ran, so
+   the recording carries the input, not the effect.
+5. **One reading of one concern.** gilrs owns buttons and axes; `sensors.rs`
+   owns gyro and the touchpad. A backend that covers both replaces both,
+   rather than joining them — two readings of one pad is a bug with a name.
+
+## 2. The surface
+
+Every device and API worth naming, whether or not it is planned. A row saying
+"not planned" is a decision, not an oversight.
+
+### Pads and their sensors
+
+| Thing | Verdict |
+| --- | --- |
+| DualSense, DualSense Edge, DualShock 4 v1/v2: gyro, accelerometer, touchpad | Have — `sensors.rs` over hidapi, USB and Bluetooth |
+| Per-unit calibration report (DualSense feature `0x05`, DS4 `0x02` / `0x05`) | Step 2. Nominal scaling today, good to a few percent; the report trims it to the unit and corrects the accelerometer's bias |
+| Switch Pro and Joy-Con: gyro and accelerometer | Step 3. Report `0x30` behind a USB handshake, and a calibration block in SPI flash. No touchpad on either |
+| DualSense adaptive triggers, light bar, player and mute LEDs | Step 4. One output report carries all of them, so they arrive together or not at all |
+| Core Haptics on Apple, and waveform haptics generally | Step 5, as a backend under the same verb as rumble rather than a second API |
+| Steam Deck and Steam Controller: gyro, trackpads, back buttons | Not here — Steam Input, `docs/PLAN-steam.md` step 10, which replaces both readers at once |
+| Xbox pads: motion | Not planned. No Xbox pad reports any |
+| Pad speaker, microphone, headphone jack | Not planned here. They are audio devices; a stream belongs in `balaur_audio` |
+| Trackballs, wheels, flight sticks, pedals | Not planned. gilrs presents them as axes already, which is the honest shape |
+
+### Platforms
+
+| Thing | Verdict |
+| --- | --- |
+| macOS: sharing one pad between gilrs and the sensor reader | Have — hidapi's `macos-shared-device`; without it the reader takes the pad |
+| Linux: hidraw permission | Warns once and reports no sensors, per rule 2. Shipping a udev rule with the export is step 8 |
+| Windows: HID over `hid.dll` | Have. XInput pads are unreachable this way, and have no sensors to reach |
+| iOS and Android: gamepad buttons and axes | Step 7. gilrs covers neither, so a pad on a phone reads nothing at all today |
+| Phone and tablet device motion (CoreMotion, Android `SensorManager`) | Step 6. Not a pad — a sensor in the device — but it lands in the same snapshot and wants `balaur_apple` / `balaur_android` |
+| wasm | Not planned for sensors. The Gamepad API may cover buttons and axes later; there is no HID in a tab |
+
+### Standing in for a person
+
+| Thing | Verdict |
+| --- | --- |
+| `input.feed_*` for keyboard and mouse | Have |
+| Feeding a pad: buttons, axes, motion, touch | Step 1. A showcase or a test can drive a keyboard but not a controller, which is the gap that makes every row above hard to demonstrate |
+| Sensor decode asserted against captured reports | Step 1. Synthetic fixtures today; the ones worth having come off real hardware — see §4 |
+
+## 3. Steps
+
+1. Feeding a pad, and report fixtures captured from real hardware.
+2. Calibration for the pads already decoded.
+3. Switch Pro and Joy-Con.
+4. What a DualSense does besides rumble: triggers, light bar, LEDs.
+5. Core Haptics behind the rumble verb.
+6. Device motion on phones and tablets.
+7. Gamepad buttons and axes on iOS and Android.
+8. A udev rule in the Linux export, so a player is not the one debugging it.
+
+## 4. What CI can prove, and what it cannot
+
+CI has no controller, and no runner will grow one. It can prove the decode
+arithmetic against fixed bytes: the scaling into radians and g, the twelve-bit
+touch coordinates packed across a shared byte, the Bluetooth layout landing on
+the same values as USB, an empty touch slot, a truncated report. It can prove
+the snapshot round-trips through a recording and that an older recording still
+replays.
+
+It cannot prove a byte offset is the one the hardware actually sends. Those
+came from Linux's `hid-playstation.c` and both report sizes reconstruct
+exactly, which is strong evidence and not a test. **No PlayStation pad has
+been held against this code.** The first person with one should check that a
+resting pad reads about 1 g on one axis and that a finger at the centre of the
+touchpad reads about `(0.5, 0.5)`; step 1's fixtures should then be captured
+from that pad so CI can hold the line afterwards.
+
+## 5. Open questions
+
+1. **Whether the sensor reader survives Steam Input.** Rule 5 says a backend
+   covering both readings replaces both. Steam Input covers gyro and buttons,
+   so on a Steam build `sensors.rs` should go quiet — but a player running the
+   Steam build with a pad Steam does not recognise wants it back.
+2. **Whether motion belongs in the action layer.** Actions map a name to a key
+   or an axis. Gyro aiming is an axis with a filter in front of it, and the
+   filter is the part an action table has no word for yet.
+3. **How a pad is identified across a replay.** Vendor and product match a
+   pad to its HID device today, and two identical pads are told apart by
+   order. A recording made with two pads swapped replays with them swapped.

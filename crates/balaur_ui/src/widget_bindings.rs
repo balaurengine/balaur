@@ -167,11 +167,8 @@ fn install_overlay(m: &mut dyn Bindings<Engine>) {
                     // wider than the sheet moved the whole panel.
                     .constrain(!sized);
                 area.show(ctx, |ui| {
-                    // A sized sheet is exactly the rect the layout gave
-                    // it. Clipping the outer ui too is what holds that:
-                    // egui grows a container to its content, so one row
-                    // wider than the sheet (a long name, a path) would
-                    // otherwise stretch the frame's fill with it.
+                    // Clipped as well as capped: egui grows a container to
+                    // its content, and one long row would stretch the fill.
                     if sized {
                         ui.set_max_size(vec2(w, h));
                         ui.shrink_clip_rect(egui::Rect::from_min_size(pos2(x, y), vec2(w, h)));
