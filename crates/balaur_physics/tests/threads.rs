@@ -1,7 +1,4 @@
-//! The scalar the simulation runs at, and the threads it runs on.
-//!
-//! Most of this file only compiles under the feature it is about — a f64
-//! assertion in an f32 build would be testing the wrong engine.
+//! The threads the simulation runs on, and a resting control beside them.
 
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
@@ -71,22 +68,10 @@ fn residual_speed(x: f32) -> f32 {
     let state = app.engine.resource::<PhysicsState>();
     let state = state.borrow();
     let velocity = state.world.bodies[state.bodies[&ball]].linvel();
-    narrow(velocity.length())
+    velocity.length()
 }
 
-/// The f64 build narrows here, so both builds compare the same way.
-#[cfg(feature = "f64")]
-fn narrow(value: f64) -> f32 {
-    value as f32
-}
-
-#[cfg(not(feature = "f64"))]
-fn narrow(value: f32) -> f32 {
-    value
-}
-
-/// Near the origin, both scalars hold a body still. This is the control: if
-/// it fails, the far-away test below is measuring something else.
+/// A body on a floor settles rather than creeping.
 #[test]
 fn a_body_rests_near_the_origin() {
     assert!(
@@ -96,23 +81,9 @@ fn a_body_rests_near_the_origin() {
     );
 }
 
-/// What `f64` is for: a body a hundred kilometres out still rests. In `f32` a
-/// position that large has metre-scale spacing between representable values,
-/// and the solver never settles.
-#[cfg(feature = "f64")]
-#[test]
-fn a_body_rests_a_hundred_kilometres_out() {
-    let speed = residual_speed(100_000.0);
-    assert!(
-        speed < 0.01,
-        "a resting ball 100 km out jitters at {speed} units per second"
-    );
-}
-
-/// The claim phase 12 rests on: the thread count does not change results.
-/// Rapier's solver is coloured and staged, so this holds it to that rather
-/// than trusting it.
-#[cfg(feature = "parallel")]
+/// The claim a threaded solver rests on: the thread count does not change
+/// results. Rapier's solver is coloured and staged, so this holds it to that
+/// rather than trusting it.
 #[test]
 fn the_thread_count_does_not_change_the_simulation() {
     use balaur_core::digest;

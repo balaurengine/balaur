@@ -1,20 +1,10 @@
 //! The one place this crate says what a number is.
 //!
-//! Rapier ships twice — `rapier3d` and `rapier3d-f64` — and everything under
-//! `math` follows: `Vector` is a `Vec3` in one and a `DVec3` in the other,
-//! `Pose` and `Rotation` likewise. So the crate uses **rapier's** math types
-//! rather than glamx's directly, and the `f64` feature swaps the dependency
-//! under them.
-//!
-//! What does not swap is the engine around it: `Transform`, the script value
-//! model and every scene file are `f32`. Those are the seams, and the
-//! conversions below are the only places a number changes width — which is
-//! also why they are the only places to look when a `f64` build disagrees
-//! with an `f32` one.
-//!
-//! Each conversion is written twice, once per build: in the `f32` one there is
-//! nothing to do, and writing that out says so instead of leaving a no-op
-//! `Real::from` for a reader (or clippy) to puzzle over.
+//! The crate uses **rapier's** math types rather than glamx's directly, so
+//! `Vector`, `Pose` and `Rotation` all come from `rapier3d::math`. Rapier's
+//! `Real` and the engine's `f32` are the same width, so these conversions are
+//! all no-ops today — they stay because they name the seam, and a rapier that
+//! changed width would break here rather than everywhere.
 
 pub(crate) use crate::rapier2d::math::{Pose as Pose2, Rotation as Rotation2, Vector as Vector2};
 pub(crate) use crate::rapier3d::math::{Pose, Real, Rotation, Vector};
@@ -37,28 +27,14 @@ pub(crate) fn v2a(v: [f32; 2]) -> Vector2 {
     v2(v[0], v[1])
 }
 
-/// A number on its way into rapier. The `f32` build is already there.
-#[cfg(not(feature = "f64"))]
+/// A number on its way into rapier, which is already `f32`.
 pub(crate) const fn real(value: f32) -> Real {
     value
 }
 
-/// A number on its way into rapier; the `f64` build widens here.
-#[cfg(feature = "f64")]
-pub(crate) fn real(value: f32) -> Real {
-    Real::from(value)
-}
-
 /// A number on its way back out, to a script or a `Transform`.
-#[cfg(not(feature = "f64"))]
 pub(crate) const fn f32_of(value: Real) -> f32 {
     value
-}
-
-/// The same; the `f64` build narrows here, on purpose and in one place.
-#[cfg(feature = "f64")]
-pub(crate) fn f32_of(value: Real) -> f32 {
-    value as f32
 }
 
 /// A vector on its way back out.
@@ -78,35 +54,13 @@ pub(crate) fn pose_of(position: glamx::Vec3, rotation: glamx::Quat) -> Pose {
     )
 }
 
-#[cfg(not(feature = "f64"))]
-pub(crate) fn rotation_of(rotation: glamx::Quat) -> Rotation {
+pub(crate) const fn rotation_of(rotation: glamx::Quat) -> Rotation {
     rotation
-}
-
-#[cfg(feature = "f64")]
-pub(crate) fn rotation_of(rotation: glamx::Quat) -> Rotation {
-    Rotation::from_xyzw(
-        Real::from(rotation.x),
-        Real::from(rotation.y),
-        Real::from(rotation.z),
-        Real::from(rotation.w),
-    )
 }
 
 /// The engine's `f32` rotation, from rapier's.
-#[cfg(not(feature = "f64"))]
-pub(crate) fn quat_of(rotation: Rotation) -> glamx::Quat {
+pub(crate) const fn quat_of(rotation: Rotation) -> glamx::Quat {
     rotation
-}
-
-#[cfg(feature = "f64")]
-pub(crate) fn quat_of(rotation: Rotation) -> glamx::Quat {
-    glamx::Quat::from_xyzw(
-        rotation.x as f32,
-        rotation.y as f32,
-        rotation.z as f32,
-        rotation.w as f32,
-    )
 }
 
 /// The engine's `f32` position, from rapier's.
@@ -114,15 +68,7 @@ pub(crate) fn position_of(v: Vector) -> glamx::Vec3 {
     glamx::Vec3::new(f32_of(v.x), f32_of(v.y), f32_of(v.z))
 }
 
-/// A voxel coordinate. The `f32` build's cells are already 32-bit.
-#[cfg(not(feature = "f64"))]
-pub(crate) fn cell(x: i32, y: i32, z: i32) -> crate::rapier3d::math::IVector {
+/// A voxel coordinate; rapier's cells are 32-bit, as ours are.
+pub(crate) const fn cell(x: i32, y: i32, z: i32) -> crate::rapier3d::math::IVector {
     crate::rapier3d::math::IVector::new(x, y, z)
-}
-
-/// The same; the integer width follows the scalar, and a `f64` world is big
-/// enough to want 64-bit cells.
-#[cfg(feature = "f64")]
-pub(crate) fn cell(x: i32, y: i32, z: i32) -> crate::rapier3d::math::IVector {
-    crate::rapier3d::math::IVector::new(x.into(), y.into(), z.into())
 }

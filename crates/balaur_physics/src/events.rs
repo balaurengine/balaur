@@ -18,14 +18,12 @@
 
 use crate::rapier3d::prelude::{
     ColliderHandle, ColliderSet, CollisionEvent, ContactForceEvent, ContactModificationContext,
-    EventHandler, PairFilterContext, PhysicsHooks, SolverFlags,
+    EventHandler, PhysicsHooks,
 };
 use balaur_core::hecs::Entity;
 use balaur_core::Engine;
 use balaur_script::Value;
-use std::cell::RefCell;
-
-use crate::vocabulary::map;
+use std::sync::Mutex;
 
 /// One thing that happened, in Balaur's terms rather than rapier's handles.
 pub(crate) enum Event {
@@ -35,31 +33,39 @@ pub(crate) enum Event {
 }
 
 impl Event {
-    /// The pair, for sorting. Both sides are told, so the order within a pair
-    /// does not matter; the order *between* pairs does.
-    fn key(&self) -> (u64, u64) {
-        let (a, b) = match self {
-            Self::Started(a, b) | Self::Stopped(a, b) | Self::Force(a, b, _, _) => (*a, *b),
+    /// The pair and the kind, for sorting. Both sides are told, so the order
+    /// within a pair does not matter; the order *between* events does, and a
+    /// threaded step collects them in no particular order. The kind is in the
+    /// key because one pair can raise a `Started` and a `Force` in one step.
+    fn key(&self) -> (u64, u64, u8) {
+        let (a, b, kind) = match self {
+            Self::Started(a, b) => (*a, *b, 0),
+            Self::Stopped(a, b) => (*a, *b, 1),
+            Self::Force(a, b, _, _) => (*a, *b, 2),
         };
         (
             a.to_bits().get().min(b.to_bits().get()),
             a.to_bits().get().max(b.to_bits().get()),
+            kind,
         )
     }
 }
 
-/// Collects a step's events. Not `Sync`, which rapier allows because
-/// `unsync-callbacks` is on — the whole reason a handler here can hold a
-/// `RefCell` and, in [`Hooks`], an `&Engine`.
+/// Collects a step's events, from whichever thread raised them. The order
+/// they arrive in is not the order they are delivered in: [`Event::key`] is a
+/// total order, and `take` sorts by it.
 #[derive(Default)]
 pub(crate) struct Collector {
-    events: RefCell<Vec<Event>>,
+    events: Mutex<Vec<Event>>,
 }
 
 impl Collector {
     pub(crate) fn take(self) -> Vec<Event> {
-        let mut events = self.events.into_inner();
-        events.sort_by_key(Event::key);
+        let mut events = self
+            .events
+            .into_inner()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        events.sort_unstable_by_key(Event::key);
         events
     }
 }
@@ -67,6 +73,15 @@ impl Collector {
 /// The entity behind a collider handle, from the id stored on it.
 fn entity_of(colliders: &ColliderSet, handle: ColliderHandle) -> Option<Entity> {
     Entity::from_bits(colliders.get(handle)?.user_data as u64)
+}
+
+impl Collector {
+    fn push(&self, event: Event) {
+        self.events
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(event);
+    }
 }
 
 impl EventHandler for Collector {
@@ -81,7 +96,7 @@ impl EventHandler for Collector {
         let (Some(a), Some(b)) = (entity_of(colliders, h1), entity_of(colliders, h2)) else {
             return;
         };
-        self.events.borrow_mut().push(if event.started() {
+        self.push(if event.started() {
             Event::Started(a, b)
         } else {
             Event::Stopped(a, b)
@@ -104,7 +119,7 @@ impl EventHandler for Collector {
             return;
         };
         let d = event.max_force_direction;
-        self.events.borrow_mut().push(Event::Force(
+        self.push(Event::Force(
             a,
             b,
             crate::scalar::f32_of(event.total_force_magnitude),
@@ -155,82 +170,19 @@ pub(crate) fn deliver(eng: &Engine, events: &[Event]) {
     }
 }
 
-/// The three questions rapier asks mid-step, forwarded to the node's script.
+/// The one mid-step rule left, and it reads collider data rather than calling
+/// a script.
 ///
-/// Only colliders that set `hooks` are asked, so a game that sets none pays
-/// nothing: rapier checks a flag on the collider before it calls any of this.
-pub(crate) struct Hooks<'a> {
-    pub(crate) eng: &'a Engine,
-}
+/// A hook runs on rapier's own threads, which is why it may not touch the
+/// `Engine`: that is what keeps `unsync-callbacks` off and the solver threaded.
+pub(crate) struct Hooks;
 
-impl Hooks<'_> {
-    /// A hook's answer, or `None` when the node has no such method — which is
-    /// the common case and must not be an error.
-    fn ask(&self, context: &PairFilterContext<'_>, method: &str) -> Option<Value> {
-        let host = self.eng.script_host()?;
-        let a = entity_of(context.colliders, context.collider1)?;
-        let b = entity_of(context.colliders, context.collider2)?;
-        // Both sides may have opted in; the first answer that says no wins,
-        // which is the same rule rapier applies to its own filters.
-        for (node, other) in [(a, b), (b, a)] {
-            let answer = host.call_on(
-                balaur_core::node_id_of(node),
-                method,
-                &[Value::Node(other.to_bits().get())],
-            );
-            if matches!(answer, Some(Value::Bool(false))) {
-                return Some(Value::Bool(false));
-            }
-        }
-        None
-    }
-}
-
-impl PhysicsHooks for Hooks<'_> {
-    fn filter_contact_pair(&self, context: &PairFilterContext<'_>) -> Option<SolverFlags> {
-        match self.ask(context, "filter_contact") {
-            Some(Value::Bool(false)) => None,
-            _ => Some(SolverFlags::COMPUTE_IMPULSES),
-        }
-    }
-
-    fn filter_intersection_pair(&self, context: &PairFilterContext<'_>) -> bool {
-        !matches!(
-            self.ask(context, "filter_overlap"),
-            Some(Value::Bool(false))
-        )
-    }
-
+impl PhysicsHooks for Hooks {
     fn modify_solver_contacts(&self, context: &mut ContactModificationContext<'_>) {
-        // The built-in one-way platform, which is what `one_way` on a collider
-        // means: rapier owns the maths, we own the axis.
-        let axis = one_way_axis(context);
-        if let Some(axis) = axis {
+        // The one-way platform, which is what `one_way` on a collider means:
+        // rapier owns the maths, we own the axis.
+        if let Some(axis) = one_way_axis(context) {
             context.update_as_oneway_platform(axis, 0.1);
-        }
-        let Some(host) = self.eng.script_host() else {
-            return;
-        };
-        let (Some(a), Some(b)) = (
-            entity_of(context.colliders, context.collider1),
-            entity_of(context.colliders, context.collider2),
-        ) else {
-            return;
-        };
-        for (node, other) in [(a, b), (b, a)] {
-            let normal = crate::scalar::a3(*context.normal);
-            let answer = host.call_on(
-                balaur_core::node_id_of(node),
-                "modify_contacts",
-                &[
-                    Value::Node(other.to_bits().get()),
-                    map([
-                        ("normal", Value::Vec3(normal)),
-                        ("points", Value::Num(context.solver_contacts.len() as f64)),
-                    ]),
-                ],
-            );
-            apply_contact_answer(context, answer.as_ref());
         }
     }
 }
@@ -246,22 +198,4 @@ impl PhysicsHooks for Hooks<'_> {
 fn one_way_axis(context: &ContactModificationContext<'_>) -> Option<crate::rapier3d::math::Vector> {
     let collider = context.colliders.get(context.collider1)?;
     crate::collider::decode_one_way(collider.user_data)
-}
-
-/// What a `modify_contacts` handler may change: friction, restitution, and
-/// whether the contact happens at all.
-fn apply_contact_answer(context: &mut ContactModificationContext<'_>, answer: Option<&Value>) {
-    let Some(answer) = answer else { return };
-    let opts = crate::vocabulary::Opts(Some(answer));
-    // Friction and restitution are the pair's, not each contact point's:
-    // rapier already combined the two materials before asking.
-    if let Some(Value::Num(friction)) = opts.get("friction") {
-        *context.friction = *friction as crate::scalar::Real;
-    }
-    if let Some(Value::Num(restitution)) = opts.get("restitution") {
-        *context.restitution = *restitution as crate::scalar::Real;
-    }
-    if !opts.boolean("solid", true) {
-        context.solver_contacts.clear();
-    }
 }

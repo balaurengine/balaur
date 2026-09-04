@@ -7,13 +7,7 @@ license.workspace = true
 authors.workspace = true
 
 [features]
-default = ["audio", "http", "websocket", "webtransport", "gamend", "f32"]
-# The scalar physics runs at, forwarded to `balaur_physics`. A f64 game builds
-# with `--no-default-features --features "f64,audio,http,websocket,gamend"`.
-f32 = ["balaur_physics/f32"]
-f64 = ["balaur_physics/f64"]
-# Rapier's parallel solver, likewise forwarded.
-parallel = ["balaur_physics/parallel"]
+default = ["audio", "http", "websocket", "webtransport", "gamend"]
 # Windowed rendering (kiss3d/wgpu).
 window = ["balaur_render/kiss3d"]
 # Sound. Off, a build drops rodio, cpal and the platform audio stack.

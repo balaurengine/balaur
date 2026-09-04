@@ -824,16 +824,6 @@
         "description": "A row of heights, when kind is heightfield: a side-scroller's ground",
         "type": "asset"
       },
-      "hooks": {
-        "default": [],
-        "description": "Mid-step questions this collider asks its node's script; each costs a call per candidate pair per step",
-        "options": [
-          "filter_contact",
-          "filter_overlap",
-          "modify_contacts"
-        ],
-        "type": "flags"
-      },
       "kind": {
         "default": "rect",
         "description": "Collision shape",
@@ -1249,16 +1239,6 @@
         "default": "",
         "description": "Terrain grid, when kind is heightfield",
         "type": "asset"
-      },
-      "hooks": {
-        "default": [],
-        "description": "Mid-step questions this collider asks its node's script; each costs a call per candidate pair per step",
-        "options": [
-          "filter_contact",
-          "filter_overlap",
-          "modify_contacts"
-        ],
-        "type": "flags"
       },
       "kind": {
         "default": "cuboid",
@@ -4271,10 +4251,10 @@
         "set_debug_draw": "Draw the physics world over the scene: `true` for the usual shapes, or a table naming modes (`#{ colliders = true, joints = true }`).",
         "set_paused": "Stop or resume stepping both worlds; nodes keep their poses.",
         "set_sleeping_allowed": "Allow or forbid resting bodies falling asleep, in both worlds and for bodies added later.",
-        "set_threads": "How many threads rapier's solver may use. Only a build with the `parallel` feature has any; on a serial build this says so and changes nothing.",
+        "set_threads": "How many threads the solver may use. The default is one less than the machine reports, capped at eight; rayon's pool is set once per process, so a later call does nothing.",
         "set_tuning": "Change how the solver behaves in both worlds: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness and the rest. Every value here changes results, so a recording only replays against the same numbers \u2014 prefer `[physics]` in project.toml.",
         "sleeping_allowed": "Whether resting bodies are allowed to fall asleep.",
-        "threads": "How many threads the solver is using; 1 on a serial build.",
+        "threads": "How many threads the solver is using.",
         "tuning": "The solver settings both worlds are running with."
       },
       "functions": [

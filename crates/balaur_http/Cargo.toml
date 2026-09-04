@@ -42,7 +42,7 @@ cc = "1"
 
 [dev-dependencies]
 tempfile = "3"
-balaur = { workspace = true, features = ["http", "f32"] }
+balaur = { workspace = true, features = ["http"] }
 balaur_plugin.workspace = true
 
 [lints]

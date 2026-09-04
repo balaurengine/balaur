@@ -399,51 +399,6 @@ pub fn fixed_update(this, dt) {
     );
 }
 
-/// The 2D `modify_solver_contacts` hook fired and never called the script
-/// method 3D calls, so `modify_contacts` was a 3D-only word.
-#[test]
-fn a_2d_modify_contacts_handler_is_called() {
-    run_clean(
-        r#"[[nodes]]
-id = "n_ground"
-name = "Ground"
-position = [0.0, -1.0, 0.0]
-body2d = "static"
-
-[nodes.collider2d]
-kind = "rect"
-half_extents = [8.0, 0.5]
-hooks = ["modify_contacts"]
-
-[[nodes]]
-id = "n_faller"
-name = "Faller"
-position = [0.0, 1.0, 0.0]
-body2d = "dynamic"
-script = "scripts/s.rn"
-
-[nodes.collider2d]
-kind = "rect"
-half_extents = [0.25, 0.25]
-hooks = ["modify_contacts"]
-"#,
-        r#"pub fn init(this) { this.asked = 0; this.ticks = 0; }
-
-pub fn modify_contacts(this, other, info) {
-    this.asked = this.asked + 1;
-    #{ friction: 0.5 }
-}
-
-pub fn fixed_update(this, dt) {
-    this.ticks = this.ticks + 1;
-    if this.ticks == 110 {
-        assert!(this.asked > 0, "the 2D hook never reached the script");
-    }
-}
-"#,
-    );
-}
-
 /// `contacts` reported parry's `local_p1`, which is in the *first* shape's
 /// local space — and the first may be the other node. Every other query is
 /// world-space, and a ground ten units down is where the point must be.

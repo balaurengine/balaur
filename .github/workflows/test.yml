@@ -59,9 +59,12 @@ jobs:
           cargo test -p balaur_plugin --features dylib
           cargo test -p balaur --features extensions
       # A build with a subsystem switched off is the point of having features;
-      # nothing else checks that one still compiles.
-      - name: Build without the optional subsystems
-        run: cargo build -p balaur_cli --no-default-features
+      # nothing else builds or runs one.
+      - name: Without the optional subsystems
+        shell: bash
+        run: |
+          cargo build -p balaur_cli --no-default-features
+          cargo test -p balaur_core -p balaur_physics --no-default-features
       # examples/ are Balaur projects, not cargo examples: run, export and play
       # each one. See scripts/e2e.sh for why all three are needed.
       - name: E2E — run, export, play and edit every example project
@@ -84,27 +87,6 @@ jobs:
           name: traces-${{ matrix.os }}
           path: target/determinism/traces.txt
 
-  # The two build-time choices nothing else compiles: a f64 world, and
-  # rapier's coloured solver on rayon. `scalar_and_threads.rs` asserts one
-  # thread and eight produce the same digest, and only runs under `parallel`.
-  scalars:
-    name: physics at either scalar, and threaded
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      # balaur_core pulls audio and input, whose -sys crates need these to
-      # build; no other step in this job installs them.
-      - name: Linux build deps
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
-      - uses: Swatinem/rust-cache@v2
-      - name: f64
-        run: cargo test -p balaur_physics --no-default-features --features f64
-      - name: parallel
-        run: cargo test -p balaur_physics --features parallel
-      # A subsystem switched off is the point of having features, and nothing
-      # else runs the tests with them off.
-      - name: Tests without the optional subsystems
-        run: cargo test -p balaur_core -p balaur_physics --no-default-features --features balaur_physics/f32
 
   # The multi-platform half of the determinism promise; see
   # scripts/compare_packs.sh for what it does and does not claim.

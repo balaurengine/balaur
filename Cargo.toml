@@ -66,10 +66,10 @@ hecs = "0.11"
 # crate built without physics in its graph gets the same math, not the platform's.
 glamx = { version = "0.3", features = ["libm", "scalar-math"] }
 notify = "8"
-# `unsync-callbacks` drops rapier's `Sync` bound on hooks and event handlers,
-# which is what lets one reach the script host (an `Rc`).
-rapier3d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render", "unsync-callbacks"] }
-rapier2d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render", "unsync-callbacks"] }
+# `parallel` threads the solver on rayon; rapier compiles that pipeline only
+# without `unsync-callbacks`, so the hooks in balaur_physics hold no `Engine`.
+rapier3d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render", "parallel"] }
+rapier2d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render", "parallel"] }
 serde = { version = "1", features = ["derive"] }
 bincode = { version = "2", features = ["serde"] }
 serde_json = "1"

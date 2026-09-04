@@ -7,7 +7,6 @@
 //! script setters are for a game that tunes at run time and knows it.
 
 use crate::rapier3d::dynamics::IntegrationParameters;
-use anyhow::Result;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Stage};
 use balaur_plugin::Registry;
@@ -77,6 +76,7 @@ macro_rules! write_parameters {
 /// Applied once, after the project has loaded, from `[physics]` in
 /// `project.toml`. A game with no such section keeps rapier's defaults.
 pub(crate) fn build(reg: &mut Registry<'_>) {
+    set_threads(default_threads());
     reg.insert_resource(ManifestTuning { applied: false });
     reg.add_system(Stage::First, manifest_tuning_system);
 }
@@ -190,8 +190,8 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
         ("tuning", &[], "()", "The solver settings both worlds are running with."),
         ("quarantined", &[], "()", "The nodes rapier disabled this step because their position or velocity stopped being a number. Empty is the normal answer."),
         ("counters", &[], "()", "What the last step spent its time on. The first call turns rapier's profiler on, so the numbers arrive from the step after it."),
-        ("set_threads", &[], "(count: int)", "How many threads rapier's solver may use. Only a build with the `parallel` feature has any; on a serial build this says so and changes nothing."),
-        ("threads", &[], "()", "How many threads the solver is using; 1 on a serial build."),
+        ("set_threads", &[], "(count: int)", "How many threads the solver may use. The default is one less than the machine reports, capped at eight; rayon's pool is set once per process, so a later call does nothing."),
+        ("threads", &[], "()", "How many threads the solver is using."),
     ]);
     m.function("set_tuning", |eng: &Engine, opts: Value| {
         let opts = Opts(Some(&opts));
@@ -239,7 +239,8 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
         ))
     });
     m.function("set_threads", |_eng: &Engine, count: i64| {
-        set_threads(count.max(1) as usize)
+        set_threads(count.max(1) as usize);
+        Ok(Value::Nil)
     });
     m.function("threads", |_eng: &Engine, ()| {
         Ok(i64::try_from(threads()).unwrap_or(i64::MAX))
@@ -269,37 +270,6 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-/// The thread count rapier's parallel work runs on.
-///
-/// With `unsync-callbacks` on — which is what lets a hook call a script —
-/// rapier's own per-pipeline pool is compiled out, so the pool is rayon's
-/// global one. It can be sized once per process, which is why setting it twice
-/// is not an error but does nothing the second time.
-#[cfg(feature = "parallel")]
-fn set_threads(count: usize) -> Result<()> {
-    let _ = rayon::ThreadPoolBuilder::new()
-        .num_threads(count.max(1))
-        .build_global();
-    Ok(())
-}
-
-#[cfg(not(feature = "parallel"))]
-fn set_threads(_count: usize) -> Result<()> {
-    Err(anyhow::anyhow!(
-        "this build steps physics on one thread; build with the `parallel` feature for more"
-    ))
-}
-
-#[cfg(feature = "parallel")]
-fn threads() -> usize {
-    rayon::current_num_threads()
-}
-
-#[cfg(not(feature = "parallel"))]
-const fn threads() -> usize {
-    1
-}
-
 /// Report anything rapier had to quarantine, once per step, so a game that
 /// never calls `physics.quarantined()` still learns about it.
 pub(crate) fn warn_about_quarantine(eng: &Engine) {
@@ -318,4 +288,35 @@ pub(crate) fn warn_about_quarantine(eng: &Engine) {
             );
         }
     }
+}
+
+/// The thread count rapier's solver runs on.
+///
+/// Rayon's pool is global and sized once per process, so setting it twice is
+/// not an error but does nothing the second time.
+fn set_threads(count: usize) {
+    let _ = rayon::ThreadPoolBuilder::new()
+        .num_threads(count.max(1))
+        .build_global();
+}
+
+fn threads() -> usize {
+    rayon::current_num_threads()
+}
+
+/// What the solver takes when a game says nothing.
+///
+/// One less than the machine reports, so the frame's own thread is not
+/// competing with the solver, and capped because a step stops scaling long
+/// before a large machine runs out of cores. `available_parallelism` answers 1
+/// on wasm and follows a container's CPU limit, so both come out right.
+///
+/// Safe to vary per machine: rapier's solver is coloured, and
+/// `tests/threads.rs` holds the digest to being the same at one thread and at
+/// eight.
+fn default_threads() -> usize {
+    std::thread::available_parallelism()
+        .map_or(1, std::num::NonZeroUsize::get)
+        .saturating_sub(1)
+        .clamp(1, 8)
 }

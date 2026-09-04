@@ -17,7 +17,7 @@ path = "src/lib.rs"
 # Target-gated: as plain dependencies these would switch the window feature
 # on for every workspace build. Off Android this crate compiles to nothing.
 [target.'cfg(target_os = "android")'.dependencies]
-balaur = { workspace = true, features = ["window", "f32"] }
+balaur = { workspace = true, features = ["window"] }
 kiss3d = "0.46"
 tracing = { workspace = true }
 

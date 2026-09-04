@@ -148,7 +148,7 @@ Balaur plugin wrapping the Rapier physics engine
 Rapier physics as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
-- **external deps:** 15 (anyhow, glamx, parry2d, parry2d-f64, parry3d, parry3d-f64, rapier2d, rapier2d-f64, …)
+- **external deps:** 11 (anyhow, glamx, parry2d, parry3d, rapier2d, rapier3d, rayon, serde, …)
 - **public surface:** 6 fn, 12 struct, 2 enum, 4 const
 - **structs:** `Character2d`, `Character3d`, `JointRef`, `JointRef2d`, `PhysicsDebugConfig`, `PhysicsDebugState`, `PhysicsPlugin`, `PhysicsState`, `PhysicsState2d`, `Vehicle3d`, `Wheel3d`, `WheelInput`
 - **enums:** `JointHandle`, `JointHandle2d`

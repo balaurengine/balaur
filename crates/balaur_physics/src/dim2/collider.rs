@@ -247,12 +247,13 @@ fn with_material(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBui
     builder
 }
 
+/// The one hook left: a one-way platform, whose axis is data on the collider.
 fn active_hooks(params: &toml::Value) -> ActiveHooks {
-    let mut hooks = ActiveHooks::from_bits_truncate(v::bits(params, "hooks", &v::flags::hooks()));
     if v::boolean(params, "one_way", false) {
-        hooks |= ActiveHooks::MODIFY_SOLVER_CONTACTS;
+        ActiveHooks::MODIFY_SOLVER_CONTACTS
+    } else {
+        ActiveHooks::empty()
     }
-    hooks
 }
 
 fn combine_rule(name: &str) -> CoefficientCombineRule {
@@ -418,10 +419,6 @@ fn read_material(collider: &Collider, map: &mut toml::map::Map<String, toml::Val
     map.insert(
         "events".into(),
         v::names(collider.active_events().bits(), &v::flags::events()),
-    );
-    map.insert(
-        "hooks".into(),
-        v::names(collider.active_hooks().bits(), &v::flags::hooks()),
     );
     map.insert(
         "active_collisions".into(),

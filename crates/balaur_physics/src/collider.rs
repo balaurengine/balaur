@@ -337,16 +337,14 @@ pub(crate) fn active_events(params: &toml::Value) -> ActiveEvents {
     ActiveEvents::from_bits_truncate(v::bits(params, "events", &v::flags::events()))
 }
 
-/// The hooks a collider asks rapier to call mid-step. `one_way` needs contact
-/// modification, so asking for the platform asks for the hook.
+/// The one hook a collider can ask for: a one-way platform is contact
+/// modification with the answer written for it.
 pub(crate) fn active_hooks(params: &toml::Value) -> ActiveHooks {
-    let mut hooks = ActiveHooks::from_bits_truncate(v::bits(params, "hooks", &v::flags::hooks()));
-    // A one-way platform is contact modification with the answer written for
-    // you, so asking for the platform asks for the hook.
     if v::boolean(params, "one_way", false) {
-        hooks |= ActiveHooks::MODIFY_SOLVER_CONTACTS;
+        ActiveHooks::MODIFY_SOLVER_CONTACTS
+    } else {
+        ActiveHooks::empty()
     }
-    hooks
 }
 
 /// Build and insert the collider described by `params`, replacing any
@@ -677,10 +675,6 @@ pub(crate) fn read_material(collider: &Collider, map: &mut toml::map::Map<String
         v::names(collider.active_events().bits(), &v::flags::events()),
     );
     map.insert(
-        "hooks".into(),
-        v::names(collider.active_hooks().bits(), &v::flags::hooks()),
-    );
-    map.insert(
         "active_collisions".into(),
         v::names(
             collider.active_collision_types().bits(),
@@ -803,7 +797,6 @@ solver_layers = {{ type = "flags", default = ["0"], options = [{layers}], descri
 solver_mask = {{ type = "flags", default = [], options = [{layers}], description = "Which solver layers this one pushes against; empty means all of them" }}
 events = {{ type = "flags", default = [], options = ["collision", "contact_force"], description = "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force" }}
 contact_force_threshold = {{ type = "float", default = 0.0, min = 0.0, description = "How hard a contact must be before on_contact_force is called" }}
-hooks = {{ type = "flags", default = [], options = ["filter_contact", "filter_overlap", "modify_contacts"], description = "Mid-step questions this collider asks its node's script; each costs a call per candidate pair per step" }}
 active_collisions = {{ type = "flags", default = ["dynamic_dynamic", "dynamic_kinematic", "dynamic_static"], options = ["dynamic_dynamic", "dynamic_kinematic", "dynamic_static", "kinematic_kinematic", "kinematic_static", "static_static"], description = "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default" }}
 one_way = {{ type = "bool", default = false, description = "A platform bodies pass through from below and land on from above" }}
 "#

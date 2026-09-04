@@ -8,12 +8,12 @@
 
 use crate::rapier2d::prelude::{
     ColliderHandle, ColliderSet, CollisionEvent, ContactForceEvent, ContactModificationContext,
-    EventHandler, PairFilterContext, PhysicsHooks, SolverFlags,
+    EventHandler, PhysicsHooks,
 };
 use balaur_core::hecs::Entity;
 use balaur_core::Engine;
 use balaur_script::Value;
-use std::cell::RefCell;
+use std::sync::Mutex;
 
 pub(crate) enum Event {
     Started(Entity, Entity),
@@ -22,27 +22,42 @@ pub(crate) enum Event {
 }
 
 impl Event {
-    fn key(&self) -> (u64, u64) {
-        let (a, b) = match self {
-            Self::Started(a, b) | Self::Stopped(a, b) | Self::Force(a, b, _, _) => (*a, *b),
+    /// The pair and the kind: a threaded step raises these in no order, and
+    /// one pair can carry both a `Started` and a `Force`.
+    fn key(&self) -> (u64, u64, u8) {
+        let (a, b, kind) = match self {
+            Self::Started(a, b) => (*a, *b, 0),
+            Self::Stopped(a, b) => (*a, *b, 1),
+            Self::Force(a, b, _, _) => (*a, *b, 2),
         };
         (
             a.to_bits().get().min(b.to_bits().get()),
             a.to_bits().get().max(b.to_bits().get()),
+            kind,
         )
     }
 }
 
 #[derive(Default)]
 pub(crate) struct Collector {
-    events: RefCell<Vec<Event>>,
+    events: Mutex<Vec<Event>>,
 }
 
 impl Collector {
     pub(crate) fn take(self) -> Vec<Event> {
-        let mut events = self.events.into_inner();
-        events.sort_by_key(Event::key);
+        let mut events = self
+            .events
+            .into_inner()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        events.sort_unstable_by_key(Event::key);
         events
+    }
+
+    fn push(&self, event: Event) {
+        self.events
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(event);
     }
 }
 
@@ -64,7 +79,7 @@ impl EventHandler for Collector {
         ) else {
             return;
         };
-        self.events.borrow_mut().push(if event.started() {
+        self.push(if event.started() {
             Event::Started(a, b)
         } else {
             Event::Stopped(a, b)
@@ -87,7 +102,7 @@ impl EventHandler for Collector {
             return;
         };
         let d = event.max_force_direction;
-        self.events.borrow_mut().push(Event::Force(
+        self.push(Event::Force(
             a,
             b,
             crate::scalar::f32_of(event.total_force_magnitude),
@@ -129,44 +144,10 @@ pub(crate) fn deliver(eng: &Engine, events: &[Event]) {
     }
 }
 
-pub(crate) struct Hooks<'a> {
-    pub(crate) eng: &'a Engine,
-}
+/// The 2D twin of [`crate::events::Hooks`]: collider data, never a script.
+pub(crate) struct Hooks;
 
-impl Hooks<'_> {
-    fn ask(&self, context: &PairFilterContext<'_>, method: &str) -> Option<Value> {
-        let host = self.eng.script_host()?;
-        let a = entity_of(context.colliders, context.collider1)?;
-        let b = entity_of(context.colliders, context.collider2)?;
-        for (node, other) in [(a, b), (b, a)] {
-            let answer = host.call_on(
-                balaur_core::node_id_of(node),
-                method,
-                &[Value::Node(other.to_bits().get())],
-            );
-            if matches!(answer, Some(Value::Bool(false))) {
-                return Some(Value::Bool(false));
-            }
-        }
-        None
-    }
-}
-
-impl PhysicsHooks for Hooks<'_> {
-    fn filter_contact_pair(&self, context: &PairFilterContext<'_>) -> Option<SolverFlags> {
-        match self.ask(context, "filter_contact") {
-            Some(Value::Bool(false)) => None,
-            _ => Some(SolverFlags::COMPUTE_IMPULSES),
-        }
-    }
-
-    fn filter_intersection_pair(&self, context: &PairFilterContext<'_>) -> bool {
-        !matches!(
-            self.ask(context, "filter_overlap"),
-            Some(Value::Bool(false))
-        )
-    }
-
+impl PhysicsHooks for Hooks {
     fn modify_solver_contacts(&self, context: &mut ContactModificationContext<'_>) {
         if let Some(axis) = context
             .colliders
@@ -175,47 +156,6 @@ impl PhysicsHooks for Hooks<'_> {
         {
             context.update_as_oneway_platform(axis, 0.1);
         }
-        let Some(host) = self.eng.script_host() else {
-            return;
-        };
-        let (Some(a), Some(b)) = (
-            entity_of(context.colliders, context.collider1),
-            entity_of(context.colliders, context.collider2),
-        ) else {
-            return;
-        };
-        for (node, other) in [(a, b), (b, a)] {
-            let normal = crate::scalar::a2(*context.normal);
-            let answer = host.call_on(
-                balaur_core::node_id_of(node),
-                "modify_contacts",
-                &[
-                    Value::Node(other.to_bits().get()),
-                    crate::vocabulary::map([
-                        ("normal", Value::Vec2(normal)),
-                        ("points", Value::Num(context.solver_contacts.len() as f64)),
-                    ]),
-                ],
-            );
-            apply_contact_answer(context, answer.as_ref());
-        }
-    }
-}
-
-/// The 2D twin of `crate::events::apply_contact_answer`: what a
-/// `modify_contacts` handler may change about a pair the solver is about to
-/// see.
-fn apply_contact_answer(context: &mut ContactModificationContext<'_>, answer: Option<&Value>) {
-    let Some(answer) = answer else { return };
-    let opts = crate::vocabulary::Opts(Some(answer));
-    if let Some(Value::Num(friction)) = opts.get("friction") {
-        *context.friction = *friction as crate::scalar::Real;
-    }
-    if let Some(Value::Num(restitution)) = opts.get("restitution") {
-        *context.restitution = *restitution as crate::scalar::Real;
-    }
-    if !opts.boolean("solid", true) {
-        context.solver_contacts.clear();
     }
 }
 

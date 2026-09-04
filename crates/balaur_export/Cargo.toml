@@ -7,7 +7,7 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
-balaur = { workspace = true, default-features = false, features = ["f32"] }
+balaur = { workspace = true, default-features = false }
 anyhow.workspace = true
 serde.workspace = true
 toml.workspace = true

@@ -23,23 +23,11 @@ use crate::rapier3d::pipeline::PhysicsWorld;
 
 use crate::rapier3d::prelude::{ColliderHandle, RigidBodyHandle};
 
-#[cfg(not(any(feature = "f32", feature = "f64")))]
-compile_error!(
-    "balaur_physics needs a scalar: build with the `f32` feature (the default) or with \
-     `--no-default-features --features f64`"
-);
-
 // The `f64` build swaps rapier for its f64 twin under the same names, so
 // every `use crate::rapier3d::..` below and in the submodules follows the scalar.
 // `scalar.rs` is the seam where a number changes width.
-#[cfg(not(feature = "f64"))]
 pub use ::rapier2d;
-#[cfg(feature = "f64")]
-pub use ::rapier2d_f64 as rapier2d;
-#[cfg(not(feature = "f64"))]
 pub use ::rapier3d;
-#[cfg(feature = "f64")]
-pub use ::rapier3d_f64 as rapier3d;
 
 pub mod body;
 pub mod character;
@@ -519,9 +507,7 @@ fn step_system(eng: &Engine, _dt: f32) {
         // The step rebuilds the broad phase itself.
         state.queries_ready = true;
         let collector = events::Collector::default();
-        state
-            .world
-            .step_with_events(&events::Hooks { eng }, &collector);
+        state.world.step_with_events(&events::Hooks, &collector);
 
         // Write simulated poses back to the scene tree.
         let world = eng.world();

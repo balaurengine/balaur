@@ -10,7 +10,6 @@ flow nothing checks.
 - a 2d camera matching the defaults still reaches the backend
 - a 2d capsule collider applies
 - a 2d collider round trips through get
-- a 2d modify contacts handler is called
 - a 2d one way collider carries its axis into the world
 - a 2d shape component puts a 2d renderable on the node
 - a 3d collider takes friction restitution and density
@@ -1018,6 +1017,7 @@ flow nothing checks.
 - the standard app records every plugin it loaded
 - the stream is pinned for a given seed
 - the string form of the script key still attaches
+- the thread count does not change the simulation
 - the two worlds share body kinds and differ on shapes
 - the update stage still sees the measured frame time
 - the value at the line replaces the colour

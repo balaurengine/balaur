@@ -1228,11 +1228,21 @@ Engine-side measures already in place:
 - Dev-mode and shipped bytecode come from one compiler configuration.
 - `crates/balaur_physics/tests/determinism.rs` asserts two runs match bit for
   bit, per tick rather than only at the end.
-- The physics scalar is a build-time choice (`f32` by default, `f64` behind a
-  feature), and each width is its own determinism world: a digest compares two
-  runs of the same build, never an `f32` run against an `f64` one. Under
-  `parallel`, `tests/scalar_and_threads.rs` asserts one thread and eight
-  produce the same digest — rapier's solver is coloured, so they must.
+- Physics runs at `f32`. The `f64` feature was dropped on 2026-09-04: nothing
+  needed the precision, and a width CI never built had already rotted twice.
+- The solver threads on rayon, always — there is no feature to turn it off.
+  `tests/threads.rs` asserts one thread and eight produce the same digest,
+  which is what rapier's colouring buys and what lets the default thread count
+  follow the machine. That default is one less core than
+  `available_parallelism` reports, capped at eight, so the frame's own thread
+  is not competing with the solver; `physics.set_threads` overrides it.
+- The price was the three script physics hooks. rapier compiles its threaded
+  pipeline only under `not(unsync-callbacks)`, so a hook may not hold an
+  `Engine`: `filter_contact` and `filter_overlap` are gone, replaced by the
+  `layers`/`mask` and `solver_layers`/`solver_mask` groups that already did
+  that work in the broad phase, and `modify_contacts` is gone with no
+  replacement. One-way platforms survive, because their axis was always data
+  on the collider rather than a call into a script.
 - CI records a per-tick digest on Linux, macOS and Windows and diffs the three
   (`scripts/determinism_trace.sh`, the `simulation-matches` job). `macos-latest`
   has been arm64 since macOS 14, so aarch64 is in that matrix — the runner
@@ -1943,7 +1953,7 @@ release finished.
 | Asset streaming: a load that runs off the tick, a scene added to one already running, and an asset dropped when nothing names it | no plan yet; a pack is held whole in memory today. `ExternalIo` already lands background work on a tick boundary and records it for replay, `assets` caches by reference, and `pack` hashes every entry |
 | Extensions tier two: components, systems, calling back into scripts | `docs/PLAN-c-api.md` "What Tier 1 does not do" |
 | Soft bodies, tearing, fluids, granular materials | `docs/PLAN-physics.md` — waiting on the solvers landing in Rapier itself |
-| Named collision layers, script physics hooks on a `parallel` build, solver tuning carried in a recording's header, `f64` for the whole engine rather than physics alone | `docs/PLAN-rapier.md`. Everything else rapier has is built |
+| Named collision layers, solver tuning carried in a recording's header, and a solver that actually threads | `docs/PLAN-rapier.md`. Everything else rapier has is built. A `f64` world is **not planned**. `parallel` is built but inert until the physics hooks stop calling scripts, which §4 costs out |
 | Animation blending, blend trees, state machines | `docs/PLAN-animation-and-resources.md`. 3D IK exists for a reduced-coordinates joint chain (`physics3d.solve_ik`); an animation-side solver over a rig does not |
 | A sequencer: cutscenes and cameras on a timeline, with tracks that call something rather than only move it | no plan yet; `balaur_anim` already samples clips onto nodes, with twelve easing curves in four modes, and the editor has the timeline dock |
 | Tile-map occluders, and normal-mapped lit sprites | `docs/PLAN-rendering.md`. 2D lights and shadows are built; these are the two that plan deferred |

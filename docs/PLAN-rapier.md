@@ -23,9 +23,30 @@
    checkboxes. That needs schema options resolved at inspector time rather
    than at registration, which no other component wants; it can wait until
    someone has shipped a game with 30 layers.
-4. **`f64` for the whole engine.** Phase 13 converts at the physics seam. If
-   a game needs `f64` in `Transform` too — a solar system, not a large map —
-   that is glamx's `D*` types through every crate, and a plan of its own.
+4. **A threaded solver. Built 2026-09-04.** rapier compiles its threaded
+   pipeline only under `all(parallel, not(unsync-callbacks))`, so the three
+   script physics hooks had to go: a hook runs on rapier's threads and may not
+   hold an `Engine`. `filter_contact` and `filter_overlap` cost nothing to
+   lose — they were passed only the other node, which is exactly what
+   `collision_groups` and `solver_groups` already decide in the broad phase.
+   `modify_contacts` is gone outright. One-way platforms stay: their axis
+   rides in the collider's `user_data`.
+
+   Threading is not a feature — it is how the solver runs. The thread count is
+   one less than `available_parallelism` reports, capped at eight, and
+   `physics.set_threads` overrides it. Varying it is safe because the digest
+   does not depend on it, which `tests/threads.rs` asserts.
+
+   Still open: the event collector takes a `Mutex` per event now that handlers
+   run on rapier's threads. Events are opt-in per collider and a step raises
+   tens, so it should be noise — but a game that turns on contact-force events
+   broadly would serialise there. `cargo bench -p balaur_bench --bench engine
+   -- physics_step` is the measurement; the fix, if it shows, is per-thread
+   buffers merged after the step, which costs nothing because `take()` already
+   sorts by a total key.
+
+5. **`f64`. Not planned, dropped 2026-09-04.** It bought precision nothing
+   asked for, and broke twice unnoticed between CI runs that never built it.
 5. **2D parity, which ARCHITECTURE claims and the tree does not have.**
    `physics2d` lacks 21 readers `rapier2d` offers — `aabb`, `swept_aabb`,
    `active_bodies`, `bodies`, `closest_points`, `time_of_impact`, `contacts`,

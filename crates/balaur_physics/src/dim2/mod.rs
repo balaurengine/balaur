@@ -186,9 +186,7 @@ fn step_system(eng: &Engine, _dt: f32) {
         // second accumulator here would drift out of step with the scripts.
         state.world.integration_parameters.dt = scalar::real(FIXED_DT);
         let collector = events::Collector::default();
-        state
-            .world
-            .step_with_events(&events::Hooks { eng }, &collector);
+        state.world.step_with_events(&events::Hooks, &collector);
 
         // Write simulated poses back (x, y and the rotation about z).
         let world = eng.world();

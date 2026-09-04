@@ -11,13 +11,7 @@ name = "balaur"
 path = "src/main.rs"
 
 [features]
-default = ["audio", "http", "websocket", "webtransport", "gamend", "f32"]
-# The scalar physics runs at. A f64 game builds with
-# `--no-default-features --features "f64,audio,http,websocket,gamend"`.
-f32 = ["balaur/f32"]
-f64 = ["balaur/f64"]
-# Rapier's parallel solver.
-parallel = ["balaur/parallel"]
+default = ["audio", "http", "websocket", "webtransport", "gamend"]
 # Build with a real window (kiss3d/wgpu). Without it, runs are headless.
 window = ["balaur/window"]
 # Sound. Off, the build drops rodio, cpal and the platform audio stack.

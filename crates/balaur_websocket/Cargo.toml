@@ -48,7 +48,7 @@ cc = "1"
 
 [dev-dependencies]
 tempfile = "3"
-balaur = { workspace = true, features = ["websocket", "f32"] }
+balaur = { workspace = true, features = ["websocket"] }
 # The loopback echo servers the tests speak to, and the compression the
 # negotiation tests check for on the wire.
 tungstenite.workspace = true
