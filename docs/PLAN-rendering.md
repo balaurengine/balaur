@@ -1,6 +1,7 @@
-> **Status:** phases 1 and 2 shipped 2026-09-04 — `light2d`, `occluder2d`,
-> `camera.ambient` and the light-map pass. Phases 3 to 5 (GPU skinning in 3D,
-> post-processing, the editor's gizmos) are open. Written 2026-09-02.
+> **Status:** done, 2026-09-04. All five phases: `light2d`, `occluder2d`,
+> `camera.ambient` and the light-map pass; the 3D skinning material;
+> `camera.post`; the editor's light gizmos and occluder outlines.
+> Written 2026-09-02.
 
 # Plan: 2D lights and shadows, GPU skinning in 3D
 
@@ -67,16 +68,34 @@ sketch above:
 `occluder2d` takes its outline from an authored `mesh`, else from the node's
 `collider2d`, else from its circle, capsule, rect or sprite shape.
 
+The 3D skinning material (`balaur_render::skinned_3d`) draws against the same
+`package::mesh` contract a project's material does, so a skinned mesh is lit
+and fogged like every other one. It is the built-in look only: a node naming a
+`material` asset, or a frame under a channel view, keeps the CPU path, because
+those shaders know nothing about a joint palette. `blend` in the shader is
+`@const`, so a headless test evaluates it against `skeleton::blend_3d` — the
+GPU path is held to the numbers a digest would see without needing a GPU.
+
+`camera` gained `post`, a flags list over the screen-space effects kiss3d's
+window can switch — `bloom`, `ssao`, `ssr`, `dof` — plus `bloom_threshold`
+and `bloom_intensity`. Unlike `ambient` it is not per-dimension: the effects
+run over the whole film, so the last current camera of either kind sets them.
+
+The editor draws a `light2d`'s reach and aim and an `occluder2d`'s resolved
+outline behind a Lights chip, and the Polygon tool traces an `occluder2d`'s
+mesh as well as a `polygon`'s — in Points mode only, an outline having no
+triangles, UVs or weights.
+
 ## Phases
 
 1. ✅ `light2d` without shadows and `ambient` on the camera; the light map
    pass.
 2. ✅ `occluder2d` and shadow polygons; default occluders from `collider2d`.
-3. The 3D skinning material; the CPU path kept for headless and as the
+3. ✅ The 3D skinning material; the CPU path kept for headless and as the
    reference in tests.
-4. Post-processing on the camera: bloom first, since the light map already
+4. ✅ Post-processing on the camera: bloom first, since the light map already
    gives it what it needs.
-5. Editor: light gizmos, an occluder editor on the Polygon tool.
+5. ✅ Editor: light gizmos, an occluder editor on the Polygon tool.
 
 ## Open questions
 

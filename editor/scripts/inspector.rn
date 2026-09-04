@@ -390,7 +390,8 @@ fn polygon_section(S, k) {
     if polygon::component(node).is_none() {
         return;
     }
-    if !section(S, k, "Polygon") {
+    let occluding = polygon::occluding(S);
+    if !section(S, k, if occluding { "Occluder" } else { "Polygon" }) {
         return;
     }
     let mesh = match polygon::mesh(S) {
@@ -412,6 +413,11 @@ fn polygon_section(S, k) {
     row(S, k, "Vertices", || {
         ui::label(format!("{} · {} internal", positions.len(), internal), style::mono(k.text));
     });
+    // An occluder is the outline and nothing else: no triangles, no rig, no
+    // brush. Its one row is the count above.
+    if occluding {
+        return;
+    }
     row(S, k, "Polygons", || {
         let count = util::vec(mesh.get("polygons").unwrap_or([])).len();
         ui::label(if count == 0 { "outline, automatic" } else { format!("{} drawn", count) },

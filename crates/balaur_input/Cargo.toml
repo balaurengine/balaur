@@ -20,6 +20,11 @@ tracing.workspace = true
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 gilrs = "0.11"
 
+# Motion and the touchpad, which gilrs does not read: decoded from the pad's own
+# HID reports. Without `macos-shared-device` hidapi takes the pad from gilrs.
+[target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
+hidapi = { version = "2.6", features = ["macos-shared-device"] }
+
 [dev-dependencies]
 tempfile = "3"
 

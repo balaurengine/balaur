@@ -1,4 +1,10 @@
-> **Status:** phases 1-5 built; phase 6 is demand-driven by design. Phase 2
+> **Status:** phases 1-5 and 7 built; phase 6 is demand-driven by design.
+> Phase 7 (positional audio) on 2026-09-04:
+> `crates/balaur_audio/src/spatial.rs`, the `listener` component, `positional`
+> with `min_distance` / `max_distance` / `doppler` on `sound`, a `position` in
+> `audio.play` and `audio.play_event`, and `audio.listener` /
+> `set_listener` / `emitter_position` / `set_emitter_position` /
+> `distance_gain` / `pan`. Phase 2
 > (audio buses and events) on 2026-09-03: `crates/balaur_audio/src/bus.rs`
 > and `event.rs`, `[audio.buses]`, `audio/events.toml`, a `bus` on the `sound`
 > component and in `audio.play`'s options, and `set_bus_volume` re-applying to
@@ -113,6 +119,26 @@
 >    a pack carries the manifest beside the assets, not among them. The raw
 >    manifest text is now an engine resource, which is also the bug
 >    `NetConfig` still has.
+> 18. **The listener is its own component, not the camera.** `balaur_audio`
+>    depends on neither `balaur_render` nor a camera, and a 2D game whose
+>    view leads the player wants the ears where the player is. A game with no
+>    node for it calls `audio.set_listener`; a game with neither hears every
+>    sound flat, which is the only failure mode that keeps a game audible.
+> 19. **rodio's `Spatial` is not what plays a positional sound.** It folds
+>    distance into the pan through a fixed inverse square and a pair of ear
+>    positions, so a game cannot say what its unit is. `ChannelVolume` under
+>    the engine's own placement gives the same two channels with the numbers
+>    the scene chose — and positioning a sound makes it mono, because a sound
+>    in one place has one direction.
+> 20. **Doppler is off unless a sound asks for it, and is clamped to an
+>    octave.** The plan lists it beside attenuation; physical doppler on a
+>    position that jitters is a warble, and on one that teleports a screech.
+>    So `doppler = 0` by default, `1` is physical, and the bend stops at
+>    double and half whatever the arithmetic says.
+> 21. **A placement is remembered, not read back off a sink.** The rule the
+>    rest of the crate holds to: `AudioState::placement_of` is what a run
+>    with no output device asserts, and `audio.distance_gain` / `audio.pan`
+>    are the same numbers for a debug overlay.
 
 # Plan: batteries
 

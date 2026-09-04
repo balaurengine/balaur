@@ -18,16 +18,19 @@ use crate::kiss3d_camera::{
     CameraButtons,
 };
 use crate::{
-    AppIconConfig, ClearColorConfig, DebugLineBuffer, DebugLineBuffer2d, GridConfig, Renderable,
-    Renderable2d, ScreenshotRequest, Shape, Shape2d, SpriteTexture, WindowConfig, WindowedBackend,
+    AppIconConfig, ClearColorConfig, DebugLineBuffer, DebugLineBuffer2d, GridConfig, PostConfig,
+    Renderable, Renderable2d, ScreenshotRequest, Shape, Shape2d, SpriteTexture, WindowConfig,
+    WindowedBackend,
 };
 
 struct Slot {
     node: SceneNode3d,
     version: u64,
-    /// A skinned mesh's rest geometry and bindings, deformed on the CPU
-    /// every frame and written back into the node's buffers.
+    /// A skinned mesh's rest geometry and bindings: where the palette comes
+    /// from, and the vertices the CPU path deforms when there is no handle.
     skin: Option<MeshSkinSlot>,
+    /// The GPU palette, when this mesh skins in the vertex shader.
+    palette: Option<crate::skinned_3d::SkinHandle3d>,
 }
 
 /// What a skinned 3D mesh keeps between frames: the vertices as authored,
@@ -124,6 +127,7 @@ impl Frontend {
         publish_camera(app, &self.camera, window);
         publish_camera_2d(app, &self.camera_2d, window);
         apply_clear_color(app, window);
+        apply_post(app, window);
         pump_input(app, window);
         app.advance(dt);
         // Before the 2D syncs move nodes around underneath it.
@@ -265,6 +269,26 @@ fn apply_clear_color(app: &App, window: &mut Window) {
         window.set_background_color(Color::new(r, g, b, 1.0));
         clear.changed = false;
     }
+}
+
+/// Apply the screen-space effects the current `camera` asked for.
+///
+/// Only on the edge: kiss3d rebuilds its post chain when one of these
+/// switches, so re-asserting them every frame would rebuild it every frame.
+fn apply_post(app: &App, window: &mut Window) {
+    let Some(post) = app.engine.try_resource::<PostConfig>() else {
+        return;
+    };
+    let mut post = post.borrow_mut();
+    if !post.changed {
+        return;
+    }
+    post.changed = false;
+    window.set_bloom_enabled(post.bloom);
+    window.set_bloom(post.bloom_threshold, post.bloom_intensity);
+    window.set_ssao_enabled(post.ssao);
+    window.set_ssr_enabled(post.ssr);
+    window.set_dof_enabled(post.dof);
 }
 
 /// Ground-plane grid, drawn as per-frame lines on the XZ plane.
@@ -561,17 +585,21 @@ fn sync(
             if let Some(mut old) = slots.remove(&entity) {
                 old.node.remove();
             }
-            let (mut node, skin) = match renderable.shape {
-                Shape::Ball { radius } => (scene.add_sphere(radius), None),
+            let (mut node, skin, geometry) = match renderable.shape {
+                Shape::Ball { radius } => (scene.add_sphere(radius), None, None),
                 Shape::Cuboid { hx, hy, hz } => {
-                    (scene.add_cube(2.0 * hx, 2.0 * hy, 2.0 * hz), None)
+                    (scene.add_cube(2.0 * hx, 2.0 * hy, 2.0 * hz), None, None)
                 }
-                Shape::Capsule { radius, height } => (scene.add_capsule(radius, height), None),
-                Shape::Cylinder { radius, height } => (scene.add_cylinder(radius, height), None),
-                Shape::Cone { radius, height } => (scene.add_cone(radius, height), None),
+                Shape::Capsule { radius, height } => {
+                    (scene.add_capsule(radius, height), None, None)
+                }
+                Shape::Cylinder { radius, height } => {
+                    (scene.add_cylinder(radius, height), None, None)
+                }
+                Shape::Cone { radius, height } => (scene.add_cone(radius, height), None, None),
                 // One quad, no subdivisions: a flat plane needs no interior
                 // vertices, and fewer of them is fewer to transform.
-                Shape::Plane { hx, hz } => (scene.add_quad(2.0 * hx, 2.0 * hz, 1, 1), None),
+                Shape::Plane { hx, hz } => (scene.add_quad(2.0 * hx, 2.0 * hz, 1, 1), None, None),
                 Shape::Mesh => match upload_mesh(app, scene, renderable) {
                     Some(built) => built,
                     // Nothing to draw yet, and `upload_mesh` said why.
@@ -580,8 +608,12 @@ fn sync(
             };
             // After the texture: a material reads it, and kiss3d's own
             // material stays on a node whose shader would not link.
-            if let Some(material) = materials.for_node(app, &renderable.material, &channel) {
+            let custom = materials.for_node(app, &renderable.material, &channel);
+            let mut palette = None;
+            if let Some(material) = custom {
                 node.set_material(material);
+            } else if let Some(mesh) = geometry {
+                palette = Some(crate::skinned_3d::attach(&mut node, &mesh));
             }
             slots.insert(
                 entity,
@@ -589,13 +621,14 @@ fn sync(
                     node,
                     version: renderable.version,
                     skin,
+                    palette,
                 },
             );
         }
         // The block above inserts the slot when it is missing.
         let slot = slots.get_mut(&entity).unwrap();
         if let Some(skin) = &slot.skin {
-            deform_mesh(&world, entity, skin, &mut slot.node);
+            pose_mesh(&world, entity, skin, slot.palette.as_ref(), &mut slot.node);
         }
         let [r, g, b, a] = renderable.color;
         // kiss3d primitives encode their dimensions in the node's local
@@ -634,7 +667,11 @@ fn upload_mesh(
     app: &App,
     scene: &mut SceneNode3d,
     renderable: &Renderable,
-) -> Option<(SceneNode3d, Option<MeshSkinSlot>)> {
+) -> Option<(
+    SceneNode3d,
+    Option<MeshSkinSlot>,
+    Option<crate::skinned_3d::SkinnedMesh3d>,
+)> {
     let reference = renderable.mesh.as_deref().filter(|r| !r.is_empty())?;
     let definition = match balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(
         &app.engine,
@@ -669,6 +706,23 @@ fn upload_mesh(
         .uvs
         .as_ref()
         .map(|us| us.iter().map(|u| Vec2::new(u[0], u[1])).collect());
+    // The geometry the skinning material draws from, kept before the skin is
+    // moved into the slot. Nothing to skin with no triangles, and an empty
+    // vertex buffer is one wgpu refuses to create.
+    let geometry = data
+        .skin
+        .as_ref()
+        .filter(|_| !coords.is_empty() && !faces.is_empty())
+        .map(|skin| crate::skinned_3d::SkinnedMesh3d {
+            positions: coords.clone(),
+            normals: normals
+                .clone()
+                .unwrap_or_else(|| GpuMesh3d::compute_normals_array(&coords, &faces)),
+            uvs: uvs.clone().unwrap_or_default(),
+            joints: skin.joints.clone(),
+            weights: skin.weights.clone(),
+            indices: faces.clone(),
+        });
     let skin = data.skin.map(|skin| MeshSkinSlot {
         positions: coords.clone(),
         normals: normals.clone(),
@@ -694,17 +748,20 @@ fn upload_mesh(
             Err(err) => tracing::error!("{err:#}"),
         }
     }
-    Some((node, skin))
+    Some((node, skin, geometry))
 }
 
-/// Pose a skinned mesh for this frame: the palette from the rig, the rest
-/// vertices through it on the CPU, and the result into the node's buffers.
+/// Pose a skinned mesh for this frame from the rig's joint matrices: handed
+/// to the skinning material when there is one, and otherwise pushed through
+/// the rest vertices on the CPU and written back into the node's buffers.
+///
 /// A rig or bone path that resolves to nothing is logged at debug and the
 /// mesh draws at rest, the same as a clip track that targets no node.
-fn deform_mesh(
+fn pose_mesh(
     world: &balaur_core::hecs::World,
     entity: Entity,
     skin: &MeshSkinSlot,
+    handle: Option<&crate::skinned_3d::SkinHandle3d>,
     node: &mut SceneNode3d,
 ) {
     let rig = if skin.skeleton.is_empty() {
@@ -734,6 +791,12 @@ fn deform_mesh(
         &bones,
         skin.inverse_bind.as_deref(),
     );
+    // The vertex shader blends the same matrices, so the CPU work below is
+    // exactly what the GPU path saves.
+    if let Some(handle) = handle {
+        handle.set(palette);
+        return;
+    }
     let positions = balaur_core::skeleton::skin_positions_3d(
         &skin.positions,
         &skin.joints,
@@ -795,7 +858,7 @@ fn build_polygon_node(
     }
     let (mut node, skin) = crate::skinned_2d::build(scene, polygon);
     attach_texture(app, &mut node, &polygon.texture);
-    Some((node, skin))
+    Some((node, skin, geometry))
 }
 
 /// Give a freshly built node its image. Once per rebuild: kiss3d's

@@ -33,6 +33,9 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - `sprite` component: textured 2D quads with sheets.
 - `polygon` component: a textured 2D polygon, GPU-skinned to a rig.
 - 2D lights and shadows: `light2d`, `occluder2d`, `camera.ambient`, and a light-map pass every sprite, polygon and tile is multiplied by.
+- GPU skinning for 3D meshes; the CPU path stays for a node with its own `material` and as the test reference.
+- `camera.post`: bloom, SSAO, SSR and depth of field, with `bloom_threshold` and `bloom_intensity`.
+- Editor: `light2d` and `occluder2d` gizmos behind a Lights chip, and the Polygon tool traces an occluder's outline.
 - 2D and 3D skeletal animation: `bone2d`, `bone3d`, the `skeleton` module, CPU skinning.
 - `modifier2d`: `look_at` and `two_bone_ik`, run after the clip.
 - `rotation` clip tracks take quaternion keys.
@@ -82,8 +85,10 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - `widget_theme` asset: fill, stroke, radius and padding per widget kind, inherited.
 - Audio buses: `[audio.buses]`, routing per sound, `audio.set_bus_volume`.
 - Audio events: `audio/events.toml`, variations taken in turn.
+- Positional audio: a `listener` node, `positional` sounds with distance attenuation, stereo pan and doppler, and a `position` in `audio.play` and `audio.play_event`.
+- `audio.set_volume` holds through a later bus change: the volume a script asked for is the one a slider recomputes from.
 - Gamepad rumble: `input.gamepad_rumble` / `stop_rumble` / `can_rumble`, both motors.
-- Pad motion in the snapshot and the recording: `input.gamepad_gyro`, `gamepad_acceleration`, `gamepad_touches`.
+- Pad motion and touchpad: `input.gamepad_gyro`, `gamepad_acceleration`, `gamepad_touches`, read from a PlayStation pad's HID reports over USB or Bluetooth, recorded and replayed like every other input.
 - Loaded plugins are recorded: `balaur_core::plugins`, and a plugin's `requires` is checked at load.
 - Optional modules are one line in `balaur`'s `modules!` table, loaded in requirement-then-name order.
 - Every plugin loads from one ordered set; `balaur_plugin::Builtin` gives an `App`-shaped plugin a manifest.

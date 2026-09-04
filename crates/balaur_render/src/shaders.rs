@@ -16,6 +16,9 @@ static COMMON: &str = include_str!("shaders/common.wesl");
 /// The 2D skinning material's shader.
 pub static SKINNED_2D: &str = include_str!("shaders/skinned_2d.wesl");
 
+/// The 3D skinning material's shader.
+pub static SKINNED_3D: &str = include_str!("shaders/skinned_3d.wesl");
+
 /// The 2D light map's shader: the lights, the shadow polygons that mask
 /// them, and the full-screen draw that multiplies the frame by the result.
 pub static LIGHT_2D: &str = include_str!("shaders/light2d.wesl");
@@ -161,6 +164,39 @@ mod tests {
         .to_string();
         assert!(wgsl.contains("fn vs_main"), "{wgsl}");
         assert!(wgsl.contains("fn fs_main"), "{wgsl}");
+    }
+
+    /// The GPU path has to agree with `skeleton::blend_3d`, which is what a
+    /// digest sees; `blend` is `@const` so the two can be compared here,
+    /// without a GPU.
+    #[test]
+    fn the_skinning_blend_matches_the_cpu_reference() {
+        let linked = link(&[("package::s", SKINNED_3D)], "package::s", &[])
+            .expect("the engine's own shader must link");
+        let identity = "mat4x4<f32>(vec4<f32>(1.0, 0.0, 0.0, 0.0), \
+             vec4<f32>(0.0, 1.0, 0.0, 0.0), vec4<f32>(0.0, 0.0, 1.0, 0.0), \
+             vec4<f32>(0.0, 0.0, 0.0, 1.0))";
+        let shift = "mat4x4<f32>(vec4<f32>(1.0, 0.0, 0.0, 0.0), \
+             vec4<f32>(0.0, 1.0, 0.0, 0.0), vec4<f32>(0.0, 0.0, 1.0, 0.0), \
+             vec4<f32>(2.0, 0.0, 0.0, 1.0))";
+        let point = "vec4<f32>(1.0, 0.0, 0.0, 1.0)";
+        let half = format!(
+            "blend({shift}, {identity}, {identity}, {identity}, \
+             vec4<f32>(0.5, 0.5, 0.0, 0.0), {point})"
+        );
+        let blended = eval_floats(&linked, &half).unwrap();
+        // Half of x + 2, half of x: the midpoint at x = 2.
+        assert!((blended[0] - 2.0).abs() < 1e-6, "{blended:?}");
+
+        let unweighted = format!(
+            "blend({shift}, {shift}, {shift}, {shift}, \
+             vec4<f32>(0.0, 0.0, 0.0, 0.0), {point})"
+        );
+        let left = eval_floats(&linked, &unweighted).unwrap();
+        assert!(
+            (left[0] - 1.0).abs() < 1e-6,
+            "weights summing to zero must leave the vertex alone: {left:?}"
+        );
     }
 
     /// The light map's three pipelines share one module, so a link that

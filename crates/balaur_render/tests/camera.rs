@@ -3,7 +3,7 @@
 
 use balaur_core::glamx::Vec3;
 use balaur_core::{components, scene, App, AppConfig, Transform};
-use balaur_render::{CameraConfig, CameraConfig2d, RenderPlugin};
+use balaur_render::{CameraConfig, CameraConfig2d, PostConfig, RenderPlugin};
 
 fn app() -> App {
     let mut app = App::new(AppConfig {
@@ -143,6 +143,51 @@ fn an_unmoved_camera_does_not_reassert_itself() {
     );
 }
 
+/// `post` is not per-dimension: the effects run over the whole film, so a 3D
+/// camera drives them too.
+#[test]
+fn a_cameras_post_effects_reach_the_config() {
+    let mut app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera(
+        &app,
+        cam,
+        "post = [\"bloom\", \"dof\"]\nbloom_threshold = 0.8",
+    );
+    {
+        let config = app.engine.resource::<PostConfig>();
+        let config = config.borrow();
+        assert!(!config.bloom, "control: nothing has driven post yet");
+        assert!(!config.changed);
+    }
+    app.tick(1.0 / 60.0);
+    let config = app.engine.resource::<PostConfig>();
+    let config = config.borrow();
+    assert!(config.bloom);
+    assert!(config.dof);
+    assert!(!config.ssao, "an effect the list left out must stay off");
+    assert!((config.bloom_threshold - 0.8).abs() < 1e-6);
+    assert!(config.changed, "the backend was never told to apply them");
+}
+
+/// A backend clears `changed` once it has rebuilt its post chain; a camera
+/// that has not changed must not make it rebuild again.
+#[test]
+fn unchanged_post_effects_do_not_reassert_themselves() {
+    let mut app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera(&app, cam, "post = [\"bloom\"]");
+    app.tick(1.0 / 60.0);
+    let config = app.engine.resource::<PostConfig>();
+    assert!(
+        config.borrow().changed,
+        "control: the first tick must write"
+    );
+    config.borrow_mut().changed = false;
+    app.tick(1.0 / 60.0);
+    assert!(!config.borrow().changed);
+}
+
 #[test]
 fn the_component_round_trips() {
     let app = app();
@@ -153,4 +198,26 @@ fn the_component_round_trips() {
     assert_eq!(table["kind"].as_str().unwrap(), "2d");
     assert!(!table["current"].as_bool().unwrap());
     assert!((table["zoom"].as_float().unwrap() - 25.0).abs() < 1e-6);
+}
+
+#[test]
+fn the_post_list_round_trips() {
+    let app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera(
+        &app,
+        cam,
+        "post = [\"ssr\", \"bloom\"]\nbloom_intensity = 0.25",
+    );
+    let saved = components::get(&app.engine, cam, "camera").unwrap();
+    let table = saved.as_table().unwrap();
+    let post: Vec<&str> = table["post"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    // Schema order, not the order the scene happened to write them in.
+    assert_eq!(post, ["bloom", "ssr"]);
+    assert!((table["bloom_intensity"].as_float().unwrap() - 0.25).abs() < 1e-6);
 }

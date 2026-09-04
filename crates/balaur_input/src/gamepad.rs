@@ -10,13 +10,13 @@
 //! backend: controllers are not window events, and this way a headless run
 //! on a desk with a pad plugged in sees it too.
 //!
-//! Buttons and axes are what gilrs reads. Motion and the touchpad are part of
-//! the snapshot and of the recording, but nothing fills them today: gilrs
-//! exposes neither, so they wait for a backend that does — Steam Input
-//! (`docs/PLAN-steam.md`) or a platform layer — which writes them through
-//! [`GamepadState::set_motion`] and [`GamepadState::set_touchpad`] after the
-//! poll. Carrying them now is what keeps that backend from being a replay
-//! format change.
+//! Buttons and axes are what gilrs reads. Motion and the touchpad it does not
+//! read at all, so those come from [`crate::sensors`], which opens the same
+//! pad over raw HID and decodes the report gilrs discards — PlayStation pads
+//! today, since they are the ones carrying a gyroscope and a touchpad. Both
+//! land in the same snapshot and the same recording, and a second backend
+//! (Steam Input, `docs/PLAN-steam.md`) fills them the same way through
+//! [`GamepadState::set_motion`] and [`GamepadState::set_touchpad`].
 
 use balaur_core::collections::DetHashSet;
 use balaur_core::Engine;
@@ -217,6 +217,8 @@ pub struct GamepadState {
     runtime: Option<Runtime>,
     #[cfg(not(target_family = "wasm"))]
     haptics: crate::haptics::Rumble,
+    #[cfg(not(target_family = "wasm"))]
+    sensors: crate::sensors::Sensors,
 }
 
 /// `None` inside means the platform backend failed to open (no udev in a bare
@@ -347,7 +349,7 @@ impl GamepadState {
         // gilrs updates its cached state while events are drained.
         while gilrs.next_event().is_some() {}
 
-        let mut fresh: Vec<Pad> = Vec::new();
+        let mut fresh: Vec<(Pad, (u16, u16))> = Vec::new();
         for (id, gamepad) in gilrs.gamepads() {
             let id = i64::try_from(usize::from(id)).unwrap_or(i64::MAX);
             let previous = self.pads.iter().find(|p| p.id == id);
@@ -380,20 +382,42 @@ impl GamepadState {
                     .map_or(0.0, gilrs::ev::state::AxisData::value);
                 pad.axes.push((name, value));
             }
-            fresh.push(pad);
+            let ids = (
+                gamepad.vendor_id().unwrap_or_default(),
+                gamepad.product_id().unwrap_or_default(),
+            );
+            fresh.push((pad, ids));
         }
-        fresh.sort_by_key(|p| p.id);
-        self.pads = fresh;
+        fresh.sort_by_key(|(pad, _)| pad.id);
+        let ids: Vec<(u16, u16)> = fresh.iter().map(|(_, ids)| *ids).collect();
+        self.pads = fresh.into_iter().map(|(pad, _)| pad).collect();
+
         let connected: Vec<i64> = self.pads.iter().map(|p| p.id).collect();
         self.haptics.retain_pads(&connected);
+        self.read_sensors(&ids);
+    }
+
+    /// Fill in what gilrs cannot read. Two identical pads are told apart by
+    /// order, the same order the snapshot lists them in.
+    #[cfg(not(target_family = "wasm"))]
+    fn read_sensors(&mut self, ids: &[(u16, u16)]) {
+        self.sensors.poll(ids);
+        for (i, pad) in self.pads.iter_mut().enumerate() {
+            let (vendor, product) = ids[i];
+            let nth = ids[..i].iter().filter(|pair| **pair == ids[i]).count();
+            if let Some(reading) = self.sensors.reading(vendor, product, nth) {
+                pad.motion = reading.motion;
+                pad.touches.clone_from(&reading.touches);
+            }
+        }
     }
 }
 
 /// `input.gamepad_gyro` and `input.gamepad_acceleration`.
 pub(crate) fn install_motion_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("gamepad_gyro", &[], "", "How fast the pad is turning, in radians per second about each axis. Recorded and replayed, but no backend reports motion yet, so today this is always zero."),
-        ("gamepad_acceleration", &[], "", "The pad's acceleration in g, gravity included, so a pad at rest reads 1 on one axis. Recorded and replayed, but no backend reports motion yet, so today this is always zero."),
+        ("gamepad_gyro", &[], "", "How fast the pad is turning, in radians per second about each axis. Read from PlayStation pads on desktop; zero for a pad with no gyroscope."),
+        ("gamepad_acceleration", &[], "", "The pad's acceleration in g, gravity included, so a pad at rest reads 1 on one axis. Read from PlayStation pads on desktop; zero for a pad with no accelerometer."),
     ]);
     m.function("gamepad_gyro", |eng: &Engine, id: i64| {
         let state = eng.resource::<GamepadState>();
@@ -417,7 +441,7 @@ pub(crate) fn install_touchpad_api(m: &mut dyn Bindings<Engine>) {
         "gamepad_touches",
         &[],
         "",
-        "Every finger on the pad's touchpad as `{ id, x, y }`, oldest first, with x and y running 0 to 1 across the surface. Recorded and replayed, but no backend reports a touchpad yet, so today this is always empty.",
+        "Every finger on the pad's touchpad as `{ id, x, y }`, oldest first, with x and y running 0 to 1 across the surface. Read from PlayStation pads on desktop; empty for a pad with no touchpad.",
     )]);
     m.function("gamepad_touches", |eng: &Engine, id: i64| {
         let state = eng.resource::<GamepadState>();

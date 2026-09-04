@@ -9,6 +9,7 @@ use anyhow::{anyhow, Result};
 use balaur_core::components::{as_f64, ComponentDef};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::{App, Engine, GlobalTransform};
+use balaur_script::{Bindings, NodeId};
 use glamx::{Vec2, Vec3};
 
 use crate::{color_from_params, color_to_toml, Renderable2d, Shape2d};
@@ -89,36 +90,64 @@ pub fn lights(world: &World, root: Entity) -> Vec<LitLight2d> {
     out
 }
 
-/// Every occluder segment under `root`, in world space.
+/// One node's occluder outline, in world space and in order.
 ///
-/// A closed outline repeats its first point as the last segment's end; an
-/// open one is a chain, which is what a wall drawn as a line wants.
+/// A closed outline repeats its first point at the end rather than carrying a
+/// flag, the way a closed polyline does here: the caller draws segments, and
+/// the join is just one more of them. Empty on a node with no `occluder2d`,
+/// and on one whose outline has not resolved to anything.
+pub fn outline(world: &World, entity: Entity) -> Vec<Vec2> {
+    let (Ok(occluder), Ok(global)) = (
+        world.get::<&Occluder2d>(entity),
+        world.get::<&GlobalTransform>(entity),
+    ) else {
+        return Vec::new();
+    };
+    if occluder.points.len() < 2 {
+        return Vec::new();
+    }
+    let to_world = |p: Vec2| {
+        let scaled = Vec3::new(p.x * global.scale.x, p.y * global.scale.y, 0.0);
+        let turned = global.rotation * scaled;
+        Vec2::new(global.position.x + turned.x, global.position.y + turned.y)
+    };
+    let mut points: Vec<Vec2> = occluder.points.iter().copied().map(to_world).collect();
+    if occluder.closed && points.len() > 2 {
+        points.push(points[0]);
+    }
+    points
+}
+
+/// Every occluder segment under `root`, in world space.
 pub fn occluder_edges(world: &World, root: Entity) -> Vec<[Vec2; 2]> {
     let mut out = Vec::new();
     for entity in balaur_core::scene::collect_subtree(world, root) {
-        let (Ok(occluder), Ok(global)) = (
-            world.get::<&Occluder2d>(entity),
-            world.get::<&GlobalTransform>(entity),
-        ) else {
-            continue;
-        };
-        if occluder.points.len() < 2 {
-            continue;
-        }
-        let to_world = |p: Vec2| {
-            let scaled = Vec3::new(p.x * global.scale.x, p.y * global.scale.y, 0.0);
-            let turned = global.rotation * scaled;
-            Vec2::new(global.position.x + turned.x, global.position.y + turned.y)
-        };
-        let points: Vec<Vec2> = occluder.points.iter().copied().map(to_world).collect();
+        let points = outline(world, entity);
         for pair in points.windows(2) {
             out.push([pair[0], pair[1]]);
         }
-        if occluder.closed && points.len() > 2 {
-            out.push([points[points.len() - 1], points[0]]);
-        }
     }
     out
+}
+
+/// `render.outline`: the outline a node blocks 2D light with, for a tool that
+/// draws it. A derived one comes back too, so an editor gizmo shows the
+/// outline the light map will actually use rather than the one authored.
+pub(crate) fn install_occluder_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[(
+        "outline",
+        &["occluder2d"],
+        "",
+        "The outline this node blocks 2D light with, in world space: x then y for each point in turn, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.",
+    )]);
+    m.function("outline", |eng: &Engine, node: NodeId| {
+        let entity = balaur_core::entity_of(eng, node)?;
+        let world = eng.world();
+        Ok(outline(&world, entity)
+            .into_iter()
+            .flat_map(|p| [p.x, p.y])
+            .collect::<Vec<f32>>())
+    });
 }
 
 /// The quad an edge casts away from `light`: the edge itself, then both ends

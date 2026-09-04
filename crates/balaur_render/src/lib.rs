@@ -46,6 +46,8 @@ mod shader_material;
 mod shader_material_3d;
 #[cfg(feature = "kiss3d")]
 mod skinned_2d;
+#[cfg(feature = "kiss3d")]
+mod skinned_3d;
 
 /// Ask a rendering backend to save one frame as a PNG once `after_frame`
 /// frames have been rendered (debugging, CI golden images, editor
@@ -107,6 +109,43 @@ pub struct WindowConfig {
     pub cursor_grabbed: bool,
     pub cursor_hidden: bool,
     pub changed: bool,
+}
+
+/// Screen-space effects the frame is resolved through, from the current
+/// `camera`. Applied by windowed backends when changed; a headless run holds
+/// the values and draws nothing, so a game that switches bloom on still ticks
+/// identically in CI.
+// Four independent switches plus the dirty flag, like `WindowConfig`: a state
+// enum would invent coupling these do not have.
+#[allow(clippy::struct_excessive_bools)]
+pub struct PostConfig {
+    /// Bright pixels bleed into their neighbours. The 2D light map feeds it:
+    /// a light over intensity 1 is what blooms.
+    pub bloom: bool,
+    /// Screen-space ambient occlusion, 3D only.
+    pub ssao: bool,
+    /// Screen-space reflections, 3D only.
+    pub ssr: bool,
+    /// Depth of field, 3D only.
+    pub dof: bool,
+    /// Brightness a pixel blooms past, and how much of it is added back.
+    pub bloom_threshold: f32,
+    pub bloom_intensity: f32,
+    pub changed: bool,
+}
+
+impl Default for PostConfig {
+    fn default() -> Self {
+        Self {
+            bloom: false,
+            ssao: false,
+            ssr: false,
+            dof: false,
+            bloom_threshold: 1.0,
+            bloom_intensity: 0.6,
+            changed: false,
+        }
+    }
 }
 
 /// Viewport clear color, applied by windowed backends when changed.
@@ -720,6 +759,7 @@ impl Plugin for RenderPlugin {
         app.engine.insert_resource(DebugLineBuffer::default());
         app.engine.insert_resource(DebugLineBuffer2d::default());
         app.engine.insert_resource(CameraConfig2d::default());
+        app.engine.insert_resource(PostConfig::default());
         app.engine.insert_resource(ViewportSnapshot2d::default());
         app.engine.insert_resource(ViewportSnapshot::default());
         app.engine
@@ -738,6 +778,7 @@ impl Plugin for RenderPlugin {
         material::install_material_check(&mut *m);
         material::install_material_params(&mut *m);
         shape::install_shape_api(&mut *m);
+        light::install_occluder_api(&mut *m);
         script_api::install_sprite_api(&mut *m);
         script_api::install_sprite_state_api(&mut *m);
         script_api::install_texture_api(&mut *m);

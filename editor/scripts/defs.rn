@@ -55,7 +55,7 @@ pub fn tool_icon(tool) {
 // no third entry is engine-backed: `shell::chip_value` reads it live each frame.
 pub fn chips(persona) {
     match persona {
-        "scene" => [["proj", "3D · Perspective", true], ["snap", "Snap 8 px", false], ["guides", "Guides", false]],
+        "scene" => [["proj", "3D · Perspective", true], ["snap", "Snap 8 px", false], ["guides", "Guides", false], ["lights", "Lights", true]],
         "anim" => [["path", "Motion path", true], ["snap", "Snap 8 px", false]],
         "phys" => [["colliders", "Show colliders", true], ["sleep", "Sleep bodies"]],
         "ui" => [["safe", "Safe area", true], ["res", "1920 × 1080", false]],

@@ -18,6 +18,7 @@ use balaur_script::{Bindings, BindingsExt, Value};
 pub mod actions;
 pub mod gamepad;
 pub mod haptics;
+mod sensors;
 
 pub use actions::InputActions;
 pub use gamepad::{GamepadState, Motion, PadTouch, PAD_AXIS_NAMES, PAD_BUTTON_NAMES};

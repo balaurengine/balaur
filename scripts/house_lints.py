@@ -59,7 +59,7 @@ KNOWN_RESOURCES = {
     "ClearColorConfig", "ComponentRegistry", "DebugLineBuffer", "DebugLineBuffer2d",
     "GamendSnapshot", "GamendState",
     "GridConfig", "HttpSnapshot", "HttpState", "InputSnapshot", "PhysicsState", "WebsocketSnapshot", "WebsocketState",
-    "PhysicsState2d", "ProjectRoot",
+    "PhysicsState2d", "PostConfig", "ProjectRoot",
     "RngState", "SceneKeyRegistry", "ScreenshotRequest", "ScriptArgs", "UiConfig",
     "UiState", "ViewportSnapshot", "ViewportSnapshot2d", "WidgetLayerConfig",
     "WindowedBackend",

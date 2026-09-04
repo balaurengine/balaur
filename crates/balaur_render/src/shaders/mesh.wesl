@@ -75,15 +75,22 @@ fn tint() -> vec4<f32> {
     return object.color;
 }
 
-// Where a vertex lands, with `offset` displacing it in the node's own space.
-fn place(in: VertexInput, offset: vec3<f32>) -> VertexOutput {
+// Where a vertex lands, for a caller that computed its own position and
+// normal in the node's own space — GPU skinning, or any displacement that
+// moves the normal with it.
+fn place_deformed(position: vec3<f32>, normal: vec3<f32>, uv: vec2<f32>) -> VertexOutput {
     var out: VertexOutput;
-    let world = object.model * vec4<f32>(in.position + offset, 1.0);
+    let world = object.model * vec4<f32>(position, 1.0);
     out.world = world.xyz;
     out.clip_position = frame.proj * frame.view * world;
-    out.normal = (object.normal_matrix * vec4<f32>(in.normal, 0.0)).xyz;
-    out.uv = in.uv;
+    out.normal = (object.normal_matrix * vec4<f32>(normal, 0.0)).xyz;
+    out.uv = uv;
     return out;
+}
+
+// Where a vertex lands, with `offset` displacing it in the node's own space.
+fn place(in: VertexInput, offset: vec3<f32>) -> VertexOutput {
+    return place_deformed(in.position + offset, in.normal, in.uv);
 }
 
 fn vertex(in: VertexInput) -> VertexOutput {

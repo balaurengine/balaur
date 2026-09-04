@@ -295,6 +295,9 @@ fn place_live(state: &mut AudioState, buses: &Buses, dt: f32) {
 
 /// The `listener` scene key. Kept in `AudioState` beside the `sound` nodes
 /// rather than on the entity, so finding the current one costs no query.
+///
+/// Takes the plugin `Registry` rather than `&mut App`, as the `sound`
+/// component beside it does: audio registers through the plugin seam.
 pub(crate) fn register_listener_component(reg: &mut balaur_plugin::Registry<'_>) {
     reg.register_component(
         "listener",

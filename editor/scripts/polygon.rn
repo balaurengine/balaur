@@ -20,7 +20,12 @@ const W = 2.0;
 const PICK_PX = 8.0;
 const MARK_PX = 4.0;
 
-pub fn modes() {
+// The modes the selection offers. An `occluder2d` is an outline and nothing
+// else: it has no triangles to draw, no texture to lay UVs over, and no rig.
+pub fn modes(S) {
+    if target(S.doc[S.sel]) == Some("occluder2d") {
+        return ["points"];
+    }
     ["points", "polygons", "uv", "weights"]
 }
 
@@ -34,11 +39,29 @@ pub fn mode_name(id) {
     }
 }
 
+// Which component the tool edits on this node. A `polygon` wins: a node can
+// carry both, and the one with the texture is the one being drawn.
+pub fn target(node) {
+    for key in ["polygon", "occluder2d"] {
+        if let Some(comp) = node.get(key) {
+            if comp is Object {
+                return Some(key);
+            }
+        }
+    }
+    None
+}
+
 pub fn component(node) {
-    match node.get("polygon") {
-        Some(comp) => if comp is Object { Some(comp) } else { None },
+    match target(node) {
+        Some(key) => node.get(key),
         None => None,
     }
+}
+
+// True when the tool is tracing an occluder outline rather than a polygon.
+pub fn occluding(S) {
+    target(S.doc[S.sel]) == Some("occluder2d")
 }
 
 // The inline mesh table under edit, or `None`: a mesh that is a file
@@ -169,7 +192,9 @@ fn begin(S, label, key) {
 }
 
 fn apply(S) {
-    model::apply_component(S, "polygon");
+    if let Some(key) = target(S.doc[S.sel]) {
+        model::apply_component(S, key);
+    }
 }
 
 // The mesh, created empty when the polygon has none yet. The caller has
@@ -637,6 +662,9 @@ fn leave_uv(S) {
 }
 
 pub fn set_mode(S, mode) {
+    // Selecting an occluder while in a mode it does not have leaves the tool
+    // pointing at nothing; points is the one every target offers.
+    let mode = if modes(S).iter().any(|id| id == mode) { mode } else { "points" };
     S.polygon.mode = mode;
     S.polygon.chain = None;
     if mode != "uv" {
@@ -771,10 +799,10 @@ pub fn update(S, over_viewport, mx, my) {
     }
 }
 
-// The four modes as pills in the viewport's chip row.
+// The selection's modes as pills in the viewport's chip row.
 pub fn mode_chips(S, k) {
     let mode = S.polygon.mode;
-    for id in modes() {
+    for id in modes(S) {
         let on = mode == id;
         if ui::pill(mode_name(id), #{
             height: 26, size: 11, strong: true,

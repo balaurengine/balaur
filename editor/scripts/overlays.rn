@@ -151,6 +151,87 @@ pub fn colliders2d(S) {
     }
 }
 
+// A `light2d` or `occluder2d` colour property, which the scene format writes
+// either as `#rrggbb` or as channel floats.
+fn component_rgb(value, fallback) {
+    if value is String && value.len() >= 7 {
+        return util::rgb(value);
+    }
+    util::vec3(value, fallback)
+}
+
+// `light2d` reach and aim, and `occluder2d` outlines (Lights chip).
+pub fn lights2d(S) {
+    for (i, node) in S.doc.iter().enumerate() {
+        let found = match model::live(S, i) {
+            Some(found) => found,
+            None => continue,
+        };
+        if let Some(light) = node.get("light2d") {
+            if light is Object {
+                light_gizmo(S, found, light);
+            }
+        }
+        if let Some(occluder) = node.get("occluder2d") {
+            if occluder is Object || occluder == () {
+                occluder_outline(S, found);
+            }
+        }
+    }
+}
+
+// One light: a point's reach as a circle, a directional one's aim as a comb
+// of strokes through the node, both in the light's own colour.
+fn light_gizmo(S, found, light) {
+    let c = component_rgb(light.get("color").unwrap_or(()), [1.0, 1.0, 1.0]);
+    let p = found.global_position();
+    let angle = found.global_rotation_euler().z;
+    let ca = math::cos(angle);
+    let sa = math::sin(angle);
+    // At rest a light2d shines along -y; the node's z rotation turns it.
+    let dx = sa;
+    let dy = -ca;
+    render::draw_line_2d(p.x - 0.2, p.y, p.x + 0.2, p.y, c[0], c[1], c[2], 2.0);
+    render::draw_line_2d(p.x, p.y - 0.2, p.x, p.y + 0.2, c[0], c[1], c[2], 2.0);
+    if light.get("kind").unwrap_or("point") == "directional" {
+        for step in -2..3 {
+            let ox = -dy * (step as f64) * 0.4;
+            let oy = dx * (step as f64) * 0.4;
+            render::draw_line_2d(p.x + ox, p.y + oy, p.x + ox + dx, p.y + oy + dy,
+                c[0], c[1], c[2], 1.0);
+        }
+        return;
+    }
+    let radius = util::f(light.get("radius").unwrap_or(6.0));
+    let px = p.x + radius;
+    let py = p.y;
+    for t in 1..33 {
+        let a = (t as f64) / 32.0 * math::PI * 2.0;
+        let nx = p.x + math::cos(a) * radius;
+        let ny = p.y + math::sin(a) * radius;
+        render::draw_line_2d(px, py, nx, ny, c[0], c[1], c[2], 1.0);
+        px = nx;
+        py = ny;
+    }
+}
+
+// The outline a node blocks light with, as the engine resolved it — so a
+// derived one (from `collider2d`, or the node's shape) draws too.
+fn occluder_outline(S, found) {
+    let k = S.theme;
+    let c = util::rgb(k.accent);
+    // Flat x, y pairs, already closed when the occluder is.
+    let flat = found.occluder2d.outline();
+    let count = flat.len() / 2;
+    if count < 2 {
+        return;
+    }
+    for i in 0..count - 1 {
+        render::draw_line_2d(flat[i * 2], flat[i * 2 + 1], flat[i * 2 + 2], flat[i * 2 + 3],
+            c[0], c[1], c[2], 1.0);
+    }
+}
+
 // Collider wireboxes + center-of-mass dots (Show colliders chip).
 pub fn colliders(S) {
     let k = S.theme;

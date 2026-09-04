@@ -945,6 +945,56 @@ would diverge. Where a rotation has got to is presentation: not snapshotted,
 not in the digest, because which of three footsteps played is not something a
 replay has to agree about.
 
+## Positional audio
+
+A **listener** is a node carrying the `listener` component, and it is the
+ears: distance to it sets a sound's volume, and the offset across its right
+sets the pan. A sound is placed either by its own component —
+
+```toml
+[nodes.Torch.sound]
+file = "sfx/fire.ogg"
+loop = true
+positional = true
+min_distance = 2.0
+max_distance = 40.0
+```
+
+— or per call, `audio.play(path, #{ position: [x, y, z] })`, which is what an
+impact or a one-shot at a point wants; `audio.play_event` takes the same
+`position`, with the carry declared in the events file beside the files.
+`audio.set_listener` covers a game whose ears are not a node, and a
+`listener` node takes the position back on the next frame.
+
+Attenuation is inverse-distance clamped at both ends: full volume inside
+`min_distance`, halving with every doubling beyond it, cut at `max_distance`,
+where for any sane pair it is already inaudible. Pan is equal-power amplitude
+between the two channels, computed with square roots rather than the usual
+sine pair — the platform's trigonometry is not the same everywhere
+(`docs/DETERMINISM.md`), and this shape needs no exemption. Doppler is
+OpenAL's model over velocities measured from how far the ends moved between
+frames, **off unless a sound asks for it** and clamped to an octave either
+way: physical doppler on a position that jitters is a warble, and on one that
+teleports a screech.
+
+Placement multiplies the bus chain rather than replacing it, so a positional
+sound still answers the `sfx` slider. It runs in `SceneSync`, after the
+transforms settle, so the ears and the emitters are placed from the poses the
+frame will draw — and a sound is placed as it starts rather than a frame
+later, or a sound the far side of the level would be heard at full volume for
+one frame. rodio's own `Spatial` player is not what plays it: that folds
+distance into the pan through a fixed inverse square and a pair of ear
+positions, with no way to say what a game's unit is. `ChannelVolume` under the
+engine's own arithmetic gives the same two channels with the numbers the scene
+chose, which also makes a positional sound mono — a sound in one place has one
+direction.
+
+None of it reaches the simulation, and none of it is read back off a sink:
+what the frame decided is kept on the emitter, so `AudioState::placement_of`
+answers the same on a CI runner with no sound card as on a machine with
+speakers, and `audio.distance_gain` / `audio.pan` give a debug overlay the
+numbers actually applied.
+
 ## Localization
 
 One `strings/<locale>.toml` per language, keys to strings, and
@@ -1782,7 +1832,6 @@ release finished.
 | Named collision layers, script physics hooks on a `parallel` build, solver tuning carried in a recording's header, `f64` for the whole engine rather than physics alone | `docs/PLAN-rapier.md`. Everything else rapier has is built |
 | Animation blending, blend trees, state machines | `docs/PLAN-animation-and-resources.md`. 3D IK exists for a reduced-coordinates joint chain (`physics3d.solve_ik`); an animation-side solver over a rig does not |
 | A sequencer: cutscenes and cameras on a timeline, with tracks that call something rather than only move it | no plan yet; `balaur_anim` already samples clips onto nodes, with twelve easing curves in four modes, and the editor has the timeline dock |
-| 2D lights and shadows, GPU skinning in 3D | `docs/PLAN-rendering.md` |
 | Shadow maps in 3D, and baked lightmaps | no plan yet; directional, point and spot lights and fog already reach the 3D material shader, with no shadow pass behind them |
 | Frustum and occlusion culling, level of detail, instancing of repeated meshes | no plan yet; the renderer draws every node it is handed, and `Renderable` + `GlobalTransform` is where a visibility pass would sit |
 | Drawing terrain: a mesher for the `heightfield` and `voxels` assets, and tools to paint them | no plan yet; both asset types exist and physics builds colliders from them — nothing draws either |
@@ -1792,7 +1841,6 @@ release finished.
 | More widget kinds, as games ask for them | `docs/PLAN-batteries.md` phase 6 |
 | Accessibility: a screen reader over the widget tree, text scaling, captions, colour-blind-safe defaults | no plan yet; the retained `widget` tree already carries text, `focusable` and a focus order, which is what a reader walks; egui can emit an AccessKit tree, localization is there for captions, and actions already rebind |
 | Navigation: a navmesh baked from the scene, A* over it or over a grid, agents that avoid each other | no plan yet; nothing in the tree pathfinds. Behaviour over it stays a script's job |
-| Positional audio: distance attenuation, panning and doppler off a listener node | `docs/PLAN-batteries.md` phase 7. rodio, already the backend, has a spatial player; a `sound` plays at the volume it is given wherever its node stands |
 | Haptics and motion: gamepad rumble, gyro, touchpad | no plan yet; gilrs already polls the pads and ships force feedback (`gilrs::ff`), which nothing calls |
 | WebTransport (QUIC) native and in the browser, Gamend sessions and matchmaking, WebRTC data channels for browser peer-to-peer; never raw UDP, never ENet | `docs/PLAN-networking.md` §2 and steps 6, 8, 13, 14. Binary frames, run-time stable ids and rollback (one machine and over a socket) shipped in 0.1.0 |
 | Replication and RPC, client-side prediction, server reconciliation, interpolation of unowned nodes, lag compensation, interest management, a bandwidth budget; join in progress; a client-authoritative hit is never planned | `docs/PLAN-networking.md` §1 "Hiding latency" and steps 9 to 12 |

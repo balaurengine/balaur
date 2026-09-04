@@ -216,6 +216,9 @@ pub fn update(this, dt) {
     if S.persona == "scene" && chips.get("guides").unwrap_or(false) {
         overlays::guides(S);
     }
+    if S.mode2d && chips.get("lights").unwrap_or(S.persona == "scene") {
+        overlays::lights2d(S);
+    }
     if S.persona == "anim" && chips.get("path").unwrap_or(true) {
         overlays::motion_path(S);
     }

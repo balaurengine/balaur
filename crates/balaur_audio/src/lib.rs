@@ -1070,8 +1070,8 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
 /// emitter behind a handle that was played with a `position`.
 fn install_positional_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("listener", &["listener"], "()", "Where the ears are: the current `listener` node's world position, or what `set_listener` last put there."),
-        ("set_listener", &["listener"], "(x: float, y: float, z: float)", "Put the ears at a point by hand, for a game whose view is not a node; a `listener` node in the scene takes it back on the next frame."),
+        ("listener", &[], "()", "Where the ears are: the current `listener` node's world position, or what `set_listener` last put there."),
+        ("set_listener", &[], "(x: float, y: float, z: float)", "Put the ears at a point by hand, for a game whose view is not a node; a `listener` node in the scene takes it back on the next frame."),
         ("emitter_position", &[], "(handle: int)", "Where a handle played with a `position` is; nil for a flat or unknown one."),
         ("set_emitter_position", &[], "(handle: int, x: float, y: float, z: float)", "Move what a handle plays from, so a sound follows something the script is driving; the frame takes its doppler from how far it moved."),
         ("distance_gain", &[], "(handle: int)", "The gain the distance to the listener is costing a positional handle right now: 1 up close, 0 out of range."),
@@ -1108,8 +1108,8 @@ fn install_positional_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     // The two halves of a placement, so a script can show what the mix is
-    // doing -- a debug overlay, or a subtitle that only shows for a sound
-    // near enough to hear.
+    // doing: a debug overlay, or a subtitle only for a sound near enough to
+    // hear.
     m.function("distance_gain", |eng: &Engine, handle: i64| {
         let state = eng.resource::<AudioState>();
         let placement = state.borrow().placement_of(handle_of(handle));

@@ -6,7 +6,7 @@
 
 use balaur_core::glamx::{Quat, Vec2, Vec3};
 use balaur_core::{components, scene, App, AppConfig, Transform};
-use balaur_render::light::{lights, occluder_edges, shadow_quad, LightKind2d, LitLight2d};
+use balaur_render::light::{lights, occluder_edges, outline, shadow_quad, LightKind2d, LitLight2d};
 use balaur_render::{CameraConfig2d, Occluder2d, RenderPlugin};
 
 fn app() -> App {
@@ -211,6 +211,52 @@ fn a_closed_occluder_edge_list_wraps_around() {
     let world = app.engine.world();
     let edges = occluder_edges(&world, app.engine.root());
     assert_eq!(edges.len(), 3, "an open outline is a chain: {edges:?}");
+}
+
+/// What the editor's gizmo draws: the outline in world space, closed, with
+/// the node's rotation and scale already in it.
+#[test]
+fn an_outline_comes_back_in_world_space_and_closed() {
+    let mut app = app();
+    let crate_node = node(&app);
+    place(
+        &app,
+        crate_node,
+        Vec3::new(2.0, 0.0, 0.0),
+        Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
+    );
+    {
+        let mut world = app.engine.world_mut();
+        world.get::<&mut Transform>(crate_node).unwrap().scale = Vec3::new(2.0, 1.0, 1.0);
+    }
+    add(
+        &app,
+        crate_node,
+        "shape2d",
+        "kind = \"rect\"\nhalf_extents = [1.0, 1.0]",
+    );
+    add(&app, crate_node, "occluder2d", "");
+    app.tick(1.0 / 60.0);
+    let world = app.engine.world();
+    let points = outline(&world, crate_node);
+    assert_eq!(
+        points.len(),
+        5,
+        "closed repeats the first point: {points:?}"
+    );
+    assert_close(points[0], points[4]);
+    // (-1, -1) scaled to (-2, -1), turned a quarter turn to (1, -2), moved.
+    assert_close(points[0], Vec2::new(3.0, -2.0));
+}
+
+#[test]
+fn a_node_without_an_occluder_has_no_outline() {
+    let mut app = app();
+    let bare = node(&app);
+    add(&app, bare, "shape2d", "kind = \"rect\"");
+    app.tick(1.0 / 60.0);
+    let world = app.engine.world();
+    assert!(outline(&world, bare).is_empty());
 }
 
 fn point_light(position: Vec2, radius: f32) -> LitLight2d {

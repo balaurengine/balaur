@@ -50,7 +50,7 @@ struct GpuLight {
 /// Matches `FrameUniforms` in `shaders/mesh.wesl`.
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
-struct FrameUniforms {
+pub(crate) struct FrameUniforms {
     view: [[f32; 4]; 4],
     proj: [[f32; 4]; 4],
     eye_clock: [f32; 4],
@@ -110,7 +110,7 @@ fn fog_row(fog: &kiss3d::light::Fog) -> [f32; 4] {
     [mode, a, b, fog.height_falloff]
 }
 
-fn frame_uniforms(
+pub(crate) fn frame_uniforms(
     view: &Pose3,
     proj: &Mat4,
     eye: Vec3,
@@ -175,7 +175,7 @@ pub(crate) struct ShaderMaterial3d {
     last_frame: Cell<u64>,
 }
 
-fn uniform_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
+pub(crate) fn uniform_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
         binding,
         visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
@@ -219,8 +219,9 @@ fn vertex_layouts() -> [Option<wgpu::VertexBufferLayout<'static>>; 3] {
 }
 
 /// The frame, object and texture layouts, in the order the pipeline binds
-/// them. `shaders/mesh.wesl` declares the matching groups.
-fn bind_group_layouts() -> [wgpu::BindGroupLayout; 3] {
+/// them. `shaders/mesh.wesl` declares the matching groups, so `skinned_3d`
+/// binds the same three and adds its palette after them.
+pub(crate) fn bind_group_layouts() -> [wgpu::BindGroupLayout; 3] {
     let ctxt = Context::get();
     let uniform = |label| {
         ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
