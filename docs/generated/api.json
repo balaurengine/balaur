@@ -5263,26 +5263,17 @@
     },
     {
       "acts_on": {
-        "channel": [
-          "material"
-        ],
         "color": [
           "polygon",
           "shape2d",
           "shape3d",
           "sprite"
         ],
-        "material_params": [
-          "material"
-        ],
         "outline": [
           "occluder2d"
         ],
         "set_ball": [
           "shape3d"
-        ],
-        "set_channel": [
-          "material"
         ],
         "set_circle": [
           "shape2d"
@@ -5300,12 +5291,6 @@
         "set_rect": [
           "shape2d"
         ],
-        "set_shader_preview": [
-          "material"
-        ],
-        "set_shader_probe": [
-          "material"
-        ],
         "set_sprite": [
           "sprite"
         ],
@@ -5318,9 +5303,6 @@
         "set_sprite_size": [
           "sprite"
         ],
-        "shader_probe": [
-          "material"
-        ],
         "shape2d": [
           "shape2d"
         ],
@@ -5332,7 +5314,6 @@
         ]
       },
       "components": [
-        "material",
         "occluder2d",
         "particles",
         "polygon",
