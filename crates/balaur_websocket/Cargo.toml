@@ -27,7 +27,7 @@ httparse = "1"
 flate2 = "1"
 rand = "0.10"
 rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
-webpki-roots = "0.26"
+webpki-roots = "1"
 
 # Compiles the emscripten websocket shim for web builds only; see build.rs.
 # The browser outside emscripten: the WebSocket API through web-sys. No

@@ -30,7 +30,7 @@ web-transport-quinn = { version = "0.12", default-features = false, features = [
 # engine's polled model. No multi-thread scheduler: a link is one socket.
 tokio = { version = "1", default-features = false, features = ["rt", "net", "sync", "macros", "time"] }
 rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
-rcgen = "0.13"
+rcgen = "0.14"
 # Certificate hashes, the way a client pins a self-signed server. Already in
 # the tree under rustls; taken directly so the digest is not reimplemented.
 ring = "0.17"

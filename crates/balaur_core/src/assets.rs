@@ -377,13 +377,11 @@ pub fn save(eng: &Engine, reference: &str, definition: &toml::Value) -> Result<(
         .try_resource::<ProjectRoot>()
         .ok_or_else(|| anyhow!("no project directory, so '{reference}' cannot be written"))?;
     let full = root.borrow().0.join(&path);
-    if let Some(parent) = full.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("creating {}", parent.display()))?;
-    }
     let text =
         toml::to_string_pretty(definition).with_context(|| format!("encoding '{reference}'"))?;
-    std::fs::write(&full, text).with_context(|| format!("writing {}", full.display()))?;
+    crate::files::backend(eng)
+        .write(&full, text.as_bytes())
+        .with_context(|| format!("writing {}", full.display()))?;
     reload(eng, reference)
 }
 

@@ -1,5 +1,5 @@
 # Pinned to the dependency tree's MSRV: wesl 0.4.4 needs 1.97.1, egui 0.36.1
 # needs 1.95. Older toolchains fail with an error that never names the cause.
 [toolchain]
-channel = "1.98.0"
+channel = "1.98.1"
 components = ["rustfmt", "clippy"]

@@ -16,9 +16,16 @@ assets=(
   "$dist"/balaur-runtime-*
   "$dist"/balaur-template-*
   "$dist"/balaur-example-*
-  "$dist"/balaur.wasm
+  "$dist"/balaur_bg.wasm
   "$dist"/balaur.js
 )
+# nullglob drops a pattern that matches nothing, but the two web names carry no
+# wildcard to expand, so a run without the web build would list them anyway.
+present=()
+for asset in "${assets[@]}"; do
+  [ -e "$asset" ] && present+=("$asset")
+done
+assets=("${present[@]}")
 if [ ${#assets[@]} -eq 0 ]; then
   printf '::error::no artifacts in %s — did the desktop builds upload theirs?\n' "$dist"
   exit 1
@@ -130,7 +137,7 @@ without setting up signing; ship neither.
 
 ### Web
 
-**`balaur.wasm` / `balaur.js`** — the web build. No canvas surface yet, so it
+**`balaur_bg.wasm` / `balaur.js`** — the web build. No canvas surface yet, so it
 is published to make the work visible, not because it is finished. See
 docs/PLAN-mobile-export.md.
 

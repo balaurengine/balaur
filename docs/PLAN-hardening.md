@@ -71,10 +71,9 @@ switch enables both scalar widths. Each is in its phase below with the line.
 ### Phase 0 — green, and kept green
 
 1. The six fixes in the table above, one commit each, verified by the run.
-2. **Open, and the owner's to set:** branch protection on `main` requiring
-   the four called workflows. Nothing else here can stop a red push from
-   landing. Done alongside it: `draft-release` now runs only on a push, so a
-   `workflow_dispatch` from a side branch can no longer move the rolling
+2. **Not planned:** branch protection on `main`. Asked for and declined on
+   2026-09-04; a red push stays allowed. `draft-release` still runs only on a
+   push, so a `workflow_dispatch` from a side branch cannot move the rolling
    `nightly` tag (`draft_release.sh` deletes and recreates it).
 3. `scripts/lint.sh` and `lint.yml` become one list: `api_lints.py` and
    `third_party_notices.py --check` join CI; the `window`, `extensions` and

@@ -147,7 +147,9 @@ fn read(eng: &Engine, locale: &str) -> Catalogue {
     let path = format!("strings/{locale}.toml");
     let root = eng.resource::<Strings>().borrow().root.clone();
     let read = match &root {
-        Some(root) => std::fs::read_to_string(root.join(&path)).map_err(anyhow::Error::from),
+        Some(root) => crate::files::backend(eng)
+            .read(&root.join(&path))
+            .and_then(|b| String::from_utf8(b).map_err(anyhow::Error::from)),
         None => crate::project::scene_text(eng, &path),
     };
     let Ok(source) = read else {
@@ -239,9 +241,8 @@ pub fn locales(eng: &Engine) -> Vec<String> {
             .map(|r| r.borrow().0.clone())
             .unwrap_or_default()
     });
-    if let Ok(entries) = std::fs::read_dir(root.join("strings")) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().into_owned();
+    {
+        for (name, _) in crate::files::backend(eng).list(&root.join("strings")) {
             if let Some(locale) = name.strip_suffix(".toml") {
                 out.push(locale.to_string());
             }

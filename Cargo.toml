@@ -8,7 +8,7 @@ exclude = ["examples/extension_greeter"]
 version = "0.1.0"
 edition = "2021"
 # Pinned to the toolchain, so a build that cannot work fails saying so.
-rust-version = "1.98.0"
+rust-version = "1.98.1"
 license = "MIT"
 authors = ["Dragos Daian <daian.dragos@yahoo.com>"]
 repository = "https://github.com/balaurengine/balaur"
@@ -41,7 +41,7 @@ rust_2018_idioms   = { level = "warn", priority = -1 }
 
 [workspace.dependencies]
 # Content hashes for packed binary assets, and the release checksums.
-sha2 = "0.10"
+sha2 = "0.11"
 balaur_core = { path = "crates/balaur_core", version = "0.1.0" }
 balaur_plugin = { path = "crates/balaur_plugin", version = "0.1.0" }
 balaur_script = { path = "crates/balaur_script", version = "0.1.0" }
@@ -71,9 +71,9 @@ notify = "8"
 rapier3d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render", "unsync-callbacks"] }
 rapier2d = { version = "0.35", features = ["enhanced-determinism", "serde-serialize", "debug-render", "unsync-callbacks"] }
 serde = { version = "1", features = ["derive"] }
-bincode = "1.3"
+bincode = { version = "2", features = ["serde"] }
 serde_json = "1"
-toml = "0.9"
+toml = "1"
 anyhow = "1"
 # `serde` so the deterministic collections inside a recorded snapshot
 # serialize in their insertion order, which is the order that matters.
@@ -116,3 +116,10 @@ strip = true
 rune = { git = "https://github.com/balaurengine/rune.git", branch = "deterministic-pow" }
 # v0.46.0 + the macOS Command-modifier fix for egui + iOS/Android support.
 kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "mobile-fixes" }
+
+# TEMPORARY, for verifying the canvas alpha fix. kiss3d configures a surface
+# with `alpha_modes[0]`, which a WebGPU canvas reports as premultiplied, so the
+# browser composites the page through every pixel — the renderer never writes
+# alpha. Remove this once the fix is on the fork's mobile-fixes branch.
+[patch."https://github.com/Ughuuu/kiss3d.git"]
+kiss3d = { path = "/tmp/kiss3d-alpha" }

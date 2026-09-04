@@ -21,7 +21,6 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Result};
-use bincode::Options as _;
 use rune::runtime::{Logic, Unit};
 use rune::Source;
 
@@ -43,7 +42,7 @@ const FORMAT: u32 = 1;
 pub(crate) fn encode(unit: &Unit, functions: &[PublicSignature]) -> Result<Vec<u8>> {
     let mut out = Vec::from(*MAGIC);
     out.extend_from_slice(&FORMAT.to_le_bytes());
-    bincode::serialize_into(&mut out, &(unit.logic(), functions))?;
+    bincode::serde::encode_into_std_write(&(unit.logic(), functions), &mut out, LEGACY)?;
     Ok(out)
 }
 
@@ -59,21 +58,37 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<(Unit, Vec<PublicSignature>)> {
     if version != FORMAT {
         bail!("compiled script is format {version}, this build reads {FORMAT}");
     }
-    let (logic, functions): (Logic, Vec<PublicSignature>) = options(rest.len() as u64)
-        .deserialize(rest)
-        .map_err(|why| anyhow!("compiled script does not read back: {why}"))?;
+    let (logic, functions): (Logic, Vec<PublicSignature>) =
+        decode_bounded(rest).map_err(|why| anyhow!("compiled script does not read back: {why}"))?;
     Ok((Unit::from_parts(logic, None)?, functions))
 }
 
-/// [`encode`]'s own encoding, bounded by the bytes actually on hand.
+/// [`encode`]'s own encoding: bincode 1's defaults, which is what the packs
+/// already on disk were written with.
+const LEGACY: bincode::config::Configuration<
+    bincode::config::LittleEndian,
+    bincode::config::Fixint,
+> = bincode::config::legacy();
+
+/// Decode bounded by the bytes actually on hand.
 ///
 /// A crafted length prefix would otherwise reserve gigabytes before a single
-/// field was validated; nothing genuine decodes to more than it was read from.
-fn options(limit: u64) -> impl bincode::Options {
-    bincode::DefaultOptions::new()
-        .with_fixint_encoding()
-        .allow_trailing_bytes()
-        .with_limit(limit)
+/// field was validated. bincode takes the bound as a const, so the length
+/// picks the smallest bucket that covers it rather than the exact count.
+fn decode_bounded(
+    rest: &[u8],
+) -> Result<(Logic, Vec<PublicSignature>), bincode::error::DecodeError> {
+    macro_rules! bucketed {
+        ($($limit:expr),+ $(,)?) => {{
+            $(if rest.len() <= $limit {
+                let config = LEGACY.with_limit::<{ $limit }>();
+                return bincode::serde::decode_from_slice(rest, config).map(|(value, _)| value);
+            })+
+        }};
+    }
+    bucketed!(1 << 16, 1 << 20, 1 << 24, 1 << 28);
+    let config = LEGACY.with_limit::<{ usize::MAX }>();
+    bincode::serde::decode_from_slice(rest, config).map(|(value, _)| value)
 }
 
 /// Whether `bytes` look like [`encode`]'s output rather than script source.

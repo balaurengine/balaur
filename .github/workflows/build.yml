@@ -55,7 +55,7 @@ jobs:
       - name: Build and package
         shell: bash
         run: ./scripts/package.sh ${{ matrix.target }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: balaur-${{ matrix.target }}
           path: dist/balaur-*
@@ -119,7 +119,7 @@ jobs:
       - name: Build template
         shell: bash
         run: ./scripts/package_template.sh ${{ matrix.platform }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: balaur-template-${{ matrix.platform }}
           path: dist/*
@@ -146,7 +146,7 @@ jobs:
       - name: Linux build deps
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: balaur-template-${{ matrix.platform }}
           path: dist
@@ -156,7 +156,7 @@ jobs:
       - name: Export a game with the template
         shell: bash
         run: ./scripts/export_mobile.sh ${{ matrix.platform }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: balaur-example-${{ matrix.platform }}
           path: dist/balaur-example-*
@@ -177,7 +177,7 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: balaur-*
           path: dist

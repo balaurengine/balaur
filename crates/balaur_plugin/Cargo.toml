@@ -19,7 +19,7 @@ balaur_core.workspace = true
 balaur_script.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
-libloading = { version = "0.8", optional = true }
+libloading = { version = "0.9", optional = true }
 
 [dev-dependencies]
 balaur_script.workspace = true

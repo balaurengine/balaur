@@ -597,7 +597,22 @@ fn install_apple_api(m: &mut dyn Bindings<Engine>) {
 
 /// Game Center's own screens.
 fn install_screens_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[]);
+    m.describe(&[
+        (
+            "show_dashboard",
+            &[],
+            "(node: node?, opts: table?)",
+            "Open Game Center's dashboard over the game; `state` picks the page \
+             — default, leaderboards, achievements, challenges, profile, dashboard or friends.",
+        ),
+        (
+            "access_point",
+            &[],
+            "(active: bool, opts: table?)",
+            "Show or hide Game Center's floating access point, and answer whether it is showing; \
+             `location` is a corner — top_leading, top_trailing, bottom_leading or bottom_trailing.",
+        ),
+    ]);
     m.function(
         "show_dashboard",
         |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {

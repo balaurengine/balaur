@@ -184,6 +184,10 @@ pub fn run_windowed(app: App, title: &str) -> anyhow::Result<()> {
 /// browser cannot block, so its entry point spawns it onto the page's event
 /// loop instead, and `canvas_id` names the `<canvas>` it draws on — kiss3d's
 /// default, `"canvas"`, when `None`.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the loop driver measures a frame; what it feeds systems is fixed_dt"
+)]
 pub async fn run_windowed_async(
     mut app: App,
     title: &str,

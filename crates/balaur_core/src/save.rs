@@ -96,23 +96,26 @@ pub fn write(eng: &Engine, slot: &str, data: &balaur_script::Value) -> Result<()
     );
     doc.insert("data".into(), body);
     let text = toml::to_string(&toml::Value::Table(doc))?;
-    let dir = path.parent().unwrap_or(Path::new("."));
-    std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+    let fs = crate::files::backend(eng);
     let temporary = path.with_extension("toml.part");
-    write_durably(&temporary, &text).with_context(|| format!("writing {}", temporary.display()))?;
-    std::fs::rename(&temporary, &path).with_context(|| format!("replacing {}", path.display()))?;
+    fs.write(&temporary, text.as_bytes())
+        .with_context(|| format!("writing {}", temporary.display()))?;
+    sync_durably(&temporary);
+    fs.rename(&temporary, &path)
+        .with_context(|| format!("replacing {}", path.display()))?;
     Ok(())
 }
 
-/// Write and flush to the device before returning.
+/// Flush what was just written to the device.
 ///
 /// The rename is only atomic against a crash; without this the promise that a
 /// save cannot be found truncated does not survive the machine losing power.
-fn write_durably(path: &Path, text: &str) -> std::io::Result<()> {
-    use std::io::Write;
-    let mut file = std::fs::File::create(path)?;
-    file.write_all(text.as_bytes())?;
-    file.sync_all()
+/// A virtual filesystem has no device to reach and nothing to promise, so
+/// this is a no-op wherever the path is not a real file.
+fn sync_durably(path: &Path) {
+    if let Ok(file) = std::fs::File::open(path) {
+        let _ = file.sync_all();
+    }
 }
 
 /// Read `slot`, brought forward to the version this build writes.
@@ -121,7 +124,10 @@ fn write_durably(path: &Path, text: &str) -> std::io::Result<()> {
 /// should not have to handle an error to find out there is not.
 pub fn read(eng: &Engine, slot: &str) -> Result<balaur_script::Value> {
     let path = path_of(eng, slot)?;
-    let Ok(text) = std::fs::read_to_string(&path) else {
+    let Ok(text) = crate::files::backend(eng)
+        .read(&path)
+        .and_then(|b| String::from_utf8(b).map_err(anyhow::Error::from))
+    else {
         return Ok(balaur_script::Value::Nil);
     };
     let doc: toml::Value =

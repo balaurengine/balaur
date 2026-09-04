@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
       # Audio and input for the headless build; X11/Wayland/xkb for the
       # windowed one, which links winit.
       - name: Linux build deps
@@ -68,7 +68,7 @@ jobs:
         shell: bash
         run: ./scripts/e2e.sh
       - name: Upload pack digests
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: packs-${{ matrix.os }}
           path: target/e2e/digests.txt
@@ -79,7 +79,7 @@ jobs:
         shell: bash
         run: ./scripts/determinism_trace.sh record target/determinism
       - name: Upload determinism traces
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: traces-${{ matrix.os }}
           path: target/determinism/traces.txt
@@ -92,6 +92,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # balaur_core pulls audio and input, whose -sys crates need these to
+      # build; no other step in this job installs them.
+      - name: Linux build deps
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
       - uses: Swatinem/rust-cache@v2
       - name: f64
         run: cargo test -p balaur_physics --no-default-features --features f64
@@ -110,7 +114,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: packs-*
           path: digests
@@ -125,7 +129,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: traces-*
           path: traces

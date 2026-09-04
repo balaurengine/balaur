@@ -544,12 +544,19 @@ impl App {
                 .with_context(|| format!("scene {} missing from pack", manifest.main_scene))?;
             self.manifest = Some(manifest);
         } else {
+            let fs = crate::files::backend(&self.engine);
             let path = self.project_root.join("project.toml");
-            manifest_src = std::fs::read_to_string(&path)
+            manifest_src = fs
+                .read(&path)
+                .ok()
+                .and_then(|b| String::from_utf8(b).ok())
                 .with_context(|| format!("no project.toml in {}", self.project_root.display()))?;
             let manifest = ProjectManifest::parse(&manifest_src)?;
             let scene_path = self.project_root.join(&manifest.main_scene);
-            scene_src = std::fs::read_to_string(&scene_path)
+            scene_src = fs
+                .read(&scene_path)
+                .ok()
+                .and_then(|b| String::from_utf8(b).ok())
                 .with_context(|| format!("reading {}", scene_path.display()))?;
             self.manifest = Some(manifest);
         }

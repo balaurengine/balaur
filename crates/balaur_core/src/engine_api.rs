@@ -688,7 +688,7 @@ fn args(eng: &Engine, _: &[Value]) -> Result<Value> {
 /// read-only.
 fn user_data_dir(eng: &Engine, _: &[Value]) -> Result<Value> {
     let dir = user_data_dir_of(eng);
-    std::fs::create_dir_all(&dir)?;
+    crate::files::backend(eng).mkdir(&dir)?;
     Ok(Value::Str(dir.to_string_lossy().into_owned()))
 }
 

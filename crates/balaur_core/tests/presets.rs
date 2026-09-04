@@ -232,7 +232,7 @@ fn a_packed_run_resolves_a_project_preset_as_a_dev_run_does() {
     .unwrap();
     std::fs::write(
         dir.path().join("presets.toml"),
-        "[crate]\ncomponents = { lonely = { on = true } }\n",
+        "[crate]\ncomponents = [{ component = \"lonely\", on = true }]\n",
     )
     .unwrap();
 
