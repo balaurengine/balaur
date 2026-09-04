@@ -12,7 +12,8 @@ use rune::ast::Spanned as _;
 use rune::runtime::VmResult;
 use rune::{Diagnostics, Source, Sources};
 
-use crate::{value, PackSourceLoader, RuneHost};
+use crate::packed::PackSourceLoader;
+use crate::{value, RuneHost};
 
 /// A `pub fn` a script declares, read off its source text. The host owns
 /// the text, and a `pub fn` starting a line, signature on that line, is the
@@ -193,6 +194,34 @@ fn export_type(default: &balaur_script::Value) -> &'static str {
 }
 
 impl RuneHost {
+    /// Log a runtime error at the line that threw, with the script backtrace
+    /// under it.
+    ///
+    /// `VmError` on its own prints the message and nothing else. Rendering it
+    /// against the unit's sources is what turns "field not found" into a file,
+    /// a line and the frames that led there.
+    pub(crate) fn report(&self, key: &str, label: &str, err: &rune::runtime::VmError) {
+        let sources = self
+            .state
+            .borrow()
+            .scripts
+            .get(key)
+            .and_then(|s| s.sources.clone());
+        // A packed script has no sources; there is nothing to render against.
+        let Some(sources) = sources else {
+            tracing::error!("[{key}] {label}: {err}");
+            return;
+        };
+        let mut buf = rune::termcolor::Buffer::no_color();
+        if err.emit(&mut buf, &sources).is_err() {
+            tracing::error!("[{key}] {label}: {err}");
+            return;
+        }
+        let rendered = String::from_utf8_lossy(buf.as_slice());
+        tracing::error!("[{key}] {label}:\n{}", rendered.trim_end());
+    }
+
+
     /// Compile `key` from `source` and report every diagnostic instead of
     /// the first error's rendered text — the caller wants a list, not a page.
     ///

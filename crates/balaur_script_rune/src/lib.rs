@@ -17,6 +17,8 @@ mod bindings;
 mod debugger;
 mod inspect;
 mod packed;
+mod profile;
+mod task;
 mod pause;
 mod script_module;
 mod value;
@@ -34,17 +36,19 @@ use balaur_core::{Engine, Pack};
 use balaur_script::{Pause, StepMode};
 use hecs::Entity;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
-use std::future::Future as _;
 
 use rune::alloc::clone::TryClone as _;
-use rune::runtime::{Function, RuntimeContext, Unit, VmExecution, VmResult};
-use rune::{Diagnostics, Source, Sources, TypeHash as _, Vm};
+use rune::runtime::{Function, RuntimeContext, Unit, VmExecution};
+use rune::{Diagnostics, Source, Sources, Vm};
 
 pub use api::{api_json, rune_of};
 pub use bindings::{ApiEntry, RuneModule};
 pub use inspect::Finding;
+pub use profile::ScriptCost;
 use inspect::{public_functions, render, PublicSignature};
+use packed::PackSourceLoader;
 use script_module::script_module;
+use task::WaitFuture;
 pub use value::{Color, Node, Vec2, Vec3};
 
 /// The Rune backend, as an `AppConfig::script_backend` factory.
@@ -93,8 +97,9 @@ enum Purpose {
     Export,
 }
 
-/// How many VMs one script keeps warm. A tick uses one; the rest cover a
-/// script that re-enters itself through a host binding before returning.
+/// How many VMs one script keeps warm while profiling. One call uses one; the
+/// rest cover a script that re-enters itself through a host binding before
+/// returning.
 const VM_POOL: usize = 4;
 
 /// A resolved script function.
@@ -103,7 +108,7 @@ struct Method {
     /// Kept for the paths that hand a callable back to Rune. Behind an `Rc`
     /// because `Function` is not `Clone` and this is cached, not consumed.
     function: Rc<Function>,
-    /// Precomputed, so a call does not hash the name again.
+    /// Precomputed, for the profiled path that calls a VM by hash.
     hash: rune::Hash,
     /// Whether the function runs to completion on the VM that called it. An
     /// async, generator or stream function's return value holds on to its VM,
@@ -122,9 +127,11 @@ struct Script {
     /// Resolved lifecycle and signal handlers. A miss is cached too: most
     /// scripts define none of `on_free`, and asking every frame is not free.
     methods: HashMap<String, Option<Method>>,
-    /// VMs to reuse. Building one is cheap but its stack is not: a fresh VM
-    /// grows a fresh stack on every call, which at one call per node per
-    /// frame is the largest thing a tick allocates.
+    /// VMs to reuse, used only while profiling — reading the instruction
+    /// counter needs a VM of our own, and `Function::call` keeps its inside.
+    /// Not a fast path: measured against `Function::call` on the scripting
+    /// benchmarks, borrowing one back out of the host and returning it costs
+    /// about 12% more per call than letting it build its own.
     vms: Vec<Vm>,
     lines: Rc<debugger::Lines>,
     functions: Vec<PublicSignature>,
@@ -274,93 +281,6 @@ fn trampoline(slot: usize, arity: usize) -> Option<Function> {
     })
 }
 
-/// `mod name;` in a packed script: `name.rn` or `name/mod.rn` beside the
-/// requesting file, looked up in the pack.
-struct PackSourceLoader {
-    scripts: std::collections::BTreeMap<String, Vec<u8>>,
-}
-
-impl rune::compile::SourceLoader for PackSourceLoader {
-    fn load(
-        &mut self,
-        root: &Path,
-        item: &rune::Item,
-        span: &dyn rune::ast::Spanned,
-    ) -> rune::compile::Result<Source> {
-        let not_found = |path: PathBuf| {
-            rune::compile::Error::msg(
-                span,
-                format!("module {} is not in the pack", path.display()),
-            )
-        };
-        let mut base = root.to_path_buf();
-        base.pop();
-        for component in item {
-            match component {
-                rune::item::ComponentRef::Str(name) => base.push(name),
-                _ => return Err(not_found(base)),
-            }
-        }
-        for candidate in [base.join("mod.rn"), base.with_extension("rn")] {
-            let key = candidate.to_string_lossy().replace('\\', "/");
-            if let Some(bytes) = self.scripts.get(&key) {
-                // A compiled pack has already folded its modules into each
-                // unit, so nothing should be compiling against one here.
-                if packed::is_encoded(bytes) {
-                    return Err(rune::compile::Error::msg(
-                        span,
-                        format!("module {key} is compiled, not source"),
-                    ));
-                }
-                let text = String::from_utf8_lossy(bytes);
-                return Ok(Source::with_path(key.as_str(), text.as_ref(), &candidate)?);
-            }
-        }
-        Err(not_found(base))
-    }
-}
-
-/// The future behind `task::wait(token)`: pending until its token's wake
-/// payload appears, ready with that payload converted for the script.
-struct WaitFuture {
-    token: u64,
-}
-
-impl std::future::Future for WaitFuture {
-    type Output = rune::Value;
-
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<rune::Value> {
-        let taken = WAKES.with(|wakes| {
-            let mut wakes = wakes.borrow_mut();
-            let at = wakes.iter().position(|(t, _)| *t == self.token)?;
-            Some(wakes.remove(at).1)
-        });
-        let Some(payload) = taken else {
-            return std::task::Poll::Pending;
-        };
-        match value::from_neutral(&payload) {
-            Ok(value) => std::task::Poll::Ready(value),
-            Err(err) => {
-                tracing::error!("task::wait({}): {err}", self.token);
-                std::task::Poll::Ready(rune::to_value(()).expect("unit always converts"))
-            }
-        }
-    }
-}
-
-/// What one script cost a frame. Instructions rather than nanoseconds: two
-/// runs of a deterministic simulation execute the same instructions, so a
-/// regression here is a real change in what the script does, not noise from
-/// the machine it ran on.
-#[derive(Clone, Copy, Default)]
-pub struct ScriptCost {
-    pub calls: u64,
-    pub instructions: u64,
-}
-
 struct State {
     /// Per-script cost since profiling was turned on. `None` when it is off,
     /// which is the check the hot path makes.
@@ -443,51 +363,6 @@ impl RuneHost {
 
     pub fn engine(&self) -> Engine {
         self.engine.clone()
-    }
-
-    /// Start or stop counting what each script costs. Turning it on clears
-    /// what was counted before.
-    ///
-    /// Only synchronous calls are counted. An async method runs on a VM the
-    /// future owns, and its instructions land wherever it is resumed.
-    pub fn set_profiling(&self, on: bool) {
-        self.state.borrow_mut().profile = on.then(HashMap::new);
-    }
-
-    pub fn profiling(&self) -> bool {
-        self.state.borrow().profile.is_some()
-    }
-
-    /// What each script has cost since profiling started, dearest first.
-    pub fn script_costs(&self) -> Vec<(String, ScriptCost)> {
-        let state = self.state.borrow();
-        let Some(profile) = &state.profile else {
-            return Vec::new();
-        };
-        let mut out: Vec<(String, ScriptCost)> = profile
-            .iter()
-            .map(|(key, cost)| (key.to_string(), *cost))
-            .collect();
-        out.sort_by(|a, b| {
-            b.1.instructions
-                .cmp(&a.1.instructions)
-                .then_with(|| a.0.cmp(&b.0))
-        });
-        out
-    }
-
-    /// Attribute `instructions` to `key`. A no-op while profiling is off.
-    fn charge(&self, key: &str, instructions: u64) {
-        let mut state = self.state.borrow_mut();
-        let Some(profile) = &mut state.profile else {
-            return;
-        };
-        let cost = match profile.get_mut(key) {
-            Some(cost) => cost,
-            None => profile.entry(Rc::from(key)).or_default(),
-        };
-        cost.calls = cost.calls.wrapping_add(1);
-        cost.instructions = cost.instructions.wrapping_add(instructions);
     }
 
     /// Fold every registered module into a context.
@@ -592,44 +467,16 @@ impl RuneHost {
         }
     }
 
-    /// Log a runtime error at the line that threw, with the script backtrace
-    /// under it.
-    ///
-    /// `VmError` on its own prints the message and nothing else. Rendering it
-    /// against the unit's sources is what turns "field not found" into a file,
-    /// a line and the frames that led there.
-    fn report(&self, key: &str, label: &str, err: &rune::runtime::VmError) {
-        let sources = self
-            .state
-            .borrow()
-            .scripts
-            .get(key)
-            .and_then(|s| s.sources.clone());
-        // A packed script has no sources; there is nothing to render against.
-        let Some(sources) = sources else {
-            tracing::error!("[{key}] {label}: {err}");
-            return;
-        };
-        let mut buf = rune::termcolor::Buffer::no_color();
-        if err.emit(&mut buf, &sources).is_err() {
-            tracing::error!("[{key}] {label}: {err}");
-            return;
-        }
-        let rendered = String::from_utf8_lossy(buf.as_slice());
-        tracing::error!("[{key}] {label}:\n{}", rendered.trim_end());
-    }
-
     fn load(&self, key: &str) -> Result<Arc<Unit>> {
         if let Some(script) = self.state.borrow().scripts.get(key) {
             return Ok(script.unit.clone());
         }
-        let script = match self.packed_script(key)? {
-            Some(script) => script,
-            None => {
-                let source = self.source_of(key)?;
-                let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
-                Script::new(unit, source, sources)
-            }
+        let script = if let Some(script) = self.packed_script(key)? {
+            script
+        } else {
+            let source = self.source_of(key)?;
+            let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
+            Script::new(unit, source, sources)
         };
         let unit = script.unit.clone();
         self.state.borrow_mut().scripts.insert(key.to_string(), script);
@@ -691,6 +538,7 @@ impl RuneHost {
 
     /// A VM to run `key`'s code on: a pooled one, or a new one when the pool
     /// is empty because this script is already running further up the stack.
+    /// Only the profiler takes this path.
     fn take_vm(&self, key: &str) -> Option<Vm> {
         if let Some(vm) = self
             .state
@@ -706,7 +554,7 @@ impl RuneHost {
         Some(Vm::new(runtime, unit))
     }
 
-    /// Put a VM back, keeping its stack allocation for the next call.
+    /// Put a VM back for the next profiled call.
     ///
     /// Dropped rather than pooled once the pool is full, and dropped when the
     /// script has been reloaded out from under it — its unit is stale.
@@ -934,128 +782,6 @@ impl RuneHost {
     pub fn call_all(&self, method: &str) {
         for (entity, key, state) in self.live_batch() {
             self.invoke(entity, &key, method, vec![state], true);
-        }
-    }
-
-    /// File an async method's future as a task and run it to its first await.
-    /// Anything but a future is a finished synchronous call — nothing to do.
-    fn settle_call(
-        &self,
-        owner: Entity,
-        key: &str,
-        label: &str,
-        value: rune::Value,
-    ) -> Option<balaur_script::Value> {
-        if value.type_hash() != rune::runtime::Future::HASH {
-            return match value::to_neutral(&value) {
-                Ok(value) => Some(value),
-                Err(err) => {
-                    tracing::error!("[{key}] {label}: {err}");
-                    None
-                }
-            };
-        }
-        let future = match value.into_future() {
-            Ok(future) => future,
-            Err(err) => {
-                tracing::error!("[{key}] {label}: {err}");
-                return None;
-            }
-        };
-        self.state.borrow_mut().tasks.push(RuneTask {
-            owner,
-            key: Rc::from(key),
-            label: label.to_string(),
-            future: Box::pin(future),
-        });
-        self.poll_tasks();
-        None
-    }
-
-    /// Poll every suspended task once, in suspension order. Progress only
-    /// happens when a wake has put a payload where some `task::wait` looks,
-    /// so a poll with nothing delivered is a cheap no-op.
-    fn poll_tasks(&self) {
-        // Taken out before polling: resumed code may spawn new tasks or call
-        // back into the host, and the list must not be borrowed then.
-        let tasks = std::mem::take(&mut self.state.borrow_mut().tasks);
-        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
-        let mut kept = Vec::new();
-        for mut task in tasks {
-            match task.future.as_mut().poll(&mut context) {
-                std::task::Poll::Ready(VmResult::Ok(_)) => {}
-                std::task::Poll::Ready(VmResult::Err(err)) => {
-                    self.report(&task.key, &task.label, &err);
-                }
-                std::task::Poll::Pending => kept.push(task),
-            }
-        }
-        let mut state = self.state.borrow_mut();
-        // Tasks spawned while polling queue up behind the survivors.
-        kept.append(&mut state.tasks);
-        state.tasks = kept;
-    }
-
-    /// Resume every task suspended on `token` with `payload`, in suspension
-    /// order. An unclaimed wake is dropped, not stored.
-    pub fn wake(&self, token: u64, payload: &balaur_script::Value) {
-        WAKES.with(|wakes| wakes.borrow_mut().push((token, payload.clone())));
-        self.poll_tasks();
-        WAKES.with(|wakes| wakes.borrow_mut().retain(|(t, _)| *t != token));
-    }
-
-    /// Drain watcher events and reload changed scripts.
-    pub fn pump_reloads(&self) {
-        let mut changed: Vec<String> = Vec::new();
-        let mut assets: Vec<String> = Vec::new();
-        let mut sources = false;
-        {
-            let state = self.state.borrow();
-            let Some(events) = &state.events else { return };
-            while let Ok(event) = events.try_recv() {
-                let Ok(event) = event else { continue };
-                for path in event.paths {
-                    let Ok(rel) = path.strip_prefix(&state.project_root) else {
-                        continue;
-                    };
-                    let key = rel.to_string_lossy().replace('\\', "/");
-                    match path.extension().and_then(|e| e.to_str()) {
-                        Some("rn") => {
-                            if state.scripts.contains_key(&key) && !changed.contains(&key) {
-                                changed.push(key);
-                            }
-                        }
-                        // Assets and scenes are both TOML; `reload` drops only
-                        // what was cached, so a saved scene changes nothing.
-                        Some("toml") if !assets.contains(&key) => assets.push(key),
-                        // A shader is source a material links, not an asset
-                        // anything parsed: there is nothing cached to drop,
-                        // only the counter its material watches.
-                        Some("wesl") => sources = true,
-                        _ => {}
-                    }
-                }
-            }
-        }
-        if sources {
-            balaur_core::assets::invalidate(&self.engine);
-        }
-        for key in assets {
-            // A strings file is not an asset — nothing references it — so the
-            // catalogue has its own forgetting.
-            if key.starts_with("strings/") {
-                let _ = balaur_core::strings::reload(&self.engine);
-                continue;
-            }
-            if let Err(err) = balaur_core::assets::reload(&self.engine, &key) {
-                tracing::warn!("could not reload asset {key}: {err}");
-            }
-        }
-        for key in changed {
-            match self.reload(&key) {
-                Ok(()) => tracing::info!("hot reloaded {key}"),
-                Err(err) => tracing::error!("[{key}] {err}"),
-            }
         }
     }
 

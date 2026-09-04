@@ -421,3 +421,35 @@ fn an_asked_for_break_stops_at_the_next_line_a_script_runs() {
     assert!(host.paused().is_none());
     assert_eq!(field(&app, node, "ran"), Some(2.0));
 }
+
+/// A runtime error names the line it threw on, without the debugger being on.
+///
+/// The host keeps the sources its unit was compiled from and renders the
+/// error against them. Before that it logged the message alone, so a script
+/// author saw "expected a number" with nothing saying where.
+#[test]
+fn a_throw_is_reported_at_the_line_that_threw() {
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+
+    let dir = project(&[("s.rn", THROWER)]);
+    let app = app_in(dir.path());
+    attach(&app, app.engine.root(), "Holder", "s.rn");
+    let host = app.engine.script_host().unwrap();
+    assert!(!host.break_on_error(), "no debugger involved");
+
+    host.update(0.5);
+
+    let logged = balaur_core::logbuf::recent(64)
+        .iter()
+        .map(|e| e.message.clone())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(logged.contains("[s.rn] update"), "not attributed:\n{logged}");
+    // `let bad = 1 + "two";` is line 3, and the caret goes under it.
+    assert!(logged.contains("s.rn:3"), "no line number:\n{logged}");
+    assert!(
+        logged.contains("1 + \"two\""),
+        "the offending line is not shown:\n{logged}"
+    );
+}

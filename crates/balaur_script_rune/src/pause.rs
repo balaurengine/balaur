@@ -56,9 +56,13 @@ impl RuneHost {
             return self.invoke_stepping(owner, key, name, args);
         }
         let found = self.resolve(key, name)?;
-        // A synchronous function runs on a VM the script keeps warm. An async
-        // one gets its own, because the future it returns holds on to it.
-        let outcome = if found.immediate {
+        // Only the profiler needs a VM of our own, to read the instruction
+        // counter off either side of the call. Otherwise `Function::call` is
+        // the faster path: it builds its own VM, and that costs measurably
+        // less than borrowing a pooled one back out of the host and
+        // returning it. An async function needs its own regardless — the
+        // future it returns holds on to the VM it ran on.
+        let outcome = if found.immediate && self.profiling() {
             let mut vm = self.take_vm(key)?;
             let before = vm.instruction_count();
             let outcome = vm.call(found.hash, args);

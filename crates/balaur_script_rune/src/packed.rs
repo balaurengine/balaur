@@ -17,8 +17,11 @@
 //! whenever that pin moves to a rune whose `Unit` changed shape. A pack from
 //! any other version is rejected here rather than deserialised into nonsense.
 
+use std::path::{Path, PathBuf};
+
 use anyhow::{anyhow, bail, Result};
 use rune::runtime::{Logic, Unit};
+use rune::Source;
 
 use crate::inspect::PublicSignature;
 
@@ -62,6 +65,53 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<(Unit, Vec<PublicSignature>)> {
 pub(crate) fn is_encoded(bytes: &[u8]) -> bool {
     bytes.starts_with(MAGIC)
 }
+
+/// `mod name;` in a packed script: `name.rn` or `name/mod.rn` beside the
+/// requesting file, looked up in the pack.
+pub(crate) struct PackSourceLoader {
+    pub(crate) scripts: std::collections::BTreeMap<String, Vec<u8>>,
+}
+
+impl rune::compile::SourceLoader for PackSourceLoader {
+    fn load(
+        &mut self,
+        root: &Path,
+        item: &rune::Item,
+        span: &dyn rune::ast::Spanned,
+    ) -> rune::compile::Result<Source> {
+        let not_found = |path: PathBuf| {
+            rune::compile::Error::msg(
+                span,
+                format!("module {} is not in the pack", path.display()),
+            )
+        };
+        let mut base = root.to_path_buf();
+        base.pop();
+        for component in item {
+            match component {
+                rune::item::ComponentRef::Str(name) => base.push(name),
+                _ => return Err(not_found(base)),
+            }
+        }
+        for candidate in [base.join("mod.rn"), base.with_extension("rn")] {
+            let key = candidate.to_string_lossy().replace('\\', "/");
+            if let Some(bytes) = self.scripts.get(&key) {
+                // A compiled pack has already folded its modules into each
+                // unit, so nothing should be compiling against one here.
+                if is_encoded(bytes) {
+                    return Err(rune::compile::Error::msg(
+                        span,
+                        format!("module {key} is compiled, not source"),
+                    ));
+                }
+                let text = String::from_utf8_lossy(bytes);
+                return Ok(Source::with_path(key.as_str(), text.as_ref(), &candidate)?);
+            }
+        }
+        Err(not_found(base))
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
