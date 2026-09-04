@@ -1,23 +1,21 @@
-> **Status:** steps 1-4 and 6 built on 2026-09-03; steps 5, 7 and 8 are not
-> started. What landed: the `[apple]` table, and the `Info.plist` and
-> `.entitlements` an export writes from it
-> (`crates/balaur_export/src/apple.rs`); `crates/balaur_platform`, which is
-> the portable `platform.*` module and the backend seam the Google and Steam
+> **Status:** built on 2026-09-03 and 2026-09-04 — every step. The `[apple]`
+> table and the plist and entitlements an export writes from it
+> (`crates/balaur_export/src/apple.rs`); `crates/balaur_platform`, the
+> portable `platform.*` module and the backend seam the Google and Steam
 > plans lean on; and `crates/balaur_apple`, which puts Game Center and the
-> iCloud key-value store behind those verbs and adds `apple.identity` and
-> `apple.sign_in`. What did not: Game Center's own UI (step 5), StoreKit
-> (step 7), and arrivals — notifications and opened URLs (step 8).
+> iCloud key-value store behind those verbs and adds `apple.*` for Sign in
+> with Apple, the Game Center dashboard and access point, in-app purchases,
+> local notifications, push tokens and opened URLs.
 >
 > **What is proved, and what is only compiled.** The export half is tested:
 > the plist and entitlements a table produces, and every refusal — a
-> capability with no bundle id, a misspelled one, `icloud-kv` with no team,
-> Game Center below the version its identity signature needs. The seam is
-> tested through a canned backend: the `unsupported` answer with no store, a
-> sign-in landing a player, a recorded session replaying with no backend
-> behind it, and the deferral rule. The framework code compiles for macOS and
-> for iOS and has never run against Apple's servers — that needs an Apple ID,
-> a provisioning profile and hardware, which §4 said in advance and which is
-> still true.
+> capability with no bundle id, a misspelled one, `icloud-kv` with no team, a
+> capability below the OS version its API needs. The seam is tested through a
+> canned backend: the `unsupported` answer with no store, a sign-in landing a
+> player, a recorded session replaying with no backend behind it, and the
+> deferral rule. The framework code compiles for macOS and for iOS — the
+> Swift shim included — and has never run against Apple's servers, which
+> needs an Apple ID, a provisioning profile and hardware.
 >
 > **Where the implementation decided differently:**
 >
@@ -40,36 +38,69 @@
 >    now only read for `CFBundleExecutable`, because the binary inside the
 >    bundle keeps the template's file name.
 > 4. **Capabilities are a closed enum.** A misspelling fails at export with
->    serde naming the three that exist, which is the message the plan wanted
->    and no code of ours to write.
+>    serde naming the ones that exist, which is the message the plan wanted
+>    and no code of ours to write. `in-app-purchase` is one of them even
+>    though it writes no entitlement: what it declares is the deployment
+>    target StoreKit 2 exists on.
 > 5. **`icloud-kv` requires `team`.** Xcode expands `$(TeamIdentifierPrefix)`;
 >    nothing expands it here, so the key-value store identifier has to carry
 >    the real team.
-> 6. **`in-app-purchase` is not a capability yet.** It maps to no entitlement
->    on iOS, and accepting a name that writes nothing would read as support
->    for step 7, which is not built.
-> 7. **Two calls go through raw messages rather than the typed bindings.**
->    `setAuthenticateHandler:` takes the platform's own view-controller type,
->    so the typed binding needs AppKit on macOS and UIKit on iOS for a
->    controller this code ignores; the block's ABI is the same either way.
->    The Sign in with Apple presentation anchor is informal for the same
->    reason, and comes from the shared application's key window.
-> 8. **Open question 1 is not closed.** Sign in with Apple presents over
->    whatever window the application has, and refuses with a message when
->    there is none. Game Center's sheet is a different problem — the handler
->    is given a view controller to present, and nothing presents one — so a
->    sign-in that needs the sheet reports that rather than showing it. That
->    is step 5, and it is still open.
-> 9. **The Apple templates carry the feature.** `scripts/package.sh` and
+> 6. **Game Center's UI is raw messaging on both platforms.**
+>    `objc2-game-kit` has `GKGameCenterViewController` on macOS alone, so a
+>    typed path would cover half the platforms; one raw path covers both. The
+>    same reasoning already applied to `setAuthenticateHandler:`, whose typed
+>    binding takes the platform's own view-controller type.
+> 7. **Open question 1 is answered: the window the application already has.**
+>    The sign-in sheet and the dashboard are presented from the key window's
+>    root view controller on iOS and through `GKDialogController` on macOS,
+>    both reached by message rather than through AppKit and UIKit bindings. A
+>    game with no window yet is told so rather than left waiting.
+> 8. **StoreKit 2 is Swift, compiled here, because no library fits.**
+>    `bevy_ios_iap` is the one Rust crate that wraps StoreKit 2, and it needs
+>    a Swift Package added in Xcode plus a version-matched xcframework — this
+>    engine's export has no Xcode project at all. `objc2-store-kit` binds the
+>    original API, which §2 already declined. So: a Swift package in
+>    `crates/balaur_apple/swift`, linked by `swift-rs`, whose whole job is the
+>    runtime search paths and rpaths that differ between a Mac, a device and
+>    the simulator. The package itself has no dependencies, so the build stays
+>    offline, and the ABI across is a request id and a JSON string — a field
+>    the App Store adds reaches a script without anything here moving.
+> 9. **A purchase is not finished when it lands.** `apple.finish_purchase` is
+>    a call of its own, because what decides a purchase counts is the server
+>    that checked its `jws`. The cost is that a game which never finishes one
+>    sees it again on every launch, which is StoreKit's way of not losing a
+>    purchase, and the module doc says so.
+> 10. **The deployment target moved to iOS 15 and macOS 12**, in the
+>    templates (`scripts/package_template.sh`, `scripts/package.sh`) and in
+>    the `[apple]` defaults. That is where StoreKit 2 begins, and a template
+>    that claimed less would not load the shim's own symbols.
+> 11. **The application delegate is proxied, and only when asked.** A push
+>    token and an opened URL reach a game through the delegate and no other
+>    way, and winit owns it — so `crates/balaur_apple/src/arrivals.rs` stands
+>    in front of it, answering four selectors and forwarding the rest. It goes
+>    up on the first `register_for_push` or `watch_urls`, never at load: a
+>    delegate nobody needed is a lifecycle bug waiting for a device to find
+>    it. A URL the game was *launched* with still does not arrive — it reaches
+>    the delegate before the engine has booted.
+> 12. **Arrivals nobody asked for carry request 0 and wait in a queue.**
+>    A player signing out, a subscription renewing on another device, a
+>    notification tapped: sending those straight down the channel would let a
+>    replay take them for recorded input, so they wait in
+>    `crates/balaur_apple/src/queue.rs` until a pump that may touch the
+>    outside world moves them across, and are thrown away by one that may
+>    not. `Engine::next_token` starts at 1, so 0 is free to mean "nobody
+>    asked". A script hears them through `apple.watch`, and a sign-in's own
+>    node stays subscribed to `platform.*` state changes without asking.
+> 13. **Verifying a player stays the game's server, not the engine's.**
+>    Steps 3 and 4 name a Gamend hook; Gamend's hooks are a server's, and
+>    this repo has the client. What landed is the proof a hook needs —
+>    `apple.identity`'s url, signature, salt and timestamp, `apple.sign_in`'s
+>    identity token and authorization code, and a purchase's `jws` — base64
+>    where the source is bytes, because the destination is JSON.
+> 14. **The Apple templates carry the feature.** `scripts/package.sh` and
 >    `scripts/package_template.sh` build the macOS and iOS templates with
 >    `--features "window,apple"`, because a template is prebuilt and a game
 >    exported onto one cannot link a framework afterwards.
-> 10. **Verifying a player stays the game's server, not the engine's.**
->    Steps 3 and 4 name a Gamend hook; Gamend's hooks are a server's, and
->    this repo has the client. What landed is the proof a hook needs —
->    `apple.identity`'s url, signature, salt and timestamp, and
->    `apple.sign_in`'s identity token and authorization code, base64 because
->    their destination is JSON.
 
 # Plan: Apple platform services
 
@@ -201,20 +232,20 @@ Every Apple service a game reaches for, and where each stands here.
 | Game Center sign-in (`GKLocalPlayer.authenticateHandler`) | Step 4. The player id, alias and `fetchItems(forIdentityVerificationSignature:)` for the server |
 | Game Center achievements (`GKAchievement`) | Step 4, behind `platform.unlock` / `platform.progress` |
 | Game Center leaderboards (`GKLeaderboard`) | Step 4, behind `platform.submit_score` / `platform.scores` |
-| Game Center's own UI: access point, dashboard (`GKAccessPoint`, `GKGameCenterViewController`) | Step 5. Needs a root view controller — see the open questions |
-| Game Center challenges, achievement descriptions, player photos | Step 5, on the same UI seam |
+| Game Center's own UI: access point, dashboard (`GKAccessPoint`, `GKGameCenterViewController`) | Have — `apple.show_dashboard`, `apple.access_point`, and the sign-in sheet |
+| Game Center challenges, achievement descriptions, player photos | The dashboard opens on the challenges screen; the data behind them is not read out yet |
 | iCloud key-value store (`NSUbiquitousKeyValueStore`) | Step 6. The right size for a save: `save` already writes a small file, and the entitlement is one line |
 | CloudKit records, iCloud Documents | Not planned. A record store and a document sync are a database, not a save file; `balaur_gamend` is where a game that needs one already has one |
-| StoreKit 2: products, purchase, `currentEntitlements`, JWS transactions | Step 7, through a Swift shim |
+| StoreKit 2: products, purchase, `currentEntitlements`, JWS transactions | Have, through the Swift shim in `crates/balaur_apple/swift` |
 | StoreKit original API (`SKPaymentQueue`) | Not planned. It is what `objc2-store-kit` reaches and it would avoid the shim, but its server story is the receipt Apple is retiring, and the shim is a hundred lines |
-| StoreKit Testing in Xcode (`.storekit` configuration) | Step 7 — the only way a purchase is tested without money |
+| StoreKit Testing in Xcode (`.storekit` configuration) | Not planned: it is a scheme setting in an Xcode project, and this export has none. The App Store sandbox is what a developer tests against |
 | App Store Server API / Server Notifications V2 | Step 7, server side, as a Gamend hook |
-| Local notifications (`UNUserNotificationCenter`) | Step 8 |
-| Remote push (APNs) | Step 8, device token only; the sending half is a server the game already needs |
+| Local notifications (`UNUserNotificationCenter`) | Have — `apple.notify`, `cancel_notification`, and taps through `apple.watch` |
+| Remote push (APNs) | Have, device token only — `apple.register_for_push`; the sending half is a server the game already needs |
 | Game Controller framework (`GCController`) | Not planned here — it is an input backend, and `balaur_input` is where a second one belongs; gilrs does not cover iOS |
 | Core Haptics | Not planned here; the roadmap's haptics row covers rumble across platforms and this is one backend of it |
 | App Tracking Transparency | Not planned. Nothing in the engine collects an identifier to ask about |
-| Universal links, custom URL schemes, App Clips | Step 8. One arrival shape: a URL the game is opened with, delivered as an event |
+| Universal links, custom URL schemes | Have while the game runs (`apple.watch_urls`); a URL the game was launched with arrives before the engine boots and is not delivered |
 | Handoff, Live Activities, widgets, Siri intents | Not planned. All of them need an extension target, which is a second binary the exporter does not build |
 | Family Sharing, Ask to Buy | Have, once StoreKit lands: both are App Store Connect settings, not API |
 | App Store Connect API, TestFlight upload | `docs/PLAN-deploy.md`, as a destination; it needs step 1's bundle identity and provisioning profile before it can send anything |
@@ -246,18 +277,21 @@ step leaves something that works.
    launch, the identity signature to the same Gamend hook, and the four
    portable verbs implemented against `GKAchievement` and `GKLeaderboard`.
    Ends with: an unlock visible in the Game Center dashboard.
-5. **Game Center's UI.** The access point and the dashboard, over whatever
-   the open question below settles on for a root view controller.
+5. **Game Center's UI.** *Done.* The access point and the dashboard, and
+   the sign-in sheet GameKit hands over, presented from the window the
+   application already has.
 6. **iCloud saves.** *Done.* `NSUbiquitousKeyValueStore` behind `platform.cloud_read`
    and `cloud_write`, with `save`'s file as the payload and its version as
    the conflict key. A newer file is refused the way `save` already refuses
    one, rather than silently overwriting.
-7. **StoreKit 2.** The Swift shim, products, purchase, entitlement refresh,
-   the `.storekit` test configuration in the repo, and the App Store Server
-   Notifications hook in Gamend. Ends with: a purchase in the sandbox that
-   survives a reinstall.
-8. **Arrivals.** Local notifications, the APNs device token, and the URL the
-   game was opened with, all as events on the same pump.
+7. **StoreKit 2.** *Done*, less the test configuration: the Swift shim,
+   products, purchase, entitlements, restore and finish. A `.storekit`
+   configuration is an Xcode scheme setting, and this export has no Xcode
+   project; the sandbox is what a developer tests against. The App Store
+   Server Notifications half is a hook on the game's own server.
+8. **Arrivals.** *Done.* Local notifications and their taps, the APNs
+   device token, and URLs opened while the game runs, all as events on the
+   same pump. A URL the game was *launched* with is not one of them.
 
 ## 4. What CI can prove, and what it cannot
 

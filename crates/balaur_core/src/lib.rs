@@ -67,7 +67,7 @@ pub use resources::Resources;
 pub use rollback::Session;
 pub use scene::{Children, GlobalTransform, Name, Parent, ScriptAttachment, Transform};
 pub use snapshot::{Snapshot, SnapshotRegistry, SnapshotRing};
-pub use transport::{Delivery, LinkState, Received, Transport};
+pub use transport::{Delivery, Faults, Faulty, LinkState, Received, Transport};
 
 pub use glamx;
 pub use hecs;

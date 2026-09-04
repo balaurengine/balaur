@@ -34,6 +34,9 @@ pub(crate) enum Capability {
     GameCenter,
     /// The iCloud key-value store a cloud save syncs through.
     IcloudKv,
+    /// StoreKit. It carries no entitlement of its own — what it declares is
+    /// the deployment target StoreKit 2 exists on.
+    InAppPurchase,
 }
 
 impl Capability {
@@ -42,6 +45,7 @@ impl Capability {
             Self::Applesignin => "applesignin",
             Self::GameCenter => "game-center",
             Self::IcloudKv => "icloud-kv",
+            Self::InAppPurchase => "in-app-purchase",
         }
     }
 
@@ -56,6 +60,8 @@ impl Capability {
             (Self::GameCenter, Platform::Macos) => (10, 15),
             (Self::IcloudKv, Platform::Ios) => (5, 0),
             (Self::IcloudKv, Platform::Macos) => (10, 7),
+            (Self::InAppPurchase, Platform::Ios) => (15, 0),
+            (Self::InAppPurchase, Platform::Macos) => (12, 0),
         }
     }
 }
@@ -118,11 +124,11 @@ impl Default for AppleConfig {
             display_name: String::new(),
             version: "1.0".into(),
             build: "1".into(),
-            // The iOS template is built with IPHONEOS_DEPLOYMENT_TARGET=13.0
-            // (scripts/package_template.sh); a plist may not claim less than
-            // the binary was built for.
-            min_os: "13.0".into(),
-            min_macos: "11.0".into(),
+            // The templates are built for these (scripts/package_template.sh,
+            // scripts/package.sh), which is where StoreKit 2 starts; a plist
+            // may not claim less than the binary was built for.
+            min_os: "15.0".into(),
+            min_macos: "12.0".into(),
             category: String::new(),
             capabilities: Vec::new(),
             plist: BTreeMap::new(),
@@ -247,7 +253,14 @@ impl AppleConfig {
                      <string>{}.{}</string>\n",
                     self.team, self.bundle_id
                 )),
+                // In-app purchase needs no entitlement; it is a capability
+                // here so the deployment target is checked against StoreKit.
+                Capability::InAppPurchase => {}
             }
+        }
+        // A game whose only capability writes no key needs no file.
+        if body.is_empty() {
+            return None;
         }
         Some(plist_document(&body))
     }
@@ -473,6 +486,28 @@ mod tests {
         let text = config.info_plist(Platform::Macos, "game", "game");
         assert!(text.contains("<key>LSMinimumSystemVersion</key><string>13.0</string>"));
         assert!(!text.contains("LSRequiresIPhoneOS"), "{text}");
+    }
+
+    #[test]
+    fn in_app_purchase_writes_no_entitlement_and_still_checks_the_version() {
+        let below = config(
+            "[apple]\nbundle_id = \"com.studio.game\"\nmin_os = \"14.0\"\n\
+             capabilities = [\"in-app-purchase\"]\n",
+        );
+        let err = below
+            .check(Platform::Ios)
+            .expect_err("StoreKit 2 starts at 15.0")
+            .to_string();
+        assert!(err.contains("15.0"), "{err}");
+
+        let config = config(
+            "[apple]\nbundle_id = \"com.studio.game\"\ncapabilities = [\"in-app-purchase\"]\n",
+        );
+        config.check(Platform::Ios).expect("the default is 15.0");
+        assert!(
+            config.entitlements().is_none(),
+            "in-app purchase needs no entitlement of its own"
+        );
     }
 
     #[test]

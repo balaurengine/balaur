@@ -1,6 +1,11 @@
 # Plan: the editor as a scene
 
-> **Status:** an assessment, nothing started. Written 2026-09-04 to answer
+> **Status:** superseded in part by [PLAN-ui-layout.md](PLAN-ui-layout.md),
+> which researched the layout question this plan deferred and found the
+> node-tree route cheaper than assumed. Read that first; §1's gap analysis
+> here still stands.
+>
+> An assessment, nothing started. Written 2026-09-04 to answer
 > "is the editor's UI a scene of nodes, or code?" — it is code — and to say
 > honestly what moving it to nodes would take.
 

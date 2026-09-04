@@ -10,11 +10,14 @@
 //! server that verified its `jws` — and a transaction nobody finishes comes
 //! back on every launch, which is StoreKit's way of not losing one.
 
-use std::ffi::{c_char, CStr, CString};
 use std::sync::mpsc::Sender;
 
 use crate::{AppleEvent, StoreCall};
 
+#[cfg(swift_shim)]
+use std::ffi::{c_char, CStr, CString};
+
+#[cfg(swift_shim)]
 extern "C" {
     fn balaur_storekit_products(request: u64, ids: *const c_char);
     fn balaur_storekit_purchase(request: u64, product: *const c_char);
@@ -29,8 +32,9 @@ extern "C" {
 /// Not the channel itself: an answer that arrived while a recording was
 /// playing would be taken for recorded input, so it waits in the queue until
 /// a pump that may reach the outside world moves it across.
+#[cfg(swift_shim)]
 #[no_mangle]
-pub extern "C" fn balaur_storekit_report(request: u64, json: *const c_char) {
+pub(crate) extern "C" fn balaur_storekit_report(request: u64, json: *const c_char) {
     if json.is_null() {
         return;
     }
@@ -47,6 +51,7 @@ pub extern "C" fn balaur_storekit_report(request: u64, json: *const c_char) {
     crate::queue::push_apple(AppleEvent::Store { request, payload });
 }
 
+#[cfg(swift_shim)]
 pub(crate) fn call(request: u64, call: &StoreCall, report: &Sender<AppleEvent>) {
     // Transactions land without being asked for — another device, a renewal,
     // a parent approving a request — so the listener goes up on the first
@@ -81,4 +86,17 @@ pub(crate) fn call(request: u64, call: &StoreCall, report: &Sender<AppleEvent>) 
             Err(_) => fail("that transaction id has a NUL in it"),
         },
     }
+}
+
+/// A build with no Swift toolchain behind it. Everything else in the crate
+/// works; purchases say what is missing rather than failing to link.
+#[cfg(not(swift_shim))]
+pub(crate) fn call(request: u64, call: &StoreCall, report: &Sender<AppleEvent>) {
+    let _ = report.send(AppleEvent::Failed {
+        request,
+        message: format!(
+            "{}: this build has no StoreKit — it was compiled with no Swift toolchain",
+            call.name()
+        ),
+    });
 }

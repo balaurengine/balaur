@@ -170,6 +170,8 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(ScriptArgs(config.script_args.clone()));
     eng.insert_resource(crate::rng::RngState::default());
     eng.insert_resource(crate::ids::IdAllocator::default());
+    eng.insert_resource(crate::netsession::PeerTraffic::default());
+    eng.insert_resource(crate::netsession::SessionStats::default());
     eng.insert_resource(crate::rollback::TickInputs::default());
     eng.insert_resource(crate::rollback::Resimulating::default());
     eng.insert_resource(crate::rollback::Clock::default());
@@ -221,6 +223,7 @@ impl App {
         crate::skeleton::register_bone2d_component(&mut app);
         crate::skeleton::register_bone3d_component(&mut app);
         crate::snapshot::build_core_sources(&mut app);
+        crate::netsession::build_session_source(&mut app);
         // Before every plugin's First work, so a subsystem that dispatches
         // incoming traffic there sees the recording rather than the network.
         app.add_system(Stage::First, |eng, _| {

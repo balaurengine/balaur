@@ -68,6 +68,19 @@ pub(crate) fn apple_call(request: u64, call: &AppleCall, report: &Sender<AppleEv
         }
         AppleCall::Dashboard { state } => crate::ui::show_dashboard(request, *state, report),
         AppleCall::Store(call) => crate::storekit::call(request, call, report),
+        AppleCall::RequestNotifications => {
+            crate::notify::watch_taps();
+            crate::notify::request_authorization(request, report);
+        }
+        AppleCall::Notify {
+            id,
+            title,
+            body,
+            after,
+        } => {
+            crate::notify::watch_taps();
+            crate::notify::schedule(request, id, title, body, *after, report);
+        }
     }
 }
 
@@ -123,7 +136,7 @@ fn sign_in(request: u64, report: &Sender<PlatformEvent>) {
 /// The answers arrive under request 0, which no call is ever given:
 /// `Engine::next_token` starts at 1.
 fn watch_authentication() {
-    if WATCHING.with(|installed| installed.replace(true)) {
+    if WATCHING.replace(true) {
         return;
     }
     let changed = RcBlock::new(move |_note: NonNull<NSNotification>| {

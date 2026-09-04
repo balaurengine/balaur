@@ -91,7 +91,13 @@ def public_surface(crate):
 
 
 def script_api():
-    out = run("cargo", "run", "-q", "-p", "balaur_cli", "--bin", "balaur", "--", "api")
+    # `apple` is on so the store modules reach the reference: the plugin
+    # registers the same functions on every platform, and off an Apple one
+    # they answer `unsupported`.
+    out = run(
+        "cargo", "run", "-q", "-p", "balaur_cli", "--bin", "balaur",
+        "--features", "apple", "--", "api",
+    )
     return json.loads(out)
 
 

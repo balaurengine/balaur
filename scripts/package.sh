@@ -33,8 +33,11 @@ if [ "$target" = macos-universal ]; then
   rustup target add aarch64-apple-darwin x86_64-apple-darwin
   # `apple` is in because the template is prebuilt: a game exported onto it
   # cannot link GameKit afterwards. It costs bytes and no entitlement.
-  cargo build --release -p balaur_cli --features "window,apple" --target aarch64-apple-darwin
-  cargo build --release -p balaur_cli --features "window,apple" --target x86_64-apple-darwin
+  # 12.0 is where StoreKit 2 starts, and the Swift shim is built for it.
+  MACOSX_DEPLOYMENT_TARGET=12.0 \
+    cargo build --release -p balaur_cli --features "window,apple" --target aarch64-apple-darwin
+  MACOSX_DEPLOYMENT_TARGET=12.0 \
+    cargo build --release -p balaur_cli --features "window,apple" --target x86_64-apple-darwin
   bin="target/balaur-universal"
   lipo -create -output "$bin" \
     "target/aarch64-apple-darwin/release/balaur" \

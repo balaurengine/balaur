@@ -1037,6 +1037,31 @@ game with no session leaves it at `u64::MAX`, where every tick is final the
 moment it happens. Reads are never held — repeating one costs a round trip and
 nothing else.
 
+**One place needs Swift, and it is fenced off.** StoreKit 2 has no
+Objective-C interface, so there is nothing for objc2 to bind and no Rust
+crate that fits — the one that wraps it needs an Xcode project, which this
+engine's export does not have. `crates/balaur_apple/swift` is therefore a
+Swift package of about a hundred lines, linked by `swift-rs` (whose whole job
+is the runtime search paths that differ between a Mac, a device and the
+simulator), and the boundary across it is a request id out and a JSON object
+back. Nothing else in the engine is Swift, and the shape of that boundary is
+why nothing else has to be: a field the App Store adds reaches a script
+without a line of Rust changing.
+
+**Arrivals nobody asked for carry request 0.** A player signing out in the
+OS, a subscription renewing on another device, a notification tapped, a URL
+opened. They cannot go straight down the channel — a replay is answered from
+the file, and anything that reached the channel meanwhile would be taken for
+recorded input — so they wait in a queue until a pump that is allowed to
+touch the outside world moves them across, and are thrown away by one that is
+not. `Engine::next_token` starts at 1, which leaves 0 free to mean "nobody
+asked", and a script hears them by subscribing a node rather than by awaiting
+an id. The push token and an opened URL reach a game through the application
+delegate and no other way, and the window layer owns that delegate, so the
+engine proxies it — forwarding every selector it does not answer, and only
+from the first call that needs it, because a delegate nobody needed is a
+lifecycle bug waiting for a device to find it.
+
 **Capabilities are export-side.** What a store grants is decided by the bundle,
 not by the code: `[apple]` in `project.toml` names the identifier, the team,
 the deployment target and the capabilities, and `balaur export` writes the

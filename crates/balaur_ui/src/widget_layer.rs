@@ -7,6 +7,8 @@
 //! Buttons record clicks into the component (`clicked` in `get_component`,
 //! reset each frame).
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use balaur_core::components::ComponentDef;
@@ -64,6 +66,12 @@ pub struct Widget {
     pub theme: String,
     /// A localization key drawn instead of `text` when it is set.
     pub text_key: String,
+    /// Share of a container's leftover space along its axis; 0 takes only
+    /// what `width`/`height` or the content asks for.
+    pub grow: f32,
+    /// The author's floor, whatever the content measures.
+    pub min_width: f32,
+    pub min_height: f32,
 }
 
 /// Whether focus can land on this widget.
@@ -132,7 +140,10 @@ on_focus = { type = "string", default = "", description = "Script method called 
 theme = { type = "asset", asset = "widget_theme", default = "", description = "How this widget and everything under it is drawn; inherited from the nearest ancestor that names one" }
 text_key = { type = "string", default = "", description = "A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once" }
 on_click = { type = "string", default = "", description = "Script method called on this node when the button is clicked" }
-clicked = { type = "bool", default = false, readonly = true, description = "True on the frame the button was clicked" }"#,
+clicked = { type = "bool", default = false, readonly = true, description = "True on the frame the button was clicked" }
+grow = { type = "float", default = 0.0, min = 0.0, description = "Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for" }
+min_width = { type = "float", default = 0.0, min = 0.0, description = "Smallest width a container may give this widget, in design pixels" }
+min_height = { type = "float", default = 0.0, min = 0.0, description = "Smallest height a container may give this widget, in design pixels" }"#,
             ),
             tags: &["ui"],
             expects: &[],
@@ -256,6 +267,9 @@ fn widget_from(params: &toml::Value) -> Widget {
         on_focus: s("on_focus", ""),
         theme: s("theme", ""),
         text_key: s("text_key", ""),
+        grow: f("grow", 0.0),
+        min_width: f("min_width", 0.0),
+        min_height: f("min_height", 0.0),
     }
 }
 
@@ -280,6 +294,40 @@ pub enum Move {
     Previous,
     /// Activate what is focused, as a click would.
     Accept,
+}
+
+thread_local! {
+    /// What each widget drew at last frame, so a container can size a child
+    /// that states no size. A frame behind by construction; a widget whose
+    /// content changes settles on the next one.
+    static MEASURED: RefCell<HashMap<u64, egui::Vec2>> = RefCell::new(HashMap::new());
+    static MEASURING: RefCell<HashMap<u64, egui::Vec2>> = RefCell::new(HashMap::new());
+}
+
+fn measured_of(entity: Entity) -> egui::Vec2 {
+    MEASURED.with(|m| {
+        m.borrow()
+            .get(&entity.to_bits().get())
+            .copied()
+            .unwrap_or(egui::Vec2::ZERO)
+    })
+}
+
+fn record_measure(entity: Entity, size: egui::Vec2) {
+    MEASURING.with(|m| {
+        m.borrow_mut().insert(entity.to_bits().get(), size);
+    });
+}
+
+/// Last frame's measurements become this frame's; a widget that stopped
+/// drawing drops out rather than accumulating.
+fn roll_measurements() {
+    MEASURING.with(|next| {
+        MEASURED.with(|now| {
+            now.borrow_mut().clone_from(&next.borrow());
+        });
+        next.borrow_mut().clear();
+    });
 }
 
 /// One widget and the widgets laid out inside it, as an arena so the draw can
@@ -400,6 +448,7 @@ fn advance(eng: &Engine, placed: &[Placed], asked: Option<Move>) -> Option<Entit
 /// Draw every widget entity. Runs inside the frame's egui pass, after the
 /// scripts' `draw_ui`.
 pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
+    roll_measurements();
     let Some(layer) = eng.try_resource::<WidgetLayerConfig>() else {
         return;
     };
@@ -431,6 +480,8 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
         scale,
         focused,
         theme: Rc::new(WidgetTheme::default()),
+        assigned: egui::Vec2::ZERO,
+        bounds: egui::Vec2::ZERO,
         // An `accept` is a click by another name: same `clicked`, same
         // `on_click`, so it starts the frame's list rather than a second one.
         clicked: accepted.into_iter().collect(),
@@ -486,6 +537,12 @@ struct Painting<'a> {
     focused: Option<Entity>,
     /// The theme in force here, inherited unless a widget names its own.
     theme: Rc<WidgetTheme>,
+    /// The box the parent container handed this widget, per axis; 0 on an
+    /// axis the parent left free, and on both for a root.
+    assigned: egui::Vec2,
+    /// The box the container now laying out children holds, per axis; 0 where
+    /// it is free to grow, in which case children hug rather than fill.
+    bounds: egui::Vec2,
     clicked: Vec<Entity>,
 }
 
@@ -601,13 +658,16 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                 .inner_margin(margin)
                 .show(ui, |ui| {
                     // `width`/`height` size the frame, margins included.
-                    let min = vec2(widget.width, widget.height) * scale - margin.sum();
-                    ui.set_min_size(min.max(egui::Vec2::ZERO));
+                    let min = (box_of(widget, at.assigned, scale) - margin.sum())
+                        .max(egui::Vec2::ZERO);
+                    hold_to(ui, min);
                     if !caption.is_empty() {
                         ui.label(egui::RichText::new(&caption).font(font).color(color));
                     }
                     // A panel with nothing in it is the panel it always was.
+                    let held = std::mem::replace(&mut at.bounds, min);
                     lay_out(ui, at, index, Axis::Column);
+                    at.bounds = held;
                 });
         }
         "row" => contain(ui, at, index, Axis::Row),
@@ -615,6 +675,33 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         _ => {
             ui.label(egui::RichText::new(&caption).font(font).color(color));
         }
+    }
+}
+
+/// The box a widget occupies: what it states, else what its parent gave it.
+///
+/// Godot's container contract — a child fills the rect it was assigned unless
+/// it names a size of its own. 0 on an axis means "hug", which is what a root
+/// and every scene written before `grow` gets.
+fn box_of(widget: &Widget, assigned: egui::Vec2, scale: f32) -> egui::Vec2 {
+    let stated = vec2(widget.width, widget.height) * scale;
+    let floor = vec2(widget.min_width, widget.min_height) * scale;
+    vec2(
+        if stated.x > 0.0 { stated.x } else { assigned.x }.max(floor.x),
+        if stated.y > 0.0 { stated.y } else { assigned.y }.max(floor.y),
+    )
+}
+
+/// Hold a ui to a box on the axes the box names, so `available_size` inside it
+/// is the room the children actually have to divide.
+fn hold_to(ui: &mut egui::Ui, size: egui::Vec2) {
+    if size.x > 0.0 {
+        ui.set_max_width(size.x);
+        ui.set_min_width(size.x);
+    }
+    if size.y > 0.0 {
+        ui.set_max_height(size.y);
+        ui.set_min_height(size.y);
     }
 }
 
@@ -633,19 +720,30 @@ fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
     egui::Frame::new()
         .inner_margin(egui::Margin::same(pad as i8))
         .show(ui, |ui| {
-            let min = vec2(widget.width, widget.height) * scale;
-            ui.set_min_size((min - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO));
+            let min = (box_of(widget, at.assigned, scale) - egui::Vec2::splat(pad * 2.0))
+                .max(egui::Vec2::ZERO);
+            hold_to(ui, min);
+            let held = std::mem::replace(&mut at.bounds, min);
             lay_out(ui, at, index, axis);
+            at.bounds = held;
         });
 }
 
-/// The children themselves, gapped and aligned.
+/// The children themselves: each given a rect along the container's axis,
+/// with the leftover divided between those that grow.
+///
+/// The container places every child; a child that overflows the rect it was
+/// given does not move its siblings, which is what kept a 2 px frame stroke
+/// compounding down a column. A child that states neither a size nor a `grow`
+/// takes what it needs and is measured, which is what keeps every scene
+/// written before `grow` existed laying out the way it did.
 fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
     let placed = &at.arena[index];
     if placed.children.is_empty() {
         return;
     }
-    let gap = placed.widget.gap * at.scale;
+    let scale = at.scale;
+    let gap = placed.widget.gap * scale;
     let cross = match placed.widget.align.as_str() {
         "center" => egui::Align::Center,
         "end" => egui::Align::Max,
@@ -657,15 +755,106 @@ fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
     };
     // Copied out: the closure needs `at` mutably, and `placed` borrows it.
     let children = placed.children.clone();
-    ui.with_layout(layout, |ui| {
-        ui.spacing_mut().item_spacing = match axis {
-            Axis::Row => vec2(gap, ui.spacing().item_spacing.y),
-            Axis::Column => vec2(ui.spacing().item_spacing.x, gap),
-        };
-        for child in &children {
-            draw_one(ui, at, *child);
+
+    let along = |v: egui::Vec2| match axis {
+        Axis::Row => v.x,
+        Axis::Column => v.y,
+    };
+    let across = |v: egui::Vec2| match axis {
+        Axis::Row => v.y,
+        Axis::Column => v.x,
+    };
+    let mut asked = Vec::with_capacity(children.len());
+    let mut spent = gap * (children.len().saturating_sub(1) as f32);
+    let mut shares = 0.0f32;
+    for child in &children {
+        let w = &at.arena[*child].widget;
+        let stated = match axis {
+            Axis::Row => w.width,
+            Axis::Column => w.height,
+        } * scale;
+        let floor = match axis {
+            Axis::Row => w.min_width,
+            Axis::Column => w.min_height,
+        } * scale;
+        if w.grow > 0.0 {
+            shares += w.grow;
+            asked.push(f32::NEG_INFINITY);
+            spent += floor;
+            continue;
         }
-    });
+        let size = if stated > 0.0 {
+            stated.max(floor)
+        } else {
+            along(measured_of(at.arena[*child].entity)).max(floor)
+        };
+        asked.push(size);
+        spent += size;
+    }
+    // A container free to grow has no leftover to divide, so `grow` there is
+    // the floor and nothing more.
+    let room = at.bounds;
+    let free = if along(room) > 0.0 {
+        (along(room) - spent).max(0.0)
+    } else {
+        0.0
+    };
+
+    let outer = ui.available_rect_before_wrap();
+    let mut head = along(outer.min.to_vec2());
+    let far = head + along(outer.size());
+    for (slot, child) in children.iter().enumerate() {
+        let entity = at.arena[*child].entity;
+        let want = asked[slot];
+        let size = if want == f32::NEG_INFINITY {
+            let w = &at.arena[*child].widget;
+            let floor = match axis {
+                Axis::Row => w.min_width,
+                Axis::Column => w.min_height,
+            } * scale;
+            floor + free * (w.grow / shares)
+        } else {
+            want
+        };
+        // Zero means "nothing measured yet": let it take the rest of the
+        // container this once, and record what it used so the next frame can
+        // divide properly.
+        let hug = size <= 0.0;
+        let extent = if hug { (far - head).max(0.0) } else { size };
+        let fills = cross == egui::Align::Min && across(room) > 0.0;
+        let breadth = if fills { across(room) } else { across(outer.size()) };
+        let rect = match axis {
+            Axis::Row => egui::Rect::from_min_size(pos2(head, outer.min.y), vec2(extent, breadth)),
+            Axis::Column => egui::Rect::from_min_size(pos2(outer.min.x, head), vec2(breadth, extent)),
+        };
+        let held = at.assigned;
+        at.assigned = match (hug, fills) {
+            (true, true) => match axis {
+                Axis::Row => vec2(0.0, breadth),
+                Axis::Column => vec2(breadth, 0.0),
+            },
+            (true, false) => egui::Vec2::ZERO,
+            (false, true) => rect.size(),
+            (false, false) => match axis {
+                Axis::Row => vec2(extent, 0.0),
+                Axis::Column => vec2(0.0, extent),
+            },
+        };
+        let mut child_ui = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(layout));
+        draw_one(&mut child_ui, at, *child);
+        let used = child_ui.min_rect().size();
+        at.assigned = held;
+        record_measure(entity, used);
+        let taken = if hug { along(used) } else { extent };
+        ui.allocate_rect(
+            match axis {
+                Axis::Row => egui::Rect::from_min_size(rect.min, vec2(taken, across(used))),
+                Axis::Column => egui::Rect::from_min_size(rect.min, vec2(across(used), taken)),
+            },
+            egui::Sense::hover(),
+        );
+        head += taken + gap;
+    }
 }
 
 /// Tell the newly focused widget's script that focus arrived.

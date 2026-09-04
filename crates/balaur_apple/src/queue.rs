@@ -18,12 +18,14 @@ use crate::AppleEvent;
 static STORE: Mutex<Vec<PlatformEvent>> = Mutex::new(Vec::new());
 static APPLE: Mutex<Vec<AppleEvent>> = Mutex::new(Vec::new());
 
+#[cfg(target_vendor = "apple")]
 pub(crate) fn push_store(event: PlatformEvent) {
     if let Ok(mut queue) = STORE.lock() {
         queue.push(event);
     }
 }
 
+#[cfg(target_vendor = "apple")]
 pub(crate) fn push_apple(event: AppleEvent) {
     if let Ok(mut queue) = APPLE.lock() {
         queue.push(event);

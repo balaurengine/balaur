@@ -23,8 +23,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::app::App;
 use crate::digest::Digest;
+use crate::engine::Engine;
+use crate::replay::ExternalIo;
 use crate::rollback::{Input, PlayerId, Session};
-use crate::transport::{Delivery, Transport};
+use crate::transport::{Delivery, Received, Transport};
 
 /// How far behind the running tick the digest exchange sits.
 ///
@@ -33,21 +35,100 @@ use crate::transport::{Delivery, Transport};
 /// only keeps the exchange off the tick currently being corrected.
 const CONFIRM_LAG: u64 = 4;
 
+/// How often a peer is pinged, in ticks. Twice a second at 60 Hz: often
+/// enough to track a route changing, rare enough to be free.
+const PING_EVERY: u64 = 30;
+
+/// How many ticks of this player's input ride in every datagram.
+///
+/// Inputs are sent unreliably and never retransmitted, so a dropped one would
+/// otherwise be lost for good — and a tick simulated on a prediction nobody
+/// ever corrects is a permanent divergence, not a recoverable one. Repeating
+/// the last few costs a few bytes and means a single packet getting through
+/// repairs every gap behind it. At one datagram in twenty lost, twelve in a
+/// row is around one run in 2^52.
+const INPUT_WINDOW: u64 = 12;
+
 /// What one peer says to another. JSON because it is small, self-describing
 /// and easy to look at when a session misbehaves; a compact encoding is worth
 /// doing when the wire is the bottleneck, and it is not yet.
 #[derive(Serialize, Deserialize)]
 enum Message {
-    Input {
-        tick: u64,
+    /// One player's input for a run of consecutive ticks, newest last.
+    ///
+    /// A run rather than a single tick, because this travels unreliably: see
+    /// [`INPUT_WINDOW`].
+    Inputs {
         player: PlayerId,
-        value: Input,
+        /// One per datagram sent, so the gaps count what was lost.
+        seq: u64,
+        /// The tick `values[0]` belongs to; the rest follow one per tick.
+        from: u64,
+        values: Vec<Input>,
     },
     Digest {
         tick: u64,
         digest: u64,
     },
+    /// A round trip, measured rather than guessed. Unreliable on purpose: a
+    /// ping that had to be retransmitted would measure the retransmit.
+    Ping {
+        id: u64,
+    },
+    Pong {
+        id: u64,
+    },
 }
+
+/// What one peer's link is doing.
+///
+/// An observer, exactly as `engine.timings()` is: nothing here may reach the
+/// simulation. Wall time is not reproducible, so a tick that branched on a
+/// round-trip time would desync — and would be caught by the digest, since
+/// none of this is recorded, replayed or hashed.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LinkStats {
+    /// The last measured round trip, in milliseconds.
+    pub rtt_ms: f32,
+    /// The fraction of this peer's input datagrams that never arrived,
+    /// counted from the gaps in their sequence numbers.
+    pub loss: f32,
+    pub bytes_in: u64,
+    pub bytes_out: u64,
+}
+
+/// One link's measurements, and the running counts behind them.
+#[derive(Default)]
+struct Link {
+    stats: LinkStats,
+    /// The highest input sequence seen, and how many arrived, which is all
+    /// loss needs: sequences start at one, so the highest is how many were
+    /// sent.
+    highest_seq: u64,
+    seen: u64,
+}
+
+impl Link {
+    /// Fold one arrival's sequence number into the loss estimate.
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "a ratio of counts, not an exact quantity"
+    )]
+    fn saw(&mut self, seq: u64) {
+        self.seen += 1;
+        self.highest_seq = self.highest_seq.max(seq);
+        if self.highest_seq > 0 {
+            self.stats.loss = 1.0 - (self.seen as f32 / self.highest_seq as f32).min(1.0);
+        }
+    }
+}
+
+/// Every peer's [`LinkStats`], in the order the peers were added.
+///
+/// Published once a tick for a profiler dock or a game's own connection
+/// meter to read.
+#[derive(Default)]
+pub struct SessionStats(pub Vec<LinkStats>);
 
 /// Two peers disagreeing about one tick.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,6 +138,25 @@ pub struct Desync {
     pub theirs: Digest,
 }
 
+/// What the peers delivered this tick, before anything decoded it.
+///
+/// A resource rather than a field of the session, because that is what a
+/// replay source can reach. Recording the payloads verbatim is what makes a
+/// networked desync reproducible from a file: the same bytes arrive on the
+/// same ticks, and `ExternalIo` is already the rule that a replay reads them
+/// from the file instead of from a socket.
+#[derive(Default)]
+pub struct PeerTraffic(ExternalIo<Received>);
+
+/// Register the session's recording source. Called once by `App`.
+pub(crate) fn build_session_source(app: &mut App) {
+    app.add_replay_source(
+        "session",
+        |eng| eng.resource::<PeerTraffic>().borrow().0.capture(),
+        |eng, value| eng.resource::<PeerTraffic>().borrow().0.restore(value),
+    );
+}
+
 /// One player's view of a networked rollback session.
 pub struct NetSession {
     local: PlayerId,
@@ -64,8 +164,17 @@ pub struct NetSession {
     peers: Vec<Box<dyn Transport>>,
     /// This player's input for the tick about to run.
     pending: Input,
+    /// What this player has sent, per tick, so a datagram can repeat the
+    /// recent past. Trimmed to the window it feeds.
+    mine: BTreeMap<u64, Input>,
     /// Digests peers reported, by tick, until ours catches up to compare.
     claimed: BTreeMap<u64, Digest>,
+    /// What each link is doing, and the counts behind it.
+    links: Vec<Link>,
+    /// Datagrams sent, which is the sequence peers count gaps in.
+    sent: u64,
+    /// Pings in flight, by id, with when they went out.
+    pinged: BTreeMap<u64, std::time::Instant>,
     /// The newest tick this peer has published a digest for, so a tick that
     /// takes a while to confirm is still published once it does.
     published: u64,
@@ -81,7 +190,11 @@ impl NetSession {
             session: Session::new(players, depth),
             peers: Vec::new(),
             pending: Input::Nil,
+            mine: BTreeMap::new(),
             claimed: BTreeMap::new(),
+            links: Vec::new(),
+            sent: 0,
+            pinged: BTreeMap::new(),
             published: 0,
             desync: None,
         }
@@ -90,6 +203,13 @@ impl NetSession {
     /// Add a peer, whichever end of the link this is.
     pub fn add_peer(&mut self, peer: Box<dyn Transport>) {
         self.peers.push(peer);
+        self.links.push(Link::default());
+    }
+
+    /// What every link is doing, in the order the peers were added.
+    #[must_use]
+    pub fn stats(&self) -> Vec<LinkStats> {
+        self.links.iter().map(|link| link.stats).collect()
     }
 
     /// What this player is doing on the next tick.
@@ -134,44 +254,113 @@ impl NetSession {
     /// re-simulated tick must not re-read the wire. The journal is what a
     /// re-run replays from, and it is already full by the time the tick runs.
     pub fn advance(&mut self, app: &mut App) {
-        self.read_peers();
+        self.read_peers(&app.engine);
         let tick = self.session.tick();
         let mine = self.pending.clone();
         self.session.submit(self.local, tick, mine.clone());
         self.broadcast_input(tick, &mine);
         self.session.advance(app);
         self.exchange_digests();
+        self.measure(tick);
+        app.engine.resource::<SessionStats>().borrow_mut().0 = self.stats();
     }
 
-    fn read_peers(&mut self) {
-        let mut messages = Vec::new();
-        for peer in &mut self.peers {
-            for received in peer.receive() {
-                match serde_json::from_slice::<Message>(&received.bytes) {
-                    Ok(message) => messages.push(message),
-                    Err(e) => tracing::warn!(error = %e, "a peer sent something unreadable"),
+    /// Drain the peers into the tick's traffic, then decode what is there.
+    ///
+    /// Reading goes through `ExternalIo::start`, so a replay never touches a
+    /// transport: the recorded payloads are already in the channel, and the
+    /// decode below cannot tell the difference.
+    fn read_peers(&mut self, eng: &Engine) {
+        let traffic = eng.resource::<PeerTraffic>();
+        // Measured here rather than after the drain, because the traffic
+        // channel merges every peer and a replay reads it with no peer at
+        // all: a link's numbers describe a live link or they describe
+        // nothing.
+        let peers = &mut self.peers;
+        let links = &mut self.links;
+        traffic.borrow().0.start(eng, |report| {
+            for (index, peer) in peers.iter_mut().enumerate() {
+                for received in peer.receive() {
+                    if let Some(link) = links.get_mut(index) {
+                        link.stats.bytes_in += received.bytes.len() as u64;
+                        // A second decode, only to attribute the sequence to
+                        // the link it came in on. Cheap next to the round
+                        // trip it is measuring.
+                        if let Ok(Message::Inputs { seq, .. }) =
+                            serde_json::from_slice::<Message>(&received.bytes)
+                        {
+                            link.saw(seq);
+                        }
+                    }
+                    let _ = report.send(received);
                 }
+            }
+        });
+        let mut messages = Vec::new();
+        for received in traffic.borrow_mut().0.drain() {
+            match serde_json::from_slice::<Message>(&received.bytes) {
+                Ok(message) => messages.push(message),
+                Err(e) => tracing::warn!(error = %e, "a peer sent something unreadable"),
             }
         }
         for message in messages {
             match message {
-                Message::Input {
-                    tick,
+                Message::Inputs {
                     player,
-                    value,
-                } => self.session.submit(player, tick, value),
+                    from,
+                    values,
+                    seq: _,
+                } => {
+                    for (at, value) in values.into_iter().enumerate() {
+                        // A repeat of something already known costs nothing:
+                        // `submit` compares against what the tick actually
+                        // ran with, so only a correction rolls anything back.
+                        self.session.submit(player, from + at as u64, value);
+                    }
+                }
                 Message::Digest { tick, digest } => {
                     self.claimed.insert(tick, Digest(digest));
+                }
+                Message::Ping { id } => self.send(&Message::Pong { id }, Delivery::Datagram),
+                Message::Pong { id } => {
+                    if let Some(sent) = self.pinged.remove(&id) {
+                        let rtt = sent.elapsed().as_secs_f32() * 1000.0;
+                        for link in &mut self.links {
+                            link.stats.rtt_ms = rtt;
+                        }
+                    }
                 }
             }
         }
     }
 
+    /// Ping every so often, and forget any that never came back.
+    fn measure(&mut self, tick: u64) {
+        if tick % PING_EVERY != 0 {
+            return;
+        }
+        self.pinged.insert(tick, std::time::Instant::now());
+        // A ping older than a few seconds is not coming back; keeping it
+        // would leak and would never resolve.
+        let oldest = tick.saturating_sub(PING_EVERY * 8);
+        self.pinged.retain(|at, _| *at >= oldest);
+        self.send(&Message::Ping { id: tick }, Delivery::Datagram);
+    }
+
+    /// Send this tick's input, and the last few again behind it.
     fn broadcast_input(&mut self, tick: u64, value: &Input) {
-        let message = Message::Input {
-            tick,
+        self.mine.insert(tick, value.clone());
+        let from = tick.saturating_sub(INPUT_WINDOW - 1).max(1);
+        self.mine.retain(|at, _| *at >= from);
+        let values: Vec<Input> = (from..=tick)
+            .map(|at| self.mine.get(&at).cloned().unwrap_or(Input::Nil))
+            .collect();
+        self.sent += 1;
+        let message = Message::Inputs {
             player: self.local,
-            value: value.clone(),
+            seq: self.sent,
+            from,
+            values,
         };
         self.send(&message, Delivery::Datagram);
     }
@@ -244,13 +433,18 @@ impl NetSession {
         let Ok(bytes) = serde_json::to_vec(message) else {
             return;
         };
-        for peer in &mut self.peers {
+        for (index, peer) in self.peers.iter_mut().enumerate() {
             let sent = match delivery {
                 Delivery::Reliable => peer.send_reliable(&bytes),
                 Delivery::Datagram => peer.send_datagram(&bytes),
             };
-            if let Err(e) = sent {
-                tracing::warn!(error = %e, "a peer send failed");
+            match sent {
+                Ok(()) => {
+                    if let Some(link) = self.links.get_mut(index) {
+                        link.stats.bytes_out += bytes.len() as u64;
+                    }
+                }
+                Err(e) => tracing::warn!(error = %e, "a peer send failed"),
             }
         }
     }

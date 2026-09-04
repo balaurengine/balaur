@@ -89,6 +89,12 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - A store write made on a tick a rollback could still take back waits until that tick settles; reads go out at once.
 - `[apple]` in `project.toml`: bundle id, team, version, deployment target, extra `Info.plist` keys, and the capabilities an export turns into entitlements.
 - `balaur export` writes `Info.plist` and `<game>.entitlements` from that table, and hands the entitlements to `codesign` for a macOS `.app`.
+- Game Center's own screens: the sign-in sheet is presented, `apple.show_dashboard` opens the dashboard, `apple.access_point` shows the badge.
+- In-app purchases: `apple.products`, `purchase`, `entitlements`, `restore_purchases` and `finish_purchase`, over a StoreKit 2 shim in Swift. iOS 15 and macOS 12 are the floor.
+- Local notifications, push tokens and opened URLs: `apple.request_notifications`, `notify`, `cancel_notification`, `register_for_push`, `watch_urls`, and `apple.watch` for the arrivals nobody asked for.
+- `apple.sign_in` carries the player's name, and `apple.credential_state` says whether a saved account is still good.
+- A sign-in handler stays subscribed: signing out in the OS reaches the same method.
+- `platform.scores` takes `scope`, `period` and `start`.
 
 ### Editor
 

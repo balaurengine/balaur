@@ -30,9 +30,13 @@ use balaur_platform::{Call, PlatformBackend, PlatformEvent};
 use balaur_script::{Bindings, BindingsExt, Value};
 
 #[cfg(target_vendor = "apple")]
+mod arrivals;
+#[cfg(target_vendor = "apple")]
 mod gamekit;
 #[cfg(target_vendor = "apple")]
 mod icloud;
+#[cfg(target_vendor = "apple")]
+mod notify;
 mod queue;
 #[cfg(target_vendor = "apple")]
 mod signin;
@@ -43,7 +47,9 @@ mod ui;
 
 #[cfg(target_vendor = "apple")]
 mod backend {
+    pub(crate) use crate::arrivals::{register_for_push, watch_urls};
     pub(crate) use crate::gamekit::{apple_call, authenticated, platform_call};
+    pub(crate) use crate::notify::cancel as cancel_notification;
     pub(crate) use crate::ui::access_point;
 
     /// Whether this build has the frameworks behind it.
@@ -83,6 +89,16 @@ mod backend {
     pub(crate) const fn access_point(_active: bool, _location: isize) -> bool {
         false
     }
+
+    pub(crate) const fn register_for_push() -> bool {
+        false
+    }
+
+    pub(crate) const fn watch_urls() -> bool {
+        false
+    }
+
+    pub(crate) const fn cancel_notification(_id: &str) {}
 }
 
 /// Whether this build has Apple's frameworks behind it. False everywhere
@@ -105,14 +121,27 @@ pub enum AppleCall {
     Dashboard { state: isize },
     /// The App Store, through the Swift shim.
     Store(StoreCall),
+    /// Permission to show notifications at all.
+    RequestNotifications,
+    /// One local notification, `after` seconds from now.
+    Notify {
+        id: String,
+        title: String,
+        body: String,
+        after: f64,
+    },
 }
 
 /// What StoreKit is asked for. Everything it answers comes back as the JSON
 /// StoreKit itself describes a product or a transaction with.
 #[derive(Clone, Debug)]
 pub enum StoreCall {
-    Products { ids: Vec<String> },
-    Purchase { product: String },
+    Products {
+        ids: Vec<String>,
+    },
+    Purchase {
+        product: String,
+    },
     /// What this player currently owns, each with the signed transaction a
     /// server checks.
     Entitlements,
@@ -121,7 +150,9 @@ pub enum StoreCall {
     Restore,
     /// Tell StoreKit a transaction is dealt with. Until then it comes back
     /// on every launch.
-    Finish { transaction: String },
+    Finish {
+        transaction: String,
+    },
 }
 
 impl StoreCall {
@@ -146,6 +177,8 @@ impl AppleCall {
             Self::CredentialState { .. } => "credential_state",
             Self::Dashboard { .. } => "show_dashboard",
             Self::Store(call) => call.name(),
+            Self::RequestNotifications => "request_notifications",
+            Self::Notify { .. } => "notify",
         }
     }
 }
@@ -191,6 +224,31 @@ pub enum AppleEvent {
         request: u64,
         payload: serde_json::Value,
     },
+    /// Whether the player allowed notifications.
+    Notifications {
+        request: u64,
+        allowed: bool,
+    },
+    /// A notification is on the schedule.
+    Scheduled {
+        request: u64,
+        id: String,
+    },
+    /// A notification was tapped. Unsolicited, like everything below it.
+    NotificationOpened {
+        id: String,
+    },
+    /// The device's push token, as the hex a push server takes.
+    PushToken {
+        token: String,
+    },
+    PushFailed {
+        message: String,
+    },
+    /// A URL the game was asked to open while it was running.
+    Url {
+        url: String,
+    },
     Failed {
         request: u64,
         message: String,
@@ -209,8 +267,15 @@ impl AppleEvent {
             | Self::CredentialState { request, .. }
             | Self::DashboardClosed { request }
             | Self::Store { request, .. }
+            | Self::Notifications { request, .. }
+            | Self::Scheduled { request, .. }
             | Self::Failed { request, .. }
             | Self::Unsupported { request, .. } => *request,
+            // Nobody asked for these, so they carry the id no call is given.
+            Self::NotificationOpened { .. }
+            | Self::PushToken { .. }
+            | Self::PushFailed { .. }
+            | Self::Url { .. } => 0,
         }
     }
 }
@@ -249,12 +314,16 @@ impl PlatformBackend for AppleBackend {
 pub struct AppleState {
     io: ExternalIo<AppleEvent>,
     handlers: DetHashMap<u64, Handler>,
+    /// Handlers that stay subscribed. What nobody asked for — a notification
+    /// tapped, a URL opened, a push token, a transaction that landed on
+    /// another device — carries request 0 and reaches every one of them.
+    watchers: Vec<Handler>,
 }
 
 impl AppleState {
     /// Start a call under `id` — an [`Engine::next_token`] value, so awaiting
     /// it cannot collide with another subsystem's ids.
-    pub fn start(&mut self, eng: &Engine, id: u64, call: AppleCall, handler: Option<Handler>) {
+    pub fn start(&mut self, eng: &Engine, id: u64, call: &AppleCall, handler: Option<Handler>) {
         if let Some(handler) = handler {
             self.handlers.insert(id, handler);
         }
@@ -265,7 +334,19 @@ impl AppleState {
             Some(serde_json::json!({ "id": id, "call": call.name() })),
         );
         self.io
-            .start(eng, |report| backend::apple_call(id, &call, report));
+            .start(eng, |report| backend::apple_call(id, call, report));
+    }
+
+    /// Subscribe `handler` to everything that arrives unasked. The same node
+    /// and method twice is one watcher.
+    pub fn watch(&mut self, handler: Handler) {
+        if !self
+            .watchers
+            .iter()
+            .any(|w| w.node == handler.node && w.method == handler.method)
+        {
+            self.watchers.push(handler);
+        }
     }
 }
 
@@ -276,7 +357,7 @@ pub struct AppleSnapshot {
 }
 
 fn pump_apple_system(eng: &Engine, _: f32) {
-    let mut dispatches: Vec<(Option<Handler>, u64, Value)> = Vec::new();
+    let mut dispatches: Vec<(Vec<Handler>, u64, Value)> = Vec::new();
     {
         let state = eng.resource::<AppleState>();
         let snapshot = eng.resource::<AppleSnapshot>();
@@ -290,15 +371,19 @@ fn pump_apple_system(eng: &Engine, _: f32) {
         snapshot.events.clear();
         for event in state.io.drain() {
             let request = event.request();
-            let handler = state.handlers.shift_remove(&request);
+            let mut targets: Vec<Handler> =
+                state.handlers.shift_remove(&request).into_iter().collect();
+            if request == 0 {
+                targets.extend(state.watchers.iter().cloned());
+            }
             let value = event_value(event);
             snapshot.events.push(value.clone());
-            dispatches.push((handler, request, value));
+            dispatches.push((targets, request, value));
         }
     }
     if let Some(host) = eng.script_host() {
-        for (handler, token, value) in dispatches {
-            if let Some(handler) = handler {
+        for (targets, token, value) in dispatches {
+            for handler in targets {
                 host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
             }
             host.wake(token, &value);
@@ -348,6 +433,30 @@ fn event_value(event: AppleEvent) -> Value {
         }
         AppleEvent::DashboardClosed { .. } => {
             pairs.push(("kind".into(), Value::Str("dashboard_closed".into())));
+        }
+        AppleEvent::Notifications { allowed, .. } => {
+            pairs.push(("kind".into(), Value::Str("notifications".into())));
+            pairs.push(("allowed".into(), Value::Bool(allowed)));
+        }
+        AppleEvent::Scheduled { id, .. } => {
+            pairs.push(("kind".into(), Value::Str("scheduled".into())));
+            pairs.push(("id".into(), Value::Str(id)));
+        }
+        AppleEvent::NotificationOpened { id } => {
+            pairs.push(("kind".into(), Value::Str("notification_opened".into())));
+            pairs.push(("id".into(), Value::Str(id)));
+        }
+        AppleEvent::PushToken { token } => {
+            pairs.push(("kind".into(), Value::Str("push_token".into())));
+            pairs.push(("token".into(), Value::Str(token)));
+        }
+        AppleEvent::PushFailed { message } => {
+            pairs.push(("kind".into(), Value::Str("push_failed".into())));
+            pairs.push(("error".into(), Value::Str(message)));
+        }
+        AppleEvent::Url { url } => {
+            pairs.push(("kind".into(), Value::Str("url".into())));
+            pairs.push(("url".into(), Value::Str(url)));
         }
         // StoreKit's own shape, unflattened: the `kind` is already in there.
         AppleEvent::Store { payload, .. } => {
@@ -459,6 +568,72 @@ fn install_apple_api(m: &mut dyn Bindings<Engine>) {
             "",
             "Show or hide Game Center's access point badge; `location` in the options is a corner. Returns whether this system has one.",
         ),
+        (
+            "products",
+            &[],
+            "",
+            "Ask the App Store about a list of product ids, and answer with what it knows: title, description, price and display price.",
+        ),
+        (
+            "purchase",
+            &[],
+            "",
+            "Buy a product. The answer is `purchased`, `cancelled` or `pending`, and a purchase carries the signed `jws` a server checks.",
+        ),
+        (
+            "entitlements",
+            &[],
+            "",
+            "What this player currently owns, each with the signed transaction a server checks.",
+        ),
+        (
+            "restore_purchases",
+            &[],
+            "",
+            "Ask the App Store to hand this device's purchases back — the button a review expects a game to have.",
+        ),
+        (
+            "finish_purchase",
+            &[],
+            "",
+            "Tell StoreKit a transaction is dealt with. One that is never finished comes back on every launch.",
+        ),
+        (
+            "watch",
+            &[],
+            "",
+            "Subscribe a node's method to everything that arrives unasked: a notification tapped, a URL opened, a push token, a transaction that landed elsewhere.",
+        ),
+        (
+            "request_notifications",
+            &[],
+            "",
+            "Ask the player to allow notifications, and answer with what they said.",
+        ),
+        (
+            "notify",
+            &[],
+            "",
+            "Schedule a local notification. The options take `title`, `after` in seconds and an `id` to cancel or recognise it by.",
+        ),
+        (
+            "cancel_notification",
+            &[],
+            "",
+            "Drop a scheduled notification, and take a delivered one out of the shade.",
+        ),
+        (
+            "register_for_push",
+            &[],
+            "",
+            "Ask the OS for a push token. It arrives at everything watching, not at the caller, because the OS hands it over whenever it likes.",
+        ),
+        (
+            "watch_urls",
+            &[],
+            "",
+            "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them.",
+        ),
     ]);
     m.function("available", |_: &Engine, ()| Ok(Value::Bool(AVAILABLE)));
     m.function("authenticated", |_: &Engine, ()| {
@@ -481,12 +656,9 @@ fn install_apple_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "credential_state",
         |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
-            let (node, user, opts) = match first {
-                Value::Str(user) => (None, user, second),
-                node => match second {
-                    Some(Value::Str(user)) => (Some(node), user, third),
-                    other => return Err(anyhow!("argument 1 should be a user id, got {other:?}")),
-                },
+            let (node, user, opts) = node_and_one(first, second, third)?;
+            let Value::Str(user) = user else {
+                return Err(anyhow!("the user id should be a string, got {user:?}"));
             };
             start_call(eng, node, opts, AppleCall::CredentialState { user })
         },
@@ -517,6 +689,175 @@ fn install_apple_api(m: &mut dyn Bindings<Engine>) {
             Ok(Value::Bool(backend::access_point(active, corner)))
         },
     );
+    install_store_api(m);
+    install_arrivals_api(m);
+}
+
+/// Notifications, push and URLs — everything that arrives rather than
+/// answers.
+fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
+    m.function(
+        "watch",
+        |eng: &Engine, (node, opts): (Value, Option<Value>)| {
+            let Some(handler) = handler_of(&node, opts.as_ref(), "on_apple", "on_apple")? else {
+                return Err(anyhow!("watching takes a node whose method hears about it"));
+            };
+            eng.resource::<AppleState>().borrow_mut().watch(handler);
+            Ok(Value::Bool(true))
+        },
+    );
+    m.function(
+        "request_notifications",
+        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
+            let (node, opts) = node_and_options(first, second);
+            start_call(eng, node, opts, AppleCall::RequestNotifications)
+        },
+    );
+    m.function(
+        "notify",
+        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
+            let (node, body, opts) = node_and_one(first, second, third)?;
+            let Value::Str(body) = body else {
+                return Err(anyhow!(
+                    "the notification text should be a string, got {body:?}"
+                ));
+            };
+            let opts_ref = opts.as_ref();
+            let title = match opt(opts_ref, "title") {
+                Some(Value::Str(title)) => title.clone(),
+                Some(other) => return Err(anyhow!("`title` should be a string, got {other:?}")),
+                None => String::new(),
+            };
+            let after = match opt(opts_ref, "after") {
+                Some(Value::Num(seconds)) => *seconds,
+                #[allow(clippy::cast_precision_loss, reason = "seconds from now")]
+                Some(Value::Int(seconds)) => *seconds as f64,
+                Some(other) => return Err(anyhow!("`after` should be a number, got {other:?}")),
+                None => 0.0,
+            };
+            // A generated id is the token this call was given, so two runs of
+            // the same session name the same notification.
+            let id = match opt(opts_ref, "id") {
+                Some(Value::Str(id)) => id.clone(),
+                Some(other) => return Err(anyhow!("`id` should be a string, got {other:?}")),
+                None => String::new(),
+            };
+            start_call(
+                eng,
+                node,
+                opts,
+                AppleCall::Notify {
+                    id,
+                    title,
+                    body,
+                    after,
+                },
+            )
+        },
+    );
+    m.function("cancel_notification", |_: &Engine, (id,): (Value,)| {
+        let Value::Str(id) = id else {
+            return Err(anyhow!("a notification id should be a string, got {id:?}"));
+        };
+        backend::cancel_notification(&id);
+        Ok(Value::Bool(true))
+    });
+    m.function("register_for_push", |_: &Engine, ()| {
+        Ok(Value::Bool(backend::register_for_push()))
+    });
+    m.function("watch_urls", |_: &Engine, ()| {
+        Ok(Value::Bool(backend::watch_urls()))
+    });
+}
+
+/// The store's own calls, all of them one payload or none.
+fn install_store_api(m: &mut dyn Bindings<Engine>) {
+    m.function(
+        "products",
+        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
+            let (node, ids, opts) = node_and_one(first, second, third)?;
+            let Value::List(ids) = ids else {
+                return Err(anyhow!("the product ids should be a list, got {ids:?}"));
+            };
+            let ids = ids
+                .into_iter()
+                .map(|id| match id {
+                    Value::Str(id) => Ok(id),
+                    other => Err(anyhow!("a product id should be a string, got {other:?}")),
+                })
+                .collect::<Result<Vec<String>>>()?;
+            start_call(
+                eng,
+                node,
+                opts,
+                AppleCall::Store(StoreCall::Products { ids }),
+            )
+        },
+    );
+    m.function(
+        "purchase",
+        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
+            let (node, product, opts) = node_and_one(first, second, third)?;
+            let Value::Str(product) = product else {
+                return Err(anyhow!(
+                    "the product id should be a string, got {product:?}"
+                ));
+            };
+            start_call(
+                eng,
+                node,
+                opts,
+                AppleCall::Store(StoreCall::Purchase { product }),
+            )
+        },
+    );
+    m.function(
+        "entitlements",
+        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
+            let (node, opts) = node_and_options(first, second);
+            start_call(eng, node, opts, AppleCall::Store(StoreCall::Entitlements))
+        },
+    );
+    m.function(
+        "restore_purchases",
+        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
+            let (node, opts) = node_and_options(first, second);
+            start_call(eng, node, opts, AppleCall::Store(StoreCall::Restore))
+        },
+    );
+    m.function(
+        "finish_purchase",
+        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
+            let (node, transaction, opts) = node_and_one(first, second, third)?;
+            let Value::Str(transaction) = transaction else {
+                return Err(anyhow!(
+                    "the transaction id should be a string, got {transaction:?}"
+                ));
+            };
+            start_call(
+                eng,
+                node,
+                opts,
+                AppleCall::Store(StoreCall::Finish { transaction }),
+            )
+        },
+    );
+}
+
+/// A call with one value of its own: `f(node, a, opts)` names a handler,
+/// `f(a, opts)` is awaited instead.
+fn node_and_one(
+    first: Value,
+    second: Option<Value>,
+    third: Option<Value>,
+) -> Result<(Option<Value>, Value, Option<Value>)> {
+    match first {
+        node @ Value::Node(_) => match second {
+            Some(payload) => Ok((Some(node), payload, third)),
+            None => Err(anyhow!("this call needs a value after the node")),
+        },
+        payload => Ok((None, payload, second)),
+    }
 }
 
 /// A call whose only arguments are the node and the options: `f(node, opts)`
@@ -571,7 +912,48 @@ fn start_call(
     let node = node.unwrap_or(Value::Nil);
     let handler = handler_of(&node, opts.as_ref(), "on_apple", "on_apple")?;
     let id = eng.next_token();
+    // A notification the script did not name is named after the call, so two
+    // runs of the same session schedule the same identifier.
+    let call = match call {
+        AppleCall::Notify {
+            id: name,
+            title,
+            body,
+            after,
+        } if name.is_empty() => AppleCall::Notify {
+            id: format!("balaur-{id}"),
+            title,
+            body,
+            after,
+        },
+        call => call,
+    };
     let state = eng.resource::<AppleState>();
-    state.borrow_mut().start(eng, id, call, handler);
+    state.borrow_mut().start(eng, id, &call, handler);
     Ok(id_value(id))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{corner_of, screen};
+
+    #[test]
+    fn every_dashboard_screen_carries_gamekits_own_number() {
+        assert_eq!(screen("default").unwrap(), -1);
+        assert_eq!(screen("achievements").unwrap(), 1);
+        assert_eq!(screen("friends").unwrap(), 5);
+    }
+
+    #[test]
+    fn a_screen_nobody_has_is_named_back_in_the_error() {
+        let err = screen("acheivements").unwrap_err().to_string();
+        assert!(err.contains("acheivements"), "{err}");
+    }
+
+    #[test]
+    fn an_access_point_corner_is_one_of_four() {
+        assert_eq!(corner_of("top_trailing").unwrap(), 1);
+        let err = corner_of("middle").unwrap_err().to_string();
+        assert!(err.contains("middle"), "{err}");
+    }
 }

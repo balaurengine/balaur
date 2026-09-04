@@ -18,9 +18,10 @@ step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 case "$platform" in
 ios)
   target=aarch64-apple-ios
-  # Stated once; the plist below declares it too. Below 12.0 the linker emits
-  # the pre-LC_BUILD_VERSION load command, which records no platform at all.
-  ios_min=13.0
+  # Stated once; the plist below declares it too. StoreKit 2 is the floor:
+  # the Swift shim in crates/balaur_apple is built for iOS 15 and a template
+  # that claimed less would not load its own symbols.
+  ios_min=15.0
   step "build ($target, windowed, min iOS $ios_min)"
   rustup target add "$target"
   IPHONEOS_DEPLOYMENT_TARGET=$ios_min \

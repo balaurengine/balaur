@@ -52,6 +52,17 @@ objc2-authentication-services = { version = "0.3.2", default-features = false, f
     "ASAuthorizationAppleIDProvider",
     "ASAuthorizationAppleIDRequest",
 ] }
+objc2-user-notifications = { version = "0.3.2", default-features = false, features = [
+    "std",
+    "block2",
+    "UNError",
+    "UNNotification",
+    "UNNotificationContent",
+    "UNNotificationRequest",
+    "UNNotificationResponse",
+    "UNNotificationTrigger",
+    "UNUserNotificationCenter",
+] }
 objc2-game-kit = { version = "0.3.2", default-features = false, features = [
     "std",
     "block2",
