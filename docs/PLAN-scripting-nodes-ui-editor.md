@@ -52,9 +52,11 @@ is a spec, in the component schema's own vocabulary:
 ```rune
 pub fn exports() {
     #{
-        speed: #{ type: "float", default: 2.0, min: 0.25, max: 32.0, step: 0.05, help: "Turns per second" },
-        target: #{ type: "node", default: "" },
-        mode: #{ type: "enum", default: "spin", options: ["spin", "wobble"] },
+        // `type` and `default` are reserved words in Rune, so the keys are
+        // quoted; the rest are plain identifiers.
+        speed: #{ "type": "float", "default": 2.0, min: 0.25, max: 32.0, order: 1 },
+        target: #{ "type": "node", "default": "" },
+        mode: #{ "type": "enum", "default": "spin", options: ["spin", "wobble"] },
         clockwise: true,
     }
 }

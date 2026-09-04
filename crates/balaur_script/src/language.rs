@@ -45,7 +45,8 @@ pub trait ScriptHost<C: ?Sized> {
     ///
     /// Each `Value` is a map in the component schema's own vocabulary —
     /// `type` and `default`, plus whatever of `min`, `max`, `step`,
-    /// `options`, `asset`, `help` and `order` was written. A script that
+    /// `options`, `asset`, `help` and `order` was written. Those first two
+    /// are reserved words in Rune, so a script quotes them as keys. A script that
     /// wrote a bare default gets one built for it, so every reader sees one
     /// shape and an inspector reaches for the editor it already has.
     ///

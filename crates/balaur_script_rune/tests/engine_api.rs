@@ -132,8 +132,9 @@ fn setting_a_component_puts_the_rest_back_to_their_defaults() {
     assert_eq!(found.get("b").and_then(toml::Value::as_float), Some(2.0));
 }
 
-/// `call` answers nil for a method that is not there and for one that
-/// returned nothing, so a caller that has to tell those apart asks first.
+/// `node.call` answers nil for a method that is not there and for one that
+/// returned nothing — it is `call_on`'s `Option` collapsed by `unwrap_or` —
+/// so a script that has to tell those apart asks first.
 #[test]
 fn has_method_tells_a_missing_handler_from_a_quiet_one() {
     let dir = project(&[(
@@ -147,10 +148,10 @@ fn has_method_tells_a_missing_handler_from_a_quiet_one() {
     let id = balaur_core::node_id_of(node);
     assert!(host.has_method(id, "on_hit"));
     assert!(!host.has_method(id, "on_missed"));
-    assert!(
-        host.call_on(id, "on_hit", &[]).is_none(),
-        "a handler returning nothing still answers nil, which is the point"
-    );
+    // The seam can tell them apart; the node op cannot, because it answers
+    // `unwrap_or(nil)` and a quiet handler returns nil too.
+    assert_eq!(host.call_on(id, "on_hit", &[]), Some(balaur_script::Value::Nil));
+    assert_eq!(host.call_on(id, "on_missed", &[]), None);
 }
 
 /// Emitted in one frame, delivered at the top of the next, to whoever

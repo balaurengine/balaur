@@ -89,6 +89,11 @@ enum Command {
         /// Never download a missing runtime template; fail instead.
         #[arg(long)]
         no_download: bool,
+        /// Keep script sources in the pack instead of bytecode. A pack for a
+        /// runtime with a different pointer width than this machine — the
+        /// web build — needs this until the bytecode format is portable.
+        #[arg(long)]
+        keep_sources: bool,
         /// Produce a macOS `.app` bundle instead of a flat executable — the
         /// shape that can be code-signed.
         #[arg(long)]
@@ -269,6 +274,7 @@ fn main() -> Result<()> {
             template,
             download,
             no_download,
+            keep_sources,
             app,
             sign,
         } => {
@@ -282,6 +288,7 @@ fn main() -> Result<()> {
                 target,
                 template,
                 app,
+                keep_sources,
                 sign,
                 template_roots: balaur_export::default_roots(templates::cache_dir()),
                 obtain: if no_download { None } else { Some(&fetch) },
@@ -619,7 +626,7 @@ fn edit_project(
     let mut app = balaur::standard_app(config)?;
     // The editor's project is the editor; the game it edits is another root,
     // and every path it reads back is an absolute one inside it.
-    balaur_core::file_api::add_root(&app.engine, &game);
+    balaur::file_api::add_root(&app.engine, &game);
     app.load_project()?;
     if let Some(frames) = frames {
         let mut count = 0u64;

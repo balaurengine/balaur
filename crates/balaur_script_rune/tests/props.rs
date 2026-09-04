@@ -143,23 +143,83 @@ fn a_script_without_exports_takes_properties_anyway() {
     assert_eq!(number(&app, enemy, "seen"), Some(7.0));
 }
 
+/// A bare default is lifted into a spec, so every reader of `exports` sees
+/// one shape — and the type it was inferred at is the one an inspector draws.
 #[test]
 fn exports_reports_the_declared_defaults_at_their_own_types() {
     let dir = project(&[("scripts/enemy.rn", ENEMY)]);
     let app = app_in(dir.path());
     let host = app.engine.script_host().unwrap();
     let declared = host.exports("scripts/enemy.rn").unwrap();
+    let spec = |kind: &str, default: balaur_script::Value| {
+        balaur_script::Value::Map(vec![
+            (String::from("type"), balaur_script::Value::Str(kind.into())),
+            (String::from("default"), default),
+        ])
+    };
     assert_eq!(
         declared,
         vec![
-            (String::from("jumps"), balaur_script::Value::Int(2)),
+            (
+                String::from("jumps"),
+                spec("int", balaur_script::Value::Int(2))
+            ),
             (
                 String::from("name"),
-                balaur_script::Value::Str("grunt".into())
+                spec("string", balaur_script::Value::Str("grunt".into()))
             ),
-            (String::from("speed"), balaur_script::Value::Num(2.0)),
+            (
+                String::from("speed"),
+                spec("float", balaur_script::Value::Num(2.0))
+            ),
         ],
         "sorted by name, with an int default staying an int"
+    );
+}
+
+/// The other half: a table carrying `type` is taken as written, so a script
+/// can declare a range, an enum or a node reference a bare default cannot.
+#[test]
+fn a_written_spec_is_taken_as_it_stands_and_orders_the_rows() {
+    let dir = project(&[(
+        "scripts/tuned.rn",
+        "pub fn exports() {\n\
+         \x20   #{\n\
+         \x20       speed: #{ \"type\": \"float\", \"default\": 2.0, min: 0.5, max: 8.0, order: 2 },\n\
+         \x20       mode: #{ \"type\": \"enum\", \"default\": \"spin\", options: [\"spin\", \"wobble\"], order: 1 },\n\
+         \x20   }\n\
+         }\n\
+         pub fn init(this) {}\n",
+    )]);
+    let app = app_in(dir.path());
+    let host = app.engine.script_host().unwrap();
+    let declared = host.exports("scripts/tuned.rn").unwrap();
+    let names: Vec<&str> = declared.iter().map(|(n, _)| n.as_str()).collect();
+    assert_eq!(names, ["mode", "speed"], "`order` decides, not the name");
+    let balaur_script::Value::Map(speed) = &declared[1].1 else {
+        panic!("a spec is a map: {:?}", declared[1].1);
+    };
+    assert!(
+        speed.iter().any(|(k, v)| k == "max" && *v == balaur_script::Value::Num(8.0)),
+        "the range the script wrote survives: {speed:?}"
+    );
+}
+
+/// A spec is held to the same rules a component schema is, and the failure
+/// names the script and the property rather than appearing at the first row.
+#[test]
+fn a_spec_that_breaks_the_schema_rules_is_refused() {
+    let dir = project(&[(
+        "scripts/bad.rn",
+        "pub fn exports() { #{ mode: #{ \"type\": \"enum\", \"default\": \"spin\" } } }\n\
+         pub fn init(this) {}\n",
+    )]);
+    let app = app_in(dir.path());
+    let host = app.engine.script_host().unwrap();
+    let err = host.exports("scripts/bad.rn").unwrap_err().to_string();
+    assert!(
+        err.contains("mode") && err.contains("options"),
+        "the error should name the property and what is missing: {err}"
     );
 }
 

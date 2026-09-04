@@ -35,6 +35,9 @@ pub struct Options<'a> {
     pub template: Option<PathBuf>,
     /// Produce a macOS `.app` rather than a flat executable.
     pub app: bool,
+    /// Keep script sources in the pack instead of bytecode, for a runtime
+    /// whose pointer width differs from this machine's — the web build.
+    pub keep_sources: bool,
     /// Code-sign the `.app` with this identity; implies `app`.
     pub sign: Option<String>,
     /// Where runtime templates are looked for, most specific first.
@@ -70,7 +73,7 @@ pub fn default_roots(cache: Option<PathBuf>) -> Vec<PathBuf> {
 
 /// Write a `.bpak`, or a standalone game when a template is in play.
 pub fn export(opts: &Options<'_>) -> Result<()> {
-    let pack = balaur::build_pack(&opts.path)?;
+    let pack = balaur::build_pack_with(&opts.path, opts.keep_sources)?;
     let apple = AppleConfig::load(&opts.path)?;
     let name = project_name(&opts.path);
     let target = opts.target.as_deref();

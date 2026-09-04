@@ -61,6 +61,22 @@ impl Pack {
         project_root: &Path,
         compiler: &dyn balaur_script::ScriptCompiler,
     ) -> Result<Self> {
+        Self::build_with(project_root, compiler, false)
+    }
+
+    /// [`build`](Self::build), with a say over what a script entry holds.
+    ///
+    /// With `keep_sources`, every script is still compiled — an export is a
+    /// check — but the pack stores its source text, and the runtime compiles
+    /// it again when it loads. That is what a runtime with a different
+    /// pointer width than this machine needs: the compiled form writes
+    /// `usize` sentinels that do not read back on 32-bit targets, the web
+    /// build first among them, until the bytecode format is portable.
+    pub fn build_with(
+        project_root: &Path,
+        compiler: &dyn balaur_script::ScriptCompiler,
+        keep_sources: bool,
+    ) -> Result<Self> {
         let manifest = std::fs::read_to_string(project_root.join("project.toml"))
             .with_context(|| format!("no project.toml in {}", project_root.display()))?;
         let mut pack = Self {
@@ -75,7 +91,8 @@ impl Pack {
                 Some(ext) if compiler.extensions().contains(&ext) => {
                     let source = std::fs::read_to_string(&path)?;
                     let bytes = compiler.compile(&rel, &source)?;
-                    pack.scripts.insert(rel, bytes);
+                    pack.scripts
+                        .insert(rel, if keep_sources { source.into_bytes() } else { bytes });
                 }
                 // `scenes` is the pack's text map: scene documents, asset
                 // documents and shader sources all read back through it.

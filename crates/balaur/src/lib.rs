@@ -101,6 +101,12 @@ fn backend_for(config: &AppConfig) -> Result<balaur_core::ScriptHostFactory> {
 /// compile through its host. Exporting through a bare context instead rejects
 /// every script that touches the engine.
 pub fn build_pack(project_root: &std::path::Path) -> Result<Pack> {
+    build_pack_with(project_root, false)
+}
+
+/// [`build_pack`], keeping script sources in the pack when `keep_sources`
+/// — see [`Pack::build_with`] for when a runtime needs that.
+pub fn build_pack_with(project_root: &std::path::Path, keep_sources: bool) -> Result<Pack> {
     let app = standard_app(AppConfig::export(project_root))?;
     let host = app
         .engine
@@ -110,7 +116,7 @@ pub fn build_pack(project_root: &std::path::Path) -> Result<Pack> {
         .as_any()
         .downcast_ref::<balaur_script_rune::RuneHost>()
         .context("expected the rune backend")?;
-    Pack::build(project_root, host)
+    Pack::build_with(project_root, host, keep_sources)
 }
 
 /// Every finding in a project: each script a scene attaches, compiled through
