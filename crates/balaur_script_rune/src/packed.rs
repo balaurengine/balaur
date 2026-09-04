@@ -45,7 +45,7 @@ const FORMAT: u32 = 2;
 pub(crate) fn encode(unit: &Unit, functions: &[PublicSignature]) -> Result<Vec<u8>> {
     let mut out = Vec::from(*MAGIC);
     out.extend_from_slice(&FORMAT.to_le_bytes());
-    bincode::serde::encode_into_std_write(&(unit.logic(), functions), &mut out, LEGACY)?;
+    bincode::serde::encode_into_std_write((unit.logic(), functions), &mut out, LEGACY)?;
     Ok(out)
 }
 

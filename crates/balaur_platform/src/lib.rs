@@ -281,7 +281,7 @@ impl PlatformState {
     /// it cannot collide with another subsystem's ids.
     ///
     /// A write made on a tick that a late input could still roll back waits
-    /// in [`PlatformState::pending`] until that tick is final; everything
+    /// in this state's own `pending` list until that tick is final; everything
     /// else goes out now.
     pub fn start(&mut self, eng: &Engine, id: u64, call: Call, handler: Option<Handler>) {
         if let Some(handler) = handler {

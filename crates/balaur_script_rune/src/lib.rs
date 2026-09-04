@@ -67,7 +67,7 @@ pub fn factory() -> balaur_core::ScriptHostFactory {
 ///
 /// A pack ships the compiled unit, not the source: startup costs a
 /// deserialise instead of a compile, and no source text goes out with the
-/// game. Names do — see [`packed`] for exactly what survives. Rune promises
+/// game. Names do — see the crate's `packed` module for exactly what survives. Rune promises
 /// nothing about a unit surviving a version change, which is why that module
 /// stamps a format number and refuses anything else.
 ///
