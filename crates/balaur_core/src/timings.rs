@@ -19,9 +19,10 @@
 )]
 
 use std::fmt::Write as _;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::engine::Engine;
+use crate::time::Instant;
 
 /// The stages, in the order [`crate::app::Stage`] declares them, so a table
 /// reads the way a frame runs.

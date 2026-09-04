@@ -1264,6 +1264,7 @@ fn a_root_on_a_disabled_surface_is_not_a_focus_stop() {
     );
 }
 
+
 /// Two pages showing the same text are told apart by their node names, which
 /// is what the schema says `active` holds.
 #[test]
@@ -1283,11 +1284,22 @@ fn clicking_a_tab_writes_the_pages_node_name() {
     }
     let ctx = egui::Context::default();
     settle(&app, &ctx);
-    let strip = ctx
-        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", tabs))))
-        .expect("the tab drew");
-    // The second tab button, past the first one's own width.
-    let target = pos2(strip.min.x + 90.0, strip.min.y + 10.0);
+
+    // Both strip buttons read "Same", so the second one is found by where it
+    // was drawn rather than by what it says.
+    let out = pass(&app, &ctx, vec![]);
+    let mut strip: Vec<egui::Pos2> = out
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::epaint::Shape::Text(text) if text.galley.text() == "Same" => Some(text.pos),
+            _ => None,
+        })
+        .collect();
+    strip.sort_by(|a, b| a.y.total_cmp(&b.y).then(a.x.total_cmp(&b.x)));
+    assert!(strip.len() >= 2, "the strip drew {} labels", strip.len());
+    let target = pos2(strip[1].x + 4.0, strip[1].y + 4.0);
+
     pass(&app, &ctx, press(target, true));
     pass(&app, &ctx, press(target, false));
     let active = balaur::components::get(&app.engine, tabs, "widget")
@@ -1300,14 +1312,17 @@ fn clicking_a_tab_writes_the_pages_node_name() {
 }
 
 /// `docs/PLAN-ui-layout.md` §5 promises one frame between a widget being
-/// placed and a script reading the rect back; two would be a size change a
+/// placed and a script reading its rect back; two would be a size change the
 /// script never catches up with.
 #[test]
 fn a_script_reads_a_widget_rect_no_more_than_one_frame_late() {
-    let script = "pub fn draw_ui(this) {\n\
-                  \x20   let r = ui::widget_rect(this.node);\n\
-                  \x20   if r is not () { this.seen = r.w; }\n\
-                  }\n";
+    // `render.set_camera_2d` is the observation channel: nothing else in this
+    // test writes it, and it is readable from Rust without a window.
+    let script = "pub fn draw_ui(this) {\n    \
+        let r = ui::widget_rect(this.node);\n    \
+        if r is Object {\n        \
+        render::set_camera_2d(r.w, 0.0, 60.0);\n    \
+        }\n}\n";
     let (_dir, app) = app_with_script(script);
     let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", app.engine.root());
     app.engine
@@ -1319,18 +1334,25 @@ fn a_script_reads_a_widget_rect_no_more_than_one_frame_late() {
         &app.engine,
         owner,
         "widget",
-        Some(&toml::toml! { kind = "panel" text = "" x = 0.0 y = 0.0 width = 100.0 height = 40.0 }.into()),
+        Some(
+            &toml::toml! { kind = "panel" text = "" x = 0.0 y = 0.0 width = 100.0 height = 40.0 }
+                .into(),
+        ),
     )
     .unwrap();
     let seen = || {
         app.engine
-            .script_host()
-            .unwrap()
-            .get_prop(balaur::node_id_of(owner), "seen")
+            .resource::<balaur::render::CameraConfig2d>()
+            .borrow()
+            .center[0]
     };
     let ctx = egui::Context::default();
     settle(&app, &ctx);
-    assert!(seen().is_some(), "control: the script never read a rect");
+    assert!(
+        (seen() - 100.0).abs() < 2.0,
+        "control: the script never read the panel's rect ({})",
+        seen()
+    );
 
     balaur::components::patch(
         &app.engine,
@@ -1342,9 +1364,9 @@ fn a_script_reads_a_widget_rect_no_more_than_one_frame_late() {
     // One pass to draw at the new width, one for the script to have read it.
     pass(&app, &ctx, vec![]);
     pass(&app, &ctx, vec![]);
-    let width = seen().expect("the script read a rect");
     assert!(
-        format!("{width:?}").contains("300"),
-        "the rect a script reads is more than one frame stale: {width:?}"
+        (seen() - 300.0).abs() < 2.0,
+        "the rect a script reads is more than one frame stale ({})",
+        seen()
     );
 }

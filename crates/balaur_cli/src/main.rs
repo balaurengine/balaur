@@ -617,6 +617,9 @@ fn edit_project(
         config.script_args.push(state);
     }
     let mut app = balaur::standard_app(config)?;
+    // The editor's project is the editor; the game it edits is another root,
+    // and every path it reads back is an absolute one inside it.
+    balaur_core::file_api::add_root(&app.engine, &game);
     app.load_project()?;
     if let Some(frames) = frames {
         let mut count = 0u64;

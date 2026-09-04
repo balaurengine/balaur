@@ -93,51 +93,7 @@ pub struct Widget {
     /// Whether text breaks to the width it was given rather than running past
     /// it on one line.
     pub wrap: bool,
-    /// A framed box that lays its children out, with the padding taken off in
-/// floats: `egui::Margin` is whole device pixels, and 10 design px at the
-/// editor's 1.25 scale is not one.
-///
-/// The background is reserved before the children and filled in afterwards,
-/// which is how it can be sized to content it has not drawn yet.
-fn panel(
-    ui: &mut egui::Ui,
-    at: &mut Painting<'_>,
-    index: usize,
-    caption: &str,
-    font: &egui::FontId,
-    color: Color32,
-) {
-    let scale = at.scale;
-    let style = at.theme.style(&at.arena[index].widget.kind);
-    let pad = style.padding.unwrap_or(8.0) * scale;
-    let box_size = box_of(&at.arena[index].widget, at.assigned, scale);
-    let plate = ui.painter().add(egui::Shape::Noop);
-    let min = (box_size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);
-    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(ui.max_rect().shrink(pad)));
-    hold_to(&mut inner, min);
-    if !caption.is_empty() {
-        inner.label(egui::RichText::new(caption).font(font.clone()).color(color));
-    }
-    // A panel with nothing in it is the panel it always was.
-    let held = std::mem::replace(&mut at.bounds, min);
-    lay_out(&mut inner, at, index, Axis::Column);
-    at.bounds = held;
-    let background = inner.min_rect().expand(pad);
-    ui.painter().set(
-        plate,
-        egui::epaint::RectShape::new(
-            background,
-            egui::CornerRadius::same(style.radius.map_or(8.0, |r| r * scale) as u8),
-            style.fill.unwrap_or(Color32::from_black_alpha(96)),
-            style
-                .stroke
-                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_width, c)),
-            egui::StrokeKind::Inside,
-        ),
-    );
-    ui.advance_cursor_after_rect(background);
-}
-
+    
 /// Where text sits in the width the widget was given.
     pub text_align: String,
     /// A project-relative image for an `image` widget.
@@ -976,6 +932,52 @@ pub(crate) fn image_size(stated: egui::Vec2, native: egui::Vec2) -> egui::Vec2 {
         (false, true) => vec2(stated.y * aspect, stated.y),
         (false, false) => native,
     }
+}
+
+/// A framed box that lays its children out, with the padding taken off in
+/// floats: `egui::Margin` is whole device pixels, and 10 design px at the
+/// editor's 1.25 scale is not one.
+///
+/// The background is reserved before the children and filled in afterwards,
+/// which is how it can be sized to content it has not drawn yet.
+fn panel(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    caption: &str,
+    font: &egui::FontId,
+    color: Color32,
+) {
+    let scale = at.scale;
+    let widget = &at.arena[index].widget;
+    let style = at.theme.style(&widget.kind);
+    let pad = padding_of(widget, &style, scale);
+    let box_size = box_of(widget, at.assigned, scale);
+    let plate = ui.painter().add(egui::Shape::Noop);
+    let min = (box_size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);
+    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(ui.max_rect().shrink(pad)));
+    hold_to(&mut inner, min);
+    if !caption.is_empty() {
+        inner.label(egui::RichText::new(caption).font(font.clone()).color(color));
+    }
+    // A panel with nothing in it is the panel it always was.
+    let held = std::mem::replace(&mut at.bounds, min);
+    lay_out(&mut inner, at, index, Axis::Column);
+    at.bounds = held;
+    let background = inner.min_rect().expand(pad);
+    ui.painter().set(
+        plate,
+        egui::epaint::RectShape::new(
+            background,
+            egui::CornerRadius::same(style.radius.map_or(8.0, |r| r * scale) as u8),
+            style.fill.unwrap_or(Color32::from_black_alpha(96)),
+            style
+                .stroke
+                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_width, c)),
+            egui::StrokeKind::Inside,
+        ),
+    );
+    ui.advance_cursor_after_rect(background);
 }
 
 /// Draw a project image. A source that will not load is reported once and

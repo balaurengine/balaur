@@ -103,8 +103,12 @@ fn floor_of(level) {
 fn filtered(S) {
     // The buffer holds 500; asking for 60 threw away most of the session.
     let entries = util::vec(log::recent(500));
-    let last = if entries.len() > 0 { entries[entries.len() - 1].message } else { "" };
-    let mark = format!("{}|{}|{}|{}", entries.len(), last, S.log_level, S.log_query);
+    let newest = if entries.len() > 0 {
+        format!("{}{}", util::f(entries[entries.len() - 1].time), entries[entries.len() - 1].message)
+    } else {
+        ""
+    };
+    let mark = format!("{}|{}|{}|{}", entries.len(), newest, S.log_level, S.log_query);
     let cache = S.log_cache;
     if cache is Object && cache.mark == mark {
         return cache;

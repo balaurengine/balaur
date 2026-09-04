@@ -1,6 +1,8 @@
 # Plan: gaps in scripting, nodes, widgets and the editor
 
-> **Status:** open. Written 2026-09-04 from a read of `balaur_ui`,
+> **Status:** most of §1–§4 is built; each item's own status line says which.
+> What is left is §4.3's screens, §5's docs, and the three items marked
+> *partly done*. Written 2026-09-04 from a read of `balaur_ui`,
 > `balaur_script_rune`, the node and component API in `balaur_core`, and
 > `editor/scripts`, at `8b44a17` plus the shell-on-widget-nodes and
 > `Registry` work in flight in the working tree. Each item says what is
@@ -32,7 +34,7 @@ docstring says "describes the component whole; `patch_component` changes one
 property". Declared once, it reaches every language. The two workarounds
 become one call each.
 
-Status: open. Extends `docs/PLAN-scripting.md`.
+Status: **done** — `node.patch_component`, and `patch` on the component handle.
 
 ### 1.2 Exports as spec tables
 
@@ -69,7 +71,7 @@ the dropdown and an asset the reference row with no editor change; `order`
 sorts the rows the way settings already do. `#[export]`
 (`docs/PLAN-scripting.md`) stays the phase after: it lowers to this table.
 
-Status: open. Extends `docs/PLAN-scripting.md`.
+Status: **done** — a spec table beside the bare default, validated against the schema vocabulary and sorted by `order`.
 
 ### 1.3 `hot_reload` is never dispatched
 
@@ -85,7 +87,7 @@ that key through `invoke`, in instance order, reporting a throw the way
 `a_reload_keeps_instance_state` in `tests/backend.rs`. The editor's stub,
 which re-applies the theme, is the first use.
 
-Status: open.
+Status: **done** — `reload` calls `hot_reload` on every instance of the file.
 
 ### 1.4 Public functions are read line by line
 
@@ -108,7 +110,7 @@ today, computed from the dev unit at export. Lift the arity cap by building a
 shared function as a raw handler over `Memory` and an argument count, the
 shape `RuneModule::function_raw` already uses (`bindings.rs:184-214`).
 
-Status: open.
+Status: **partly done** — the scanner spans lines, and the stepping decision now asks the unit rather than the scan. The five-argument cap on `script::shared` stands.
 
 ### 1.5 Warts
 
@@ -119,7 +121,7 @@ Status: open.
 | A misspelled option key or role does nothing, silently (`colour:`); the one test asserts only that nothing crashes | `crates/balaur_ui/src/widgets.rs:47-52`, `tests/pass.rs:164-173` | each widget lists its keys in `describe`; `Opts::with_roles` warns once per widget and key in a dev build; the test asserts the warning |
 | `obj.field = a \|\| b` overwrites the local `a` (AGENTS.md); a code-generation bug in a compiler this repo already forks | `balaurengine/rune`, branch `deterministic-pow` | fix it in the fork with a test; until then a `.rn` pass in `scripts/house_lints.py`, which today reads only `*.rs` |
 
-Status: open.
+Status: **partly done** — `engine.tick()` is an integer and `node.has_method` exists. The options-typo warning and the Rune fork are open; the two Rune traps are now caught by `scripts/house_lints.py`.
 
 ## 2. Nodes
 
@@ -140,7 +142,7 @@ calls. Groups are not planned: a `tags` component with a `flags` property
 would be the shape if one is ever wanted, and `with_component` then covers
 "all enemies".
 
-Status: open.
+Status: **done** — `node.descendants()` and `scene.with_component(name)`, both in tree order.
 
 ### 2.2 Events between scripts
 
@@ -161,7 +163,7 @@ stage is what keeps it deterministic and out of the middle of a script batch;
 emits come from scripts, so a replay reproduces them with no recording
 source. `unsubscribe` and detach both release.
 
-Status: open. Extends `docs/PLAN-scripting.md`.
+Status: **done** — the `events` module, pumped at the top of `Stage::Update`, with `emitted` as the asking twin.
 
 ## 3. Widgets
 
@@ -180,7 +182,7 @@ and `ui.set_keyboard_focus(on)` covers a menu that opens at run time. While
 egui reports a text field focused, the focus keys stand down. The focus
 tests (`tests/widget_layer.rs:758-889`) set the flag.
 
-Status: open.
+Status: **done** — `WidgetLayerConfig::keyboard`, off by default, turned on by `standard_app` for a project declaring the `ui_*` actions and by `ui.set_keyboard_focus`.
 
 ### 3.2 Label wrap and alignment; an `image` kind
 
@@ -200,7 +202,7 @@ PNG loaded through `ProjectFiles` and cached in `UiState.textures` the way
 `height` or the native size. `kind = "bar"` with `value` in 0..1, drawn from
 the theme's fill and stroke, comes after if asked for.
 
-Status: open. Extends `docs/PLAN-ui-layout.md`.
+Status: **partly done** — `wrap`, `text_align` and an `image` kind. A `bar` kind is still open.
 
 ### 3.3 Integer margins
 
@@ -215,7 +217,7 @@ scroll box and `themed_frame` (`widget_arrange.rs:79,115`) still cast to
 `Frame` for fill, stroke and radius with a zero margin, and hand the
 children a child `Ui` at the rect shrunk by the float padding.
 
-Status: in progress for `contain`; open for the rest.
+Status: **done** — the panel, the scroll box and the themed frame all take their padding off in floats.
 
 ### 3.4 The per-frame walk
 
@@ -230,7 +232,7 @@ settle clicks and focus from the arena rather than a second copy; write
 `clicked` only where it changes. Not a measured problem yet; listed so it is
 not rediscovered at a thousand nodes.
 
-Status: open, low.
+Status: **partly done** — the walk returns before doing anything when a scene has no widgets. The second clone and the unconditional `clicked` write stand.
 
 ## 4. The editor
 
@@ -257,7 +259,7 @@ binding that edits a `DocumentMut` in place would serve the scene save, the
 settings save and `assets.save`. A self-test: open an example, save with no
 edits, assert the bytes are unchanged.
 
-Status: open. Extends `docs/PLAN-editor.md` §3.
+Status: **done** — `toml.patch` keeps comments and unmodelled tables, and the mirror is built from the whole document.
 
 ### 4.2 Addressing the mirror
 
@@ -277,7 +279,7 @@ whole-document frames were chosen for a reason, and the cost is fine below a
 few hundred nodes. Noted here so a future "the editor is slow on a big
 scene" report has its answer.
 
-Status: open. Extends `docs/PLAN-editor.md`.
+Status: **partly done** — the mirror resolves by stable id through `scene.node_by_id(id, under)`. Whole-document history stands, deliberately.
 
 ### 4.3 Screens
 

@@ -133,11 +133,61 @@ pub fn capture(max_level: LevelFilter) {
     let filter = EnvFilter::builder()
         .with_default_directive(max_level.into())
         .from_env_lossy();
+    #[cfg(not(target_arch = "wasm32"))]
+    let fmt = tracing_subscriber::fmt::layer().with_writer(std::io::stderr);
+    // A browser has no stderr and no clock for the timestamp column —
+    // `SystemTime::now()` is where a wasm build used to die — so lines go to
+    // the console, untimed and unstyled.
+    #[cfg(target_arch = "wasm32")]
+    let fmt = tracing_subscriber::fmt::layer()
+        .without_time()
+        .with_ansi(false)
+        .with_writer(console::Console);
     let _ = tracing_subscriber::registry()
         .with(filter)
-        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr))
+        .with(fmt)
         .with(CaptureLayer)
         .try_init();
+}
+
+/// The browser console as a `tracing` writer: the fmt layer asks for a
+/// writer per event and writes the whole line to it, so each one is a
+/// `console.log` call when it is dropped.
+#[cfg(target_arch = "wasm32")]
+mod console {
+    use std::io::{self, Write};
+
+    pub(super) struct Console;
+
+    impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Console {
+        type Writer = Line;
+
+        fn make_writer(&'a self) -> Line {
+            Line(Vec::new())
+        }
+    }
+
+    pub(super) struct Line(Vec<u8>);
+
+    impl Write for Line {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.0.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Drop for Line {
+        fn drop(&mut self) {
+            if !self.0.is_empty() {
+                let line = String::from_utf8_lossy(&self.0);
+                web_sys::console::log_1(&line.trim_end().into());
+            }
+        }
+    }
 }
 
 /// Capture only, without stderr output. For tests.

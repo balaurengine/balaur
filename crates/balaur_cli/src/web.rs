@@ -14,6 +14,7 @@ use wasm_bindgen_futures::JsFuture;
 /// when the game quits; rejects with the error's message when it cannot
 /// start — a bad URL, a pack the engine cannot decode, no GPU adapter.
 #[wasm_bindgen]
+#[allow(unreachable_pub, reason = "exported to the page by wasm-bindgen, not to another crate")]
 pub async fn start(canvas_id: String, pack_url: String) -> Result<(), JsValue> {
     // A panic would otherwise surface as `RuntimeError: unreachable` with no
     // message; the hook prints the panic's own text on the console first.

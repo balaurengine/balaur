@@ -537,8 +537,8 @@ pub struct Recording(pub Option<Recorder>);
     reason = "names a recording file, not simulation"
 )]
 pub fn timestamp() -> String {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let secs = crate::time::SystemTime::now()
+        .duration_since(crate::time::SystemTime::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
     let (days, rest) = (secs / 86_400, secs % 86_400);
     // Days since 1970 fits an i64 for any clock a machine can hold.

@@ -505,6 +505,7 @@ dependencies = [
  "tracing",
  "tracing-log",
  "tracing-subscriber",
+ "web-sys",
  "web-time",
 ]
 

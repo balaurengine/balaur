@@ -7,13 +7,11 @@ ARCHITECTURE.md's plugin section is the record. What is left is below.
 
 ## Open
 
-- Around thirty registration helpers in `balaur_physics`, `balaur_render`,
-  `balaur_anim` and `balaur_ui` still take `&mut App` rather than
-  `&mut Registry`, which is the only reason `Registry::app()` is still reached.
-  Converting them is what closes the gap between what a Rust plugin can do and
-  what a C one can.
-- `[plugins]` values are booleans, not tables of per-plugin config: audio,
-  http and websocket each read their own file through `ProjectFiles` already,
-  and a second place to configure them would be a second place to look.
-- `engine.plugins` gives names only, no versions: it is what a `has_plugin`
-  check needs and no more.
+- Tiers above 1 of `docs/PLAN-c-api.md` — components, systems and calling back
+  into script across the C boundary. `Registry` is now the whole surface a
+  plugin registers through and `app()` is gone, so that list is exactly what a
+  C extension is still short of, with nothing left to reach around it.
+- A plugin can now be configured in two places — its own file through
+  `ProjectFiles`, or a `[plugins]` table through `Registry::config` — and
+  nothing in tree reads the second yet. Which one each plugin should prefer is
+  worth settling before one grows both.

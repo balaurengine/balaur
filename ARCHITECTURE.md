@@ -672,13 +672,13 @@ sources and setup, and script modules, and is free of trait objects and of
 generics but for the two that name a Rust type: a `fn` pointer crosses an ABI
 boundary where an `impl Trait` does not.
 
-Nothing in tree reaches its `app()` escape hatch. That is the measure worth
-keeping: every registration a plugin performs, down to
-`register_body_component` and `dim2::build`, is spelled in verbs that a C
-extension could be handed. `engine()` covers what a plugin reads while
-declaring — a settings group, a store backend, the project's files — as a
-borrow rather than the `App`, because an engine handle is what a C extension
-would be given anyway.
+The `app()` escape hatch is gone. Every registration a plugin performs, down
+to `register_body_component` and `dim2::build`, is spelled in verbs that a C
+extension could be handed, and anything missing has to be added as one rather
+than reached around. `engine()` covers what a plugin reads while declaring — a
+settings group, a store backend, the project's files — as a borrow rather than
+the `App`, because an engine handle is what a C extension would be given
+anyway, and `config()` hands it whatever `[plugins]` wrote under its name.
 
 Every plugin that finishes registering is appended to `PluginRegistry`
 (`balaur_core::plugins`), and a plugin's `requires` is checked against it at
@@ -694,7 +694,9 @@ whatever modules the build linked in. There is no second trait and no second
 way to load one.
 
 A project picks from what the build linked in, through `[plugins]` in
-`project.toml`: every module loads unless named `false` there. Asking for one
+`project.toml`: every module loads unless named `false` there, and a table
+(`http = { timeout = 5 }`) means "on, with these" — the plugin reads it back
+through `Registry::config`, keyed by its own name so it cannot see another's. Asking for one
 nothing registered is an error naming the feature to rebuild with, and turning
 off one every build has is refused rather than ignored — a setting that cannot
 be honoured must not look like it was. The check runs after extensions load,

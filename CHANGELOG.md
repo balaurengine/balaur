@@ -92,6 +92,15 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - `handle` on a row or column: draggable seams that write the new size onto whichever neighbour states one.
 - Widgets are measured before they are placed, from the font atlas rather than from last frame, so a container divides its room by what its children need now.
 - Widget presets: `label`, `button`, `panel`, `row`, `column`, `scroll`, `tab` and `draw`, so the picker offers "Column" beside "Sprite2D".
+- `node.patch_component`: change one property and leave the rest, the verb `set_component` is not; `patch` on a component handle too.
+- `exports()` takes a spec table beside a bare default — `type`, `min`, `max`, `options`, `help`, `order` — so an exported property gets the inspector row its type deserves.
+- `hot_reload` is called on every instance of a reloaded script; it was documented and never dispatched.
+- `events`: `subscribe`, `emit`, `unsubscribe` and `emitted`, delivered at the top of the next frame's update.
+- `node.descendants`, `node.stable_id`, `node.has_method`, `scene.with_component` and `scene.node_by_id`.
+- `toml.patch`: write a table into a document, keeping its comments, key order and unmodelled tables.
+- Widget `wrap`, `text_align` and an `image` kind.
+- Keyboard focus is opt in: `ui.set_keyboard_focus`, and on for a project declaring the `ui_*` actions.
+- `engine.tick()` answers a whole number, so `tick() % 60` is legal Rune.
 - Widget surfaces: a root's `layer` names where it draws, `ui.set_widget_surface` places one, and an unconfigured name is the whole screen — so a tool's own chrome and a game's HUD no longer share one rect.
 - `ui.widget_rect(node)`: where a widget node was last drawn, for a script placing something against it.
 - A `draw` node with no script of its own asks the nearest scripted ancestor.
@@ -165,3 +174,5 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - `load_order` and `load_extensions_in` take the names already loaded; `App::plugins` returns `PluginInfo`.
 - One plugin trait: `balaur_core::Plugin` and `App::add_plugin` are gone, `balaur_plugin::Plugin` is it.
 - Plugins register through `Registry` alone: presets, asset types, digests, snapshots, replay setup, `engine()`.
+- `Registry::app()` is gone; `Registry::config()` hands a plugin its `[plugins]` table.
+- `engine.plugin_version` for scripts.
