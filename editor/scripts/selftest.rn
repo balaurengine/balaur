@@ -608,6 +608,18 @@ pub fn layout_step(S) {
     check(covered(S, crate::layout::sheets(S)), "and the middle of every sheet does not");
     check(S.viewport.w == stage.w && S.viewport.h == stage.h,
         "the widget layer gets the stage rect");
+    // Every sheet is placed, or it is not drawn: a zero rect turns egui's own
+    // area constraint back on and piles the shell into the corner.
+    for (name, r) in [("persona bar", m.bar), ("command pill", m.cmd),
+                      ("tree", m.left), ("inspector", m.right),
+                      ("dock", m.bottom), ("status strip", m.status),
+                      ("document tabs", m.tabs), ("tool rail", m.rail),
+                      ("stage", stage)] {
+        check(r.w > 0.0 && r.h > 0.0,
+            format!("the {} is placed ({} × {})", name, r.w as i64, r.h as i64));
+    }
+    check(util::abs(m.left.w - m.tree_w) < 0.51,
+        format!("the tree column is the width the scene asked for ({} vs {})", m.left.w, m.tree_w));
 }
 
 // Sheets may abut, never overlap: an overlap is a rect two owners believe in.
@@ -860,6 +872,83 @@ pub fn placing(S) {
 // The theme switch, both ways. One way was all it ever managed: a `dark`
 // parameter shadowed `theme::dark()`, so asking for the dark theme back
 // called a bool and the editor stayed light for the rest of the session.
+/// `--state counterdemo`: the editor's half of the plugin seam. Registering a
+/// dock has to put a tab somewhere, or nothing can ever bring the panel up.
+pub fn plugin_docks(S) {
+    if !check(S.registry.docks.len() > 0, "a plugin registered a dock") {
+        return;
+    }
+    for entry in S.registry.docks {
+        let side = crate::docks::side_of(S, entry.id);
+        if !check(side.is_some(), format!("the {} dock has a tab", entry.id)) {
+            continue;
+        }
+        check(side == Some("bottom"), format!("and it is in the bottom dock ({})", side.unwrap()));
+        check(crate::docks::panels(S).contains_key(entry.id),
+            format!("the panel table names {}", entry.id));
+        crate::docks::show(S, entry.id);
+        check(crate::docks::showing(S, entry.id), format!("showing {} brings it up", entry.id));
+    }
+    log::info("selftest plugin docks: done");
+}
+
+/// `--state settingsdemo`: the settings screen's search field and the query it
+/// filters by are one thing, which they stopped being for a frame; then a
+/// value written on the screen is round-tripped through the file.
+pub fn settings_screen(S) {
+    crate::settings::open_search(S, "theme");
+    S.settings.demo = 0;
+}
+
+// Three frames: the sidebar's field has to have drawn and written back before
+// the query being intact means anything.
+const SETTINGS_SETTLED = 3;
+
+pub fn settings_step(S) {
+    S.settings.demo = S.settings.demo + 1;
+    if S.settings.demo < SETTINGS_SETTLED {
+        return;
+    }
+    S.settings.demo = -1;
+    check(S.settings.query == "theme",
+        format!("a settings query survives the frames after it is set ('{}')", S.settings.query));
+    check(crate::search::query(S, "settings") == "theme",
+        "and the field's own buffer holds the same text");
+    settings_round_trip(S);
+}
+
+// A value written on the screen reaches the editor's preferences file and
+// comes back out of it. The file is put back as it was found.
+fn settings_round_trip(S) {
+    let path = "editor/sessions/keep";
+    let kept = fs::read(crate::settings::prefs_path());
+    let was = settings::get(path);
+    let before = if was is Tuple { 10 } else { util::i(was) };
+    let want = before + 3;
+
+    crate::settings::write(S, path, want);
+    check(S.settings.dirty, "writing a setting marks the screen unsaved");
+    check(util::i(settings::get(path)) == want, format!("and the value took ({})", want));
+
+    crate::settings::commit_prefs(S);
+    let text = fs::read(crate::settings::prefs_path());
+    if check(text is String, "the preferences file was written") {
+        check(text.contains("keep"), "and names the setting that changed");
+        settings::load(text);
+        check(util::i(settings::get(path)) == want,
+            format!("a re-read of the file agrees ({})", settings::get(path)));
+    }
+
+    crate::settings::write(S, path, before);
+    if kept is String {
+        fs::write(crate::settings::prefs_path(), kept);
+    } else {
+        fs::remove(crate::settings::prefs_path());
+    }
+    S.settings.dirty = false;
+    log::info("selftest settings: done");
+}
+
 pub fn theme_switch(S) {
     check(S.theme.dark == true, "the editor starts on the dark theme");
     theme::set_dark(S, false);

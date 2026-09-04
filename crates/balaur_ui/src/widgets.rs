@@ -188,6 +188,7 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_SCROLL", "scroll"),
     ("WIDGET_TAB", "tab"),
     ("WIDGET_DRAW", "draw"),
+    ("WIDGET_IMAGE", "image"),
 ];
 
 /// Font families the theme registers.
@@ -753,33 +754,55 @@ pub(crate) fn code_editor(
     Ok((buffer, changed, clicked))
 }
 
+/// A project image as an egui texture, cached by path.
+///
+/// Shared with the `image` widget kind, which draws into a `Ui` of its own
+/// rather than the bridge's, so the loading cannot live inside `with_ui`.
+///
+/// # Errors
+/// When the file cannot be read or is not an image this build decodes.
+pub(crate) fn texture_of(
+    eng: &Engine,
+    ctx: &egui::Context,
+    path: &str,
+) -> anyhow::Result<egui::TextureHandle> {
+    let state = eng.resource::<UiState>();
+    let generation = balaur_core::assets::generation(eng);
+    let cached = {
+        let mut state = state.borrow_mut();
+        // An edited image is a new picture under the same path, and the map
+        // would otherwise hold every one a session ever drew.
+        if state.texture_generation != generation {
+            state.textures.clear();
+            state.texture_generation = generation;
+        }
+        state.textures.get(path).cloned()
+    };
+    if let Some(found) = cached {
+        return Ok(found);
+    }
+    // Through ProjectFiles, so an image in a packed game loads from the pack
+    // rather than from a file that is not shipped.
+    let bytes = eng
+        .resource::<balaur_core::project::ProjectFiles>()
+        .borrow()
+        .read(path)?;
+    let dynamic = image::load_from_memory(&bytes)?;
+    let rgba = dynamic.to_rgba8();
+    let size = [rgba.width() as usize, rgba.height() as usize];
+    let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
+    let handle = ctx.load_texture(path, color, egui::TextureOptions::LINEAR);
+    state
+        .borrow_mut()
+        .textures
+        .insert(path.to_string(), handle.clone());
+    Ok(handle)
+}
+
 /// Draw a PNG from the project (cached as an egui texture by path).
 pub(crate) fn draw_image(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Result<()> {
-    let state = eng.resource::<UiState>();
-    let cached = state.borrow().textures.get(path).cloned();
     with_ui(|ui| {
-        let texture = if let Some(t) = cached {
-            t
-        } else {
-            // Through ProjectFiles, so an image in a packed game loads from
-            // the pack rather than from a file that is not shipped.
-            let bytes = eng
-                .resource::<balaur_core::project::ProjectFiles>()
-                .borrow()
-                .read(path)?;
-            let dynamic = image::load_from_memory(&bytes)?;
-            let rgba = dynamic.to_rgba8();
-            let size = [rgba.width() as usize, rgba.height() as usize];
-            let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
-            let handle = ui
-                .ctx()
-                .load_texture(path, color, egui::TextureOptions::LINEAR);
-            state
-                .borrow_mut()
-                .textures
-                .insert(path.to_string(), handle.clone());
-            handle
-        };
+        let texture = texture_of(eng, &ui.ctx().clone(), path)?;
         let native = texture.size_vec2();
         let aspect = if native.y > 0.0 {
             native.x / native.y
@@ -957,7 +980,7 @@ mod tests {
     /// than render the editor as plain punctuation.
     #[test]
     fn an_unknown_language_falls_back_to_rune() {
-        assert_eq!(syntax_for("luau").line_comment, RUNE.line_comment);
+        assert_eq!(syntax_for("brainfuck").line_comment, RUNE.line_comment);
         assert_eq!(syntax_for("").line_comment, RUNE.line_comment);
     }
 }

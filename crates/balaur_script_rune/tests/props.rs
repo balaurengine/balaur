@@ -186,7 +186,10 @@ fn exports_returning_something_other_than_an_object_is_an_error() {
 #[test]
 fn a_packed_game_boots_with_the_properties_its_scene_set() {
     let dir = project(&[
-        ("project.toml", "name = \"t\"\nmain_scene = \"main.toml\"\n"),
+        (
+            "project.toml",
+            "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        ),
         ("scripts/enemy.rn", ENEMY),
         (
             "main.toml",
@@ -263,7 +266,10 @@ fn scripts_inside_a_prefab_attach_with_their_properties() {
 #[test]
 fn a_packed_game_builds_its_prefabs() {
     let dir = project(&[
-        ("project.toml", "name = \"t\"\nmain_scene = \"main.toml\"\n"),
+        (
+            "project.toml",
+            "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        ),
         ("scripts/enemy.rn", ENEMY),
         (
             "scenes/enemy.toml",

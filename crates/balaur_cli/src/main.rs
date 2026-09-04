@@ -76,7 +76,7 @@ enum Command {
         #[arg(short, long)]
         output: Option<PathBuf>,
         /// Platform to build a standalone game for, naming a template in the
-        /// templates directory (e.g. `linux-x64`, `macos-arm64`,
+        /// templates directory (e.g. `linux-x64`, `macos-universal`,
         /// `windows-x64`).
         #[arg(long)]
         target: Option<String>,
@@ -186,6 +186,16 @@ enum Command {
     },
 }
 
+#[cfg(all(target_arch = "wasm32", feature = "window"))]
+mod web;
+
+/// In a browser there is no command line: the page calls `web::start` with
+/// a canvas and a pack instead, and wasm-bindgen runs this empty `main` on
+/// load. Everything the CLI would do from argv is native-only below.
+#[cfg(target_arch = "wasm32")]
+fn main() {}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn main() -> Result<()> {
     // The capturing logger tees to stderr and to the in-engine ring buffer
     // that powers `log.recent` (the editor's Output dock).
@@ -670,7 +680,7 @@ fn dump_api() -> Result<()> {
     std::fs::create_dir_all(dir.join("scenes"))?;
     std::fs::write(
         dir.join("project.toml"),
-        "name = \"api\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"api\"\nmain_scene = \"scenes/main.toml\"\n",
     )?;
     std::fs::write(
         dir.join("scenes/main.toml"),
@@ -797,7 +807,7 @@ fn new_project(path: &Path) -> Result<()> {
     std::fs::create_dir_all(path.join("scripts"))?;
     std::fs::write(
         path.join("project.toml"),
-        format!("name = \"{name}\"\nmain_scene = \"scenes/main.toml\"\n"),
+        format!("[application]\nname = \"{name}\"\nmain_scene = \"scenes/main.toml\"\n"),
     )?;
     std::fs::write(
         path.join("scenes/main.toml"),

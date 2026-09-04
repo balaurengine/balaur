@@ -146,12 +146,40 @@ fn tuning_value(p: &IntegrationParameters) -> Value {
         ("contact_clustering", Value::Bool(p.contact_clustering)),
         ("contact_recycling", Value::Bool(p.contact_recycling)),
         (
+            "friction_in_bias_pass",
+            Value::Bool(p.friction_in_bias_pass),
+        ),
+        (
+            "allowed_linear_error",
+            Value::Num(f64::from(p.normalized_allowed_linear_error)),
+        ),
+        (
+            "max_corrective_velocity",
+            Value::Num(f64::from(p.normalized_max_corrective_velocity)),
+        ),
+        (
+            "prediction_distance",
+            Value::Num(f64::from(p.normalized_prediction_distance)),
+        ),
+        (
+            "max_linear_velocity",
+            Value::Num(f64::from(p.normalized_max_linear_velocity)),
+        ),
+        (
             "contact_frequency",
             Value::Num(f64::from(p.contact_softness.natural_frequency)),
         ),
         (
             "contact_damping",
             Value::Num(f64::from(p.contact_softness.damping_ratio)),
+        ),
+        (
+            "static_contact_frequency",
+            Value::Num(f64::from(p.static_contact_softness.natural_frequency)),
+        ),
+        (
+            "static_contact_damping",
+            Value::Num(f64::from(p.static_contact_softness.damping_ratio)),
         ),
     ])
 }
@@ -161,7 +189,7 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
         ("set_tuning", &[], "(opts: table)", "Change how the solver behaves in both worlds: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness and the rest. Every value here changes results, so a recording only replays against the same numbers — prefer `[physics]` in project.toml."),
         ("tuning", &[], "()", "The solver settings both worlds are running with."),
         ("quarantined", &[], "()", "The nodes rapier disabled this step because their position or velocity stopped being a number. Empty is the normal answer."),
-        ("counters", &[], "()", "What the last step spent its time on. Zeroes unless the engine was built with rapier's profiler."),
+        ("counters", &[], "()", "What the last step spent its time on. The first call turns rapier's profiler on, so the numbers arrive from the step after it."),
         ("set_threads", &[], "(count: int)", "How many threads rapier's solver may use. Only a build with the `parallel` feature has any; on a serial build this says so and changes nothing."),
         ("threads", &[], "()", "How many threads the solver is using; 1 on a serial build."),
     ]);
@@ -216,9 +244,12 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
     m.function("threads", |_eng: &Engine, ()| {
         Ok(i64::try_from(threads()).unwrap_or(i64::MAX))
     });
+    // Rapier's profiler is off until something asks for it, so the first call
+    // turns it on and the numbers arrive from the step after this one.
     m.function("counters", |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState>();
-        let state = state.borrow();
+        let mut state = state.borrow_mut();
+        state.world.physics_pipeline.counters.enable();
         let counters = &state.world.physics_pipeline.counters;
         Ok(map([
             ("step_ms", Value::Num(counters.step_time_ms())),

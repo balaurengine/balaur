@@ -32,7 +32,9 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use crate::time::Instant;
 
 use anyhow::{Context, Result};
 use balaur_script::{Pause, PauseReason, ScriptHost, StepMode, Value};
@@ -50,6 +52,10 @@ const THREAD_ID: i64 = 1;
 /// Log lines scanned per pump for the client's Debug Console. Past this a
 /// burst is dropped rather than the frame being spent on it.
 const LOG_SCAN: usize = 64;
+
+/// The largest `Content-Length` a client may claim. The header is one line of
+/// text on a socket, and the buffer is allocated before anything is read.
+const MAX_MESSAGE: usize = 16 * 1024 * 1024;
 
 /// Install the server and start listening. Port 0 takes any free port, which
 /// the returned handle reports.
@@ -180,6 +186,10 @@ fn read_messages(stream: TcpStream, requests: &Sender<Json>) {
             tracing::warn!("debug adapter: a message arrived without a Content-Length");
             return;
         };
+        if length > MAX_MESSAGE {
+            tracing::warn!("debug adapter: a message claimed {length} bytes; dropping the client");
+            return;
+        }
         let mut body = vec![0u8; length];
         if std::io::Read::read_exact(&mut reader, &mut body).is_err() {
             return;

@@ -44,6 +44,22 @@ impl Bundle {
     }
 }
 
+/// Replace what an earlier export wrote, and refuse anything else: `-o .`
+/// would otherwise delete the working directory before writing into it.
+fn replace_export(dir: &Path, pack_inside: &Path) -> Result<()> {
+    if !dir.exists() {
+        return Ok(());
+    }
+    let empty = std::fs::read_dir(dir).is_ok_and(|mut entries| entries.next().is_none());
+    anyhow::ensure!(
+        dir.join(pack_inside).exists() || empty,
+        "{} already exists and is not an export of this game; \
+         move it aside or name another output with -o",
+        dir.display()
+    );
+    std::fs::remove_dir_all(dir).with_context(|| format!("replacing {}", dir.display()))
+}
+
 /// Copy a bundle template and put the pack where that platform looks for it.
 pub(crate) fn export_bundle(
     kind: Bundle,
@@ -60,10 +76,11 @@ pub(crate) fn export_bundle(
         Bundle::Ios => PathBuf::from(format!("{name}.app")),
         Bundle::Android => PathBuf::from(format!("{name}-android")),
     });
-    if output.exists() {
-        std::fs::remove_dir_all(&output)
-            .with_context(|| format!("replacing {}", output.display()))?;
-    }
+    let inside = match kind {
+        Bundle::Ios => PathBuf::from(balaur::standalone::BUNDLED_PACK),
+        Bundle::Android => Path::new("assets").join(balaur::standalone::BUNDLED_PACK),
+    };
+    replace_export(&output, &inside)?;
     copy_dir(template, &output)?;
     let pack_path = match kind {
         Bundle::Ios => output.join(balaur::standalone::BUNDLED_PACK),
@@ -152,7 +169,12 @@ pub(crate) fn export_macos_app(
     let app = output.unwrap_or_else(|| PathBuf::from(format!("{name}.app")));
     let macos_dir = app.join("Contents").join("MacOS");
     let resources = app.join("Contents").join("Resources");
-    std::fs::remove_dir_all(&app).ok();
+    replace_export(
+        &app,
+        &Path::new("Contents")
+            .join("Resources")
+            .join(balaur::standalone::BUNDLED_PACK),
+    )?;
     std::fs::create_dir_all(&macos_dir)?;
     std::fs::create_dir_all(&resources)?;
     let bytes = std::fs::read(template)
@@ -213,4 +235,49 @@ pub(crate) fn find_bundle_template(kind: Bundle, roots: &[PathBuf]) -> Result<Pa
         roots_for_message(roots),
         kind.platform(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `-o .` names a directory full of someone's work; only a directory this
+    /// exporter wrote may be replaced.
+    #[test]
+    fn replacing_refuses_a_directory_that_is_not_an_export() {
+        let dir = tempfile::tempdir().unwrap();
+        let occupied = dir.path().join("Documents");
+        std::fs::create_dir(&occupied).unwrap();
+        std::fs::write(occupied.join("thesis.txt"), b"years of work").unwrap();
+
+        let err = replace_export(&occupied, Path::new(balaur::standalone::BUNDLED_PACK))
+            .unwrap_err()
+            .to_string();
+
+        assert!(err.contains("not an export"), "{err}");
+        assert!(occupied.join("thesis.txt").exists());
+    }
+
+    #[test]
+    fn replacing_removes_an_earlier_export_of_this_game() {
+        let dir = tempfile::tempdir().unwrap();
+        let app = dir.path().join("game.app");
+        std::fs::create_dir(&app).unwrap();
+        std::fs::write(app.join(balaur::standalone::BUNDLED_PACK), b"pack").unwrap();
+
+        replace_export(&app, Path::new(balaur::standalone::BUNDLED_PACK)).unwrap();
+
+        assert!(!app.exists());
+    }
+
+    #[test]
+    fn replacing_accepts_an_empty_directory_the_user_made() {
+        let dir = tempfile::tempdir().unwrap();
+        let empty = dir.path().join("out");
+        std::fs::create_dir(&empty).unwrap();
+
+        replace_export(&empty, Path::new(balaur::standalone::BUNDLED_PACK)).unwrap();
+
+        assert!(!empty.exists());
+    }
 }

@@ -5,9 +5,9 @@
 > aimed at the then-unbuilt asset and animation layers were applied to that
 > plan rather than to code; both have shipped since under the names decided
 > here. §5's exemptions hold
-> as written, and §6's lint rules are still a proposal: nothing in
-> `scripts/house_lints.py` enforces any of this yet, and
-> `scripts/api_lints.py` does not exist. The tables below are kept in the
+> as written, and §6's lint rules have since been built: `scripts/house_lints.py`
+> enforces the mechanical half and `scripts/api_lints.py` checks the script
+> API's own names against these tables. The tables below are kept in the
 > present tense as the record of what was decided and why; read them as the
 > specification, not as a to-do list. This file governs the other docs —
 > where `ARCHITECTURE.md`, `README.md` or a plan file disagrees with it,
@@ -405,7 +405,7 @@ condition.
 | `node.get_node` / `scene.get_node` | Dropping the prefix gives `node:node(path)`. **N7 exemption**, for that reason and no other. |
 | `input.is_mouse_down` | Under N7's boolean clause, `is_` marks a boolean reader — and `input.is_down(key)` and `input.is_mouse_down(button)` are the same question about a held button, so they must agree. De-prefixing only the mouse one would put both spellings of one predicate in one module. |
 | `render.set_camera` / `render.camera_pose` | They are not an accessor pair and must not be made to look like one: the setter writes `CameraConfig`, the reader reads the published `ViewportSnapshot` (eye, target, fov, `scale_factor`, `view_proj`, picking ray). Command in, truth out. Fix is a doc line on both under N8, not a rename. |
-| `render.camera_2d`, `set_camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5 — none quotes a component key or module name. Gluing them would break 23 call sites, 14 of them `draw_line_2d` (12 in `editor/scripts`, 2 in `examples/angrynerds/scripts/game.luau`), the most-called render function in the tree. |
+| `render.camera_2d`, `set_camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5 — none quotes a component key or module name. Gluing them would break 23 call sites, 14 of them `draw_line_2d` (12 in `editor/scripts`, 2 in `examples/angrynerds/scripts/game.rn`), the most-called render function in the tree. |
 | `render` as one 22-function module | The module-scope complaint is real, but it is fixable by moving functions between `install_*` fns (N11, Table A) at zero user cost, whereas a `render2d` split costs ~23 breaking script call sites for a boundary the 38-function `ui` manages without. Revisit past ~30 functions. |
 | `physics` / `physics3d` / `physics2d` | D5. `physics` holds only what spans both worlds (`set_paused`, `is_paused`, `set_sleeping_allowed`, `sleeping_allowed`, `clear`); everything per-dimension is in `physics3d` or `physics2d`. |
 | `"ball"` / `"cuboid"` | parry's words, and `ball` is odd on a *render* component — but nothing in the tree translates them and no bug traces to them, unlike `"fixed"`. Renaming costs 13 scene sites, the `SHAPE_BALL`/`SHAPE_CUBOID` constants that `crates/balaur_physics/tests/constants.rs` asserts on, and the script setters. Churn for taste. 2D's `circle`/`rect` are already design words. |

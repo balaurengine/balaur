@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::components::StableId;
 use crate::engine::Engine;
-use crate::scene::{collect_subtree, Name, Parent, ScriptAttachment};
+use crate::scene::{collect_subtree, Children, Name, Parent, ScriptAttachment};
 
 /// State a subsystem owns, in a form that survives being put down and picked
 /// back up.
@@ -302,7 +302,15 @@ struct NodeFrame {
     name: String,
     /// The parent's stable id; absent when the parent is the root.
     parent: Option<String>,
+    /// Where among the parent's children it sat. The digest walks the tree in
+    /// order, so a node put back at the end is a divergence of its own.
+    #[serde(default)]
+    index: usize,
     script: Option<String>,
+    /// What the node's `script` key set over the script's exports, so a
+    /// respawn's `init` reads the tuned values.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    props: Vec<(String, balaur_script::Value)>,
     components: Vec<(String, String)>,
 }
 
@@ -323,23 +331,26 @@ fn save_nodes(eng: &Engine) -> serde_json::Value {
         }
         // The component hooks read the world themselves, so this borrow ends
         // before they are called.
-        let Some((id, name, parent, script)) = ({
+        let Some((id, name, parent, index, script, props)) = ({
             let world = eng.world();
             crate::ids::of(&world, entity).map(|id| {
                 let name = world
                     .get::<&Name>(entity)
                     .map_or_else(|_| String::new(), |n| n.0.clone());
-                let parent = world
-                    .get::<&Parent>(entity)
-                    .ok()
-                    .map(|p| p.0)
+                let above = world.get::<&Parent>(entity).ok().map(|p| p.0);
+                let index = above
+                    .and_then(|p| world.get::<&Children>(p).ok())
+                    .and_then(|c| c.0.iter().position(|&child| child == entity))
+                    .unwrap_or(0);
+                let parent = above
                     .filter(|&p| p != root)
                     .and_then(|p| crate::ids::of(&world, p));
                 let script = world
                     .get::<&ScriptAttachment>(entity)
                     .ok()
                     .map(|s| s.path.clone());
-                (id, name, parent, script)
+                let props = crate::scene::script_props(&world, entity);
+                (id, name, parent, index, script, props)
             })
         }) else {
             continue;
@@ -355,7 +366,9 @@ fn save_nodes(eng: &Engine) -> serde_json::Value {
             id,
             name,
             parent,
+            index,
             script,
+            props,
             components,
         });
     }
@@ -402,13 +415,7 @@ fn free_spawned_since(eng: &Engine, root: Entity, wanted: &crate::DetHashSet<&st
         if !eng.world().contains(entity) {
             continue;
         }
-        if let Some(host) = eng.script_host() {
-            let subtree = collect_subtree(&eng.world(), entity);
-            for e in subtree {
-                host.detach(crate::node_id_of(e));
-            }
-        }
-        crate::scene::free_subtree(&mut eng.world_mut(), entity);
+        crate::scene::free_node(eng, entity);
     }
 }
 
@@ -432,7 +439,7 @@ fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
     };
     let entity = {
         let mut world = eng.world_mut();
-        let entity = crate::scene::spawn_node(&mut world, &node.name, parent);
+        let entity = crate::scene::spawn_node_at(&mut world, &node.name, parent, node.index);
         let _ = world.insert_one(entity, StableId(node.id.clone()));
         entity
     };
@@ -446,7 +453,8 @@ fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
     }
     if let Some(path) = &node.script {
         if let Some(host) = eng.script_host() {
-            if let Err(e) = host.attach(crate::node_id_of(entity), path) {
+            crate::scene::remember_script_props(eng, entity, &node.props);
+            if let Err(e) = host.attach_with_props(crate::node_id_of(entity), path, &node.props) {
                 tracing::error!(error = %e, node = %node.id, "reattaching a script");
             }
         }

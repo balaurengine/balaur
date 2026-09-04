@@ -97,24 +97,42 @@ fn floor_of(level) {
     }
 }
 
-pub fn output(S, k) {
-    let floor = floor_of(S.log_level);
-    let query = S.log_query.to_lowercase();
-    let counts = #{ shown: 0, hidden: 0 };
+// The rows the level and the filter leave, and how many they took away.
+// Filtering lowercases every message, so it is redone only when the log, the
+// level or the filter has actually moved.
+fn filtered(S) {
     // The buffer holds 500; asking for 60 threw away most of the session.
     let entries = util::vec(log::recent(500));
+    let last = if entries.len() > 0 { entries[entries.len() - 1].message } else { "" };
+    let mark = format!("{}|{}|{}|{}", entries.len(), last, S.log_level, S.log_query);
+    let cache = S.log_cache;
+    if cache is Object && cache.mark == mark {
+        return cache;
+    }
+    let floor = floor_of(S.log_level);
+    let query = S.log_query.to_lowercase();
+    let rows = [];
+    let hidden = 0;
+    for entry in entries {
+        let matches = query == ""
+            || entry.message.to_lowercase().contains(query)
+            || entry.tag.to_lowercase().contains(query);
+        if severity(entry.level) < floor || !matches {
+            hidden += 1;
+            continue;
+        }
+        rows.push(entry);
+    }
+    let built = #{ mark: mark, rows: rows, hidden: hidden };
+    S.log_cache = built;
+    built
+}
+
+pub fn output(S, k) {
+    let shown = filtered(S);
     ui::scroll("output", #{ stick_to_bottom: true, max_height: S.layout.body_h - 6.0 }, || {
         ui::spacing(4, 2);
-        for entry in entries {
-            let level = severity(entry.level);
-            let matches = query == ""
-                || entry.message.to_lowercase().contains(query)
-                || entry.tag.to_lowercase().contains(query);
-            if level < floor || !matches {
-                counts.hidden += 1;
-                continue;
-            }
-            counts.shown += 1;
+        for entry in shown.rows {
             ui::horizontal((), || {
                 ui::add_space(6);
                 let color = k.dim;
@@ -147,15 +165,11 @@ pub fn output(S, k) {
                 }
             });
         }
-        if counts.shown == 0 {
-            ui::horizontal((), || {
-                ui::add_space(6);
-                let why = if counts.hidden > 0 {
-                    format!("{} entries hidden by the filter", counts.hidden)
-                } else {
-                    "nothing logged yet"
-                };
-                ui::label(why, style::mono(k.faint));
+        if shown.rows.len() == 0 {
+            style::empty(k, if shown.hidden > 0 {
+                format!("{} entries hidden by the filter", shown.hidden)
+            } else {
+                "nothing logged yet"
             });
         }
     });
@@ -389,10 +403,7 @@ pub fn assets(S, k) {
             ui::add_space(8);
         }
         if files.len() == 0 {
-            ui::horizontal((), || {
-                ui::add_space(12);
-                ui::label("empty folder", style::mono(k.faint));
-            });
+            style::empty(k, "empty folder");
         }
     });
 }
@@ -647,10 +658,7 @@ pub fn debugger_view(S, k) {
                     });
                 }
                 if names.len() == 0 {
-                    ui::horizontal((), || {
-                        ui::add_space(24);
-                        ui::label("no locals", style::mono(k.faint));
-                    });
+                    style::empty(k, "no locals");
                 }
             }
         }
@@ -674,11 +682,7 @@ pub fn problems(S, k) {
     ui::scroll("problems", #{ max_height: S.layout.body_h - 6.0 }, || {
         ui::spacing(4, 2);
         if rows.len() == 0 {
-            ui::horizontal((), || {
-                ui::add_space(6);
-                let why = if S.lint.at < 0.0 { "not checked yet" } else { "no problems" };
-                ui::label(why, style::mono(k.faint));
-            });
+            style::empty(k, if S.lint.at < 0.0 { "not checked yet" } else { "no problems" });
             return;
         }
         for f in rows {
@@ -868,10 +872,7 @@ fn session_list(S, k) {
     });
     let rows = session::listing(S);
     if rows.len() == 0 {
-        ui::horizontal(#{ height: 26 }, || {
-            ui::add_space(8);
-            ui::label("no sessions yet — press Play", style::mono(k.faint));
-        });
+        style::empty(k, "no sessions yet — press Play");
         return;
     }
     ui::scroll("session-list", (), || {
@@ -942,11 +943,7 @@ fn fixed(v, decimals) {
 pub fn profiler(S, k) {
     let timings = engine::timings();
     if !(timings is Object) {
-        ui::add_space(12);
-        ui::horizontal((), || {
-            ui::add_space(12);
-            ui::label("no timings yet", style::mono(k.faint));
-        });
+        style::empty(k, "no timings yet");
         return;
     }
     let frame_ms = util::f(timings.frame) * 1000.0;
@@ -970,12 +967,7 @@ pub fn profiler(S, k) {
         rows(k, util::obj(timings.stages), "stage");
         let spans = util::obj(timings.spans);
         if !spans.is_empty() {
-            ui::add_space(6);
-            ui::horizontal((), || {
-                ui::add_space(12);
-                ui::label("NAMED", style::heading(k));
-            });
-            ui::add_space(4);
+            style::section_label(k, "named");
             rows(k, spans, "span");
         }
     });

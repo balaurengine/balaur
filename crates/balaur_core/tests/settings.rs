@@ -79,6 +79,7 @@ fn a_setting_falls_back_to_its_schema_default() {
 fn writing_a_manifest_leaves_what_it_does_not_describe_alone() {
     let app = app();
     let before = "\
+[application]
 name = \"mine\"
 main_scene = \"scenes/main.toml\"
 
@@ -101,7 +102,11 @@ kept = true
     let after = settings::to_toml(&app.engine, Scope::Project, before).unwrap();
     let parsed: toml::Value = toml::from_str(&after).unwrap();
 
-    assert_eq!(parsed["name"].as_str(), Some("mine"), "the name survived");
+    assert_eq!(
+        parsed["application"]["name"].as_str(),
+        Some("mine"),
+        "the name survived"
+    );
     assert_eq!(
         parsed["something_else"]["kept"].as_bool(),
         Some(true),
@@ -119,7 +124,7 @@ kept = true
 fn an_editor_setting_stays_out_of_the_manifest() {
     let app = app();
     settings::set(&app.engine, "netcode/faults", toml::Value::Boolean(true));
-    let written = settings::to_toml(&app.engine, Scope::Project, "name = \"mine\"\n").unwrap();
+    let written = settings::to_toml(&app.engine, Scope::Project, "[application]\nname = \"mine\"\n").unwrap();
     assert!(
         !written.contains("netcode"),
         "an editor-scope page must not be written to project.toml: {written}"

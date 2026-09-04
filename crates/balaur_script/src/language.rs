@@ -41,11 +41,16 @@ pub trait ScriptHost<C: ?Sized> {
     /// rather than having to ask for them.
     fn attach_with_props(&self, node: NodeId, path: &str, props: &[(String, Value)]) -> Result<()>;
 
-    /// The defaults `path`'s `exports` declares, in declaration order.
+    /// What `path`'s `exports` declares tunable, one spec per property.
+    ///
+    /// Each `Value` is a map in the component schema's own vocabulary —
+    /// `type` and `default`, plus whatever of `min`, `max`, `step`,
+    /// `options`, `asset`, `help` and `order` was written. A script that
+    /// wrote a bare default gets one built for it, so every reader sees one
+    /// shape and an inspector reaches for the editor it already has.
     ///
     /// Empty for a script without one, which is also every script that
-    /// predates the convention. The editor reads this to know what a script
-    /// offers and at which type; the file is compiled if it is not loaded.
+    /// predates the convention. The file is compiled if it is not loaded.
     fn exports(&self, path: &str) -> Result<Vec<(String, Value)>> {
         let _ = path;
         Ok(Vec::new())
@@ -103,6 +108,17 @@ pub trait ScriptHost<C: ?Sized> {
     /// costs no ownership question and nothing for a collector to reason
     /// about.
     fn call_on(&self, node: NodeId, method: &str, args: &[Value]) -> Option<Value>;
+
+    /// Whether the node's script declares `method`.
+    ///
+    /// [`ScriptHost::call_on`] answers `None` both for a method that is not
+    /// declared and for one that ran and returned nothing, so a caller that
+    /// has to tell those apart asks here first. A backend that cannot look a
+    /// method up without calling it says no.
+    fn has_method(&self, node: NodeId, method: &str) -> bool {
+        let _ = (node, method);
+        false
+    }
 
     /// Call a public function in a script *file*, with no instance.
     ///

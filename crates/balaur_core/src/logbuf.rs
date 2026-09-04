@@ -10,7 +10,7 @@
 use std::collections::VecDeque;
 use std::fmt::Write as _;
 use std::sync::Mutex;
-use std::time::Instant;
+use crate::time::Instant;
 
 use tracing::field::{Field, Visit};
 use tracing::level_filters::LevelFilter;

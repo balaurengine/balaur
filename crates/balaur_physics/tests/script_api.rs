@@ -20,7 +20,7 @@ fn run(body: &str) -> Vec<String> {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
@@ -187,5 +187,66 @@ fn a_component_handle_refuses_a_function_no_driving_module_declares() {
     assert!(
         errors.iter().any(|e| e.contains("apply_impulse")),
         "expected an error naming the missing function, got {errors:#?}"
+    );
+}
+
+/// Every setter owes a reader (N8), and seven of the nineteen keys were
+/// write-only.
+#[test]
+fn every_tuning_key_that_can_be_written_reads_back() {
+    run_clean(
+        r#"
+        physics::set_tuning(#{
+            friction_in_bias_pass: true,
+            allowed_linear_error: 0.004,
+            max_corrective_velocity: 12.5,
+            prediction_distance: 0.006,
+            max_linear_velocity: 77.0,
+            static_contact_frequency: 41.0,
+            static_contact_damping: 3.5,
+        });
+        let back = physics::tuning();
+        assert!(back.friction_in_bias_pass, "friction_in_bias_pass is write-only");
+        assert!((back.allowed_linear_error - 0.004) < 0.0001, "allowed_linear_error");
+        assert!((back.max_corrective_velocity - 12.5) < 0.0001, "max_corrective_velocity");
+        assert!((back.prediction_distance - 0.006) < 0.0001, "prediction_distance");
+        assert!((back.max_linear_velocity - 77.0) < 0.0001, "max_linear_velocity");
+        assert!((back.static_contact_frequency - 41.0) < 0.0001, "static_contact_frequency");
+        assert!((back.static_contact_damping - 3.5) < 0.0001, "static_contact_damping");
+        "#,
+    );
+}
+
+/// `voxelize` walks resolution cubed, so a number a script got wrong used to
+/// hang the game rather than fail.
+#[test]
+fn voxelize_refuses_a_resolution_it_would_never_finish() {
+    run_clean(
+        r#"
+        let mesh = #{
+            points: [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            indices: [0, 1, 2, 0, 1, 3, 0, 2, 3, 1, 2, 3],
+        };
+        let (ok, why) = script::attempt(|| geometry3d::voxelize(mesh, #{ resolution: 100000.0 }));
+        assert!(!ok, "a resolution of 100000 was accepted");
+        let (fine, _) = script::attempt(|| geometry3d::voxelize(mesh, #{ resolution: 8.0 }));
+        assert!(fine, "a sane resolution stopped working");
+        "#,
+    );
+}
+
+/// The chassis's own `forward_axis`, not z: a car built along x used to read
+/// the speed it was sliding sideways at.
+#[test]
+fn vehicle_speed_measures_along_the_chassis_forward_axis() {
+    run_clean(
+        r#"
+        this.node.set_component("body3d", #{ kind: "dynamic" });
+        this.node.set_component("collider3d", #{ kind: "cuboid" });
+        this.node.set_component("vehicle3d", #{ forward_axis: 0.0 });
+        physics3d::set_linear_velocity(this.node, 5.0, 0.0, 0.0);
+        let along_x = physics3d::vehicle_speed(this.node);
+        assert!(along_x > 4.9, "a car built on x reads {} along its own forward", along_x);
+        "#,
     );
 }

@@ -225,8 +225,10 @@ fn push_components(eng: &Engine, entity: Entity, label: &str, out: &mut Vec<Entr
         let Some(value) = (def.get)(eng, entity) else {
             continue;
         };
+        // Readonly properties are host output — a widget's `clicked` comes
+        // from the event pump — and no recording carries them.
         let mut h = Hasher::new();
-        hash_value(&mut h, &value);
+        hash_value(&mut h, &crate::components::authored(&def.schema, &value));
         out.push(Entry {
             label: format!("{label}/{name}"),
             digest: h.finish(),

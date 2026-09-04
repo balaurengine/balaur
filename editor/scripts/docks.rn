@@ -23,9 +23,16 @@ pub fn state() {
     }
 }
 
-// Name and icon per panel; `tall` asks the bottom dock for its taller size.
-// A plugin's dock joins the table so it moves like everything else.
+/// Name and icon per panel; `tall` asks the bottom dock for its taller size.
+/// A plugin's dock joins the table so it moves like everything else.
+///
+/// Built once a frame: the tab row, the minimised rail and `bottom_tall` all
+/// ask, and the outline's own name re-reads every script in the Script persona.
 pub fn panels(S) {
+    let cache = S.panels;
+    if cache is Object && cache.at == S.frame && cache.persona == S.persona {
+        return cache.table;
+    }
     let table = #{
         "scene": #{ name: "Scene", icon: icons::panel("scene"), tall: false },
         "outline": #{ name: left::outline_title(S), icon: icons::panel("outline"), tall: false },
@@ -41,7 +48,18 @@ pub fn panels(S) {
     for entry in S.registry.docks {
         table[entry.id] = #{ name: entry.name, icon: icons::panel(entry.id), tall: false };
     }
+    S.panels = #{ at: S.frame, persona: S.persona, table: table };
     table
+}
+
+/// Give a panel a home. A plugin's dock joins the bottom one, which is where
+/// EDITOR-SCREENS §5 promises one tab per registered plugin; its tab menu
+/// moves it from there like any other.
+pub fn adopt(S, id) {
+    if side_of(S, id).is_some() {
+        return;
+    }
+    S.docks.bottom.tabs.push(id);
 }
 
 fn panel(S, id) {
@@ -175,7 +193,6 @@ fn tab_row(S, k, side, d) {
 }
 
 // The controls that belong to the panel showing, in the tab row's one slot.
-// The controls that belong to the panel showing, in the tab row's one slot.
 // A narrow dock keeps its tabs: the tools are what give way, not the names.
 fn tools(S, k, id, width) {
     if id == "scene" {
@@ -251,7 +268,7 @@ fn rail(S, k, side, r) {
 pub fn draw(S, k, side) {
     let d = S.docks[side];
     let r = S.layout[side];
-    if r.w <= 0.0 || r.h <= 0.0 {
+    if !style::placed(r) {
         return;
     }
     if d.shut {

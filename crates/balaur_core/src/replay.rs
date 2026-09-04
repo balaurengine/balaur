@@ -281,6 +281,11 @@ pub struct Frame {
     pub dt: u32,
     /// Captured input, keyed by source name.
     pub sources: serde_json::Map<String, serde_json::Value>,
+    /// The debugger held the root while this frame ran, so it took no fixed
+    /// step and no script saw it. A replay that did not hold it too would
+    /// step a tick the recording never took.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub frozen: bool,
     /// The digest at the end of the tick, when the session was recording
     /// them. Off by default: it walks every node and hashes every component,
     /// which is a real cost to pay on every frame of every play session.
@@ -631,6 +636,7 @@ pub(crate) fn record_frame_system(eng: &Engine, dt: f32) {
             tick: eng.tick(),
             dt: dt.to_bits(),
             sources: capture(eng),
+            frozen: eng.is_frozen(),
             digest: recorder
                 .per_tick_digest
                 .then(|| crate::digest::digest(eng).0),
@@ -947,22 +953,40 @@ pub fn end(eng: &Engine) {
     }
 }
 
-/// Put the next recorded frame in the feed and report the step it ran at.
+/// What the app has to know about the frame it is about to run.
+pub(crate) struct FedFrame {
+    pub dt: f32,
+    pub frozen: bool,
+}
+
+/// Put the next recorded frame in the feed, and set the clock to the tick it
+/// ran at.
 ///
 /// Returns `None` when the session is spent. Split from running the tick
 /// because the borrow on the player must be released before any script runs.
-pub(crate) fn feed_next(eng: &Engine) -> Option<f32> {
+pub(crate) fn feed_next(eng: &Engine) -> Option<FedFrame> {
     let player = eng.resource::<ReplayPlayer>();
-    let (sources, dt) = {
+    let (sources, fed, tick) = {
         let mut player = player.borrow_mut();
         let session = player.session.as_ref()?;
         let frame = session.frames.get(player.cursor)?;
-        let taken = (frame.sources.clone(), frame.step());
+        let taken = (
+            frame.sources.clone(),
+            FedFrame {
+                dt: frame.step(),
+                frozen: frame.frozen,
+            },
+            frame.tick,
+        );
         player.cursor += 1;
         taken
     };
+    // One before, because `App::tick` is about to count this frame: a script
+    // branching on `engine::tick()` has to read the number it read when the
+    // session was recorded, however many frames were held on the way here.
+    eng.set_clock(tick.saturating_sub(1), eng.time());
     eng.resource::<ReplayFeed>().borrow_mut().0 = Some(sources);
-    Some(dt)
+    Some(fed)
 }
 
 /// Compare the tick just replayed against what the recording says, and settle

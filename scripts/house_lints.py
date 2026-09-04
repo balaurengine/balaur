@@ -101,6 +101,46 @@ def rust_files() -> list[Path]:
     return sorted(out)
 
 
+def rune_files() -> list[Path]:
+    """Every `.rn` in the tree: the editor is a Balaur project and its scripts
+    are shipped code, but no Rust lint has ever looked at them."""
+    out = []
+    for dirpath, dirnames, filenames in os.walk(ROOT):
+        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS and not d.startswith("."))
+        out.extend(Path(dirpath) / f for f in filenames if f.endswith(".rn"))
+    return sorted(out)
+
+
+# `obj.field = a || b` puts the short-circuit result in `a`'s slot as well as
+# in the field when `a` is a local. Parentheses do not help; a temporary does.
+SHORT_CIRCUIT = re.compile(r"^\s*[A-Za-z_][\w.]*(\.\w+|\[[^\]]+\])\s*=\s*[^=].*?(\|\||&&)")
+# `if let Some(x) = x` fails to compile with "Missing variable"; the name has
+# to differ on the two sides.
+REBOUND_LET = re.compile(r"\bif\s+let\s+\w+\(\s*(\w+)\s*\)\s*=\s*(\w+)\s*(\{|$)")
+
+
+def check_rune(path: Path) -> list[Finding]:
+    """The two Rune 0.14 traps that have each already cost a day.
+
+    Both are compiler behaviour rather than style, and `AGENTS.md` writes them
+    up: one miscompiles silently, the other refuses to compile at all.
+    """
+    rel = path.relative_to(ROOT)
+    findings: list[Finding] = []
+    for i, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
+        code = line.split("//")[0]
+        if SHORT_CIRCUIT.search(code):
+            findings.append(Finding(rel, i, "rune-short-circuit",
+                                    "`field = a || b` overwrites the local `a`; compute into a "
+                                    "temporary first (AGENTS.md)", "ERROR"))
+        m = REBOUND_LET.search(code)
+        if m and m.group(1) == m.group(2):
+            findings.append(Finding(rel, i, "rune-rebound-let",
+                                    f"`if let ..({m.group(1)}) = {m.group(2)}` is a missing "
+                                    "variable in Rune; bind to another name", "ERROR"))
+    return findings
+
+
 @dataclass
 class Context:
     """What the naming rules need to know about the whole tree at once.
@@ -511,6 +551,8 @@ def main() -> int:
     ctx = scan_context(files)
     for path in files:
         findings.extend(check_file(path, ctx))
+    for path in rune_files():
+        findings.extend(check_rune(path))
 
     errors = [f for f in findings if f.severity == "ERROR"]
     reports = [f for f in findings if f.severity == "REPORT"]

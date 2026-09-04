@@ -277,9 +277,7 @@ fn build_map_node(eng: &Engine, map: &Tilemap) -> Result<kiss3d::scene::SceneNod
         .resource::<balaur_core::project::ProjectFiles>()
         .borrow()
         .read(&tileset.texture)?;
-    let (_, height) = image::load_from_memory(&bytes)
-        .map(|image| (image.width(), image.height()))
-        .map_err(|e| anyhow!("reading the size of {}: {e}", tileset.texture))?;
+    let (_, height) = crate::texture::image_size(&bytes, &tileset.texture)?;
     // The tileset declares columns; the atlas's row count comes off the image.
     let sheet_rows = ((height as f32 / tileset.tile_size) as u32).max(1);
     let sheet = SpriteSheet::new(tileset.columns.max(1), sheet_rows);
@@ -303,7 +301,7 @@ fn build_map_node(eng: &Engine, map: &Tilemap) -> Result<kiss3d::scene::SceneNod
     let mut node = mesh.node();
     // Texture before fill: the rebuild inside `fill` reads the texture size
     // for its anti-bleed UV inset.
-    node.set_texture_from_memory(&bytes, &tileset.texture);
+    crate::texture::attach_texture_2d(eng, &mut node, &tileset.texture);
     mesh.fill(&tiles);
     Ok(node)
 }

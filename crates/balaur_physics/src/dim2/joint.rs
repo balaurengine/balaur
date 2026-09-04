@@ -18,6 +18,7 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::joint::SHARED_JOINT_SCHEMA;
+use crate::rapier2d::pipeline::PhysicsWorld as PhysicsWorld2;
 use crate::vocabulary as v;
 use crate::PhysicsState2d;
 
@@ -202,12 +203,26 @@ pub(crate) fn remove_joint(eng: &Engine, entity: Entity) {
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     state.joint_params.swap_remove(&entity);
-    match state.joints.swap_remove(&entity).map(|j| j.handle) {
-        Some(JointHandle2d::Impulse(handle)) => {
-            state.world.remove_impulse_joint(handle);
+    if let Some(reference) = state.joints.swap_remove(&entity) {
+        drop_joint(&mut state.world, &reference);
+    }
+}
+
+/// Whether rapier still holds this joint, as in 3D: it drops one when either
+/// end's body goes, and the map must not keep the handle.
+pub(crate) fn is_live(world: &PhysicsWorld2, reference: &JointRef2d) -> bool {
+    match reference.handle {
+        JointHandle2d::Impulse(handle) => world.impulse_joints.get(handle).is_some(),
+        JointHandle2d::Multibody(handle) => world.multibody_joints.get(handle).is_some(),
+    }
+}
+
+pub(crate) fn drop_joint(world: &mut PhysicsWorld2, reference: &JointRef2d) {
+    match reference.handle {
+        JointHandle2d::Impulse(handle) => {
+            world.remove_impulse_joint(handle);
         }
-        Some(JointHandle2d::Multibody(handle)) => state.world.remove_multibody_joint(handle),
-        None => {}
+        JointHandle2d::Multibody(handle) => world.remove_multibody_joint(handle),
     }
 }
 
@@ -255,12 +270,16 @@ pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Val
 
 /// Joints authored but not yet made, because the node at the other end had not
 /// been spawned when this one was.
-pub(crate) fn pending(state: &PhysicsState2d) -> Vec<Entity> {
+pub fn pending(state: &PhysicsState2d) -> Vec<Entity> {
     let mut out: Vec<Entity> = state
         .joint_params
-        .keys()
-        .filter(|entity| !state.joints.contains_key(*entity))
-        .copied()
+        .iter()
+        // A joint switched off never gets a handle; retrying it every step
+        // would re-apply the component sixty times a second.
+        .filter(|(entity, params)| {
+            !state.joints.contains_key(*entity) && v::boolean(params, "enabled", true)
+        })
+        .map(|(entity, _)| *entity)
         .collect();
     out.sort_unstable_by_key(|e| e.to_bits());
     out

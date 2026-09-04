@@ -1,22 +1,20 @@
-// The only place a rect is decided; everything else reads `S.layout`. The
-// shape is the `widget` tree under `Editor/Shell` in `scenes/main.toml`: this
-// states the sizes that move and reads back what the engine laid out.
+// The only place a rect is decided; everything else reads `S.layout`. Shape
+// and resting size are the `widget` tree under `Editor/Shell` in
+// `scenes/main.toml`; this states the sizes that move and reads back the rest.
 
 use crate::defs;
 use crate::util;
 
-const GUTTER = 14.0;
-// Between any two sheets, in every direction. One value, so no seam
-// reads as deliberate when the next one does not.
-const GAP = 12.0;
-const RAIL_W = 44.0;
-// The dock carries the status row inside its own sheet.
-const STATUS_H = 24.0;
-const CMD_W = 168.0;
-// A minimised side dock is this wide; the bottom one keeps its tab row.
+// A minimised dock keeps its edge and nothing else: this wide down a side,
+// this tall across the bottom, and this wide for the tool rail.
 const SHUT_W = 36.0;
 const SHUT_H = 34.0;
-const HOOKS_W = 172.0;
+const SHUT_RAIL_W = 34.0;
+// What a timeline, a debugger or a session list needs over the bottom dock's
+// resting height, which the scene states.
+const TALL_EXTRA = 62.0;
+// The dock's own tab row, drawn above whatever the panel scrolls.
+const TAB_ROW_H = 30.0;
 // Every box the shell tree names, by the path `scene::get_node` takes.
 const SHELL = "Editor/Shell";
 
@@ -26,8 +24,6 @@ fn rect(x, y, w, h) {
 
 pub fn state() {
     #{
-        tree_w: 236.0, insp_w: 288.0, dock_h: 150.0,
-        tree_open: true, insp_open: true,
         bar: rect(0.0, 0.0, 0.0, 0.0), cmd: rect(0.0, 0.0, 0.0, 0.0),
         left: rect(0.0, 0.0, 0.0, 0.0), rail: rect(0.0, 0.0, 0.0, 0.0),
         tabs: rect(0.0, 0.0, 0.0, 0.0), right: rect(0.0, 0.0, 0.0, 0.0),
@@ -36,6 +32,12 @@ pub fn state() {
         hooks: rect(0.0, 0.0, 0.0, 0.0), split_w: 560.0, body_h: 96.0,
         // What the persona bar measured last frame; 0 until it has drawn.
         bar_fit: 0.0,
+        // The scene's own numbers, adopted before anything writes over them.
+        // Zero until `adopt` has run, which is what `asked` says.
+        asked: false,
+        gutter: 0.0, gap: 0.0,
+        tree_w: 0.0, insp_w: 0.0, dock_h: 0.0, rail_w: 0.0, hooks_w: 0.0,
+        status_h: 0.0, cmd_h: 0.0, rail_shut_h: 0.0,
         // The shell's nodes, resolved once: the tree is the editor's own and
         // does not change under a running editor.
         nodes: #{},
@@ -53,11 +55,16 @@ fn node(S, id) {
     }
     let path = match id {
         "shell" => SHELL,
-        "head" => SHELL + "/Head",
+        "band" => SHELL + "/Head/Band",
+        "cmd" => SHELL + "/Head/Cmd",
+        "body" => SHELL + "/Body",
         "left" => SHELL + "/Body/Left",
         "right" => SHELL + "/Body/Right",
         "bottom" => SHELL + "/Body/Centre/Bottom",
+        "dockbody" => SHELL + "/Body/Centre/Bottom/DockBody",
+        "status" => SHELL + "/Body/Centre/Bottom/Status",
         "railslot" => SHELL + "/Body/Centre/Upper/RailSlot",
+        "rail" => SHELL + "/Body/Centre/Upper/RailSlot/Rail",
         "work" => SHELL + "/Body/Centre/Upper/Work",
         "tabs" => SHELL + "/Body/Centre/Upper/Work/Tabs",
         "canvas" => SHELL + "/Body/Centre/Upper/Work/Canvas",
@@ -66,8 +73,50 @@ fn node(S, id) {
         _ => "",
     };
     let found = scene::get_node(path);
-    m.nodes[id] = found;
+    // A miss is not remembered: one transient failure would leave the box
+    // inert for the rest of the session.
+    if !util::is_nil(found) {
+        m.nodes[id] = found;
+    }
     found
+}
+
+/// A box's `widget` component; empty when the tree has no such node.
+fn widget_of(S, id) {
+    let found = node(S, id);
+    if util::is_nil(found) {
+        return #{};
+    }
+    util::obj(found.get_component("widget"))
+}
+
+/// What the scene states for one of a box's sizes.
+fn stated(S, id, key) {
+    util::f(widget_of(S, id).get(key).unwrap_or(0.0))
+}
+
+/// The scene's own numbers, read back once before anything writes over them.
+/// Nothing outside `scenes/main.toml` may spell a resting shell size.
+fn adopt(S) {
+    let m = S.layout;
+    if m.asked {
+        return;
+    }
+    let shell = widget_of(S, "shell");
+    if shell.is_empty() {
+        return;
+    }
+    m.gutter = util::f(shell.get("padding").unwrap_or(0.0));
+    m.gap = util::f(widget_of(S, "body").get("gap").unwrap_or(0.0));
+    m.tree_w = stated(S, "left", "width");
+    m.insp_w = stated(S, "right", "width");
+    m.status_h = stated(S, "status", "height");
+    m.dock_h = stated(S, "bottom", "height") - m.status_h;
+    m.rail_w = stated(S, "railslot", "width");
+    m.rail_shut_h = stated(S, "rail", "height");
+    m.hooks_w = stated(S, "hooks", "width");
+    m.cmd_h = stated(S, "cmd", "height");
+    m.asked = true;
 }
 
 /// State a box's size, when it has moved. A component write rebuilds the
@@ -125,33 +174,43 @@ pub fn sheets(S) {
 /// could not be subtracted from it.
 pub fn compute(S) {
     let w = S.screen_w;
-    let h = S.screen_h;
     let m = S.layout;
+    adopt(S);
+    // Before the shell tree resolves there is no size to state and no rect to
+    // read; every surface guards on a zero rect and draws nothing.
+    if !m.asked {
+        return;
+    }
     // A narrow window would leave no scene at all, so the sheets give way
     // before the stage does.
     let tree_w = if S.docks.left.shut { SHUT_W } else { util::clamp(m.tree_w, 180.0, w * 0.28) };
     let insp_w = if S.docks.right.shut { SHUT_W } else { util::clamp(m.insp_w, 220.0, w * 0.32) };
-    let dock_h = (if S.docks.bottom.shut { SHUT_H } else { m.dock_h }) + STATUS_H;
-    let rail_w = if S.rail_visible { (if S.rail_shut { 34.0 } else { RAIL_W }) } else { 0.0 };
-    let hooks_w = if S.hooks_open { HOOKS_W } else { 0.0 };
+    let tall = if crate::docks::bottom_tall(S) { TALL_EXTRA } else { 0.0 };
+    let dock_h = (if S.docks.bottom.shut { SHUT_H } else { m.dock_h + tall }) + m.status_h;
+    let rail_w = if S.rail_visible { (if S.rail_shut { SHUT_RAIL_W } else { m.rail_w }) } else { 0.0 };
+    let hooks_w = if S.hooks_open { m.hooks_w } else { 0.0 };
 
     size(S, "shell", "width", w);
-    size(S, "shell", "height", h);
+    size(S, "shell", "height", S.screen_h);
     size(S, "left", "width", tree_w);
     size(S, "right", "width", insp_w);
     size(S, "bottom", "height", dock_h);
     size(S, "railslot", "width", rail_w);
+    size(S, "rail", "height", rail_h(S));
     size(S, "hooks", "width", hooks_w);
 
     // The widget layer draws after `draw_ui`, so these are a frame behind.
     // A size that just changed shows on the next one, the way `bar_fit` has
     // always worked.
     let r = #{
-        head: box_of(S, "head"),
+        band: box_of(S, "band"),
+        cmd: box_of(S, "cmd"),
         left: box_of(S, "left"),
         right: box_of(S, "right"),
         bottom: box_of(S, "bottom"),
-        railslot: box_of(S, "railslot"),
+        dockbody: box_of(S, "dockbody"),
+        status: box_of(S, "status"),
+        rail: box_of(S, "rail"),
         work: box_of(S, "work"),
         tabs: box_of(S, "tabs"),
         canvas: box_of(S, "canvas"),
@@ -164,20 +223,21 @@ pub fn compute(S) {
     m.tabs = r.tabs;
     m.bottom = r.bottom;
     m.hooks = r.hooks;
-    // The rail is only as tall as its tools, so it takes the top of its
-    // column rather than the whole of it.
-    m.rail = rect(r.railslot.x, r.railslot.y, r.railslot.w, rail_h(S));
+    m.rail = r.rail;
+    // Inside the dock's sheet, drawn separately so a tall panel cannot push
+    // it off the bottom.
+    m.status = r.status;
+    // What a dock panel may scroll: its half of the sheet, less the tab row.
+    m.body_h = r.dockbody.h - TAB_ROW_H;
     // Centred on the document column, not the window: the tool rail shifts
     // it, and the bar has to sit over what it commands.
     let bar_mid = r.work.x + r.work.w / 2.0;
-    m.bar = rect(bar_mid - bar_w(S) / 2.0, r.head.y, bar_w(S), r.head.h);
-    m.cmd = rect(w - GUTTER - CMD_W, r.head.y + 7.0, CMD_W, 30.0);
-    // What a dock panel may scroll: the sheet less its tab row and the status
-    // strip sharing its foot.
-    m.body_h = r.bottom.h - 30.0 - STATUS_H;
-    // Inside the dock's sheet, drawn separately so a tall panel cannot push
-    // it off the bottom.
-    m.status = rect(r.bottom.x, r.bottom.y + r.bottom.h - STATUS_H, r.bottom.w, STATUS_H);
+    let bar = bar_w(S);
+    m.bar = rect(bar_mid - bar / 2.0, r.band.y, bar, r.band.h);
+    // The command pill is shorter than the band it shares; the scene states
+    // both heights, so it is centred rather than offset by hand.
+    let cmd_h = util::min(m.cmd_h, r.cmd.h);
+    m.cmd = rect(r.cmd.x, r.cmd.y + (r.cmd.h - cmd_h) / 2.0, r.cmd.w, cmd_h);
 
     // A document is not full-bleed: text under a sheet is unreadable. Sharing
     // with the scene puts the code on the right and the scene on the left.
@@ -185,7 +245,7 @@ pub fn compute(S) {
     if S.doc_open && S.viewport_live {
         let code_w = util::clamp(m.split_w, 260.0, util::max(260.0, box.w - 260.0));
         m.doc = rect(box.x + box.w - code_w, box.y, code_w, box.h);
-        m.stage = rect(box.x, box.y, box.w - code_w - GAP, box.h);
+        m.stage = rect(box.x, box.y, box.w - code_w - m.gap, box.h);
     } else if S.doc_open {
         m.doc = box;
         m.stage = box;
@@ -194,10 +254,12 @@ pub fn compute(S) {
         m.stage = r.canvas;
         m.doc = m.stage;
     }
-    // The scene's rect under its old name: the gizmos, the input overlay and
-    // the widget layer all read it. `at` is the frame it was set on, so a
-    // self-test can tell a headless run from a drawn one.
-    S.viewport = #{ x: m.stage.x, y: m.stage.y, w: m.stage.w, h: m.stage.h, at: S.frame };
+    // The scene's rect under its old name; `at` is the frame it was set on, so
+    // a self-test can tell a headless run from a drawn one. An unplaced stage
+    // is not published: a played game's HUD would blink out for that frame.
+    if m.stage.w > 0.0 && m.stage.h > 0.0 {
+        S.viewport = #{ x: m.stage.x, y: m.stage.y, w: m.stage.w, h: m.stage.h, at: S.frame };
+    }
 }
 
 /// A plugin window: stacked down the left of the stage, so it never lands on
@@ -207,21 +269,28 @@ pub fn window_rect(S, n) {
     rect(m.stage.x + 12.0, m.stage.y + 12.0 + (n as f64) * 176.0, 260.0, 164.0)
 }
 
+/// What one persona pill is estimated at, for the frame before the bar has
+/// measured itself and for the showcase's pointer.
+pub fn persona_w(S) {
+    if S.compact { 40.0 } else { 76.0 }
+}
+
 // A row of text cannot be counted before it is laid out, so the bar reports
 // what it used and the next frame is exact.
 fn bar_w(S) {
     let m = S.layout;
+    let room = S.screen_w - 2.0 * m.gutter;
     if m.bar_fit > 0.0 {
-        return util::min(S.screen_w - 2.0 * GUTTER, m.bar_fit);
+        return util::min(room, m.bar_fit);
     }
     let personas = defs::personas().len() as f64;
-    let per = if S.compact { 40.0 } else { 76.0 };
-    util::min(S.screen_w - 2.0 * GUTTER, 228.0 + personas * per)
+    util::min(room, 228.0 + personas * persona_w(S))
 }
 
 fn rail_h(S) {
+    let m = S.layout;
     if S.rail_shut {
-        return 42.0;
+        return m.rail_shut_h;
     }
     let tools = defs::tools(S.persona).len() as f64;
     // The tools, then the button that hides them.

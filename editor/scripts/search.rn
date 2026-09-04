@@ -21,10 +21,6 @@ pub fn query(S, id) {
     S.search.get(id).unwrap_or("")
 }
 
-pub fn clear(S, id) {
-    S.search.remove(id);
-}
-
 /// Whether `text` satisfies `query`. Case-insensitive, and every word of the
 /// query has to appear somewhere, so "ball body" finds a node named Ball with
 /// a body component when both texts are joined before the test.

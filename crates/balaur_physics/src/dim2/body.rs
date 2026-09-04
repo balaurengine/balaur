@@ -189,7 +189,46 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
         (body.activation().normalized_linear_threshold >= 0.0).into(),
     );
     map.insert("sleep_time".into(), f(body.activation().time_until_sleep));
+    read_mass(body, &mut map);
     Some(toml::Value::Table(map))
+}
+
+/// The mass the author added, read back off the body.
+///
+/// `body.mass()` is the total, colliders included; writing that back as
+/// `mass` would add the colliders' weight again on every save.
+fn read_mass(body: &RigidBody, map: &mut toml::map::Map<String, toml::Value>) {
+    use crate::rapier2d::dynamics::RigidBodyAdditionalMassProps as Extra;
+    let f = |value: Real| toml::Value::Float(f64::from(value));
+    let (mass, inertia, com) = match body.mass_properties().additional_local_mprops.as_deref() {
+        Some(Extra::Mass(mass)) => (*mass, 0.0, scalar::v2(0.0, 0.0)),
+        Some(Extra::MassProps(props)) => {
+            (props.mass(), props.principal_inertia(), props.local_com)
+        }
+        None => (0.0, 0.0, scalar::v2(0.0, 0.0)),
+    };
+    map.insert("mass".into(), f(mass));
+    map.insert("inertia".into(), f(inertia));
+    map.insert(
+        "center_of_mass".into(),
+        toml::Value::Array(vec![f(com.x), f(com.y)]),
+    );
+}
+
+/// A node's body handle, checked against rapier's arena.
+///
+/// A freed node's handle outlives it until the next prune, and indexing the
+/// arena with one panics inside rapier rather than failing the call.
+pub(crate) fn body_handle(state: &PhysicsState2d, entity: Entity) -> Result<RigidBodyHandle2> {
+    let handle = state
+        .bodies
+        .get(&entity)
+        .copied()
+        .ok_or_else(|| anyhow!("node has no 2D rigid body"))?;
+    if !state.world.bodies.contains(handle) {
+        return Err(anyhow!("this node's body is gone: the node was freed"));
+    }
+    Ok(handle)
 }
 
 pub(crate) fn with_body<R>(
@@ -199,11 +238,7 @@ pub(crate) fn with_body<R>(
 ) -> Result<R> {
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
-    let handle = state
-        .bodies
-        .get(&entity)
-        .copied()
-        .ok_or_else(|| anyhow!("node has no 2D rigid body"))?;
+    let handle = body_handle(&state, entity)?;
     Ok(f(&mut state, handle))
 }
 
@@ -214,11 +249,7 @@ pub(crate) fn read_body<R>(
 ) -> Result<R> {
     let state = eng.resource::<PhysicsState2d>();
     let state = state.borrow();
-    let handle = state
-        .bodies
-        .get(&entity)
-        .copied()
-        .ok_or_else(|| anyhow!("node has no 2D rigid body"))?;
+    let handle = body_handle(&state, entity)?;
     Ok(f(&state.world.bodies[handle]))
 }
 

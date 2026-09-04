@@ -82,6 +82,11 @@ impl balaur_script::ScriptCompiler for RuneHost {
     }
 
     fn compile(&self, rel: &str, source: &str) -> Result<Vec<u8>> {
+        // A submodule arrives folded into every root that names it; on its own
+        // it fails on `super::`. No bytes is this backend saying "not a root".
+        if self.is_submodule(rel) {
+            return Ok(Vec::new());
+        }
         let (unit, _) = self
             .compile_unit(rel, source, Purpose::Export)
             .map_err(|e| anyhow!("{rel}: {e}"))?;
@@ -135,14 +140,20 @@ struct Script {
     vms: Vec<Vm>,
     lines: Rc<debugger::Lines>,
     functions: Vec<PublicSignature>,
+    /// Every file the unit was compiled from, as watcher keys, this one
+    /// included: a `mod` submodule is folded in here and is a key nowhere
+    /// else, so a save of one has to be mapped back to this root.
+    deps: Vec<String>,
     /// `exports()` evaluated once, since it is the same table for every node
-    /// running this file. A reload replaces the whole `Script`, so a changed
-    /// default reaches the next attach without an invalidation step.
-    exports: Option<Vec<(String, balaur_script::Value)>>,
+    /// running this file. The failure is cached too — a broken `exports` that
+    /// re-ran per attach would fail once per node. A reload replaces the whole
+    /// `Script`, so a changed default reaches the next attach without an
+    /// invalidation step.
+    exports: Option<Result<Vec<(String, balaur_script::Value)>, String>>,
 }
 
 impl Script {
-    fn new(unit: Arc<Unit>, source: String, sources: Sources) -> Self {
+    fn new(unit: Arc<Unit>, source: String, sources: Sources, deps: Vec<String>) -> Self {
         let lines = Rc::new(debugger::Lines::of(&unit, &source));
         let functions = public_functions(&source);
         Self {
@@ -153,6 +164,7 @@ impl Script {
             vms: Vec::new(),
             lines,
             functions,
+            deps,
             exports: None,
         }
     }
@@ -169,6 +181,7 @@ impl Script {
             vms: Vec::new(),
             lines,
             functions,
+            deps: Vec::new(),
             exports: None,
         }
     }
@@ -301,6 +314,10 @@ struct State {
     /// per key. The object's contents swap in place on hot reload, so every
     /// requirer sees the new code.
     modules: HashMap<String, rune::Value>,
+    /// The `SHARED_FNS` slots each required module already owns. A refresh
+    /// overwrites them; pushing a fresh set would leak one slot per function
+    /// per save for the life of the session.
+    module_slots: HashMap<String, Vec<usize>>,
     /// Insertion-ordered so `update` visits nodes the same way every run.
     instances: indexmap::IndexMap<Entity, Instance>,
     /// Suspended async methods, in suspension order — resume order on a wake.
@@ -351,6 +368,7 @@ impl RuneHost {
                 context: None,
                 scripts: HashMap::new(),
                 modules: HashMap::new(),
+                module_slots: HashMap::new(),
                 instances: indexmap::IndexMap::new(),
                 tasks: Vec::new(),
                 events,
@@ -398,6 +416,22 @@ impl RuneHost {
 
     fn normalize_key(path: &str) -> String {
         path.trim_start_matches("./").replace('\\', "/")
+    }
+
+    /// Whether another `.rn` in the project pulls this one in with `mod`.
+    ///
+    /// What an exporter needs to compile roots only. A pack run has no source
+    /// tree to walk and nothing to export from it.
+    #[must_use]
+    pub fn is_submodule(&self, rel: &str) -> bool {
+        let root = {
+            let state = self.state.borrow();
+            if state.pack.is_some() {
+                return false;
+            }
+            state.project_root.clone()
+        };
+        packed::module_files(&root).contains(&Self::normalize_key(rel))
     }
 
     pub fn scene_source(&self, rel: &str) -> Option<String> {
@@ -467,6 +501,11 @@ impl RuneHost {
         }
     }
 
+    /// Every file a unit was compiled from, as the keys the watcher reports.
+    fn source_keys(&self, sources: &Sources) -> Vec<String> {
+        packed::source_keys(&self.state.borrow().project_root, sources)
+    }
+
     fn load(&self, key: &str) -> Result<Arc<Unit>> {
         if let Some(script) = self.state.borrow().scripts.get(key) {
             return Ok(script.unit.clone());
@@ -476,7 +515,8 @@ impl RuneHost {
         } else {
             let source = self.source_of(key)?;
             let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
-            Script::new(unit, source, sources)
+            let deps = self.source_keys(&sources);
+            Script::new(unit, source, sources, deps)
         };
         let unit = script.unit.clone();
         self.state
@@ -591,10 +631,10 @@ impl RuneHost {
             })?,
         )?;
         let declared = self.exports(&key)?;
-        for (name, value) in &declared {
+        for (name, spec) in &declared {
             obj.insert(
                 rune::alloc::String::try_from(name.as_str())?,
-                value::from_neutral(value)?,
+                value::from_neutral(&inspect::export_default(spec))?,
             )?;
         }
         for (name, value) in props {
@@ -796,31 +836,54 @@ impl RuneHost {
     /// unit running.
     pub fn reload(&self, key: &str) -> Result<()> {
         let source = self.source_of(key)?;
-        if self
+        // Unchanged text is only proof nothing moved for a script that is its
+        // whole unit: a root's `mod` files are read by the compiler alone.
+        let unchanged = self
             .state
             .borrow()
             .scripts
             .get(key)
-            .map(|s| s.source.as_str())
-            == Some(source.as_str())
-        {
+            .is_some_and(|s| s.source == source && s.deps.len() <= 1);
+        if unchanged {
             return Ok(());
         }
         let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
+        let deps = self.source_keys(&sources);
         let paused = {
             let mut state = self.state.borrow_mut();
             // A task suspended in the old unit must not resume into it.
             state.tasks.retain(|t| &*t.key != key);
             state
                 .scripts
-                .insert(key.to_string(), Script::new(unit, source, sources));
+                .insert(key.to_string(), Script::new(unit, source, sources, deps));
             state.paused.take_if(|p| &*p.key == key)
         };
         if let Some(paused) = paused {
             self.drop_pause(&paused);
         }
         self.apply_breakpoints(key);
-        self.refresh_module(key)
+        self.refresh_module(key)?;
+        self.announce_reload(key);
+        Ok(())
+    }
+
+    /// Tell every instance of a reloaded script that its code changed.
+    ///
+    /// The instance keeps the state object it had — Rune swaps the unit, not
+    /// the data — so a script whose field shapes moved has `hot_reload` as
+    /// the one place to migrate them.
+    fn announce_reload(&self, key: &str) {
+        let batch: Vec<(Entity, rune::Value)> = self
+            .state
+            .borrow()
+            .instances
+            .iter()
+            .filter(|(_, i)| &*i.key == key)
+            .filter_map(|(e, i)| Some((*e, i.state.try_clone().ok()?)))
+            .collect();
+        for (entity, state) in batch {
+            self.invoke(entity, key, "hot_reload", vec![state], false);
+        }
     }
 
     /// `script::require`: an object of `key`'s public functions, cached so
@@ -856,27 +919,54 @@ impl RuneHost {
             .get(key)
             .map(|s| s.functions.clone())
             .ok_or_else(|| anyhow!("{key} did not load"))?;
+        // Slots this key already owns are overwritten rather than added to:
+        // a reload that pushed a fresh set would leak one per function.
+        let mut spare = self
+            .state
+            .borrow_mut()
+            .module_slots
+            .remove(key)
+            .unwrap_or_default();
         let mut object = rune::runtime::Object::new();
+        let mut held = Vec::new();
         for declared in functions {
             let Some(function) = self.method(key, &declared.name) else {
                 continue;
             };
-            let Some(wrapper) = SHARED_FNS.with(|shared| {
+            let slot = SHARED_FNS.with(|shared| {
                 let mut shared = shared.borrow_mut();
-                shared.push(function);
-                trampoline(shared.len() - 1, declared.arity)
-            }) else {
+                match spare.pop() {
+                    Some(slot) => {
+                        shared[slot] = function;
+                        slot
+                    }
+                    None => {
+                        shared.push(function);
+                        shared.len() - 1
+                    }
+                }
+            });
+            let Some(wrapper) = trampoline(slot, declared.arity) else {
+                spare.push(slot);
                 tracing::warn!(
                     "{key}: `{}` takes too many parameters to require",
                     declared.name
                 );
                 continue;
             };
+            held.push(slot);
             object.insert(
                 rune::alloc::String::try_from(declared.name.as_str())?,
                 rune::to_value(wrapper)?,
             )?;
         }
+        // A module that lost a function keeps the slot for its next refresh,
+        // so the high-water mark is per file rather than per save.
+        held.append(&mut spare);
+        self.state
+            .borrow_mut()
+            .module_slots
+            .insert(key.to_string(), held);
         Ok(object)
     }
 
@@ -991,6 +1081,19 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
     ) -> Option<balaur_script::Value> {
         let entity = balaur_core::entity_of(node).ok()?;
         RuneHost::call_on(self, entity, method, args)
+    }
+
+    fn has_method(&self, node: balaur_script::NodeId, method: &str) -> bool {
+        let Ok(entity) = balaur_core::entity_of(node) else {
+            return false;
+        };
+        let key = self
+            .state
+            .borrow()
+            .instances
+            .get(&entity)
+            .map(|i| i.key.clone());
+        key.is_some_and(|key| self.resolve(&key, method).is_some())
     }
 
     fn call_all(&self, method: &str) {

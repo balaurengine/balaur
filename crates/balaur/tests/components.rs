@@ -92,7 +92,7 @@ fn app_with_every_component() -> (tempfile::TempDir, balaur::App) {
     std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), "").unwrap();

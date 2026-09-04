@@ -193,3 +193,72 @@ fn an_input_older_than_the_ring_is_refused() {
         "and the caller can see it happened"
     );
 }
+
+/// The journal is what a wire grows. A long session has to keep a bounded
+/// number of inputs, not one per tick per player for as long as it runs.
+#[test]
+fn a_long_session_keeps_a_bounded_journal() {
+    let (mut app, _) = app_driven_by_input();
+    let mut session = Session::new(&[PLAYER], 8);
+    for tick in 1..=3000u64 {
+        session.submit(PLAYER, tick, Value::Int(1));
+        session.advance(&mut app);
+    }
+    assert!(
+        session.journal_len() <= 64,
+        "the journal grew with the session: {} entries after 3000 ticks",
+        session.journal_len()
+    );
+}
+
+/// Both numbers in a peer's datagram are whatever the peer put there.
+#[test]
+fn an_input_for_an_unknown_player_or_an_impossible_tick_is_refused() {
+    let (mut app, _) = app_driven_by_input();
+    let mut session = Session::new(&[PLAYER], 8);
+    session.submit(PLAYER, 1, Value::Int(1));
+    session.advance(&mut app);
+    let kept = session.journal_len();
+
+    session.submit(PLAYER, u64::MAX, Value::Int(9));
+    session.submit(PLAYER + 7, 2, Value::Int(9));
+
+    assert_eq!(
+        session.journal_len(),
+        kept,
+        "neither was journalled, so neither can grow the session"
+    );
+}
+
+/// A burst of arrivals where one is too old to answer: the old one must not
+/// take the rollback down with it, because `take` has already cleared the
+/// correction for the tick that can still be re-run.
+#[test]
+fn a_stale_input_does_not_mask_a_correction_that_can_still_be_made() {
+    let (straight, _) = run_straight();
+    let expected = digest::digest(&straight.engine);
+
+    let (mut app, trace) = app_driven_by_input();
+    let mut session = Session::new(&[PLAYER], 3);
+    for tick in [1, 2] {
+        session.submit(PLAYER, tick, input_at(tick));
+        session.advance(&mut app);
+    }
+    // Tick 3 arrives late, so this one runs on the prediction.
+    session.advance(&mut app);
+    for tick in [4, 5] {
+        session.submit(PLAYER, tick, input_at(tick));
+        session.advance(&mut app);
+    }
+    assert_eq!(session.earliest(), Some(3), "a ring of three holds 3 to 5");
+
+    // Tick 1 is below the ring; tick 3's correction still is not.
+    session.submit(PLAYER, 1, Value::Int(-999));
+    session.submit(PLAYER, 3, input_at(3));
+    session.submit(PLAYER, 6, input_at(6));
+    session.advance(&mut app);
+
+    assert_eq!(digest::digest(&app.engine), expected);
+    assert!(trace.borrow().resimulated > 0, "and by re-simulating");
+    assert_eq!(session.stale_inputs(), 1, "the old one was counted, not lost");
+}

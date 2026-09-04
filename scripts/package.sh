@@ -6,7 +6,7 @@
 #                            template so `balaur export --target ...` works
 #                            the moment it is unzipped
 #   balaur-runtime-<target>  the runtime template: what a game gets fused onto
-# Usage: package.sh <target>     e.g. linux-x64, macos-arm64, windows-x64
+# Usage: package.sh <target>     e.g. linux-x64, macos-universal, windows-x64
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

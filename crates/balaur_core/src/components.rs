@@ -15,12 +15,12 @@
 //!    plugin components are addable and editable without editor changes.
 //!
 //! Property specs (`schema` is a TOML table of `name = { ... }`):
-//!   type = "float" | "bool" | "string" | "enum" | "vec2" | "vec3" | "color"
-//!          | "asset" | "flags" | "node"
+//!   type = "float" | "int" | "bool" | "string" | "enum" | "vec2" | "vec3"
+//!          | "color" | "asset" | "flags" | "node"
 //!   default = ...          (required, and of the declared type)
 //!   options = [...]        (enum and flags only, and required there)
 //!   asset = "clip_type"    (asset only, and required there)
-//!   min/max/step/decimals  (float, optional)
+//!   min/max/step/decimals  (float and int, optional)
 //!   shorthand/readonly     (bool, optional)
 //!
 //! `type` declares a property's datatype; `kind` is a property *name*, the one
@@ -70,6 +70,30 @@ pub const fn as_f64(value: &toml::Value) -> Option<f64> {
         toml::Value::Integer(i) => Some(*i as f64),
         _ => None,
     }
+}
+
+/// A property table with everything the schema marks `readonly` dropped.
+///
+/// A readonly property is the host writing back what it computed — a widget's
+/// `clicked` comes from the event pump — so no recording carries it and
+/// nothing that has to reproduce a tick may read it.
+#[must_use]
+pub fn authored(schema: &toml::Value, value: &toml::Value) -> toml::Value {
+    let (Some(specs), Some(table)) = (schema.as_table(), value.as_table()) else {
+        return value.clone();
+    };
+    let kept: toml::map::Map<String, toml::Value> = table
+        .iter()
+        .filter(|(prop, _)| !is_readonly(specs.get(prop.as_str())))
+        .map(|(prop, v)| (prop.clone(), v.clone()))
+        .collect();
+    toml::Value::Table(kept)
+}
+
+fn is_readonly(spec: Option<&toml::Value>) -> bool {
+    spec.and_then(|s| s.get("readonly"))
+        .and_then(toml::Value::as_bool)
+        == Some(true)
 }
 
 /// The names a `flags`-typed property holds, in the order they were written.
@@ -150,8 +174,8 @@ pub struct ComponentDef {
 /// The datatypes a schema property may declare (rule N6). Closed: a plugin
 /// that wants another one adds it here, so the editor's inspector and the
 /// scene format learn about it at the same moment.
-pub const PROPERTY_TYPES: [&str; 10] = [
-    "float", "bool", "string", "enum", "vec2", "vec3", "color", "asset", "flags", "node",
+pub const PROPERTY_TYPES: [&str; 11] = [
+    "float", "int", "bool", "string", "enum", "vec2", "vec3", "color", "asset", "flags", "node",
 ];
 
 impl ComponentDef {
@@ -187,7 +211,11 @@ fn type_list() -> String {
 
 /// One property spec against the vocabulary in the module docs. The `Err` is
 /// the reason alone; the caller prefixes the component and property.
-fn validate_property(spec: &toml::Value) -> Result<(), String> {
+///
+/// Public because a script's `exports()` declares properties in this same
+/// vocabulary and has to be held to the same rules, without going through
+/// [`ComponentDef::parse_schema`], which panics where a script needs an error.
+pub fn validate_property(spec: &toml::Value) -> Result<(), String> {
     let spec = spec.as_table().ok_or_else(|| {
         format!(
             "spec is {}, not a table like {{ type = \"float\", default = 0.0 }}",
@@ -257,6 +285,9 @@ fn check_default(
 ) -> Result<(), String> {
     let (ok, wanted) = match declared {
         "float" => (as_f64(default).is_some(), "a number"),
+        // Not `as_f64`: a count written as 1.0 round-trips through TOML as a
+        // float, and a reader that wants a whole number then refuses it.
+        "int" => (default.as_integer().is_some(), "a whole number"),
         "bool" => (default.as_bool().is_some(), "true or false"),
         // An asset default is a reference, and a reference is a path string.
         // A node default is a scene-relative path, and a path is a string.
@@ -649,6 +680,16 @@ pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
         .def(name)
         .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
     (def.remove)(eng, entity)
+}
+
+/// Run the `remove` hook of every component the node carries, in
+/// registration order, which is what a node's destruction owes its plugins.
+pub fn remove_present(eng: &Engine, entity: Entity) {
+    for name in present_on(eng, entity) {
+        if let Err(why) = remove(eng, entity, &name) {
+            tracing::error!(error = %why, component = %name, "removing a component from a freed node");
+        }
+    }
 }
 
 pub fn get(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {

@@ -7,6 +7,8 @@
 use glamx::{Quat, Vec3};
 use hecs::{Entity, World};
 
+use crate::engine::Engine;
+
 pub struct Name(pub String);
 pub struct Parent(pub Entity);
 pub struct Children(pub Vec<Entity>);
@@ -15,6 +17,31 @@ pub struct Children(pub Vec<Entity>);
 /// by the script host, keyed by entity.
 pub struct ScriptAttachment {
     pub path: String,
+}
+
+/// What the node's `script` key set over the script's exported defaults.
+///
+/// Kept because `init` reads them: a node put back by a snapshot has to
+/// re-attach with the tuned values, not with the exports.
+pub struct ScriptProps(pub Vec<(String, balaur_script::Value)>);
+
+/// Record what a node was attached with, replacing whatever it carried.
+pub fn remember_script_props(eng: &Engine, entity: Entity, props: &[(String, balaur_script::Value)]) {
+    let mut world = eng.world_mut();
+    if props.is_empty() {
+        let _ = world.remove_one::<ScriptProps>(entity);
+        return;
+    }
+    let _ = world.insert_one(entity, ScriptProps(props.to_vec()));
+}
+
+/// What [`remember_script_props`] recorded, empty for a node that set none.
+#[must_use]
+pub fn script_props(world: &World, entity: Entity) -> Vec<(String, balaur_script::Value)> {
+    world
+        .get::<&ScriptProps>(entity)
+        .map(|p| p.0.clone())
+        .unwrap_or_default()
 }
 
 /// Local (parent-relative) transform, TRS convention.
@@ -83,6 +110,22 @@ pub fn spawn_node(world: &mut World, name: &str, parent: Entity) -> Entity {
     ));
     if let Ok(mut children) = world.get::<&mut Children>(parent) {
         children.0.push(entity);
+    }
+    entity
+}
+
+/// Spawn a node as `parent`'s child number `index`, clamped to the end.
+///
+/// Where a snapshot puts a freed node back: the digest walks the tree in
+/// order, so a node restored as the last sibling reads as a divergence made
+/// of nothing but ordering.
+pub fn spawn_node_at(world: &mut World, name: &str, parent: Entity, index: usize) -> Entity {
+    let entity = spawn_node(world, name, parent);
+    if let Ok(mut children) = world.get::<&mut Children>(parent) {
+        if let Some(at) = children.0.iter().position(|&c| c == entity) {
+            let moved = children.0.remove(at);
+            children.0.insert(index.min(at), moved);
+        }
     }
     entity
 }
@@ -244,6 +287,26 @@ pub fn is_within(world: &World, entity: Entity, root: Entity) -> bool {
             None => return false,
         }
     }
+}
+
+/// Free a node the way a running engine must: detach every script instance
+/// under it, run every component's `remove` hook, then despawn.
+///
+/// [`free_subtree`] is the raw half and leaves plugin state behind — physics
+/// keys its bodies, colliders and joints by entity and learns of a
+/// destruction from nowhere else, so a stale handle answers raycasts and then
+/// panics. Every path that destroys a node at run time goes through here.
+pub fn free_node(eng: &Engine, entity: Entity) {
+    let subtree = collect_subtree(&eng.world(), entity);
+    if let Some(host) = eng.script_host() {
+        for &e in &subtree {
+            host.detach(crate::node_id_of(e));
+        }
+    }
+    for &e in &subtree {
+        crate::components::remove_present(eng, e);
+    }
+    free_subtree(&mut eng.world_mut(), entity);
 }
 
 /// Despawn a node and its whole subtree, unlinking it from its parent.

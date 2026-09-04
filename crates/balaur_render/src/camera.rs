@@ -8,6 +8,10 @@ use balaur_plugin::Registry;
 
 use crate::{color_to_toml, CameraConfig, CameraConfig2d, PostConfig};
 
+/// The smallest 2D zoom, in logical pixels per world unit. Mirrors the `min`
+/// the `camera` schema below states, which `render.set_camera_2d` also takes.
+pub(crate) const MIN_ZOOM_2D: f32 = 1.0;
+
 /// Which view a `camera` component drives: `"3d"` in a scene file is the
 /// perspective camera, `"2d"` the orthographic one.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -211,7 +215,7 @@ fn camera_from_params(params: &toml::Value) -> anyhow::Result<Camera> {
             .and_then(toml::Value::as_bool)
             .unwrap_or(true),
         look_at: glamx::Vec3::new(la(0), la(1), la(2)),
-        zoom: num("zoom", 60.0).max(1.0),
+        zoom: num("zoom", 60.0).max(MIN_ZOOM_2D),
     })
 }
 

@@ -4,7 +4,7 @@
 //! renderables into the kiss3d scene graph.
 
 use std::collections::{HashMap, HashSet};
-use std::time::Instant;
+use balaur_core::time::Instant;
 
 use balaur_core::hecs::Entity;
 use balaur_core::{App, GlobalTransform};
@@ -176,34 +176,47 @@ impl Frontend {
     clippy::disallowed_methods,
     reason = "the loop driver measures a frame; what it feeds systems is fixed_dt"
 )]
-pub fn run_windowed(mut app: App, title: &str) -> anyhow::Result<()> {
+pub fn run_windowed(app: App, title: &str) -> anyhow::Result<()> {
+    pollster::block_on(run_windowed_async(app, title, None))
+}
+
+/// The windowed loop as a future. Native `run_windowed` blocks on it; a
+/// browser cannot block, so its entry point spawns it onto the page's event
+/// loop instead, and `canvas_id` names the `<canvas>` it draws on — kiss3d's
+/// default, `"canvas"`, when `None`.
+pub async fn run_windowed_async(
+    mut app: App,
+    title: &str,
+    canvas_id: Option<&str>,
+) -> anyhow::Result<()> {
     // Claim the debug-line buffers: `flush_debug_lines`/`_2d` below drain
     // them as they draw, so the plugin's headless fallback stands down.
     app.engine.insert_resource(WindowedBackend);
-    let title = title.to_string();
-    pollster::block_on(async move {
-        let mut window = Window::new_with_size(&title, 1600, 1000).await;
-        let mut f = Frontend::new();
-        let mut last = Instant::now();
-        while window
-            .render(
-                Some(&mut f.scene),
-                Some(&mut f.scene_2d),
-                Some(&mut f.camera),
-                Some(&mut f.camera_2d),
-                None,
-                None,
-            )
-            .await
-        {
-            let now = Instant::now();
-            let dt = (now - last).as_secs_f32().min(0.1);
-            last = now;
-            if !f.step(&mut app, &mut window, dt) {
-                break;
-            }
+    let setup = CanvasSetup {
+        canvas_id: canvas_id.unwrap_or("canvas").to_string(),
+        ..CanvasSetup::default()
+    };
+    let mut window = Window::new_with_setup(title, 1600, 1000, setup).await;
+    let mut f = Frontend::new();
+    let mut last = Instant::now();
+    while window
+        .render(
+            Some(&mut f.scene),
+            Some(&mut f.scene_2d),
+            Some(&mut f.camera),
+            Some(&mut f.camera_2d),
+            None,
+            None,
+        )
+        .await
+    {
+        let now = Instant::now();
+        let dt = (now - last).as_secs_f32().min(0.1);
+        last = now;
+        if !f.step(&mut app, &mut window, dt) {
+            break;
         }
-    });
+    }
     Ok(())
 }
 
@@ -735,19 +748,7 @@ fn upload_mesh(
     // A skinned mesh is rewritten every frame; a rigid one is uploaded once.
     let gpu = GpuMesh3d::new(coords, faces, normals, uvs, skin.is_some());
     let mut node = scene.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(gpu)), Vec3::ONE);
-    if !renderable.texture.is_empty() {
-        match app
-            .engine
-            .resource::<balaur_core::project::ProjectFiles>()
-            .borrow()
-            .read(&renderable.texture)
-        {
-            Ok(bytes) => {
-                node.set_texture_from_memory(&bytes, &renderable.texture);
-            }
-            Err(err) => tracing::error!("{err:#}"),
-        }
-    }
+    crate::texture::attach_texture_3d(&app.engine, &mut node, &renderable.texture);
     Some((node, skin, geometry))
 }
 
@@ -857,33 +858,8 @@ fn build_polygon_node(
         return None;
     }
     let (mut node, skin) = crate::skinned_2d::build(scene, polygon);
-    attach_texture(app, &mut node, &polygon.texture);
+    crate::texture::attach_texture_2d(&app.engine, &mut node, &polygon.texture);
     Some((node, skin))
-}
-
-/// Give a freshly built node its image. Once per rebuild: kiss3d's
-/// TextureManager caches by name, so the decode happens on the first node to
-/// ask for it. An empty path is an image not chosen yet, and kiss3d's default
-/// white texture is the right stand-in.
-fn attach_texture(app: &App, node: &mut SceneNode2d, path: &str) {
-    if path.is_empty() {
-        return;
-    }
-    // Bytes rather than a path: a packed game carries its textures inside
-    // the pack, with nothing beside it on disk.
-    match app
-        .engine
-        .resource::<balaur_core::project::ProjectFiles>()
-        .borrow()
-        .read(path)
-    {
-        Ok(bytes) => {
-            node.set_texture_from_memory(&bytes, path);
-        }
-        // A frame is not the place to abort: say which asset is missing and
-        // keep drawing the rest of the scene.
-        Err(err) => tracing::error!("{err:#}"),
-    }
 }
 
 /// The joint matrices a skinned polygon deforms by this frame, resolved
@@ -956,8 +932,12 @@ fn polyline_points(app: &App, reference: Option<&str>, closed: bool) -> Vec<Vec2
 /// Mirror `Renderable2d` + `GlobalTransform` into the kiss3d 2D scene graph
 /// (x/y translation, z rotation, x/y scale).
 ///
-/// The 2D nodes in the order they draw, detaching every slot when that order
-/// changed so the caller rebuilds them in the new one.
+/// The 2D nodes in the order they draw, detaching the slots that no longer
+/// sit in it so the caller rebuilds those, and only those, in the new one.
+///
+/// kiss3d appends children and its `detach` is a `swap_remove`, so only a
+/// suffix can be re-ordered: what the old and new orders share up front keeps
+/// its places, and the rest is dropped last-first and rebuilt by appending.
 fn draw_order_2d(
     world: &balaur_core::hecs::World,
     root: Entity,
@@ -975,12 +955,18 @@ fn draw_order_2d(
     }
     desired.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
     let order: Vec<Entity> = desired.iter().map(|&(_, e)| e).collect();
-    if order != *order_cache {
-        for (_, mut slot) in slots.drain() {
+    let kept = order
+        .iter()
+        .zip(order_cache.iter())
+        .take_while(|(now, before)| now == before)
+        .count();
+    // Last first, so each detach is a pop and the kept prefix stays put.
+    for entity in order_cache[kept..].iter().rev() {
+        if let Some(mut slot) = slots.remove(entity) {
             slot.node.detach();
         }
-        order_cache.clone_from(&order);
     }
+    order_cache.clone_from(&order);
     order
 }
 
@@ -1036,7 +1022,7 @@ fn sync_2d(
                 continue;
             };
             if let Some(sprite) = &renderable.sprite {
-                attach_texture(app, &mut node, &sprite.path);
+                crate::texture::attach_texture_2d(&app.engine, &mut node, &sprite.path);
             }
             // After the texture: a material reads it, and kiss3d's own
             // material stays on a node whose shader would not link.

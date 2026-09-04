@@ -34,7 +34,7 @@ fn project() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"p\"\nmain_scene = \"m.toml\"\n",
+        "[application]\nname = \"p\"\nmain_scene = \"m.toml\"\n",
     )
     .unwrap();
     std::fs::write(

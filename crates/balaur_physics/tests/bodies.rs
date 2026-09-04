@@ -268,3 +268,59 @@ mass = 5.0"#,
     let state = state.borrow();
     assert!(state.world.bodies[state.bodies[&e]].mass() >= 5.0);
 }
+
+/// `mass`, `inertia` and `center_of_mass` are authored and were reported by
+/// neither dimension, so an inspector save dropped them.
+#[test]
+fn a_body_reports_the_mass_properties_it_was_given() {
+    let app = app();
+    let e = body_with(
+        &app,
+        "Heavy",
+        r#"kind = "dynamic"
+mass = 5.0
+inertia = [1.0, 2.0, 3.0]
+center_of_mass = [0.0, 0.5, 0.0]
+gyroscopic = true"#,
+    );
+    let back = components::get(&app.engine, e, "body3d").expect("body3d reports itself");
+    let f = |key: &str| {
+        back.get(key)
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or_default()
+    };
+    assert!((f("mass") - 5.0).abs() < 1e-5, "mass came back as {}", f("mass"));
+    assert_eq!(back.get("gyroscopic").unwrap().as_bool(), Some(true));
+    let inertia = back.get("inertia").unwrap().as_array().unwrap();
+    assert!((inertia[1].as_float().unwrap() - 2.0).abs() < 1e-5);
+    let com = back.get("center_of_mass").unwrap().as_array().unwrap();
+    assert!((com[1].as_float().unwrap() - 0.5).abs() < 1e-5);
+}
+
+/// The 2D twin. `inertia` is one number there, and there is no `gyroscopic`:
+/// rapier2d gates it behind its 3D build.
+#[test]
+fn a_2d_body_reports_the_mass_properties_it_was_given() {
+    let app = app();
+    let root = app.engine.root();
+    let e = scene::spawn_node(&mut app.engine.world_mut(), "Heavy", root);
+    let params: toml::Value = toml::from_str(
+        r#"kind = "dynamic"
+mass = 4.0
+inertia = 2.5
+center_of_mass = [0.25, 0.0]"#,
+    )
+    .unwrap();
+    components::add(&app.engine, e, "body2d", Some(&params)).unwrap();
+    let back = components::get(&app.engine, e, "body2d").expect("body2d reports itself");
+    let f = |key: &str| {
+        back.get(key)
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or_default()
+    };
+    assert!((f("mass") - 4.0).abs() < 1e-5, "mass came back as {}", f("mass"));
+    assert!((f("inertia") - 2.5).abs() < 1e-5);
+    let com = back.get("center_of_mass").unwrap().as_array().unwrap();
+    assert!((com[0].as_float().unwrap() - 0.25).abs() < 1e-5);
+    assert!(back.get("gyroscopic").is_none(), "2D cannot apply gyroscopic");
+}

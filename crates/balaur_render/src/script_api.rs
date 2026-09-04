@@ -115,7 +115,9 @@ pub(crate) fn install_camera_2d_api(m: &mut dyn Bindings<Engine>) {
             let config = eng.resource::<CameraConfig2d>();
             let mut config = config.borrow_mut();
             config.center = [cx, cy];
-            config.zoom = zoom.max(0.01);
+            // The floor the `camera` component's schema states, so a script
+            // and a scene file cannot disagree about the same number.
+            config.zoom = zoom.max(crate::camera::MIN_ZOOM_2D);
             config.changed = true;
             Ok(())
         },
@@ -370,10 +372,7 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
             .resource::<balaur_core::project::ProjectFiles>()
             .borrow()
             .read(&path)?;
-        let (w, h) = image::load_from_memory(&bytes)
-            .map(|image| (image.width(), image.height()))
-            .map_err(|e| anyhow!("reading the size of {path}: {e}"))?;
-        Ok((w, h))
+        Ok(crate::texture::image_size(&bytes, &path)?)
     });
 }
 
@@ -418,6 +417,7 @@ pub(crate) fn install_sprite_state_api(m: &mut dyn Bindings<Engine>) {
                 hx: hx.max(f32::EPSILON),
                 hy: hy.max(f32::EPSILON),
             };
+            r.sized = true;
             r.version += 1;
             Ok(())
         },

@@ -138,7 +138,7 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), "").unwrap();

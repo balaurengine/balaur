@@ -100,10 +100,14 @@ fn parse_definition(value: &toml::Value) -> Result<HeightfieldData> {
                 .ok_or_else(|| anyhow!("a heightfield's `heights` must all be numbers"))
         })
         .collect::<Result<_>>()?;
-    if heights.len() != rows * columns {
+    // Checked, not multiplied: the grid is read off a file and the product of
+    // two numbers it chose need not fit.
+    let wanted = rows
+        .checked_mul(columns)
+        .ok_or_else(|| anyhow!("a heightfield of {rows}x{columns} is larger than memory"))?;
+    if heights.len() != wanted {
         bail!(
-            "a heightfield of {rows}x{columns} needs {} heights, but {} were given",
-            rows * columns,
+            "a heightfield of {rows}x{columns} needs {wanted} heights, but {} were given",
             heights.len()
         );
     }

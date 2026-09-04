@@ -75,6 +75,9 @@ pub fn set_zoom(S, z) {
 pub fn open_palette(S, query) {
     S.palette = true;
     S.palette_query = query;
+    // Dropped on every opening, so a component a reloaded plugin registered is
+    // in the list the next time it is asked for.
+    S.palette_cache = ();
     ui::set_text("palette-query", query);
 }
 
@@ -304,6 +307,34 @@ pub fn save_active(S) {
     model::save(S);
 }
 
+// Rebuild every attached script's unit from disk, the way a save does for the
+// one file it wrote. A recording cannot span the change, so it ends first.
+pub fn reload_scripts(S) {
+    let paths = #{};
+    for node in S.doc {
+        if let Some(rel) = model::script_rel(node) {
+            paths[rel] = true;
+        }
+    }
+    crate::session::end(S, "reload");
+    model::forget(S, None);
+    let done = 0;
+    for rel in util::keys_sorted(paths) {
+        let abs = S.game_root + "/" + rel;
+        let (ok, err) = script::attempt(|| engine::reload_script(abs));
+        if ok {
+            done += 1;
+        } else {
+            for line in err.split('\n') {
+                let clean = line.replace(S.game_root + "/", "");
+                log::error(clean.replace("Panicked: ", ""));
+            }
+        }
+    }
+    crate::lint::run(S);
+    log::info(format!("reloaded {} of {} script(s)", done, paths.len()));
+}
+
 fn select_named(S, name) {
     for (i, node) in S.doc.iter().enumerate() {
         if node.name == name {
@@ -320,7 +351,6 @@ fn states() {
         "light": state_light,
         "play": state_play,
         "input": state_input,
-        "rotdemo": state_rotdemo,
         "animdemo": state_animdemo,
         "layoutdemo": crate::selftest::layout,
         "fontdemo": state_fontdemo,
@@ -338,6 +368,10 @@ fn states() {
         "lintdemo": crate::selftest::linting,
         "sessiondemo": crate::selftest::sessions,
         "themedemo": crate::selftest::theme_switch,
+        "settingsdemo": crate::selftest::settings_screen,
+        // The editor's half of the plugin seam; `counter.rn` registers the
+        // plugin's half under the same name and both run.
+        "counterdemo": crate::selftest::plugin_docks,
         "settings": crate::settings::open,
     }
 }
@@ -376,7 +410,8 @@ fn state_find(S, query) {
     S.search["tree"] = query;
 }
 
-// One start-up state, mirroring the design prototype's startPersona prop.
+// One start-up state, mirroring the design prototype's startPersona prop. A
+// plugin may extend a built-in state rather than replace it, so both run.
 pub fn apply_start_state(S, start) {
     for (prefix, run) in prefixed_states() {
         if start.starts_with(prefix) {
@@ -384,15 +419,22 @@ pub fn apply_start_state(S, start) {
             return;
         }
     }
+    let ran = false;
     match states().get(start) {
-        Some(run) => return run(S),
+        Some(run) => {
+            run(S);
+            ran = true;
+        }
         None => (),
     }
     match crate::plugins::start_state(S, start) {
-        Some(run) => return run(S),
+        Some(run) => {
+            run(S);
+            ran = true;
+        }
         None => (),
     }
-    if start != "" {
+    if !ran && start != "" {
         state_persona(S, start);
     }
 }
@@ -486,15 +528,6 @@ fn state_light(S) {
 
 fn state_play(S) {
     toggle_play(S);
-}
-
-fn state_rotdemo(S) {
-    select_named(S, "Spinner");
-    model::set_transform(S, S.sel, #{
-        rotation_euler: [math::rad(15.0), math::rad(30.0), 0.0],
-        scale: [3.0, 3.0, 3.0],
-    });
-    set_zoom(S, 100.0);
 }
 
 // Self-test state: author a clip on the Spinner when the mirror resolved it,

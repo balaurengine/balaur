@@ -1,8 +1,8 @@
 // A sheet over the shell: a title, a close, and a body. What the settings
 // screen is, and what anything else needing a window should be.
 
-use crate::icons;
 use crate::style;
+use crate::util;
 
 // Sized as a fraction of the screen rather than in pixels, so the same sheet
 // suits a laptop and a monitor. Bounded, so it never fills a huge display
@@ -31,10 +31,6 @@ pub fn showing(S, id) {
     S.window.open == id
 }
 
-fn clamp(v, low, high) {
-    if v < low { low } else if v > high { high } else { v }
-}
-
 /// Draw `body` in a titled sheet. Returns nothing; the window closes itself
 /// through the title bar, the scrim or `esc`.
 ///
@@ -46,8 +42,8 @@ pub fn sheet(S, id, title, actions, body) {
     }
     let k = S.theme;
     let screen = ui::screen_size();
-    let width = clamp(screen[0] * WIDTH_FRACTION, MIN_WIDTH, MAX_WIDTH);
-    let height = clamp(screen[1] * HEIGHT_FRACTION, MIN_HEIGHT, screen[1] - 120.0);
+    let width = util::clamp(screen[0] * WIDTH_FRACTION, MIN_WIDTH, MAX_WIDTH);
+    let height = util::clamp(screen[1] * HEIGHT_FRACTION, MIN_HEIGHT, screen[1] - 120.0);
     let scrim_clicked = ui::modal(id, #{
         width: width, height: height, top: 0.09,
         fill: k.panel, stroke: k.line, scrim: "#0b0e126b",

@@ -170,9 +170,10 @@ fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
 /// Sorted by distance, then by entity bits: two machines must agree on the
 /// order, and rapier's is its BVH's.
 fn sort_hits(hits: &mut [(Entity, Real, [f32; 3], [f32; 3])]) {
+    // `total_cmp`, not `partial_cmp`: a NaN distance makes the latter a
+    // non-order, which `sort_by` is allowed to panic on.
     hits.sort_by(|a, b| {
-        a.1.partial_cmp(&b.1)
-            .unwrap_or(std::cmp::Ordering::Equal)
+        a.1.total_cmp(&b.1)
             .then_with(|| a.0.to_bits().cmp(&b.0.to_bits()))
     });
 }
@@ -565,13 +566,22 @@ fn contact_list(eng: &Engine, node: NodeId) -> Result<Value> {
             } else {
                 pair.collider1
             };
-            let Some(other) = entity_of_collider(&state.world.colliders[other_handle]) else {
+            let (Some(other), Some(first)) = (
+                state
+                    .world
+                    .colliders
+                    .get(other_handle)
+                    .and_then(entity_of_collider),
+                state.world.colliders.get(pair.collider1),
+            ) else {
                 continue;
             };
             for manifold in &pair.manifolds {
                 let normal = manifold.data.normal;
                 for point in &manifold.points {
-                    let p = point.local_p1;
+                    // `local_p1` is in the first collider's own frame, and the
+                    // first may be the other node: every query reports world.
+                    let p = first.position() * point.local_p1;
                     out.push((
                         other.to_bits().get(),
                         map([
@@ -642,20 +652,14 @@ fn with_pair(
     let (a, b) = (entity_of(a)?, entity_of(b)?);
     let state = eng.resource::<PhysicsState>();
     let state = state.borrow();
-    let first = state
-        .colliders
-        .get(&a)
-        .and_then(|h| h.first())
-        .ok_or_else(|| anyhow!("the first node has no collider"))?;
-    let second = state
-        .colliders
-        .get(&b)
-        .and_then(|h| h.first())
-        .ok_or_else(|| anyhow!("the second node has no collider"))?;
+    let first = crate::collider::first_collider(&state, a)
+        .map_err(|why| anyhow!("the first node has no collider: {why}"))?;
+    let second = crate::collider::first_collider(&state, b)
+        .map_err(|why| anyhow!("the second node has no collider: {why}"))?;
     f(
         &state.world,
-        &state.world.colliders[*first],
-        &state.world.colliders[*second],
+        &state.world.colliders[first],
+        &state.world.colliders[second],
     )
 }
 

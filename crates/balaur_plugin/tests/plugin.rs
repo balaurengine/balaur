@@ -333,3 +333,57 @@ fn a_set_may_require_something_loaded_before_it() {
     load_all(&mut app, &mut set).unwrap();
     assert!(balaur_core::plugins::is_loaded(&app.engine, "late"));
 }
+
+struct Configured {
+    manifest: Manifest,
+    seen: Option<toml::Table>,
+}
+
+impl Plugin for Configured {
+    fn manifest(&self) -> &Manifest {
+        &self.manifest
+    }
+
+    fn declare(&mut self, reg: &mut Registry<'_>) -> anyhow::Result<()> {
+        self.seen = reg.config();
+        Ok(())
+    }
+}
+
+#[test]
+fn a_plugin_reads_the_table_the_project_handed_it() {
+    let mut app = app();
+    let mut configs = balaur_core::PluginConfigs::default();
+    configs
+        .0
+        .insert("probe".to_string(), toml::from_str("timeout = 5").unwrap());
+    configs
+        .0
+        .insert("other".to_string(), toml::from_str("nope = 1").unwrap());
+    app.engine.insert_resource(configs);
+
+    let mut plugin = Configured {
+        manifest: Manifest::new("probe", "1"),
+        seen: None,
+    };
+    load(&mut app, &mut plugin).unwrap();
+
+    let seen = plugin.seen.expect("no table reached the plugin");
+    assert_eq!(
+        seen.get("timeout").and_then(toml::Value::as_integer),
+        Some(5)
+    );
+    assert!(seen.get("nope").is_none(), "read another plugin's table");
+}
+
+#[test]
+fn a_plugin_given_no_table_reads_nothing() {
+    let mut app = app();
+    let mut plugin = Configured {
+        manifest: Manifest::new("probe", "1"),
+        seen: None,
+    };
+
+    load(&mut app, &mut plugin).unwrap();
+    assert!(plugin.seen.is_none());
+}

@@ -53,7 +53,7 @@ impl Project {
         std::fs::write(
             dir.path().join("project.toml"),
             format!(
-                "name = \"bench\"\nmain_scene = \"main.toml\"\nlanguage = \"{}\"\n",
+                "[application]\nname = \"bench\"\nmain_scene = \"main.toml\"\nlanguage = \"{}\"\n",
                 backend.name()
             ),
         )?;

@@ -396,6 +396,8 @@ dependencies = [
  "balaur_script",
  "glamx",
  "libm",
+ "serde",
+ "serde_json",
  "tempfile",
  "toml",
  "tracing",
@@ -463,8 +465,10 @@ dependencies = [
  "balaur",
  "balaur_export",
  "clap",
+ "console_error_panic_hook",
  "dirs",
  "flate2",
+ "js-sys",
  "serde_json",
  "sha2",
  "tar",
@@ -473,6 +477,9 @@ dependencies = [
  "tracing-log",
  "tracing-subscriber",
  "ureq",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
  "zip",
 ]
 
@@ -494,9 +501,11 @@ dependencies = [
  "sha2",
  "tempfile",
  "toml",
+ "toml_edit",
  "tracing",
  "tracing-log",
  "tracing-subscriber",
+ "web-time",
 ]
 
 [[package]]
@@ -1110,6 +1119,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
 dependencies = [
  "crossbeam-utils",
+]
+
+[[package]]
+name = "console_error_panic_hook"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
+dependencies = [
+ "cfg-if",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -6213,6 +6232,7 @@ dependencies = [
  "indexmap",
  "toml_datetime 1.1.1+spec-1.1.0",
  "toml_parser",
+ "toml_writer",
  "winnow 1.0.4",
 ]
 

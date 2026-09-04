@@ -12,6 +12,9 @@ balaur_plugin.workspace = true
 balaur_script.workspace = true
 anyhow.workspace = true
 glamx.workspace = true
+# The snapshot source's frames: `add_snapshot_source` speaks `serde_json`.
+serde.workspace = true
+serde_json.workspace = true
 toml.workspace = true
 tracing.workspace = true
 # Transcendental math has to be the same on every platform: `f32::sin` and

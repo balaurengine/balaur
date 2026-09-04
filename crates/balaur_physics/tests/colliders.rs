@@ -222,3 +222,65 @@ fn every_declared_2d_shape_builds() {
             .unwrap_or_else(|e| panic!("collider2d kind '{kind}' did not build: {e:#}"));
     }
 }
+
+/// The inspector reads a collider back through `get`; without the authored
+/// params under it, a 2D re-save loses the offset, the one-way flag and the
+/// asset a mesh-backed shape was built from.
+#[test]
+fn a_2d_collider_round_trips_through_get() {
+    let app = app();
+    let root = app.engine.root();
+    let e = child_of(&app, root, "Platform");
+    let params: toml::Value = toml::from_str(
+        r#"kind = "rect"
+half_extents = [2.0, 0.25]
+offset = [0.5, -1.0]
+offset_rotation = 0.75
+one_way = true
+one_way_axis = [0.0, 1.0]
+friction = 0.9"#,
+    )
+    .unwrap();
+    components::add(&app.engine, e, "collider2d", Some(&params)).unwrap();
+    let back = components::get(&app.engine, e, "collider2d").expect("collider2d reports itself");
+    let f = |key: &str| {
+        back.get(key)
+            .and_then(balaur_core::components::as_f64)
+            .unwrap_or_default()
+    };
+    assert_eq!(back.get("kind").unwrap().as_str(), Some("rect"));
+    assert_eq!(back.get("one_way").unwrap().as_bool(), Some(true));
+    assert!((f("offset_rotation") - 0.75).abs() < 1e-6);
+    assert!((f("friction") - 0.9).abs() < 1e-6);
+    let offset = back.get("offset").unwrap().as_array().unwrap();
+    assert!((offset[0].as_float().unwrap() - 0.5).abs() < 1e-6);
+    assert!((offset[1].as_float().unwrap() + 1.0).abs() < 1e-6);
+}
+
+/// `one_way` is a no-op unless the axis reaches the hook, and the hook reads
+/// the collider's `user_data` because it runs while the world is borrowed.
+#[test]
+fn a_2d_one_way_collider_carries_its_axis_into_the_world() {
+    let app = app();
+    let root = app.engine.root();
+    let e = child_of(&app, root, "Platform");
+    components::add(
+        &app.engine,
+        e,
+        "collider2d",
+        Some(&toml::from_str("kind = \"rect\"\none_way = true\none_way_axis = [0.0, 1.0]").unwrap()),
+    )
+    .unwrap();
+    let state = app.engine.resource::<balaur_physics::PhysicsState2d>();
+    let state = state.borrow();
+    let handle = state.colliders[&e][0];
+    let collider = &state.world.colliders[handle];
+    assert_ne!(
+        collider.user_data >> 64,
+        0,
+        "no one-way axis reached the collider"
+    );
+    assert!(collider
+        .active_hooks()
+        .contains(balaur_physics::rapier2d::prelude::ActiveHooks::MODIFY_SOLVER_CONTACTS));
+}

@@ -5,6 +5,7 @@ use balaur_core::{App, AppConfig};
 use balaur_input::{InputActions, InputPlugin, InputSnapshot};
 
 const MANIFEST: &str = r#"
+[application]
 name = "actions test"
 main_scene = "main.toml"
 
@@ -127,6 +128,7 @@ fn an_undeclared_action_reads_zero_rather_than_failing() {
 #[test]
 fn a_binding_that_does_not_parse_is_dropped_and_the_rest_still_work() {
     let (_dir, mut app) = app(r#"
+[application]
 name = "actions test"
 main_scene = "main.toml"
 
@@ -177,7 +179,7 @@ fn the_declared_actions_are_listed_in_a_stable_order() {
 
 #[test]
 fn a_project_declaring_no_actions_is_not_an_error() {
-    let (_dir, mut app) = app("name = \"t\"\nmain_scene = \"main.toml\"\n");
+    let (_dir, mut app) = app("[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n");
     frame(&mut app, &[("Space", true)]);
     assert!(app
         .engine

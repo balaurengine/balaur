@@ -210,6 +210,7 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     }
     let asked = manifest_of(&config).map(|m| m.plugins).unwrap_or_default();
     let mut app = App::new(config)?;
+    app.engine.insert_resource(configs_from(&asked));
     balaur_plugin::load_all(&mut app, &mut standard_plugins(&asked)?)?;
     drive_ui_focus(&mut app);
     #[cfg(feature = "extensions")]
@@ -218,8 +219,19 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     Ok(app)
 }
 
-/// What a project asked of `[plugins]`: a name, and whether it wants it.
-type Selection = BTreeMap<String, bool>;
+/// What a project asked of `[plugins]`: a name, and what it said about it.
+type Selection = BTreeMap<String, balaur_core::PluginChoice>;
+
+/// The tables `[plugins]` handed each plugin, for `Registry::config` to
+/// answer from once the plugin is registering.
+fn configs_from(asked: &Selection) -> balaur_core::PluginConfigs {
+    balaur_core::PluginConfigs(
+        asked
+            .iter()
+            .filter_map(|(name, choice)| Some((name.clone(), choice.config()?.clone())))
+            .collect(),
+    )
+}
 
 /// Every plugin a standard app registers, for `load_all` to order.
 ///
@@ -236,7 +248,7 @@ fn standard_plugins(asked: &Selection) -> Result<Vec<Box<dyn balaur_plugin::Plug
     ];
     for plugin in &always {
         let name = &plugin.manifest().name;
-        if asked.get(name) == Some(&false) {
+        if asked.get(name).is_some_and(|choice| !choice.wanted()) {
             bail!("project.toml turns off `{name}`, which every build has");
         }
     }
@@ -244,7 +256,11 @@ fn standard_plugins(asked: &Selection) -> Result<Vec<Box<dyn balaur_plugin::Plug
     all.extend(
         optional_modules()
             .into_iter()
-            .filter(|module| asked.get(&module.manifest().name) != Some(&false)),
+            .filter(|module| {
+                asked
+                    .get(&module.manifest().name)
+                    .is_none_or(balaur_core::PluginChoice::wanted)
+            }),
     );
     Ok(all)
 }
@@ -257,7 +273,7 @@ fn refuse_absent(app: &App, asked: &Selection) -> Result<()> {
     let loaded = balaur_core::plugins::names(&app.engine);
     let missing: Vec<&str> = asked
         .iter()
-        .filter(|(_, &wanted)| wanted)
+        .filter(|(_, choice)| choice.asked_for())
         .map(|(name, _)| name.as_str())
         .filter(|name| !loaded.iter().any(|n| n == name))
         .collect();
@@ -277,31 +293,49 @@ fn refuse_absent(app: &App, asked: &Selection) -> Result<()> {
 /// which has keys but no pads, and `balaur_input` knows nothing about
 /// widgets. This crate is the one that knows about both, which is what
 /// assembling them means. A project that declares none of these three
-/// actions gets a keyboard-only menu and no system worth the name.
+/// actions gets no menu system and no keyboard focus either — the keys stay
+/// the game's, which is what a game that moves with the arrows needs.
 fn drive_ui_focus(app: &mut App) {
     use balaur_ui::{Move, UiFocus};
-    app.add_system(balaur_core::Stage::First, |eng: &balaur_core::Engine, _| {
-        let Some(actions) = eng.try_resource::<balaur_input::InputActions>() else {
-            return;
-        };
-        let asked = {
-            let actions = actions.borrow();
-            // Accept first: a frame that both moved and accepted meant the
-            // accept, and one press cannot sensibly do two things.
-            if actions.just_pressed("ui_accept") {
-                Some(Move::Accept)
-            } else if actions.just_pressed("ui_next") {
-                Some(Move::Next)
-            } else if actions.just_pressed("ui_previous") {
-                Some(Move::Previous)
-            } else {
-                None
+    // Turned on once, the first frame the actions are there: a project's
+    // table is loaded lazily, and the editor declares a played game's later
+    // still. Only ever on, so `ui.set_keyboard_focus(false)` is not undone.
+    let mut armed = false;
+    app.add_system(
+        balaur_core::Stage::First,
+        move |eng: &balaur_core::Engine, _| {
+            let Some(actions) = eng.try_resource::<balaur_input::InputActions>() else {
+                return;
+            };
+            if !armed
+                && ["ui_accept", "ui_next", "ui_previous"]
+                    .iter()
+                    .any(|name| actions.borrow().is_declared(name))
+            {
+                armed = true;
+                eng.resource::<balaur_ui::WidgetLayerConfig>()
+                    .borrow_mut()
+                    .keyboard = true;
             }
-        };
-        if let Some(asked) = asked {
-            eng.resource::<UiFocus>().borrow_mut().pending = Some(asked);
-        }
-    });
+            let asked = {
+                let actions = actions.borrow();
+                // Accept first: a frame that both moved and accepted meant the
+                // accept, and one press cannot sensibly do two things.
+                if actions.just_pressed("ui_accept") {
+                    Some(Move::Accept)
+                } else if actions.just_pressed("ui_next") {
+                    Some(Move::Next)
+                } else if actions.just_pressed("ui_previous") {
+                    Some(Move::Previous)
+                } else {
+                    None
+                }
+            };
+            if let Some(asked) = asked {
+                eng.resource::<UiFocus>().borrow_mut().pending = Some(asked);
+            }
+        },
+    );
 }
 
 /// Load every extension in the project's `extensions/` directory.
@@ -318,7 +352,7 @@ fn load_project_extensions(app: &mut App, asked: &Selection) -> Result<()> {
     let mut loaded = unsafe { balaur_plugin::load_extensions_in(&dir, &modules) }?;
     for extension in &mut loaded {
         let name = extension.manifest().name.clone();
-        if asked.get(&name) == Some(&false) {
+        if asked.get(&name).is_some_and(|choice| !choice.wanted()) {
             tracing::info!(extension = %name, "off in project.toml");
             continue;
         }
@@ -389,6 +423,20 @@ pub fn boot_project(project_root: &str) -> Result<()> {
         .manifest()
         .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
     run(app, &title)
+}
+
+/// A pack booted onto an HTML canvas: the browser's `boot_pack`. Nothing in a
+/// page may block, so this is a future the entry point spawns; the loop it
+/// runs is the windowed one, drawing on the `<canvas>` named by `canvas_id`.
+#[cfg(feature = "window")]
+pub async fn boot_pack_on_canvas(bytes: &[u8], canvas_id: &str) -> Result<()> {
+    let pack = Pack::decode(bytes)?;
+    let mut app = standard_app(AppConfig::packed(pack))?;
+    app.load_project()?;
+    let title = app
+        .manifest()
+        .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
+    balaur_render::kiss3d_backend::run_windowed_async(app, &title, Some(canvas_id)).await
 }
 
 /// Shipping mode: run a precompiled pack (e.g. embedded via `include_bytes!`).

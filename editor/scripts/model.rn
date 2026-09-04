@@ -24,9 +24,26 @@ pub fn source(S, rel) {
         }
     }
     let text = fs::read(S.game_root + "/" + rel);
-    let entry = #{ text: if text is String { Some(text) } else { None }, at: now, hooks: None, exports: None };
+    let entry = #{
+        text: if text is String { Some(text) } else { None },
+        at: now, hooks: None, exports: None, lines: None,
+    };
     S.sources[rel] = entry;
     entry.text
+}
+
+// How many lines a file has, counted once per cached read: the Script
+// persona's list asked for every script's count on every frame it drew.
+pub fn line_count(S, rel) {
+    let text = match source(S, rel) {
+        Some(text) => text,
+        None => return 0,
+    };
+    let entry = S.sources[rel];
+    if entry.lines.is_none() {
+        entry.lines = Some(util::count_lines(text));
+    }
+    entry.lines.unwrap()
 }
 
 // The script's engine-facing hooks, analysed once per cached read.
@@ -540,8 +557,9 @@ pub fn load(S) {
     let root = engine::args()[0];
     S.game_root = root;
     let manifest = toml::parse(must_read(root + "/project.toml"));
-    S.game_name = manifest.name;
-    S.scene_rel = manifest.main_scene;
+    let application = manifest.application;
+    S.game_name = application.name;
+    S.scene_rel = application.main_scene;
     // Same for the strings: the catalogue lives under the game's root, not
     // the editor's, and without this every `text_key` draws as its key.
     strings::set_root(root);
@@ -556,8 +574,12 @@ pub fn load(S) {
             }
         }
     }
-    S.scene_path = root + "/" + manifest.main_scene;
-    let doc = toml::parse(must_read(S.scene_path));
+    S.scene_path = root + "/" + application.main_scene;
+    let doc = util::obj(toml::parse(must_read(S.scene_path)));
+    // The whole document, not only its nodes: a scene's `[[assets]]` blocks
+    // and anything else it declares have to survive a save and reach the
+    // mirror, or a `#id` reference resolves to nothing inside the editor.
+    S.scene_doc = doc;
     S.doc = util::vec(doc.get("nodes").unwrap_or([]));
     normalize(S.doc);
     expand_instances(S);
@@ -619,10 +641,6 @@ pub fn relative_file(S, value) {
     value
 }
 
-pub fn absolute(S, value) {
-    absolute_files(S, value)
-}
-
 // (Re)build the live mirror under a fresh container node.
 pub fn build_mirror(S) {
     // Before the world goes: a game script still attached would get one more
@@ -638,20 +656,26 @@ pub fn build_mirror(S) {
     physics::clear();
     S.mirror = scene::spawn("Edited");
     debugger::set_scope(S.mirror);
-    // The document, not the file: a mirror read from disk cannot hold an
-    // unsaved edit, which left a duplicated node with no live node at all.
-    scene::instantiate(toml::encode(#{ nodes: absolute_files(S, authored(S.doc)) }), S.mirror, #{ scripts: false });
+    // The whole document, not the file: a mirror read from disk cannot hold an
+    // unsaved edit, and one built without the scene's `[[assets]]` block
+    // cannot resolve the `#id` its nodes name.
+    let building = util::obj(absolute_files(S, S.scene_doc));
+    building.nodes = absolute_files(S, authored(S.doc));
+    scene::instantiate(toml::encode(building), S.mirror, #{ scripts: false });
     physics::set_paused(true);
     S.playing = false;
     S.refs = [];
     let unresolved = 0;
     for node in S.doc {
-        let path = node_path(S.doc, node);
-        let found = S.mirror.get_node(path);
+        // By id rather than by name path: `find_node` answers with the first
+        // sibling of a name, so two nodes called the same thing used to share
+        // one live node and the inspector edited whichever came first.
+        let id = node.get("id").unwrap_or("");
+        let found = scene::node_by_id(id, S.mirror);
         S.refs.push(found);
         if !(found is balaur::Node) {
             unresolved += 1;
-            log::warn(format!("no mirror node at '{}' for '{}'", path, node.name));
+            log::warn(format!("no mirror node with id '{}' for '{}'", id, node.name));
         }
     }
     // A node with no ref is invisible to the inspector, the gizmo and every
@@ -759,7 +783,12 @@ pub fn selected_node(S) {
 // Write the document back to the scene file (hot reload on the game side is
 // the game's watcher's business; the editor is a plain writer).
 pub fn save(S) {
-    fs::write(S.scene_path, toml::encode(#{ nodes: authored(S.doc) }));
+    // `patch`, not `encode`: a scene file is hand-written as often as not,
+    // and encoding the nodes over it would drop its comments, its key order
+    // and every table the editor does not model.
+    let existing = fs::read(S.scene_path);
+    let text = if existing is String { existing } else { "" };
+    fs::write(S.scene_path, toml::patch(text, #{ nodes: authored(S.doc) }));
     forget(S, None);
     history::mark_saved(S);
     log::info("saved " + S.scene_rel);
@@ -939,7 +968,8 @@ pub fn attach_game_scripts(S) {
 pub fn open_scene(S, rel) {
     S.scene_rel = rel;
     S.scene_path = S.game_root + "/" + rel;
-    let doc = toml::parse(fs::read(S.scene_path));
+    let doc = util::obj(toml::parse(fs::read(S.scene_path)));
+    S.scene_doc = doc;
     S.doc = util::vec(doc.get("nodes").unwrap_or([]));
     normalize(S.doc);
     expand_instances(S);

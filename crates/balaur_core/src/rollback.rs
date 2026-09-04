@@ -38,6 +38,12 @@ use crate::snapshot::{self, SnapshotRing};
 /// Which player an input belongs to.
 pub type PlayerId = u32;
 
+/// How far ahead of the tick about to run an input may name a tick.
+///
+/// Inputs come off a wire, and the journal is what they grow: one datagram
+/// naming `u64::MAX` would otherwise leave an entry nothing ever prunes.
+pub const INPUT_WINDOW: u64 = 120;
+
 /// One player's input for one tick, in whatever shape the game gives it.
 ///
 /// The engine never looks inside: what a game sends is its own vocabulary,
@@ -166,12 +172,39 @@ impl Session {
     /// Late and matching what was predicted changes nothing. Late and
     /// different schedules a rollback to that tick, taken on the next
     /// [`Session::advance`] so one call answers a burst of arrivals.
+    ///
+    /// A player this session does not have, and a tick more than
+    /// [`INPUT_WINDOW`] ahead of the one about to run, are refused rather
+    /// than journalled: both are whatever a peer said they were.
     pub fn submit(&mut self, player: PlayerId, tick: u64, value: Input) {
+        if !self.players.contains(&player) {
+            tracing::warn!(
+                player,
+                "an input arrived for a player this session has never had"
+            );
+            return;
+        }
+        if tick > self.next.saturating_add(INPUT_WINDOW) {
+            tracing::warn!(
+                tick,
+                next = self.next,
+                "an input arrived for a tick too far ahead"
+            );
+            return;
+        }
         let changed = self.used.get(&(tick, player)) != Some(&value);
         self.arrived.insert((tick, player), value);
-        if tick < self.next && changed {
-            self.dirty = Some(self.dirty.map_or(tick, |at| at.min(tick)));
+        if tick >= self.next || !changed {
+            return;
         }
+        // A tick below the ring can never be re-run. Counting it stale here
+        // is what stops it from being the minimum `dirty` takes, which would
+        // drop a correction for a later tick that still can.
+        if self.ring.earliest().is_some_and(|earliest| tick < earliest) {
+            self.stale += 1;
+            return;
+        }
+        self.dirty = Some(self.dirty.map_or(tick, |at| at.min(tick)));
     }
 
     /// How many inputs arrived too late to be answered.
@@ -185,6 +218,15 @@ impl Session {
     #[must_use]
     pub const fn stale_inputs(&self) -> u64 {
         self.stale
+    }
+
+    /// How many journalled inputs the session is holding, arrived and used.
+    ///
+    /// A session runs for hours off a wire it does not control, so this is
+    /// the number that says the journal is bounded rather than growing.
+    #[must_use]
+    pub fn journal_len(&self) -> usize {
+        self.arrived.len() + self.used.len()
     }
 
     /// What the world digested to at the end of `tick`.
@@ -262,6 +304,8 @@ impl Session {
         // never change and nobody can still be asking about it.
         if let Some(earliest) = self.ring.earliest() {
             self.digests.retain(|at, _| *at >= earliest);
+            prune(&mut self.arrived, earliest);
+            prune(&mut self.used, earliest);
         }
     }
 
@@ -289,6 +333,20 @@ impl Session {
             .find(|((_, id), _)| *id == player)
             .map_or(Value::Nil, |(_, value)| value.clone())
     }
+}
+
+/// Drop every entry below `earliest`, keeping each player's newest.
+///
+/// [`Session::predict`] repeats a player's last input, so a player who has
+/// gone quiet still needs one to repeat; everything older is a tick nothing
+/// can re-run and nobody can ask about.
+fn prune(journal: &mut BTreeMap<(u64, PlayerId), Input>, earliest: u64) {
+    // Keys ascend, so the last one written per player is that player's newest.
+    let mut newest: BTreeMap<PlayerId, u64> = BTreeMap::new();
+    for &(tick, player) in journal.keys().take_while(|(tick, _)| *tick < earliest) {
+        newest.insert(player, tick);
+    }
+    journal.retain(|&(tick, player), _| tick >= earliest || newest.get(&player) == Some(&tick));
 }
 
 fn set_clock(eng: &Engine, tick: u64, settled: u64) {

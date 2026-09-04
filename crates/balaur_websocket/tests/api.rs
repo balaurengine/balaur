@@ -351,7 +351,7 @@ fn the_websocket_table_of_the_manifest_sets_the_defaults() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"t\"\nmain_scene = \"scenes/main.toml\"\n\n[websocket]\ncompression = false\n",
+        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n\n[websocket]\ncompression = false\n",
     )
     .unwrap();
     let app = app_with_websocket(dir.path());

@@ -21,7 +21,7 @@ use balaur_core::{entity_of, Engine, Transform};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
-use crate::vocabulary::{map, Opts};
+use crate::vocabulary::map;
 use crate::{PhysicsState, FIXED_DT};
 
 /// The schema both dimensions share. `up` is the one property whose shape
@@ -105,11 +105,8 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
         let state = eng.resource::<PhysicsState>();
         let mut state = state.borrow_mut();
         let state = &mut *state;
-        let handle = *state
-            .colliders
-            .get(&entity)
-            .and_then(|handles| handles.first())
-            .ok_or_else(|| anyhow!("a character needs a collider3d to move with"))?;
+        let handle = crate::collider::first_collider(state, entity)
+            .map_err(|_| anyhow!("a character needs a collider3d to move with"))?;
         let (shape, pose) = {
             let collider = &state.world.colliders[handle];
             (collider.shared_shape().clone(), *collider.position())
@@ -150,6 +147,10 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
     };
 
     apply_movement(eng, entity, movement.translation);
+    {
+        let state = eng.resource::<PhysicsState>();
+        state.borrow_mut().grounded.insert(entity, movement.grounded);
+    }
     Ok(map([
         ("x", Value::Num(f64::from(movement.translation.x))),
         ("y", Value::Num(f64::from(movement.translation.y))),
@@ -183,7 +184,9 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector) {
     // every sweep is cast from the wrong place — it walks through walls.
     let handles = state.colliders.get(&entity).cloned().unwrap_or_default();
     for handle in handles {
-        state.world.colliders[handle].set_position(pose);
+        if let Some(collider) = state.world.colliders.get_mut(handle) {
+            collider.set_position(pose);
+        }
     }
     state.queries_ready = false;
 }
@@ -233,14 +236,13 @@ pub(crate) fn install_character_api(m: &mut dyn Bindings<Engine>) {
             move_character(eng, entity_of(node)?, scalar::v3(x, y, z))
         },
     );
-    // A move away from nothing: what a script asks when it wants the answer
-    // without the motion, such as before a jump.
+    // A reader, not a move: sweeping a zero translation would still snap to
+    // ground, write the transform and push bodies, so asking would simulate.
     m.function("is_grounded", |eng: &Engine, node: NodeId| {
-        let value = move_character(eng, entity_of(node)?, Vector::ZERO)?;
-        Ok(matches!(
-            Opts(Some(&value)).get("grounded"),
-            Some(Value::Bool(true))
-        ))
+        let entity = entity_of(node)?;
+        let state = eng.resource::<PhysicsState>();
+        let grounded = state.borrow().grounded.get(&entity).copied();
+        Ok(grounded.unwrap_or(false))
     });
 }
 

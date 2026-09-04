@@ -44,6 +44,8 @@ pub type Pose = Vec<TrackValue>;
 /// playback has run off the end.
 ///
 /// Only [`Wrap::None`] ever ends; a looping clip answers `false` forever.
+/// The end asked about is the far one: a caller running time backwards has
+/// its own start to test, because a still playhead at zero has not ended.
 #[must_use]
 pub fn clip_time(clip: &Clip, elapsed: f32) -> (f32, bool) {
     let length = clip.length;

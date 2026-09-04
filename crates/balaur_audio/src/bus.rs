@@ -36,6 +36,16 @@ pub struct Bus {
     pub parent: String,
 }
 
+/// The bus one feeds: an empty parent means `master`, which every chain ends
+/// at whether or not the project spelled it.
+fn parent_of(bus: &Bus) -> &str {
+    if bus.parent.is_empty() {
+        MASTER
+    } else {
+        &bus.parent
+    }
+}
+
 /// Every declared bus, and the live volumes a game has since set.
 pub struct Buses {
     buses: BTreeMap<String, Bus>,
@@ -61,23 +71,47 @@ impl Default for Buses {
 
 impl Buses {
     /// The gain a sound on this bus is multiplied by: its bus's volume and
-    /// every one above it.
+    /// every one above it, `master` included.
     ///
     /// A name nobody declared is 1.0 rather than 0.0 — a typo should leave a
     /// sound audible and findable, not silently delete it.
     #[must_use]
     pub fn gain(&self, name: &str) -> f32 {
-        let mut gain = 1.0;
         let mut at = if name.is_empty() { MASTER } else { name };
+        if !self.buses.contains_key(at) {
+            return 1.0;
+        }
+        let mut gain = 1.0;
         for _ in 0..MAX_DEPTH {
             let Some(bus) = self.buses.get(at) else { break };
             gain *= bus.volume;
-            if bus.parent.is_empty() {
+            if at == MASTER {
                 break;
             }
-            at = &bus.parent;
+            at = parent_of(bus);
         }
         gain
+    }
+
+    /// Whether a sound on `name` passes through `ancestor` — the question a
+    /// slider asks: does moving this bus move that sound?
+    #[must_use]
+    pub fn feeds(&self, name: &str, ancestor: &str) -> bool {
+        let ancestor = if ancestor.is_empty() { MASTER } else { ancestor };
+        let mut at = if name.is_empty() { MASTER } else { name };
+        for _ in 0..MAX_DEPTH {
+            if at == ancestor {
+                return self.buses.contains_key(at);
+            }
+            let Some(bus) = self.buses.get(at) else {
+                return false;
+            };
+            if at == MASTER {
+                return false;
+            }
+            at = parent_of(bus);
+        }
+        false
     }
 
     /// One bus's own volume, without its parents'.
@@ -180,22 +214,42 @@ fn validate(buses: &mut Buses) {
     for name in names {
         let mut at = name.clone();
         let mut seen = vec![at.clone()];
+        let mut ended = false;
         for _ in 0..MAX_DEPTH {
             let Some(parent) = buses.buses.get(&at).map(|b| b.parent.clone()) else {
+                ended = true;
                 break;
             };
             if parent.is_empty() {
+                ended = true;
+                break;
+            }
+            if !buses.buses.contains_key(&parent) {
+                tracing::warn!("audio bus '{at}' names a parent '{parent}' nothing declares; feeding it to master");
+                detach(buses, &at);
+                ended = true;
                 break;
             }
             if seen.contains(&parent) {
                 tracing::warn!("audio bus '{name}' feeds a cycle through '{parent}'; cutting it");
-                if let Some(bus) = buses.buses.get_mut(&at) {
-                    bus.parent = String::new();
-                }
+                detach(buses, &at);
+                ended = true;
                 break;
             }
             seen.push(parent.clone());
             at = parent;
         }
+        if !ended {
+            tracing::warn!(
+                "audio bus '{name}' is nested more than {MAX_DEPTH} deep; the chain above '{at}' is ignored"
+            );
+        }
+    }
+}
+
+/// Feed a bus straight to `master`, which is what cutting a bad parent means.
+fn detach(buses: &mut Buses, name: &str) {
+    if let Some(bus) = buses.buses.get_mut(name) {
+        bus.parent = String::new();
     }
 }

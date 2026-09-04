@@ -87,6 +87,9 @@ pub struct PhysicsState {
     /// Beside the world because rapier's vehicle controller is rebuilt every
     /// step (see [`vehicle`]).
     pub wheel_inputs: DetHashMap<Entity, vehicle::WheelInput>,
+    /// What the last `move_character` found under each character's feet, so
+    /// `is_grounded` can answer without sweeping the shape again.
+    pub grounded: DetHashMap<Entity, bool>,
     /// Whether the broad phase's tree matches the colliders.
     ///
     /// Rapier builds it during a step, so a world that has not stepped yet has
@@ -116,6 +119,7 @@ impl PhysicsState {
             paused: false,
             queries_ready: false,
             wheel_inputs: DetHashMap::default(),
+            grounded: DetHashMap::default(),
             shape_revision: 0,
             sleeping_allowed: true,
         }
@@ -263,9 +267,13 @@ fn build_physics_digest(reg: &mut Registry<'_>) {
 #[derive(serde::Deserialize)]
 struct PhysicsFrame {
     world: PhysicsWorld,
-    bodies: Vec<(u64, RigidBodyHandle)>,
-    colliders: Vec<(u64, Vec<ColliderHandle>)>,
-    joints: Vec<(u64, joint::JointRef)>,
+    bodies: Vec<(NodeKey, RigidBodyHandle)>,
+    colliders: Vec<(NodeKey, Vec<ColliderHandle>)>,
+    joints: Vec<(NodeKey, joint::JointRef)>,
+    collider_params: Vec<(NodeKey, toml::Value)>,
+    joint_params: Vec<(NodeKey, toml::Value)>,
+    wheel_inputs: Vec<(NodeKey, vehicle::WheelInput)>,
+    grounded: Vec<(NodeKey, bool)>,
     shape_revision: u64,
     paused: bool,
     sleeping_allowed: bool,
@@ -276,74 +284,130 @@ struct PhysicsFrame {
 #[derive(serde::Serialize)]
 struct PhysicsFrameRef<'a> {
     world: &'a PhysicsWorld,
-    bodies: Vec<(u64, RigidBodyHandle)>,
-    colliders: Vec<(u64, Vec<ColliderHandle>)>,
-    joints: Vec<(u64, joint::JointRef)>,
+    bodies: Vec<(NodeKey, RigidBodyHandle)>,
+    colliders: Vec<(NodeKey, Vec<ColliderHandle>)>,
+    joints: Vec<(NodeKey, joint::JointRef)>,
+    collider_params: Vec<(NodeKey, toml::Value)>,
+    joint_params: Vec<(NodeKey, toml::Value)>,
+    wheel_inputs: Vec<(NodeKey, vehicle::WheelInput)>,
+    grounded: Vec<(NodeKey, bool)>,
     shape_revision: u64,
     paused: bool,
     sleeping_allowed: bool,
 }
 
+/// How a snapshot names a node: its [`balaur_core::ids`] id, and its entity
+/// bits for a tree built by hand. Entity bits alone would not survive a
+/// respawn, which mints a new entity for the same node.
+pub(crate) type NodeKey = (String, u64);
+
+pub(crate) fn key_of(world: &balaur_core::hecs::World, entity: Entity) -> NodeKey {
+    (
+        balaur_core::ids::of(world, entity).unwrap_or_default(),
+        entity.to_bits().get(),
+    )
+}
+
+/// The map a snapshot row belongs to, as keys a respawn cannot invalidate.
+pub(crate) fn keyed<V: Clone>(
+    world: &balaur_core::hecs::World,
+    map: &DetHashMap<Entity, V>,
+) -> Vec<(NodeKey, V)> {
+    map.iter()
+        .map(|(entity, value)| (key_of(world, *entity), value.clone()))
+        .collect()
+}
+
+/// The node a key names now, which is a different entity after a respawn.
+pub(crate) fn resolve_key(eng: &Engine, key: &NodeKey) -> Option<Entity> {
+    let root = eng.root();
+    let world = eng.world();
+    if !key.0.is_empty() {
+        if let Some(entity) = balaur_core::ids::find(&world, root, &key.0) {
+            return Some(entity);
+        }
+    }
+    let entity = Entity::from_bits(key.1)?;
+    world.contains(entity).then_some(entity)
+}
+
+pub(crate) fn resolved<V>(eng: &Engine, rows: Vec<(NodeKey, V)>) -> DetHashMap<Entity, V> {
+    rows.into_iter()
+        .filter_map(|(key, value)| Some((resolve_key(eng, &key)?, value)))
+        .collect()
+}
+
+fn save_physics(eng: &Engine) -> serde_json::Value {
+    let state = eng.resource::<PhysicsState>();
+    let state = state.borrow();
+    let world = eng.world();
+    let frame = PhysicsFrameRef {
+        world: &state.world,
+        bodies: keyed(&world, &state.bodies),
+        colliders: keyed(&world, &state.colliders),
+        joints: keyed(&world, &state.joints),
+        collider_params: keyed(&world, &state.collider_params),
+        joint_params: keyed(&world, &state.joint_params),
+        wheel_inputs: keyed(&world, &state.wheel_inputs),
+        grounded: keyed(&world, &state.grounded),
+        shape_revision: state.shape_revision,
+        paused: state.paused,
+        sleeping_allowed: state.sleeping_allowed,
+    };
+    serde_json::to_value(frame).unwrap_or(serde_json::Value::Null)
+}
+
+fn load_physics(eng: &Engine, value: &serde_json::Value) {
+    let frame: PhysicsFrame = match serde_json::from_value(value.clone()) {
+        Ok(frame) => frame,
+        Err(e) => {
+            tracing::error!(error = %e, "restoring the physics world");
+            return;
+        }
+    };
+    let bodies = resolved(eng, frame.bodies);
+    let colliders = resolved(eng, frame.colliders);
+    let joints = resolved(eng, frame.joints);
+    let collider_params = resolved(eng, frame.collider_params);
+    let joint_params = resolved(eng, frame.joint_params);
+    let wheel_inputs = resolved(eng, frame.wheel_inputs);
+    let grounded = resolved(eng, frame.grounded);
+    let state = eng.resource::<PhysicsState>();
+    let mut state = state.borrow_mut();
+    state.world = frame.world;
+    state.shape_revision = frame.shape_revision;
+    state.paused = frame.paused;
+    state.sleeping_allowed = frame.sleeping_allowed;
+    state.bodies = bodies;
+    state.colliders = colliders;
+    state.joints = joints;
+    state.collider_params = collider_params;
+    state.joint_params = joint_params;
+    state.wheel_inputs = wheel_inputs;
+    state.grounded = grounded;
+    restamp_collider_owners(&mut state);
+}
+
+/// Point every restored collider at the entity its node has *now*.
+///
+/// The id rides in a collider's `user_data`, so a world deserialised from
+/// before a respawn names an entity that no longer exists — and every event
+/// and query reads that field.
+fn restamp_collider_owners(state: &mut PhysicsState) {
+    for (entity, handles) in &state.colliders {
+        for &handle in handles {
+            let Some(collider) = state.world.colliders.get_mut(handle) else {
+                continue;
+            };
+            // The one-way platform's axis rides above the entity bits.
+            let flags = collider.user_data & !u128::from(u64::MAX);
+            collider.user_data = flags | u128::from(entity.to_bits().get());
+        }
+    }
+}
+
 fn build_physics_snapshot(reg: &mut Registry<'_>) {
-    reg.add_snapshot_source(
-        "physics",
-        |eng| {
-            let state = eng.resource::<PhysicsState>();
-            let state = state.borrow();
-            let frame = PhysicsFrameRef {
-                world: &state.world,
-                bodies: state
-                    .bodies
-                    .iter()
-                    .map(|(e, h)| (e.to_bits().get(), *h))
-                    .collect(),
-                colliders: state
-                    .colliders
-                    .iter()
-                    .map(|(e, h)| (e.to_bits().get(), h.clone()))
-                    .collect(),
-                joints: state
-                    .joints
-                    .iter()
-                    .map(|(e, j)| (e.to_bits().get(), *j))
-                    .collect(),
-                shape_revision: state.shape_revision,
-                paused: state.paused,
-                sleeping_allowed: state.sleeping_allowed,
-            };
-            serde_json::to_value(frame).unwrap_or(serde_json::Value::Null)
-        },
-        |eng, value| {
-            let frame: PhysicsFrame = match serde_json::from_value(value.clone()) {
-                Ok(frame) => frame,
-                Err(e) => {
-                    tracing::error!(error = %e, "restoring the physics world");
-                    return;
-                }
-            };
-            let state = eng.resource::<PhysicsState>();
-            let mut state = state.borrow_mut();
-            state.world = frame.world;
-            state.shape_revision = frame.shape_revision;
-            state.paused = frame.paused;
-            state.sleeping_allowed = frame.sleeping_allowed;
-            state.bodies = frame
-                .bodies
-                .into_iter()
-                .filter_map(|(bits, h)| Some((Entity::from_bits(bits)?, h)))
-                .collect();
-            state.colliders = frame
-                .colliders
-                .into_iter()
-                .filter_map(|(bits, h)| Some((Entity::from_bits(bits)?, h)))
-                .collect();
-            state.joints = frame
-                .joints
-                .into_iter()
-                .filter_map(|(bits, j)| Some((Entity::from_bits(bits)?, j)))
-                .collect();
-        },
-    );
+    reg.add_snapshot_source("physics", save_physics, load_physics);
 }
 
 /// The 3D body presets. Both dimensions carry their marker (D5).
@@ -378,7 +442,55 @@ pub(crate) fn node_pose(eng: &Engine, entity: Entity) -> Result<scalar::Pose> {
     Ok(scalar::pose_of(global.position, global.rotation))
 }
 
+/// Drop everything a freed node left behind, in every map the plugin owns.
+///
+/// Before the pause check on purpose: an editor sits paused, and a handle
+/// left behind by a free is one script call away from indexing rapier's arena.
+pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState) {
+    let world = eng.world();
+    let before = state.world.colliders.len();
+    state.bodies.retain(|&entity, handle| {
+        if world.contains(entity) {
+            return true;
+        }
+        state.world.remove_body(*handle);
+        false
+    });
+    // Rapier drops a body's colliders with the body, so a handle here can be
+    // stale even when its node is alive.
+    state.colliders.retain(|&entity, handles| {
+        let alive = world.contains(entity);
+        handles.retain(|&handle| {
+            if alive && state.world.colliders.contains(handle) {
+                return true;
+            }
+            state.world.remove_collider(handle);
+            false
+        });
+        !handles.is_empty()
+    });
+    state.joints.retain(|&entity, reference| {
+        if !world.contains(entity) {
+            joint::drop_joint(&mut state.world, reference);
+            return false;
+        }
+        joint::is_live(&state.world, reference)
+    });
+    state.collider_params.retain(|e, _| world.contains(*e));
+    state.joint_params.retain(|e, _| world.contains(*e));
+    state.wheel_inputs.retain(|e, _| world.contains(*e));
+    state.grounded.retain(|e, _| world.contains(*e));
+    if state.world.colliders.len() != before {
+        state.queries_ready = false;
+    }
+}
+
 fn step_system(eng: &Engine, _dt: f32) {
+    {
+        let state = eng.resource::<PhysicsState>();
+        let mut state = state.borrow_mut();
+        prune_freed_nodes(eng, &mut state);
+    }
     resolve_pending_joints(eng);
     let events = {
         let state = eng.resource::<PhysicsState>();
@@ -388,16 +500,9 @@ fn step_system(eng: &Engine, _dt: f32) {
             return;
         }
 
-        // Prune bodies whose node died, and feed kinematic targets in.
+        // Feed the kinematic bodies their targets before the step reads them.
         {
             let world = eng.world();
-            state.bodies.retain(|&entity, handle| {
-                if !world.contains(entity) {
-                    state.world.remove_body(*handle);
-                    return false;
-                }
-                true
-            });
             for (&entity, &handle) in &state.bodies {
                 let body = &mut state.world.bodies[handle];
                 if body.is_kinematic() {
@@ -556,6 +661,8 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
         state.joints.clear();
         state.collider_params.clear();
         state.joint_params.clear();
+        state.wheel_inputs.clear();
+        state.grounded.clear();
         drop(state);
         dim2::clear(eng);
         Ok(())

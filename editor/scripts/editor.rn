@@ -35,6 +35,10 @@ mod theme;
 mod util;
 mod viewport;
 
+// Below this many design pixels wide the shell drops every label its icon
+// already says.
+const COMPACT_W = 1240.0;
+
 pub fn init(this) {
     let S = #{
         persona: "scene",
@@ -57,7 +61,6 @@ pub fn init(this) {
         palette_submit: false,
         chip_state: #{},
         compact: false,
-        version: "0.1.0",
         ui_scale: 1.25,
         script_buffers: #{},
         schemas: #{},
@@ -88,12 +91,20 @@ pub fn init(this) {
         mode2d: false,
         refs: [],
         sources: #{},
+        // The edited scene's whole document, so a save keeps what the editor
+        // does not model and the mirror sees its `[[assets]]`.
+        scene_doc: #{},
         listings: #{},
         clip: None,
         hooks_src: "",
         hooks_live: [],
         log_level: "all",
         log_query: "",
+        // Per-frame and per-session caches, built on first use.
+        log_cache: (),
+        panels: (),
+        palette_cache: (),
+        brand: (),
         mirror: (),
         theme: theme::dark(),
         gizmo: gizmo::state(),
@@ -118,6 +129,9 @@ pub fn init(this) {
 
     model::load(S);
     plugins::load(S);
+    // Before the theme and the scale are pushed: the preferences decide both,
+    // and until this ran they only took effect once Settings was opened.
+    settings::load_files(S);
     theme::apply(S);
     render::set_app_icon("assets/balaur-logo.png");
     ui::set_scale(S.ui_scale);
@@ -196,6 +210,9 @@ pub fn update(this, dt) {
     if S.layout_demo >= 0 {
         selftest::layout_step(S);
     }
+    if S.settings.demo >= 0 {
+        selftest::settings_step(S);
+    }
     showcase::step(S);
     // A replay or a showcase feeds the pointer into the snapshot the viewport
     // tools read, so a drag would follow the feed rather than the mouse.
@@ -249,7 +266,10 @@ pub fn draw_ui(this) {
     let (sw, sh) = ui::screen_size();
     S.screen_w = sw;
     S.screen_h = sh;
-    S.compact = sw < 1240.0;
+    // Either forces it on: the setting asks for it at any width, and a narrow
+    // window asks for it whatever the setting says.
+    let compact = S.settings.compact || sw < COMPACT_W;
+    S.compact = compact;
 
     // Global shortcuts.
     if ui::shortcut("cmd", "K") {
@@ -270,6 +290,9 @@ pub fn draw_ui(this) {
     }
     if ui::shortcut("cmd", "Minus") {
         shell::set_ui_scale(S, S.ui_scale - 0.125);
+    }
+    if ui::shortcut("cmd", "Comma") {
+        settings::open(S);
     }
     // Debugger keys work with the code editor focused: they are not text.
     if S.debug.paused is Object {
@@ -299,6 +322,17 @@ pub fn draw_ui(this) {
         if ui::shortcut("shift", "A") {
             model::add_child(S, None);
         }
+        if ui::shortcut("alt", "S") {
+            shell::attach_script(S);
+        }
+        if ui::shortcut("shift", "R") {
+            shell::reload_scripts(S);
+        }
+        // ⌘V is read from the paste event above; the clipboard cannot be read
+        // on demand, so only the copy half is a chord.
+        if ui::shortcut("cmd", "C") {
+            ui::set_clipboard(model::copy_selected(S));
+        }
         // Gated with the rest, so typing in the code editor keeps egui's own
         // per-widget undo; redo first, to claim the shifted chord.
         if ui::shortcut("shift+cmd", "Z") || ui::shortcut("cmd", "Y") {
@@ -321,7 +355,6 @@ pub fn draw_ui(this) {
     // Stage: decide what is showing, size every sheet once, then draw them.
     // Nothing below computes a rect of its own.
     center::modes(S);
-    S.layout.dock_h = if docks::bottom_tall(S) { 212.0 } else { 150.0 };
     layout::compute(S);
     center::draw(S);
     for side in docks::sides() {

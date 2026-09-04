@@ -10,7 +10,7 @@ fn project(name: &str, manifest_extra: &str, files: &[(&str, &str)]) -> tempfile
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        format!("name = \"{name}\"\nmain_scene = \"main.toml\"\n{manifest_extra}"),
+        format!("[application]\nname = \"{name}\"\nmain_scene = \"main.toml\"\n{manifest_extra}"),
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
@@ -156,7 +156,7 @@ fn an_old_save_is_brought_forward_one_version_at_a_time() {
     std::fs::write(
         dir.path().join("project.toml"),
         format!(
-            "name = \"{name}\"\nmain_scene = \"main.toml\"\n\n\
+            "[application]\nname = \"{name}\"\nmain_scene = \"main.toml\"\n\n\
              [save]\nversion = 3\nmigrate = \"scripts/saves.rn\"\n"
         ),
     )
@@ -183,7 +183,9 @@ fn a_save_from_a_newer_build_is_refused() {
 
     std::fs::write(
         dir.path().join("project.toml"),
-        format!("name = \"{name}\"\nmain_scene = \"main.toml\"\n\n[save]\nversion = 2\n"),
+        format!(
+            "[application]\nname = \"{name}\"\nmain_scene = \"main.toml\"\n\n[save]\nversion = 2\n"
+        ),
     )
     .unwrap();
     let app = app_in(dir.path());
@@ -205,7 +207,9 @@ fn a_migration_with_no_script_says_so() {
 
     std::fs::write(
         dir.path().join("project.toml"),
-        format!("name = \"{name}\"\nmain_scene = \"main.toml\"\n\n[save]\nversion = 2\n"),
+        format!(
+            "[application]\nname = \"{name}\"\nmain_scene = \"main.toml\"\n\n[save]\nversion = 2\n"
+        ),
     )
     .unwrap();
     let app = app_in(dir.path());

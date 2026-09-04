@@ -126,3 +126,65 @@ fn ticking_advances_the_clock_by_the_step_given() {
     app.tick(1.0 / 60.0);
     assert!((app.engine.time() - 2.0 / 60.0).abs() < 1e-6);
 }
+
+struct Mark;
+
+/// Which nodes a component's `remove` hook ran for, in the order it ran.
+#[derive(Default)]
+struct Removed(Vec<balaur_core::hecs::Entity>);
+
+/// An app with one component whose `remove` hook records that it ran: physics
+/// prunes its colliders from exactly this hook, and nothing else tells it a
+/// node is gone.
+fn app_with_mark() -> App {
+    let mut app = app();
+    app.engine.insert_resource(Removed::default());
+    app.register_component(
+        "mark",
+        balaur_core::components::ComponentDef {
+            doc: "",
+            schema: balaur_core::components::ComponentDef::parse_schema(
+                "mark",
+                r#"on = { type = "bool", default = true }"#,
+            ),
+            tags: &[],
+            expects: &[],
+            apply: Box::new(|eng: &Engine, entity, _| {
+                eng.world_mut()
+                    .insert_one(entity, Mark)
+                    .map_err(|_| anyhow::anyhow!("dead node"))?;
+                Ok(())
+            }),
+            remove: Box::new(|eng: &Engine, entity| {
+                eng.resource::<Removed>().borrow_mut().0.push(entity);
+                let _ = eng.world_mut().remove_one::<Mark>(entity);
+                Ok(())
+            }),
+            get: Box::new(|eng: &Engine, entity| {
+                eng.world()
+                    .get::<&Mark>(entity)
+                    .ok()
+                    .map(|_| toml::Value::Table(toml::map::Map::new()))
+            }),
+        },
+    );
+    app
+}
+
+#[test]
+fn freeing_a_node_runs_the_remove_hook_on_it_and_on_its_children() {
+    let mut app = app_with_mark();
+    let root = app.engine.root();
+    let parent = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "P", root);
+    let child = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "C", parent);
+    for entity in [parent, child] {
+        balaur_core::components::add(&app.engine, entity, "mark", None).unwrap();
+    }
+
+    app.engine.push_command(Command::Free(parent));
+    app.tick(0.0);
+
+    let removed = app.engine.resource::<Removed>().borrow().0.clone();
+    assert!(removed.contains(&parent), "the freed node itself");
+    assert!(removed.contains(&child), "and every node under it");
+}

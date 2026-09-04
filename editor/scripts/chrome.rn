@@ -3,6 +3,9 @@
 // Brand and transport get the same width so the personas land centred.
 const SIDE_W = 104.0;
 const PAD_X = 10.0;
+// The transport's three buttons: 28 px each on 4 px spacing, in a 96 px block.
+const BUTTON_PITCH = 32.0;
+const BLOCK_W = 96.0;
 
 use crate::defs;
 use crate::icons;
@@ -22,18 +25,50 @@ fn brand_logo(S) {
     ""
 }
 
+// Answered once per session: whether the project ships a mark is three disk
+// reads, and the persona bar asked for them on every frame it drew.
 fn brand(S) {
-    let logo = brand_logo(S);
-    // `return`: a bare tuple after an `if` block parses as a call on the
-    // block's value.
-    if logo == "" {
-        return ("assets/balaur-logo.png", "balaur");
+    let found = S.brand;
+    if !(found is Object) {
+        let logo = brand_logo(S);
+        found = if logo == "" {
+            #{ logo: "assets/balaur-logo.png", name: "balaur" }
+        } else {
+            #{ logo: logo, name: S.game_name }
+        };
+        S.brand = found;
     }
-    return (logo, S.game_name);
+    found
 }
 
 fn plural(n, word) {
     if n == 1 { word } else { word + "s" }
+}
+
+/// Where one persona pill's centre lands in the bar, in design px. The bar is
+/// brand, personas, transport, and the two ends are the fixed ones — so the
+/// showcase's drawn cursor can be put on the pill its verb presses.
+pub fn persona_spot(S, id) {
+    let bar = S.layout.bar;
+    let per = crate::layout::persona_w(S);
+    let all = defs::personas();
+    let slot = 0;
+    for (i, p) in all.iter().enumerate() {
+        if p.id == id {
+            slot = i;
+        }
+    }
+    let right = bar.x + bar.w - SIDE_W - PAD_X;
+    let left = right - (all.len() as f64) * per;
+    // `return`: a bare tuple after a block parses as a call on the block.
+    return (left + ((slot as f64) + 0.5) * per, bar.y + bar.h / 2.0);
+}
+
+/// Where one of the transport's three buttons sits: play, pause, stop.
+pub fn transport_spot(S, n) {
+    let bar = S.layout.bar;
+    let block = bar.x + bar.w - PAD_X - BLOCK_W;
+    (block + 14.0 + (n as f64) * BUTTON_PITCH, bar.y + bar.h / 2.0)
 }
 
 pub fn persona_bar(S) {
@@ -41,11 +76,11 @@ pub fn persona_bar(S) {
     style::bar(k, "persona", S.layout.bar, PAD_X, || {
         ui::horizontal(#{ height: 36 }, || {
             ui::add_space(2);
-            let (logo, name) = brand(S);
-            ui::image(logo, #{ height: 26, radius: 13, bg: "#ffffff", padding: 3 });
+            let mark = brand(S);
+            ui::image(mark.logo, #{ height: 26, radius: 13, bg: "#ffffff", padding: 3 });
             if !S.compact {
                 ui::add_space(7);
-                ui::label(name, #{ size: 16, font: "heading", color: k.text });
+                ui::label(mark.name, #{ size: 16, font: "heading", color: k.text });
             }
             ui::add_space(12);
             for p in defs::personas() {
@@ -119,6 +154,9 @@ fn transport(S, k) {
 pub fn command_bar(S) {
     let k = S.theme;
     let r = S.layout.cmd;
+    if !style::placed(r) {
+        return;
+    }
     ui::overlay("cmd", #{ x: r.x, y: r.y, w: r.w, h: r.h }, || {
         ui::horizontal(#{ height: 30 }, || {
             if ui::pill(if S.compact { "" } else { "Run a command" }, #{
@@ -143,7 +181,7 @@ pub fn command_bar(S) {
 pub fn status_row(S) {
     let k = S.theme;
     let r = S.layout.status;
-    if r.w <= 0.0 {
+    if !style::placed(r) {
         return;
     }
     ui::overlay("status", #{ x: r.x, y: r.y, w: r.w, h: r.h, padding_x: 10 }, || {

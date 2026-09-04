@@ -116,10 +116,12 @@ impl Model {
         self.buffers.get(buffer.index()).map(Vec::as_slice)
     }
 
-    /// The bytes of a buffer view, for an image the file embeds.
+    /// The bytes of a buffer view, for an image the file embeds. The end is
+    /// checked rather than added: both numbers come off the file.
     fn view_bytes(&self, view: &gltf::buffer::View<'_>) -> Option<&[u8]> {
         let data = self.buffer(&view.buffer())?;
-        data.get(view.offset()..view.offset() + view.length())
+        let end = view.offset().checked_add(view.length())?;
+        data.get(view.offset()..end)
     }
 
     fn local(&self, node: usize) -> Mat4 {
@@ -140,10 +142,8 @@ impl Model {
     /// The node's transform composed from the scene root.
     fn global(&self, node: usize) -> Mat4 {
         let mut matrix = self.local(node);
-        let mut current = self.parent[node];
-        while let Some(p) = current {
+        for p in self.ancestors(node) {
             matrix = self.local(p) * matrix;
-            current = self.parent[p];
         }
         matrix
     }
@@ -151,13 +151,25 @@ impl Model {
     /// Root-first chain of ancestors, the node itself last.
     fn lineage(&self, node: usize) -> Vec<usize> {
         let mut chain = vec![node];
-        let mut current = self.parent[node];
-        while let Some(p) = current {
-            chain.push(p);
-            current = self.parent[p];
-        }
+        chain.extend(self.ancestors(node));
         chain.reverse();
         chain
+    }
+
+    /// The node's ancestors, nearest first. Bounded because a file's node
+    /// graph is whatever the file says and a cycle would walk forever.
+    fn ancestors(&self, node: usize) -> Vec<usize> {
+        let mut out = Vec::new();
+        let mut current = self.parent[node];
+        while let Some(p) = current {
+            if out.len() >= self.parent.len() {
+                tracing::warn!(node, "the model's node parents form a cycle");
+                break;
+            }
+            out.push(p);
+            current = self.parent[p];
+        }
+        out
     }
 
     /// The deepest node that is every joint's ancestor or self: the rig

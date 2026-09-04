@@ -4,6 +4,10 @@
 use crate::style;
 use crate::util;
 
+// The search field this screen filters with; `crate::search` keys its own
+// buffer by the same id.
+const FIELD = "settings";
+
 pub fn state() {
     #{
         // The category showing, "" until the first is picked.
@@ -12,14 +16,26 @@ pub fn state() {
         dirty: false,
         // The search box. Non-empty means the list is results, not categories.
         query: "",
+        // What `editor/appearance/compact` asks for, which the window width
+        // can only add to.
+        compact: false,
+        // Where `--state settingsdemo` has got to; -1 when it is not running.
+        demo: -1,
     }
+}
+
+// The query lives in two places — this, and the search field's own buffer —
+// so whatever moves one writes both.
+fn set_query(S, text) {
+    S.settings.query = text;
+    S.search[FIELD] = text;
 }
 
 // Open on a search, for a screenshot or a "configure this" link that knows
 // the word but not the page.
 pub fn open_search(S, query) {
     open(S);
-    S.settings.query = query;
+    set_query(S, query);
 }
 
 // Open at a named category, for a screenshot or a deep link from a dock.
@@ -30,8 +46,13 @@ pub fn open_at(S, category) {
 
 pub fn open(S) {
     crate::window::show(S, "settings");
-    // Start from what the files actually say rather than the defaults, so an
-    // unsaved hand edit is not silently reverted on the next write.
+    load_files(S);
+}
+
+/// Read both settings files and apply what the editor acts on. Called at boot
+/// and again when the window opens, so a hand edit between the two is not
+/// silently reverted on the next write.
+pub fn load_files(S) {
     let manifest = fs::read(S.game_root + "/project.toml");
     if manifest is String {
         settings::load(manifest);
@@ -48,7 +69,7 @@ pub fn close(S) {
 }
 
 // The editor's own settings live beside its sessions, not in any project.
-fn prefs_path() {
+pub fn prefs_path() {
     engine::user_data_dir() + "/settings.toml"
 }
 
@@ -127,13 +148,19 @@ fn key_of(def) {
 
 // Write both files. Only the paths a scope defines are touched, so a comment
 // or an unrelated table in project.toml survives.
-fn commit(S) {
+pub fn commit(S) {
     let path = S.game_root + "/project.toml";
     let existing = fs::read(path);
     fs::write(path, settings::to_toml("project", if existing is String { existing } else { "" }));
+    commit_prefs(S);
+    S.settings.dirty = false;
+}
+
+/// The editor's half alone: what a self-test can round-trip without rewriting
+/// the game's manifest.
+pub fn commit_prefs(S) {
     let prefs = fs::read(prefs_path());
     fs::write(prefs_path(), settings::to_toml("editor", if prefs is String { prefs } else { "" }));
-    S.settings.dirty = false;
 }
 
 pub fn draw(S) {
@@ -158,7 +185,9 @@ fn save_button(S, k) {
 
 fn sidebar(S, k) {
     ui::vertical(|| {
-        S.settings.query = crate::search::field(S, k, "settings", "Search settings…", 190.0);
+        // The field owns the text while it is being typed; `set_query` owns it
+        // whenever anything else changes it.
+        S.settings.query = crate::search::field(S, k, FIELD, "Search settings…", 190.0);
         ui::add_space(10);
         let scope = "";
         for category in categories() {
@@ -178,7 +207,7 @@ fn sidebar(S, k) {
                 fill: if on { k.sunken } else { k.panel },
                 color: if on { k.text } else { k.dim },
             }) {
-                S.settings.query = "";
+                set_query(S, "");
                 S.settings.at = category;
             }
         }
@@ -256,7 +285,10 @@ fn edit(S, k, def) {
     } else if datatype == "float" {
         let low = util::f(spec.get("min").unwrap_or(0.0));
         let high = util::f(spec.get("max").unwrap_or(1.0));
-        let (v, changed) = ui::slider(util::f(value), low, high, #{ width: 220 });
+        // A setting declared with no default reads as nil, and `() as f64` is
+        // a runtime error; the slider starts at its floor instead.
+        let now = if value is Tuple { low } else { util::f(value) };
+        let (v, changed) = ui::slider(now, low, high, #{ width: 220 });
         if changed {
             write(S, def.path, v);
         }
@@ -283,7 +315,7 @@ fn edit(S, k, def) {
     }
 }
 
-fn write(S, path, value) {
+pub fn write(S, path, value) {
     settings::set(path, value);
     S.settings.dirty = true;
     apply(S);
@@ -300,9 +332,11 @@ pub fn apply(S) {
     if !(scale is Tuple) {
         crate::shell::set_ui_scale(S, util::f(scale));
     }
+    // Kept apart from `S.compact`, which the window width also writes: the
+    // setting forces compact on, it never forces it off.
     let compact = settings::get("editor/appearance/compact");
     if compact is bool {
-        S.compact = compact;
+        S.settings.compact = compact;
     }
     let verify = settings::get("editor/sessions/verify");
     if verify is bool {

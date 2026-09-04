@@ -166,7 +166,7 @@ fn str_option(args: &[Value], key: &str) -> String {
 }
 
 fn path_of(eng: &Engine, args: &[Value], i: usize) -> Result<std::path::PathBuf> {
-    Ok(crate::engine_api::resolve(eng, text(args, i)?))
+    crate::engine_api::resolve(eng, text(args, i)?)
 }
 
 /// `replay.record(path, { digest = false, scripts = "…" })`: start recording

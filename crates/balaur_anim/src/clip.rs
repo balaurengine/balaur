@@ -53,7 +53,7 @@ pub enum Wrap {
 }
 
 impl Wrap {
-    fn parse(text: &str) -> Result<Self> {
+    pub(crate) fn parse(text: &str) -> Result<Self> {
         match text {
             "none" => Ok(Self::None),
             "loop" => Ok(Self::Loop),
@@ -61,6 +61,15 @@ impl Wrap {
             other => Err(anyhow!(
                 "`loop = \"{other}\"` is not one of \"none\", \"loop\", \"pingpong\""
             )),
+        }
+    }
+
+    /// The name a document spells this mode with, and [`Wrap::parse`] reads.
+    pub(crate) const fn name(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Loop => "loop",
+            Self::PingPong => "pingpong",
         }
     }
 }
@@ -133,6 +142,22 @@ impl Property {
             },
         }
     }
+
+    /// How a document spells this property, or `None` for a method track,
+    /// which is a document leaving `property` out.
+    pub(crate) fn name(&self) -> Option<String> {
+        Some(match self {
+            Self::Position => "position".to_string(),
+            Self::RotationEuler => "rotation_euler".to_string(),
+            Self::Rotation => "rotation".to_string(),
+            Self::Scale => "scale".to_string(),
+            Self::Component {
+                component,
+                property,
+            } => format!("{component}/{property}"),
+            Self::Call => return None,
+        })
+    }
 }
 
 /// How a track gets from one key to the next.
@@ -146,7 +171,7 @@ pub enum Interp {
 }
 
 impl Interp {
-    fn parse(text: &str) -> Result<Self> {
+    pub(crate) fn parse(text: &str) -> Result<Self> {
         match text {
             "step" => Ok(Self::Step),
             "linear" => Ok(Self::Linear),
@@ -154,6 +179,15 @@ impl Interp {
             other => Err(anyhow!(
                 "`interp = \"{other}\"` is not one of \"step\", \"linear\", \"cubic\""
             )),
+        }
+    }
+
+    /// The name a document spells this mode with, and [`Interp::parse`] reads.
+    pub(crate) const fn name(self) -> &'static str {
+        match self {
+            Self::Step => "step",
+            Self::Linear => "linear",
+            Self::Cubic => "cubic",
         }
     }
 }

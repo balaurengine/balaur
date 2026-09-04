@@ -73,17 +73,33 @@ pub(crate) fn settle_rects() {
     });
 }
 
+/// The space inside a container's edge, in device pixels.
+///
+/// One rule, wherever a container is measured or drawn: the widget's own
+/// `padding` where it states one, else the theme's entry for its kind, else
+/// the built-in — 8 for a panel, which is the frame it has always drawn, and
+/// nothing for a box that only lays out.
+pub(crate) fn padding_of(widget: &Widget, style: &crate::widget_theme::Style, scale: f32) -> f32 {
+    let built_in = if widget.kind == "panel" { 8.0 } else { 0.0 };
+    let stated = if widget.padding > 0.0 {
+        widget.padding
+    } else {
+        style.padding.unwrap_or(built_in)
+    };
+    stated * scale
+}
+
 /// The frame a container paints from its theme entry. `fill` is what a kind
 /// shows when the theme says nothing — a panel has always had one, and a box
 /// that only clips should stay invisible until asked.
+/// The frame carries the look and no margin: `egui::Margin` is whole device
+/// pixels, and a caller shrinks its own rect by the float padding instead.
 fn themed_frame(
     style: &crate::widget_theme::Style,
     scale: f32,
     fill: Option<Color32>,
-    padding: f32,
-) -> (egui::Frame, egui::Margin) {
-    let margin = egui::Margin::same((style.padding.unwrap_or(padding) * scale) as i8);
-    let frame = egui::Frame::new()
+) -> egui::Frame {
+    egui::Frame::new()
         .fill(style.fill.or(fill).unwrap_or(Color32::TRANSPARENT))
         .corner_radius(egui::CornerRadius::same(
             (style.radius.unwrap_or(0.0) * scale) as u8,
@@ -93,8 +109,6 @@ fn themed_frame(
                 .stroke
                 .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_width, c)),
         )
-        .inner_margin(margin);
-    (frame, margin)
 }
 
 /// A scroll container: the box is the parent's to decide and the children are
@@ -118,9 +132,15 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         },
     );
     let style = at.theme.style(&widget.kind);
-    let (frame, margin) = themed_frame(&style, at.scale, None, 0.0);
-    let inner = (size - margin.sum()).max(egui::Vec2::ZERO);
+    let pad = padding_of(&widget, &style, at.scale);
+    let frame = themed_frame(&style, at.scale, None);
+    let inner = (size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);
     frame.show(ui, |ui| {
+        // The padding comes off the box in floats; the frame itself carries
+        // none, so a scroll at a fractional scale keeps the size it was given.
+        let held = ui.max_rect();
+        let mut ui = ui.new_child(egui::UiBuilder::new().max_rect(held.shrink(pad)));
+        let ui = &mut ui;
         hold_to(ui, inner);
         egui::ScrollArea::both()
             .id_salt(("balaur-scroll", entity))
@@ -149,7 +169,9 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let scale = at.scale;
     let widget = placed.widget.clone();
     let entity = placed.entity;
-    let pages: Vec<(usize, String)> = children
+    // Each page as (index, the name `active` holds, the strip's label). Two
+    // pages showing the same text are told apart by their node names.
+    let pages: Vec<(usize, String, String)> = children
         .iter()
         .map(|child| {
             let page = &at.arena[*child];
@@ -158,17 +180,20 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             } else {
                 page.widget.text.clone()
             };
-            (*child, label)
+            let name = if page.name.is_empty() {
+                label.clone()
+            } else {
+                page.name.clone()
+            };
+            (*child, name, label)
         })
         .collect();
     let showing = pages
         .iter()
-        .position(|(_, label)| *label == widget.active)
-        .or_else(|| {
-            pages
-                .iter()
-                .position(|(child, _)| at.arena[*child].name == widget.active)
-        })
+        .position(|(_, name, _)| *name == widget.active)
+        // A page's text is the older spelling of `active`, kept so a scene
+        // written before the schema said "by node name" still shows it.
+        .or_else(|| pages.iter().position(|(_, _, label)| *label == widget.active))
         .unwrap_or(0);
 
     let box_size = box_of(&widget, at.assigned, scale);
@@ -198,7 +223,7 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         .horizontal(|ui| {
             ui.spacing_mut().item_spacing = vec2(gap.max(4.0), 0.0);
             let mut chosen = None;
-            for (slot, (_, label)) in pages.iter().enumerate() {
+            for (slot, (_, name, label)) in pages.iter().enumerate() {
                 let on = slot == showing;
                 let mut button =
                     egui::Button::new(egui::RichText::new(label).font(font.clone()).color(color))
@@ -211,14 +236,14 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                     (false, _) => button.fill(Color32::TRANSPARENT),
                 };
                 if ui.add(button).clicked() {
-                    chosen = Some(label.clone());
+                    chosen = Some(name.clone());
                 }
             }
             chosen
         })
         .inner;
-    if let Some(label) = chosen {
-        at.edits.push((entity, Edit::Active(label)));
+    if let Some(name) = chosen {
+        at.edits.push((entity, Edit::Active(name)));
     }
     let strip_h = strip.min_rect().height();
 
@@ -311,10 +336,10 @@ fn asked_of(widget: &Widget, axis: Axis, scale: f32) -> (f32, f32) {
 pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
     let widget = &at.arena[index].widget;
     let scale = at.scale;
-    let pad = widget.padding * scale;
     // The padding comes off in floats rather than through a `Margin`, which
     // is whole device pixels: a 14 px gutter at 1.25 scale is not one, and
     // the truncation moved every sheet in the editor's shell by 0.4 px.
+    let pad = padding_of(widget, &at.theme.style(&widget.kind), scale);
     let box_size = box_of(widget, at.assigned, scale);
     let room = ui.max_rect();
     let outer = egui::Rect::from_min_size(

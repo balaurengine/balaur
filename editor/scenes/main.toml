@@ -29,6 +29,26 @@ parent = "shell"
 [nodes.widget]
 kind = "row"
 height = 36
+gap = 0
+
+# The persona bar is centred on the document column rather than the window, so
+# it takes this band's height and states no width of its own.
+[[nodes]]
+id = "band"
+name = "Band"
+parent = "head"
+[nodes.widget]
+kind = "row"
+grow = 1
+
+[[nodes]]
+id = "cmd"
+name = "Cmd"
+parent = "head"
+[nodes.widget]
+kind = "row"
+width = 168
+height = 30
 
 [[nodes]]
 id = "body"
@@ -80,16 +100,45 @@ id = "bottom"
 name = "Bottom"
 parent = "centre"
 [nodes.widget]
-kind = "row"
+kind = "column"
 height = 174
+gap = 0
+
+# What a dock panel may scroll, and the status strip sharing the same sheet so
+# a tall panel cannot push it off the bottom.
+[[nodes]]
+id = "dockbody"
+name = "DockBody"
+parent = "bottom"
+[nodes.widget]
+kind = "column"
+grow = 1
+
+[[nodes]]
+id = "status"
+name = "Status"
+parent = "bottom"
+[nodes.widget]
+kind = "row"
+height = 24
 
 [[nodes]]
 id = "railslot"
 name = "RailSlot"
 parent = "upper"
 [nodes.widget]
-kind = "row"
+kind = "column"
 width = 44
+
+# The rail is only as tall as its tools, so it takes the top of the slot
+# rather than the whole of it; `layout.rn` states the height.
+[[nodes]]
+id = "rail"
+name = "Rail"
+parent = "railslot"
+[nodes.widget]
+kind = "row"
+height = 42
 
 [[nodes]]
 id = "work"
@@ -127,10 +176,12 @@ parent = "canvas"
 kind = "row"
 grow = 1
 
+# The file's engine-facing surface, beside the code. `layout.rn` writes 0 here
+# when it is closed; this is what it opens back to.
 [[nodes]]
 id = "hooks"
 name = "Hooks"
 parent = "canvas"
 [nodes.widget]
 kind = "row"
-width = 0
+width = 172

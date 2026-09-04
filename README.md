@@ -106,7 +106,7 @@ Export fuses bytecode, scenes and assets onto the runtime: one self-contained bi
 
 **Built on Rust**
 
-Safe Rust throughout, and the ecosystem as it is: Rapier, wgpu, egui, rodio, Rune.
+Safe Rust, with `unsafe` only at the platform edges, and the ecosystem as it is: Rapier, wgpu, egui, rodio, Rune.
 
 </td>
 </tr>
@@ -118,7 +118,8 @@ Safe Rust throughout, and the ecosystem as it is: Rapier, wgpu, egui, rodio, Run
 cargo run -p balaur_cli -- new my-game
 cargo run -p balaur_cli -- run my-game                        # dev mode, hot reload on
 cargo run -p balaur_cli --features window -- edit my-game     # open in the editor
-cargo run -p balaur_cli -- export my-game --target linux-x64  # one file to ship
+cargo build --release -p balaur_cli                           # the runtime a game ships on
+cargo run -p balaur_cli -- export my-game --template target/release/balaur
 ```
 
 To see hot reload, run `cargo run -p balaur_cli -- run examples/hello

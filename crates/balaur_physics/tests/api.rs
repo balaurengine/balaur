@@ -350,3 +350,78 @@ fn an_unknown_collider_kind_is_refused_by_name() {
     );
     assert!(err.contains("blancmange"), "{err}");
 }
+
+/// A body with a collider under its own name, so a joint can point at it.
+fn named_body(app: &App, name: &str, kind: &str) -> Entity {
+    let root = app.engine.root();
+    let e = scene::spawn_node(&mut app.engine.world_mut(), name, root);
+    let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
+    components::add(&app.engine, e, "body3d", Some(&params)).unwrap();
+    let collider: toml::Value = toml::from_str("kind = \"ball\"\nradius = 0.5").unwrap();
+    components::add(&app.engine, e, "collider3d", Some(&collider)).unwrap();
+    e
+}
+
+fn joint_count(app: &App) -> usize {
+    let state = app.engine.resource::<balaur_physics::PhysicsState>();
+    let n = state.borrow().joints.len();
+    n
+}
+
+/// Rapier drops a joint with either end's body, so the map must drop the
+/// handle too: otherwise the joint silently disappears and never comes back.
+#[test]
+fn a_joint_is_remade_when_the_body_it_lost_returns() {
+    let mut app = app();
+    let anchor = named_body(&app, "Anchor", "static");
+    let hanging = named_body(&app, "Hanging", "dynamic");
+    components::add(
+        &app.engine,
+        hanging,
+        "joint3d",
+        Some(&toml::from_str("kind = \"revolute\"\nbody = \"/Anchor\"").unwrap()),
+    )
+    .unwrap();
+    app.tick(1.0 / 60.0);
+    assert_eq!(joint_count(&app), 1, "the joint was never made");
+
+    components::remove(&app.engine, anchor, "body3d").unwrap();
+    app.tick(1.0 / 60.0);
+    assert_eq!(joint_count(&app), 0, "the handle outlived the body");
+
+    components::add(
+        &app.engine,
+        anchor,
+        "body3d",
+        Some(&toml::from_str("kind = \"static\"").unwrap()),
+    )
+    .unwrap();
+    app.tick(1.0 / 60.0);
+    assert_eq!(joint_count(&app), 1, "the authored joint never came back");
+}
+
+/// A joint switched off has params and no handle for ever, so the retry list
+/// would hold it and re-apply the whole component every step.
+#[test]
+fn a_disabled_joint_is_not_retried_every_step() {
+    let mut app = app();
+    let _anchor = named_body(&app, "Anchor", "static");
+    let hanging = named_body(&app, "Hanging", "dynamic");
+    components::add(
+        &app.engine,
+        hanging,
+        "joint3d",
+        Some(&toml::from_str("kind = \"revolute\"\nbody = \"/Anchor\"\nenabled = false").unwrap()),
+    )
+    .unwrap();
+    for _ in 0..5 {
+        app.tick(1.0 / 60.0);
+    }
+    let state = app.engine.resource::<balaur_physics::PhysicsState>();
+    let state = state.borrow();
+    assert!(state.joints.is_empty(), "a disabled joint was made anyway");
+    assert!(
+        balaur_physics::joint::pending(&state).is_empty(),
+        "a disabled joint is on the retry list, so it re-applies every step"
+    );
+}

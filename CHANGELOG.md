@@ -66,6 +66,7 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Record and replay: `run --record`, `replay --verify` / `--entries-at`.
 - Rollback on one machine: snapshot ring, input journal, re-simulation from a late input.
 - Rollback across spawns: run-time nodes get stable ids and the node set is restored.
+- `project.toml` puts what the game is under `[application]`: `name`, `main_scene`, `language` and `assets`. `[plugins]` stays its own table. The file now reads the way the settings screen addresses it, `application/name` being `[application] name`; a manifest with those keys at the top level no longer loads.
 - A settings screen. Every setting the engine, its plugins and a game declare is addressed by path the way Godot does it — `physics/solver_iterations`, `editor/appearance/theme` — and the path is also where it is stored in the file. Project settings ship with the game; editor settings never leave the machine. Searchable, grouped by path, and a game defines its own with `settings.define`. The Netcode page turns fault injection on for every session link.
 - Search in the scene tree, the inspector and the assets dock, through one shared field and one matching rule. `ui.modal` gained a `height`.
 - A networked session is recordable and replayable: peer payloads travel through a `session` replay source, so a desync reproduces from a file with no peer attached. `transport::Faulty` adds delay, jitter and datagram loss to any transport, and `NetSession::stats` reports round-trip time, loss and bytes each way.

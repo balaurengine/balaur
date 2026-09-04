@@ -12,6 +12,9 @@ glamx.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
+# `toml.patch`: the one writer that keeps a hand-written file's comments and
+# key order, which `toml::to_string` cannot.
+toml_edit = "0.25"
 anyhow.workspace = true
 indexmap.workspace = true
 rustc-hash.workspace = true
@@ -34,3 +37,7 @@ tempfile = "3"
 
 [lints]
 workspace = true
+
+# The browser has no `std::time::Instant`; `web_time` reads `performance.now()`.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-time = "1"

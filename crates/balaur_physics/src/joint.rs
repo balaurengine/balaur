@@ -23,6 +23,7 @@ use balaur_core::{entity_of, Engine};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
+use crate::rapier3d::pipeline::PhysicsWorld;
 use crate::vocabulary as v;
 use crate::PhysicsState;
 
@@ -242,12 +243,28 @@ pub(crate) fn remove_joint(eng: &Engine, entity: Entity) {
     let state = eng.resource::<PhysicsState>();
     let mut state = state.borrow_mut();
     state.joint_params.swap_remove(&entity);
-    match state.joints.swap_remove(&entity).map(|j| j.handle) {
-        Some(JointHandle::Impulse(handle)) => {
-            state.world.remove_impulse_joint(handle);
+    if let Some(reference) = state.joints.swap_remove(&entity) {
+        drop_joint(&mut state.world, &reference);
+    }
+}
+
+/// Whether rapier still holds this joint.
+///
+/// It drops one when either end's body goes, and a map that kept the handle
+/// would report a joint that is not there and never retry it.
+pub(crate) fn is_live(world: &PhysicsWorld, reference: &JointRef) -> bool {
+    match reference.handle {
+        JointHandle::Impulse(handle) => world.impulse_joints.get(handle).is_some(),
+        JointHandle::Multibody(handle) => world.multibody_joints.get(handle).is_some(),
+    }
+}
+
+pub(crate) fn drop_joint(world: &mut PhysicsWorld, reference: &JointRef) {
+    match reference.handle {
+        JointHandle::Impulse(handle) => {
+            world.remove_impulse_joint(handle);
         }
-        Some(JointHandle::Multibody(handle)) => state.world.remove_multibody_joint(handle),
-        None => {}
+        JointHandle::Multibody(handle) => world.remove_multibody_joint(handle),
     }
 }
 
@@ -314,12 +331,16 @@ pub(crate) fn impulse_magnitude_2d(impulses: &crate::rapier2d::math::SpatialVect
 /// A scene file names nodes in whatever order it likes, and a joint that
 /// pointed forwards used to be silently inert. Retried once per step, over
 /// the few that are unresolved rather than over every joint.
-pub(crate) fn pending(state: &PhysicsState) -> Vec<Entity> {
+pub fn pending(state: &PhysicsState) -> Vec<Entity> {
     let mut out: Vec<Entity> = state
         .joint_params
-        .keys()
-        .filter(|entity| !state.joints.contains_key(*entity))
-        .copied()
+        .iter()
+        // A joint switched off has params and no handle for ever; retrying it
+        // every step would re-apply the whole component sixty times a second.
+        .filter(|(entity, params)| {
+            !state.joints.contains_key(*entity) && v::boolean(params, "enabled", true)
+        })
+        .map(|(entity, _)| *entity)
         .collect();
     out.sort_unstable_by_key(|e| e.to_bits());
     out

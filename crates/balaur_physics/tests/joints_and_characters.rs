@@ -15,7 +15,7 @@ fn run(scene: &str, script: &str) -> Vec<String> {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"p\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), scene).unwrap();
@@ -305,5 +305,184 @@ fn joints_and_shape_edits_survive_a_snapshot() {
         "the body came back at {} rather than {}",
         after.1,
         before.1
+    );
+}
+
+/// `is_grounded` used to run a zero-translation `move_shape` that still
+/// snapped to ground and wrote the transform, so asking the question moved
+/// the world — and asking it from `update` desynced the simulation.
+#[test]
+fn asking_is_grounded_does_not_move_the_character() {
+    run_clean(
+        r#"[[nodes]]
+id = "n_floor"
+name = "Floor"
+position = [0.0, -1.0, 0.0]
+
+[nodes.collider3d]
+kind = "cuboid"
+half_extents = [8.0, 0.5, 8.0]
+
+[[nodes]]
+id = "n_player"
+name = "Player"
+position = [0.0, 1.0, 0.0]
+script = "scripts/s.rn"
+
+[nodes.collider3d]
+kind = "capsule"
+radius = 0.4
+height = 1.0
+
+[nodes.character3d]
+"#,
+        r#"pub fn init(this) { this.ticks = 0; this.parked = 0.0; this.grounded = false; }
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks < 40 {
+        physics3d::move_character(this.node, 0.0, -0.2, 0.0);
+        return;
+    }
+    if this.ticks == 40 {
+        this.parked = this.node.position().y;
+        this.grounded = physics3d::is_grounded(this.node);
+    }
+    let i = 0;
+    while i < 8 {
+        physics3d::is_grounded(this.node);
+        i += 1;
+    }
+    if this.ticks == 100 {
+        assert!(this.grounded, "the character never landed, so the test proves nothing");
+        let drift = this.node.position().y - this.parked;
+        assert!(drift < 0.0001 && drift > -0.0001, "asking moved it by {}", drift);
+    }
+}
+"#,
+    );
+}
+
+/// 2D `move_character` wrote `Pose2::from_translation`, so a rotated
+/// `character2d` snapped to angle 0 the first time it moved. The ray only
+/// misses while the box is still standing on end.
+#[test]
+fn a_rotated_2d_character_keeps_its_angle_when_it_moves() {
+    run_clean(
+        r#"[[nodes]]
+id = "n_player"
+name = "Player"
+rotation_euler = [0.0, 0.0, 1.5707963]
+script = "scripts/s.rn"
+
+[nodes.collider2d]
+kind = "rect"
+half_extents = [1.0, 0.05]
+
+[nodes.character2d]
+snap_to_ground = 0.0
+autostep = 0.0
+"#,
+        r#"pub fn init(this) { this.ticks = 0; }
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    physics2d::move_character(this.node, 0.0, 0.0);
+    if this.ticks == 30 {
+        let flat = physics2d::raycast(#{ from: [0.5, 3.0], dir: [0.0, -1.0], max: 100.0 });
+        assert!(flat is Tuple, "the character lay back down: a ray beside it still hits");
+        let upright = physics2d::raycast(#{ from: [0.0, 3.0], dir: [0.0, -1.0], max: 100.0 });
+        assert!(!(upright is Tuple), "the character is not where the test thinks it is");
+    }
+}
+"#,
+    );
+}
+
+/// The 2D `modify_solver_contacts` hook fired and never called the script
+/// method 3D calls, so `modify_contacts` was a 3D-only word.
+#[test]
+fn a_2d_modify_contacts_handler_is_called() {
+    run_clean(
+        r#"[[nodes]]
+id = "n_ground"
+name = "Ground"
+position = [0.0, -1.0, 0.0]
+body2d = "static"
+
+[nodes.collider2d]
+kind = "rect"
+half_extents = [8.0, 0.5]
+hooks = ["modify_contacts"]
+
+[[nodes]]
+id = "n_faller"
+name = "Faller"
+position = [0.0, 1.0, 0.0]
+body2d = "dynamic"
+script = "scripts/s.rn"
+
+[nodes.collider2d]
+kind = "rect"
+half_extents = [0.25, 0.25]
+hooks = ["modify_contacts"]
+"#,
+        r#"pub fn init(this) { this.asked = 0; this.ticks = 0; }
+
+pub fn modify_contacts(this, other, info) {
+    this.asked = this.asked + 1;
+    #{ friction: 0.5 }
+}
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 110 {
+        assert!(this.asked > 0, "the 2D hook never reached the script");
+    }
+}
+"#,
+    );
+}
+
+/// `contacts` reported parry's `local_p1`, which is in the *first* shape's
+/// local space — and the first may be the other node. Every other query is
+/// world-space, and a ground ten units down is where the point must be.
+#[test]
+fn a_contact_point_is_reported_in_world_space() {
+    run_clean(
+        r#"[[nodes]]
+id = "n_ground"
+name = "Ground"
+position = [0.0, -10.0, 0.0]
+
+[nodes.collider3d]
+kind = "cuboid"
+half_extents = [8.0, 0.5, 8.0]
+
+[[nodes]]
+id = "n_faller"
+name = "Faller"
+position = [0.0, -8.0, 0.0]
+body3d = "dynamic"
+script = "scripts/s.rn"
+
+[nodes.collider3d]
+kind = "ball"
+radius = 0.5
+"#,
+        r#"pub fn init(this) { this.ticks = 0; this.seen = 0; }
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 110 {
+        for contact in physics3d::contacts(this.node) {
+            this.seen = this.seen + 1;
+            let y = contact.point.y;
+            assert!(y < -8.0, "the contact point is in local space: y is {}", y);
+        }
+        assert!(this.seen > 0, "the body never landed, so nothing was checked");
+    }
+}
+"#,
     );
 }

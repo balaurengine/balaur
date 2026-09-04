@@ -136,8 +136,10 @@ impl RuneHost {
                     let key = rel.to_string_lossy().replace('\\', "/");
                     match path.extension().and_then(|e| e.to_str()) {
                         Some("rn") => {
-                            if state.scripts.contains_key(&key) && !changed.contains(&key) {
-                                changed.push(key);
+                            for root in roots_of(&state, &key) {
+                                if !changed.contains(&root) {
+                                    changed.push(root);
+                                }
                             }
                         }
                         // Assets and scenes are both TOML; `reload` drops only
@@ -166,11 +168,51 @@ impl RuneHost {
                 tracing::warn!("could not reload asset {key}: {err}");
             }
         }
+        // Sorted, so two runs that saw the same saves reload in the same
+        // order and a script requiring another sees the same intermediate.
+        changed.sort();
+        if !changed.is_empty() {
+            end_recording(&self.engine, &changed);
+        }
         for key in changed {
             match self.reload(&key) {
                 Ok(()) => tracing::info!("hot reloaded {key}"),
                 Err(err) => tracing::error!("[{key}] {err}"),
             }
         }
+    }
+}
+
+/// Every loaded root a saved `.rn` belongs to: itself when it is one, and
+/// every root that folded it in through `mod name;`.
+fn roots_of(state: &crate::State, key: &str) -> Vec<String> {
+    let mut roots: Vec<String> = state
+        .scripts
+        .iter()
+        .filter(|(root, script)| root.as_str() == key || script.deps.iter().any(|dep| dep == key))
+        .map(|(root, _)| root.clone())
+        .collect();
+    roots.sort();
+    roots
+}
+
+/// Close an open recording before the code under it changes.
+///
+/// The frames after a reload came from a different game, and only the editor
+/// used to end the session; `balaur run --record` recorded straight across the
+/// swap.
+fn end_recording(eng: &balaur_core::Engine, changed: &[String]) {
+    if eng
+        .try_resource::<balaur_core::replay::Recording>()
+        .is_none_or(|open| open.borrow().0.is_none())
+    {
+        return;
+    }
+    if let Some(path) = balaur_core::replay::stop_recording(eng, "reload") {
+        tracing::info!(
+            "{} changed; the recording ends at {}",
+            changed.join(", "),
+            path.display()
+        );
     }
 }

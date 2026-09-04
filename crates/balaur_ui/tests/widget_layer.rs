@@ -11,7 +11,7 @@ fn app() -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"w\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"w\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
@@ -316,7 +316,7 @@ fn app_with_script(body: &str) -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"w\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"w\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
@@ -406,6 +406,44 @@ fn grow_divides_what_the_fixed_children_leave() {
     );
 }
 
+/// A script's `draw_ui` reads this frame's rects, not last frame's. The
+/// editor's whole shell is placed from them, and a frame behind is a frame
+/// where every sheet is at 0,0.
+#[test]
+fn draw_ui_sees_the_rects_from_its_own_frame() {
+    let script = "pub fn init(this) {\n    this.seen = 0.0;\n}\n\
+                  pub fn draw_ui(this) {\n\
+                  \x20   let r = ui::widget_rect(scene::get_node(\"Sheet\"));\n\
+                  \x20   if r is Object { this.seen = r.w; }\n}\n";
+    let (_dir, app) = app_with_script(script);
+    let watcher = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Watcher", app.engine.root());
+    app.engine
+        .script_host()
+        .unwrap()
+        .attach(balaur::node_id_of(watcher), "scripts/paint.rn")
+        .unwrap();
+    let sheet = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Sheet", app.engine.root());
+    balaur::components::add(
+        &app.engine,
+        sheet,
+        "widget",
+        Some(&toml::toml! { kind = "panel" text = "s" x = 0.0 y = 0.0 width = 200.0 height = 40.0 }.into()),
+    )
+    .unwrap();
+
+    let ctx = egui::Context::default();
+    // The first pass installs fonts and draws nothing; the second is the
+    // first that draws, and `draw_ui` should already have the rect.
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    let seen = balaur::rune::rune_of(&app.engine).number_field(watcher, "seen");
+    assert_eq!(
+        seen,
+        Some(200.0),
+        "draw_ui read {seen:?} for a 200 px sheet drawn in the same frame"
+    );
+}
+
 /// A panel of `draw` nodes should need one script, not one each: the rect is
 /// the node's, and what fills it belongs to whatever owns the state.
 #[test]
@@ -459,11 +497,18 @@ fn a_root_draws_on_the_surface_it_names() {
             .into(),
     );
     // The default surface is pushed into a corner, the way the editor points
-    // it at the viewport. The named one is left alone.
+    // it at the viewport. The named one is placed on the whole screen.
     {
         let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
         let mut config = config.borrow_mut();
         config.rect = Some([300.0, 200.0, 100.0, 100.0]);
+        config.layers.insert(
+            "shell".into(),
+            balaur_ui::Surface {
+                enabled: true,
+                rect: None,
+            },
+        );
     }
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -738,6 +783,15 @@ fn focused(app: &App) -> Option<Entity> {
     app.engine.resource::<balaur_ui::UiFocus>().borrow().focused
 }
 
+/// Let the keyboard drive focus, which a game has to ask for: the keys are
+/// the game's until it declares the `ui_*` actions or says so here.
+fn keyboard(app: &App) {
+    app.engine
+        .resource::<balaur_ui::WidgetLayerConfig>()
+        .borrow_mut()
+        .keyboard = true;
+}
+
 /// A menu of three buttons in a column, which is what focus is for.
 fn menu(app: &App) -> (Entity, Vec<Entity>) {
     let column = add_widget(app, &toml::toml! { kind = "column" x = 0.0 y = 0.0 }.into());
@@ -759,6 +813,7 @@ fn menu(app: &App) -> (Entity, Vec<Entity>) {
 fn focus_walks_the_menu_in_scene_order_and_wraps() {
     let (_dir, app) = app();
     let (_column, buttons) = menu(&app);
+    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     assert_eq!(focused(&app), None, "nothing is focused until asked");
@@ -779,6 +834,7 @@ fn focus_walks_the_menu_in_scene_order_and_wraps() {
 fn accepting_the_focused_widget_is_a_click() {
     let (_dir, app) = app();
     let (_column, buttons) = menu(&app);
+    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -811,6 +867,7 @@ fn focus_skips_what_it_could_not_activate() {
         "Quit",
         &toml::toml! { kind = "button" text = "Quit" }.into(),
     );
+    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -844,6 +901,7 @@ fn focusable_false_is_skipped_and_a_plain_label_stays_out() {
         "Note",
         &toml::toml! { kind = "label" text = "note" focusable = true }.into(),
     );
+    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -859,6 +917,7 @@ fn focusable_false_is_skipped_and_a_plain_label_stays_out() {
 fn hiding_the_focused_widget_releases_focus() {
     let (_dir, app) = app();
     let (_column, buttons) = menu(&app);
+    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -878,6 +937,7 @@ fn hiding_the_focused_widget_releases_focus() {
 fn a_pending_move_from_a_script_is_taken_at_the_next_draw() {
     let (_dir, app) = app();
     let (_column, buttons) = menu(&app);
+    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     app.engine
@@ -895,7 +955,7 @@ fn a_theme_is_inherited_by_everything_under_it() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
@@ -938,7 +998,7 @@ fn a_kind_the_theme_does_not_mention_is_unchanged() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
@@ -984,7 +1044,7 @@ fn a_text_key_follows_the_locale() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
@@ -1026,5 +1086,265 @@ fn a_text_key_follows_the_locale() {
         width() < english - 40.0,
         "the caption did not follow the locale: {english} then {}",
         width()
+    );
+}
+
+/// A host that confines the default surface confines every layer it has not
+/// been told about, or a scene naming `layer = "hud"` draws over the editor's
+/// own chrome whether or not the game is playing.
+#[test]
+fn a_layer_nothing_configured_takes_the_default_surface() {
+    let (_dir, app) = app();
+    let hud = add_widget(
+        &app,
+        &toml::toml! { kind = "panel" text = "hud" x = 0.0 y = 0.0 width = 40.0 height = 20.0 layer = "unheard_of" }
+            .into(),
+    );
+    {
+        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
+        config.borrow_mut().rect = Some([300.0, 200.0, 100.0, 100.0]);
+    }
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let placed = ctx
+        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", hud))))
+        .expect("control: the hud drew somewhere");
+    assert!(
+        placed.min.x >= 299.0,
+        "an unconfigured layer escaped the default surface: {placed:?}"
+    );
+
+    // And its enabled flag too: turning the default off takes it with it.
+    {
+        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
+        config.borrow_mut().enabled = false;
+    }
+    let out = pass(&app, &ctx, vec![]);
+    let drew = out.shapes.iter().any(|shape| match &shape.shape {
+        egui::epaint::Shape::Text(text) => text.galley.text() == "hud",
+        _ => false,
+    });
+    assert!(!drew, "an unconfigured layer ignored the default's off switch");
+}
+
+/// A row's own `padding` has to reach the measure as well as the draw, or the
+/// parent places the sibling after it twice the padding too soon.
+#[test]
+fn a_containers_own_padding_is_measured_as_well_as_drawn() {
+    let width = |padding: f64| {
+        let (_dir, app) = app();
+        let column = add_widget(
+            &app,
+            &toml::toml! { kind = "column" x = 0.0 y = 0.0 gap = 0.0 }.into(),
+        );
+        let row = add_child_widget(
+            &app,
+            column,
+            "row",
+            &toml::toml! { kind = "row" padding = padding gap = 0.0 }.into(),
+        );
+        add_child_widget(
+            &app,
+            row,
+            "entry",
+            &toml::toml! { kind = "label" text = "an entry wide enough to measure" }.into(),
+        );
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", column))))
+            .expect("the column drew")
+    };
+    let tight = width(0.0);
+    let padded = width(20.0);
+    // 20 each side, on both axes, and the column has to grow around it.
+    assert!(
+        padded.width() > tight.width() + 30.0,
+        "the row's padding did not widen its parent: {tight:?} then {padded:?}"
+    );
+    assert!(
+        padded.height() > tight.height() + 30.0,
+        "the row's padding did not heighten its parent: {tight:?} then {padded:?}"
+    );
+}
+
+/// A panel's `padding` is documented as applying; it used to reach the frame
+/// only through the theme.
+#[test]
+fn a_panels_own_padding_applies() {
+    let height = |padding: f64| {
+        let (_dir, app) = app();
+        let panel = add_widget(
+            &app,
+            &toml::toml! { kind = "panel" text = "p" x = 0.0 y = 0.0 padding = padding }.into(),
+        );
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", panel))))
+            .expect("the panel drew")
+            .height()
+    };
+    // The built-in is 8 a side; 40 a side is 64 more than that.
+    assert!(
+        height(40.0) > height(0.0) + 50.0,
+        "the panel's own padding did not reach the frame: {} then {}",
+        height(0.0),
+        height(40.0)
+    );
+}
+
+/// Focus follows the tree that was drawn, not the arena: an accept on a
+/// button under a hidden panel would fire an `on_click` nobody could see.
+#[test]
+fn a_button_under_a_hidden_panel_is_not_a_focus_stop() {
+    let (_dir, app) = app();
+    let column = add_widget(&app, &toml::toml! { kind = "column" x = 0.0 y = 0.0 }.into());
+    let panel = add_child_widget(
+        &app,
+        column,
+        "Menu",
+        &toml::toml! { kind = "panel" text = "" }.into(),
+    );
+    let buried = add_child_widget(
+        &app,
+        panel,
+        "Buried",
+        &toml::toml! { kind = "button" text = "Buried" }.into(),
+    );
+    let open = add_child_widget(
+        &app,
+        column,
+        "Open",
+        &toml::toml! { kind = "button" text = "Open" }.into(),
+    );
+    keyboard(&app);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, key(egui::Key::ArrowDown));
+    assert_eq!(
+        focused(&app),
+        Some(buried),
+        "control: it is a stop while the panel is visible"
+    );
+
+    let hide = toml::toml! { visible = false };
+    balaur::components::patch(&app.engine, panel, "widget", &hide.into()).unwrap();
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, key(egui::Key::ArrowDown));
+    assert_eq!(
+        focused(&app),
+        Some(open),
+        "focus landed inside a hidden panel"
+    );
+    pass(&app, &ctx, key(egui::Key::Enter));
+    assert!(
+        !clicked(&app, buried),
+        "an accept activated a button nobody could see"
+    );
+}
+
+/// A surface the host turned off is not somewhere focus can be either — in the
+/// editor that is a played game's HUD with the widget layer switched off.
+#[test]
+fn a_root_on_a_disabled_surface_is_not_a_focus_stop() {
+    let (_dir, app) = app();
+    let (_column, buttons) = menu(&app);
+    keyboard(&app);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    {
+        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
+        config.borrow_mut().enabled = false;
+    }
+    pass(&app, &ctx, key(egui::Key::ArrowDown));
+    assert_eq!(focused(&app), None, "focus landed on an undrawn surface");
+    pass(&app, &ctx, key(egui::Key::Enter));
+    assert!(
+        !clicked(&app, buttons[0]),
+        "an accept clicked a button on a surface nothing draws"
+    );
+}
+
+/// Two pages showing the same text are told apart by their node names, which
+/// is what the schema says `active` holds.
+#[test]
+fn clicking_a_tab_writes_the_pages_node_name() {
+    let (_dir, app) = app();
+    let tabs = add_widget(
+        &app,
+        &toml::toml! { kind = "tab" x = 0.0 y = 0.0 width = 300.0 height = 200.0 }.into(),
+    );
+    for name in ["first", "second"] {
+        add_child_widget(
+            &app,
+            tabs,
+            name,
+            &toml::toml! { kind = "panel" text = "Same" width = 120.0 height = 60.0 }.into(),
+        );
+    }
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let strip = ctx
+        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", tabs))))
+        .expect("the tab drew");
+    // The second tab button, past the first one's own width.
+    let target = pos2(strip.min.x + 90.0, strip.min.y + 10.0);
+    pass(&app, &ctx, press(target, true));
+    pass(&app, &ctx, press(target, false));
+    let active = balaur::components::get(&app.engine, tabs, "widget")
+        .and_then(|w| w.get("active").and_then(|v| v.as_str().map(str::to_owned)))
+        .expect("the tab reports its active page");
+    assert_eq!(
+        active, "second",
+        "a tab click wrote the page's label, not its node name"
+    );
+}
+
+/// `docs/PLAN-ui-layout.md` §5 promises one frame between a widget being
+/// placed and a script reading the rect back; two would be a size change a
+/// script never catches up with.
+#[test]
+fn a_script_reads_a_widget_rect_no_more_than_one_frame_late() {
+    let script = "pub fn draw_ui(this) {\n\
+                  \x20   let r = ui::widget_rect(this.node);\n\
+                  \x20   if r is not () { this.seen = r.w; }\n\
+                  }\n";
+    let (_dir, app) = app_with_script(script);
+    let owner = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Owner", app.engine.root());
+    app.engine
+        .script_host()
+        .unwrap()
+        .attach(balaur::node_id_of(owner), "scripts/paint.rn")
+        .unwrap();
+    balaur::components::add(
+        &app.engine,
+        owner,
+        "widget",
+        Some(&toml::toml! { kind = "panel" text = "" x = 0.0 y = 0.0 width = 100.0 height = 40.0 }.into()),
+    )
+    .unwrap();
+    let seen = || {
+        app.engine
+            .script_host()
+            .unwrap()
+            .get_prop(balaur::node_id_of(owner), "seen")
+    };
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    assert!(seen().is_some(), "control: the script never read a rect");
+
+    balaur::components::patch(
+        &app.engine,
+        owner,
+        "widget",
+        &toml::toml! { width = 300.0 }.into(),
+    )
+    .unwrap();
+    // One pass to draw at the new width, one for the script to have read it.
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    let width = seen().expect("the script read a rect");
+    assert!(
+        format!("{width:?}").contains("300"),
+        "the rect a script reads is more than one frame stale: {width:?}"
     );
 }

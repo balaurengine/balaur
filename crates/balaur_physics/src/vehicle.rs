@@ -142,7 +142,7 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
 ///
 /// Kept beside the world rather than in it: rapier's controller is rebuilt
 /// every step, and these are the four numbers that must not be.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, serde::Serialize, serde::Deserialize)]
 pub struct WheelInput {
     pub engine_force: Real,
     pub brake: Real,
@@ -196,16 +196,38 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("vehicle_speed", |eng: &Engine, node: NodeId| {
         let entity = entity_of(node)?;
+        // The chassis's own `forward_axis`, not z: a car built along x would
+        // otherwise read the speed it is sliding sideways at.
+        let axis = {
+            let world = eng.world();
+            let vehicle = world
+                .get::<&Vehicle3d>(entity)
+                .map_err(|_| anyhow!("node has no vehicle3d"))?;
+            forward_axis(&vehicle.0)
+        };
         let state = eng.resource::<PhysicsState>();
         let state = state.borrow();
         let handle = *state
             .bodies
             .get(&entity)
             .ok_or_else(|| anyhow!("a vehicle3d needs a body3d on the same node"))?;
-        let body = &state.world.bodies[handle];
-        let forward = body.rotation() * Vector::Z;
-        Ok(body.linvel().dot(forward))
+        let body = state
+            .world
+            .bodies
+            .get(handle)
+            .ok_or_else(|| anyhow!("this node's body is gone: the node was freed"))?;
+        Ok(body.linvel().dot(body.rotation() * axis))
     });
+}
+
+/// Which of the chassis's own axes points forward, as the index rapier's
+/// controller takes and `vehicle_speed` measures along.
+fn forward_axis(params: &toml::Value) -> Vector {
+    match v::f(params, "forward_axis", 2.0).clamp(0.0, 2.0) as usize {
+        0 => Vector::X,
+        1 => Vector::Y,
+        _ => Vector::Z,
+    }
 }
 
 fn with_wheel(eng: &Engine, node: NodeId, f: impl FnOnce(&mut WheelInput)) -> Result<()> {
@@ -269,6 +291,8 @@ max_force = { type = "float", default = 6000.0, min = 0.0, description = "The mo
             }),
             remove: Box::new(|eng, entity| {
                 let _ = eng.world_mut().remove_one::<Wheel3d>(entity);
+                let state = eng.resource::<PhysicsState>();
+                state.borrow_mut().wheel_inputs.swap_remove(&entity);
                 Ok(())
             }),
             get: Box::new(|eng, entity| {

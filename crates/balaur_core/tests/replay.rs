@@ -84,7 +84,7 @@ fn a_recording_round_trips_through_the_file() {
                     serde_json::json!(tick),
                 )]),
                 digest: Some(tick * 1000),
-                events: Vec::new(),
+                ..Frame::default()
             })
             .unwrap();
     }
@@ -461,4 +461,99 @@ fn a_recorded_reply_reaches_the_request_that_asked_for_it() {
         wire.got, got,
         "and the recorded reply lands on the request that asked"
     );
+}
+
+/// The clock has to be the recording's, not the replaying process's. Every
+/// frame a paused replay draws used to count a tick, so a script branching on
+/// `engine::tick()` read a number no recorded frame ever ran at.
+#[test]
+fn frames_held_between_begin_and_play_do_not_move_the_replayed_tick() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    replay::start_recording(&app.engine, &path, ".", "", true).unwrap();
+    for _ in 0..4 {
+        app.advance(1.0 / 60.0);
+    }
+    replay::stop_recording(&app.engine, "stop").unwrap();
+    let recorded = Session::read(&path).unwrap();
+    let first = recorded.first_tick();
+    let last = recorded.last_tick();
+
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    replay::begin(&app.engine, recorded);
+    // Five frames of a paused replay: the editor draws while the timeline
+    // sits before the first recorded tick.
+    for _ in 0..5 {
+        app.advance(1.0 / 60.0);
+    }
+    assert_eq!(
+        app.engine.tick(),
+        first.saturating_sub(1),
+        "a held frame is not a tick"
+    );
+
+    replay::play(&app.engine);
+    app.advance(1.0 / 60.0);
+    assert_eq!(app.engine.tick(), first, "the first frame runs at its tick");
+    while replay::is_running(&app.engine) {
+        app.advance(1.0 / 60.0);
+    }
+    assert_eq!(app.engine.tick(), last);
+    assert!(
+        app.engine
+            .resource::<ReplayPlayer>()
+            .borrow()
+            .diverged
+            .is_none(),
+        "a replayed tick that ran at the wrong number is a divergence"
+    );
+}
+
+/// A frame recorded while the debugger held the root took no fixed step; the
+/// replay has to hold it the same way or it steps a tick nothing recorded.
+#[test]
+fn a_frame_recorded_while_the_debugger_froze_the_root_replays_frozen() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("s.blr");
+
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    replay::start_recording(&app.engine, &path, ".", "", true).unwrap();
+    app.advance(1.0 / 60.0);
+    app.engine.set_frozen(true);
+    for _ in 0..3 {
+        app.advance(1.0 / 60.0);
+    }
+    app.engine.set_frozen(false);
+    app.advance(1.0 / 60.0);
+    let recorded_total = app.engine.resource::<Total>().borrow().0;
+    replay::stop_recording(&app.engine, "stop").unwrap();
+
+    let session = Session::read(&path).unwrap();
+    assert!(
+        session.frames.iter().filter(|f| f.frozen).count() == 3,
+        "the pause has to be in the file, or the replay cannot reproduce it"
+    );
+
+    let mut app = app_with_dial();
+    ratchet(&mut app);
+    replay::begin(&app.engine, session);
+    replay::play(&app.engine);
+    while replay::is_running(&app.engine) {
+        app.advance(1.0 / 60.0);
+    }
+    assert_eq!(app.engine.resource::<Total>().borrow().0, recorded_total);
+    assert!(
+        app.engine
+            .resource::<ReplayPlayer>()
+            .borrow()
+            .diverged
+            .is_none(),
+        "a --verify session with one breakpoint hit must not part from itself"
+    );
+    assert!(!app.engine.is_frozen(), "and the freeze did not leak out");
 }

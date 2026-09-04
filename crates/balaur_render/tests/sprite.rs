@@ -236,3 +236,46 @@ fn a_sprite_with_no_texture_is_a_placeholder() {
     let saved = components::get(&app.engine, entity, "sprite").unwrap();
     assert_eq!(saved.as_table().unwrap()["texture"].as_str().unwrap(), "");
 }
+
+/// The size a sprite derived from its image is not the author's, so a patch
+/// that moves a sheet field has to re-derive it. Reading the component back
+/// once used to freeze the quad for the life of the node.
+#[test]
+fn patching_the_sheet_fields_resizes_a_derived_sprite() {
+    let app = app();
+    let entity = node(&app);
+    apply(&app, entity, "");
+    // The read is what used to write a resolved `half_extents` into the
+    // component, which `patch` then overlaid as an explicit size.
+    let read_back = components::get(&app.engine, entity, "sprite").unwrap();
+    assert!(
+        read_back.get("half_extents").is_none(),
+        "a derived size must not be reported as the author's: {read_back:?}"
+    );
+    let (before, _) = half_extents(&app, entity);
+    assert_close(before, 200.0 / DEFAULT_PIXELS_PER_UNIT / 2.0);
+
+    let patch: toml::Value = toml::from_str("pixels_per_unit = 50.0").unwrap();
+    components::patch(&app.engine, entity, "sprite", &patch).unwrap();
+    let (after, _) = half_extents(&app, entity);
+    assert_close(after, 200.0 / 50.0 / 2.0);
+}
+
+/// The other half of the same rule: a size the author stated stays stated,
+/// whatever else is patched over it.
+#[test]
+fn patching_a_sheet_field_leaves_an_authored_size_alone() {
+    let app = app();
+    let entity = node(&app);
+    apply(&app, entity, "half_extents = [3.0, 7.0]\n");
+    let read_back = components::get(&app.engine, entity, "sprite").unwrap();
+    assert!(
+        read_back.get("half_extents").is_some(),
+        "an authored size has to round-trip: {read_back:?}"
+    );
+    let patch: toml::Value = toml::from_str("pixels_per_unit = 50.0").unwrap();
+    components::patch(&app.engine, entity, "sprite", &patch).unwrap();
+    let (hx, hy) = half_extents(&app, entity);
+    assert_close(hx, 3.0);
+    assert_close(hy, 7.0);
+}

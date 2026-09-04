@@ -55,7 +55,7 @@ use balaur_core::components::{self, as_f64};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Transform};
 use balaur_core::Engine;
-use glamx::Vec4;
+use glamx::{Quat, Vec4};
 
 use crate::clip::{Clip, Interp, Key, Property, Track, Wrap};
 use crate::ease::Easing;
@@ -403,7 +403,7 @@ impl Builder<'_> {
             channels,
             from,
             if relative {
-                from + destination
+                offset(property, from, destination)
             } else {
                 destination
             },
@@ -446,6 +446,22 @@ impl Builder<'_> {
         });
         self.tracks.len() - 1
     }
+}
+
+/// Where a `by` step ends up: a turn composed onto the start for a
+/// quaternion track, a sum of the numbers for every other property.
+///
+/// Adding quaternion components and renormalising is not a rotation, which is
+/// why `rotation` composes instead. `rotation_euler` sums, and the sampler
+/// then slerps: a `by` past half a turn still arrives by the short way and a
+/// whole turn is a no-op, which is what interpolating rotations means and is
+/// not fixable here.
+fn offset(property: &Property, from: Vec4, by: Vec4) -> Vec4 {
+    if *property == Property::Rotation {
+        let turn = Quat::from_vec4(by).normalize();
+        return Vec4::from(turn * Quat::from_vec4(from).normalize());
+    }
+    from + by
 }
 
 /// Add one step's pair of keys to a track, holding the previous value across

@@ -99,9 +99,21 @@ pub fn write(eng: &Engine, slot: &str, data: &balaur_script::Value) -> Result<()
     let dir = path.parent().unwrap_or(Path::new("."));
     std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
     let temporary = path.with_extension("toml.part");
-    std::fs::write(&temporary, text).with_context(|| format!("writing {}", temporary.display()))?;
+    write_durably(&temporary, &text)
+        .with_context(|| format!("writing {}", temporary.display()))?;
     std::fs::rename(&temporary, &path).with_context(|| format!("replacing {}", path.display()))?;
     Ok(())
+}
+
+/// Write and flush to the device before returning.
+///
+/// The rename is only atomic against a crash; without this the promise that a
+/// save cannot be found truncated does not survive the machine losing power.
+fn write_durably(path: &Path, text: &str) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut file = std::fs::File::create(path)?;
+    file.write_all(text.as_bytes())?;
+    file.sync_all()
 }
 
 /// Read `slot`, brought forward to the version this build writes.

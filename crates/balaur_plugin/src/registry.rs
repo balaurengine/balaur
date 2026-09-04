@@ -141,6 +141,21 @@ impl<'a> Registry<'a> {
         self.app.add_snapshot_source(name, save, load);
     }
 
+    /// What `[plugins]` in `project.toml` handed this plugin, if anything.
+    ///
+    /// Keyed by the registering plugin's own name, so a plugin cannot read
+    /// another's table by accident.
+    #[must_use]
+    pub fn config(&self) -> Option<toml::Table> {
+        self.app
+            .engine
+            .try_resource::<balaur_core::PluginConfigs>()?
+            .borrow()
+            .0
+            .get(&self.plugin)
+            .cloned()
+    }
+
     /// The engine this plugin is registering into, for the settings groups,
     /// backends and project files a plugin reads while declaring.
     ///
@@ -151,12 +166,4 @@ impl<'a> Registry<'a> {
         &self.app.engine
     }
 
-    /// Escape hatch for what the operations above do not cover yet.
-    ///
-    /// Anything reached through here is Rust-only and will not survive the move
-    /// to a C ABI, so it is the list of things still to design rather than a
-    /// permanent part of the API.
-    pub fn app(&mut self) -> &mut App {
-        self.app
-    }
 }

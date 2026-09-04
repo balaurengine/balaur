@@ -169,3 +169,57 @@ fn two_runs_solve_to_the_same_bits() {
     };
     assert_eq!(run(), run());
 }
+
+#[test]
+fn a_bone_too_short_for_the_solver_leaves_the_pose_alone() {
+    let mut app = app();
+    let root = app.engine.root();
+    let rig = scene::spawn_node(&mut app.engine.world_mut(), "Rig", root);
+    let shoulder = bone(&app, "Shoulder", rig, [0.0, 0.0]);
+    // Under the solver's floor: the reach clamp inverts below it and
+    // `f32::clamp` panics when its own minimum is above its maximum.
+    let elbow = bone(&app, "Elbow", shoulder, [1e-6, 0.0]);
+    bone(&app, "Hand", elbow, [1.0, 0.0]);
+    balaur_core::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+    node_at(&app, "Target", rig, 1.0, 1.0);
+    let params: toml::Value =
+        toml::from_str("kind = \"two_bone_ik\"\nbone = \"Shoulder\"\ntarget = \"Target\"").unwrap();
+    components::add(&app.engine, rig, "modifier2d", Some(&params)).unwrap();
+
+    app.tick(1.0 / 60.0);
+
+    let angle = angle_about_z(
+        app.engine
+            .world()
+            .get::<&Transform>(shoulder)
+            .unwrap()
+            .rotation,
+    );
+    assert!(angle.abs() < 1e-6, "the shoulder turned {angle} rad");
+}
+
+#[test]
+fn a_target_that_is_not_a_finite_point_leaves_the_pose_alone() {
+    let mut app = app();
+    let (shoulder, _, hand) = chain(&app, "two_bone_ik", (1.2, 0.8), false);
+    let rig = app
+        .engine
+        .world()
+        .get::<&balaur_core::scene::Parent>(shoulder)
+        .unwrap()
+        .0;
+    let target = scene::find_node(&app.engine.world(), rig, "Target").unwrap();
+    app.engine
+        .world_mut()
+        .get::<&mut Transform>(target)
+        .unwrap()
+        .position = Vec3::new(f32::NAN, 0.0, 0.0);
+
+    app.tick(1.0 / 60.0);
+
+    let tip = global_xy(&app, hand);
+    assert!(
+        tip.x.is_finite() && tip.y.is_finite(),
+        "a NaN target must not be written into the rig: {tip:?}"
+    );
+}

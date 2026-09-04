@@ -41,6 +41,7 @@ pub mod ease;
 pub mod modifier;
 pub mod player;
 pub mod sampler;
+mod snapshot;
 mod system;
 pub mod tween;
 
@@ -107,6 +108,7 @@ impl balaur_plugin::Plugin for AnimationPlugin {
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(AnimationState::default());
         reg.add_system(Stage::Update, system::advance_system);
+        snapshot::register(reg);
         // After the clip has posed the rig, so a modifier has the last word.
         reg.add_system(Stage::Update, modifier::modify_system);
         modifier::register_modifier2d_component(reg);

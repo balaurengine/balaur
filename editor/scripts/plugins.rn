@@ -117,6 +117,9 @@ fn add_all(S, id, declared) {
             id: entry.id, name: entry.name,
             draw: script::shared(entry.draw, arity("dock")), owner: id,
         });
+        // Registering a dock is not enough to reach it: a panel is drawn by
+        // the dock whose tab list holds its id.
+        crate::docks::adopt(S, entry.id);
     }
     for entry in util::vec(declared.get("windows").unwrap_or([])) {
         S.registry.windows.push(#{

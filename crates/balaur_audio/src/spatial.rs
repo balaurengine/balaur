@@ -282,13 +282,14 @@ fn place_live(state: &mut AudioState, buses: &Buses, dt: f32) {
     for (handle, emitter) in spatial.iter_mut() {
         emitter.track(dt);
         emitter.placement = place(listener, emitter);
+        let Some(routed) = routing.get_mut(handle) else {
+            continue;
+        };
+        routed.applied = routed.volume * buses.gain(&routed.bus) * emitter.placement.gain;
         let Some(sink) = playing.get(handle) else {
             continue;
         };
-        let Some((bus, volume)) = routing.get(handle) else {
-            continue;
-        };
-        sink.set_volume(volume * buses.gain(bus) * emitter.placement.gain);
+        sink.set_volume(routed.applied);
         sink.set_pitch((emitter.pitch * emitter.placement.pitch).max(MIN_PITCH));
         sink.set_pan(stereo_gains(emitter.placement.pan));
     }

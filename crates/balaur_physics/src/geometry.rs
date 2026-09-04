@@ -19,6 +19,12 @@ use balaur_script::{Bindings, BindingsExt, Value};
 
 use crate::vocabulary::{map, Opts};
 
+/// The most cells a side of a voxelisation may have.
+///
+/// `voxelize` walks the whole grid, so a resolution a script wrote is a cube
+/// of work: 512 is a third of a second, and above it a typo hangs the game.
+const MAX_VOXEL_RESOLUTION: u32 = 512;
+
 /// Points and triangles, however the caller spelled them: a `mesh` asset's
 /// name, or a table of the two lists.
 fn mesh_of(eng: &Engine, value: Option<&Value>) -> Result<(Vec<Vector>, Vec<[u32; 3]>)> {
@@ -137,6 +143,12 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
             let (points, indices) = mesh_of(eng, Some(&mesh))?;
             let opts = Opts(opts.as_ref());
             let resolution = opts.f32("resolution", 32.0).max(1.0) as u32;
+            if resolution > MAX_VOXEL_RESOLUTION {
+                return Err(anyhow!(
+                    "a voxel resolution of {resolution} would walk {}+ cells; the ceiling is {MAX_VOXEL_RESOLUTION}",
+                    u64::from(MAX_VOXEL_RESOLUTION).pow(3)
+                ));
+            }
             let fill = if opts.text("fill") == Some("surface") {
                 crate::rapier3d::parry::transformation::voxelization::FillMode::SurfaceOnly
             } else {

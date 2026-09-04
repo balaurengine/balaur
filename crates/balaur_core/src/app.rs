@@ -2,7 +2,9 @@
 
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use crate::time::Instant;
 
 use anyhow::{Context, Result};
 
@@ -170,6 +172,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(crate::rollback::TickInputs::default());
     eng.insert_resource(crate::rollback::Resimulating::default());
     eng.insert_resource(crate::rollback::Clock::default());
+    eng.insert_resource(crate::events::EventState::default());
     eng.insert_resource(crate::digest::DigestRegistry::default());
     eng.insert_resource(crate::replay::ReplayRegistry::default());
     eng.insert_resource(crate::replay::ReplaySetupRegistry::default());
@@ -234,6 +237,9 @@ impl App {
                 crate::timings::measure(eng, "scripts/reload", || host.pump_reloads());
             }
         });
+        // Before the script tick, so an event emitted last frame reaches its
+        // handler at a point where nothing is mid-iteration.
+        app.add_system(Stage::Update, crate::events::pump_system);
         app.add_system(Stage::Update, |eng, dt| {
             if let Some(host) = eng.script_host() {
                 crate::timings::measure(eng, "scripts/update", || host.update(dt));
@@ -256,14 +262,8 @@ impl App {
             for cmd in eng.take_commands() {
                 match cmd {
                     Command::Free(entity) => {
-                        let subtree = scene::collect_subtree(&eng.world(), entity);
                         let label = crate::digest::node_label(&eng.world(), entity);
-                        if let Some(host) = eng.script_host() {
-                            for &e in &subtree {
-                                host.detach(crate::node_id_of(e));
-                            }
-                        }
-                        scene::free_subtree(&mut eng.world_mut(), entity);
+                        scene::free_node(eng, entity);
                         crate::replay::event(
                             eng,
                             "scene.free",
@@ -565,15 +565,14 @@ impl App {
 
     /// Load `presets.toml`, letting a project name its own recipes.
     ///
-    /// Read through `ProjectFiles`, so a packed game gets the same presets a
-    /// dev run does. Absent is the normal case, not an error; malformed is an
-    /// error, because silently ignoring it hides a typo forever.
+    /// Read through `project::scene_text`, which is where a pack keeps its
+    /// documents: `ProjectFiles` serves the pack's *assets*, and a shipped
+    /// game found no presets there at all. Absent is the normal case, not an
+    /// error; malformed is an error, because ignoring it hides a typo forever.
     fn load_project_presets(&mut self) -> Result<()> {
-        let files = self.engine.resource::<project::ProjectFiles>();
-        let Ok(bytes) = files.borrow().read("presets.toml") else {
+        let Ok(text) = project::scene_text(&self.engine, "presets.toml") else {
             return Ok(());
         };
-        let text = String::from_utf8(bytes).context("presets.toml is not UTF-8")?;
         let table: toml::Value = toml::from_str(&text).context("parsing presets.toml")?;
         let table = table
             .as_table()
@@ -619,7 +618,7 @@ impl App {
             }
             crate::replay::Step::Hold => {
                 self.engine.set_replay_hold(true);
-                self.tick(measured_dt);
+                self.tick_held(measured_dt);
             }
             crate::replay::Step::Frames(count) => {
                 self.engine.set_replay_hold(false);
@@ -645,10 +644,16 @@ impl App {
             self.accumulator = 0.0;
         }
         for _ in 0..count {
-            let Some(dt) = crate::replay::feed_next(&self.engine) else {
+            let Some(fed) = crate::replay::feed_next(&self.engine) else {
                 break;
             };
-            self.tick(dt);
+            // A frame the debugger held ran no fixed step and no script; the
+            // replay has to hold it the same way or it steps a tick the
+            // recording never took.
+            let debugging = self.engine.is_frozen();
+            self.engine.set_frozen(debugging || fed.frozen);
+            self.tick(fed.dt);
+            self.engine.set_frozen(debugging);
             crate::replay::after_frame(&self.engine);
             // A seek arrives mid-budget, and a script may pause from inside
             // the frame that just ran: either way the rest of the budget is
@@ -660,17 +665,29 @@ impl App {
     }
 
     /// Run one frame at exactly `dt`, whatever the fixed-step policy says.
+    pub fn tick(&mut self, dt: f32) {
+        self.engine.advance_time(dt);
+        self.run_stages(dt);
+    }
+
+    /// Draw a frame that is not a tick: a paused replay's clock has to stay
+    /// on the tick the recording reached, or every later replayed tick runs
+    /// at a number no recorded frame ever had.
+    fn tick_held(&mut self, dt: f32) {
+        self.engine.hold_time(dt);
+        self.run_stages(dt);
+    }
+
     #[allow(
         clippy::disallowed_methods,
         reason = "times the frame for the profiler; systems are fed dt, never the clock"
     )]
-    pub fn tick(&mut self, dt: f32) {
-        let frame_started = std::time::Instant::now();
+    fn run_stages(&mut self, dt: f32) {
+        let frame_started = Instant::now();
         let mut stages = [std::time::Duration::ZERO; STAGE_COUNT];
         let mut fixed_steps = 0;
-        self.engine.advance_time(dt);
         for (stage, elapsed) in stages.iter_mut().enumerate() {
-            let started = std::time::Instant::now();
+            let started = Instant::now();
             if stage == Stage::FixedUpdate as usize {
                 fixed_steps = self.run_fixed_steps(dt);
             } else {

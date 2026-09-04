@@ -264,26 +264,20 @@ fn script_props_rows(S, k, node) {
         return;
     }
     let props = model::script_props(node);
-    ui::add_space(2);
-    ui::horizontal((), || {
-        ui::add_space(8);
-        ui::label("PROPERTIES", style::heading(k));
-    });
-    ui::add_space(6);
+    style::section_label(k, "properties");
     for export in declared {
         let overridden = props.contains_key(export.name);
         let value = if overridden { props[export.name] } else { export["default"] };
-        let spec = #{
-            "type": if export["type"] == "int" { "float" } else { export["type"] },
-            "default": export["default"],
-            "decimals": if export["type"] == "int" { 0 } else { 2 },
-            "step": if export["type"] == "int" { 1.0 } else { 0.02 },
-        };
-        let editor = match editors().get(spec["type"]) {
-            Some(editor) => editor,
-            None => edit_text,
-        };
-        editor(S, k, SCRIPT_PROPS, export.name, spec, value);
+        // The export row *is* a spec, in the schema's own vocabulary, so the
+        // rows a script declares reach the same editors a component's do:
+        // an enum gets the dropdown, a node the picker, an asset the row.
+        let spec = util::copy(export);
+        spec.remove("name");
+        // Rune has no computed key in an object literal, and `prop_row`
+        // reads the value out of a table by name.
+        let data = #{};
+        data[export.name] = value;
+        prop_row(S, k, SCRIPT_PROPS, export.name, spec, data);
         if overridden {
             ui::horizontal(#{ height: 16 }, || {
                 ui::add_space(label_w(S) + 8.0);
@@ -692,6 +686,7 @@ fn edit_node(S, k, comp, prop, spec, value) {
 fn editors() {
     #{
         "float": edit_float,
+        "int": edit_int,
         "bool": edit_bool,
         "enum": edit_enum,
         "vec2": edit_vector,
@@ -740,6 +735,29 @@ fn edit_float(S, k, comp, prop, spec, value) {
                 v = util::min(util::f(max), v);
             }
             write(S, comp, prop, v);
+        }
+    });
+}
+
+// A whole number: the same drag, rounded on the way out. Without it an
+// `int` property would be written back as 2.0, which is a different value to
+// the schema and to the file.
+fn edit_int(S, k, comp, prop, spec, value) {
+    row(S, k, prop, || {
+        let (v, ch) = value_field(k, if value is Tuple { 0.0 } else { util::f(value) }, #{
+            speed: spec.get("step").unwrap_or(1.0),
+            decimals: 0,
+        });
+        if ch {
+            let min_some = spec.get("min");
+            if let Some(min) = min_some {
+                v = util::max(util::f(min), v);
+            }
+            let max_some = spec.get("max");
+            if let Some(max) = max_some {
+                v = util::min(util::f(max), v);
+            }
+            write(S, comp, prop, math::round(v) as i64);
         }
     });
 }
@@ -1093,28 +1111,12 @@ fn events_section(S, k) {
     let script = match model::script_rel(node) {
         Some(script) => script,
         None => {
-            ui::horizontal((), || {
-                ui::add_space(8);
-                ui::label("no script attached", style::mono_sm(k.faint));
-            });
+            style::empty(k, "no script attached");
             return;
         }
     };
     for hook in model::hooks(S, script) {
-        ui::horizontal(#{ height: 30 }, || {
-            ui::add_space(8);
-            ui::frame(#{ fill: k.sunken, radius: 15, padding_x: 11 }, || {
-                ui::horizontal(#{ height: 30 }, || {
-                    let color = if hook.name == "init" || hook.name == "update" { k.accent } else { k.sage };
-                    ui::dot(color, 6);
-                    ui::add_space(4);
-                    ui::label(hook.name + "()", style::mono(k.text));
-                    ui::right(|| {
-                        ui::label("→ engine", style::mono_sm(k.faint));
-                    });
-                });
-            });
-        });
+        style::hook_pill(k, hook.name, hook.name + "()", "→ engine");
     }
 }
 

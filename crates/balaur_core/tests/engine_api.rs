@@ -114,7 +114,7 @@ fn fs_is_rooted_at_the_project() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"t\"\nmain_scene = \"m.toml\"\n",
+        "[application]\nname = \"t\"\nmain_scene = \"m.toml\"\n",
     )
     .unwrap();
     std::fs::write(dir.path().join("m.toml"), "").unwrap();
@@ -427,4 +427,129 @@ fn a_script_can_ask_whether_one_plugin_loaded() {
     };
     assert_eq!(has("weather").unwrap(), Value::Bool(true));
     assert_eq!(has("elsewhere").unwrap(), Value::Bool(false));
+}
+
+#[test]
+fn a_script_can_ask_a_plugins_version() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_in(dir.path());
+    app.record_plugin(balaur_core::PluginInfo::new("weather", "2.1"));
+
+    let version = |name: &str| {
+        call(
+            &app.engine,
+            "engine",
+            "plugin_version",
+            &[Value::Str(name.into())],
+        )
+    };
+    assert_eq!(version("weather").unwrap(), Value::Str("2.1".into()));
+    assert_eq!(version("elsewhere").unwrap(), Value::Nil);
+}
+
+/// A project the editor opened is content, and a pack's bytecode is content:
+/// what they name is checked, not trusted.
+#[test]
+fn fs_refuses_a_path_that_climbs_out_of_the_project() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = dir.path().join("game");
+    std::fs::create_dir(&project).unwrap();
+    let app = app_in(&project);
+
+    let err = call(
+        &app.engine,
+        "fs",
+        "write",
+        &[
+            Value::Str("../stolen.txt".into()),
+            Value::Str("hi".into()),
+        ],
+    )
+    .expect_err("`..` walked out of the project");
+    assert!(
+        err.to_string().contains("stolen.txt"),
+        "the error has to name the path, got {err}"
+    );
+    assert!(!dir.path().join("stolen.txt").exists());
+}
+
+#[test]
+fn fs_refuses_an_absolute_path_outside_every_root() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = dir.path().join("game");
+    std::fs::create_dir(&project).unwrap();
+    let outside = dir.path().join("elsewhere.txt");
+    let app = app_in(&project);
+
+    assert!(call(
+        &app.engine,
+        "fs",
+        "write",
+        &[
+            Value::Str(outside.to_string_lossy().into_owned()),
+            Value::Str("hi".into()),
+        ],
+    )
+    .is_err());
+    assert!(!outside.exists());
+}
+
+/// A link is a way out of a directory, so the path is followed to where it
+/// really lands before it is checked.
+#[cfg(unix)]
+#[test]
+fn fs_refuses_a_symlink_that_leaves_the_project() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = dir.path().join("game");
+    let outside = dir.path().join("outside");
+    std::fs::create_dir(&project).unwrap();
+    std::fs::create_dir(&outside).unwrap();
+    std::os::unix::fs::symlink(&outside, project.join("away")).unwrap();
+    let app = app_in(&project);
+
+    assert!(call(
+        &app.engine,
+        "fs",
+        "write",
+        &[
+            Value::Str("away/stolen.txt".into()),
+            Value::Str("hi".into()),
+        ],
+    )
+    .is_err());
+    assert!(!outside.join("stolen.txt").exists());
+}
+
+/// What `balaur edit <game>` needs: the editor's own root is the editor's
+/// directory and the game it edits is a second one, named by the host.
+#[test]
+fn fs_reaches_a_second_root_the_host_declared() {
+    let dir = tempfile::tempdir().unwrap();
+    let editor = dir.path().join("editor");
+    let game = dir.path().join("game");
+    std::fs::create_dir(&editor).unwrap();
+    std::fs::create_dir(&game).unwrap();
+    let app = app_in(&editor);
+    let target = game.join("scenes/main.toml");
+
+    let write = |eng: &Engine| {
+        call(
+            eng,
+            "fs",
+            "write",
+            &[
+                Value::Str(target.to_string_lossy().into_owned()),
+                Value::Str("hi".into()),
+            ],
+        )
+    };
+    assert!(write(&app.engine).is_err(), "undeclared, so out of reach");
+
+    balaur_core::file_api::add_root(&app.engine, &game);
+    write(&app.engine).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(&target).unwrap(),
+        "hi",
+        "a declared root is writable, subdirectories included"
+    );
 }

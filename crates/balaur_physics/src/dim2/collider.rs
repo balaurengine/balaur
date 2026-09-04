@@ -10,8 +10,8 @@ use balaur_plugin::Registry;
 
 use crate::rapier2d::prelude::{
     ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule, Collider,
-    ColliderBuilder as ColliderBuilder2, Group, InteractionGroups, InteractionTestMode,
-    RigidBodyHandle,
+    ColliderBuilder as ColliderBuilder2, ColliderHandle, Group, InteractionGroups,
+    InteractionTestMode, RigidBodyHandle,
 };
 use crate::scalar::{self, Pose2, Real, Rotation2};
 
@@ -87,8 +87,24 @@ pub(crate) fn remove_colliders(eng: &Engine, entity: Entity) {
         for handle in handles {
             state.world.remove_collider(handle);
         }
+        state.collider_params.swap_remove(&entity);
         state.queries_ready = false;
     }
+}
+
+/// The 2D twin of `crate::collider::first_collider`: a handle checked against
+/// rapier's arena, because a freed node's outlives it by a step.
+pub(crate) fn first_collider(state: &PhysicsState2d, entity: Entity) -> Result<ColliderHandle> {
+    let handle = state
+        .colliders
+        .get(&entity)
+        .and_then(|handles| handles.first())
+        .copied()
+        .ok_or_else(|| anyhow!("node has no collider"))?;
+    if !state.world.colliders.contains(handle) {
+        return Err(anyhow!("this node's collider is gone: the node was freed"));
+    }
+    Ok(handle)
 }
 
 /// The collider described by `params`, in the `collider2d` schema's own
@@ -270,7 +286,27 @@ pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value)
         Rotation2::from_angle(scalar::real(v::f(params, "offset_rotation", 0.0))),
     );
     remove_colliders(eng, entity);
-    add_collider_at(eng, entity, builder, offset)
+    add_collider_at(eng, entity, builder, offset)?;
+    {
+        let state = eng.resource::<PhysicsState2d>();
+        state
+            .borrow_mut()
+            .collider_params
+            .insert(entity, params.clone());
+    }
+    if v::boolean(params, "one_way", false) {
+        // The axis rides in the collider's `user_data`, where the hook can
+        // read it mid-step; 2D packs the same three bits 3D does.
+        let axis = v::vec2(params, "one_way_axis", [0.0, 1.0]);
+        let state = eng.resource::<PhysicsState2d>();
+        let mut state = state.borrow_mut();
+        let handles = state.colliders.get(&entity).cloned().unwrap_or_default();
+        for handle in handles {
+            state.world.colliders[handle].user_data =
+                crate::collider::encode_one_way(entity.to_bits().get(), [axis[0], axis[1], 0.0]);
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
@@ -278,7 +314,16 @@ pub(crate) fn get_collider_params(eng: &Engine, entity: Entity) -> Option<toml::
     let state = state.borrow();
     let handle = state.colliders.get(&entity)?.first()?;
     let collider = state.world.colliders.get(*handle)?;
-    let mut map = shape_params(collider)?;
+    // What it was authored from, under what rapier can report, as in 3D: the
+    // asset names, the offset and `one_way` survive a re-save.
+    let mut map = state
+        .collider_params
+        .get(&entity)
+        .and_then(|params| params.as_table().cloned())
+        .unwrap_or_default();
+    if let Some(shape) = shape_params(collider) {
+        map.extend(shape);
+    }
     read_material(collider, &mut map);
     Some(toml::Value::Table(map))
 }

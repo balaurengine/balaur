@@ -97,13 +97,15 @@ frame — a force applied there lands on the step it was meant for.
 crate and changed nothing in physics, input, render, audio or ui.
 
 Two things are declared once in `balaur_core` and reach every language:
-`node_api.rs` (`NODE_OPS`, the 28 node operations) and `engine_api.rs`
-(`ENGINE_OPS`, the `engine`, `scene`, `log` and `assets` modules). Each
+`node_api.rs` (`NODE_OPS`, every node operation) and `engine_api.rs`
+(`ENGINE_OPS`, the `engine`, `scene`, `log` and `assets` modules —
+`docs/generated/script-api.md` counts both, so no number is written twice).
+Each
 backend adds
 only its own call sugar, so `node.position()` in Rune comes from the same
 list. A second language costs the sugar, not the operations.
 
-`Value` carries `Nil/Bool/Int/Num/Str/Vec2/Vec3/Color/List/Map`, plus
+`Value` carries `Nil/Bool/Int/Num/Str/Bytes/Vec2/Vec3/Color/List/Map`, plus
 `Node(u64)` (entity bits, kept opaque so the crate depends on nothing) and
 `Callback(id)` for a script function valid only during the binding call that
 received it. Immediate-mode UI callbacks never outlive their call, so the
@@ -454,7 +456,8 @@ exactly what the seam exists to avoid. The parsed side belongs to the plugin
 that registered the type.
 
 Not done, deliberately: stable ids (`uid://`, GUIDs) — paths until renames
-actually hurt — and binary assets, since a pack holds text today.
+actually hurt. Binary assets landed with pack format 2, which carries them
+beside the text and verifies each by sha256.
 
 ### Animation (plugin feature)
 
@@ -611,12 +614,12 @@ clip keying those nodes by path (quaternions to euler on the same `libm`;
 cubic-spline tangents dropped to linear) — as plain TOML the editor edits
 like any other scene. The `gltf` crate builds without its image feature:
 nothing here decodes a texture, and a pack hands the reader bytes. 3D
-skinning runs on the CPU — `skin_positions_3d` and `skin_normals_3d`
-through kiss3d's `modify_vertices` / `modify_normals` on a dynamic mesh —
-rather than through kiss3d's own `Skin3d`, whose constructor is crate-private
-and whose GPU path is native-only; a few thousand vertices a frame is
-nothing, it runs on the web, and it is the same arithmetic the headless test
-asserts. `examples/rig3d` is a column imported this way, swaying on the clip
+skinning runs on the GPU — `skinned_3d::attach` uploads the palette to a
+material written against kiss3d's own trait — and the CPU twin
+(`skin_positions_3d` and `skin_normals_3d` through `modify_vertices` /
+`modify_normals`) stays for the two cases the GPU path cannot serve: a node
+carrying its own `material`, and the headless test that asserts the
+arithmetic. `examples/rig3d` is a column imported this way, swaying on the clip
 its file carried. A `.gltf` reads the same way: its buffers come from the
 files beside it through a `SideReader` the caller supplies (the project
 reader at load, the file system at import) or from a `data:` URI decoded in
@@ -750,12 +753,14 @@ tested), bundles scripts + scenes + manifest into a `.bpak`. Packed runs
 construct no compiler and no watcher. `balaur::boot_pack(include_bytes!(...))`
 turns a pack into a self-contained release binary; on platforms without
 JIT/codegen restrictions this is still pure interpretation of precompiled
-bytecode, so it ships everywhere (iOS included). CI cross-compiles the
-headless engine to `aarch64-apple-ios`, `aarch64-linux-android` and
-`wasm32-unknown-emscripten` on every push to main, so that last sentence is
-checked rather than asserted. Emscripten rather than `wasm32-unknown-unknown`
-is what the web template was built and tested against; audio is a stub on
-wasm because no cpal host compiles there (see `balaur_audio`).
+bytecode, so it ships everywhere (iOS included). CI cross-compiles the engine
+to `aarch64-apple-ios`, `aarch64-linux-android` and `wasm32-unknown-unknown`
+on every push to main, so that last sentence is checked rather than asserted.
+The web target is wasm-bindgen's rather than emscripten's, because kiss3d
+declares its web dependencies there and wgpu reaches WebGPU through
+`web-sys`; audio is a stub on wasm because no cpal host compiles there (see
+`balaur_audio`), and `balaur_webtransport` is left out of that build until it
+grows the stub the other two protocols have.
 
 A pack is written in sorted key order, which makes exporting the same sources
 twice give the same bytes — on the same machine and on any other. CI exports
@@ -772,7 +777,7 @@ needs an engine beside it. `--target <platform>` instead appends the pack to a
 writes a trailer:
 
 ```text
-[ template executable ][ pack bytes ][ pack length: u64 LE ][ "BPAKFUSE" ]
+[ template executable ][ pack bytes ][ pack length: u64 LE ][ "BPAKSELF" ]
 ```
 
 ELF, Mach-O and PE all ignore trailing bytes, so the fused file still runs. On
@@ -1215,9 +1220,11 @@ Engine-side measures already in place:
   `parallel`, `tests/scalar_and_threads.rs` asserts one thread and eight
   produce the same digest — rapier's solver is coloured, so they must.
 - CI records a per-tick digest on Linux, macOS and Windows and diffs the three
-  (`scripts/determinism_trace.sh`, the `simulation-matches` job). aarch64 is
-  not in that matrix yet and is where divergence is most likely: rustc may
-  contract `a*b+c` into a single FMA there and not on x86-64 SSE2.
+  (`scripts/determinism_trace.sh`, the `simulation-matches` job). `macos-latest`
+  has been arm64 since macOS 14, so aarch64 is in that matrix — the runner
+  label should be pinned to say so, because the architecture that could
+  contract `a*b+c` into one FMA where x86-64 SSE2 does not is the one the
+  claim rests on.
 
 ### The digest
 
@@ -1270,10 +1277,12 @@ from a tick to a *slice*, `--entries-at <tick>` prints every labelled digest
 component at that tick: run it on both machines' recordings and diff, and the
 answer is `n_ball_7/body2d` rather than a tick number.
 
-Four sources register today: `input`, `gamepad`, `net` and `gamend`. Three
-serialize by derive; `Pad` needs a hand-written conversion because an axis
-name is a `&'static str`, which serializes but has nowhere to deserialize
-*to*.
+Eight sources register today — `input` and `gamepad` from `balaur_input`,
+`http`, `websocket`, `gamend`, `platform` and `apple` from the crate that owns
+each, and `session` from core's own `netsession` — plus one setup,
+`input_bindings`. Most serialize by derive; `Pad` needs a hand-written
+conversion because an axis name is a `&'static str`, which serializes but has
+nowhere to deserialize *to*.
 
 Three design points:
 
@@ -1433,7 +1442,10 @@ first segment is the category the editor groups under, the last is the key,
 and the segments between nest into headings. The path is also the storage:
 `editor/appearance/theme` is `[editor.appearance] theme` in the file, so what
 you read in TOML is what you write in code, and there is no second registry
-of tables to keep in step with the registry of names.
+of tables to keep in step with the registry of names. The manifest itself
+follows the rule: what the game is lives under `[application]`, so
+`application/name` is `[application] name` rather than a top-level key the
+settings screen would have to special-case.
 
 A setting is declared with the same property spec a component uses — type,
 default, range, options, help — so the editor renders a settings row and an
@@ -1534,8 +1546,9 @@ technique and where it sits.
 
 ### Transport
 
-Today: HTTP (`balaur_http`) and WebSocket (`balaur_websocket`), plus the
-Gamend backend. One crate per protocol, because a QUIC stack is a large
+Today: HTTP (`balaur_http`), WebSocket (`balaur_websocket`) and WebTransport
+over QUIC (`balaur_webtransport`, off by default), plus the Gamend backend.
+One crate per protocol, because a QUIC stack is a large
 dependency and a game that only wants `http.request` should not compile one;
 nothing shared sits under them, since the shared parts — `ExternalIo`,
 `Transport`, `Handler`, the await-token space — are already in core.
@@ -1693,10 +1706,11 @@ in the editor at all. `balaur edit <game> --state
 such state offscreen, and `scripts/e2e.sh` runs the `rigdemo` and `polydemo`
 self-tests headless on every example.
 
-Note: the workspace patches `kiss3d` to the local checkout at
-`~/work/kiss3d` for the macOS ⌘-modifier fix in its egui integration
-(committed there as `fix: report the macOS Command (Super) key in egui
-modifiers`); drop the `[patch.crates-io]` entry once that ships upstream.
+Note: the workspace patches `kiss3d` to a git fork
+(`github.com/Ughuuu/kiss3d`, branch `mobile-fixes`) for the macOS
+⌘-modifier fix in its egui integration and for iOS and Android support; drop
+that `[patch.crates-io]` entry once both ship upstream. The `rune` patch
+beside it is not temporary: it is what puts `powf` and `powi` on `libm`.
 
 ## Input
 
@@ -1823,6 +1837,26 @@ every action a played game asked for read zero; `input.declare_actions` lets a
 host declare the actions of the project it is running, and the editor does it
 when it loads the game.
 
+## Post-processing
+
+`camera.post` names which screen-space passes run over the 3D view — `bloom`,
+`ssao`, `ssr`, `dof` — with `bloom_threshold` and `bloom_intensity` beside
+them, because bloom is unusable without the two numbers and the rest need
+none. It is a `flags` property: a list of names from a closed set, so a scene
+says what it wants rather than carrying a boolean per effect that a later
+pass would have to add to.
+
+The chain is the backend's, not the scene's: the camera says which passes run
+and the renderer decides in what order, since the order is a property of how
+the passes compose rather than of the game. A user shader on that chain is
+`docs/PLAN-shaders.md`'s remaining phase, and the open question there is
+exactly this one — where a user pass sits among the built-in ones, and
+whether the material or the camera says so.
+
+Post-processing is an observer like the rest of rendering: it reads the
+rendered image and never writes simulation state, so a headless run computes
+the same world as one with bloom on.
+
 ## Camera and screenshots
 
 The `render` module exposes `render.set_camera(ex, ey, ez, tx, ty, tz)`
@@ -1908,12 +1942,12 @@ release finished.
 | More widget kinds, as games ask for them | no plan yet, and demand-driven by design: the `widget` tree, its theme and its focus order are built, so a kind is a schema and a draw |
 | Accessibility: a screen reader over the widget tree, text scaling, captions, colour-blind-safe defaults | no plan yet; the retained `widget` tree already carries text, `focusable` and a focus order, which is what a reader walks; egui can emit an AccessKit tree, localization is there for captions, and actions already rebind |
 | Navigation: a navmesh baked from the scene, A* over it or over a grid, agents that avoid each other | no plan yet; nothing in the tree pathfinds. Behaviour over it stays a script's job |
-| Motion and haptics beyond a PlayStation pad: Switch Pro and Joy-Con gyro, per-unit sensor calibration, adaptive triggers and light bars, waveform haptics, device motion on a phone, gamepads on iOS and Android | `docs/PLAN-input.md` §2 and steps 2-7. Rumble over `gilrs::ff`, and gyro, accelerometer and touchpad decoded from DualSense and DualShock 4 HID reports, shipped in 0.1.0 |
-| Gamend sessions and matchmaking, WebTransport in the browser, WebRTC data channels for browser peer-to-peer; never raw UDP, never ENet | `docs/PLAN-networking.md` §2 and steps 8, 13, 14. Native QUIC datagrams, binary frames, run-time stable ids and rollback (one machine and over a socket) shipped in 0.1.0 |
+| Motion and haptics beyond a PlayStation pad: Switch Pro and Joy-Con gyro, per-unit sensor calibration, adaptive triggers and light bars, waveform haptics, device motion on a phone, gamepads on iOS and Android | `docs/PLAN-input.md` §2 and steps 2-7. Rumble over `gilrs::ff`, and gyro, accelerometer and touchpad decoded from DualSense and DualShock 4 HID reports, are built |
+| Gamend sessions and matchmaking, WebTransport in the browser, WebRTC data channels for browser peer-to-peer; never raw UDP, never ENet | `docs/PLAN-networking.md` §2 and steps 8, 13, 14. Native QUIC datagrams, binary frames, run-time stable ids and rollback (one machine and over a socket) are built |
 | Replication and RPC, client-side prediction, server reconciliation, interpolation of unowned nodes, lag compensation, interest management, a bandwidth budget; join in progress; a client-authoritative hit is never planned | `docs/PLAN-networking.md` §1 "Hiding latency" and steps 9 to 12 |
 | Voice in a session | no plan yet; the transport carries unreliable datagrams and audio has buses to mix a stream into. What is missing is a codec |
 | A crash report that reproduces itself: the recording, the log and the build id in one file | no plan yet; `replay` already writes a file that re-runs a session bit for bit and `logbuf` holds the log — nothing packages the two when a game falls over |
-| Store and platform services on Steam and Google Play: sign-in, achievements, leaderboards, cloud saves, rich presence, in-app purchase | `docs/PLAN-steam.md` and `docs/PLAN-google.md`. Apple shipped in 0.1.0 (`docs/PLAN-apple.md`) and built what both plug into: the `platform` script module, the `PlatformBackend` seam, and the rule that a store write waits for its tick to settle. Both remaining plans start with work that is worth doing anyway — Steam's redistributable beside the executable, and an Android package id, app bundle and 16 KB page alignment |
+| Store and platform services on Steam and Google Play: sign-in, achievements, leaderboards, cloud saves, rich presence, in-app purchase | `docs/PLAN-steam.md` and `docs/PLAN-google.md`. Apple already built (`docs/PLAN-apple.md`) and built what both plug into: the `platform` script module, the `PlatformBackend` seam, and the rule that a store write waits for its tick to settle. Both remaining plans start with work that is worth doing anyway — Steam's redistributable beside the executable, and an Android package id, app bundle and 16 KB page alignment |
 | Signed binary releases, published benchmarks | `docs/PLAN-release.md` |
 | Web export: a wgpu surface on a canvas, a shell page, and the pack fetched beside the wasm | `docs/PLAN-mobile-export.md` "Web". The headless wasm template already links and is packaged on every push (`scripts/package_template.sh web`); the window is what is missing, and it blocks `docs/PLAN-web-editor.md` too |
 | One-click deploy: a game on a URL or on a phone from one command or one button, rather than a bundle in `dist/` | `docs/PLAN-deploy.md`. `balaur export` builds and signs; nothing sends the result anywhere, and the three store plans each end at a file on the developer's disk |

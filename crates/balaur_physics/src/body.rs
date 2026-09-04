@@ -7,7 +7,7 @@ use crate::rapier3d::prelude::{
     ColliderBuilder, LockedAxes, MassProperties, RigidBody, RigidBodyActivation, RigidBodyBuilder,
     RigidBodyHandle, RigidBodyType,
 };
-use crate::scalar::{self, Real};
+use crate::scalar::{self, Real, Vector};
 use anyhow::{anyhow, Result};
 use balaur_core::components::ComponentDef;
 use balaur_core::entity_of;
@@ -34,7 +34,6 @@ solver_iterations = { type = "float", default = 0.0, min = 0.0, description = "E
 ccd = { type = "bool", default = false, description = "Sweep the body's whole path each step so a fast one cannot pass through a wall" }
 soft_ccd = { type = "float", default = 0.0, min = 0.0, description = "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies" }
 fast_rotation = { type = "bool", default = false, description = "Allow a spin fast enough that rapier would otherwise clamp it" }
-gyroscopic = { type = "bool", default = false, description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }
 can_sleep = { type = "bool", default = true, description = "Let the body stop being simulated once it has held still" }
 sleep_time = { type = "float", default = 0.5, min = 0.0, description = "Seconds of stillness before the body sleeps" }
 enabled = { type = "bool", default = true, description = "Simulate this body at all; a disabled body keeps its state and costs nothing" }
@@ -240,13 +239,54 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
         "fast_rotation".into(),
         body.is_fast_rotation_allowed().into(),
     );
+    map.insert(
+        "gyroscopic".into(),
+        body.gyroscopic_forces_enabled().into(),
+    );
     map.insert("enabled".into(), body.is_enabled().into());
     map.insert(
         "can_sleep".into(),
         (body.activation().normalized_linear_threshold >= 0.0).into(),
     );
     map.insert("sleep_time".into(), f(body.activation().time_until_sleep));
+    read_mass(body, &mut map);
     Some(toml::Value::Table(map))
+}
+
+/// The mass the author added, read back off the body.
+///
+/// `body.mass()` is the total, colliders included; writing that back as
+/// `mass` would add the colliders' weight again on every save.
+fn read_mass(body: &RigidBody, map: &mut toml::map::Map<String, toml::Value>) {
+    use crate::rapier3d::dynamics::RigidBodyAdditionalMassProps as Extra;
+    let f = |value: Real| toml::Value::Float(f64::from(value));
+    let vec3 = |v: Vector| toml::Value::Array(vec![f(v.x), f(v.y), f(v.z)]);
+    let (mass, inertia, com) = match body.mass_properties().additional_local_mprops.as_deref() {
+        Some(Extra::Mass(mass)) => (*mass, Vector::ZERO, Vector::ZERO),
+        Some(Extra::MassProps(props)) => {
+            (props.mass(), props.principal_inertia(), props.local_com)
+        }
+        None => (0.0, Vector::ZERO, Vector::ZERO),
+    };
+    map.insert("mass".into(), f(mass));
+    map.insert("inertia".into(), vec3(inertia));
+    map.insert("center_of_mass".into(), vec3(com));
+}
+
+/// A node's body handle, checked against rapier's arena.
+///
+/// A freed node's handle outlives it until the next prune, and indexing the
+/// arena with one panics inside rapier rather than failing the call.
+pub(crate) fn body_handle(state: &PhysicsState, entity: Entity) -> Result<RigidBodyHandle> {
+    let handle = state
+        .bodies
+        .get(&entity)
+        .copied()
+        .ok_or_else(|| anyhow!("node has no rigid body"))?;
+    if !state.world.bodies.contains(handle) {
+        return Err(anyhow!("this node's body is gone: the node was freed"));
+    }
+    Ok(handle)
 }
 
 pub(crate) fn with_body<R>(
@@ -256,11 +296,7 @@ pub(crate) fn with_body<R>(
 ) -> Result<R> {
     let state = eng.resource::<PhysicsState>();
     let mut state = state.borrow_mut();
-    let handle = state
-        .bodies
-        .get(&entity)
-        .copied()
-        .ok_or_else(|| anyhow!("node has no rigid body"))?;
+    let handle = body_handle(&state, entity)?;
     Ok(f(&mut state, handle))
 }
 
@@ -272,11 +308,7 @@ pub(crate) fn read_body<R>(
 ) -> Result<R> {
     let state = eng.resource::<PhysicsState>();
     let state = state.borrow();
-    let handle = state
-        .bodies
-        .get(&entity)
-        .copied()
-        .ok_or_else(|| anyhow!("node has no rigid body"))?;
+    let handle = body_handle(&state, entity)?;
     Ok(f(&state.world.bodies[handle]))
 }
 
@@ -922,6 +954,7 @@ lock_translation = {{ type = "flags", default = [], options = ["x", "y", "z"], d
 lock_rotation = {{ type = "flags", default = [], options = ["x", "y", "z"], description = "World axes the body may not turn about; locking all three keeps a character upright" }}
 center_of_mass = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the extra mass sits, in the node's own space; only read when mass is set" }}
 inertia = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Resistance to spin about each axis; 0 lets rapier derive it from the mass" }}
+gyroscopic = {{ type = "bool", default = false, description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }}
 {SHARED_BODY_SCHEMA}"#
     );
     reg.register_component(

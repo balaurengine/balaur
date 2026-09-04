@@ -25,7 +25,10 @@ pub fn modes(S) {
     let split = S.split && (S.doctab != "events");
     let live = split || !document;
     S.viewport_live = live;
-    S.doc_open = document || split;
+    // Into a local first: `S.doc_open = document || split` writes the result
+    // into `document` too, which is the pitfall AGENTS.md names.
+    let open = document || split;
+    S.doc_open = open;
     let has_tools = defs::tools(S.persona).len() > 0;
     let rail_on = S.viewport_live && has_tools;
     S.rail_visible = rail_on;
@@ -163,6 +166,11 @@ fn chips_wanted(S, vp) {
 
 fn viewport(S, k) {
     let vp = S.layout.stage;
+    // The chrome is placed against the stage, so an unplaced stage draws none
+    // of it rather than piling it into the window's corner.
+    if !style::placed(vp) {
+        return;
+    }
     // Interface overlays: the safe-area inset and the 16:9 frame.
     let chips_ui = util::obj(S.chip_state.get(S.persona).unwrap_or(#{}));
     if S.persona == "ui" {
@@ -238,6 +246,9 @@ fn viewport(S, k) {
 // text under a floating sheet cannot be read.
 fn document_sheet(S, k, id) {
     let r = S.layout.doc;
+    if !style::placed(r) {
+        return;
+    }
     ui::overlay(id, #{
         x: r.x, y: r.y, w: r.w, h: r.h,
         fill: k.code_bg, stroke: k.line, radius: 11,
@@ -249,20 +260,10 @@ fn hooks_sheet(S, k) {
     let shading = S.shader_rel != "";
     let rel = if shading { S.shader_rel } else { model::script_rel(model::selected_node(S)).unwrap_or("") };
     style::sheet(k, "hooks", S.layout.hooks, 12, 0, || {
-        ui::add_space(11);
-        ui::label(if shading { "SHADER" } else { "HOOKS IN FILE" }, style::heading(k));
-        ui::add_space(9);
+        style::section_label(k, if shading { "shader" } else { "hooks in file" });
         if !shading {
             for hook in S.hooks_live {
-                ui::frame(#{ fill: k.sunken, radius: 14, padding_x: 10 }, || {
-                    ui::horizontal(#{ height: 27 }, || {
-                        let color = if hook.name == "init" || hook.name == "update" { k.accent } else { k.sage };
-                        ui::dot(color, 6);
-                        ui::add_space(4);
-                        ui::label(hook.name, style::mono_sm(k.text));
-                    });
-                });
-                ui::add_space(4);
+                style::hook_pill(k, hook.name, hook.name, "");
             }
         }
         if S.script_dirty.contains_key(S.game_root + "/" + rel) {
@@ -293,11 +294,7 @@ fn code_pane(S, k) {
         match model::script_rel(node) {
             Some(rel) => rel,
             None => {
-                ui::add_space(24);
-                ui::horizontal((), || {
-                    ui::add_space(24);
-                    ui::label("no script attached to " + node.name, style::mono_lg(k.faint));
-                });
+                style::empty(k, "no script attached to " + node.name);
                 return;
             }
         }
@@ -306,7 +303,7 @@ fn code_pane(S, k) {
     let src = match model::source(S, rel) {
         Some(src) => src,
         None => {
-            ui::label("missing file: " + rel, style::mono_lg(k.faint));
+            style::empty(k, "missing file: " + rel);
             return;
         }
     };
@@ -360,30 +357,22 @@ fn code_pane(S, k) {
 // The `events` document tab: every script's engine-facing hooks, per node.
 fn events_view(S, k) {
     let r = S.layout.doc;
+    if !style::placed(r) {
+        return;
+    }
     ui::overlay("events", #{
         x: r.x, y: r.y, w: r.w, h: r.h,
         fill: k.bg, stroke: k.line, radius: 11,
         padding_x: 20, padding_y: 14,
     }, || {
-        ui::label("EVENT BINDINGS", style::heading(k));
-        ui::add_space(8);
+        style::section_label(k, "event bindings");
         for node in S.doc {
             let script_some = model::script_rel(node);
             if let Some(script) = script_some {
                 for hook in model::hooks(S, script) {
-                    ui::horizontal(#{ height: 30 }, || {
-                        ui::frame(#{ fill: k.sunken, radius: 15, padding_x: 11 }, || {
-                            ui::horizontal(#{ height: 30 }, || {
-                                let color = if hook.name == "init" || hook.name == "update" { k.accent } else { k.sage };
-                                ui::dot(color, 6);
-                                ui::add_space(4);
-                                ui::label(format!("{}.{}()", node.name, hook.name), style::mono(k.text));
-                                ui::right(|| {
-                                    ui::label(format!("{}:{}", script, hook.line), style::mono_sm(k.faint));
-                                });
-                            });
-                        });
-                    });
+                    style::hook_pill(k, hook.name,
+                        format!("{}.{}()", node.name, hook.name),
+                        format!("{}:{}", script, hook.line));
                 }
             }
         }

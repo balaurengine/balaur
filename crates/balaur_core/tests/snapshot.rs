@@ -261,3 +261,31 @@ fn a_respawned_node_brings_its_components_back() {
     assert_eq!(marker.get("size"), Some(&toml::Value::Float(7.5)));
     assert_eq!(digest::digest(&app.engine), before);
 }
+
+/// The ordering one: `collect_subtree` visits the last child first, so a
+/// respawn that appended put a freed middle sibling at the end and `fold`
+/// reported a divergence made of nothing.
+#[test]
+fn restoring_the_first_of_three_siblings_puts_it_back_where_it_was() {
+    let app = app();
+    spawn(&app, "n_a", 1.0);
+    spawn(&app, "n_b", 2.0);
+    spawn(&app, "n_c", 3.0);
+    let before = digest::digest(&app.engine);
+    let taken = snapshot::capture(&app.engine);
+
+    let first = find(&app, "n_a").expect("the first sibling");
+    balaur_core::scene::free_subtree(&mut app.engine.world_mut(), first);
+    assert_ne!(
+        digest::digest(&app.engine),
+        before,
+        "the free has to be visible, or the test proves nothing"
+    );
+
+    snapshot::restore(&app.engine, &taken);
+    assert_eq!(
+        digest::digest(&app.engine),
+        before,
+        "a node that came back last is a desync report about sibling order"
+    );
+}

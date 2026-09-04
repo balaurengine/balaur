@@ -54,6 +54,7 @@ fn is_identifier(name: &str) -> bool {
 const GENERIC: &[(&str, &str)] = &[
     ("get", "get_component"),
     ("set", "set_component"),
+    ("patch", "patch_component"),
     ("has", "has_component"),
     ("remove", "remove_component"),
 ];

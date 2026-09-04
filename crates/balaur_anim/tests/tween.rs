@@ -14,6 +14,7 @@ use balaur_core::scene::{self, Transform};
 use balaur_core::{components, App, AppConfig};
 use common::Calls;
 use glamx::Vec3;
+use std::f32::consts::FRAC_PI_2;
 
 fn app() -> App {
     let mut app = App::new(AppConfig {
@@ -748,4 +749,60 @@ duration = 0.5
         0.7,
         "four tenths of a radian on from where it was",
     );
+}
+
+#[test]
+fn a_by_step_on_a_quaternion_rotation_composes_the_turn() {
+    let mut app = app();
+    let entity = spawn(&app, "Box");
+    app.engine
+        .world_mut()
+        .get::<&mut Transform>(entity)
+        .unwrap()
+        .rotation = balaur_anim::sampler::quat_from_euler(Vec3::new(0.0, 0.0, 0.5));
+    let quarter = balaur_anim::sampler::quat_from_euler(Vec3::new(0.0, 0.0, FRAC_PI_2));
+    start(
+        &app,
+        entity,
+        &format!(
+            r#"
+[[steps]]
+property = "rotation"
+by = [{}, {}, {}, {}]
+duration = 0.5
+"#,
+            quarter.x, quarter.y, quarter.z, quarter.w
+        ),
+    );
+    tick(&mut app, 31);
+    let angles = balaur_anim::sampler::euler_from_quat(transform(&app, entity).rotation);
+    near(
+        angles.z,
+        0.5 + FRAC_PI_2,
+        "a quaternion `by` turns by that much, rather than adding four numbers",
+    );
+}
+
+/// The limit `rotation_euler` inherits from being slerped: a `by` bigger than
+/// half a turn arrives by the short way, and a whole turn arrives nowhere.
+#[test]
+fn a_full_turn_by_on_euler_lands_where_it_started() {
+    let mut app = app();
+    let entity = spawn(&app, "Box");
+    start(
+        &app,
+        entity,
+        r#"
+[[steps]]
+property = "rotation_euler"
+by = [0.0, 0.0, 6.2831853]
+duration = 0.5
+"#,
+    );
+    tick(&mut app, 15);
+    let half_way = balaur_anim::sampler::euler_from_quat(transform(&app, entity).rotation);
+    near(half_way.z, 0.0, "the two ends are the same rotation");
+    tick(&mut app, 16);
+    let angles = balaur_anim::sampler::euler_from_quat(transform(&app, entity).rotation);
+    near(angles.z, 0.0, "and so is the end");
 }

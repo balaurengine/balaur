@@ -147,8 +147,9 @@ balaur_core::snapshot::restore(&app.engine, &taken);
 Each subsystem saves and restores its own state (transforms and RNG in core,
 rapier's worlds in physics, script instances through `save_state` /
 `load_state`). Give a script those two methods when only part of its state
-matters; leave them out and its plain fields are captured for it. A snapshot
-does not respawn or free nodes: restore writes over what exists.
+matters; leave them out and its plain fields are captured for it. Restore puts
+the node *set* back too: core's `nodes` source frees what was spawned since
+and respawns what was freed, before any other source writes into an entity.
 
 ## What breaks determinism
 
@@ -166,7 +167,7 @@ are the ones to watch.
 | `x.powf(y)`, `x.powi(n)` | Handled — Rune's own, and our fork of it routes both through `libm` |
 | `engine::time()`, `engine::delta()` | **Your problem** — both accumulate real frame time. Use `engine::tick()`, or `fixed_update`'s `dt` |
 | Iterating the keys of an object | **Your problem** — `#{}` is hash-ordered, not insertion-ordered. Iterate a `Vec`, or `sort()` the keys first |
-| Hot reload mid-session | Handled — a reload ends the recording where it happened, and the header's script fingerprint says when the sources have moved on since |
+| Hot reload mid-session | Handled in the editor, which ends the session on a reload; under `balaur run --record` the watcher is on and the recording spans the change, with only the header's script fingerprint to say the sources moved |
 
 Every float method Rune exposes is now safe to call directly. `sqrt`, `abs`,
 `floor`, `ceil`, `round`, `min` and `max` are exactly rounded by IEEE-754, so
@@ -196,8 +197,8 @@ Two hooks, for plugin authors.
 its arrivals land in recordings:
 
 ```rust
-// Passive state the OS fills in — one line.
-app.add_replay_resource::<InputSnapshot>("input");
+// Passive state the OS fills in — one line, from the plugin's `declare`.
+reg.add_replay_resource::<InputSnapshot>("input");
 ```
 
 If it also *sends* — a socket, a request — use `replay::ExternalIo` instead.
@@ -210,7 +211,7 @@ the digest, so a divergence in it is caught:
 
 ```rust
 // `body3d` reports its kind, not its velocity — and velocity diverges first.
-app.add_digest_source("physics", |eng, out| { /* push labelled entries */ });
+reg.add_digest_source("physics", |eng, out| { /* push labelled entries */ });
 ```
 
 **A subsystem that does something a timeline should show** records an event.

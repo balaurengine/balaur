@@ -163,6 +163,13 @@ impl Engine {
         self.inner.tick.set(self.inner.tick.get() + 1);
     }
 
+    /// The frame time of a frame that is not a tick: a paused replay still
+    /// draws, and counting its frames would run every later replayed tick at
+    /// a number the recording never had.
+    pub fn hold_time(&self, dt: f32) {
+        self.inner.delta.set(dt);
+    }
+
     /// Put the clock back to where a recorded session started, so a replay
     /// reports the tick and time the recording did.
     ///
@@ -192,6 +199,12 @@ impl Engine {
     /// running; [`Engine::frozen_root`] says what stops.
     pub fn set_frozen(&self, frozen: bool) {
         self.inner.frozen.set(frozen);
+    }
+
+    /// Whether a debugger pause is holding the simulation, apart from a
+    /// paused replay's own hold.
+    pub fn is_frozen(&self) -> bool {
+        self.inner.frozen.get()
     }
 
     /// Hold the simulation for a paused replay. Independent of

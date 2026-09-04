@@ -7,11 +7,11 @@
 //! given a `position` — is heard from the `listener` node: see [`spatial`].
 //!
 //! Audio is a pure observer of the simulation. If no output device is
-//! available (CI, headless servers) the plugin logs a warning once, every
-//! call still hands out the same handles, and `is_playing` answers false —
-//! a game runs identically with and without a sound card. Anything that
-//! feeds a decision (the `sound` component's "already started" check) is
-//! therefore tracked as intent on [`Sound`], never read off a sink.
+//! available (CI, headless servers) the plugin logs a warning once and every
+//! call still hands out the same handles — a game runs identically with and
+//! without a sound card. Anything that feeds a decision (`is_playing`, the
+//! `sound` component's "already started" check) is therefore tracked as
+//! intent on [`Sound`] and [`AudioState`], never read off a sink.
 //!
 //! Wasm builds are the extreme case of that rule: no audio stack compiles
 //! there at all (see the backend modules below), so the whole backend is the
@@ -21,14 +21,15 @@ use anyhow::{anyhow, bail, Result};
 use balaur_core::components::{as_f64, ComponentDef};
 use balaur_core::glamx::Vec3;
 use balaur_core::hecs::Entity;
-use balaur_core::project::ProjectFiles;
 use balaur_core::{entity_of, scene, DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 pub mod bus;
+pub mod cache;
 pub mod event;
 pub mod spatial;
 
+use bus::Buses;
 use spatial::{Emitter, Listener, ListenerPose, Placement};
 
 /// The rodio/cpal backend: every target with a real audio stack.
@@ -297,7 +298,7 @@ pub struct AudioState {
     /// What each live handle was played at and through, so moving a bus's
     /// slider can re-apply the gain to what is already sounding. Without it a
     /// volume change would only reach sounds started after it.
-    routing: DetHashMap<u64, (String, f32)>,
+    routing: DetHashMap<u64, Routed>,
     /// Every node's `sound` component, keyed the way `AnimationState` keys
     /// its players.
     pub nodes: DetHashMap<Entity, Sound>,
@@ -312,6 +313,15 @@ pub struct AudioState {
     /// Counts up from 1 and never reuses, so a held handle names nothing
     /// rather than something else once its sound is gone.
     next_handle: u64,
+}
+
+/// Where a live handle plays: its bus, the volume its caller asked for, and
+/// the gain last handed to its sink. The applied gain is bookkeeping rather
+/// than a sink reading, so a headless run can assert the mix.
+struct Routed {
+    bus: String,
+    volume: f32,
+    applied: f32,
 }
 
 /// One `play`: how loud and fast, looping or not, on which bus at what chain
@@ -398,7 +408,6 @@ impl AudioState {
         self.next_handle += 1;
         let volume = cue.volume.max(0.0);
         let pitch = cue.pitch.max(MIN_PITCH);
-        self.routing.insert(handle, (cue.bus, volume));
         let placement = match cue.emitter {
             Some(mut emitter) => {
                 emitter.pitch = pitch;
@@ -409,12 +418,21 @@ impl AudioState {
             }
             None => None,
         };
+        let placed = placement.unwrap_or_default();
+        let applied = (volume * cue.gain * placed.gain).max(0.0);
+        self.routing.insert(
+            handle,
+            Routed {
+                bus: cue.bus,
+                volume,
+                applied,
+            },
+        );
         if let Some(device) = &self.device {
-            let placed = placement.unwrap_or_default();
             let started = backend::play(
                 device,
                 bytes,
-                volume * cue.gain * placed.gain,
+                applied,
                 (pitch * placed.pitch).max(MIN_PITCH),
                 cue.looped,
                 placement.map(|placed| spatial::stereo_gains(placed.pan)),
@@ -429,23 +447,20 @@ impl AudioState {
         handle
     }
 
-    /// Re-apply `gain` to every live sound on `bus`. What moving a slider
-    /// does to what is already playing.
+    /// Re-apply the mix to every live sound `moved` carries — the ones on it
+    /// and the ones on any bus under it. What moving a slider does to what is
+    /// already playing.
     ///
     /// Positional handles are left to the next frame's placement pass, which
     /// reads the same bus gain and would otherwise overwrite this.
-    pub fn reroute(&mut self, bus: &str, gain: f32) {
-        for (handle, (on, volume)) in &self.routing {
-            let on = if on.is_empty() {
-                bus::MASTER
-            } else {
-                on.as_str()
-            };
-            if on != bus || self.spatial.contains_key(handle) {
+    pub fn reroute(&mut self, buses: &Buses, moved: &str) {
+        for (handle, routed) in &mut self.routing {
+            if self.spatial.contains_key(handle) || !buses.feeds(&routed.bus, moved) {
                 continue;
             }
+            routed.applied = (routed.volume * buses.gain(&routed.bus)).max(0.0);
             if let Some(sink) = self.playing.get(handle) {
-                sink.set_volume((volume * gain).max(0.0));
+                sink.set_volume(routed.applied);
             }
         }
     }
@@ -453,7 +468,16 @@ impl AudioState {
     /// The bus a live handle plays on, and the volume it was started at.
     #[must_use]
     pub fn routing_of(&self, handle: u64) -> Option<(String, f32)> {
-        self.routing.get(&handle).cloned()
+        self.routing
+            .get(&handle)
+            .map(|routed| (routed.bus.clone(), routed.volume))
+    }
+
+    /// The gain a live handle's sink is at: its own volume through its bus
+    /// chain, times its distance gain when it is placed.
+    #[must_use]
+    pub fn effective_volume(&self, handle: u64) -> Option<f32> {
+        self.routing.get(&handle).map(|routed| routed.applied)
     }
 
     /// Stop one handle's sound. A finished, stopped or unknown handle no-ops.
@@ -468,13 +492,20 @@ impl AudioState {
     /// Set a live handle's own volume, before its bus and its distance. The
     /// stored one moves with it, so a bus slider and the next placement pass
     /// both recompute from what was asked for last.
-    pub fn set_volume(&mut self, handle: u64, volume: f32) {
+    pub fn set_volume(&mut self, handle: u64, volume: f32, buses: &Buses) {
         let volume = volume.max(0.0);
-        if let Some((_, stored)) = self.routing.get_mut(&handle) {
-            *stored = volume;
-        }
+        let placed = self
+            .spatial
+            .get(&handle)
+            .map_or(1.0, |emitter| emitter.placement.gain);
+        let Some(routed) = self.routing.get_mut(&handle) else {
+            return;
+        };
+        routed.volume = volume;
+        routed.applied = (volume * buses.gain(&routed.bus) * placed).max(0.0);
+        let applied = routed.applied;
         if let Some(sink) = self.playing.get(&handle) {
-            sink.set_volume(volume);
+            sink.set_volume(applied);
         }
     }
 
@@ -522,19 +553,19 @@ impl AudioState {
         self.listener.place(position);
     }
 
-    /// Whether a handle's sound is still audible. Always false headless.
+    /// Whether a handle's sound is still going: started and not yet stopped,
+    /// swept or finished. Read off the routing rather than the sink, so a
+    /// machine with no output device answers what one with a card answers.
     #[must_use]
     pub fn is_playing(&self, handle: u64) -> bool {
-        self.playing
-            .get(&handle)
-            .is_some_and(|sink| !sink.finished())
+        self.routing.contains_key(&handle)
     }
 }
 
-/// The bytes a sound path names, through the pack-aware project reader,
-/// which says where it looked when there is nothing there.
+/// The bytes a sound path names, cached between plays so a footstep does not
+/// cost a read per step.
 fn read_sound(eng: &Engine, path: &str) -> Result<Vec<u8>> {
-    eng.resource::<ProjectFiles>().borrow().read(path)
+    cache::read(eng, path)
 }
 
 /// Start `entity`'s configured sound and hand back the handle. An explicit
@@ -629,6 +660,7 @@ fn sweep_sounds_system(eng: &Engine, _: f32) {
     let AudioState {
         nodes,
         playing,
+        routing,
         spatial,
         ..
     } = &mut *state;
@@ -640,15 +672,19 @@ fn sweep_sounds_system(eng: &Engine, _: f32) {
         }
         if let Some(handle) = sound.handle {
             spatial.shift_remove(&handle);
+            routing.shift_remove(&handle);
             if let Some(sink) = playing.shift_remove(&handle) {
                 sink.stop();
             }
         }
         false
     });
+    // A sink that has played out ends its handle's bookkeeping too. With no
+    // device nothing plays out, so a handle there lasts until it is stopped.
     playing.retain(|handle, sink| {
         if sink.finished() {
             spatial.shift_remove(handle);
+            routing.shift_remove(handle);
             return false;
         }
         true
@@ -680,6 +716,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
         });
         reg.insert_resource(bus::Buses::default());
         reg.insert_resource(event::Events::default());
+        reg.insert_resource(cache::SoundCache::default());
 
         reg.add_system(Stage::PostUpdate, sweep_sounds_system);
         reg.add_system(Stage::SceneSync, spatial::spatialize_system);
@@ -744,7 +781,10 @@ fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
         |key: &str, default: f64| params.get(key).and_then(as_f64).unwrap_or(default) as f32;
     let (autoplay, volume, pitch) = (flag("autoplay"), level("volume", 1.0), level("pitch", 1.0));
     let has_file = !file.trim().is_empty();
+    bus::ensure_loaded(eng);
     let start = {
+        let buses = eng.resource::<Buses>();
+        let buses = buses.borrow();
         let state = eng.resource::<AudioState>();
         let mut state = state.borrow_mut();
         let (file_changed, handle) = {
@@ -775,7 +815,7 @@ fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
             Some(handle) if file_changed => state.stop(handle),
             // Volume and pitch land live on a sound already going.
             Some(handle) => {
-                state.set_volume(handle, volume);
+                state.set_volume(handle, volume, &buses);
                 state.set_pitch(handle, pitch);
             }
             None => {}
@@ -939,9 +979,13 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_volume",
         |eng: &Engine, (handle, volume): (i64, f32)| {
-            eng.resource::<AudioState>()
-                .borrow_mut()
-                .set_volume(handle_of(handle), volume);
+            bus::ensure_loaded(eng);
+            let buses = eng.resource::<Buses>();
+            eng.resource::<AudioState>().borrow_mut().set_volume(
+                handle_of(handle),
+                volume,
+                &buses.borrow(),
+            );
             Ok(())
         },
     );
@@ -1050,12 +1094,11 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
             bus::ensure_loaded(eng);
             let buses = eng.resource::<bus::Buses>();
             buses.borrow_mut().set_volume(&name, volume);
-            let gain = buses.borrow().gain(&name);
-            // Everything already sounding on that bus moves too, which is the
-            // difference between a mixer and a default.
+            // Everything already sounding through that bus moves too, which
+            // is the difference between a mixer and a default.
             eng.resource::<AudioState>()
                 .borrow_mut()
-                .reroute(&name, gain);
+                .reroute(&buses.borrow(), &name);
             Ok(())
         },
     );

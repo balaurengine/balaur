@@ -114,6 +114,10 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: set_component,
     },
     NodeOp {
+        name: "patch_component",
+        call: patch_component,
+    },
+    NodeOp {
         name: "remove_component",
         call: remove_component,
     },
@@ -130,8 +134,20 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: component_names,
     },
     NodeOp {
+        name: "stable_id",
+        call: stable_id,
+    },
+    NodeOp {
+        name: "descendants",
+        call: descendants,
+    },
+    NodeOp {
         name: "script_path",
         call: script_path,
+    },
+    NodeOp {
+        name: "has_method",
+        call: has_method,
     },
     NodeOp { name: "call", call },
     NodeOp {
@@ -181,12 +197,16 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("parent", &[], "()", "The node's parent, nil at the root."),
         ("children", &[], "()", "The node's direct children, an empty list when it has none."),
         ("set_parent", &[], "(parent: node)", "Move the node under another, keeping where it is in the world; an error for a cycle or a dead parent."),
-        ("set_component", &[], "(component: string, params: any?)", "Give the node the named component, built from the given table over the component's schema defaults."),
+        ("set_component", &[], "(component: string, params: any?)", "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest."),
+        ("patch_component", &[], "(component: string, params: table)", "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds."),
         ("remove_component", &[], "(component: string)", "Take the named component off the node."),
         ("get_component", &[], "(component: string)", "The named component's properties as a table, nil when the node does not carry it."),
         ("has_component", &[], "(component: string)", "Whether the node carries the named component."),
         ("component_names", &[], "()", "The names of every component on the node."),
+        ("stable_id", &[], "()", "The node's stable id — what a scene file declared or what `ids::mint` gave a spawned node — empty when it carries none. Survives rename and reparent, which a path does not."),
+        ("descendants", &[], "()", "Every node under this one, in tree order, the node itself excluded."),
         ("script_path", &[], "()", "The path of the script attached to the node, nil when it has none."),
+        ("has_method", &[], "(method: string)", "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\"."),
         ("call", &[], "(method: string, args: any?)", "Call a method on the node's script and return what it gives back; nil when there is no such script or method."),
         ("attach_script", &[], "(path: string, props: any?)", "Attach the script at a path, with an optional table overriding what the script exports."),
         ("detach_script", &[], "()", "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay."),
@@ -429,6 +449,22 @@ fn set_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
+/// Writes over what the component currently holds, so the properties the
+/// table does not name survive.
+///
+/// The difference from `set_component` is the whole reason both exist:
+/// describing a component whole is what a scene file means, and changing one
+/// property is what a script driving it over time means.
+fn patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let params = to_toml(
+        args.get(2)
+            .ok_or_else(|| anyhow!("patch_component needs the properties to change"))?,
+    )?;
+    crate::components::patch(eng, e, text(args, 1)?, &params)?;
+    Ok(Value::Nil)
+}
+
 fn remove_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     crate::components::remove(eng, e, text(args, 1)?)?;
@@ -459,6 +495,41 @@ fn component_names(eng: &Engine, args: &[Value]) -> Result<Value> {
     ))
 }
 
+/// The identity that survives a rename and a reparent, where a path does not.
+///
+/// Empty rather than nil for a node carrying none: a caller comparing ids
+/// should not have to tell two kinds of absence apart.
+fn stable_id(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    Ok(Value::Str(
+        crate::ids::of(&eng.world(), e).unwrap_or_default(),
+    ))
+}
+
+/// Every node below this one, in tree order.
+///
+/// `collect_subtree` is the other walk in the tree and pops its stack, so it
+/// visits siblings last-first; a script reading a subtree wants the order the
+/// scene declares.
+fn descendants(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let world = eng.world();
+    let mut out = Vec::new();
+    let mut stack = vec![e];
+    while let Some(at) = stack.pop() {
+        if at != e {
+            out.push(Value::Node(crate::node_id_of(at).0));
+        }
+        if let Ok(children) = world.get::<&Children>(at) {
+            // Pushed in reverse so the stack pops them in declaration order.
+            for child in children.0.iter().rev() {
+                stack.push(*child);
+            }
+        }
+    }
+    Ok(Value::List(out))
+}
+
 fn script_path(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let world = eng.world();
@@ -466,6 +537,17 @@ fn script_path(eng: &Engine, args: &[Value]) -> Result<Value> {
         .get::<&ScriptAttachment>(e)
         .ok()
         .map_or(Value::Nil, |a| Value::Str(a.path.clone())))
+}
+
+/// Whether the node's script declares a method, which `call` cannot say: it
+/// answers nil both for a method that is not there and for one that returned
+/// nothing.
+fn has_method(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let method = text(args, 1)?;
+    Ok(Value::Bool(eng.script_host().is_some_and(|host| {
+        host.has_method(crate::node_id_of(e), method)
+    })))
 }
 
 /// `node:call("method", ...)` — one script calling another's method, with
@@ -500,6 +582,7 @@ fn attach_script(eng: &Engine, args: &[Value]) -> Result<Value> {
     let host = eng
         .script_host()
         .ok_or_else(|| anyhow!("no script backend is running"))?;
+    scene::remember_script_props(eng, e, &props);
     host.attach_with_props(crate::node_id_of(e), text(args, 1)?, &props)?;
     Ok(Value::Nil)
 }
@@ -521,6 +604,19 @@ fn detach_script(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn queue_free(eng: &Engine, args: &[Value]) -> Result<Value> {
     eng.push_command(Command::Free(node(args)?));
     Ok(Value::Nil)
+}
+
+/// One property a script declared, against the component schema vocabulary.
+///
+/// Here rather than in `components` because the spec arrives as a script
+/// value, and this is the module that converts one: a backend asking whether
+/// an `exports()` entry is well formed needs no TOML of its own.
+///
+/// # Errors
+/// The reason, for a caller that prefixes the script and the property.
+pub fn validate_property_spec(spec: &Value) -> std::result::Result<(), String> {
+    let table = to_toml(spec).map_err(|e| e.to_string())?;
+    crate::components::validate_property(&table)
 }
 
 /// Component parameters travel as TOML, so a script table and a scene file

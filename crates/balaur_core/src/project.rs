@@ -26,22 +26,106 @@ use serde::Deserialize;
 use crate::engine::Engine;
 use crate::scene::{self, Transform};
 
-#[derive(Deserialize, Clone)]
+/// A project's manifest, `project.toml`.
+///
+/// What the game is lives under `[application]`, so the file reads the way
+/// the settings screen addresses it: `application/name` is
+/// `[application] name`. `[plugins]` is its own table because it already is
+/// one — a map of plugin names to whether they load.
+#[derive(Clone)]
 pub struct ProjectManifest {
     pub name: String,
     pub main_scene: String,
     /// Which scripting language this project is written in. The assembling
     /// crate maps the name to a backend; core does not know the set.
-    #[serde(default = "default_language")]
     pub language: String,
     /// Where a shipped game may read assets from. Only bites once packed;
     /// a dev run always reads the source tree.
-    #[serde(default)]
     pub assets: AssetSource,
     /// Which plugins this project wants. Every module the build linked in
     /// loads unless it is named `false` here.
+    pub plugins: BTreeMap<String, PluginChoice>,
+}
+
+/// What a project says about one plugin: whether it wants it, and the
+/// settings it hands over.
+///
+/// A table means "on, with these", read by the plugin through
+/// `Registry::config`. Untagged, so `http = false` and
+/// `http = { timeout = 5 }` are the same key spelled two ways.
+#[derive(Deserialize, Clone, Debug)]
+#[serde(untagged)]
+pub enum PluginChoice {
+    Wanted(bool),
+    Configured(toml::Table),
+}
+
+impl PluginChoice {
+    /// Only a bare `false` turns a plugin off; a table is an instruction,
+    /// not a refusal.
+    #[must_use]
+    pub fn wanted(&self) -> bool {
+        !matches!(self, Self::Wanted(false))
+    }
+
+    /// Whether the project asked for it outright, which is what makes an
+    /// absent plugin an error rather than a silence.
+    #[must_use]
+    pub fn asked_for(&self) -> bool {
+        match self {
+            Self::Wanted(on) => *on,
+            Self::Configured(_) => true,
+        }
+    }
+
+    #[must_use]
+    pub fn config(&self) -> Option<&toml::Table> {
+        match self {
+            Self::Wanted(_) => None,
+            Self::Configured(table) => Some(table),
+        }
+    }
+}
+
+/// What each plugin was handed in `[plugins]`, for `Registry::config`.
+#[derive(Default)]
+pub struct PluginConfigs(pub BTreeMap<String, toml::Table>);
+
+/// The file's shape. Flattened into [`ProjectManifest`] so every reader
+/// keeps saying `manifest.name`, and only the parser knows about the table.
+#[derive(Deserialize)]
+struct RawManifest {
+    application: Application,
     #[serde(default)]
-    pub plugins: BTreeMap<String, bool>,
+    plugins: BTreeMap<String, PluginChoice>,
+}
+
+#[derive(Deserialize)]
+struct Application {
+    name: String,
+    main_scene: String,
+    #[serde(default = "default_language")]
+    language: String,
+    #[serde(default)]
+    assets: AssetSource,
+}
+
+impl From<RawManifest> for ProjectManifest {
+    fn from(raw: RawManifest) -> Self {
+        Self {
+            name: raw.application.name,
+            main_scene: raw.application.main_scene,
+            language: raw.application.language,
+            assets: raw.application.assets,
+            plugins: raw.plugins,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ProjectManifest {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        RawManifest::deserialize(deserializer).map(Self::from)
+    }
 }
 
 fn default_language() -> String {
@@ -379,6 +463,7 @@ fn attach_pending(eng: &Engine, build: &Build) -> Result<()> {
         .script_host()
         .ok_or_else(|| anyhow!("the scene attaches scripts but no script backend is running"))?;
     for (entity, script, props) in &build.pending {
+        scene::remember_script_props(eng, *entity, props);
         host.attach_with_props(crate::node_id_of(*entity), script, props)?;
     }
     Ok(())

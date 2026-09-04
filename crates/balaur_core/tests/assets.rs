@@ -78,7 +78,7 @@ fn project() -> tempfile::TempDir {
     std::fs::create_dir_all(dir.path().join("notes")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"p\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"p\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(

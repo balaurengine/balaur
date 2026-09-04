@@ -13,6 +13,34 @@ fn command(label, icon, key, run) {
     #{ label: label, icon: icon, key: key, tags: "", run: run }
 }
 
+// The engine's registries, asked once per opening rather than once per frame:
+// every preset and every component type carries a tag list, and walking them
+// all is a list rebuild on every keystroke.
+fn catalogue(S) {
+    let found = S.palette_cache;
+    if found is Object {
+        return found;
+    }
+    let presets = [];
+    for preset in scene::presets() {
+        let info = scene::preset_info(preset);
+        presets.push(#{
+            name: preset,
+            tags: if info is Object { util::join(util::vec(info.tags), " ") } else { "" },
+        });
+    }
+    let components = [];
+    for name in scene::component_types() {
+        components.push(#{
+            name: name,
+            tags: util::join(util::vec(scene::component_tags(name)), " "),
+        });
+    }
+    found = #{ presets: presets, components: components, channels: render::channels() };
+    S.palette_cache = found;
+    found
+}
+
 fn commands(S) {
     let undo_label = match history::undo_label(S) {
         Some(label) => format!("Undo {}", label),
@@ -33,14 +61,17 @@ fn commands(S) {
         command("Add child node…", "＋", "⇧A", || model::add_child(S, None)),
         command("Attach Rune script to selection", "‹›", "⌥S", || shell::attach_script(S)),
         command("Run scene", "▶", "F5", || shell::toggle_play(S)),
-        command("Save scene", "◇", "⌘S", || model::save(S)),
-        command("Reload scripts", "⟳", "⇧R", || log::info("scripts hot reload on save")),
+        // One save behind one label: ⌘S writes whichever of the scene, the
+        // open script and the open shader the centre is showing.
+        command("Save", "◇", "⌘S", || shell::save_active(S)),
+        command("Reload scripts", "⟳", "⇧R", || shell::reload_scripts(S)),
         command("Settings…", "⚙", "⌘,", || crate::settings::open(S)),
         command("Toggle dark chrome", "☾", "⌥L", || theme::set_dark(S, !S.theme.dark)),
         command(if S.show_input { "Hide input overlay" } else { "Show input overlay" }, "⌨", "", || {
             S.show_input = !S.show_input;
         }),
-        command("Open animation timeline", "◷", "⌥3", || crate::docks::show(S, "timeline")),
+        // No chord: ⌥3 is the Animate persona's, and one chord names one verb.
+        command("Open animation timeline", "◷", "", || crate::docks::show(S, "timeline")),
         command("Duplicate selected node", "⧉", "", || model::duplicate_selected(S)),
         command("Copy selected node", "⧉", "⌘C", || ui::set_clipboard(model::copy_selected(S))),
         command("Delete selected node", "✕", "", || model::delete_selected(S)),
@@ -60,9 +91,10 @@ fn commands(S) {
         }
     }
     list.push(command("Open the prefab behind the selection", "⧉", "", || model::open_prefab(S)));
+    let known = catalogue(S);
     // Channel views: draw normals, UVs or depth instead of the picture.
     list.push(command("View: colour", "◐", "", || render::set_channel("")));
-    for name in render::channels() {
+    for name in known.channels {
         let channel = name;
         list.push(command("View: " + channel, "◐", "", || render::set_channel(channel)));
     }
@@ -81,11 +113,10 @@ fn commands(S) {
     let (_, found) = model::selected(S);
     // Presets first: they are the shortcut most edits actually want, and
     // each is just the components it names.
-    for preset in scene::presets() {
-        let info = scene::preset_info(preset);
-        let tags = if info is Object { util::join(util::vec(info.tags), " ") } else { "" };
+    for known_preset in known.presets {
+        let preset = known_preset.name;
         let entry = command(format!("Add {} node", preset), "＋", "", || model::add_child(S, Some(preset)));
-        entry.tags = tags;
+        entry.tags = known_preset.tags;
         list.push(entry);
     }
     let found_some = found;
@@ -94,13 +125,14 @@ fn commands(S) {
         for name in found.component_names() {
             present[name] = true;
         }
-        for name in scene::component_types() {
+        for known_comp in known.components {
+            let name = known_comp.name;
             if present.contains_key(name) {
                 list.push(command(format!("Remove {} component", name), "✕", "", || model::remove_component(S, name)));
             } else {
                 let entry = command(format!("Add {} component", name), "＋", "", || model::add_component(S, name));
                 // Facets, so typing "physics" or "2d" narrows the list.
-                entry.tags = util::join(util::vec(scene::component_tags(name)), " ");
+                entry.tags = known_comp.tags;
                 list.push(entry);
             }
         }
@@ -176,10 +208,7 @@ pub fn draw(S) {
                 }
             }
             if matched == 0 {
-                ui::horizontal(#{ height: 40 }, || {
-                    ui::add_space(16);
-                    ui::label("no matches", style::mono_lg(k.faint));
-                });
+                style::empty(k, "no matches");
             }
             ui::add_space(8);
         });

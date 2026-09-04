@@ -27,9 +27,19 @@ pub fn field(k, width) {
     #{ role: "field", width: width }
 }
 
+/// Whether a rect is one a surface may draw at. A zero rect is the frame
+/// before the widget layer has placed its box, and `ui::overlay` reads an
+/// unsized area as unconstrained — which piles every sheet into the corner.
+pub fn placed(r) {
+    r.w > 0.0 && r.h > 0.0
+}
+
 /// A floating panel: Stage's one surface. `r` is a rect from `layout`, and
 /// the body draws inside it.
 pub fn sheet(k, id, r, pad_x, pad_y, cb) {
+    if !placed(r) {
+        return;
+    }
     ui::overlay(id, #{
         role: "sheet", x: r.x, y: r.y, w: r.w, h: r.h,
         padding_x: pad_x, padding_y: pad_y,
@@ -39,6 +49,9 @@ pub fn sheet(k, id, r, pad_x, pad_y, cb) {
 /// A bar is a sheet that hugs its row. Same corner as every other surface:
 /// one radius across the shell, not a capsule here and a tile there.
 pub fn bar(k, id, r, pad_x, cb) {
+    if !placed(r) {
+        return;
+    }
     ui::overlay(id, #{
         role: "sheet", x: r.x, y: r.y, w: r.w, h: r.h, padding_x: pad_x,
     }, cb);
@@ -65,5 +78,27 @@ pub fn empty(k, text) {
     ui::horizontal(#{ height: 20 }, || {
         ui::add_space(10);
         ui::label(text, mono_sm(k.faint));
+    });
+}
+
+/// A hook the engine calls, as the shell's one pill: a dot coloured by
+/// `hook`, the `label` the surface wants, and what it answers to. `trailing`
+/// is "" where nothing does.
+pub fn hook_pill(k, hook, label, trailing) {
+    let lifecycle = hook == "init" || hook == "update";
+    ui::horizontal(#{ height: 30 }, || {
+        ui::add_space(8);
+        ui::frame(#{ fill: k.sunken, radius: 15, padding_x: 11 }, || {
+            ui::horizontal(#{ height: 30 }, || {
+                ui::dot(if lifecycle { k.accent } else { k.sage }, 6);
+                ui::add_space(4);
+                ui::label(label, mono(k.text));
+                if trailing != "" {
+                    ui::right(|| {
+                        ui::label(trailing, mono_sm(k.faint));
+                    });
+                }
+            });
+        });
     });
 }

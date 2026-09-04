@@ -3,16 +3,26 @@
 // clip is retaken with `--state show:<name>` and nobody at the mouse.
 
 use crate::anim;
+use crate::chrome;
+use crate::defs;
 use crate::history;
 use crate::model;
 use crate::session;
 use crate::shell;
 use crate::util;
 
-// Where the node tree's first row sits and how tall a row is, in design px,
-// so the pointer lands on the row it selects.
-const TREE_TOP = 110.0;
-const ROW = 27.0;
+// Where the node tree's first row sits inside the left dock, and the pitch of
+// a row: the sheet's tab row and search field, then `left::ROW_H` plus its
+// spacing.
+const TREE_TOP = 65.0;
+const ROW = 24.0;
+// The tool rail's first button below the sheet's own padding, and the pitch of
+// the buttons under it.
+const TOOL_TOP = 21.0;
+const TOOL_PITCH = 31.0;
+// The code pane's own top padding, and one line of the editor's gutter.
+const CODE_TOP = 12.0;
+const LINE_H = 12.44;
 
 // How long the pointer takes to walk to a control, in frames. Long enough to
 // read as a hand moving, short enough that a clip is not mostly travel.
@@ -162,10 +172,6 @@ fn point_at_world(S, wx, wy) {
     feed_pointer(S, x, y);
 }
 
-fn point_at_row(S, i) {
-    feed_pointer(S, 110.0, TREE_TOP + (i as f64) * ROW);
-}
-
 // Where the selected node sits, in design px; its own place when it has none.
 fn selection_spot(S) {
     let found = model::live(S, S.sel);
@@ -212,43 +218,62 @@ fn chord(S, q, frame, held, run) {
     });
 }
 
-// Where a control sits, in design px. Measured off the rendered editor: the
-// showcase feeds the snapshot, and egui reads the window, so a click here is
-// drawn rather than delivered — the sequence calls the verb itself.
+/// Where a control sits, in design px, read off the rects `layout.rn` publishes
+/// rather than measured off a screenshot. The showcase feeds the snapshot and
+/// egui reads the window, so a click here is drawn rather than delivered — the
+/// sequence calls the verb itself.
 fn spot(S, name) {
-    let sw = S.screen_w;
-    let sh = S.screen_h;
+    let bottom = S.layout.bottom;
+    let tabs = S.layout.tabs;
+    let right = S.layout.right;
     match name {
-        "scene_tab" => (136.0, 27.0),
-        "script_tab" => (201.0, 27.0),
-        "anim_tab" => (270.0, 27.0),
-        "phys_tab" => (345.0, 27.0),
-        "ui_tab" => (422.0, 27.0),
-        "play" => (sw - 266.0, 27.0),
-        "stop" => (sw - 198.0, 27.0),
+        "scene_tab" => chrome::persona_spot(S, "scene"),
+        "script_tab" => chrome::persona_spot(S, "script"),
+        "anim_tab" => chrome::persona_spot(S, "anim"),
+        "phys_tab" => chrome::persona_spot(S, "phys"),
+        "ui_tab" => chrome::persona_spot(S, "ui"),
+        "play" => chrome::transport_spot(S, 0),
+        "stop" => chrome::transport_spot(S, 2),
         // The dock, when a session is loaded: its transport, and its ruler.
-        "transport" => (296.0, sh - 181.0),
-        "ruler" => (420.0, sh - 181.0),
+        "transport" => (bottom.x + 34.0, bottom.y + 69.0),
+        "ruler" => (bottom.x + 158.0, bottom.y + 69.0),
         // The newest recording's play button in the session list.
-        "session" => (283.0, sh - 156.0),
-        "key" => (294.0, sh - 182.0),
-        "bone_tool" => (281.0, 150.0),
-        "doc_scene" => (358.0, 74.0),
-        "doc_code" => (437.0, 74.0),
-        "shader_field" => (1130.0, 601.0),
-        "scale_x" => (1105.0, 231.0),
-        _ => (sw / 2.0, sh / 2.0),
+        "session" => (bottom.x + 21.0, bottom.y + 94.0),
+        "key" => (bottom.x + 32.0, bottom.y + 68.0),
+        "bone_tool" => tool_spot(S, "bone"),
+        "doc_scene" => (tabs.x + 40.0, tabs.y + tabs.h / 2.0),
+        "doc_code" => (tabs.x + 119.0, tabs.y + tabs.h / 2.0),
+        // Two rows deep in the inspector, whose sections are the scene's; the
+        // column is the published one, the offset down it is the clip's.
+        "shader_field" => (right.x + right.w * 0.53, right.y + 539.0),
+        "scale_x" => (right.x + 127.0, right.y + 169.0),
+        _ => (S.screen_w / 2.0, S.screen_h / 2.0),
     }
 }
 
-fn row_spot(S, i) {
-    (110.0, TREE_TOP + (i as f64) * ROW)
+// A tool in the rail, by the id `defs::tools` gives it in this persona.
+fn tool_spot(S, tool) {
+    let rail = S.layout.rail;
+    let slot = 0;
+    for (i, id) in defs::tools(S.persona).iter().enumerate() {
+        if id == tool {
+            slot = i;
+        }
+    }
+    // `return`: a bare tuple after a block parses as a call on the block.
+    return (rail.x + rail.w / 2.0, rail.y + TOOL_TOP + (slot as f64) * TOOL_PITCH);
 }
 
-// The gutter of the code editor, by line. The pane starts under the document
-// tabs and each line is one 12.5 px row.
+fn row_spot(S, i) {
+    let left = S.layout.left;
+    (left.x + left.w * 0.4, left.y + TREE_TOP + ((i as f64) + 0.5) * ROW)
+}
+
+// The gutter of the code editor, by line: the pane's own padding, then one
+// row per line at the editor's line height.
 fn gutter_spot(S, line) {
-    (286.0, 112.0 + ((line - 1) as f64) * 12.44)
+    let doc = S.layout.doc;
+    (doc.x + 17.0, doc.y + CODE_TOP + ((line - 1) as f64) * LINE_H)
 }
 
 // A click a viewer can follow: the cursor walks in, presses where the control
@@ -269,7 +294,7 @@ fn click_row(S, q, frame, name) {
     click(S, q, frame, || {
         match index_of(S, name) {
             Some(i) => row_spot(S, i),
-            None => (110.0, TREE_TOP),
+            None => row_spot(S, 0),
         }
     }, || choose(S, name));
 }

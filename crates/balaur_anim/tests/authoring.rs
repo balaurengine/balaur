@@ -250,7 +250,7 @@ fn a_clip_saved_while_it_plays_is_picked_up_without_losing_the_playhead() {
     std::fs::create_dir_all(dir.path().join("animations")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"p\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"p\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     let clip = |top: f32| {

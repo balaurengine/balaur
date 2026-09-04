@@ -75,10 +75,6 @@ pub fn can_undo(S) {
     S.contains_key("history") && S.history.past.len() > 0
 }
 
-pub fn can_redo(S) {
-    S.contains_key("history") && S.history.future.len() > 0
-}
-
 // What ⌘Z would undo, for a menu or palette label.
 pub fn undo_label(S) {
     let past = S.history.past;

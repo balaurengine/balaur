@@ -17,9 +17,11 @@
 //! whenever that pin moves to a rune whose `Unit` changed shape. A pack from
 //! any other version is rejected here rather than deserialised into nonsense.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Result};
+use bincode::Options as _;
 use rune::runtime::{Logic, Unit};
 use rune::Source;
 
@@ -57,13 +59,127 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<(Unit, Vec<PublicSignature>)> {
     if version != FORMAT {
         bail!("compiled script is format {version}, this build reads {FORMAT}");
     }
-    let (logic, functions): (Logic, Vec<PublicSignature>) = bincode::deserialize(rest)?;
+    let (logic, functions): (Logic, Vec<PublicSignature>) = options(rest.len() as u64)
+        .deserialize(rest)
+        .map_err(|why| anyhow!("compiled script does not read back: {why}"))?;
     Ok((Unit::from_parts(logic, None)?, functions))
+}
+
+/// [`encode`]'s own encoding, bounded by the bytes actually on hand.
+///
+/// A crafted length prefix would otherwise reserve gigabytes before a single
+/// field was validated; nothing genuine decodes to more than it was read from.
+fn options(limit: u64) -> impl bincode::Options {
+    bincode::DefaultOptions::new()
+        .with_fixint_encoding()
+        .allow_trailing_bytes()
+        .with_limit(limit)
 }
 
 /// Whether `bytes` look like [`encode`]'s output rather than script source.
 pub(crate) fn is_encoded(bytes: &[u8]) -> bool {
     bytes.starts_with(MAGIC)
+}
+
+/// Every file a compiled unit was read from, as project-relative keys.
+///
+/// A file pulled in by `mod name;` is folded into its root's unit and is a key
+/// nowhere else; this is the only record that a save of it belongs to that
+/// root.
+pub(crate) fn source_keys(root: &Path, sources: &rune::Sources) -> Vec<String> {
+    let mut keys = Vec::new();
+    for index in 0.. {
+        let Some(source) = sources.get(rune::SourceId::new(index)) else {
+            break;
+        };
+        let Some(path) = source.path() else { continue };
+        let key = path
+            .strip_prefix(root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        let key = key.trim_start_matches("./").to_string();
+        if !keys.contains(&key) {
+            keys.push(key);
+        }
+    }
+    keys
+}
+
+/// Every `.rn` under `root` that another one pulls in with `mod name;`.
+///
+/// Only a root is compiled for a pack: a submodule compiled on its own fails
+/// on the `super::` items it names, and one that does compile ships twice —
+/// once on its own and once folded into every root that reaches it.
+pub(crate) fn module_files(root: &Path) -> BTreeSet<String> {
+    let mut files = Vec::new();
+    collect_scripts(root, root, &mut files);
+    let mut found = BTreeSet::new();
+    for rel in &files {
+        let Ok(text) = std::fs::read_to_string(root.join(rel)) else {
+            continue;
+        };
+        let dir = Path::new(rel).parent().map(Path::to_path_buf).unwrap_or_default();
+        for name in declared_mods(&text) {
+            for candidate in [
+                dir.join(&name).with_extension("rn"),
+                dir.join(&name).join("mod.rn"),
+            ] {
+                let key = candidate.to_string_lossy().replace('\\', "/");
+                if files.contains(&key) {
+                    found.insert(key);
+                }
+            }
+        }
+    }
+    found
+}
+
+/// The modules a source pulls in from a file. The braced `mod name { .. }`
+/// declares one inline and loads nothing.
+fn declared_mods(source: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for line in source.lines() {
+        let rest = line.trim_start();
+        let rest = rest.strip_prefix("pub ").unwrap_or(rest).trim_start();
+        let Some(rest) = rest.strip_prefix("mod ") else {
+            continue;
+        };
+        let Some(name) = rest.trim().strip_suffix(';') else {
+            continue;
+        };
+        let name = name.trim();
+        if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            out.push(name.to_string());
+        }
+    }
+    out
+}
+
+/// Every `.rn` under `dir`, as project-relative keys, in a fixed order.
+fn collect_scripts(root: &Path, dir: &Path, out: &mut Vec<String>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut paths: Vec<PathBuf> = entries
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| {
+            !path
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with('.'))
+        })
+        .collect();
+    paths.sort();
+    for path in paths {
+        if path.is_dir() {
+            collect_scripts(root, &path, out);
+        } else if path.extension().and_then(|e| e.to_str()) == Some("rn") {
+            if let Ok(rel) = path.strip_prefix(root) {
+                out.push(rel.to_string_lossy().replace('\\', "/"));
+            }
+        }
+    }
 }
 
 /// `mod name;` in a packed script: `name.rn` or `name/mod.rn` beside the

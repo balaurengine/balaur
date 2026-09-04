@@ -402,3 +402,39 @@ keys = [
     };
     assert_eq!(run(), run());
 }
+
+#[test]
+fn a_non_looping_clip_run_backwards_finishes_at_the_start() {
+    let mut app = app();
+    let entity = animated(&app, "Box", &rise("none"));
+    balaur_anim::play(&app.engine, entity, "").unwrap();
+    balaur_anim::seek(&app.engine, entity, 1.0);
+    balaur_anim::set_speed(&app.engine, entity, -1.0);
+
+    tick(&mut app, 30);
+    assert!(
+        balaur_anim::is_playing(&app.engine, entity),
+        "half a second back is still inside the clip"
+    );
+
+    tick(&mut app, 40);
+    assert!(
+        !balaur_anim::is_playing(&app.engine, entity),
+        "running off the start ends a clip, or a negative speed plays forever"
+    );
+    assert!(height(&app, entity).abs() < 1e-5);
+}
+
+#[test]
+fn a_clip_run_backwards_names_itself_as_the_one_that_finished() {
+    let mut app = app();
+    let entity = animated(&app, "Box", "library = \"animations/hero.toml\"\n");
+    balaur_anim::play(&app.engine, entity, "spin").unwrap();
+    balaur_anim::seek(&app.engine, entity, 0.1);
+    balaur_anim::set_speed(&app.engine, entity, -1.0);
+    tick(&mut app, 7);
+    assert_eq!(
+        balaur_anim::just_finished(&app.engine, entity).as_deref(),
+        Some("spin")
+    );
+}

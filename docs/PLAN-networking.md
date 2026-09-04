@@ -1,9 +1,25 @@
-> **Status:** steps 1-7 done — bytes on the wire, identity and lifecycle for
-> run-time nodes, rollback on one machine and over a socket, the transport
-> trait with a websocket and real QUIC datagrams under it, one crate per
-> protocol, and a recorded session tested against a link that drops and
-> delays. `ARCHITECTURE.md` "Networking and state sync" is the record; §3 is
-> what is left, in order.
+> **Status (2026-09-04):** steps 1-7 done — bytes on the wire, identity and
+> lifecycle for run-time nodes, rollback on one machine and over a socket, the
+> transport trait with a websocket and real QUIC datagrams under it, one crate
+> per protocol, and a recorded session tested against a link that drops and
+> delays. Fault injection is switchable from the editor's settings screen
+> (`netcode/faults`) and applies to every session link. `ARCHITECTURE.md`
+> "Networking and state sync" is the record; §3 is what is left, in order.
+>
+> **Next:** step 9, replication, before step 8. The plan orders Gamend first
+> because it is where a real game ships, and that reason stands for ship
+> order — but 8 needs the hosted backend and cannot be proven on loopback,
+> while 9 is testable against the fault-injecting transport step 7 built for
+> exactly this. Settle open question 6 (which nodes a client predicts) before
+> starting 9: it decides how change detection is scoped, and deciding is
+> cheaper than refactoring. Steps 13 and 14 stay blocked and deferred
+> respectively.
+>
+> Two housekeeping items wait on other work: `docs/generated/crates.md`
+> still lists `balaur_net` and regenerates once the whole workspace builds,
+> and the editor's manifest loader (`model.rn`, now reading
+> `manifest.application`) has not been rendered since the `[application]`
+> migration because the editor build sits behind crates mid-edit elsewhere.
 
 # Plan: multiplayer
 

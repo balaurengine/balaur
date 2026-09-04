@@ -114,15 +114,18 @@ fn read_sprite(
     map.insert("frame".into(), toml::Value::Float(f64::from(sprite.frame)));
     map.insert("flip_x".into(), toml::Value::Boolean(sprite.flip_x));
     map.insert("flip_y".into(), toml::Value::Boolean(sprite.flip_y));
-    // Written out resolved: a saved scene reloads to the same size even if
-    // the image on disk is replaced with a different one.
-    map.insert(
-        "half_extents".into(),
-        toml::Value::Array(vec![
-            toml::Value::Float(f64::from(hx)),
-            toml::Value::Float(f64::from(hy)),
-        ]),
-    );
+    // A derived size is absent, not resolved: `patch` overlays what `get`
+    // reports, so reporting it would freeze the quad the first time anything
+    // read the component back.
+    if renderable.sized {
+        map.insert(
+            "half_extents".into(),
+            toml::Value::Array(vec![
+                toml::Value::Float(f64::from(hx)),
+                toml::Value::Float(f64::from(hy)),
+            ]),
+        );
+    }
     map.insert("color".into(), crate::color_to_toml(renderable.color));
     map.insert(
         "material".into(),

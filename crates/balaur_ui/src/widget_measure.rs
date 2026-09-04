@@ -6,6 +6,7 @@
 //! this frame rather than to the one it showed last.
 
 use crate::theme::family;
+use crate::widget_arrange::padding_of;
 use crate::widget_layer::{caption, lays_out, theme_of, Placed, Widget};
 use crate::widget_theme::WidgetTheme;
 use balaur_core::Engine;
@@ -75,6 +76,14 @@ impl<'a> Measure<'a> {
             // A script fills its own rect, and a scroll is meant to clip: both
             // answer with their stated size or with nothing.
             "draw" | "scroll" => egui::Vec2::ZERO,
+            // A picture knows its own size, so a row can divide by it.
+            "image" => crate::widgets::texture_of(self.eng, &self.painter.ctx().clone(), &widget.source)
+                .map_or(egui::Vec2::ZERO, |texture| {
+                    crate::widget_layer::image_size(
+                        vec2(widget.width, widget.height) * self.scale,
+                        texture.size_vec2(),
+                    )
+                }),
             "button" => {
                 let text = self.text(widget);
                 // egui's own button padding, which is what it will draw with.
@@ -129,9 +138,7 @@ impl<'a> Measure<'a> {
             // A panel's caption sits above its children, so it adds a row.
             vec2(across.max(caption.x), along + caption.y)
         };
-        let style = theme.style(&widget.kind);
-        let default = if widget.kind == "panel" { 8.0 } else { 0.0 };
-        let pad = style.padding.unwrap_or(default) * self.scale;
+        let pad = padding_of(widget, &theme.style(&widget.kind), self.scale);
         inner + egui::Vec2::splat(pad * 2.0)
     }
 

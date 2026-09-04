@@ -261,6 +261,11 @@ pub(crate) fn install_material_check(m: &mut dyn Bindings<balaur_core::Engine>) 
 /// A material that will not link has no rows. What is wrong with it is
 /// `check_material`'s answer, not this one's.
 pub(crate) fn install_material_params(m: &mut dyn Bindings<balaur_core::Engine>) {
+    m.describe(&[(
+        "material_params",
+        &["material"],
+        "", "The material's editable rows, one `#{ name, type, value }` per field its linked shader declares; empty when it will not link.",
+    )]);
     m.function(
         "material_params",
         |eng: &balaur_core::Engine, path: String| {

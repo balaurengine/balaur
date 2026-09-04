@@ -113,13 +113,8 @@ web)
   step "build ($target, windowed)"
   rustup target add "$target"
   # wasm-bindgen, not emscripten: kiss3d declares its web dependencies under
-  # [target.wasm32-unknown-unknown] and wgpu reaches WebGPU only through
-  # web-sys. See docs/PLAN-web-editor.md §5 question 1.
-  #
-  # webtransport is left out because it has no wasm backend: its Cargo.toml
-  # puts every dependency behind cfg(not(wasm)) while its source imports them
-  # unconditionally. Put it back once it grows the stub http and websocket
-  # already have.
+  # [target.wasm32-unknown-unknown] and wgpu reaches WebGPU only through web-sys.
+  # webtransport is left out until it grows the wasm stub http and websocket have.
   cargo build --profile web --target "$target" -p balaur_cli \
     --no-default-features --features audio,http,websocket,gamend,window
 

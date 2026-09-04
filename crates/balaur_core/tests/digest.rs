@@ -114,3 +114,81 @@ fn the_rng_stream_position_is_part_of_the_digest() {
         "two peers that drew a different number of randoms have diverged"
     );
 }
+
+/// A component with one property the schema marks `readonly` and one it does
+/// not: the widget layer writes `clicked` from egui's event pump, and no
+/// recording carries it.
+fn app_with_dial() -> App {
+    let mut app = app();
+    app.register_component(
+        "dial",
+        balaur_core::components::ComponentDef {
+            doc: "",
+            schema: balaur_core::components::ComponentDef::parse_schema(
+                "dial",
+                r#"
+turns = { type = "float", default = 0.0 }
+clicked = { type = "bool", default = false, readonly = true }
+"#,
+            ),
+            tags: &[],
+            expects: &[],
+            apply: Box::new(|eng: &balaur_core::Engine, entity, params| {
+                eng.world_mut()
+                    .insert_one(entity, Dial(params.clone()))
+                    .map_err(|_| anyhow::anyhow!("dead node"))?;
+                Ok(())
+            }),
+            remove: Box::new(|eng: &balaur_core::Engine, entity| {
+                let _ = eng.world_mut().remove_one::<Dial>(entity);
+                Ok(())
+            }),
+            get: Box::new(|eng: &balaur_core::Engine, entity| {
+                eng.world().get::<&Dial>(entity).ok().map(|d| d.0.clone())
+            }),
+        },
+    );
+    app
+}
+
+struct Dial(toml::Value);
+
+fn set_dial(app: &App, entity: balaur_core::hecs::Entity, turns: f64, clicked: bool) {
+    let table = [
+        (String::from("turns"), toml::Value::Float(turns)),
+        (String::from("clicked"), toml::Value::Boolean(clicked)),
+    ];
+    balaur_core::components::add(
+        &app.engine,
+        entity,
+        "dial",
+        Some(&toml::Value::Table(table.into_iter().collect())),
+    )
+    .unwrap();
+}
+
+#[test]
+fn a_readonly_property_changing_does_not_change_the_digest() {
+    let app = app_with_dial();
+    let entity = spawn(&app, "n_dial", "Dial", 0.0);
+    set_dial(&app, entity, 1.0, false);
+    let before = digest::digest(&app.engine);
+
+    set_dial(&app, entity, 1.0, true);
+    assert_eq!(
+        before,
+        digest::digest(&app.engine),
+        "a click is host output that no recording carries"
+    );
+}
+
+#[test]
+fn a_property_the_schema_does_not_mark_readonly_still_changes_the_digest() {
+    let app = app_with_dial();
+    let entity = spawn(&app, "n_dial", "Dial", 0.0);
+    set_dial(&app, entity, 1.0, false);
+    let before = digest::digest(&app.engine);
+
+    set_dial(&app, entity, 2.0, false);
+    assert_ne!(before, digest::digest(&app.engine));
+}

@@ -42,11 +42,13 @@ impl RuneHost {
                 .breakpoints
                 .get(key)
                 .is_some_and(|b| !b.ips.is_empty());
+            // Asked of the unit, not of the signature list: a function the
+            // source scan missed would otherwise be taken for async and run
+            // with its breakpoints ignored.
             let sync = state
                 .scripts
                 .get(key)
-                .and_then(|s| s.functions.iter().find(|f| f.name == name))
-                .is_some_and(|f| !f.is_async);
+                .is_some_and(|s| s.unit.is_immediate(rune::Hash::type_hash([name])));
             // Breaking where a script threw needs the instruction it threw
             // on, which only the stepping executor still has; an asked-for
             // break needs it to have somewhere to stop at all.

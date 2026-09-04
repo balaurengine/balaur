@@ -11,7 +11,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::rapier3d::prelude::{
     ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule, Collider,
-    ColliderBuilder, Group, InteractionGroups, InteractionTestMode, RigidBodyHandle,
+    ColliderBuilder, ColliderHandle, Group, InteractionGroups, InteractionTestMode, RigidBodyHandle,
 };
 use crate::scalar::{self, Pose, Real};
 
@@ -699,6 +699,23 @@ fn combine_name(rule: CoefficientCombineRule) -> &'static str {
     }
 }
 
+/// A node's first collider handle, checked against rapier's arena.
+///
+/// A freed node's handle survives until the next prune, and indexing the
+/// arena with one panics inside rapier rather than failing the call.
+pub(crate) fn first_collider(state: &PhysicsState, entity: Entity) -> Result<ColliderHandle> {
+    let handle = state
+        .colliders
+        .get(&entity)
+        .and_then(|handles| handles.first())
+        .copied()
+        .ok_or_else(|| anyhow!("node has no collider"))?;
+    if !state.world.colliders.contains(handle) {
+        bail!("this node's collider is gone: the node was freed");
+    }
+    Ok(handle)
+}
+
 /// A node's first collider, for the readers that ask one question about it.
 fn with_first_collider<R>(
     eng: &Engine,
@@ -708,11 +725,7 @@ fn with_first_collider<R>(
     let entity = balaur_core::entity_of(node)?;
     let state = eng.resource::<PhysicsState>();
     let state = state.borrow();
-    let handle = *state
-        .colliders
-        .get(&entity)
-        .and_then(|handles| handles.first())
-        .ok_or_else(|| anyhow!("node has no collider"))?;
+    let handle = first_collider(&state, entity)?;
     f(&state.world.colliders[handle])
 }
 
@@ -730,11 +743,7 @@ fn with_voxels(
     let entity = balaur_core::entity_of(node)?;
     let state = eng.resource::<PhysicsState>();
     let mut state = state.borrow_mut();
-    let handle = *state
-        .colliders
-        .get(&entity)
-        .and_then(|handles| handles.first())
-        .ok_or_else(|| anyhow!("node has no collider"))?;
+    let handle = first_collider(&state, entity)?;
     let collider = &mut state.world.colliders[handle];
     let voxels = collider
         .shape_mut()
@@ -751,11 +760,7 @@ fn collider_mesh_value(eng: &Engine, node: NodeId) -> Result<balaur_script::Valu
     let entity = balaur_core::entity_of(node)?;
     let state = eng.resource::<PhysicsState>();
     let state = state.borrow();
-    let handle = *state
-        .colliders
-        .get(&entity)
-        .and_then(|handles| handles.first())
-        .ok_or_else(|| anyhow!("node has no collider"))?;
+    let handle = first_collider(&state, entity)?;
     let (points, indices) = state.world.colliders[handle]
         .shape()
         .as_voxels()
@@ -867,12 +872,8 @@ pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
         let entity = balaur_core::entity_of(node)?;
         let state = eng.resource::<PhysicsState>();
         let state = state.borrow();
-        let handle = state
-            .colliders
-            .get(&entity)
-            .and_then(|handles| handles.first())
-            .ok_or_else(|| anyhow!("node has no collider"))?;
-        let aabb = state.world.colliders[*handle].compute_aabb();
+        let handle = first_collider(&state, entity)?;
+        let aabb = state.world.colliders[handle].compute_aabb();
         Ok((
             aabb.mins.x,
             aabb.mins.y,
@@ -911,11 +912,7 @@ pub(crate) fn install_voxel_api(m: &mut dyn Bindings<Engine>) {
             let entity = balaur_core::entity_of(node)?;
             let state = eng.resource::<PhysicsState>();
             let state = state.borrow();
-            let handle = *state
-                .colliders
-                .get(&entity)
-                .and_then(|handles| handles.first())
-                .ok_or_else(|| anyhow!("node has no collider"))?;
+            let handle = first_collider(&state, entity)?;
             let voxels = state.world.colliders[handle]
                 .shape()
                 .as_voxels()
@@ -931,11 +928,7 @@ pub(crate) fn install_voxel_api(m: &mut dyn Bindings<Engine>) {
             let entity = balaur_core::entity_of(node)?;
             let state = eng.resource::<PhysicsState>();
             let state = state.borrow();
-            let handle = *state
-                .colliders
-                .get(&entity)
-                .and_then(|handles| handles.first())
-                .ok_or_else(|| anyhow!("node has no collider"))?;
+            let handle = first_collider(&state, entity)?;
             let collider = &state.world.colliders[handle];
             let voxels = collider
                 .shape()
@@ -1022,11 +1015,7 @@ pub(crate) fn install_collider_reader_api(m: &mut dyn Bindings<Engine>) {
         let entity = balaur_core::entity_of(node)?;
         let state = eng.resource::<PhysicsState>();
         let state = state.borrow();
-        let handle = state
-            .colliders
-            .get(&entity)
-            .and_then(|handles| handles.first())
-            .ok_or_else(|| anyhow!("node has no collider"))?;
-        Ok(state.world.colliders[*handle].mass())
+        let handle = first_collider(&state, entity)?;
+        Ok(state.world.colliders[handle].mass())
     });
 }

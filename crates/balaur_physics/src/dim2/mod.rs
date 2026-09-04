@@ -46,6 +46,9 @@ pub struct PhysicsState2d {
     /// rapier keeps the shape, not the asset or the choices behind it.
     pub collider_params: DetHashMap<Entity, toml::Value>,
     pub joint_params: DetHashMap<Entity, toml::Value>,
+    /// What the last `move_character` found under each character's feet, as
+    /// in 3D, so `is_grounded` reads rather than moves.
+    pub grounded: DetHashMap<Entity, bool>,
     pub paused: bool,
     /// Mirrors `PhysicsState::sleeping_allowed`; `physics.set_sleeping_allowed`
     /// writes both worlds.
@@ -66,6 +69,7 @@ impl PhysicsState2d {
             joints: DetHashMap::default(),
             collider_params: DetHashMap::default(),
             joint_params: DetHashMap::default(),
+            grounded: DetHashMap::default(),
             paused: false,
             sleeping_allowed: true,
         }
@@ -108,7 +112,50 @@ fn resolve_pending_joints(eng: &Engine) {
     }
 }
 
+/// The 2D twin of `crate::prune_freed_nodes`, and run at the same point:
+/// before the pause check, because a paused editor still frees nodes.
+pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState2d) {
+    let world = eng.world();
+    let before = state.world.colliders.len();
+    state.bodies.retain(|&entity, handle| {
+        if world.contains(entity) {
+            return true;
+        }
+        state.world.remove_body(*handle);
+        false
+    });
+    state.colliders.retain(|&entity, handles| {
+        let alive = world.contains(entity);
+        handles.retain(|&handle| {
+            if alive && state.world.colliders.contains(handle) {
+                return true;
+            }
+            state.world.remove_collider(handle);
+            false
+        });
+        !handles.is_empty()
+    });
+    state.joints.retain(|&entity, reference| {
+        if !world.contains(entity) {
+            joint::drop_joint(&mut state.world, reference);
+            return false;
+        }
+        joint::is_live(&state.world, reference)
+    });
+    state.collider_params.retain(|e, _| world.contains(*e));
+    state.joint_params.retain(|e, _| world.contains(*e));
+    state.grounded.retain(|e, _| world.contains(*e));
+    if state.world.colliders.len() != before {
+        state.queries_ready = false;
+    }
+}
+
 fn step_system(eng: &Engine, _dt: f32) {
+    {
+        let state = eng.resource::<PhysicsState2d>();
+        let mut state = state.borrow_mut();
+        prune_freed_nodes(eng, &mut state);
+    }
     resolve_pending_joints(eng);
     let events = {
         let state = eng.resource::<PhysicsState2d>();
@@ -118,16 +165,9 @@ fn step_system(eng: &Engine, _dt: f32) {
             return;
         }
 
-        // Prune bodies whose node died, and feed kinematic targets in.
+        // Feed the kinematic bodies their targets before the step reads them.
         {
             let world = eng.world();
-            state.bodies.retain(|&entity, handle| {
-                if !world.contains(entity) {
-                    state.world.remove_body(*handle);
-                    return false;
-                }
-                true
-            });
             for (&entity, &handle) in &state.bodies {
                 let body = &mut state.world.bodies[handle];
                 if body.is_kinematic() {
@@ -189,6 +229,9 @@ pub fn clear(eng: &Engine) {
     state.bodies.clear();
     state.colliders.clear();
     state.joints.clear();
+    state.collider_params.clear();
+    state.joint_params.clear();
+    state.grounded.clear();
 }
 
 pub fn set_paused(eng: &Engine, paused: bool) {
@@ -272,9 +315,12 @@ fn build_physics2d(reg: &mut Registry<'_>) {
 #[derive(serde::Deserialize)]
 struct PhysicsFrame2d {
     world: PhysicsWorld2,
-    bodies: Vec<(u64, RigidBodyHandle2)>,
-    colliders: Vec<(u64, Vec<ColliderHandle2>)>,
-    joints: Vec<(u64, joint::JointRef2d)>,
+    bodies: Vec<(crate::NodeKey, RigidBodyHandle2)>,
+    colliders: Vec<(crate::NodeKey, Vec<ColliderHandle2>)>,
+    joints: Vec<(crate::NodeKey, joint::JointRef2d)>,
+    collider_params: Vec<(crate::NodeKey, toml::Value)>,
+    joint_params: Vec<(crate::NodeKey, toml::Value)>,
+    grounded: Vec<(crate::NodeKey, bool)>,
     paused: bool,
     sleeping_allowed: bool,
 }
@@ -282,71 +328,78 @@ struct PhysicsFrame2d {
 #[derive(serde::Serialize)]
 struct PhysicsFrameRef2d<'a> {
     world: &'a PhysicsWorld2,
-    bodies: Vec<(u64, RigidBodyHandle2)>,
-    colliders: Vec<(u64, Vec<ColliderHandle2>)>,
-    joints: Vec<(u64, joint::JointRef2d)>,
+    bodies: Vec<(crate::NodeKey, RigidBodyHandle2)>,
+    colliders: Vec<(crate::NodeKey, Vec<ColliderHandle2>)>,
+    joints: Vec<(crate::NodeKey, joint::JointRef2d)>,
+    collider_params: Vec<(crate::NodeKey, toml::Value)>,
+    joint_params: Vec<(crate::NodeKey, toml::Value)>,
+    grounded: Vec<(crate::NodeKey, bool)>,
     paused: bool,
     sleeping_allowed: bool,
 }
 
+fn save_physics2d(eng: &Engine) -> serde_json::Value {
+    let state = eng.resource::<PhysicsState2d>();
+    let state = state.borrow();
+    let world = eng.world();
+    let frame = PhysicsFrameRef2d {
+        world: &state.world,
+        bodies: crate::keyed(&world, &state.bodies),
+        colliders: crate::keyed(&world, &state.colliders),
+        joints: crate::keyed(&world, &state.joints),
+        collider_params: crate::keyed(&world, &state.collider_params),
+        joint_params: crate::keyed(&world, &state.joint_params),
+        grounded: crate::keyed(&world, &state.grounded),
+        paused: state.paused,
+        sleeping_allowed: state.sleeping_allowed,
+    };
+    serde_json::to_value(frame).unwrap_or(serde_json::Value::Null)
+}
+
+fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
+    let frame: PhysicsFrame2d = match serde_json::from_value(value.clone()) {
+        Ok(frame) => frame,
+        Err(e) => {
+            tracing::error!(error = %e, "restoring the 2D physics world");
+            return;
+        }
+    };
+    let bodies = crate::resolved(eng, frame.bodies);
+    let colliders = crate::resolved(eng, frame.colliders);
+    let joints = crate::resolved(eng, frame.joints);
+    let collider_params = crate::resolved(eng, frame.collider_params);
+    let joint_params = crate::resolved(eng, frame.joint_params);
+    let grounded = crate::resolved(eng, frame.grounded);
+    let state = eng.resource::<PhysicsState2d>();
+    let mut state = state.borrow_mut();
+    state.world = frame.world;
+    state.paused = frame.paused;
+    state.sleeping_allowed = frame.sleeping_allowed;
+    state.bodies = bodies;
+    state.colliders = colliders;
+    state.joints = joints;
+    state.collider_params = collider_params;
+    state.joint_params = joint_params;
+    state.grounded = grounded;
+    restamp_collider_owners(&mut state);
+}
+
+/// Point every restored collider at the entity its node has now, as in 3D:
+/// the owner rides in `user_data` and a respawn mints a new entity.
+fn restamp_collider_owners(state: &mut PhysicsState2d) {
+    for (entity, handles) in &state.colliders {
+        for &handle in handles {
+            let Some(collider) = state.world.colliders.get_mut(handle) else {
+                continue;
+            };
+            let flags = collider.user_data & !u128::from(u64::MAX);
+            collider.user_data = flags | u128::from(entity.to_bits().get());
+        }
+    }
+}
+
 fn build_physics2d_snapshot(reg: &mut Registry<'_>) {
-    reg.add_snapshot_source(
-        "physics2d",
-        |eng| {
-            let state = eng.resource::<PhysicsState2d>();
-            let state = state.borrow();
-            let frame = PhysicsFrameRef2d {
-                world: &state.world,
-                bodies: state
-                    .bodies
-                    .iter()
-                    .map(|(e, h)| (e.to_bits().get(), *h))
-                    .collect(),
-                colliders: state
-                    .colliders
-                    .iter()
-                    .map(|(e, h)| (e.to_bits().get(), h.clone()))
-                    .collect(),
-                joints: state
-                    .joints
-                    .iter()
-                    .map(|(e, j)| (e.to_bits().get(), *j))
-                    .collect(),
-                paused: state.paused,
-                sleeping_allowed: state.sleeping_allowed,
-            };
-            serde_json::to_value(frame).unwrap_or(serde_json::Value::Null)
-        },
-        |eng, value| {
-            let frame: PhysicsFrame2d = match serde_json::from_value(value.clone()) {
-                Ok(frame) => frame,
-                Err(e) => {
-                    tracing::error!(error = %e, "restoring the 2D physics world");
-                    return;
-                }
-            };
-            let state = eng.resource::<PhysicsState2d>();
-            let mut state = state.borrow_mut();
-            state.world = frame.world;
-            state.paused = frame.paused;
-            state.sleeping_allowed = frame.sleeping_allowed;
-            state.bodies = frame
-                .bodies
-                .into_iter()
-                .filter_map(|(bits, h)| Some((Entity::from_bits(bits)?, h)))
-                .collect();
-            state.colliders = frame
-                .colliders
-                .into_iter()
-                .filter_map(|(bits, h)| Some((Entity::from_bits(bits)?, h)))
-                .collect();
-            state.joints = frame
-                .joints
-                .into_iter()
-                .filter_map(|(bits, j)| Some((Entity::from_bits(bits)?, j)))
-                .collect();
-        },
-    );
+    reg.add_snapshot_source("physics2d", save_physics2d, load_physics2d);
 }
 
 /// The 2D twin of the 3D source: velocity and sleep state, which no

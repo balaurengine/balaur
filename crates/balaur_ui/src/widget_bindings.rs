@@ -471,14 +471,28 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
         "set_widget_surface",
         &[],
         "",
-        "The same for one named surface: roots whose `layer` is this name draw here instead. A name nothing has set is the whole screen and on.",
+        "The same for one named surface: roots whose `layer` is this name draw here instead. A name nothing has set takes the default surface.",
     ),
     (
         "widget_rect",
         &[],
         "",
         "Where a `widget` node was last drawn, as `#{ x, y, w, h }` in design pixels; empty until it has drawn once.",
+    ),
+    (
+        "set_keyboard_focus",
+        &[],
+        "",
+        "Let the arrows, Tab, Enter and Space move and activate the focused widget. Off unless asked for, so a game that moves with the arrows does not click its own HUD; `standard_app` turns it on for a project declaring the `ui_*` actions.",
     )]);
+    {
+        m.function("set_keyboard_focus", |eng: &Engine, on: bool| {
+            eng.resource::<crate::WidgetLayerConfig>()
+                .borrow_mut()
+                .keyboard = on;
+            Ok(())
+        });
+    }
     {
         // No reader by design (N8): the `WidgetLayerConfig` entry already
         // holds the flag and the rect; add `ui.widget_layer` when a caller

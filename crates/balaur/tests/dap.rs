@@ -25,7 +25,7 @@ fn project(dir: &std::path::Path) {
     std::fs::create_dir_all(dir.join("scripts")).unwrap();
     std::fs::write(
         dir.join("project.toml"),
-        "name = \"t\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(

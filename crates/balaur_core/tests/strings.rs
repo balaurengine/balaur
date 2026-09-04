@@ -21,7 +21,7 @@ fn project(manifest_locale: &str, files: &[(&str, &str)]) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        format!("name = \"t\"\nmain_scene = \"main.toml\"\n{manifest_locale}"),
+        format!("[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n{manifest_locale}"),
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();

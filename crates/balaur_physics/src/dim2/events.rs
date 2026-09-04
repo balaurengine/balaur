@@ -175,6 +175,47 @@ impl PhysicsHooks for Hooks<'_> {
         {
             context.update_as_oneway_platform(axis, 0.1);
         }
+        let Some(host) = self.eng.script_host() else {
+            return;
+        };
+        let (Some(a), Some(b)) = (
+            entity_of(context.colliders, context.collider1),
+            entity_of(context.colliders, context.collider2),
+        ) else {
+            return;
+        };
+        for (node, other) in [(a, b), (b, a)] {
+            let normal = crate::scalar::a2(*context.normal);
+            let answer = host.call_on(
+                balaur_core::node_id_of(node),
+                "modify_contacts",
+                &[
+                    Value::Node(other.to_bits().get()),
+                    crate::vocabulary::map([
+                        ("normal", Value::Vec2(normal)),
+                        ("points", Value::Num(context.solver_contacts.len() as f64)),
+                    ]),
+                ],
+            );
+            apply_contact_answer(context, answer.as_ref());
+        }
+    }
+}
+
+/// The 2D twin of `crate::events::apply_contact_answer`: what a
+/// `modify_contacts` handler may change about a pair the solver is about to
+/// see.
+fn apply_contact_answer(context: &mut ContactModificationContext<'_>, answer: Option<&Value>) {
+    let Some(answer) = answer else { return };
+    let opts = crate::vocabulary::Opts(Some(answer));
+    if let Some(Value::Num(friction)) = opts.get("friction") {
+        *context.friction = *friction as crate::scalar::Real;
+    }
+    if let Some(Value::Num(restitution)) = opts.get("restitution") {
+        *context.restitution = *restitution as crate::scalar::Real;
+    }
+    if !opts.boolean("solid", true) {
+        context.solver_contacts.clear();
     }
 }
 

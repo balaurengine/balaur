@@ -18,6 +18,10 @@ use balaur_core::Engine;
 use balaur_plugin::Registry;
 use glamx::{Mat3, Vec2};
 
+/// The shortest bone [`two_bone_ik`] will solve. Below it the reach clamp
+/// inverts and there is no elbow angle to find anyway.
+const MIN_BONE: f32 = 1e-5;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
     LookAt,
@@ -195,7 +199,9 @@ fn two_bone_ik(world: &World, root: Entity, target: Vec2, flip: bool) {
     );
     let l1 = (m - r).length();
     let l2 = (t - m).length();
-    if l1 <= 1e-6 || l2 <= 1e-6 {
+    // The clamp below has `min > max` for anything shorter, and `f32::clamp`
+    // panics on that: a bone 5e-6 from its parent is what reaches it.
+    if !(l1 > MIN_BONE && l2 > MIN_BONE) {
         return;
     }
     let to = target - r;
@@ -241,6 +247,12 @@ pub(crate) fn modify_system(eng: &Engine, _dt: f32) {
             continue;
         };
         let point = origin_of(&pose_2d(&world, target));
+        // A target whose transform went non-finite would write NaN rotations
+        // into the rig and keep them there; the clip's pose stands instead.
+        if !point.x.is_finite() || !point.y.is_finite() {
+            tracing::debug!(target = m.target, "modifier2d target is not a finite point");
+            continue;
+        }
         match m.kind {
             Kind::LookAt => look_at(&world, bone, point),
             Kind::TwoBoneIk => two_bone_ik(&world, bone, point, m.flip),

@@ -18,8 +18,8 @@ use balaur_core::scene::{self, Transform};
 use balaur_core::Engine;
 use glamx::Vec4;
 
-use crate::clip::{Clip, Property};
-use crate::player::{AnimationState, Playback, FIXED_DT, MAX_STEPS};
+use crate::clip::{Clip, Property, Wrap};
+use crate::player::{AnimationState, Playback, FIXED_DT, MAX_SUBSTEPS};
 use crate::sampler::{self, TrackValue};
 use crate::tween::{self, TweenId};
 
@@ -113,7 +113,7 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
         for playback in state.players.values_mut() {
             playback.finished.clear();
         }
-        state.accumulator = (state.accumulator + dt).min(FIXED_DT * MAX_STEPS as f32);
+        state.accumulator = (state.accumulator + dt).min(FIXED_DT * MAX_SUBSTEPS as f32);
         while state.accumulator >= FIXED_DT {
             for (&entity, playback) in &mut state.players {
                 if advance_playback(&world, entity, playback, &mut effects) {
@@ -154,7 +154,11 @@ fn advance_playback(
     };
     let was = playback.time;
     playback.time += FIXED_DT * playback.speed;
-    let (time, finished) = sampler::clip_time(&clip, playback.time);
+    let (time, past_end) = sampler::clip_time(&clip, playback.time);
+    // Backwards off the start ends a non-looping clip too, or a negative
+    // speed would leave it playing at time zero for the rest of the session.
+    let backwards_off = playback.speed < 0.0 && playback.time <= 0.0 && clip.wrap == Wrap::None;
+    let finished = past_end || backwards_off;
     if finished {
         // The last pose is still written: a clip that ends holds its final
         // key rather than snapping back to wherever the node was.

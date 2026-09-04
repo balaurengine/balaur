@@ -16,7 +16,7 @@
 use std::any::Any;
 use std::cell::Cell;
 use std::sync::Arc;
-use std::time::Instant;
+use balaur_core::time::Instant;
 
 use bytemuck::{Pod, Zeroable};
 use glamx::{Mat4, Pose3, Vec3};

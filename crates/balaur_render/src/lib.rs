@@ -27,6 +27,7 @@ mod script_api;
 pub mod shaders;
 mod shape;
 mod sprite;
+mod texture;
 mod tilemap;
 pub use camera::{Camera, CameraKind};
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
@@ -220,10 +221,8 @@ impl Default for CameraConfig2d {
             center: [0.0, 0.0],
             zoom: 60.0,
             ambient: [0.0, 0.0, 0.0],
-            // Asserted at boot, as [`CameraConfig`] is: a backend starts at
-            // its own zoom, and `drive_camera_system` only raises `changed`
-            // when a camera *differs* from what is here — so a scene writing
-            // the schema's own default of 60 would otherwise never be applied.
+            // Asserted at boot, as [`CameraConfig`] is: a scene writing the
+            // schema's own default of 60 raises no change and is never applied.
             changed: true,
         }
     }
@@ -429,6 +428,10 @@ pub struct Renderable2d {
     pub polygon: Option<std::sync::Arc<PolygonMesh>>,
     /// The `material` asset this draws with; empty means the built-in one.
     pub material: String,
+    /// Whether the author stated the size, rather than a sprite deriving it
+    /// from its image: a derived one re-derives when the sheet or
+    /// `pixels_per_unit` moves, and an authored one is left alone.
+    pub sized: bool,
     pub version: u64,
 }
 
@@ -459,6 +462,7 @@ pub(crate) fn set_polygon(
                 polyline: None,
                 polygon: Some(polygon),
                 material: String::new(),
+                sized: false,
                 version: 0,
             },
         )
@@ -586,6 +590,7 @@ pub(crate) fn set_polyline(
                 polyline: Some(source),
                 polygon: None,
                 material: String::new(),
+                sized: false,
                 version: 0,
             },
         )
@@ -609,6 +614,7 @@ pub(crate) fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Resul
                 polyline: None,
                 polygon: None,
                 material: String::new(),
+                sized: false,
                 version: 0,
             },
         )
@@ -625,9 +631,7 @@ fn natural_half_extents(
     sheet: Option<SpriteSheet2d>,
     ppu: f32,
 ) -> Result<(f32, f32)> {
-    let (w, h) = image::load_from_memory(bytes)
-        .map(|image| (image.width(), image.height()))
-        .map_err(|e| anyhow!("reading the size of {name}: {e}"))?;
+    let (w, h) = texture::image_size(bytes, name)?;
     let (cols, rows) = sheet.map_or((1, 1), |s| (s.columns.max(1), s.rows.max(1)));
     let ppu = if ppu > 0.0 {
         ppu
@@ -666,6 +670,9 @@ pub(crate) fn set_sprite(
         hx: hx.max(f32::EPSILON),
         hy: hy.max(f32::EPSILON),
     };
+    // A size the caller stated is the author's; one read off the image is
+    // this call's, and `read_sprite` must not report it back as authored.
+    let sized = half_extents.is_some();
     let mut world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
         // The frame alone changes UVs, which the backend re-applies every
@@ -676,6 +683,7 @@ pub(crate) fn set_sprite(
                 .is_none_or(|s| s.path != texture.path || s.sheet != texture.sheet);
         r.shape = shape;
         r.sprite = Some(texture);
+        r.sized = sized;
         if rebuild {
             r.version += 1;
         }
@@ -691,6 +699,7 @@ pub(crate) fn set_sprite(
                 polyline: None,
                 polygon: None,
                 material: String::new(),
+                sized,
                 version: 0,
             },
         )

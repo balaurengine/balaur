@@ -71,7 +71,6 @@ pub fn selftest(S) {
     } else {
         log::error("selftest FAILED: the registry lists no plugin");
     }
-    S.dock = "counter";
     S.registry.open["counter-window"] = true;
     log::info("selftest plugin: done");
 }

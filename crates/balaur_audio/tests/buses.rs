@@ -12,7 +12,7 @@ fn app(buses: &str) -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        format!("name = \"a\"\nmain_scene = \"main.toml\"\n{buses}"),
+        format!("[application]\nname = \"a\"\nmain_scene = \"main.toml\"\n{buses}"),
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
@@ -170,11 +170,75 @@ fn stopping_everything_forgets_every_routing() {
     assert_eq!(state.borrow().routing_of(b), None);
 }
 
+/// Every chain ends at master, a slider moves what its children carry, and a
+/// handle's own volume still goes through the chain — the three halves of the
+/// mix, on one sound.
+#[test]
+fn a_sound_on_a_child_bus_follows_master_the_slider_and_its_own_volume() {
+    let (_dir, app) = app(NESTED);
+    bus::ensure_loaded(&app.engine);
+    let buses = app.engine.resource::<Buses>();
+    let state = app.engine.resource::<AudioState>();
+    buses.borrow_mut().set_volume("master", 0.5);
+
+    let gain = buses.borrow().gain("ui");
+    let handle = state
+        .borrow_mut()
+        .play_on_bus(Vec::new(), 1.0, 1.0, false, "ui", gain);
+    let applied = || state.borrow().effective_volume(handle).expect("routed");
+    // master 0.5 * sfx 0.5 * ui 0.5.
+    assert!((applied() - 0.125).abs() < 1e-6, "{}", applied());
+
+    buses.borrow_mut().set_volume("sfx", 1.0);
+    state.borrow_mut().reroute(&buses.borrow(), "sfx");
+    assert!((applied() - 0.25).abs() < 1e-6, "{}", applied());
+
+    state.borrow_mut().set_volume(handle, 0.5, &buses.borrow());
+    assert!((applied() - 0.125).abs() < 1e-6, "{}", applied());
+}
+
+/// A slider on a bus nothing plays on directly still moves the sounds under
+/// it, which is what "pull the music slider" means.
+#[test]
+fn moving_a_parent_bus_reroutes_the_sounds_on_its_children() {
+    let (_dir, app) = app(NESTED);
+    bus::ensure_loaded(&app.engine);
+    let buses = app.engine.resource::<Buses>();
+    let state = app.engine.resource::<AudioState>();
+    let gain = buses.borrow().gain("ui");
+    let child = state
+        .borrow_mut()
+        .play_on_bus(Vec::new(), 1.0, 1.0, false, "ui", gain);
+    let other = state
+        .borrow_mut()
+        .play_on_bus(Vec::new(), 1.0, 1.0, false, "music", 0.25);
+
+    buses.borrow_mut().set_volume("master", 0.0);
+    state.borrow_mut().reroute(&buses.borrow(), "master");
+    assert_eq!(state.borrow().effective_volume(child), Some(0.0));
+    assert_eq!(state.borrow().effective_volume(other), Some(0.0));
+}
+
+/// A typo should leave a sound audible, so no slider reaches it either.
+#[test]
+fn a_sound_on_a_bus_nobody_declared_is_left_at_unity() {
+    let (_dir, app) = app(NESTED);
+    bus::ensure_loaded(&app.engine);
+    let buses = app.engine.resource::<Buses>();
+    let state = app.engine.resource::<AudioState>();
+    let handle = state
+        .borrow_mut()
+        .play_on_bus(Vec::new(), 1.0, 1.0, false, "sffx", 1.0);
+    buses.borrow_mut().set_volume("master", 0.0);
+    state.borrow_mut().reroute(&buses.borrow(), "master");
+    assert_eq!(state.borrow().effective_volume(handle), Some(1.0));
+}
+
 fn with_events(events: &str) -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        format!("name = \"a\"\nmain_scene = \"main.toml\"\n{NESTED}"),
+        format!("[application]\nname = \"a\"\nmain_scene = \"main.toml\"\n{NESTED}"),
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();

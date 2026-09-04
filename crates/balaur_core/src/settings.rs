@@ -288,7 +288,7 @@ language = { type = "enum", default = "rune", options = ["rune"], order = 3, app
         &parse(
             "settings.save",
             r#"
-version = { type = "float", default = 1.0, min = 1.0, max = 9999.0, help = "The save version this build writes. A lower file is migrated; a higher one is refused." }
+version = { type = "int", default = 1, min = 1, max = 9999, help = "The save version this build writes. A lower file is migrated; a higher one is refused." }
 migrate = { type = "string", default = "", help = "A script whose migrate_save(version, data) brings a file forward one version per call." }
 "#,
         ),
@@ -313,8 +313,8 @@ fallback = { type = "string", default = "en", help = "Where a key missing from t
             "settings.netcode",
             r#"
 faults = { type = "bool", default = false, order = 1, help = "Put delay, jitter and packet loss on every session link, to test rollback against a link that misbehaves." }
-delay = { type = "float", default = 9.0, min = 0.0, max = 60.0, order = 2, help = "Ticks every payload waits before delivery. Nine is about 150 ms at 60 Hz." }
-jitter = { type = "float", default = 3.0, min = 0.0, max = 30.0, order = 3, help = "Extra ticks drawn per payload. Jitter is what reorders a stream." }
+delay = { type = "int", default = 9, min = 0, max = 60, order = 2, help = "Ticks every payload waits before delivery. Nine is about 150 ms at 60 Hz." }
+jitter = { type = "int", default = 3, min = 0, max = 30, order = 3, help = "Extra ticks drawn per payload. Jitter is what reorders a stream." }
 loss = { type = "float", default = 0.05, min = 0.0, max = 1.0, order = 4, help = "The fraction of datagrams dropped. Datagrams only: losing a reliable payload would break the transport's contract." }
 "#,
         ),
@@ -341,7 +341,7 @@ compact = { type = "bool", default = false, order = 3, help = "Drop labels the i
         &parse(
             "settings.editor.sessions",
             r#"
-keep = { type = "float", default = 10.0, min = 1.0, max = 200.0, order = 10, help = "How many recorded play sessions are kept per game before the oldest is pruned." }
+keep = { type = "int", default = 10, min = 1, max = 200, order = 10, help = "How many recorded play sessions are kept per game before the oldest is pruned." }
 verify = { type = "bool", default = false, order = 11, help = "Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame." }
 "#,
         ),
@@ -354,7 +354,9 @@ pub fn faults(eng: &Engine) -> Option<crate::transport::Faults> {
     if !get(eng, "netcode/faults")?.as_bool()? {
         return None;
     }
-    let number = |path: &str| get(eng, path).and_then(|v| v.as_float());
+    // `as_f64`, not `as_float`: a tick count is an integer in the file and in
+    // anything a hand edit writes.
+    let number = |path: &str| get(eng, path).and_then(|v| crate::components::as_f64(&v));
     #[allow(
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,

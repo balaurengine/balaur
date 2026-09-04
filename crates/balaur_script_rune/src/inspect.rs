@@ -15,9 +15,9 @@ use rune::{Diagnostics, Source, Sources};
 use crate::packed::PackSourceLoader;
 use crate::{value, RuneHost};
 
-/// A `pub fn` a script declares, read off its source text. The host owns
-/// the text, and a `pub fn` starting a line, signature on that line, is the
-/// whole public surface of the script model.
+/// A `pub fn` a script declares, read off its source text. A `pub fn`
+/// starting a line is the whole public surface of the script model; its
+/// parameter list may run on to the next line.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PublicSignature {
     pub(crate) name: String,
@@ -28,8 +28,9 @@ pub(crate) struct PublicSignature {
 }
 
 pub(crate) fn public_functions(source: &str) -> Vec<PublicSignature> {
+    let lines: Vec<&str> = source.lines().collect();
     let mut out = Vec::new();
-    for (at, line) in source.lines().enumerate() {
+    for (at, line) in lines.iter().enumerate() {
         let mut rest = line.trim_start();
         rest = match rest.strip_prefix("pub ") {
             Some(rest) => rest.trim_start(),
@@ -47,23 +48,44 @@ pub(crate) fn public_functions(source: &str) -> Vec<PublicSignature> {
             .take_while(|c| c.is_alphanumeric() || *c == '_')
             .collect();
         let Some(open) = rest.find('(') else { continue };
-        let Some(close) = rest.find(')') else {
+        if name.is_empty() {
+            continue;
+        }
+        let Some(params) = parameters(&lines, at, &rest[open + 1..]) else {
             continue;
         };
-        let arity = rest[open + 1..close]
-            .split(',')
-            .filter(|p| !p.trim().is_empty())
-            .count();
-        if !name.is_empty() {
-            out.push(PublicSignature {
-                name,
-                arity,
-                is_async,
-                line: at + 1,
-            });
-        }
+        out.push(PublicSignature {
+            name,
+            arity: params
+                .split(',')
+                .filter(|p| !p.trim().is_empty())
+                .count(),
+            is_async,
+            line: at + 1,
+        });
     }
     out
+}
+
+/// The text between a signature's parentheses, gathered across lines.
+///
+/// A signature broken over two lines used to be invisible here, which took
+/// the function out of `script::require`, out of the editor's hooks list, and
+/// out of the list a plugin's `register` is looked for in.
+fn parameters(lines: &[&str], at: usize, first: &str) -> Option<String> {
+    let mut gathered = String::from(first);
+    let mut scan = at;
+    while !gathered.contains(')') {
+        scan += 1;
+        gathered.push(' ');
+        gathered.push_str(lines.get(scan)?);
+        // A `{` before any `)` means this was never a signature.
+        if gathered.contains('{') && !gathered.contains(')') {
+            return None;
+        }
+    }
+    let close = gathered.find(')')?;
+    Some(gathered[..close].to_string())
 }
 
 /// One compiler finding, at the file and line the author wrote.
@@ -149,24 +171,25 @@ pub(crate) fn finding_rows(found: &[Finding]) -> Result<rune::Value> {
     Ok(rune::to_value(rows)?)
 }
 
-/// `script::exports`' answer: one row per declared property, carrying the name,
-/// the default and the type to draw it at.
+/// `script::exports`' answer: one row per declared property, its name beside
+/// everything the spec declares — `type`, `default`, and whatever else of
+/// `min`, `max`, `step`, `options`, `asset`, `help` and `order` was written.
 pub(crate) fn export_rows(declared: &[(String, balaur_script::Value)]) -> Result<rune::Value> {
     let mut rows = Vec::with_capacity(declared.len());
-    for (name, default) in declared {
+    for (name, spec) in declared {
         let mut row = rune::runtime::Object::new();
         row.insert(
             rune::alloc::String::try_from("name")?,
             rune::to_value(name.clone())?,
         )?;
-        row.insert(
-            rune::alloc::String::try_from("default")?,
-            value::from_neutral(default)?,
-        )?;
-        row.insert(
-            rune::alloc::String::try_from("type")?,
-            rune::to_value(export_type(default))?,
-        )?;
+        if let balaur_script::Value::Map(fields) = spec {
+            for (key, value) in fields {
+                row.insert(
+                    rune::alloc::String::try_from(key.as_str())?,
+                    value::from_neutral(value)?,
+                )?;
+            }
+        }
         rows.push(rune::to_value(row)?);
     }
     Ok(rune::to_value(rows)?)
@@ -188,8 +211,56 @@ fn export_type(default: &balaur_script::Value) -> &'static str {
         Value::Vec3(_) => "vec3",
         Value::Color(_) => "color",
         // A node reference and anything structured are typed by hand until
-        // an attribute says otherwise; `PLAN-scripting.md` phase 3.
+        // the spec form below says otherwise.
         _ => "string",
+    }
+}
+
+/// The `default` an export declares, which is what the host writes onto an
+/// instance before `init`.
+#[must_use]
+pub(crate) fn export_default(spec: &balaur_script::Value) -> balaur_script::Value {
+    let balaur_script::Value::Map(fields) = spec else {
+        return spec.clone();
+    };
+    fields
+        .iter()
+        .find(|(k, _)| k == "default")
+        .map_or(balaur_script::Value::Nil, |(_, v)| v.clone())
+}
+
+/// One exported property as a spec, whichever way it was written.
+///
+/// **A table carrying `type` is a spec; anything else is a bare default**,
+/// lifted into one so every reader sees the same shape. That is the whole
+/// rule, and it is why a plain `speed: 2.0` keeps working.
+fn spec_of(key: &str, name: &str, value: &balaur_script::Value) -> Result<balaur_script::Value> {
+    use balaur_script::Value;
+    let declared = match value {
+        Value::Map(fields) if fields.iter().any(|(k, _)| k == "type") => fields.clone(),
+        bare => vec![
+            ("type".to_string(), Value::Str(export_type(bare).into())),
+            ("default".to_string(), bare.clone()),
+        ],
+    };
+    let spec = Value::Map(declared);
+    if let Err(why) = balaur_core::node_api::validate_property_spec(&spec) {
+        return Err(anyhow!("[{key}] exports: property '{name}': {why}"));
+    }
+    Ok(spec)
+}
+
+/// Where a spec asks to sit on the page; everything unordered sorts after,
+/// keeping the name order `to_plain` produced.
+fn order_of(spec: &balaur_script::Value) -> f64 {
+    use balaur_script::Value;
+    let Value::Map(fields) = spec else {
+        return f64::MAX;
+    };
+    match fields.iter().find(|(k, _)| k == "order").map(|(_, v)| v) {
+        Some(Value::Num(n)) => *n,
+        Some(Value::Int(i)) => *i as f64,
+        _ => f64::MAX,
     }
 }
 
@@ -291,8 +362,8 @@ impl RuneHost {
     /// The defaults `exports()` declares for `key`, evaluated once per file.
     ///
     /// Declaration order is not recoverable — Rune objects do not keep it —
-    /// so the list is sorted by name, which is the order the inspector shows
-    /// and the order a scene's `props` are written back in.
+    /// so the list is sorted by the spec's `order` and then by name, which is
+    /// the order the inspector shows and a scene's `props` are written in.
     pub fn exports(&self, key: &str) -> Result<Vec<(String, balaur_script::Value)>> {
         if let Some(hit) = self
             .state
@@ -301,9 +372,24 @@ impl RuneHost {
             .get(key)
             .and_then(|s| s.exports.clone())
         {
-            return Ok(hit);
+            return hit.map_err(|why| anyhow!(why));
         }
-        let declared = match self.method(key, "exports") {
+        let outcome = self.read_exports(key);
+        // The failure is cached with the success: a broken `exports` that
+        // re-ran per attach would report itself once per node.
+        let cached = match &outcome {
+            Ok(declared) => Ok(declared.clone()),
+            Err(err) => Err(format!("{err:#}")),
+        };
+        if let Some(script) = self.state.borrow_mut().scripts.get_mut(key) {
+            script.exports = Some(cached);
+        }
+        outcome
+    }
+
+    /// Evaluate `exports()` and normalise every entry into a spec.
+    fn read_exports(&self, key: &str) -> Result<Vec<(String, balaur_script::Value)>> {
+        let written = match self.method(key, "exports") {
             None => Vec::new(),
             Some(f) => match f.call::<rune::Value>(()) {
                 VmResult::Ok(v) => match value::to_plain(&v) {
@@ -313,9 +399,14 @@ impl RuneHost {
                 VmResult::Err(err) => return Err(anyhow!("[{key}] exports: {err}")),
             },
         };
-        if let Some(script) = self.state.borrow_mut().scripts.get_mut(key) {
-            script.exports = Some(declared.clone());
+        let mut declared = Vec::with_capacity(written.len());
+        for (name, value) in written {
+            let spec = spec_of(key, &name, &value)?;
+            declared.push((name, spec));
         }
+        // `to_plain` sorted by name, which is the tie-break; `order` is what a
+        // script says when the rows belong in an order of its own.
+        declared.sort_by(|a, b| order_of(&a.1).total_cmp(&order_of(&b.1)));
         Ok(declared)
     }
 

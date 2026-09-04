@@ -29,7 +29,7 @@ pub struct Options<'a> {
     /// Where the result goes. Each shape names its own default.
     pub output: Option<PathBuf>,
     /// The platform to build a standalone game for, naming a template
-    /// (`linux-x64`, `macos-arm64`, `windows-x64`, `ios`, `android`).
+    /// (`linux-x64`, `macos-universal`, `windows-x64`, `ios`, `android`).
     pub target: Option<String>,
     /// A runtime template to append to, bypassing lookup entirely.
     pub template: Option<PathBuf>,
@@ -209,10 +209,10 @@ mod tests {
     #[test]
     fn a_missing_template_names_where_it_looked() {
         let roots = vec![std::path::PathBuf::from("/nowhere/templates")];
-        let err = find_template("macos-arm64", &roots)
+        let err = find_template("macos-universal", &roots)
             .unwrap_err()
             .to_string();
-        assert!(err.contains("macos-arm64"), "{err}");
+        assert!(err.contains("macos-universal"), "{err}");
         assert!(err.contains("/nowhere/templates"), "{err}");
     }
 

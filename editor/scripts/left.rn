@@ -8,7 +8,6 @@ use crate::style;
 use crate::util;
 
 
-// One tree row: connector rails, collapse arrow, coloured type icon, name,
 // One row: depth guides, collapse arrow, typed mark, name, trailing badge;
 // right-click opens the node's context menu.
 const ROW_H = 23.0;
@@ -118,23 +117,16 @@ fn tree_row(S, k, row) {
 // `kids` is bucketed by the parent's **id**, so the recursion carries an id
 // too. Descending by name path is what used to make every nested node
 // invisible: no bucket is ever keyed by a path.
-fn walk(S, k, kids, parent_id, depth, rails) {
+fn walk(S, k, kids, parent_id, depth) {
     let children = kids.get(parent_id).unwrap_or([]);
     for (j, i) in children.iter().enumerate() {
         let node = S.doc[i];
         let id = node.get("id").unwrap_or("");
         let is_last = j == children.len() - 1;
         let has_kids = kids.contains_key(id);
-        tree_row(S, k, #{ index: i, depth: depth, rails: rails, is_last: is_last, has_kids: has_kids });
+        tree_row(S, k, #{ index: i, depth: depth, is_last: is_last, has_kids: has_kids });
         if has_kids && !S.collapsed.contains_key(id) {
-            let extend = if depth == 0 {
-                ""
-            } else if is_last {
-                rails + "  "
-            } else {
-                rails + "│ "
-            };
-            walk(S, k, kids, id, depth + 1, extend);
+            walk(S, k, kids, id, depth + 1);
         }
     }
 }
@@ -155,8 +147,7 @@ fn secondary_content(S) {
         for f in model::list(S, "scripts") {
             if !f.is_dir && f.name.ends_with(".rn") {
                 let rel = "scripts/" + f.name;
-                let n = util::count_lines(model::source(S, rel).unwrap_or(""));
-                rows.push(row("‹›", f.name, format!("{} L", n), || {
+                rows.push(row("‹›", f.name, format!("{} L", model::line_count(S, rel)), || {
                     // Jump to the node using this script.
                     for (i, node) in S.doc.iter().enumerate() {
                         if model::script_rel(node) == Some(rel) {
@@ -277,7 +268,7 @@ pub fn tree_body(S, k) {
     }
     ui::scroll("tree", #{ max_height: S.layout.left.h - 72.0 }, || {
         ui::spacing(4, 1);
-        walk(S, k, kids, "", 0, "");
+        walk(S, k, kids, "", 0);
     });
 }
 
@@ -292,7 +283,7 @@ fn filtered_tree(S, k, query) {
                 continue;
             }
             any = true;
-            tree_row(S, k, #{ index: i, depth: 0, rails: "", is_last: true, has_kids: false });
+            tree_row(S, k, #{ index: i, depth: 0, is_last: true, has_kids: false });
         }
         if !any {
             ui::add_space(8);
@@ -309,11 +300,10 @@ pub fn outline_body(S, k) {
         for row in rows {
             ui::horizontal(#{ height: 27 }, || {
                 ui::add_space(2);
-                if ui::pill(row.name, #{
-                    role: "list_item", min_width: ui::available_width(),
+                if ui::pill(row.name, util::merge(style::list_row(k, 27), #{
                     icon: row.icon, icon_size: 12, icon_color: k.dim,
                     trailing: row.meta, trailing_color: k.faint,
-                }) {
+                })) {
                     (row.run)();
                 }
             });

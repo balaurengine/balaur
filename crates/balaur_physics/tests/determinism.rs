@@ -14,7 +14,7 @@ fn write_project(root: &std::path::Path) {
     std::fs::create_dir_all(root.join("scenes")).unwrap();
     std::fs::write(
         root.join("project.toml"),
-        "name = \"det\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"det\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
@@ -109,7 +109,7 @@ fn write_project_2d(root: &std::path::Path) {
     std::fs::create_dir_all(root.join("scenes")).unwrap();
     std::fs::write(
         root.join("project.toml"),
-        "name = \"det2d\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"det2d\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(

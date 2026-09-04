@@ -10,7 +10,7 @@
 use balaur_plugin::Registry;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use balaur_core::components::{as_f64, ComponentDef};
 use balaur_core::hecs::Entity;
 use balaur_core::mesh::{MeshData, MeshSkin};
@@ -158,9 +158,7 @@ fn texture_size(eng: &Engine, texture: &str) -> Result<(u32, u32)> {
         .resource::<balaur_core::project::ProjectFiles>()
         .borrow()
         .read(texture)?;
-    image::load_from_memory(&bytes)
-        .map(|image| (image.width(), image.height()))
-        .map_err(|e| anyhow!("reading the size of {texture}: {e}"))
+    crate::texture::image_size(&bytes, texture)
 }
 
 fn polygon_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {

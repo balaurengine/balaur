@@ -282,7 +282,7 @@ fn bone2d_applies_from_a_scene_and_reads_back_what_was_written() {
     std::fs::create_dir_all(dir.path().join("scenes")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
+        "[application]\nname = \"t\"\nmain_scene = \"scenes/main.toml\"\n",
     )
     .unwrap();
     std::fs::write(

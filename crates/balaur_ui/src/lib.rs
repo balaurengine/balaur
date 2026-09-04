@@ -33,7 +33,7 @@ use balaur_core::Engine;
 use std::collections::{HashMap, HashSet};
 
 pub use theme::ThemeTokens;
-pub use widget_layer::{Move, UiFocus, Widget, WidgetLayerConfig};
+pub use widget_layer::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
 pub use widget_theme::WidgetTheme;
 pub use widgets::{ANCHORS, FONTS, MODIFIERS, WIDGET_KINDS};
 
@@ -76,6 +76,30 @@ pub struct UiState {
     pub text_seeds: HashMap<String, String>,
     pub focused_once: HashSet<String>,
     pub textures: HashMap<String, egui::TextureHandle>,
+    /// The asset generation `textures` was filled at: an image reloaded on
+    /// disk is a new picture under the same path, so the cache goes with it.
+    pub texture_generation: u64,
+    /// Set by [`forget_scene`], consumed by the next [`run_pass`]: egui's own
+    /// memory is keyed by entity, and dropping it needs the context.
+    pub forget_egui: bool,
+}
+
+/// Drop everything the plugin cached against a scene that is being rebuilt.
+///
+/// The textures and the text buffers are keyed by strings a scene chose, and
+/// egui's per-widget memory — scroll offsets, area sizes — is keyed by entity,
+/// which a respawned node reuses. Nothing inside the engine calls this yet; a
+/// host that reloads a scene should.
+pub fn forget_scene(eng: &Engine) {
+    let Some(state) = eng.try_resource::<UiState>() else {
+        return;
+    };
+    let mut state = state.borrow_mut();
+    state.textures.clear();
+    state.text_buffers.clear();
+    state.text_seeds.clear();
+    state.focused_once.clear();
+    state.forget_egui = true;
 }
 
 pub struct UiPlugin {
@@ -131,6 +155,11 @@ pub fn run_pass(eng: &Engine, ctx: &egui::Context) {
             state.fonts_installed = true;
             return;
         }
+        if std::mem::take(&mut state.forget_egui) {
+            // Scroll offsets and area sizes are keyed by entity, and a
+            // respawned node inherits the index the freed one had.
+            ctx.memory_mut(|memory| memory.data.clear());
+        }
     }
     // A second lookup and borrow, deliberately: the pending theme is the
     // script's to set and this crate's cache is not, so they are two entries.
@@ -147,9 +176,11 @@ pub fn run_pass(eng: &Engine, ctx: &egui::Context) {
     let scale = config.borrow().scale;
     let roles = eng.resource::<UiConfig>().borrow().theme.roles.clone();
     bridge::enter_pass(ctx, scale, roles);
+    // Painting order is egui's `Order` — widgets are `Middle`, an overlay is
+    // `Foreground` — so what is on top does not depend on which ran first.
+    widget_layer::draw(eng, ctx, scale);
     if let Some(host) = eng.script_host() {
         host.call_all("draw_ui");
     }
-    widget_layer::draw(eng, ctx, scale);
     bridge::leave_pass();
 }

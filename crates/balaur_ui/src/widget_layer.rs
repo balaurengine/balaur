@@ -20,8 +20,8 @@ use egui::{pos2, vec2, Align2, Color32, Stroke};
 use crate::theme::family;
 pub(crate) use crate::widget_arrange::drawn_at;
 use crate::widget_arrange::{
-    box_of, contain, hold_to, lay_out, record_rect, roll_measurements, scroller, settle_rects,
-    tabs, Axis,
+    box_of, contain, hold_to, lay_out, padding_of, record_rect, roll_measurements, scroller,
+    settle_rects, tabs, Axis,
 };
 use crate::widget_theme::WidgetTheme;
 
@@ -90,6 +90,58 @@ pub struct Widget {
     /// The drawing surface a *root* widget belongs to; empty is the default
     /// one. Ignored on a child, which is placed by its parent.
     pub layer: String,
+    /// Whether text breaks to the width it was given rather than running past
+    /// it on one line.
+    pub wrap: bool,
+    /// A framed box that lays its children out, with the padding taken off in
+/// floats: `egui::Margin` is whole device pixels, and 10 design px at the
+/// editor's 1.25 scale is not one.
+///
+/// The background is reserved before the children and filled in afterwards,
+/// which is how it can be sized to content it has not drawn yet.
+fn panel(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    caption: &str,
+    font: &egui::FontId,
+    color: Color32,
+) {
+    let scale = at.scale;
+    let style = at.theme.style(&at.arena[index].widget.kind);
+    let pad = style.padding.unwrap_or(8.0) * scale;
+    let box_size = box_of(&at.arena[index].widget, at.assigned, scale);
+    let plate = ui.painter().add(egui::Shape::Noop);
+    let min = (box_size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);
+    let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(ui.max_rect().shrink(pad)));
+    hold_to(&mut inner, min);
+    if !caption.is_empty() {
+        inner.label(egui::RichText::new(caption).font(font.clone()).color(color));
+    }
+    // A panel with nothing in it is the panel it always was.
+    let held = std::mem::replace(&mut at.bounds, min);
+    lay_out(&mut inner, at, index, Axis::Column);
+    at.bounds = held;
+    let background = inner.min_rect().expand(pad);
+    ui.painter().set(
+        plate,
+        egui::epaint::RectShape::new(
+            background,
+            egui::CornerRadius::same(style.radius.map_or(8.0, |r| r * scale) as u8),
+            style.fill.unwrap_or(Color32::from_black_alpha(96)),
+            style
+                .stroke
+                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_width, c)),
+            egui::StrokeKind::Inside,
+        ),
+    );
+    ui.advance_cursor_after_rect(background);
+}
+
+/// Where text sits in the width the widget was given.
+    pub text_align: String,
+    /// A project-relative image for an `image` widget.
+    pub source: String,
 }
 
 /// Whether focus can land on this widget.
@@ -113,11 +165,18 @@ pub(crate) fn lays_out(kind: &str) -> bool {
 /// window); editors point it at their viewport and enable it during play.
 pub struct WidgetLayerConfig {
     pub enabled: bool,
+    /// Whether arrows, Tab, Enter and Space move and activate the focus.
+    ///
+    /// Off by default: a game that moves with the arrows and jumps with Space
+    /// would otherwise click its own HUD button. `standard_app` turns it on
+    /// for a project that declares the `ui_*` actions, and a script asks for
+    /// it with `ui.set_keyboard_focus`.
+    pub keyboard: bool,
     /// Design-px rect (x, y, w, h); None = whole screen.
     pub rect: Option<[f32; 4]>,
-    /// Where a root that names a `layer` draws instead. A name nothing has
-    /// configured is the whole screen and on, so a scene can put its chrome
-    /// on its own surface without the host having to agree first.
+    /// Where a root that names a `layer` draws instead. A name nothing here
+    /// configures takes the default surface, so a host that confines the
+    /// default confines every layer it was never told about.
     pub layers: HashMap<String, Surface>,
 }
 
@@ -141,6 +200,7 @@ impl Default for WidgetLayerConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            keyboard: false,
             rect: None,
             layers: HashMap::new(),
         }
@@ -161,7 +221,7 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
                   records its click in `clicked` and calls the node's `on_click` method.",
             schema: ComponentDef::parse_schema(
                 "widget",
-                r#"kind = { type = "enum", default = "label", options = ["label", "button", "panel", "row", "column", "scroll", "tab", "draw"], description = "The HUD element the widget layer draws" }
+                r#"kind = { type = "enum", default = "label", options = ["label", "button", "panel", "row", "column", "scroll", "tab", "draw", "image"], description = "The HUD element the widget layer draws" }
 text = { type = "string", default = "label", description = "Label or button caption" }
 visible = { type = "bool", default = true, description = "Draw the widget; hidden widgets keep their state" }
 anchor = { type = "enum", default = "top_left", options = ["top_left", "top_right", "bottom_left", "bottom_right", "center"], description = "Screen corner or center the offset is measured from" }
@@ -186,7 +246,10 @@ min_height = { type = "float", default = 0.0, min = 0.0, description = "Smallest
 draw = { type = "string", default = "", description = "What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function" }
 handle = { type = "float", default = 0.0, min = 0.0, description = "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one" }
 active = { type = "string", default = "", description = "Which child a `tab` shows, by node name; empty shows the first" }
-layer = { type = "string", default = "", description = "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured is the whole screen" }"#,
+layer = { type = "string", default = "", description = "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface" }
+wrap = { type = "bool", default = false, description = "Break text to the width the widget was given instead of running past it on one line" }
+text_align = { type = "enum", default = "start", options = ["start", "center", "end"], description = "Where text sits in the width the widget was given" }
+source = { type = "string", default = "", description = "The project-relative image an `image` widget draws" }"#,
             ),
             tags: &["ui"],
             expects: &[],
@@ -273,6 +336,12 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
     );
     map.insert("active".into(), toml::Value::String(widget.active.clone()));
     map.insert("layer".into(), toml::Value::String(widget.layer.clone()));
+    map.insert("wrap".into(), toml::Value::Boolean(widget.wrap));
+    map.insert(
+        "text_align".into(),
+        toml::Value::String(widget.text_align.clone()),
+    );
+    map.insert("source".into(), toml::Value::String(widget.source.clone()));
     toml::Value::Table(map)
 }
 
@@ -319,6 +388,11 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
             "draw",
             "A rect a script fills, named by `draw`",
             "kind = \"draw\"",
+        ),
+        (
+            "image",
+            "A picture from the project, sized by itself or by what it states",
+            "kind = \"image\"",
         ),
     ];
     for (name, description, params) in recipes {
@@ -392,6 +466,12 @@ fn widget_from(params: &toml::Value) -> Widget {
         handle: f("handle", 0.0),
         active: s("active", ""),
         layer: s("layer", ""),
+        wrap: params
+            .get("wrap")
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(false),
+        text_align: s("text_align", "start"),
+        source: s("source", ""),
     }
 }
 
@@ -500,16 +580,38 @@ fn keyboard_move(ctx: &egui::Context) -> Option<Move> {
     })
 }
 
+/// Where focus may land, in the order the draw will reach them.
+///
+/// Walked from the roots rather than read off the arena: a button under a
+/// hidden panel or on a surface the host turned off is never drawn, and an
+/// `accept` on it would fire an `on_click` nobody could have seen to ask for.
+fn focus_stops(placed: &[Placed], roots: &[usize], on: &dyn Fn(&str) -> bool) -> Vec<Entity> {
+    let mut stops = Vec::new();
+    let mut stack: Vec<usize> = roots
+        .iter()
+        .rev()
+        .copied()
+        .filter(|&root| on(&placed[root].widget.layer))
+        .collect();
+    while let Some(index) = stack.pop() {
+        let one = &placed[index];
+        if !one.widget.visible {
+            continue;
+        }
+        if takes_focus(&one.widget) {
+            stops.push(one.entity);
+        }
+        // Reversed, so the stack pops them in declaration order.
+        stack.extend(one.children.iter().rev().copied());
+    }
+    stops
+}
+
 /// Move focus, or say which widget an `accept` activated.
 ///
 /// Order is the order the widgets are drawn in, which is the order the scene
 /// declares them — so focus walks a menu the way the tree reads.
-fn advance(eng: &Engine, placed: &[Placed], asked: Option<Move>) -> Option<Entity> {
-    let stops: Vec<Entity> = placed
-        .iter()
-        .filter(|one| takes_focus(&one.widget))
-        .map(|one| one.entity)
-        .collect();
+fn advance(eng: &Engine, stops: &[Entity], asked: Option<Move>) -> Option<Entity> {
     let focus = eng.try_resource::<UiFocus>()?;
     let mut focus = focus.borrow_mut();
     // A focused widget that was hidden, freed or made unfocusable is no
@@ -542,11 +644,10 @@ fn advance(eng: &Engine, placed: &[Placed], asked: Option<Move>) -> Option<Entit
 /// Draw every widget entity. Runs inside the frame's egui pass, after the
 /// scripts' `draw_ui`.
 pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
-    roll_measurements();
     let Some(layer) = eng.try_resource::<WidgetLayerConfig>() else {
         return;
     };
-    let (default, surfaces) = {
+    let (default, surfaces, keyboard) = {
         let layer = layer.borrow();
         (
             Surface {
@@ -554,14 +655,34 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
                 rect: layer.rect,
             },
             layer.layers.clone(),
+            layer.keyboard,
         )
     };
     let screen = ctx.viewport_rect();
     let (placed, roots) = forest(eng);
+    // Nothing to draw and nothing to focus: a scene with no widgets pays for
+    // the resource lookup and no more.
+    if placed.is_empty() {
+        return;
+    }
+    // A layer nothing configured takes the default surface, so a host that
+    // confines the default confines everything it was not told about.
+    let surface_of = |name: &str| {
+        if name.is_empty() {
+            default
+        } else {
+            surfaces.get(name).copied().unwrap_or(default)
+        }
+    };
     let was_focused = eng
         .try_resource::<UiFocus>()
         .and_then(|f| f.borrow().focused);
-    let accepted = advance(eng, &placed, keyboard_move(ctx));
+    // A field being typed into owns the keys, arrows included.
+    let asked = (keyboard && !ctx.egui_wants_keyboard_input())
+        .then(|| keyboard_move(ctx))
+        .flatten();
+    let stops = focus_stops(&placed, &roots, &|name| surface_of(name).enabled);
+    let accepted = advance(eng, &stops, asked);
     let focused = eng
         .try_resource::<UiFocus>()
         .and_then(|f| f.borrow().focused);
@@ -578,19 +699,14 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
         // `on_click`, so it starts the frame's list rather than a second one.
         clicked: accepted.into_iter().collect(),
     };
-    for root in roots {
+    for root in &roots {
+        let root = *root;
         let widget = &placed[root].widget;
         if !widget.visible {
             continue;
         }
-        // Each root draws on the surface it names. A layer nothing configured
-        // is the screen, so a scene can put its own chrome somewhere without
-        // the host having to agree first.
-        let surface = if widget.layer.is_empty() {
-            default
-        } else {
-            surfaces.get(&widget.layer).copied().unwrap_or_default()
-        };
+        // Each root draws on the surface it names.
+        let surface = surface_of(&widget.layer);
         if !surface.enabled {
             continue;
         }
@@ -625,7 +741,10 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
         // asking `ui.widget_rect` should get an answer for the whole tree.
         record_rect(placed[root].entity, shown.response.rect);
     }
+    // Published at the end of the draw, not the start of the next one: a
+    // script's `draw_ui` runs after this and reads this frame's rects.
     settle_rects();
+    roll_measurements();
     let edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
     let widgets: Vec<(Entity, Widget)> = placed
@@ -774,33 +893,9 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                 );
             }
         }
-        "panel" => {
-            let margin = egui::Margin::same(style.padding.map_or(8.0, |p| p * scale) as i8);
-            egui::Frame::new()
-                .fill(style.fill.unwrap_or(Color32::from_black_alpha(96)))
-                .corner_radius(egui::CornerRadius::same(
-                    style.radius.map_or(8.0, |r| r * scale) as u8,
-                ))
-                .stroke(
-                    style
-                        .stroke
-                        .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_width, c)),
-                )
-                .inner_margin(margin)
-                .show(ui, |ui| {
-                    // `width`/`height` size the frame, margins included.
-                    let min =
-                        (box_of(widget, at.assigned, scale) - margin.sum()).max(egui::Vec2::ZERO);
-                    hold_to(ui, min);
-                    if !caption.is_empty() {
-                        ui.label(egui::RichText::new(&caption).font(font).color(color));
-                    }
-                    // A panel with nothing in it is the panel it always was.
-                    let held = std::mem::replace(&mut at.bounds, min);
-                    lay_out(ui, at, index, Axis::Column);
-                    at.bounds = held;
-                });
-        }
+        "panel" => panel(ui, at, index, &caption, &font, color),
+        // A picture from the project, sized by what it states or by itself.
+        "image" => image(ui, at, index),
         "row" => contain(ui, at, index, Axis::Row),
         "column" => contain(ui, at, index, Axis::Column),
         // A box that clips, with its children free to run past it.
@@ -843,7 +938,75 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             ));
         }
         _ => {
-            ui.label(egui::RichText::new(&caption).font(font).color(color));
+            let mut label =
+                egui::Label::new(egui::RichText::new(&caption).font(font).color(color));
+            // `extend` is the old behaviour: one line, however wide it runs.
+            label = if widget.wrap {
+                label.wrap()
+            } else {
+                label.extend()
+            };
+            ui.with_layout(egui::Layout::top_down(across(&widget.text_align)), |ui| {
+                ui.add(label);
+            });
+        }
+    }
+}
+
+/// Where text sits in the width the widget was given.
+pub(crate) fn across(align: &str) -> egui::Align {
+    match align {
+        "center" => egui::Align::Center,
+        "end" => egui::Align::Max,
+        _ => egui::Align::Min,
+    }
+}
+
+/// The box an image takes: what it states, else its own size, keeping the
+/// aspect where only one axis is given.
+pub(crate) fn image_size(stated: egui::Vec2, native: egui::Vec2) -> egui::Vec2 {
+    let aspect = if native.y > 0.0 {
+        native.x / native.y
+    } else {
+        1.0
+    };
+    match (stated.x > 0.0, stated.y > 0.0) {
+        (true, true) => stated,
+        (true, false) => vec2(stated.x, stated.x / aspect),
+        (false, true) => vec2(stated.y * aspect, stated.y),
+        (false, false) => native,
+    }
+}
+
+/// Draw a project image. A source that will not load is reported once and
+/// draws nothing: a missing picture must not take the frame down.
+fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
+    let widget = &at.arena[index].widget;
+    if widget.source.is_empty() {
+        return;
+    }
+    let ctx = ui.ctx().clone();
+    match crate::widgets::texture_of(at.eng, &ctx, &widget.source) {
+        Ok(texture) => {
+            let size = image_size(
+                vec2(widget.width, widget.height) * at.scale,
+                texture.size_vec2(),
+            );
+            ui.add(egui::Image::new((texture.id(), size)));
+        }
+        Err(err) => warn_once(&widget.source, &err),
+    }
+}
+
+/// Report a source once. Repeating it sixty times a second buries everything
+/// else in the log.
+fn warn_once(source: &str, err: &anyhow::Error) {
+    static WARNED: std::sync::Mutex<Option<std::collections::BTreeSet<String>>> =
+        std::sync::Mutex::new(None);
+    if let Ok(mut seen) = WARNED.lock() {
+        let seen = seen.get_or_insert_with(std::collections::BTreeSet::new);
+        if seen.insert(source.to_string()) {
+            tracing::warn!("widget image '{source}': {err:#}");
         }
     }
 }

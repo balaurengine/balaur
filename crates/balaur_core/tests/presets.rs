@@ -145,3 +145,115 @@ fn a_project_preset_without_components_is_an_error() {
     let err = presets::from_toml("broken", &body).unwrap_err();
     assert!(err.to_string().contains("components"), "{err}");
 }
+
+/// A host that answers for the pack's text map and does nothing else, which
+/// is how a packed run reaches every document it did not compile.
+struct PackedHost(balaur_core::Pack);
+
+impl balaur_script::ScriptHost<balaur_core::Engine> for PackedHost {
+    fn module(
+        &self,
+        _: &str,
+    ) -> anyhow::Result<Box<dyn balaur_script::Bindings<balaur_core::Engine>>> {
+        Ok(Box::new(balaur_script::NoBindings))
+    }
+    fn attach_with_props(
+        &self,
+        _: balaur_script::NodeId,
+        _: &str,
+        _: &[(String, balaur_script::Value)],
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
+    fn detach(&self, _: balaur_script::NodeId) {}
+    fn update(&self, _: f32) {}
+    fn fixed_update(&self, _: f32) {}
+    fn save_state(&self) -> Vec<(balaur_script::NodeId, balaur_script::Value)> {
+        Vec::new()
+    }
+    fn load_state(&self, _: &[(balaur_script::NodeId, balaur_script::Value)]) {}
+    fn pump_reloads(&self) {}
+    fn reload(&self, _: &str) -> anyhow::Result<()> {
+        Ok(())
+    }
+    fn call_on(
+        &self,
+        _: balaur_script::NodeId,
+        _: &str,
+        _: &[balaur_script::Value],
+    ) -> Option<balaur_script::Value> {
+        None
+    }
+    fn call_all(&self, _: &str) {}
+    fn wake(&self, _: u64, _: &balaur_script::Value) {}
+    fn scene_source(&self, rel: &str) -> Option<String> {
+        self.0.scenes.get(rel).cloned()
+    }
+    fn instance_count(&self) -> usize {
+        0
+    }
+    fn invoke(
+        &self,
+        _: balaur_script::CallbackId,
+        _: &[balaur_script::Value],
+    ) -> anyhow::Result<balaur_script::Value> {
+        Ok(balaur_script::Value::Nil)
+    }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
+struct NoScripts;
+
+impl balaur_script::ScriptCompiler for NoScripts {
+    fn extensions(&self) -> &[&str] {
+        &[]
+    }
+    fn compile(&self, _: &str, _: &str) -> anyhow::Result<Vec<u8>> {
+        Ok(Vec::new())
+    }
+}
+
+/// A shipped game had no presets at all: `ProjectFiles` serves the pack's
+/// *assets*, and `presets.toml` is filed with the pack's documents.
+#[test]
+fn a_packed_run_resolves_a_project_preset_as_a_dev_run_does() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"p\"\nmain_scene = \"m.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("m.toml"),
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("presets.toml"),
+        "[crate]\ncomponents = { lonely = { on = true } }\n",
+    )
+    .unwrap();
+
+    let pack = balaur_core::Pack::build(dir.path(), &NoScripts).unwrap();
+    // A project root that does not exist, so nothing can fall back to disk.
+    let mut packed = App::new(AppConfig {
+        project_root: dir.path().join("shipped"),
+        pack: Some(pack.clone()),
+        watch: false,
+        script_args: Vec::new(),
+        script_backend: None,
+    })
+    .unwrap();
+    register_pair(&mut packed);
+    packed
+        .engine
+        .set_script_host(std::rc::Rc::new(PackedHost(pack)));
+    packed.load_project().unwrap();
+
+    assert!(
+        presets::names(&packed.engine).contains(&String::from("crate")),
+        "a shipped game gets the presets its project declared"
+    );
+}

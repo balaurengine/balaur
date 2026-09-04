@@ -14,7 +14,7 @@ use balaur_script::{Bindings as _, Value};
 use crate::engine::Engine;
 use crate::file_api::{
     fs_exists, fs_list, fs_mkdir, fs_mtime, fs_read, fs_remove, fs_rename, fs_write, json_encode,
-    json_parse, toml_encode, toml_parse,
+    json_parse, toml_encode, toml_parse, toml_patch,
 };
 use crate::rng::Pcg32;
 use crate::scene;
@@ -77,6 +77,16 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         module: "scene",
         name: "get_node",
         call: get_node,
+    },
+    EngineOp {
+        module: "scene",
+        name: "node_by_id",
+        call: node_by_id,
+    },
+    EngineOp {
+        module: "scene",
+        name: "with_component",
+        call: with_component,
     },
     EngineOp {
         module: "scene",
@@ -334,6 +344,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: has_plugin,
     },
     EngineOp {
+        module: "engine",
+        name: "plugin_version",
+        call: plugin_version,
+    },
+    EngineOp {
         module: "toml",
         name: "parse",
         call: toml_parse,
@@ -342,6 +357,11 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         module: "toml",
         name: "encode",
         call: toml_encode,
+    },
+    EngineOp {
+        module: "toml",
+        name: "patch",
+        call: toml_patch,
     },
     EngineOp {
         module: "json",
@@ -394,6 +414,8 @@ pub fn install_engine_api(eng: &Engine) -> Result<()> {
     crate::rollback_api::install_rollback_api(&mut *rollback);
     let mut settings = host.module("settings")?;
     crate::settings_api::install_settings_api(&mut *settings);
+    let mut events = host.module("events")?;
+    crate::events::install_events_api(&mut *events);
     Ok(())
 }
 
@@ -434,6 +456,7 @@ fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("user_data_dir", &[], "()", "A writable per-user directory for saves and settings, created on first call and named after the project."),
         ("plugins", &[], "()", "Every plugin this build loaded, named, in load order."),
         ("has_plugin", &[], "(name: string)", "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there."),
+        ("plugin_version", &[], "(name: string)", "The version of one loaded plugin, or nil when it did not load."),
     ]);
 }
 
@@ -446,6 +469,8 @@ fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.describe(&[
         ("root", &[], "()", "The tree's root node."),
         ("get_node", &[], "(path: string)", "The node at an `A/B/C` path from the root, where `..` climbs to the parent; nil when nothing matches."),
+        ("node_by_id", &[], "(id: string, under: node?)", "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree."),
+        ("with_component", &[], "(component: string)", "Every node carrying the named component, in tree order. What a script asks instead of walking the tree itself."),
         ("spawn", &[], "(name: string, parent: node?)", "Create one empty named node under the given parent, or under the root when none is given."),
         ("instantiate", &[], "(source: string, parent: node?, opts: any?)", "Build a scene document — TOML text, not a path — under a parent; `{ scripts: false }` leaves scripts unattached."),
         ("source", &[], "(path: string)", "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing."),
@@ -584,6 +609,7 @@ fn document_toml(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.describe(&[
         ("parse", &[], "(text: string)", "The table a TOML document describes; an error on text that does not parse."),
         ("encode", &[], "(value: any)", "A table written back out as TOML text; a node or callback in it is not data and is an error."),
+        ("patch", &[], "(existing: string, table: any)", "The document's text with this table's keys written into it, keeping every comment, the key order and any table the value does not name. What a tool saving a hand-written file uses instead of `encode`."),
     ]);
 }
 
@@ -611,6 +637,14 @@ fn loaded_plugins(eng: &Engine, _: &[Value]) -> Result<Value> {
     ))
 }
 
+fn plugin_version(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let name = text(args, 0)?;
+    Ok(crate::plugins::loaded(eng)
+        .into_iter()
+        .find(|p| p.name == name)
+        .map_or(Value::Nil, |p| Value::Str(p.version)))
+}
+
 fn has_plugin(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Bool(crate::plugins::is_loaded(eng, text(args, 0)?)))
 }
@@ -625,8 +659,11 @@ fn delta(eng: &Engine, _: &[Value]) -> Result<Value> {
 
 /// Which frame this is. What simulation code should branch on instead of
 /// wall-clock: an exact integer, where `time` is an accumulated float.
+///
+/// An integer, so `tick() % 60` is a whole number against a whole number:
+/// Rune never mixes the two, and a float here made every such test an error.
 fn tick(eng: &Engine, _: &[Value]) -> Result<Value> {
-    Ok(Value::Num(eng.tick() as f64))
+    Ok(Value::Int(i64::try_from(eng.tick()).unwrap_or(i64::MAX)))
 }
 
 fn quit(eng: &Engine, _: &[Value]) -> Result<Value> {
@@ -703,6 +740,43 @@ fn get_node(eng: &Engine, args: &[Value]) -> Result<Value> {
     let world = eng.world();
     Ok(scene::find_node(&world, eng.root(), text(args, 0)?)
         .map_or(Value::Nil, |e| Value::Node(crate::node_id_of(e).0)))
+}
+
+/// The node carrying a stable id: what a scene file declared, or what
+/// `ids::mint` gave one a script spawned.
+///
+/// The second argument bounds the search, which is what a tool holding two
+/// trees at once needs: the editor's own nodes carry ids too, and a game's
+/// scene must not resolve against them.
+fn node_by_id(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let under = optional_node(args, 1)?.unwrap_or_else(|| eng.root());
+    let world = eng.world();
+    Ok(crate::ids::find(&world, under, text(args, 0)?)
+        .map_or(Value::Nil, |e| Value::Node(crate::node_id_of(e).0)))
+}
+
+/// Every node carrying a component, in tree order.
+///
+/// Asked of the registry's own `get` hook rather than of the ECS, so it
+/// answers for a plugin's component the day it is registered, with no type
+/// this crate would have to know.
+fn with_component(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let name = text(args, 0)?;
+    let world = eng.world();
+    let mut out = Vec::new();
+    let mut stack = vec![eng.root()];
+    while let Some(at) = stack.pop() {
+        if crate::components::get(eng, at, name).is_some() {
+            out.push(Value::Node(crate::node_id_of(at).0));
+        }
+        if let Ok(children) = world.get::<&crate::scene::Children>(at) {
+            // Pushed in reverse so the stack pops them in declaration order.
+            for child in children.0.iter().rev() {
+                stack.push(*child);
+            }
+        }
+    }
+    Ok(Value::List(out))
 }
 
 fn spawn(eng: &Engine, args: &[Value]) -> Result<Value> {

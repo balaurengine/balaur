@@ -22,7 +22,7 @@ fn draw(body: &str) -> (App, Vec<String>) {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"ui\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"ui\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(

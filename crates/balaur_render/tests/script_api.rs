@@ -19,7 +19,7 @@ fn run(body: &str) -> (App, Vec<String>) {
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "name = \"r\"\nmain_scene = \"main.toml\"\n",
+        "[application]\nname = \"r\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(

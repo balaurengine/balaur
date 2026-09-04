@@ -8,7 +8,7 @@ fn project(dir: &std::path::Path, language: Option<&str>, script: (&str, &str)) 
     let lang = language.map_or(String::new(), |l| format!("language = \"{l}\"\n"));
     std::fs::write(
         dir.join("project.toml"),
-        format!("name = \"t\"\nmain_scene = \"main.toml\"\n{lang}"),
+        format!("[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n{lang}"),
     )
     .unwrap();
     std::fs::write(
@@ -120,6 +120,24 @@ fn a_module_the_project_turns_off_does_not_load() {
     let names = booted(dir.path()).unwrap();
     assert!(!names.contains(&"http".to_string()), "{names:?}");
     assert!(names.contains(&"render".to_string()), "{names:?}");
+}
+
+#[cfg(feature = "http")]
+#[test]
+fn a_table_in_plugins_leaves_the_module_on() {
+    let dir = tempfile::tempdir().unwrap();
+    project_asking(dir.path(), "http = { timeout = 5 }");
+
+    assert!(booted(dir.path()).unwrap().contains(&"http".to_string()));
+}
+
+#[test]
+fn a_table_for_a_plugin_this_build_has_not_got_is_still_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+    project_asking(dir.path(), "nowhere = { any = 1 }");
+
+    let err = format!("{:#}", booted(dir.path()).unwrap_err());
+    assert!(err.contains("nowhere"), "does not name it: {err}");
 }
 
 #[cfg(feature = "http")]

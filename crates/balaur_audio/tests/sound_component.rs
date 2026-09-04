@@ -4,6 +4,7 @@
 
 use std::path::Path;
 
+use balaur_audio::cache::SoundCache;
 use balaur_audio::{AudioPlugin, AudioState};
 use balaur_core::hecs::Entity;
 use balaur_core::{components, scene, App, AppConfig};
@@ -190,4 +191,42 @@ fn removing_the_component_stops_and_forgets_the_sound() {
     let state = app.engine.resource::<AudioState>();
     assert!(state.borrow().nodes.get(&entity).is_none());
     assert!(!state.borrow().is_playing(handle));
+}
+
+/// A footstep must not cost a read per step, and an edited file must still be
+/// heard: the cache holds the bytes and the file's own timestamp retires them.
+#[test]
+fn a_sounds_bytes_are_cached_until_the_file_changes() {
+    let dir = tempfile::tempdir().unwrap();
+    write_wav(dir.path(), "chime.wav");
+    let app = app_in(dir.path());
+    let entity = sound_node(&app, CHIME);
+    let held = |app: &App| app.engine.resource::<SoundCache>().borrow().held();
+    let first = held(&app);
+    assert!(first > 0, "the first play filled the cache");
+
+    balaur_audio::play_on(&app.engine, entity).unwrap();
+    assert_eq!(held(&app), first, "a second play adds nothing");
+
+    rewrite(&dir.path().join("chime.wav"), first + 64);
+    balaur_audio::play_on(&app.engine, entity).unwrap();
+    assert_eq!(held(&app), first + 64, "an edit retires the cached bytes");
+}
+
+/// A file the cache would blow its budget on is played straight from disk.
+#[test]
+fn a_file_past_the_entry_cap_is_not_cached() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("big.wav"), vec![0u8; 3 * 1024 * 1024]).unwrap();
+    let app = app_in(dir.path());
+    let entity = sound_node(&app, "file = \"big.wav\"\nautoplay = true\n");
+    assert!(handle_of(&app, entity).is_some(), "a handle is still handed out");
+    assert_eq!(app.engine.resource::<SoundCache>().borrow().held(), 0);
+}
+
+/// Rewrite a file at a new length, far enough after the last write that its
+/// modification time has to move — which is what retires a cached entry.
+fn rewrite(path: &Path, len: usize) {
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    std::fs::write(path, vec![0u8; len]).unwrap();
 }

@@ -178,7 +178,7 @@ pub struct NetSession {
     /// Datagrams sent, which is the sequence peers count gaps in.
     sent: u64,
     /// Pings in flight, by id, with when they went out.
-    pinged: BTreeMap<u64, std::time::Instant>,
+    pinged: BTreeMap<u64, crate::time::Instant>,
     /// The newest tick this peer has published a digest for, so a tick that
     /// takes a while to confirm is still published once it does.
     published: u64,
@@ -329,11 +329,15 @@ impl NetSession {
                     values,
                     seq: _,
                 } => {
-                    for (at, value) in values.into_iter().enumerate() {
+                    // Capped and saturated: the count and the first tick are
+                    // both whatever the peer put in the datagram.
+                    let window = usize::try_from(INPUT_WINDOW).unwrap_or(usize::MAX);
+                    for (at, value) in values.into_iter().take(window).enumerate() {
                         // A repeat of something already known costs nothing:
                         // `submit` compares against what the tick actually
                         // ran with, so only a correction rolls anything back.
-                        self.session.submit(player, from + at as u64, value);
+                        let at = u64::try_from(at).unwrap_or(u64::MAX);
+                        self.session.submit(player, from.saturating_add(at), value);
                     }
                 }
                 Message::Digest { tick, digest } => {
@@ -364,7 +368,7 @@ impl NetSession {
         if !tick.is_multiple_of(PING_EVERY) {
             return;
         }
-        self.pinged.insert(tick, std::time::Instant::now());
+        self.pinged.insert(tick, crate::time::Instant::now());
         // A ping older than a few seconds is not coming back; keeping it
         // would leak and would never resolve.
         let oldest = tick.saturating_sub(PING_EVERY * 8);
