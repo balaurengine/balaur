@@ -77,10 +77,14 @@ fn a_2d_camera_component_drives_center_and_zoom() {
     let mut app = app();
     let cam = node_at(&app, app.engine.root(), Vec3::new(7.0, -2.0, 0.0));
     add_camera(&app, cam, "kind = \"2d\"\nzoom = 30.0");
-    assert!(
-        !app.engine.resource::<CameraConfig2d>().borrow().changed,
-        "control: nothing should have written the 2D config before the tick"
-    );
+    {
+        // Control: the boot default must differ from the node, and the boot
+        // `changed` is cleared as a backend would after applying it.
+        let config = app.engine.resource::<CameraConfig2d>();
+        let mut config = config.borrow_mut();
+        assert!((config.zoom - 30.0).abs() > 1e-3);
+        config.changed = false;
+    }
     app.tick(1.0 / 60.0);
     let config = app.engine.resource::<CameraConfig2d>();
     let config = config.borrow();
@@ -140,6 +144,25 @@ fn an_unmoved_camera_does_not_reassert_itself() {
     assert!(
         !app.engine.resource::<CameraConfig2d>().borrow().changed,
         "a still 2D camera re-asserted itself"
+    );
+}
+
+/// A camera whose values happen to equal `CameraConfig2d::default()` still
+/// has to reach the backend: the backend starts at its own zoom, so a scene
+/// writing the schema's default of 60 must not read as "nothing to do".
+/// Before this, such a scene drew at the backend's zoom and looked tiny.
+#[test]
+fn a_2d_camera_matching_the_defaults_still_reaches_the_backend() {
+    let mut app = app();
+    let cam = node_at(&app, app.engine.root(), Vec3::ZERO);
+    add_camera(&app, cam, "kind = \"2d\"");
+    app.tick(1.0 / 60.0);
+    let config = app.engine.resource::<CameraConfig2d>();
+    let config = config.borrow();
+    assert!((config.zoom - 60.0).abs() < 1e-6, "zoom: {}", config.zoom);
+    assert!(
+        config.changed,
+        "a backend would never apply this camera, and the scene draws at its zoom"
     );
 }
 

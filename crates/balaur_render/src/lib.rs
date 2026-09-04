@@ -219,7 +219,11 @@ impl Default for CameraConfig2d {
             center: [0.0, 0.0],
             zoom: 60.0,
             ambient: [0.0, 0.0, 0.0],
-            changed: false,
+            // Asserted at boot, as [`CameraConfig`] is: a backend starts at
+            // its own zoom, and `drive_camera_system` only raises `changed`
+            // when a camera *differs* from what is here — so a scene writing
+            // the schema's own default of 60 would otherwise never be applied.
+            changed: true,
         }
     }
 }
