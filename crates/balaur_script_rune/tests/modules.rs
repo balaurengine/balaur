@@ -64,6 +64,19 @@ fn rune(app: &App) -> balaur_script_rune::RuneHost {
     clippy::disallowed_methods,
     reason = "the wait is on an OS file watcher, not on simulation"
 )]
+/// Swallow the watcher's own start-up events.
+///
+/// `project` writes the scripts and `app_in` then watches the directory they
+/// are in, so their creation can still be in flight when the test starts. A
+/// reload arriving later would end a recording the test had just opened.
+fn settle_watcher(host: &balaur_script_rune::RuneHost) {
+    for _ in 0..10 {
+        host.pump_reloads();
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    host.pump_reloads();
+}
+
 fn pump_until(host: &balaur_script_rune::RuneHost, check: impl Fn() -> bool) -> bool {
     let deadline = Instant::now() + Duration::from_secs(5);
     while Instant::now() < deadline {
@@ -143,6 +156,7 @@ fn an_open_recording_ends_where_a_script_reloaded() {
     let node = spawn(&app, "Solo");
     let host = rune(&app);
     host.attach(node, "solo.rn").unwrap();
+    settle_watcher(&host);
     let session = dir.path().join("session.jsonl");
     balaur_core::replay::start_recording(&app.engine, &session, "t", "", false).unwrap();
     app.tick(1.0 / 60.0);

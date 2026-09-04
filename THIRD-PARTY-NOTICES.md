@@ -4,7 +4,7 @@
 
 Balaur's own source is licensed MIT (see [LICENSE](LICENSE)). A built
 engine, editor or exported game is a combined work that also contains the
-713 packages listed here, some under licences that are not MIT.
+709 packages listed here, some under licences that are not MIT.
 Ship this file with any binary you distribute.
 
 Two consequences worth stating plainly:
@@ -25,8 +25,8 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | `MIT OR Apache-2.0` | 382 |
 | `MIT` | 125 |
 | `Apache-2.0 OR MIT` | 47 |
-| `Apache-2.0` | 27 |
 | `Zlib OR Apache-2.0 OR MIT` | 27 |
+| `Apache-2.0` | 23 |
 | `Unicode-3.0` | 18 |
 | `MPL-2.0` | 13 |
 | `BSD-3-Clause` | 9 |
@@ -425,9 +425,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [parking_lot](https://github.com/Amanieu/parking_lot) | 0.12.5 | `MIT OR Apache-2.0` |
 | [parking_lot_core](https://github.com/Amanieu/parking_lot) | 0.9.12 | `MIT OR Apache-2.0` |
 | [parry2d](https://github.com/dimforge/parry) | 0.30.2 | `Apache-2.0` |
-| [parry2d-f64](https://github.com/dimforge/parry) | 0.30.2 | `Apache-2.0` |
 | [parry3d](https://github.com/dimforge/parry) | 0.30.2 | `Apache-2.0` |
-| [parry3d-f64](https://github.com/dimforge/parry) | 0.30.2 | `Apache-2.0` |
 | [paste](https://github.com/dtolnay/paste) | 1.0.15 | `MIT OR Apache-2.0` |
 | [pastey](https://github.com/as1100k/pastey) | 0.1.1 | `MIT OR Apache-2.0` |
 | [pem](https://github.com/jcreekmore/pem-rs.git) | 4.0.0 | `MIT` |
@@ -480,9 +478,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [rand_pcg](https://github.com/rust-random/rngs) | 0.10.2 | `MIT OR Apache-2.0` |
 | [range-alloc](https://github.com/gfx-rs/range-alloc) | 0.1.5 | `MIT OR Apache-2.0` |
 | [rapier2d](https://github.com/dimforge/rapier) | 0.35.3 | `Apache-2.0` |
-| [rapier2d-f64](https://github.com/dimforge/rapier) | 0.35.3 | `Apache-2.0` |
 | [rapier3d](https://github.com/dimforge/rapier) | 0.35.3 | `Apache-2.0` |
-| [rapier3d-f64](https://github.com/dimforge/rapier) | 0.35.3 | `Apache-2.0` |
 | [rav1e](https://github.com/xiph/rav1e/) | 0.8.1 | `BSD-2-Clause` |
 | [ravif](https://github.com/kornelski/cavif-rs) | 0.13.0 | `BSD-3-Clause` |
 | [raw-cpuid](https://github.com/gz/rust-cpuid) | 11.6.0 | `MIT` |
@@ -779,7 +775,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 These packages ship no licence file in their published archive, so the
 SPDX expression in the table above is the whole of what their authors
 granted; where it names a licence, that licence's text appears below,
-reproduced from a crate that does ship it: accesskit, asn1-rs-impl, block2, codespan-reporting, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gilrs, gilrs-core, gl_generator, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, musli, musli-core, musli-macros, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, parry2d, parry2d-f64, parry3d, parry3d-f64, profiling, profiling-procmacros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier2d-f64, rapier3d, rapier3d-f64, rstar, rune, rune-alloc, rune-alloc-macros, rune-core, rune-macros, rune-tracing, rune-tracing-macros, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, syntree, tokrepr, tokrepr-derive, valuable, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, zune-inflate.
+reproduced from a crate that does ship it: accesskit, asn1-rs-impl, block2, codespan-reporting, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gilrs, gilrs-core, gl_generator, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, musli, musli-core, musli-macros, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, parry2d, parry3d, profiling, profiling-procmacros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, rstar, rune, rune-alloc, rune-alloc-macros, rune-core, rune-macros, rune-tracing, rune-tracing-macros, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, syntree, tokrepr, tokrepr-derive, valuable, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, zune-inflate.
 
 ### LICENSE-APACHE — 153 packages
 

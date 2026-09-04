@@ -4282,7 +4282,7 @@
         "set_debug_draw": "Value -> ()",
         "set_paused": "bool -> ()",
         "set_sleeping_allowed": "bool -> ()",
-        "set_threads": "i64 -> ()",
+        "set_threads": "i64 -> Value",
         "set_tuning": "Value -> ()",
         "sleeping_allowed": "() -> bool",
         "threads": "() -> i64",
