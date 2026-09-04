@@ -138,9 +138,9 @@
 >    `abs(pos - asked) < 0.5` misses by exactly a half; whole pixels are
 >    compared with `floor`.
 > 23. **2D has no room for a fifth group either.** The sprite material already
->    uses frame, object, texture and params. When `docs/PLAN-rendering.md`
->    adds 2D lights they fold into the frame group; they cannot take a group
->    of their own.
+>    uses frame, object, texture and params. 2D lights sidestepped this in the
+>    end: the light map is one full-screen multiply over the finished frame
+>    (`balaur_render::light_map`), so no material grew a group.
 
 # Plan: shaders and materials
 
@@ -396,9 +396,9 @@ it is the argument for turning the feature on.
 3. The same for 3D — `mesh` and `shape3d` — over `Material3d`.
 4. Editor: hot reload on save, sourcemapped errors in the gutter, param
    rows, WGSL keywords in the code editor.
-5. `features` on a material, so one shader source serves variants; the
-   lit-2D work in `docs/PLAN-rendering.md` is the first consumer, since a
-   lit and an unlit sprite are `@if(lit)` apart.
+5. `features` on a material, so one shader source serves variants. The
+   lit-2D work was expected to be the first consumer; it landed as a
+   full-screen multiply instead, so this is still waiting for one.
 6. Channel views in the viewport over kiss3d's AOVs.
 7. Value preview at the caret: the AST injection, the encodings and the
    range control, then the texel readback that puts a number on it.
