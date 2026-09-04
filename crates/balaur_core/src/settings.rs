@@ -258,16 +258,47 @@ fallback = { type = "string", default = "en", help = "Where a key missing from t
     register(
         eng,
         SettingsPage {
+            category: String::from("Appearance"),
+            table: String::from("appearance"),
+            scope: Scope::Editor,
+            schema: crate::components::ComponentDef::parse_schema(
+                "settings.appearance",
+                r#"
+theme = { type = "enum", default = "dark", options = ["dark", "light"], help = "Which chrome the editor wears." }
+ui_scale = { type = "float", default = 1.25, min = 0.75, max = 2.5, help = "How large the editor's own text and controls are drawn." }
+compact = { type = "bool", default = false, help = "Drop labels the icon already says, for a narrow window." }
+"#,
+            ),
+        },
+    );
+    register(
+        eng,
+        SettingsPage {
+            category: String::from("Sessions"),
+            table: String::from("sessions"),
+            scope: Scope::Editor,
+            schema: crate::components::ComponentDef::parse_schema(
+                "settings.sessions",
+                r#"
+keep = { type = "float", default = 10.0, min = 1.0, max = 200.0, help = "How many recorded play sessions are kept per game before the oldest is pruned." }
+verify = { type = "bool", default = false, help = "Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame." }
+"#,
+            ),
+        },
+    );
+    register(
+        eng,
+        SettingsPage {
             category: String::from("Netcode"),
             table: String::from("netcode"),
             scope: Scope::Editor,
             schema: crate::components::ComponentDef::parse_schema(
                 "settings.netcode",
                 r#"
-faults = { type = "bool", default = false, help = "Put delay, jitter and packet loss on every session link, to test rollback against a link that misbehaves." }
-delay = { type = "float", default = 9.0, min = 0.0, max = 60.0, help = "Ticks every payload waits before delivery. Nine is about 150 ms at 60 Hz." }
-jitter = { type = "float", default = 3.0, min = 0.0, max = 30.0, help = "Extra ticks drawn per payload. Jitter is what reorders a stream." }
-loss = { type = "float", default = 0.05, min = 0.0, max = 1.0, help = "The fraction of datagrams dropped. Datagrams only: losing a reliable payload would break the transport's contract." }
+faults = { type = "bool", default = false, order = 1, help = "Put delay, jitter and packet loss on every session link, to test rollback against a link that misbehaves." }
+delay = { type = "float", default = 9.0, min = 0.0, max = 60.0, order = 2, help = "Ticks every payload waits before delivery. Nine is about 150 ms at 60 Hz." }
+jitter = { type = "float", default = 3.0, min = 0.0, max = 30.0, order = 3, help = "Extra ticks drawn per payload. Jitter is what reorders a stream." }
+loss = { type = "float", default = 0.05, min = 0.0, max = 1.0, order = 4, help = "The fraction of datagrams dropped. Datagrams only: losing a reliable payload would break the transport's contract." }
 "#,
             ),
         },

@@ -662,14 +662,19 @@ engine's `f32` and whatever rapier was built at.
 
 A **module** is a plugin linked into the binary and switched on by a cargo
 feature; an **extension** is a plugin loaded from a shared library at run time.
-They implement the same `balaur_plugin::Plugin` trait — `manifest()` and
-`declare(&mut Registry)` — so one source ships either way. `Registry` is
-deliberately narrow (resources, systems, components, script modules) and free
-of generics and trait objects in its signatures, because a `fn` pointer crosses
-an ABI boundary where an `impl Trait` does not. `balaur_http` and
-`balaur_websocket` reach through its `app()` escape hatch for `ProjectFiles`,
-and everything reached that way is Rust-only: that short list is what the C
-boundary still has to grow, which is what the hatch is for.
+Every plugin in tree implements one trait, `balaur_plugin::Plugin` —
+`manifest()` and `declare(&mut Registry)` — so one source ships either way.
+`Registry` names resources, systems, components, presets, asset types, replay
+sources and setup, and script modules, and is free of trait objects and of
+generics but for the two that name a Rust type: a `fn` pointer crosses an ABI
+boundary where an `impl Trait` does not.
+
+What still reaches through its `app()` escape hatch measures the gap. The
+engine's own five take the whole `App` in one call because roughly thirty of
+their registration helpers are written against it — `register_body_component`,
+`dim2::build`, `widgets::install_ui_api` — and `balaur_http` and
+`balaur_websocket` reach it for `ProjectFiles`. Everything reached that way is
+Rust-only, and that list is what the C boundary has left to grow.
 
 Every plugin that finishes registering is appended to `PluginRegistry`
 (`balaur_core::plugins`), and a plugin's `requires` is checked against it at
@@ -680,11 +685,8 @@ refused rather than found halfway through. Load order is sorted by name and
 then by declared requirements, never by directory iteration: load order
 decides registration order, which decides the simulation.
 
-The engine's own five (input, physics, animation, render, ui) are written
-against the whole `App` rather than against `Registry`, because asset types,
-presets, components and closure-taking replay sources are not on it.
-`balaur_plugin::Builtin` wraps one in a manifest so it joins the same ordered
-set — the shape a plugin is written in, adapted at the boundary, not a second
+`standard_plugins` is one flat list: the engine's own five, `platform`, and
+whatever modules the build linked in. There is no second trait and no second
 way to load one.
 
 A project picks from what the build linked in, through `[plugins]` in
@@ -1854,7 +1856,7 @@ release finished.
 | --- | --- |
 | Tilemap editor, curve editor and onion skin | `docs/PLAN-editor.md` §6 |
 | The editor in a browser: the same wasm build with a canvas under it, files in the browser's origin-private filesystem, and a project kept on Gamend | `docs/PLAN-web-editor.md`. The editor is a Balaur project and the engine already builds for `wasm32-unknown-emscripten` headless, so the missing halves are a surface on a canvas and a backend under `fs` |
-| `#[export]` on a script constant, in place of the `exports` table | `docs/PLAN-scripting.md` phase 3 |
+| `#[export]` on a script constant, in place of the `exports` table | `docs/PLAN-scripting.md` |
 | Stable asset ids, rename refactoring, sprite-sheet import | `docs/PLAN-scenes-and-assets.md` phases 3, 5, 6 |
 | Asset streaming: a load that runs off the tick, a scene added to one already running, and an asset dropped when nothing names it | no plan yet; a pack is held whole in memory today. `ExternalIo` already lands background work on a tick boundary and records it for replay, `assets` caches by reference, and `pack` hashes every entry |
 | Extensions tier two: components, systems, calling back into scripts | `docs/PLAN-c-api.md` "What Tier 1 does not do" |
@@ -1868,14 +1870,13 @@ release finished.
 | Drawing terrain: a mesher for the `heightfield` and `voxels` assets, and tools to paint them | no plan yet; both asset types exist and physics builds colliders from them — nothing draws either |
 | More than one view: split screen, a camera rendered to a texture, picture-in-picture | no plan yet; the `camera` component drives one 2D and one 3D view, and the offscreen path already renders with no OS window |
 | Video playback: a movie on a texture with its audio on a bus | no plan yet; nothing decodes a container, and a frame would ride the texture path sprites use. Render-side only — a video never feeds simulation state |
-| Shader channel views, the caret value preview, headless shader tests, post-process materials | `docs/PLAN-shaders.md` phases 6-9 |
+| Post-process materials on `camera.post`, and Balaur's shader helpers published as a package | `docs/PLAN-shaders.md` |
 | More widget kinds, as games ask for them | no plan yet, and demand-driven by design: the `widget` tree, its theme and its focus order are built, so a kind is a schema and a draw |
 | Accessibility: a screen reader over the widget tree, text scaling, captions, colour-blind-safe defaults | no plan yet; the retained `widget` tree already carries text, `focusable` and a focus order, which is what a reader walks; egui can emit an AccessKit tree, localization is there for captions, and actions already rebind |
 | Navigation: a navmesh baked from the scene, A* over it or over a grid, agents that avoid each other | no plan yet; nothing in the tree pathfinds. Behaviour over it stays a script's job |
 | Motion and haptics beyond a PlayStation pad: Switch Pro and Joy-Con gyro, per-unit sensor calibration, adaptive triggers and light bars, waveform haptics, device motion on a phone, gamepads on iOS and Android | `docs/PLAN-input.md` §2 and steps 2-7. Rumble over `gilrs::ff`, and gyro, accelerometer and touchpad decoded from DualSense and DualShock 4 HID reports, shipped in 0.1.0 |
-| WebTransport (QUIC) native and in the browser, Gamend sessions and matchmaking, WebRTC data channels for browser peer-to-peer; never raw UDP, never ENet | `docs/PLAN-networking.md` §2 and steps 6, 8, 13, 14. Binary frames, run-time stable ids and rollback (one machine and over a socket) shipped in 0.1.0 |
+| Gamend sessions and matchmaking, WebTransport in the browser, WebRTC data channels for browser peer-to-peer; never raw UDP, never ENet | `docs/PLAN-networking.md` §2 and steps 8, 13, 14. Native QUIC datagrams, binary frames, run-time stable ids and rollback (one machine and over a socket) shipped in 0.1.0 |
 | Replication and RPC, client-side prediction, server reconciliation, interpolation of unowned nodes, lag compensation, interest management, a bandwidth budget; join in progress; a client-authoritative hit is never planned | `docs/PLAN-networking.md` §1 "Hiding latency" and steps 9 to 12 |
-| Replaying a networked session, and a link that can be given latency, loss and reordering in a test; round-trip time, loss and bytes a second per peer | `docs/PLAN-networking.md` step 7 |
 | Voice in a session | no plan yet; the transport carries unreliable datagrams and audio has buses to mix a stream into. What is missing is a codec |
 | A crash report that reproduces itself: the recording, the log and the build id in one file | no plan yet; `replay` already writes a file that re-runs a session bit for bit and `logbuf` holds the log — nothing packages the two when a game falls over |
 | Store and platform services on Steam and Google Play: sign-in, achievements, leaderboards, cloud saves, rich presence, in-app purchase | `docs/PLAN-steam.md` and `docs/PLAN-google.md`. Apple shipped in 0.1.0 (`docs/PLAN-apple.md`) and built what both plug into: the `platform` script module, the `PlatformBackend` seam, and the rule that a store write waits for its tick to settle. Both remaining plans start with work that is worth doing anyway — Steam's redistributable beside the executable, and an Android package id, app bundle and 16 KB page alignment |

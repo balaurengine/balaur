@@ -1,16 +1,5 @@
-// The settings screen: every page the engine and its plugins declare, in one
-// sheet over the shell.
-//
-// Nothing here knows what a setting means. The engine declares each page with
-// a schema in the same shape a component uses, and this renders whatever is
-// in it — so a plugin adding a page needs no editor change, exactly as a
-// plugin adding a component needs none.
-//
-// Two scopes, kept visibly apart. A project setting is the game's: it goes to
-// `project.toml`, ships, and belongs in version control. An editor setting is
-// this developer's: it goes to the editor's own data directory and never near
-// the project, so turning on packet loss to test rollback cannot be committed
-// by accident.
+// The settings screen: a page carries a component-shaped schema and this
+// renders what is in it, so a plugin adding a page needs no editor change.
 
 use crate::icons;
 use crate::style;
@@ -18,7 +7,6 @@ use crate::util;
 
 pub fn state() {
     #{
-        open: false,
         // The category showing, "" until the first page is picked.
         at: "",
         // Set when a value changed and the file has not caught up yet.
@@ -26,8 +14,14 @@ pub fn state() {
     }
 }
 
+// Open at a named category, for a screenshot or a deep link from a dock.
+pub fn open_at(S, category) {
+    open(S);
+    S.settings.at = category;
+}
+
 pub fn open(S) {
-    S.settings.open = true;
+    crate::window::show(S, "settings");
     // Start from what the project actually says rather than the defaults, so
     // an unsaved manifest edit is not silently reverted on the next write.
     let manifest = fs::read(S.game_root + "/project.toml");
@@ -38,10 +32,11 @@ pub fn open(S) {
     if prefs is String {
         settings::load_project(prefs);
     }
+    apply(S);
 }
 
 pub fn close(S) {
-    S.settings.open = false;
+    crate::window::hide(S);
 }
 
 // The editor's own settings live beside its sessions, not in any project.
@@ -93,50 +88,27 @@ fn commit(S) {
 }
 
 pub fn draw(S) {
-    if !S.settings.open {
-        return;
-    }
     let k = S.theme;
-    let r = S.layout.viewport;
-    // Inset from the shell so the sheet reads as over it rather than as
-    // another dock.
-    let pad = 48.0;
-    let x = r.x + pad;
-    let y = r.y + pad;
-    let w = util::max(560.0, r.w - pad * 2.0);
-    let h = util::max(360.0, r.h - pad * 2.0);
-    ui::overlay("settings", #{ x: x, y: y, w: w, h: h, fill: k.panel, radius: 12 }, || {
-        ui::vertical(#{}, || {
-            head(S, k);
-            ui::horizontal(#{}, || {
-                categories(S, k);
-                page_body(S, k, w);
-            });
+    crate::window::sheet(S, "settings", "Settings", || { save_button(S, k); }, || {
+        ui::horizontal(#{ height: 0 }, || {
+            categories(S, k);
+            ui::add_space(20);
+            page_body(S, k);
         });
     });
 }
 
-fn head(S, k) {
-    ui::horizontal(#{ height: 40 }, || {
-        ui::add_space(14);
-        ui::label("Settings", style::mono_lg(k.text));
-        ui::right(|| {
-            ui::add_space(10);
-            if ui::pill("Close", #{ height: 26, size: 12, radius: 8, fill: k.sunken, color: k.dim }) {
-                close(S);
-            }
-            if S.settings.dirty {
-                ui::add_space(8);
-                if ui::pill("Save", #{ height: 26, size: 12, radius: 8, fill: k.accent_fill, color: k.on_accent }) {
-                    commit(S);
-                }
-            }
-        });
-    });
+fn save_button(S, k) {
+    if !S.settings.dirty {
+        return;
+    }
+    if ui::pill("Save", #{ height: 26, size: 12, radius: 8, fill: k.accent_fill, color: k.on_accent }) {
+        commit(S);
+    }
 }
 
 fn categories(S, k) {
-    ui::vertical(#{ width: 180 }, || {
+    ui::vertical(|| {
         let scope = "";
         for page in pages() {
             // One heading per scope, so the difference between "ships with
@@ -163,14 +135,13 @@ fn categories(S, k) {
     });
 }
 
-fn page_body(S, k, w) {
+fn page_body(S, k) {
     let page = current(S);
     if !(page is Object) {
         ui::label("No settings are declared.", style::mono(k.dim));
         return;
     }
-    ui::vertical(#{ width: w - 200.0 }, || {
-        ui::add_space(6);
+    ui::vertical(|| {
         ui::label(
             if page.scope == "project" {
                 "Written to project.toml, and shipped with the game."
@@ -180,10 +151,27 @@ fn page_body(S, k, w) {
             style::mono_sm(k.faint),
         );
         ui::add_space(10);
-        for key in util::keys_sorted(page.schema) {
+        for key in ordered(page.schema) {
             row(S, k, page.table, key, page.schema[key]);
         }
     });
+}
+
+// Settings in the order the page declares, which is what puts a toggle that
+// gates the rest above them. A schema arrives alphabetical, so a page says
+// what it wants with `order`; anything without one sorts after by name.
+fn ordered(schema) {
+    let rows = [];
+    for key in util::keys_sorted(schema) {
+        let at = util::obj(schema[key]).get("order").unwrap_or(1000.0);
+        rows.push(#{ key: key, at: util::f(at) });
+    }
+    rows.sort_by(|a, b| a.at.partial_cmp(b.at).unwrap());
+    let keys = [];
+    for row in rows {
+        keys.push(row.key);
+    }
+    keys
 }
 
 // One setting: its name, its editor, and the line of help underneath.
@@ -195,11 +183,11 @@ fn row(S, k, table, key, spec) {
             edit(S, k, table, key, spec, value);
         });
     });
-    let help = spec.get("help");
-    if help is String {
+    let help = spec.get("help").unwrap_or("");
+    if help != "" {
         ui::label(help, style::mono_sm(k.faint));
-        ui::add_space(8);
     }
+    ui::add_space(8);
 }
 
 fn edit(S, k, table, key, spec, value) {
@@ -231,13 +219,17 @@ fn edit(S, k, table, key, spec, value) {
             write(S, table, key, v);
         }
     } else {
-        let (v, changed) = ui::text_field(
+        // Committed on submit rather than per keystroke: a settings file
+        // rewritten on every character is noise in a diff.
+        let (text, _, submitted) = ui::text_field(
             format!("set:{}:{}", table, key),
-            if value is String { value } else { "" },
-            #{ width: 220 },
+            "",
+            util::merge(style::field(k, 220.0), #{
+                value: if value is String { value } else { "" },
+            }),
         );
-        if changed {
-            write(S, table, key, v);
+        if submitted {
+            write(S, table, key, text);
         }
     }
 }
@@ -245,4 +237,26 @@ fn edit(S, k, table, key, spec, value) {
 fn write(S, table, key, value) {
     settings::set(table, key, value);
     S.settings.dirty = true;
+    apply(S);
+}
+
+// Editor settings take effect as they change, not on save: a theme you have
+// to save to see is a theme you cannot preview.
+pub fn apply(S) {
+    let theme_name = settings::get("appearance", "theme");
+    if theme_name is String {
+        crate::theme::set_dark(S, theme_name == "dark");
+    }
+    let scale = settings::get("appearance", "ui_scale");
+    if !(scale is Tuple) {
+        crate::shell::set_ui_scale(S, util::f(scale));
+    }
+    let compact = settings::get("appearance", "compact");
+    if compact is bool {
+        S.compact = compact;
+    }
+    let verify = settings::get("sessions", "verify");
+    if verify is bool {
+        S.session.verify = verify;
+    }
 }

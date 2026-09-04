@@ -46,6 +46,7 @@ graph TD
   balaur --> balaur_webtransport
   balaur_android --> balaur
   balaur_anim --> balaur_core
+  balaur_anim --> balaur_plugin
   balaur_anim --> balaur_script
   balaur_apple --> balaur_core
   balaur_apple --> balaur_platform
@@ -70,8 +71,10 @@ graph TD
   balaur_http --> balaur_plugin
   balaur_http --> balaur_script
   balaur_input --> balaur_core
+  balaur_input --> balaur_plugin
   balaur_input --> balaur_script
   balaur_physics --> balaur_core
+  balaur_physics --> balaur_plugin
   balaur_physics --> balaur_script
   balaur_platform --> balaur_core
   balaur_platform --> balaur_plugin
@@ -80,11 +83,13 @@ graph TD
   balaur_plugin --> balaur_script
   balaur_render --> balaur_core
   balaur_render --> balaur_input
+  balaur_render --> balaur_plugin
   balaur_render --> balaur_script
   balaur_render --> balaur_ui
   balaur_script_rune --> balaur_core
   balaur_script_rune --> balaur_script
   balaur_ui --> balaur_core
+  balaur_ui --> balaur_plugin
   balaur_ui --> balaur_script
   balaur_websocket --> balaur_core
   balaur_websocket --> balaur_plugin

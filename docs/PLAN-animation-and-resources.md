@@ -1,9 +1,7 @@
-> **Status:** built. The asset layer and the animation system landed on
-> 2026-08-31 — `crates/balaur_core/src/assets.rs`, the whole `crates/balaur_anim`
-> crate, the `assets` and `animation` script modules, the editor's Animate
-> persona, and the ARCHITECTURE sections "Assets (core feature)" and
-> "Animation (plugin feature)". See [generated/](generated/) for what the code
-> does. What was deferred, deliberately and with nothing precluded, is below.
+> **Status:** the asset layer and the animation system shipped on 2026-08-31;
+> ARCHITECTURE.md's "Assets" and "Animation" sections and
+> [generated/](generated/) are the record. What was deferred, deliberately and
+> with nothing precluded, is below.
 
 # Plan: animation — blending, trees and state machines
 

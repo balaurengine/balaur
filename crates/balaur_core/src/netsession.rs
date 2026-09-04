@@ -35,6 +35,10 @@ use crate::transport::{Delivery, Received, Transport};
 /// only keeps the exchange off the tick currently being corrected.
 const CONFIRM_LAG: u64 = 4;
 
+/// Where a fault-injected link's dice start. Fixed, so a session that
+/// misbehaved once misbehaves identically on the next run.
+const FAULT_SEED: u64 = 0x5eed_face;
+
 /// How often a peer is pinged, in ticks. Twice a second at 60 Hz: often
 /// enough to track a route changing, rare enough to be free.
 const PING_EVERY: u64 = 30;
@@ -201,7 +205,23 @@ impl NetSession {
     }
 
     /// Add a peer, whichever end of the link this is.
-    pub fn add_peer(&mut self, peer: Box<dyn Transport>) {
+    ///
+    /// The link is wrapped in [`crate::transport::Faulty`] when the Netcode
+    /// settings page asks for it. Here rather than at the call site so the
+    /// toggle works for a session that has never heard of it: turning on
+    /// packet loss is a thing a developer does to the engine, not something
+    /// every game has to remember to support.
+    pub fn add_peer(&mut self, eng: &Engine, peer: Box<dyn Transport>) {
+        let peer: Box<dyn Transport> = match crate::settings::faults(eng) {
+            // Seeded by position, so two links misbehave differently and the
+            // same run twice misbehaves the same way.
+            Some(faults) => Box::new(crate::transport::Faulty::new(
+                peer,
+                faults,
+                FAULT_SEED ^ self.peers.len() as u64,
+            )),
+            None => peer,
+        };
         self.peers.push(peer);
         self.links.push(Link::default());
     }

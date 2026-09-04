@@ -406,6 +406,118 @@ fn grow_divides_what_the_fixed_children_leave() {
     );
 }
 
+/// Two roots, two surfaces: the whole reason the editor's own chrome cannot
+/// share the rect a game's HUD is confined to.
+#[test]
+fn a_root_draws_on_the_surface_it_names() {
+    let (_dir, app) = app();
+    let hud = add_widget(
+        &app,
+        &toml::toml! { kind = "panel" text = "hud" x = 0.0 y = 0.0 width = 40.0 height = 20.0 }
+            .into(),
+    );
+    let chrome = add_widget(
+        &app,
+        &toml::toml! { kind = "panel" text = "chrome" x = 0.0 y = 0.0 width = 40.0 height = 20.0 layer = "shell" }
+            .into(),
+    );
+    // The default surface is pushed into a corner, the way the editor points
+    // it at the viewport. The named one is left alone.
+    {
+        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
+        let mut config = config.borrow_mut();
+        config.rect = Some([300.0, 200.0, 100.0, 100.0]);
+    }
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let rect = |entity: Entity| {
+        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+            .expect("it drew")
+    };
+    assert!(
+        rect(hud).min.x >= 299.0,
+        "the default surface did not move the hud: {:?}",
+        rect(hud)
+    );
+    assert!(
+        rect(chrome).min.x < 10.0,
+        "a named surface should not follow the default one: {:?}",
+        rect(chrome)
+    );
+
+    // Turning the default surface off is what play does; the chrome stays.
+    {
+        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
+        config.borrow_mut().enabled = false;
+    }
+    let out = pass(&app, &ctx, vec![]);
+    let drew: Vec<String> = out
+        .shapes
+        .iter()
+        .filter_map(|shape| match &shape.shape {
+            egui::epaint::Shape::Text(text) => Some(text.galley.text().to_string()),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        drew.iter().any(|t| t == "chrome") && !drew.iter().any(|t| t == "hud"),
+        "turning the default surface off should not take the chrome with it: {drew:?}"
+    );
+}
+
+/// The point of measuring rather than remembering: a container divides its
+/// room by what its children need *now*, not by what they drew last frame.
+#[test]
+fn a_container_sizes_to_a_label_that_changed_this_frame() {
+    let (_dir, app) = app();
+    let row = add_widget(
+        &app,
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 height = 60.0 gap = 0.0 }.into(),
+    );
+    let label = add_child_widget(
+        &app,
+        row,
+        "label",
+        &toml::toml! { kind = "label" text = "hi" }.into(),
+    );
+    add_child_widget(
+        &app,
+        row,
+        "rest",
+        &toml::toml! { kind = "panel" text = "X" grow = 1.0 }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+
+    // Where the grower's caption sits says where the grower starts, and that
+    // is what the label's width decides.
+    let caption_x = |out: &egui::FullOutput| {
+        out.shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::epaint::Shape::Text(text) if text.galley.text() == "X" => Some(text.pos.x),
+                _ => None,
+            })
+            .expect("the grower drew its caption")
+    };
+    let before = caption_x(&pass(&app, &ctx, vec![]));
+
+    // One pass after the change, not two: nothing here has drawn the longer
+    // caption yet, so a remembered width would still be the short one.
+    balaur::components::add(
+        &app.engine,
+        label,
+        "widget",
+        Some(&toml::toml! { kind = "label" text = "a considerably longer caption" }.into()),
+    )
+    .unwrap();
+    let after = caption_x(&pass(&app, &ctx, vec![]));
+    assert!(
+        after > before + 80.0,
+        "the row did not re-divide for the new label in the same frame: {before} then {after}"
+    );
+}
+
 /// A scroll holds its box whatever is inside it: that is the difference
 /// between a list that scrolls and one that stretches its panel.
 #[test]

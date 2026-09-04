@@ -24,11 +24,12 @@ mod widget_arrange;
 mod widget_bindings;
 mod widget_layer;
 mod widget_layout;
+mod widget_measure;
 mod widget_theme;
 mod widgets;
 
 use anyhow::Result;
-use balaur_core::{App, Engine};
+use balaur_core::Engine;
 use std::collections::{HashMap, HashSet};
 
 pub use theme::ThemeTokens;
@@ -110,6 +111,7 @@ impl balaur_plugin::Plugin for UiPlugin {
         );
         widgets::install_ui_api(app)?;
         widget_layer::register_widget_component(app);
+        widget_layer::register_widget_presets(app)?;
         Ok(())
     }
 }

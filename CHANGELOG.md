@@ -87,6 +87,8 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - `kind = "draw"`: a rect the scene places and a script fills, named `method` on the node's own script or `scripts/file.rn:function`.
 - `kind = "scroll"`: a box that holds its size and clips what runs past it; `kind = "tab"`: one child showing, `active` naming it, written back when a tab is clicked.
 - `handle` on a row or column: draggable seams that write the new size onto whichever neighbour states one.
+- Widgets are measured before they are placed, from the font atlas rather than from last frame, so a container divides its room by what its children need now.
+- Widget presets: `label`, `button`, `panel`, `row`, `column`, `scroll`, `tab` and `draw`, so the picker offers "Column" beside "Sprite2D".
 - Audio buses: `[audio.buses]`, routing per sound, `audio.set_bus_volume`.
 - Audio events: `audio/events.toml`, variations taken in turn.
 - Positional audio: a `listener` node, `positional` sounds with distance attenuation, stereo pan and doppler, and a `position` in `audio.play` and `audio.play_event`.
@@ -97,6 +99,7 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Optional modules are one line in `balaur`'s `modules!` table, loaded in requirement-then-name order.
 - Every plugin loads from one ordered set; `balaur_plugin::Builtin` gives an `App`-shaped plugin a manifest.
 - `[plugins]` in `project.toml` turns a module off; asking for one the build has not got is an error.
+- `engine.plugins` and `engine.has_plugin` for scripts.
 
 ### Platform services
 
@@ -154,3 +157,4 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - `animation.is_running` is `animation.is_tween_running`.
 - `ui.select` is `ui.dropdown`.
 - `load_order` and `load_extensions_in` take the names already loaded; `App::plugins` returns `PluginInfo`.
+- One plugin trait: `balaur_core::Plugin` and `App::add_plugin` are gone, `balaur_plugin::Plugin` is it.

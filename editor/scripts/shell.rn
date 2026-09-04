@@ -338,12 +338,14 @@ fn states() {
         "lintdemo": crate::selftest::linting,
         "sessiondemo": crate::selftest::sessions,
         "themedemo": crate::selftest::theme_switch,
+        "settings": crate::settings::open,
     }
 }
 
 // States written `<prefix><argument>`, which take the rest of the string.
 fn prefixed_states() {
     [
+        ("settings:", state_settings),
         ("shot=", state_shot),
         ("frames=", state_frames),
         ("show:", state_show),
@@ -357,6 +359,10 @@ fn prefixed_states() {
         ("select:", state_select),
         ("zoom:", state_zoom),
     ]
+}
+
+fn state_settings(S, category) {
+    crate::settings::open_at(S, category);
 }
 
 // One start-up state, mirroring the design prototype's startPersona prop.

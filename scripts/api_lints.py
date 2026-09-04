@@ -48,7 +48,10 @@ GETTER_ALLOW = {
 }
 
 # D2. A module is plural only when it is a keyed store of many things.
-PLURAL_ALLOW = {"assets": "a keyed store of many things"}
+PLURAL_ALLOW = {
+    "assets": "a keyed store of many things",
+    "settings": "a keyed store of many things: pages by table, values by key",
+}
 
 # Singular words that happen to end in `s`. D2 lists every module besides
 # `assets` as singular; these two are why the rule cannot just look at the

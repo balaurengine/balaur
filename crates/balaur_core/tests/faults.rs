@@ -126,16 +126,20 @@ struct Pair {
 
 fn connect(faults: Faults) -> Pair {
     let (one, two) = pipe();
+    let host_app = app();
+    let guest_app = app();
     let mut host = NetSession::new(HOST, &[HOST, GUEST], 64);
-    host.add_peer(Box::new(Faulty::new(one, faults, 0x5eed)));
+    // Wrapped here rather than through the Netcode setting, so a test says
+    // what its link does instead of depending on an editor preference.
+    host.add_peer(&host_app.engine, Box::new(Faulty::new(one, faults, 0x5eed)));
     let mut guest = NetSession::new(GUEST, &[HOST, GUEST], 64);
     // A different seed, so the two directions do not drop and delay in
     // lockstep with each other.
-    guest.add_peer(Box::new(Faulty::new(two, faults, 0xd1ce)));
+    guest.add_peer(&guest_app.engine, Box::new(Faulty::new(two, faults, 0xd1ce)));
     Pair {
-        host_app: app(),
+        host_app,
         host,
-        guest_app: app(),
+        guest_app,
         guest,
     }
 }

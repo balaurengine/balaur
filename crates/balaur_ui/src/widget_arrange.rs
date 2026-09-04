@@ -6,17 +6,33 @@
 
 use crate::theme::family;
 use crate::widget_layer::{draw_one, rgba_color, Edit, Painting, Widget};
+use crate::widget_measure::Measure;
 use balaur_core::hecs::Entity;
 use egui::{pos2, vec2, Color32, Stroke};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
 thread_local! {
-    /// What each widget drew at last frame, so a container can size a child
-    /// that states no size. A frame behind by construction; a widget whose
-    /// content changes settles on the next one.
+    /// What each widget drew last frame. Only a `draw` node needs it now —
+    /// everything else the layer draws it can also measure, and a rect a
+    /// script fills is the one thing it can only remember.
     static MEASURED: RefCell<HashMap<u64, egui::Vec2>> = RefCell::new(HashMap::new());
     static MEASURING: RefCell<HashMap<u64, egui::Vec2>> = RefCell::new(HashMap::new());
+    /// Where each widget was drawn, for a script that has to place something
+    /// against it — the editor's own chrome reads its shell back this way.
+    static PLACED: RefCell<HashMap<u64, egui::Rect>> = RefCell::new(HashMap::new());
+    static PLACING: RefCell<HashMap<u64, egui::Rect>> = RefCell::new(HashMap::new());
+}
+
+/// The rect a widget was last drawn at, or `None` before it has drawn.
+pub(crate) fn drawn_at(entity: Entity) -> Option<egui::Rect> {
+    PLACED.with(|m| m.borrow().get(&entity.to_bits().get()).copied())
+}
+
+pub(crate) fn record_rect(entity: Entity, rect: egui::Rect) {
+    PLACING.with(|m| {
+        m.borrow_mut().insert(entity.to_bits().get(), rect);
+    });
 }
 
 fn measured_of(entity: Entity) -> egui::Vec2 {
@@ -39,6 +55,12 @@ fn record_measure(entity: Entity, size: egui::Vec2) {
 pub(crate) fn roll_measurements() {
     MEASURING.with(|next| {
         MEASURED.with(|now| {
+            now.borrow_mut().clone_from(&next.borrow());
+        });
+        next.borrow_mut().clear();
+    });
+    PLACING.with(|next| {
+        PLACED.with(|now| {
             now.borrow_mut().clone_from(&next.borrow());
         });
         next.borrow_mut().clear();
@@ -303,6 +325,7 @@ pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
 /// included) and the sum of the `grow` shares waiting on the leftover.
 fn share_out(
     at: &Painting<'_>,
+    ui: &egui::Ui,
     children: &[usize],
     axis: Axis,
     gap: f32,
@@ -311,6 +334,7 @@ fn share_out(
     let mut asked = Vec::with_capacity(children.len());
     let mut spent = gap * (children.len().saturating_sub(1) as f32);
     let mut shares = 0.0f32;
+    let mut measure = Measure::new(at.eng, at.arena, ui, scale);
     for child in children {
         let widget = &at.arena[*child].widget;
         let (stated, floor) = asked_of(widget, axis, scale);
@@ -323,7 +347,15 @@ fn share_out(
         let size = if stated > 0.0 {
             stated.max(floor)
         } else {
-            axis.along(measured_of(at.arena[*child].entity)).max(floor)
+            // What it will need, asked of the fonts rather than remembered
+            // from last frame. A `draw` node is the one thing that cannot
+            // answer, so that is the one thing still remembered.
+            let wanted = axis.along(measure.of(*child, &at.theme));
+            if wanted > 0.0 {
+                wanted.max(floor)
+            } else {
+                axis.along(measured_of(at.arena[*child].entity)).max(floor)
+            }
         };
         asked.push(Some(size));
         spent += size;
@@ -358,7 +390,7 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
     };
     // Copied out: the closure needs `at` mutably, and `placed` borrows it.
     let children = placed.children.clone();
-    let (asked, spent, shares) = share_out(at, &children, axis, gap);
+    let (asked, spent, shares) = share_out(at, ui, &children, axis, gap);
     // What is left here, not the whole box: a panel that drew a caption first
     // has that much less to hand out, and dividing the box instead pushed its
     // children past their own frame.
@@ -413,6 +445,7 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
         let used = child_ui.min_rect().size();
         at.assigned = restore;
         record_measure(entity, used);
+        record_rect(entity, rect);
         let taken = if hug { axis.along(used) } else { extent };
         ui.allocate_rect(
             egui::Rect::from_min_size(rect.min, axis.vec(taken, axis.across(used))),

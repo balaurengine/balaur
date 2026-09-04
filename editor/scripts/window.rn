@@ -1,0 +1,78 @@
+// A sheet over the shell: a title, a close, and a body. What the settings
+// screen is, and what anything else needing a window should be.
+
+use crate::icons;
+use crate::style;
+
+// Sized as a fraction of the screen rather than in pixels, so the same sheet
+// suits a laptop and a monitor. Bounded, so it never fills a huge display
+// edge to edge nor shrinks below what a form needs.
+const WIDTH_FRACTION = 0.62;
+const HEIGHT_FRACTION = 0.74;
+const MIN_WIDTH = 640.0;
+const MAX_WIDTH = 1100.0;
+const MIN_HEIGHT = 420.0;
+
+/// Every open window, so one place decides what is on top and `esc` has
+/// something to close.
+pub fn state() {
+    #{ open: "" }
+}
+
+pub fn show(S, id) {
+    S.window.open = id;
+}
+
+pub fn hide(S) {
+    S.window.open = "";
+}
+
+pub fn showing(S, id) {
+    S.window.open == id
+}
+
+fn clamp(v, low, high) {
+    if v < low { low } else if v > high { high } else { v }
+}
+
+/// Draw `body` in a titled sheet. Returns nothing; the window closes itself
+/// through the title bar, the scrim or `esc`.
+///
+/// `actions` draws beside the close button, for a window with something to
+/// commit. A window with nothing passes a callback that draws nothing.
+pub fn sheet(S, id, title, actions, body) {
+    if !showing(S, id) {
+        return;
+    }
+    let k = S.theme;
+    let screen = ui::screen_size();
+    let width = clamp(screen[0] * WIDTH_FRACTION, MIN_WIDTH, MAX_WIDTH);
+    let height = clamp(screen[1] * HEIGHT_FRACTION, MIN_HEIGHT, screen[1] - 120.0);
+    let scrim_clicked = ui::modal(id, #{
+        width: width, height: height, top: 0.09,
+        fill: k.panel, stroke: k.line, scrim: "#0b0e126b",
+    }, || {
+        ui::frame(#{ padding_x: 18, padding_y: 14 }, || {
+            bar(S, k, title, actions);
+            ui::add_space(10);
+            body();
+        });
+    });
+    // Both ways out mean the same thing, so neither is the special one.
+    if scrim_clicked || ui::shortcut("", "Escape") {
+        hide(S);
+    }
+}
+
+fn bar(S, k, title, actions) {
+    ui::horizontal(#{ height: 30 }, || {
+        ui::label(title, style::mono_lg(k.text));
+        ui::right(|| {
+            if ui::pill("Close", #{ height: 26, size: 12, radius: 8, fill: k.sunken, color: k.dim }) {
+                hide(S);
+            }
+            ui::add_space(8);
+            actions();
+        });
+    });
+}

@@ -106,7 +106,11 @@ pub(crate) fn scoped_named(eng: &Engine, ui: &mut egui::Ui, node: NodeId, target
     let result = if let Some((path, function)) = target.split_once(':') {
         host.call_in(path, function, &[]).map(|_| ())
     } else {
-        host.call_on(node, target, &[]);
+        for owner in up_from(eng, node) {
+            if host.call_on(owner, target, &[]).is_some() {
+                break;
+            }
+        }
         Ok(())
     };
     UI_STACK.with(|s| {
@@ -115,4 +119,22 @@ pub(crate) fn scoped_named(eng: &Engine, ui: &mut egui::Ui, node: NodeId, target
     if let Err(err) = result {
         tracing::warn!("widget draw '{target}': {err:#}");
     }
+}
+
+/// The node, then each ancestor: a `draw` node with no script of its own
+/// asks the nearest one above it, so a panel of them needs one script rather
+/// than one each.
+fn up_from(eng: &Engine, node: NodeId) -> Vec<NodeId> {
+    let Ok(entity) = balaur_core::entity_of(node) else {
+        return vec![node];
+    };
+    let world = eng.world();
+    let mut chain = vec![node];
+    let mut at = entity;
+    while let Ok(parent) = world.get::<&balaur_core::scene::Parent>(at) {
+        at = parent.0;
+        drop(parent);
+        chain.push(balaur_core::node_id_of(at));
+    }
+    chain
 }

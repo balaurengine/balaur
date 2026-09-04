@@ -74,15 +74,18 @@ impl<'a> Registry<'a> {
     }
 
     /// A named preset: a recipe of components, applied to one node.
+    ///
+    /// Takes `&mut self` rather than `&mut App`, as every verb here does: a
+    /// plugin registering through a dylib never sees the `App` behind it.
     pub fn register_preset(&mut self, name: &str, def: balaur_core::presets::PresetDef) {
         self.app.register_preset(name, def);
     }
 
     /// A parser for one asset type, and the directory it is read from.
     ///
-    /// A `fn` pointer rather than a closure, for the reason
-    /// [`Registry::add_system`] takes one: a parser that captures nothing is
-    /// all an asset type needs, and it is what can cross a C ABI.
+    /// Takes `&mut self` rather than `&mut App`, and a `fn` pointer rather
+    /// than a closure: a parser that captures nothing is all an asset type
+    /// needs, and it is what can cross a C ABI.
     pub fn register_asset_type(
         &mut self,
         name: &str,

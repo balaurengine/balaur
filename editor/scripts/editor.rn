@@ -27,6 +27,7 @@ mod rig;
 mod selftest;
 mod session;
 mod settings;
+mod window;
 mod shell;
 mod showcase;
 mod style;
@@ -102,6 +103,7 @@ pub fn init(this) {
         debug: shell::debug_state(),
         session: session::state(),
         settings: settings::state(),
+        window: window::state(),
         showcase: showcase::state(),
         inputview: inputview::state(),
         lint: lint::state(),

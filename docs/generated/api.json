@@ -2396,6 +2396,11 @@
       }
     },
     "widget": {
+      "active": {
+        "default": "",
+        "description": "Which child a `tab` shows, by node name; empty shows the first",
+        "type": "string"
+      },
       "align": {
         "default": "start",
         "description": "Where a container puts its children across its own direction",
@@ -2452,6 +2457,12 @@
         "min": 0.0,
         "type": "float"
       },
+      "handle": {
+        "default": 0.0,
+        "description": "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one",
+        "min": 0.0,
+        "type": "float"
+      },
       "height": {
         "default": 0.0,
         "description": "Panel height in design pixels; 0 sizes to content",
@@ -2467,6 +2478,8 @@
           "panel",
           "row",
           "column",
+          "scroll",
+          "tab",
           "draw"
         ],
         "type": "enum"
@@ -2893,6 +2906,8 @@
       "functions": [
         "args",
         "delta",
+        "has_plugin",
+        "plugins",
         "quit",
         "reload_script",
         "tick",
@@ -5605,6 +5620,37 @@
       }
     },
     {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "Every setting the engine and its plugins declare, in pages. A page names a category, the table it is stored under, whether it belongs to the project or to this editor, and a schema in the same shape a component uses \u2014 so a settings page renders with the same code an inspector does. Values are held in memory until `project_toml` or `editor_toml` turns them back into the file they came from.",
+      "docs": {
+        "editor_toml": "The editor-scope settings as TOML, for a preferences file.",
+        "get": "One setting's value: what was set, else what the schema defaults to, else nil.",
+        "load_project": "Read every value out of a project.toml's text, so a page starts from what the project says.",
+        "pages": "Every declared page as `{ category, table, scope, schema }`, in registration order.",
+        "project_toml": "The manifest text these settings would write, starting from the given text so anything they do not describe survives.",
+        "set": "Change one setting, in memory; write it out with `project_toml` or `editor_toml`."
+      },
+      "functions": [
+        "editor_toml",
+        "get",
+        "load_project",
+        "pages",
+        "project_toml",
+        "set"
+      ],
+      "name": "settings",
+      "signatures": {
+        "editor_toml": "() -> Value",
+        "get": "(String, String) -> Value",
+        "load_project": "String -> Value",
+        "pages": "() -> Value",
+        "project_toml": "String -> Value",
+        "set": "(String, String, Value) -> Value"
+      }
+    },
+    {
       "acts_on": {
         "apply_rest": [
           "bone2d",
@@ -5776,6 +5822,14 @@
         {
           "name": "WIDGET_ROW",
           "value": "row"
+        },
+        {
+          "name": "WIDGET_SCROLL",
+          "value": "scroll"
+        },
+        {
+          "name": "WIDGET_TAB",
+          "value": "tab"
         }
       ],
       "doc": "Immediate-mode UI, redrawn from a script's `draw_ui` every frame: panels, layout containers and the design system's widget shapes. HUD elements that live in the scene tree are the `widget` component instead.",

@@ -398,3 +398,33 @@ fn a_files_modification_time_is_readable_and_absent_for_one_that_is_not_there() 
     };
     assert!(at > 1_700_000_000.0, "seconds since the epoch, got {at}");
 }
+
+#[test]
+fn a_script_can_ask_which_plugins_loaded() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_in(dir.path());
+    app.record_plugin(balaur_core::PluginInfo::new("weather", "1"));
+
+    assert_eq!(
+        call(&app.engine, "engine", "plugins", &[]).unwrap(),
+        Value::List(vec![Value::Str("weather".into())])
+    );
+}
+
+#[test]
+fn a_script_can_ask_whether_one_plugin_loaded() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_in(dir.path());
+    app.record_plugin(balaur_core::PluginInfo::new("weather", "1"));
+
+    let has = |name: &str| {
+        call(
+            &app.engine,
+            "engine",
+            "has_plugin",
+            &[Value::Str(name.into())],
+        )
+    };
+    assert_eq!(has("weather").unwrap(), Value::Bool(true));
+    assert_eq!(has("elsewhere").unwrap(), Value::Bool(false));
+}

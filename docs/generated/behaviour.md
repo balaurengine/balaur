@@ -71,6 +71,7 @@ flow nothing checks.
 - a component with no expectations never warns
 - a concave outline is filled without bridging the notch
 - a constant is readable from a script
+- a container sizes to a label that changed this frame
 - a corrupted asset is caught by its hash
 - a cue can be played at a point with no node behind it
 - a current camera component drives the camera config
@@ -128,6 +129,7 @@ flow nothing checks.
 - a grid thinner than one cell is refused
 - a grid whose count does not match its shape is refused
 - a grid without cells is refused
+- a handle is only a grab where a neighbour states a size
 - a headless frame empties the debug line buffers
 - a heightfield collider without its asset says so
 - a hex colour reaches apply expanded through patch as well as add
@@ -155,6 +157,7 @@ flow nothing checks.
 - a link with no faults delivers immediately and in order
 - a listener accepts and carries bytes both ways
 - a listener node overrules one set by hand
+- a listener places the ears as soon as it is applied
 - a locale with no file is empty not an error
 - a locked axis holds still
 - a log with no frames says so rather than dividing by zero
@@ -197,6 +200,8 @@ flow nothing checks.
 - a missing texture is an error
 - a misspelled capability names the ones that exist
 - a modal runs its body
+- a module the project asks for still loads
+- a module the project turns off does not load
 - a negative index counts back from the newest vertex
 - a node cannot be moved under itself or its descendants
 - a node does not remember its preset
@@ -239,10 +244,9 @@ flow nothing checks.
 - a plain path is left alone
 - a plane is pickable from above
 - a played handle remembers its bus and volume
+- a plugin can add a page
 - a plugin module is importable by a project shader
 - a plugin registers its resources and systems
-- a plugin that builds against the app is recorded like any other
-- a plugin that fails to build is not recorded
 - a plugin that requires an unloaded one is refused
 - a plugin whose registration fails is not recorded
 - a plugin with no requirements still loads
@@ -263,6 +267,7 @@ flow nothing checks.
 - a project preset without components is an error
 - a project shader links against the mesh contract
 - a project shader links against the sprite contract
+- a project that names no plugins gets every module
 - a project with no apple table keeps the invented identifier
 - a project with no events file is empty
 - a project with no manifest fails to load
@@ -283,7 +288,7 @@ flow nothing checks.
 - a ray that meets nothing picks nothing
 - a re simulated tick does not award an achievement twice
 - a read from a tick that can still roll back goes out at once
-- a recorded plugin carries a version
+- a recorded plugin is found under its own name
 - a recorded reply reaches the request that asked for it
 - a recorded response replays with no server listening
 - a recorded session replays with no peer
@@ -337,6 +342,8 @@ flow nothing checks.
 - a script awaits a call and takes another through a handler
 - a script awaits a request and takes another through a named handler
 - a script calls another and gets the return value
+- a script can ask whether one plugin loaded
+- a script can ask which plugins loaded
 - a script can attach another script and read it back
 - a script can see that a tick is being resimulated
 - a script can write to the log it reads back
@@ -357,6 +364,7 @@ flow nothing checks.
 - a script tweens a node and hears the call at the end
 - a script without exports declares nothing
 - a script without exports takes properties anyway
+- a scroll keeps its box however long its contents
 - a scrub moves nothing but the playhead
 - a scrub poses a paused clip where the playhead lands
 - a seek does not fire the keys it skipped
@@ -371,6 +379,7 @@ flow nothing checks.
 - a set loads in dependency order whatever order it was given in
 - a set may require something loaded before it
 - a set with a missing requirement registers none of itself
+- a setting falls back to its schema default
 - a shader that does not link names the file the material pointed at
 - a shader that does not parse is an error not a panic
 - a shader that imports still links once rewritten
@@ -416,6 +425,7 @@ flow nothing checks.
 - a step that says nothing is rejected
 - a subtree is collected parent first
 - a suspended task dies with its node
+- a tab shows the page it names and only that one
 - a tagged build updates to the latest release
 - a teleporting emitter cannot screech
 - a template is found on any root
@@ -461,8 +471,6 @@ flow nothing checks.
 - a websocket sends plain frames when compression is off
 - a windowed backend keeps the fallback off its buffers
 - a windows target downloads the exe asset
-- a wrapped plugin may declare what it requires
-- a wrapped plugin orders with the ones carrying their own manifest
 - a wrong argument is reported not fatal
 - a wrong argument type is an error not a panic
 - a wrong argument type is reported not fatal
@@ -470,7 +478,6 @@ flow nothing checks.
 - accepting the focused widget is a click
 - add rewrites the whole component where patch does not
 - add then get returns what was set
-- adding a plugin records it under its own name
 - adding twice updates rather than duplicating
 - affine 2d is translate rotate scale in that order
 - an absent pad reads neutral and cannot be written
@@ -489,6 +496,7 @@ flow nothing checks.
 - an easing curve can carry a value past the key it is heading for
 - an edge fires for one frame the way a key does
 - an edge through the light casts no infinity
+- an editor setting stays out of the manifest
 - an embedded game will not read a file beside it
 - an empty asset property is no asset rather than a broken reference
 - an empty bus name is master
@@ -561,6 +569,7 @@ flow nothing checks.
 - animating a render component costs no dependency on the render crate
 - animating one property leaves the rest of its component alone
 - apply rest puts a posed bone back and overwrite rest records where it is
+- asking for a plugin this build has not got is a named error
 - attaching a script without a backend is a clear error
 - attaching to a compiled script is cheap per node
 - authored uvs are kept and the default is a pure function
@@ -597,6 +606,7 @@ flow nothing checks.
 - comments materials and groups are read past
 - compiling links the shader and packs the values
 - constant names are unique and well formed
+- core declares its pages in both scopes
 - corners sharing a position but not a uv become separate vertices
 - crates/balaur/src/lib.rs - (line 5)
 - cubic interpolation still passes through every key
@@ -873,6 +883,7 @@ flow nothing checks.
 - the mouse constants address real buttons
 - the nearest of several nodes is the one picked
 - the nearest point lands on the surface
+- the netcode page produces the faults it describes
 - the neutral value accepts anything
 - the node api is available as methods
 - the order does not depend on how the plugins were listed
@@ -924,6 +935,8 @@ flow nothing checks.
 - truncated input is refused
 - truncated or foreign bytes do not decode
 - tuples map positionally
+- turning off a plugin every build has is refused
+- turning off a plugin this build has not got is not an error
 - tween to is the same tween spelled shorter
 - two bone ik puts the tip on a reachable target
 - two engines agree tick for tick over quic
@@ -955,3 +968,4 @@ flow nothing checks.
 - with no store a call answers unsupported rather than failing
 - world transforms compose down the chain
 - world transforms report the composed result
+- writing a manifest leaves what it does not describe alone

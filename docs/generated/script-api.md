@@ -13,7 +13,7 @@ cannot drift from what scripts actually see.
 | [`assets`](#assets) | 7 | 0 | the engine |
 | [`audio`](#audio) | 19 | 0 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
-| [`engine`](#engine) | 8 | 0 | the engine |
+| [`engine`](#engine) | 10 | 0 | the engine |
 | [`fs`](#fs) | 8 | 0 | the engine |
 | [`gamend`](#gamend) | 9 | 0 | the engine |
 | [`geometry3d`](#geometry3d) | 6 | 0 | the engine |
@@ -34,11 +34,12 @@ cannot drift from what scripts actually see.
 | [`save`](#save) | 5 | 0 | the engine |
 | [`scene`](#scene) | 13 | 0 | the engine |
 | [`script`](#script) | 6 | 0 | the engine |
+| [`settings`](#settings) | 6 | 0 | the engine |
 | [`skeleton`](#skeleton) | 3 | 0 | the engine |
 | [`strings`](#strings) | 5 | 0 | the engine |
 | [`task`](#task) | 1 | 0 | the engine |
 | [`toml`](#toml) | 2 | 0 | the engine |
-| [`ui`](#ui) | 50 | 17 | the engine |
+| [`ui`](#ui) | 50 | 19 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
 ## `animation`
@@ -72,7 +73,7 @@ cannot drift from what scripts actually see.
 
 ## `engine`
 
-**Functions:** `args`, `delta`, `quit`, `reload_script`, `tick`, `time`, `timings`, `user_data_dir`
+**Functions:** `args`, `delta`, `has_plugin`, `plugins`, `quit`, `reload_script`, `tick`, `time`, `timings`, `user_data_dir`
 
 ## `fs`
 
@@ -224,6 +225,10 @@ cannot drift from what scripts actually see.
 
 **Functions:** `attempt`, `check`, `exports`, `functions`, `require`, `shared`
 
+## `settings`
+
+**Functions:** `editor_toml`, `get`, `load_project`, `pages`, `project_toml`, `set`
+
 ## `skeleton`
 
 **Functions:** `apply_rest`, `bones`, `overwrite_rest`
@@ -244,7 +249,7 @@ cannot drift from what scripts actually see.
 
 **Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `window`
 
-**Constants** (17):
+**Constants** (19):
 
 | Name | Value |
 | --- | --- |
@@ -265,6 +270,8 @@ cannot drift from what scripts actually see.
 | `WIDGET_LABEL` | `label` |
 | `WIDGET_PANEL` | `panel` |
 | `WIDGET_ROW` | `row` |
+| `WIDGET_SCROLL` | `scroll` |
+| `WIDGET_TAB` | `tab` |
 
 ## `websocket`
 

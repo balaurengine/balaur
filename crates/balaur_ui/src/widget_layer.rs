@@ -7,15 +7,19 @@
 //! Buttons record clicks into the component (`clicked` in `get_component`,
 //! reset each frame).
 
+use std::collections::HashMap;
 use std::rc::Rc;
 
+use anyhow::Result;
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_core::{App, Engine};
 use egui::{pos2, vec2, Align2, Color32, Stroke};
 
 use crate::theme::family;
+pub(crate) use crate::widget_arrange::drawn_at;
 use crate::widget_arrange::{
+    record_rect,
     box_of, contain, hold_to, lay_out, roll_measurements, scroller, tabs, Axis,
 };
 use crate::widget_theme::WidgetTheme;
@@ -81,6 +85,9 @@ pub struct Widget {
     pub handle: f32,
     /// Which child a `tab` shows, by node name; empty shows the first.
     pub active: String,
+    /// The drawing surface a *root* widget belongs to; empty is the default
+    /// one. Ignored on a child, which is placed by its parent.
+    pub layer: String,
 }
 
 /// Whether focus can land on this widget.
@@ -96,7 +103,7 @@ fn takes_focus(widget: &Widget) -> bool {
 ///
 /// A `panel` counts: it already draws a frame, and a frame with things in it
 /// is what a menu is made of. One with no children behaves exactly as before.
-fn lays_out(kind: &str) -> bool {
+pub(crate) fn lays_out(kind: &str) -> bool {
     matches!(kind, "row" | "column" | "panel" | "scroll" | "tab")
 }
 
@@ -106,6 +113,26 @@ pub struct WidgetLayerConfig {
     pub enabled: bool,
     /// Design-px rect (x, y, w, h); None = whole screen.
     pub rect: Option<[f32; 4]>,
+    /// Where a root that names a `layer` draws instead. A name nothing has
+    /// configured is the whole screen and on, so a scene can put its chrome
+    /// on its own surface without the host having to agree first.
+    pub layers: HashMap<String, Surface>,
+}
+
+/// One drawing surface: whether roots on it draw, and where.
+#[derive(Clone, Copy)]
+pub struct Surface {
+    pub enabled: bool,
+    pub rect: Option<[f32; 4]>,
+}
+
+impl Default for Surface {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            rect: None,
+        }
+    }
 }
 
 impl Default for WidgetLayerConfig {
@@ -113,6 +140,7 @@ impl Default for WidgetLayerConfig {
         Self {
             enabled: true,
             rect: None,
+            layers: HashMap::new(),
         }
     }
 }
@@ -155,7 +183,8 @@ min_width = { type = "float", default = 0.0, min = 0.0, description = "Smallest 
 min_height = { type = "float", default = 0.0, min = 0.0, description = "Smallest height a container may give this widget, in design pixels" }
 draw = { type = "string", default = "", description = "What fills a `draw` widget: a script method on this node, or `scripts/file.rn:function` for a free function" }
 handle = { type = "float", default = 0.0, min = 0.0, description = "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one" }
-active = { type = "string", default = "", description = "Which child a `tab` shows, by node name; empty shows the first" }"#,
+active = { type = "string", default = "", description = "Which child a `tab` shows, by node name; empty shows the first" }
+layer = { type = "string", default = "", description = "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured is the whole screen" }"#,
             ),
             tags: &["ui"],
             expects: &[],
@@ -241,7 +270,58 @@ fn widget_to_toml(widget: &Widget) -> toml::Value {
         toml::Value::Float(f64::from(widget.handle)),
     );
     map.insert("active".into(), toml::Value::String(widget.active.clone()));
+    map.insert("layer".into(), toml::Value::String(widget.layer.clone()));
     toml::Value::Table(map)
+}
+
+/// The widget kinds as recipes, so the picker offers "Column" rather than
+/// "a `widget`, then set `kind`".
+///
+/// Presets, not node types: balaur has no classes, and one for UI alone would
+/// be a second model of what a node is (`balaur_core::presets`).
+pub(crate) fn register_widget_presets(app: &mut App) -> Result<()> {
+    use balaur_core::presets::preset;
+    let recipes = [
+        ("label", "A line of text", "kind = \"label\""),
+        ("button", "Text that reports its clicks", "kind = \"button\""),
+        (
+            "panel",
+            "A framed box that lays out what is inside it",
+            "kind = \"panel\"",
+        ),
+        (
+            "row",
+            "Children side by side, sharing the leftover by `grow`",
+            "kind = \"row\"",
+        ),
+        (
+            "column",
+            "Children stacked, sharing the leftover by `grow`",
+            "kind = \"column\"",
+        ),
+        (
+            "scroll",
+            "A box that holds its size and clips what runs past it",
+            "kind = \"scroll\"",
+        ),
+        (
+            "tab",
+            "One child showing, the rest named on a strip above it",
+            "kind = \"tab\"",
+        ),
+        (
+            "draw",
+            "A rect a script fills, named by `draw`",
+            "kind = \"draw\"",
+        ),
+    ];
+    for (name, description, params) in recipes {
+        app.register_preset(
+            name,
+            preset(description, &["ui"], &[("widget", Some(params))])?,
+        );
+    }
+    Ok(())
 }
 
 /// A `Widget` built from a full property table (defaults already merged).
@@ -305,6 +385,7 @@ fn widget_from(params: &toml::Value) -> Widget {
         draw: s("draw", ""),
         handle: f("handle", 0.0),
         active: s("active", ""),
+        layer: s("layer", ""),
     }
 }
 
@@ -459,20 +540,17 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
     let Some(layer) = eng.try_resource::<WidgetLayerConfig>() else {
         return;
     };
-    let (enabled, rect) = {
+    let (default, surfaces) = {
         let layer = layer.borrow();
-        (layer.enabled, layer.rect)
+        (
+            Surface {
+                enabled: layer.enabled,
+                rect: layer.rect,
+            },
+            layer.layers.clone(),
+        )
     };
-    if !enabled {
-        return;
-    }
     let screen = ctx.viewport_rect();
-    let area = match rect {
-        Some([x, y, w, h]) => {
-            egui::Rect::from_min_size(pos2(x * scale, y * scale), vec2(w * scale, h * scale))
-        }
-        None => screen,
-    };
     let (placed, roots) = forest(eng);
     let was_focused = eng
         .try_resource::<UiFocus>()
@@ -499,6 +577,23 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
         if !widget.visible {
             continue;
         }
+        // Each root draws on the surface it names. A layer nothing configured
+        // is the screen, so a scene can put its own chrome somewhere without
+        // the host having to agree first.
+        let surface = if widget.layer.is_empty() {
+            default
+        } else {
+            surfaces.get(&widget.layer).copied().unwrap_or_default()
+        };
+        if !surface.enabled {
+            continue;
+        }
+        let area = match surface.rect {
+            Some([x, y, w, h]) => {
+                egui::Rect::from_min_size(pos2(x * scale, y * scale), vec2(w * scale, h * scale))
+            }
+            None => screen,
+        };
         let ox = widget.x * scale;
         let oy = widget.y * scale;
         let pos = match widget.anchor.as_str() {
@@ -515,11 +610,14 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
             "center" => Align2::CENTER_CENTER,
             _ => Align2::LEFT_TOP,
         };
-        egui::Area::new(egui::Id::new(("balaur-widget", placed[root].entity)))
+        let shown = egui::Area::new(egui::Id::new(("balaur-widget", placed[root].entity)))
             .order(egui::Order::Middle)
             .pivot(align)
             .fixed_pos(pos)
             .show(ctx, |ui| draw_one(ui, &mut painting, root));
+        // A root is placed by nobody, so it records its own rect: a script
+        // asking `ui.widget_rect` should get an answer for the whole tree.
+        record_rect(placed[root].entity, shown.response.rect);
     }
     let edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
@@ -573,7 +671,7 @@ pub(crate) enum Edit {
 /// Resolved once per frame per root rather than per widget, because a screen
 /// has one look and walking up the tree for every button to find it out would
 /// be work with a known answer.
-fn theme_of(eng: &Engine, reference: &str, inherited: &Rc<WidgetTheme>) -> Rc<WidgetTheme> {
+pub(crate) fn theme_of(eng: &Engine, reference: &str, inherited: &Rc<WidgetTheme>) -> Rc<WidgetTheme> {
     if reference.is_empty() {
         return inherited.clone();
     }
@@ -616,7 +714,7 @@ pub(crate) fn draw_one(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 /// What a widget shows: its key, translated in the locale in force, or its
 /// literal text. Resolved every frame, which is why a locale switch shows on
 /// the next one without anything having to be told.
-fn caption(eng: &Engine, widget: &Widget) -> String {
+pub(crate) fn caption(eng: &Engine, widget: &Widget) -> String {
     if widget.text_key.is_empty() {
         return widget.text.clone();
     }

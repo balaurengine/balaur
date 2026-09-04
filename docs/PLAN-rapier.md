@@ -1,9 +1,6 @@
-> **Status:** built on 2026-09-03, all thirteen phases, in
-> `crates/balaur_physics`: every rigid-body and collider property rapier has,
-> the query pipeline, events and hooks, joints, the character and vehicle
-> controllers, parry's geometry toolkit, voxels, and the `f64` and `parallel`
-> builds. See [generated/](generated/) for what the code does. What the build
-> left open is below.
+> **Status:** all thirteen phases shipped on 2026-09-03 in
+> `crates/balaur_physics`; see [generated/](generated/) for what the code
+> does. What the build left open is below.
 
 # Plan: the rest of Rapier — what is still open
 

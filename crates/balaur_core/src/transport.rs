@@ -90,6 +90,34 @@ pub trait Transport {
     fn close(&mut self);
 }
 
+/// A boxed link is a link. Without this a wrapper could not take one, and
+/// every caller holding `Box<dyn Transport>` would have to unbox to compose.
+impl<T: Transport + ?Sized> Transport for Box<T> {
+    fn send_reliable(&mut self, bytes: &[u8]) -> Result<()> {
+        (**self).send_reliable(bytes)
+    }
+
+    fn send_datagram(&mut self, bytes: &[u8]) -> Result<()> {
+        (**self).send_datagram(bytes)
+    }
+
+    fn receive(&mut self) -> Vec<Received> {
+        (**self).receive()
+    }
+
+    fn max_datagram(&self) -> usize {
+        (**self).max_datagram()
+    }
+
+    fn state(&self) -> LinkState {
+        (**self).state()
+    }
+
+    fn close(&mut self) {
+        (**self).close();
+    }
+}
+
 /// The three ways a real link misbehaves.
 ///
 /// Loopback does none of them: it never delays a payload, never drops one and

@@ -108,9 +108,9 @@ fn connect(guest_bias: f32) -> Pair {
     wait_open([&mut accepted, &mut dialled]);
 
     let mut host = NetSession::new(HOST, &[HOST, GUEST], 32);
-    host.add_peer(Box::new(accepted));
+    host.add_peer(&host_app.engine, Box::new(accepted));
     let mut guest = NetSession::new(GUEST, &[HOST, GUEST], 32);
-    guest.add_peer(Box::new(dialled));
+    guest.add_peer(&guest_app.engine, Box::new(dialled));
     Pair {
         host_app,
         host,

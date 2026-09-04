@@ -1,9 +1,10 @@
-> **Status:** partly built. Keyboard, mouse, touch and the action layer have
-> been there for a while; rumble and PlayStation motion landed 2026-09-04.
-> Written down after that rather than before, because the first sensor backend
-> is what made the shape of the rest visible: one pad family is covered, and
-> every other device — another pad, a phone, a Steam Deck — is the same
-> backend problem behind the same snapshot.
+> **Status:** keyboard, mouse, touch, the action layer, gamepad buttons and
+> axes, rumble on both motors, and gyro, accelerometer and touchpad on
+> DualSense and DualShock 4 are built and recorded; ARCHITECTURE.md's Input
+> section is the record. Written down after that rather than before, because
+> the first sensor backend is what made the shape of the rest visible: one pad
+> family is covered, and every other device — another pad, a phone, a Steam
+> Deck — is the same backend problem behind the same snapshot.
 
 # Plan: Input
 
@@ -12,23 +13,12 @@ the sensors inside them and the motors that push back. All of it arrives as
 one snapshot per frame, and all of it is recorded, because input is the half
 of a simulation the engine does not compute.
 
-## 0. Where the tree is today
+## 0. What is missing
 
-| Have | Where |
-| --- | --- |
-| Keys, mouse buttons, position, wheel and typed text, one snapshot a frame | `InputSnapshot`, `crates/balaur_input/src/lib.rs` |
-| Touch points with their edges, and files dropped on the window | `InputSnapshot::touch_event`, `dropped_files` |
-| Actions bound to keys, mouse, pad buttons, axes and key pairs, rebindable and saved per user | `crates/balaur_input/src/actions.rs` |
-| Gamepad buttons and axes, polled inside the tick so a headless run sees a pad | `gamepad.rs`, gilrs 0.11 |
-| Rumble on both motors, with `can_rumble` recorded so a replay branches the same way | `haptics.rs`, gilrs force feedback |
-| Gyro, accelerometer and touchpad on DualSense and DualShock 4, USB and Bluetooth | `sensors.rs`, hidapi 2.6, layouts from Linux's `hid-playstation.c` |
-| Every one of those recorded and replayed bit for bit, bindings included | `App::add_replay_source`, `add_replay_resource` |
-| A script seam standing in for a person, for keyboard and mouse | `input.feed_key`, `feed_mouse`, `feed_mouse_button` |
-
-Not built: motion on any pad that is not Sony's, per-unit sensor calibration,
-anything a pad does other than rumble, motion from a phone or tablet, a
-gamepad backend on iOS or Android, and a way for a script to stand in for a
-pad the way it already can for a keyboard.
+Motion on any pad that is not Sony's, per-unit sensor calibration, anything a
+pad does other than rumble, motion from a phone or tablet, a gamepad backend
+on iOS or Android, and a way for a script to stand in for a pad the way it
+already can for a keyboard.
 
 ## 1. Design
 
@@ -51,14 +41,13 @@ backend below has to keep holding them.
 
 ## 2. The surface
 
-Every device and API worth naming, whether or not it is planned. A row saying
-"not planned" is a decision, not an oversight.
+Every device and API worth naming that is not built. A row saying "not
+planned" is a decision, not an oversight.
 
 ### Pads and their sensors
 
 | Thing | Verdict |
 | --- | --- |
-| DualSense, DualSense Edge, DualShock 4 v1/v2: gyro, accelerometer, touchpad | Have — `sensors.rs` over hidapi, USB and Bluetooth |
 | Per-unit calibration report (DualSense feature `0x05`, DS4 `0x02` / `0x05`) | Step 2. Nominal scaling today, good to a few percent; the report trims it to the unit and corrects the accelerometer's bias |
 | Switch Pro and Joy-Con: gyro and accelerometer | Step 3. Report `0x30` behind a USB handshake, and a calibration block in SPI flash. No touchpad on either |
 | DualSense adaptive triggers, light bar, player and mute LEDs | Step 4. One output report carries all of them, so they arrive together or not at all |
@@ -72,9 +61,7 @@ Every device and API worth naming, whether or not it is planned. A row saying
 
 | Thing | Verdict |
 | --- | --- |
-| macOS: sharing one pad between gilrs and the sensor reader | Have — hidapi's `macos-shared-device`; without it the reader takes the pad |
 | Linux: hidraw permission | Warns once and reports no sensors, per rule 2. Shipping a udev rule with the export is step 8 |
-| Windows: HID over `hid.dll` | Have. XInput pads are unreachable this way, and have no sensors to reach |
 | iOS and Android: gamepad buttons and axes | Step 7. gilrs covers neither, so a pad on a phone reads nothing at all today |
 | Phone and tablet device motion (CoreMotion, Android `SensorManager`) | Step 6. Not a pad — a sensor in the device — but it lands in the same snapshot and wants `balaur_apple` / `balaur_android` |
 | wasm | Not planned for sensors. The Gamepad API may cover buttons and axes later; there is no HID in a tab |
@@ -83,7 +70,6 @@ Every device and API worth naming, whether or not it is planned. A row saying
 
 | Thing | Verdict |
 | --- | --- |
-| `input.feed_*` for keyboard and mouse | Have |
 | Feeding a pad: buttons, axes, motion, touch | Step 1. A showcase or a test can drive a keyboard but not a controller, which is the gap that makes every row above hard to demonstrate |
 | Sensor decode asserted against captured reports | Step 1. Synthetic fixtures today; the ones worth having come off real hardware — see §4 |
 
@@ -101,19 +87,14 @@ Every device and API worth naming, whether or not it is planned. A row saying
 ## 4. What CI can prove, and what it cannot
 
 CI has no controller, and no runner will grow one. It can prove the decode
-arithmetic against fixed bytes: the scaling into radians and g, the twelve-bit
-touch coordinates packed across a shared byte, the Bluetooth layout landing on
-the same values as USB, an empty touch slot, a truncated report. It can prove
-the snapshot round-trips through a recording and that an older recording still
-replays.
-
-It cannot prove a byte offset is the one the hardware actually sends. Those
-came from Linux's `hid-playstation.c` and both report sizes reconstruct
-exactly, which is strong evidence and not a test. **No PlayStation pad has
-been held against this code.** The first person with one should check that a
-resting pad reads about 1 g on one axis and that a finger at the centre of the
-touchpad reads about `(0.5, 0.5)`; step 1's fixtures should then be captured
-from that pad so CI can hold the line afterwards.
+arithmetic against fixed bytes, and that the snapshot round-trips through a
+recording. It cannot prove a byte offset is the one the hardware actually
+sends. Those came from Linux's `hid-playstation.c` and both report sizes
+reconstruct exactly, which is strong evidence and not a test. **No PlayStation
+pad has been held against this code.** The first person with one should check
+that a resting pad reads about 1 g on one axis and that a finger at the centre
+of the touchpad reads about `(0.5, 0.5)`; step 1's fixtures should then be
+captured from that pad so CI can hold the line afterwards.
 
 ## 5. Open questions
 

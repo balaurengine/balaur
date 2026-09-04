@@ -432,6 +432,8 @@ fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("args", &[], "()", "The command-line arguments the app was started with, empty when it was given none."),
         ("reload_script", &[], "(key: string)", "Recompile one script by its project-relative key, for a tool editing files outside the watched root."),
         ("user_data_dir", &[], "()", "A writable per-user directory for saves and settings, created on first call and named after the project."),
+        ("plugins", &[], "()", "Every plugin this build loaded, named, in load order."),
+        ("has_plugin", &[], "(name: string)", "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there."),
     ]);
 }
 

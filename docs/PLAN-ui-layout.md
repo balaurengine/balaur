@@ -1,6 +1,6 @@
 # Research: layout as nodes
 
-> **Status:** phases 1–4 are built; §5 records what is left. Written
+> **Status:** all five phases are built; §5 records what each one did. Written
 > 2026-09-04 to answer whether balaur can have Godot's Control-style layout —
 > a tree of nodes that own their rects — rather than UI assembled by code.
 > **It can**, and the enabling change was smaller than the feature list
@@ -41,7 +41,7 @@ middle three rows.
 | Godot | balaur then | balaur now |
 |---|---|---|
 | anchors + offsets, per node | `anchor` (one of five corners) + `x`/`y`, **root only** | unchanged |
-| minimum size, queryable | implicit — egui measures while drawing; nothing can ask | last frame's measurement, plus `min_width`/`min_height` |
+| minimum size, queryable | implicit — egui measures while drawing; nothing can ask | asked of the fonts before the draw, plus `min_width`/`min_height` |
 | size flags, stretch ratio | **none** | `grow` |
 | containers assign rects | `row`/`column` delegate to `egui::Layout`; children place themselves | `row`/`column`/`panel` place every child |
 | Split, Scroll, Tab, Grid | **none** | `scroll` and `tab`; a split is `handle` on any row or column. No Grid |
@@ -108,6 +108,10 @@ out, in order of cost:
   asked its minimum before anything draws. The correct answer, and the only
   one that handles a container sizing to a label that changed this frame.
 
+All three were built, in that order, and the third is what ships: phase 5
+made the measure pass the rule and left the second as the fallback for a
+`draw` node, which is the one thing nothing can measure ahead.
+
 ### Splits, scrolling and tabs
 
 A `Split` container needs a draggable divider that writes back a ratio — the
@@ -153,7 +157,7 @@ that can hold more than one rect; see below.)
 | 2 | `draw` kind | Lets a node host an immediate-mode body, which is what makes the editor expressible | **done** |
 | 3 | The editor's shell as a scene; `layout.rn` reads the tree | Proves it on the hardest real case | **done** |
 | 4 | `split`, `scroll`, `tab` containers | Each unlocks a thing the editor hand-rolls today | **done** |
-| 5 | A measure pass over text | Removes the "author your sizes" restriction for everyone | |
+| 5 | A measure pass over text | Removes the "author your sizes" restriction for everyone | **done** |
 
 Phases 1–2 are what decides whether this is right. If the editor's shell comes
 out of phase 3 looking like it does now, the model is proven on the hardest
@@ -232,6 +236,43 @@ never seen.
 `widget_layer.rs` went over the 1200-line house limit, so the sizing rules and
 the containers that apply them are now `widget_arrange.rs`; what is left is
 the component and the walk over the world.
+
+### What phase 5 changed
+
+`widget_measure.rs`: a walk over the same tree the draw will take that asks
+the font atlas what each node needs, before anything is placed. A label is its
+galley unwrapped, a button that plus egui's own padding, a row its children
+end to end with the gaps, a column the same the other way, a tab its strip
+over its widest page. Two kinds answer with nothing, honestly: a `draw` node
+is a script's rect to fill, and a `scroll` exists to be smaller than what is
+inside it.
+
+`share_out` asks that instead of last frame's measurement. The measurement
+cache is still there for the one thing that cannot be measured ahead — a
+`draw` node — and for nothing else.
+
+The difference is a frame, and the test is written as one: a row 400 wide
+holding a label and a grower, drawn once after the label's text changes. The
+grower's caption moves in that same pass. With a remembered width it would
+still be sitting where the short label left it.
+
+### Node types, or recipes
+
+A widget is a component with a `kind`, not a node type, and the eight kinds
+are registered as **presets** — `label`, `button`, `panel`, `row`, `column`,
+`scroll`, `tab`, `draw` — so the editor's picker offers "Column" beside
+"Sprite2D" rather than "add a `widget`, then set `kind`".
+
+Presets rather than node classes because balaur has no classes at all, on
+purpose: `balaur_core::presets` says a preset is a recipe, not a type, and
+"an engine that records 'this is a RigidBody2D' has to defend that claim
+forever". `sprite`, `body2d`, `light2d` and `tilemap` are components too. UI
+being the one place with real node types would be a second model of what a
+node is, for an authoring convenience a preset already buys.
+
+Nothing needs moving to core: `UiPlugin` is unconditional in `standard_app`,
+so the `widget` component and every container here is already available to any
+project, not just to the editor.
 
 **The shell is not widget nodes.** `layout.rn` re-implements the arrange in
 Rune rather than spawning `widget` components, because the widget layer has

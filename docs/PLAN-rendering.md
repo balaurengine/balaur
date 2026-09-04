@@ -1,8 +1,6 @@
-> **Status:** the plan this file opened with is built and its text is gone.
-> 2D lights and shadows (`light2d`, `occluder2d`, `camera.ambient`, the light
-> map), GPU skinning in 3D, `camera.post` and the editor's light gizmos all
-> shipped on 2026-09-04; the manual's Rendering page documents them. What is
-> left are the two the plan deferred, kept here because neither is started.
+> **Status:** the plan this file opened with shipped on 2026-09-04 and its
+> text is gone; the manual's Rendering page documents what it built. What is
+> left are the two it deferred, neither started.
 
 # Plan: what 2D lighting still does not do
 

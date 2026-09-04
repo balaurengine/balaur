@@ -12,7 +12,7 @@
 use anyhow::Result;
 use balaur_core::collections::DetHashSet;
 use balaur_core::Engine;
-use balaur_core::{App, Stage};
+use balaur_core::Stage;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 pub mod actions;

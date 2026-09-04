@@ -407,7 +407,7 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
         "modal",
         &[],
-        "", "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked.",
+        "", "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked. `width`, `height` and `top` size and place it, `fill`, `stroke` and `scrim` colour it; height follows the content when it is not given.",
     )]);
     m.function(
         "modal",
@@ -440,6 +440,13 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
                         }
                         frame.show(ui, |ui| {
                             ui.set_width(width);
+                            // `height` pins a sheet that would otherwise
+                            // shrink as its page empties; the screen is the
+                            // ceiling.
+                            let height = opts.px("height", 0.0);
+                            if height > 0.0 {
+                                ui.set_min_height(height.min(screen.height() - top - sc(32.0)));
+                            }
                             result = scoped(eng, ui, cb);
                         });
                     });
@@ -456,6 +463,18 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
         "set_widget_layer",
         &[],
         "", "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
+    ),
+    (
+        "set_widget_surface",
+        &[],
+        "",
+        "The same for one named surface: roots whose `layer` is this name draw here instead. A name nothing has set is the whole screen and on.",
+    ),
+    (
+        "widget_rect",
+        &[],
+        "",
+        "Where a `widget` node was last drawn, as `#{ x, y, w, h }` in design pixels; empty until it has drawn once.",
     )]);
     {
         // No reader by design (N8): the `WidgetLayerConfig` entry already
@@ -473,15 +492,55 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
                     let layer = eng.resource::<crate::WidgetLayerConfig>();
                     let mut layer = layer.borrow_mut();
                     layer.enabled = enabled;
-                    layer.rect = match (x, y, w, h) {
-                        (Some(x), Some(y), Some(w), Some(h)) => Some([x, y, w, h]),
-                        _ => None,
-                    };
+                    layer.rect = rect_of(x, y, w, h);
                     Ok(())
                 },
             );
+        m.function(
+            "set_widget_surface",
+            |eng: &Engine, (name, enabled, x, y, w, h): (
+                    String,
+                    bool,
+                    Option<f32>,
+                    Option<f32>,
+                    Option<f32>,
+                    Option<f32>,
+                )| {
+                    let layer = eng.resource::<crate::WidgetLayerConfig>();
+                    layer.borrow_mut().layers.insert(
+                        name,
+                        crate::widget_layer::Surface {
+                            enabled,
+                            rect: rect_of(x, y, w, h),
+                        },
+                    );
+                    Ok(())
+                },
+            );
+        m.function("widget_rect", |_eng: &Engine, node: balaur_script::NodeId| {
+            let scale = scale();
+            Ok(
+                crate::widget_layer::drawn_at(balaur_core::entity_of(node)?)
+                    .map_or(Value::Nil, |r| {
+                        Value::Map(vec![
+                            ("x".into(), Value::Num(f64::from(r.min.x / scale))),
+                            ("y".into(), Value::Num(f64::from(r.min.y / scale))),
+                            ("w".into(), Value::Num(f64::from(r.width() / scale))),
+                            ("h".into(), Value::Num(f64::from(r.height() / scale))),
+                        ])
+                    }),
+            )
+        });
     }
     install_focus(m);
+}
+
+/// Four numbers or none: a partial rect is a caller that meant the screen.
+fn rect_of(x: Option<f32>, y: Option<f32>, w: Option<f32>, h: Option<f32>) -> Option<[f32; 4]> {
+    match (x, y, w, h) {
+        (Some(x), Some(y), Some(w), Some(h)) => Some([x, y, w, h]),
+        _ => None,
+    }
 }
 
 /// `ui.*` bindings: which widget the keyboard and the pad are pointing at.
