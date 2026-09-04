@@ -24,7 +24,7 @@ tungstenite.workspace = true
 [dev-dependencies]
 tempfile = "3"
 tungstenite.workspace = true
-balaur = { workspace = true, features = ["gamend"] }
+balaur = { workspace = true, features = ["gamend", "f32"] }
 
 [lints]
 workspace = true

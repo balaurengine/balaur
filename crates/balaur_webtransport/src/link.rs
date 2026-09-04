@@ -101,6 +101,8 @@ pub(crate) fn listen(
 ) -> Result<SocketAddr> {
     let chain = certificate.chain.clone();
     let key = certificate.key();
+    // `listen` is reached only through the `replay::suppressed` guard in
+    // lib.rs, so a replay opens no socket and this channel carries nothing.
     let (bound_tx, bound_rx) = channel();
     std::thread::spawn(move || {
         let runtime = match tokio::runtime::Builder::new_current_thread()
@@ -145,6 +147,7 @@ pub(crate) fn listen(
                         continue;
                     }
                 };
+                // Per accepted peer, inside the guarded listener above.
                 let (commands, command_rx) = channel();
                 let (event_tx, events) = channel();
                 if peers.send((events, commands)).is_err() {

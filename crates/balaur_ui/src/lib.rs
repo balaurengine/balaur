@@ -22,6 +22,7 @@ mod bridge;
 mod theme;
 mod widget_arrange;
 mod widget_bindings;
+mod widget_input;
 mod widget_layer;
 mod widget_layout;
 mod widget_measure;
@@ -33,6 +34,7 @@ use balaur_core::Engine;
 use std::collections::{HashMap, HashSet};
 
 pub use theme::ThemeTokens;
+pub use widget_input::{WidgetInputBuffer, WidgetInputSnapshot};
 pub use widget_layer::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
 pub use widget_theme::WidgetTheme;
 pub use widgets::{ANCHORS, FONTS, MODIFIERS, WIDGET_KINDS};
@@ -133,6 +135,7 @@ impl balaur_plugin::Plugin for UiPlugin {
             },
         );
         widgets::install_ui_api(reg)?;
+        widget_input::register(reg);
         widget_layer::register_widget_component(reg);
         widget_layer::register_widget_presets(reg)?;
         Ok(())

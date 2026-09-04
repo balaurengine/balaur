@@ -8,7 +8,7 @@ authors.workspace = true
 publish = false
 
 [dependencies]
-balaur.workspace = true
+balaur = { workspace = true, features = ["f32"] }
 balaur_core.workspace = true
 balaur_script.workspace = true
 balaur_script_rune.workspace = true

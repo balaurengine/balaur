@@ -169,9 +169,9 @@ impl Default for WidgetLayerConfig {
 
 /// The `widget` key, backed by exactly one `Widget` component on the node.
 ///
-/// `clicked` is declared `readonly`: the widget layer writes it every frame
-/// (see `settle_clicks`) and `apply` always clears it, but it is in the
-/// schema so that `get`'s output round-trips and the inspector can see it.
+/// `clicked` is declared `readonly`: [`crate::widget_input`] writes it every
+/// tick and `apply` always clears it, but it is in the schema so that `get`'s
+/// output round-trips and the inspector can see it.
 pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "widget",
@@ -714,17 +714,10 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
     roll_measurements();
     let edits = std::mem::take(&mut painting.edits);
     let clicked = std::mem::take(&mut painting.clicked);
-    let widgets: Vec<(Entity, Widget)> = placed
-        .iter()
-        .map(|one| (one.entity, one.widget.clone()))
-        .collect();
-    settle_edits(eng, edits);
-    settle_clicks(eng, &widgets, &clicked);
-    // After the clicks, so a handler that moved focus itself is not undone by
-    // this frame's arrival.
-    if focused != was_focused {
-        announce_focus(eng, &widgets, focused);
-    }
+    // Only on the change: a handler firing every frame focus merely *stayed*
+    // would be a different event, and not a useful one.
+    let arrived = (focused != was_focused).then_some(focused).flatten();
+    crate::widget_input::record(eng, &clicked, edits, arrived);
 }
 
 /// What one draw pass carries down the widget tree.
@@ -753,6 +746,7 @@ pub(crate) struct Painting<'a> {
 /// Applied after the pass: the tree the draw walked is a snapshot, and
 /// writing to the world mid-walk would mean the rest of the frame laid out
 /// against numbers half of it had never seen.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) enum Edit {
     Width(f32),
     Height(f32),
@@ -1023,63 +1017,3 @@ fn warn_once(source: &str, err: &anyhow::Error) {
     }
 }
 
-/// Write back what the containers changed while they drew.
-fn settle_edits(eng: &Engine, edits: Vec<(Entity, Edit)>) {
-    if edits.is_empty() {
-        return;
-    }
-    let world = eng.world();
-    for (entity, edit) in edits {
-        let Ok(mut widget) = world.get::<&mut Widget>(entity) else {
-            continue;
-        };
-        match edit {
-            Edit::Width(w) => widget.width = w,
-            Edit::Height(h) => widget.height = h,
-            Edit::Active(name) => widget.active = name,
-        }
-    }
-}
-
-/// Tell the newly focused widget's script that focus arrived.
-///
-/// Only on the change: a handler firing every frame focus merely *stayed*
-/// would be a different event, and not a useful one.
-fn announce_focus(eng: &Engine, widgets: &[(Entity, Widget)], focused: Option<Entity>) {
-    let Some(entity) = focused else { return };
-    let Some((_, widget)) = widgets.iter().find(|(e, _)| *e == entity) else {
-        return;
-    };
-    if widget.on_focus.is_empty() {
-        return;
-    }
-    if let Some(host) = eng.script_host() {
-        host.call_on(balaur_core::node_id_of(entity), &widget.on_focus, &[]);
-    }
-}
-
-/// Record this frame's clicks on each widget, then fire their `on_click`.
-///
-/// Dispatch happens after the world borrow is released: a handler may spawn,
-/// free or reparent nodes, and it must not do that mid-iteration.
-fn settle_clicks(eng: &Engine, widgets: &[(Entity, Widget)], clicked: &[Entity]) {
-    let mut signals: Vec<(Entity, String)> = Vec::new();
-    {
-        let world = eng.world();
-        for (entity, _) in widgets {
-            if let Ok(mut w) = world.get::<&mut Widget>(*entity) {
-                w.clicked = clicked.contains(entity);
-                if w.clicked && !w.on_click.is_empty() {
-                    signals.push((*entity, w.on_click.clone()));
-                }
-            }
-        }
-    }
-    if let Some(host) = eng.script_host() {
-        for (entity, method) in signals {
-            // No payload: the handler runs on the widget's own node, so
-            // `self.node` already is the thing that was clicked.
-            host.call_on(balaur_core::node_id_of(entity), &method, &[]);
-        }
-    }
-}

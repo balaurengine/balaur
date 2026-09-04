@@ -345,6 +345,8 @@ impl RuneHost {
             .canonicalize()
             .unwrap_or_else(|_| project_root.to_path_buf());
         let (watcher, events) = if watch && pack.is_none() {
+            // The file watcher, which is not I/O a session may repeat:
+            // `pump_reloads` ends an open recording rather than replaying one.
             let (tx, rx) = std::sync::mpsc::channel();
             let mut watcher = notify::recommended_watcher(move |res| {
                 let _ = tx.send(res);

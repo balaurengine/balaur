@@ -299,6 +299,18 @@ opens or shuts, the rail folds, or the hooks list arrives. `layout.rn` eases
 only a size that has *moved* — the first write places the box, so the shell
 does not assemble itself on screen at every start.
 
+The side docks resize by dragging: `handle = 12` on the body row, and
+`layout.rn` takes back whatever width the seam left before it computes the
+next one. The bottom dock has no seam, because its height is derived every
+frame from whether its panel is a tall one — a drag there would snap back
+until that stops being derived.
+
+`tab` and `scroll` stay unadopted, and should: the editor's dock tab row
+carries a per-tab move menu, a problem-count badge and a tools slot that the
+engine's `tab` has no notion of, and the dock bodies are immediate-mode
+`ui::scroll` inside an overlay rather than widget nodes. Forcing either would
+lose features to gain a shared name.
+
 **Verified against the editor it replaced**: all 30 audit screens, every
 published rect identical to a tenth of a pixel, and `layoutdemo`'s nine
 invariants pass.

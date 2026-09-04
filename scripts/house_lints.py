@@ -61,7 +61,8 @@ KNOWN_RESOURCES = {
     "GridConfig", "HttpSnapshot", "HttpState", "InputSnapshot", "PhysicsState", "WebsocketSnapshot", "WebsocketState",
     "PhysicsState2d", "PostConfig", "ProjectRoot",
     "RngState", "SceneKeyRegistry", "ScreenshotRequest", "ScriptArgs", "UiConfig",
-    "UiState", "ViewportSnapshot", "ViewportSnapshot2d", "WidgetLayerConfig",
+    "UiState", "ViewportSnapshot", "ViewportSnapshot2d", "WidgetInputBuffer",
+    "WidgetInputSnapshot", "WidgetLayerConfig",
     "WindowedBackend",
     # Inserted as `manifest.clone()` (app.rs), so no regex will ever see it.
     "ProjectManifest",
@@ -280,6 +281,14 @@ def noted_at_declaration(lines: list[str], idx: int, needle: str) -> bool:
     return "Takes" in joined and needle in joined
 
 
+def channel_justified(lines: list[str], idx: int) -> bool:
+    """A comment above the channel, or above the run of them it belongs to."""
+    j = idx - 2
+    while j >= 0 and re.search(r"(?:sync_)?channel\s*\(", lines[j]):
+        j -= 1
+    return j >= 0 and lines[j].strip().startswith("//")
+
+
 def attribute(lines, i, limit=8) -> str:
     """The whole attribute starting at line `i`, which rustfmt may have wrapped."""
     text = ""
@@ -399,6 +408,18 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
         findings.append(Finding(rel, len(lines), "file-too-long",
                                 f"{len(lines)} lines, limit {MAX_FILE_LINES}", "ERROR"))
 
+    # `use std::sync::mpsc::{channel, ..}` makes the call site read `channel()`.
+    mpsc_imported = any(
+        re.search(r"use\s+std::sync::mpsc::(?:\{[^}]*\b)?(?:sync_)?channel\b", one)
+        for one in lines
+    )
+    # A channel is inert; what must not run during a replay is the worker on the
+    # far end. A file that names the guard has already answered for its channels.
+    io_guarded = any(
+        ("ExternalIo" in one) or ("replay::suppressed" in one) or ("replay::is_playing" in one)
+        for one in lines
+    )
+
     in_test_mod = False
     test_brace_depth = None
     test_attr_line = 0
@@ -482,6 +503,22 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                     findings.append(Finding(rel, i, "unjustified-unwrap",
                                             "unwrap/expect outside tests needs a justification comment "
                                             "or a descriptive expect message", "ERROR"))
+
+            # ExternalIo is the recorded seam, and its worker `Sender` is
+            # unreachable except through `start`, which does nothing while a
+            # recording plays. Core owns the one sanctioned channel (dap.rs).
+            if crate != "balaur_core" and not in_test_mod and not io_guarded:
+                opened = re.search(r"std::sync::mpsc::(?:sync_)?channel\s*\(", line) or (
+                    mpsc_imported and re.search(r"(?<![\w:])(?:sync_)?channel\s*\(", line)
+                )
+                if opened and not ("//" in raw or channel_justified(lines, i)):
+                    findings.append(Finding(rel, i, "channel-outside-external-io",
+                                            "this file opens a std::sync::mpsc channel and names neither "
+                                            "ExternalIo nor replay::suppressed, so nothing stops its worker "
+                                            "reaching the outside during a replay; go through ExternalIo, or "
+                                            "say here why this channel never leaves the process "
+                                            "(ARCHITECTURE, 'What determinism is still missing', 4)",
+                                            "ERROR"))
 
             # `log` records carry no fields, so nothing downstream can filter on
             # them; tracing-log bridges dependencies, our own code uses tracing.

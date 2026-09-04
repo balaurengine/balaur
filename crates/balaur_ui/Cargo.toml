@@ -12,12 +12,13 @@ balaur_plugin.workspace = true
 egui.workspace = true
 anyhow.workspace = true
 toml.workspace = true
+serde.workspace = true
 balaur_script.workspace = true
 tracing.workspace = true
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 [dev-dependencies]
-balaur.workspace = true
+balaur = { workspace = true, features = ["f32"] }
 tempfile = "3"
 egui.workspace = true
 

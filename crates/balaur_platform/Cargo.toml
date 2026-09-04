@@ -17,7 +17,7 @@ tracing.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
-balaur = { workspace = true }
+balaur = { workspace = true, features = ["f32"] }
 
 [lints]
 workspace = true

@@ -61,6 +61,15 @@ pub fn press(pos: egui::Pos2, pressed: bool) -> Vec<egui::Event> {
     ]
 }
 
+/// The tick that consumes what the last pass saw.
+///
+/// A frame is tick-then-draw, and egui's events arrive in the draw, so a click
+/// is applied by the tick after the pass that took it -- which is what lets a
+/// replay run the handler with no window at all.
+pub fn consume_input(app: &mut App) {
+    app.tick(1.0 / 60.0);
+}
+
 pub fn clicked(app: &App, entity: Entity) -> bool {
     balaur::components::get(&app.engine, entity, "widget")
         .expect("the widget component is still on the node")

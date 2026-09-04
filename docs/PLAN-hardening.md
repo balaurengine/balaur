@@ -157,8 +157,13 @@ and a sentence.
 
 1. A GPU job on a software adapter (lavapipe or SwiftShader): `balaur run
    --offscreen --frames 60` on one example, and `render.screenshot` compared
-   against a golden.
-2. Every example in `determinism_trace.sh`; one f64 and one parallel job.
+   against a golden. **Still open** — deliberately not added blind, because a
+   job that cannot get an adapter turns `main` red for a reason that is not
+   the commit's.
+2. *Done:* every example is traced in `determinism_trace.sh`, and `test.yml`
+   gained a job that runs the physics tests at `f64` and under `parallel`
+   (which is the only thing that runs `scalar_and_threads.rs` at all), plus
+   a clippy pass over the `apple` feature on the macOS runner.
 3. Script-level tests for the modules that have none: `audio.*` and `apple.*`
    have no test that spells a script call; `input.*` has none for actions,
    pads, `feed_*`, touches, `typed` or `dropped_files`; `physics2d` has 49

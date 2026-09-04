@@ -55,6 +55,16 @@ fn animated(app: &App, id: &str, params: &str) -> Entity {
     entity
 }
 
+/// The same node with its clip running, which is what a rollback has to put
+/// back. Every assertion below about a playhead needs this rather than
+/// `animated`, whose player sits at zero until something plays it.
+fn playing(app: &App, id: &str, params: &str) -> Entity {
+    let entity = animated(app, id, params);
+    balaur_anim::play(&app.engine, entity, "").unwrap();
+    assert!(balaur_anim::is_playing(&app.engine, entity));
+    entity
+}
+
 fn tick(app: &mut App, frames: u32) {
     for _ in 0..frames {
         app.tick(1.0 / 60.0);
@@ -73,7 +83,7 @@ fn height(app: &App, entity: Entity) -> f32 {
 #[test]
 fn a_rollback_across_a_playing_clip_restores_the_playhead() {
     let mut app = app();
-    let node = animated(&app, "n_platform", &rise("loop"));
+    let node = playing(&app, "n_platform", &rise("loop"));
     tick(&mut app, 10);
     let at = balaur_anim::time(&app.engine, node);
     let frame = snapshot::capture(&app.engine);
@@ -93,7 +103,7 @@ fn a_rollback_across_a_playing_clip_restores_the_playhead() {
 #[test]
 fn re_simulating_from_a_snapshot_reaches_the_same_pose() {
     let mut app = app();
-    let node = animated(&app, "n_platform", &rise("loop"));
+    let node = playing(&app, "n_platform", &rise("loop"));
     tick(&mut app, 10);
     let frame = snapshot::capture(&app.engine);
     tick(&mut app, 20);
@@ -102,6 +112,7 @@ fn re_simulating_from_a_snapshot_reaches_the_same_pose() {
     snapshot::restore(&app.engine, &frame);
     tick(&mut app, 20);
 
+    assert_ne!(expected, 0, "a clip that never moved would pass this vacuously");
     assert_eq!(
         height(&app, node).to_bits(),
         expected,
@@ -112,7 +123,7 @@ fn re_simulating_from_a_snapshot_reaches_the_same_pose() {
 #[test]
 fn a_paused_player_digests_differently_from_a_playing_one() {
     let mut app = app();
-    let node = animated(&app, "n_platform", &rise("loop"));
+    let node = playing(&app, "n_platform", &rise("loop"));
     tick(&mut app, 10);
     let playing = digest::digest(&app.engine);
     let pose = height(&app, node).to_bits();
@@ -130,15 +141,17 @@ fn a_paused_player_digests_differently_from_a_playing_one() {
 #[test]
 fn a_stopped_clip_and_a_played_one_at_the_same_pose_digest_differently() {
     let mut app = app();
-    let node = animated(&app, "n_platform", &rise("loop"));
+    let node = playing(&app, "n_platform", &rise("loop"));
     tick(&mut app, 10);
     let before = digest::entries(&app.engine);
     balaur_anim::stop(&app.engine, node);
     let after = digest::entries(&app.engine);
 
+    // A source labels its own rows, so the player's read `animation/<id>/…`
+    // while the transform's come from core with no such prefix.
     let divergence = digest::first_divergence(&before, &after).expect("the player's row changed");
     assert!(
-        divergence.starts_with("n_platform/animation"),
+        divergence.starts_with("animation/n_platform"),
         "the row that moved should be the player's, not the transform's: {divergence}"
     );
 }
@@ -190,11 +203,11 @@ fn a_tween_that_finished_after_the_snapshot_comes_back_with_it() {
 #[test]
 fn a_player_on_a_node_the_snapshot_never_saw_is_dropped_by_the_restore() {
     let mut app = app();
-    let first = animated(&app, "n_first", &rise("loop"));
+    let first = playing(&app, "n_first", &rise("loop"));
     tick(&mut app, 5);
     let frame = snapshot::capture(&app.engine);
 
-    let second = animated(&app, "n_second", &rise("loop"));
+    let second = playing(&app, "n_second", &rise("loop"));
     tick(&mut app, 5);
     assert!(balaur_anim::is_playing(&app.engine, second));
 

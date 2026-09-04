@@ -116,6 +116,8 @@ impl Probe {
         ctxt.submit(std::iter::once(encoder.finish()));
 
         let slice = self.staging.slice(..);
+        // wgpu answers the buffer map on this channel and nothing on the far
+        // end leaves the process; rendering is an observer either way.
         let (sender, receiver) = std::sync::mpsc::channel();
         slice.map_async(wgpu::MapMode::Read, move |result| {
             let _ = sender.send(result);

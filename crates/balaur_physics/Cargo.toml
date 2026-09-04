@@ -42,7 +42,7 @@ f64 = ["dep:rapier3d_f64", "dep:rapier2d_f64", "dep:parry3d_f64", "dep:parry2d_f
 parallel = ["rapier3d?/parallel", "rapier2d?/parallel", "rapier3d_f64?/parallel", "rapier2d_f64?/parallel", "dep:rayon"]
 
 [dev-dependencies]
-balaur.workspace = true
+balaur = { workspace = true, features = ["f32"] }
 tempfile = "3"
 
 [lints]

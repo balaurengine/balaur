@@ -700,6 +700,7 @@ dependencies = [
  "balaur_script",
  "egui",
  "image",
+ "serde",
  "tempfile",
  "toml",
  "tracing",
