@@ -269,9 +269,9 @@ impl balaur_plugin::Plugin for InputPlugin {
         // tick rather than by the windowed backend: a headless run with a pad
         // plugged in sees it too. First, so scripts read this frame's state.
         reg.add_system(Stage::First, |eng, _| {
-            // Not while replaying: the recorded pads were restored moments
-            // ago and polling the real hardware would overwrite them.
-            if balaur_core::replay::is_playing(eng) {
+            // Not while replaying, and not on a rollback's second run of a
+            // tick: the recorded pads were restored moments ago.
+            if balaur_core::replay::suppressed(eng) {
                 return;
             }
             eng.resource::<GamepadState>().borrow_mut().poll();

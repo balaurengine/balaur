@@ -11,7 +11,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -D warnings
+  # No RUSTFLAGS: it replaces .cargo/config.toml's, and the Apple rpath
+  # lives there. Warnings are denied in lint.yml.
 
 concurrency:
   group: docs-${{ github.ref }}

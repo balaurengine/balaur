@@ -13,10 +13,10 @@
 //! is another entry in the frame group rather than a new group, because
 //! WebGPU guarantees only four.
 
+use balaur_core::time::Instant;
 use std::any::Any;
 use std::cell::Cell;
 use std::sync::Arc;
-use balaur_core::time::Instant;
 
 use bytemuck::{Pod, Zeroable};
 use glamx::{Mat4, Pose3, Vec3};

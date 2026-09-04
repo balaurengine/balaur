@@ -372,7 +372,7 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
             .resource::<balaur_core::project::ProjectFiles>()
             .borrow()
             .read(&path)?;
-        Ok(crate::texture::image_size(&bytes, &path)?)
+        crate::texture::image_size(&bytes, &path)
     });
 }
 

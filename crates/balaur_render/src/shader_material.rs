@@ -6,10 +6,10 @@
 //! the material's own values — and the shader, which is whatever the project
 //! wrote. `shaders/sprite.wesl` is the contract between the two.
 
+use balaur_core::time::Instant;
 use std::any::Any;
 use std::cell::Cell;
 use std::sync::Arc;
-use balaur_core::time::Instant;
 
 use bytemuck::{Pod, Zeroable};
 use glamx::{Mat2, Mat3, Pose2, Vec2};

@@ -83,6 +83,15 @@ jobs:
       # scripts themselves. Generated files are skipped by their banner.
       - name: scripts/comment_lints.py
         run: python3 scripts/comment_lints.py --fail-on-error
+      # The script API's own names, against the tables in docs/NAMING.md.
+      # Reads the committed dump rather than booting the engine, which the
+      # docs workflow already does.
+      - name: scripts/api_lints.py
+        run: python3 scripts/api_lints.py --api-json docs/generated/api.json --fail-on-error
+      # Licence checking is off in deny.toml, so this file is the only record
+      # of what the tree ships and it must not go stale.
+      - name: THIRD-PARTY-NOTICES.md is current
+        run: python3 scripts/third_party_notices.py --check
 
   supply-chain:
     name: dependency advisories, bans and sources

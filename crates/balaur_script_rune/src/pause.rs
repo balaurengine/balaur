@@ -59,11 +59,8 @@ impl RuneHost {
         }
         let found = self.resolve(key, name)?;
         // Only the profiler needs a VM of our own, to read the instruction
-        // counter off either side of the call. Otherwise `Function::call` is
-        // the faster path: it builds its own VM, and that costs measurably
-        // less than borrowing a pooled one back out of the host and
-        // returning it. An async function needs its own regardless — the
-        // future it returns holds on to the VM it ran on.
+        // counter either side of the call; `Function::call` builds its own and
+        // is measurably faster. An async call holds its VM, so it needs one.
         let outcome = if found.immediate && self.profiling() {
             let mut vm = self.take_vm(key)?;
             let before = vm.instruction_count();

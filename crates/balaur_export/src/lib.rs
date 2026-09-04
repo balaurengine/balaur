@@ -46,8 +46,12 @@ pub struct Options<'a> {
     /// refuses instead of fetching: a download needs a network stack, a
     /// release to fetch from and somewhere to ask the user, and none of the
     /// three belongs in here.
-    pub obtain: Option<&'a dyn Fn(&str) -> Result<PathBuf>>,
+    pub obtain: Option<&'a ObtainTemplate>,
 }
+
+/// Fetch the template for one target, however the caller wants to: the CLI
+/// downloads and verifies it, the editor asks first, a test hands one over.
+pub type ObtainTemplate = dyn Fn(&str) -> Result<PathBuf>;
 
 /// Where templates are looked for: an explicit directory first, then the one
 /// that ships beside the binary in the editor download, then the per-user

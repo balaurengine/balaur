@@ -90,13 +90,9 @@ tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 [profile.dev]
 debug = "line-tables-only"
 
-# The web build, where every byte is a download the player waits for. Kept off
-# `release` so a native build's compile time is untouched by a web trade.
-#
-# `panic = "abort"` is sound only here: it makes `catch_unwind` a no-op, and
-# the one place that matters is balaur_plugin's C ABI boundary (capi.rs) —
-# extensions need `dlopen`, which no browser has, so nothing can panic across
-# an FFI boundary in this profile.
+# Every byte is a download the player waits for. Kept off `release` so a
+# native build pays nothing for a web trade. `panic = "abort"` is sound only
+# here: no browser has `dlopen`, so nothing can panic across the C ABI.
 [profile.web]
 inherits = "release"
 opt-level = "z"

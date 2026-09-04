@@ -262,6 +262,99 @@ fn a_respawned_node_brings_its_components_back() {
     assert_eq!(digest::digest(&app.engine), before);
 }
 
+/// `node:set_parent` is simulation state like any other, and the digest walks
+/// the tree in order: a node left under the parent a rolled-back tick gave it
+/// is a desync, not a cosmetic difference.
+#[test]
+fn restoring_puts_a_reparented_node_back_under_its_old_parent() {
+    let app = app();
+    let a = spawn(&app, "n_a", 1.0);
+    let b = spawn(&app, "n_b", 2.0);
+    let before = digest::digest(&app.engine);
+    let taken = snapshot::capture(&app.engine);
+
+    balaur_core::scene::reparent(&mut app.engine.world_mut(), b, a).unwrap();
+    assert_ne!(
+        digest::digest(&app.engine),
+        before,
+        "the move has to be visible, or the test proves nothing"
+    );
+
+    snapshot::restore(&app.engine, &taken);
+    let root = app.engine.root();
+    assert_eq!(
+        app.engine.world().get::<&balaur_core::Parent>(b).unwrap().0,
+        root,
+        "the node came back under the parent it was moved to"
+    );
+    assert_eq!(digest::digest(&app.engine), before);
+}
+
+/// A rename is invisible to the digest, which labels by stable id, so only a
+/// path lookup catches it -- and `find_node` is how a script reaches a node.
+#[test]
+fn restoring_puts_a_renamed_node_back_under_its_old_name() {
+    let app = app();
+    let a = spawn(&app, "n_a", 1.0);
+    let taken = snapshot::capture(&app.engine);
+
+    app.engine
+        .world_mut()
+        .get::<&mut balaur_core::Name>(a)
+        .unwrap()
+        .0 = String::from("Renamed");
+    snapshot::restore(&app.engine, &taken);
+
+    let world = app.engine.world();
+    assert_eq!(world.get::<&balaur_core::Name>(a).unwrap().0, "n_a");
+    assert_eq!(
+        balaur_core::scene::find_node(&world, app.engine.root(), "n_a"),
+        Some(a)
+    );
+}
+
+/// Two siblings freed in the same tick, which is the netcode case: the frames
+/// come back last-first, so each respawn has to wait for the siblings that sit
+/// ahead of it or the row is rebuilt inside out.
+#[test]
+fn restoring_two_freed_siblings_puts_both_back_in_order() {
+    let app = app();
+    spawn(&app, "n_a", 1.0);
+    spawn(&app, "n_b", 2.0);
+    spawn(&app, "n_c", 3.0);
+    let before = digest::digest(&app.engine);
+    let taken = snapshot::capture(&app.engine);
+
+    for id in ["n_a", "n_b"] {
+        let doomed = find(&app, id).expect("a sibling to free");
+        balaur_core::scene::free_subtree(&mut app.engine.world_mut(), doomed);
+    }
+    assert_ne!(
+        digest::digest(&app.engine),
+        before,
+        "the frees have to be visible, or the test proves nothing"
+    );
+
+    snapshot::restore(&app.engine, &taken);
+    let root = app.engine.root();
+    let world = app.engine.world();
+    let names: Vec<String> = world
+        .get::<&balaur_core::scene::Children>(root)
+        .unwrap()
+        .0
+        .iter()
+        .filter_map(|&child| world.get::<&balaur_core::scene::Name>(child).ok())
+        .map(|name| name.0.clone())
+        .collect();
+    assert_eq!(
+        names,
+        ["n_a", "n_b", "n_c"],
+        "and in the order they were in"
+    );
+    drop(world);
+    assert_eq!(digest::digest(&app.engine), before);
+}
+
 /// The ordering one: `collect_subtree` visits the last child first, so a
 /// respawn that appended put a freed middle sibling at the end and `fold`
 /// reported a divergence made of nothing.

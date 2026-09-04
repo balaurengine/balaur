@@ -149,7 +149,10 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
     apply_movement(eng, entity, movement.translation);
     {
         let state = eng.resource::<PhysicsState>();
-        state.borrow_mut().grounded.insert(entity, movement.grounded);
+        state
+            .borrow_mut()
+            .grounded
+            .insert(entity, movement.grounded);
     }
     Ok(map([
         ("x", Value::Num(f64::from(movement.translation.x))),

@@ -56,10 +56,7 @@ pub(crate) fn public_functions(source: &str) -> Vec<PublicSignature> {
         };
         out.push(PublicSignature {
             name,
-            arity: params
-                .split(',')
-                .filter(|p| !p.trim().is_empty())
-                .count(),
+            arity: params.split(',').filter(|p| !p.trim().is_empty()).count(),
             is_async,
             line: at + 1,
         });

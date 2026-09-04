@@ -225,7 +225,14 @@ pub fn update(this, dt) {
     // rect is the stale one a document is now filling.
     let rect = gizmo::viewport_rect(S);
     let widgets_on = (S.playing || S.persona == "ui") && S.viewport_live;
-    ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.w, rect.h);
+    // Inset by the strip the axis and zoom pills own, so a bottom-anchored
+    // HUD label sits above the editor's chrome instead of under it.
+    let band = if widgets_on { center::HUD_H + 6.0 } else { 0.0 };
+    ui::set_widget_layer(widgets_on, rect.x, rect.y, rect.w, util::max(0.0, rect.h - band));
+    // The shell is on its own surface, declared rather than assumed: an
+    // unconfigured layer takes the default one, and the default is off
+    // whenever the game's widgets are.
+    ui::set_widget_surface("shell", true, 0.0, 0.0, S.screen_w, S.screen_h);
     if S.tool == "key" && S.persona == "anim" && input::mouse_just_pressed(input::MOUSE_LEFT) {
         anim::add_key(S, S.anim.time);
     }

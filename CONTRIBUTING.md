@@ -19,9 +19,15 @@ at <https://balaurengine.org/docs/principles>. The short version:
 ## Before you open a pull request
 
 ```bash
-scripts/lint.sh                 # fmt, clippy, house and comment lints — what CI runs
+scripts/lint.sh                 # fmt, clippy, the house lints and the notices — what CI runs
 cargo test --workspace
 python3 scripts/gen_docs.py     # regenerate docs/generated; CI fails on drift
+```
+
+To run the first of those on every push, once:
+
+```bash
+git config core.hooksPath .githooks
 ```
 
 Names follow `docs/NAMING.md`; comments are one or two lines stating a

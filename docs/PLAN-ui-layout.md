@@ -282,7 +282,7 @@ the engine's, and all three are gone:
 
 | was | now |
 |---|---|
-| one global widget-layer rect, pointed at the viewport for a game's HUD | `layer` on a root names a **surface**; `ui.set_widget_surface` places each one. A name nothing configured is the whole screen and on |
+| one global widget-layer rect, pointed at the viewport for a game's HUD | `layer` on a root names a **surface**; `ui.set_widget_surface` places each one. A surface nothing configured takes the default, so a host that confines the default confines what it was not told about — which is why the editor declares `shell` rather than assuming it |
 | nothing could read back where a widget was placed | `ui.widget_rect(node)` returns the rect it was drawn at |
 | a `draw` node had to carry its own script instance | it asks the nearest scripted ancestor, so a shell of them needs one script, not one per panel |
 
@@ -292,6 +292,12 @@ bottom dock, the tool rail, the hooks list — and reads every rect back; the
 Rune arrange is deleted. The nodes paint nothing, an unthemed `row` being a
 pure layout box, so every panel still draws through `ui::overlay` at the rect
 it is given.
+
+Because the boxes are nodes, the engine's own animation system moves them:
+`animation::tween_to(node, "widget/width", to, 0.16, "out_cubic")` when a dock
+opens or shuts, the rail folds, or the hooks list arrives. `layout.rn` eases
+only a size that has *moved* — the first write places the box, so the shell
+does not assemble itself on screen at every start.
 
 **Verified against the editor it replaced**: all 30 audit screens, every
 published rect identical to a tenth of a pixel, and `layoutdemo`'s nine

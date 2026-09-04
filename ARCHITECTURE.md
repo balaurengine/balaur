@@ -112,9 +112,11 @@ received it. Immediate-mode UI callbacks never outlive their call, so the
 backend registers on entry and drops on exit — no ownership question and no
 interaction with the collector.
 
-That call-scoped lifetime is why the engine has no `connect`-style signals: a
-script cannot register a handler and be handed a payload three frames later.
-Events go the other way instead. `ScriptHost::call_on(node, method, args)`
+That call-scoped lifetime is why nothing subscribes with a *closure*: a script
+cannot register a handler and be handed a payload three frames later. What a
+subscription addresses instead is a node and a method name, which survive a
+frame boundary because the engine already knows how to resolve them.
+`ScriptHost::call_on(node, method, args)`
 calls a method the engine knows by name, with arguments, on one node's
 instance — `on_animation_finished(name)`, a widget's `on_click`, an animation
 method track. A backend puts the instance first, so a handler reads exactly
@@ -122,8 +124,18 @@ like `update(dt)` does in that language. Most such events also ship a polling
 twin for scripts that would rather ask than declare a method
 (`animation.just_finished(node)`, `input.just_pressed(key)`,
 `http.responses()`), which is the same shape the whole engine uses: an event
-is a frame-scoped snapshot, not a subscription. Persistent callbacks would
-need an id space with explicit release, and nothing has needed one yet. One more variant is load-bearing at call
+is a frame-scoped snapshot. Persistent *callbacks* would need an id space with
+explicit release, and nothing has needed one.
+
+The `events` module is that shape generalised, for the case the engine is not
+the one announcing: `events.subscribe(node, name)` records a node against a
+name, anything calls `events.emit(name, payload)`, and a core system delivers
+it as `on_<name>(payload)` at the top of the next frame's `Stage::Update`, in
+emission order and then subscription order. A frame's delay is the price of
+never running a handler inside the call that emitted, where it could free the
+node being ticked. `events.emitted(name)` is the polling twin, and nothing is
+recorded for replay: an emit comes from a script, and a replay re-runs the
+script, which emits again. One more variant is load-bearing at call
 sites: `Many` is *several return values*, not a list of one, so
 `let (text, changed) = ui::text_field(...)` reads the way the widget is meant
 to. A `Vec3` is one value with `x`, `y`, `z`, which is why `node.position()`
@@ -1189,7 +1201,7 @@ is fixed. The hazards, and how Balaur addresses or will address them:
 | Hazard | Status |
 | --- | --- |
 | `f64::sin/cos/exp/pow/...` call the platform libm; results differ across OS/libc | **Done:** the engine's `math` module (`math::sin`, `math::pow`, `math::PI`, ... — `docs/generated/script-api.md` has the list) is implemented on pure-Rust `libm` (MUSL algorithms, bit-identical everywhere). Rune has no transcendentals of its own — its `f64` module stops at `sqrt`, `abs`, `floor`, `ceil`, `round`, `min`, `max`, `powf` and `powi`, and only the last two are inexact. Rune installs its stdlib wholesale and a function cannot be overridden from outside, so **our fork puts both on libm** (`patch.crates-io`); `crates/balaur_script_rune/tests/pow.rs` asserts the bits. |
-| Iteration order over an object (`for (k, v) in obj`) is the hash map's, not insertion order | Rule: simulation-affecting iteration uses vectors or sorted keys. The editor can lint for this; an engine-provided ordered map is planned. |
+| Iteration order over an object (`for (k, v) in obj`) is the hash map's, not insertion order | **Done:** the fork hashes with `XxHash64` at its default seed, so the order is the same on every target and every run — `object_iteration_order_does_not_move_between_runs` pins it. It is still not *insertion* order, so a reader wanting that sorts the keys. Upstream's `ahash` was unusable twice over: its seed comes from `getrandom` once per process, and its AES and software paths disagree. |
 | A random source seeded from entropy | **Done:** Rune has no random of its own; the `rng` module (`rng::seed/random/range/int`) is an engine-owned PCG32 stream with a fixed default seed, so a fresh run is reproducible by construction. |
 | Wall-clock (`engine::time()`, variable `dt`) leaking into simulation | **Done.** `Stage::FixedUpdate` runs on one app-owned accumulator at `FIXED_DT`; scripts get a `fixed_update(dt)` callback there and physics steps there, so simulation code never sees the frame's measured time. `App::set_fixed_dt` (`balaur run --fixed-tick`) additionally pins the frame itself, making an interactive run reproduce a headless one tick for tick given the same inputs. Physics and animation take the constant from `balaur_core::FIXED_DT` rather than each declaring their own 60th of a second. Input is captured once per frame into a snapshot (replayable). |
 

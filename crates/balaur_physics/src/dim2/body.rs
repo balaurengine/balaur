@@ -202,9 +202,7 @@ fn read_mass(body: &RigidBody, map: &mut toml::map::Map<String, toml::Value>) {
     let f = |value: Real| toml::Value::Float(f64::from(value));
     let (mass, inertia, com) = match body.mass_properties().additional_local_mprops.as_deref() {
         Some(Extra::Mass(mass)) => (*mass, 0.0, scalar::v2(0.0, 0.0)),
-        Some(Extra::MassProps(props)) => {
-            (props.mass(), props.principal_inertia(), props.local_com)
-        }
+        Some(Extra::MassProps(props)) => (props.mass(), props.principal_inertia(), props.local_com),
         None => (0.0, 0.0, scalar::v2(0.0, 0.0)),
     };
     map.insert("mass".into(), f(mass));

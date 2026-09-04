@@ -165,5 +165,4 @@ impl<'a> Registry<'a> {
     pub fn engine(&self) -> &Engine {
         &self.app.engine
     }
-
 }

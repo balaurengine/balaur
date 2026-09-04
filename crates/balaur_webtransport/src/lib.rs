@@ -124,7 +124,7 @@ impl WebTransportLink {
         }
         let url = url.to_string();
         #[cfg(not(target_family = "wasm"))]
-        std::thread::spawn(move || link::dial(&url, accept, command_rx, event_tx));
+        std::thread::spawn(move || link::dial(&url, accept, command_rx, &event_tx));
         #[cfg(target_family = "wasm")]
         browser::dial(&url, accept, command_rx, &event_tx);
         Ok(Self {

@@ -11,7 +11,8 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::rapier3d::prelude::{
     ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule, Collider,
-    ColliderBuilder, ColliderHandle, Group, InteractionGroups, InteractionTestMode, RigidBodyHandle,
+    ColliderBuilder, ColliderHandle, Group, InteractionGroups, InteractionTestMode,
+    RigidBodyHandle,
 };
 use crate::scalar::{self, Pose, Real};
 

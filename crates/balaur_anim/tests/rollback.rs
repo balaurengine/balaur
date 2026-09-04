@@ -167,7 +167,8 @@ fn a_tween_that_finished_after_the_snapshot_comes_back_with_it() {
     let mut app = app();
     let node = animated(&app, "n_platform", "library = \"\"\n");
     let to = toml::Value::Array(vec![0.0.into(), 4.0.into(), 0.0.into()]);
-    let tween = balaur_anim::tween::start_to(&app.engine, node, "position", &to, 0.2, None).unwrap();
+    let tween =
+        balaur_anim::tween::start_to(&app.engine, node, "position", &to, 0.2, None).unwrap();
     tick(&mut app, 2);
     let frame = snapshot::capture(&app.engine);
 
@@ -180,7 +181,10 @@ fn a_tween_that_finished_after_the_snapshot_comes_back_with_it() {
     snapshot::restore(&app.engine, &frame);
     assert!(balaur_anim::tween::is_running(&app.engine, tween));
     tick(&mut app, 30);
-    assert!((height(&app, node) - 4.0).abs() < 1e-5, "the restored tween ran again to its end");
+    assert!(
+        (height(&app, node) - 4.0).abs() < 1e-5,
+        "the restored tween ran again to its end"
+    );
 }
 
 #[test]

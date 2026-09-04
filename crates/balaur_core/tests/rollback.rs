@@ -260,5 +260,9 @@ fn a_stale_input_does_not_mask_a_correction_that_can_still_be_made() {
 
     assert_eq!(digest::digest(&app.engine), expected);
     assert!(trace.borrow().resimulated > 0, "and by re-simulating");
-    assert_eq!(session.stale_inputs(), 1, "the old one was counted, not lost");
+    assert_eq!(
+        session.stale_inputs(),
+        1,
+        "the old one was counted, not lost"
+    );
 }

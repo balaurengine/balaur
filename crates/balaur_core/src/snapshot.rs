@@ -389,14 +389,41 @@ fn load_nodes(eng: &Engine, value: &serde_json::Value) {
     let root = eng.root();
     let wanted: crate::DetHashSet<&str> = frame.nodes.iter().map(|n| n.id.as_str()).collect();
     free_spawned_since(eng, root, &wanted);
-    // Frames are in the order `collect_subtree` produced, which puts a parent
-    // before its children, so a parent is back before anything asks for it.
-    for node in &frame.nodes {
+    for node in respawn_order(&frame.nodes) {
         respawn(eng, root, node);
     }
     if let Some(allocator) = eng.try_resource::<crate::ids::IdAllocator>() {
         allocator.borrow_mut().next = frame.next_id;
     }
+}
+
+/// Frame order for a respawn: parents first, then siblings by index.
+///
+/// `collect_subtree` pops a stack, so it hands the last child back first, and
+/// an insert at a recorded index only lands right once the earlier siblings
+/// are there. Three siblings freed in one tick came back reversed.
+fn respawn_order(nodes: &[NodeFrame]) -> Vec<&NodeFrame> {
+    let at: crate::DetHashMap<&str, usize> = nodes
+        .iter()
+        .enumerate()
+        .map(|(i, node)| (node.id.as_str(), i))
+        .collect();
+    let mut depth = vec![0usize; nodes.len()];
+    for (i, slot) in depth.iter_mut().enumerate() {
+        let mut cursor = i;
+        while let Some(parent) = nodes[cursor].parent.as_deref() {
+            let Some(&above) = at.get(parent) else { break };
+            *slot += 1;
+            cursor = above;
+            // A decoded frame is the one place a parent chain can cycle.
+            if *slot > nodes.len() {
+                break;
+            }
+        }
+    }
+    let mut order: Vec<usize> = (0..nodes.len()).collect();
+    order.sort_by_key(|&i| (depth[i], nodes[i].index));
+    order.into_iter().map(|i| &nodes[i]).collect()
 }
 
 /// Free every node the snapshot does not name. A node with no id is left
@@ -419,14 +446,49 @@ fn free_spawned_since(eng: &Engine, root: Entity, wanted: &crate::DetHashSet<&st
     }
 }
 
+/// Put a node that survived back where the snapshot had it.
+///
+/// `set_parent` and a rename are simulation state a script can write, so a
+/// node still being alive is not the same as it being unchanged: the digest
+/// walks the tree in order, and a node left under its new parent is a desync.
+fn restore_placement(eng: &Engine, entity: Entity, parent: Entity, node: &NodeFrame) {
+    let mut world = eng.world_mut();
+    if let Ok(mut name) = world.get::<&mut Name>(entity) {
+        if name.0 != node.name {
+            name.0.clone_from(&node.name);
+        }
+    }
+    if world.get::<&Parent>(entity).ok().map(|p| p.0) == Some(parent) {
+        return;
+    }
+    if let Err(e) = crate::scene::reparent(&mut world, entity, parent) {
+        tracing::error!(error = %e, node = %node.id, "moving a node back under its parent");
+        return;
+    }
+    // `reparent` appends; the recorded index is where it actually sat.
+    move_child_to(&mut world, parent, entity, node.index);
+}
+
+/// Move `entity` to `index` among `parent`'s children, which is what makes a
+/// restore reproduce the tree order the digest walks rather than only the set.
+fn move_child_to(world: &mut hecs::World, parent: Entity, entity: Entity, index: usize) {
+    let Ok(mut children) = world.get::<&mut Children>(parent) else {
+        return;
+    };
+    let Some(at) = children.0.iter().position(|&c| c == entity) else {
+        return;
+    };
+    let moved = children.0.remove(at);
+    let to = index.min(children.0.len());
+    children.0.insert(to, moved);
+}
+
 /// Put one node back, if it is not already there.
 fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
-    let parent = {
+    let (existing, parent) = {
         let world = eng.world();
-        if crate::ids::find(&world, root, &node.id).is_some() {
-            return;
-        }
-        match &node.parent {
+        let existing = crate::ids::find(&world, root, &node.id);
+        let parent = match &node.parent {
             None => root,
             Some(parent) => {
                 let Some(entity) = crate::ids::find(&world, root, parent) else {
@@ -435,8 +497,13 @@ fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
                 };
                 entity
             }
-        }
+        };
+        (existing, parent)
     };
+    if let Some(entity) = existing {
+        restore_placement(eng, entity, parent, node);
+        return;
+    }
     let entity = {
         let mut world = eng.world_mut();
         let entity = crate::scene::spawn_node_at(&mut world, &node.name, parent, node.index);

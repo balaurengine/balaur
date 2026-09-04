@@ -259,15 +259,11 @@ fn standard_plugins(asked: &Selection) -> Result<Vec<Box<dyn balaur_plugin::Plug
         }
     }
     let mut all = always;
-    all.extend(
-        optional_modules()
-            .into_iter()
-            .filter(|module| {
-                asked
-                    .get(&module.manifest().name)
-                    .is_none_or(balaur_core::PluginChoice::wanted)
-            }),
-    );
+    all.extend(optional_modules().into_iter().filter(|module| {
+        asked
+            .get(&module.manifest().name)
+            .is_none_or(balaur_core::PluginChoice::wanted)
+    }));
     Ok(all)
 }
 
@@ -443,6 +439,30 @@ pub async fn boot_pack_on_canvas(bytes: &[u8], canvas_id: &str) -> Result<()> {
         .manifest()
         .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
     balaur_render::kiss3d_backend::run_windowed_async(app, &title, Some(canvas_id)).await
+}
+
+/// The editor, booted on an HTML canvas over a project that is already in
+/// memory.
+///
+/// The editor is a Balaur project like any other, so this is `boot_pack_on_canvas`
+/// with two differences: the game it edits is handed to its scripts as
+/// `engine.args()[0]`, the way `balaur edit <game>` does on a desktop, and
+/// that directory is declared as a second `fs` root so the editor may write
+/// into it. Seeding `game_root` is the caller's job — see
+/// `balaur_core::files::MemoryFs`.
+#[cfg(feature = "window")]
+pub async fn boot_editor_on_canvas(
+    editor_pack: &[u8],
+    game_root: &str,
+    canvas_id: &str,
+) -> Result<()> {
+    let pack = Pack::decode(editor_pack)?;
+    let mut config = AppConfig::packed(pack);
+    config.script_args = vec![game_root.to_string()];
+    let mut app = standard_app(config)?;
+    file_api::add_root(&app.engine, game_root);
+    app.load_project()?;
+    balaur_render::kiss3d_backend::run_windowed_async(app, "balaur editor", Some(canvas_id)).await
 }
 
 /// Shipping mode: run a precompiled pack (e.g. embedded via `include_bytes!`).

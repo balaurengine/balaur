@@ -132,12 +132,9 @@ web)
   fi
   wasm-bindgen --target web --no-typescript --out-dir "$dist" --out-name balaur "$wasm"
 
-  # -Oz after bindgen, never before: bindgen rewrites the module and would
-  # undo the pass. Every --enable is a feature rustc emits for this target by
-  # default; wasm-opt validates against its own baseline and rejects the input
-  # for using one it was not told about, so this list tracks the target rather
-  # than our taste. sign-ext is i32.extend8_s, which LLVM emits for any
-  # `as i8` round trip.
+  # -Oz after bindgen, never before: bindgen rewrites the module. Every
+  # --enable is a feature rustc emits for this target by default, and wasm-opt
+  # rejects input using one it was not told about, so the list tracks rustc.
   step "wasm-opt"
   wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int \
     --enable-sign-ext --enable-mutable-globals --enable-reference-types \
@@ -147,11 +144,9 @@ web)
   # Brotli is what a static host actually serves.
   step "size"
   raw=$(wc -c <"$dist/balaur_bg.wasm")
-  # A floor, not only a ceiling. wasm-bindgen garbage-collects everything its
-  # exports cannot reach, so a template that loses its #[wasm_bindgen] entry
-  # point (crates/balaur_cli/src/web.rs) still builds, still passes bindgen and
-  # still optimises — to a module with no engine in it. That shipped once, at
-  # 73 KB. Anything this small is that bug, never a real template.
+  # A floor, not only a ceiling: bindgen drops everything its exports cannot
+  # reach, so a template that lost its #[wasm_bindgen] entry point still builds
+  # — to a module with no engine in it. That shipped once, at 73 KB.
   floor=$((5 * 1024 * 1024))
   if [ "$raw" -lt "$floor" ]; then
     printf '::error::web template is %d bytes, under the %d floor — the engine is not in it. Check that web.rs still exports a #[wasm_bindgen] entry point.\n' "$raw" "$floor"

@@ -15,6 +15,16 @@ fn main() {
     if std::env::var("CARGO_CFG_TARGET_VENDOR").unwrap_or_default() != "apple" {
         return;
     }
+    link_storekit();
+}
+
+// `swift-rs` is a build dependency only on an Apple host, and a build script
+// is compiled for the host: naming it anywhere else fails to compile.
+#[cfg(not(target_vendor = "apple"))]
+fn link_storekit() {}
+
+#[cfg(target_vendor = "apple")]
+fn link_storekit() {
     if !swift_is_installed() {
         println!(
             "cargo:warning=no Swift toolchain found, so this build has no StoreKit: \
@@ -29,6 +39,7 @@ fn main() {
     println!("cargo:rustc-cfg=swift_shim");
 }
 
+#[cfg(target_vendor = "apple")]
 fn swift_is_installed() -> bool {
     std::process::Command::new("xcrun")
         .args(["--find", "swift"])

@@ -34,7 +34,12 @@ fn spawn(app: &App, name: &str, id: &str, y: f32, body: bool) -> Entity {
         .world_mut()
         .insert_one(e, StableId(id.to_string()))
         .unwrap();
-    app.engine.world().get::<&mut Transform>(e).unwrap().position.y = y;
+    app.engine
+        .world()
+        .get::<&mut Transform>(e)
+        .unwrap()
+        .position
+        .y = y;
     if body {
         components::add(
             &app.engine,
@@ -222,7 +227,10 @@ fn a_wheels_inputs_survive_a_snapshot() {
     let state = app.engine.resource::<PhysicsState>();
     let state = state.borrow();
     let input = state.wheel_inputs[&wheel];
-    assert!((input.engine_force - 250.0).abs() < 1e-4, "engine force lost");
+    assert!(
+        (input.engine_force - 250.0).abs() < 1e-4,
+        "engine force lost"
+    );
     assert!((input.brake - 3.0).abs() < 1e-4, "brake lost");
     assert!((input.steering - 0.25).abs() < 1e-4, "steering lost");
 }
@@ -286,7 +294,7 @@ pub fn fixed_update(this, dt) {
     if this.ticks == 2 {
         let hit = physics3d::raycast(opts);
         this.hit_before = !(hit is Tuple);
-        let target = engine::find("/Target");
+        let target = scene::get_node("/Target");
         target.queue_free();
     }
     if this.ticks == 8 {
@@ -306,7 +314,7 @@ pub fn fixed_update(this, dt) {
 fn a_call_on_a_freed_node_errors_rather_than_panicking() {
     let errors = run(
         TWO_BALLS,
-        r#"pub fn init(this) { this.ticks = 0; this.target = engine::find("/Target"); }
+        r#"pub fn init(this) { this.ticks = 0; this.target = scene::get_node("/Target"); }
 
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;

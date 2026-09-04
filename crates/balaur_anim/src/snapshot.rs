@@ -189,7 +189,9 @@ fn restore(eng: &Engine, value: &Value) {
         frame
             .players
             .into_iter()
-            .filter_map(|player| Some((entity_of(&world, root, &player.id, player.entity)?, player)))
+            .filter_map(|player| {
+                Some((entity_of(&world, root, &player.id, player.entity)?, player))
+            })
             .collect()
     };
     // Loading takes the asset cache's borrow and may parse, so every clip a
@@ -332,12 +334,9 @@ fn clip_of(frame: &ClipFrame) -> Clip {
             .iter()
             .map(|track| Track {
                 target: track.target.clone(),
-                property: track
-                    .property
-                    .as_deref()
-                    .map_or(Property::Call, |name| {
-                        Property::parse(name).unwrap_or(Property::Call)
-                    }),
+                property: track.property.as_deref().map_or(Property::Call, |name| {
+                    Property::parse(name).unwrap_or(Property::Call)
+                }),
                 channels: track.channels,
                 interp: Interp::parse(&track.interp).unwrap_or(Interp::Linear),
                 keys: track
@@ -347,7 +346,10 @@ fn clip_of(frame: &ClipFrame) -> Clip {
                         t: key.t,
                         value: Vec4::from(key.value),
                         call: key.call.clone(),
-                        ease: key.ease.as_deref().and_then(|name| Easing::parse(name).ok()),
+                        ease: key
+                            .ease
+                            .as_deref()
+                            .and_then(|name| Easing::parse(name).ok()),
                     })
                     .collect(),
             })

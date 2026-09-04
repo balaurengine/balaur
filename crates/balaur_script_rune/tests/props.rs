@@ -200,7 +200,9 @@ fn a_written_spec_is_taken_as_it_stands_and_orders_the_rows() {
         panic!("a spec is a map: {:?}", declared[1].1);
     };
     assert!(
-        speed.iter().any(|(k, v)| k == "max" && *v == balaur_script::Value::Num(8.0)),
+        speed
+            .iter()
+            .any(|(k, v)| k == "max" && *v == balaur_script::Value::Num(8.0)),
         "the range the script wrote survives: {speed:?}"
     );
 }

@@ -101,7 +101,7 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Widget `wrap`, `text_align` and an `image` kind.
 - Keyboard focus is opt in: `ui.set_keyboard_focus`, and on for a project declaring the `ui_*` actions.
 - `engine.tick()` answers a whole number, so `tick() % 60` is legal Rune.
-- Widget surfaces: a root's `layer` names where it draws, `ui.set_widget_surface` places one, and an unconfigured name is the whole screen — so a tool's own chrome and a game's HUD no longer share one rect.
+- Widget surfaces: a root's `layer` names where it draws and `ui.set_widget_surface` places one, so a tool's own chrome and a game's HUD no longer share one rect. A surface nothing configured takes the default.
 - `ui.widget_rect(node)`: where a widget node was last drawn, for a script placing something against it.
 - A `draw` node with no script of its own asks the nearest scripted ancestor.
 - Audio buses: `[audio.buses]`, routing per sound, `audio.set_bus_volume`.
@@ -146,6 +146,7 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - Left, bottom and right are tabbed docks: a tab's menu moves it to another, and each minimises to its edge.
 - The brand is the edited project's `icon.png` and name when it ships one.
 - `ui::pill`, `ui::text_field` and `ui::dropdown` are tiles unless asked for `round`.
+- The editor's docks, tool rail and hooks list travel when they open and close: `animation::tween_to` on the shell's widget nodes, an `out_cubic` over 0.16 s.
 - The editor's shell is `widget` nodes the engine lays out: `Editor/Shell` in `scenes/main.toml` holds the boxes, `layout.rn` states only the sizes that move and reads the rects back.
 - The editor's look is a theme asset: `editor/themes/*.toml` holds colour tokens and named roles a widget takes with `role:`.
 - Bundled type: Source Sans 3 at two weights, JetBrains Mono and Phosphor icons, with the OS chained for scripts balaur does not ship.

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Every check CI runs, before a push can make main red. Install once with:
+#   git config core.hooksPath .githooks
+# Skip a known-broken push with `git push --no-verify`.
+set -euo pipefail
+exec "$(git rev-parse --show-toplevel)/scripts/lint.sh"

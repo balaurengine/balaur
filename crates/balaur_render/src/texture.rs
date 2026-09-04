@@ -123,6 +123,9 @@ mod tests {
 
     #[test]
     fn an_edited_image_is_uploaded_under_a_new_name() {
-        assert_ne!(upload_name("art/hero.png", 0), upload_name("art/hero.png", 1));
+        assert_ne!(
+            upload_name("art/hero.png", 0),
+            upload_name("art/hero.png", 1)
+        );
     }
 }

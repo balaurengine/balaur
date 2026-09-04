@@ -239,10 +239,7 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
         "fast_rotation".into(),
         body.is_fast_rotation_allowed().into(),
     );
-    map.insert(
-        "gyroscopic".into(),
-        body.gyroscopic_forces_enabled().into(),
-    );
+    map.insert("gyroscopic".into(), body.gyroscopic_forces_enabled().into());
     map.insert("enabled".into(), body.is_enabled().into());
     map.insert(
         "can_sleep".into(),
@@ -263,9 +260,7 @@ fn read_mass(body: &RigidBody, map: &mut toml::map::Map<String, toml::Value>) {
     let vec3 = |v: Vector| toml::Value::Array(vec![f(v.x), f(v.y), f(v.z)]);
     let (mass, inertia, com) = match body.mass_properties().additional_local_mprops.as_deref() {
         Some(Extra::Mass(mass)) => (*mass, Vector::ZERO, Vector::ZERO),
-        Some(Extra::MassProps(props)) => {
-            (props.mass(), props.principal_inertia(), props.local_com)
-        }
+        Some(Extra::MassProps(props)) => (props.mass(), props.principal_inertia(), props.local_com),
         None => (0.0, Vector::ZERO, Vector::ZERO),
     };
     map.insert("mass".into(), f(mass));

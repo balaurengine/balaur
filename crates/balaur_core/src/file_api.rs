@@ -4,13 +4,14 @@
 //! inside the project, `toml` and `json` convert between text and script
 //! values. The conversions are public because plugins speak JSON to servers.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context as _, Result};
 use balaur_script::Value;
 
 use crate::engine::Engine;
 use crate::engine_api::text;
+use crate::files::{self, FileBackend};
 
 /// The directories beyond the project's own that `fs.*` may reach.
 ///
@@ -66,8 +67,12 @@ pub(crate) fn resolve(eng: &Engine, path: &str) -> Result<PathBuf> {
             None => named.to_path_buf(),
         }
     };
-    let real = real_path(&joined);
-    if roots(eng).iter().any(|root| real.starts_with(real_path(root))) {
+    let fs = files::backend(eng);
+    let real = real_path(fs.as_ref(), &joined);
+    if roots(eng)
+        .iter()
+        .any(|root| real.starts_with(real_path(fs.as_ref(), root)))
+    {
         return Ok(real);
     }
     bail!(
@@ -76,42 +81,21 @@ pub(crate) fn resolve(eng: &Engine, path: &str) -> Result<PathBuf> {
     )
 }
 
-/// The path with `.` dropped, `..` popped and every symlink in the part that
-/// exists resolved. A path that does not exist yet still has to be checked,
-/// which is why the tail is kept lexically rather than refused.
-fn real_path(path: &Path) -> PathBuf {
-    let mut lexical = PathBuf::new();
-    for part in path.components() {
-        match part {
-            Component::CurDir => {}
-            Component::ParentDir => {
-                lexical.pop();
-            }
-            other => lexical.push(other),
-        }
-    }
-    let mut tail = Vec::new();
-    let mut at = lexical.as_path();
-    loop {
-        if let Ok(found) = at.canonicalize() {
-            let mut out = found;
-            for part in tail.iter().rev() {
-                out.push(part);
-            }
-            return out;
-        }
-        match (at.parent(), at.file_name()) {
-            (Some(parent), Some(name)) => {
-                tail.push(name.to_os_string());
-                at = parent;
-            }
-            _ => return lexical,
-        }
-    }
+/// The path a root check is made against: `.` dropped, `..` popped, and on a
+/// real filesystem every symlink in the part that exists resolved. A path
+/// that does not exist yet still has to be checked, which is why the tail is
+/// kept lexically rather than refused.
+fn real_path(fs: &dyn FileBackend, path: &Path) -> PathBuf {
+    fs.canonicalize(path)
 }
 
 pub(crate) fn fs_read(eng: &Engine, args: &[Value]) -> Result<Value> {
-    Ok(std::fs::read_to_string(resolve(eng, text(args, 0)?)?).map_or(Value::Nil, Value::Str))
+    let path = resolve(eng, text(args, 0)?)?;
+    Ok(files::backend(eng)
+        .read(&path)
+        .ok()
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .map_or(Value::Nil, Value::Str))
 }
 
 /// Write a file, making the directory it goes in.
@@ -120,15 +104,13 @@ pub(crate) fn fs_read(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// `animations/` should not fail because the project has never had one.
 pub(crate) fn fs_write(eng: &Engine, args: &[Value]) -> Result<Value> {
     let path = resolve(eng, text(args, 0)?)?;
-    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(path, text(args, 1)?)?;
+    files::backend(eng).write(&path, text(args, 1)?.as_bytes())?;
     Ok(Value::Nil)
 }
 
 pub(crate) fn fs_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
-    Ok(Value::Bool(resolve(eng, text(args, 0)?)?.exists()))
+    let path = resolve(eng, text(args, 0)?)?;
+    Ok(Value::Bool(files::backend(eng).exists(&path)))
 }
 
 /// Delete a file, or a directory and everything under it.
@@ -137,19 +119,12 @@ pub(crate) fn fs_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// deleting what a previous run already deleted has nothing to report.
 pub(crate) fn fs_remove(eng: &Engine, args: &[Value]) -> Result<Value> {
     let path = resolve(eng, text(args, 0)?)?;
-    if !path.exists() {
-        return Ok(Value::Bool(false));
-    }
-    if path.is_dir() {
-        std::fs::remove_dir_all(path)?;
-    } else {
-        std::fs::remove_file(path)?;
-    }
-    Ok(Value::Bool(true))
+    Ok(Value::Bool(files::backend(eng).remove(&path)?))
 }
 
 pub(crate) fn fs_mkdir(eng: &Engine, args: &[Value]) -> Result<Value> {
-    std::fs::create_dir_all(resolve(eng, text(args, 0)?)?)?;
+    let path = resolve(eng, text(args, 0)?)?;
+    files::backend(eng).mkdir(&path)?;
     Ok(Value::Nil)
 }
 
@@ -158,38 +133,26 @@ pub(crate) fn fs_mkdir(eng: &Engine, args: &[Value]) -> Result<Value> {
 pub(crate) fn fs_rename(eng: &Engine, args: &[Value]) -> Result<Value> {
     let from = resolve(eng, text(args, 0)?)?;
     let to = resolve(eng, text(args, 1)?)?;
-    if let Some(parent) = to.parent().filter(|p| !p.as_os_str().is_empty()) {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::rename(from, to)?;
+    files::backend(eng).rename(&from, &to)?;
     Ok(Value::Nil)
 }
 
 /// When a file last changed, in seconds since the epoch, or `()` for one that
 /// is not there. A tool polling for edits compares this instead of re-reading.
 pub(crate) fn fs_mtime(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let Ok(meta) = std::fs::metadata(resolve(eng, text(args, 0)?)?) else {
-        return Ok(Value::Nil);
-    };
-    let Ok(modified) = meta.modified() else {
-        return Ok(Value::Nil);
-    };
-    Ok(modified
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(Value::Nil, |d| Value::Num(d.as_secs_f64())))
+    let path = resolve(eng, text(args, 0)?)?;
+    Ok(files::backend(eng)
+        .mtime(&path)
+        .map_or(Value::Nil, Value::Num))
 }
 
 pub(crate) fn fs_list(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let mut names: Vec<(String, bool)> = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(resolve(eng, text(args, 0)?)?) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if name.starts_with('.') {
-                continue;
-            }
-            names.push((name, entry.path().is_dir()));
-        }
-    }
+    let path = resolve(eng, text(args, 0)?)?;
+    let mut names: Vec<(String, bool)> = files::backend(eng)
+        .list(&path)
+        .into_iter()
+        .filter(|(name, _)| !name.starts_with('.'))
+        .collect();
     // Sorted for stable UI and reproducible tooling runs.
     names.sort();
     Ok(Value::List(

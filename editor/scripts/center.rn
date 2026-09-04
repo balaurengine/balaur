@@ -2,6 +2,11 @@
 // tabs are the same object.
 pub const BAR_H = 36.0;
 
+// The strip along the stage's foot that the axis and zoom pills own. The
+// widget layer is inset by it, so a game's bottom-anchored HUD sits above
+// the editor's chrome rather than under it.
+pub const HUD_H = 28.0;
+
 // Center region: tool rail (46 px), document tabs (38 px), then either the
 // 3D viewport overlays or the script editor.
 
@@ -211,8 +216,8 @@ fn viewport(S, k) {
             }
         });
     });
-    ui::overlay("vp-hud", #{ x: vp.x, y: vp.y + vp.h - 28.0, w: vp.w, h: 28.0 }, || {
-        ui::horizontal(#{ height: 28 }, || {
+    ui::overlay("vp-hud", #{ x: vp.x, y: vp.y + vp.h - HUD_H, w: vp.w, h: HUD_H }, || {
+        ui::horizontal(#{ height: HUD_H }, || {
             ui::frame(#{ fill: k.panel, radius: 8, padding_x: 10, padding_y: 3 }, || {
                 ui::horizontal(#{ height: 20, tight: true }, || {
                     ui::label("x →", style::mono_sm(k.accent));

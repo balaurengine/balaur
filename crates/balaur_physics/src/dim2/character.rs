@@ -16,10 +16,10 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 use crate::character::SHARED_CHARACTER_SCHEMA;
-use glamx::EulerRot;
 use crate::dim2::PhysicsState2d;
 use crate::vocabulary::map;
 use crate::FIXED_DT;
+use glamx::EulerRot;
 
 pub struct Character2d(pub toml::Value);
 

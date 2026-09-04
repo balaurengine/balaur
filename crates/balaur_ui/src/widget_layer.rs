@@ -37,6 +37,10 @@ pub(crate) fn rgba_color(rgba: [f32; 4]) -> Color32 {
 }
 
 #[derive(Clone)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "one flag per scene property, and a scene sets them independently"
+)]
 pub struct Widget {
     pub kind: String,
     pub text: String,
@@ -93,8 +97,8 @@ pub struct Widget {
     /// Whether text breaks to the width it was given rather than running past
     /// it on one line.
     pub wrap: bool,
-    
-/// Where text sits in the width the widget was given.
+
+    /// Where text sits in the width the widget was given.
     pub text_align: String,
     /// A project-relative image for an `image` widget.
     pub source: String,
@@ -597,6 +601,28 @@ fn advance(eng: &Engine, stops: &[Entity], asked: Option<Move>) -> Option<Entity
     None
 }
 
+/// Where a root's own `anchor`, `x` and `y` put it inside its surface. Only a
+/// root is placed this way; every other widget is placed by its container.
+fn root_placement(widget: &Widget, area: egui::Rect, scale: f32) -> (egui::Pos2, Align2) {
+    let ox = widget.x * scale;
+    let oy = widget.y * scale;
+    let pos = match widget.anchor.as_str() {
+        "top_right" => pos2(area.max.x - ox, area.min.y + oy),
+        "bottom_left" => pos2(area.min.x + ox, area.max.y - oy),
+        "bottom_right" => pos2(area.max.x - ox, area.max.y - oy),
+        "center" => pos2(area.center().x + ox, area.center().y + oy),
+        _ => pos2(area.min.x + ox, area.min.y + oy),
+    };
+    let align = match widget.anchor.as_str() {
+        "top_right" => Align2::RIGHT_TOP,
+        "bottom_left" => Align2::LEFT_BOTTOM,
+        "bottom_right" => Align2::RIGHT_BOTTOM,
+        "center" => Align2::CENTER_CENTER,
+        _ => Align2::LEFT_TOP,
+    };
+    (pos, align)
+}
+
 /// Draw every widget entity. Runs inside the frame's egui pass, after the
 /// scripts' `draw_ui`.
 pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
@@ -672,22 +698,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
             }
             None => screen,
         };
-        let ox = widget.x * scale;
-        let oy = widget.y * scale;
-        let pos = match widget.anchor.as_str() {
-            "top_right" => pos2(area.max.x - ox, area.min.y + oy),
-            "bottom_left" => pos2(area.min.x + ox, area.max.y - oy),
-            "bottom_right" => pos2(area.max.x - ox, area.max.y - oy),
-            "center" => pos2(area.center().x + ox, area.center().y + oy),
-            _ => pos2(area.min.x + ox, area.min.y + oy),
-        };
-        let align = match widget.anchor.as_str() {
-            "top_right" => Align2::RIGHT_TOP,
-            "bottom_left" => Align2::LEFT_BOTTOM,
-            "bottom_right" => Align2::RIGHT_BOTTOM,
-            "center" => Align2::CENTER_CENTER,
-            _ => Align2::LEFT_TOP,
-        };
+        let (pos, align) = root_placement(widget, area, scale);
         let shown = egui::Area::new(egui::Id::new(("balaur-widget", placed[root].entity)))
             .order(egui::Order::Middle)
             .pivot(align)
@@ -894,8 +905,7 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             ));
         }
         _ => {
-            let mut label =
-                egui::Label::new(egui::RichText::new(&caption).font(font).color(color));
+            let mut label = egui::Label::new(egui::RichText::new(&caption).font(font).color(color));
             // `extend` is the old behaviour: one line, however wide it runs.
             label = if widget.wrap {
                 label.wrap()

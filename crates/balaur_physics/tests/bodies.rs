@@ -289,7 +289,11 @@ gyroscopic = true"#,
             .and_then(balaur_core::components::as_f64)
             .unwrap_or_default()
     };
-    assert!((f("mass") - 5.0).abs() < 1e-5, "mass came back as {}", f("mass"));
+    assert!(
+        (f("mass") - 5.0).abs() < 1e-5,
+        "mass came back as {}",
+        f("mass")
+    );
     assert_eq!(back.get("gyroscopic").unwrap().as_bool(), Some(true));
     let inertia = back.get("inertia").unwrap().as_array().unwrap();
     assert!((inertia[1].as_float().unwrap() - 2.0).abs() < 1e-5);
@@ -318,9 +322,16 @@ center_of_mass = [0.25, 0.0]"#,
             .and_then(balaur_core::components::as_f64)
             .unwrap_or_default()
     };
-    assert!((f("mass") - 4.0).abs() < 1e-5, "mass came back as {}", f("mass"));
+    assert!(
+        (f("mass") - 4.0).abs() < 1e-5,
+        "mass came back as {}",
+        f("mass")
+    );
     assert!((f("inertia") - 2.5).abs() < 1e-5);
     let com = back.get("center_of_mass").unwrap().as_array().unwrap();
     assert!((com[0].as_float().unwrap() - 0.25).abs() < 1e-5);
-    assert!(back.get("gyroscopic").is_none(), "2D cannot apply gyroscopic");
+    assert!(
+        back.get("gyroscopic").is_none(),
+        "2D cannot apply gyroscopic"
+    );
 }

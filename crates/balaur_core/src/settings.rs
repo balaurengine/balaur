@@ -151,12 +151,11 @@ pub fn get(eng: &Engine, path: &str) -> Option<toml::Value> {
             let mut at: &toml::value::Table = &values.0;
             let mut reached = true;
             for table in tables {
-                match at.get(table).and_then(toml::Value::as_table) {
-                    Some(next) => at = next,
-                    None => {
-                        reached = false;
-                        break;
-                    }
+                if let Some(next) = at.get(table).and_then(toml::Value::as_table) {
+                    at = next;
+                } else {
+                    reached = false;
+                    break;
                 }
             }
             if reached {

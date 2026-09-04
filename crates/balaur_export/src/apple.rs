@@ -8,6 +8,7 @@
 //! without knowing what the game asked for.
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
@@ -55,9 +56,8 @@ impl Capability {
     const fn minimum(self, platform: Platform) -> (u32, u32) {
         match (self, platform) {
             (Self::Applesignin, Platform::Ios) => (13, 0),
-            (Self::Applesignin, Platform::Macos) => (10, 15),
             (Self::GameCenter, Platform::Ios) => (13, 5),
-            (Self::GameCenter, Platform::Macos) => (10, 15),
+            (Self::Applesignin | Self::GameCenter, Platform::Macos) => (10, 15),
             (Self::IcloudKv, Platform::Ios) => (5, 0),
             (Self::IcloudKv, Platform::Macos) => (10, 7),
             (Self::InAppPurchase, Platform::Ios) => (15, 0),
@@ -246,13 +246,16 @@ impl AppleConfig {
                      <array><string>Default</string></array>\n",
                 ),
                 Capability::GameCenter => {
-                    body.push_str("  <key>com.apple.developer.game-center</key>\n  <true/>\n")
+                    body.push_str("  <key>com.apple.developer.game-center</key>\n  <true/>\n");
                 }
-                Capability::IcloudKv => body.push_str(&format!(
-                    "  <key>com.apple.developer.ubiquity-kvstore-identifier</key>\n  \
-                     <string>{}.{}</string>\n",
-                    self.team, self.bundle_id
-                )),
+                Capability::IcloudKv => {
+                    let _ = write!(
+                        body,
+                        "  <key>com.apple.developer.ubiquity-kvstore-identifier</key>\n  \
+                         <string>{}.{}</string>\n",
+                        self.team, self.bundle_id
+                    );
+                }
                 // In-app purchase needs no entitlement; it is a capability
                 // here so the deployment target is checked against StoreKit.
                 Capability::InAppPurchase => {}
@@ -299,7 +302,7 @@ impl AppleConfig {
             }
         }
         for (k, v) in &self.plist {
-            body.push_str(&format!("  <key>{}</key>", escape(k)));
+            let _ = write!(body, "  <key>{}</key>", escape(k));
             body.push_str(&plist_value(v, 1));
             body.push('\n');
         }
@@ -331,10 +334,7 @@ fn parse_version(text: &str) -> Result<(u32, u32)> {
 }
 
 fn string_key(body: &mut String, key: &str, value: &str) {
-    body.push_str(&format!(
-        "  <key>{key}</key><string>{}</string>\n",
-        escape(value)
-    ));
+    let _ = writeln!(body, "  <key>{key}</key><string>{}</string>", escape(value));
 }
 
 fn plist_document(body: &str) -> String {
@@ -361,9 +361,10 @@ fn plist_value(value: &PlistValue, depth: usize) -> String {
         PlistValue::List(items) => {
             let mut out = String::from("<array>\n");
             for item in items {
-                out.push_str(&format!("{pad}  {}\n", plist_value(item, depth + 1)));
+                let _ = writeln!(out, "{pad}  {}", plist_value(item, depth + 1));
             }
-            out.push_str(&format!("{pad}</array>"));
+            out.push_str(&pad);
+            out.push_str("</array>");
             out
         }
     }

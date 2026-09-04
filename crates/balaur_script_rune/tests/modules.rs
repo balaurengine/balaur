@@ -60,6 +60,10 @@ fn rune(app: &App) -> balaur_script_rune::RuneHost {
 
 /// Pump the watcher until `check` holds, or give up. A file watcher is
 /// asynchronous on every platform this runs on, so the wait is a real one.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the wait is on an OS file watcher, not on simulation"
+)]
 fn pump_until(host: &balaur_script_rune::RuneHost, check: impl Fn() -> bool) -> bool {
     let deadline = Instant::now() + Duration::from_secs(5);
     while Instant::now() < deadline {
@@ -153,7 +157,10 @@ fn an_open_recording_ends_where_a_script_reloaded() {
     assert!(pump_until(&host, || !open_recording(&app)));
     let closed = balaur_core::replay::Session::read(&session).unwrap();
     assert_eq!(
-        closed.trailer.expect("a closed session has a trailer").reason,
+        closed
+            .trailer
+            .expect("a closed session has a trailer")
+            .reason,
         "reload",
         "the frames after a reload came from different code"
     );

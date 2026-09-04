@@ -21,6 +21,114 @@ use crate::UiState;
 /// table should not stop the frame.
 pub(crate) struct Opts(pub(crate) Option<Value>);
 
+/// Every key any widget reads, `role` included.
+///
+/// One list rather than one per widget: what this catches is a *typo*
+/// (`colour`, `witdh`), and a misspelling is in no widget's vocabulary. A
+/// real key on the wrong widget still passes, which is the price of not
+/// making every call site declare its own set.
+const KNOWN_KEYS: &[&str] = &[
+    "align",
+    "autofocus",
+    "bg",
+    "breakpoint_color",
+    "breakpoints",
+    "closable",
+    "collapsible",
+    "color",
+    "current_line",
+    "d",
+    "dashed",
+    "decimals",
+    "fill",
+    "font",
+    "gutter_color",
+    "gutter_width",
+    "h",
+    "height",
+    "highlight",
+    "hover_fill",
+    "icon",
+    "icon_color",
+    "icon_size",
+    "k_com",
+    "k_fn",
+    "k_key",
+    "k_num",
+    "k_punc",
+    "k_str",
+    "k_type",
+    "knob",
+    "language",
+    "line_height",
+    "max",
+    "max_height",
+    "menu",
+    "min",
+    "min_width",
+    "off_fill",
+    "off_knob",
+    "on_fill",
+    "on_knob",
+    "padding",
+    "padding_x",
+    "padding_y",
+    "prefix",
+    "prefix_color",
+    "problem_color",
+    "problems",
+    "radius",
+    "rail",
+    "resizable",
+    "role",
+    "round",
+    "scrim",
+    "separator",
+    "size",
+    "speed",
+    "stick_to_bottom",
+    "stroke",
+    "strong",
+    "suffix",
+    "tight",
+    "title",
+    "tooltip",
+    "top",
+    "trailing",
+    "trailing_color",
+    "trailing_size",
+    "transparent",
+    "truncate",
+    "value",
+    "w",
+    "warning_color",
+    "warnings",
+    "width",
+    "wrap",
+    "x",
+    "y",
+];
+
+/// Report an option key no widget reads, once per name.
+///
+/// A typo used to do nothing at all: the value fell back to its default and
+/// the call looked as though it had been honoured.
+fn warn_unknown(entries: &[(String, Value)]) {
+    static WARNED: std::sync::Mutex<Option<std::collections::BTreeSet<String>>> =
+        std::sync::Mutex::new(None);
+    for (key, _) in entries {
+        if KNOWN_KEYS.contains(&key.as_str()) {
+            continue;
+        }
+        if let Ok(mut seen) = WARNED.lock() {
+            let seen = seen.get_or_insert_with(std::collections::BTreeSet::new);
+            if seen.insert(key.clone()) {
+                tracing::warn!("ui: no widget reads the option `{key}`");
+            }
+        }
+    }
+}
+
 impl Opts {
     /// The caller's options over the named role's. A call site then says only
     /// what it changes, and the look lives in the theme asset.
@@ -28,6 +136,7 @@ impl Opts {
         let Some(Value::Map(given)) = opts.as_ref() else {
             return Self(opts);
         };
+        warn_unknown(given);
         let Some(Value::Str(name)) = given.iter().find(|(k, _)| k == "role").map(|(_, v)| v) else {
             return Self(opts);
         };

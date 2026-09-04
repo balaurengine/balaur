@@ -36,9 +36,16 @@ shot() { # shot <name> <project> <state>
 check_layout() {
   [ ${#only[@]} -eq 0 ] || return 0
   printf '%-24s ' layout
-  if "$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 40 \
-      --state layoutdemo 2>&1 | grep -q "selftest FAILED"; then
+  local out
+  out=$("$BALAUR_BIN" edit examples/hello --editor "$editor" --offscreen --frames 40 \
+      --state layoutdemo 2>&1)
+  # A run that checked nothing is a failure. Grepping only for "FAILED" let
+  # the demo report "skipped, nothing drew this run" and still pass, which is
+  # how nine invariants went quiet without the audit noticing.
+  if echo "$out" | grep -q "selftest FAILED"; then
     echo FAILED; failed+=(layout)
+  elif ! echo "$out" | grep -q "selftest ok"; then
+    echo "FAILED (checked nothing)"; failed+=(layout)
   else
     echo ok
   fi

@@ -278,6 +278,9 @@ pub struct ProjectFiles {
     root: std::path::PathBuf,
     packed: std::collections::BTreeMap<String, Vec<u8>>,
     source: AssetSource,
+    /// Where loose files come from. Held rather than reached for through the
+    /// engine, because an asset loader has the files and not the engine.
+    fs: std::rc::Rc<dyn crate::files::FileBackend>,
 }
 
 impl ProjectFiles {
@@ -289,6 +292,7 @@ impl ProjectFiles {
             root,
             packed: std::collections::BTreeMap::new(),
             source: AssetSource::Files,
+            fs: crate::files::default_backend(),
         }
     }
 
@@ -303,7 +307,15 @@ impl ProjectFiles {
             root,
             packed: assets,
             source,
+            fs: crate::files::default_backend(),
         }
+    }
+
+    /// Serve loose files from `fs` rather than the disk.
+    #[must_use]
+    pub fn on(mut self, fs: std::rc::Rc<dyn crate::files::FileBackend>) -> Self {
+        self.fs = fs;
+        self
     }
 
     #[must_use]
@@ -326,7 +338,7 @@ impl ProjectFiles {
     pub fn read(&self, path: &str) -> Result<Vec<u8>> {
         let p = std::path::Path::new(path);
         if p.is_absolute() {
-            return std::fs::read(p).with_context(|| format!("reading '{}'", p.display()));
+            return self.fs.read(p);
         }
         // Separators are normalised because a pack is keyed the way it was
         // built, which is always with forward slashes.
@@ -342,7 +354,7 @@ impl ProjectFiles {
         }
         if self.source != AssetSource::Embedded {
             let full = self.root.join(p);
-            if let Ok(bytes) = std::fs::read(&full) {
+            if let Ok(bytes) = self.fs.read(&full) {
                 return Ok(bytes);
             }
             if embedded {
@@ -376,11 +388,9 @@ impl ProjectFiles {
                 .collect()
         };
         if self.source != AssetSource::Embedded {
-            if let Ok(entries) = std::fs::read_dir(self.root.join(dir)) {
-                for entry in entries.flatten() {
-                    if entry.path().is_file() {
-                        out.push(format!("{prefix}{}", entry.file_name().to_string_lossy()));
-                    }
+            for (name, is_dir) in self.fs.list(&self.root.join(dir)) {
+                if !is_dir {
+                    out.push(format!("{prefix}{name}"));
                 }
             }
         }
@@ -452,7 +462,11 @@ pub fn scene_text(eng: &Engine, path: &str) -> Result<String> {
         .try_resource::<ProjectRoot>()
         .map(|r| r.borrow().0.clone())
         .unwrap_or_default();
-    std::fs::read_to_string(root.join(path)).with_context(|| format!("reading scene file '{path}'"))
+    let full = root.join(path);
+    let bytes = crate::files::backend(eng)
+        .read(&full)
+        .with_context(|| format!("reading scene file '{path}'"))?;
+    String::from_utf8(bytes).with_context(|| format!("scene file '{path}' is not UTF-8"))
 }
 
 fn attach_pending(eng: &Engine, build: &Build) -> Result<()> {

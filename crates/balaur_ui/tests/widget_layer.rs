@@ -1,67 +1,11 @@
-//! The `widget` component driven through real egui passes: what the layer
-//! draws and which clicks it takes, observed through the component API.
+//! Where the widget layer puts things: containers, sizes, clicks.
 
-use balaur::{standard_app, AppConfig};
+mod support;
+
 use balaur_core::hecs::Entity;
-use balaur_core::App;
-use egui::{pos2, vec2, Modifiers, PointerButton, Rect};
-
-/// An app booted from an empty scene; widgets are added straight to the world.
-fn app() -> (tempfile::TempDir, App) {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::write(
-        dir.path().join("project.toml"),
-        "[application]\nname = \"w\"\nmain_scene = \"main.toml\"\n",
-    )
-    .unwrap();
-    std::fs::write(dir.path().join("main.toml"), "").unwrap();
-    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
-    config.watch = false;
-    (dir, standard_app(config).unwrap())
-}
-
-fn add_widget(app: &App, params: &toml::Value) -> Entity {
-    let root = app.engine.root();
-    let entity = balaur::scene::spawn_node(&mut app.engine.world_mut(), "W", root);
-    balaur::components::add(&app.engine, entity, "widget", Some(params)).unwrap();
-    entity
-}
-
-/// One egui pass over `run_pass` with the given input. The first pass only
-/// installs fonts and draws nothing, so callers spend one before asserting.
-fn pass(app: &App, ctx: &egui::Context, events: Vec<egui::Event>) -> egui::FullOutput {
-    let input = egui::RawInput {
-        screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(640.0, 480.0))),
-        events,
-        ..Default::default()
-    };
-    ctx.begin_pass(input);
-    balaur_ui::run_pass(&app.engine, ctx);
-    // A real renderer uploads these; dropping them unapplied is a panic.
-    let mut out = ctx.end_pass();
-    out.textures_delta.clear();
-    out
-}
-
-fn press(pos: egui::Pos2, pressed: bool) -> Vec<egui::Event> {
-    vec![
-        egui::Event::PointerMoved(pos),
-        egui::Event::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed,
-            modifiers: Modifiers::NONE,
-        },
-    ]
-}
-
-fn clicked(app: &App, entity: Entity) -> bool {
-    balaur::components::get(&app.engine, entity, "widget")
-        .expect("the widget component is still on the node")
-        .get("clicked")
-        .and_then(toml::Value::as_bool)
-        .expect("the component emits a `clicked` bool")
-}
+use egui::pos2;
+#[allow(unused_imports, reason = "each suite uses part of the shared helpers")]
+use support::*;
 
 #[test]
 fn a_hidden_widget_draws_nothing_and_takes_no_clicks() {
@@ -123,21 +67,6 @@ fn a_panel_takes_an_explicit_size() {
         auto_rect.width() < 200.0 && auto_rect.height() < 120.0,
         "the auto panel is as big as the sized one: {auto_rect:?}"
     );
-}
-
-/// A widget under a container, as a scene node under a scene node. The tree
-/// was always there; what changed is that the layer reads it.
-fn add_child_widget(app: &App, parent: Entity, name: &str, params: &toml::Value) -> Entity {
-    let entity = balaur::scene::spawn_node(&mut app.engine.world_mut(), name, parent);
-    balaur::components::add(&app.engine, entity, "widget", Some(params)).unwrap();
-    entity
-}
-
-/// Two passes to size, one to draw: a new Area is invisible on its first.
-fn settle(app: &App, ctx: &egui::Context) {
-    pass(app, ctx, vec![]);
-    pass(app, ctx, vec![]);
-    pass(app, ctx, vec![]);
 }
 
 #[test]
@@ -311,22 +240,6 @@ fn a_panel_with_children_grows_around_them() {
     );
 }
 
-/// An app whose project also holds `scripts/paint.rn`, for the `draw` kind.
-fn app_with_script(body: &str) -> (tempfile::TempDir, App) {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::write(
-        dir.path().join("project.toml"),
-        "[application]\nname = \"w\"\nmain_scene = \"main.toml\"\n",
-    )
-    .unwrap();
-    std::fs::write(dir.path().join("main.toml"), "").unwrap();
-    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
-    std::fs::write(dir.path().join("scripts/paint.rn"), body).unwrap();
-    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
-    config.watch = false;
-    (dir, standard_app(config).unwrap())
-}
-
 /// A `draw` widget is a rect the scene places and a script fills: the node
 /// owns where it is, the script owns what is in it.
 #[test]
@@ -416,7 +329,8 @@ fn draw_ui_sees_the_rects_from_its_own_frame() {
                   \x20   let r = ui::widget_rect(scene::get_node(\"Sheet\"));\n\
                   \x20   if r is Object { this.seen = r.w; }\n}\n";
     let (_dir, app) = app_with_script(script);
-    let watcher = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Watcher", app.engine.root());
+    let watcher =
+        balaur::scene::spawn_node(&mut app.engine.world_mut(), "Watcher", app.engine.root());
     app.engine
         .script_host()
         .unwrap()
@@ -427,7 +341,10 @@ fn draw_ui_sees_the_rects_from_its_own_frame() {
         &app.engine,
         sheet,
         "widget",
-        Some(&toml::toml! { kind = "panel" text = "s" x = 0.0 y = 0.0 width = 200.0 height = 40.0 }.into()),
+        Some(
+            &toml::toml! { kind = "panel" text = "s" x = 0.0 y = 0.0 width = 200.0 height = 40.0 }
+                .into(),
+        ),
     )
     .unwrap();
 
@@ -769,364 +686,6 @@ fn a_plain_node_between_container_and_child_is_seen_through() {
     assert!(laid.width() > 60.0, "the column did not adopt it: {laid:?}");
 }
 
-fn key(k: egui::Key) -> Vec<egui::Event> {
-    vec![egui::Event::Key {
-        key: k,
-        physical_key: None,
-        pressed: true,
-        repeat: false,
-        modifiers: Modifiers::NONE,
-    }]
-}
-
-fn focused(app: &App) -> Option<Entity> {
-    app.engine.resource::<balaur_ui::UiFocus>().borrow().focused
-}
-
-/// Let the keyboard drive focus, which a game has to ask for: the keys are
-/// the game's until it declares the `ui_*` actions or says so here.
-fn keyboard(app: &App) {
-    app.engine
-        .resource::<balaur_ui::WidgetLayerConfig>()
-        .borrow_mut()
-        .keyboard = true;
-}
-
-/// A menu of three buttons in a column, which is what focus is for.
-fn menu(app: &App) -> (Entity, Vec<Entity>) {
-    let column = add_widget(app, &toml::toml! { kind = "column" x = 0.0 y = 0.0 }.into());
-    let buttons = ["New game", "Options", "Quit"]
-        .into_iter()
-        .map(|label| {
-            add_child_widget(
-                app,
-                column,
-                label,
-                &toml::toml! { kind = "button" text = label }.into(),
-            )
-        })
-        .collect();
-    (column, buttons)
-}
-
-#[test]
-fn focus_walks_the_menu_in_scene_order_and_wraps() {
-    let (_dir, app) = app();
-    let (_column, buttons) = menu(&app);
-    keyboard(&app);
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    assert_eq!(focused(&app), None, "nothing is focused until asked");
-
-    pass(&app, &ctx, key(egui::Key::ArrowDown));
-    assert_eq!(focused(&app), Some(buttons[0]), "the first entry takes it");
-    pass(&app, &ctx, key(egui::Key::ArrowDown));
-    pass(&app, &ctx, key(egui::Key::ArrowDown));
-    assert_eq!(focused(&app), Some(buttons[2]));
-    // A menu is a ring: past the last entry is the first.
-    pass(&app, &ctx, key(egui::Key::ArrowDown));
-    assert_eq!(focused(&app), Some(buttons[0]));
-    pass(&app, &ctx, key(egui::Key::ArrowUp));
-    assert_eq!(focused(&app), Some(buttons[2]), "and back the other way");
-}
-
-#[test]
-fn accepting_the_focused_widget_is_a_click() {
-    let (_dir, app) = app();
-    let (_column, buttons) = menu(&app);
-    keyboard(&app);
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    pass(&app, &ctx, key(egui::Key::ArrowDown));
-    pass(&app, &ctx, key(egui::Key::ArrowDown));
-    assert_eq!(focused(&app), Some(buttons[1]));
-
-    pass(&app, &ctx, key(egui::Key::Enter));
-    assert!(clicked(&app, buttons[1]), "accept did not click the focus");
-    assert!(!clicked(&app, buttons[0]), "it clicked the wrong one");
-}
-
-/// Focus exists to activate something, so a widget with nothing to activate
-/// is never a stop on the way to one.
-#[test]
-fn focus_skips_what_it_could_not_activate() {
-    let (_dir, app) = app();
-    let column = add_widget(
-        &app,
-        &toml::toml! { kind = "column" x = 0.0 y = 0.0 }.into(),
-    );
-    add_child_widget(
-        &app,
-        column,
-        "Title",
-        &toml::toml! { kind = "label" text = "PAUSED" }.into(),
-    );
-    let button = add_child_widget(
-        &app,
-        column,
-        "Quit",
-        &toml::toml! { kind = "button" text = "Quit" }.into(),
-    );
-    keyboard(&app);
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    pass(&app, &ctx, key(egui::Key::ArrowDown));
-    assert_eq!(focused(&app), Some(button), "focus landed on the label");
-}
-
-/// `focusable = false` takes a candidate out; it cannot put one in, because
-/// there would be nothing for an accept to do.
-#[test]
-fn focusable_false_is_skipped_and_a_plain_label_stays_out() {
-    let (_dir, app) = app();
-    let column = add_widget(
-        &app,
-        &toml::toml! { kind = "column" x = 0.0 y = 0.0 }.into(),
-    );
-    add_child_widget(
-        &app,
-        column,
-        "Locked",
-        &toml::toml! { kind = "button" text = "Locked" focusable = false }.into(),
-    );
-    let open = add_child_widget(
-        &app,
-        column,
-        "Open",
-        &toml::toml! { kind = "button" text = "Open" }.into(),
-    );
-    add_child_widget(
-        &app,
-        column,
-        "Note",
-        &toml::toml! { kind = "label" text = "note" focusable = true }.into(),
-    );
-    keyboard(&app);
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    pass(&app, &ctx, key(egui::Key::ArrowDown));
-    assert_eq!(focused(&app), Some(open));
-    // Only one stop, so a second move comes back to it.
-    pass(&app, &ctx, key(egui::Key::ArrowDown));
-    assert_eq!(focused(&app), Some(open));
-}
-
-/// A hidden widget keeps its state but is not somewhere focus can sit, or an
-/// accept would activate something nobody can see.
-#[test]
-fn hiding_the_focused_widget_releases_focus() {
-    let (_dir, app) = app();
-    let (_column, buttons) = menu(&app);
-    keyboard(&app);
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    pass(&app, &ctx, key(egui::Key::ArrowDown));
-    assert_eq!(focused(&app), Some(buttons[0]));
-
-    let hide = toml::toml! { visible = false };
-    balaur::components::patch(&app.engine, buttons[0], "widget", &hide.into()).unwrap();
-    pass(&app, &ctx, vec![]);
-    assert_eq!(focused(&app), None, "focus stayed on a hidden widget");
-    pass(&app, &ctx, key(egui::Key::ArrowDown));
-    assert_eq!(focused(&app), Some(buttons[1]), "and moves on to the next");
-}
-
-/// A script asking for focus is the pad's route in, so what it asks for has
-/// to survive to the next draw.
-#[test]
-fn a_pending_move_from_a_script_is_taken_at_the_next_draw() {
-    let (_dir, app) = app();
-    let (_column, buttons) = menu(&app);
-    keyboard(&app);
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    app.engine
-        .resource::<balaur_ui::UiFocus>()
-        .borrow_mut()
-        .pending = Some(balaur_ui::Move::Next);
-    pass(&app, &ctx, vec![]);
-    assert_eq!(focused(&app), Some(buttons[0]));
-}
-
-/// A theme names how a kind is drawn, and a widget takes the one from the
-/// nearest ancestor that has it — so a screen is themed by its root.
-#[test]
-fn a_theme_is_inherited_by_everything_under_it() {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::write(
-        dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
-    )
-    .unwrap();
-    std::fs::write(dir.path().join("main.toml"), "").unwrap();
-    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
-    // A padding a long way from the built-in 8, so the panel's size says
-    // whether the theme reached it.
-    std::fs::write(
-        dir.path().join("themes/big.toml"),
-        "type = \"widget_theme\"\n\n[panel]\npadding = 40\n",
-    )
-    .unwrap();
-    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
-    config.watch = false;
-    let app = standard_app(config).unwrap();
-
-    let plain = add_widget(&app, &toml::toml! { kind = "panel" text = "p" }.into());
-    let themed = add_widget(
-        &app,
-        &toml::toml! { kind = "panel" text = "p" anchor = "bottom_left" theme = "themes/big.toml" }
-            .into(),
-    );
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    let rect = |entity: Entity| {
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
-            .expect("the panel drew")
-    };
-    assert!(
-        rect(themed).height() > rect(plain).height() + 40.0,
-        "the theme's padding did not reach the panel: plain {:?} themed {:?}",
-        rect(plain),
-        rect(themed)
-    );
-}
-
-/// A kind the theme is silent about keeps the look it always had, which is
-/// what lets a three-line theme restyle buttons alone.
-#[test]
-fn a_kind_the_theme_does_not_mention_is_unchanged() {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::write(
-        dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
-    )
-    .unwrap();
-    std::fs::write(dir.path().join("main.toml"), "").unwrap();
-    std::fs::create_dir_all(dir.path().join("themes")).unwrap();
-    std::fs::write(
-        dir.path().join("themes/buttons.toml"),
-        "type = \"widget_theme\"\n\n[button]\nradius = 2\n",
-    )
-    .unwrap();
-    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
-    config.watch = false;
-    let app = standard_app(config).unwrap();
-
-    let plain = add_widget(&app, &toml::toml! { kind = "panel" text = "p" }.into());
-    let themed = add_widget(
-        &app,
-        &toml::toml! { kind = "panel" text = "p" anchor = "bottom_left" theme = "themes/buttons.toml" }
-            .into(),
-    );
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    let rect = |entity: Entity| {
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
-            .expect("the panel drew")
-    };
-    assert_eq!(
-        rect(plain).size(),
-        rect(themed).size(),
-        "a button-only theme changed the panel"
-    );
-}
-
-/// A widget showing a key follows the locale, and follows it *now*: the
-/// caption is resolved every frame, so a switch shows on the next one without
-/// anything having to be told.
-///
-/// Measured shrinking rather than growing on purpose. `area_rect` reports an
-/// Area that got smaller and does not report one that got bigger under this
-/// harness, so the long string is the one the run starts in — the assertion
-/// is about the caption changing, and this is the direction that can see it.
-#[test]
-fn a_text_key_follows_the_locale() {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::write(
-        dir.path().join("project.toml"),
-        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
-    )
-    .unwrap();
-    std::fs::write(dir.path().join("main.toml"), "").unwrap();
-    std::fs::create_dir_all(dir.path().join("strings")).unwrap();
-    std::fs::write(
-        dir.path().join("strings/en.toml"),
-        "\"menu.play\" = \"An English caption long enough to measure\"\n",
-    )
-    .unwrap();
-    std::fs::write(
-        dir.path().join("strings/ro.toml"),
-        "\"menu.play\" = \"Joaca\"\n",
-    )
-    .unwrap();
-    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
-    config.watch = false;
-    let app = standard_app(config).unwrap();
-
-    let label = add_widget(
-        &app,
-        &toml::toml! { kind = "label" text_key = "menu.play" }.into(),
-    );
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    let width = || {
-        ctx.memory(|m| m.area_rect(egui::Id::new(("balaur-widget", label))))
-            .expect("the widget drew")
-            .width()
-    };
-    let english = width();
-    assert!(
-        english > 100.0,
-        "control: the key did not resolve ({english})"
-    );
-
-    balaur_core::strings::set_locale(&app.engine, "ro");
-    settle(&app, &ctx);
-    assert!(
-        width() < english - 40.0,
-        "the caption did not follow the locale: {english} then {}",
-        width()
-    );
-}
-
-/// A host that confines the default surface confines every layer it has not
-/// been told about, or a scene naming `layer = "hud"` draws over the editor's
-/// own chrome whether or not the game is playing.
-#[test]
-fn a_layer_nothing_configured_takes_the_default_surface() {
-    let (_dir, app) = app();
-    let hud = add_widget(
-        &app,
-        &toml::toml! { kind = "panel" text = "hud" x = 0.0 y = 0.0 width = 40.0 height = 20.0 layer = "unheard_of" }
-            .into(),
-    );
-    {
-        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
-        config.borrow_mut().rect = Some([300.0, 200.0, 100.0, 100.0]);
-    }
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    let placed = ctx
-        .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", hud))))
-        .expect("control: the hud drew somewhere");
-    assert!(
-        placed.min.x >= 299.0,
-        "an unconfigured layer escaped the default surface: {placed:?}"
-    );
-
-    // And its enabled flag too: turning the default off takes it with it.
-    {
-        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
-        config.borrow_mut().enabled = false;
-    }
-    let out = pass(&app, &ctx, vec![]);
-    let drew = out.shapes.iter().any(|shape| match &shape.shape {
-        egui::epaint::Shape::Text(text) => text.galley.text() == "hud",
-        _ => false,
-    });
-    assert!(!drew, "an unconfigured layer ignored the default's off switch");
-}
-
 /// A row's own `padding` has to reach the measure as well as the draw, or the
 /// parent places the sibling after it twice the padding too soon.
 #[test]
@@ -1191,79 +750,6 @@ fn a_panels_own_padding_applies() {
         height(40.0)
     );
 }
-
-/// Focus follows the tree that was drawn, not the arena: an accept on a
-/// button under a hidden panel would fire an `on_click` nobody could see.
-#[test]
-fn a_button_under_a_hidden_panel_is_not_a_focus_stop() {
-    let (_dir, app) = app();
-    let column = add_widget(&app, &toml::toml! { kind = "column" x = 0.0 y = 0.0 }.into());
-    let panel = add_child_widget(
-        &app,
-        column,
-        "Menu",
-        &toml::toml! { kind = "panel" text = "" }.into(),
-    );
-    let buried = add_child_widget(
-        &app,
-        panel,
-        "Buried",
-        &toml::toml! { kind = "button" text = "Buried" }.into(),
-    );
-    let open = add_child_widget(
-        &app,
-        column,
-        "Open",
-        &toml::toml! { kind = "button" text = "Open" }.into(),
-    );
-    keyboard(&app);
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    pass(&app, &ctx, key(egui::Key::ArrowDown));
-    assert_eq!(
-        focused(&app),
-        Some(buried),
-        "control: it is a stop while the panel is visible"
-    );
-
-    let hide = toml::toml! { visible = false };
-    balaur::components::patch(&app.engine, panel, "widget", &hide.into()).unwrap();
-    pass(&app, &ctx, vec![]);
-    pass(&app, &ctx, key(egui::Key::ArrowDown));
-    assert_eq!(
-        focused(&app),
-        Some(open),
-        "focus landed inside a hidden panel"
-    );
-    pass(&app, &ctx, key(egui::Key::Enter));
-    assert!(
-        !clicked(&app, buried),
-        "an accept activated a button nobody could see"
-    );
-}
-
-/// A surface the host turned off is not somewhere focus can be either — in the
-/// editor that is a played game's HUD with the widget layer switched off.
-#[test]
-fn a_root_on_a_disabled_surface_is_not_a_focus_stop() {
-    let (_dir, app) = app();
-    let (_column, buttons) = menu(&app);
-    keyboard(&app);
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    {
-        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
-        config.borrow_mut().enabled = false;
-    }
-    pass(&app, &ctx, key(egui::Key::ArrowDown));
-    assert_eq!(focused(&app), None, "focus landed on an undrawn surface");
-    pass(&app, &ctx, key(egui::Key::Enter));
-    assert!(
-        !clicked(&app, buttons[0]),
-        "an accept clicked a button on a surface nothing draws"
-    );
-}
-
 
 /// Two pages showing the same text are told apart by their node names, which
 /// is what the schema says `active` holds.
@@ -1369,4 +855,21 @@ fn a_script_reads_a_widget_rect_no_more_than_one_frame_late() {
         "the rect a script reads is more than one frame stale ({})",
         seen()
     );
+}
+
+/// A script asking for focus is the pad's route in, so what it asks for has
+/// to survive to the next draw.
+#[test]
+fn a_pending_move_from_a_script_is_taken_at_the_next_draw() {
+    let (_dir, app) = app();
+    let (_column, buttons) = menu(&app);
+    keyboard(&app);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    app.engine
+        .resource::<balaur_ui::UiFocus>()
+        .borrow_mut()
+        .pending = Some(balaur_ui::Move::Next);
+    pass(&app, &ctx, vec![]);
+    assert_eq!(focused(&app), Some(buttons[0]));
 }

@@ -10,7 +10,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 FRAMES=${BALAUR_TRACE_FRAMES:-600}
-PROJECTS=(examples/hello examples/angrynerds)
+# Every example with a project, because the promise is about the engine and
+# rig/rig3d/shaders are where the transcendentals are.
+PROJECTS=(examples/hello examples/angrynerds examples/rig examples/rig3d examples/shaders)
 
 record() {
   local outdir=$1

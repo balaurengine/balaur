@@ -114,11 +114,11 @@ fn a_script_reads_the_player_before_a_sign_in_has_landed() {
         return;
     }
     run_until(
-        r#"
+        r"
 pub fn init(this) {
     log::info(`platform-empty ${platform::signed_in()} ${platform::backend()}`);
 }
-"#,
+",
         &["platform-empty false none"],
     );
 }

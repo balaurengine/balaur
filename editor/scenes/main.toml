@@ -58,6 +58,7 @@ parent = "shell"
 kind = "row"
 grow = 1
 gap = 12
+handle = 12
 
 [[nodes]]
 id = "left"

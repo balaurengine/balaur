@@ -460,10 +460,7 @@ fn fs_refuses_a_path_that_climbs_out_of_the_project() {
         &app.engine,
         "fs",
         "write",
-        &[
-            Value::Str("../stolen.txt".into()),
-            Value::Str("hi".into()),
-        ],
+        &[Value::Str("../stolen.txt".into()), Value::Str("hi".into())],
     )
     .expect_err("`..` walked out of the project");
     assert!(

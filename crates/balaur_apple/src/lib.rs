@@ -565,14 +565,14 @@ fn install_apple_api(m: &mut dyn Bindings<Engine>) {
         "identity",
         |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
             let (node, opts) = node_and_options(first, second);
-            start_call(eng, node, opts, AppleCall::Identity)
+            start_call(eng, node, opts.as_ref(), AppleCall::Identity)
         },
     );
     m.function(
         "sign_in",
         |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
             let (node, opts) = node_and_options(first, second);
-            start_call(eng, node, opts, AppleCall::SignIn)
+            start_call(eng, node, opts.as_ref(), AppleCall::SignIn)
         },
     );
     m.function(
@@ -582,7 +582,12 @@ fn install_apple_api(m: &mut dyn Bindings<Engine>) {
             let Value::Str(user) = user else {
                 return Err(anyhow!("the user id should be a string, got {user:?}"));
             };
-            start_call(eng, node, opts, AppleCall::CredentialState { user })
+            start_call(
+                eng,
+                node,
+                opts.as_ref(),
+                AppleCall::CredentialState { user },
+            )
         },
     );
     install_screens_api(m);
@@ -602,7 +607,7 @@ fn install_screens_api(m: &mut dyn Bindings<Engine>) {
                 Some(other) => return Err(anyhow!("`state` should be a string, got {other:?}")),
                 None => DEFAULT_SCREEN,
             };
-            start_call(eng, node, opts, AppleCall::Dashboard { state })
+            start_call(eng, node, opts.as_ref(), AppleCall::Dashboard { state })
         },
     );
     m.function(
@@ -676,7 +681,7 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
         "request_notifications",
         |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
             let (node, opts) = node_and_options(first, second);
-            start_call(eng, node, opts, AppleCall::RequestNotifications)
+            start_call(eng, node, opts.as_ref(), AppleCall::RequestNotifications)
         },
     );
     m.function(
@@ -711,7 +716,7 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
             start_call(
                 eng,
                 node,
-                opts,
+                opts.as_ref(),
                 AppleCall::Notify {
                     id,
                     title,
@@ -721,6 +726,12 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
             )
         },
     );
+    install_device_arrivals_api(m);
+}
+
+/// The three that ask the device to start telling us something, rather than
+/// answering a question the script asked.
+fn install_device_arrivals_api(m: &mut dyn Bindings<Engine>) {
     m.function("cancel_notification", |_: &Engine, (id,): (Value,)| {
         let Value::Str(id) = id else {
             return Err(anyhow!("a notification id should be a string, got {id:?}"));
@@ -787,7 +798,7 @@ fn install_store_api(m: &mut dyn Bindings<Engine>) {
             start_call(
                 eng,
                 node,
-                opts,
+                opts.as_ref(),
                 AppleCall::Store(StoreCall::Products { ids }),
             )
         },
@@ -804,7 +815,7 @@ fn install_store_api(m: &mut dyn Bindings<Engine>) {
             start_call(
                 eng,
                 node,
-                opts,
+                opts.as_ref(),
                 AppleCall::Store(StoreCall::Purchase { product }),
             )
         },
@@ -813,14 +824,30 @@ fn install_store_api(m: &mut dyn Bindings<Engine>) {
         "entitlements",
         |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
             let (node, opts) = node_and_options(first, second);
-            start_call(eng, node, opts, AppleCall::Store(StoreCall::Entitlements))
+            start_call(
+                eng,
+                node,
+                opts.as_ref(),
+                AppleCall::Store(StoreCall::Entitlements),
+            )
         },
     );
+    install_store_ledger_api(m);
+}
+
+/// What a game asks about purchases already made, rather than about making
+/// one: restoring on a new device, and closing a transaction out.
+fn install_store_ledger_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "restore_purchases",
         |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
             let (node, opts) = node_and_options(first, second);
-            start_call(eng, node, opts, AppleCall::Store(StoreCall::Restore))
+            start_call(
+                eng,
+                node,
+                opts.as_ref(),
+                AppleCall::Store(StoreCall::Restore),
+            )
         },
     );
     m.function(
@@ -835,7 +862,7 @@ fn install_store_api(m: &mut dyn Bindings<Engine>) {
             start_call(
                 eng,
                 node,
-                opts,
+                opts.as_ref(),
                 AppleCall::Store(StoreCall::Finish { transaction }),
             )
         },
@@ -904,11 +931,11 @@ fn corner_of(name: &str) -> Result<isize> {
 fn start_call(
     eng: &Engine,
     node: Option<Value>,
-    opts: Option<Value>,
+    opts: Option<&Value>,
     call: AppleCall,
 ) -> Result<Value> {
     let node = node.unwrap_or(Value::Nil);
-    let handler = handler_of(&node, opts.as_ref(), "on_apple", "on_apple")?;
+    let handler = handler_of(&node, opts, "on_apple", "on_apple")?;
     let id = eng.next_token();
     // A notification the script did not name is named after the call, so two
     // runs of the same session schedule the same identifier.

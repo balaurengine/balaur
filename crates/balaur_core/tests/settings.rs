@@ -124,7 +124,12 @@ kept = true
 fn an_editor_setting_stays_out_of_the_manifest() {
     let app = app();
     settings::set(&app.engine, "netcode/faults", toml::Value::Boolean(true));
-    let written = settings::to_toml(&app.engine, Scope::Project, "[application]\nname = \"mine\"\n").unwrap();
+    let written = settings::to_toml(
+        &app.engine,
+        Scope::Project,
+        "[application]\nname = \"mine\"\n",
+    )
+    .unwrap();
     assert!(
         !written.contains("netcode"),
         "an editor-scope page must not be written to project.toml: {written}"

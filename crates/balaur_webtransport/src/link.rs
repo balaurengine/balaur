@@ -35,7 +35,7 @@ pub(crate) fn dial(
     url: &str,
     accept: Accept,
     commands: Receiver<LinkCommand>,
-    events: Sender<LinkEvent>,
+    events: &Sender<LinkEvent>,
 ) {
     let runtime = match tokio::runtime::Builder::new_current_thread()
         .enable_all()

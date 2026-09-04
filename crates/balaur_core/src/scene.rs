@@ -26,7 +26,11 @@ pub struct ScriptAttachment {
 pub struct ScriptProps(pub Vec<(String, balaur_script::Value)>);
 
 /// Record what a node was attached with, replacing whatever it carried.
-pub fn remember_script_props(eng: &Engine, entity: Entity, props: &[(String, balaur_script::Value)]) {
+pub fn remember_script_props(
+    eng: &Engine,
+    entity: Entity,
+    props: &[(String, balaur_script::Value)],
+) {
     let mut world = eng.world_mut();
     if props.is_empty() {
         let _ = world.remove_one::<ScriptProps>(entity);

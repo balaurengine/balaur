@@ -17,6 +17,8 @@ const TALL_EXTRA = 62.0;
 const TAB_ROW_H = 30.0;
 // Every box the shell tree names, by the path `scene::get_node` takes.
 const SHELL = "Editor/Shell";
+// How long a dock takes to open or close.
+const EASE_S = 0.16;
 
 fn rect(x, y, w, h) {
     #{ x: x, y: y, w: w, h: h }
@@ -44,6 +46,9 @@ pub fn state() {
         // What was last written to a node, so a size that has not moved is
         // not a component write every frame.
         sent: #{},
+        // The tween each eased box is riding, so a second change replaces it
+        // rather than fighting it.
+        tweens: #{},
     }
 }
 
@@ -121,6 +126,31 @@ fn adopt(S) {
 
 /// State a box's size, when it has moved. A component write rebuilds the
 /// widget, so the same number twice is a write worth skipping.
+// The boxes that travel when they change rather than jumping: a dock opening,
+// the tool rail folding away, the hooks list arriving beside the code.
+fn eased(mark) {
+    ["left:width", "right:width", "bottom:height", "railslot:width", "hooks:width"]
+        .iter()
+        .any(|m| m == mark)
+}
+
+/// Take back a size the pointer changed, so the next write agrees with it.
+fn dragged(S, id, key, into) {
+    let m = S.layout;
+    let mark = id + ":" + key;
+    let running = m.tweens.get(mark);
+    if let Some(handle) = running {
+        if animation::is_tween_running(handle) {
+            return;
+        }
+    }
+    let now = stated(S, id, key);
+    if now > 0.0 && m.sent.get(mark) != Some(now) {
+        m[into] = now;
+        m.sent[mark] = now;
+    }
+}
+
 fn size(S, id, key, value) {
     let m = S.layout;
     let mark = id + ":" + key;
@@ -131,10 +161,21 @@ fn size(S, id, key, value) {
     if util::is_nil(found) {
         return;
     }
+    // The first write places the box; a later one moves it. Easing the first
+    // would mean watching the shell assemble itself on every start.
+    let settled = m.sent.contains_key(mark);
+    m.sent[mark] = value;
+    if settled && eased(mark) {
+        let running = m.tweens.get(mark);
+        if let Some(handle) = running {
+            animation::stop(handle);
+        }
+        m.tweens[mark] = animation::tween_to(found, "widget/" + key, value, EASE_S, "out_cubic");
+        return;
+    }
     let params = util::obj(found.get_component("widget"));
     params[key] = value;
     found.set_component("widget", params);
-    m.sent[mark] = value;
 }
 
 /// Where a box was laid out, in design pixels; a zero rect until it has
@@ -181,6 +222,12 @@ pub fn compute(S) {
     if !m.asked {
         return;
     }
+    // A seam the pointer moved wrote straight to the node, so the value it
+    // left there is the new one to keep. A tween is this module's own doing
+    // and is not mistaken for a drag.
+    dragged(S, "left", "width", "tree_w");
+    dragged(S, "right", "width", "insp_w");
+
     // A narrow window would leave no scene at all, so the sheets give way
     // before the stage does.
     let tree_w = if S.docks.left.shut { SHUT_W } else { util::clamp(m.tree_w, 180.0, w * 0.28) };

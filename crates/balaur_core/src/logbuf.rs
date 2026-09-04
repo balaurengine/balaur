@@ -7,10 +7,10 @@
 //!
 //! The buffer is process-global because the subscriber is process-global.
 
+use crate::time::Instant;
 use std::collections::VecDeque;
 use std::fmt::Write as _;
 use std::sync::Mutex;
-use crate::time::Instant;
 
 use tracing::field::{Field, Visit};
 use tracing::level_filters::LevelFilter;

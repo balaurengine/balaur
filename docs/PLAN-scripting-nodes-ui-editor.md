@@ -112,7 +112,12 @@ today, computed from the dev unit at export. Lift the arity cap by building a
 shared function as a raw handler over `Memory` and an argument count, the
 shape `RuneModule::function_raw` already uses (`bindings.rs:184-214`).
 
-Status: **partly done** — the scanner spans lines, and the stepping decision now asks the unit rather than the scan. The five-argument cap on `script::shared` stands.
+Status: **done** for the scan, which now spans lines, and for the stepping
+decision, which asks the unit rather than the scan. The five-argument cap
+**cannot** be lifted here: Rune's `permute!` generates `Function::new` impls
+up to arity 5 and no further, so a six-argument callback needs a change in the
+fork. Bundling the extra arguments into one object is the workaround, and
+`editor/scripts/plugins.rn` already takes it.
 
 ### 1.5 Warts
 

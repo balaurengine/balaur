@@ -5,7 +5,7 @@
 //! panics on first use — the first line of `main`, in a browser build. `web_time`
 //! is the drop-in that reads `performance.now()` there and *is* `std::time`
 //! everywhere else, so every crate reads its clock through here.
-#[cfg(target_arch = "wasm32")]
-pub use web_time::{Instant, SystemTime};
 #[cfg(not(target_arch = "wasm32"))]
 pub use std::time::{Instant, SystemTime};
+#[cfg(target_arch = "wasm32")]
+pub use web_time::{Instant, SystemTime};

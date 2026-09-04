@@ -137,10 +137,7 @@ fn setting_a_component_puts_the_rest_back_to_their_defaults() {
 /// so a script that has to tell those apart asks first.
 #[test]
 fn has_method_tells_a_missing_handler_from_a_quiet_one() {
-    let dir = project(&[(
-        "h.rn",
-        "pub fn init(this) {}\npub fn on_hit(this) {}\n",
-    )]);
+    let dir = project(&[("h.rn", "pub fn init(this) {}\npub fn on_hit(this) {}\n")]);
     let app = app_in(dir.path());
     let node = spawn(&app, "N");
     let host = app.engine.script_host().unwrap();
@@ -150,7 +147,10 @@ fn has_method_tells_a_missing_handler_from_a_quiet_one() {
     assert!(!host.has_method(id, "on_missed"));
     // The seam can tell them apart; the node op cannot, because it answers
     // `unwrap_or(nil)` and a quiet handler returns nil too.
-    assert_eq!(host.call_on(id, "on_hit", &[]), Some(balaur_script::Value::Nil));
+    assert_eq!(
+        host.call_on(id, "on_hit", &[]),
+        Some(balaur_script::Value::Nil)
+    );
     assert_eq!(host.call_on(id, "on_missed", &[]), None);
 }
 
@@ -240,13 +240,15 @@ fn a_reload_calls_hot_reload_on_every_instance() {
         "live.rn",
         "pub fn init(this) { this.n = 1.0; }\npub fn update(this, dt) {}\n",
     )]);
-    let mut app = app_in(dir.path());
+    let app = app_in(dir.path());
     let one = spawn(&app, "One");
     let two = spawn(&app, "Two");
     {
         let host = app.engine.script_host().unwrap();
-        host.attach(balaur_core::node_id_of(one), "live.rn").unwrap();
-        host.attach(balaur_core::node_id_of(two), "live.rn").unwrap();
+        host.attach(balaur_core::node_id_of(one), "live.rn")
+            .unwrap();
+        host.attach(balaur_core::node_id_of(two), "live.rn")
+            .unwrap();
     }
     std::fs::write(
         dir.path().join("live.rn"),
@@ -292,6 +294,9 @@ fn a_script_finds_nodes_by_id_and_by_component() {
 
     // Bounded to a subtree, which is what a tool holding two trees needs.
     let world = app.engine.world();
-    assert_eq!(balaur_core::ids::find(&world, parent, "n_child"), Some(child));
+    assert_eq!(
+        balaur_core::ids::find(&world, parent, "n_child"),
+        Some(child)
+    );
     assert_eq!(balaur_core::ids::find(&world, child, "n_parent"), None);
 }

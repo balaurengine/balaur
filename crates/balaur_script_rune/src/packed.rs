@@ -119,7 +119,10 @@ pub(crate) fn module_files(root: &Path) -> BTreeSet<String> {
         let Ok(text) = std::fs::read_to_string(root.join(rel)) else {
             continue;
         };
-        let dir = Path::new(rel).parent().map(Path::to_path_buf).unwrap_or_default();
+        let dir = Path::new(rel)
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_default();
         for name in declared_mods(&text) {
             for candidate in [
                 dir.join(&name).with_extension("rn"),
@@ -162,7 +165,7 @@ fn collect_scripts(root: &Path, dir: &Path, out: &mut Vec<String>) {
         return;
     };
     let mut paths: Vec<PathBuf> = entries
-        .filter_map(|entry| entry.ok())
+        .filter_map(std::result::Result::ok)
         .map(|entry| entry.path())
         .filter(|path| {
             !path

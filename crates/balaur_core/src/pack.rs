@@ -91,8 +91,14 @@ impl Pack {
                 Some(ext) if compiler.extensions().contains(&ext) => {
                     let source = std::fs::read_to_string(&path)?;
                     let bytes = compiler.compile(&rel, &source)?;
-                    pack.scripts
-                        .insert(rel, if keep_sources { source.into_bytes() } else { bytes });
+                    pack.scripts.insert(
+                        rel,
+                        if keep_sources {
+                            source.into_bytes()
+                        } else {
+                            bytes
+                        },
+                    );
                 }
                 // `scenes` is the pack's text map: scene documents, asset
                 // documents and shader sources all read back through it.
@@ -109,6 +115,27 @@ impl Pack {
             }
         }
         Ok(pack)
+    }
+
+    /// The pack as the project tree it was built from: `project.toml`, then
+    /// every scene, script and asset under the path it was packed at.
+    ///
+    /// What a virtual filesystem is seeded with, so a browser can open a
+    /// project it fetched as one file.
+    #[must_use]
+    pub fn entries(&self) -> Vec<(String, Vec<u8>)> {
+        let mut out = vec![(
+            "project.toml".to_string(),
+            self.manifest.clone().into_bytes(),
+        )];
+        out.extend(
+            self.scenes
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone().into_bytes())),
+        );
+        out.extend(self.scripts.iter().map(|(k, v)| (k.clone(), v.clone())));
+        out.extend(self.assets.iter().map(|(k, v)| (k.clone(), v.clone())));
+        out
     }
 
     pub fn encode(&self) -> Vec<u8> {

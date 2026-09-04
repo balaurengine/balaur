@@ -220,7 +220,10 @@ fn a_file_past_the_entry_cap_is_not_cached() {
     std::fs::write(dir.path().join("big.wav"), vec![0u8; 3 * 1024 * 1024]).unwrap();
     let app = app_in(dir.path());
     let entity = sound_node(&app, "file = \"big.wav\"\nautoplay = true\n");
-    assert!(handle_of(&app, entity).is_some(), "a handle is still handed out");
+    assert!(
+        handle_of(&app, entity).is_some(),
+        "a handle is still handed out"
+    );
     assert_eq!(app.engine.resource::<SoundCache>().borrow().held(), 0);
 }
 

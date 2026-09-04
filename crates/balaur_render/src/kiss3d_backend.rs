@@ -3,8 +3,8 @@
 //! events into [`balaur_input::InputSnapshot`], ticks the [`App`], then mirrors
 //! renderables into the kiss3d scene graph.
 
-use std::collections::{HashMap, HashSet};
 use balaur_core::time::Instant;
+use std::collections::{HashMap, HashSet};
 
 use balaur_core::hecs::Entity;
 use balaur_core::{App, GlobalTransform};

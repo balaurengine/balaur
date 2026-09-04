@@ -935,15 +935,12 @@ impl RuneHost {
             };
             let slot = SHARED_FNS.with(|shared| {
                 let mut shared = shared.borrow_mut();
-                match spare.pop() {
-                    Some(slot) => {
-                        shared[slot] = function;
-                        slot
-                    }
-                    None => {
-                        shared.push(function);
-                        shared.len() - 1
-                    }
+                if let Some(slot) = spare.pop() {
+                    shared[slot] = function;
+                    slot
+                } else {
+                    shared.push(function);
+                    shared.len() - 1
                 }
             });
             let Some(wrapper) = trampoline(slot, declared.arity) else {

@@ -97,7 +97,11 @@ impl Buses {
     /// slider asks: does moving this bus move that sound?
     #[must_use]
     pub fn feeds(&self, name: &str, ancestor: &str) -> bool {
-        let ancestor = if ancestor.is_empty() { MASTER } else { ancestor };
+        let ancestor = if ancestor.is_empty() {
+            MASTER
+        } else {
+            ancestor
+        };
         let mut at = if name.is_empty() { MASTER } else { name };
         for _ in 0..MAX_DEPTH {
             if at == ancestor {

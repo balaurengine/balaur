@@ -268,7 +268,9 @@ fn a_2d_one_way_collider_carries_its_axis_into_the_world() {
         &app.engine,
         e,
         "collider2d",
-        Some(&toml::from_str("kind = \"rect\"\none_way = true\none_way_axis = [0.0, 1.0]").unwrap()),
+        Some(
+            &toml::from_str("kind = \"rect\"\none_way = true\none_way_axis = [0.0, 1.0]").unwrap(),
+        ),
     )
     .unwrap();
     let state = app.engine.resource::<balaur_physics::PhysicsState2d>();
