@@ -1,12 +1,12 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 members = ["crates/*"]
 # Out-of-workspace on purpose: extension tests must load a separately built plugin.
 exclude = ["examples/extension_greeter"]
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 # Pinned to the toolchain, so a build that cannot work fails saying so.
 rust-version = "1.98.1"
 license = "MIT"
@@ -96,6 +96,12 @@ tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 # debuginfo. Play at full speed with --release.
 [profile.dev]
 debug = "line-tables-only"
+
+# What ships: whole-program LTO and one codegen unit, a slower link for a
+# smaller, faster binary. `panic` stays unwind for the extension seam.
+[profile.release]
+lto = "fat"
+codegen-units = 1
 
 # Every byte is a download the player waits for. Kept off `release` so a
 # native build pays nothing for a web trade. `panic = "abort"` is sound only
