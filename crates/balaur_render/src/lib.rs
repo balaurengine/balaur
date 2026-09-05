@@ -8,6 +8,7 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::hecs::Entity;
+pub use balaur_core::primitive::{Flat, Solid};
 use balaur_core::{Engine, Stage};
 use balaur_plugin::Registry;
 use balaur_script::Bindings;
@@ -322,38 +323,29 @@ impl Default for CameraConfig {
     }
 }
 
+/// What a node draws in 3D: a primitive with its dimensions, or geometry
+/// somebody authored.
+///
+/// The primitive is `balaur_core`'s, and so is the mesher behind it: the
+/// triangles a backend uploads are the ones a collider is fitted to and a
+/// ray is tested against, rather than a lookalike the renderer built.
 #[derive(Clone, Copy, PartialEq)]
 pub enum Shape {
-    Ball {
-        radius: f32,
-    },
-    Cuboid {
-        hx: f32,
-        hy: f32,
-        hz: f32,
-    },
-    /// A cylinder with hemispherical caps, principal axis on y. `height` is
-    /// the cylindrical part, so the whole thing is `height + 2 * radius` tall.
-    Capsule {
-        radius: f32,
-        height: f32,
-    },
-    Cylinder {
-        radius: f32,
-        height: f32,
-    },
-    Cone {
-        radius: f32,
-        height: f32,
-    },
-    /// A flat quad in the xz plane, for ground and walls.
-    Plane {
-        hx: f32,
-        hz: f32,
-    },
+    Solid(Solid),
     /// Authored geometry. The vertices live in `Renderable::mesh`, the way a
     /// sprite's texture lives beside its quad — the enum stays `Copy`.
     Mesh,
+}
+
+impl Shape {
+    /// The primitive this draws, or `None` for authored geometry.
+    #[must_use]
+    pub const fn solid(self) -> Option<Solid> {
+        match self {
+            Self::Solid(solid) => Some(solid),
+            Self::Mesh => None,
+        }
+    }
 }
 
 /// A local axis-aligned box. A mesh is not centred on its origin, so the
@@ -383,21 +375,11 @@ pub struct Renderable {
     pub version: u64,
 }
 
+/// What a node draws in 2D: a primitive, a textured quad, a chain of points
+/// or a filled polygon.
 #[derive(Clone, Copy, PartialEq)]
 pub enum Shape2d {
-    Circle {
-        radius: f32,
-    },
-    /// The straight part is `height`; the caps add `radius` at each end, the
-    /// same meaning the `collider2d` capsule gives them.
-    Capsule {
-        radius: f32,
-        height: f32,
-    },
-    Rect {
-        hx: f32,
-        hy: f32,
-    },
+    Flat(Flat),
     /// A textured quad. Its half-extents are resolved when the sprite is set,
     /// so they are simulation state a script can read back, the same as a rect.
     Sprite {
@@ -414,6 +396,18 @@ pub enum Shape2d {
     /// A filled, textured polygon, deformed by a rig when its mesh carries
     /// skin weights. The geometry lives in `Renderable2d::polygon`.
     Polygon,
+}
+
+impl Shape2d {
+    /// The primitive this draws, or `None` for a sprite, a chain or a
+    /// polygon, each of which carries its geometry beside the shape.
+    #[must_use]
+    pub const fn flat(self) -> Option<Flat> {
+        match self {
+            Self::Flat(flat) => Some(flat),
+            _ => None,
+        }
+    }
 }
 
 /// Pixels of texture per world unit when a sprite is sized from its image.
@@ -592,8 +586,12 @@ pub(crate) fn set_mesh(
 pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()> {
     let mut world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable>(entity) {
-        r.shape = shape;
-        r.version += 1;
+        // A shape carries its own tessellation now, so a rebuild re-runs the
+        // mesher: only a shape that actually changed asks for one.
+        if r.shape != shape {
+            r.shape = shape;
+            r.version += 1;
+        }
         return Ok(());
     }
     world
@@ -655,8 +653,10 @@ pub(crate) fn set_polyline(
 pub(crate) fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Result<()> {
     let mut world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
-        r.shape = shape;
-        r.version += 1;
+        if r.shape != shape {
+            r.shape = shape;
+            r.version += 1;
+        }
         return Ok(());
     }
     world

@@ -40,6 +40,7 @@ pub mod node_api;
 pub mod pack;
 pub mod plugins;
 pub mod presets;
+pub mod primitive;
 pub mod project;
 pub mod replay;
 pub mod replay_api;

@@ -254,17 +254,26 @@ fn one_based(field: Option<&str>, len: usize, at: &str, what: &str) -> Result<Op
 pub const MESH_ASSET_TYPE: &str = "mesh";
 
 /// What a definition table holds, for the generated reference.
-const MESH_ASSET_DOC: &str = r#"Geometry for `mesh`-typed properties. A definition either names a `source`
-model file to import or carries the vertices itself as `positions` and
-`indices`, which is what lets a script build one at run time; naming both is
-refused. A `skin` table adds bone weights for skeletal animation.
+const MESH_ASSET_DOC: &str = r#"Geometry for `mesh`-typed properties. A definition names a `source` model
+file to import, or a `kind` of parametric primitive to build, or carries the
+vertices itself as `positions` and `indices`, which is what lets a script
+build one at run time; naming more than one is refused. A `skin` table adds
+bone weights for skeletal animation.
+
+A primitive is built by the same mesher the `shape3d` component draws, so a
+collider over this asset collides exactly what is on screen.
 
 ```toml
 [[assets]]
 id = "blade"
 type = "mesh"
 source = "models/blade.obj"      # imported...
-# ...or, instead of `source`:
+# ...or a primitive, one of ball, cuboid, capsule, cylinder, cone, plane,
+# torus, pyramid, prism, tube:
+kind = "torus"
+radius = 1.0
+tube_radius = 0.3
+# ...or, instead of either:
 positions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
 indices = [[0, 1, 2]]
 ```"#;
@@ -288,12 +297,22 @@ pub(crate) fn register_mesh_asset(app: &mut App) {
     });
 }
 
-/// A `mesh` definition: `source` names a file to import, or `positions` and
-/// `indices` carry the geometry directly. Naming both is a contradiction
-/// rather than a precedence puzzle, so it is refused.
+/// A `mesh` definition: `source` names a file to import, `kind` names a
+/// primitive to build, or `positions` and `indices` carry the geometry
+/// directly. Naming more than one is a contradiction rather than a
+/// precedence puzzle, so it is refused.
 fn parse_definition(value: &toml::Value) -> Result<MeshData> {
     let source = value.get("source").and_then(toml::Value::as_str);
     let inline = value.get("positions").is_some() || value.get("indices").is_some();
+    let shape = value.get(crate::primitive::keys::KIND).is_some();
+    if shape && (source.is_some() || inline) {
+        bail!(
+            "a mesh names a primitive `kind` as well as a `source` file or inline `positions`; it can carry one or the other"
+        );
+    }
+    if shape {
+        return Ok(crate::primitive::Solid::from_params(value)?.build());
+    }
     match (source, inline) {
         (Some(_), true) => bail!(
             "a mesh names both a `source` file and inline `positions`; it can carry one or the other"
@@ -308,7 +327,9 @@ fn parse_definition(value: &toml::Value) -> Result<MeshData> {
             })
         }
         (None, true) => parse_inline(value),
-        (None, false) => bail!("a mesh needs a `source` file or inline `positions` and `indices`"),
+        (None, false) => {
+            bail!("a mesh needs a `source` file, a primitive `kind`, or inline `positions` and `indices`")
+        }
     }
 }
 

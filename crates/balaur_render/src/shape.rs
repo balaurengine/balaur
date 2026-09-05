@@ -2,8 +2,9 @@
 //! untextured primitives, in both dimensions.
 
 use crate::shape::keys as k;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use balaur_core::components::ComponentDef;
+use balaur_core::primitive::{Flat, Solid};
 use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
@@ -21,18 +22,18 @@ pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
         ("color", &["shape3d", "shape2d", "sprite", "polygon"], "", "The node's tint as r, g, b, a channel floats; opaque white when the node draws nothing at all."),
     ]);
     m.function("set_ball", |eng: &Engine, (node, radius): (NodeId, f32)| {
-        set_shape(eng, entity_of(node)?, Shape::Ball { radius })
+        set_shape(eng, entity_of(node)?, Shape::Solid(Solid::ball(radius)))
     });
     m.function(
         "set_cuboid",
         |eng: &Engine, (node, hx, hy, hz): (NodeId, f32, f32, f32)| {
-            set_shape(eng, entity_of(node)?, Shape::Cuboid { hx, hy, hz })
+            set_shape(eng, entity_of(node)?, Shape::Solid(Solid::cuboid(hx, hy, hz)))
         },
     );
     m.function(
         "set_rect",
         |eng: &Engine, (node, hx, hy): (NodeId, f32, f32)| {
-            set_shape2d(eng, entity_of(node)?, Shape2d::Rect { hx, hy })
+            set_shape2d(eng, entity_of(node)?, Shape2d::Flat(Flat::rect(hx, hy)))
         },
     );
     m.function("color", |eng: &Engine, node: NodeId| {
@@ -55,20 +56,31 @@ pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
 /// the script constants beside them. Written once so a matcher, a schema's
 /// `options` list and the read-back cannot disagree.
 pub(crate) mod words {
-    pub(crate) const BALL: &str = "ball";
-    pub(crate) const CUBOID: &str = "cuboid";
-    pub(crate) const CAPSULE: &str = "capsule";
-    pub(crate) const CYLINDER: &str = "cylinder";
-    pub(crate) const CONE: &str = "cone";
-    pub(crate) const PLANE: &str = "plane";
-    /// The 3D primitives, in the order the inspector offers them.
-    pub(crate) const SHAPES: &[&str] = &[BALL, CUBOID, CAPSULE, CYLINDER, CONE, PLANE];
+    use balaur_core::primitive::words as p;
 
-    pub(crate) const CIRCLE: &str = "circle";
-    pub(crate) const RECT: &str = "rect";
+    pub(crate) const BALL: &str = p::BALL;
+    pub(crate) const CUBOID: &str = p::CUBOID;
+    pub(crate) const CAPSULE: &str = p::CAPSULE;
+    pub(crate) const CYLINDER: &str = p::CYLINDER;
+    pub(crate) const CONE: &str = p::CONE;
+    pub(crate) const PLANE: &str = p::PLANE;
+    pub(crate) const TORUS: &str = p::TORUS;
+    pub(crate) const PYRAMID: &str = p::PYRAMID;
+    pub(crate) const PRISM: &str = p::PRISM;
+    pub(crate) const TUBE: &str = p::TUBE;
+    /// The 3D primitives, in the order the inspector offers them. The mesher
+    /// owns the list, so a kind it can build is a kind a scene can name.
+    pub(crate) const SHAPES: &[&str] = p::SOLIDS;
+
+    pub(crate) const CIRCLE: &str = p::CIRCLE;
+    pub(crate) const RECT: &str = p::RECT;
+    pub(crate) const ELLIPSE: &str = p::ELLIPSE;
+    pub(crate) const STAR: &str = p::STAR;
+    pub(crate) const NGON: &str = p::NGON;
     pub(crate) const POLYLINE: &str = "polyline";
-    /// The 2D primitives. A circle is not a ball and a rect is not a cuboid.
-    pub(crate) const SHAPES_2D: &[&str] = &[CIRCLE, RECT, CAPSULE, POLYLINE];
+    /// The 2D primitives, and the chain of points that is not one of them.
+    /// A circle is not a ball and a rect is not a cuboid.
+    pub(crate) const SHAPES_2D: &[&str] = &[CIRCLE, RECT, CAPSULE, ELLIPSE, STAR, NGON, POLYLINE];
 
     /// Two more an occluder may read off a collider's params. `balaur_render`
     /// does not depend on `balaur_physics`, so the words are spelled here too.
@@ -96,8 +108,15 @@ pub(crate) const CONSTANTS: &[(&str, &str)] = &[
     ("SHAPE_CYLINDER", words::CYLINDER),
     ("SHAPE_CONE", words::CONE),
     ("SHAPE_PLANE", words::PLANE),
+    ("SHAPE_TORUS", words::TORUS),
+    ("SHAPE_PYRAMID", words::PYRAMID),
+    ("SHAPE_PRISM", words::PRISM),
+    ("SHAPE_TUBE", words::TUBE),
     ("SHAPE_CIRCLE", words::CIRCLE),
     ("SHAPE_RECT", words::RECT),
+    ("SHAPE_ELLIPSE", words::ELLIPSE),
+    ("SHAPE_STAR", words::STAR),
+    ("SHAPE_NGON", words::NGON),
     ("SHAPE_POLYLINE", words::POLYLINE),
     ("CAMERA_3D", words::PERSPECTIVE),
     ("CAMERA_2D", words::ORTHOGRAPHIC),
@@ -108,6 +127,18 @@ pub(crate) const CONSTANTS: &[(&str, &str)] = &[
 /// Every property key the render components spell, so a schema line and the
 /// reader behind it name the same key.
 pub(crate) mod keys {
+    use balaur_core::primitive::keys as p;
+
+    /// A primitive's keys are the mesher's, so a schema line here and the
+    /// reader there cannot drift apart.
+    pub(crate) const CORNER_RADIUS: &str = p::CORNER_RADIUS;
+    pub(crate) const INNER_RADIUS: &str = p::INNER_RADIUS;
+    pub(crate) const POINTS: &str = p::POINTS;
+    pub(crate) const RINGS: &str = p::RINGS;
+    pub(crate) const SEGMENTS: &str = p::SEGMENTS;
+    pub(crate) const SIDES: &str = p::SIDES;
+    pub(crate) const TUBE_RADIUS: &str = p::TUBE_RADIUS;
+
     pub(crate) const A: &str = "a";
     pub(crate) const AMBIENT: &str = "ambient";
     pub(crate) const ANGLE: &str = "angle";
@@ -128,10 +159,10 @@ pub(crate) mod keys {
     pub(crate) const FRAME: &str = "frame";
     pub(crate) const GRADIENT: &str = "gradient";
     pub(crate) const GRAVITY: &str = "gravity";
-    pub(crate) const HALF_EXTENTS: &str = "half_extents";
-    pub(crate) const HEIGHT: &str = "height";
+    pub(crate) const HALF_EXTENTS: &str = p::HALF_EXTENTS;
+    pub(crate) const HEIGHT: &str = p::HEIGHT;
     pub(crate) const INTENSITY: &str = "intensity";
-    pub(crate) const KIND: &str = "kind";
+    pub(crate) const KIND: &str = p::KIND;
     pub(crate) const LIFETIME: &str = "lifetime";
     pub(crate) const LOOK_AT: &str = "look_at";
     pub(crate) const MATERIAL: &str = "material";
@@ -139,7 +170,7 @@ pub(crate) mod keys {
     pub(crate) const ONE_SHOT: &str = "one_shot";
     pub(crate) const PIXELS_PER_UNIT: &str = "pixels_per_unit";
     pub(crate) const POST: &str = "post";
-    pub(crate) const RADIUS: &str = "radius";
+    pub(crate) const RADIUS: &str = p::RADIUS;
     pub(crate) const RATE: &str = "rate";
     pub(crate) const REGION_ORIGIN: &str = "region_origin";
     pub(crate) const REGION_SIZE: &str = "region_size";
@@ -166,110 +197,36 @@ pub(crate) fn options(words: &[&str]) -> String {
         .join(", ")
 }
 
-/// The `Shape` a `shape` component's params describe.
+/// The `Shape` a `shape` component's params describe. The reader is the
+/// mesher's, so what a scene names is what a mesh can be built from.
 fn shape_from_params(params: &toml::Value) -> Result<Shape> {
-    let kind = params
-        .get(k::KIND)
-        .and_then(|v| v.as_str())
-        .unwrap_or(words::CUBOID);
-    let radius = params
-        .get(k::RADIUS)
-        .and_then(balaur_core::components::as_f64)
-        .unwrap_or(0.5) as f32;
-    let he = |i: usize| {
-        params
-            .get(k::HALF_EXTENTS)
-            .and_then(|v| v.as_array())
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(0.5) as f32
-    };
-    let height = params
-        .get(k::HEIGHT)
-        .and_then(balaur_core::components::as_f64)
-        .unwrap_or(1.0) as f32;
-    let radius = radius.max(0.01);
-    let height = height.max(0.01);
-    let shape = match kind {
-        words::BALL => Shape::Ball { radius },
-        words::CUBOID => Shape::Cuboid {
-            hx: he(0).max(0.01),
-            hy: he(1).max(0.01),
-            hz: he(2).max(0.01),
-        },
-        words::CAPSULE => Shape::Capsule { radius, height },
-        words::CYLINDER => Shape::Cylinder { radius, height },
-        words::CONE => Shape::Cone { radius, height },
-        words::PLANE => Shape::Plane {
-            hx: he(0).max(0.01),
-            hz: he(2).max(0.01),
-        },
-        other => return Err(anyhow!("unknown shape kind '{other}'")),
-    };
-    Ok(shape)
+    Ok(Shape::Solid(Solid::from_params(params)?))
 }
 
 /// A `shape` component's params for `shape`, or `None` when another
-/// component owns it.
+/// component owns it: a mesh is saved by `mesh`, not by this.
 fn shape_to_params(shape: Shape) -> Option<toml::Value> {
-    let mut map = toml::map::Map::new();
-    match shape {
-        Shape::Ball { radius } => {
-            map.insert(k::KIND.into(), toml::Value::String(words::BALL.into()));
-            map.insert(k::RADIUS.into(), toml::Value::Float(f64::from(radius)));
-        }
-        Shape::Capsule { radius, height }
-        | Shape::Cylinder { radius, height }
-        | Shape::Cone { radius, height } => {
-            let name = match shape {
-                Shape::Capsule { .. } => words::CAPSULE,
-                Shape::Cylinder { .. } => words::CYLINDER,
-                _ => words::CONE,
-            };
-            map.insert(k::KIND.into(), toml::Value::String(name.into()));
-            map.insert(k::RADIUS.into(), toml::Value::Float(f64::from(radius)));
-            map.insert(k::HEIGHT.into(), toml::Value::Float(f64::from(height)));
-        }
-        // A mesh is saved by the `mesh` component, not this one.
-        Shape::Mesh => return None,
-        Shape::Plane { hx, hz } => {
-            map.insert(k::KIND.into(), toml::Value::String(words::PLANE.into()));
-            map.insert(
-                k::HALF_EXTENTS.into(),
-                toml::Value::Array(vec![
-                    toml::Value::Float(f64::from(hx)),
-                    toml::Value::Float(0.0),
-                    toml::Value::Float(f64::from(hz)),
-                ]),
-            );
-        }
-        Shape::Cuboid { hx, hy, hz } => {
-            map.insert(k::KIND.into(), toml::Value::String(words::CUBOID.into()));
-            map.insert(
-                k::HALF_EXTENTS.into(),
-                toml::Value::Array(vec![
-                    toml::Value::Float(f64::from(hx)),
-                    toml::Value::Float(f64::from(hy)),
-                    toml::Value::Float(f64::from(hz)),
-                ]),
-            );
-        }
-    }
-    Some(toml::Value::Table(map))
+    Some(shape.solid()?.to_params())
 }
 
 pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "shape3d",
         ComponentDef {
-            doc: "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone or plane -- sized in world units and tinted by `color`.",
+            doc: "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone, plane, torus, pyramid, prism or tube -- sized in world units and tinted by `color`. Built as a mesh, so a collider fitted to it collides what is drawn.",
             schema: ComponentDef::parse_schema(
                 "shape3d",
                 &balaur_core::components::ComponentDef::schema(&[
                     (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Rendered 3D shape" }}"#, words::CUBOID, options(words::SHAPES))),
-                    (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, for every kind but cuboid" }"#),
-                    (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y, for capsule, cylinder and cone" }"#),
-                    (k::HALF_EXTENTS, r#"{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }"#),
+                    (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, for every kind but cuboid, plane and pyramid" }"#),
+                    (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y, for capsule, cylinder, cone, prism and tube" }"#),
+                    (k::HALF_EXTENTS, r#"{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes, when kind is cuboid, plane or pyramid" }"#),
+                    (k::TUBE_RADIUS, r#"{ type = "float", default = 0.2, min = 0.01, description = "Thickness of the ring, when kind is torus" }"#),
+                    (k::INNER_RADIUS, r#"{ type = "float", default = 0.25, min = 0.01, description = "Radius of the hole, when kind is tube" }"#),
+                    (k::CORNER_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far the edges are rounded off, when kind is cuboid; zero is a square edge" }"#),
+                    (k::SEGMENTS, r#"{ type = "int", default = 32, min = 3, description = "Cuts around the axis, or across a plane" }"#),
+                    (k::RINGS, r#"{ type = "int", default = 16, min = 3, description = "Cuts along the axis, for ball, capsule and torus" }"#),
+                    (k::SIDES, r#"{ type = "int", default = 4, min = 3, description = "Flat faces, when kind is pyramid or prism" }"#),
                     (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
                 ]),
@@ -338,56 +295,28 @@ fn shape2d_from_params(params: &toml::Value) -> Result<(Shape2d, Option<String>)
         .get(k::KIND)
         .and_then(|v| v.as_str())
         .unwrap_or(words::RECT);
-    let radius = params
-        .get(k::RADIUS)
-        .and_then(balaur_core::components::as_f64)
-        .unwrap_or(0.5) as f32;
-    let he = |i: usize| {
-        params
-            .get(k::HALF_EXTENTS)
-            .and_then(|v| v.as_array())
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(0.5) as f32
-    };
-    let shape = match kind {
-        words::CIRCLE => Shape2d::Circle {
-            radius: radius.max(0.01),
-        },
-        words::RECT => Shape2d::Rect {
-            hx: he(0).max(0.01),
-            hy: he(1).max(0.01),
-        },
-        words::CAPSULE => Shape2d::Capsule {
-            radius: radius.max(0.01),
-            height: params
-                .get(k::HEIGHT)
+    // A polyline is the one 2D kind with no dimensions of its own: its points
+    // come from a mesh asset, so it is read here rather than by the mesher.
+    if kind == words::POLYLINE {
+        let source = params
+            .get(k::MESH)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+        let shape = Shape2d::Polyline {
+            width: params
+                .get(k::WIDTH)
                 .and_then(balaur_core::components::as_f64)
-                .unwrap_or(1.0)
-                .max(0.01) as f32,
-        },
-        words::POLYLINE => {
-            let source = params
-                .get("mesh")
-                .and_then(|v| v.as_str())
-                .unwrap_or_default()
-                .to_string();
-            let shape = Shape2d::Polyline {
-                width: params
-                    .get("width")
-                    .and_then(balaur_core::components::as_f64)
-                    .unwrap_or(0.02)
-                    .max(0.001) as f32,
-                closed: params
-                    .get(k::CLOSED)
-                    .and_then(toml::Value::as_bool)
-                    .unwrap_or(false),
-            };
-            return Ok((shape, Some(source)));
-        }
-        other => return Err(anyhow!("unknown shape2d kind '{other}'")),
-    };
-    Ok((shape, None))
+                .unwrap_or(0.02)
+                .max(0.001) as f32,
+            closed: params
+                .get(k::CLOSED)
+                .and_then(toml::Value::as_bool)
+                .unwrap_or(false),
+        };
+        return Ok((shape, Some(source)));
+    }
+    Ok((Shape2d::Flat(Flat::from_params(params)?), None))
 }
 
 /// The `shape2d` component: 2D primitives.
@@ -395,19 +324,24 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "shape2d",
         ComponentDef {
-            doc: "An untextured 2D primitive drawn at the node -- circle, rect, capsule or a polyline traced through a mesh asset's points -- sized in world units.",
+            doc: "An untextured 2D primitive drawn at the node -- circle, rect, capsule, ellipse, star, ngon, or a polyline traced through a mesh asset's points -- sized in world units.",
             schema: ComponentDef::parse_schema(
                 "shape2d",
                 &balaur_core::components::ComponentDef::schema(&[
                     (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Rendered 2D shape" }}"#, words::RECT, options(words::SHAPES_2D))),
-                    (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, when kind is circle or capsule" }"#),
+                    (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, when kind is circle, capsule, star or ngon" }"#),
                     (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, when kind is capsule" }"#),
                     (k::MESH, r#"{ type = "asset", asset = "mesh", default = "", description = "Points of a polyline, taken from a mesh asset's vertices" }"#),
                     (k::WIDTH, r#"{ type = "float", default = 0.02, min = 0.001, description = "Line thickness in world units, when kind is polyline" }"#),
                     (k::CLOSED, r#"{ type = "bool", default = false, description = "Join the last point back to the first, making a polygon outline" }"#),
                     (k::GRADIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient" }"#),
                     (k::TEXTURE, r#"{ type = "string", default = "", description = "An image drawn along a polyline, repeating once per world unit of its length" }"#),
-                    (k::HALF_EXTENTS, r#"{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }"#),
+                    (k::HALF_EXTENTS, r#"{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes, when kind is rect or ellipse" }"#),
+                    (k::INNER_RADIUS, r#"{ type = "float", default = 0.2, min = 0.01, description = "How far the notches between a star's tips reach" }"#),
+                    (k::CORNER_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far the corners are rounded off, when kind is rect; zero is a square corner" }"#),
+                    (k::POINTS, r#"{ type = "int", default = 5, min = 3, description = "Tips, when kind is star" }"#),
+                    (k::SIDES, r#"{ type = "int", default = 4, min = 3, description = "Sides, when kind is ngon" }"#),
+                    (k::SEGMENTS, r#"{ type = "int", default = 32, min = 3, description = "Cuts around a circle, an ellipse or a rounded corner" }"#),
                     (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
                 ]),
@@ -446,16 +380,17 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
                     // A sprite is saved by the `sprite` component and a
                     // polygon by `polygon`, not this one.
                     Shape2d::Sprite { .. } | Shape2d::Polygon => return None,
-                    Shape2d::Circle { radius } => {
-                        map.insert(k::KIND.into(), toml::Value::String(words::CIRCLE.into()));
-                        map.insert(k::RADIUS.into(), toml::Value::Float(f64::from(radius)));
+                    Shape2d::Flat(flat) => {
+                        if let Some(table) = flat.to_params().as_table() {
+                            map.extend(table.clone());
+                        }
                     }
                     Shape2d::Polyline { width, closed } => {
                         map.insert(k::KIND.into(), toml::Value::String(words::POLYLINE.into()));
-                        map.insert("width".into(), toml::Value::Float(f64::from(width)));
+                        map.insert(k::WIDTH.into(), toml::Value::Float(f64::from(width)));
                         map.insert(k::CLOSED.into(), toml::Value::Boolean(closed));
                         if let Some(source) = renderable.polyline.clone() {
-                            map.insert("mesh".into(), toml::Value::String(source));
+                            map.insert(k::MESH.into(), toml::Value::String(source));
                         }
                         if let Some(style) = &renderable.line {
                             if let Some(gradient) = style.gradient {
@@ -468,21 +403,6 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
                                 );
                             }
                         }
-                    }
-                    Shape2d::Capsule { radius, height } => {
-                        map.insert(k::KIND.into(), toml::Value::String(words::CAPSULE.into()));
-                        map.insert(k::RADIUS.into(), toml::Value::Float(f64::from(radius)));
-                        map.insert(k::HEIGHT.into(), toml::Value::Float(f64::from(height)));
-                    }
-                    Shape2d::Rect { hx, hy } => {
-                        map.insert(k::KIND.into(), toml::Value::String(words::RECT.into()));
-                        map.insert(
-                            k::HALF_EXTENTS.into(),
-                            toml::Value::Array(vec![
-                                toml::Value::Float(f64::from(hx)),
-                                toml::Value::Float(f64::from(hy)),
-                            ]),
-                        );
                     }
                 }
                 map.insert(k::COLOR.into(), color_to_toml(renderable.color));

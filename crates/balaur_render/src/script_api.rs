@@ -12,8 +12,8 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 use crate::shape::words;
 use crate::{
     AppIconConfig, CameraConfig, CameraConfig2d, CameraInputConfig, ClearColorConfig,
-    DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer, DebugLineBuffer2d, DrawLineArgs, GridConfig,
-    Renderable, Renderable2d, ScreenshotRequest, Shape, Shape2d, SpriteSheet2d, SpriteTexture,
+    DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer, DebugLineBuffer2d, DrawLineArgs, Flat, GridConfig,
+    Renderable, Renderable2d, ScreenshotRequest, Shape2d, SpriteSheet2d, SpriteTexture,
     ViewportSnapshot, ViewportSnapshot2d, WindowConfig, set_color, set_shape2d, set_sprite,
 };
 
@@ -470,7 +470,7 @@ pub(crate) fn install_sprite_state_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_circle",
         |eng: &Engine, (node, radius): (NodeId, f32)| {
-            set_shape2d(eng, entity_of(node)?, Shape2d::Circle { radius })
+            set_shape2d(eng, entity_of(node)?, Shape2d::Flat(Flat::circle(radius)))
         },
     );
     m.function(
@@ -489,20 +489,14 @@ fn install_shape_readers(m: &mut dyn Bindings<Engine>) {
     m.function("shape3d", |eng: &Engine, node: NodeId| {
         let world = eng.world();
         let result = match world.get::<&Renderable>(entity_of(node)?) {
-            Ok(r) => match r.shape {
-                Shape::Ball { radius } => (words::BALL.to_string(), radius, radius, radius),
-                Shape::Cuboid { hx, hy, hz } => (words::CUBOID.to_string(), hx, hy, hz),
-                // Radius, height, radius — the same order the dimensions
-                // occupy in space, so x and z always mean the same thing.
-                Shape::Capsule { radius, height } => {
-                    (words::CAPSULE.to_string(), radius, height, radius)
+            // The dimensions come back in the order they occupy space, so x
+            // and z always mean the same thing whatever the kind.
+            Ok(r) => match r.shape.solid() {
+                Some(solid) => {
+                    let [x, y, z] = solid.dimensions();
+                    (solid.kind().to_string(), x, y, z)
                 }
-                Shape::Cylinder { radius, height } => {
-                    (words::CYLINDER.to_string(), radius, height, radius)
-                }
-                Shape::Cone { radius, height } => (words::CONE.to_string(), radius, height, radius),
-                Shape::Plane { hx, hz } => (words::PLANE.to_string(), hx, 0.0, hz),
-                Shape::Mesh => ("mesh".to_string(), 0.0, 0.0, 0.0),
+                None => (balaur_core::mesh::MESH_ASSET_TYPE.to_string(), 0.0, 0.0, 0.0),
             },
             Err(_) => (String::new(), 0.0, 0.0, 0.0),
         };
@@ -513,11 +507,12 @@ fn install_shape_readers(m: &mut dyn Bindings<Engine>) {
         let world = eng.world();
         let result = match world.get::<&Renderable2d>(entity_of(node)?) {
             Ok(r) => match r.shape {
-                Shape2d::Circle { radius } => (words::CIRCLE.to_string(), radius, radius),
-                Shape2d::Capsule { radius, height } => (words::CAPSULE.to_string(), radius, height),
+                Shape2d::Flat(flat) => {
+                    let [x, y] = flat.dimensions();
+                    (flat.kind().to_string(), x, y)
+                }
                 Shape2d::Polyline { width, .. } => (words::POLYLINE.to_string(), width, width),
                 Shape2d::Polygon => ("polygon".to_string(), 0.0, 0.0),
-                Shape2d::Rect { hx, hy } => (words::RECT.to_string(), hx, hy),
                 Shape2d::Sprite { hx, hy } => ("sprite".to_string(), hx, hy),
             },
             Err(_) => (String::new(), 0.0, 0.0),
