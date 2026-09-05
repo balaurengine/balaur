@@ -673,7 +673,7 @@ pub fn font_sheet(S) {
         ui::add_space(10);
         ui::label("FACES", style::heading(k));
         ui::add_space(6);
-        ui::label("heading  Source Sans 3 Semibold", #{ size: 15, font: "heading", color: k.text });
+        ui::label("heading  Source Sans 3 Semibold", #{ size: 15, font: ui::FONT_HEADING, color: k.text });
         ui::label("ui  Source Sans 3 Regular", #{ size: 14, color: k.text });
         ui::label("mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃", style::mono(k.text));
         ui::add_space(10);

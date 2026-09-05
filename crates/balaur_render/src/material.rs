@@ -615,7 +615,7 @@ mod tests {
         ))
         .unwrap();
         let by_name = |n: &str| m.params.iter().find(|(k, _)| k == n).unwrap().1;
-        assert_eq!(by_name("speed"), Param::Float(0.5));
+        assert_eq!(by_name(k::SPEED), Param::Float(0.5));
         assert_eq!(by_name("offset"), Param::Vec2([1.0, 2.0]));
         assert_eq!(by_name("tint"), Param::Vec4([1.0, 128.0 / 255.0, 0.0, 1.0]));
     }
@@ -652,7 +652,7 @@ struct Params { speed: f32, tint: vec4<f32> }
             params_of(WITH_PARAMS),
             vec![
                 Field {
-                    name: "speed".into(),
+                    name: k::SPEED.into(),
                     ty: FieldType::F32,
                     offset: 0
                 },
@@ -864,7 +864,7 @@ import package::sprite::{VertexInput, VertexOutput, vertex};
             compiled.fields,
             vec![
                 Field {
-                    name: "speed".into(),
+                    name: k::SPEED.into(),
                     ty: FieldType::F32,
                     offset: 0
                 },

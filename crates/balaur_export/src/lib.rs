@@ -27,6 +27,10 @@ pub use config::{DEFAULT_OUTPUT, ExportConfig};
 
 /// Everything an export was asked for.
 #[derive(Default)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each is one command-line flag, and they are not exclusive"
+)]
 pub struct Options<'a> {
     /// The project directory to export.
     pub path: PathBuf,
@@ -59,6 +63,9 @@ pub struct Options<'a> {
     pub pkg: bool,
     /// Where runtime templates are looked for, most specific first.
     pub template_roots: Vec<PathBuf>,
+    /// Modules to register before compiling, for a project whose scripts
+    /// call something this binary adds rather than the engine.
+    pub plugins: Option<&'a ExtraModules>,
     /// Called when the target's template is on none of the roots. `None`
     /// refuses instead of fetching: a download needs a network stack, a
     /// release to fetch from and somewhere to ask the user, and none of the
@@ -69,6 +76,14 @@ pub struct Options<'a> {
 /// Fetch the template for one target, however the caller wants to: the CLI
 /// downloads and verifies it, the editor asks first, a test hands one over.
 pub type ObtainTemplate = dyn Fn(&str) -> Result<PathBuf>;
+
+/// Modules the calling binary registers before the project is compiled.
+///
+/// The same policy split as [`ObtainTemplate`]: this crate compiles a
+/// project, and which modules that project may call is the caller's. The
+/// editor's own scripts call the CLI's `export`, and Rune resolves a module
+/// while compiling, so exporting the editor has to load it first.
+pub type ExtraModules = dyn Fn() -> Vec<Box<dyn balaur_plugin::Plugin>>;
 
 /// Every target `--target` accepts, in the order an export sheet lists them:
 /// the desktops a player downloads, then the platforms that ship a bundle.
@@ -104,9 +119,10 @@ pub fn default_roots(cache: Option<PathBuf>) -> Vec<PathBuf> {
         roots.push(PathBuf::from(dir));
     }
     if let Ok(exe) = std::env::current_exe()
-        && let Some(dir) = exe.parent() {
-            roots.push(dir.join("templates"));
-        }
+        && let Some(dir) = exe.parent()
+    {
+        roots.push(dir.join("templates"));
+    }
     if let Some(cache) = cache {
         roots.push(cache);
     }
@@ -120,7 +136,8 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     // The web runtime is 32-bit, so its pack carries sources whatever the
     // machine exporting it is.
     let keep_sources = opts.keep_sources || bundle == Some(Bundle::Web);
-    let pack = balaur::build_pack_with(&opts.path, keep_sources)?;
+    let mut extra = opts.plugins.map(|make| make()).unwrap_or_default();
+    let pack = balaur::build_pack_using(&opts.path, keep_sources, &mut extra)?;
     let apple = AppleConfig::load(&opts.path)?;
     let config = ExportConfig::load(&opts.path)?;
     let name = project_name(&opts.path);
@@ -179,6 +196,19 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         }
         return Ok(());
     }
+    export_desktop(opts, &config, &pack, &name, template, target, windows)
+}
+
+/// A `.bpak`, or the pack fused onto the flat executable a desktop runs.
+fn export_desktop(
+    opts: &Options<'_>,
+    config: &ExportConfig,
+    pack: &balaur::Pack,
+    name: &str,
+    template: Option<PathBuf>,
+    target: Option<&str>,
+    windows: bool,
+) -> Result<()> {
     let Some(template) = template else {
         let output = opts
             .output
@@ -202,7 +232,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let file = if windows {
         format!("{name}.exe")
     } else {
-        name.clone()
+        name.to_string()
     };
     let output = opts
         .output
@@ -222,7 +252,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         output.display()
     );
     if windows && (opts.sign.is_some() || !config.windows_certificate.is_empty()) {
-        let mut config = config;
+        let mut config = config.clone();
         if let Some(named) = &opts.sign {
             config.windows_certificate.clone_from(named);
         }

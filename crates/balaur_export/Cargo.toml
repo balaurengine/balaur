@@ -8,6 +8,7 @@ authors.workspace = true
 
 [dependencies]
 balaur = { workspace = true, default-features = false }
+balaur_plugin.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 toml.workspace = true

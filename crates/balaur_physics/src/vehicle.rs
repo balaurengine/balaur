@@ -245,10 +245,12 @@ pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
             doc: "Makes this node's body a car chassis, driven by the `wheel3d` children under it. Rapier casts a ray down from each wheel and pushes the chassis along a spring, which is how driving games model cars: it never jams and never tunnels.",
             schema: ComponentDef::parse_schema(
                 c::VEHICLE_3D,
-                r#"up_axis = { type = "float", default = 1.0, min = 0.0, max = 2.0, description = "Which of the chassis's own axes points up: 0 for x, 1 for y, 2 for z" }
-forward_axis = { type = "float", default = 2.0, min = 0.0, max = 2.0, description = "Which of the chassis's own axes points forward" }"#,
+                &v::schema(&[
+                    (k::UP_AXIS, r#"{ type = "float", default = 1.0, min = 0.0, max = 2.0, description = "Which of the chassis's own axes points up: 0 for x, 1 for y, 2 for z" }"#),
+                    (k::FORWARD_AXIS, r#"{ type = "float", default = 2.0, min = 0.0, max = 2.0, description = "Which of the chassis's own axes points forward" }"#),
+                ]),
             ),
-            tags: &["3d", "physics"],
+            tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
             expects: &[c::BODY_3D],
             apply: Box::new(|eng, entity, params| {
                 let _ = eng.world_mut().insert_one(entity, Vehicle3d(params.clone()));
@@ -271,19 +273,21 @@ forward_axis = { type = "float", default = 2.0, min = 0.0, max = 2.0, descriptio
             doc: "One wheel of the `vehicle3d` above it. Where the node sits on the chassis is where the wheel's ray starts; the rest is suspension tuning. Drive it with `physics3d.set_engine_force`, `set_brake` and `set_steering`.",
             schema: ComponentDef::parse_schema(
                 c::WHEEL_3D,
-                r#"radius = { type = "float", default = 0.4, min = 0.01, description = "The wheel's radius, which is how far off the ground it holds the ray's end" }
-rest_length = { type = "float", default = 0.3, min = 0.0, description = "How long the suspension is with no weight on it" }
-direction = { type = "vec3", default = [0.0, -1.0, 0.0], description = "Which way the suspension pushes, in the chassis's own space: down" }
-axle = { type = "vec3", default = [-1.0, 0.0, 0.0], description = "The axle the wheel turns about, in the chassis's own space" }
-stiffness = { type = "float", default = 30.0, min = 0.0, description = "Spring stiffness: higher is a stiffer, twitchier car" }
-compression = { type = "float", default = 0.82, min = 0.0, description = "Damping while the suspension is being squashed" }
-damping = { type = "float", default = 0.88, min = 0.0, description = "Damping while the suspension is coming back" }
-max_travel = { type = "float", default = 5.0, min = 0.0, description = "How far the suspension may move in total" }
-friction_slip = { type = "float", default = 10.5, min = 0.0, description = "Grip along the wheel's rolling direction; lower slides more" }
-side_friction = { type = "float", default = 1.0, min = 0.0, description = "Grip sideways: what stops the car sliding out of a corner" }
-max_force = { type = "float", default = 6000.0, min = 0.0, description = "The most force this suspension may push the chassis with" }"#,
+                &v::schema(&[
+                    (k::RADIUS, r#"{ type = "float", default = 0.4, min = 0.01, description = "The wheel's radius, which is how far off the ground it holds the ray's end" }"#),
+                    (k::REST_LENGTH, r#"{ type = "float", default = 0.3, min = 0.0, description = "How long the suspension is with no weight on it" }"#),
+                    (k::DIRECTION, r#"{ type = "vec3", default = [0.0, -1.0, 0.0], description = "Which way the suspension pushes, in the chassis's own space: down" }"#),
+                    (k::AXLE, r#"{ type = "vec3", default = [-1.0, 0.0, 0.0], description = "The axle the wheel turns about, in the chassis's own space" }"#),
+                    (k::STIFFNESS, r#"{ type = "float", default = 30.0, min = 0.0, description = "Spring stiffness: higher is a stiffer, twitchier car" }"#),
+                    (k::COMPRESSION, r#"{ type = "float", default = 0.82, min = 0.0, description = "Damping while the suspension is being squashed" }"#),
+                    (k::DAMPING, r#"{ type = "float", default = 0.88, min = 0.0, description = "Damping while the suspension is coming back" }"#),
+                    (k::MAX_TRAVEL, r#"{ type = "float", default = 5.0, min = 0.0, description = "How far the suspension may move in total" }"#),
+                    (k::FRICTION_SLIP, r#"{ type = "float", default = 10.5, min = 0.0, description = "Grip along the wheel's rolling direction; lower slides more" }"#),
+                    (k::SIDE_FRICTION, r#"{ type = "float", default = 1.0, min = 0.0, description = "Grip sideways: what stops the car sliding out of a corner" }"#),
+                    (k::MAX_FORCE, r#"{ type = "float", default = 6000.0, min = 0.0, description = "The most force this suspension may push the chassis with" }"#),
+                ]),
             ),
-            tags: &["3d", "physics"],
+            tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
             expects: &[c::VEHICLE_3D],
             apply: Box::new(|eng, entity, params| {
                 let _ = eng.world_mut().insert_one(entity, Wheel3d(params.clone()));

@@ -50,7 +50,7 @@ pub use widget_theme::WidgetTheme;
 pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
     widget_arrange::drawn_at(entity)
 }
-pub use widgets::{ANCHORS, FONTS, MODIFIERS, WIDGET_KINDS};
+pub use widgets::{ALIGNS, ANCHORS, FONT_STYLES, FONTS, MODIFIERS, PILL_ALIGNS, WIDGET_KINDS};
 
 /// What scripts ask the UI to look like: the theme tokens `ui.set_theme`
 /// writes, and the global UI scale (all widget metrics multiply by it, so

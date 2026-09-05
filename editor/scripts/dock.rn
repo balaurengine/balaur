@@ -73,7 +73,7 @@ pub fn output_tools(S, k, room) {
         S.log_query = "";
     } else {
         let (query, _, _) = ui::text_field("log-search", "filter…", #{
-            size: 11, font: "mono", width: 130, height: 22,
+            size: 11, font: ui::FONT_MONO, width: 130, height: 22,
             fill: k.sunken, stroke: k.line_soft, color: k.text,
         });
         S.log_query = query;
@@ -395,8 +395,8 @@ pub fn assets(S, k) {
                         // The name belongs to the card, not to the gap under it.
                         let short = if f.name.len() > 13 { f.name[..12] + "…" } else { f.name };
                         ui::pill(short, #{
-                            height: 20, min_width: CARD_W, size: 10, radius: 6, align: "center",
-                            font: "mono",
+                            height: 20, min_width: CARD_W, size: 10, radius: 6, align: ui::ALIGN_CENTER,
+                            font: ui::FONT_MONO,
                             fill: if chosen { k.accent_soft } else { k.sunken },
                             color: if chosen { k.accent } else { k.dim },
                         });
@@ -698,7 +698,7 @@ pub fn problems(S, k) {
                 ui::add_space(6);
                 let at = if f.line > 0 { format!("{}:{}", f.file, f.line) } else { f.file };
                 if ui::pill(at, #{
-                    height: 20, size: 11, font: "mono",
+                    height: 20, size: 11, font: ui::FONT_MONO,
                     fill: k.sunken, color: k.dim,
                     tooltip: "Open the file at this line",
                 }) {

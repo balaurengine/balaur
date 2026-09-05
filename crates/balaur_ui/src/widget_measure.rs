@@ -13,6 +13,7 @@ use balaur_core::Engine;
 use egui::vec2;
 use std::collections::HashMap;
 use std::rc::Rc;
+use crate::vocabulary::{words as w};
 
 /// A measure over one tree, memoised within itself: a container asks each
 /// child for a whole subtree, and its own parent will ask again. egui caches
@@ -75,9 +76,9 @@ impl<'a> Measure<'a> {
         match kind.as_str() {
             // A script fills its own rect, and a scroll is meant to clip: both
             // answer with their stated size or with nothing.
-            "draw" | "scroll" => egui::Vec2::ZERO,
+            w::DRAW | w::SCROLL => egui::Vec2::ZERO,
             // A picture knows its own size, so a row can divide by it.
-            "image" => {
+            w::IMAGE => {
                 crate::widgets::texture_of(self.eng, &self.painter.ctx().clone(), &widget.source)
                     .map_or(egui::Vec2::ZERO, |texture| {
                         crate::widget_layer::image_size(
@@ -86,44 +87,44 @@ impl<'a> Measure<'a> {
                         )
                     })
             }
-            "button" => {
+            w::BUTTON => {
                 let text = self.text(widget);
                 // egui's own button padding, which is what it will draw with.
                 text + self.padding
             }
-            "label" => self.text(widget),
+            w::LABEL => self.text(widget),
             // Room for a dozen wide letters: what a field takes before a
             // container or a `width` says otherwise.
-            "field" => {
+            w::FIELD => {
                 let line = self.galley("MMMMMMMMMMMM", widget);
                 line + self.padding
             }
-            "tab" => {
+            w::TAB => {
                 let strip = self.strip(index);
                 let pages = self.widest_child(index, theme);
                 let gap = widget.gap * self.scale;
                 vec2(strip.x.max(pages.x), strip.y + gap + pages.y)
             }
             // A box the height of the text, then the caption.
-            "check" => {
+            w::CHECK => {
                 let text = self.text(widget);
                 let line = widget.font_size * self.scale;
                 vec2(text.x + line + self.padding.x, text.y.max(line))
             }
             // The widest option, and room for the arrow.
-            "dropdown" => {
+            w::DROPDOWN => {
                 let mut widest = self.text(widget);
                 for option in &widget.options {
                     widest = widest.max(self.galley(option, widget));
                 }
                 widest + self.padding + vec2(20.0 * self.scale, 0.0)
             }
-            "slider" | "progress" => vec2(
+            w::SLIDER | w::PROGRESS => vec2(
                 160.0 * self.scale,
                 widget.font_size * self.scale + self.padding.y,
             ),
-            "separator" => egui::Vec2::splat(6.0 * self.scale),
-            "fold" => {
+            w::SEPARATOR => egui::Vec2::splat(6.0 * self.scale),
+            w::FOLD => {
                 let head = self.text(widget) + vec2(20.0 * self.scale, 0.0);
                 if !widget.open {
                     return head;
@@ -131,8 +132,8 @@ impl<'a> Measure<'a> {
                 let body = self.container(index, theme);
                 vec2(head.x.max(body.x), head.y + body.y)
             }
-            "grid" => self.grid(index, theme),
-            "flow" => self.flow(index, theme),
+            w::GRID => self.grid(index, theme),
+            w::FLOW => self.flow(index, theme),
             _ if lays_out(&kind) => self.container(index, theme),
             _ => self.text(widget),
         }
@@ -143,9 +144,9 @@ impl<'a> Measure<'a> {
     fn container(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
         let placed = &self.arena[index];
         let widget = &placed.widget;
-        let row = widget.kind == "row";
+        let row = widget.kind == w::ROW;
         let children = placed.children.clone();
-        let caption = if widget.kind == "panel" {
+        let caption = if widget.kind == w::PANEL {
             self.text(widget)
         } else {
             egui::Vec2::ZERO
@@ -293,7 +294,7 @@ impl<'a> Measure<'a> {
                 .shape(&self.painter.ctx().clone(), &request)
                 .size;
         }
-        let font = egui::FontId::new(widget.font_size * self.scale, family("ui"));
+        let font = egui::FontId::new(widget.font_size * self.scale, family(w::UI));
         self.painter
             .layout_no_wrap(text.to_owned(), font, egui::Color32::WHITE)
             .size()

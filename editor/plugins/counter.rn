@@ -42,7 +42,7 @@ pub fn draw(S, k) {
     } else {
         format!("{} scripted nodes", shown)
     };
-    ui::label(text, #{ size: 11.5, font: "mono", color: k.dim });
+    ui::label(text, #{ size: 11.5, font: ui::FONT_MONO, color: k.dim });
 }
 
 /// An inspector section, drawn after the built-in ones.
@@ -52,7 +52,7 @@ pub fn section(S, k, node) {
     }
     ui::add_space(8);
     ui::label(format!("counter: {}", S.plugins.counter.shown), #{
-        size: 11, font: "mono", color: k.faint,
+        size: 11, font: ui::FONT_MONO, color: k.faint,
     });
 }
 

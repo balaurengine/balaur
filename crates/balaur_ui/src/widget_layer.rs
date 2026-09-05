@@ -22,6 +22,7 @@ use crate::widget_arrange::{
 };
 pub(crate) use crate::widget_schema::{register_widget_component, register_widget_presets};
 use crate::widget_theme::WidgetTheme;
+use crate::vocabulary::{words as w};
 
 /// A component colour (`[r, g, b, a]` in 0..=1) as egui's 8-bit one.
 pub(crate) fn rgba_color(rgba: [f32; 4]) -> Color32 {
@@ -151,7 +152,7 @@ pub struct Widget {
 fn takes_focus(widget: &Widget) -> bool {
     widget.visible
         && widget.focusable
-        && (matches!(widget.kind.as_str(), "button" | "check" | "fold")
+        && (matches!(widget.kind.as_str(), w::BUTTON | w::CHECK | w::FOLD)
             || !widget.on_click.is_empty())
 }
 
@@ -162,7 +163,7 @@ fn takes_focus(widget: &Widget) -> bool {
 pub(crate) fn lays_out(kind: &str) -> bool {
     matches!(
         kind,
-        "row" | "column" | "panel" | "scroll" | "tab" | "grid" | "flow" | "fold" | "dialog"
+        w::ROW | w::COLUMN | w::PANEL | w::SCROLL | w::TAB | w::GRID | w::FLOW | w::FOLD | w::DIALOG
     )
 }
 
@@ -384,17 +385,17 @@ fn root_placement(widget: &Widget, area: egui::Rect, scale: f32) -> (egui::Pos2,
     let ox = widget.x * scale;
     let oy = widget.y * scale;
     let pos = match widget.anchor.as_str() {
-        "top_right" => pos2(area.max.x - ox, area.min.y + oy),
-        "bottom_left" => pos2(area.min.x + ox, area.max.y - oy),
-        "bottom_right" => pos2(area.max.x - ox, area.max.y - oy),
-        "center" => pos2(area.center().x + ox, area.center().y + oy),
+        w::TOP_RIGHT => pos2(area.max.x - ox, area.min.y + oy),
+        w::BOTTOM_LEFT => pos2(area.min.x + ox, area.max.y - oy),
+        w::BOTTOM_RIGHT => pos2(area.max.x - ox, area.max.y - oy),
+        w::CENTER => pos2(area.center().x + ox, area.center().y + oy),
         _ => pos2(area.min.x + ox, area.min.y + oy),
     };
     let align = match widget.anchor.as_str() {
-        "top_right" => Align2::RIGHT_TOP,
-        "bottom_left" => Align2::LEFT_BOTTOM,
-        "bottom_right" => Align2::RIGHT_BOTTOM,
-        "center" => Align2::CENTER_CENTER,
+        w::TOP_RIGHT => Align2::RIGHT_TOP,
+        w::BOTTOM_LEFT => Align2::LEFT_BOTTOM,
+        w::BOTTOM_RIGHT => Align2::RIGHT_BOTTOM,
+        w::CENTER => Align2::CENTER_CENTER,
         _ => Align2::LEFT_TOP,
     };
     (pos, align)
@@ -408,7 +409,7 @@ fn root_frame(
     area: egui::Rect,
     scale: f32,
 ) -> (egui::Pos2, Align2, egui::Vec2, egui::Order) {
-    if widget.anchor == "fill" {
+    if widget.anchor == w::FILL {
         let inset = widget.inset.map(|v| v * scale);
         let rect = egui::Rect::from_min_max(
             area.min + vec2(inset[0], inset[1]),
@@ -421,7 +422,7 @@ fn root_frame(
             egui::Order::Middle,
         );
     }
-    if widget.kind == "dialog" {
+    if widget.kind == w::DIALOG {
         return (
             area.center(),
             Align2::CENTER_CENTER,
@@ -509,7 +510,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
             None => screen,
         };
         let entity = placed[root].entity;
-        if widget.kind == "dialog" {
+        if widget.kind == w::DIALOG {
             crate::widget_kinds::dialog_backdrop(ctx, entity, area);
         }
         let (pos, align, assigned, order) = root_frame(widget, area, scale);
@@ -656,35 +657,35 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let caption = caption(at.eng, widget);
     let scale = at.scale;
     let color = rgba_color(widget.text_color);
-    let font = egui::FontId::new(widget.font_size * scale, family("ui"));
+    let font = egui::FontId::new(widget.font_size * scale, family(w::UI));
     match widget.kind.as_str() {
-        "button" => button(ui, at, index, &caption, &font, color),
+        w::BUTTON => button(ui, at, index, &caption, &font, color),
         // A line the player types into. The text lives on the widget; the
         // draw only reports what was typed, and the next tick writes it.
-        "field" => crate::widget_text::field(ui, at, index, &font, color),
+        w::FIELD => crate::widget_text::field(ui, at, index, &font, color),
         // A dialog is a panel drawn over a dimmed screen; the dimming is the
         // root draw's, so here it is the panel.
-        "panel" | "dialog" => panel(ui, at, index, &caption, &font, color),
-        "check" => crate::widget_kinds::check(ui, at, index, &caption, &font, color),
-        "dropdown" => crate::widget_kinds::dropdown(ui, at, index, &font, color),
-        "slider" => crate::widget_kinds::slider(ui, at, index),
-        "progress" => crate::widget_kinds::progress(ui, at, index, &caption, &font, color),
-        "separator" => crate::widget_kinds::separator(ui, at, index),
-        "grid" => crate::widget_kinds::grid(ui, at, index),
-        "flow" => crate::widget_kinds::flow(ui, at, index),
-        "fold" => crate::widget_kinds::fold(ui, at, index, &caption, &font, color),
+        w::PANEL | w::DIALOG => panel(ui, at, index, &caption, &font, color),
+        w::CHECK => crate::widget_kinds::check(ui, at, index, &caption, &font, color),
+        w::DROPDOWN => crate::widget_kinds::dropdown(ui, at, index, &font, color),
+        w::SLIDER => crate::widget_kinds::slider(ui, at, index),
+        w::PROGRESS => crate::widget_kinds::progress(ui, at, index, &caption, &font, color),
+        w::SEPARATOR => crate::widget_kinds::separator(ui, at, index),
+        w::GRID => crate::widget_kinds::grid(ui, at, index),
+        w::FLOW => crate::widget_kinds::flow(ui, at, index),
+        w::FOLD => crate::widget_kinds::fold(ui, at, index, &caption, &font, color),
         // A picture from the project, sized by what it states or by itself.
-        "image" => image(ui, at, index),
-        "row" => contain(ui, at, index, Axis::Row),
-        "column" => contain(ui, at, index, Axis::Column),
+        w::IMAGE => image(ui, at, index),
+        w::ROW => contain(ui, at, index, Axis::Row),
+        w::COLUMN => contain(ui, at, index, Axis::Column),
         // A box that clips, with its children free to run past it.
-        "scroll" => scroller(ui, at, index),
+        w::SCROLL => scroller(ui, at, index),
         // One child at a time, with a strip of the rest above it. The strip is
         // drawn here rather than authored, so adding a page is adding a node.
-        "tab" => tabs(ui, at, index),
+        w::TAB => tabs(ui, at, index),
         // The rect a script fills. The node owns the placement, the script
         // owns everything inside it, and neither has to know the other.
-        "draw" => {
+        w::DRAW => {
             if widget.draw.is_empty() {
                 return;
             }
@@ -814,8 +815,8 @@ fn button(
 /// Where text sits in the width the widget was given.
 pub(crate) fn across(align: &str) -> egui::Align {
     match align {
-        "center" => egui::Align::Center,
-        "end" => egui::Align::Max,
+        w::CENTER => egui::Align::Center,
+        w::END => egui::Align::Max,
         _ => egui::Align::Min,
     }
 }

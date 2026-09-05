@@ -8,6 +8,7 @@ use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt};
+use crate::shape::{keys as k, words};
 
 /// The asset type name a `tileset` definition declares.
 pub const TILESET_ASSET_TYPE: &str = "tileset";
@@ -24,7 +25,7 @@ pub struct Tileset {
 
 fn parse_tileset(value: &toml::Value) -> Result<Tileset> {
     let texture = value
-        .get("texture")
+        .get(k::TEXTURE)
         .and_then(toml::Value::as_str)
         .ok_or_else(|| anyhow!("a tileset needs a `texture` string naming its image"))?
         .to_string();
@@ -42,7 +43,7 @@ fn parse_tileset(value: &toml::Value) -> Result<Tileset> {
         ));
     }
     let columns = value
-        .get("columns")
+        .get(k::COLUMNS)
         .and_then(toml::Value::as_integer)
         .ok_or_else(|| anyhow!("a tileset needs an integer `columns` count of tiles per row"))?;
     if columns < 1 {
@@ -192,12 +193,14 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
             doc: "A grid of tiles cut from one `tileset` atlas and centred on the node, one character per cell, drawn at `pixels_per_unit` tile-texture pixels per world unit.",
             schema: ComponentDef::parse_schema(
                 "tilemap",
-                r#"tileset = { type = "asset", asset = "tileset", default = "", description = "The tileset naming the texture and tile grid" }
-cells = { type = "string", default = "", description = "Rows of tile characters, one row per line: . is empty, 0-9 then a-z index into the tileset. Also accepted: a list of rows of tile ids, -1 for empty, for a tileset past 36 tiles" }
-pixels_per_unit = { type = "float", default = 100.0, min = 0.01, description = "Tile-texture pixels per world unit" }
-material = { type = "asset", asset = "material", default = "", description = "The material the whole map draws with; empty draws with the built-in one" }"#,
+                &balaur_core::components::ComponentDef::schema(&[
+                    (k::TILESET, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The tileset naming the texture and tile grid" }}"#, crate::tilemap::TILESET_ASSET_TYPE)),
+                    (k::CELLS, r#"{ type = "string", default = "", description = "Rows of tile characters, one row per line: . is empty, 0-9 then a-z index into the tileset. Also accepted: a list of rows of tile ids, -1 for empty, for a tileset past 36 tiles" }"#),
+                    (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Tile-texture pixels per world unit" }"#),
+                    (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material the whole map draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
+                ]),
             ),
-            tags: &["2d", "render"],
+            tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
                 let text = |key: &str| {
@@ -209,13 +212,13 @@ material = { type = "asset", asset = "material", default = "", description = "Th
                 };
                 let tileset = text("tileset");
                 let cells = params
-                    .get("cells")
+                    .get(k::CELLS)
                     .cloned()
                     .unwrap_or_else(|| toml::Value::String(String::new()));
                 let grid = parse_cells_value(&cells)?;
                 let material = text("material");
                 let ppu = params
-                    .get("pixels_per_unit")
+                    .get(k::PIXELS_PER_UNIT)
                     .and_then(balaur_core::components::as_f64)
                     .unwrap_or(f64::from(crate::DEFAULT_PIXELS_PER_UNIT))
                     as f32;
@@ -248,10 +251,10 @@ material = { type = "asset", asset = "material", default = "", description = "Th
                 let map = world.get::<&Tilemap>(entity).ok()?;
                 let mut out = toml::map::Map::new();
                 out.insert("tileset".into(), toml::Value::String(map.tileset.clone()));
-                out.insert("cells".into(), map.cells.clone());
+                out.insert(k::CELLS.into(), map.cells.clone());
                 out.insert("material".into(), toml::Value::String(map.material.clone()));
                 out.insert(
-                    "pixels_per_unit".into(),
+                    k::PIXELS_PER_UNIT.into(),
                     toml::Value::Float(f64::from(map.pixels_per_unit)),
                 );
                 Some(toml::Value::Table(out))

@@ -474,7 +474,7 @@ pub(crate) fn register_joint_component(reg: &mut Registry<'_>) {
         ComponentDef {
             doc: "Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`.",
             schema: ComponentDef::parse_schema(c::JOINT_3D, &schema),
-            tags: &["3d", "physics"],
+            tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
             expects: &[c::BODY_3D],
             apply: Box::new(apply_joint),
             remove: Box::new(|eng, entity| {

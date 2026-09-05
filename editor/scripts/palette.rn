@@ -185,7 +185,7 @@ pub fn draw(S) {
                     ui::horizontal(#{ height: 40 }, || {
                         ui::add_space(8);
                         if ui::pill(cmd.label, #{
-                            height: 40, size: 13.5, align: "left",
+                            height: 40, size: 13.5, align: ui::ALIGN_LEFT,
                             min_width: 430,
                             icon: cmd.icon, icon_size: 14, icon_color: k.accent,
                             fill: if highlighted { k.sunken } else { "#00000000" },

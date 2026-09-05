@@ -232,7 +232,7 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
         "rigid_body2d",
         balaur_core::presets::preset(
             "A 2D body physics simulates, with a rect collider",
-            &["2d", "physics"],
+            &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
             &[(c::BODY_2D, Some("kind = \"dynamic\"")), (c::COLLIDER_2D, None)],
         )?,
     );
@@ -240,7 +240,7 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
         "static_body2d",
         balaur_core::presets::preset(
             "An immovable 2D body with a rect collider: ground, walls",
-            &["2d", "physics"],
+            &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
             &[(c::BODY_2D, Some("kind = \"static\"")), (c::COLLIDER_2D, None)],
         )?,
     );

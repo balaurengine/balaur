@@ -862,7 +862,7 @@ pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
         ComponentDef {
             doc: "Makes the node a 3D rigid body rapier simulates: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. On its own a body has no shape; add a `collider3d` for it to collide with anything.",
             schema: ComponentDef::parse_schema(c::BODY_3D, &schema),
-            tags: &["3d", "physics"],
+            tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
             expects: &[],
             apply: Box::new(apply_body),
             remove: Box::new(|eng, entity| {

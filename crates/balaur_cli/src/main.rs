@@ -319,28 +319,22 @@ fn main() -> Result<()> {
             ipa,
             apk,
             pkg,
-        } => {
-            // The two policies balaur_export deliberately does not hold: where
-            // the per-user cache is (keyed by this binary's build id), and
-            // whether a missing template may be fetched.
-            let fetch = move |wanted: &str| templates::obtain(wanted, download);
-            balaur_export::export(&balaur_export::Options {
-                path,
-                output,
-                target,
-                template,
-                app,
-                keep_sources,
-                sign,
-                notarize,
-                profile,
-                ipa,
-                apk,
-                pkg,
-                template_roots: balaur_export::default_roots(templates::cache_dir()),
-                obtain: if no_download { None } else { Some(&fetch) },
-            })
-        }
+        } => export_game(&ExportArgs {
+            path,
+            output,
+            target,
+            template,
+            download,
+            no_download,
+            keep_sources,
+            app,
+            sign,
+            notarize,
+            profile,
+            ipa,
+            apk,
+            pkg,
+        }),
         Command::Check { path, strict } => check_project(&path, strict),
         Command::Test {
             path,
@@ -465,28 +459,29 @@ fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<
     while balaur::replay::is_running(&app.engine) {
         app.advance(balaur::FIXED_DT);
         if let Some(at) = entries_at
-            && app.engine.tick() >= at {
-                for entry in balaur::digest::entries(&app.engine) {
-                    println!("{} {}", entry.label, entry.digest);
-                }
-                return Ok(());
+            && app.engine.tick() >= at
+        {
+            for entry in balaur::digest::entries(&app.engine) {
+                println!("{} {}", entry.label, entry.digest);
             }
+            return Ok(());
+        }
         if verify
             && let Some(d) = app
                 .engine
                 .resource::<balaur::replay::ReplayPlayer>()
                 .borrow()
                 .diverged
-            {
-                anyhow::bail!(
-                    "tick {}: recorded {} but replayed {}\n\
+        {
+            anyhow::bail!(
+                "tick {}: recorded {} but replayed {}\n\
                      run `balaur replay <file> --entries-at {}` on both machines and diff",
-                    d.tick,
-                    balaur::digest::Digest(d.recorded),
-                    balaur::digest::Digest(d.replayed),
-                    d.tick
-                );
-            }
+                d.tick,
+                balaur::digest::Digest(d.recorded),
+                balaur::digest::Digest(d.replayed),
+                d.tick
+            );
+        }
     }
 
     if entries_at.is_some() {
@@ -681,10 +676,7 @@ fn edit_project(
     // Registered here rather than in the engine: exporting is the CLI's
     // library, and the editor is the only app with a button for it.
     #[cfg(not(target_family = "wasm"))]
-    balaur_plugin::load(
-        &mut app,
-        &mut export_api::ExportPlugin::new(game.to_path_buf()),
-    )?;
+    balaur_plugin::load(&mut app, &mut export_api::ExportPlugin::new(game.clone()))?;
     // The editor's project is the editor; the game it edits is another root,
     // and every path it reads back is an absolute one inside it.
     balaur::file_api::add_root(&app.engine, &game);
@@ -766,9 +758,10 @@ fn test_scripts(project_root: &Path) -> Vec<String> {
             if path.is_dir() {
                 dirs.push(path);
             } else if path.extension().and_then(|e| e.to_str()) == Some("rn")
-                && let Ok(rel) = path.strip_prefix(project_root) {
-                    out.push(rel.to_string_lossy().replace('\\', "/"));
-                }
+                && let Ok(rel) = path.strip_prefix(project_root)
+            {
+                out.push(rel.to_string_lossy().replace('\\', "/"));
+            }
         }
     }
     out.sort();
@@ -795,7 +788,73 @@ fn run_test(project_root: &Path, rel: &str, frames: u64) -> Result<()> {
 ///
 /// Exits non-zero when anything would stop the project running, so a broken
 /// script fails a build rather than a play session.
+/// Everything `balaur export` was asked for, as the command line spells it.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each is one command-line flag, and they are not exclusive"
+)]
+struct ExportArgs {
+    path: PathBuf,
+    output: Option<PathBuf>,
+    target: Option<String>,
+    template: Option<PathBuf>,
+    download: bool,
+    no_download: bool,
+    keep_sources: bool,
+    app: bool,
+    sign: Option<String>,
+    notarize: bool,
+    profile: Option<PathBuf>,
+    ipa: bool,
+    apk: bool,
+    pkg: bool,
+}
+
+/// The two policies balaur_export deliberately does not hold: where the
+/// per-user cache is (keyed by this binary's build id), and whether a missing
+/// template may be fetched.
+fn export_game(args: &ExportArgs) -> Result<()> {
+    let download = args.download;
+    let fetch = move |wanted: &str| templates::obtain(wanted, download);
+    #[cfg(not(target_family = "wasm"))]
+    let modules = own_modules(args.path.clone());
+    #[cfg(not(target_family = "wasm"))]
+    let plugins: Option<&balaur_export::ExtraModules> = Some(&modules);
+    #[cfg(target_family = "wasm")]
+    let plugins = None;
+    balaur_export::export(&balaur_export::Options {
+        path: args.path.clone(),
+        output: args.output.clone(),
+        target: args.target.clone(),
+        template: args.template.clone(),
+        app: args.app,
+        keep_sources: args.keep_sources,
+        sign: args.sign.clone(),
+        notarize: args.notarize,
+        profile: args.profile.clone(),
+        ipa: args.ipa,
+        apk: args.apk,
+        pkg: args.pkg,
+        template_roots: balaur_export::default_roots(templates::cache_dir()),
+        plugins,
+        obtain: if args.no_download { None } else { Some(&fetch) },
+    })
+}
+
+/// What this binary adds to a project it compiles: the editor's `export`,
+/// which the editor's own scripts call and the engine does not carry.
+#[cfg(not(target_family = "wasm"))]
+fn own_modules(project: PathBuf) -> impl Fn() -> Vec<Box<dyn balaur_plugin::Plugin>> {
+    move || vec![Box::new(export_api::ExportPlugin::new(project.clone()))]
+}
+
 fn check_project(path: &std::path::Path, strict: bool) -> Result<()> {
+    #[cfg(not(target_family = "wasm"))]
+    let found = balaur::check_project_using(
+        path,
+        &mut [Box::new(export_api::ExportPlugin::new(path.to_path_buf()))],
+    )?;
+    #[cfg(target_family = "wasm")]
     let found = balaur::check_project(path)?;
     let mut errors = 0;
     let mut warnings = 0;

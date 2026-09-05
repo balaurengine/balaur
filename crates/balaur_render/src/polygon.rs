@@ -18,6 +18,7 @@ use balaur_core::mesh::{MeshData, MeshSkin};
 use glamx::Vec2;
 
 use crate::{Renderable2d, Shape2d, color_from_params, color_to_toml, set_color, set_polygon};
+use crate::shape::{keys as k, words};
 
 /// What a `Shape2d::Polygon` draws: resolved geometry, its texture, and the
 /// rig it deforms with.
@@ -51,11 +52,15 @@ impl PolygonMesh {
     }
 }
 
-const POLYGON_SCHEMA: &str = r#"mesh = { type = "asset", asset = "mesh", default = "", description = "Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node's space" }
-texture = { type = "string", default = "", description = "Image file, project-relative; empty draws the tint alone" }
-pixels_per_unit = { type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit, for the default UV mapping" }
-skeleton = { type = "string", default = "", description = "Node path to the rig root, relative to this node; empty means this node" }
-color = { type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#;
+fn polygon_schema() -> String {
+    balaur_core::components::ComponentDef::schema(&[
+        (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node's space" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
+        (k::TEXTURE, r#"{ type = "string", default = "", description = "Image file, project-relative; empty draws the tint alone" }"#),
+        (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit, for the default UV mapping" }"#),
+        (k::SKELETON, r#"{ type = "string", default = "", description = "Node path to the rig root, relative to this node; empty means this node" }"#),
+        (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
+    ])
+}
 
 /// The `polygon` component: writes `Shape2d::Polygon` and a [`PolygonMesh`]
 /// into `Renderable2d`.
@@ -64,8 +69,8 @@ pub(crate) fn register_polygon_component(reg: &mut Registry<'_>) {
         "polygon",
         ComponentDef {
             doc: "A filled, textured 2D polygon from a `mesh` asset's points and triangles, deformed by the rig `skeleton` names when the mesh carries skin weights.",
-            schema: ComponentDef::parse_schema("polygon", POLYGON_SCHEMA),
-            tags: &["2d", "render", "animation"],
+            schema: ComponentDef::parse_schema("polygon", &polygon_schema()),
+            tags: &[words::ORTHOGRAPHIC, "render", "animation"],
             expects: &[],
             apply: Box::new(apply_polygon),
             remove: Box::new(|eng, entity| {
@@ -86,11 +91,11 @@ fn apply_polygon(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<(
             .to_string()
     };
     let ppu = params
-        .get("pixels_per_unit")
+        .get(k::PIXELS_PER_UNIT)
         .and_then(as_f64)
         .map_or(crate::DEFAULT_PIXELS_PER_UNIT, |v| v as f32)
         .max(0.01);
-    let polygon = resolve(eng, text("mesh"), text("texture"), text("skeleton"), ppu)?;
+    let polygon = resolve(eng, text("mesh"), text(k::TEXTURE), text(k::SKELETON), ppu)?;
     set_polygon(eng, entity, Arc::new(polygon))?;
     set_color(eng, entity, color_from_params(params))
 }
@@ -171,17 +176,17 @@ fn polygon_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let mut map = toml::map::Map::new();
     map.insert("mesh".into(), toml::Value::String(polygon.mesh.clone()));
     map.insert(
-        "texture".into(),
+        k::TEXTURE.into(),
         toml::Value::String(polygon.texture.clone()),
     );
     map.insert(
-        "pixels_per_unit".into(),
+        k::PIXELS_PER_UNIT.into(),
         toml::Value::Float(f64::from(polygon.pixels_per_unit)),
     );
     map.insert(
-        "skeleton".into(),
+        k::SKELETON.into(),
         toml::Value::String(polygon.skeleton.clone()),
     );
-    map.insert("color".into(), color_to_toml(renderable.color));
+    map.insert(k::COLOR.into(), color_to_toml(renderable.color));
     Some(toml::Value::Table(map))
 }

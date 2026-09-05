@@ -24,7 +24,7 @@ fn section(S, k, title) {
     ui::horizontal(#{ height: 15 }, || {
         ui::add_space(2);
         if ui::pill(title.to_uppercase(), util::merge(style::heading(k), #{
-            height: 15, radius: 4, align: "left",
+            height: 15, radius: 4, align: ui::ALIGN_LEFT,
             icon: if open { icons::ui("caret-open") } else { icons::ui("caret-shut") }, icon_size: 7, icon_color: k.faint,
         })) {
             if open {
@@ -107,7 +107,7 @@ fn value_field(k, value, opts) {
 fn select_row(S, k, label, value) {
     row(S, k, label, || {
         ui::pill(value, #{
-            height: 28, size: 12, align: "left",
+            height: 28, size: 12, align: ui::ALIGN_LEFT,
             min_width: control_w(S),
             fill: k.sunken, color: k.text,
             trailing: "▼", trailing_color: k.faint, trailing_size: 10,
@@ -442,7 +442,7 @@ fn polygon_section(S, k) {
             ui::spacing(8, 0);
             ui::add_space(label_w(S));
             if ui::pill(bone.path, #{
-                height: 22, size: 11, align: "left", min_width: CONTROL_W,
+                height: 22, size: 11, align: ui::ALIGN_LEFT, min_width: CONTROL_W,
                 icon: "⋈", icon_size: 11,
                 fill: if active { k.accent_soft } else { k.sunken },
                 color: if active { k.accent } else { k.text },
@@ -1129,7 +1129,7 @@ pub fn body(S, k) {
                 // Ellipsised: the header is the panel's width, and a node is
                 // named whatever the scene named it.
                 ui::label(node.name, #{
-                    size: 16, font: "heading", strong: true, color: k.text, truncate: true,
+                    size: 16, font: ui::FONT_HEADING, strong: true, color: k.text, truncate: true,
                 });
                 ui::label(model::node_type(node),
                     util::merge(style::mono_sm(k.faint), #{ truncate: true }));

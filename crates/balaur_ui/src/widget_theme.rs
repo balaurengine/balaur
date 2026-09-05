@@ -26,6 +26,7 @@
 use std::collections::BTreeMap;
 
 use egui::Color32;
+use crate::vocabulary::keys as k;
 
 /// How one widget kind is drawn.
 #[derive(Clone)]
@@ -125,17 +126,17 @@ pub(crate) fn parse(value: &toml::Value) -> WidgetTheme {
         theme.kinds.insert(
             kind.clone(),
             Style {
-                fill: body.get("fill").and_then(|v| color(v, "fill")),
-                stroke: body.get("stroke").and_then(|v| color(v, "stroke")),
-                radius: number("radius"),
-                padding: number("padding"),
+                fill: body.get(k::FILL).and_then(|v| color(v, "fill")),
+                stroke: body.get(k::STROKE).and_then(|v| color(v, "stroke")),
+                radius: number(k::RADIUS),
+                padding: number(k::PADDING),
                 stroke_width: number("stroke_width").unwrap_or(1.0),
                 image: body
-                    .get("image")
+                    .get(k::IMAGE)
                     .and_then(toml::Value::as_str)
                     .filter(|path| !path.is_empty())
                     .map(str::to_string),
-                slice: four_of(body.get("slice")),
+                slice: four_of(body.get(k::SLICE)),
             },
         );
     }

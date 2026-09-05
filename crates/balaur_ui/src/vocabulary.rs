@@ -39,6 +39,7 @@ pub(crate) mod words {
 
     pub(crate) const START: &str = "start";
     pub(crate) const END: &str = "end";
+    pub(crate) const LEFT: &str = "left";
     /// Where a container puts its children, and where text sits.
     pub(crate) const ALIGNS: &[&str] = &[START, CENTER, END];
 
@@ -51,15 +52,11 @@ pub(crate) mod words {
     pub(crate) const HEADING: &str = "heading";
     pub(crate) const ICON: &str = "icon";
     pub(crate) const UI: &str = "ui";
-    /// The font families a widget option names; `ui` is the default.
-    pub(crate) const FONTS: &[&str] = &[MONO, HEADING];
 
     pub(crate) const CMD: &str = "cmd";
     pub(crate) const CTRL: &str = "ctrl";
     pub(crate) const ALT: &str = "alt";
     pub(crate) const SHIFT: &str = "shift";
-    /// Keyboard modifiers a shortcut binding accepts.
-    pub(crate) const MODIFIERS: &[&str] = &[CMD, CTRL, ALT, SHIFT];
 }
 
 /// Every property key of the `widget` component and every option a `ui.*` call reads.
@@ -102,6 +99,7 @@ pub(crate) mod keys {
     pub(crate) const ICON: &str = "icon";
     pub(crate) const ICON_COLOR: &str = "icon_color";
     pub(crate) const ICON_SIZE: &str = "icon_size";
+    pub(crate) const IMAGE: &str = "image";
     pub(crate) const INSET: &str = "inset";
     pub(crate) const K_COM: &str = "k_com";
     pub(crate) const K_FN: &str = "k_fn";

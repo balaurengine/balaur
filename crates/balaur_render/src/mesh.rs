@@ -6,6 +6,7 @@
 
 use balaur_core::mesh::{MESH_ASSET_TYPE, MeshData};
 use balaur_plugin::Registry;
+use crate::shape::{keys as k, words};
 
 /// The `mesh` component: authored geometry on a node.
 ///
@@ -20,12 +21,14 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
             doc: "Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.",
             schema: balaur_core::components::ComponentDef::parse_schema(
                 MESH_ASSET_TYPE,
-                r#"source = { type = "asset", asset = "mesh", default = "", description = "The mesh asset this node draws" }
-skeleton = { type = "string", default = "", description = "Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node" }
-texture = { type = "string", default = "", description = "Image file, project-relative; empty draws the colour alone" }
-material = { type = "asset", asset = "material", default = "", description = "The material this draws with; empty draws with the built-in one" }"#,
+                &balaur_core::components::ComponentDef::schema(&[
+                    (k::SOURCE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The mesh asset this node draws" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
+                    (k::SKELETON, r#"{ type = "string", default = "", description = "Node path to the rig a skinned mesh deforms with, relative to this node; empty means this node" }"#),
+                    (k::TEXTURE, r#"{ type = "string", default = "", description = "Image file, project-relative; empty draws the colour alone" }"#),
+                    (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
+                ]),
             ),
-            tags: &["3d", "render"],
+            tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
                 let text = |key: &str| {
@@ -35,14 +38,14 @@ material = { type = "asset", asset = "material", default = "", description = "Th
                         .unwrap_or_default()
                         .to_string()
                 };
-                let source = text("source");
+                let source = text(k::SOURCE);
                 // Warned, not refused: one unreadable model must not take the
                 // whole scene down, and the node still has a place in the tree.
                 if !source.is_empty()
                     && let Err(why) = balaur_core::assets::load_typed::<MeshData>(eng, &source) {
                         tracing::warn!("mesh '{source}': {why:#}");
                     }
-                crate::set_mesh(eng, entity, source, text("skeleton"), text("texture"))?;
+                crate::set_mesh(eng, entity, source, text(k::SKELETON), text(k::TEXTURE))?;
                 crate::material::set_material_3d(eng, entity, &text("material"))
             }),
             remove: Box::new(|eng, entity| {
@@ -55,13 +58,13 @@ material = { type = "asset", asset = "material", default = "", description = "Th
                 let renderable = world.get::<&crate::Renderable>(entity).ok()?;
                 let source = renderable.mesh.clone()?;
                 let mut map = toml::map::Map::new();
-                map.insert("source".into(), toml::Value::String(source));
+                map.insert(k::SOURCE.into(), toml::Value::String(source));
                 map.insert(
-                    "skeleton".into(),
+                    k::SKELETON.into(),
                     toml::Value::String(renderable.skeleton.clone()),
                 );
                 map.insert(
-                    "texture".into(),
+                    k::TEXTURE.into(),
                     toml::Value::String(renderable.texture.clone()),
                 );
                 map.insert(

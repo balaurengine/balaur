@@ -64,7 +64,7 @@ pub(crate) fn register_modifier2d_component(reg: &mut Registry<'_>) {
                   `look_at` turns one bone toward the target, `two_bone_ik` bends a root, middle \
                   and tip chain so the tip reaches it.",
             schema: ComponentDef::parse_schema("modifier2d", &schema()),
-            tags: &["2d", "animation"],
+            tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::ANIMATION],
             expects: &[],
             apply: Box::new(apply_modifier2d),
             remove: Box::new(|eng, entity| {

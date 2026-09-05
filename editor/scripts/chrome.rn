@@ -80,7 +80,7 @@ pub fn persona_bar(S) {
             ui::image(mark.logo, #{ height: 26, radius: 13, bg: "#ffffff", padding: 3 });
             if !S.compact {
                 ui::add_space(7);
-                ui::label(mark.name, #{ size: 16, font: "heading", color: k.text });
+                ui::label(mark.name, #{ size: 16, font: ui::FONT_HEADING, color: k.text });
             }
             ui::add_space(12);
             for p in defs::personas() {

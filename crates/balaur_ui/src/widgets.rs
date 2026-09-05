@@ -12,6 +12,7 @@ use egui::{Align2, Color32, CornerRadius, FontId, Margin, Sense, Stroke, StrokeK
 use crate::UiState;
 use crate::bridge::{scale, scoped, with_ui};
 use crate::theme::{self, parse_hex};
+use crate::vocabulary::{keys as k, words as w};
 
 /// An options table as passed from script: `{ height = 56, fill = "#20242a" }`.
 ///
@@ -28,86 +29,86 @@ pub(crate) struct Opts(pub(crate) Option<Value>);
 /// real key on the wrong widget still passes, which is the price of not
 /// making every call site declare its own set.
 const KNOWN_KEYS: &[&str] = &[
-    "align",
-    "autofocus",
-    "bg",
-    "breakpoint_color",
-    "breakpoints",
-    "closable",
-    "collapsible",
-    "color",
-    "current_fill",
-    "current_line",
-    "d",
-    "dashed",
-    "decimals",
-    "fill",
-    "font",
-    "gutter_color",
-    "gutter_width",
-    "h",
-    "height",
-    "highlight",
-    "hover_fill",
-    "icon",
-    "icon_color",
-    "icon_size",
-    "k_com",
-    "k_fn",
-    "k_key",
-    "k_num",
-    "k_punc",
-    "k_str",
-    "k_type",
-    "knob",
-    "language",
-    "line_height",
-    "max",
-    "max_height",
-    "menu",
-    "min",
-    "min_width",
-    "off_fill",
-    "off_knob",
-    "on_fill",
-    "on_knob",
-    "padding",
-    "padding_x",
-    "padding_y",
-    "prefix",
-    "prefix_color",
-    "problem_color",
-    "problems",
-    "radius",
-    "rail",
-    "resizable",
-    "role",
-    "round",
-    "scrim",
-    "separator",
-    "size",
-    "speed",
-    "stick_to_bottom",
-    "stroke",
-    "strong",
-    "suffix",
-    "tight",
-    "title",
-    "tooltip",
-    "top",
-    "trailing",
-    "trailing_color",
-    "trailing_size",
-    "transparent",
-    "truncate",
-    "value",
-    "w",
-    "warning_color",
-    "warnings",
-    "width",
-    "wrap",
-    "x",
-    "y",
+    k::ALIGN,
+    k::AUTOFOCUS,
+    k::BG,
+    k::BREAKPOINT_COLOR,
+    k::BREAKPOINTS,
+    k::CLOSABLE,
+    k::COLLAPSIBLE,
+    k::COLOR,
+    k::CURRENT_FILL,
+    k::CURRENT_LINE,
+    k::D,
+    k::DASHED,
+    k::DECIMALS,
+    k::FILL,
+    k::FONT,
+    k::GUTTER_COLOR,
+    k::GUTTER_WIDTH,
+    k::H,
+    k::HEIGHT,
+    k::HIGHLIGHT,
+    k::HOVER_FILL,
+    k::ICON,
+    k::ICON_COLOR,
+    k::ICON_SIZE,
+    k::K_COM,
+    k::K_FN,
+    k::K_KEY,
+    k::K_NUM,
+    k::K_PUNC,
+    k::K_STR,
+    k::K_TYPE,
+    k::KNOB,
+    k::LANGUAGE,
+    k::LINE_HEIGHT,
+    k::MAX,
+    k::MAX_HEIGHT,
+    k::MENU,
+    k::MIN,
+    k::MIN_WIDTH,
+    k::OFF_FILL,
+    k::OFF_KNOB,
+    k::ON_FILL,
+    k::ON_KNOB,
+    k::PADDING,
+    k::PADDING_X,
+    k::PADDING_Y,
+    k::PREFIX,
+    k::PREFIX_COLOR,
+    k::PROBLEM_COLOR,
+    k::PROBLEMS,
+    k::RADIUS,
+    k::RAIL,
+    k::RESIZABLE,
+    k::ROLE,
+    k::ROUND,
+    k::SCRIM,
+    k::SEPARATOR,
+    k::SIZE,
+    k::SPEED,
+    k::STICK_TO_BOTTOM,
+    k::STROKE,
+    k::STRONG,
+    k::SUFFIX,
+    k::TIGHT,
+    k::TITLE,
+    k::TOOLTIP,
+    k::TOP,
+    k::TRAILING,
+    k::TRAILING_COLOR,
+    k::TRAILING_SIZE,
+    k::TRANSPARENT,
+    k::TRUNCATE,
+    k::VALUE,
+    k::W,
+    k::WARNING_COLOR,
+    k::WARNINGS,
+    k::WIDTH,
+    k::WRAP,
+    k::X,
+    k::Y,
 ];
 
 /// Report an option key no widget reads, once per name.
@@ -248,12 +249,12 @@ pub(crate) fn pill_radius(h: f32) -> CornerRadius {
 }
 
 pub(crate) fn panel_frame(opts: &Opts) -> egui::Frame {
-    let px = opts.px("padding_x", 0.0);
-    let py = opts.px("padding_y", 0.0);
+    let px = opts.px(k::PADDING_X, 0.0);
+    let py = opts.px(k::PADDING_Y, 0.0);
     let mut frame = egui::Frame::new().inner_margin(Margin::symmetric(px as i8, py as i8));
-    if let Some(fill) = opts.opt_color("fill") {
+    if let Some(fill) = opts.opt_color(k::FILL) {
         frame = frame.fill(fill);
-    } else if opts.boolean("transparent", false) {
+    } else if opts.boolean(k::TRANSPARENT, false) {
         frame = frame.fill(Color32::TRANSPARENT);
     }
     frame
@@ -281,46 +282,60 @@ pub(crate) fn text(
 /// Screen anchors for the `widget` scene component, so a script says
 /// `ui.ANCHOR_TOP_LEFT` rather than spelling the string.
 pub const ANCHORS: &[(&str, &str)] = &[
-    ("ANCHOR_TOP_LEFT", "top_left"),
-    ("ANCHOR_TOP_RIGHT", "top_right"),
-    ("ANCHOR_BOTTOM_LEFT", "bottom_left"),
-    ("ANCHOR_BOTTOM_RIGHT", "bottom_right"),
-    ("ANCHOR_CENTER", "center"),
+    ("ANCHOR_TOP_LEFT", w::TOP_LEFT),
+    ("ANCHOR_TOP_RIGHT", w::TOP_RIGHT),
+    ("ANCHOR_BOTTOM_LEFT", w::BOTTOM_LEFT),
+    ("ANCHOR_BOTTOM_RIGHT", w::BOTTOM_RIGHT),
+    ("ANCHOR_CENTER", w::CENTER),
     ("ANCHOR_FILL", "fill"),
 ];
 
 /// Widget kinds the layer draws.
 pub const WIDGET_KINDS: &[(&str, &str)] = &[
-    ("WIDGET_LABEL", "label"),
-    ("WIDGET_BUTTON", "button"),
-    ("WIDGET_PANEL", "panel"),
-    ("WIDGET_ROW", "row"),
-    ("WIDGET_COLUMN", "column"),
-    ("WIDGET_SCROLL", "scroll"),
-    ("WIDGET_TAB", "tab"),
+    ("WIDGET_LABEL", w::LABEL),
+    ("WIDGET_BUTTON", w::BUTTON),
+    ("WIDGET_PANEL", w::PANEL),
+    ("WIDGET_ROW", w::ROW),
+    ("WIDGET_COLUMN", w::COLUMN),
+    ("WIDGET_SCROLL", w::SCROLL),
+    ("WIDGET_TAB", w::TAB),
     ("WIDGET_DRAW", "draw"),
-    ("WIDGET_IMAGE", "image"),
-    ("WIDGET_FIELD", "field"),
-    ("WIDGET_CHECK", "check"),
-    ("WIDGET_DROPDOWN", "dropdown"),
-    ("WIDGET_SLIDER", "slider"),
-    ("WIDGET_PROGRESS", "progress"),
-    ("WIDGET_GRID", "grid"),
-    ("WIDGET_FLOW", "flow"),
-    ("WIDGET_FOLD", "fold"),
-    ("WIDGET_DIALOG", "dialog"),
+    ("WIDGET_IMAGE", w::IMAGE),
+    ("WIDGET_FIELD", w::FIELD),
+    ("WIDGET_CHECK", w::CHECK),
+    ("WIDGET_DROPDOWN", w::DROPDOWN),
+    ("WIDGET_SLIDER", w::SLIDER),
+    ("WIDGET_PROGRESS", w::PROGRESS),
+    ("WIDGET_GRID", w::GRID),
+    ("WIDGET_FLOW", w::FLOW),
+    ("WIDGET_FOLD", w::FOLD),
+    ("WIDGET_DIALOG", w::DIALOG),
     ("WIDGET_SEPARATOR", "separator"),
 ];
 
+/// Where a container puts its children, and where text sits in its width.
+pub const ALIGNS: &[(&str, &str)] = &[
+    ("ALIGN_START", w::START),
+    ("ALIGN_CENTER", w::CENTER),
+    ("ALIGN_END", w::END),
+];
+
+/// The one `align` a `ui.pill` reads: against the left edge, or centred.
+pub const PILL_ALIGNS: &[(&str, &str)] = &[("ALIGN_LEFT", w::LEFT)];
+
+/// Slant, for `font_style`.
+pub const FONT_STYLES: &[(&str, &str)] =
+    &[("FONT_STYLE_NORMAL", w::NORMAL), ("FONT_STYLE_ITALIC", w::ITALIC)];
+
 /// Font families the theme registers.
-pub const FONTS: &[(&str, &str)] = &[("FONT_MONO", "mono"), ("FONT_HEADING", "heading")];
+pub const FONTS: &[(&str, &str)] = &[("FONT_MONO", w::MONO), ("FONT_HEADING", w::HEADING)];
 
 /// Keyboard modifiers accepted by shortcut bindings.
 pub const MODIFIERS: &[(&str, &str)] = &[
-    ("MOD_CMD", "cmd"),
-    ("MOD_CTRL", "ctrl"),
-    ("MOD_ALT", "alt"),
-    ("MOD_SHIFT", "shift"),
+    ("MOD_CMD", w::CMD),
+    ("MOD_CTRL", w::CTRL),
+    ("MOD_ALT", w::ALT),
+    ("MOD_SHIFT", w::SHIFT),
 ];
 
 /// Declare `ui.*`. Takes the `Registry` rather than a module because it opens
@@ -340,6 +355,9 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
     for (name, value) in ANCHORS
         .iter()
         .chain(WIDGET_KINDS)
+        .chain(ALIGNS)
+        .chain(PILL_ALIGNS)
+        .chain(FONT_STYLES)
         .chain(FONTS)
         .chain(MODIFIERS)
     {
@@ -375,7 +393,7 @@ pub(crate) fn text_field(
     // `value` makes the field show what it edits: the buffer is seeded from it
     // and re-seeded whenever the source changes underneath. Without it the
     // buffer is the only truth, which is what a search box wants.
-    let seed = opts.string("value");
+    let seed = opts.string(k::VALUE);
     let mut buffer = {
         let mut state = state.borrow_mut();
         if let Some(value) = seed
@@ -385,42 +403,42 @@ pub(crate) fn text_field(
             }
         state.text_buffers.get(id).cloned().unwrap_or_default()
     };
-    let autofocus = opts.boolean("autofocus", false) && {
+    let autofocus = opts.boolean(k::AUTOFOCUS, false) && {
         let mut state = state.borrow_mut();
         state.focused_once.insert(id.to_string())
     };
     let id_owned = id.to_string();
     let result = with_ui(|ui| {
-        let size = opts.px("size", 13.0);
+        let size = opts.px(k::SIZE, 13.0);
         let family = opts
-            .string("font")
+            .string(k::FONT)
             .map_or_else(|| theme::family("ui"), |name| theme::family(&name));
         let mut edit = egui::TextEdit::singleline(&mut buffer)
             .id(egui::Id::new(id_owned.clone()))
             .frame(egui::Frame::NONE)
             .hint_text(placeholder)
             .font(FontId::new(size, family));
-        if let Some(color) = opts.opt_color("color") {
+        if let Some(color) = opts.opt_color(k::COLOR) {
             edit = edit.text_color(color);
         }
         // A `height` asks for the pill shell every other inspector control
         // wears; its padding comes out of the width the caller asked for.
-        let h = opts.px("height", 0.0);
+        let h = opts.px(k::HEIGHT, 0.0);
         let pad = if h > 0.0 { sc(11.0) } else { 0.0 };
-        let w = opts.px("width", 0.0);
+        let w = opts.px(k::WIDTH, 0.0);
         if w > 0.0 {
             edit = edit.desired_width((w - pad * 2.0).max(sc(8.0)));
         }
         let response = if h > 0.0 {
-            let radius = opts.px("radius", 0.0);
+            let radius = opts.px(k::RADIUS, 0.0);
             let corner = if radius > 0.0 {
                 pill_radius(radius * 2.0)
             } else {
                 pill_radius(sc(5.0) * 2.0)
             };
             egui::Frame::new()
-                .fill(opts.color("fill", Color32::TRANSPARENT))
-                .stroke(Stroke::new(1.0, opts.color("stroke", Color32::TRANSPARENT)))
+                .fill(opts.color(k::FILL, Color32::TRANSPARENT))
+                .stroke(Stroke::new(1.0, opts.color(k::STROKE, Color32::TRANSPARENT)))
                 .corner_radius(corner)
                 .inner_margin(Margin::symmetric(pad as i8, 0))
                 .show(ui, |ui| {
@@ -458,13 +476,13 @@ pub(crate) struct SyntaxColors {
 impl SyntaxColors {
     pub(crate) fn from_opts(opts: &Opts) -> Self {
         Self {
-            key: opts.color("k_key", Color32::from_rgb(0xf0, 0xa2, 0x73)),
-            string: opts.color("k_str", Color32::from_rgb(0x8f, 0xbc, 0xae)),
-            number: opts.color("k_num", Color32::from_rgb(0xff, 0xc7, 0xa8)),
-            comment: opts.color("k_com", Color32::from_rgb(0x76, 0x7e, 0x88)),
-            ident: opts.color("k_fn", Color32::from_rgb(0xee, 0xf1, 0xf4)),
-            builtin: opts.color("k_type", Color32::from_rgb(0xb6, 0xd8, 0xcc)),
-            punct: opts.color("k_punc", Color32::from_rgb(0x98, 0xa1, 0xaa)),
+            key: opts.color(k::K_KEY, Color32::from_rgb(0xf0, 0xa2, 0x73)),
+            string: opts.color(k::K_STR, Color32::from_rgb(0x8f, 0xbc, 0xae)),
+            number: opts.color(k::K_NUM, Color32::from_rgb(0xff, 0xc7, 0xa8)),
+            comment: opts.color(k::K_COM, Color32::from_rgb(0x76, 0x7e, 0x88)),
+            ident: opts.color(k::K_FN, Color32::from_rgb(0xee, 0xf1, 0xf4)),
+            builtin: opts.color(k::K_TYPE, Color32::from_rgb(0xb6, 0xd8, 0xcc)),
+            punct: opts.color(k::K_PUNC, Color32::from_rgb(0x98, 0xa1, 0xaa)),
         }
     }
 }
@@ -614,10 +632,10 @@ pub(crate) struct Marks {
 impl Marks {
     fn from_opts(opts: &Opts) -> Self {
         Self {
-            errors: opts.lines("problems"),
-            warnings: opts.lines("warnings"),
-            error_color: opts.color("problem_color", Color32::from_rgb(0xe0, 0x4a, 0x4a)),
-            warning_color: opts.color("warning_color", Color32::from_rgb(0xe0, 0xb0, 0x4a)),
+            errors: opts.lines(k::PROBLEMS),
+            warnings: opts.lines(k::WARNINGS),
+            error_color: opts.color(k::PROBLEM_COLOR, Color32::from_rgb(0xe0, 0x4a, 0x4a)),
+            warning_color: opts.color(k::WARNING_COLOR, Color32::from_rgb(0xe0, 0xb0, 0x4a)),
         }
     }
 
@@ -737,14 +755,14 @@ struct Gutter {
 impl Gutter {
     fn from_opts(opts: &Opts, size: f32) -> Self {
         Self {
-            width: opts.px("gutter_width", 34.0),
-            color: opts.color("gutter_color", Color32::from_rgb(0x76, 0x7e, 0x88)),
+            width: opts.px(k::GUTTER_WIDTH, 34.0),
+            color: opts.color(k::GUTTER_COLOR, Color32::from_rgb(0x76, 0x7e, 0x88)),
             size,
-            breakpoints: opts.lines("breakpoints"),
-            current_line: opts.f32("current_line", 0.0).max(0.0) as usize,
-            breakpoint_color: opts.color("breakpoint_color", Color32::from_rgb(0xe0, 0x4a, 0x4a)),
+            breakpoints: opts.lines(k::BREAKPOINTS),
+            current_line: opts.f32(k::CURRENT_LINE, 0.0).max(0.0) as usize,
+            breakpoint_color: opts.color(k::BREAKPOINT_COLOR, Color32::from_rgb(0xe0, 0x4a, 0x4a)),
             current_fill: opts.color(
-                "current_fill",
+                k::CURRENT_FILL,
                 Color32::from_rgba_unmultiplied(0xe0, 0xb0, 0x4a, 0x40),
             ),
             marks: Marks::from_opts(opts),
@@ -770,7 +788,7 @@ impl Gutter {
             ui.painter()
                 .rect_filled(row, CornerRadius::ZERO, self.current_fill);
         }
-        let font = FontId::new((self.size - sc(1.5)).max(8.0), theme::family("mono"));
+        let font = FontId::new((self.size - sc(1.5)).max(8.0), theme::family(w::MONO));
         for i in 0..n_lines {
             let center_y = rect.min.y + row_h * (i as f32 + 0.5);
             if self.breakpoints.contains(&(i + 1)) {
@@ -814,7 +832,7 @@ pub(crate) fn code_editor(
 ) -> anyhow::Result<(String, bool, Option<i64>)> {
     // `language` overrides; otherwise highlight whatever the project is
     // written in, so an editor shows Rune as Rune.
-    let language = opts.string("language").unwrap_or_else(|| {
+    let language = opts.string(k::LANGUAGE).unwrap_or_else(|| {
         eng.try_resource::<balaur_core::project::ProjectManifest>()
             .map_or_else(|| "rune".to_string(), |m| m.borrow().language.clone())
     });
@@ -832,11 +850,11 @@ pub(crate) fn code_editor(
             source.to_string()
         }
     };
-    let size = opts.px("size", 12.5);
+    let size = opts.px(k::SIZE, 12.5);
     let gutter = Gutter::from_opts(opts, size);
     let colors = SyntaxColors::from_opts(opts);
     let marks = Marks::from_opts(opts);
-    let font = FontId::new(size, theme::family("mono"));
+    let font = FontId::new(size, theme::family(w::MONO));
     let (changed, clicked) = with_ui(|ui| {
         let font = font.clone();
         let row_h = ui
@@ -929,8 +947,8 @@ pub(crate) fn draw_image(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Resul
         } else {
             1.0
         };
-        let w = opts.px("width", 0.0);
-        let h = opts.px("height", 0.0);
+        let w = opts.px(k::WIDTH, 0.0);
+        let h = opts.px(k::HEIGHT, 0.0);
         let size = if w > 0.0 && h > 0.0 {
             vec2(w, h)
         } else if h > 0.0 {
@@ -940,9 +958,9 @@ pub(crate) fn draw_image(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Resul
         } else {
             native
         };
-        let radius = opts.px("radius", 0.0);
-        let padding = opts.px("padding", 0.0);
-        if let Some(bg) = opts.opt_color("bg") {
+        let radius = opts.px(k::RADIUS, 0.0);
+        let padding = opts.px(k::PADDING, 0.0);
+        if let Some(bg) = opts.opt_color(k::BG) {
             // Backing plate (e.g. white circle behind a logo) with padding.
             let total = size + vec2(padding * 2.0, padding * 2.0);
             let (rect, _) = ui.allocate_exact_size(total, Sense::hover());
@@ -984,9 +1002,9 @@ pub(crate) fn left_pill(
     label: &str,
     opts: &Opts,
 ) -> anyhow::Result<bool> {
-    let h = opts.px("height", 27.0);
+    let h = opts.px(k::HEIGHT, 27.0);
     let w = {
-        let w = opts.px("min_width", 0.0);
+        let w = opts.px(k::MIN_WIDTH, 0.0);
         if w > 0.0 {
             w
         } else {
@@ -995,16 +1013,16 @@ pub(crate) fn left_pill(
     };
     let (rect, mut response) = ui.allocate_exact_size(vec2(w, h), Sense::click());
     let hovered = response.hovered();
-    let mut fill = opts.color("fill", Color32::TRANSPARENT);
+    let mut fill = opts.color(k::FILL, Color32::TRANSPARENT);
     if hovered && fill == Color32::TRANSPARENT
-        && let Some(hover) = opts.opt_color("hover_fill") {
+        && let Some(hover) = opts.opt_color(k::HOVER_FILL) {
             fill = hover;
         }
     // Tiles by default, like every other pill; `round` opts back in.
-    let asked = opts.px("radius", 0.0);
+    let asked = opts.px(k::RADIUS, 0.0);
     let corner = if asked > 0.0 {
         pill_radius(asked * 2.0)
-    } else if opts.boolean("round", false) {
+    } else if opts.boolean(k::ROUND, false) {
         pill_radius(h)
     } else {
         pill_radius(sc(5.0) * 2.0)
@@ -1012,7 +1030,7 @@ pub(crate) fn left_pill(
     if fill != Color32::TRANSPARENT {
         ui.painter().rect_filled(rect, corner, fill);
     }
-    if let Some(stroke) = opts.opt_color("stroke") {
+    if let Some(stroke) = opts.opt_color(k::STROKE) {
         ui.painter().rect(
             rect,
             corner,
@@ -1021,36 +1039,36 @@ pub(crate) fn left_pill(
             StrokeKind::Inside,
         );
     }
-    let fam = opts.string("font").unwrap_or_else(|| "ui".into());
-    let size = opts.px("size", 12.0);
-    let color = opts.color("color", Color32::WHITE);
+    let fam = opts.string(k::FONT).unwrap_or_else(|| "ui".into());
+    let size = opts.px(k::SIZE, 12.0);
+    let color = opts.color(k::COLOR, Color32::WHITE);
     let mut x = rect.min.x + sc(10.0);
-    if let Some(icon) = opts.string("icon") {
-        let icon_color = opts.opt_color("icon_color").unwrap_or(color);
+    if let Some(icon) = opts.string(k::ICON) {
+        let icon_color = opts.opt_color(k::ICON_COLOR).unwrap_or(color);
         let galley = ui.painter().layout_no_wrap(
             icon,
-            FontId::new(opts.px("icon_size", 12.0), theme::family(&fam)),
+            FontId::new(opts.px(k::ICON_SIZE, 12.0), theme::family(&fam)),
             icon_color,
         );
         let y = rect.center().y - galley.size().y / 2.0;
         ui.painter().galley(pos2(x, y), galley, icon_color);
-        x += sc(7.0) + opts.px("icon_size", 12.0);
+        x += sc(7.0) + opts.px(k::ICON_SIZE, 12.0);
     }
     let mut font = FontId::new(size, theme::family(&fam));
-    if opts.boolean("strong", false) {
+    if opts.boolean(k::STRONG, false) {
         font = FontId::new(
             size,
-            theme::family(if fam == "ui" { "heading" } else { &fam }),
+            theme::family(if fam == "ui" { w::HEADING } else { &fam }),
         );
     }
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, color);
     let y = rect.center().y - galley.size().y / 2.0;
     ui.painter().galley(pos2(x, y), galley, color);
-    if let Some(trailing) = opts.string("trailing") {
-        let t_color = opts.opt_color("trailing_color").unwrap_or(color);
+    if let Some(trailing) = opts.string(k::TRAILING) {
+        let t_color = opts.opt_color(k::TRAILING_COLOR).unwrap_or(color);
         let galley = ui.painter().layout_no_wrap(
             trailing,
-            FontId::new(opts.px("trailing_size", 11.0), theme::family(&fam)),
+            FontId::new(opts.px(k::TRAILING_SIZE, 11.0), theme::family(&fam)),
             t_color,
         );
         let ty = rect.center().y - galley.size().y / 2.0;
@@ -1060,10 +1078,10 @@ pub(crate) fn left_pill(
             t_color,
         );
     }
-    if let Some(tip) = opts.string("tooltip") {
+    if let Some(tip) = opts.string(k::TOOLTIP) {
         response = response.on_hover_text(tip);
     }
-    if let Some(menu) = opts.callback("menu") {
+    if let Some(menu) = opts.callback(k::MENU) {
         response.context_menu(|ui| {
             let _ = scoped(eng, ui, menu);
         });

@@ -14,6 +14,7 @@ use crate::widgets::{
     Opts, code_editor, draw_image, panel_frame, pill_radius, sc, text, text_field,
 };
 use crate::{UiConfig, UiState};
+use crate::vocabulary::{keys as k, words as w};
 
 /// `ui.*` bindings: theme.
 pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
@@ -88,7 +89,7 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
         ("overlay", &[], "", "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `w`/`h` fix its size, and `fill`, `stroke`, `radius` and padding make it a sheet."),
     ]);
     macro_rules! panel {
-        ($name:literal, $ctor:ident, $size_key:literal, $span:ident) => {
+        ($name:literal, $ctor:ident, $size_key:expr, $span:ident) => {
             m.function(
                 $name,
                 |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
@@ -98,16 +99,16 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
                         let size = opts.px($size_key, 32.0);
                         let panel = egui::Panel::$ctor(egui::Id::new(id))
                             .frame(panel_frame(&opts))
-                            .show_separator_line(opts.boolean("separator", true));
+                            .show_separator_line(opts.boolean(k::SEPARATOR, true));
                         // A resizable panel keeps its own size in egui's
                         // memory: the caller's is the starting one, `min`/`max`
                         // bound the drag, and the settled size is the answer.
-                        let panel = if opts.boolean("resizable", false) {
+                        let panel = if opts.boolean(k::RESIZABLE, false) {
                             panel
                                 .resizable(true)
                                 .default_size(size)
-                                .min_size(opts.px("min", 80.0))
-                                .max_size(opts.px("max", 4096.0))
+                                .min_size(opts.px(k::MIN, 80.0))
+                                .max_size(opts.px(k::MAX, 4096.0))
                         } else {
                             panel.exact_size(size).resizable(false)
                         };
@@ -120,10 +121,10 @@ pub(crate) fn install_panels(m: &mut dyn Bindings<Engine>) {
             );
         };
     }
-    panel!("top_panel", top, "height", height);
-    panel!("bottom_panel", bottom, "height", height);
-    panel!("left_panel", left, "width", width);
-    panel!("right_panel", right, "width", width);
+    panel!("top_panel", top, k::HEIGHT, height);
+    panel!("bottom_panel", bottom, k::HEIGHT, height);
+    panel!("left_panel", left, k::WIDTH, width);
+    panel!("right_panel", right, k::WIDTH, width);
 
     m.function(
         "central_panel",
@@ -151,13 +152,13 @@ fn install_overlay(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (id, opts, cb): (String, Option<Value>, CallbackId)| {
             let opts = Opts::with_roles(opts);
             with_ctx(|ctx| {
-                let x = opts.px("x", 0.0);
-                let y = opts.px("y", 0.0);
-                let w = opts.px("w", 0.0);
-                let h = opts.px("h", 0.0);
+                let x = opts.px(k::X, 0.0);
+                let y = opts.px(k::Y, 0.0);
+                let w = opts.px(k::W, 0.0);
+                let h = opts.px(k::H, 0.0);
                 let mut result = Ok(());
-                let pad_x = opts.px("padding_x", 0.0);
-                let pad_y = opts.px("padding_y", 0.0);
+                let pad_x = opts.px(k::PADDING_X, 0.0);
+                let pad_y = opts.px(k::PADDING_Y, 0.0);
                 let sized = w > 0.0 && h > 0.0;
                 let area = egui::Area::new(egui::Id::new(id))
                     .order(egui::Order::Foreground)
@@ -178,11 +179,11 @@ fn install_overlay(m: &mut dyn Bindings<Engine>) {
                     }
                     let mut frame = egui::Frame::new()
                         .inner_margin(egui::Margin::symmetric(pad_x as i8, pad_y as i8))
-                        .corner_radius(pill_radius(opts.px("radius", 0.0) * 2.0));
-                    if let Some(fill) = opts.opt_color("fill") {
+                        .corner_radius(pill_radius(opts.px(k::RADIUS, 0.0) * 2.0));
+                    if let Some(fill) = opts.opt_color(k::FILL) {
                         frame = frame.fill(fill);
                     }
-                    if let Some(stroke) = opts.opt_color("stroke") {
+                    if let Some(stroke) = opts.opt_color(k::STROKE) {
                         frame = frame.stroke(Stroke::new(1.0, stroke));
                     }
                     frame.show(ui, |ui| {
@@ -214,7 +215,7 @@ pub(crate) fn install_containers(m: &mut dyn Bindings<Engine>) {
 /// `ui.*` bindings: text.
 pub(crate) fn install_text(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
-        "label",
+        w::LABEL,
         &[],
         "",
         "Draw a line of text; `size`, `font`, `color`, `strong`, `wrap` and `truncate` style it.",
@@ -224,20 +225,20 @@ pub(crate) fn install_text(m: &mut dyn Bindings<Engine>) {
         |_eng: &Engine, (s, opts): (String, Option<Value>)| {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
-                let fam = opts.string("font").unwrap_or_else(|| "ui".into());
+                let fam = opts.string(k::FONT).unwrap_or_else(|| w::UI.into());
                 let rt = text(
                     &s,
-                    opts.px("size", 12.0),
+                    opts.px(k::SIZE, 12.0),
                     &fam,
-                    opts.opt_color("color"),
-                    opts.boolean("strong", false),
+                    opts.opt_color(k::COLOR),
+                    opts.boolean(k::STRONG, false),
                 );
                 let mut label = egui::Label::new(rt).selectable(false);
-                if !opts.boolean("wrap", false) {
+                if !opts.boolean(k::WRAP, false) {
                     // `truncate`: an ellipsis at the container's edge, for
                     // text the layout cannot size to (a node name, a path, a
                     // joined list). Otherwise the text keeps its full width.
-                    label = if opts.boolean("truncate", false) {
+                    label = if opts.boolean(k::TRUNCATE, false) {
                         label.truncate()
                     } else {
                         label.extend()
@@ -303,21 +304,21 @@ pub(crate) fn install_code(m: &mut dyn Bindings<Engine>) {
         |_eng: &Engine, (gutter, spans, opts): (String, Value, Option<Value>)| {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
-                let size = opts.px("size", 12.5);
-                let row_h = size * opts.f32("line_height", 1.78);
-                let gutter_w = opts.px("gutter_width", 24.0);
+                let size = opts.px(k::SIZE, 12.5);
+                let row_h = size * opts.f32(k::LINE_HEIGHT, 1.78);
+                let gutter_w = opts.px(k::GUTTER_WIDTH, 24.0);
                 let (rect, _) =
                     ui.allocate_exact_size(vec2(ui.available_width(), row_h), Sense::hover());
-                if let Some(fill) = opts.opt_color("highlight") {
+                if let Some(fill) = opts.opt_color(k::HIGHLIGHT) {
                     ui.painter().rect_filled(rect, 0.0, fill);
                 }
-                let mono = FontId::new(size, theme::family("mono"));
-                let gutter_color = opts.color("gutter_color", Color32::from_rgb(0x76, 0x7e, 0x88));
+                let mono = FontId::new(size, theme::family(w::MONO));
+                let gutter_color = opts.color(k::GUTTER_COLOR, Color32::from_rgb(0x76, 0x7e, 0x88));
                 ui.painter().text(
                     pos2(rect.min.x + gutter_w, rect.center().y),
                     Align2::RIGHT_CENTER,
                     gutter,
-                    FontId::new((size - 1.5).max(8.0), theme::family("mono")),
+                    FontId::new((size - 1.5).max(8.0), theme::family(w::MONO)),
                     gutter_color,
                 );
                 let mut job = egui::text::LayoutJob::default();
@@ -333,17 +334,17 @@ pub(crate) fn install_code(m: &mut dyn Bindings<Engine>) {
                         }
                         _ => None,
                     };
-                    let text = match field("text") {
+                    let text = match field(k::TEXT) {
                         Some(Value::Str(s)) => s.clone(),
                         _ => String::new(),
                     };
-                    let color = match field("color") {
+                    let color = match field(k::COLOR) {
                         Some(Value::Str(c)) => parse_hex(c).unwrap_or(Color32::WHITE),
                         _ => Color32::WHITE,
                     };
                     let mut format = egui::TextFormat::simple(mono.clone(), color);
-                    if matches!(field("strong"), Some(Value::Bool(true))) {
-                        format.font_id = FontId::new(size, theme::family("mono"));
+                    if matches!(field(k::STRONG), Some(Value::Bool(true))) {
+                        format.font_id = FontId::new(size, theme::family(w::MONO));
                         format.underline = Stroke::NONE;
                         format.color = color;
                     }
@@ -379,20 +380,20 @@ pub(crate) fn install_window(m: &mut dyn Bindings<Engine>) {
             with_ctx(|ctx| {
                 let mut open = true;
                 let mut window =
-                    egui::Window::new(opts.string("title").unwrap_or_else(|| id.clone()))
+                    egui::Window::new(opts.string(k::TITLE).unwrap_or_else(|| id.clone()))
                         .id(egui::Id::new(&id))
-                        .resizable(opts.boolean("resizable", true))
-                        .collapsible(opts.boolean("collapsible", false));
-                if opts.boolean("closable", true) {
+                        .resizable(opts.boolean(k::RESIZABLE, true))
+                        .collapsible(opts.boolean(k::COLLAPSIBLE, false));
+                if opts.boolean(k::CLOSABLE, true) {
                     window = window.open(&mut open);
                 }
-                if let (Some(x), Some(y)) = (opts.opt_px("x"), opts.opt_px("y")) {
+                if let (Some(x), Some(y)) = (opts.opt_px(k::X), opts.opt_px(k::Y)) {
                     window = window.default_pos(pos2(x, y));
                 }
-                if let Some(width) = opts.opt_px("width") {
+                if let Some(width) = opts.opt_px(k::WIDTH) {
                     window = window.default_width(width);
                 }
-                if let Some(height) = opts.opt_px("height") {
+                if let Some(height) = opts.opt_px(k::HEIGHT) {
                     window = window.default_height(height);
                 }
                 let mut result = Ok(());
@@ -418,7 +419,7 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
             let opts = Opts::with_roles(opts);
             with_ctx(|ctx| {
                 let screen = ctx.viewport_rect();
-                let scrim = opts.color("scrim", Color32::from_rgba_unmultiplied(23, 25, 28, 107));
+                let scrim = opts.color(k::SCRIM, Color32::from_rgba_unmultiplied(23, 25, 28, 107));
                 let mut scrim_clicked = false;
                 // Above `Foreground`, which is where every overlay and dock
                 // sheet already sits: a modal that shares their order is on
@@ -434,8 +435,8 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
                         let response = ui.allocate_rect(screen, Sense::click());
                         scrim_clicked = response.clicked();
                     });
-                let width = opts.px("width", 560.0).min(screen.width() * 0.92);
-                let top = screen.height() * opts.f32("top", 0.11);
+                let width = opts.px(k::WIDTH, 560.0).min(screen.width() * 0.92);
+                let top = screen.height() * opts.f32(k::TOP, 0.11);
                 let mut result = Ok(());
                 egui::Area::new(egui::Id::new(id))
                     .order(egui::Order::Tooltip)
@@ -444,8 +445,8 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
                     .show(ctx, |ui| {
                         let mut frame = egui::Frame::new()
                             .corner_radius(pill_radius(sc(32.0)))
-                            .fill(opts.color("fill", Color32::from_rgb(0x20, 0x24, 0x2a)));
-                        if let Some(stroke) = opts.opt_color("stroke") {
+                            .fill(opts.color(k::FILL, Color32::from_rgb(0x20, 0x24, 0x2a)));
+                        if let Some(stroke) = opts.opt_color(k::STROKE) {
                             frame = frame.stroke(Stroke::new(1.0, stroke));
                         }
                         frame.show(ui, |ui| {
@@ -453,7 +454,7 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
                             // `height` pins a sheet that would otherwise
                             // shrink as its page empties; the screen is the
                             // ceiling.
-                            let height = opts.px("height", 0.0);
+                            let height = opts.px(k::HEIGHT, 0.0);
                             if height > 0.0 {
                                 ui.set_min_height(height.min(screen.height() - top - sc(32.0)));
                             }
@@ -551,10 +552,10 @@ pub(crate) fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
                         Value::Nil,
                         |r| {
                             Value::Map(vec![
-                                ("x".into(), Value::Num(f64::from(r.min.x / scale))),
-                                ("y".into(), Value::Num(f64::from(r.min.y / scale))),
-                                ("w".into(), Value::Num(f64::from(r.width() / scale))),
-                                ("h".into(), Value::Num(f64::from(r.height() / scale))),
+                                (k::X.into(), Value::Num(f64::from(r.min.x / scale))),
+                                (k::Y.into(), Value::Num(f64::from(r.min.y / scale))),
+                                (k::W.into(), Value::Num(f64::from(r.width() / scale))),
+                                (k::H.into(), Value::Num(f64::from(r.height() / scale))),
                             ])
                         },
                     ),
@@ -680,7 +681,7 @@ pub(crate) fn install_code_editor(m: &mut dyn Bindings<Engine>) {
 /// `ui.*` bindings: drop-down select.
 pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
     m.describe(&[(
-        "dropdown",
+        w::DROPDOWN,
         &[],
         "", "Draw a pill-shaped select over a list of strings; returns the selection and whether it changed this frame.",
     )]);
@@ -699,9 +700,9 @@ pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
                         .collect(),
                     _ => Vec::new(),
                 };
-                let w = opts.px("width", 160.0);
-                let size = opts.px("size", 12.0);
-                let text_color = opts.color("color", Color32::WHITE);
+                let w = opts.px(k::WIDTH, 160.0);
+                let size = opts.px(k::SIZE, 12.0);
+                let text_color = opts.color(k::COLOR, Color32::WHITE);
                 let mut selected = current.clone();
                 ui.scope(|ui| {
                     // Pill-shaped shell and menu items for this widget only.
@@ -717,7 +718,7 @@ pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
                         .selected_text(
                             egui::RichText::new(&current)
                                 .size(size)
-                                .family(theme::family("ui"))
+                                .family(theme::family(w::UI))
                                 .color(text_color),
                         )
                         .show_ui(ui, |ui| {
@@ -727,7 +728,7 @@ pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
                                     item.clone(),
                                     egui::RichText::new(item)
                                         .size(size)
-                                        .family(theme::family("ui")),
+                                        .family(theme::family(w::UI)),
                                 );
                             }
                         });
@@ -776,10 +777,10 @@ pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
                     vec2(sc(w), sc(h)),
                 );
                 let stroke = Stroke::new(
-                    opts.f32("width", 1.5),
-                    opts.color("color", Color32::from_rgb(0xd5, 0x81, 0x4e)),
+                    opts.f32(k::WIDTH, 1.5),
+                    opts.color(k::COLOR, Color32::from_rgb(0xd5, 0x81, 0x4e)),
                 );
-                if opts.boolean("dashed", false) {
+                if opts.boolean(k::DASHED, false) {
                     let corners = [
                         rect.left_top(),
                         rect.right_top(),
@@ -855,10 +856,10 @@ pub(crate) fn install_queries(m: &mut dyn Bindings<Engine>) {
                 let mut modifiers = egui::Modifiers::NONE;
                 for part in mods.split('+') {
                     modifiers |= match part.trim() {
-                        "cmd" => egui::Modifiers::COMMAND,
-                        "ctrl" => egui::Modifiers::CTRL,
-                        "alt" => egui::Modifiers::ALT,
-                        "shift" => egui::Modifiers::SHIFT,
+                        w::CMD => egui::Modifiers::COMMAND,
+                        w::CTRL => egui::Modifiers::CTRL,
+                        w::ALT => egui::Modifiers::ALT,
+                        w::SHIFT => egui::Modifiers::SHIFT,
                         _ => egui::Modifiers::NONE,
                     };
                 }
@@ -899,7 +900,7 @@ fn install_clipboard_and_color(m: &mut dyn Bindings<Engine>) {
     // `color` property is stored. Four drag values were the alternative.
     m.function("color", |_eng: &Engine, value: Option<Value>| {
         let opts = Opts(value);
-        let start = opts.unit_rgba("value");
+        let start = opts.unit_rgba(k::VALUE);
         with_ui(|ui| {
             let mut rgba =
                 egui::Rgba::from_rgba_unmultiplied(start[0], start[1], start[2], start[3]);
@@ -939,18 +940,18 @@ fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
             with_ui(|ui| {
                 // Sized from the theme: a switch as tall as its row, not a
                 // slab that dwarfs the fields beside it.
-                let h = opts.px("height", sc(18.0) / scale());
+                let h = opts.px(k::HEIGHT, sc(18.0) / scale());
                 let (rect, response) = ui.allocate_exact_size(vec2(h * 1.75, h), Sense::click());
                 let on = if response.clicked() { !on } else { on };
                 let track = if on {
-                    opts.color("on_fill", Color32::from_rgb(0xd5, 0x81, 0x4e))
+                    opts.color(k::ON_FILL, Color32::from_rgb(0xd5, 0x81, 0x4e))
                 } else {
-                    opts.color("off_fill", Color32::from_rgb(0x10, 0x12, 0x15))
+                    opts.color(k::OFF_FILL, Color32::from_rgb(0x10, 0x12, 0x15))
                 };
                 let knob = if on {
-                    opts.color("on_knob", Color32::from_rgb(0xf9, 0xf4, 0xed))
+                    opts.color(k::ON_KNOB, Color32::from_rgb(0xf9, 0xf4, 0xed))
                 } else {
-                    opts.color("off_knob", Color32::from_rgb(0x76, 0x7e, 0x88))
+                    opts.color(k::OFF_KNOB, Color32::from_rgb(0x76, 0x7e, 0x88))
                 };
                 ui.painter().rect_filled(rect, h / 2.0, track);
                 let inset = h / 2.0;
@@ -971,7 +972,7 @@ fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
                 let w = {
-                    let w = opts.px("width", 0.0);
+                    let w = opts.px(k::WIDTH, 0.0);
                     if w > 0.0 {
                         w
                     } else {
@@ -998,19 +999,19 @@ fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
                 ui.painter().rect_filled(
                     rail,
                     2.5,
-                    opts.color("rail", Color32::from_rgb(0x10, 0x12, 0x15)),
+                    opts.color(k::RAIL, Color32::from_rgb(0x10, 0x12, 0x15)),
                 );
                 let fill_rect = Rect::from_min_max(
                     rail.min,
                     pos2(rail.width().mul_add(t, rail.min.x), rail.max.y),
                 );
-                let accent = opts.color("fill", Color32::from_rgb(0xd5, 0x81, 0x4e));
+                let accent = opts.color(k::FILL, Color32::from_rgb(0xd5, 0x81, 0x4e));
                 ui.painter().rect_filled(fill_rect, 2.5, accent);
                 let knob_x = rect.width().mul_add(t, rect.min.x);
                 ui.painter().circle_filled(
                     pos2(knob_x, rect.center().y),
                     sc(6.5),
-                    opts.color("knob", Color32::from_rgb(0x17, 0x19, 0x1c)),
+                    opts.color(k::KNOB, Color32::from_rgb(0x17, 0x19, 0x1c)),
                 );
                 ui.painter().circle_stroke(
                     pos2(knob_x, rect.center().y),
@@ -1035,9 +1036,9 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
         |_eng: &Engine, (value, opts): (f64, Option<Value>)| {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
-                let h = opts.px("height", 28.0);
+                let h = opts.px(k::HEIGHT, 28.0);
                 let w = {
-                    let w = opts.px("width", 0.0);
+                    let w = opts.px(k::WIDTH, 0.0);
                     if w > 0.0 {
                         w
                     } else {
@@ -1049,7 +1050,7 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
                 let mut changed = false;
                 if response.dragged() {
                     let delta =
-                        f64::from(response.drag_delta().x) * f64::from(opts.f32("speed", 0.05));
+                        f64::from(response.drag_delta().x) * f64::from(opts.f32(k::SPEED, 0.05));
                     if delta != 0.0 {
                         value += delta;
                         changed = true;
@@ -1058,7 +1059,7 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
                 if response.hovered() {
                     ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
                 }
-                let radius = opts.px("radius", 0.0);
+                let radius = opts.px(k::RADIUS, 0.0);
                 let corner = if radius > 0.0 {
                     pill_radius(radius * 2.0)
                 } else {
@@ -1067,34 +1068,34 @@ fn install_drag_value(m: &mut dyn Bindings<Engine>) {
                 ui.painter().rect(
                     rect,
                     corner,
-                    opts.color("fill", Color32::from_rgb(0x10, 0x12, 0x15)),
+                    opts.color(k::FILL, Color32::from_rgb(0x10, 0x12, 0x15)),
                     Stroke::new(
                         1.0,
-                        opts.color("stroke", Color32::from_rgb(0x2b, 0x30, 0x37)),
+                        opts.color(k::STROKE, Color32::from_rgb(0x2b, 0x30, 0x37)),
                     ),
                     StrokeKind::Inside,
                 );
                 let mut x = rect.min.x + sc(7.0);
-                if let Some(prefix) = opts.string("prefix") {
-                    let color = opts.color("prefix_color", Color32::from_rgb(0xf0, 0xa2, 0x73));
+                if let Some(prefix) = opts.string(k::PREFIX) {
+                    let color = opts.color(k::PREFIX_COLOR, Color32::from_rgb(0xf0, 0xa2, 0x73));
                     let galley = ui.painter().layout_no_wrap(
                         prefix,
-                        FontId::new(sc(10.0), theme::family("heading")),
+                        FontId::new(sc(10.0), theme::family(w::HEADING)),
                         color,
                     );
                     let y = rect.center().y - galley.size().y / 2.0;
                     ui.painter().galley(pos2(x, y), galley, color);
                     x += sc(14.0);
                 }
-                let decimals = opts.f32("decimals", 1.0) as usize;
-                let display = opts.string("suffix").map_or_else(
+                let decimals = opts.f32(k::DECIMALS, 1.0) as usize;
+                let display = opts.string(k::SUFFIX).map_or_else(
                     || format!("{value:.decimals$}"),
                     |s| format!("{value:.decimals$}{s}"),
                 );
-                let color = opts.color("color", Color32::from_rgb(0xee, 0xf1, 0xf4));
+                let color = opts.color(k::COLOR, Color32::from_rgb(0xee, 0xf1, 0xf4));
                 let galley = ui.painter().layout_no_wrap(
                     display,
-                    FontId::new(sc(11.5), theme::family("mono")),
+                    FontId::new(sc(11.5), theme::family(w::MONO)),
                     color,
                 );
                 let y = rect.center().y - galley.size().y / 2.0;

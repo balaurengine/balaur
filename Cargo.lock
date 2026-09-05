@@ -560,6 +560,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "balaur",
+ "balaur_plugin",
  "serde",
  "tempfile",
  "toml",

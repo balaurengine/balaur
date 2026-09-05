@@ -11,6 +11,7 @@ use balaur_core::hecs::Entity;
 use egui::{Color32, Stroke, pos2, vec2};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use crate::vocabulary::{words as w};
 
 thread_local! {
     /// What each widget drew last frame. Only a `draw` node needs it now —
@@ -80,7 +81,7 @@ pub(crate) fn settle_rects() {
 /// the built-in — 8 for a panel, which is the frame it has always drawn, and
 /// nothing for a box that only lays out.
 pub(crate) fn padding_of(widget: &Widget, style: &crate::widget_theme::Style, scale: f32) -> f32 {
-    let built_in = if widget.kind == "panel" { 8.0 } else { 0.0 };
+    let built_in = if widget.kind == w::PANEL { 8.0 } else { 0.0 };
     let stated = if widget.padding > 0.0 {
         widget.padding
     } else {
@@ -450,7 +451,7 @@ fn share_out(
 
 /// Whether the measure pass can answer for a kind, or only the last frame can.
 fn can_measure(kind: &str) -> bool {
-    !matches!(kind, "draw" | "scroll")
+    !matches!(kind, w::DRAW | w::SCROLL)
 }
 
 /// The children themselves: each given a rect along the container's axis,
@@ -470,8 +471,8 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
     let gap = placed.widget.gap * scale;
     let grab = placed.widget.handle * scale;
     let cross = match placed.widget.align.as_str() {
-        "center" => egui::Align::Center,
-        "end" => egui::Align::Max,
+        w::CENTER => egui::Align::Center,
+        w::END => egui::Align::Max,
         _ => egui::Align::Min,
     };
     let layout = match axis {

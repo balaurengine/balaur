@@ -12,6 +12,7 @@ use balaur_script::Value;
 use serde::{Deserialize, Serialize};
 
 use crate::widget_layer::{Edit, Widget};
+use crate::vocabulary::{words as w};
 
 /// How a frame names a widget: its stable id, and its entity bits for a tree
 /// built by hand. Bits alone would not survive the respawn a rollback does.
@@ -211,7 +212,7 @@ fn settle_clicks(
             continue;
         }
         // A click on a check is the tick itself, by mouse or by `accept`.
-        if widget.kind == "check" {
+        if widget.kind == w::CHECK {
             widget.checked = !widget.checked;
             if !widget.on_change.is_empty() {
                 changes.push((

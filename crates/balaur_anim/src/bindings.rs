@@ -28,12 +28,12 @@ pub fn install_animation_api(m: &mut dyn Bindings<Engine>) {
 /// Starting, queueing and holding a clip.
 fn install_transport_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("play", &["animation"], "", "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier) and `from_start`."),
-        ("queue", &["animation"], "", "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains."),
-        ("stop", &["animation"], "", "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it."),
-        ("pause", &["animation"], "", "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to."),
-        ("resume", &["animation"], "", "Carry on from where `pause` left off; a stopped, finished or never-started node is left alone."),
-        ("define", &["animation"], "", "Give this node a clip of its own under that name, from a definition table shaped like a scene file's."),
+        ("play", &[balaur_core::components::tag::ANIMATION], "", "Start the clip of that name on this node; the trailing options table takes `speed` (a multiplier) and `from_start`."),
+        ("queue", &[balaur_core::components::tag::ANIMATION], "", "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains."),
+        ("stop", &[balaur_core::components::tag::ANIMATION], "", "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it."),
+        ("pause", &[balaur_core::components::tag::ANIMATION], "", "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to."),
+        ("resume", &[balaur_core::components::tag::ANIMATION], "", "Carry on from where `pause` left off; a stopped, finished or never-started node is left alone."),
+        ("define", &[balaur_core::components::tag::ANIMATION], "", "Give this node a clip of its own under that name, from a definition table shaped like a scene file's."),
     ]);
     // `opts` is `{ speed = 1.5, from_start = false }`, both optional. A flag
     // in a trailing options table rather than a `play_from_start` (N9).
@@ -87,11 +87,11 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
 /// Where the playhead is, and what it just did.
 fn install_playhead_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("seek", &["animation"], "", "Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip."),
-        ("current", &["animation"], "", "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started."),
-        ("time", &["animation"], "", "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped."),
-        ("is_playing", &["animation"], "", "Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false."),
-        ("just_finished", &["animation"], "", "The clip that ended on this node during the last step, and nil on every other frame."),
+        ("seek", &[balaur_core::components::tag::ANIMATION], "", "Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip."),
+        ("current", &[balaur_core::components::tag::ANIMATION], "", "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started."),
+        ("time", &[balaur_core::components::tag::ANIMATION], "", "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped."),
+        ("is_playing", &[balaur_core::components::tag::ANIMATION], "", "Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false."),
+        ("just_finished", &[balaur_core::components::tag::ANIMATION], "", "The clip that ended on this node during the last step, and nil on every other frame."),
     ]);
     // Poses the node even on a paused or ended clip, and does not fire the
     // method keys it skips over.

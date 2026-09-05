@@ -24,6 +24,15 @@ use crate::components::{ComponentDef, as_f64};
 use crate::engine::Engine;
 use crate::scene::{Children, GlobalTransform, Parent, Transform};
 
+/// The bone components' keys, for their schemas and readers alike.
+pub(crate) mod keys {
+    pub(crate) const ANGLE: &str = "angle";
+    pub(crate) const LENGTH: &str = "length";
+    pub(crate) const REST_POSITION: &str = "rest_position";
+    pub(crate) const REST_ROTATION: &str = "rest_rotation";
+    pub(crate) const REST_SCALE: &str = "rest_scale";
+}
+
 /// A bone's rest pose and gizmo hints, in the node's local space.
 ///
 /// One struct for both dimensions: `bone2d` writes the z rotation and leaves
@@ -420,10 +429,14 @@ pub fn skin_positions(
         .collect()
 }
 
-const BONE2D_SCHEMA: &str = r#"rest_position = { type = "vec2", default = [0.0, 0.0], description = "Local rest translation" }
-rest_rotation = { type = "float", default = 0.0, description = "Local rest rotation about z, in radians" }
-length = { type = "float", default = 0.0, min = 0.0, description = "Gizmo length of a tip bone; 0 draws to the first child bone" }
-angle = { type = "float", default = 0.0, description = "Gizmo direction of a tip bone, in radians; ignored while a child bone exists" }"#;
+fn bone2d_schema() -> String {
+    crate::components::ComponentDef::schema(&[
+        (k::REST_POSITION, r#"{ type = "vec2", default = [0.0, 0.0], description = "Local rest translation" }"#),
+        (k::REST_ROTATION, r#"{ type = "float", default = 0.0, description = "Local rest rotation about z, in radians" }"#),
+        (k::LENGTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Gizmo length of a tip bone; 0 draws to the first child bone" }"#),
+        (k::ANGLE, r#"{ type = "float", default = 0.0, description = "Gizmo direction of a tip bone, in radians; ignored while a child bone exists" }"#),
+    ])
+}
 
 /// The `bone2d` component: writes one [`Bone`] on the node.
 pub(crate) fn register_bone2d_component(app: &mut App) {
@@ -433,8 +446,8 @@ pub(crate) fn register_bone2d_component(app: &mut App) {
             doc: "Makes the node a 2D bone: the rest position and rotation about z a rig returns \
                   to, plus the length and angle its gizmo is drawn with. A skin names its rig by \
                   node path and deforms by the bones under it, in tree order.",
-            schema: ComponentDef::parse_schema("bone2d", BONE2D_SCHEMA),
-            tags: &["2d", "animation"],
+            schema: ComponentDef::parse_schema("bone2d", &bone2d_schema()),
+            tags: &[crate::components::tag::DIM_2D, crate::components::tag::ANIMATION],
             expects: &[],
             apply: Box::new(apply_bone2d),
             remove: Box::new(|eng, entity| {
@@ -451,7 +464,7 @@ fn apply_bone2d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()
         |key: &str, default: f64| params.get(key).and_then(as_f64).unwrap_or(default) as f32;
     let rest = |i: usize| {
         params
-            .get("rest_position")
+            .get(k::REST_POSITION)
             .and_then(toml::Value::as_array)
             .and_then(|a| a.get(i))
             .and_then(as_f64)
@@ -459,10 +472,10 @@ fn apply_bone2d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()
     };
     let bone = Bone {
         rest_position: Vec3::new(rest(0), rest(1), 0.0),
-        rest_rotation: Vec3::new(0.0, 0.0, number("rest_rotation", 0.0)),
+        rest_rotation: Vec3::new(0.0, 0.0, number(k::REST_ROTATION, 0.0)),
         rest_scale: Vec3::ONE,
-        length: number("length", 0.0).max(0.0),
-        angle: number("angle", 0.0),
+        length: number(k::LENGTH, 0.0).max(0.0),
+        angle: number(k::ANGLE, 0.0),
         planar: true,
     };
     eng.world_mut()
@@ -470,10 +483,14 @@ fn apply_bone2d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()
         .map_err(|_| anyhow!("node is dead"))
 }
 
-const BONE3D_SCHEMA: &str = r#"rest_position = { type = "vec3", default = [0.0, 0.0, 0.0], description = "Local rest translation" }
-rest_rotation = { type = "vec3", default = [0.0, 0.0, 0.0], description = "Local rest rotation, euler radians in the order rotation_euler uses" }
-rest_scale = { type = "vec3", default = [1.0, 1.0, 1.0], description = "Local rest scale" }
-length = { type = "float", default = 0.0, min = 0.0, description = "Gizmo length of a tip bone; 0 draws to the first child bone" }"#;
+fn bone3d_schema() -> String {
+    crate::components::ComponentDef::schema(&[
+        (k::REST_POSITION, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Local rest translation" }"#),
+        (k::REST_ROTATION, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Local rest rotation, euler radians in the order rotation_euler uses" }"#),
+        (k::REST_SCALE, r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Local rest scale" }"#),
+        (k::LENGTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Gizmo length of a tip bone; 0 draws to the first child bone" }"#),
+    ])
+}
 
 /// The `bone3d` component: writes one [`Bone`] on the node, every axis.
 pub(crate) fn register_bone3d_component(app: &mut App) {
@@ -483,8 +500,8 @@ pub(crate) fn register_bone3d_component(app: &mut App) {
             doc: "Makes the node a 3D bone: the rest position, euler rotation and scale a rig \
                   returns to, plus the length its gizmo is drawn with. A skinned mesh names its \
                   rig by node path and deforms by the bones under it, in tree order.",
-            schema: ComponentDef::parse_schema("bone3d", BONE3D_SCHEMA),
-            tags: &["3d", "animation"],
+            schema: ComponentDef::parse_schema("bone3d", &bone3d_schema()),
+            tags: &[crate::components::tag::DIM_3D, crate::components::tag::ANIMATION],
             expects: &[],
             apply: Box::new(apply_bone3d),
             remove: Box::new(|eng, entity| {
@@ -523,11 +540,11 @@ fn vec3_value(v: Vec3) -> toml::Value {
 
 fn apply_bone3d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     let bone = Bone {
-        rest_position: vec3_param(params, "rest_position", Vec3::ZERO),
-        rest_rotation: vec3_param(params, "rest_rotation", Vec3::ZERO),
-        rest_scale: vec3_param(params, "rest_scale", Vec3::ONE),
+        rest_position: vec3_param(params, k::REST_POSITION, Vec3::ZERO),
+        rest_rotation: vec3_param(params, k::REST_ROTATION, Vec3::ZERO),
+        rest_scale: vec3_param(params, k::REST_SCALE, Vec3::ONE),
         length: params
-            .get("length")
+            .get(k::LENGTH)
             .and_then(as_f64)
             .unwrap_or(0.0)
             .max(0.0) as f32,
@@ -543,10 +560,10 @@ fn bone3d_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let world = eng.world();
     let bone = world.get::<&Bone>(entity).ok().filter(|b| !b.planar)?;
     let mut out = toml::map::Map::new();
-    out.insert("rest_position".into(), vec3_value(bone.rest_position));
-    out.insert("rest_rotation".into(), vec3_value(bone.rest_rotation));
-    out.insert("rest_scale".into(), vec3_value(bone.rest_scale));
-    out.insert("length".into(), toml::Value::Float(f64::from(bone.length)));
+    out.insert(k::REST_POSITION.into(), vec3_value(bone.rest_position));
+    out.insert(k::REST_ROTATION.into(), vec3_value(bone.rest_rotation));
+    out.insert(k::REST_SCALE.into(), vec3_value(bone.rest_scale));
+    out.insert(k::LENGTH.into(), toml::Value::Float(f64::from(bone.length)));
     Some(toml::Value::Table(out))
 }
 
@@ -555,18 +572,18 @@ fn bone2d_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let bone = world.get::<&Bone>(entity).ok().filter(|b| b.planar)?;
     let mut out = toml::map::Map::new();
     out.insert(
-        "rest_position".into(),
+        k::REST_POSITION.into(),
         toml::Value::Array(vec![
             toml::Value::Float(f64::from(bone.rest_position.x)),
             toml::Value::Float(f64::from(bone.rest_position.y)),
         ]),
     );
     out.insert(
-        "rest_rotation".into(),
+        k::REST_ROTATION.into(),
         toml::Value::Float(f64::from(bone.rest_rotation.z)),
     );
-    out.insert("length".into(), toml::Value::Float(f64::from(bone.length)));
-    out.insert("angle".into(), toml::Value::Float(f64::from(bone.angle)));
+    out.insert(k::LENGTH.into(), toml::Value::Float(f64::from(bone.length)));
+    out.insert(k::ANGLE.into(), toml::Value::Float(f64::from(bone.angle)));
     Some(toml::Value::Table(out))
 }
 

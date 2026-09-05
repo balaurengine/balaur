@@ -20,6 +20,7 @@ use balaur_core::{Engine, GlobalTransform, scene};
 
 use crate::bus::{self, Buses};
 use crate::{AudioState, MIN_PITCH};
+use crate::keys as k;
 
 /// Metres per second. A game whose unit is not a metre tunes `doppler` per
 /// sound rather than this.
@@ -309,13 +310,15 @@ pub(crate) fn register_listener_component(reg: &mut balaur_plugin::Registry<'_>)
                   sound plays flat.",
             schema: ComponentDef::parse_schema(
                 "listener",
-                r#"current = { type = "bool", default = true, description = "Whether the mix is heard from this node; the last current one wins" }"#,
+                &balaur_core::components::ComponentDef::schema(&[
+                    (k::CURRENT, r#"{ type = "bool", default = true, description = "Whether the mix is heard from this node; the last current one wins" }"#),
+                ]),
             ),
-            tags: &["audio"],
+            tags: &[balaur_core::components::tag::AUDIO],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
                 let current = params
-                    .get("current")
+                    .get(k::CURRENT)
                     .and_then(toml::Value::as_bool)
                     .unwrap_or(true);
                 // Composed and placed as the component is applied: a sound
@@ -340,7 +343,7 @@ pub(crate) fn register_listener_component(reg: &mut balaur_plugin::Registry<'_>)
                 let state = state.borrow();
                 let node = state.listeners.get(&entity)?;
                 let mut out = toml::map::Map::new();
-                out.insert("current".into(), node.current.into());
+                out.insert(k::CURRENT.into(), node.current.into());
                 Some(toml::Value::Table(out))
             }),
         },

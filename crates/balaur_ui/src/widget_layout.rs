@@ -12,6 +12,7 @@ use egui::{Align, Color32, FontId, Layout, Margin, Sense, Stroke, pos2, vec2};
 use crate::bridge::{scoped, with_ui};
 use crate::theme::{self, parse_hex};
 use crate::widgets::{Opts, left_pill, pill_radius, sc, text};
+use crate::vocabulary::{keys as k, words as w};
 
 /// `ui.horizontal`, `ui.vertical`, `ui.right` and `ui.frame`.
 pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
@@ -28,14 +29,14 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
             with_ui(|ui| {
                 let mut result = Ok(());
                 let layout = Layout::left_to_right(Align::Center);
-                let height = opts.px("height", 0.0);
+                let height = opts.px(k::HEIGHT, 0.0);
                 // tight: hug the content instead of claiming the full row;
                 // width: exact width (needed inside right-to-left layouts,
                 // where growing children would overlap neighbors).
-                let fixed = opts.px("width", 0.0);
+                let fixed = opts.px(k::WIDTH, 0.0);
                 let width = if fixed > 0.0 {
                     fixed
-                } else if opts.boolean("tight", false) {
+                } else if opts.boolean(k::TIGHT, false) {
                     0.0
                 } else {
                     ui.available_width()
@@ -82,14 +83,14 @@ pub(crate) fn install_layout_containers(m: &mut dyn Bindings<Engine>) {
                 let mut result = Ok(());
                 let mut frame = egui::Frame::new()
                     .inner_margin(Margin::symmetric(
-                        opts.px("padding_x", 0.0) as i8,
-                        opts.px("padding_y", 0.0) as i8,
+                        opts.px(k::PADDING_X, 0.0) as i8,
+                        opts.px(k::PADDING_Y, 0.0) as i8,
                     ))
-                    .corner_radius(pill_radius(opts.px("radius", 0.0) * 2.0));
-                if let Some(fill) = opts.opt_color("fill") {
+                    .corner_radius(pill_radius(opts.px(k::RADIUS, 0.0) * 2.0));
+                if let Some(fill) = opts.opt_color(k::FILL) {
                     frame = frame.fill(fill);
                 }
-                if let Some(stroke) = opts.opt_color("stroke") {
+                if let Some(stroke) = opts.opt_color(k::STROKE) {
                     frame = frame.stroke(Stroke::new(1.0, stroke));
                 }
                 frame.show(ui, |ui| {
@@ -118,13 +119,13 @@ pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
                 let mut area = egui::ScrollArea::vertical()
                     .id_salt(id)
                     .auto_shrink([false, false]);
-                let max_h = opts.px("max_height", 0.0);
+                let max_h = opts.px(k::MAX_HEIGHT, 0.0);
                 if max_h > 0.0 {
                     area = area.max_height(max_h);
                 }
                 // A log follows what is arriving unless the reader has scrolled
                 // away from the end, which egui tracks for us.
-                if opts.boolean("stick_to_bottom", false) {
+                if opts.boolean(k::STICK_TO_BOTTOM, false) {
                     area = area.stick_to_bottom(true);
                 }
                 area.show(ui, |ui| {
@@ -175,13 +176,13 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (s, opts): (String, Option<Value>)| {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
-                if opts.string("align").as_deref() == Some("left") {
+                if opts.string(k::ALIGN).as_deref() == Some(w::LEFT) {
                     return left_pill(eng, ui, &s, &opts);
                 }
-                let h = opts.px("height", 27.0);
-                let fam = opts.string("font").unwrap_or_else(|| "ui".into());
+                let h = opts.px(k::HEIGHT, 27.0);
+                let fam = opts.string(k::FONT).unwrap_or_else(|| "ui".into());
                 let mut display = String::new();
-                if let Some(icon) = opts.string("icon") {
+                if let Some(icon) = opts.string(k::ICON) {
                     display.push_str(&icon);
                     if !s.is_empty() {
                         display.push_str("  ");
@@ -190,19 +191,19 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                 display.push_str(&s);
                 let rt = text(
                     &display,
-                    opts.px("size", 12.0),
+                    opts.px(k::SIZE, 12.0),
                     &fam,
-                    opts.opt_color("color"),
-                    opts.boolean("strong", false),
+                    opts.opt_color(k::COLOR),
+                    opts.boolean(k::STRONG, false),
                 );
-                let fill = opts.color("fill", Color32::TRANSPARENT);
+                let fill = opts.color(k::FILL, Color32::TRANSPARENT);
                 // Tiles by default: a shell of capsules reads as loose and
                 // never lines up. `round` is for the few controls that are
                 // genuinely circular.
-                let radius = opts.px("radius", 0.0);
+                let radius = opts.px(k::RADIUS, 0.0);
                 let corner = if radius > 0.0 {
                     pill_radius(radius * 2.0)
-                } else if opts.boolean("round", false) {
+                } else if opts.boolean(k::ROUND, false) {
                     pill_radius(h)
                 } else {
                     pill_radius(sc(5.0) * 2.0)
@@ -210,17 +211,17 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                 let mut button = egui::Button::new(rt)
                     .fill(fill)
                     .corner_radius(corner)
-                    .min_size(vec2(opts.px("min_width", 0.0), h));
-                button = match opts.opt_color("stroke") {
+                    .min_size(vec2(opts.px(k::MIN_WIDTH, 0.0), h));
+                button = match opts.opt_color(k::STROKE) {
                     Some(color) => button.stroke(Stroke::new(1.0, color)),
                     None => button.stroke(Stroke::NONE),
                 };
                 let mut response = ui.add(button);
-                if let Some(tip) = opts.string("tooltip") {
+                if let Some(tip) = opts.string(k::TOOLTIP) {
                     response = response.on_hover_text(tip);
                 }
                 // Right-click context menu: the callback draws menu items.
-                if let Some(menu) = opts.callback("menu") {
+                if let Some(menu) = opts.callback(k::MENU) {
                     response.context_menu(|ui| {
                         let _ = scoped(eng, ui, menu);
                     });
@@ -244,10 +245,10 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                         Color32::from_white_alpha(10),
                     );
                 }
-                let color = opts.color("color", Color32::WHITE);
+                let color = opts.color(k::COLOR, Color32::WHITE);
                 let galley = ui.painter().layout_no_wrap(
                     s.clone(),
-                    FontId::new(opts.px("size", 12.5), theme::family("ui")),
+                    FontId::new(opts.px(k::SIZE, 12.5), theme::family("ui")),
                     color,
                 );
                 let y = rect.center().y - galley.size().y / 2.0;
@@ -274,24 +275,24 @@ pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
         |_eng: &Engine, (glyph, opts): (String, Option<Value>)| {
             let opts = Opts::with_roles(opts);
             with_ui(|ui| {
-                let d = opts.px("d", 32.0);
+                let d = opts.px(k::D, 32.0);
                 let rt = text(
                     &glyph,
-                    opts.px("size", 14.0),
-                    &opts.string("font").unwrap_or_else(|| "ui".into()),
-                    opts.opt_color("color"),
-                    opts.boolean("strong", false),
+                    opts.px(k::SIZE, 14.0),
+                    &opts.string(k::FONT).unwrap_or_else(|| "ui".into()),
+                    opts.opt_color(k::COLOR),
+                    opts.boolean(k::STRONG, false),
                 );
                 let mut button = egui::Button::new(rt)
-                    .fill(opts.color("fill", Color32::TRANSPARENT))
+                    .fill(opts.color(k::FILL, Color32::TRANSPARENT))
                     .corner_radius(pill_radius(d))
                     .min_size(vec2(d, d));
-                button = match opts.opt_color("stroke") {
+                button = match opts.opt_color(k::STROKE) {
                     Some(color) => button.stroke(Stroke::new(1.0, color)),
                     None => button.stroke(Stroke::NONE),
                 };
                 let mut response = ui.add(button);
-                if let Some(tip) = opts.string("tooltip") {
+                if let Some(tip) = opts.string(k::TOOLTIP) {
                     response = response.on_hover_text(tip);
                 }
                 Ok(response.clicked())

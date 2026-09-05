@@ -13,10 +13,10 @@
 
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur::replay::ExternalIo;
 use balaur::{Engine, Stage};
-use balaur_core::handler::{handler_of, opt, Handler};
+use balaur_core::handler::{Handler, handler_of, opt};
 use balaur_script::{Bindings, BindingsExt, Value};
 use serde::{Deserialize, Serialize};
 
@@ -157,9 +157,12 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
-    m.function("start", |eng: &Engine, (target, opts): (String, Option<Value>)| {
-        Ok(start(eng, &target, opts.as_ref()))
-    });
+    m.function(
+        "start",
+        |eng: &Engine, (target, opts): (String, Option<Value>)| {
+            Ok(start(eng, &target, opts.as_ref()))
+        },
+    );
     m.function("output", |eng: &Engine, target: String| {
         let state = eng.resource::<ExportState>();
         let project = state.borrow().project.clone();
@@ -237,7 +240,7 @@ fn start(eng: &Engine, target: &str, opts: Option<&Value>) -> bool {
         )
     };
     let target = target.to_string();
-    let started = state.borrow().io.start(eng, |report| {
+    state.borrow().io.start(eng, |report| {
         let report = report.clone();
         RUNNING.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         std::thread::spawn(move || {
@@ -257,8 +260,7 @@ fn start(eng: &Engine, target: &str, opts: Option<&Value>) -> bool {
             let _ = report.send(event);
             RUNNING.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
         });
-    });
-    started
+    })
 }
 
 /// The export itself, on the worker thread. The prompt a terminal would show
@@ -281,8 +283,15 @@ fn run_export(
             .output_for(project, target, &name)
             .map(|p| p.parent().unwrap_or(&p).to_path_buf())
     });
+    let modules = {
+        let project = project.to_path_buf();
+        move || -> Vec<Box<dyn balaur_plugin::Plugin>> {
+            vec![Box::new(ExportPlugin::new(project.clone()))]
+        }
+    };
     balaur_export::export(&balaur_export::Options {
         path: project.to_path_buf(),
+        plugins: Some(&modules),
         output,
         target: Some(target.to_string()),
         sign,

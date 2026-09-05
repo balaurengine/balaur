@@ -11,7 +11,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 /// Schemes a game may hand the OS. A URL becomes whatever the system has
 /// registered for its scheme, so the set is closed rather than open: `file:`
@@ -47,7 +47,11 @@ pub fn reveal(path: &Path) -> Result<()> {
     }
     // Nothing portable selects a file on a Linux desktop, so the directory
     // holding it is what opens.
-    let dir = if path.is_dir() { path } else { path.parent().unwrap_or(path) };
+    let dir = if path.is_dir() {
+        path
+    } else {
+        path.parent().unwrap_or(path)
+    };
     spawn(&opener(), &[&dir.to_string_lossy()])
 }
 

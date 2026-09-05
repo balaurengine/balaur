@@ -188,7 +188,7 @@ pub fn draw_windows(S, k) {
         let draw = entry.draw;
         crate::style::sheet(k, entry.id, r, 12, 0, || {
             ui::horizontal(#{ height: 30 }, || {
-                ui::label(entry.title, #{ size: 13, font: "heading", strong: true, color: k.text });
+                ui::label(entry.title, #{ size: 13, font: ui::FONT_HEADING, strong: true, color: k.text });
                 ui::right(|| {
                     if ui::circle_button("✕", #{ d: 20, size: 10, color: k.dim, tooltip: "Close" }) {
                         S.registry.open[entry.id] = false;

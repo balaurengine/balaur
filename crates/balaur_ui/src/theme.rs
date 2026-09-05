@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use balaur_core::Engine;
 use balaur_core::project::ProjectFiles;
 use egui::{Color32, CornerRadius, FontFamily, Shadow, Stroke};
+use crate::vocabulary::words as w;
 
 #[derive(Clone)]
 pub struct ThemeTokens {
@@ -123,10 +124,10 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
 /// The named family for a widget option value.
 pub(crate) fn family(name: &str) -> FontFamily {
     match name {
-        "heading" => FontFamily::Name("heading".into()),
-        "mono" => FontFamily::Name("mono".into()),
-        "icon" => FontFamily::Name("icon".into()),
-        _ => FontFamily::Name("ui".into()),
+        w::HEADING => FontFamily::Name(w::HEADING.into()),
+        w::MONO => FontFamily::Name(w::MONO.into()),
+        w::ICON => FontFamily::Name(w::ICON.into()),
+        _ => FontFamily::Name(w::UI.into()),
     }
 }
 

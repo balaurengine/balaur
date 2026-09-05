@@ -5,6 +5,7 @@ use egui::vec2;
 
 use crate::widget_arrange::box_of;
 use crate::widget_layer::{Edit, Painting, Widget};
+use crate::vocabulary::{words as w};
 
 /// What a widget's text asks the shaper for, at this scale.
 pub(crate) fn text_request(
@@ -17,11 +18,11 @@ pub(crate) fn text_request(
         text: caption.to_string(),
         size: widget.font_size * scale,
         weight: widget.font_weight.clamp(100.0, 900.0) as u16,
-        italic: widget.font_style == "italic",
+        italic: widget.font_style == w::ITALIC,
         width,
         align: match widget.text_align.as_str() {
-            "center" => crate::text::Align::Center,
-            "end" => crate::text::Align::End,
+            w::CENTER => crate::text::Align::Center,
+            w::END => crate::text::Align::End,
             _ => crate::text::Align::Start,
         },
         markup: widget.markup,
@@ -64,7 +65,7 @@ pub(crate) fn shaped_label(
     };
     // An aligned line takes the width it is aligned in; a wrapped block
     // already did, and aligned its own lines.
-    let take = if width.is_none() && widget.text_align != "start" {
+    let take = if width.is_none() && widget.text_align != w::START {
         room.max(shaped.size.x)
     } else {
         shaped.size.x
@@ -72,8 +73,8 @@ pub(crate) fn shaped_label(
     let (rect, _) = ui.allocate_exact_size(vec2(take, shaped.size.y), egui::Sense::hover());
     let slack = (take - shaped.size.x).max(0.0);
     let shift = match widget.text_align.as_str() {
-        "center" if width.is_none() => slack / 2.0,
-        "end" if width.is_none() => slack,
+        w::CENTER if width.is_none() => slack / 2.0,
+        w::END if width.is_none() => slack,
         _ => 0.0,
     };
     let origin = rect.min + vec2(shift, 0.0);

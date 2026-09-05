@@ -11,6 +11,7 @@ use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
+use crate::shape::{keys as k};
 
 /// What the `particles` component wrote on the node: emitter settings only.
 /// Live particles are backend state the simulation never sees.
@@ -66,22 +67,24 @@ pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
             doc: "A purely visual 2D emitter at the node: rate, lifetime, speed, cone and gravity. The live particles and the randomness scattering them are backend state the simulation never sees.",
             schema: ComponentDef::parse_schema(
                 "particles",
-                r#"emitting = { type = "bool", default = true, description = "Whether new particles are born; live ones finish either way" }
-rate = { type = "float", default = 20.0, min = 0.0, description = "Particles born per second" }
-lifetime = { type = "float", default = 1.0, min = 0.05, description = "Seconds a particle lives" }
-speed = { type = "float", default = 2.0, min = 0.0, description = "Initial speed in world units per second" }
-angle = { type = "float", default = 90.0, description = "Emission direction in degrees; 90 is straight up" }
-spread = { type = "float", default = 30.0, min = 0.0, description = "Half-angle of the emission cone in degrees" }
-size = { type = "float", default = 4.0, min = 0.5, description = "Particle size in logical pixels" }
-gravity = { type = "vec2", default = [0.0, -3.0], description = "Acceleration applied over a particle's life" }
-color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }
-color_end = { type = "color", default = [0.8, 0.8, 0.8, 0.0], description = "The tint a particle fades to by the end of its life" }
-size_end = { type = "float", default = -1.0, description = "The size a particle grows or shrinks to by the end of its life, in logical pixels; below zero keeps `size`" }
-texture = { type = "string", default = "", description = "An image each particle draws with, project-relative; empty draws a flat square" }
-one_shot = { type = "bool", default = false, description = "Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another" }
-explosiveness = { type = "float", default = 0.0, min = 0.0, max = 1.0, description = "How much of a one-shot burst is born at once; the rest is spread over the lifetime" }"#,
+                &balaur_core::components::ComponentDef::schema(&[
+                    (k::EMITTING, r#"{ type = "bool", default = true, description = "Whether new particles are born; live ones finish either way" }"#),
+                    (k::RATE, r#"{ type = "float", default = 20.0, min = 0.0, description = "Particles born per second" }"#),
+                    (k::LIFETIME, r#"{ type = "float", default = 1.0, min = 0.05, description = "Seconds a particle lives" }"#),
+                    (k::SPEED, r#"{ type = "float", default = 2.0, min = 0.0, description = "Initial speed in world units per second" }"#),
+                    (k::ANGLE, r#"{ type = "float", default = 90.0, description = "Emission direction in degrees; 90 is straight up" }"#),
+                    (k::SPREAD, r#"{ type = "float", default = 30.0, min = 0.0, description = "Half-angle of the emission cone in degrees" }"#),
+                    (k::SIZE, r#"{ type = "float", default = 4.0, min = 0.5, description = "Particle size in logical pixels" }"#),
+                    (k::GRAVITY, r#"{ type = "vec2", default = [0.0, -3.0], description = "Acceleration applied over a particle's life" }"#),
+                    (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
+                    (k::COLOR_END, r#"{ type = "color", default = [0.8, 0.8, 0.8, 0.0], description = "The tint a particle fades to by the end of its life" }"#),
+                    (k::SIZE_END, r#"{ type = "float", default = -1.0, description = "The size a particle grows or shrinks to by the end of its life, in logical pixels; below zero keeps `size`" }"#),
+                    (k::TEXTURE, r#"{ type = "string", default = "", description = "An image each particle draws with, project-relative; empty draws a flat square" }"#),
+                    (k::ONE_SHOT, r#"{ type = "bool", default = false, description = "Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another" }"#),
+                    (k::EXPLOSIVENESS, r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "How much of a one-shot burst is born at once; the rest is spread over the lifetime" }"#),
+                ]),
             ),
-            tags: &["render"],
+            tags: &[balaur_core::components::tag::RENDER],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
                 set_particles(eng, entity, particles_from_params(params))
@@ -95,20 +98,20 @@ explosiveness = { type = "float", default = 0.0, min = 0.0, max = 1.0, descripti
                 let world = eng.world();
                 let emitter = world.get::<&Particles>(entity).ok()?;
                 let mut out = toml::map::Map::new();
-                out.insert("emitting".into(), toml::Value::Boolean(emitter.emitting));
-                out.insert("color".into(), crate::color_to_toml(emitter.color));
-                out.insert("color_end".into(), crate::color_to_toml(emitter.color_end));
+                out.insert(k::EMITTING.into(), toml::Value::Boolean(emitter.emitting));
+                out.insert(k::COLOR.into(), crate::color_to_toml(emitter.color));
+                out.insert(k::COLOR_END.into(), crate::color_to_toml(emitter.color_end));
                 out.insert(
-                    "size_end".into(),
+                    k::SIZE_END.into(),
                     toml::Value::Float(f64::from(emitter.size_end)),
                 );
                 out.insert(
-                    "texture".into(),
+                    k::TEXTURE.into(),
                     toml::Value::String(emitter.texture.clone()),
                 );
-                out.insert("one_shot".into(), toml::Value::Boolean(emitter.one_shot));
+                out.insert(k::ONE_SHOT.into(), toml::Value::Boolean(emitter.one_shot));
                 out.insert(
-                    "explosiveness".into(),
+                    k::EXPLOSIVENESS.into(),
                     toml::Value::Float(f64::from(emitter.explosiveness)),
                 );
                 for (key, value) in [
@@ -122,7 +125,7 @@ explosiveness = { type = "float", default = 0.0, min = 0.0, max = 1.0, descripti
                     out.insert(key.into(), toml::Value::Float(f64::from(value)));
                 }
                 out.insert(
-                    "gravity".into(),
+                    k::GRAVITY.into(),
                     toml::Value::Array(vec![
                         toml::Value::Float(f64::from(emitter.gravity[0])),
                         toml::Value::Float(f64::from(emitter.gravity[1])),
@@ -144,31 +147,31 @@ fn particles_from_params(params: &toml::Value) -> Particles {
     };
     let gravity = |i: usize, default: f64| {
         params
-            .get("gravity")
+            .get(k::GRAVITY)
             .and_then(|v| v.as_array())
             .and_then(|a| a.get(i))
             .and_then(balaur_core::components::as_f64)
             .unwrap_or(default) as f32
     };
     Particles {
-        emitting: params.get("emitting").and_then(toml::Value::as_bool) != Some(false),
-        rate: num("rate", 20.0).max(0.0),
-        lifetime: num("lifetime", 1.0).max(0.05),
-        speed: num("speed", 2.0).max(0.0),
-        angle: num("angle", 90.0),
-        spread: num("spread", 30.0).max(0.0),
-        size: num("size", 4.0).max(0.5),
+        emitting: params.get(k::EMITTING).and_then(toml::Value::as_bool) != Some(false),
+        rate: num(k::RATE, 20.0).max(0.0),
+        lifetime: num(k::LIFETIME, 1.0).max(0.05),
+        speed: num(k::SPEED, 2.0).max(0.0),
+        angle: num(k::ANGLE, 90.0),
+        spread: num(k::SPREAD, 30.0).max(0.0),
+        size: num(k::SIZE, 4.0).max(0.5),
         gravity: [gravity(0, 0.0), gravity(1, -3.0)],
         color: crate::color_from_params(params),
         color_end: color_end_from_params(params),
-        size_end: num("size_end", -1.0),
+        size_end: num(k::SIZE_END, -1.0),
         texture: params
-            .get("texture")
+            .get(k::TEXTURE)
             .and_then(toml::Value::as_str)
             .unwrap_or_default()
             .to_string(),
-        one_shot: params.get("one_shot").and_then(toml::Value::as_bool) == Some(true),
-        explosiveness: num("explosiveness", 0.0).clamp(0.0, 1.0),
+        one_shot: params.get(k::ONE_SHOT).and_then(toml::Value::as_bool) == Some(true),
+        explosiveness: num(k::EXPLOSIVENESS, 0.0).clamp(0.0, 1.0),
     }
 }
 
@@ -176,7 +179,7 @@ fn particles_from_params(params: &toml::Value) -> Particles {
 fn color_end_from_params(params: &toml::Value) -> [f32; 4] {
     let c = |i: usize, default: f64| {
         params
-            .get("color_end")
+            .get(k::COLOR_END)
             .and_then(|v| v.as_array())
             .and_then(|a| a.get(i))
             .and_then(balaur_core::components::as_f64)

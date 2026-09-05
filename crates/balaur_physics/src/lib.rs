@@ -399,7 +399,7 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
         "rigid_body3d",
         balaur_core::presets::preset(
             "A body physics simulates, with a box collider",
-            &["3d", "physics"],
+            &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
             &[(c::BODY_3D, Some("kind = \"dynamic\"")), (c::COLLIDER_3D, None)],
         )?,
     );
@@ -407,7 +407,7 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
         "static_body3d",
         balaur_core::presets::preset(
             "An immovable body with a box collider: ground, walls",
-            &["3d", "physics"],
+            &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
             &[(c::BODY_3D, Some("kind = \"static\"")), (c::COLLIDER_3D, None)],
         )?,
     );

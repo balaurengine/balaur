@@ -179,6 +179,18 @@ pub const PROPERTY_TYPES: [&str; 13] = [
     "node", "strings",
 ];
 
+/// The tags a component or preset carries, which the editor's picker
+/// filters by. One spelling for every crate that registers one.
+pub mod tag {
+    pub const DIM_3D: &str = "3d";
+    pub const DIM_2D: &str = "2d";
+    pub const PHYSICS: &str = "physics";
+    pub const RENDER: &str = "render";
+    pub const UI: &str = "ui";
+    pub const AUDIO: &str = "audio";
+    pub const ANIMATION: &str = "animation";
+}
+
 impl ComponentDef {
     /// Schema text from `(key, spec)` lines, so a key is spelled once, by a
     /// constant the reader uses too, and the spec stays the TOML table the
