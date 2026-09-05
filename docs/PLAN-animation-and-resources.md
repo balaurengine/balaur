@@ -41,10 +41,12 @@ step; the digest already covers bone transforms.
   a player that rollback cannot put back.
 - **Skinning, rigs and retargeting** shipped since, in 2D and 3D; retargeting
   a clip from one rig to another did not.
-- **Stable asset ids** (`uid://`, GUIDs) — paths until renames actually hurt.
+- ~~**Stable asset ids**~~ — built 2026-09-05 as `id://` over
+  `assets/index.toml`, with `assets.rename` for the paths
+  (`docs/PLAN-scenes-and-assets.md`).
 - **`tween_method` / `tween_subtween`**, and the `loop_finished` /
   `step_finished` signals.
-- **Asset hot reload through the file watcher.** `assets.reload` is the
-  mechanism a watcher would call; the watcher is script-only today.
+- ~~**Asset hot reload through the file watcher.**~~ Built: the watcher
+  reloads every `.toml` asset and moves the generation for every binary.
 - **Animating a dynamic body fights physics**, as it does in Godot. Warn
   once, document, and let it be.

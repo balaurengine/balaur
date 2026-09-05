@@ -171,7 +171,10 @@ fn parse_tags(value: &toml::Value, frame_count: usize) -> Result<Vec<SheetTag>> 
                 DIRECTIONS.join(", ")
             );
         }
-        let repeat = tag.get("repeat").and_then(toml::Value::as_integer).unwrap_or(0);
+        let repeat = tag
+            .get("repeat")
+            .and_then(toml::Value::as_integer)
+            .unwrap_or(0);
         tags.push(SheetTag {
             name: name.clone(),
             from,
@@ -246,9 +249,12 @@ rect = [8, 4, 16, 28]
 
 /// The `sprite_sheet` asset type: files live in `sheets/`.
 pub(crate) fn register_sheet_asset(reg: &mut Registry<'_>) {
-    reg.register_asset_type(SPRITE_SHEET_ASSET_TYPE, "sheets", SHEET_ASSET_DOC, |value| {
-        Ok(std::rc::Rc::new(SpriteSheet::parse(value)?) as std::rc::Rc<dyn std::any::Any>)
-    });
+    reg.register_asset_type(
+        SPRITE_SHEET_ASSET_TYPE,
+        "sheets",
+        SHEET_ASSET_DOC,
+        |value| Ok(std::rc::Rc::new(SpriteSheet::parse(value)?) as std::rc::Rc<dyn std::any::Any>),
+    );
 }
 
 #[cfg(test)]
@@ -279,7 +285,11 @@ pivot = [16, 32]
         assert!(sheet.frames[1].duration.abs() < f32::EPSILON);
         assert_eq!(sheet.tags[0].direction, "pingpong");
         assert_eq!(sheet.slices[0].pivot, Some([16, 32]));
-        assert_eq!(sheet.frame(7).rect, [32, 0, 32, 32], "past the end is the last frame");
+        assert_eq!(
+            sheet.frame(7).rect,
+            [32, 0, 32, 32],
+            "past the end is the last frame"
+        );
     }
 
     #[test]
@@ -289,7 +299,10 @@ pivot = [16, 32]
         )
         .unwrap_err()
         .to_string();
-        assert!(error.contains("run") && error.contains("3"), "unhelpful: {error}");
+        assert!(
+            error.contains("run") && error.contains('3'),
+            "unhelpful: {error}"
+        );
         let error = sheet(
             "texture = \"a.png\"\nframes = [{ rect = [0, 0, 1, 1] }]\n[tags.run]\nfrom = 0\nto = 0\ndirection = \"sideways\"\n",
         )

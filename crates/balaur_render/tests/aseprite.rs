@@ -136,7 +136,11 @@ fn fixture() -> Vec<u8> {
                 layer("mask", false),
                 cel(0, W, H, RED),
                 cel(1, W, H, WHITE),
-                tags(&[("walk", 0, 1, 0, 0), ("back", 1, 2, 1, 0), ("bounce", 0, 2, 2, 0)]),
+                tags(&[
+                    ("walk", 0, 1, 0, 0),
+                    ("back", 1, 2, 1, 0),
+                    ("bounce", 0, 2, 2, 0),
+                ]),
                 slice("hitbox", &[(0, 1, 0, 2, 2)], Some((2, 1))),
             ],
         ),
@@ -192,13 +196,20 @@ fn the_fixture_on_disk_is_what_the_builder_makes() {
 #[test]
 fn the_page_packs_every_frame_at_canvas_size() {
     let imported = import(&[]);
-    assert_eq!((imported.width, imported.height, imported.frames), (8, 4, 3));
+    assert_eq!(
+        (imported.width, imported.height, imported.frames),
+        (8, 4, 3)
+    );
     let image = image::load_from_memory(&imported.png).unwrap();
     assert_eq!((image.width(), image.height()), (8, 4));
     assert_eq!(pixel(&imported.png, 0, 0), RED);
     assert_eq!(pixel(&imported.png, 4, 0), GREEN);
     assert_eq!(pixel(&imported.png, 0, 2), BLUE);
-    assert_eq!(pixel(&imported.png, 4, 2), [0, 0, 0, 0], "an empty cell is clear");
+    assert_eq!(
+        pixel(&imported.png, 4, 2),
+        [0, 0, 0, 0],
+        "an empty cell is clear"
+    );
 }
 
 #[test]
@@ -208,7 +219,10 @@ fn a_hidden_layer_is_left_out_unless_named() {
     let error = aseprite::import(&fixture(), "walk", "art/walk.png", &["hat".to_string()])
         .unwrap_err()
         .to_string();
-    assert!(error.contains("hat") && error.contains("body"), "unhelpful: {error}");
+    assert!(
+        error.contains("hat") && error.contains("body"),
+        "unhelpful: {error}"
+    );
 }
 
 #[test]
@@ -221,7 +235,14 @@ fn the_sheet_names_every_frame_tag_and_slice() {
     assert!((sheet.frames[1].duration - 0.2).abs() < 1e-6);
     assert_eq!(sheet.frames[2].rect, [0, 2, 4, 2]);
     let tag = |name: &str| sheet.tags.iter().find(|t| t.name == name).unwrap().clone();
-    assert_eq!((tag("walk").from, tag("walk").to, tag("walk").direction.as_str()), (0, 1, "forward"));
+    assert_eq!(
+        (
+            tag("walk").from,
+            tag("walk").to,
+            tag("walk").direction.as_str()
+        ),
+        (0, 1, "forward")
+    );
     assert_eq!(tag("back").direction, "reverse");
     assert_eq!(tag("bounce").direction, "pingpong");
     assert_eq!(sheet.slices[0].name, "hitbox");
@@ -245,10 +266,17 @@ fn each_tag_becomes_a_step_clip_over_its_frames() {
     };
     assert_eq!(clip("walk")["loop"].as_str(), Some("loop"));
     assert!((clip("walk")["length"].as_float().unwrap() - 0.3).abs() < 1e-9);
-    assert_eq!(clip("walk")["tracks"][0]["property"].as_str(), Some("sprite/frame"));
+    assert_eq!(
+        clip("walk")["tracks"][0]["property"].as_str(),
+        Some("sprite/frame")
+    );
     assert_eq!(clip("walk")["tracks"][0]["interp"].as_str(), Some("step"));
     assert_eq!(keys("walk"), vec![(0.0, 0.0), (0.1, 1.0)]);
-    assert_eq!(keys("back"), vec![(0.0, 2.0), (0.3, 1.0)], "reverse plays the last frame first");
+    assert_eq!(
+        keys("back"),
+        vec![(0.0, 2.0), (0.3, 1.0)],
+        "reverse plays the last frame first"
+    );
     assert!((clip("back")["length"].as_float().unwrap() - 0.5).abs() < 1e-9);
     assert_eq!(clip("bounce")["loop"].as_str(), Some("pingpong"));
 }

@@ -14,6 +14,7 @@
 //! refactor the game it has open by absolute path.
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, Result, anyhow, bail};
@@ -48,9 +49,15 @@ pub fn encode(index: &BTreeMap<String, String>) -> String {
          # file may move without every scene that names it changing.\n",
     );
     for (id, path) in index {
-        out.push_str(&format!("{id} = {}\n", toml::Value::String(path.clone())));
+        let _ = writeln!(out, "{id} = {}", toml::Value::String(path.clone()));
     }
     out
+}
+
+fn is_toml(path: &str) -> bool {
+    Path::new(path)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"))
 }
 
 /// The project a path belongs to: the nearest ancestor holding a
@@ -154,7 +161,7 @@ pub fn assign_id(eng: &Engine, path: &str) -> Result<String> {
     }
     let bytes = backend.read(&at.absolute).unwrap_or_default();
     let declared = declared_id(&at.relative, &bytes);
-    let stamp = declared.is_none() && at.relative.ends_with(".toml");
+    let stamp = declared.is_none() && is_toml(&at.relative);
     let id = match declared {
         Some(id) if !index.contains_key(&id) => id,
         _ => fresh_id(&index, &at.relative, &bytes),
@@ -170,7 +177,7 @@ pub fn assign_id(eng: &Engine, path: &str) -> Result<String> {
 
 /// The top-level `id` an asset document already declares.
 fn declared_id(relative: &str, bytes: &[u8]) -> Option<String> {
-    if !relative.ends_with(".toml") {
+    if !is_toml(relative) {
         return None;
     }
     let document: toml::Value = toml::from_str(std::str::from_utf8(bytes).ok()?).ok()?;
@@ -235,14 +242,23 @@ pub fn rename(eng: &Engine, from: &str, to: &str) -> Result<Vec<String>> {
     let mut rewritten = Vec::new();
     for file in toml_files(&*backend, &old.root) {
         let absolute = old.root.join(&file);
-        let Ok(text) = backend.read(&absolute).and_then(|b| Ok(String::from_utf8(b)?)) else {
+        let Ok(text) = backend
+            .read(&absolute)
+            .and_then(|b| Ok(String::from_utf8(b)?))
+        else {
             continue;
         };
         let Ok(mut document) = text.parse::<toml_edit::DocumentMut>() else {
             continue;
         };
         let mut changed = false;
-        rewrite_item(document.as_item_mut(), &old.relative, &new, is_dir, &mut changed);
+        rewrite_item(
+            document.as_item_mut(),
+            &old.relative,
+            &new,
+            is_dir,
+            &mut changed,
+        );
         if changed {
             backend.write(&absolute, document.to_string().as_bytes())?;
             rewritten.push(file);
@@ -278,7 +294,7 @@ fn toml_files(backend: &dyn FileBackend, root: &Path) -> Vec<String> {
             };
             if is_dir {
                 pending.push(rel);
-            } else if rel.ends_with(".toml") {
+            } else if is_toml(&rel) {
                 out.push(rel);
             }
         }
@@ -296,7 +312,13 @@ fn rewritten(value: &str, from: &str, to: &str, is_dir: bool) -> Option<String> 
     (rest.starts_with('#') || (is_dir && rest.starts_with('/'))).then(|| format!("{to}{rest}"))
 }
 
-fn rewrite_item(item: &mut toml_edit::Item, from: &str, to: &str, is_dir: bool, changed: &mut bool) {
+fn rewrite_item(
+    item: &mut toml_edit::Item,
+    from: &str,
+    to: &str,
+    is_dir: bool,
+    changed: &mut bool,
+) {
     match item {
         toml_edit::Item::Value(value) => rewrite_value(value, from, to, is_dir, changed),
         toml_edit::Item::Table(table) => {

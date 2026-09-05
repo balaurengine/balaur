@@ -95,6 +95,9 @@ pub fn init(this) {
         mode2d: false,
         refs: [],
         sources: #{},
+        // Absolute path → the `id://` a document spelled it as, so a value
+        // read back off the mirror keeps the id.
+        id_paths: #{},
         // The edited scene's whole document, so a save keeps what the editor
         // does not model and the mirror sees its `[[assets]]`.
         scene_doc: #{},

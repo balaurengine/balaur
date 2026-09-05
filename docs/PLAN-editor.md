@@ -87,19 +87,32 @@ command, and the async self-tests once the tokens exist.
 
 ## 6. Tools not yet built
 
-Two tools the plugin seam makes cheap to add. Each is a persona tool or a
-dock registered like the built-ins, and each lands with a `--state`
-self-test.
+One tool left. Each is a persona tool or a dock registered like the
+built-ins, and each lands with a `--state` self-test.
 
-### Tilemap editor
+### Tilemap editor — built, 2026-09-05
 
-A `tilemap` component draws today; nothing paints one. The Scene persona
-gains a Tiles tool: a palette dock showing the tile set's texture cut by
-`tile_size`, click and drag to paint the selected tile, right-drag to
-erase, a rectangle fill, and layers as sibling `tilemap` nodes. Autotiling
-is a rule table on the tile set (`[[autotile]]` with a bitmask per tile) the
-painter consults after each stroke. Edits write the `cells` string through
-`history`, so undo is free.
+The Scene persona has a Tiles tool (`editor/scripts/tiles.rn`, `tilesdemo`).
+The palette dock cuts the tile set's texture by `tile_size` and picks a tile,
+left-drag paints it, right-drag erases, and a Rectangle mode fills between
+two corners. A layer is a sibling `tilemap` node: the Add layer button
+duplicates the map and empties it. Edits write `cells` through `history`, so
+undo is free, and a map authored as text stays text while every tile it holds
+still has a character.
+
+The palette is what asked for `ui.image_button` and `region` on `ui.image`:
+an atlas has to be shown a tile at a time and clicked. Both are general
+widgets, not a tile-set feature.
+
+Two things it does not do. **Autotiling** — a rule table on the tile set
+(`[[autotile]]` with a bitmask per tile) the painter consults after each
+stroke — is not built; it is a `tileset` asset change before it is a tool
+change, and the tool has no rule to consult until the asset carries one.
+And the map grows to the right and down only: it is centred on its node, so
+the painter moves the node by half of what it added to hold the tiles
+already down still, and a cell left of column zero has nowhere to go. Both
+are `docs/PLAN-tilemap.md`'s, behind the tileset metadata a terrain brush
+needs before it can paint.
 
 ### Curve editor and onion skin
 
@@ -110,5 +123,4 @@ named easings stay the storage, and a handle drag picks the nearest one,
 so the file stays readable. Onion skin ghosts the posed rig at the previous
 and next keys behind the viewport, from the same sampler the preview uses.
 
-The tilemap editor comes first; the profiler that was to measure both
-shipped on 2026-09-03.
+The profiler that was to measure both shipped on 2026-09-03.

@@ -158,10 +158,11 @@ impl RuneHost {
                         // The same for a texture, model, font or sound: the
                         // cache parsed none of them, and the extensions are
                         // the pack's, so what reloads is what ships.
-                        Some(ext) if balaur_core::pack::ASSET_EXTENSIONS.contains(&ext) => {
-                            if !binaries.contains(&key) {
-                                binaries.push(key);
-                            }
+                        Some(ext)
+                            if balaur_core::pack::ASSET_EXTENSIONS.contains(&ext)
+                                && !binaries.contains(&key) =>
+                        {
+                            binaries.push(key);
                         }
                         _ => {}
                     }

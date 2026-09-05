@@ -6,6 +6,7 @@
 //! crosses a page and a slice drawn on the canvas is a slice on the frame.
 //! The three files are plain TOML and PNG the editor edits like any other.
 
+use std::fmt::Write as _;
 use std::io::Cursor;
 
 use anyhow::{Context as _, Result, anyhow, bail};
@@ -37,7 +38,12 @@ struct Packed {
 /// Import `bytes` as the sheet `stem`, drawing from `texture` — the
 /// project-relative path the PNG will be written to. `layers` names the
 /// layers to composite; empty means the ones visible in the editor.
-pub fn import(bytes: &[u8], stem: &str, texture: &str, layers: &[String]) -> Result<AsepriteImport> {
+pub fn import(
+    bytes: &[u8],
+    stem: &str,
+    texture: &str,
+    layers: &[String],
+) -> Result<AsepriteImport> {
     let file = AsepriteFile::load(bytes).map_err(|e| anyhow!("reading the sprite: {e}"))?;
     let (width, height) = file.size();
     let (width, height) = (u32::from(width), u32::from(height));
@@ -94,10 +100,7 @@ fn select_layers(file: &AsepriteFile<'_>, layers: &[String]) -> Result<LayerSele
     let known: Vec<&str> = file.layers().iter().map(|l| l.name.as_str()).collect();
     for name in layers {
         if !known.contains(&name.as_str()) {
-            bail!(
-                "no layer named '{name}'; the file has {}",
-                known.join(", ")
-            );
+            bail!("no layer named '{name}'; the file has {}", known.join(", "));
         }
     }
     let names: Vec<&str> = layers.iter().map(String::as_str).collect();
@@ -158,22 +161,24 @@ fn sheet_toml(file: &AsepriteFile<'_>, stem: &str, texture: &str, packed: &[Pack
         toml::Value::String(texture.to_string())
     );
     for frame in packed {
-        out.push_str(&format!(
-            "  {{ rect = {}, duration = {} }},\n",
+        let _ = writeln!(
+            out,
+            "  {{ rect = {}, duration = {} }},",
             rect(frame.rect),
             seconds(frame.milliseconds)
-        ));
+        );
     }
     out.push_str("]\n");
     for tag in file.tags() {
-        out.push_str(&format!(
+        let _ = write!(
+            out,
             "\n[tags.{}]\nfrom = {}\nto = {}\ndirection = \"{}\"\nrepeat = {}\n",
             key(&tag.name),
             tag.range.start(),
             tag.range.end(),
             direction_name(tag.direction),
             tag.repeat.unwrap_or(0)
-        ));
+        );
     }
     for slice in file.slices() {
         out.push_str(&slice_toml(slice));
@@ -187,15 +192,20 @@ fn slice_toml(slice: &SliceChunk<'_>) -> String {
     let Some(first) = slice.slice_keys.first() else {
         return String::new();
     };
-    let mut out = format!("\n[slices.{}]\n{}", key(slice.name), slice_key_lines(first, ""));
+    let mut out = format!(
+        "\n[slices.{}]\n{}",
+        key(slice.name),
+        slice_key_lines(first, "")
+    );
     if slice.slice_keys.len() > 1 {
         out.push_str("keys = [\n");
         for k in &slice.slice_keys {
-            out.push_str(&format!(
-                "  {{ frame = {}, {} }},\n",
+            let _ = writeln!(
+                out,
+                "  {{ frame = {}, {} }},",
                 k.frame_number,
                 slice_key_lines(k, ", ").trim_end_matches(", ")
-            ));
+            );
         }
         out.push_str("]\n");
     }
@@ -208,24 +218,32 @@ fn slice_key_lines(k: &aseprite_loader::binary::chunks::slice::SliceKey, sep: &s
     let sep = if sep.is_empty() { "\n" } else { sep };
     let mut out = format!("rect = [{}, {}, {}, {}]{sep}", k.x, k.y, k.width, k.height);
     if let Some(c) = k.nine_patch {
-        out.push_str(&format!(
+        let _ = write!(
+            out,
             "center = [{}, {}, {}, {}]{sep}",
             c.x, c.y, c.width, c.height
-        ));
+        );
     }
     if let Some(p) = k.pivot {
-        out.push_str(&format!("pivot = [{}, {}]{sep}", p.x, p.y));
+        let _ = write!(out, "pivot = [{}, {}]{sep}", p.x, p.y);
     }
     out
 }
 
 /// The frames a tag plays, in order, and what the clip does at the end.
-fn sequence(from: u32, to: u32, direction: AnimationDirection, repeat: Option<u16>) -> (Vec<u32>, &'static str) {
+fn sequence(
+    from: u32,
+    to: u32,
+    direction: AnimationDirection,
+    repeat: Option<u16>,
+) -> (Vec<u32>, &'static str) {
     let forward: Vec<u32> = (from..=to).collect();
     let (run, wrap) = match direction {
         AnimationDirection::Reverse => (forward.iter().rev().copied().collect(), "loop"),
         AnimationDirection::PingPong => (forward, "pingpong"),
-        AnimationDirection::PingPongReverse => (forward.iter().rev().copied().collect(), "pingpong"),
+        AnimationDirection::PingPongReverse => {
+            (forward.iter().rev().copied().collect(), "pingpong")
+        }
         AnimationDirection::Forward | AnimationDirection::Unknown(_) => (forward, "loop"),
     };
     let Some(times) = repeat.filter(|n| *n > 0) else {
@@ -276,17 +294,15 @@ fn clips_toml(file: &AsepriteFile<'_>, stem: &str, packed: &[Packed]) -> Option<
         let mut at = 0;
         let mut keys = String::new();
         for frame in &frames {
-            keys.push_str(&format!(
-                "  {{ t = {}, value = {frame}.0 }},\n",
-                seconds(at)
-            ));
+            let _ = writeln!(keys, "  {{ t = {}, value = {frame}.0 }},", seconds(at));
             at += packed[*frame as usize].milliseconds;
         }
-        out.push_str(&format!(
+        let _ = write!(
+            out,
             "\n[clips.{name}]\nlength = {}\nloop = \"{wrap}\"\n\n[[clips.{name}.tracks]]\nproperty = \"sprite/frame\"\ninterp = \"step\"\nkeys = [\n{keys}]\n",
             seconds(at.max(1)),
             name = key(&name)
-        ));
+        );
     }
     Some(out)
 }
@@ -312,10 +328,25 @@ mod tests {
 
     #[test]
     fn a_tag_plays_in_its_direction_and_a_counted_one_unrolls() {
-        assert_eq!(sequence(1, 3, AnimationDirection::Forward, None), (vec![1, 2, 3], "loop"));
-        assert_eq!(sequence(1, 3, AnimationDirection::Reverse, None), (vec![3, 2, 1], "loop"));
-        assert_eq!(sequence(1, 3, AnimationDirection::PingPong, None), (vec![1, 2, 3], "pingpong"));
-        assert_eq!(sequence(1, 3, AnimationDirection::Forward, Some(2)), (vec![1, 2, 3, 1, 2, 3], "none"));
-        assert_eq!(sequence(1, 3, AnimationDirection::PingPong, Some(2)), (vec![1, 2, 3, 2, 1, 2, 3, 2], "none"));
+        assert_eq!(
+            sequence(1, 3, AnimationDirection::Forward, None),
+            (vec![1, 2, 3], "loop")
+        );
+        assert_eq!(
+            sequence(1, 3, AnimationDirection::Reverse, None),
+            (vec![3, 2, 1], "loop")
+        );
+        assert_eq!(
+            sequence(1, 3, AnimationDirection::PingPong, None),
+            (vec![1, 2, 3], "pingpong")
+        );
+        assert_eq!(
+            sequence(1, 3, AnimationDirection::Forward, Some(2)),
+            (vec![1, 2, 3, 1, 2, 3], "none")
+        );
+        assert_eq!(
+            sequence(1, 3, AnimationDirection::PingPong, Some(2)),
+            (vec![1, 2, 3, 2, 1, 2, 3, 2], "none")
+        );
     }
 }

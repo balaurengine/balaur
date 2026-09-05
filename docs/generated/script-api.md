@@ -10,7 +10,7 @@ cannot drift from what scripts actually see.
 | --- | ---: | ---: | --- |
 | [`animation`](#animation) | 16 | 0 | the engine |
 | [`apple`](#apple) | 18 | 0 | the engine |
-| [`assets`](#assets) | 7 | 0 | the engine |
+| [`assets`](#assets) | 11 | 0 | the engine |
 | [`audio`](#audio) | 20 | 0 | the engine |
 | [`debugger`](#debugger) | 9 | 4 | the engine |
 | [`encoding`](#encoding) | 2 | 0 | the engine |
@@ -44,7 +44,7 @@ cannot drift from what scripts actually see.
 | [`strings`](#strings) | 6 | 0 | the engine |
 | [`task`](#task) | 3 | 0 | the engine |
 | [`toml`](#toml) | 3 | 0 | the engine |
-| [`ui`](#ui) | 53 | 37 | the engine |
+| [`ui`](#ui) | 54 | 37 | the engine |
 | [`web`](#web) | 7 | 0 | the engine |
 | [`websocket`](#websocket) | 3 | 0 | the engine |
 
@@ -58,7 +58,7 @@ cannot drift from what scripts actually see.
 
 ## `assets`
 
-**Functions:** `directory`, `duplicate`, `exists`, `invalidate`, `load`, `reload`, `save`
+**Functions:** `assign_id`, `directory`, `duplicate`, `exists`, `id`, `invalidate`, `load`, `path`, `reload`, `rename`, `save`
 
 ## `audio`
 
@@ -331,7 +331,7 @@ cannot drift from what scripts actually see.
 
 ## `ui`
 
-**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `widget_rect`, `window`
+**Functions:** `activate_focused`, `add_space`, `available_height`, `available_width`, `bottom_panel`, `central_panel`, `central_rect`, `circle_button`, `clipboard`, `code_editor`, `code_line`, `color`, `cursor_y`, `dot`, `drag_value`, `dropdown`, `focus_next`, `focus_previous`, `focused`, `frame`, `horizontal`, `image`, `image_button`, `label`, `left_panel`, `menu_item`, `modal`, `overlay`, `pill`, `rect_stroke`, `right`, `right_panel`, `scale`, `screen_size`, `scroll`, `separator`, `set_clipboard`, `set_focus`, `set_keyboard_focus`, `set_scale`, `set_text`, `set_theme`, `set_widget_layer`, `set_widget_surface`, `shortcut`, `slider`, `spacing`, `text_field`, `toggle`, `top_panel`, `vertical`, `wants_keyboard`, `widget_rect`, `window`
 
 **Constants** (37):
 

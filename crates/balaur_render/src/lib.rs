@@ -12,6 +12,8 @@ use balaur_core::{Engine, Stage};
 use balaur_plugin::Registry;
 use balaur_script::Bindings;
 
+#[cfg(feature = "aseprite")]
+pub mod aseprite;
 mod camera;
 mod debug_view;
 mod draw_2d;
@@ -31,8 +33,6 @@ pub mod shaders;
 mod shape;
 mod sheet;
 mod sprite;
-#[cfg(feature = "aseprite")]
-pub mod aseprite;
 mod texture;
 mod tilemap;
 pub use camera::{Camera, CameraKind};

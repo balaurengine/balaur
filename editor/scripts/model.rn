@@ -639,11 +639,42 @@ fn names_a_file(value) {
     }
 }
 
+// The game-relative path an `id://` reference names in the game's own
+// `assets/index.toml`, with its `#entry` kept, or `None` for an unknown id.
+pub fn id_path(S, reference) {
+    let rest = reference["id://".len()..];
+    let (id, entry) = match rest.split_once('#') {
+        Some((id, entry)) => (id, "#" + entry),
+        None => (rest, ""),
+    };
+    let text = match source(S, "assets/index.toml") {
+        Some(text) => text,
+        None => return None,
+    };
+    match toml::parse(text).get(id) {
+        Some(path) => Some(format!("{}{}", path, entry)),
+        None => None,
+    }
+}
+
 // Game-relative file paths (a texture) are made absolute for the mirror,
-// whose engine resolves against the editor's root; `doc_value` undoes it on
-// the way back.
+// whose engine resolves against the editor's root; `relative_file` undoes it
+// on the way back, and `S.id_paths` keeps an `id://` spelling for that.
 fn absolute_files(S, value) {
     if value is String {
+        if value.starts_with("id://") {
+            // Bound first: Rune does not take a `match` straight after
+            // `return`, the way it does not take one straight before `[`.
+            let resolved = match id_path(S, value) {
+                Some(rel) => {
+                    let abs = S.game_root + "/" + rel;
+                    S.id_paths[abs] = value;
+                    abs
+                }
+                None => value,
+            };
+            return resolved;
+        }
         if names_a_file(value) && fs::exists(S.game_root + "/" + value) {
             return S.game_root + "/" + value;
         }
@@ -666,9 +697,14 @@ fn absolute_files(S, value) {
 }
 
 pub fn relative_file(S, value) {
-    let prefix = S.game_root + "/";
-    if value is String && value.starts_with(prefix) {
-        return value[prefix.len()..];
+    if value is String {
+        if let Some(reference) = S.id_paths.get(value) {
+            return reference;
+        }
+        let prefix = S.game_root + "/";
+        if value.starts_with(prefix) {
+            return value[prefix.len()..];
+        }
     }
     value
 }

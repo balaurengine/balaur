@@ -293,8 +293,12 @@ pub fn tiles_tool(S) {
     let before = S.doc.len();
     model::add_child(S, None);
     let node = S.doc[S.sel];
+    // The editor's own cursor image as the atlas: it is there whichever game
+    // is open, so the map draws rather than logging a missing texture. The
+    // palette's own tile count is not reached from here — it measures the
+    // file under the game's root, and this one is under the editor's.
     node.tilemap = #{
-        tileset: #{ texture: "art/tiles.png", tile_size: 16.0, columns: 4 },
+        tileset: #{ texture: "assets/cursor.png", tile_size: 16.0, columns: 4 },
         cells: "..\n..",
         pixels_per_unit: 16.0,
     };
@@ -315,12 +319,13 @@ pub fn tiles_tool(S) {
 
     // Growing: the map is centred on its node, so reaching past the right
     // edge has to move the node to leave the tiles already down where they are.
-    let grew = model::live(S, S.sel).unwrap();
-    let was_x = grew.global_position().x;
+    // The document, not the live node: a global transform propagates on the
+    // next tick and this test is one call deep inside this one.
+    let was_x = util::f(util::vec3(S.doc[S.sel].get("position").unwrap_or(()), [0.0, 0.0, 0.0])[0]);
     check(tiles::paint(S, 4, 0, 1), "painting past the edge grows the map");
     let rows = tiles::grid(S);
     check(tiles::columns(rows) == 5, format!("the map is five columns wide ({})", tiles::columns(rows)));
-    let now_x = model::live(S, S.sel).unwrap().global_position().x;
+    let now_x = util::f(util::vec3(S.doc[S.sel].get("position").unwrap_or(()), [0.0, 0.0, 0.0])[0]);
     // Three columns added at one world unit each: half of that to the right.
     check(util::abs(now_x - was_x - 1.5) < 1e-4, format!("the node moved half the growth ({} to {})", was_x, now_x));
 
@@ -387,11 +392,19 @@ pub fn assets(S) {
     let second = S.assets.sel;
     check(second != made, format!("a second folder gets its own name ({})", second));
 
+    // A scene inside the folder names a file beside it; the rename rewrites
+    // the reference and keeps the comment next to it.
+    fs::write(root + made + "/thing.toml", "type = \"note\"\npitch = 1.0\n");
+    fs::write(root + made + "/user.toml",
+        format!("[[nodes]]\nname = \"N\"\nsong = \"{}/thing.toml\" # kept\n", made));
     S.assets.sel = made;
     dock::rename_asset(S, "renamed-folder");
     check(!fs::exists(root + made), "the old name is gone");
     check(fs::exists(root + "renamed-folder"), "the new name is there");
     check(S.assets.sel == "renamed-folder", "the selection followed the rename");
+    let user = fs::read(root + "renamed-folder/user.toml");
+    check(user is String && user.contains("\"renamed-folder/thing.toml\" # kept"),
+        "the rename rewrote the reference and kept the comment");
 
     dock::rename_asset(S, "with/slash");
     check(fs::exists(root + "renamed-folder"), "a name with a slash is refused");

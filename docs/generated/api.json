@@ -16,6 +16,10 @@
       "directory": "models",
       "doc": "Geometry for `mesh`-typed properties. A definition either names a `source`\nmodel file to import or carries the vertices itself as `positions` and\n`indices`, which is what lets a script build one at run time; naming both is\nrefused. A `skin` table adds bone weights for skeletal animation.\n\n```toml\n[[assets]]\nid = \"blade\"\ntype = \"mesh\"\nsource = \"models/blade.obj\"      # imported...\n# ...or, instead of `source`:\npositions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]\nindices = [[0, 1, 2]]\n```"
     },
+    "sprite_sheet": {
+      "directory": "sheets",
+      "doc": "An image cut into frames of any size, for `sprite.sheet`: `texture` names\nthe image and each of `frames` is a `rect` of `[x, y, w, h]` texture pixels\nwith the `duration` in seconds a clip shows it for. `sprite.frame` indexes\nthe list, past the end drawing the last frame. `[tags.<name>]` is a run of\nframes `from` one index `to` another with a `direction` (`forward`,\n`reverse`, `pingpong`, `pingpong_reverse`) and a `repeat` count, zero for\never; `[slices.<name>]` is a `rect` on a frame, in the frame's own pixels,\nwith an optional nine-patch `center` and `pivot`, and `keys` when the slice\nmoves between frames. `balaur import file.aseprite` writes one of these\nbeside the atlas it packs and a clip per tag.\n\n```toml\ntype = \"sprite_sheet\"\ntexture = \"art/walk.png\"\nframes = [\n  { rect = [0, 0, 32, 32], duration = 0.1 },\n  { rect = [32, 0, 32, 32], duration = 0.1 },\n]\n\n[tags.walk]\nfrom = 0\nto = 1\ndirection = \"forward\"\n\n[slices.hitbox]\nrect = [8, 4, 16, 28]\n```"
+    },
     "tileset": {
       "directory": "tilesets",
       "doc": "An image cut into equal tiles for the `tilemap` component: `texture` names\nthe image, `tile_size` is the pixel length of one tile edge and `columns` is\nhow many tiles one row of the image holds. Tile indices count row by row\nfrom the top left.\n\n```toml\n[[assets]]\nid = \"dungeon\"\ntype = \"tileset\"\ntexture = \"art/dungeon.png\"\ntile_size = 16\ncolumns = 8\n```"
@@ -52,7 +56,7 @@
     "shape2d": "An untextured 2D primitive drawn at the node -- circle, rect, capsule or a polyline traced through a mesh asset's points -- sized in world units.",
     "shape3d": "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone or plane -- sized in world units and tinted by `color`.",
     "sound": "A sound of the node's own: which file, at what volume and pitch, looping or not. `audio.play_on` and `audio.stop_on` trigger it, and `autoplay` starts it when the node enters the scene. A `positional` sound is heard from where the node is, relative to the `listener`.",
-    "sprite": "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` sheet makes it a flipbook `frame` steps through.",
+    "sprite": "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` grid, or a `sprite_sheet` asset on `sheet`, makes it a flipbook `frame` steps through.",
     "tilemap": "A grid of tiles cut from one `tileset` atlas and centred on the node, one character per cell, drawn at `pixels_per_unit` tile-texture pixels per world unit.",
     "vehicle3d": "Makes this node's body a car chassis, driven by the `wheel3d` children under it. Rapier casts a ray down from each wheel and pushes the chassis along a spring, which is how driving games model cars: it never jams and never tunnels.",
     "wheel3d": "One wheel of the `vehicle3d` above it. Where the node sits on the chassis is where the wheel's ray starts; the rest is suspension tuning. Drive it with `physics3d.set_engine_force`, `set_brake` and `set_steering`.",
@@ -2318,6 +2322,12 @@
         "min": 0.0,
         "type": "float"
       },
+      "sheet": {
+        "asset": "sprite_sheet",
+        "default": "",
+        "description": "A sprite_sheet whose frames `frame` indexes; its texture is drawn unless `texture` names another, and it wins over `columns`, `rows` and the region",
+        "type": "asset"
+      },
       "texture": {
         "default": "",
         "description": "Image file, project-relative; required",
@@ -2931,33 +2941,45 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Asset definitions by reference: a project-relative file path, `file#entry` for one entry inside it, or `#id` for a block the scene declares. A script gets the definition table, not the parsed object the owning plugin builds from it.",
+      "doc": "Asset definitions by reference: a project-relative file path, `file#entry` for one entry inside it, `#id` for a block the scene declares, or `id://<id>` for a path `assets/index.toml` names so the reference survives a rename. A script gets the definition table, not the parsed object the owning plugin builds from it.",
       "docs": {
+        "assign_id": "The id a file has, giving it one if it has none: a digest of the path and content, written to `assets/index.toml` and, for an asset document, as its top-level `id`. Reference it as `id://<id>` afterwards.",
         "directory": "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none.",
         "duplicate": "A private copy of a definition, read past the cache, so editing it disturbs no other holder of that reference.",
         "exists": "Whether a reference resolves to a definition that is really there; false rather than an error when it does not.",
+        "id": "The id `assets/index.toml` gives a file, or nil when it has none.",
         "invalidate": "Declare everything derived from project files stale \u2014 a shader a material links, say \u2014 so it is rebuilt from disk; for a file the watcher does not cover.",
         "load": "The definition table behind a reference, from the cache; an error when the reference resolves to nothing.",
+        "path": "The path an `id://` reference resolves to in the running project; a path comes back as itself, and an unknown id is an error naming the index.",
         "reload": "Forget a reference so the next load re-reads its file, along with every entry cut from that same file.",
+        "rename": "Move a file or directory and rewrite every reference to it in the project's `.toml` files, comments kept; answers the files rewritten. Paths as `fs.*` takes them, so an editor refactors the game it has open by absolute path. Script sources are not rewritten: a path in a `.rn` is the script's own value, and `id://` is the reference that survives a move.",
         "save": "Write a definition table to the project-relative file a reference names; an error unless it names a whole file."
       },
       "functions": [
+        "assign_id",
         "directory",
         "duplicate",
         "exists",
+        "id",
         "invalidate",
         "load",
+        "path",
         "reload",
+        "rename",
         "save"
       ],
       "name": "assets",
       "signatures": {
+        "assign_id": "(path: string) -> string",
         "directory": "(type_name: string)",
         "duplicate": "(reference: string)",
         "exists": "(reference: string)",
+        "id": "(path: string) -> string?",
         "invalidate": "()",
         "load": "(reference: string)",
+        "path": "(reference: string) -> string",
         "reload": "(reference: string)",
+        "rename": "(from: string, to: string) -> [string]",
         "save": "(reference: string, definition: any)"
       }
     },
@@ -6858,7 +6880,8 @@
         "focused": "The widget node focus is on, or nil.",
         "frame": "Wrap the callback in a box with optional `fill`, `stroke`, `radius` and padding, in design pixels.",
         "horizontal": "Lay the callback's widgets out in a row; `width`, `height` and `tight` size it, in design pixels.",
-        "image": "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path.",
+        "image": "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path. `region` \u2014 `[x, y, w, h]` in the image's own pixels \u2014 draws one part of it, which is how an atlas is shown a tile at a time.",
+        "image_button": "The same picture, answering a click: returns whether it was clicked this frame. Takes every `image` option plus `selected`, which draws the `stroke` border a chosen tile needs.",
         "label": "Draw a line of text; `size`, `font`, `color`, `strong`, `wrap` and `truncate` style it.",
         "left_panel": "Dock a column down the left of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
         "menu_item": "Draw a row inside a context menu; true on the frame it was clicked, which also closes the menu.",
@@ -6914,6 +6937,7 @@
         "frame",
         "horizontal",
         "image",
+        "image_button",
         "label",
         "left_panel",
         "menu_item",
@@ -6970,6 +6994,7 @@
         "frame": "(Option<Value>, CallbackId) -> ()",
         "horizontal": "(Option<Value>, CallbackId) -> ()",
         "image": "(String, Option<Value>) -> ()",
+        "image_button": "(String, Option<Value>) -> bool",
         "label": "(String, Option<Value>) -> ()",
         "left_panel": "(String, Option<Value>, CallbackId) -> f64",
         "menu_item": "(String, Option<Value>) -> bool",

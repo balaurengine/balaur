@@ -240,7 +240,9 @@ impl AssetState {
     pub(crate) fn forget_under(&mut self, path: &str) {
         let moved = |k: &AssetRef| match k {
             AssetRef::File(p) | AssetRef::Entry(p, _) => {
-                p == path || p.strip_prefix(path).is_some_and(|rest| rest.starts_with('/'))
+                p == path
+                    || p.strip_prefix(path)
+                        .is_some_and(|rest| rest.starts_with('/'))
             }
             _ => false,
         };

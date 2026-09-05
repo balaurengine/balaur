@@ -530,6 +530,7 @@ dependencies = [
  "sha2",
  "tar",
  "tempfile",
+ "toml",
  "tracing",
  "tracing-log",
  "tracing-subscriber",

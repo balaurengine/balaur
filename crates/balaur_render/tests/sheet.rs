@@ -4,7 +4,7 @@
 //! to come out the same headless as windowed.
 
 use balaur_core::{App, AppConfig, components, scene};
-use balaur_render::{Renderable2d, RenderPlugin, Shape2d};
+use balaur_render::{RenderPlugin, Renderable2d, Shape2d};
 
 /// 200x100 px; the sheet below cuts it into frames of two sizes.
 const FIXTURE: &str = "tests/fixtures/sprite_200x100.png";
@@ -65,7 +65,13 @@ fn assert_close(actual: f32, expected: f32) {
 fn a_sheet_frame_sizes_the_quad_and_picks_its_region() {
     let app = app();
     let entity = node(&app);
-    components::add(&app.engine, entity, "sprite", Some(&sprite_table("frame = 1.0"))).unwrap();
+    components::add(
+        &app.engine,
+        entity,
+        "sprite",
+        Some(&sprite_table("frame = 1.0")),
+    )
+    .unwrap();
     let (hx, hy) = half_extents(&app, entity);
     assert_close(hx, 0.75);
     assert_close(hy, 0.5);
@@ -81,7 +87,13 @@ fn a_sheet_frame_sizes_the_quad_and_picks_its_region() {
 fn a_frame_past_the_end_draws_the_last_one() {
     let app = app();
     let entity = node(&app);
-    components::add(&app.engine, entity, "sprite", Some(&sprite_table("frame = 9.0"))).unwrap();
+    components::add(
+        &app.engine,
+        entity,
+        "sprite",
+        Some(&sprite_table("frame = 9.0")),
+    )
+    .unwrap();
     let (hx, _) = half_extents(&app, entity);
     assert_close(hx, 0.75);
     let saved = components::get(&app.engine, entity, "sprite").unwrap();
@@ -95,12 +107,28 @@ fn a_frame_past_the_end_draws_the_last_one() {
 fn a_sprite_reports_its_sheet_and_not_the_region_it_derived() {
     let app = app();
     let entity = node(&app);
-    components::add(&app.engine, entity, "sprite", Some(&sprite_table("frame = 0.0"))).unwrap();
+    components::add(
+        &app.engine,
+        entity,
+        "sprite",
+        Some(&sprite_table("frame = 0.0")),
+    )
+    .unwrap();
     let saved = components::get(&app.engine, entity, "sprite").unwrap();
     let sheet = saved["sheet"].as_str().unwrap();
-    assert!(sheet.starts_with("#!"), "an inline sheet reads back as its reference, not {sheet}");
-    assert_eq!(saved["texture"].as_str(), Some(""), "the texture was the sheet's, not the author's");
-    assert!(saved.get("region_size").is_none(), "a derived region is not authored");
+    assert!(
+        sheet.starts_with("#!"),
+        "an inline sheet reads back as its reference, not {sheet}"
+    );
+    assert_eq!(
+        saved["texture"].as_str(),
+        Some(""),
+        "the texture was the sheet's, not the author's"
+    );
+    assert!(
+        saved.get("region_size").is_none(),
+        "a derived region is not authored"
+    );
     // Keying the frame through `patch`, as a clip does, moves the region.
     let key: toml::Value = toml::from_str("frame = 1.0").unwrap();
     components::patch(&app.engine, entity, "sprite", &key).unwrap();
@@ -116,7 +144,9 @@ fn a_texture_named_beside_the_sheet_wins_and_reads_back() {
         &app.engine,
         entity,
         "sprite",
-        Some(&sprite_table(&format!("frame = 0.0\ntexture = \"{FIXTURE}\""))),
+        Some(&sprite_table(&format!(
+            "frame = 0.0\ntexture = \"{FIXTURE}\""
+        ))),
     )
     .unwrap();
     let saved = components::get(&app.engine, entity, "sprite").unwrap();

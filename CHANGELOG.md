@@ -28,6 +28,9 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - Scene and node query APIs; reparenting keeps the world pose.
 - Node visibility, z-index and tags.
 - Comment-preserving TOML patching.
+- Stable asset ids: `id://` references through `assets/index.toml`, and `assets.rename` rewriting every reference to a moved file.
+- `sprite_sheet` assets with frames of any size, tags and slices; `sprite.sheet` draws them.
+- `balaur import` reads `.aseprite` files into an atlas, a sheet and a clip per tag.
 
 ### Rendering
 
@@ -83,6 +86,7 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - Widget kinds: draw, scroll, tab, image, check, dropdown, slider, progress, grid, flow, fold, dialog, separator.
 - Text field widget with IME composition.
 - Nine-patch images; draggable seams.
+- `ui.image` draws one region of a file, and `ui.image_button` answers a click, so an atlas can be shown and picked from a tile at a time.
 - Fill anchors, insets, UI scale, scroll deadzone.
 - Shaped text through cosmic-text: bidi, complex scripts, CJK breaks, font fallback.
 - Markup tags, font weight and style.
@@ -134,7 +138,8 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 
 - Undo/redo, copy/paste, collapsible inspector, search.
 - Prefab instances and overrides.
-- Rig and Polygon tools.
+- Rig, Polygon and Tiles tools.
+- The Tiles tool paints a tilemap from a palette cut out of its tile set: paint, erase, a rectangle fill, and layers as sibling nodes.
 - Ray picking, asset filesystem verbs, language server linting.
 - Profiler dock; `--timings`.
 - Showcase and UI audit scripts.
@@ -143,6 +148,7 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - Bundled fonts and icons; project branding.
 - Narrow-window layout; `--state scale`.
 - One top bar with closable document tabs; docks minimise to a handle; script rename, pick and detach.
+- Renaming in the Assets dock rewrites every reference to the file.
 
 ### Breaking
 

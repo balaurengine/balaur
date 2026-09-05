@@ -14,10 +14,9 @@ use balaur_script::{Bindings as _, Value};
 use crate::batteries_api::{
     assets_assign_id, assets_directory, assets_duplicate, assets_exists, assets_id,
     assets_invalidate, assets_load, assets_path, assets_reload, assets_rename, assets_save,
-    dark_mode, device_id, encoding_base64, encoding_from_base64,
-    focused, hash_sha256, hash_sha256_text, log_clear, log_error, log_info, log_recent, log_warn,
-    platform, rng_int, rng_random, rng_range, rng_seed, rng_uuid, scene_tagged,
-    strings_system_locale, unix_time,
+    dark_mode, device_id, encoding_base64, encoding_from_base64, focused, hash_sha256,
+    hash_sha256_text, log_clear, log_error, log_info, log_recent, log_warn, platform, rng_int,
+    rng_random, rng_range, rng_seed, rng_uuid, scene_tagged, strings_system_locale, unix_time,
 };
 use crate::engine::Engine;
 use crate::file_api::{

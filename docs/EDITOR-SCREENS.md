@@ -84,7 +84,7 @@ Selection is persona-independent.
 
 | | Scene | Script | Animate | Physics | Interface |
 |---|---|---|---|---|---|
-| tool rail | select move rotate scale zoom | *(none — rail hides)* | select move bone polygon key zoom | select move polygon zoom | select move zoom |
+| tool rail | select move rotate scale tiles zoom | *(none — rail hides)* | select move bone polygon key zoom | select move polygon zoom | select move zoom |
 | secondary panel | Scenes | Rune modules | Clips | Collision | Interface |
 | viewport chips | 3D·Perspective, Snap 8 px, Guides | — | Motion path, Snap 8 px | Show colliders, Sleep bodies | Safe area, 1920×1080 |
 | inspector | transform, skeleton, polygon, components, script | attached script, language, hot reload | skeleton, polygon, animation, transform, bone/polygon comps, script | body/collider comps, polygon, script | widget comps, interface, script |

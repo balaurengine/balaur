@@ -140,9 +140,11 @@ fn alphabet() {
     "0123456789abcdefghijklmnopqrstuvwxyz".chars().collect::<Vec>()
 }
 
+// A signed id, not the unsigned one `enumerate` counts with: -1 is what an
+// empty cell holds, and an unsigned slot cannot be compared against it.
 fn tile_of_char(c) {
     match util::position(alphabet(), c) {
-        Some(index) => index,
+        Some(index) => util::i(index),
         None => -1,
     }
 }
@@ -159,7 +161,7 @@ fn char_of_tile(tile) {
 pub fn columns(rows) {
     let widest = 0;
     for row in rows {
-        widest = util::max(widest, row.len());
+        widest = util::max(widest, util::i(row.len()));
     }
     widest
 }
@@ -285,8 +287,8 @@ pub fn write_cells(S, cells, tile, label, key) {
     };
     let rows = grid(S);
     let was_text = authored_as_text(S);
-    let before_columns = util::max(columns(rows), 1);
-    let before_rows = util::max(rows.len(), 1);
+    let before_columns = util::i(util::max(columns(rows), 1));
+    let before_rows = util::i(util::max(rows.len(), 1));
     let changed = false;
     for cell in cells {
         let (x, y) = cell;
@@ -327,11 +329,11 @@ pub fn write_cells(S, cells, tile, label, key) {
     comp.cells = cells_value(rows, was_text);
     // The map grew around its centre, which would slide every tile already
     // down. Move the node by half of what was added to hold them still.
-    let set = tileset(S);
-    if let Some(set) = set {
+    let set_some = tileset(S);
+    if let Some(set) = set_some {
         let tile_world = set.size / pixels_per_unit(S);
-        let dw = util::f(widest - before_columns) * tile_world;
-        let dh = util::f(rows.len() - before_rows) * tile_world;
+        let dw = util::f(util::i(widest) - before_columns) * tile_world;
+        let dh = util::f(util::i(rows.len()) - before_rows) * tile_world;
         if dw != 0.0 || dh != 0.0 {
             recentre(S, dw / 2.0, -dh / 2.0);
         }
@@ -344,13 +346,13 @@ pub fn write_cells(S, cells, tile, label, key) {
 /// already painted where they were.
 fn recentre(S, lx, ly) {
     let node = S.doc[S.sel];
-    let angle = util::f(util::vec3(node.get("rotation_euler"), [0.0, 0.0, 0.0])[2]);
-    let scale = util::vec3(node.get("scale"), [1.0, 1.0, 1.0]);
+    let angle = util::f(util::vec3(node.get("rotation_euler").unwrap_or(()), [0.0, 0.0, 0.0])[2]);
+    let scale = util::vec3(node.get("scale").unwrap_or(()), [1.0, 1.0, 1.0]);
     let px = lx * util::f(scale[0]);
     let py = ly * util::f(scale[1]);
     let c = math::cos(angle);
     let s = math::sin(angle);
-    let p = util::vec3(node.get("position"), [0.0, 0.0, 0.0]);
+    let p = util::vec3(node.get("position").unwrap_or(()), [0.0, 0.0, 0.0]);
     model::set_transform(S, S.sel, #{
         position: [
             util::f(p[0]) + c * px - s * py,
@@ -376,7 +378,7 @@ pub fn cell(S, x, y) {
 /// One cell. Every cell of one drag shares a history key, so the stroke is
 /// one undo step however many cells it crossed.
 pub fn paint(S, x, y, tile) {
-    write_cells(S, [(x, y)], tile, if tile < 0 { "erase tiles" } else { "paint tiles" }, "tiles")
+    write_cells(S, [(x, y)], tile, if tile < 0 { "erase tiles" } else { "paint tiles" }, Some("tiles"))
 }
 
 /// Every cell of the rectangle between two corners, as one step.

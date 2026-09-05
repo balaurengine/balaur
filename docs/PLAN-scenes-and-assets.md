@@ -1,11 +1,14 @@
-> **Status:** prefabs shipped on 2026-09-02 — the `instance` scene key,
-> `overrides` reaching components, the transform and `script` props, prefixed
-> stable ids, cycle detection, and the editor opening an instance in place and
-> writing edits inside it as sparse overrides. ARCHITECTURE.md's prefab
-> section is the record. Phase 4 shipped on 2026-09-05: the watcher sorts a
-> saved file by `Pack::ASSET_EXTENSIONS`, a binary one moves the asset
-> generation, and every node built from a file is built again. Phases 3, 5
-> and 6 are not started.
+> **Status:** built on 2026-09-05. Prefabs shipped on 2026-09-02; the
+> watcher reloads every asset type on save; `assets.rename` (phase 3) moves a
+> file or directory and rewrites every reference under the project, which
+> the Assets dock's rename now goes through; `assets/index.toml` and
+> `id://<id>` references (phase 6) resolve through `ProjectFiles::path_of`
+> for text and binary alike and ride in a pack; and `balaur import
+> file.aseprite` (phase 5) writes an atlas, a `sprite_sheet` asset with
+> frames, tags and slices, and a clip per tag, drawn by `sprite.sheet`.
+> ARCHITECTURE.md "Assets" is the record. What stays open: a `.rn` that
+> names a path is not rewritten, and the editor has no Import button yet
+> (`docs/PLAN-editor.md` §3 names `assets::import`).
 
 # Plan: stable asset ids and sprite sheets
 
@@ -48,16 +51,28 @@ than the generation, so one saved image does not re-decode the rest.
 ## Sprite sheets
 
 `balaur import walk.aseprite` reads the file with the `aseprite-loader`
-crate and writes:
+crate (`balaur_render::aseprite`, behind the `aseprite` feature the CLI
+turns on) and writes:
 
-- `art/walk.png`, one atlas page, frames packed so a sheet never spans two
-  textures;
-- a `sprite` sheet definition with the frame rectangles and durations;
-- a clip library with one clip per tag, keying `sprite/frame` at the
-  frame's own duration, looping as the tag says.
+- `art/walk.png`, one atlas page, every frame at the canvas size packed
+  row by row on the squarest grid, so a rectangle never crosses a page;
+- `sheets/walk.toml`, a `sprite_sheet` asset: `texture`, `frames` as
+  `{ rect, duration }`, `[tags.<name>]` with `from`, `to`, `direction` and
+  `repeat`, and `[slices.<name>]` with `rect` in the frame's own pixels,
+  the nine-patch `center` and `pivot`, and `keys` when the slice moves
+  between frames;
+- `animations/walk.toml`, one clip per tag keying `sprite/frame` with
+  `interp = "step"` at the frames' own durations, `loop` for a forward or
+  reverse tag, `pingpong` for a ping-pong one, and a counted repeat unrolled
+  into a clip that stops; a file with no tags gets one clip over every
+  frame.
 
-Slices become named rectangles on the sheet, reachable from scripts for
-hitboxes and pivots.
+`--layer <name>` (repeatable) composites named layers instead of the ones
+visible in the editor. `sprite.sheet` names the asset and `frame` indexes
+its frames — past the end draws the last — so the same clip drives a packed
+atlas as drives a `columns` × `rows` grid. Slices are read from the
+definition table (`assets.load("sheets/walk.toml").slices.hitbox`); nothing
+draws them yet.
 
 ## Phases
 

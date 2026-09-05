@@ -118,7 +118,10 @@ fn a_binary_file_reads_by_id_too() {
     let files = app.engine.resource::<ProjectFiles>();
     let bytes = files.borrow().read("id://hero").unwrap();
     assert_eq!(bytes, b"not really a png");
-    assert_eq!(files.borrow().id_of("art/hero.png").as_deref(), Some("hero"));
+    assert_eq!(
+        files.borrow().id_of("art/hero.png").as_deref(),
+        Some("hero")
+    );
 }
 
 #[test]
@@ -132,7 +135,7 @@ fn a_pack_carries_the_index() {
         )]
         .into_iter()
         .collect(),
-        scripts: Default::default(),
+        scripts: std::collections::BTreeMap::new(),
         assets: [("art/hero.png".to_string(), b"packed".to_vec())]
             .into_iter()
             .collect(),
@@ -178,15 +181,26 @@ fn assigning_an_id_writes_the_index_and_stamps_an_asset_document() {
         "assigning twice is the same id"
     );
     assert_eq!(
-        asset_index::id_of(&app.engine, "notes/scale.toml").unwrap().as_deref(),
+        asset_index::id_of(&app.engine, "notes/scale.toml")
+            .unwrap()
+            .as_deref(),
         Some(id.as_str())
     );
-    assert_eq!(asset_index::id_of(&app.engine, "art/hero.png").unwrap(), None);
+    assert_eq!(
+        asset_index::id_of(&app.engine, "art/hero.png").unwrap(),
+        None
+    );
     let index = read(&dir, "assets/index.toml");
-    assert!(index.contains(&format!("{id} = \"notes/scale.toml\"")), "{index}");
+    assert!(
+        index.contains(&format!("{id} = \"notes/scale.toml\"")),
+        "{index}"
+    );
     let document = read(&dir, "notes/scale.toml");
     assert!(document.contains(&format!("id = \"{id}\"")), "{document}");
-    assert!(document.contains("# the root"), "the comment was lost: {document}");
+    assert!(
+        document.contains("# the root"),
+        "the comment was lost: {document}"
+    );
     // The running engine sees the new id at once.
     assert!((pitch_of(&app, &format!("id://{id}#high")) - 880.0).abs() < f64::EPSILON);
 }
@@ -213,7 +227,11 @@ fn a_scene_and_a_binary_are_indexed_but_not_stamped() {
     let app = app_in(dir.path(), None);
     asset_index::assign_id(&app.engine, "scenes/main.toml").unwrap();
     asset_index::assign_id(&app.engine, "art/hero.png").unwrap();
-    assert_eq!(read(&dir, "scenes/main.toml"), SCENE, "a scene is not an asset document");
+    assert_eq!(
+        read(&dir, "scenes/main.toml"),
+        SCENE,
+        "a scene is not an asset document"
+    );
     assert_eq!(read(&dir, "art/hero.png"), "not really a png");
 }
 
@@ -228,8 +246,14 @@ fn renaming_a_file_rewrites_every_reference_and_keeps_comments() {
     assert!(!dir.path().join("notes/scale.toml").exists());
     assert!(dir.path().join("notes/tune.toml").exists());
     let scene = read(&dir, "scenes/main.toml");
-    assert!(scene.contains("song = \"notes/tune.toml#high\" } # inline reference"), "{scene}");
-    assert!(scene.contains("songs = [\"notes/tune.toml\", \"notes/other.toml\"]"), "{scene}");
+    assert!(
+        scene.contains("song = \"notes/tune.toml#high\" } # inline reference"),
+        "{scene}"
+    );
+    assert!(
+        scene.contains("songs = [\"notes/tune.toml\", \"notes/other.toml\"]"),
+        "{scene}"
+    );
     assert!(scene.contains("# The scene keeps its comments."), "{scene}");
     assert!(scene.contains("texture = \"art/hero.png\""), "{scene}");
     // The cache forgot the old path and the new one loads.
@@ -245,7 +269,10 @@ fn renaming_a_directory_rewrites_the_paths_under_it_and_the_index() {
     let rewritten = asset_index::rename(&app.engine, "art", "images").unwrap();
     assert_eq!(
         rewritten,
-        vec!["assets/index.toml".to_string(), "scenes/main.toml".to_string()]
+        vec![
+            "assets/index.toml".to_string(),
+            "scenes/main.toml".to_string()
+        ]
     );
     assert!(read(&dir, "scenes/main.toml").contains("texture = \"images/hero.png\""));
     assert!(read(&dir, "assets/index.toml").contains(&format!("{id} = \"images/hero.png\"")));
@@ -277,13 +304,12 @@ fn a_rename_reaches_another_project_by_absolute_path() {
     balaur_core::file_api::add_root(&app.engine, game.path());
     let from = game.path().join("notes/scale.toml");
     let to = game.path().join("notes/tune.toml");
-    let rewritten = asset_index::rename(
-        &app.engine,
-        &from.to_string_lossy(),
-        &to.to_string_lossy(),
-    )
-    .unwrap();
+    let rewritten =
+        asset_index::rename(&app.engine, &from.to_string_lossy(), &to.to_string_lossy()).unwrap();
     assert_eq!(rewritten, vec!["scenes/main.toml".to_string()]);
     assert!(read(&game, "scenes/main.toml").contains("notes/tune.toml#high"));
-    assert!(read(&editor, "scenes/main.toml").contains("notes/scale.toml#high"), "the editor's own scene is not the game's");
+    assert!(
+        read(&editor, "scenes/main.toml").contains("notes/scale.toml#high"),
+        "the editor's own scene is not the game's"
+    );
 }
