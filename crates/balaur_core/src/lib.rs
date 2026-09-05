@@ -12,6 +12,7 @@ pub mod assets;
 mod batteries_api;
 pub mod collections;
 pub mod components;
+pub mod csg;
 #[cfg(not(target_family = "wasm"))]
 pub mod dap;
 pub mod debug_lines;

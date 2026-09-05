@@ -17,7 +17,8 @@ use crate::{Renderable, Shape, Solid};
 /// load, which is also a mesh that draws nothing.
 fn local_box(renderable: &Renderable) -> Option<(Vec3, Vec3)> {
     let Some(solid) = renderable.shape.solid() else {
-        // A mesh is the one shape not centred on its own origin.
+        // A mesh and a built shape are the two not centred on their own
+        // origin: both carry the box measured from their vertices.
         let bounds = renderable.bounds?;
         return Some((bounds.centre, bounds.half));
     };
@@ -157,6 +158,7 @@ mod tests {
             bounds: None,
             color: [1.0; 4],
             mesh: None,
+            built: None,
             skeleton: String::new(),
             texture: String::new(),
             material: String::new(),

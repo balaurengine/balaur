@@ -172,6 +172,7 @@ pub(crate) mod keys {
     pub(crate) const MATERIAL: &str = "material";
     pub(crate) const MESH: &str = "mesh";
     pub(crate) const ONE_SHOT: &str = "one_shot";
+    pub(crate) const OP: &str = "op";
     pub(crate) const PIXELS_PER_UNIT: &str = "pixels_per_unit";
     pub(crate) const POST: &str = "post";
     pub(crate) const RADIUS: &str = p::RADIUS;

@@ -15,6 +15,7 @@ use balaur_script::Bindings;
 
 #[cfg(feature = "aseprite")]
 pub mod aseprite;
+mod boolean;
 mod camera;
 mod debug_view;
 mod draw_2d;
@@ -335,6 +336,10 @@ pub enum Shape {
     /// Authored geometry. The vertices live in `Renderable::mesh`, the way a
     /// sprite's texture lives beside its quad — the enum stays `Copy`.
     Mesh,
+    /// Geometry the engine worked out rather than an author wrote: a
+    /// boolean's result. It lives in `Renderable::built`, the way a filled
+    /// polygon's does in 2D.
+    Built,
 }
 
 impl Shape {
@@ -343,7 +348,7 @@ impl Shape {
     pub const fn solid(self) -> Option<Solid> {
         match self {
             Self::Solid(solid) => Some(solid),
-            Self::Mesh => None,
+            Self::Mesh | Self::Built => None,
         }
     }
 }
@@ -364,6 +369,10 @@ pub struct Renderable {
     pub color: [f32; 4],
     /// The `mesh` asset this draws, present exactly when `shape` is a mesh.
     pub mesh: Option<String>,
+    /// Geometry computed for this node, present exactly when `shape` is
+    /// built. Shared rather than copied: a backend keeps a handle to it
+    /// between rebuilds.
+    pub built: Option<std::sync::Arc<balaur_core::mesh::MeshData>>,
     /// Node path to the rig a skinned mesh deforms with, relative to the
     /// node; empty means the node itself. Ignored by a mesh with no skin.
     pub skeleton: String,
@@ -574,6 +583,7 @@ pub(crate) fn set_mesh(
                 bounds,
                 color: [0.8, 0.8, 0.8, 1.0],
                 mesh: Some(source),
+                built: None,
                 skeleton,
                 texture,
                 material: String::new(),
@@ -602,6 +612,7 @@ pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()
                 bounds: None,
                 color: [0.8, 0.8, 0.8, 1.0],
                 mesh: None,
+                built: None,
                 skeleton: String::new(),
                 texture: String::new(),
                 material: String::new(),
@@ -867,6 +878,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         material::install_material_check(&mut *m);
         material::install_material_params(&mut *m);
         shape::install_shape_api(&mut *m);
+        boolean::install_boolean_api(&mut *m);
         light::install_occluder_api(&mut *m);
         script_api::install_sprite_api(&mut *m);
         script_api::install_sprite_state_api(&mut *m);
@@ -881,6 +893,8 @@ impl balaur_plugin::Plugin for RenderPlugin {
         camera::register_camera_component(reg);
         light::register_light2d_component(reg);
         light::register_occluder2d_component(reg);
+        boolean::register_boolean3d_component(reg);
+        boolean::register_boolean2d_component(reg);
         mesh::register_mesh_component(reg);
         material::register_material_asset(reg);
         sheet::register_sheet_asset(reg);
@@ -893,6 +907,9 @@ impl balaur_plugin::Plugin for RenderPlugin {
         // Same stage, after the camera: an outline follows the collider or
         // shape the node has settled on this tick.
         reg.add_system(Stage::SceneSync, light::resolve_occluders_system);
+        // Same stage: a boolean's operands have settled, so its result is
+        // built from where they ended up this tick.
+        reg.add_system(Stage::SceneSync, boolean::resolve_booleans_system);
         reg.add_system(Stage::Render, clear_debug_lines_system);
 
         Ok(())

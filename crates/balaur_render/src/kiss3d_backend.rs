@@ -537,6 +537,13 @@ fn sync(
                 // collider is fitted to and a ray is picked against are the
                 // ones uploaded here.
                 Shape::Solid(solid) => (upload_geometry(scene, &solid.build()), None, None),
+                // A boolean's result, already worked out this tick.
+                Shape::Built => match renderable.built.as_deref() {
+                    Some(mesh) if !mesh.indices.is_empty() => {
+                        (upload_geometry(scene, mesh), None, None)
+                    }
+                    _ => continue,
+                },
                 Shape::Mesh => match upload_mesh(app, scene, renderable) {
                     Some(built) => built,
                     // Nothing to draw yet, and `upload_mesh` said why.
