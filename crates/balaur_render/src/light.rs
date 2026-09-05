@@ -13,6 +13,7 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Vec2, Vec3};
 
+use crate::shape::words;
 use crate::{Renderable2d, Shape2d, color_from_params, color_to_toml};
 
 /// Which way a `light2d` throws light.
@@ -182,11 +183,17 @@ fn set_light(eng: &Engine, entity: Entity, next: Light2d) -> Result<()> {
         .map_err(|_| anyhow!("node is dead"))
 }
 
-const LIGHT_SCHEMA: &str = r#"kind = { type = "enum", default = "point", options = ["point", "directional"], description = "A point light fades to nothing at `radius`; a directional one lights the whole view" }
-color = { type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Light colour, as channel floats or #rrggbb / #rrggbbaa" }
-radius = { type = "float", default = 6.0, min = 0.0, description = "How far a point light reaches, in world units" }
-intensity = { type = "float", default = 1.0, min = 0.0, description = "Brightness multiplier; over 1 blows past white" }
-shadows = { type = "bool", default = true, description = "Whether `occluder2d` outlines cast shadows from this light" }"#;
+fn light_schema() -> String {
+    let kinds = crate::shape::options(words::LIGHT_KINDS);
+    let default = words::POINT;
+    format!(
+        r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "A point light fades to nothing at `radius`; a directional one lights the whole view" }}
+color = {{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Light colour, as channel floats or #rrggbb / #rrggbbaa" }}
+radius = {{ type = "float", default = 6.0, min = 0.0, description = "How far a point light reaches, in world units" }}
+intensity = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness multiplier; over 1 blows past white" }}
+shadows = {{ type = "bool", default = true, description = "Whether `occluder2d` outlines cast shadows from this light" }}"#
+    )
+}
 
 /// The `light2d` component. The node's position places it and its rotation
 /// aims it; the light map pass in the backend draws it.
@@ -195,13 +202,17 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
         "light2d",
         ComponentDef {
             doc: "A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it — sprites, polygons, tiles, a 3D scene behind them — is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.",
-            schema: ComponentDef::parse_schema("light2d", LIGHT_SCHEMA),
+            schema: ComponentDef::parse_schema("light2d", &light_schema()),
             tags: &["2d", "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let kind = match params.get("kind").and_then(|v| v.as_str()).unwrap_or("point") {
-                    "point" => LightKind2d::Point,
-                    "directional" => LightKind2d::Directional,
+                let kind = match params
+                    .get("kind")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(words::POINT)
+                {
+                    words::POINT => LightKind2d::Point,
+                    words::DIRECTIONAL => LightKind2d::Directional,
                     other => return Err(anyhow!("unknown light2d kind '{other}'")),
                 };
                 let num = |key: &str, default: f64| {
@@ -230,8 +241,8 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
                 let world = eng.world();
                 let light = world.get::<&Light2d>(entity).ok()?;
                 let kind = match light.kind {
-                    LightKind2d::Point => "point",
-                    LightKind2d::Directional => "directional",
+                    LightKind2d::Point => words::POINT,
+                    LightKind2d::Directional => words::DIRECTIONAL,
                 };
                 let mut map = toml::map::Map::new();
                 map.insert("kind".into(), toml::Value::String(kind.into()));
@@ -392,14 +403,14 @@ fn collider_outline(eng: &Engine, entity: Entity) -> Option<Vec<Vec2>> {
         Vec2::new(axis(0), axis(1))
     };
     match params.get("kind").and_then(toml::Value::as_str)? {
-        "circle" => Some(circle_outline(num("radius", 0.5))),
-        "rect" => {
+        words::CIRCLE => Some(circle_outline(num("radius", 0.5))),
+        words::RECT => {
             let he = point("half_extents");
             Some(rect_outline(he.x, he.y))
         }
-        "capsule" => Some(capsule_outline(num("radius", 0.5), num("height", 1.0))),
-        "triangle" => Some(vec![point("a"), point("b"), point("c")]),
-        "segment" => Some(vec![point("a"), point("b")]),
+        words::CAPSULE => Some(capsule_outline(num("radius", 0.5), num("height", 1.0))),
+        words::TRIANGLE => Some(vec![point("a"), point("b"), point("c")]),
+        words::SEGMENT => Some(vec![point("a"), point("b")]),
         _ => None,
     }
 }

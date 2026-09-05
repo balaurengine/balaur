@@ -192,11 +192,10 @@ pub(crate) fn to_plain(v: &rune::Value) -> Option<Neutral> {
         out.sort_by(|a, b| a.0.cmp(&b.0));
         return Some(Neutral::Map(out));
     }
-    if let Ok(t) = v.borrow_tuple_ref() {
-        if t.is_empty() {
+    if let Ok(t) = v.borrow_tuple_ref()
+        && t.is_empty() {
             return Some(Neutral::Nil);
         }
-    }
     None
 }
 

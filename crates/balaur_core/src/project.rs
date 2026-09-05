@@ -384,11 +384,10 @@ impl ProjectFiles {
             self.source,
             AssetSource::Embedded | AssetSource::EmbeddedThenFiles
         );
-        if embedded {
-            if let Some(bytes) = self.packed.get(&key) {
+        if embedded
+            && let Some(bytes) = self.packed.get(&key) {
                 return Ok(bytes.clone());
             }
-        }
         if self.source != AssetSource::Embedded {
             let full = self.root.join(p);
             if let Ok(bytes) = self.fs.read(&full) {
@@ -665,11 +664,10 @@ fn apply_overrides(
             continue;
         };
         apply_node_keys(eng, target, table);
-        if let Some(script) = table.get("script") {
-            if let Err(err) = override_script(build, target, script) {
+        if let Some(script) = table.get("script")
+            && let Err(err) = override_script(build, target, script) {
                 tracing::error!("override '{path}.script' on node '{}': {err:#}", node.name);
             }
-        }
         for (key, handler) in handlers {
             let Some(value) = table.get(key) else {
                 continue;

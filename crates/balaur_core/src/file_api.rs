@@ -212,8 +212,8 @@ fn as_item(value: &toml::Value) -> toml_edit::Item {
         }
         return toml_edit::Item::Table(out);
     }
-    if let toml::Value::Array(items) = value {
-        if items.iter().all(toml::Value::is_table) && !items.is_empty() {
+    if let toml::Value::Array(items) = value
+        && items.iter().all(toml::Value::is_table) && !items.is_empty() {
             let mut out = toml_edit::ArrayOfTables::new();
             for item in items {
                 if let toml_edit::Item::Table(table) = as_item(item) {
@@ -222,7 +222,6 @@ fn as_item(value: &toml::Value) -> toml_edit::Item {
             }
             return toml_edit::Item::ArrayOfTables(out);
         }
-    }
     let text = toml::to_string(&toml::toml! { v = (value.clone()) }).unwrap_or_default();
     text.parse::<toml_edit::DocumentMut>()
         .ok()

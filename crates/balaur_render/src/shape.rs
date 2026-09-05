@@ -50,12 +50,56 @@ pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
 // Components below are schema-driven, and each key doubles as a scene key.
 
 /// The `shape` component: 3D primitives, editable from the editor.
+/// The words a `shape`, `shape2d`, `camera` or `light2d` component spells, and
+/// the script constants beside them. Written once so a matcher, a schema's
+/// `options` list and the read-back cannot disagree.
+pub(crate) mod words {
+    pub(crate) const BALL: &str = "ball";
+    pub(crate) const CUBOID: &str = "cuboid";
+    pub(crate) const CAPSULE: &str = "capsule";
+    pub(crate) const CYLINDER: &str = "cylinder";
+    pub(crate) const CONE: &str = "cone";
+    pub(crate) const PLANE: &str = "plane";
+    /// The 3D primitives, in the order the inspector offers them.
+    pub(crate) const SHAPES: &[&str] = &[BALL, CUBOID, CAPSULE, CYLINDER, CONE, PLANE];
+
+    pub(crate) const CIRCLE: &str = "circle";
+    pub(crate) const RECT: &str = "rect";
+    pub(crate) const POLYLINE: &str = "polyline";
+    /// The 2D primitives. A circle is not a ball and a rect is not a cuboid.
+    pub(crate) const SHAPES_2D: &[&str] = &[CIRCLE, RECT, CAPSULE, POLYLINE];
+
+    /// Two more an occluder may read off a collider's params. `balaur_render`
+    /// does not depend on `balaur_physics`, so the words are spelled here too.
+    pub(crate) const TRIANGLE: &str = "triangle";
+    pub(crate) const SEGMENT: &str = "segment";
+
+    pub(crate) const PERSPECTIVE: &str = "3d";
+    pub(crate) const ORTHOGRAPHIC: &str = "2d";
+    /// Which camera a `camera` node drives.
+    pub(crate) const CAMERA_KINDS: &[&str] = &[PERSPECTIVE, ORTHOGRAPHIC];
+
+    pub(crate) const POINT: &str = "point";
+    pub(crate) const DIRECTIONAL: &str = "directional";
+    /// The 2D lights.
+    pub(crate) const LIGHT_KINDS: &[&str] = &[POINT, DIRECTIONAL];
+}
+
+/// The words a schema property offers, as its `options` list.
+pub(crate) fn options(words: &[&str]) -> String {
+    words
+        .iter()
+        .map(|word| format!("\"{word}\""))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// The `Shape` a `shape` component's params describe.
 fn shape_from_params(params: &toml::Value) -> Result<Shape> {
     let kind = params
         .get("kind")
         .and_then(|v| v.as_str())
-        .unwrap_or("cuboid");
+        .unwrap_or(words::CUBOID);
     let radius = params
         .get("radius")
         .and_then(balaur_core::components::as_f64)
@@ -75,16 +119,16 @@ fn shape_from_params(params: &toml::Value) -> Result<Shape> {
     let radius = radius.max(0.01);
     let height = height.max(0.01);
     let shape = match kind {
-        "ball" => Shape::Ball { radius },
-        "cuboid" => Shape::Cuboid {
+        words::BALL => Shape::Ball { radius },
+        words::CUBOID => Shape::Cuboid {
             hx: he(0).max(0.01),
             hy: he(1).max(0.01),
             hz: he(2).max(0.01),
         },
-        "capsule" => Shape::Capsule { radius, height },
-        "cylinder" => Shape::Cylinder { radius, height },
-        "cone" => Shape::Cone { radius, height },
-        "plane" => Shape::Plane {
+        words::CAPSULE => Shape::Capsule { radius, height },
+        words::CYLINDER => Shape::Cylinder { radius, height },
+        words::CONE => Shape::Cone { radius, height },
+        words::PLANE => Shape::Plane {
             hx: he(0).max(0.01),
             hz: he(2).max(0.01),
         },
@@ -99,16 +143,16 @@ fn shape_to_params(shape: Shape) -> Option<toml::Value> {
     let mut map = toml::map::Map::new();
     match shape {
         Shape::Ball { radius } => {
-            map.insert("kind".into(), toml::Value::String("ball".into()));
+            map.insert("kind".into(), toml::Value::String(words::BALL.into()));
             map.insert("radius".into(), toml::Value::Float(f64::from(radius)));
         }
         Shape::Capsule { radius, height }
         | Shape::Cylinder { radius, height }
         | Shape::Cone { radius, height } => {
             let name = match shape {
-                Shape::Capsule { .. } => "capsule",
-                Shape::Cylinder { .. } => "cylinder",
-                _ => "cone",
+                Shape::Capsule { .. } => words::CAPSULE,
+                Shape::Cylinder { .. } => words::CYLINDER,
+                _ => words::CONE,
             };
             map.insert("kind".into(), toml::Value::String(name.into()));
             map.insert("radius".into(), toml::Value::Float(f64::from(radius)));
@@ -117,7 +161,7 @@ fn shape_to_params(shape: Shape) -> Option<toml::Value> {
         // A mesh is saved by the `mesh` component, not this one.
         Shape::Mesh => return None,
         Shape::Plane { hx, hz } => {
-            map.insert("kind".into(), toml::Value::String("plane".into()));
+            map.insert("kind".into(), toml::Value::String(words::PLANE.into()));
             map.insert(
                 "half_extents".into(),
                 toml::Value::Array(vec![
@@ -128,7 +172,7 @@ fn shape_to_params(shape: Shape) -> Option<toml::Value> {
             );
         }
         Shape::Cuboid { hx, hy, hz } => {
-            map.insert("kind".into(), toml::Value::String("cuboid".into()));
+            map.insert("kind".into(), toml::Value::String(words::CUBOID.into()));
             map.insert(
                 "half_extents".into(),
                 toml::Value::Array(vec![
@@ -143,18 +187,22 @@ fn shape_to_params(shape: Shape) -> Option<toml::Value> {
 }
 
 pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
+    let shapes = options(words::SHAPES);
+    let default = words::CUBOID;
     reg.register_component(
         "shape3d",
         ComponentDef {
             doc: "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone or plane -- sized in world units and tinted by `color`.",
             schema: ComponentDef::parse_schema(
                 "shape3d",
-                r#"kind = { type = "enum", default = "cuboid", options = ["ball", "cuboid", "capsule", "cylinder", "cone", "plane"], description = "Rendered 3D shape" }
-radius = { type = "float", default = 0.5, min = 0.01, description = "Radius, for every kind but cuboid" }
-height = { type = "float", default = 1.0, min = 0.01, description = "Length along y, for capsule, cylinder and cone" }
-half_extents = { type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }
-color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }
-material = { type = "asset", asset = "material", default = "", description = "The material this draws with; empty draws with the built-in one" }"#,
+                &format!(
+                    r#"kind = {{ type = "enum", default = "{default}", options = [{shapes}], description = "Rendered 3D shape" }}
+radius = {{ type = "float", default = 0.5, min = 0.01, description = "Radius, for every kind but cuboid" }}
+height = {{ type = "float", default = 1.0, min = 0.01, description = "Length along y, for capsule, cylinder and cone" }}
+half_extents = {{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }}
+color = {{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }}
+material = {{ type = "asset", asset = "material", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#
+                ),
             ),
             tags: &["3d", "render"],
             expects: &[],
@@ -219,7 +267,7 @@ fn shape2d_from_params(params: &toml::Value) -> Result<(Shape2d, Option<String>)
     let kind = params
         .get("kind")
         .and_then(|v| v.as_str())
-        .unwrap_or("rect");
+        .unwrap_or(words::RECT);
     let radius = params
         .get("radius")
         .and_then(balaur_core::components::as_f64)
@@ -233,14 +281,14 @@ fn shape2d_from_params(params: &toml::Value) -> Result<(Shape2d, Option<String>)
             .unwrap_or(0.5) as f32
     };
     let shape = match kind {
-        "circle" => Shape2d::Circle {
+        words::CIRCLE => Shape2d::Circle {
             radius: radius.max(0.01),
         },
-        "rect" => Shape2d::Rect {
+        words::RECT => Shape2d::Rect {
             hx: he(0).max(0.01),
             hy: he(1).max(0.01),
         },
-        "capsule" => Shape2d::Capsule {
+        words::CAPSULE => Shape2d::Capsule {
             radius: radius.max(0.01),
             height: params
                 .get("height")
@@ -248,7 +296,7 @@ fn shape2d_from_params(params: &toml::Value) -> Result<(Shape2d, Option<String>)
                 .unwrap_or(1.0)
                 .max(0.01) as f32,
         },
-        "polyline" => {
+        words::POLYLINE => {
             let source = params
                 .get("mesh")
                 .and_then(|v| v.as_str())
@@ -274,23 +322,27 @@ fn shape2d_from_params(params: &toml::Value) -> Result<(Shape2d, Option<String>)
 
 /// The `shape2d` component: 2D primitives.
 pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
+    let shapes = options(words::SHAPES_2D);
+    let default = words::RECT;
     reg.register_component(
         "shape2d",
         ComponentDef {
             doc: "An untextured 2D primitive drawn at the node -- circle, rect, capsule or a polyline traced through a mesh asset's points -- sized in world units.",
             schema: ComponentDef::parse_schema(
                 "shape2d",
-                r#"kind = { type = "enum", default = "rect", options = ["circle", "rect", "capsule", "polyline"], description = "Rendered 2D shape" }
-radius = { type = "float", default = 0.5, min = 0.01, description = "Radius, when kind is circle or capsule" }
-height = { type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, when kind is capsule" }
-mesh = { type = "asset", asset = "mesh", default = "", description = "Points of a polyline, taken from a mesh asset's vertices" }
-width = { type = "float", default = 0.02, min = 0.001, description = "Line thickness in world units, when kind is polyline" }
-closed = { type = "bool", default = false, description = "Join the last point back to the first, making a polygon outline" }
-gradient = { type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient" }
-texture = { type = "string", default = "", description = "An image drawn along a polyline, repeating once per world unit of its length" }
-half_extents = { type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }
-color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }
-material = { type = "asset", asset = "material", default = "", description = "The material this draws with; empty draws with the built-in one" }"#,
+                &format!(
+                    r#"kind = {{ type = "enum", default = "{default}", options = [{shapes}], description = "Rendered 2D shape" }}
+radius = {{ type = "float", default = 0.5, min = 0.01, description = "Radius, when kind is circle or capsule" }}
+height = {{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, when kind is capsule" }}
+mesh = {{ type = "asset", asset = "mesh", default = "", description = "Points of a polyline, taken from a mesh asset's vertices" }}
+width = {{ type = "float", default = 0.02, min = 0.001, description = "Line thickness in world units, when kind is polyline" }}
+closed = {{ type = "bool", default = false, description = "Join the last point back to the first, making a polygon outline" }}
+gradient = {{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient" }}
+texture = {{ type = "string", default = "", description = "An image drawn along a polyline, repeating once per world unit of its length" }}
+half_extents = {{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }}
+color = {{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }}
+material = {{ type = "asset", asset = "material", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#
+                ),
             ),
             tags: &["2d", "render"],
             expects: &[],

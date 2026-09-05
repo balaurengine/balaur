@@ -130,8 +130,8 @@ pub fn all(eng: &Engine) -> Rc<RefCell<SettingsRegistry>> {
 #[must_use]
 pub fn def(eng: &Engine, path: &str) -> Option<SettingDef> {
     let registry = eng.try_resource::<SettingsRegistry>()?;
-    let found = registry.borrow().0.iter().find(|d| d.path == path).cloned();
-    found
+    
+    registry.borrow().0.iter().find(|d| d.path == path).cloned()
 }
 
 /// A path split into the tables it nests through and the key it ends at.
@@ -144,8 +144,8 @@ fn split(path: &str) -> Option<(Vec<&str>, &str)> {
 /// One setting's value: what was set, else what its definition defaults to.
 #[must_use]
 pub fn get(eng: &Engine, path: &str) -> Option<toml::Value> {
-    if let Some(values) = eng.try_resource::<SettingsValues>() {
-        if let Some((tables, key)) = split(path) {
+    if let Some(values) = eng.try_resource::<SettingsValues>()
+        && let Some((tables, key)) = split(path) {
             let values = values.borrow();
             let mut at: &toml::value::Table = &values.0;
             let mut reached = true;
@@ -157,13 +157,11 @@ pub fn get(eng: &Engine, path: &str) -> Option<toml::Value> {
                     break;
                 }
             }
-            if reached {
-                if let Some(found) = at.get(key) {
+            if reached
+                && let Some(found) = at.get(key) {
                     return Some(found.clone());
                 }
-            }
         }
-    }
     def(eng, path).and_then(|d| d.spec.get("default").cloned())
 }
 

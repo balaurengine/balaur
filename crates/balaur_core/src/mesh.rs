@@ -346,15 +346,14 @@ fn parse_inline(value: &toml::Value) -> Result<MeshData> {
         bail!("a mesh has `positions` but no faces, so it declares nothing to fill");
     }
     let uvs = pairs(value, "uvs")?;
-    if let Some(uvs) = &uvs {
-        if uvs.len() != positions.len() {
+    if let Some(uvs) = &uvs
+        && uvs.len() != positions.len() {
             bail!(
                 "a mesh has {} `uvs` for {} positions; it needs one per vertex",
                 uvs.len(),
                 positions.len()
             );
         }
-    }
     let skin = parse_skin(value, positions.len())?;
     Ok(MeshData {
         positions,

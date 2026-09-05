@@ -264,14 +264,13 @@ pub fn validate_property(spec: &toml::Value) -> Result<(), String> {
         }
         _ => {}
     }
-    if let Some(description) = spec.get("description") {
-        if description.as_str().is_none() {
+    if let Some(description) = spec.get("description")
+        && description.as_str().is_none() {
             return Err(format!(
                 "`description` is {}, not a string",
                 description.type_str()
             ));
         }
-    }
     let default = spec
         .get("default")
         .ok_or_else(|| format!("no `default`; every property needs one, of type `{declared}`"))?;

@@ -40,11 +40,20 @@ pub struct Modifier2d {
     enabled: bool,
 }
 
-const SCHEMA: &str = r#"kind = { type = "enum", default = "look_at", options = ["look_at", "two_bone_ik"], description = "Aim one bone at the target, or bend a root, middle, tip chain so the tip reaches it" }
-target = { type = "string", default = "", description = "Node path to the point to aim at, relative to this node" }
-bone = { type = "string", default = "", description = "Node path to the driven bone, relative to this node; empty means this node. For two_bone_ik, the root of the chain" }
-flip = { type = "bool", default = false, description = "Bend the two-bone chain the other way" }
-enabled = { type = "bool", default = true, description = "Whether the modifier runs; off leaves the clip's pose alone" }"#;
+/// The two modifiers, written once for the schema, the matcher and the
+/// read-back.
+const LOOK_AT: &str = "look_at";
+const TWO_BONE_IK: &str = "two_bone_ik";
+
+fn schema() -> String {
+    format!(
+        r#"kind = {{ type = "enum", default = "{LOOK_AT}", options = ["{LOOK_AT}", "{TWO_BONE_IK}"], description = "Aim one bone at the target, or bend a root, middle, tip chain so the tip reaches it" }}
+target = {{ type = "string", default = "", description = "Node path to the point to aim at, relative to this node" }}
+bone = {{ type = "string", default = "", description = "Node path to the driven bone, relative to this node; empty means this node. For two_bone_ik, the root of the chain" }}
+flip = {{ type = "bool", default = false, description = "Bend the two-bone chain the other way" }}
+enabled = {{ type = "bool", default = true, description = "Whether the modifier runs; off leaves the clip's pose alone" }}"#
+    )
+}
 
 /// The `modifier2d` component: writes one [`Modifier2d`] on the node.
 pub(crate) fn register_modifier2d_component(reg: &mut Registry<'_>) {
@@ -54,7 +63,7 @@ pub(crate) fn register_modifier2d_component(reg: &mut Registry<'_>) {
             doc: "Aims a 2D bone at a target node every frame, after the clip has posed the rig: \
                   `look_at` turns one bone toward the target, `two_bone_ik` bends a root, middle \
                   and tip chain so the tip reaches it.",
-            schema: ComponentDef::parse_schema("modifier2d", SCHEMA),
+            schema: ComponentDef::parse_schema("modifier2d", &schema()),
             tags: &["2d", "animation"],
             expects: &[],
             apply: Box::new(apply_modifier2d),
@@ -82,8 +91,8 @@ fn apply_modifier2d(eng: &Engine, entity: Entity, params: &toml::Value) -> Resul
             .unwrap_or(default)
     };
     let kind = match params.get("kind").and_then(toml::Value::as_str) {
-        None | Some("look_at") => Kind::LookAt,
-        Some("two_bone_ik") => Kind::TwoBoneIk,
+        None | Some(LOOK_AT) => Kind::LookAt,
+        Some(TWO_BONE_IK) => Kind::TwoBoneIk,
         Some(other) => return Err(anyhow!("unknown modifier2d kind '{other}'")),
     };
     let modifier = Modifier2d {
@@ -103,8 +112,8 @@ fn modifier2d_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let m = world.get::<&Modifier2d>(entity).ok()?;
     let mut out = toml::map::Map::new();
     let kind = match m.kind {
-        Kind::LookAt => "look_at",
-        Kind::TwoBoneIk => "two_bone_ik",
+        Kind::LookAt => LOOK_AT,
+        Kind::TwoBoneIk => TWO_BONE_IK,
     };
     out.insert("kind".into(), toml::Value::String(kind.into()));
     out.insert("target".into(), toml::Value::String(m.target.clone()));

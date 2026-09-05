@@ -103,13 +103,13 @@ pub fn is_resimulating(eng: &Engine) -> bool {
 #[must_use]
 pub fn input(eng: &Engine, player: PlayerId) -> Option<Input> {
     let inputs = eng.try_resource::<TickInputs>()?;
-    let found = inputs
+    
+    inputs
         .borrow()
         .0
         .iter()
         .find(|(id, _)| *id == player)
-        .map(|(_, value)| value.clone());
-    found
+        .map(|(_, value)| value.clone())
 }
 
 /// A local rollback session: the tick clock, the snapshot ring and the

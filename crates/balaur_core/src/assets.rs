@@ -168,8 +168,8 @@ pub struct AssetState {
 /// enough to read every frame; it changes only on a `reload`.
 pub fn generation(eng: &Engine) -> u64 {
     state(eng).map_or(0, |cache| {
-        let g = cache.borrow().generation;
-        g
+        
+        cache.borrow().generation
     })
 }
 
@@ -233,11 +233,10 @@ impl AssetState {
         // While a scene is being instantiated its own blocks win. Outside
         // instantiation — a script or a tool asking afterwards — the most
         // recently entered scene is the one meant.
-        if let Some(scene) = self.current_scope {
-            if self.scopes.get(&scene).is_some_and(|s| s.contains_key(id)) {
+        if let Some(scene) = self.current_scope
+            && self.scopes.get(&scene).is_some_and(|s| s.contains_key(id)) {
                 return Ok(AssetRef::Scoped(scene, id.to_string()));
             }
-        }
         self.scopes
             .iter()
             .rev()

@@ -6,6 +6,7 @@ use balaur_core::components::ComponentDef;
 use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
 
+use crate::shape::words;
 use crate::{CameraConfig, CameraConfig2d, PostConfig, color_to_toml};
 
 /// The smallest 2D zoom, in logical pixels per world unit. Mirrors the `min`
@@ -179,9 +180,13 @@ fn drive_post(eng: &Engine, post: Post) {
 
 /// The authored camera a full property table describes.
 fn camera_from_params(params: &toml::Value) -> anyhow::Result<Camera> {
-    let kind = match params.get("kind").and_then(|v| v.as_str()).unwrap_or("3d") {
-        "3d" => CameraKind::Perspective,
-        "2d" => CameraKind::Orthographic,
+    let kind = match params
+        .get("kind")
+        .and_then(|v| v.as_str())
+        .unwrap_or(words::PERSPECTIVE)
+    {
+        words::PERSPECTIVE => CameraKind::Perspective,
+        words::ORTHOGRAPHIC => CameraKind::Orthographic,
         other => return Err(anyhow!("unknown camera kind '{other}'")),
     };
     let num = |key: &str, default: f64| {
@@ -222,20 +227,24 @@ fn camera_from_params(params: &toml::Value) -> anyhow::Result<Camera> {
 /// The `camera` component. Writes a [`Camera`] on the node;
 /// [`drive_camera_system`] mirrors the current one into the camera resources.
 pub(crate) fn register_camera_component(reg: &mut Registry<'_>) {
+    let kinds = crate::shape::options(words::CAMERA_KINDS);
+    let default = words::PERSPECTIVE;
     reg.register_component(
         "camera",
         ComponentDef {
             doc: "The view the scene is drawn from, following the node's global pose: `look_at` aims the 3D camera, `zoom` scales the 2D one in logical pixels per world unit. The last `current` camera of a kind, in tree order, drives that view.",
             schema: ComponentDef::parse_schema(
                 "camera",
-                r#"kind = { type = "enum", default = "3d", options = ["3d", "2d"], description = "Which camera this node drives" }
-current = { type = "bool", default = true, description = "Whether this camera drives the view; the last current one wins" }
-look_at = { type = "vec3", default = [0.0, 0.0, 0.0], description = "World point the 3D camera looks at" }
-zoom = { type = "float", default = 60.0, min = 1.0, description = "2D zoom in logical pixels per world unit" }
-ambient = { type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`; only a `2d` camera's is read" }
-post = { type = "flags", options = ["bloom", "ssao", "ssr", "dof"], default = [], description = "Screen-space effects the frame resolves through; `ssao`, `ssr` and `dof` are 3D only" }
-bloom_threshold = { type = "float", default = 1.0, min = 0.0, description = "Brightness a pixel has to pass to bloom" }
-bloom_intensity = { type = "float", default = 0.6, min = 0.0, description = "How much of the bloom is added back over the frame" }"#,
+                &format!(
+                    r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "Which camera this node drives" }}
+current = {{ type = "bool", default = true, description = "Whether this camera drives the view; the last current one wins" }}
+look_at = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "World point the 3D camera looks at" }}
+zoom = {{ type = "float", default = 60.0, min = 1.0, description = "2D zoom in logical pixels per world unit" }}
+ambient = {{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`; only a `2d` camera's is read" }}
+post = {{ type = "flags", options = ["bloom", "ssao", "ssr", "dof"], default = [], description = "Screen-space effects the frame resolves through; `ssao`, `ssr` and `dof` are 3D only" }}
+bloom_threshold = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness a pixel has to pass to bloom" }}
+bloom_intensity = {{ type = "float", default = 0.6, min = 0.0, description = "How much of the bloom is added back over the frame" }}"#
+                ),
             ),
             tags: &["3d", "render"],
             expects: &[],
@@ -260,8 +269,8 @@ bloom_intensity = { type = "float", default = 0.6, min = 0.0, description = "How
                 let camera = world.get::<&Camera>(entity).ok()?;
                 let mut map = toml::map::Map::new();
                 let kind = match camera.kind {
-                    CameraKind::Perspective => "3d",
-                    CameraKind::Orthographic => "2d",
+                    CameraKind::Perspective => words::PERSPECTIVE,
+                    CameraKind::Orthographic => words::ORTHOGRAPHIC,
                 };
                 map.insert("kind".into(), toml::Value::String(kind.into()));
                 map.insert("current".into(), toml::Value::Boolean(camera.current));

@@ -513,14 +513,11 @@ impl RuneHost {
         if let Some(script) = self.state.borrow().scripts.get(key) {
             return Ok(script.unit.clone());
         }
-        let script = match self.packed_script(key)? {
-            Some(script) => script,
-            _ => {
-                let source = self.source_of(key)?;
-                let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
-                let deps = self.source_keys(&sources);
-                Script::new(unit, source, sources, deps)
-            }
+        let script = if let Some(script) = self.packed_script(key)? { script } else {
+            let source = self.source_of(key)?;
+            let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
+            let deps = self.source_keys(&sources);
+            Script::new(unit, source, sources, deps)
         };
         let unit = script.unit.clone();
         self.state
@@ -606,11 +603,10 @@ impl RuneHost {
     /// Dropped rather than pooled once the pool is full, and dropped when the
     /// script has been reloaded out from under it — its unit is stale.
     fn return_vm(&self, key: &str, vm: Vm) {
-        if let Some(script) = self.state.borrow_mut().scripts.get_mut(key) {
-            if script.vms.len() < VM_POOL && vm.is_same_unit(&script.unit) {
+        if let Some(script) = self.state.borrow_mut().scripts.get_mut(key)
+            && script.vms.len() < VM_POOL && vm.is_same_unit(&script.unit) {
                 script.vms.push(vm);
             }
-        }
     }
 
     pub fn attach(&self, entity: Entity, path: &str) -> Result<()> {
@@ -678,13 +674,11 @@ impl RuneHost {
         if let Some(paused) = paused {
             self.drop_pause(&paused);
         }
-        if let Some(inst) = inst {
-            if let Some(on_free) = self.method(&inst.key, "on_free") {
-                if let Err(err) = on_free.call::<()>((inst.state,)).into_result() {
+        if let Some(inst) = inst
+            && let Some(on_free) = self.method(&inst.key, "on_free")
+                && let Err(err) = on_free.call::<()>((inst.state,)).into_result() {
                     self.report(&inst.key, "on_free", &err);
                 }
-            }
-        }
     }
 
     pub fn update(&self, dt: f32) {
