@@ -10,13 +10,7 @@ use std::rc::Rc;
 use balaur_core::{App, AppConfig, Stage, FIXED_DT, MAX_SUBSTEPS};
 
 fn app() -> App {
-    App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    App::new(AppConfig::bare("."))
     .unwrap()
 }
 

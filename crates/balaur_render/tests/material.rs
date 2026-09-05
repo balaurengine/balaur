@@ -69,13 +69,7 @@ fn project() -> tempfile::TempDir {
 }
 
 fn app(root: &std::path::Path) -> App {
-    let mut app = App::new(AppConfig {
-        project_root: root.to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = App::new(AppConfig::bare(root.to_path_buf()))
     .unwrap();
     balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
     app

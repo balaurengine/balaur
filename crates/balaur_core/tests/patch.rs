@@ -13,13 +13,7 @@ use balaur_core::{App, AppConfig, Engine};
 struct Dial(toml::Value);
 
 fn app_with_dial() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = App::new(AppConfig::bare("."))
     .unwrap();
     app.register_component(
         "dial",
@@ -174,13 +168,7 @@ fn patching_a_component_nothing_registered_says_which_one() {
 
 #[test]
 fn a_hex_colour_reaches_apply_expanded_through_patch_as_well_as_add() {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = App::new(AppConfig::bare("."))
     .unwrap();
     app.register_component(
         "tint",

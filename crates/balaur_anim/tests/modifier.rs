@@ -9,13 +9,7 @@ use balaur_core::{components, App, AppConfig};
 use glamx::{Vec2, Vec3};
 
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("tests/fixtures"),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures")))
     .unwrap();
     balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
     app

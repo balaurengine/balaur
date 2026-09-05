@@ -11,13 +11,7 @@ use balaur_http::{HttpCall, HttpPlugin, HttpSnapshot, HttpState};
 use balaur_script::Value;
 
 fn app_with_http(dir: &std::path::Path) -> App {
-    let mut app = App::new(AppConfig {
-        project_root: dir.to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = App::new(AppConfig::bare(dir.to_path_buf()))
     .unwrap();
     balaur_plugin::load(&mut app, &mut HttpPlugin::default()).unwrap();
     app

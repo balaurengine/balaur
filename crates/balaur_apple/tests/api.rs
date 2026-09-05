@@ -11,13 +11,7 @@ use balaur_platform::{Call, PlatformPlugin, PlatformSnapshot, PlatformState};
 use balaur_script::Value;
 
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = App::new(AppConfig::bare("."))
     .unwrap();
     balaur_plugin::load(&mut app, &mut PlatformPlugin::default()).unwrap();
     balaur_plugin::load(&mut app, &mut ApplePlugin::default()).unwrap();

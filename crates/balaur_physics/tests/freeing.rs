@@ -12,13 +12,7 @@ use balaur_physics::{PhysicsPlugin, PhysicsState};
 static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn app() -> App {
-    let mut app = App::new(balaur_core::AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = App::new(balaur_core::AppConfig::bare("."))
     .unwrap();
     balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
     app

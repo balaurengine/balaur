@@ -7,13 +7,7 @@ use balaur_core::components::ComponentDef;
 use balaur_core::{components, presets, scene, App, AppConfig};
 
 fn app() -> App {
-    App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    App::new(AppConfig::bare("."))
     .unwrap()
 }
 

@@ -5,13 +5,7 @@ use balaur_core::components::{self, ComponentDef, ComponentRegistry};
 use balaur_core::{App, AppConfig, Engine};
 
 fn app_with_marker() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = App::new(AppConfig::bare("."))
     .unwrap();
     app.register_component(
         "marker",

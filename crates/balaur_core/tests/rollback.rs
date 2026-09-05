@@ -27,13 +27,7 @@ struct Trace {
 /// restores and what the digest hashes, so a rollback that half worked shows
 /// up as a wrong number rather than as nothing.
 fn app_driven_by_input() -> (App, Rc<RefCell<Trace>>) {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = App::new(AppConfig::bare("."))
     .unwrap();
     let root = app.engine.root();
     let mover = {

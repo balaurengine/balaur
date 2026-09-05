@@ -5,13 +5,7 @@ use balaur_websocket::transport::WebsocketTransport;
 use balaur_websocket::SocketOptions;
 
 fn app() -> App {
-    App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    App::new(AppConfig::bare("."))
     .unwrap()
 }
 

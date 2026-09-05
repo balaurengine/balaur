@@ -67,13 +67,7 @@ name = "B"
 
 fn load(source: &str) -> anyhow::Result<usize> {
     let dir = tempfile::tempdir()?;
-    let app = App::new(AppConfig {
-        project_root: dir.path().to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })?;
+    let app = App::new(AppConfig::bare(dir.path().to_path_buf()))?;
     let root = app.engine.root();
     balaur_core::project::instantiate_scene(&app.engine, source, root, false)?;
     let n = app.engine.world().len() as usize;

@@ -6,13 +6,7 @@ use balaur_core::{components, App, AppConfig};
 use balaur_physics::{PhysicsPlugin, PhysicsState};
 
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = App::new(AppConfig::bare("."))
     .unwrap();
     balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
     app

@@ -6,13 +6,7 @@ use balaur_core::{App, AppConfig};
 use balaur_ui::{ANCHORS, FONTS, MODIFIERS, WIDGET_KINDS};
 
 fn registered_options(field: &str) -> Vec<String> {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = App::new(AppConfig::bare("."))
     .unwrap();
     balaur_plugin::load(&mut app, &mut balaur_ui::UiPlugin::default()).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();

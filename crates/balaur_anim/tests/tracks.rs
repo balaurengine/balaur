@@ -15,13 +15,7 @@ use balaur_core::{components, scene, App, AppConfig};
 use common::Calls;
 
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("tests/fixtures"),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures")))
     .unwrap();
     balaur_plugin::load(&mut app, &mut balaur::RenderPlugin::default()).unwrap();
     balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();

@@ -295,13 +295,7 @@ fn a_scene_files_a_node_under_its_tags() {
         "[[nodes]]\nname = \"Gate\"\ntags = [\"door\", \"exit\"]\n[[nodes]]\nname = \"Rock\"\n",
     )
     .unwrap();
-    let mut app = balaur_core::App::new(balaur_core::AppConfig {
-        project_root: dir.path().to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(dir.path().to_path_buf()))
     .unwrap();
     app.load_project().unwrap();
     let world = app.engine.world();

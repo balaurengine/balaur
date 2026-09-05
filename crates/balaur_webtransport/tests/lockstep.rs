@@ -20,13 +20,7 @@ const GUEST: u32 = 2;
 /// Both players drive the same node, so either one's input landing on the
 /// wrong tick shows up in the digest.
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = App::new(AppConfig::bare("."))
     .unwrap();
     let root = app.engine.root();
     let mover = {

@@ -6,13 +6,7 @@ use balaur_core::{components, scene, App, AppConfig, Transform};
 use balaur_render::{CameraConfig, CameraConfig2d, PostConfig, RenderPlugin};
 
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
+    let mut app = App::new(AppConfig::bare("."))
     .unwrap();
     balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
     app
