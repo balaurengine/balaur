@@ -518,9 +518,6 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
             .order(order)
             .pivot(align)
             .fixed_pos(pos)
-            // A widget appears when the scene says so, at the alpha its own
-            // theme sets; egui's fade would override both.
-            .fade_in(false)
             .show(ctx, |ui| {
                 if assigned != egui::Vec2::ZERO {
                     ui.set_max_size(assigned);

@@ -15,11 +15,15 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
+mod android;
 mod apple;
 mod bundle;
+mod config;
+mod sign;
 
 use apple::AppleConfig;
 use bundle::{export_bundle, export_macos_app, find_bundle_template, web_shell, Bundle};
+pub use config::{ExportConfig, DEFAULT_OUTPUT};
 
 /// Everything an export was asked for.
 #[derive(Default)]
@@ -38,8 +42,21 @@ pub struct Options<'a> {
     /// Keep script sources in the pack instead of bytecode, for a runtime
     /// whose pointer width differs from this machine's — the web build.
     pub keep_sources: bool,
-    /// Code-sign the `.app` with this identity; implies `app`.
+    /// The identity this target signs with, overriding what `[export]` names:
+    /// a certificate name on Apple platforms, a certificate file on Windows.
+    /// On macOS it implies `app`, since a flat binary cannot be signed.
     pub sign: Option<String>,
+    /// Submit the signed macOS bundle to Apple's notary service and staple
+    /// the ticket, so a stranger's Mac opens it without a dialog.
+    pub notarize: bool,
+    /// The `.mobileprovision` an iOS build is signed against.
+    pub profile: Option<PathBuf>,
+    /// Wrap the iOS `.app` as the `.ipa` App Store Connect takes.
+    pub ipa: bool,
+    /// Assemble the Android layout into an installable APK.
+    pub apk: bool,
+    /// Wrap the macOS `.app` as the `.pkg` the Mac App Store takes.
+    pub pkg: bool,
     /// Where runtime templates are looked for, most specific first.
     pub template_roots: Vec<PathBuf>,
     /// Called when the target's template is on none of the roots. `None`
@@ -84,8 +101,8 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let keep_sources = opts.keep_sources || bundle == Some(Bundle::Web);
     let pack = balaur::build_pack_with(&opts.path, keep_sources)?;
     let apple = AppleConfig::load(&opts.path)?;
+    let config = ExportConfig::load(&opts.path)?;
     let name = project_name(&opts.path);
-    let output = opts.output.clone();
     // Mobile and the web ship a bundle, not an executable: the pack goes
     // inside it as a resource rather than onto the end of a binary.
     if let Some(kind) = bundle {
@@ -94,7 +111,8 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             None => find_bundle_template(kind, &opts.template_roots)?,
         };
         let shell = web_shell(&opts.path)?;
-        return export_bundle(
+        let output = declared_output(opts, &config, kind.platform(), &bundle_name(kind, &name));
+        let written = export_bundle(
             kind,
             &template,
             &pack.encode(),
@@ -102,7 +120,8 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
             output,
             &apple,
             &shell,
-        );
+        )?;
+        return finish_bundle(kind, &written, opts, &config, &apple, &name);
     }
     let template = match (opts.template.clone(), target) {
         (Some(explicit), _) => Some(explicit),
@@ -115,24 +134,38 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         }),
         (None, None) => None,
     };
+    let windows = target.is_some_and(|t| t.contains("windows"))
+        || template
+            .as_ref()
+            .is_some_and(|t| t.extension().is_some_and(|e| e == "exe"));
     // A macOS game that will be signed has to be a .app: appending to a flat
-    // binary is exactly what a signature cannot cover.
-    if opts.app || opts.sign.is_some() {
+    // binary is exactly what a signature cannot cover. Authenticode is the
+    // exception, and records where it put itself.
+    if opts.app || opts.pkg || (opts.sign.is_some() && !windows) {
         let template = template.context("--app needs --target or --template")?;
         if let Some(t) = target.filter(|t| !t.starts_with("macos")) {
             anyhow::bail!("--app builds a macOS bundle, but the target is {t}");
         }
-        return export_macos_app(
-            &template,
-            &pack.encode(),
-            &name,
-            output,
-            opts.sign.as_deref(),
-            &apple,
-        );
+        let identity = identity(opts.sign.as_deref(), &config.macos_identity);
+        let output = declared_output(opts, &config, "macos-universal", &format!("{name}.app"));
+        let app = export_macos_app(&template, &pack.encode(), &name, output, identity, &apple)?;
+        if opts.notarize || config.notarize {
+            sign::notarize(&app)?;
+        }
+        if opts.pkg {
+            let pkg = sign::build_pkg(&app, &app, identity)?;
+            tracing::info!("wrote {}", pkg.display());
+        }
+        return Ok(());
     }
     let Some(template) = template else {
-        let output = output.unwrap_or_else(|| PathBuf::from(format!("{name}.bpak")));
+        let output = opts
+            .output
+            .clone()
+            .unwrap_or_else(|| PathBuf::from(format!("{name}.bpak")));
+        if let Some(dir) = output.parent().filter(|d| !d.as_os_str().is_empty()) {
+            std::fs::create_dir_all(dir)?;
+        }
         std::fs::write(&output, pack.encode())?;
         tracing::info!(
             "exported {} scripts, {} scenes -> {}",
@@ -145,15 +178,19 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let bytes = std::fs::read(&template)
         .with_context(|| format!("reading template {}", template.display()))?;
     // Windows will not run a file without the extension, whatever its contents.
-    let output = output.unwrap_or_else(|| {
-        let windows = target.is_some_and(|t| t.contains("windows"))
-            || template.extension().is_some_and(|e| e == "exe");
-        PathBuf::from(if windows {
-            format!("{name}.exe")
-        } else {
-            name.clone()
-        })
-    });
+    let file = if windows {
+        format!("{name}.exe")
+    } else {
+        name.clone()
+    };
+    let output = opts
+        .output
+        .clone()
+        .or_else(|| config.output_for(&opts.path, target.unwrap_or("desktop"), &file))
+        .unwrap_or_else(|| PathBuf::from(&file));
+    if let Some(dir) = output.parent().filter(|d| !d.as_os_str().is_empty()) {
+        std::fs::create_dir_all(dir)?;
+    }
     let game = balaur::standalone::build(&bytes, &pack.encode());
     balaur::standalone::write_executable(&output, &game, &template)?;
     tracing::info!(
@@ -163,7 +200,90 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         template.display(),
         output.display()
     );
+    if windows && (opts.sign.is_some() || !config.windows_certificate.is_empty()) {
+        let mut config = config;
+        if let Some(named) = &opts.sign {
+            config.windows_certificate.clone_from(named);
+        }
+        sign::sign_windows(&output, &opts.path, &config)?;
+    }
     Ok(())
+}
+
+/// What a signed export uses: the flag when one was passed, else what the
+/// project declared, and `None` for an ad-hoc signature.
+fn identity<'a>(flag: Option<&'a str>, declared: &'a str) -> Option<&'a str> {
+    flag.or_else(|| (!declared.is_empty()).then_some(declared))
+}
+
+/// Where a bundle goes when `-o` names nothing: what `[export]` declares, or
+/// the exporter's own name for it beside the working directory.
+fn declared_output(
+    opts: &Options<'_>,
+    config: &ExportConfig,
+    target: &str,
+    file: &str,
+) -> Option<PathBuf> {
+    opts.output
+        .clone()
+        .or_else(|| config.output_for(&opts.path, target, file))
+}
+
+fn bundle_name(kind: Bundle, name: &str) -> String {
+    match kind {
+        Bundle::Ios => format!("{name}.app"),
+        Bundle::Android => format!("{name}-android"),
+        Bundle::Web => format!("{name}-web"),
+    }
+}
+
+/// Signing and packaging, after the bundle itself is written: the identity
+/// each mobile platform wants, and the shape its store takes.
+fn finish_bundle(
+    kind: Bundle,
+    written: &Path,
+    opts: &Options<'_>,
+    config: &ExportConfig,
+    apple: &AppleConfig,
+    name: &str,
+) -> Result<()> {
+    match kind {
+        Bundle::Web => Ok(()),
+        Bundle::Ios => {
+            let identity = identity(opts.sign.as_deref(), &config.ios_identity);
+            let profile = opts
+                .profile
+                .clone()
+                .or_else(|| ExportConfig::beside(&opts.path, &config.ios_profile));
+            if let Some(profile) = &profile {
+                let embedded = written.join("embedded.mobileprovision");
+                std::fs::copy(profile, &embedded).with_context(|| {
+                    format!("copying the provisioning profile {}", profile.display())
+                })?;
+            }
+            if identity.is_some() {
+                anyhow::ensure!(
+                    profile.is_some(),
+                    "signing an iOS build needs a provisioning profile: pass --profile,                      or name one in [export] ios_profile"
+                );
+                let entitlements = apple.write_entitlements(written, name)?;
+                sign::codesign(written, identity, entitlements.as_deref(), true)?;
+                sign::verify(written)?;
+                tracing::info!("signed {}", written.display());
+            }
+            if opts.ipa {
+                let ipa = sign::build_ipa(written, written)?;
+                tracing::info!("wrote {}", ipa.display());
+            }
+            Ok(())
+        }
+        Bundle::Android => {
+            if opts.apk || !config.android_keystore.is_empty() {
+                android::assemble(written, written, &opts.path, config)?;
+            }
+            Ok(())
+        }
+    }
 }
 
 /// The exported game's name: the project directory's, or `game` for a path

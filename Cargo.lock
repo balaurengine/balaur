@@ -560,6 +560,7 @@ dependencies = [
  "tempfile",
  "toml",
  "tracing",
+ "zip",
 ]
 
 [[package]]

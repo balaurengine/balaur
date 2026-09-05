@@ -42,7 +42,7 @@ impl Bundle {
         }
     }
 
-    const fn platform(self) -> &'static str {
+    pub(crate) const fn platform(self) -> &'static str {
         match self {
             Self::Ios => "ios",
             Self::Android => "android",
@@ -89,7 +89,7 @@ pub(crate) fn export_bundle(
     output: Option<PathBuf>,
     apple: &AppleConfig,
     shell: &str,
-) -> Result<()> {
+) -> Result<PathBuf> {
     if kind == Bundle::Ios {
         apple.check(Platform::Ios)?;
     }
@@ -102,6 +102,9 @@ pub(crate) fn export_bundle(
         Bundle::Ios | Bundle::Web => PathBuf::from(balaur::standalone::BUNDLED_PACK),
         Bundle::Android => Path::new("assets").join(balaur::standalone::BUNDLED_PACK),
     };
+    if let Some(dir) = output.parent().filter(|d| !d.as_os_str().is_empty()) {
+        std::fs::create_dir_all(dir)?;
+    }
     replace_export(&output, &inside)?;
     copy_dir(template, &output)?;
     let pack_path = match kind {
@@ -123,7 +126,7 @@ pub(crate) fn export_bundle(
             "exported for the web -> {} (serve the directory; the page fetches the pack beside it)",
             output.display()
         );
-        return Ok(());
+        return Ok(output);
     }
     if kind == Bundle::Ios {
         let plist = output.join("Info.plist");
@@ -139,12 +142,8 @@ pub(crate) fn export_bundle(
             );
         }
     }
-    tracing::info!(
-        "exported for {} -> {} (unsigned; sign it before installing)",
-        kind.platform(),
-        output.display()
-    );
-    Ok(())
+    tracing::info!("exported for {} -> {}", kind.platform(), output.display());
+    Ok(output)
 }
 
 /// The binary inside the template bundle, read off the plist the exporter is
@@ -198,9 +197,12 @@ pub(crate) fn export_macos_app(
     output: Option<PathBuf>,
     sign: Option<&str>,
     apple: &AppleConfig,
-) -> Result<()> {
+) -> Result<PathBuf> {
     apple.check(Platform::Macos)?;
     let app = output.unwrap_or_else(|| PathBuf::from(format!("{name}.app")));
+    if let Some(dir) = app.parent().filter(|d| !d.as_os_str().is_empty()) {
+        std::fs::create_dir_all(dir)?;
+    }
     let macos_dir = app.join("Contents").join("MacOS");
     let resources = app.join("Contents").join("Resources");
     replace_export(
@@ -220,7 +222,10 @@ pub(crate) fn export_macos_app(
         apple.info_plist(Platform::Macos, name, name),
     )?;
     let entitlements = apple.write_entitlements(&app, name)?;
-    codesign(&app, sign, entitlements.as_deref())?;
+    crate::sign::codesign(&app, sign, entitlements.as_deref(), true)?;
+    if sign.is_some() {
+        crate::sign::verify(&app)?;
+    }
     tracing::info!(
         "exported {} ({} signature)",
         app.display(),
@@ -230,27 +235,7 @@ pub(crate) fn export_macos_app(
             None => "no",
         }
     );
-    Ok(())
-}
-
-/// Ad-hoc unless an identity is given. Signing needs Apple's `codesign`, so
-/// off macOS the bundle is written unsigned and says so.
-pub(crate) fn codesign(app: &Path, sign: Option<&str>, entitlements: Option<&Path>) -> Result<()> {
-    if !cfg!(target_os = "macos") {
-        if sign.is_some() {
-            anyhow::bail!("--sign runs codesign, which needs macOS");
-        }
-        tracing::warn!("unsigned .app: run codesign over it on a Mac");
-        return Ok(());
-    }
-    let mut command = std::process::Command::new("codesign");
-    command.args(["--force", "--sign", sign.unwrap_or("-")]);
-    if let Some(entitlements) = entitlements {
-        command.arg("--entitlements").arg(entitlements);
-    }
-    let status = command.arg(app).status().context("running codesign")?;
-    anyhow::ensure!(status.success(), "codesign failed");
-    Ok(())
+    Ok(app)
 }
 
 /// Find the bundle template for a mobile platform.

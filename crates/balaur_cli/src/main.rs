@@ -98,10 +98,29 @@ enum Command {
         /// shape that can be code-signed.
         #[arg(long)]
         app: bool,
-        /// Code-sign the `.app` with this identity (implies `--app`);
-        /// without it the bundle is signed ad-hoc.
+        /// Sign with this identity, overriding `[export]`: a certificate name
+        /// on Apple platforms, a certificate file on Windows. On macOS it
+        /// implies `--app`, since a flat binary cannot be signed.
         #[arg(long)]
         sign: Option<String>,
+        /// Submit the signed macOS bundle to Apple's notary service and
+        /// staple the ticket. Reads BALAUR_NOTARY_KEY, _KEY_ID and _ISSUER_ID.
+        #[arg(long)]
+        notarize: bool,
+        /// The `.mobileprovision` an iOS build is signed against.
+        #[arg(long, value_name = "FILE")]
+        profile: Option<PathBuf>,
+        /// Wrap the iOS `.app` as the `.ipa` App Store Connect takes.
+        #[arg(long)]
+        ipa: bool,
+        /// Assemble the Android layout into an installable APK. Needs the
+        /// SDK's build-tools; signs with `[export] android_keystore`, or with
+        /// Android's debug identity when the project names none.
+        #[arg(long)]
+        apk: bool,
+        /// Wrap the macOS `.app` as the `.pkg` the Mac App Store takes.
+        #[arg(long)]
+        pkg: bool,
     },
     /// Serve diagnostics over the Language Server Protocol on stdin/stdout,
     /// for an editor outside Balaur. The same checks `balaur check` runs.
@@ -292,6 +311,11 @@ fn main() -> Result<()> {
             keep_sources,
             app,
             sign,
+            notarize,
+            profile,
+            ipa,
+            apk,
+            pkg,
         } => {
             // The two policies balaur_export deliberately does not hold: where
             // the per-user cache is (keyed by this binary's build id), and
@@ -305,6 +329,11 @@ fn main() -> Result<()> {
                 app,
                 keep_sources,
                 sign,
+                notarize,
+                profile,
+                ipa,
+                apk,
+                pkg,
                 template_roots: balaur_export::default_roots(templates::cache_dir()),
                 obtain: if no_download { None } else { Some(&fetch) },
             })

@@ -11,8 +11,10 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
-/// Where an export lands when the project names no other output.
-pub(crate) const DEFAULT_OUTPUT: &str = "export";
+/// What `balaur new` writes into a project, and what the editor offers. An
+/// empty `output` means the working directory, which is what the command line
+/// has always done.
+pub const DEFAULT_OUTPUT: &str = "export";
 
 /// ```toml
 /// [export]
@@ -45,7 +47,7 @@ pub struct ExportConfig {
 impl Default for ExportConfig {
     fn default() -> Self {
         Self {
-            output: DEFAULT_OUTPUT.into(),
+            output: String::new(),
             macos_identity: String::new(),
             notarize: false,
             ios_identity: String::new(),
@@ -82,9 +84,10 @@ impl ExportConfig {
         (!named.is_empty()).then(|| project.join(named))
     }
 
-    /// Where a target's export goes when `-o` names nothing.
-    pub(crate) fn output_for(&self, project: &Path, target: &str) -> PathBuf {
-        project.join(&self.output).join(target)
+    /// Where a target's export goes when `-o` names nothing, or `None` for a
+    /// project that declares no output and so exports where it stands.
+    pub(crate) fn output_for(&self, project: &Path, target: &str, name: &str) -> Option<PathBuf> {
+        Self::beside(project, &self.output).map(|dir| dir.join(target).join(name))
     }
 }
 
@@ -111,7 +114,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("project.toml"), "name = \"game\"\n").unwrap();
         let config = ExportConfig::load(dir.path()).unwrap();
-        assert_eq!(config.output, super::DEFAULT_OUTPUT);
+        assert!(config.output.is_empty(), "no table exports where it stands");
+        assert_eq!(config.output_for(dir.path(), "linux-x64", "game"), None);
         assert!(!config.notarize);
         assert!(config.macos_identity.is_empty());
     }
@@ -132,8 +136,8 @@ mod tests {
         assert!(config.notarize);
         assert_eq!(config.macos_identity, "Developer ID Application: Studio");
         assert_eq!(
-            config.output_for(dir.path(), "windows-x64"),
-            dir.path().join("builds").join("windows-x64")
+            config.output_for(dir.path(), "windows-x64", "game.exe"),
+            Some(dir.path().join("builds").join("windows-x64").join("game.exe"))
         );
         assert_eq!(
             ExportConfig::beside(dir.path(), &config.ios_profile),
