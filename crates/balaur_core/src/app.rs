@@ -164,7 +164,8 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
                 crate::project::ProjectManifest::parse(&pack.manifest)
                     .map(|m| m.assets)
                     .unwrap_or_default(),
-            ),
+            )
+            .with_index(pack.scenes.get(crate::assets::INDEX_PATH).cloned()),
             None => crate::project::ProjectFiles::directory(config.project_root.clone()),
         }
         .on(crate::files::backend(eng)),

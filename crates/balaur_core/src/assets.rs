@@ -23,6 +23,10 @@
 //! a `#entry` suffix for the same reason a file does — an inline table is as
 //! free to be a library of named assets as a file is.
 //!
+//! `"id://<id>"` stands in for a path anywhere one is written, and takes the
+//! same `#entry`: `assets/index.toml` maps the id to the path, so the
+//! reference survives a rename ([`crate::asset_index`]).
+//!
 //! Core never learns what an asset *is*: a plugin registers a parser with
 //! `App::register_asset_type`, the parser returns an opaque `Rc<dyn Any>`, and
 //! the plugin downcasts it — exactly as the typemap does. Sharing is the
@@ -39,6 +43,14 @@ use serde::Deserialize;
 use crate::collections::DetHashMap;
 use crate::engine::Engine;
 use crate::project::ProjectRoot;
+
+/// Where a project keeps `id → path`, project-relative. Written by the
+/// editor, carried by a pack, read by every `id://` reference.
+pub const INDEX_PATH: &str = "assets/index.toml";
+
+/// The prefix of a reference that names an asset by its id rather than its
+/// path.
+pub const ID_PREFIX: &str = "id://";
 
 /// Parse one asset type's definition table into an object only its plugin
 /// understands.
@@ -254,8 +266,12 @@ fn state(eng: &Engine) -> Result<Rc<RefCell<AssetState>>> {
 }
 
 /// One textual reference as a cache key, against the engine's asset state.
+///
+/// An `id://` reference becomes the path the index names first, so the
+/// cache holds one entry for an asset however it was spelled.
 pub fn resolve(eng: &Engine, reference: &str) -> Result<AssetRef> {
-    let resolved = state(eng)?.borrow().resolve(reference)?;
+    let reference = crate::project::path_of(eng, reference.trim())?;
+    let resolved = state(eng)?.borrow().resolve(&reference)?;
     Ok(resolved)
 }
 
@@ -317,6 +333,15 @@ pub fn exists(eng: &Engine, reference: &str) -> bool {
 /// Reloading a file also forgets every `file#entry` cut from it, since they
 /// all came out of the text that just changed.
 pub fn reload(eng: &Engine, reference: &str) -> Result<()> {
+    // The index is not an asset: nothing parses it into the cache, but every
+    // `id://` read through it, so a save moves the counter they watch.
+    if reference == INDEX_PATH {
+        if let Some(files) = eng.try_resource::<crate::project::ProjectFiles>() {
+            files.borrow().reload_index();
+        }
+        invalidate(eng);
+        return Ok(());
+    }
     let key = resolve(eng, reference)?;
     let cache = state(eng)?;
     let mut state = cache.borrow_mut();

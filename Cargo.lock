@@ -736,6 +736,7 @@ dependencies = [
  "rune",
  "serde",
  "serde_json",
+ "smallvec",
  "tempfile",
  "toml",
  "tracing",

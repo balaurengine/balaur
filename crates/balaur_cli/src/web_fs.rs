@@ -14,7 +14,7 @@ use anyhow::Result;
 use balaur::files::{FileBackend, MemoryFs, lexical};
 use base64::Engine as _;
 
-/// The directory under the project root that is mirrored, as
+/// The directory under the project root that a running game mirrors, as
 /// `engine.user_data_dir` resolves it on a platform with no data directory.
 const MIRRORED: &str = "user_data";
 
@@ -24,24 +24,43 @@ pub(crate) struct StorageFs {
     /// Every mirrored key starts with this, so one origin may host more than
     /// one game.
     key_prefix: String,
+    /// Directories whose writes are kept. A game keeps its user directory; the
+    /// editor keeps the project it is editing.
+    mirrored: Vec<String>,
     quota_warned: Cell<bool>,
 }
 
 impl StorageFs {
-    /// Open the mirror for one game and reload what an earlier visit kept.
+    /// Open a game's mirror over its user directory and reload what an
+    /// earlier visit kept.
     pub(crate) fn open(namespace: &str) -> Self {
-        let storage = web_sys::window().and_then(|w| w.local_storage().ok().flatten());
-        let fs = Self {
-            inner: MemoryFs::new(),
-            storage,
-            key_prefix: format!("balaur:{namespace}:"),
-            quota_warned: Cell::new(false),
-        };
-        fs.reload();
+        let fs = Self::mirroring(namespace, &[MIRRORED]);
+        fs.restore();
         fs
     }
 
-    fn reload(&self) {
+    /// A mirror over other directories, holding nothing yet.
+    ///
+    /// Restoring is the caller's to order: a caller that seeds the memory
+    /// from a pack has to do it before [`Self::restore`], or the pack's copy
+    /// of a file would land on top of the edit that was kept.
+    pub(crate) fn mirroring(namespace: &str, mirrored: &[&str]) -> Self {
+        let storage = web_sys::window().and_then(|w| w.local_storage().ok().flatten());
+        Self {
+            inner: MemoryFs::new(),
+            storage,
+            key_prefix: format!("balaur:{namespace}:"),
+            mirrored: mirrored
+                .iter()
+                .map(|dir| dir.trim_matches('/').to_string())
+                .collect(),
+            quota_warned: Cell::new(false),
+        }
+    }
+
+    /// Fill the memory from what earlier visits kept, over anything already
+    /// there.
+    pub(crate) fn restore(&self) {
         let Some(storage) = &self.storage else {
             return;
         };
@@ -66,12 +85,21 @@ impl StorageFs {
         }
     }
 
-    /// The mirror key for a path under the mirrored directory, or `None`.
+    /// The mirror key for a path under one of the mirrored directories, or
+    /// `None` for a path under none of them.
     fn key_of(&self, path: &Path) -> Option<String> {
         let text = lexical(path).to_string_lossy().replace('\\', "/");
-        let text = text.trim_start_matches('/');
-        (text == MIRRORED || text.starts_with(&format!("{MIRRORED}/")))
+        let text = text.trim_start_matches('/').to_string();
+        self.mirrored
+            .iter()
+            .any(|dir| text == *dir || text.starts_with(&format!("{dir}/")))
             .then(|| format!("{}{text}", self.key_prefix))
+    }
+
+    /// Put a pack's files in memory without mirroring them: what was shipped
+    /// is fetched again on the next visit, and only edits are worth keeping.
+    pub(crate) fn seed(&self, root: &Path, entries: impl IntoIterator<Item = (String, Vec<u8>)>) {
+        self.inner.seed(root, entries);
     }
 
     fn store(&self, path: &Path, bytes: &[u8]) {

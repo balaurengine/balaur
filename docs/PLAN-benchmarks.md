@@ -202,5 +202,15 @@ from `/usr/bin/time -l`.
    12.45 ms; it is 5.6 ms now. The 2D step also never marked the broad phase
    fresh, so a query after any collider insertion rebuilt it a second time.
 6. **The joint grid sags about twice as far as the addon's.** Same rapier
-   version, same joint kind, same pitch; the addon's build has SIMD and ours
-   does not, which is the first thing to rule out.
+   version, same joint kind, same pitch, and the same solver: rapier 0.35 is
+   SIMD in both builds, and `simd8` is refused at compile time next to
+   `enhanced-determinism`. Still open.
+7. **Fixed by the second run:** the node cases were behind Godot by two to
+   four times for three reasons, none of them locks. Freeing a node asked all
+   twenty-seven component definitions whether they were present, at a resource
+   lookup each; the registry now keeps `components::Attached`, a bit set per
+   node, and a bare node's free consults nothing else. The free drain built a
+   replay label, a string and a JSON value per node whether or not anything
+   recorded; it asks first now. And `get_node` scanned every sibling at each
+   segment with a hecs lookup per name; parents keep a `scene::NameIndex`,
+   so a segment is one hash.

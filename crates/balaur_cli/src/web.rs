@@ -48,8 +48,9 @@ const EDITOR_ROOT: &str = "/editor";
 /// Both packs are fetched: the editor's own project — its scripts, scenes,
 /// fonts and themes — and the game to edit, which is unpacked into a virtual
 /// filesystem the editor then reads and writes as if it were a directory.
-/// Nothing is written back to the server; what the editor saves lives in the
-/// tab until the page keeps it.
+/// Nothing is written back to the server, and what the editor saves is kept
+/// in the browser under the project's own URL, so a refresh comes back to the
+/// scene as it was left rather than to the one the pack shipped.
 #[wasm_bindgen]
 #[allow(
     unreachable_pub,
@@ -67,9 +68,16 @@ pub async fn start_editor(
     let project = balaur::Pack::decode(&project).map_err(err)?;
 
     let editor_pack = balaur::Pack::decode(&editor).map_err(err)?;
-    let fs = std::rc::Rc::new(balaur::files::MemoryFs::new());
+    // The editor's own project is not mirrored: it ships with the editor and
+    // is fetched again every visit. The project under edit is, and the pack
+    // is seeded first so a file an earlier visit kept lands on top of it.
+    let fs = std::rc::Rc::new(crate::web_fs::StorageFs::mirroring(
+        &project_pack_url,
+        &[PROJECT_ROOT],
+    ));
     fs.seed(std::path::Path::new(EDITOR_ROOT), editor_pack.entries());
     fs.seed(std::path::Path::new(PROJECT_ROOT), project.entries());
+    fs.restore();
     balaur::files::set_default(fs);
 
     balaur::boot_editor_on_canvas(&editor, EDITOR_ROOT, PROJECT_ROOT, &canvas_id)

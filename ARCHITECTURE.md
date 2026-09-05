@@ -278,6 +278,16 @@ next call resolves against the new code. Measured save-to-live latency is
 file-watcher latency, a few milliseconds. The optional `hot_reload` hook
 lets scripts migrate state shapes.
 
+The same watcher reloads content, sorting a saved file by extension exactly
+as `Pack::build` does, so what reloads is what ships. A `.toml` asset was
+parsed into the cache, so the cache forgets it. A texture, model, font or
+sound was not — like a `.wesl` shader it is a source something derives from —
+so nothing is dropped and only the asset generation moves; the material
+caches, the animation player, the widget textures and the renderer's own
+nodes each re-derive when they see it change. A texture is uploaded under its
+path and the file's modification time, so saving one image re-decodes that
+image alone.
+
 ### Debugger (core feature)
 
 Breakpoints, stepping and a call stack with locals, for scripts running in
@@ -320,7 +330,12 @@ Plugins declare named, schema-described components through
 `type` per property from the closed set `PROPERTY_TYPES` (`float`, `bool`,
 `string`, `enum`, `vec2`, `vec3`, `color`, `asset`), defaults, enum options, a
 `shorthand` marker for scalar scene syntax and a `readonly` marker the
-inspector honours — plus apply/get/remove hooks.
+inspector honours — plus apply/get/remove hooks. Applying and removing
+through the registry is what keeps `components::Attached`, one bit per
+registered component on each node: a free runs only the `remove` hooks
+whose bits are set, so a node with none asks no plugin anything. A plugin
+that attaches its state by any other path gets a warning in a debug build
+and no `remove` in a release one.
 `parse_schema` validates all of that at registration and panics naming the
 component and the property, so a malformed schema fails at boot rather than
 at the first inspector row. A tagged-union property is always called `kind`,

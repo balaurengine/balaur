@@ -18,7 +18,10 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 ### Scenes and assets
 
 - A frame's queued frees run as one pass per parent, so freeing a whole container is linear.
+- Children are indexed by name, so a path lookup is one hash per segment; freeing a node with no components asks no plugin anything.
 - Prefabs with per-path overrides.
+- Hot reload for textures, models, fonts and sounds: a saved file moves the asset generation and every node built from one is built again.
+- The browser editor keeps the project it is editing, so a refresh comes back to the scene as it was left.
 - Component tags and presets.
 - Binary asset packs, sha256-verified.
 - Mesh (OBJ, glTF) and heightfield assets.

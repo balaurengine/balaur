@@ -2,9 +2,10 @@
 > `overrides` reaching components, the transform and `script` props, prefixed
 > stable ids, cycle detection, and the editor opening an instance in place and
 > writing edits inside it as sparse overrides. ARCHITECTURE.md's prefab
-> section is the record. Phase 4 turned out half built with it: the Rune
-> host's watcher reloads `.toml` assets on save (`pump_reloads`), so what is
-> left there is the binary types. Phases 3, 5 and 6 are not started.
+> section is the record. Phase 4 shipped on 2026-09-05: the watcher sorts a
+> saved file by `Pack::ASSET_EXTENSIONS`, a binary one moves the asset
+> generation, and every node built from a file is built again. Phases 3, 5
+> and 6 are not started.
 
 # Plan: stable asset ids and sprite sheets
 
@@ -12,8 +13,8 @@
 
 - Assets are addressed by path. A rename breaks every reference, and the
   editor has no rename refactoring.
-- A re-saved PNG or `.glb` is not noticed; `assets::reload` is the mechanism
-  and only `.toml` assets reach it.
+- A re-saved PNG or `.glb` is noticed: the watcher moves the asset generation
+  and the renderer rebuilds the nodes drawing from a file.
 - `sprite` draws a sheet by frame index and a clip can key `sprite/frame`.
   Nothing reads an `.aseprite` file; the artist exports a PNG and types the
   grid by hand.
@@ -36,10 +37,13 @@ tool understands them. Renames are handled in two steps:
    and a pack carries the index. This is the escape for content edited
    outside the editor.
 
-Hot reload: the watcher in `balaur_script_rune` sees every file change, and a
-change under a directory an asset type declares should call
-`assets::reload(path)` for the binary types too — the sprite, mesh, tileset
-and clip caches all key by path already.
+Hot reload: built. The watcher in `balaur_script_rune` sees every file change
+and sorts it by extension the way `Pack::build` does. A binary asset is never
+a cache entry — nothing parsed it — so `assets::invalidate` moves the
+generation and the consumers that watch it re-derive: the material caches, the
+animation player, the widget textures, and the renderer's sprite, mesh and
+tilemap nodes. Textures are uploaded under the file's modification time rather
+than the generation, so one saved image does not re-decode the rest.
 
 ## Sprite sheets
 
@@ -61,6 +65,8 @@ The numbering is the original plan's, so what is left keeps the names the
 roadmap and ARCHITECTURE.md already use.
 
 3. Rename refactoring in the Assets dock.
-4. Asset hot reload through the watcher, for the binary types.
+4. *Done, 2026-09-05.* Asset hot reload through the watcher, for the binary
+   types. What it does not cover: a font, which egui reads once when the UI
+   plugin starts, so a changed face needs the font definitions rebuilt.
 5. `balaur import` for `.aseprite`; sheet rectangles and slices on `sprite`.
 6. The id index, when a project outgrows paths.

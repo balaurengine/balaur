@@ -17,6 +17,7 @@ serde.workspace = true
 hecs.workspace = true
 notify.workspace = true
 indexmap.workspace = true
+smallvec.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 
