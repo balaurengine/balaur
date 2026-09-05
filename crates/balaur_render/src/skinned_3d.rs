@@ -25,7 +25,7 @@ use kiss3d::context::Context;
 use kiss3d::light::LightCollection;
 use kiss3d::resource::vertex_index::VERTEX_INDEX_FORMAT;
 use kiss3d::resource::{
-    GpuData, GpuMesh3d, Material3d, PipelineCache, RenderContext, Texture, multisample_state,
+    GpuData, GpuMesh3d, Material3d, PipelineCache, RenderContext, Texture,
 };
 use kiss3d::scene::{InstancesBuffer3d, ObjectData3d, SceneNode3d};
 

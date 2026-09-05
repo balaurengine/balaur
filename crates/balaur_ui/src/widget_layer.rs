@@ -10,15 +10,15 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use balaur_core::Engine;
 use balaur_core::hecs::Entity;
-use egui::{Align2, Color32, Stroke, pos2, vec2};
+use balaur_core::Engine;
+use egui::{pos2, vec2, Align2, Color32, Stroke};
 
 use crate::theme::family;
 pub(crate) use crate::widget_arrange::drawn_at;
 use crate::widget_arrange::{
-    Axis, box_of, contain, hold_to, lay_out, padding_of, record_rect, roll_measurements, scroller,
-    settle_rects, tabs,
+    box_of, contain, hold_to, lay_out, padding_of, record_rect, roll_measurements, scroller,
+    settle_rects, tabs, Axis,
 };
 pub(crate) use crate::widget_schema::{register_widget_component, register_widget_presets};
 use crate::widget_theme::WidgetTheme;
@@ -518,6 +518,9 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
             .order(order)
             .pivot(align)
             .fixed_pos(pos)
+            // A widget appears when the scene says so, at the alpha its own
+            // theme sets; egui's fade would override both.
+            .fade_in(false)
             .show(ctx, |ui| {
                 if assigned != egui::Vec2::ZERO {
                     ui.set_max_size(assigned);

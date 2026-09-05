@@ -18,7 +18,6 @@ use kiss3d::context::Context;
 use kiss3d::resource::vertex_index::VERTEX_INDEX_FORMAT;
 use kiss3d::resource::{
     GpuData, GpuMesh2d, Material2d, MaterialManager2d, PipelineCache, RenderContext2d, Texture,
-    multisample_state,
 };
 use kiss3d::scene::{InstancesBuffer2d, ObjectData2d};
 

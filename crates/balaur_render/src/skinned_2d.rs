@@ -23,7 +23,6 @@ use kiss3d::camera::Camera2d;
 use kiss3d::context::Context;
 use kiss3d::resource::{
     GpuData, GpuMesh2d, Material2d, PipelineCache, RenderContext2d, TextureManager,
-    multisample_state,
 };
 use kiss3d::scene::{InstancesBuffer2d, Object2d, ObjectData2d, SceneNode2d};
 
@@ -266,7 +265,6 @@ fn build_pipeline(
     shader: wgpu::ShaderModule,
 ) -> PipelineCache {
     PipelineCache::new(move |sample_count| {
-        let ctxt = Context::get();
         let layouts = [
             Some(vertex_layout(8, 0, wgpu::VertexFormat::Float32x2)),
             Some(vertex_layout(8, 1, wgpu::VertexFormat::Float32x2)),

@@ -14,7 +14,7 @@ macro_rules! define {
     (
         cache = $Cache:ident,
         shared = $Shared:ty,
-        material = $Material:ty,
+        boxed = $Boxed:ty,
         manager = $Manager:ty,
         prefix = $prefix:literal,
         channel_shader = $channel_shader:expr,
@@ -163,10 +163,9 @@ macro_rules! define {
                     .ok()
                     .map(|(material, probe)| {
                         self.probe = probe;
-                        let shared: $Shared = std::rc::Rc::new(std::cell::RefCell::new(Box::new(
-                            material,
-                        )
-                            as Box<dyn $Material>));
+                        let boxed: $Boxed = Box::new(material);
+                        let shared: $Shared =
+                            std::rc::Rc::new(std::cell::RefCell::new(boxed));
                         // Registered, not just attached: kiss3d calls
                         // `begin_frame` only over the manager's own materials.
                         <$Manager>::get_global_manager(|manager| {
