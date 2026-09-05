@@ -411,14 +411,7 @@ fn pump_platform_system(eng: &Engine, _: f32) {
             dispatches.push((targets, request, value));
         }
     }
-    if let Some(host) = eng.script_host() {
-        for (targets, token, value) in dispatches {
-            for handler in targets {
-                host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
-            }
-            host.wake(token, &value);
-        }
-    }
+    balaur_core::handler::dispatch(eng, dispatches);
 }
 
 fn player_value(player: &Player) -> Value {

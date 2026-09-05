@@ -208,5 +208,3 @@ macro_rules! functions {
     };
 }
 pub(crate) use functions;
-
-/// The collider helpers: the material vocabulary, the hook flag, and the

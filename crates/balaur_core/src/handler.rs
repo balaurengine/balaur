@@ -13,6 +13,8 @@
 use anyhow::{anyhow, Result};
 use balaur_script::{NodeId, Value};
 
+use crate::Engine;
+
 /// Where one piece of finished work reports: a method on one node's script,
 /// dispatched through `ScriptHost::call_on`.
 #[derive(Clone, Debug)]
@@ -74,6 +76,21 @@ pub fn headers_of(opts: Option<&Value>) -> Result<Vec<(String, String)>> {
             .collect(),
         Some(other) => Err(anyhow!("headers should be a table, got {other:?}")),
         None => Ok(Vec::new()),
+    }
+}
+
+/// Deliver finished work: each value to the handlers named for it, then to
+/// whatever awaits the request's token. Called with the world unborrowed,
+/// since a handler is script code and may do anything to it.
+pub fn dispatch(eng: &Engine, dispatches: Vec<(Vec<Handler>, u64, Value)>) {
+    let Some(host) = eng.script_host() else {
+        return;
+    };
+    for (targets, token, value) in dispatches {
+        for handler in targets {
+            host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
+        }
+        host.wake(token, &value);
     }
 }
 

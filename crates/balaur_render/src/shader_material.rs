@@ -175,28 +175,6 @@ fn vertex_layouts() -> [Option<wgpu::VertexBufferLayout<'static>>; 5] {
     ]
 }
 
-/// A texture and its sampler at two consecutive bindings.
-fn sampled_entries(first: u32) -> [wgpu::BindGroupLayoutEntry; 2] {
-    [
-        wgpu::BindGroupLayoutEntry {
-            binding: first,
-            visibility: wgpu::ShaderStages::FRAGMENT,
-            ty: wgpu::BindingType::Texture {
-                sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                view_dimension: wgpu::TextureViewDimension::D2,
-                multisampled: false,
-            },
-            count: None,
-        },
-        wgpu::BindGroupLayoutEntry {
-            binding: first + 1,
-            visibility: wgpu::ShaderStages::FRAGMENT,
-            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-            count: None,
-        },
-    ]
-}
-
 /// The frame, object and texture layouts, in the order the pipeline binds
 /// them. `shaders/sprite.wesl` declares the matching groups; a material
 /// reading the screen has it at bindings 2 and 3 of the texture group.
@@ -208,9 +186,9 @@ fn bind_group_layouts(screen: bool) -> [wgpu::BindGroupLayout; 3] {
             entries: &[uniform_entry(0)],
         })
     };
-    let mut entries = sampled_entries(0).to_vec();
+    let mut entries = crate::bind_layout::sampled_entries(0).to_vec();
     if screen {
-        entries.extend(sampled_entries(2));
+        entries.extend(crate::bind_layout::sampled_entries(2));
     }
     [
         uniform("material_frame_layout"),
@@ -569,171 +547,22 @@ impl Material2d for ShaderMaterial {
     }
 }
 
-/// The materials this run has linked: one pipeline per `material` reference,
-/// however many nodes name it.
-#[derive(Default)]
-pub(crate) struct MaterialCache {
-    /// `None` records a material that would not link, so the error is logged
-    /// once rather than every frame.
-    linked: std::collections::HashMap<String, Option<SharedMaterial>>,
-    /// The asset generation these were linked at.
-    generation: u64,
-    /// The channel material and which channel it draws.
-    channel: Option<(String, SharedMaterial)>,
-    /// The channel the last frame drew; a change rebuilds every node.
-    active: String,
-    /// The previewing material's probe, shared with it.
-    probe: Option<std::rc::Rc<Probe>>,
-}
-
 /// What kiss3d takes on a node.
 type SharedMaterial = std::rc::Rc<std::cell::RefCell<Box<dyn Material2d + 'static>>>;
 
-impl MaterialCache {
-    /// Drop everything linked before the last reload, and say whether that
-    /// happened.
-    ///
-    /// A caller that answers `true` must also rebuild the nodes drawing with
-    /// a material: they hold the old pipeline, and clearing a cache does not
-    /// reach into a scene graph.
-    pub(crate) fn refresh(&mut self, app: &balaur_core::App) -> bool {
-        let now = balaur_core::assets::generation(&app.engine);
-        if now == self.generation {
-            return false;
-        }
-        self.generation = now;
-        let had = !self.linked.is_empty();
-        for reference in self.linked.keys() {
-            MaterialManager2d::get_global_manager(|manager| {
-                manager.remove(&manager_name(reference));
-            });
-        }
-        self.linked.clear();
-        had
-    }
+crate::material_cache::define!(
+    cache = MaterialCache,
+    shared = SharedMaterial,
+    material = Material2d,
+    manager = MaterialManager2d,
+    prefix = "balaur",
+    channel_shader = crate::shaders::CHANNEL_2D,
+    channel_material = channel_material,
+);
 
-    /// Point the previewing material's probe at a pixel and read what the
-    /// frame before wrote there. The 3D counterpart's doc has the details.
-    pub(crate) fn answer_probe(&self, app: &balaur_core::App) {
-        let Some(at) = crate::debug_view::probe_at(&app.engine) else {
-            return;
-        };
-        crate::debug_view::publish_probe(&app.engine, self.probe(at));
-    }
-
-    fn probe(&self, at: [f32; 2]) -> Option<[f32; 4]> {
-        let probe = self.probe.as_ref()?;
-        let read = probe.read();
-        probe.aim(at);
-        read
-    }
-
-    /// Whether the channel view changed since the last frame.
-    ///
-    /// Turning one on or off changes every node, not only those naming a
-    /// material, so the caller rebuilds all of them.
-    pub(crate) fn channel_changed(&mut self, channel: &str) -> bool {
-        if self.active == channel {
-            return false;
-        }
-        self.active = channel.to_string();
-        true
-    }
-
-    /// The material a node draws with: the channel while a view is on, its
-    /// own otherwise, and none at all — kiss3d's — when it names neither.
-    pub(crate) fn for_node(
-        &mut self,
-        app: &balaur_core::App,
-        reference: &str,
-        channel: &str,
-    ) -> Option<SharedMaterial> {
-        if !channel.is_empty() {
-            return self.channel(channel);
-        }
-        if reference.is_empty() {
-            return None;
-        }
-        self.get(app, reference)
-    }
-
-    /// The material that draws `channel`, built on first use.
-    pub(crate) fn channel(&mut self, channel: &str) -> Option<SharedMaterial> {
-        if let Some((drawn, material)) = &self.channel {
-            if drawn == channel {
-                return Some(material.clone());
-            }
-        }
-        let features: Vec<(&str, bool)> = crate::shaders::CHANNELS
-            .iter()
-            .map(|c| (*c, *c == channel))
-            .collect();
-        let built = crate::shaders::link(
-            &[("package::channel", crate::shaders::CHANNEL_2D)],
-            "package::channel",
-            &features,
-        )
-        .map(|unit| {
-            ShaderMaterial::new(
-                &crate::material::Compiled {
-                    wgsl: crate::shaders::wgsl(&unit),
-                    fields: Vec::new(),
-                    params: Vec::new(),
-                    probes: false,
-                },
-                None,
-                false,
-            )
-        })
-        .inspect_err(|why| tracing::error!(channel, "{why:#}"))
-        .ok()?;
-        let shared: SharedMaterial = std::rc::Rc::new(std::cell::RefCell::new(Box::new(built)));
-        MaterialManager2d::get_global_manager(|manager| {
-            manager.add(shared.clone(), "balaur:channel");
-        });
-        self.channel = Some((channel.to_string(), shared.clone()));
-        Some(shared)
-    }
-
-    /// The material `reference` names, linking it on first use.
-    ///
-    /// `None` for one that will not link — the node keeps kiss3d's own
-    /// material, so a shader with a typo in it costs a log line and a plain
-    /// sprite rather than the frame.
-    pub(crate) fn get(
-        &mut self,
-        app: &balaur_core::App,
-        reference: &str,
-    ) -> Option<SharedMaterial> {
-        if let Some(hit) = self.linked.get(reference) {
-            return hit.clone();
-        }
-        let built = build(app, reference)
-            .inspect_err(|why| tracing::error!(material = reference, "{why:#}"))
-            .ok()
-            .map(|(material, probe)| {
-                self.probe = probe;
-                let shared: SharedMaterial = std::rc::Rc::new(std::cell::RefCell::new(Box::new(
-                    material,
-                )
-                    as Box<dyn Material2d>));
-                // Registered, not just attached: kiss3d calls `begin_frame`
-                // over the manager's materials, and a material that misses it
-                // writes its view and clock once and then never again.
-                MaterialManager2d::get_global_manager(|manager| {
-                    manager.add(shared.clone(), &manager_name(reference));
-                });
-                shared
-            });
-        self.linked.insert(reference.to_string(), built.clone());
-        built
-    }
-}
-
-/// What a material is registered under in kiss3d's global manager. Prefixed
-/// so a project's path can never collide with `object2d` or `lit2d`.
-fn manager_name(reference: &str) -> String {
-    format!("balaur:{reference}")
+/// The channel view's own material, which takes no params and writes no probe.
+fn channel_material(compiled: &crate::material::Compiled) -> ShaderMaterial {
+    ShaderMaterial::new(compiled, None, false)
 }
 
 /// A material and, when its shader carries one, the probe it writes into.

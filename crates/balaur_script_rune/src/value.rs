@@ -68,7 +68,10 @@ pub(crate) fn install(
         let call = declared.call;
         let engine = engine.clone();
         let handle = crate::bindings::hold_node_fn(engine, call);
-        m.raw_function(declared.name, crate::bindings::node_handler(handle))
+        m.raw_function(
+            declared.name,
+            crate::bindings::bound_handler(handle, "node method was registered on another thread"),
+        )
             .build_associated::<Node>()?;
     }
     component::install(m, engine)?;

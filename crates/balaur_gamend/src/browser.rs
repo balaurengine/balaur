@@ -109,35 +109,19 @@ pub(crate) fn spawn_login(
 ) {
     let client = client.clone();
     let events = events.clone();
-    let credentials = match credentials {
-        LoginCredentials::EmailPassword { email, password } => {
-            Credentials::EmailPassword { email, password }
-        }
-        LoginCredentials::Device { device_id } => Credentials::Device { device_id },
-    };
+    let credentials = Credentials::from(credentials);
     spawn_local(async move {
         let (path, body) = login_request(&credentials);
         let prepared = client.0.borrow().prepare("POST", path, Some(&body), false);
         let outcome = send(prepared)
             .await
             .map_err(anyhow::Error::msg)
-            .and_then(|reply| session_of(&reply.body, reply.status, "login"));
-        let event = match outcome {
-            Ok(session) => {
-                client.0.borrow_mut().set_session(Some(session.clone()));
-                GamendEvent::LoggedIn {
-                    request,
-                    user_id: session.user_id,
-                    username: session.username,
-                    display_name: session.display_name,
-                }
-            }
-            Err(err) => GamendEvent::Failed {
-                request,
-                message: err.to_string(),
-            },
-        };
-        let _ = events.send(event);
+            .and_then(|reply| session_of(&reply.body, reply.status, "login"))
+            .map_err(|err| err.to_string());
+        if let Ok(session) = &outcome {
+            client.0.borrow_mut().set_session(Some(session.clone()));
+        }
+        let _ = events.send(GamendEvent::logged_in(request, outcome));
     });
 }
 
@@ -152,15 +136,8 @@ pub(crate) fn spawn_rest(
     let client = client.clone();
     let events = events.clone();
     spawn_local(async move {
-        let event = match call(&client, &method, &path, body.as_ref()).await {
-            Ok(reply) => GamendEvent::RestDone {
-                request,
-                status: reply.status,
-                body: reply.body,
-            },
-            Err(message) => GamendEvent::Failed { request, message },
-        };
-        let _ = events.send(event);
+        let outcome = call(&client, &method, &path, body.as_ref()).await;
+        let _ = events.send(GamendEvent::rest_done(request, outcome));
     });
 }
 

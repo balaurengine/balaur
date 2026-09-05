@@ -64,6 +64,24 @@ impl Transform {
             scale: Vec3::ONE,
         }
     }
+
+    /// Every component in TRS order, the shape a digest hashes and a
+    /// snapshot stores.
+    #[must_use]
+    pub fn trs(&self) -> [f32; 10] {
+        [
+            self.position.x,
+            self.position.y,
+            self.position.z,
+            self.rotation.x,
+            self.rotation.y,
+            self.rotation.z,
+            self.rotation.w,
+            self.scale.x,
+            self.scale.y,
+            self.scale.z,
+        ]
+    }
 }
 
 /// Whether a node draws, and which layer it draws on.

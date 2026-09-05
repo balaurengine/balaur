@@ -189,6 +189,44 @@ pub(crate) enum GamendEvent {
     },
 }
 
+impl GamendEvent {
+    /// A login's outcome, as the frame loop hears it.
+    pub(crate) fn logged_in(request: u64, outcome: Result<client::Session, String>) -> Self {
+        match outcome {
+            Ok(session) => Self::LoggedIn {
+                request,
+                user_id: session.user_id,
+                username: session.username,
+                display_name: session.display_name,
+            },
+            Err(message) => Self::Failed { request, message },
+        }
+    }
+
+    /// A REST call's outcome, as the frame loop hears it.
+    pub(crate) fn rest_done(request: u64, outcome: Result<client::rest::Reply, String>) -> Self {
+        match outcome {
+            Ok(reply) => Self::RestDone {
+                request,
+                status: reply.status,
+                body: reply.body,
+            },
+            Err(message) => Self::Failed { request, message },
+        }
+    }
+}
+
+impl From<LoginCredentials> for client::Credentials {
+    fn from(credentials: LoginCredentials) -> Self {
+        match credentials {
+            LoginCredentials::EmailPassword { email, password } => {
+                Self::EmailPassword { email, password }
+            }
+            LoginCredentials::Device { device_id } => Self::Device { device_id },
+        }
+    }
+}
+
 /// Where results go: a method on one node's script.
 #[derive(Clone)]
 pub struct Handler {

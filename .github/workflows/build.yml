@@ -1,8 +1,8 @@
 name: Build
 
 # Everything that produces an artifact somebody downloads: a push to main
-# refreshes a rolling draft release, a `v*` tag drafts that version, and
-# publishing stays a human decision.
+# refreshes the rolling `nightly` prerelease, a `v*` tag drafts that version,
+# and publishing a version stays a human decision.
 on:
   # Runs from .github/workflows/runner.yml, which owns the triggers; kept
   # dispatchable so it can still be run on its own from the Actions tab.
@@ -162,6 +162,40 @@ jobs:
           path: dist/balaur-example-*
           if-no-files-found: error
 
+  # The web build as the one download a site refreshes: the glue and module
+  # from the web template, plus the editor's project and the examples packed
+  # with the linux editor binary (scripts/package_play.sh).
+  bundle-web:
+    name: bundle web
+    needs: [build-editor, build-platforms]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # The editor binary is windowed, so loading it wants the libraries a
+      # build links, though exporting never opens a window.
+      - name: Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2-dev libudev-dev \
+            libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
+            libxkbcommon-dev libwayland-dev
+      - uses: actions/download-artifact@v8
+        with:
+          name: balaur-linux-x64
+          path: dist
+      - uses: actions/download-artifact@v8
+        with:
+          name: balaur-template-web
+          path: dist
+      - name: Pack the web bundle
+        run: ./scripts/package_play.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: balaur-play
+          path: dist/balaur-play.tar.gz
+          if-no-files-found: error
+
   # The only job that publishes anything, so the only one a pull request skips:
   # everything above still builds and is still checked, which is the point of
   # running this on a PR at all.
@@ -170,7 +204,7 @@ jobs:
     # A push to main or a `v*` tag, never a manual run: draft_release.sh moves
     # the rolling `nightly` tag to whatever branch it was dispatched from.
     if: github.event_name == 'push'
-    needs: [build-editor, build-platforms, export-mobile]
+    needs: [build-editor, build-platforms, export-mobile, bundle-web]
     runs-on: ubuntu-latest
     # Drafting a release means writing to the repo's releases.
     permissions:

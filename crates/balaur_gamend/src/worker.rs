@@ -38,27 +38,11 @@ pub(crate) fn spawn_login(
 ) {
     let client = client.clone();
     let events = events.clone();
-    let credentials = match credentials {
-        LoginCredentials::EmailPassword { email, password } => {
-            Credentials::EmailPassword { email, password }
-        }
-        LoginCredentials::Device { device_id } => Credentials::Device { device_id },
-    };
+    let credentials = Credentials::from(credentials);
     std::thread::spawn(move || {
-        let outcome = auth::login(&mut client.lock(), &credentials);
-        let event = match outcome {
-            Ok(session) => GamendEvent::LoggedIn {
-                request,
-                user_id: session.user_id,
-                username: session.username,
-                display_name: session.display_name,
-            },
-            Err(err) => GamendEvent::Failed {
-                request,
-                message: err.to_string(),
-            },
-        };
-        let _ = events.send(event);
+        let outcome =
+            auth::login(&mut client.lock(), &credentials).map_err(|err| err.to_string());
+        let _ = events.send(GamendEvent::logged_in(request, outcome));
     });
 }
 
@@ -73,19 +57,11 @@ pub(crate) fn spawn_rest(
     let client = client.clone();
     let events = events.clone();
     std::thread::spawn(move || {
-        let outcome = client.lock().call(&method, &path, body.as_ref());
-        let event = match outcome {
-            Ok(reply) => GamendEvent::RestDone {
-                request,
-                status: reply.status,
-                body: reply.body,
-            },
-            Err(err) => GamendEvent::Failed {
-                request,
-                message: err.to_string(),
-            },
-        };
-        let _ = events.send(event);
+        let outcome = client
+            .lock()
+            .call(&method, &path, body.as_ref())
+            .map_err(|err| err.to_string());
+        let _ = events.send(GamendEvent::rest_done(request, outcome));
     });
 }
 
@@ -179,14 +155,7 @@ fn open(
                     topic,
                     event,
                     payload,
-                } => {
-                    let _ = events.send(GamendEvent::SocketMessage {
-                        socket,
-                        topic,
-                        event,
-                        payload,
-                    });
-                }
+                } => forward_message(events, socket, topic, event, payload),
                 SocketEvent::Closed { reason } => {
                     fail_pending(&mut pending, events);
                     return Ok(GamendEvent::SocketClosed { socket, reason });
@@ -194,6 +163,22 @@ fn open(
             }
         }
     }
+}
+
+/// A channel message, handed to the frame loop as it arrived.
+fn forward_message(
+    events: &Sender<GamendEvent>,
+    socket: u64,
+    topic: String,
+    event: String,
+    payload: Json,
+) {
+    let _ = events.send(GamendEvent::SocketMessage {
+        socket,
+        topic,
+        event,
+        payload,
+    });
 }
 
 /// A reply that will never come is an error the caller must see, not a task
@@ -230,14 +215,7 @@ fn wait_join(
                     topic,
                     event,
                     payload,
-                } => {
-                    let _ = events.send(GamendEvent::SocketMessage {
-                        socket,
-                        topic,
-                        event,
-                        payload,
-                    });
-                }
+                } => forward_message(events, socket, topic, event, payload),
                 SocketEvent::Closed { reason } => {
                     anyhow::bail!("connection closed during join: {reason}")
                 }

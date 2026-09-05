@@ -142,18 +142,7 @@ pub fn entries(eng: &Engine) -> Vec<Entry> {
         }
         if let Some(t) = transform {
             let mut h = Hasher::new();
-            for v in [
-                t.position.x,
-                t.position.y,
-                t.position.z,
-                t.rotation.x,
-                t.rotation.y,
-                t.rotation.z,
-                t.rotation.w,
-                t.scale.x,
-                t.scale.y,
-                t.scale.z,
-            ] {
+            for v in t.trs() {
                 h.write_f32(v);
             }
             out.push(Entry {

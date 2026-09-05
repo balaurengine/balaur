@@ -31,15 +31,9 @@ fail() {
   exit 1
 }
 
-# Run the engine and hold it to both bars: a clean exit and a clean log.
-step() { # step <label> <balaur args...>
-  local label=$1
-  shift
-  local out rc
-  set +e
-  out=$(balaur "$@" 2>&1)
-  rc=$?
-  set -e
+# Hold a run to both bars: a clean exit and a clean log.
+check_run() { # check_run <label> <rc> <output>
+  local label=$1 rc=$2 out=$3
   if [ "$rc" -ne 0 ]; then
     printf '%s\n' "$out" | tail -20
     fail "$label exited $rc"
@@ -48,6 +42,17 @@ step() { # step <label> <balaur args...>
     grep 'ERROR' <<<"$out" | head -5
     fail "$label logged errors"
   fi
+}
+
+step() { # step <label> <balaur args...>
+  local label=$1
+  shift
+  local out rc
+  set +e
+  out=$(balaur "$@" 2>&1)
+  rc=$?
+  set -e
+  check_run "$label" "$rc" "$out"
 }
 
 # An invariant the log states but does not call an error: every editor
@@ -64,14 +69,7 @@ edit_step() { # edit_step <label> <project> [state]
   fi
   rc=$?
   set -e
-  if [ "$rc" -ne 0 ]; then
-    printf '%s\n' "$out" | tail -20
-    fail "$label exited $rc"
-  fi
-  if grep -q 'ERROR' <<<"$out"; then
-    grep 'ERROR' <<<"$out" | head -5
-    fail "$label logged errors"
-  fi
+  check_run "$label" "$rc" "$out"
   if grep -q "$UNRESOLVED" <<<"$out"; then
     grep -E "no mirror node|$UNRESOLVED" <<<"$out" | head -5
     fail "$label: the editor could not resolve every node of the scene"

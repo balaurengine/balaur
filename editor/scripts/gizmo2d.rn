@@ -432,26 +432,11 @@ pub fn update(S, vp) {
 
     // Rail-tool fallbacks: drag anywhere in the viewport. Deltas in design
     // px; translation converts to world units through wpp.
-    let (dx, dy) = input::mouse_delta();
-    dx = dx / (dpi * S.ui_scale);
-    dy = dy / (dpi * S.ui_scale);
-    if dx == 0.0 && dy == 0.0 {
-        return;
-    }
-    let wpp = viewport::world_per_px(S);
-    let (_, found) = model::selected(S);
-    if found.is_some() && (S.tool == "move" || S.tool == "rotate" || S.tool == "scale") {
-        history::record(S, format!("{} node", S.tool), Some(format!("tool:{}:{}", S.tool, S.sel)));
-    }
-    let found = match found {
-        Some(found) => found,
-        None => {
-            if S.tool == "zoom" {
-                shell::set_zoom(S, S.zoom - dy * 0.5);
-            }
-            return;
-        }
+    let (dx, dy, found) = match viewport::rail_drag(S, dpi) {
+        Some(drag) => drag,
+        None => return,
     };
+    let wpp = viewport::world_per_px(S);
     if S.tool == "move" {
         let p = found.position();
         let x = p.x + dx * wpp;

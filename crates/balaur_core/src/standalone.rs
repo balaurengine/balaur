@@ -17,7 +17,9 @@
 //!
 //! A signature can never cover appended bytes (codesign rewrites the file and
 //! fails strict validation), so a *signed* macOS game is a `.app` bundle with
-//! the pack in Contents/Resources — `balaur export --app`.
+//! the pack in Contents/Resources — `balaur export --app`. Authenticode is the
+//! exception: it appends its own certificate table after the pack and records
+//! where, so a signed Windows game is read at the end of what it signed.
 
 use std::path::Path;
 
@@ -46,10 +48,23 @@ pub fn build(template: &[u8], pack: &[u8]) -> Vec<u8> {
 /// whatever it ends in, and that is not a corrupt game, just not a game.
 #[must_use]
 pub fn extract(bytes: &[u8]) -> Option<&[u8]> {
-    if bytes.len() < TRAILER {
+    if let Some(pack) = trailer_before(bytes, bytes.len()) {
+        return Some(pack);
+    }
+    // Signing happens after fusing, because a signature cannot cover bytes
+    // added later, so on Windows the trailer ends before the certificate table.
+    let table = pe_certificate_table(bytes)?;
+    (0..=CERTIFICATE_ALIGN)
+        .find_map(|pad| trailer_before(bytes, table.checked_sub(pad)?))
+}
+
+/// The pack whose trailer ends at `end`, or `None` when nothing ends there.
+fn trailer_before(bytes: &[u8], end: usize) -> Option<&[u8]> {
+    let head = bytes.get(..end)?;
+    if head.len() < TRAILER {
         return None;
     }
-    let (head, marker) = bytes.split_at(bytes.len() - MAGIC.len());
+    let (head, marker) = head.split_at(head.len() - MAGIC.len());
     if marker != MAGIC {
         return None;
     }
@@ -60,6 +75,46 @@ pub fn extract(bytes: &[u8]) -> Option<&[u8]> {
     // pack; refusing beats panicking on the slice.
     head.len().checked_sub(len).map(|start| &head[start..])
 }
+
+/// What a certificate table is padded to, and so how far back the trailer
+/// that ends before it may sit.
+const CERTIFICATE_ALIGN: usize = 8;
+
+/// The file offset of a PE's Authenticode certificate table, when the file
+/// ends with it. `None` for every other file, a PE with no signature
+/// included — the security directory holds a file offset, not an address.
+fn pe_certificate_table(bytes: &[u8]) -> Option<usize> {
+    let word = |at: usize| Some(u16::from_le_bytes(bytes.get(at..at + 2)?.try_into().ok()?));
+    let long = |at: usize| Some(u32::from_le_bytes(bytes.get(at..at + 4)?.try_into().ok()?) as usize);
+    if !bytes.starts_with(b"MZ") {
+        return None;
+    }
+    let pe = long(0x3c)?;
+    if bytes.get(pe..pe.checked_add(4)?)? != b"PE\0\0" {
+        return None;
+    }
+    let optional = pe.checked_add(24)?;
+    // The data directories follow the optional header, whose length differs
+    // between PE32 and PE32+ by the fields a 64-bit image widens.
+    let directories = match word(optional)? {
+        0x10b => optional.checked_add(96)?,
+        0x20b => optional.checked_add(112)?,
+        _ => return None,
+    };
+    if long(directories - 4)? <= SECURITY_DIRECTORY {
+        return None;
+    }
+    let entry = directories.checked_add(SECURITY_DIRECTORY * 8)?;
+    let offset = long(entry)?;
+    let size = long(entry + 4)?;
+    let end = offset.checked_add(size)?;
+    // A table that does not run to the end of the file was not appended after
+    // a pack, so the trailer is not in front of it.
+    (size != 0 && end <= bytes.len() && bytes.len() - end < CERTIFICATE_ALIGN).then_some(offset)
+}
+
+/// `IMAGE_DIRECTORY_ENTRY_SECURITY`: the fifth data directory.
+const SECURITY_DIRECTORY: usize = 4;
 
 /// Where a bundled game keeps its pack, next to the executable.
 pub const BUNDLED_PACK: &str = "game.bpak";

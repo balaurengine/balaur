@@ -23,7 +23,7 @@ fn editor_scripts_draw_only_bundled_glyphs() {
     let mut chain = Vec::new();
     for entry in std::fs::read_dir(editor.join("fonts")).unwrap() {
         let path = entry.unwrap().path();
-        if !path.extension().is_some_and(|e| e == "ttf") {
+        if path.extension().is_none_or(|e| e != "ttf") {
             continue;
         }
         let name = path.file_stem().unwrap().to_string_lossy().into_owned();

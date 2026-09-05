@@ -43,7 +43,8 @@ Missing:
 - **Signing that reaches a device.** An unsigned `.app` installs on nothing,
   and `assemble_apk.sh` signs with Android's public try-it keystore. The
   identity work is `docs/PLAN-apple.md` step 1 and `docs/PLAN-google.md`
-  step 1; this plan consumes it and does not repeat it.
+  step 1, and the `balaur export` flags that apply one are
+  `docs/PLAN-actions.md` §2; this plan consumes both and repeats neither.
 - **A credential store.** A deploy needs an API key, a keystore password or
   an App Store Connect issuer id, and `project.toml` is a file that gets
   committed. There is no other place to put one today.

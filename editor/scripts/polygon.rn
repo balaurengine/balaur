@@ -330,18 +330,28 @@ pub fn remove_vertex(S, at) {
     apply(S);
 }
 
-pub fn move_vertex(S, at, wx, wy) {
+/// The mesh and frame an edit of vertex `at` works in, or `None` when the
+/// selection has no mesh, no frame, or no such vertex.
+fn vertex_target(S, at) {
     let mesh = match mesh(S) {
         Some(mesh) => mesh,
-        None => return,
+        None => return None,
     };
     let f = match frame(S) {
         Some(f) => f,
-        None => return,
+        None => return None,
     };
     if at >= mesh.positions.len() {
-        return;
+        return None;
     }
+    Some((mesh, f))
+}
+
+pub fn move_vertex(S, at, wx, wy) {
+    let (mesh, f) = match vertex_target(S, at) {
+        Some(target) => target,
+        None => return,
+    };
     begin(S, "move vertex", Some(format!("poly:move:{}:{}", S.sel, at)));
     let (lx, ly) = to_local(f, wx, wy);
     mesh.positions[at] = [lx, ly];
@@ -399,17 +409,10 @@ fn ensure_uvs(S, mesh) {
 }
 
 pub fn move_uv(S, at, wx, wy) {
-    let mesh = match mesh(S) {
-        Some(mesh) => mesh,
+    let (mesh, f) = match vertex_target(S, at) {
+        Some(target) => target,
         None => return,
     };
-    let f = match frame(S) {
-        Some(f) => f,
-        None => return,
-    };
-    if at >= mesh.positions.len() {
-        return;
-    }
     begin(S, "move uv", Some(format!("poly:uv:{}:{}", S.sel, at)));
     let uvs = ensure_uvs(S, mesh);
     let (lx, ly) = to_local(f, wx, wy);

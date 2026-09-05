@@ -89,5 +89,3 @@ macro_rules! functions {
     };
 }
 pub(crate) use functions;
-
-/// The per-world housekeeping: restamping owners after a restore, pruning

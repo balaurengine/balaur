@@ -256,27 +256,7 @@ fn bind_group_layouts(
             wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
         )],
     });
-    let texture = ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("polygon_texture_layout"),
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    multisampled: false,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
-        ],
-    });
+    let texture = crate::bind_layout::sampled_layout(ctxt, "polygon_texture_layout");
     (frame, object, texture)
 }
 

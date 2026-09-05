@@ -234,18 +234,7 @@ fn save_transforms(eng: &Engine) -> serde_json::Value {
             Some(TransformFrame {
                 id: crate::ids::of(&world, entity),
                 entity: entity.to_bits().get(),
-                trs: [
-                    t.position.x,
-                    t.position.y,
-                    t.position.z,
-                    t.rotation.x,
-                    t.rotation.y,
-                    t.rotation.z,
-                    t.rotation.w,
-                    t.scale.x,
-                    t.scale.y,
-                    t.scale.z,
-                ],
+                trs: t.trs(),
             })
         })
         .collect();

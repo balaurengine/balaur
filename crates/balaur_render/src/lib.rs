@@ -48,6 +48,8 @@ mod device;
 ))]
 mod hidden_tab;
 #[cfg(feature = "kiss3d")]
+mod bind_layout;
+#[cfg(feature = "kiss3d")]
 pub mod kiss3d_backend;
 #[cfg(feature = "kiss3d")]
 mod kiss3d_camera;
@@ -55,6 +57,8 @@ mod kiss3d_camera;
 mod kiss3d_input;
 #[cfg(feature = "kiss3d")]
 mod light_map;
+#[cfg(feature = "kiss3d")]
+mod material_cache;
 #[cfg(feature = "kiss3d")]
 mod shader_material;
 #[cfg(feature = "kiss3d")]

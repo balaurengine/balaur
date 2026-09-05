@@ -111,6 +111,12 @@ impl AppConfig {
     /// build tool that leaves a file watcher running is a build tool that
     /// never exits.
     pub fn export(project_root: impl Into<PathBuf>) -> Self {
+        Self::bare(project_root)
+    }
+
+    /// An engine and nothing else: no pack, no watcher, no script backend.
+    /// What a test loads one plugin into.
+    pub fn bare(project_root: impl Into<PathBuf>) -> Self {
         Self {
             watch: false,
             ..Self::dev(project_root)

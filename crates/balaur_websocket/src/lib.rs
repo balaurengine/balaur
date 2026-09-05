@@ -319,14 +319,7 @@ impl balaur_plugin::Plugin for WebsocketPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
-        let config = {
-            let files = reg
-                .engine()
-                .resource::<balaur_core::project::ProjectFiles>();
-            let files = files.borrow();
-            WebsocketConfig::load(&files)
-        };
-        reg.insert_resource(config);
+        reg.insert_resource(reg.with_project_files(WebsocketConfig::load));
         reg.insert_resource(WebsocketState::default());
         reg.insert_resource(WebsocketSnapshot::default());
         reg.add_system(Stage::First, pump_websocket_system);

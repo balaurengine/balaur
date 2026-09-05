@@ -134,5 +134,3 @@ macro_rules! functions {
     };
 }
 pub(crate) use functions;
-
-/// The body helpers: the kind vocabulary, the checked handle lookups, and

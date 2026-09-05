@@ -176,17 +176,23 @@ pub fn set(eng: &Engine, path: &str, value: toml::Value) {
         return;
     };
     let mut values = values.borrow_mut();
-    let mut at: &mut toml::value::Table = &mut values.0;
+    table_at(&mut values.0, &tables).insert(key.to_string(), value);
+}
+
+/// The table `tables` names under `root`, made on the way down; a value
+/// sitting where a table belongs is replaced by one.
+fn table_at<'a>(root: &'a mut toml::value::Table, tables: &[&str]) -> &'a mut toml::value::Table {
+    let mut at = root;
     for table in tables {
         let entry = at
-            .entry(table.to_string())
+            .entry((*table).to_string())
             .or_insert_with(|| toml::Value::Table(toml::value::Table::new()));
         if !entry.is_table() {
             *entry = toml::Value::Table(toml::value::Table::new());
         }
         at = entry.as_table_mut().expect("made a table above");
     }
-    at.insert(key.to_string(), value);
+    at
 }
 
 /// Read every value out of a manifest's text.
@@ -247,17 +253,7 @@ pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
         let Some((tables, key)) = split(&path) else {
             continue;
         };
-        let mut at: &mut toml::value::Table = &mut doc;
-        for table in tables {
-            let entry = at
-                .entry(table.to_string())
-                .or_insert_with(|| toml::Value::Table(toml::value::Table::new()));
-            if !entry.is_table() {
-                *entry = toml::Value::Table(toml::value::Table::new());
-            }
-            at = entry.as_table_mut().expect("made a table above");
-        }
-        at.insert(key.to_string(), value);
+        table_at(&mut doc, &tables).insert(key.to_string(), value);
     }
     toml::to_string_pretty(&doc).context("writing settings")
 }

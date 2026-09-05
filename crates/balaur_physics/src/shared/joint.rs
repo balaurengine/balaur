@@ -141,5 +141,3 @@ macro_rules! functions {
     };
 }
 pub(crate) use functions;
-
-/// The character helpers: rapier's controller from the component, and the

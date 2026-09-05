@@ -332,27 +332,7 @@ fn frame_layout(ctxt: &Context) -> wgpu::BindGroupLayout {
 }
 
 fn texture_layout(ctxt: &Context) -> wgpu::BindGroupLayout {
-    ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("light_map_texture_layout"),
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    multisampled: false,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
-        ],
-    })
+    crate::bind_layout::sampled_layout(ctxt, "light_map_texture_layout")
 }
 
 /// The stencil state both light-map pipelines share, differing only in what

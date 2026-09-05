@@ -115,6 +115,3 @@ macro_rules! functions {
     };
 }
 pub(crate) use functions;
-
-/// The joint helpers: dropping and checking a joint in either of rapier's two
-/// sets, the retry list, the break check, and the reader every joint call

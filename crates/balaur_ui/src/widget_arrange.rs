@@ -221,22 +221,7 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         .unwrap_or(0);
 
     let box_size = box_of(&widget, at.assigned, scale);
-    let room = ui.max_rect();
-    let rect = egui::Rect::from_min_size(
-        room.min,
-        vec2(
-            if box_size.x > 0.0 {
-                box_size.x
-            } else {
-                room.width()
-            },
-            if box_size.y > 0.0 {
-                box_size.y
-            } else {
-                room.height()
-            },
-        ),
-    );
+    let rect = room_of(ui, box_size);
     let style = at.theme.style(&widget.kind);
     let font = egui::FontId::new(widget.font_size * scale, family("ui"));
     let color = rgba_color(widget.text_color);
@@ -355,17 +340,11 @@ fn asked_of(widget: &Widget, axis: Axis, scale: f32) -> (f32, f32) {
     (stated, floor)
 }
 
-/// A bare container: padding, then the children along `axis`.
-pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
-    let widget = &at.arena[index].widget;
-    let scale = at.scale;
-    // The padding comes off in floats rather than through a `Margin`, which
-    // is whole device pixels: a 14 px gutter at 1.25 scale is not one, and
-    // the truncation moved every sheet in the editor's shell by 0.4 px.
-    let pad = padding_of(widget, &at.theme.style(&widget.kind), scale);
-    let box_size = box_of(widget, at.assigned, scale);
+/// The box a widget draws in: its stated size on each axis, else the room
+/// the parent left it.
+fn room_of(ui: &egui::Ui, box_size: egui::Vec2) -> egui::Rect {
     let room = ui.max_rect();
-    let outer = egui::Rect::from_min_size(
+    egui::Rect::from_min_size(
         room.min,
         vec2(
             if box_size.x > 0.0 {
@@ -380,7 +359,18 @@ pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
             },
         ),
     )
-    .shrink(pad);
+}
+
+/// A bare container: padding, then the children along `axis`.
+pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
+    let widget = &at.arena[index].widget;
+    let scale = at.scale;
+    // The padding comes off in floats rather than through a `Margin`, which
+    // is whole device pixels: a 14 px gutter at 1.25 scale is not one, and
+    // the truncation moved every sheet in the editor's shell by 0.4 px.
+    let pad = padding_of(widget, &at.theme.style(&widget.kind), scale);
+    let box_size = box_of(widget, at.assigned, scale);
+    let outer = room_of(ui, box_size).shrink(pad);
     let min = (box_size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(outer));
     hold_to(&mut inner, min);
