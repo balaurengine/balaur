@@ -60,18 +60,20 @@ pub fn rect_outline(hx: f32, hy: f32, corner_radius: f32, segments: u32) -> Vec<
     let radius = corner_radius.clamp(0.0, hx.min(hy).max(0.0));
     if radius <= 0.0 {
         return vec![
-            Vec2::new(hx, hy),
-            Vec2::new(-hx, hy),
             Vec2::new(-hx, -hy),
             Vec2::new(hx, -hy),
+            Vec2::new(hx, hy),
+            Vec2::new(-hx, hy),
         ];
     }
     let arc = (segments.max(4) / 4).max(1);
     let (x, y) = (hx - radius, hy - radius);
-    let corners = [(x, y), (-x, y), (-x, -y), (x, -y)];
+    // Counter-clockwise from the bottom-left corner, the order a square one
+    // comes out in, so rounding a rect does not renumber its points.
+    let corners = [(-x, -y), (x, -y), (x, y), (-x, y)];
     let mut out = Vec::with_capacity(4 * (arc as usize + 1));
     for (corner, (px, py)) in corners.into_iter().enumerate() {
-        let turn = FRAC_PI_2 * corner as f32;
+        let turn = FRAC_PI_2.mul_add(corner as f32, PI);
         for i in 0..=arc {
             let angle = FRAC_PI_2.mul_add(i as f32 / arc as f32, turn);
             out.push(Vec2::new(px, py) + on_circle(radius, angle));
