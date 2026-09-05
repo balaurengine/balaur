@@ -100,11 +100,6 @@ MANIFEST
   printf 'A game exported for Android puts game.bpak in this directory.\n' \
     >"$skeleton/assets/README"
   (cd "$dist" && tar -czf balaur-template-android.tar.gz balaur-template-android)
-
-  step "assemble (debug apk)"
-  # The skeleton assembled into an `adb install`-able APK. Hard-required: a
-  # silent skip would read as "template works" while shipping uninstallable.
-  ./scripts/assemble_apk.sh "$skeleton" "$dist/balaur-template-debug.apk"
   rm -rf "$skeleton"
   ;;
 

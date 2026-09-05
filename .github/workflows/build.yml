@@ -18,6 +18,10 @@ concurrency:
 
 jobs:
   build-editor:
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     name: build editor · ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -37,34 +41,21 @@ jobs:
             target: windows-x64
     steps:
       - uses: actions/checkout@v7
-      # A shipped build is windowed, so it links winit's X11/Wayland stack.
-      - name: Linux build deps
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libasound2-dev libudev-dev \
-            libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
-            libxkbcommon-dev libwayland-dev
-      - uses: Swatinem/rust-cache@v2
+      # The same action a game's own repository calls to build a custom
+      # engine, so one that stopped working would fail this build first.
+      - uses: ./.github/actions/build-engine
         with:
-          key: build-${{ matrix.target }}
-      # Builds, stages, and then proves the artifact works: it exports a game
-      # with the template it just built and runs that game. See
-      # scripts/package.sh — "it compiled" is not the same as "it works".
-      - name: Build and package
-        shell: bash
-        run: ./scripts/package.sh ${{ matrix.target }}
-      - uses: actions/upload-artifact@v7
-        with:
-          name: balaur-${{ matrix.target }}
-          path: dist/balaur-*
-          if-no-files-found: error
+          target: ${{ matrix.target }}
+          attest: ${{ github.event_name == 'push' }}
 
   # Runtime templates for the non-desktop platforms, packaged as the shape
   # each OS starts (scripts/package_template.sh). Web is wasm-bindgen on
   # wasm32-unknown-unknown, the target kiss3d and wgpu support in a browser.
   build-platforms:
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     name: build ${{ matrix.platform }}
     runs-on: ${{ matrix.host }}
     strategy:
@@ -74,60 +65,27 @@ jobs:
           # The artifact is an unsigned .app: signing needs a certificate
           # that belongs to whoever ships the game, never to this repo.
           - platform: ios
-            target: aarch64-apple-ios
             host: macos-latest
-          # The script stages the APK layout and assembles a debug-signed APK
-          # from it, so the template installs with nothing but `adb install`.
-          # That keystore is Android's try-it identity, not a credential.
           - platform: android
-            target: aarch64-linux-android
             host: ubuntu-latest
           - platform: web
-            target: wasm32-unknown-unknown
             host: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Linux build deps
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
-      # oboe (cpal's Android backend) is C++, so this needs a C++ compiler for
-      # the target, not just a Rust target. API 26 because that is cpal's
-      # floor: AAudio, which the platform added in 26.
-      - name: Android NDK toolchain
-        if: matrix.platform == 'android'
-        run: |
-          bin=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin
-          {
-            echo "CC_aarch64_linux_android=$bin/aarch64-linux-android26-clang"
-            echo "CXX_aarch64_linux_android=$bin/aarch64-linux-android26-clang++"
-            echo "AR_aarch64_linux_android=$bin/llvm-ar"
-            echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android26-clang"
-          } >> "$GITHUB_ENV"
-      # The bindgen CLI has to be the exact version the build links against, so
-      # the pin is read off Cargo.lock rather than written down twice.
-      # binaryen is wasm-opt; brotli is what a static host serves.
-      - name: Web toolchain
-        if: matrix.platform == 'web'
-        run: |
-          sudo apt-get update && sudo apt-get install -y binaryen brotli bc
-          want=$(awk '/^name = "wasm-bindgen"$/{getline; gsub(/[" ]/,""); sub(/version=/,""); print; exit}' Cargo.lock)
-          echo "wasm-bindgen-cli $want (from Cargo.lock)"
-          cargo install wasm-bindgen-cli --version "$want" --locked
-      - uses: Swatinem/rust-cache@v2
+      # The action carries the NDK and wasm-bindgen setup each platform needs,
+      # so a game building its own template gets the same toolchain this does.
+      - uses: ./.github/actions/build-engine
         with:
-          key: platform-${{ matrix.target }}
-      - name: Build template
-        shell: bash
-        run: ./scripts/package_template.sh ${{ matrix.platform }}
-      - uses: actions/upload-artifact@v7
-        with:
-          name: balaur-template-${{ matrix.platform }}
-          path: dist/*
-          if-no-files-found: error
+          platform: ${{ matrix.platform }}
+          attest: ${{ github.event_name == 'push' }}
 
-  # Exports a game with each mobile template and checks the bundle is what the
-  # OS installs — the half the template build cannot check. See scripts/.
+  # Exports a game with each template and checks the result is what the OS
+  # installs or a host serves — the half a template build cannot check.
   export-mobile:
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     name: export ${{ matrix.platform }}
     needs: build-platforms
     runs-on: ${{ matrix.host }}
@@ -140,6 +98,8 @@ jobs:
             host: macos-latest
           # Ubuntu for the SDK build-tools that assemble and sign the APK.
           - platform: android
+            host: ubuntu-latest
+          - platform: web
             host: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -155,12 +115,57 @@ jobs:
           key: export-${{ matrix.platform }}
       - name: Export a game with the template
         shell: bash
-        run: ./scripts/export_mobile.sh ${{ matrix.platform }}
+        run: ./scripts/export_check.sh ${{ matrix.platform }}
       - uses: actions/upload-artifact@v7
         with:
           name: balaur-example-${{ matrix.platform }}
           path: dist/balaur-example-*
           if-no-files-found: error
+      - name: Attest what was built
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/balaur-example-*
+
+  # `export-game` over an example, with the engine this run built rather than a
+  # published one: the action a game's own repository calls, proven on every
+  # push instead of on the day someone else runs it.
+  export-with-the-action:
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    name: export a game with the action
+    needs: [build-editor, build-platforms]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: balaur-linux-x64
+          path: dist
+      - uses: actions/download-artifact@v8
+        with:
+          name: balaur-template-web
+          path: dist
+      # Laid out the way the editor download is, so the exporter finds its
+      # templates beside the binary and nothing has to be fetched.
+      - name: Put this run's engine on PATH
+        run: |
+          set -euo pipefail
+          tar -xzf dist/balaur-editor-linux-x64.tar.gz -C dist
+          install=$PWD/dist/balaur-editor-linux-x64
+          mkdir -p "$install/templates"
+          tar -xzf dist/balaur-template-web.tar.gz -C "$install/templates"
+          cp dist/balaur-runtime-linux-x64 "$install/templates/"
+          chmod +x "$install/balaur" "$install/templates/balaur-runtime-linux-x64"
+          echo "$install" >>"$GITHUB_PATH"
+      - uses: ./.github/actions/export-game
+        with:
+          project: examples/hello
+          targets: "linux-x64 web"
+          download: "false"
+          attest: ${{ github.event_name == 'push' }}
 
   # The web build as the one download a site refreshes: the glue and module
   # from the web template, plus the editor's project and the examples packed
@@ -204,7 +209,8 @@ jobs:
     # A push to main or a `v*` tag, never a manual run: draft_release.sh moves
     # the rolling `nightly` tag to whatever branch it was dispatched from.
     if: github.event_name == 'push'
-    needs: [build-editor, build-platforms, export-mobile, bundle-web]
+    needs:
+      [build-editor, build-platforms, export-mobile, export-with-the-action, bundle-web]
     runs-on: ubuntu-latest
     # Drafting a release means writing to the repo's releases.
     permissions:

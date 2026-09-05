@@ -67,6 +67,10 @@ enum Command {
         /// before the frame loop does.
         #[arg(long, requires = "debug")]
         debug_wait: bool,
+        /// Arguments for the project's own scripts, everything after `--`;
+        /// they read them back with `engine::args()`.
+        #[arg(last = true)]
+        args: Vec<String>,
     },
     /// Export the project as a pack: every script checked, scenes and
     /// manifest bundled.
@@ -281,6 +285,7 @@ fn main() -> Result<()> {
             record,
             debug,
             debug_wait,
+            args,
         } => run_project(&RunOpts {
             path,
             display: Display::of(headless, offscreen),
@@ -291,6 +296,7 @@ fn main() -> Result<()> {
             record,
             debug,
             debug_wait,
+            args,
         }),
         Command::Replay {
             file,
@@ -397,6 +403,7 @@ struct RunOpts {
     record: Option<PathBuf>,
     debug: Option<u16>,
     debug_wait: bool,
+    args: Vec<String>,
 }
 
 /// Fold every frame's timings into one log, kept by the caller so it survives
@@ -512,9 +519,12 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         record,
         debug,
         debug_wait,
+        args,
     } = opts;
     let (display, frames) = (*display, *frames);
-    let mut app = balaur::standard_app(AppConfig::dev(path.to_string_lossy().as_ref()))?;
+    let mut config = AppConfig::dev(path.to_string_lossy().as_ref());
+    config.script_args.clone_from(args);
+    let mut app = balaur::standard_app(config)?;
     // Before the project loads, so a client that waits can have breakpoints
     // in place by the time `init` runs.
     let _debugger = start_debugger(&mut app, *debug, *debug_wait)?;

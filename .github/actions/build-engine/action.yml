@@ -50,10 +50,17 @@ inputs:
 runs:
   using: composite
   steps:
-    - shell: bash
+    # A desktop build produces the editor and its runtime; a platform build
+    # produces a template. Each is uploaded under the name a release holds.
+    - id: what
+      shell: bash
       run: |
         set -euo pipefail
-        if [ -z '${{ inputs.target }}' ] && [ -z '${{ inputs.platform }}' ]; then
+        if [ -n '${{ inputs.target }}' ]; then
+          echo 'artifact=balaur-${{ inputs.target }}' >>"$GITHUB_OUTPUT"
+        elif [ -n '${{ inputs.platform }}' ]; then
+          echo 'artifact=balaur-template-${{ inputs.platform }}' >>"$GITHUB_OUTPUT"
+        else
           echo '::error::build-engine needs either a target or a platform'
           exit 1
         fi
@@ -71,7 +78,7 @@ runs:
 
     - uses: Swatinem/rust-cache@v2
       with:
-        key: balaur-engine-${{ inputs.target }}${{ inputs.platform }}-${{ inputs.features }}
+        key: ${{ steps.what.outputs.artifact }}-${{ inputs.features }}${{ inputs.web-features }}
 
     - if: inputs.platform == 'android'
       shell: bash
@@ -110,7 +117,7 @@ runs:
     - if: inputs.upload == 'true'
       uses: actions/upload-artifact@v7
       with:
-        name: balaur-${{ inputs.target }}${{ inputs.platform }}
+        name: ${{ steps.what.outputs.artifact }}
         path: dist/*
         if-no-files-found: error
 

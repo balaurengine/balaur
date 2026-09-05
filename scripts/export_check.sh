@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Export a game with the mobile template CI just built, and check the result is
-# the shape that platform installs. Why it stops there: docs/PLAN-mobile-export.md.
+# Export a game with the template CI just built, and check the result is the
+# shape that platform installs or serves. Why it stops there:
+# docs/PLAN-mobile-export.md.
 #
-# Usage: export_mobile.sh <ios|android>
+# Usage: export_check.sh <ios|android|web>
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-platform=${1:?usage: export_mobile.sh <ios|android>}
+platform=${1:?usage: export_check.sh <ios|android|web>}
 dist=$(mkdir -p "${DIST:-dist}" && cd "${DIST:-dist}" && pwd)
 work="$dist/export-$platform"
 rm -rf "$work"
@@ -44,7 +45,12 @@ capabilities = ["applesignin", "game-center", "icloud-kv", "in-app-purchase"]
 ITSAppUsesNonExemptEncryption = false
 TOML
 fi
-(cd "$work" && BALAUR_TEMPLATES="$work/templates" "$balaur" export project --target "$platform")
+# `--apk` on Android: assembling and signing belongs to the exporter, so a
+# game built in the editor and one built here take the same path.
+extra=()
+[ "$platform" = android ] && extra=(--apk)
+(cd "$work" && BALAUR_TEMPLATES="$work/templates" \
+  "$balaur" export project --target "$platform" "${extra[@]}")
 
 case $platform in
 ios)
@@ -89,14 +95,29 @@ android)
   [ -d "$layout" ] || fail "no $layout"
   [ -f "$layout/assets/game.bpak" ] || fail "the exported layout carries no pack"
   [ -f "$layout/lib/arm64-v8a/libmain.so" ] || fail "the exported layout has no libmain.so"
-  step "assemble the exported game into an installable apk"
-  ./scripts/assemble_apk.sh "$layout" "$dist/balaur-example-debug.apk"
+  apk="$work/project-android.apk"
+  [ -f "$apk" ] || fail "--apk assembled nothing at $apk"
   # The pack has to survive zipping, or the game launches to nothing.
-  unzip -l "$dist/balaur-example-debug.apk" | grep -q 'assets/game.bpak' ||
+  unzip -l "$apk" | grep -q 'assets/game.bpak' ||
     fail "the assembled APK does not contain assets/game.bpak"
+  cp "$apk" "$dist/balaur-example-debug.apk"
   printf '\nexported %s\n' "$dist/balaur-example-debug.apk"
   ;;
-*) fail "unknown platform \"$platform\" (expected ios or android)" ;;
+web)
+  out="$work/project-web"
+  [ -d "$out" ] || fail "no $out"
+  # The four files a static host has to serve, and the page that names them.
+  for f in index.html balaur.js balaur_bg.wasm game.bpak; do
+    [ -s "$out/$f" ] || fail "the web export has no $f"
+  done
+  grep -q 'game.bpak' "$out/index.html" ||
+    fail "the page does not fetch the pack beside it"
+  grep -q 'balaur.js' "$out/index.html" ||
+    fail "the page does not load the wasm glue beside it"
+  printf '\nexported %s\n' "$out"
+  (cd "$work" && tar -czf "$dist/balaur-example-web.tar.gz" "project-web")
+  ;;
+*) fail "unknown platform \"$platform\" (expected ios, android or web)" ;;
 esac
 
 rm -rf "$work"

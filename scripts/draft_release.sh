@@ -86,9 +86,9 @@ exported onto.
   verified against `SHA256SUMS`.
 - **`balaur-template-ios` / `-android` / `-web.tar.gz`** — mobile and web
   templates. Unpack into `templates/` first.
-- **`balaur-template-debug.apk` / `balaur-example-debug.apk`** — debug-signed,
-  `adb install`-able: the bare Android template and a game exported with it.
-  For trying the runtime on a device; ship neither.
+- **`balaur-example-debug.apk`** — a game exported with the Android template,
+  signed with Android's debug identity and `adb install`-able. For trying the
+  runtime on a device; ship your own, signed with your own keystore.
 - **`balaur_bg.wasm` / `balaur.js`** — the web runtime loose, for a page of
   your own.
 - **`balaur-play.tar.gz`** — the web runtime with the editor's project and
@@ -109,10 +109,17 @@ The macOS build is universal, and so is a game exported onto it. Templates for
 other platforms go in `templates/` next to the binary, or where
 `BALAUR_TEMPLATES` points.
 
-Exports come out unsigned; sign them with your own certificate or keystore. On
-macOS, `--app` writes a `.app` bundle signed ad-hoc, or with `--sign
-<identity>`; a flat binary cannot be signed. On Android,
-`scripts/assemble_apk.sh` shows the aapt2 / zipalign / apksigner steps.
+Every signature is applied by `balaur export` itself, with an identity that is
+yours: `--sign <identity>` on Apple and Windows targets, `--notarize` to send a
+macOS build to Apple's notary service, `--profile` and `--ipa` for iOS, `--apk`
+to assemble and sign an Android build. On macOS `--sign` implies `--app`,
+because a flat fused binary is exactly what a signature cannot cover. Name the
+identities once in the project's `[export]` table and every export uses them;
+the passwords behind them are read from the environment.
+
+Without an identity a build still exports, unsigned. Every asset here carries
+build provenance: `gh attestation verify <file> -R ${GITHUB_REPOSITORY:-balaurengine/balaur}` says
+which workflow run produced it.
 
 `balaur update` brings an installed editor to the latest release.
 EOF

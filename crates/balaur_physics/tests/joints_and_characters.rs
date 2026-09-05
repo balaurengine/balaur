@@ -125,6 +125,105 @@ pub fn fixed_update(this, dt) {
     );
 }
 
+/// A body carries several joints by putting each on a bodiless child, which
+/// stands for the body above it, as a collider on a child does.
+#[test]
+fn a_joint_on_a_bodiless_child_ties_the_body_above_it() {
+    run_clean(
+        r#"[[nodes]]
+id = "n_anchor"
+name = "Anchor"
+body3d = "static"
+
+[nodes.collider3d]
+kind = "ball"
+radius = 0.2
+
+[[nodes]]
+id = "n_hanging"
+name = "Hanging"
+position = [1.0, 0.0, 0.0]
+body3d = "dynamic"
+script = "scripts/s.rn"
+
+[nodes.collider3d]
+kind = "ball"
+radius = 0.2
+
+[[nodes]]
+id = "n_link"
+name = "Link"
+parent = "n_hanging"
+
+[nodes.joint3d]
+kind = "revolute"
+body = "/Anchor"
+axis = [0.0, 0.0, 1.0]
+anchor = [-1.0, 0.0, 0.0]
+"#,
+        r#"pub fn init(this) { this.ticks = 0; }
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 110 {
+        let position = this.node.position();
+        let far = math::sqrt(position.x * position.x + position.y * position.y);
+        assert!(far < 1.2, "the child's joint did not hold: the body is {} from the anchor", far);
+        assert!(position.y < -0.1, "the body never swung: y is {}", position.y);
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn a_2d_joint_on_a_bodiless_child_ties_the_body_above_it() {
+    run_clean(
+        r#"[[nodes]]
+id = "n_anchor"
+name = "Anchor"
+body2d = "static"
+
+[nodes.collider2d]
+kind = "circle"
+radius = 0.2
+
+[[nodes]]
+id = "n_hanging"
+name = "Hanging"
+position = [1.0, 0.0, 0.0]
+body2d = "dynamic"
+script = "scripts/s.rn"
+
+[nodes.collider2d]
+kind = "circle"
+radius = 0.2
+
+[[nodes]]
+id = "n_link"
+name = "Link"
+parent = "n_hanging"
+
+[nodes.joint2d]
+kind = "revolute"
+body = "/Anchor"
+anchor = [-1.0, 0.0]
+"#,
+        r#"pub fn init(this) { this.ticks = 0; }
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 110 {
+        let position = this.node.position();
+        let far = math::sqrt(position.x * position.x + position.y * position.y);
+        assert!(far < 1.2, "the child's joint did not hold: the body is {} from the anchor", far);
+        assert!(position.y < -0.1, "the body never swung: y is {}", position.y);
+    }
+}
+"#,
+    );
+}
+
 /// A joint whose other end is named before that node exists still connects:
 /// a scene file names nodes in whatever order it likes.
 #[test]

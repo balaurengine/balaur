@@ -2,12 +2,12 @@
 
 Status: **mobile export works, unsigned.** `balaur export --target ios` writes
 an `.app` and `--target android` an APK layout, both carrying the pack as a
-bundle resource; `scripts/export_mobile.sh` proves the path in CI on every
+bundle resource; `scripts/export_check.sh` proves the path in CI on every
 build. What is left is signing — the developer's, not CI's — and web.
 
 **Compiling and rendering are different claims.** Nothing in CI runs a frame
 on a real device or simulator; the export check stops at "a device would
-install this", and `export_mobile.sh` proves the bundle shape, the pack's
+install this", and `export_check.sh` proves the bundle shape, the pack's
 place inside it, and that the iOS executable was built for iOS. That a frame
 renders on a phone is unproven, and needs hardware.
 

@@ -23,7 +23,7 @@ Built, and not built for this:
 | A pack, and a game fused onto a per-platform runtime template | `balaur export --target`, `crates/balaur_export` |
 | Export as a library any caller can drive, not a subcommand's private code | `balaur_export::{export, Options}`. The network stack, the terminal prompt and the per-user cache stay with the caller, so an editor can drive it without any of the three |
 | A macOS `.app` signed with an identity the developer holds | `export --app --sign`, `bundle.rs::export_macos_app` |
-| An iOS `.app` and an Android APK layout, unsigned and debug-signed | `bundle.rs::export_bundle`, `scripts/assemble_apk.sh` |
+| A signed iOS `.app` and an assembled, signed APK | `bundle.rs::export_bundle`, `balaur_export::{sign, android}`, `docs/PLAN-actions.md` |
 | A web build that links and packages, headless | `scripts/package_template.sh web`, the `build-platforms` job |
 | Templates fetched, checksum-verified, and an install that updates itself | `templates.rs`, `update.rs`, `balaur update` |
 | CI artifacts turned into a release draft on every push and tag | `scripts/draft_release.sh` |
@@ -41,7 +41,7 @@ Missing:
   `android` only. The web half of this plan is blocked on
   `docs/PLAN-mobile-export.md` "Web" and cannot start before it.
 - **Signing that reaches a device.** An unsigned `.app` installs on nothing,
-  and `assemble_apk.sh` signs with Android's public try-it keystore. The
+  and an APK with no keystore named is signed with Android's try-it key. The
   identity work is `docs/PLAN-apple.md` step 1 and `docs/PLAN-google.md`
   step 1, and the `balaur export` flags that apply one are
   `docs/PLAN-actions.md` §2; this plan consumes both and repeats neither.

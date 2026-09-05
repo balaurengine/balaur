@@ -1,13 +1,20 @@
-> **Status:** not started. Written down on 2026-09-05 after measuring the
+> **Status:** steps 1-8 built on 2026-09-05; the self-signed CI signing pass
+> of §5 is the one piece not written. Signing is applied by `balaur export` on
+> every target, the Export sheet is in the editor, and
+> `.github/actions/{setup,export-game,build-engine}` exist with
+> `docs/actions.md` and the website's Continuous integration page beside them.
+> `build.yml` is made of `build-engine` and calls `export-game` over an
+> example, so both fail this repo's own build before they fail a game's;
+> `setup` is not exercised, because what it does is download a published
+> release and there is none until one is published. What no CI run can prove
+> is in §5: nothing here has met Apple's notary service, a real provisioning
+> profile or a real keystore. Written down on 2026-09-05 after measuring the
 > tree at `1df5fa7` against three questions: what a game made in this engine
 > can be signed with, what a game's own CI can reuse from the engine's, and
-> how a game leaves the editor without a terminal. `docs/PLAN-release.md`
-> signs the *engine's* downloads; `docs/PLAN-deploy.md` moves a *signed game*
-> somewhere; this plan is the seam between them — the signing flags on
-> `balaur export`, the actions that carry credentials to a runner and call
-> them, and the Export sheet in the editor that calls the same code. It owns
-> nothing either neighbour already owns, and where a row below says
-> "release" or "deploy" that plan's step is meant.
+> how a game leaves the editor without a terminal.
+> `docs/PLAN-release.md` signs the *engine's* downloads;
+> `docs/PLAN-deploy.md` moves a *signed game* somewhere; this plan is the
+> seam between them.
 
 # Plan: signing, actions, and export from the editor
 
@@ -25,10 +32,10 @@ Built, and load-bearing here:
 | --- | --- |
 | Seven export targets: `linux-x64`, `linux-arm64`, `macos-universal`, `windows-x64` as one fused executable each; a macOS `.app` with `--app`; an iOS `.app`; an Android APK layout; a web directory with a shell page | `crates/balaur_export`, `bundle.rs::{Bundle, export_macos_app, export_bundle}` |
 | A macOS `.app` signed as it is exported, ad-hoc or with `--sign <identity>`, its entitlements written from `[apple] capabilities` | `bundle.rs::codesign`, `apple.rs::write_entitlements` |
-| An Android layout assembled and debug-signed, when the SDK is on the machine | `scripts/assemble_apk.sh` (`aapt2`, `zipalign`, `apksigner`) |
+| An Android layout assembled and signed, when the SDK is on the machine | `balaur export --apk`, `crates/balaur_export/src/android.rs` (`aapt2`, `zipalign`, `apksigner`) |
 | Templates fetched from the release this build came from, verified against `SHA256SUMS`, cached per user per build id; `--download` and `--no-download` so a runner never prompts | `crates/balaur_cli/src/templates.rs`, `version.rs` |
 | Export as a library with the network stack, the prompt and the cache left to the caller, so an editor can link it | `balaur_export::{Options, ObtainTemplate, default_roots}` |
-| The engine's CI: four reusable workflows behind one entry point; `package.sh` builds, stages, exports a game onto the template it just built and *runs* it; `export_mobile.sh` proves the iOS and Android bundle shapes; `draft_release.sh` drafts `nightly` and `v*` | `.github/workflows/{runner,build,lint,test,docs}.yml`, `scripts/` |
+| The engine's CI: four reusable workflows behind one entry point; `package.sh` builds, stages, exports a game onto the template it just built and *runs* it; `export_check.sh` proves the iOS, Android and web bundle shapes; `draft_release.sh` drafts `nightly` and `v*` | `.github/workflows/{runner,build,lint,test,docs}.yml`, `scripts/` |
 | A settings sheet grouped by category and searchable; a command palette every editor verb goes through | `editor/scripts/settings.rn`, `palette.rn` |
 | Work off the frame that lands on a tick, so a minutes-long job can report progress without blocking a draw | `ExternalIo`, `balaur_core::handler`, `docs/PLAN-deploy.md` "Progress is an event" |
 
@@ -247,8 +254,11 @@ Every place a game from this engine could be asked to prove who made it.
 ## 5. What CI can prove, and what it cannot
 
 - `export_check.sh` proves every bundle shape, web included, on every push.
-- The three actions run on every push because `build.yml` is made of
-  them; an input that stops working fails the engine's own build.
+- `build-engine` and `export-game` run on every push, because `build.yml`
+  is made of the first and calls the second over `examples/hello` with the
+  engine that run just built; an input that stops working fails the engine's
+  own build. `setup` cannot be: it downloads a published release, and a run
+  proving it would prove the last release rather than this commit.
 - The signing code runs in CI with a **self-signed** identity: a
   certificate `security create-keychain` and `openssl req` make on the
   runner, so `--sign`, `--options runtime`, the frameworks-first order and
@@ -258,8 +268,8 @@ Every place a game from this engine could be asked to prove who made it.
 - The recorded editor session that clicks Export replays without
   exporting, asserted (`ExternalIo` refuses under `replay::suppressed`),
   the same protection `docs/PLAN-deploy.md` gives a real account.
-- A `setup` from a pull request installs the *nightly* the run produced,
-  not a published tag, so the action is tested against unreleased flags.
+- The `export-game` job runs against this run's own artifacts rather than a
+  published build, so the action is tested against unreleased flags.
 
 What it cannot: notarize, install a provisioning profile, or sign with a
 real keystore. Each needs the maintainers' secrets, which a pull request

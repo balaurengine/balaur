@@ -188,7 +188,7 @@ fn light_gizmo(found, light) {
     let dy = -ca;
     render::draw_line_2d(p.x - 0.2, p.y, p.x + 0.2, p.y, c[0], c[1], c[2], 2.0);
     render::draw_line_2d(p.x, p.y - 0.2, p.x, p.y + 0.2, c[0], c[1], c[2], 2.0);
-    if light.get("kind").unwrap_or("point") == "directional" {
+    if light.get("kind").unwrap_or(render::LIGHT_POINT) == render::LIGHT_DIRECTIONAL {
         for step in -2..3 {
             let ox = -dy * (step as f64) * 0.4;
             let oy = dx * (step as f64) * 0.4;

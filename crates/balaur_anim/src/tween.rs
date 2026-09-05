@@ -574,9 +574,10 @@ impl Builder<'_> {
     /// holds right now.
     fn captured(&self, target: &str, property: &Property, channels: usize) -> Result<Vec4> {
         if let Some(track) = self.find(target, property)
-            && let Some(key) = self.tracks[track].keys.last() {
-                return Ok(key.value);
-            }
+            && let Some(key) = self.tracks[track].keys.last()
+        {
+            return Ok(key.value);
+        }
         let entity = target_of(self.eng, self.node, target)?;
         current_value(self.eng, entity, property, channels)
     }
@@ -636,15 +637,17 @@ fn push_segment(
     // pause: the previous value is held right up to the moment this step
     // begins, and the two keys at the same time are what say so.
     if let Some(last) = track.keys.last()
-        && last.t < start && last.value != from {
-            let held = last.value;
-            track.keys.push(Key {
-                t: start,
-                value: held,
-                call: None,
-                ease: None,
-            });
-        }
+        && last.t < start
+        && last.value != from
+    {
+        let held = last.value;
+        track.keys.push(Key {
+            t: start,
+            value: held,
+            call: None,
+            ease: None,
+        });
+    }
     track.keys.push(Key {
         t: start,
         value: from,
