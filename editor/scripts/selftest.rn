@@ -8,6 +8,7 @@ use crate::lint;
 use crate::model;
 use crate::polygon;
 use crate::rig;
+use crate::tiles;
 use crate::shell;
 use crate::style;
 use crate::theme;
@@ -279,6 +280,71 @@ pub fn polygons(S) {
     check(back.positions.len() == vertices, format!("undoing everything restores {}'s vertices ({})", name, back.positions.len()));
     check(polygon::internal_count(back) == internal, "and its internal count");
     log::info("selftest polygon: done");
+}
+
+/// The Tiles tool: paint, erase, a rectangle, the map growing around a node
+/// that stays put, and layers.
+///
+/// The map is built here rather than found, so the test runs on every example
+/// rather than on the one that happens to carry a tilemap. Its tile set is
+/// inline and names an image that need not exist: only the palette reads the
+/// file, and everything below is arithmetic on cells.
+pub fn tiles_tool(S) {
+    let before = S.doc.len();
+    model::add_child(S, None);
+    let node = S.doc[S.sel];
+    node.tilemap = #{
+        tileset: #{ texture: "art/tiles.png", tile_size: 16.0, columns: 4 },
+        cells: "..\n..",
+        pixels_per_unit: 16.0,
+    };
+    model::apply_component(S, "tilemap");
+    check(tiles::editable(S), "a node with a tilemap is paintable");
+    let set = tiles::tileset(S);
+    check(set.is_some(), "the inline tile set is read off the node");
+
+    check(tiles::paint(S, 0, 0, 3), "painting writes a cell");
+    check(tiles::cell(S, 0, 0) == 3, format!("the cell holds the tile ({})", tiles::cell(S, 0, 0)));
+    check(!tiles::paint(S, 0, 0, 3), "painting the same tile again changes nothing");
+    let text_form = S.doc[S.sel].tilemap.cells;
+    check(text_form is String, "a map authored as text stays text");
+    check(text_form.starts_with("3"), format!("the text spells the tile ({})", text_form));
+
+    check(tiles::paint(S, 0, 0, -1), "erasing writes an empty cell");
+    check(tiles::cell(S, 0, 0) == -1, "the cell is empty again");
+
+    // Growing: the map is centred on its node, so reaching past the right
+    // edge has to move the node to leave the tiles already down where they are.
+    let grew = model::live(S, S.sel).unwrap();
+    let was_x = grew.global_position().x;
+    check(tiles::paint(S, 4, 0, 1), "painting past the edge grows the map");
+    let rows = tiles::grid(S);
+    check(tiles::columns(rows) == 5, format!("the map is five columns wide ({})", tiles::columns(rows)));
+    let now_x = model::live(S, S.sel).unwrap().global_position().x;
+    // Three columns added at one world unit each: half of that to the right.
+    check(util::abs(now_x - was_x - 1.5) < 1e-4, format!("the node moved half the growth ({} to {})", was_x, now_x));
+
+    check(tiles::fill_rect(S, (0, 0), (1, 1), 2), "a rectangle fills every cell in it");
+    check(tiles::cell(S, 0, 0) == 2 && tiles::cell(S, 1, 1) == 2, "the rectangle's corners are filled");
+    check(tiles::cell(S, 2, 0) == -1, "and nothing outside it is");
+
+    // A tile past the alphabet has no character, so the whole map turns into
+    // rows of ids rather than losing it.
+    check(tiles::paint(S, 0, 0, 40), "a tile past the alphabet is painted");
+    check(!(S.doc[S.sel].tilemap.cells is String), "and turns the map into rows of ids");
+    check(tiles::cell(S, 0, 0) == 40, "the id form holds the tile");
+
+    let layers = S.doc.len();
+    check(tiles::add_layer(S), "a layer is added beside the map");
+    check(S.doc.len() == layers + 1, format!("the layer is a new node ({})", S.doc.len()));
+    check(tiles::grid(S).len() == 0 || tiles::columns(tiles::grid(S)) == 0, "the layer has no tiles in it");
+    check(tiles::layers(S).len() == 2, format!("both maps are layers of one another ({})", tiles::layers(S).len()));
+    check(mirror_resolves(S), "every tilemap node resolves in the mirror");
+
+    undo_all(S);
+    check(S.doc.len() == before, format!("undoing everything removes both maps ({})", S.doc.len()));
+    check(mirror_resolves(S), "the fully-undone scene resolves in the mirror");
+    log::info("selftest tiles: done");
 }
 
 /// Copy and paste, which the shell drives from a clipboard event no headless

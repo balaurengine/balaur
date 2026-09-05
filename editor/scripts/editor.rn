@@ -33,6 +33,7 @@ mod shell;
 mod showcase;
 mod style;
 mod theme;
+mod tiles;
 mod util;
 mod viewport;
 
@@ -113,6 +114,7 @@ pub fn init(this) {
         gizmo: gizmo::state(),
         rig: rig::state(),
         polygon: polygon::state(),
+        tiles: tiles::state(),
         anim: anim::state(),
         debug: shell::debug_state(),
         exporter: exporter::state(),
@@ -250,6 +252,7 @@ pub fn update(this, dt) {
         polygon::idle(S);
     }
     polygon::draw(S);
+    tiles::draw(S);
     let chips = util::obj(S.chip_state.get(S.persona).unwrap_or(#{}));
     if S.persona == "scene" && chips.get("guides").unwrap_or(false) {
         overlays::guides(S);
@@ -364,6 +367,7 @@ pub fn draw_ui(this) {
         }
         if ui::shortcut("none", "Escape") {
             polygon::cancel(S);
+            tiles::cancel(S);
         }
     }
 

@@ -483,6 +483,7 @@ fn states() {
         "breakdemo": break_demo,
         "rigdemo": crate::selftest::rigging,
         "polydemo": crate::selftest::polygons,
+        "tilesdemo": crate::selftest::tiles_tool,
         "clipdemo": crate::selftest::clipboard,
         "assetdemo": crate::selftest::assets,
         "pickdemo": crate::selftest::picking,
@@ -583,8 +584,17 @@ fn state_show(S, name) {
     crate::showcase::start(S, name);
 }
 
-fn state_tool(S, tool) {
+/// Pick a viewport tool. The Tiles tool brings its palette forward with it:
+/// there is nothing to paint with until a tile is chosen.
+pub fn set_tool(S, tool) {
     S.tool = tool;
+    if tool == "tiles" {
+        crate::docks::reveal(S, "tiles");
+    }
+}
+
+fn state_tool(S, tool) {
+    set_tool(S, tool);
 }
 
 // `tab:<id>` picks a document tab; `tab:split` opens the code beside the

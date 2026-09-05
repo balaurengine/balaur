@@ -17,7 +17,7 @@ pub fn state() {
     #{
         left: #{ tabs: ["scene", "outline"], active: "scene", shut: false },
         bottom: #{
-            tabs: ["output", "problems", "assets", "timeline", "debugger", "session", "profiler"],
+            tabs: ["output", "problems", "assets", "timeline", "debugger", "session", "profiler", "tiles"],
             active: "output", shut: false,
         },
         right: #{ tabs: ["inspector"], active: "inspector", shut: false },
@@ -45,6 +45,7 @@ pub fn panels(S) {
         "debugger": #{ name: "Debugger", icon: icons::panel("debugger"), tall: true },
         "session": #{ name: "Session", icon: icons::panel("session"), tall: true },
         "profiler": #{ name: "Profiler", icon: icons::panel("profiler"), tall: true },
+        "tiles": #{ name: "Tiles", icon: icons::panel("tiles"), tall: true },
     };
     for entry in S.registry.docks {
         table[entry.id] = #{ name: entry.name, icon: icons::panel(entry.id), tall: false };
@@ -61,6 +62,22 @@ pub fn adopt(S, id) {
         return;
     }
     S.docks.bottom.tabs.push(id);
+}
+
+/// Bring a panel forward wherever it lives, opening its dock if it is shut.
+///
+/// A tool that cannot be used without its dock says so, rather than leaving
+/// the tab to be hunted for.
+pub fn reveal(S, id) {
+    if side_of(S, id).is_none() {
+        adopt(S, id);
+    }
+    let side = match side_of(S, id) {
+        Some(side) => side,
+        None => return,
+    };
+    S.docks[side].active = id;
+    S.docks[side].shut = false;
 }
 
 fn panel(S, id) {
@@ -139,6 +156,7 @@ fn body(S, k, id) {
         "debugger" => dock::debugger_view(S, k),
         "session" => dock::session_view(S, k),
         "profiler" => dock::profiler(S, k),
+        "tiles" => crate::tiles::palette(S, k),
         _ => match crate::plugins::dock(S, id) {
             Some(entry) => {
                 let draw = entry.draw;

@@ -46,6 +46,13 @@ fn sprite_schema() -> toml::Value {
                 r#"{ type = "vec2", default = [0.0, 0.0], description = "Size override in world units; [0, 0] sizes from the texture" }"#,
             ),
             (
+                k::SHEET,
+                &format!(
+                    r#"{{ type = "asset", asset = "{}", default = "", description = "A sprite_sheet whose frames `frame` indexes; its texture is drawn unless `texture` names another, and it wins over `columns`, `rows` and the region" }}"#,
+                    crate::sheet::SPRITE_SHEET_ASSET_TYPE
+                ),
+            ),
+            (
                 k::REGION_ORIGIN,
                 r#"{ type = "vec2", default = [0.0, 0.0], description = "Top-left corner of the atlas cell to draw, in texture pixels; used with `region_size`" }"#,
             ),
@@ -73,7 +80,7 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "sprite",
         ComponentDef {
-            doc: "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` sheet makes it a flipbook `frame` steps through.",
+            doc: "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` grid, or a `sprite_sheet` asset on `sheet`, makes it a flipbook `frame` steps through.",
             schema: sprite_schema(),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
@@ -84,15 +91,25 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
                         .and_then(balaur_core::components::as_f64)
                         .unwrap_or(0.0)
                 };
-                let texture = params
+                let mut texture = params
                     .get(k::TEXTURE)
                     .and_then(|v| v.as_str())
                     .unwrap_or_default()
                     .to_string();
                 let columns = num(k::COLUMNS) as u32;
                 let rows = num(k::ROWS) as u32;
+                let frame = num(k::FRAME) as u32;
+                let sheet_asset = params
+                    .get(k::SHEET)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+                let atlas = atlas_frame(eng, &sheet_asset, frame, &mut texture)?;
+                let sheet_texture = atlas.is_some() && texture_was_empty(params);
                 // A sheet needs both counts; one alone is a typo, not a grid.
-                let sheet = (columns > 0 && rows > 0).then_some(SpriteSheet2d { columns, rows });
+                let sheet = (atlas.is_none() && columns > 0 && rows > 0)
+                    .then_some(SpriteSheet2d { columns, rows });
                 let he = |i: usize| {
                     params
                         .get(k::HALF_EXTENTS)
@@ -112,13 +129,15 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
                         .unwrap_or(0.0) as f32
                 };
                 let (rw, rh) = (pair(k::REGION_SIZE, 0), pair(k::REGION_SIZE, 1));
-                let region = (rw > 0.0 && rh > 0.0).then(|| {
-                    [
-                        pair(k::REGION_ORIGIN, 0).max(0.0).round() as u32,
-                        pair(k::REGION_ORIGIN, 1).max(0.0).round() as u32,
-                        rw.round() as u32,
-                        rh.round() as u32,
-                    ]
+                let region = atlas.or_else(|| {
+                    (rw > 0.0 && rh > 0.0).then(|| {
+                        [
+                            pair(k::REGION_ORIGIN, 0).max(0.0).round() as u32,
+                            pair(k::REGION_ORIGIN, 1).max(0.0).round() as u32,
+                            rw.round() as u32,
+                            rh.round() as u32,
+                        ]
+                    })
                 });
                 let ppu = num(k::PIXELS_PER_UNIT) as f32;
                 set_sprite(
@@ -127,10 +146,12 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
                     SpriteTexture {
                         path: texture,
                         sheet,
-                        frame: num(k::FRAME) as u32,
+                        frame,
                         flip_x: params.get(k::FLIP_X).and_then(toml::Value::as_bool) == Some(true),
                         flip_y: params.get(k::FLIP_Y).and_then(toml::Value::as_bool) == Some(true),
                         region,
+                        sheet_asset,
+                        sheet_texture,
                     },
                     explicit,
                     if ppu > 0.0 {
@@ -159,6 +180,32 @@ pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
     );
 }
 
+fn texture_was_empty(params: &toml::Value) -> bool {
+    params
+        .get(k::TEXTURE)
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .is_empty()
+}
+
+/// The rectangle a `sprite_sheet` gives `frame`, filling in the sheet's
+/// texture when the component names none. `None` without a sheet.
+fn atlas_frame(
+    eng: &balaur_core::Engine,
+    sheet_asset: &str,
+    frame: u32,
+    texture: &mut String,
+) -> anyhow::Result<Option<[u32; 4]>> {
+    if sheet_asset.is_empty() {
+        return Ok(None);
+    }
+    let sheet = balaur_core::assets::load_typed::<crate::sheet::SpriteSheet>(eng, sheet_asset)?;
+    if texture.is_empty() {
+        texture.clone_from(&sheet.texture);
+    }
+    Ok(Some(sheet.frame(frame).rect))
+}
+
 /// The `sprite` component's properties, read back off the node.
 fn read_sprite(
     eng: &balaur_core::Engine,
@@ -171,7 +218,18 @@ fn read_sprite(
         return None;
     };
     let mut map = toml::map::Map::new();
-    map.insert(k::TEXTURE.into(), toml::Value::String(sprite.path.clone()));
+    let texture = if sprite.sheet_texture {
+        String::new()
+    } else {
+        sprite.path.clone()
+    };
+    map.insert(k::TEXTURE.into(), toml::Value::String(texture));
+    if !sprite.sheet_asset.is_empty() {
+        map.insert(
+            k::SHEET.into(),
+            toml::Value::String(sprite.sheet_asset.clone()),
+        );
+    }
     if let Some(sheet) = sprite.sheet {
         map.insert(
             k::COLUMNS.into(),
@@ -182,7 +240,9 @@ fn read_sprite(
     map.insert(k::FRAME.into(), toml::Value::Float(f64::from(sprite.frame)));
     map.insert(k::FLIP_X.into(), toml::Value::Boolean(sprite.flip_x));
     map.insert(k::FLIP_Y.into(), toml::Value::Boolean(sprite.flip_y));
-    if let Some([x, y, w, h]) = sprite.region {
+    // A region the sheet chose is derived, and reporting it would pin the
+    // quad to one frame the first time anything patched the component.
+    if let Some([x, y, w, h]) = sprite.region.filter(|_| sprite.sheet_asset.is_empty()) {
         let pair = |a: u32, b: u32| {
             toml::Value::Array(vec![
                 toml::Value::Float(f64::from(a)),

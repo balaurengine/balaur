@@ -51,6 +51,8 @@ tracing.workspace = true
 # Template download and self-update; the web build has neither, so wasm
 # skips the whole stack.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
+# The importer behind `balaur import`; the browser has no command line.
+balaur_render = { workspace = true, features = ["aseprite"] }
 ureq.workspace = true
 sha2.workspace = true
 dirs = "6"

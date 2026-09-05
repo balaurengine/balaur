@@ -743,7 +743,8 @@ pub(crate) fn install_dropdown_select(m: &mut dyn Bindings<Engine>) {
 /// `ui.*` bindings: images and overlay shapes.
 pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("image", &[], "", "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path."),
+        ("image", &[], "", "Draw a PNG from the project, sized by `width`/`height` in design pixels and cached by path. `region` — `[x, y, w, h]` in the image's own pixels — draws one part of it, which is how an atlas is shown a tile at a time."),
+        ("image_button", &[], "", "The same picture, answering a click: returns whether it was clicked this frame. Takes every `image` option plus `selected`, which draws the `stroke` border a chosen tile needs."),
         ("rect_stroke", &[], "", "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked."),
         ("cursor_y", &[], "", "How far down the current panel the next widget will land, in design pixels — the same origin `rect_stroke` measures from."),
     ]);
@@ -753,6 +754,13 @@ pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
             |eng: &Engine, (path, opts): (String, Option<Value>)| {
                 let opts = Opts::with_roles(opts);
                 draw_image(eng, &path, &opts)
+            },
+        );
+        m.function(
+            "image_button",
+            |eng: &Engine, (path, opts): (String, Option<Value>)| {
+                let opts = Opts::with_roles(opts);
+                crate::widgets::image_button(eng, &path, &opts)
             },
         );
     }

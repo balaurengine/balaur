@@ -12,8 +12,9 @@ use anyhow::{Result, anyhow};
 use balaur_script::{Bindings as _, Value};
 
 use crate::batteries_api::{
-    assets_directory, assets_duplicate, assets_exists, assets_invalidate, assets_load,
-    assets_reload, assets_save, dark_mode, device_id, encoding_base64, encoding_from_base64,
+    assets_assign_id, assets_directory, assets_duplicate, assets_exists, assets_id,
+    assets_invalidate, assets_load, assets_path, assets_reload, assets_rename, assets_save,
+    dark_mode, device_id, encoding_base64, encoding_from_base64,
     focused, hash_sha256, hash_sha256_text, log_clear, log_error, log_info, log_recent, log_warn,
     platform, rng_int, rng_random, rng_range, rng_seed, rng_uuid, scene_tagged,
     strings_system_locale, unix_time,
@@ -298,6 +299,26 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         module: "assets",
         name: "directory",
         call: assets_directory,
+    },
+    EngineOp {
+        module: "assets",
+        name: "rename",
+        call: assets_rename,
+    },
+    EngineOp {
+        module: "assets",
+        name: "id",
+        call: assets_id,
+    },
+    EngineOp {
+        module: "assets",
+        name: "assign_id",
+        call: assets_assign_id,
+    },
+    EngineOp {
+        module: "assets",
+        name: "path",
+        call: assets_path,
     },
     EngineOp {
         module: "log",
@@ -615,9 +636,10 @@ fn document_skeleton(m: &mut dyn balaur_script::Bindings<Engine>) {
 fn document_assets(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
         "Asset definitions by reference: a project-relative file path, \
-         `file#entry` for one entry inside it, or `#id` for a block the scene \
-         declares. A script gets the definition table, not the parsed object \
-         the owning plugin builds from it.",
+         `file#entry` for one entry inside it, `#id` for a block the scene \
+         declares, or `id://<id>` for a path `assets/index.toml` names so the \
+         reference survives a rename. A script gets the definition table, not \
+         the parsed object the owning plugin builds from it.",
     );
     m.describe(&[
         ("load", &[], "(reference: string)", "The definition table behind a reference, from the cache; an error when the reference resolves to nothing."),
@@ -627,6 +649,10 @@ fn document_assets(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("invalidate", &[], "()", "Declare everything derived from project files stale — a shader a material links, say — so it is rebuilt from disk; for a file the watcher does not cover."),
         ("save", &[], "(reference: string, definition: any)", "Write a definition table to the project-relative file a reference names; an error unless it names a whole file."),
         ("directory", &[], "(type_name: string)", "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none."),
+        ("rename", &[], "(from: string, to: string) -> [string]", "Move a file or directory and rewrite every reference to it in the project's `.toml` files, comments kept; answers the files rewritten. Paths as `fs.*` takes them, so an editor refactors the game it has open by absolute path. Script sources are not rewritten: a path in a `.rn` is the script's own value, and `id://` is the reference that survives a move."),
+        ("id", &[], "(path: string) -> string?", "The id `assets/index.toml` gives a file, or nil when it has none."),
+        ("assign_id", &[], "(path: string) -> string", "The id a file has, giving it one if it has none: a digest of the path and content, written to `assets/index.toml` and, for an asset document, as its top-level `id`. Reference it as `id://<id>` afterwards."),
+        ("path", &[], "(reference: string) -> string", "The path an `id://` reference resolves to in the running project; a path comes back as itself, and an unknown id is an error naming the index."),
     ]);
 }
 

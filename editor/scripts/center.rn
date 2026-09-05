@@ -68,7 +68,7 @@ fn rail(S, k) {
                         role: if active { "tool_on" } else { "tool" },
                         tooltip: defs::tool_name(tool),
                     }) {
-                        S.tool = tool;
+                        crate::shell::set_tool(S, tool);
                     }
                 });
             }

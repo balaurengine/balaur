@@ -235,6 +235,23 @@ impl AssetState {
         }
     }
 
+    /// Forget every file and entry at `path` or under it, for a rename that
+    /// moved the source out from under the cache.
+    pub(crate) fn forget_under(&mut self, path: &str) {
+        let moved = |k: &AssetRef| match k {
+            AssetRef::File(p) | AssetRef::Entry(p, _) => {
+                p == path || p.strip_prefix(path).is_some_and(|rest| rest.starts_with('/'))
+            }
+            _ => false,
+        };
+        let before = self.definitions.len() + self.parsed.len();
+        self.definitions.retain(|k, _| !moved(k));
+        self.parsed.retain(|k, _| !moved(k));
+        if self.definitions.len() + self.parsed.len() != before {
+            self.generation = self.generation.wrapping_add(1);
+        }
+    }
+
     fn resolve_scoped(&self, reference: &str, id: &str) -> Result<AssetRef> {
         if id.is_empty() {
             return Err(anyhow!("asset reference '{reference}' names no id"));
@@ -263,6 +280,11 @@ impl AssetState {
 fn state(eng: &Engine) -> Result<Rc<RefCell<AssetState>>> {
     eng.try_resource::<AssetState>()
         .ok_or_else(|| anyhow!("the asset cache is missing; this app was not built by App::new"))
+}
+
+/// The cache itself, for the tools that edit what it was read from.
+pub(crate) fn state_of(eng: &Engine) -> Result<Rc<RefCell<AssetState>>> {
+    state(eng)
 }
 
 /// One textual reference as a cache key, against the engine's asset state.
@@ -580,13 +602,13 @@ fn parse(eng: &Engine, key: &AssetRef, reference: &str) -> Result<Rc<dyn Any>> {
     parser(&definition.body).with_context(|| format!("parsing asset '{reference}'"))
 }
 
-const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+pub(crate) const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
 /// FNV-1a. Not cryptographic: it keys a cache, and it has to give the same
 /// number on every platform, which is why it is written out here rather than
 /// taken from a std hasher whose output is explicitly unspecified.
-fn digest_bytes(mut hash: u64, bytes: &[u8]) -> u64 {
+pub(crate) fn digest_bytes(mut hash: u64, bytes: &[u8]) -> u64 {
     for byte in bytes {
         hash ^= u64::from(*byte);
         hash = hash.wrapping_mul(FNV_PRIME);
