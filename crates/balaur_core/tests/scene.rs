@@ -129,6 +129,30 @@ fn freeing_a_subtree_removes_all_of_it_and_unlinks_the_parent() {
 }
 
 #[test]
+fn freeing_many_siblings_at_once_keeps_the_survivors_in_order() {
+    let engine = Engine::new();
+    let root = engine.root();
+    let made: Vec<Entity> = {
+        let mut world = engine.world_mut();
+        (0..10)
+            .map(|i| scene::spawn_node(&mut world, &format!("n{i}"), root))
+            .collect()
+    };
+    // Every other one, with a child under one of them so the subtree goes too.
+    let grandchild = scene::spawn_node(&mut engine.world_mut(), "under", made[2]);
+    let doomed: Vec<Entity> = made.iter().copied().step_by(2).collect();
+    scene::free_nodes(&engine, &doomed);
+
+    let world = engine.world();
+    for e in doomed.iter().chain([&grandchild]) {
+        assert!(!world.contains(*e), "{e:?} survived");
+    }
+    let left: Vec<Entity> = world.get::<&Children>(root).unwrap().0.clone();
+    let expected: Vec<Entity> = made.iter().copied().skip(1).step_by(2).collect();
+    assert_eq!(left, expected, "the survivors changed order");
+}
+
+#[test]
 fn siblings_keep_their_order() {
     let engine = Engine::new();
     let root = engine.root();
