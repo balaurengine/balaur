@@ -253,11 +253,10 @@ fn follow_nodes(state: &mut AudioState, eng: &Engine) {
         .rev()
         .find(|(_, node)| node.current)
         .map(|(entity, _)| *entity);
-    if let Some(entity) = current {
-        if let Ok(global) = world.get::<&GlobalTransform>(entity) {
+    if let Some(entity) = current
+        && let Ok(global) = world.get::<&GlobalTransform>(entity) {
             listener.follow(&global);
         }
-    }
     for (entity, sound) in nodes.iter() {
         let Some(handle) = sound.handle else { continue };
         let Some(emitter) = spatial.get_mut(&handle) else {

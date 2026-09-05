@@ -312,11 +312,10 @@ pub(crate) fn keyed<V: Clone>(
 pub(crate) fn resolve_key(eng: &Engine, key: &NodeKey) -> Option<Entity> {
     let root = eng.root();
     let world = eng.world();
-    if !key.0.is_empty() {
-        if let Some(entity) = balaur_core::ids::find(&world, root, &key.0) {
+    if !key.0.is_empty()
+        && let Some(entity) = balaur_core::ids::find(&world, root, &key.0) {
             return Some(entity);
         }
-    }
     let entity = Entity::from_bits(key.1)?;
     world.contains(entity).then_some(entity)
 }
@@ -446,11 +445,10 @@ fn step_system(eng: &Engine, _dt: f32) {
             let world = eng.world();
             for (&entity, &handle) in &state.bodies {
                 let body = &mut state.world.bodies[handle];
-                if body.is_kinematic() {
-                    if let Ok(t) = world.get::<&Transform>(entity) {
+                if body.is_kinematic()
+                    && let Ok(t) = world.get::<&Transform>(entity) {
                         body.set_next_kinematic_position(scalar::pose_of(t.position, t.rotation));
                     }
-                }
             }
         }
 

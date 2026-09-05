@@ -981,12 +981,11 @@ fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
                 let (rect, response) =
                     ui.allocate_exact_size(vec2(w, sc(28.0)), Sense::click_and_drag());
                 let mut value = value;
-                if response.dragged() || response.clicked() {
-                    if let Some(pos) = response.interact_pointer_pos() {
+                if (response.dragged() || response.clicked())
+                    && let Some(pos) = response.interact_pointer_pos() {
                         let t = ((pos.x - rect.min.x) / rect.width()).clamp(0.0, 1.0);
                         value = min + t * (max - min);
                     }
-                }
                 let t = if max > min {
                     ((value - min) / (max - min)).clamp(0.0, 1.0)
                 } else {

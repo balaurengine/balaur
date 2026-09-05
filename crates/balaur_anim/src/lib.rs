@@ -179,11 +179,10 @@ fn apply_animation(eng: &Engine, entity: Entity, params: &toml::Value) {
     };
     // Re-applying the component must not restart a running clip, and a clip
     // that will not load only warns — one bad reference must not kill the scene.
-    if !autoplay.is_empty() && !running {
-        if let Err(why) = play(eng, entity, &autoplay) {
+    if !autoplay.is_empty() && !running
+        && let Err(why) = play(eng, entity, &autoplay) {
             tracing::warn!("autoplay '{autoplay}': {why:#}");
         }
-    }
 }
 
 fn remove_animation(eng: &Engine, entity: Entity) {

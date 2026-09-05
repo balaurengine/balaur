@@ -573,11 +573,10 @@ impl Builder<'_> {
     /// step in this tween left on the same track, or else what the node
     /// holds right now.
     fn captured(&self, target: &str, property: &Property, channels: usize) -> Result<Vec4> {
-        if let Some(track) = self.find(target, property) {
-            if let Some(key) = self.tracks[track].keys.last() {
+        if let Some(track) = self.find(target, property)
+            && let Some(key) = self.tracks[track].keys.last() {
                 return Ok(key.value);
             }
-        }
         let entity = target_of(self.eng, self.node, target)?;
         current_value(self.eng, entity, property, channels)
     }
@@ -636,8 +635,8 @@ fn push_segment(
     // An explicit `from` after a pause is a jump, not a slow drift across the
     // pause: the previous value is held right up to the moment this step
     // begins, and the two keys at the same time are what say so.
-    if let Some(last) = track.keys.last() {
-        if last.t < start && last.value != from {
+    if let Some(last) = track.keys.last()
+        && last.t < start && last.value != from {
             let held = last.value;
             track.keys.push(Key {
                 t: start,
@@ -646,7 +645,6 @@ fn push_segment(
                 ease: None,
             });
         }
-    }
     track.keys.push(Key {
         t: start,
         value: from,

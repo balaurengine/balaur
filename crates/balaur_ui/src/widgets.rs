@@ -378,12 +378,11 @@ pub(crate) fn text_field(
     let seed = opts.string("value");
     let mut buffer = {
         let mut state = state.borrow_mut();
-        if let Some(value) = seed {
-            if state.text_seeds.get(id) != Some(&value) {
+        if let Some(value) = seed
+            && state.text_seeds.get(id) != Some(&value) {
                 state.text_seeds.insert(id.to_string(), value.clone());
                 state.text_buffers.insert(id.to_string(), value);
             }
-        }
         state.text_buffers.get(id).cloned().unwrap_or_default()
     };
     let autofocus = opts.boolean("autofocus", false) && {
@@ -997,11 +996,10 @@ pub(crate) fn left_pill(
     let (rect, mut response) = ui.allocate_exact_size(vec2(w, h), Sense::click());
     let hovered = response.hovered();
     let mut fill = opts.color("fill", Color32::TRANSPARENT);
-    if hovered && fill == Color32::TRANSPARENT {
-        if let Some(hover) = opts.opt_color("hover_fill") {
+    if hovered && fill == Color32::TRANSPARENT
+        && let Some(hover) = opts.opt_color("hover_fill") {
             fill = hover;
         }
-    }
     // Tiles by default, like every other pill; `round` opts back in.
     let asked = opts.px("radius", 0.0);
     let corner = if asked > 0.0 {

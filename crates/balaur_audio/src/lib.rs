@@ -796,11 +796,10 @@ fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
     };
     // Re-applying the component must not restart a sound already started —
     // the same rule the `animation` component holds for its autoplay clip.
-    if start {
-        if let Err(why) = play_on(eng, entity) {
+    if start
+        && let Err(why) = play_on(eng, entity) {
             tracing::warn!("sound autoplay: {why:#}");
         }
-    }
 }
 
 fn remove_sound(eng: &Engine, entity: Entity) {

@@ -221,11 +221,10 @@ material = { type = "asset", asset = "material", default = "", description = "Th
                     as f32;
                 // Checked here so a bad definition is reported where it was
                 // written, but only warned: one bad asset must not kill the scene.
-                if !tileset.is_empty() {
-                    if let Err(why) = balaur_core::assets::load_typed::<Tileset>(eng, &tileset) {
+                if !tileset.is_empty()
+                    && let Err(why) = balaur_core::assets::load_typed::<Tileset>(eng, &tileset) {
                         tracing::warn!("tilemap tileset '{tileset}': {why:#}");
                     }
-                }
                 set_tilemap(
                     eng,
                     entity,

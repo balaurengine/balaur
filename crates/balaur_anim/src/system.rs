@@ -418,11 +418,10 @@ fn settle_ended(eng: &Engine, ended: &[Entity]) {
                 .filter(|playback| !playback.queue.is_empty())
                 .map(|playback| playback.queue.remove(0))
         };
-        if let Some(name) = next {
-            if let Err(why) = crate::play(eng, entity, &name) {
+        if let Some(name) = next
+            && let Err(why) = crate::play(eng, entity, &name) {
                 tracing::warn!("queued animation '{name}': {why:#}");
             }
-        }
         let finished = {
             let state = eng.resource::<AnimationState>();
             let state = state.borrow();

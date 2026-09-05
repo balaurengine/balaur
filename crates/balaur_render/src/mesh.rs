@@ -38,11 +38,10 @@ material = { type = "asset", asset = "material", default = "", description = "Th
                 let source = text("source");
                 // Warned, not refused: one unreadable model must not take the
                 // whole scene down, and the node still has a place in the tree.
-                if !source.is_empty() {
-                    if let Err(why) = balaur_core::assets::load_typed::<MeshData>(eng, &source) {
+                if !source.is_empty()
+                    && let Err(why) = balaur_core::assets::load_typed::<MeshData>(eng, &source) {
                         tracing::warn!("mesh '{source}': {why:#}");
                     }
-                }
                 crate::set_mesh(eng, entity, source, text("skeleton"), text("texture"))?;
                 crate::material::set_material_3d(eng, entity, &text("material"))
             }),

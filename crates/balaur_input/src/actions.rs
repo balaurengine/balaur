@@ -432,12 +432,11 @@ fn save_rebindings(eng: &Engine, actions: &InputActions) {
         }
     };
     let fs = balaur_core::files::backend(eng);
-    if let Some(parent) = path.parent() {
-        if let Err(err) = fs.mkdir(parent) {
+    if let Some(parent) = path.parent()
+        && let Err(err) = fs.mkdir(parent) {
             tracing::error!("creating {}: {err}", parent.display());
             return;
         }
-    }
     if let Err(err) = fs.write(&path, encoded.as_bytes()) {
         tracing::error!("writing {}: {err}", path.display());
     }

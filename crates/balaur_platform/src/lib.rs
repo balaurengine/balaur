@@ -369,11 +369,10 @@ fn pump_platform_system(eng: &Engine, _: f32) {
         state.release(eng, clock.settled);
         {
             let PlatformState { io, backend, .. } = &mut *state;
-            if let Some(backend) = backend {
-                if !io.start(eng, |report| backend.pump(report)) {
+            if let Some(backend) = backend
+                && !io.start(eng, |report| backend.pump(report)) {
                     backend.discard();
                 }
-            }
         }
         snapshot.events.clear();
         for event in state.io.drain() {

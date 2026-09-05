@@ -52,11 +52,10 @@ fn key_of(world: &World, entity: Entity) -> WidgetKey {
 /// The widget a key names now, which is a different entity after a respawn.
 fn resolve(eng: &Engine, key: &WidgetKey) -> Option<Entity> {
     let world = eng.world();
-    if !key.0.is_empty() {
-        if let Some(entity) = balaur_core::ids::find(&world, eng.root(), &key.0) {
+    if !key.0.is_empty()
+        && let Some(entity) = balaur_core::ids::find(&world, eng.root(), &key.0) {
             return Some(entity);
         }
-    }
     let entity = Entity::from_bits(key.1)?;
     world.contains(entity).then_some(entity)
 }

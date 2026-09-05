@@ -366,11 +366,10 @@ pub(crate) fn resolve_occluders_system(eng: &Engine, _dt: f32) {
         .collect();
     let world = eng.world_mut();
     for (entity, points) in resolved {
-        if let Ok(mut occluder) = world.get::<&mut Occluder2d>(entity) {
-            if occluder.points != points {
+        if let Ok(mut occluder) = world.get::<&mut Occluder2d>(entity)
+            && occluder.points != points {
                 occluder.points = points;
             }
-        }
     }
 }
 

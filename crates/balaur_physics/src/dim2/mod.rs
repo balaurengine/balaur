@@ -117,15 +117,14 @@ fn step_system(eng: &Engine, _dt: f32) {
             let world = eng.world();
             for (&entity, &handle) in &state.bodies {
                 let body = &mut state.world.bodies[handle];
-                if body.is_kinematic() {
-                    if let Ok(t) = world.get::<&Transform>(entity) {
+                if body.is_kinematic()
+                    && let Ok(t) = world.get::<&Transform>(entity) {
                         let (angle, _, _) = t.rotation.to_euler(EulerRot::ZYX);
                         body.set_next_kinematic_position(Pose2::from_parts(
                             scalar::v2(t.position.x, t.position.y),
                             Rotation2::from_angle(scalar::real(angle)),
                         ));
                     }
-                }
             }
         }
 

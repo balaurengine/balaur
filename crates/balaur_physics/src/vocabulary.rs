@@ -395,11 +395,10 @@ pub(crate) fn names<T: Copy + Into<u32>>(set: T, table: &[(&str, T)]) -> toml::V
 pub(crate) fn layer_bits(params: &toml::Value, key: &str, empty_is_all: bool) -> u32 {
     let mut bits = 0u32;
     for name in balaur_core::components::as_flags(params.get(key)) {
-        if let Ok(layer) = name.parse::<u32>() {
-            if layer < 32 {
+        if let Ok(layer) = name.parse::<u32>()
+            && layer < 32 {
                 bits |= 1 << layer;
             }
-        }
     }
     if bits != 0 {
         bits

@@ -79,11 +79,10 @@ fn locked_axes(params: &toml::Value) -> LockedAxes {
 /// mid-flight without dropping its velocity — and what keeps `patch` (one
 /// property at a time, from an animation) honest.
 pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_sleep: bool) {
-    if let Ok(kind) = body_type(v::text(params, "kind", w::DYNAMIC)) {
-        if body.body_type() != kind {
+    if let Ok(kind) = body_type(v::text(params, "kind", w::DYNAMIC))
+        && body.body_type() != kind {
             body.set_body_type(kind, true);
         }
-    }
     body.set_linear_damping(scalar::real(v::f(params, "linear_damping", 0.0)));
     body.set_angular_damping(scalar::real(v::f(params, "angular_damping", 0.0)));
     body.set_gravity_scale(scalar::real(v::f(params, "gravity_scale", 1.0)), true);
@@ -524,8 +523,8 @@ fn install_body_readers(m: &mut dyn Bindings<Engine>) {
     m.function("potential_energy", |eng: &Engine, node: NodeId| {
         let gravity = {
             let state = eng.resource::<PhysicsState>();
-            let gravity = state.borrow().world.gravity;
-            gravity
+            
+            state.borrow().world.gravity
         };
         read_body(eng, entity_of(node)?, |body| {
             body.gravitational_potential_energy(scalar::real(crate::FIXED_DT), gravity)

@@ -52,11 +52,10 @@ fn locked_axes(params: &toml::Value) -> LockedAxes {
 }
 
 pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_sleep: bool) {
-    if let Ok(kind) = body_type(v::text(params, "kind", w::DYNAMIC)) {
-        if body.body_type() != kind {
+    if let Ok(kind) = body_type(v::text(params, "kind", w::DYNAMIC))
+        && body.body_type() != kind {
             body.set_body_type(kind, true);
         }
-    }
     body.set_linear_damping(scalar::real(v::f(params, "linear_damping", 0.0)));
     body.set_angular_damping(scalar::real(v::f(params, "angular_damping", 0.0)));
     body.set_gravity_scale(scalar::real(v::f(params, "gravity_scale", 1.0)), true);
