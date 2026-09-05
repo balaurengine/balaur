@@ -170,6 +170,7 @@ In this repository:
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — every decision and why, hand-written
 - [docs/DETERMINISM.md](docs/DETERMINISM.md) — writing a game that reproduces, and the record/replay tools for when it does not
+- [docs/QUALITY.md](docs/QUALITY.md) — every check a change passes, and what enforces it
 - [docs/NAMING.md](docs/NAMING.md) — what every name means and the rules new ones follow; it governs the other docs
 - [docs/generated/](docs/generated/) — the script API, components, assets, crates and behaviour, written by `python3 scripts/gen_docs.py`; CI fails on drift
 - [docs/PLAN-*.md](docs/) — the plan behind each subsystem

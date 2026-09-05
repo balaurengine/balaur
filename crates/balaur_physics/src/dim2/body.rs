@@ -640,8 +640,8 @@ pub(crate) fn register_body2d_component(reg: &mut Registry<'_>) {
     let default = w::DYNAMIC;
     let schema = [
         v::schema(&[
-            (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], shorthand = true, description = "How 2D physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}"#, default, kinds)),
-            (k::LOCK_TRANSLATION, &format!(r#"{{ type = "flags", default = [], options = [{}], description = "Axes the body may not move along" }}"#, axes)),
+            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], shorthand = true, description = "How 2D physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}"#)),
+            (k::LOCK_TRANSLATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "Axes the body may not move along" }}"#)),
             (k::LOCK_ROTATION, r#"{ type = "bool", default = false, description = "Stop the body turning; how a 2D character stays upright" }"#),
             (k::CENTER_OF_MASS, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the extra mass sits, in the node's own space; only read when mass is set" }"#),
             (k::INERTIA, r#"{ type = "float", default = 0.0, min = 0.0, description = "Resistance to spin; 0 lets rapier derive it from the mass" }"#),

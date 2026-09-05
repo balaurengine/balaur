@@ -173,7 +173,8 @@ struct SceneNode {
     #[serde(default)]
     id: String,
     name: String,
-    /// The parent's `id`. Omitted or empty means a root child.
+    /// The parent's `id`, or a `/`-separated path of names from the scene's
+    /// root (`"World/Ground"`). Omitted or empty means a root child.
     #[serde(default)]
     parent: String,
     position: Option<[f32; 3]>,
@@ -528,17 +529,7 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
     let mut by_id: DetHashMap<&str, Entity> = DetHashMap::default();
     let ids = repair_ids(&doc.nodes);
     for (index, node) in doc.nodes.iter().enumerate() {
-        let parent = if node.parent.is_empty() {
-            root
-        } else {
-            *by_id.get(node.parent.as_str()).ok_or_else(|| {
-                anyhow!(
-                    "node '{}' names parent id '{}', which no earlier node declares",
-                    node.name,
-                    node.parent
-                )
-            })?
-        };
+        let parent = resolve_parent(eng, node, root, &by_id)?;
         let entity = scene::spawn_node(&mut eng.world_mut(), &node.name, parent);
         by_id.insert(ids[index].as_str(), entity);
         eng.world_mut()
@@ -778,11 +769,45 @@ fn triple(value: Option<&toml::Value>) -> Option<[f32; 3]> {
     }
     let mut out = [0.0; 3];
     for (slot, item) in out.iter_mut().zip(items) {
-        *slot = item
-            .as_float()
-            .or_else(|| item.as_integer().map(|i| i as f64))? as f32;
+        *slot = crate::components::as_f64(item)? as f32;
     }
     Some(out)
+}
+
+/// A node's `parent`: the id of an earlier node, or a `/`-separated path of
+/// names down from the scene's own root.
+///
+/// Ids are tried first, so a scene written before paths existed keeps its
+/// meaning even where a node's name happens to match some id.
+fn resolve_parent(
+    eng: &Engine,
+    node: &SceneNode,
+    root: Entity,
+    by_id: &DetHashMap<&str, Entity>,
+) -> Result<Entity> {
+    if node.parent.is_empty() {
+        return Ok(root);
+    }
+    if let Some(&entity) = by_id.get(node.parent.as_str()) {
+        return Ok(entity);
+    }
+    // `find_node` walks `..`, which here would reparent a prefab's node into
+    // the scene that instanced it.
+    if node.parent.split('/').any(|segment| segment == "..") {
+        bail!(
+            "node '{}' names parent '{}': a parent path may not leave its scene with '..'",
+            node.name,
+            node.parent
+        );
+    }
+    scene::find_node(&eng.world(), root, &node.parent).ok_or_else(|| {
+        anyhow!(
+            "node '{}' names parent '{}', which no earlier node declares as an id \
+             or a path of names",
+            node.name,
+            node.parent
+        )
+    })
 }
 
 /// Give every node a unique id, repairing what the file got wrong.
@@ -792,6 +817,10 @@ fn triple(value: Option<&toml::Value>) -> Option<[f32; 3]> {
 /// the same file always yields the same ids — an id that changed between runs
 /// would defeat the point of having one. Repairs are logged: the fix is in
 /// memory only, and the file still needs saving to make it permanent.
+///
+/// Missing ids are counted into one line rather than warned about node by
+/// node: a scene that parents by path names no ids at all, and a warning per
+/// node would bury everything else the load has to say.
 fn repair_ids(nodes: &[SceneNode]) -> Vec<String> {
     let mut taken: std::collections::BTreeSet<String> = nodes
         .iter()
@@ -800,6 +829,7 @@ fn repair_ids(nodes: &[SceneNode]) -> Vec<String> {
         .collect();
     let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
     let mut out = Vec::with_capacity(nodes.len());
+    let mut generated: Vec<&str> = Vec::new();
 
     for node in nodes {
         let reason = if node.id.is_empty() {
@@ -820,13 +850,23 @@ fn repair_ids(nodes: &[SceneNode]) -> Vec<String> {
             candidate = format!("{base}_{n}");
             n += 1;
         }
-        tracing::warn!(
-            node = %node.name,
-            id = %candidate,
-            reason,
-            "generated a scene node id; save the scene to keep it"
-        );
+        if reason == "duplicate" {
+            tracing::warn!(
+                node = %node.name,
+                id = %candidate,
+                "two scene nodes share an id; the second was given a fresh one"
+            );
+        } else {
+            generated.push(node.name.as_str());
+        }
         out.push(candidate);
+    }
+    if !generated.is_empty() {
+        tracing::info!(
+            nodes = %generated.join(", "),
+            "generated {} scene node id(s); save the scene to keep them",
+            generated.len()
+        );
     }
     out
 }

@@ -51,8 +51,7 @@ fn schema() -> String {
         (
             k::KIND,
             &format!(
-                r#"{{ type = "enum", default = "{}", options = ["{}", "{}"], description = "Aim one bone at the target, or bend a root, middle, tip chain so the tip reaches it" }}"#,
-                LOOK_AT, LOOK_AT, TWO_BONE_IK
+                r#"{{ type = "enum", default = "{LOOK_AT}", options = ["{LOOK_AT}", "{TWO_BONE_IK}"], description = "Aim one bone at the target, or bend a root, middle, tip chain so the tip reaches it" }}"#
             ),
         ),
         (

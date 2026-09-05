@@ -133,6 +133,9 @@ fn step_system(eng: &Engine, _dt: f32) {
         // Exactly one step: Stage::FixedUpdate already repeats at FIXED_DT, and a
         // second accumulator here would drift out of step with the scripts.
         state.world.integration_parameters.dt = scalar::real(FIXED_DT);
+        // The step rebuilds the broad phase itself, as in 3D; without this a
+        // query after a collider was added rebuilds it a second time.
+        state.queries_ready = true;
         let collector = events::Collector::default();
         balaur_core::timings::measure(eng, "physics2d/step", || {
             state.world.step_with_events(&events::Hooks, &collector);

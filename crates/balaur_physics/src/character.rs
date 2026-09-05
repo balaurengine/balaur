@@ -73,8 +73,7 @@ pub(crate) fn shared_character_schema() -> String {
         (
             k::LENGTHS,
             &format!(
-                r#"{{ type = "enum", default = "{}", options = [{}], description = "Whether offset, autostep and snap_to_ground are in world units or as a fraction of the character's own height" }}"#,
-                absolute, modes
+                r#"{{ type = "enum", default = "{absolute}", options = [{modes}], description = "Whether offset, autostep and snap_to_ground are in world units or as a fraction of the character's own height" }}"#
             ),
         ),
     ])

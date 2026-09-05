@@ -686,15 +686,13 @@ pub(crate) fn shared_collider_schema() -> String {
         (
             k::FRICTION_COMBINE,
             &format!(
-                r#"{{ type = "enum", default = "{}", options = [{}], description = "How this surface's friction combines with the other one's" }}"#,
-                average, combine
+                r#"{{ type = "enum", default = "{average}", options = [{combine}], description = "How this surface's friction combines with the other one's" }}"#
             ),
         ),
         (
             k::RESTITUTION_COMBINE,
             &format!(
-                r#"{{ type = "enum", default = "{}", options = [{}], description = "How this surface's bounciness combines with the other one's" }}"#,
-                average, combine
+                r#"{{ type = "enum", default = "{average}", options = [{combine}], description = "How this surface's bounciness combines with the other one's" }}"#
             ),
         ),
         (
@@ -712,36 +710,31 @@ pub(crate) fn shared_collider_schema() -> String {
         (
             k::LAYERS,
             &format!(
-                r#"{{ type = "flags", default = ["0"], options = [{}], description = "The layers this collider is on" }}"#,
-                layers
+                r#"{{ type = "flags", default = ["0"], options = [{layers}], description = "The layers this collider is on" }}"#
             ),
         ),
         (
             k::MASK,
             &format!(
-                r#"{{ type = "flags", default = [], options = [{}], description = "The layers it collides with; empty means every layer" }}"#,
-                layers
+                r#"{{ type = "flags", default = [], options = [{layers}], description = "The layers it collides with; empty means every layer" }}"#
             ),
         ),
         (
             k::SOLVER_LAYERS,
             &format!(
-                r#"{{ type = "flags", default = ["0"], options = [{}], description = "Layers for the solver alone: a pair can be detected but not resolved" }}"#,
-                layers
+                r#"{{ type = "flags", default = ["0"], options = [{layers}], description = "Layers for the solver alone: a pair can be detected but not resolved" }}"#
             ),
         ),
         (
             k::SOLVER_MASK,
             &format!(
-                r#"{{ type = "flags", default = [], options = [{}], description = "Which solver layers this one pushes against; empty means all of them" }}"#,
-                layers
+                r#"{{ type = "flags", default = [], options = [{layers}], description = "Which solver layers this one pushes against; empty means all of them" }}"#
             ),
         ),
         (
             k::EVENTS,
             &format!(
-                r#"{{ type = "flags", default = [], options = [{}], description = "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force" }}"#,
-                events
+                r#"{{ type = "flags", default = [], options = [{events}], description = "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force" }}"#
             ),
         ),
         (
@@ -751,8 +744,7 @@ pub(crate) fn shared_collider_schema() -> String {
         (
             k::ACTIVE_COLLISIONS,
             &format!(
-                r#"{{ type = "flags", default = [{}], options = [{}], description = "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default" }}"#,
-                watched, collisions
+                r#"{{ type = "flags", default = [{watched}], options = [{collisions}], description = "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default" }}"#
             ),
         ),
         (
@@ -773,7 +765,7 @@ pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
     let fits = v::options(w::FIT_MODES);
     let schema = [
         v::schema(&[
-            (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Collision shape" }}"#, default, shapes)),
+            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{shapes}], description = "Collision shape" }}"#)),
             (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, for ball, capsule, cylinder and cone" }"#),
             (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, for capsule, cylinder and cone" }"#),
             (k::HALF_EXTENTS, r#"{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }"#),
@@ -786,8 +778,8 @@ pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
             (k::HEIGHTFIELD, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Terrain grid, when kind is heightfield" }}"#, balaur_core::heightfield::HEIGHTFIELD_ASSET_TYPE)),
             (k::VOXELS, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Filled cells, when kind is voxels; a script may dig into them while the game runs" }}"#, balaur_core::voxels::VOXELS_ASSET_TYPE)),
             (k::VOXEL_SIZE, r#"{ type = "float", default = 0.25, min = 0.001, description = "How big one cell is, when kind is voxelized_mesh" }"#),
-            (k::FILL, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Whether voxelizing a mesh fills its inside or only its shell" }}"#, solid, fills)),
-            (k::FIT, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "The shape fitted to the mesh, when kind is fit" }}"#, hull, fits)),
+            (k::FILL, &format!(r#"{{ type = "enum", default = "{solid}", options = [{fills}], description = "Whether voxelizing a mesh fills its inside or only its shell" }}"#)),
+            (k::FIT, &format!(r#"{{ type = "enum", default = "{hull}", options = [{fits}], description = "The shape fitted to the mesh, when kind is fit" }}"#)),
             (k::FIX_INTERNAL_EDGES, r#"{ type = "bool", default = true, description = "Smooth the seams between a trimesh's triangles, so a character does not catch on flat ground" }"#),
             (k::CLEAN, r#"{ type = "bool", default = false, description = "Drop duplicate vertices and degenerate triangles when building a trimesh" }"#),
             (k::ORIENTED, r#"{ type = "bool", default = false, description = "Treat the trimesh as a closed, outward-facing surface, which makes inside and outside meaningful" }"#),

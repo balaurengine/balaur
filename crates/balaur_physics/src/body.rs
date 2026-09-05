@@ -892,9 +892,9 @@ pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
     let default = w::DYNAMIC;
     let schema = [
         v::schema(&[
-            (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], shorthand = true, description = "How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}"#, default, kinds)),
-            (k::LOCK_TRANSLATION, &format!(r#"{{ type = "flags", default = [], options = [{}], description = "World axes the body may not move along" }}"#, axes)),
-            (k::LOCK_ROTATION, &format!(r#"{{ type = "flags", default = [], options = [{}], description = "World axes the body may not turn about; locking all three keeps a character upright" }}"#, axes)),
+            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], shorthand = true, description = "How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}"#)),
+            (k::LOCK_TRANSLATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "World axes the body may not move along" }}"#)),
+            (k::LOCK_ROTATION, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "World axes the body may not turn about; locking all three keeps a character upright" }}"#)),
             (k::CENTER_OF_MASS, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the extra mass sits, in the node's own space; only read when mass is set" }"#),
             (k::INERTIA, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Resistance to spin about each axis; 0 lets rapier derive it from the mass" }"#),
             (k::GYROSCOPIC, r#"{ type = "bool", default = false, description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }"#),

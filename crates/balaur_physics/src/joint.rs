@@ -450,8 +450,7 @@ pub(crate) fn shared_joint_schema() -> String {
         (
             k::MOTOR,
             &format!(
-                r#"{{ type = "enum", default = "{}", options = [{}], description = "Drive the joint towards a speed, towards a position, or not at all" }}"#,
-                off, motors
+                r#"{{ type = "enum", default = "{off}", options = [{motors}], description = "Drive the joint towards a speed, towards a position, or not at all" }}"#
             ),
         ),
         (
@@ -465,8 +464,7 @@ pub(crate) fn shared_joint_schema() -> String {
         (
             k::MOTOR_MODEL,
             &format!(
-                r#"{{ type = "enum", default = "{}", options = [{}], description = "Whether the motor's strength is felt as an acceleration, ignoring mass, or as a force" }}"#,
-                acceleration, models
+                r#"{{ type = "enum", default = "{acceleration}", options = [{models}], description = "Whether the motor's strength is felt as an acceleration, ignoring mass, or as a force" }}"#
             ),
         ),
         (
@@ -492,8 +490,7 @@ pub(crate) fn shared_joint_schema() -> String {
         (
             k::SOLVER,
             &format!(
-                r#"{{ type = "enum", default = "{}", options = [{}], description = "impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop" }}"#,
-                impulse, solvers
+                r#"{{ type = "enum", default = "{impulse}", options = [{solvers}], description = "impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop" }}"#
             ),
         ),
         (
@@ -510,13 +507,13 @@ pub(crate) fn register_joint_component(reg: &mut Registry<'_>) {
     let shared = shared_joint_schema();
     let schema = [
         v::schema(&[
-            (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], shorthand = true, description = "How the two bodies may move relative to each other" }}"#, default, kinds)),
+            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], shorthand = true, description = "How the two bodies may move relative to each other" }}"#)),
             (k::BODY, r#"{ type = "node", default = "", description = "The node at the joint's other end; this node is the first end" }"#),
             (k::ANCHOR, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the joint attaches on this node, in its own space" }"#),
             (k::OTHER_ANCHOR, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where it attaches on the other node, in that node's space" }"#),
             (k::AXIS, r#"{ type = "vec3", default = [0.0, 0.0, 1.0], description = "The axis a revolute joint turns about or a prismatic one slides along" }"#),
             (k::LIMITS, r#"{ type = "vec2", default = [0.0, 0.0], description = "How far the joint may travel, as a low and a high; equal values mean no limit" }"#),
-            (k::LOCKED_AXES, &format!(r#"{{ type = "flags", default = [], options = [{}], description = "Which of the six freedoms a generic joint takes away" }}"#, axes)),
+            (k::LOCKED_AXES, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "Which of the six freedoms a generic joint takes away" }}"#)),
         ]),
         shared,
     ]

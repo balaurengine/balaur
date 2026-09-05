@@ -44,6 +44,32 @@ pub(crate) fn install_physics2d_query_api(m: &mut dyn Bindings<Engine>) {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let (ray, max, solid) = ray_of(&opts);
+        // The pruning path, as in 3D: see `crate::query`.
+        if !has_predicate(&opts) {
+            let state = eng.resource::<PhysicsState2d>();
+            let state = state.borrow();
+            let mut groups = None;
+            let skip = excluded(&opts, &state);
+            let keep = |handle: ColliderHandle, _: &Collider| !skip.contains(&handle);
+            let filter = filter_of(&opts, &mut groups).predicate(&keep);
+            let found = state
+                .world
+                .query_pipeline_with_filter(filter)
+                .cast_ray_and_get_normal(&ray, max, solid);
+            let Some((handle, hit)) = found else {
+                return Ok(Value::Nil);
+            };
+            let Some(entity) = entity_of_collider(&state.world.colliders[handle]) else {
+                return Ok(Value::Nil);
+            };
+            let point = ray.point_at(hit.time_of_impact);
+            return Ok(hit_value(
+                entity,
+                scalar::a2(point),
+                scalar::a2(hit.normal),
+                hit.time_of_impact,
+            ));
+        }
         let mut candidates = Vec::new();
         {
             let state = eng.resource::<PhysicsState2d>();

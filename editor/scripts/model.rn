@@ -186,8 +186,8 @@ pub fn draws_ui(S, node) {
     }
 }
 
-// A scene node's `parent` is the parent's **id**, not a path
-// (`crates/balaur_core/src/project.rs`); everything below walks that id chain.
+// A scene file's `parent` is an id or a name path; `normalize` resolves the
+// path form on load, so everything below walks a chain of ids.
 pub fn by_id(doc, id) {
     for node in doc {
         if node.id == id {
@@ -536,6 +536,43 @@ fn normalize(doc) {
             node.id = fresh_id(doc, node.name);
         }
     }
+    // The engine also takes `parent` as a path of names down from the scene
+    // root; the editor walks ids, so a path becomes the id it denotes here.
+    for node in doc {
+        if node.parent == "" || by_id(doc, node.parent).is_some() {
+            continue;
+        }
+        let target = node_at_path(doc, node.parent);
+        if target.is_some() {
+            node.parent = target.unwrap().id;
+        } else {
+            log::warn("node " + node.name + " names parent " + node.parent
+                + ", which this scene has neither as an id nor as a path");
+        }
+    }
+}
+
+// The node a `/`-separated path of names denotes, walked down from the root.
+//
+// A parent is always declared before its children, so by the time a path is
+// walked every node along it has had its own `parent` resolved to an id.
+fn node_at_path(doc, path) {
+    let parent_id = "";
+    let found = None;
+    for segment in path.split('/').collect::<Vec>() {
+        found = None;
+        for node in doc {
+            if node.name == segment && node.parent == parent_id {
+                found = Some(node);
+                break;
+            }
+        }
+        if found.is_none() {
+            return None;
+        }
+        parent_id = found.unwrap().id;
+    }
+    found
 }
 
 // Load the game project pointed at by `engine::args()[0]`.

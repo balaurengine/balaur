@@ -345,7 +345,7 @@ pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
     let default = w::RECT;
     let schema = [
         v::schema(&[
-            (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Collision shape" }}"#, default, shapes)),
+            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{shapes}], description = "Collision shape" }}"#)),
             (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Circle radius, when kind is circle or capsule" }"#),
             (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, when kind is capsule" }"#),
             (k::HALF_EXTENTS, r#"{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }"#),

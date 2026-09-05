@@ -1,4 +1,5 @@
-//! Scene node identity: `parent` refers to an id, so renaming is safe.
+//! Scene node identity: `parent` refers to an id, so renaming is safe, or
+//! to a path of names, which a hand-written scene would rather write.
 
 use balaur_core::{App, AppConfig};
 
@@ -55,6 +56,46 @@ id = "n_root"
 name = "World"
 "#;
 
+/// A hand-written scene names its parents by path instead of minting ids.
+const BY_PATH: &str = r#"
+[[nodes]]
+name = "World"
+
+[[nodes]]
+name = "Ground"
+parent = "World"
+
+[[nodes]]
+name = "Pebble"
+parent = "World/Ground"
+"#;
+
+/// `parent` is an id first: this one names the id of the node *above* the
+/// sibling whose name it matches.
+const ID_BEATS_NAME: &str = r#"
+[[nodes]]
+id = "Ground"
+name = "World"
+
+[[nodes]]
+name = "Ground"
+parent = "World"
+
+[[nodes]]
+name = "Pebble"
+parent = "Ground"
+"#;
+
+/// A prefab reaching out of its own scene through a parent path.
+const ESCAPING_PATH: &str = r#"
+[[nodes]]
+name = "World"
+
+[[nodes]]
+name = "Stray"
+parent = "../Elsewhere"
+"#;
+
 const DUPLICATE: &str = r#"
 [[nodes]]
 id = "same"
@@ -64,6 +105,22 @@ name = "A"
 id = "same"
 name = "B"
 "#;
+
+/// Every node's absolute path, sorted — the shape of the tree that loaded.
+fn paths(source: &str) -> anyhow::Result<Vec<String>> {
+    let dir = tempfile::tempdir()?;
+    let app = App::new(AppConfig::bare(dir.path().to_path_buf()))?;
+    let root = app.engine.root();
+    balaur_core::project::instantiate_scene(&app.engine, source, root, false)?;
+    let world = app.engine.world();
+    let mut out: Vec<String> = balaur_core::scene::collect_subtree(&world, root)
+        .into_iter()
+        .map(|entity| balaur_core::scene::node_path(&world, entity))
+        .filter(|path| path != "Root")
+        .collect();
+    out.sort();
+    Ok(out)
+}
 
 fn load(source: &str) -> anyhow::Result<usize> {
     let dir = tempfile::tempdir()?;
@@ -107,4 +164,31 @@ fn a_duplicated_id_is_regenerated() {
     // The first node keeps the id it declared; the second is given a fresh one
     // rather than silently overwriting the first.
     load(DUPLICATE).expect("a duplicated id is repaired, not fatal");
+}
+
+#[test]
+fn a_parent_path_of_names_builds_the_same_tree_as_ids() {
+    assert_eq!(
+        paths(BY_PATH).expect("a parent path should resolve"),
+        ["Root/World", "Root/World/Ground", "Root/World/Ground/Pebble"]
+    );
+}
+
+#[test]
+fn a_parent_id_wins_over_a_sibling_name_that_matches_it() {
+    // Pebble's `parent = "Ground"` is World's id, not the sibling of that
+    // name, so Pebble lands beside Ground rather than under it.
+    assert_eq!(
+        paths(ID_BEATS_NAME).expect("an id parent should resolve"),
+        ["Root/World", "Root/World/Ground", "Root/World/Pebble"]
+    );
+}
+
+#[test]
+fn a_parent_path_may_not_leave_its_scene() {
+    let err = load(ESCAPING_PATH).expect_err("'..' must not reparent out of a scene");
+    assert!(
+        err.to_string().contains("may not leave its scene"),
+        "unhelpful message: {err}"
+    );
 }

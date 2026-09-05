@@ -51,6 +51,37 @@ pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let (ray, max, solid) = ray_of(&opts);
+        // Without a script predicate rapier can stop at the nearest hit and
+        // prune the tree by it. Walking every collider the ray crosses is
+        // what `raycast_all` is for, and on a long ray across a full world it
+        // is the difference between visiting a few nodes and visiting
+        // hundreds. Which collider a tie picks is rapier's, and
+        // `enhanced-determinism` makes that the same answer on every machine.
+        if !has_predicate(&opts) {
+            let state = eng.resource::<PhysicsState>();
+            let state = state.borrow();
+            let mut groups = None;
+            let skip = excluded(&opts, &state);
+            let keep = |handle: ColliderHandle, _: &Collider| !skip.contains(&handle);
+            let filter = filter_of(&opts, &mut groups).predicate(&keep);
+            let found = state
+                .world
+                .query_pipeline_with_filter(filter)
+                .cast_ray_and_get_normal(&ray, max, solid);
+            let Some((handle, hit)) = found else {
+                return Ok(Value::Nil);
+            };
+            let Some(entity) = entity_of_collider(&state.world.colliders[handle]) else {
+                return Ok(Value::Nil);
+            };
+            let point = ray.point_at(hit.time_of_impact);
+            return Ok(hit_value(
+                entity,
+                scalar::a3(point),
+                scalar::a3(hit.normal),
+                hit.time_of_impact,
+            ));
+        }
         // Collect candidates with the world borrowed, then let the predicate
         // run with it released.
         let mut candidates = Vec::new();

@@ -112,6 +112,18 @@ macro_rules! functions {
             out
         }
 
+        /// Whether the caller gave a `filter.predicate`.
+        ///
+        /// A predicate is script, so it can only run with the world released,
+        /// which is why a query that has one collects candidates first.
+        fn has_predicate(opts: &Opts<'_>) -> bool {
+            matches!(
+                opts.get(k::FILTER)
+                    .and_then(|f| Opts(Some(f)).get(k::PREDICATE)),
+                Some(Value::Callback(_))
+            )
+        }
+
         /// Whether a script predicate accepts this hit.
         ///
         /// Called with the world *not* borrowed, so the predicate may ask the engine

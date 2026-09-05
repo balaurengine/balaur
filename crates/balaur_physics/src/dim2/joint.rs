@@ -330,13 +330,13 @@ pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {
     let shared = crate::joint::shared_joint_schema();
     let schema = [
         v::schema(&[
-            (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], shorthand = true, description = "How the two bodies may move relative to each other" }}"#, default, kinds)),
+            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], shorthand = true, description = "How the two bodies may move relative to each other" }}"#)),
             (k::BODY, r#"{ type = "node", default = "", description = "The node at the joint's other end; this node is the first end" }"#),
             (k::ANCHOR, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the joint attaches on this node, in its own space" }"#),
             (k::OTHER_ANCHOR, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where it attaches on the other node, in that node's space" }"#),
             (k::AXIS, r#"{ type = "vec2", default = [1.0, 0.0], description = "The direction a prismatic joint slides along" }"#),
             (k::LIMITS, r#"{ type = "vec2", default = [0.0, 0.0], description = "How far the joint may travel, as a low and a high; equal values mean no limit" }"#),
-            (k::LOCKED_AXES, &format!(r#"{{ type = "flags", default = [], options = [{}], description = "Which of the three freedoms a generic joint takes away" }}"#, axes)),
+            (k::LOCKED_AXES, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "Which of the three freedoms a generic joint takes away" }}"#)),
         ]),
         shared,
     ]
