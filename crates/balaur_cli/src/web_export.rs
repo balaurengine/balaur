@@ -351,6 +351,16 @@ fn name_of(project: &Path) -> String {
     }
 }
 
+/// The project as it stands, zipped for someone to take away. What makes a
+/// folder opened in a tab a folder again, and the answer to keeping work that
+/// outlives a browser someone might clear.
+///
+/// # Errors
+/// If a file cannot be added to the archive.
+pub(crate) fn archive(project: &Path, files: &[(String, Vec<u8>)]) -> Result<(String, Vec<u8>)> {
+    Ok((format!("{}.zip", name_of(project)), zip(files)?))
+}
+
 /// What the last export produced, taken rather than read: the page downloads
 /// it once, and holding twenty megabytes after that is waste.
 pub(crate) fn take() -> Option<(String, Vec<u8>)> {

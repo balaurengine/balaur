@@ -173,6 +173,9 @@ web)
   mkdir -p "$skeleton"
   cp "$dist/balaur.js" "$dist/balaur_bg.wasm" "$skeleton/"
   (cd "$dist" && tar -czf balaur-template-web.tar.gz balaur-template-web)
+  # Staged, not shipped: dist is uploaded whole, and a directory is not an
+  # asset a release can carry.
+  rm -rf "$skeleton"
   ;;
 
 *)

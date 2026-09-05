@@ -270,6 +270,7 @@ flow nothing checks.
 - a node without a script reports nil
 - a node without an occluder has no outline
 - a non looping clip run backwards finishes at the start
+- a pack builds from a project the backend holds in memory
 - a pack carries the index
 - a pack encodes the same whatever order it was filled in
 - a pack round trips through bytes

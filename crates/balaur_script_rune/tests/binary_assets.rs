@@ -98,7 +98,8 @@ fn saving_a_texture_moves_the_asset_generation() {
     edited.extend_from_slice(&[0u8; 4]);
     std::fs::write(dir.path().join("art/hero.png"), &edited).unwrap();
     assert!(
-        pump_until(&host, || balaur_core::assets::generation(&app.engine) != before),
+        pump_until(&host, || balaur_core::assets::generation(&app.engine)
+            != before),
         "saving a texture left the asset generation at {before}"
     );
 }
@@ -116,7 +117,8 @@ fn saving_a_model_moves_it_too() {
     )
     .unwrap();
     assert!(
-        pump_until(&host, || balaur_core::assets::generation(&app.engine) != before),
+        pump_until(&host, || balaur_core::assets::generation(&app.engine)
+            != before),
         "saving a model left the asset generation at {before}"
     );
 }
@@ -132,7 +134,8 @@ fn saving_a_file_that_is_not_an_asset_leaves_it_alone() {
     let before = balaur_core::assets::generation(&app.engine);
     std::fs::write(dir.path().join("notes.md"), "still nothing\n").unwrap();
     assert!(
-        !pump_until(&host, || balaur_core::assets::generation(&app.engine) != before),
+        !pump_until(&host, || balaur_core::assets::generation(&app.engine)
+            != before),
         "a saved README moved the asset generation"
     );
 }

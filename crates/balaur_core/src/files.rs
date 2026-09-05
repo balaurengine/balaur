@@ -47,6 +47,10 @@ pub trait FileBackend {
     /// every symlink resolved. What `file_api` compares against its roots, so
     /// a backend that can be tricked here can be escaped.
     fn canonicalize(&self, path: &Path) -> PathBuf;
+    /// See a written file onto the device, as far as the backend can: the
+    /// disk flushes it, a browser asks its store for a durable commit, and
+    /// memory has nothing to promise. Best effort, never an error.
+    fn sync(&self, _path: &Path) {}
 }
 
 /// The backend in use, as an engine resource. Absent means the thread's
@@ -162,6 +166,12 @@ impl FileBackend for DiskFs {
             .map(|d| d.as_secs_f64())
     }
 
+    fn sync(&self, path: &Path) {
+        if let Ok(file) = std::fs::File::open(path) {
+            let _ = file.sync_all();
+        }
+    }
+
     fn list(&self, path: &Path) -> Vec<(String, bool)> {
         let mut out = Vec::new();
         if let Ok(entries) = std::fs::read_dir(path) {
@@ -209,17 +219,31 @@ impl FileBackend for DiskFs {
 #[derive(Default)]
 pub struct MemoryFs {
     inner: RefCell<Inner>,
+    /// Where a stamp comes from. Absent, writes are counted, which keeps two
+    /// answers ordered; a browser supplies its clock so a stamp reads as the
+    /// seconds a desktop's does.
+    clock: Option<Box<dyn Fn() -> f64>>,
 }
 
 #[derive(Default)]
 struct Inner {
     files: BTreeMap<String, Vec<u8>>,
+    /// When each file was last written, by the clock above.
+    stamps: BTreeMap<String, f64>,
     /// Directories that exist with nothing in them. A directory holding files
     /// needs no entry: it is implied by their keys.
     dirs: BTreeSet<String>,
-    /// Stands in for a clock. Every write bumps it, so a script comparing two
-    /// answers sees the later edit as later, which is all `mtime` is for.
+    /// How many times anything was written. What a stamp is without a clock,
+    /// and what a page polls for unsaved work.
     clock: f64,
+}
+
+impl Inner {
+    /// Note a write to `key`, stamped by `now` or by the count.
+    fn touch(&mut self, key: String, now: Option<f64>) {
+        self.clock += 1.0;
+        self.stamps.insert(key, now.unwrap_or(self.clock));
+    }
 }
 
 /// The key a path is stored under: lexically normalised, forward slashes, no
@@ -269,15 +293,39 @@ impl MemoryFs {
         Self::default()
     }
 
+    /// A filesystem whose stamps come from `clock`, in seconds.
+    #[must_use]
+    pub fn with_clock(clock: impl Fn() -> f64 + 'static) -> Self {
+        Self {
+            inner: RefCell::default(),
+            clock: Some(Box::new(clock)),
+        }
+    }
+
+    fn now(&self) -> Option<f64> {
+        self.clock.as_ref().map(|clock| clock())
+    }
+
     /// Seed `root/<key>` for every entry of a map keyed the way a pack is:
     /// project-relative, forward slashes.
     pub fn seed(&self, root: &Path, entries: impl IntoIterator<Item = (String, Vec<u8>)>) {
         let base = key(root);
+        let now = self.now();
         let mut inner = self.inner.borrow_mut();
         for (rel, bytes) in entries {
             let rel = rel.trim_start_matches('/');
-            inner.files.insert(format!("{base}/{rel}"), bytes);
+            let full = format!("{base}/{rel}");
+            inner.files.insert(full.clone(), bytes);
+            inner.touch(full, now);
         }
+    }
+
+    /// Put a file back with the stamp it had, for a store that kept both.
+    pub fn restore(&self, path: &Path, bytes: &[u8], mtime: f64) {
+        let full = key(path);
+        let mut inner = self.inner.borrow_mut();
+        inner.files.insert(full.clone(), bytes.to_vec());
+        inner.stamps.insert(full, mtime);
         inner.clock += 1.0;
     }
 
@@ -306,9 +354,11 @@ impl FileBackend for MemoryFs {
     }
 
     fn write(&self, path: &Path, bytes: &[u8]) -> Result<()> {
+        let now = self.now();
         let mut inner = self.inner.borrow_mut();
-        inner.files.insert(key(path), bytes.to_vec());
-        inner.clock += 1.0;
+        let full = key(path);
+        inner.files.insert(full.clone(), bytes.to_vec());
+        inner.touch(full, now);
         Ok(())
     }
 
@@ -340,6 +390,7 @@ impl FileBackend for MemoryFs {
         }
         for f in doomed {
             inner.files.remove(&f);
+            inner.stamps.remove(&f);
         }
         inner.dirs.retain(|d| !d.starts_with(&prefix));
         inner.clock += 1.0;
@@ -366,15 +417,20 @@ impl FileBackend for MemoryFs {
         if moving.is_empty() {
             return Err(anyhow!("no file '{}'", from.display()));
         }
+        // A move keeps the stamp, as a rename on a disk does.
         for old in moving {
             let Some(bytes) = inner.files.remove(&old) else {
                 continue;
             };
+            let stamp = inner.stamps.remove(&old);
             let new = if old == from_key {
                 to_key.clone()
             } else {
                 format!("{to_key}/{}", &old[prefix.len()..])
             };
+            if let Some(stamp) = stamp {
+                inner.stamps.insert(new.clone(), stamp);
+            }
             inner.files.insert(new, bytes);
         }
         inner.clock += 1.0;
@@ -382,8 +438,7 @@ impl FileBackend for MemoryFs {
     }
 
     fn mtime(&self, path: &Path) -> Option<f64> {
-        let inner = self.inner.borrow();
-        inner.files.contains_key(&key(path)).then_some(inner.clock)
+        self.inner.borrow().stamps.get(&key(path)).copied()
     }
 
     fn list(&self, path: &Path) -> Vec<(String, bool)> {
@@ -435,6 +490,33 @@ mod tests {
             b"[[nodes]]\nname='B'"
         );
         assert!(fs.mtime(Path::new("/p/scenes/main.toml")).unwrap() > before);
+    }
+
+    /// The stamp is per file. Before this, every file answered the time of
+    /// the latest write anywhere, so touching one script re-fingerprinted
+    /// them all.
+    #[test]
+    fn writing_one_file_leaves_the_others_stamps_alone() {
+        let fs = seeded();
+        let untouched = fs.mtime(Path::new("/p/project.toml")).unwrap();
+        fs.write(Path::new("/p/scripts/a.rn"), b"pub fn init(this) { 1 }")
+            .unwrap();
+        assert_eq!(fs.mtime(Path::new("/p/project.toml")).unwrap(), untouched);
+        assert!(fs.mtime(Path::new("/p/scripts/a.rn")).unwrap() > untouched);
+        assert!(fs.mtime(Path::new("/p/none.toml")).is_none());
+    }
+
+    #[test]
+    fn a_host_clock_stamps_in_its_own_seconds_and_a_move_keeps_the_stamp() {
+        let fs = MemoryFs::with_clock(|| 1_700_000_000.5);
+        fs.write(Path::new("/p/a.toml"), b"x").unwrap();
+        assert_eq!(fs.mtime(Path::new("/p/a.toml")), Some(1_700_000_000.5));
+        fs.restore(Path::new("/p/old.toml"), b"y", 42.0);
+        assert_eq!(fs.mtime(Path::new("/p/old.toml")), Some(42.0));
+        fs.rename(Path::new("/p/old.toml"), Path::new("/p/moved.toml"))
+            .unwrap();
+        assert_eq!(fs.mtime(Path::new("/p/moved.toml")), Some(42.0));
+        assert!(fs.mtime(Path::new("/p/old.toml")).is_none());
     }
 
     #[test]

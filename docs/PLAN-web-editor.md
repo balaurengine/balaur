@@ -1,11 +1,16 @@
-> **Status:** not started. Written down on 2026-09-03. The order is forced by
-> what the browser takes away, not by what it adds: a canvas first, because
-> without one there is nothing to look at and the same blocker stops web
-> export; then files, because the editor is a program that reads and writes a
-> project and `fs` is `std::fs` today; then an account and a place to keep the
-> project, because a tab that loses the work on refresh is a toy. Building or
-> deploying a game from the browser comes last — it is the only part that
-> needs a machine somewhere else.
+> **Status:** steps 1, 2, 3 and 6 are built, and the half of 7 a tab can
+> finish. Written down on 2026-09-03; last measured against the tree on
+> 2026-09-05. The editor draws on a canvas, `fs` is a backend rather than
+> `std::fs`, hot reload is driven by the write instead of a watcher, audio
+> plays, a project is kept in IndexedDB and comes back after a refresh, a
+> folder from a machine can be opened and taken away again as a zip, and the
+> Export sheet builds a pack and a web bundle in the tab.
+>
+> What is left is what needs a machine that is not the tab: steps 4 and 5, an
+> account and a project kept on Gamend rather than in one browser; the native
+> half of step 7, which is a linker and a signing toolchain; step 8's real
+> directory; and step 9's debugger. The order below is still the one the
+> browser forces, and the rows it has already taken are marked.
 
 # Plan: the editor in a browser
 
@@ -155,34 +160,38 @@ the web.
 
 ## 3. Steps
 
-1. **A canvas.** The `window` feature building for
-   `wasm32-unknown-emscripten`, a wgpu surface on an HTML canvas, winit
-   events wired, and a shell page. This is `docs/PLAN-mobile-export.md`
-   "Web" — done there, consumed here — and the first thing after it is the
-   digest check from §1, run before anything else is built on top.
-2. **Files.** The `fs` backend seam, `std::fs` on native, OPFS on the web,
-   `save` on the same seam, and a scratch project that survives a refresh.
-   Ends with: the editor drawing a real scene in a tab.
-3. **The editor as a page.** The editor project packed and fetched beside the
-   wasm, fonts with it, hot reload driven by the write rather than by a
-   watcher, and the browser chords claimed. Ends with: a URL that edits a
-   scene and saves it.
-4. **Gamend on wasm.** The stub replaced by the real client over the fetch
-   and websocket shims. Ends with: sign-in from a tab.
-5. **Projects that outlive the tab.** Projects on a Gamend account: list,
-   open, save, and a share link. Ends with: the same project from a second
-   machine.
-6. **Play.** Play mode in the browser with audio and screenshots, which is
-   the moment the web editor stops being an outliner and becomes an editor.
-7. **Export and deploy from the browser.** A pack built client-side, a web
-   bundle assembled client-side, native targets as a build job on Gamend,
-   and the Deploy button over `docs/PLAN-deploy.md` step 3. Ends with: a game
-   made in a tab, playable at a URL, without the developer installing
-   anything.
-8. **A real directory.** The File System Access API as a fourth `fs` backend,
-   so a checked-out repo is edited in the browser.
-9. **The debugger.** DAP over a port instead of a socket; breakpoints, step
-   and locals in the browser, the same adapter as desktop.
+1. **A canvas.** *Built,* on `wasm32-unknown-unknown` with wasm-bindgen
+   rather than emscripten (§5 question 1): a wgpu surface on an HTML canvas,
+   events wired, and a shell page. Shared with web export. The digest check
+   §1 asks for has **not** been run, and is the first thing owed here.
+2. **Files.** *Built,* and not with OPFS. `balaur_core::files::FileBackend`
+   is the seam, `DiskFs` on native and `MemoryFs` in a tab; a project is kept
+   by mirroring every write into IndexedDB behind that memory filesystem
+   (`balaur_cli::web_store`), which is what a synchronous script API allows
+   and OPFS on the main thread does not. `save` rides the same seam.
+3. **The editor as a page.** *Built.* The editor's own project is packed and
+   fetched beside the wasm, fonts with it; hot reload is driven by the write;
+   the page claims the browser's chords.
+4. **Gamend on wasm.** *Built:* the stub is replaced by a client over the
+   fetch and websocket shims. Sign-in from a tab works; nothing above it does.
+5. **Projects that outlive the tab.** *Not built.* Projects on a Gamend
+   account: list, open, save, and a share link. The mirror in step 2 is
+   already a sink behind the same seam, so this is a second sink and a files
+   resource on the server, not a rewrite. Ends with: the same project from a
+   second machine.
+6. **Play.** *Built,* audio included.
+7. **Export and deploy from the browser.** *Half built.* A pack and a web
+   bundle are assembled in the tab (`balaur_cli::web_export`): the pack is
+   built through the `fs` backend, and the bundle zips it beside the glue and
+   module the page is itself running. What is left is the native targets as a
+   build job and the Deploy button over `docs/PLAN-deploy.md` step 3 — both
+   of them a machine that is not the tab.
+8. **A real directory.** *Not built,* and partly answered: a folder is read
+   in through a directory picker and written back out as a zip, which every
+   browser does. The File System Access API as a fourth backend, editing a
+   checked-out repo in place, is still Chromium-only and still worth having.
+9. **The debugger.** *Not built.* DAP over a port instead of a socket;
+   breakpoints, step and locals in the browser, the same adapter as desktop.
 
 ## 4. What CI can prove, and what it cannot
 

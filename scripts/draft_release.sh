@@ -21,9 +21,11 @@ assets=(
 )
 # nullglob drops a pattern that matches nothing, but the web names carry no
 # wildcard to expand, so a run without the web build would list them anyway.
+# Regular files only: a wildcard can also catch a staging directory a build
+# left in dist, and sha256sum and `gh release create` both choke on one.
 present=()
 for asset in "${assets[@]}"; do
-  [ -e "$asset" ] && present+=("$asset")
+  [ -f "$asset" ] && present+=("$asset")
 done
 # Guarded: an empty array expands to an unbound variable under `set -u` on
 # bash 3.2, which is what the macOS runners have.

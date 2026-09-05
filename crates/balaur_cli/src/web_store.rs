@@ -1,109 +1,143 @@
-//! Projects kept in the browser, in IndexedDB.
+//! Files kept in the browser, in IndexedDB.
 //!
-//! The editor is a program whose whole job is reading and writing a project,
-//! and a tab has no directory to keep one in. [`MemoryFs`] stays the
-//! filesystem the engine reads through; every write is mirrored into
-//! IndexedDB behind it, so a refresh finds the work still there.
+//! A tab has no directory. [`MemoryFs`] is the filesystem the engine reads
+//! through, and everything written under one root — the project the editor
+//! is editing, or a running game's user directory — is mirrored into
+//! IndexedDB behind it, so the next visit starts where this one stopped.
 //!
-//! The mirror is write-behind because IndexedDB is asynchronous and
-//! `FileBackend` is not: a write marks its path dirty and returns, and a
-//! debounced task drains what accumulated. Nothing is ever read back through
-//! the mirror while a tab runs — the memory filesystem is the truth, and
-//! IndexedDB is only how the next tab starts where this one stopped.
+//! The contract is the desktop's. `std::fs::write` returns once the kernel
+//! has the bytes, and the disk gets them when the kernel writes back; here a
+//! write returns once memory has them, and the transaction that commits them
+//! is *issued* before control leaves the task that wrote — a microtask
+//! gathers one tick's writes into one transaction — so the browser commits
+//! them whether or not the page runs again. What the desktop calls `fsync`
+//! is [`FileBackend::sync`]: the next transaction asks for a durable commit,
+//! which Chromium and Firefox honour and Safari treats as ordinary.
+//!
+//! Nothing is read back through the mirror while a tab runs. Memory is the
+//! truth; IndexedDB is how the next tab is seeded.
 
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use anyhow::Result;
 use balaur::files::{FileBackend, MemoryFs, lexical};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{IdbDatabase, IdbObjectStore, IdbRequest, IdbTransaction, IdbTransactionMode};
+use web_sys::{
+    IdbDatabase, IdbObjectStore, IdbRequest, IdbTransaction, IdbTransactionDurability,
+    IdbTransactionMode, IdbTransactionOptions,
+};
 
-/// The database every project on this origin lives in.
+/// The database everything on this origin lives in.
 const DB_NAME: &str = "balaur-projects";
 const DB_VERSION: u32 = 1;
 
-/// One record per file, keyed `<project id>\0<project-relative path>`.
+/// One record per file, keyed `<id>\0<root-relative path>`, holding
+/// `{ b: bytes, m: mtime }`. A bare byte array is an older record and reads
+/// back stamped with the moment it was loaded.
 const FILES: &str = "files";
 
-/// One record per project: its id to `{ name, modified }`.
+/// One record per id: `{ name, modified }`.
 const META: &str = "meta";
-
-/// How long a write waits for the next one before the mirror catches up. Long
-/// enough that a burst of saves is one transaction, short enough that a tab
-/// closed just after a save has already written it.
-const FLUSH_DELAY_MS: i32 = 400;
 
 /// A directory with nothing in it has no file to imply it, so it is kept
 /// under a key ending in this and holding no bytes.
 const DIR_MARK: char = '/';
 
 thread_local! {
-    /// The store this tab is editing through. The flush timer and the page's
-    /// own calls arrive with no handle of their own.
+    /// The store this tab writes through, for the page's own calls, which
+    /// arrive with no handle of their own.
     static LIVE: RefCell<Option<Rc<ProjectFs>>> = const { RefCell::new(None) };
 }
 
-/// What happened to a path since the last flush.
+/// What happened to a path since the last transaction was issued.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Change {
     Wrote,
     Removed,
 }
 
-/// A project's files in memory, mirrored into IndexedDB as they change.
+/// Files in memory under one root, mirrored into IndexedDB as they change.
 pub(crate) struct ProjectFs {
     inner: MemoryFs,
-    db: IdbDatabase,
-    /// Every key of this project starts with this, so one origin holds many.
+    /// Absent where the browser refuses IndexedDB, in a private window or
+    /// with storage switched off. The engine runs; nothing is kept.
+    db: Option<IdbDatabase>,
+    /// Every key of this store starts with this, so one origin holds many.
     prefix: String,
-    /// Where the project is mounted; keys are stored relative to it.
+    /// The root that is mirrored; keys are stored relative to it.
     root: PathBuf,
-    /// The same, as the absolute prefix `MemoryFs` stores its keys under.
+    /// The same, as the prefix `MemoryFs` stores its keys under.
     mounted: String,
+    /// So a callback scheduled from a `&self` method can find the store
+    /// again without going through the tab-wide slot.
+    me: Weak<ProjectFs>,
     pending: RefCell<BTreeMap<String, Change>>,
-    scheduled: Cell<bool>,
-    flushing: Cell<bool>,
+    /// A name to record with the next transaction, given when a project is
+    /// made from a pack rather than imported.
+    pending_name: RefCell<Option<String>>,
+    /// Paths a transaction has taken and not yet committed. Counted apart
+    /// from `pending` so what is in flight still reads as unsaved.
+    in_flight: Cell<usize>,
+    /// Whether a microtask is already queued to issue what is pending.
+    queued: Cell<bool>,
+    /// Whether the next transaction asks for a durable commit.
+    strict: Cell<bool>,
 }
 
 impl ProjectFs {
     /// Open `id`'s store and seed a filesystem at `root` with what it holds.
     pub(crate) async fn open(id: &str, root: &Path) -> Result<Rc<Self>, JsValue> {
-        let db = open_db().await?;
-        let fs = Rc::new(Self {
-            inner: MemoryFs::new(),
+        let db = match open_db().await {
+            Ok(db) => Some(db),
+            Err(why) => {
+                tracing::warn!("this browser keeps no files: {why:?}");
+                None
+            }
+        };
+        let stored = match &db {
+            Some(db) => read_all(db, &prefix_of(id)).await?,
+            None => Vec::new(),
+        };
+        let fs = Rc::new_cyclic(|me| Self {
+            inner: MemoryFs::with_clock(|| js_sys::Date::now() / 1000.0),
             db,
             prefix: prefix_of(id),
             root: root.to_path_buf(),
             mounted: mounted_at(root),
+            me: me.clone(),
             pending: RefCell::new(BTreeMap::new()),
-            scheduled: Cell::new(false),
-            flushing: Cell::new(false),
+            pending_name: RefCell::new(None),
+            in_flight: Cell::new(0),
+            queued: Cell::new(false),
+            strict: Cell::new(false),
         });
-        for (rel, bytes) in read_all(&fs.db, &fs.prefix).await? {
-            let _ = match rel.strip_suffix(DIR_MARK) {
-                Some(dir) => fs.inner.mkdir(&root.join(dir)),
-                None => fs.inner.write(&root.join(&rel), &bytes),
-            };
+        for (rel, bytes, mtime) in stored {
+            match rel.strip_suffix(DIR_MARK) {
+                Some(dir) => {
+                    let _ = fs.inner.mkdir(&root.join(dir));
+                }
+                None => fs.inner.restore(&root.join(&rel), &bytes, mtime),
+            }
         }
         Ok(fs)
     }
 
-    /// Whether anything was stored for this project. A project without a
-    /// manifest is one the editor cannot open, so that is the test.
+    /// Whether the store held a project. One without a manifest is one the
+    /// editor cannot open, so that is the test.
     pub(crate) fn is_empty(&self) -> bool {
         !self.inner.exists(&self.root.join("project.toml"))
     }
 
     /// Seed `root` from a pack's entries.
     ///
-    /// Only what lands under the project's own root is mirrored: the editor
-    /// is mounted here too, and its pack is fetched fresh every boot rather
-    /// than kept in someone's browser.
+    /// Only what lands under the mirrored root is kept: the editor's own
+    /// project is mounted beside the one it edits and is fetched fresh every
+    /// boot rather than kept in someone's browser.
     pub(crate) fn seed_at(
         &self,
         root: &Path,
@@ -117,23 +151,44 @@ impl ProjectFs {
         }
     }
 
-    /// Hold this store as the tab's, so the flush timer and the page reach it.
-    pub(crate) fn install(self: &Rc<Self>) {
-        LIVE.with(|live| *live.borrow_mut() = Some(Rc::clone(self)));
+    /// Give the store's record a name, with the next transaction.
+    pub(crate) fn name(&self, name: &str) {
+        *self.pending_name.borrow_mut() = Some(name.to_string());
+        self.queue();
     }
 
-    /// The store this tab is editing through, if a project is open.
+    /// Hold this store as the tab's, and see that what is pending when the
+    /// page is hidden or left is issued at once rather than with the next
+    /// tick, which may never come.
+    pub(crate) fn install(self: &Rc<Self>) {
+        LIVE.with(|live| *live.borrow_mut() = Some(Rc::clone(self)));
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let leaving = Closure::<dyn Fn()>::new(|| {
+            if let Some(fs) = ProjectFs::live() {
+                fs.issue();
+            }
+        });
+        for event in ["pagehide", "visibilitychange"] {
+            let _ = window.add_event_listener_with_callback(event, leaving.as_ref().unchecked_ref());
+        }
+        // One store per tab, so the listener lives as long as the page.
+        leaving.forget();
+    }
+
+    /// The store this tab writes through, if one is installed.
     pub(crate) fn live() -> Option<Rc<Self>> {
         LIVE.with(|live| live.borrow().clone())
     }
 
-    /// How many paths are written but not yet mirrored. What a page asks
+    /// How many paths are written but not yet committed. What a page asks
     /// before letting someone close the tab.
     pub(crate) fn unsaved(&self) -> usize {
-        self.pending.borrow().len()
+        self.pending.borrow().len() + self.in_flight.get()
     }
 
-    /// The whole project as it stands, project-relative, for a download.
+    /// Everything under the root as it stands, root-relative, for a download.
     pub(crate) fn files(&self) -> Vec<(String, Vec<u8>)> {
         self.inner
             .snapshot()
@@ -145,6 +200,15 @@ impl ProjectFs {
             .collect()
     }
 
+    /// Issue what is pending and resolve once the browser has committed it.
+    /// What the page calls before it lets someone leave.
+    pub(crate) async fn flush(&self) -> Result<(), JsValue> {
+        match self.issue() {
+            Some(transaction) => settled(&transaction).await,
+            None => Ok(()),
+        }
+    }
+
     /// The key `path` is mirrored under, or `None` for one outside the root
     /// or for the root itself, which is no file.
     fn key(&self, path: &Path) -> Option<String> {
@@ -152,13 +216,13 @@ impl ProjectFs {
         (!rel.is_empty()).then(|| format!("{}{rel}", self.prefix))
     }
 
-    /// Note that `path` changed, and see that a flush is coming.
+    /// Note that `path` changed, and see that a transaction is coming.
     fn mark(&self, path: &Path, change: Change) {
         let Some(key) = self.key(path) else {
             return;
         };
         self.pending.borrow_mut().insert(key, change);
-        self.schedule();
+        self.queue();
     }
 
     /// Note the marker that keeps an empty directory.
@@ -169,7 +233,7 @@ impl ProjectFs {
         self.pending
             .borrow_mut()
             .insert(format!("{key}{DIR_MARK}"), change);
-        self.schedule();
+        self.queue();
     }
 
     /// Note `path` and, when it is a directory, everything under it.
@@ -184,66 +248,81 @@ impl ProjectFs {
         }
     }
 
-    /// Ask for a flush, unless one is already on its way.
-    fn schedule(&self) {
-        if self.scheduled.replace(true) {
+    /// See that what is pending is issued before this task ends. A microtask
+    /// runs after the current callback and before the browser does anything
+    /// else, so one tick's writes become one transaction and none of them
+    /// wait on a timer.
+    fn queue(&self) {
+        if self.db.is_none() || self.queued.replace(true) {
             return;
         }
-        let tick = Closure::once_into_js(move || {
-            let Some(fs) = ProjectFs::live() else {
+        let me = self.me.clone();
+        let task = Closure::once_into_js(move || {
+            if let Some(fs) = me.upgrade() {
+                fs.issue();
+            }
+        });
+        match web_sys::window() {
+            Some(window) => window.queue_microtask(task.unchecked_ref()),
+            None => self.queued.set(false),
+        }
+    }
+
+    /// Open one transaction over everything pending and issue every request,
+    /// synchronously. Commit is the browser's from here; the callbacks only
+    /// keep the count honest and put a failed batch back.
+    fn issue(&self) -> Option<IdbTransaction> {
+        self.queued.set(false);
+        let db = self.db.as_ref()?;
+        let batch = std::mem::take(&mut *self.pending.borrow_mut());
+        let name = self.pending_name.borrow_mut().take();
+        if batch.is_empty() && name.is_none() {
+            return None;
+        }
+        let strict = self.strict.replace(false);
+        let transaction = match transaction(db, strict) {
+            Ok(transaction) => transaction,
+            Err(why) => {
+                tracing::warn!("indexedDB refused a transaction: {why:?}");
+                self.put_back(batch, name);
+                return None;
+            }
+        };
+        if let Err(why) = self.request_all(&transaction, &batch, name.as_deref()) {
+            tracing::warn!("indexedDB refused a write: {why:?}");
+            self.put_back(batch, name);
+            return None;
+        }
+        let count = batch.len();
+        self.in_flight.set(self.in_flight.get() + count);
+        let me = self.me.clone();
+        let on_done = Closure::once_into_js(move |_: web_sys::Event| {
+            if let Some(fs) = me.upgrade() {
+                fs.in_flight.set(fs.in_flight.get().saturating_sub(count));
+            }
+        });
+        let me = self.me.clone();
+        let on_err = Closure::once_into_js(move |_: web_sys::Event| {
+            let Some(fs) = me.upgrade() else {
                 return;
             };
-            fs.scheduled.set(false);
-            wasm_bindgen_futures::spawn_local(async move {
-                if let Err(why) = fs.flush().await {
-                    tracing::warn!("keeping the project in the browser failed: {why:?}");
-                }
-            });
+            fs.in_flight.set(fs.in_flight.get().saturating_sub(count));
+            tracing::warn!("keeping files in the browser failed; trying again");
+            fs.put_back(batch, name);
         });
-        let armed = web_sys::window().and_then(|w| {
-            w.set_timeout_with_callback_and_timeout_and_arguments_0(
-                tick.unchecked_ref(),
-                FLUSH_DELAY_MS,
-            )
-            .ok()
-        });
-        if armed.is_none() {
-            self.scheduled.set(false);
-        }
+        transaction.set_oncomplete(Some(on_done.unchecked_ref()));
+        transaction.set_onerror(Some(on_err.unchecked_ref()));
+        transaction.set_onabort(Some(on_err.unchecked_ref()));
+        Some(transaction)
     }
 
-    /// Write everything that changed into IndexedDB, as one transaction.
-    ///
-    /// A write that lands while this is awaiting goes into a fresh batch and
-    /// schedules its own flush, so nothing is lost by the swap.
-    pub(crate) async fn flush(self: &Rc<Self>) -> Result<(), JsValue> {
-        if self.flushing.replace(true) {
-            self.schedule();
-            return Ok(());
-        }
-        let batch = std::mem::take(&mut *self.pending.borrow_mut());
-        let result = self.write_batch(&batch).await;
-        self.flushing.set(false);
-        if result.is_err() {
-            // Put them back, so the next flush tries again rather than
-            // dropping the work.
-            let mut pending = self.pending.borrow_mut();
-            for (key, change) in batch {
-                pending.entry(key).or_insert(change);
-            }
-        }
-        result
-    }
-
-    /// One transaction over `batch`, and the metadata that dates it.
-    async fn write_batch(&self, batch: &BTreeMap<String, Change>) -> Result<(), JsValue> {
-        if batch.is_empty() {
-            return Ok(());
-        }
-        let names = js_sys::Array::of2(&FILES.into(), &META.into());
-        let transaction = self
-            .db
-            .transaction_with_str_sequence_and_mode(&names, IdbTransactionMode::Readwrite)?;
+    /// Every put and delete of one batch, and the record that dates it.
+    fn request_all(
+        &self,
+        transaction: &IdbTransaction,
+        batch: &BTreeMap<String, Change>,
+        name: Option<&str>,
+    ) -> Result<(), JsValue> {
         let files = transaction.object_store(FILES)?;
         for (key, change) in batch {
             match change {
@@ -251,33 +330,50 @@ impl ProjectFs {
                     files.delete(&JsValue::from_str(key))?;
                 }
                 Change::Wrote => {
-                    files.put_with_key(&self.bytes_for(key), &JsValue::from_str(key))?;
+                    files.put_with_key(&self.record_for(key)?, &JsValue::from_str(key))?;
                 }
             }
         }
-        touch(&transaction.object_store(META)?, self.id())?;
-        settled(&transaction).await
+        touch(&transaction.object_store(META)?, self.id(), name)
     }
 
-    /// What a key's record holds: the file's bytes, or none for the marker
-    /// that stands in for an empty directory.
-    fn bytes_for(&self, key: &str) -> JsValue {
+    /// Return a batch the browser refused to what is pending, without
+    /// overwriting anything written since, and try again.
+    fn put_back(&self, batch: BTreeMap<String, Change>, name: Option<String>) {
+        {
+            let mut pending = self.pending.borrow_mut();
+            for (key, change) in batch {
+                pending.entry(key).or_insert(change);
+            }
+        }
+        if let Some(name) = name {
+            self.pending_name.borrow_mut().get_or_insert(name);
+        }
+        self.queue();
+    }
+
+    /// What a key's record holds: the file's bytes and stamp, or nothing for
+    /// the marker that stands in for an empty directory.
+    fn record_for(&self, key: &str) -> Result<JsValue, JsValue> {
         let rel = key.strip_prefix(&self.prefix).unwrap_or_default();
         if rel.is_empty() || rel.ends_with(DIR_MARK) {
-            return js_sys::Uint8Array::new_with_length(0).into();
+            return Ok(js_sys::Uint8Array::new_with_length(0).into());
         }
-        let bytes = self.inner.read(&self.root.join(rel)).unwrap_or_default();
-        js_sys::Uint8Array::from(bytes.as_slice()).into()
+        let path = self.root.join(rel);
+        let bytes = self.inner.read(&path).unwrap_or_default();
+        let mtime = self.inner.mtime(&path).unwrap_or(0.0);
+        record(&bytes, mtime)
     }
 
-    /// The project id this store keeps, which its prefix was built from.
+    /// The id this store keeps, which its prefix was built from.
     fn id(&self) -> &str {
         self.prefix.trim_end_matches('\0')
     }
 }
 
-/// Every write goes to memory first and is mirrored after; a read never waits
-/// on the mirror, which is what lets a synchronous script API keep files.
+/// Every write goes to memory first and is issued to the mirror before the
+/// task ends; a read never waits on the mirror, which is what lets a
+/// synchronous script API keep files.
 impl FileBackend for ProjectFs {
     fn read(&self, path: &Path) -> Result<Vec<u8>> {
         self.inner.read(path)
@@ -333,6 +429,13 @@ impl FileBackend for ProjectFs {
     fn canonicalize(&self, path: &Path) -> PathBuf {
         self.inner.canonicalize(path)
     }
+
+    /// The browser's `fsync`: the transaction carrying this write asks for a
+    /// durable commit rather than the default one.
+    fn sync(&self, _path: &Path) {
+        self.strict.set(true);
+        self.queue();
+    }
 }
 
 /// Every file under `dir`, as absolute paths.
@@ -352,14 +455,14 @@ fn walk(fs: &MemoryFs, dir: &Path) -> Vec<PathBuf> {
     out
 }
 
-/// A project's key prefix. The separator cannot occur in a path, so one
-/// project's range never runs into the next one's.
+/// A store's key prefix. The separator cannot occur in a path, so one
+/// store's range never runs into the next one's.
 fn prefix_of(id: &str) -> String {
     format!("{id}\0")
 }
 
-/// The root as the absolute, forward-slashed prefix a memory filesystem
-/// stores its keys under, trailing separator included.
+/// The root as the forward-slashed prefix a memory filesystem stores its keys
+/// under, trailing separator included.
 fn mounted_at(root: &Path) -> String {
     let text = lexical(root).to_string_lossy().replace('\\', "/");
     format!("{}/", text.trim_end_matches('/'))
@@ -374,6 +477,46 @@ fn relative(root: &Path, path: &Path) -> Option<String> {
             .to_string_lossy()
             .replace('\\', "/"),
     )
+}
+
+/// One file's record: its bytes and when they were written.
+fn record(bytes: &[u8], mtime: f64) -> Result<JsValue, JsValue> {
+    let out = js_sys::Object::new();
+    js_sys::Reflect::set(&out, &"b".into(), &js_sys::Uint8Array::from(bytes).into())?;
+    js_sys::Reflect::set(&out, &"m".into(), &mtime.into())?;
+    Ok(out.into())
+}
+
+/// A record's bytes and stamp, whichever shape it was written in.
+fn unrecord(value: &JsValue) -> (Vec<u8>, f64) {
+    if value.is_instance_of::<js_sys::Uint8Array>() {
+        let bytes = js_sys::Uint8Array::new(value).to_vec();
+        return (bytes, js_sys::Date::now() / 1000.0);
+    }
+    let bytes = js_sys::Reflect::get(value, &"b".into())
+        .map(|b| js_sys::Uint8Array::new(&b).to_vec())
+        .unwrap_or_default();
+    let mtime = js_sys::Reflect::get(value, &"m".into())
+        .ok()
+        .and_then(|m| m.as_f64())
+        .unwrap_or_else(|| js_sys::Date::now() / 1000.0);
+    (bytes, mtime)
+}
+
+/// A read-write transaction over both stores, durable when asked.
+fn transaction(db: &IdbDatabase, strict: bool) -> Result<IdbTransaction, JsValue> {
+    let names = js_sys::Array::of2(&FILES.into(), &META.into());
+    if strict {
+        let options = IdbTransactionOptions::new();
+        options.set_durability(IdbTransactionDurability::Strict);
+        db.transaction_with_str_sequence_and_mode_and_options(
+            &names,
+            IdbTransactionMode::Readwrite,
+            &options,
+        )
+    } else {
+        db.transaction_with_str_sequence_and_mode(&names, IdbTransactionMode::Readwrite)
+    }
 }
 
 /// Open the database, creating its stores the first time.
@@ -405,12 +548,17 @@ async fn open_db() -> Result<IdbDatabase, JsValue> {
         .map_err(|_| JsValue::from_str("indexedDB opened something that is not a database"))
 }
 
-/// Every file stored under `prefix`, project-relative.
-async fn read_all(db: &IdbDatabase, prefix: &str) -> Result<Vec<(String, Vec<u8>)>, JsValue> {
+/// Every file stored under `prefix`: root-relative path, bytes, stamp.
+async fn read_all(db: &IdbDatabase, prefix: &str) -> Result<Vec<(String, Vec<u8>, f64)>, JsValue> {
     let files = read_only(db, FILES)?;
     let range = range_of(prefix)?;
-    let keys = js_sys::Array::from(&finished(&files.get_all_keys_with_key(range.as_ref())?).await?);
-    let values = js_sys::Array::from(&finished(&files.get_all_with_key(range.as_ref())?).await?);
+    // Both issued before either is awaited: a transaction commits once its
+    // requests are done and control returns to the loop, so a request made
+    // after an await can arrive at one that has already finished.
+    let wanted_keys = files.get_all_keys_with_key(range.as_ref())?;
+    let wanted_values = files.get_all_with_key(range.as_ref())?;
+    let keys = js_sys::Array::from(&finished(&wanted_keys).await?);
+    let values = js_sys::Array::from(&finished(&wanted_values).await?);
     let mut out = Vec::with_capacity(keys.length() as usize);
     for index in 0..keys.length() {
         let Some(rel) = keys
@@ -420,12 +568,15 @@ async fn read_all(db: &IdbDatabase, prefix: &str) -> Result<Vec<(String, Vec<u8>
         else {
             continue;
         };
-        out.push((rel, js_sys::Uint8Array::new(&values.get(index)).to_vec()));
+        let (bytes, mtime) = unrecord(&values.get(index));
+        out.push((rel, bytes, mtime));
     }
     Ok(out)
 }
 
-/// Write `entries` into a project that is not open, replacing what it held.
+/// Write `entries` under `id`, replacing what it held, for a store that is
+/// not open: what a folder someone chose becomes before the editor boots on
+/// it.
 pub(crate) async fn import(
     id: &str,
     name: &str,
@@ -434,37 +585,32 @@ pub(crate) async fn import(
     let db = open_db().await?;
     remove_files(&db, id).await?;
     let prefix = prefix_of(id);
-    let names = js_sys::Array::of2(&FILES.into(), &META.into());
-    let transaction =
-        db.transaction_with_str_sequence_and_mode(&names, IdbTransactionMode::Readwrite)?;
+    let now = js_sys::Date::now() / 1000.0;
+    let transaction = transaction(&db, false)?;
     let files = transaction.object_store(FILES)?;
     for (rel, bytes) in entries {
         let key = format!("{prefix}{}", rel.trim_start_matches('/'));
-        let value = js_sys::Uint8Array::from(bytes.as_slice());
-        files.put_with_key(&value.into(), &JsValue::from_str(&key))?;
+        files.put_with_key(&record(&bytes, now)?, &JsValue::from_str(&key))?;
     }
-    let record = js_sys::Object::new();
-    js_sys::Reflect::set(&record, &"name".into(), &name.into())?;
-    js_sys::Reflect::set(&record, &"modified".into(), &js_sys::Date::now().into())?;
-    transaction
-        .object_store(META)?
-        .put_with_key(&record, &JsValue::from_str(id))?;
+    touch(&transaction.object_store(META)?, id, Some(name))?;
     settled(&transaction).await
 }
 
-/// Every project on this origin, newest first, as `{ id, name, modified }`.
+/// Every store on this origin, newest first, as `{ id, name, modified }`.
 pub(crate) async fn list() -> Result<js_sys::Array, JsValue> {
     let db = open_db().await?;
     let meta = read_only(&db, META)?;
-    let keys = js_sys::Array::from(&finished(&meta.get_all_keys()?).await?);
-    let values = js_sys::Array::from(&finished(&meta.get_all()?).await?);
+    let wanted_keys = meta.get_all_keys()?;
+    let wanted_values = meta.get_all()?;
+    let keys = js_sys::Array::from(&finished(&wanted_keys).await?);
+    let values = js_sys::Array::from(&finished(&wanted_values).await?);
     let mut rows = Vec::with_capacity(keys.length() as usize);
     for index in 0..keys.length() {
-        let record = values.get(index);
         let entry = js_sys::Object::new();
         js_sys::Reflect::set(&entry, &"id".into(), &keys.get(index))?;
+        let source = values.get(index);
         for field in ["name", "modified"] {
-            let value = js_sys::Reflect::get(&record, &field.into()).unwrap_or(JsValue::UNDEFINED);
+            let value = js_sys::Reflect::get(&source, &field.into()).unwrap_or(JsValue::UNDEFINED);
             js_sys::Reflect::set(&entry, &field.into(), &value)?;
         }
         rows.push((number(&entry, "modified"), entry));
@@ -477,7 +623,7 @@ pub(crate) async fn list() -> Result<js_sys::Array, JsValue> {
     Ok(out)
 }
 
-/// Forget a project: its files and the record that named it.
+/// Forget a store: its files and the record that named it.
 pub(crate) async fn delete(id: &str) -> Result<(), JsValue> {
     let db = open_db().await?;
     remove_files(&db, id).await?;
@@ -488,7 +634,7 @@ pub(crate) async fn delete(id: &str) -> Result<(), JsValue> {
     settled(&transaction).await
 }
 
-/// Drop every file record of one project, leaving its metadata alone.
+/// Drop every file record of one store, leaving its metadata alone.
 async fn remove_files(db: &IdbDatabase, id: &str) -> Result<(), JsValue> {
     let transaction = db.transaction_with_str_and_mode(FILES, IdbTransactionMode::Readwrite)?;
     transaction
@@ -497,12 +643,14 @@ async fn remove_files(db: &IdbDatabase, id: &str) -> Result<(), JsValue> {
     settled(&transaction).await
 }
 
-/// Date a project's record without disturbing the name it was given.
-fn touch(meta: &IdbObjectStore, id: &str) -> Result<(), JsValue> {
+/// Date a store's record, and name it when a name is given, without losing
+/// whatever else it says.
+fn touch(meta: &IdbObjectStore, id: &str, name: Option<&str>) -> Result<(), JsValue> {
     let key = JsValue::from_str(id);
     let request = meta.get(&key)?;
     let store = meta.clone();
     let read = request.clone();
+    let name = name.map(str::to_string);
     let done = Closure::once_into_js(move |_: web_sys::Event| {
         let existing = read.result().unwrap_or(JsValue::UNDEFINED);
         let record = if existing.is_object() {
@@ -510,6 +658,9 @@ fn touch(meta: &IdbObjectStore, id: &str) -> Result<(), JsValue> {
         } else {
             js_sys::Object::new()
         };
+        if let Some(name) = name {
+            let _ = js_sys::Reflect::set(&record, &"name".into(), &name.into());
+        }
         let _ = js_sys::Reflect::set(&record, &"modified".into(), &js_sys::Date::now().into());
         let _ = store.put_with_key(&record, &key);
     });
@@ -526,7 +677,7 @@ fn number(value: &JsValue, field: &str) -> f64 {
 }
 
 /// Every key starting with `prefix`. The high sentinel sorts after every
-/// character a path may hold, so the range is exactly one project.
+/// character a path may hold, so the range is exactly one store.
 fn range_of(prefix: &str) -> Result<web_sys::IdbKeyRange, JsValue> {
     web_sys::IdbKeyRange::bound(
         &JsValue::from_str(prefix),

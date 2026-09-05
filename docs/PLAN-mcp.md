@@ -23,7 +23,7 @@ Built, and not built for this:
 | --- | --- |
 | The script API, components, assets and constants as JSON | `balaur api`, `docs/generated/api.json` |
 | A project checked without running it, every finding with a line | `balaur check --strict` |
-| A language server and a debug adapter over a port | `balaur lsp`, `balaur run --debug` |
+| A language server and a debug adapter over a port | `balaur lsp` (diagnostics only; `docs/PLAN-script-tooling.md` grows it), `balaur run --debug` |
 | Tests, import, export, a headless run with a digest and a log | `balaur test`, `balaur import`, `balaur export`, `balaur run --headless`, `logbuf` |
 | Offscreen screenshots | `balaur run --offscreen`, `render.screenshot` |
 | Scene edits that keep comments | the TOML patcher |

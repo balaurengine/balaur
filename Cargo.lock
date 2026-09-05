@@ -519,7 +519,6 @@ dependencies = [
  "balaur_plugin",
  "balaur_render",
  "balaur_script",
- "base64 0.22.1",
  "clap",
  "console_error_panic_hook",
  "dirs",

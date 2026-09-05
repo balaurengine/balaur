@@ -244,8 +244,6 @@ mod web;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web_export;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
-mod web_fs;
-#[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web_store;
 
 /// In a browser there is no command line: the page calls `web::start` with

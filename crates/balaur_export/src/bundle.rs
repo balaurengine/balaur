@@ -56,10 +56,17 @@ impl Bundle {
 const WEB_SHELL: &str = include_str!("web/index.html");
 
 /// The shell for a project: its own, or the built-in one.
-pub(crate) fn web_shell(project: &Path) -> Result<String> {
+///
+/// # Errors
+/// If the project has a shell of its own that cannot be read as text.
+pub fn web_shell(project: &Path) -> Result<String> {
+    // Through the file backend, so a project edited in a browser ships its
+    // own shell page the same way one on a disk does.
+    let fs = balaur::files::default_backend();
     let own = project.join("web").join("index.html");
-    if own.is_file() {
-        return std::fs::read_to_string(&own).with_context(|| format!("reading {}", own.display()));
+    if fs.exists(&own) && !fs.is_dir(&own) {
+        let bytes = fs.read(&own)?;
+        return String::from_utf8(bytes).with_context(|| format!("{} is not text", own.display()));
     }
     Ok(WEB_SHELL.to_string())
 }

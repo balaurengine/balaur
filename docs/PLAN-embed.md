@@ -77,7 +77,9 @@ from the protocol's schema so the package and the engine cannot drift;
 `ResizeObserver`, which replaces the shell page's `100vw` rule, and it claims
 the keyboard only when focused so a page keeps its scroll. `transparent`
 asks the backend for an alpha swapchain and a clear with alpha zero, and
-`set_background` learns an alpha.
+`set_background` learns an alpha. The exported shell grows a `--pwa` option
+beside it: a manifest and a service worker around the page, so a game
+installs to a home screen and opens offline from the cached module and pack.
 
 **React is a wrapper and nothing more.** `@balaurengine/react` exports
 `<BalaurViewer>` with the same attributes as props and `onReady(app)`;
@@ -128,6 +130,7 @@ boolean or a text mesh from `docs/PLAN-objects.md` leaves the engine.
 | A `compile` feature; `physics2d` and `physics3d` features | Step 4 |
 | WebGL2 fallback | Step 5, measured; not promised |
 | Transparent canvas | Step 2, a backend alpha clear |
+| A progressive web app: manifest and service worker around the exported shell | Step 2, `balaur export --target web --pwa` |
 | Image export | Step 6 |
 | Video export | Step 6: ffmpeg on the path, `MediaRecorder` on the web. A bundled encoder (`rav1e`, `openh264`) is not planned |
 | glTF export | Step 6, `gltf-json` |
@@ -141,8 +144,8 @@ boolean or a text mesh from `docs/PLAN-objects.md` leaves the engine.
    `--embed` schema. Ends with: a page setting a variable and hearing it
    change back, recorded and replayed.
 2. **Element and package.** The runtime package, the element, sizing, lazy,
-   poster, transparent. Ends with: the site's examples page using the
-   element instead of `Player`.
+   poster, transparent, the `--pwa` shell. Ends with: the site's examples
+   page using the element instead of `Player`.
 3. **React.**
 4. **Size.** Variants, the export pick, the `compile` feature, the budget
    gate.

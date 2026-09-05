@@ -22,7 +22,8 @@ mod config;
 mod sign;
 
 use apple::AppleConfig;
-use bundle::{Bundle, export_bundle, export_macos_app, find_bundle_template, web_shell};
+pub use bundle::web_shell;
+use bundle::{Bundle, export_bundle, export_macos_app, find_bundle_template};
 pub use config::{DEFAULT_OUTPUT, ExportConfig};
 
 /// Everything an export was asked for.

@@ -15,7 +15,10 @@ maps, sky and image-based lighting, fog, tonemapping and grading, glass,
 mirrors and probes, and the finishing passes a design tool ships: vignette,
 chromatic aberration, grain, pixelation. `docs/PLAN-shaders.md` owns the
 shader system this builds on, and its phase 9, post-process materials, is
-where four of those passes land. `docs/PLAN-rendering.md` is the 2D half.
+where four of those passes land. `docs/PLAN-rendering.md` is the 2D half;
+`docs/PLAN-views-and-culling.md` owns the camera's projection, cull masks
+and MSAA; `docs/PLAN-textures.md` owns how an image is imported, which is
+where a normal map's sRGB flag lives.
 
 ## 0. Where the tree is today
 
@@ -139,7 +142,7 @@ the module.
 | Point, directional and spot lights: colour, intensity, attenuation radius, cone angles, enabled (*fork* `light.rs`) | Step 1, `light3d`. `enabled` is the node's `visible` |
 | `casts_shadows` per light; the shadow atlas, cascades, softness, resolution (*fork* `builtin/shadow.rs`) | Step 1: `light3d.shadows` and `environment.shadows`. One cascade first; `num_cascades` when a scene asks |
 | `casts_shadows` per object | Step 1, a `shadows` bool on `mesh` and `shape3d` |
-| Light layers and render layers (*fork* `light_layers`, `render_layers`) | Step 1, as `layers` on `light3d` and on the renderables, named as collision layers will be (`docs/PLAN-rapier.md`); a bitmask never reaches a scene file |
+| Light layers and render layers (*fork* `light_layers`, `render_layers`) | Step 1, as `layers` on `light3d` and on the renderables, named as collision layers will be (`docs/PLAN-rapier.md`); a bitmask never reaches a scene file. `docs/PLAN-views-and-culling.md` step 2 puts the matching `cull_mask` on a camera |
 | Ambient; fog with linear, exponential and squared modes and height falloff (*fork* `Fog`, `set_ambient`) | Step 2, `environment`. Balaur's contract already carries both in its frame uniforms |
 | Equirectangular skybox, orientation, intensity (*fork* `renderer/skybox.rs`) | Step 2, `environment.sky`. `.hdr` and `.exr` load through `image`, which the window build already enables |
 | Image-based lighting, mip-as-prefilter (*fork* `renderer/ibl.rs`) | Step 2, on by the sky; no separate setting |
@@ -152,7 +155,7 @@ the module.
 | Planar mirror (*fork* `renderer/reflector.rs`) | Step 6, `mirror` on the material, with `intensity` and `normal_falloff` |
 | Reflection probes, parallax-corrected (*fork* `renderer/reflection_probe.rs`) | Step 6, a `reflection_probe` component: box extents, a baked `.hdr` or a capture |
 | SSR, SSAO, depth of field (*fork*) | Have as flags. Their settings become `<pass>_<knob>` properties beside `post`, as bloom's did |
-| FXAA, contrast-adaptive sharpening (*fork* `post_processing/fxaa.rs`, `cas.rs`) | Step 5, two more `post` names |
+| FXAA, contrast-adaptive sharpening (*fork* `post_processing/fxaa.rs`, `cas.rs`) | Step 5, two more `post` names. MSAA is `docs/PLAN-views-and-culling.md`'s |
 | Vignette, chromatic aberration, grain, pixelation | Step 5, four post-process materials shipped with the engine |
 | Grayscale, sobel edge highlight, CRT, waves, loupe (*fork* `post_processing`) | Not surfaced. Each is a post-process material a project writes in minutes once step 5 lands |
 | Clustered forward+ lights beyond the primary sixteen (*fork* `builtin/clustered.rs`) | Step 1 binds the buffers; the split is the backend's. `MAX_LIGHTS` stays the primary tier |

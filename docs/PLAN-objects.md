@@ -1,19 +1,23 @@
 > **Status:** not started. Written down on 2026-09-05 with
 > `docs/PLAN-3d-rendering.md`, from the same comparison against Spline. The
 > order is what a designer reaches for first: the primitives a palette
-> starts with, then text, because every demo has a word in it, then paths
-> and what they extrude into, then the compound objects — booleans, cloners
-> — and last 3D particles, which are their own renderer. Everything builds a
-> `mesh` asset headless, so colliders, picking and tests share the triangles
-> the screen draws.
+> starts with, then glyph outlines, because a 3D title is an extruded one,
+> then paths and what they extrude into, then the compound objects —
+> booleans, cloners — and last the instanced draw path clones and particles
+> share. Everything builds a `mesh` asset headless, so colliders, picking and
+> tests share the triangles the screen draws.
 
 # Plan: objects
 
-Parametric primitives, text in 2D and 3D, bezier paths with extrude, lathe
-and sweep, a boolean node, a cloner, 3D particles, vertex colours and morph
-targets, and the 2D vector shapes a canvas expects. What draws them is
-`docs/PLAN-3d-rendering.md`; what the editor does with them is
-`docs/PLAN-editor-ergonomics.md`.
+Parametric primitives, glyph outlines as meshes, bezier paths with extrude,
+lathe and sweep, a boolean node, a cloner, the instanced draw path, vertex
+colours and morph targets, and the 2D vector shapes a canvas expects. What
+draws them is `docs/PLAN-3d-rendering.md`; what the editor does with them is
+`docs/PLAN-editor-ergonomics.md`. Three neighbours draw through paths this
+plan opens and own the components themselves: `docs/PLAN-text.md` has
+`text2d` and `text3d`, `docs/PLAN-particles.md` has `particles3d`, and
+`docs/PLAN-views-and-culling.md` has automatic instancing and `multimesh`
+over the seam the cloner opens.
 
 ## 0. Where the tree is today
 
@@ -37,16 +41,17 @@ Missing:
 
 - **Parametric primitives.** No torus, pyramid, prism, tube or rounded
   cuboid, and no `segments` or `corner_radius` on the six that exist.
-- **Text in the world.** A widget draws text on the screen layer only;
-  nothing draws a word at a node's pose in 2D, and nothing extrudes one in
-  3D.
+- **Text as geometry.** `docs/PLAN-text.md` draws text as quads from an
+  atlas; nothing turns a glyph's outline into a mesh a title extrudes from
+  or a collider fits to.
 - **Paths.** No bezier asset, no editable path, no extrude, lathe or sweep.
   The fork's `bezier_curve` lives in a crate a headless build does not link.
 - **A boolean node.** `geometry3d.intersect` is a script call that returns a
   mesh; nothing in a scene says "this minus that".
 - **A cloner.** The renderer draws every node it is handed; the fork's
   instancing is never used.
-- **3D particles.** `particles` is 2D, in logical pixels, on the 2D layer.
+- **An instanced draw.** Nothing draws one mesh many times in one call;
+  `docs/PLAN-particles.md`'s billboards and the cloner both need it.
 - **Vertex colours and morph targets** in `MeshData`, so a glTF that carries
   either loses it.
 - **2D vector shapes.** No ellipse, rounded rect, star or regular polygon,
@@ -71,17 +76,16 @@ it.
 | `cuboid` | gains `corner_radius` |
 | `plane` | gains `segments` |
 
-**Text is a mesh from glyph outlines, shaped by the engine widgets use.**
-`text2d` and `text3d` (D5: both marked, since both exist) take `text`,
-`font` (a file under `fonts/`), `size`, `align`, `line_height` and
-`letter_spacing`; `text3d` adds `depth` and `bevel`. cosmic-text shapes the
-run, `swash` yields each glyph's outline, the curves flatten at a tolerance
-in world units, and the outline becomes a polygon with holes. The ear clipper
-takes one ring, so triangulation with holes is `i_triangle`, the sibling of
-the `i_overlay` core already depends on, which scales to integers as it
-does. `text2d` is a filled mesh on the 2D layer, tinted and textured like a
-polygon; `text3d` extrudes the caps and closes the sides. Editing the string
-rebuilds the mesh; the cache is by `(font, size, text)`.
+**Glyph outlines are a mesh path, not a component.** `docs/PLAN-text.md`
+owns `text2d` and `text3d` and draws them as atlas quads first; what it
+borrows from here, for a `text3d` that takes outlines, is the path from a
+shaped run to a mesh. cosmic-text shapes the run, `swash` yields each
+glyph's outline, the curves flatten at a tolerance in world units, and the
+outline becomes a polygon with holes. The ear clipper takes one ring, so
+triangulation with holes is `i_triangle`, the sibling of the `i_overlay`
+core already depends on, which scales to integers as it does. The caps are
+the 2D mesh; step 3's extrude closes the sides. The cache is by `(font,
+size, text)`.
 
 **A path is an asset; extrude, lathe and sweep are `shape3d` kinds over it.**
 `path2d` and `path3d` are lists of cubic segments with a `closed` flag,
@@ -109,19 +113,20 @@ three operations is nearly free and comes first as the proof of the shape. A
 [5, 1, 5], step = [1.2, 0, 1.2] }` — also `linear` with `count` and `step`,
 and `radial` with `count`, `radius` and `angle` — takes the node's child
 subtree as the template and draws it that many times through the fork's
-`set_instances`, one draw call per mesh. Physics, scripts and the tree see
-one node; `seed` scatters position, rotation and scale within a `random`
+`set_instances`, one draw call per mesh. The seam it opens is the one
+`docs/PLAN-views-and-culling.md` step 3 fills with automatic instancing and
+step 8 with `multimesh`, the cloner's scripted twin. Physics, scripts and
+the tree see one node; `seed` scatters position, rotation and scale within a `random`
 range. "Bake to nodes" in the editor makes real children when a game needs
 to touch one. 2D clones instance sprites the same way.
 
-**3D particles are a renderer, not a system.** `particles3d` mirrors
-`particles`: rate, lifetime, speed, spread, gravity as a vec3, size in world
-units, `color_end`, `size_end`, `texture`, `one_shot`, plus an emitter
-`shape` (point, sphere, box, cone) and `lit`. Drawn as instanced billboards
-through the `set_instances` path the cloner uses, so there is one instancing
-seam. Observer-only, as the 2D one is: the live particles never enter the
-simulation. `particles` becomes `particles2d`, with the old key accepted for
-one release (NAMING D5, Table C).
+**The instanced draw path is one seam.** The fork's `set_instances` is
+reached once, in `shader_material_3d.rs`, and three things draw through it:
+the cloner here, `docs/PLAN-views-and-culling.md`'s automatic instancing and
+`multimesh`, and `docs/PLAN-particles.md`'s billboards. Per-instance data is
+a model matrix and a colour; a material sees an instance index and nothing
+else, so a fire shader is a material and not a feature. The emitter, its
+shapes and the `particles2d` rename are `docs/PLAN-particles.md`'s.
 
 **`MeshData` grows colours and morphs.** `colors: Option<Vec<[f32; 4]>>` and
 `morphs: Vec<MorphTarget { name, positions, normals }>`; `glb.rs` keeps
@@ -141,14 +146,15 @@ core.
 | --- | --- |
 | Torus, pyramid, prism, tube, rounded cuboid, segmented plane | Step 1, core meshers |
 | Sphere, cuboid, capsule, cylinder, cone, quad, circle, hemisphere in the fork's `procedural` | Not used: the same shapes move into core so headless and drawn geometry agree |
-| `text2d`, `text3d` | Step 2, the components `docs/PLAN-text.md` specifies; that plan tries atlas quads from the widget layer's shaper first and outlines through `i_triangle` second |
+| Glyph outlines to a mesh, for `docs/PLAN-text.md`'s `text3d` when it takes outlines; that plan tries atlas quads first | Step 2, `swash` + `i_triangle` |
 | `path2d`, `path3d`, stroke, extrude, lathe, sweep | Step 3, sampling in core. The fork's `bezier_curve` and `polyline_path` pipe are not used |
 | `boolean2d` | Step 4, `geometry2d` |
 | `boolean3d` intersection | Step 4, `geometry3d.intersect` (parry) |
 | `boolean3d` union and difference | Step 4, `csgrs`; fallback an in-tree BSP |
 | `cloner`: linear, radial, grid, seed | Step 5, fork `set_instances` |
 | Cloner along a path or over a surface | Not planned until a scene asks; the path kind is the natural third mode |
-| `particles3d` | Step 6, instanced billboards. The fork's `PointRenderer3d` is not used: no texture or size per point. The emitter's surface — shapes, randomness, attractors, colliders, trails, sub-emitters — is `docs/PLAN-particles.md`; this step is the draw path |
+| The instanced draw path | Step 6, over the fork's `set_instances`; `docs/PLAN-particles.md`'s billboards and `docs/PLAN-views-and-culling.md`'s `multimesh` draw through it. The fork's `PointRenderer3d` is not used: no texture or size per point |
+| `particles3d`, its emitter shapes, and what both emitters lack | `docs/PLAN-particles.md` |
 | GPU-simulated particles | Not planned (`docs/PLAN-shaders.md` question 6) |
 | Vertex colours, morph targets | Step 7 |
 | Ellipse, star, ngon, rounded rect | Step 1, beside the 3D primitives |
@@ -161,12 +167,13 @@ core.
    onto it, the new kinds in 2D and 3D, `segments` and `corner_radius`. Ends
    with: a torus in `examples/hello` with a collider fitted from the same
    mesh.
-2. **Text.** `text2d`, `text3d`, the glyph cache. Ends with: the hello
-   example saying hello.
+2. **Glyph outlines.** The outline-to-mesh path and its cache. Ends with: a
+   word as a mesh with a collider fitted from it.
 3. **Paths.** The two assets, stroke, extrude, lathe, sweep.
 4. **Booleans.** `boolean2d`, then `boolean3d`, then the bake command.
 5. **Cloner.** With bake.
-6. **3D particles.** With the `particles2d` rename.
+6. **The instanced draw.** One seam in `shader_material_3d.rs`, the cloner
+   moved onto it. Ends with: a thousand clones as one draw.
 7. **Colours and morphs.** `MeshData`, `glb.rs`, the material feature, the
    animation property.
 
@@ -186,10 +193,8 @@ core.
 1. **`i_triangle`'s arithmetic.** It scales to integers, which is how it
    stays exact; whether its scaling is identical across platforms needs one
    test before it is trusted.
-2. **Where the built-in font lives.** Widgets have theme fonts; a `text3d`
-   with no `font` needs one, and the fork ships Work Sans. One default under
-   `editor/fonts` reused, or one shipped in the runtime, is a size question
-   for `docs/PLAN-embed.md`.
+2. **The default font** is `docs/PLAN-text.md`'s question; the outline path
+   reads whichever it picks.
 3. **Booleans on moving children.** Recomputing per tick for an animated
    operand is the naive rule; a `static` flag that computes once is the
    likely answer.

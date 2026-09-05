@@ -13,8 +13,9 @@ Multi-select and box select, group and ungroup, align and distribute, hide,
 lock and isolate, an outliner filter, drag-in import, light and camera
 gizmos, view modes, a pen tool, a material panel, an Events view that
 authors, a cost dock, and a library of materials, skies, models and
-templates. `docs/PLAN-editor.md` §6 holds the two tools this does not
-repeat: the tilemap painter and the curve editor.
+templates. `docs/PLAN-editor.md` §6 holds the curve editor, and
+`docs/PLAN-tilemap.md` what the Tiles tool still lacks; neither is repeated
+here.
 
 ## 0. Where the tree is today
 
@@ -34,6 +35,7 @@ Built, and not built for this:
 | A colour editor, sliders, dropdowns and folds in the inspector | `ui`, `inspector.rn` |
 | Component presets and tags | `scene.presets`, `apply_preset` |
 | The Polygon tool, which already edits a mesh in the viewport | `polygon.rn` |
+| The Tiles tool: a palette dock, paint and erase, rectangle fill, layers as sibling maps | `tiles.rn`, `ui.image_button` |
 | The Export sheet, off the frame with progress | `export_api.rs`, `exporter.rn` |
 | Wireframe, normals and UV materials in the fork | `kiss3d::builtin::{wireframe, normals_material, uvs_material}` |
 | Timings per system, and a profiler dock | `engine.timings` |

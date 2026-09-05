@@ -26,13 +26,21 @@ pub async fn start(canvas_id: String, pack_url: String) -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
     balaur::logbuf::capture(tracing::level_filters::LevelFilter::INFO);
     let bytes = fetch_bytes(&pack_url).await?;
-    // The pack's URL names the game on this origin: what an earlier visit
-    // saved under it comes back before the first scene loads.
-    balaur::files::set_default(std::rc::Rc::new(crate::web_fs::StorageFs::open(&pack_url)));
+    // The pack's URL names the game on this origin: the user directory an
+    // earlier visit kept under it comes back before the first scene loads.
+    let fs = crate::web_store::ProjectFs::open(&format!("game:{pack_url}"), Path::new(USER_DATA))
+        .await?;
+    fs.install();
+    balaur::files::set_default(fs);
     balaur::boot_pack_on_canvas(&bytes, &canvas_id)
         .await
         .map_err(err)
 }
+
+/// Where a packed game's user directory lands on a platform with no data
+/// directory: `user_data` under the project root, which for a pack is `.`.
+/// The one directory a running game writes, and so the one that is kept.
+const USER_DATA: &str = "user_data";
 
 /// Where a project fetched into memory lives. A browser has no directory to
 /// open, so the editor is handed a path that exists only in [`MemoryFs`] —
@@ -47,12 +55,9 @@ const EDITOR_ROOT: &str = "/editor";
 /// Open the editor on `project_pack_url`, drawing on the canvas with id
 /// `canvas_id`.
 ///
-/// Both packs are fetched: the editor's own project — its scripts, scenes,
-/// fonts and themes — and the game to edit, which is unpacked into a virtual
-/// filesystem the editor then reads and writes as if it were a directory.
-/// Nothing is written back to the server, and what the editor saves is kept
-/// in the browser under the project's own URL, so a refresh comes back to the
-/// scene as it was left rather than to the one the pack shipped.
+/// The pack's URL names the project, so this is [`open_project`] with an id a
+/// page need not have chosen: what an earlier visit kept under that URL comes
+/// back, and the pack seeds it the first time.
 #[wasm_bindgen]
 #[allow(
     unreachable_pub,
@@ -63,34 +68,8 @@ pub async fn start_editor(
     editor_pack_url: String,
     project_pack_url: String,
 ) -> Result<(), JsValue> {
-    console_error_panic_hook::set_once();
-    balaur::logbuf::capture(tracing::level_filters::LevelFilter::INFO);
-    let editor = fetch_bytes(&editor_pack_url).await?;
-    let project = fetch_bytes(&project_pack_url).await?;
-    let project = balaur::Pack::decode(&project).map_err(err)?;
-
-    let editor_pack = balaur::Pack::decode(&editor).map_err(err)?;
-    // The editor's own project is not mirrored: it ships with the editor and
-    // is fetched again every visit. The project under edit is, and the pack
-    // is seeded first so a file an earlier visit kept lands on top of it.
-    let fs = std::rc::Rc::new(crate::web_fs::StorageFs::mirroring(
-        &project_pack_url,
-        &[PROJECT_ROOT],
-    ));
-    fs.seed(Path::new(EDITOR_ROOT), editor_pack.entries());
-    fs.seed(Path::new(PROJECT_ROOT), project.entries());
-    fs.restore();
-    balaur::files::set_default(fs);
-
-    balaur::boot_editor_on_canvas(
-        &editor,
-        EDITOR_ROOT,
-        PROJECT_ROOT,
-        &canvas_id,
-        &mut exporter(&editor_pack_url),
-    )
-    .await
-    .map_err(err)
+    let id = format!("pack:{project_pack_url}");
+    open_project(canvas_id, editor_pack_url, id, Some(project_pack_url)).await
 }
 
 /// Open the editor on the project kept under `project_id`.
@@ -115,15 +94,16 @@ pub async fn open_project(
     let editor = fetch_bytes(&editor_pack_url).await?;
     let editor_pack = balaur::Pack::decode(&editor).map_err(err)?;
     let fs = crate::web_store::ProjectFs::open(&project_id, Path::new(PROJECT_ROOT)).await?;
+    fs.install();
     if fs.is_empty() {
         let url = seed_pack_url.ok_or_else(|| {
             JsValue::from_str("nothing is kept under that project id, and no pack to start it from")
         })?;
         let seed = balaur::Pack::decode(&fetch_bytes(&url).await?).map_err(err)?;
+        fs.name(manifest_name(&seed.manifest).as_deref().unwrap_or(&project_id));
         fs.seed_at(Path::new(PROJECT_ROOT), seed.entries());
     }
     fs.seed_at(Path::new(EDITOR_ROOT), editor_pack.entries());
-    fs.install();
     balaur::files::set_default(fs);
     balaur::boot_editor_on_canvas(
         &editor,
@@ -153,6 +133,24 @@ fn directory_of(url: &str) -> String {
         Some(at) => path[..at].to_string(),
         None => String::new(),
     }
+}
+
+/// The open project zipped, as `[name, bytes]`, for someone to take their
+/// work out of the browser it is kept in.
+#[wasm_bindgen]
+#[allow(
+    unreachable_pub,
+    reason = "exported to the page by wasm-bindgen, not to another crate"
+)]
+pub fn download_project() -> Result<js_sys::Array, JsValue> {
+    let fs = crate::web_store::ProjectFs::live()
+        .ok_or_else(|| JsValue::from_str("no project is open"))?;
+    let (name, bytes) =
+        crate::web_export::archive(Path::new(PROJECT_ROOT), &fs.files()).map_err(err)?;
+    Ok(js_sys::Array::of2(
+        &JsValue::from_str(&name),
+        &js_sys::Uint8Array::from(bytes.as_slice()).into(),
+    ))
 }
 
 /// What the last export produced, as `[name, bytes]`, or nothing when there
@@ -252,6 +250,18 @@ pub async fn save_project() -> Result<(), JsValue> {
         return Ok(());
     };
     fs.flush().await
+}
+
+/// The name a manifest gives its project, for the record a store keeps.
+fn manifest_name(manifest: &str) -> Option<String> {
+    manifest
+        .parse::<toml::Value>()
+        .ok()?
+        .get("application")?
+        .get("name")?
+        .as_str()
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
 }
 
 fn err(e: anyhow::Error) -> JsValue {

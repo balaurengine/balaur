@@ -27,6 +27,7 @@ Built, and not built for this:
 | Selection highlights and gizmos drawn over the mirror | `highlight.rn`, `gizmo.rn` |
 | Scene edits that keep comments | the TOML patcher |
 | A file backend seam, one implementation per platform | `balaur::files` |
+| Object storage, an admin portal, and the split between server work in the `gamend` repository and engine work here | `docs/PLAN-gamend.md` §2 |
 
 Missing:
 
@@ -41,9 +42,10 @@ Missing:
 ## 1. Design
 
 **A project is files under an id, and every save is a version.** Gamend
-grows three tables: `projects` (owner, name, visibility), `files` (project,
-path, blob hash, version) and `versions` (project, label, author, parent,
-time). ⌘S posts the changed files with the `history` label as the version's,
+grows three tables — server work in the `gamend` repository, kept in step
+here as `docs/PLAN-gamend.md` does: `projects` (owner, name, visibility),
+`files` (project, path, blob hash, version) and `versions` (project, label,
+author, parent, time). Blobs go to the object storage Gamend already has. ⌘S posts the changed files with the `history` label as the version's,
 so the history a person sees in the editor and the history on the server are
 one list. A version restores as a whole; a file's history is a diff view in
 the editor. Blobs are content-addressed, so a texture saved twice is stored

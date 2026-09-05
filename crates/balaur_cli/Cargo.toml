@@ -87,10 +87,10 @@ web-sys = { version = "0.3", features = [
     "IdbOpenDbRequest",
     "IdbRequest",
     "IdbTransaction",
+    "IdbTransactionDurability",
     "IdbTransactionMode",
+    "IdbTransactionOptions",
 ] }
-# The user directory is mirrored into localStorage as text.
-base64 = "0.22"
 console_error_panic_hook = "0.1"
 # A web bundle exported from a tab: the pack zipped beside the glue and the
 # module (src/web_export.rs). `toml` reads the name off the manifest, which is

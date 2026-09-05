@@ -79,8 +79,8 @@ The `balaur` command: run, edit, export, replay and check a project
 The `balaur` command line tool: create, run, export, and play projects.
 
 - **workspace deps:** `balaur`, `balaur_core`, `balaur_export`, `balaur_plugin`, `balaur_render`, `balaur_script`
-- **external deps:** 19 (anyhow, base64, clap, console_error_panic_hook, dirs, flate2, js-sys, serde, …)
-- **public surface:** 3 fn
+- **external deps:** 21 (anyhow, base64, clap, console_error_panic_hook, dirs, flate2, js-sys, serde, …)
+- **public surface:** 12 fn
 
 ## `balaur_core`
 
@@ -103,7 +103,7 @@ Exporting a project: packs, fused executables, and the platform bundles
 
 - **workspace deps:** `balaur`, `balaur_plugin`
 - **external deps:** 5 (anyhow, serde, toml, tracing, zip)
-- **public surface:** 3 fn, 2 struct, 2 const, 2 type
+- **public surface:** 4 fn, 2 struct, 2 const, 2 type
 - **structs:** `ExportConfig`, `Options`
 
 ## `balaur_gamend`
