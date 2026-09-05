@@ -94,7 +94,7 @@ exported onto.
 - **`balaur_bg.wasm` / `balaur.js`** — the web runtime loose, for a page of
   your own.
 - **`balaur-play.tar.gz`** — the web runtime with the editor's project and
-  the example games packed for it: what balaurengine.org/play and /editor
+  the example games packed for it: what balaurengine.org/editor and /examples
   run (scripts/package_play.sh).
 
 ### Exporting

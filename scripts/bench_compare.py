@@ -111,6 +111,18 @@ def shoot_case(key, warmup, path):
     return True
 
 
+def median_run(key, args):
+    """`--repeats` runs of one case, keeping the one whose headline number is
+    the median: a background process that lands on one run costs that run,
+    not the result."""
+    runs = [r for r in (run_case(key, args.steps, args.warmup) for _ in range(max(1, args.repeats))) if r]
+    if not runs:
+        return None
+    headline = "loop_ms" if runs[0]["dimensions"] == "nodes" else "step_ms"
+    runs.sort(key=lambda r: r[headline]["p50_ms"])
+    return runs[len(runs) // 2]
+
+
 def godot_results(directory):
     """The suite's own results, keyed by (dim, case, engine)."""
     out = {}
@@ -384,6 +396,8 @@ def main():
     ap.add_argument("--steps", type=int, default=300)
     ap.add_argument("--warmup", type=int, default=60)
     ap.add_argument("--quick", action="store_true", help="60 steps; noisier, minutes not tens")
+    ap.add_argument("--repeats", type=int, default=1,
+                    help="runs per case; the one with the median tick is kept, as the Godot driver does")
     ap.add_argument("--godot-results", help="the benchmarks-repo results/ directory")
     ap.add_argument("--godot-nodes", help="a godot-benchmarks results JSON")
     ap.add_argument("--out", default=str(REPORT))
@@ -405,7 +419,7 @@ def main():
         wanted = cases(args.cases, args.dims)
         for i, key in enumerate(wanted, 1):
             print(f"[{i}/{len(wanted)}] {key}", flush=True)
-            found = run_case(key, args.steps, args.warmup)
+            found = median_run(key, args)
             if found:
                 results[key] = found
                 if found["dimensions"] == "nodes":

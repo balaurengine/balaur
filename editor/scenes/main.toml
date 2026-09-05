@@ -20,8 +20,9 @@ y = 0
 padding = 14
 gap = 12
 
-# The persona bar and the command field float over this row; it is here to
-# hold the height they need and to push the body down.
+# The one bar across the top: brand, personas, the open documents, and the
+# transport. It floats over this row, which holds the height and pushes the
+# body down.
 [[nodes]]
 id = "head"
 name = "Head"
@@ -30,25 +31,6 @@ parent = "shell"
 kind = "row"
 height = 36
 gap = 0
-
-# The persona bar is centred on the document column rather than the window, so
-# it takes this band's height and states no width of its own.
-[[nodes]]
-id = "band"
-name = "Band"
-parent = "head"
-[nodes.widget]
-kind = "row"
-grow = 1
-
-[[nodes]]
-id = "cmd"
-name = "Cmd"
-parent = "head"
-[nodes.widget]
-kind = "row"
-width = 168
-height = 30
 
 [[nodes]]
 id = "body"
@@ -86,7 +68,7 @@ kind = "row"
 width = 288
 
 # Everything above the bottom dock. The tool rail sits in its own column so
-# the tabs and the scene start clear of it, while the dock below does not.
+# the scene starts clear of it, while the dock below does not.
 [[nodes]]
 id = "upper"
 name = "Upper"
@@ -149,14 +131,6 @@ parent = "upper"
 kind = "column"
 grow = 1
 gap = 6
-
-[[nodes]]
-id = "tabs"
-name = "Tabs"
-parent = "work"
-[nodes.widget]
-kind = "row"
-height = 36
 
 [[nodes]]
 id = "canvas"

@@ -152,6 +152,7 @@ for ex in examples/*/; do
   # run can raise, and the Assets dock's three filesystem verbs.
   printf '  clip ...   '
   edit_step "$name: clipboard" "$ex" clipdemo
+  edit_step "$name: script paths" "$ex" scriptdemo
   printf 'ok\n'
   printf '  assets ... '
   edit_step "$name: assets" "$ex" assetdemo

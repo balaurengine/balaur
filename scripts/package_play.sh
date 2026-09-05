@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # The web build as one download for a page: the glue and module from
 # package_template.sh web, plus the editor's project and the example games
-# packed with the editor binary, which is what balaur-website's /play and
-# /editor open. One archive, so a site refreshes them as a unit.
+# packed with the editor binary, which is what balaur-website's /editor and
+# /examples open. One archive, so a site refreshes them as a unit.
 #
 # Usage: package_play.sh [balaur-binary]
 #   The binary defaults to BALAUR, then target/release/balaur, then the one

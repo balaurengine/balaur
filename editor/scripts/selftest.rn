@@ -547,6 +547,56 @@ pub fn instances(S) {
     log::info("selftest instances: done");
 }
 
+// The inspector's script field: a new name writes and attaches a file, a
+// changed name moves it, remove leaves it on disk, and undo walks it all back.
+pub fn script_paths(S) {
+    let picked = None;
+    for (i, node) in S.doc.iter().enumerate() {
+        if picked.is_none() && !node.contains_key("script") && !model::is_instanced(node) {
+            picked = Some(i);
+        }
+    }
+    let i = match picked {
+        Some(i) => i,
+        None => {
+            log::warn("scriptdemo: every node has a script");
+            return;
+        }
+    };
+    S.sel = i;
+    let root = S.game_root + "/";
+    // A project with no scripts/ would be left with an empty one.
+    if !fs::exists(root + "scripts") {
+        log::info("scriptdemo: skipped, the project has no scripts/");
+        return;
+    }
+    let name = S.doc[i].name.to_lowercase();
+    let fresh = "scripts/selftest-" + name + ".rn";
+    let moved = "scripts/selftest-" + name + "-moved.rn";
+    fs::remove(root + fresh);
+    fs::remove(root + moved);
+
+    shell::set_script_path(S, fresh);
+    check(model::script_rel(S.doc[i]) == Some(fresh), "a new name attaches a new file");
+    check(fs::exists(root + fresh), "and writes it");
+    check(S.script_open, "attaching opens the script tab");
+    shell::set_script_path(S, moved);
+    check(model::script_rel(S.doc[i]) == Some(moved), "a changed name moves the script");
+    check(fs::exists(root + moved) && !fs::exists(root + fresh), "and the file with it");
+    shell::detach_script(S);
+    check(!S.doc[i].contains_key("script"), "remove takes the script off the node");
+    check(fs::exists(root + moved), "and leaves the file");
+    check(!S.script_open, "and closes the script tab");
+    shell::undo(S);
+    check(model::script_rel(S.doc[i]) == Some(moved), "undo re-attaches it");
+    shell::undo(S);
+    shell::undo(S);
+    check(!S.doc[i].contains_key("script"), "undoing everything leaves the node without a script");
+    check(mirror_resolves(S), "and every node still resolves");
+    fs::remove(root + moved);
+    log::info("selftest scriptdemo: done");
+}
+
 // The first row that came from a prefab and has a float the editor can write.
 fn first_instanced_float(S) {
     for (i, node) in S.doc.iter().enumerate() {
@@ -609,11 +659,8 @@ pub fn layout_step(S) {
         "the widget layer gets the stage rect");
     // Every sheet is placed, or it is not drawn: a zero rect turns egui's own
     // area constraint back on and piles the shell into the corner.
-    for (name, r) in [("persona bar", m.bar), ("command pill", m.cmd),
-                      ("tree", m.left), ("inspector", m.right),
-                      ("dock", m.bottom), ("status strip", m.status),
-                      ("document tabs", m.tabs), ("tool rail", m.rail),
-                      ("stage", stage)] {
+    for (name, r) in [("top bar", m.bar), ("tree", m.left), ("inspector", m.right),
+                      ("dock", m.bottom), ("tool rail", m.rail), ("stage", stage)] {
         check(r.w > 0.0 && r.h > 0.0,
             format!("the {} is placed ({} × {})", name, r.w as i64, r.h as i64));
     }

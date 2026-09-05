@@ -42,6 +42,7 @@ const KNOWN_KEYS: &[&str] = &[
     k::D,
     k::DASHED,
     k::DECIMALS,
+    k::DISABLED,
     k::FILL,
     k::FONT,
     k::GUTTER_COLOR,

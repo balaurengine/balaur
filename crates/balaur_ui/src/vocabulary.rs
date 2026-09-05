@@ -84,6 +84,7 @@ pub(crate) mod keys {
     pub(crate) const DASHED: &str = "dashed";
     pub(crate) const DEADZONE: &str = "deadzone";
     pub(crate) const DECIMALS: &str = "decimals";
+    pub(crate) const DISABLED: &str = "disabled";
     pub(crate) const DRAW: &str = "draw";
     pub(crate) const FILL: &str = "fill";
     pub(crate) const FOCUSABLE: &str = "focusable";

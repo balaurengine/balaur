@@ -165,10 +165,25 @@ pub(crate) fn install_spacing_helpers(m: &mut dyn Bindings<Engine>) {
     });
 }
 
+/// Add a button, greyed out and inert when the caller said `disabled`.
+fn enabled_add(ui: &mut egui::Ui, button: egui::Button<'_>, opts: &Opts) -> egui::Response {
+    ui.add_enabled(!opts.boolean(k::DISABLED, false), button)
+}
+
+/// A tooltip that still shows on a disabled button, which is where it
+/// explains why the button is off.
+fn hover_text(response: egui::Response, opts: &Opts, tip: String) -> egui::Response {
+    if opts.boolean(k::DISABLED, false) {
+        response.on_disabled_hover_text(tip)
+    } else {
+        response.on_hover_text(tip)
+    }
+}
+
 /// `ui.pill` and `ui.menu_item`.
 pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("pill", &[], "", "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked."),
+        ("pill", &[], "", "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked. `disabled` greys it out and swallows the click."),
         ("menu_item", &[], "", "Draw a row inside a context menu; true on the frame it was clicked, which also closes the menu."),
     ]);
     m.function(
@@ -216,9 +231,9 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
                     Some(color) => button.stroke(Stroke::new(1.0, color)),
                     None => button.stroke(Stroke::NONE),
                 };
-                let mut response = ui.add(button);
+                let mut response = enabled_add(ui, button, &opts);
                 if let Some(tip) = opts.string(k::TOOLTIP) {
-                    response = response.on_hover_text(tip);
+                    response = hover_text(response, &opts, tip);
                 }
                 // Right-click context menu: the callback draws menu items.
                 if let Some(menu) = opts.callback(k::MENU) {
@@ -267,7 +282,7 @@ pub(crate) fn install_button_widgets(m: &mut dyn Bindings<Engine>) {
 /// `ui.circle_button` and `ui.dot`.
 pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("circle_button", &[], "", "Draw a round button holding one glyph, `d` design pixels across; true on the frame it was clicked."),
+        ("circle_button", &[], "", "Draw a round button holding one glyph, `d` design pixels across; true on the frame it was clicked. `disabled` greys it out and swallows the click."),
         ("dot", &[], "", "Draw a filled circle in a `#rrggbb` colour, `d` design pixels across."),
     ]);
     m.function(
@@ -291,9 +306,9 @@ pub(crate) fn install_button_shapes(m: &mut dyn Bindings<Engine>) {
                     Some(color) => button.stroke(Stroke::new(1.0, color)),
                     None => button.stroke(Stroke::NONE),
                 };
-                let mut response = ui.add(button);
+                let mut response = enabled_add(ui, button, &opts);
                 if let Some(tip) = opts.string(k::TOOLTIP) {
-                    response = response.on_hover_text(tip);
+                    response = hover_text(response, &opts, tip);
                 }
                 Ok(response.clicked())
             })

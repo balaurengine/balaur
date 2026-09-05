@@ -139,6 +139,7 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - Shell built from engine widgets, themed.
 - Bundled fonts and icons; project branding.
 - Narrow-window layout; `--state scale`.
+- One top bar with closable document tabs; docks minimise to a handle; script rename, pick and detach.
 
 ### Breaking
 

@@ -224,7 +224,6 @@ fn chord(S, q, frame, held, run) {
 /// sequence calls the verb itself.
 fn spot(S, name) {
     let bottom = S.layout.bottom;
-    let tabs = S.layout.tabs;
     let right = S.layout.right;
     match name {
         "scene_tab" => chrome::persona_spot(S, "scene"),
@@ -241,8 +240,8 @@ fn spot(S, name) {
         "session" => (bottom.x + 21.0, bottom.y + 94.0),
         "key" => (bottom.x + 32.0, bottom.y + 68.0),
         "bone_tool" => tool_spot(S, "bone"),
-        "doc_scene" => (tabs.x + 40.0, tabs.y + tabs.h / 2.0),
-        "doc_code" => (tabs.x + 119.0, tabs.y + tabs.h / 2.0),
+        "doc_scene" => chrome::doc_spot(S, "scene"),
+        "doc_code" => chrome::doc_spot(S, "script"),
         // Two rows deep in the inspector, whose sections are the scene's; the
         // column is the published one, the offset down it is the clip's.
         "shader_field" => (right.x + right.w * 0.53, right.y + 539.0),

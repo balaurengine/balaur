@@ -1,6 +1,7 @@
 // The shell's three docks — left, bottom, right — and the panels in them. A
 // panel lives in exactly one dock; its tab menu moves it to another.
 
+use crate::chrome;
 use crate::dock;
 use crate::icons;
 use crate::inspector;
@@ -180,9 +181,8 @@ fn tab_row(S, k, side, d) {
         }
         ui::right(|| {
             ui::add_space(4);
-            if ui::pill(icons::ui("collapse"), #{
-                role: "icon_button", height: 22, size: 12,
-                tooltip: format!("Minimise to the {}", if side == "bottom" { "bottom" } else { side }),
+            if ui::pill(icons::ui(shut_icon(side)), #{
+                role: "icon_button", height: 22, size: 12, tooltip: "Minimise",
             }) {
                 S.docks[side].shut = true;
             }
@@ -221,45 +221,49 @@ fn side_for(S, id) {
     }
 }
 
-// Minimised: a strip of the dock's tabs on its own edge.
-fn rail(S, k, side, r) {
+// The caret on a dock's minimise button points at the edge it folds to, and
+// the one on its handle points back the way it opens.
+fn shut_icon(side) {
+    match side {
+        "left" => "caret-left",
+        "right" => "caret-right",
+        _ => "caret-down",
+    }
+}
+
+fn open_icon(side) {
+    match side {
+        "left" => "caret-right",
+        "right" => "caret-left",
+        _ => "caret-up",
+    }
+}
+
+// Minimised: one handle that opens the dock back. A side dock's is a square
+// at the top of its column; the bottom dock's is the status strip itself.
+fn handle(S, k, side, r) {
     let d = S.docks[side];
-    style::sheet(k, side + "-rail", r, 0, 0, || {
-        if side == "bottom" {
-            ui::horizontal(#{ height: 32 }, || {
-                ui::spacing(4, 0);
-                ui::add_space(6);
-                for id in d.tabs {
-                    let p = panel(S, id);
-                    if ui::pill(p.name, #{
-                        role: if d.active == id { "chip_on" } else { "tab" },
-                    }) {
-                        show(S, id);
-                    }
+    let p = panel(S, d.active);
+    if side == "bottom" {
+        style::sheet(k, side, r, 8, 0, || {
+            ui::add_space(2);
+            chrome::status_strip(S, k, r.w, || {
+                if ui::pill(icons::ui(open_icon(side)), #{
+                    role: "icon_button", height: 22, size: 12, tooltip: "Open the dock",
+                }) {
+                    S.docks[side].shut = false;
                 }
-                ui::right(|| {
-                    ui::add_space(4);
-                    if ui::pill(icons::ui("open"), #{ height: 22, size: 12, color: k.dim, tooltip: "Open the dock" }) {
-                        S.docks[side].shut = false;
-                    }
-                });
             });
-            return;
-        }
-        ui::vertical(|| {
-            ui::spacing(3, 4);
-            ui::add_space(6);
-            for id in d.tabs {
-                let p = panel(S, id);
-                ui::horizontal((), || {
-                    ui::add_space(3);
-                    if ui::circle_button(p.icon, #{
-                        role: if d.active == id { "tool_on" } else { "tool" },
-                        d: 28, size: 13, tooltip: p.name,
-                    }) {
-                        show(S, id);
-                    }
-                });
+        });
+        return;
+    }
+    style::sheet(k, side, r, 0, 0, || {
+        ui::horizontal(#{ height: r.h }, || {
+            ui::add_space(2);
+            if ui::circle_button(icons::ui(open_icon(side)), #{
+                role: "tool", tooltip: format!("Open the {}", p.name.to_lowercase()),
+            }) {
+                S.docks[side].shut = false;
             }
         });
     });
@@ -272,7 +276,7 @@ pub fn draw(S, k, side) {
         return;
     }
     if d.shut {
-        rail(S, k, side, r);
+        handle(S, k, side, r);
         return;
     }
     if d.tabs.len() == 0 {
@@ -280,6 +284,16 @@ pub fn draw(S, k, side) {
     }
     style::sheet(k, side, r, 8, 0, || {
         tab_row(S, k, side, d);
-        body(S, k, d.active);
+        if side != "bottom" {
+            body(S, k, d.active);
+            return;
+        }
+        // The panel gets exactly its share, so the status strip lands at the
+        // foot whatever the panel drew above it.
+        ui::scroll("dock-body", #{ max_height: S.layout.body_h - 8.0 }, || {
+            body(S, k, d.active);
+        });
+        ui::separator(k.line_soft);
+        chrome::status_strip(S, k, r.w, || {});
     });
 }

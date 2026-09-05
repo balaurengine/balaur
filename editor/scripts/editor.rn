@@ -55,6 +55,9 @@ pub fn init(this) {
         // The centre split: code and viewport side by side, instead of the
         // document tabs swapping one for the other.
         split: false,
+        // The closable document tabs; the scene's is always there.
+        script_open: false,
+        events_open: false,
         zoom: 100.0,
         playing: false,
         palette: false,
@@ -373,9 +376,7 @@ pub fn draw_ui(this) {
     for side in docks::sides() {
         docks::draw(S, S.theme, side);
     }
-    chrome::persona_bar(S);
-    chrome::command_bar(S);
-    chrome::status_row(S);
+    chrome::top_bar(S);
     plugins::draw_windows(S, S.theme);
     if S.show_input {
         inputview::draw(S);

@@ -74,6 +74,8 @@ fn commands(S) {
         }),
         // No chord: ⌥3 is the Animate persona's, and one chord names one verb.
         command("Open animation timeline", "◷", "", || crate::docks::show(S, "timeline")),
+        command("Show event bindings", icons::ui("events"), "", || shell::open_doc(S, "events")),
+        command("Split code and scene", icons::ui("split"), "⌘\\", || shell::toggle_split(S)),
         command("Duplicate selected node", icons::ui("instance"), "", || model::duplicate_selected(S)),
         command("Copy selected node", icons::ui("instance"), "⌘C", || ui::set_clipboard(model::copy_selected(S))),
         command("Delete selected node", "✕", "", || model::delete_selected(S)),

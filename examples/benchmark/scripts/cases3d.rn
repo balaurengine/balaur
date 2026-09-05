@@ -236,7 +236,7 @@ const POINTS = 150;
 
 fn query_storm() {
     case("query_storm", STATICS + MOVERS, 0, [
-        ("view", [[95.0, 70.0, 95.0], [0.0, 0.0, 0.0]]),
+        ("view", [[165.0, 120.0, 165.0], [0.0, 0.0, 0.0]]),
         ("place", |w, i| {
             if i < STATICS {
                 let node = world::fixed(w, scatter(),
@@ -306,7 +306,7 @@ const GAP = 1.15;
 
 fn drop() {
     case("drop", 8000, 0, [
-        ("view", [[0.0, 30.0, 48.0], [0.0, 12.0, 0.0]]),
+        ("view", [[0.0, 46.0, 80.0], [0.0, 20.0, 0.0]]),
         ("setup", |w| {
             world::fixed(w, [0.0, -0.5, 0.0], box3(PIT + 4.0, 0.5, PIT + 4.0));
             for s in [[1.0, 0.0], [-1.0, 0.0], [0.0, 1.0], [0.0, -1.0]] {
