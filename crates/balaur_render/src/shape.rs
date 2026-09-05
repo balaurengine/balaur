@@ -144,6 +144,7 @@ pub(crate) mod keys {
     pub(crate) const REGION_ORIGIN: &str = "region_origin";
     pub(crate) const REGION_SIZE: &str = "region_size";
     pub(crate) const ROWS: &str = "rows";
+    pub(crate) const SHEET: &str = "sheet";
     pub(crate) const SIZE: &str = "size";
     pub(crate) const SIZE_END: &str = "size_end";
     pub(crate) const SKELETON: &str = "skeleton";

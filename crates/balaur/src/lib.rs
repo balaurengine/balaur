@@ -487,6 +487,7 @@ pub async fn boot_editor_on_canvas(
     editor_root: &str,
     game_root: &str,
     canvas_id: &str,
+    extra: ExtraPlugins<'_>,
 ) -> Result<()> {
     let pack = Pack::decode(editor_pack)?;
     let mut config = AppConfig::packed(pack);
@@ -496,6 +497,10 @@ pub async fn boot_editor_on_canvas(
     config.project_root = std::path::PathBuf::from(editor_root);
     config.script_args = vec![game_root.to_string()];
     let mut app = standard_app(config)?;
+    // The editor's own verbs, `export` among them, which the host binary
+    // registers rather than the engine: on the web they are what a tab can do
+    // rather than what a machine with a linker can.
+    balaur_plugin::load_all(&mut app, extra)?;
     file_api::add_root(&app.engine, game_root);
     app.load_project()?;
     balaur_render::kiss3d_backend::run_windowed_async(app, "balaur editor", Some(canvas_id)).await

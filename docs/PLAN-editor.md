@@ -87,19 +87,33 @@ command, and the async self-tests once the tokens exist.
 
 ## 6. Tools not yet built
 
-Two tools the plugin seam makes cheap to add. Each is a persona tool or a
-dock registered like the built-ins, and each lands with a `--state`
+The curve editor, and the rigging panels below it. Each is a persona tool
+or a dock registered like the built-ins, and each lands with a `--state`
 self-test.
 
-### Tilemap editor
+### Tilemap editor — built, 2026-09-05
 
-A `tilemap` component draws today; nothing paints one. The Scene persona
-gains a Tiles tool: a palette dock showing the tile set's texture cut by
-`tile_size`, click and drag to paint the selected tile, right-drag to
-erase, a rectangle fill, and layers as sibling `tilemap` nodes. Autotiling
-is a rule table on the tile set (`[[autotile]]` with a bitmask per tile) the
-painter consults after each stroke. Edits write the `cells` string through
-`history`, so undo is free.
+The Scene persona has a Tiles tool (`editor/scripts/tiles.rn`, `tilesdemo`).
+The palette dock cuts the tile set's texture by `tile_size` and picks a tile,
+left-drag paints it, right-drag erases, and a Rectangle mode fills between
+two corners. A layer is a sibling `tilemap` node: the Add layer button
+duplicates the map and empties it. Edits write `cells` through `history`, so
+undo is free, and a map authored as text stays text while every tile it holds
+still has a character.
+
+The palette is what asked for `ui.image_button` and `region` on `ui.image`:
+an atlas has to be shown a tile at a time and clicked. Both are general
+widgets, not a tile-set feature.
+
+Two things it does not do. **Autotiling** — a rule table on the tile set
+(`[[autotile]]` with a bitmask per tile) the painter consults after each
+stroke — is not built; it is a `tileset` asset change before it is a tool
+change, and the tool has no rule to consult until the asset carries one.
+And the map grows to the right and down only: it is centred on its node, so
+the painter moves the node by half of what it added to hold the tiles
+already down still, and a cell left of column zero has nowhere to go. Both
+are `docs/PLAN-tilemap.md`'s, behind the tileset metadata a terrain brush
+needs before it can paint.
 
 ### Curve editor and onion skin
 
@@ -110,5 +124,59 @@ named easings stay the storage, and a handle drag picks the nearest one,
 so the file stays readable. Onion skin ghosts the posed rig at the previous
 and next keys behind the viewport, from the same sampler the preview uses.
 
-The tilemap editor comes first; the profiler that was to measure both
-shipped on 2026-09-03.
+The profiler that was to measure both shipped on 2026-09-03.
+
+### Rigging panels
+
+Measured on 2026-09-05 against what Godot 4's Skeleton2D, Polygon2D and
+Skeleton3D editors and Spine's setup mode show. Built: the Rig tool (a
+chain grown by clicking, picking in 2D and 3D, Reset and Overwrite Rest
+Pose), the Polygon tool's Points, Polygons, UV and Weights modes with a
+brush, `modifier2d` as inspector rows, the timeline dock, and `bone3d`
+from `balaur import`. What a rigger still reaches for, in the order it
+pays off; every entry is editor work over data the engine already has,
+except where it names the animation plan.
+
+- **A weight table.** Spine's Weights view. A dock for the Weights mode
+  listing the selected vertices with one number per bone, editable in
+  place, with Bind and Unbind, Normalise, Auto (weights by distance to
+  each bone's segment, the same segment `rig::geometry` draws) and Smooth
+  (average with the vertices sharing an edge). Writes `mesh.skin.weights`
+  through `history`, as the brush does. Planned.
+- **Modifier gizmos.** Godot's SkeletonModification2D editor shows the
+  target and the elbow; here `look_at` and `two_bone_ik` are inspector
+  rows. Planned: a handle at the target node, a line from the driven bone,
+  and a `flip` toggle on the chain, drawn by `rig::draw` from the same
+  `modifier2d` table. Chain solvers and jiggle are the engine's first —
+  `docs/PLAN-animation-and-resources.md` "Rig tooling".
+- **Bone names in the viewport.** Needs `render.draw_text_2d` (§3); until
+  then the inspector's Skeleton row is the only place a bone is named.
+  Planned with §3.
+- **Mirror and symmetry.** Godot has neither; Spine mirrors bones, vertices
+  and weights across an axis. Planned as one verb, Mirror, in the Rig and
+  Polygon tools: reflect the selection's rest pose or vertices over the
+  node's x or y axis, and map each bone's weights to the bone whose name
+  differs by a `left`/`right` or `l_`/`r_` prefix.
+- **A mesh traced from the texture's alpha.** Spine's Generate. Planned:
+  a Trace button in the Polygon section that walks the image's alpha at a
+  threshold, simplifies the outline to a tolerance in pixels, and writes
+  `positions`; the image is already read headless for `natural_half_extents`,
+  so the tracer is CPU code in `balaur_core::geometry2d` with a test.
+- **Deform keys.** Spine's free-form deformation: a clip animating vertex
+  positions without a bone. The engine half is a `polygon/deform` track
+  (`docs/PLAN-animation-and-resources.md` "Rig tooling"); the editor half is
+  the Points mode recording a key when the Animate persona is armed, the
+  way a transform edit does today. Planned after the engine track.
+- **A bone map for retargeting.** Godot's BoneMap and SkeletonProfile
+  panel: an imported humanoid rig mapped to a canonical one so a clip
+  plays on another rig. The engine has no `bone_map` asset yet; when it
+  does, the panel is a two-column list of canonical names against the
+  rig's bones with a guess by name. Planned after the asset.
+- **Physical bones.** Godot's Create Physical Skeleton: a body and a
+  joint per bone, for a ragdoll. Engine first (`docs/PLAN-physics.md`);
+  the button is one command once a rig can be walked into bodies.
+- **Not planned:** slots, attachments and skins as Spine has them — a
+  node with a `sprite` and `visible` is the same thing here; a separate
+  Skeleton node — a rig is the bones under a node, by design
+  (ARCHITECTURE.md "Skeletons and skins"); 3D weight painting — weights
+  come from the file, as in Godot.

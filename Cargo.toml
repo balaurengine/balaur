@@ -79,6 +79,7 @@ anyhow = "1"
 # `serde` so the deterministic collections inside a recorded snapshot
 # serialize in their insertion order, which is the order that matters.
 indexmap = { version = "2", features = ["serde"] }
+smallvec = "1"
 egui = "0.36"
 rustc-hash = "2"
 libm = "0.2"

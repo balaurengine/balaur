@@ -148,6 +148,7 @@ pub struct App {
 fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(SceneKeyRegistry::default());
     eng.insert_resource(crate::components::ComponentRegistry::default());
+    eng.insert_resource(crate::components::Attached::default());
     eng.insert_resource(crate::plugins::PluginRegistry::default());
     eng.insert_resource(crate::presets::PresetRegistry::default());
     eng.insert_resource(crate::assets::AssetTypeRegistry::default());
@@ -163,7 +164,8 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
                 crate::project::ProjectManifest::parse(&pack.manifest)
                     .map(|m| m.assets)
                     .unwrap_or_default(),
-            ),
+            )
+            .with_index(pack.scenes.get(crate::assets::INDEX_PATH).cloned()),
             None => crate::project::ProjectFiles::directory(config.project_root.clone()),
         }
         .on(crate::files::backend(eng)),
@@ -323,13 +325,17 @@ impl App {
             for cmd in eng.take_commands() {
                 match cmd {
                     Command::Free(entity) => {
-                        let label = crate::digest::node_label(&eng.world(), entity);
-                        crate::replay::event(
-                            eng,
-                            "scene.free",
-                            format!("freed {label}"),
-                            Some(serde_json::json!({ "node": label })),
-                        );
+                        // Most ticks record nothing; the label is only built
+                        // for one that does.
+                        if crate::replay::wants_events(eng) {
+                            let label = crate::digest::node_label(&eng.world(), entity);
+                            crate::replay::event(
+                                eng,
+                                "scene.free",
+                                format!("freed {label}"),
+                                Some(serde_json::json!({ "node": label })),
+                            );
+                        }
                         freed.push(entity);
                     }
                 }
@@ -520,17 +526,18 @@ impl App {
             let registry = self
                 .engine
                 .resource::<crate::components::ComponentRegistry>();
-            registry.borrow_mut().0.push((name.to_string(), def));
+            let mut registry = registry.borrow_mut();
+            assert!(
+                registry.0.len() < crate::components::MAX_COMPONENTS,
+                "registering '{name}': a build may have at most {} components",
+                crate::components::MAX_COMPONENTS
+            );
+            registry.0.push((name.to_string(), def));
         }
         let component = name.to_string();
         self.scene_key_handler(name, move |eng, entity, value| {
             let full = crate::components::properties(eng, &schema, Some(value))?;
-            let registry = eng.resource::<crate::components::ComponentRegistry>();
-            let registry = registry.borrow();
-            let def = registry
-                .def(&component)
-                .ok_or_else(|| anyhow::anyhow!("unknown component '{component}'"))?;
-            (def.apply)(eng, entity, &full)
+            crate::components::apply_full(eng, entity, &component, &full)
         });
         self
     }

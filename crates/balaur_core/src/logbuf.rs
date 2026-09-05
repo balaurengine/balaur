@@ -47,6 +47,8 @@ impl LogEntry {
 struct Buffer {
     start: Instant,
     entries: VecDeque<LogEntry>,
+    /// Every entry ever captured, the ring's evictions included.
+    total: u64,
 }
 
 static BUFFER: Mutex<Option<Buffer>> = Mutex::new(None);
@@ -108,6 +110,7 @@ impl<S: Subscriber> Layer<S> for CaptureLayer {
                 buffer.entries.pop_front();
             }
             let time = buffer.start.elapsed().as_secs_f64();
+            buffer.total += 1;
             buffer.entries.push_back(LogEntry {
                 time,
                 level: meta.level().as_str().to_lowercase(),
@@ -128,6 +131,7 @@ pub fn capture(max_level: LevelFilter) {
     *lock_buffer() = Some(Buffer {
         start: Instant::now(),
         entries: VecDeque::new(),
+        total: 0,
     });
     let _ = tracing_log::LogTracer::init();
     let filter = EnvFilter::builder()
@@ -196,6 +200,7 @@ pub fn capture_for_test() {
     *lock_buffer() = Some(Buffer {
         start: Instant::now(),
         entries: VecDeque::new(),
+        total: 0,
     });
     let _ = tracing_subscriber::registry().with(CaptureLayer).try_init();
 }
@@ -207,6 +212,12 @@ pub fn recent(n: usize) -> Vec<LogEntry> {
         let skip = buffer.entries.len().saturating_sub(n);
         buffer.entries.iter().skip(skip).cloned().collect()
     })
+}
+
+/// How many entries have been captured since `capture`, evicted ones
+/// included: a reader compares two values to learn whether anything is new.
+pub fn total() -> u64 {
+    lock_buffer().as_ref().map_or(0, |buffer| buffer.total)
 }
 
 pub fn clear() {

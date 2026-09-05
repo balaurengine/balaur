@@ -12,6 +12,8 @@ use balaur_core::{Engine, Stage};
 use balaur_plugin::Registry;
 use balaur_script::Bindings;
 
+#[cfg(feature = "aseprite")]
+pub mod aseprite;
 mod camera;
 mod debug_view;
 mod draw_2d;
@@ -29,6 +31,7 @@ mod probe;
 mod script_api;
 pub mod shaders;
 mod shape;
+mod sheet;
 mod sprite;
 mod texture;
 mod tilemap;
@@ -37,8 +40,11 @@ pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
 pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
 pub use particles::Particles;
 pub use polygon::PolygonMesh;
+pub use sheet::{SPRITE_SHEET_ASSET_TYPE, SheetFrame, SheetSlice, SheetTag, SpriteSheet};
 pub use tilemap::{TILESET_ASSET_TYPE, Tilemap, Tileset};
 
+#[cfg(feature = "kiss3d")]
+mod app_icon;
 #[cfg(feature = "kiss3d")]
 mod bind_layout;
 #[cfg(feature = "kiss3d")]
@@ -439,6 +445,12 @@ pub struct SpriteTexture {
     /// One rectangle of the image, in texture pixels as `[x, y, w, h]`: an
     /// atlas cell. `None` draws the whole image, or the sheet's frame.
     pub region: Option<[u32; 4]>,
+    /// The `sprite_sheet` asset `frame` indexes, or empty. With one, `region`
+    /// is that frame's rectangle and is derived rather than authored.
+    pub sheet_asset: String,
+    /// Whether `path` came from the sheet rather than the component, so
+    /// `get` reports the texture as the author left it: unset.
+    pub sheet_texture: bool,
 }
 
 /// How a polyline is dressed beyond its colour.
@@ -871,6 +883,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         light::register_occluder2d_component(reg);
         mesh::register_mesh_component(reg);
         material::register_material_asset(reg);
+        sheet::register_sheet_asset(reg);
         tilemap::register_tileset_asset(reg);
         tilemap::register_tilemap_component(reg);
         particles::register_particles_component(reg);

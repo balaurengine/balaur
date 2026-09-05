@@ -1,22 +1,15 @@
 > **Status:** the plan this file opened with shipped on 2026-09-04 and its
-> text is gone; the manual's Rendering page documents what it built. What is
-> left are the two it deferred, neither started.
+> text is gone; the manual's Rendering page documents what it built. Of the
+> two it deferred, tile-map occluders moved to `docs/PLAN-tilemap.md` step 2
+> on 2026-09-05; the one left is below, not started.
 
 # Plan: what 2D lighting still does not do
 
 ## Tile-map occluders
 
-A tile set could mark tiles as occluders, and the occluder polygon would be
-built from the map rather than authored per node. Today a tile map is lit
-like everything else but casts no shadow unless a node over it carries an
-`occluder2d` — which is a poor fit for a wall drawn as fifty tiles.
-
-The shape of it: a per-tile `occludes` flag in the `tileset` asset, and a
-pass that walks the `tilemap`'s grid and emits one outline per connected
-run of occluding tiles. Merging the runs is what makes it worth doing —
-fifty tile-sized squares would be fifty times the shadow polygons of one
-merged outline, and the light map already costs a pass per shadow-casting
-light.
+Moved to `docs/PLAN-tilemap.md`: a per-tile `occluder` in the tileset, and
+one merged outline per run of occluding tiles, beside the collision compound
+that merges the same runs.
 
 ## Normal maps on sprites
 

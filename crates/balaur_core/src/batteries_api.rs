@@ -53,6 +53,32 @@ pub(crate) fn assets_save(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
+/// Move a file or directory and rewrite every reference to it in the
+/// project's `.toml` files; answers the files rewritten.
+pub(crate) fn assets_rename(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let rewritten = crate::asset_index::rename(eng, text(args, 0)?, text(args, 1)?)?;
+    Ok(Value::List(rewritten.into_iter().map(Value::Str).collect()))
+}
+
+/// The id `assets/index.toml` gives a path, or nil when it has none.
+pub(crate) fn assets_id(eng: &Engine, args: &[Value]) -> Result<Value> {
+    Ok(crate::asset_index::id_of(eng, text(args, 0)?)?.map_or(Value::Nil, Value::Str))
+}
+
+/// The id a file has, giving it one and writing the index if it has none.
+pub(crate) fn assets_assign_id(eng: &Engine, args: &[Value]) -> Result<Value> {
+    Ok(Value::Str(crate::asset_index::assign_id(
+        eng,
+        text(args, 0)?,
+    )?))
+}
+
+/// The path an `id://` reference resolves to in the running project; a
+/// path comes back as itself.
+pub(crate) fn assets_path(eng: &Engine, args: &[Value]) -> Result<Value> {
+    Ok(Value::Str(crate::project::path_of(eng, text(args, 0)?)?))
+}
+
 /// Where files of an asset type belong, as its plugin declared it.
 ///
 /// The editor promotes an inline definition to a file and has to put it

@@ -305,6 +305,11 @@ pub struct ProjectFiles {
     /// Where loose files come from. Held rather than reached for through the
     /// engine, because an asset loader has the files and not the engine.
     fs: std::rc::Rc<dyn crate::files::FileBackend>,
+    /// The `assets/index.toml` a pack carries; a dev run reads the file.
+    packed_index: Option<String>,
+    /// `id → path`, parsed on the first `id://` and dropped by
+    /// [`Self::reload_index`].
+    index: std::cell::RefCell<Option<BTreeMap<String, String>>>,
 }
 
 impl ProjectFiles {
@@ -317,6 +322,8 @@ impl ProjectFiles {
             packed: std::collections::BTreeMap::new(),
             source: AssetSource::Files,
             fs: crate::files::default_backend(),
+            packed_index: None,
+            index: std::cell::RefCell::new(None),
         }
     }
 
@@ -332,6 +339,8 @@ impl ProjectFiles {
             packed: assets,
             source,
             fs: crate::files::default_backend(),
+            packed_index: None,
+            index: std::cell::RefCell::new(None),
         }
     }
 
@@ -340,6 +349,81 @@ impl ProjectFiles {
     pub fn on(mut self, fs: std::rc::Rc<dyn crate::files::FileBackend>) -> Self {
         self.fs = fs;
         self
+    }
+
+    /// The id index a pack carries, as the text of `assets/index.toml`.
+    #[must_use]
+    pub fn with_index(mut self, text: Option<String>) -> Self {
+        self.packed_index = text;
+        self
+    }
+
+    /// Drop the parsed id index so the next `id://` re-reads
+    /// `assets/index.toml`. What the watcher calls when that file is saved.
+    pub fn reload_index(&self) {
+        *self.index.borrow_mut() = None;
+    }
+
+    /// The path an `id://<id>` reference names, with any `#entry` kept; a
+    /// reference that is already a path comes back as it is.
+    ///
+    /// # Errors
+    /// When the id is not in `assets/index.toml`.
+    pub fn path_of(&self, reference: &str) -> Result<String> {
+        let Some(rest) = reference.strip_prefix(crate::assets::ID_PREFIX) else {
+            return Ok(reference.to_string());
+        };
+        let (id, entry) = rest.split_once('#').map_or((rest, ""), |(id, e)| (id, e));
+        let path = self.index_entry(id).ok_or_else(|| {
+            anyhow!(
+                "'{reference}' names no asset: '{id}' is not in {}",
+                crate::assets::INDEX_PATH
+            )
+        })?;
+        Ok(if entry.is_empty() {
+            path
+        } else {
+            format!("{path}#{entry}")
+        })
+    }
+
+    /// The id `assets/index.toml` gives a project-relative path, if any.
+    #[must_use]
+    pub fn id_of(&self, path: &str) -> Option<String> {
+        self.ensure_index();
+        self.index
+            .borrow()
+            .as_ref()?
+            .iter()
+            .find(|(_, p)| p.as_str() == path)
+            .map(|(id, _)| id.clone())
+    }
+
+    fn index_entry(&self, id: &str) -> Option<String> {
+        self.ensure_index();
+        self.index.borrow().as_ref()?.get(id).cloned()
+    }
+
+    fn ensure_index(&self) {
+        if self.index.borrow().is_some() {
+            return;
+        }
+        let text = match (&self.packed_index, self.source) {
+            (Some(text), _) => Some(text.clone()),
+            (None, AssetSource::Embedded) => None,
+            (None, _) => self
+                .fs
+                .read(&self.root.join(crate::assets::INDEX_PATH))
+                .ok()
+                .and_then(|bytes| String::from_utf8(bytes).ok()),
+        };
+        let parsed = text.map_or_else(BTreeMap::new, |text| {
+            crate::asset_index::parse(&text).unwrap_or_else(|err| {
+                tracing::warn!("{}: {err}", crate::assets::INDEX_PATH);
+                BTreeMap::new()
+            })
+        });
+        *self.index.borrow_mut() = Some(parsed);
     }
 
     #[must_use]
@@ -356,6 +440,7 @@ impl ProjectFiles {
     /// or `None` for one only the pack holds — the pack never changes.
     #[must_use]
     pub fn mtime(&self, path: &str) -> Option<f64> {
+        let path = &self.path_of(path).ok()?;
         let p = std::path::Path::new(path);
         if p.is_absolute() {
             return self.fs.mtime(p);
@@ -374,6 +459,7 @@ impl ProjectFiles {
     /// that was tried, because "asset not found" without a location is the
     /// least useful sentence a shipped game can print.
     pub fn read(&self, path: &str) -> Result<Vec<u8>> {
+        let path = &self.path_of(path)?;
         let p = std::path::Path::new(path);
         if p.is_absolute() {
             return self.fs.read(p);
@@ -436,6 +522,22 @@ impl ProjectFiles {
     }
 }
 
+/// The path a reference names: what `id://<id>` resolves to through
+/// `assets/index.toml`, or the reference itself when it is already a path.
+///
+/// # Errors
+/// When the id is not in the index.
+pub fn path_of(eng: &Engine, reference: &str) -> Result<String> {
+    if !reference.starts_with(crate::assets::ID_PREFIX) {
+        return Ok(reference.to_string());
+    }
+    let files = eng
+        .try_resource::<ProjectFiles>()
+        .ok_or_else(|| anyhow!("'{reference}' cannot resolve: this app has no project files"))?;
+    let path = files.borrow().path_of(reference)?;
+    Ok(path)
+}
+
 /// A node's script, held until the whole tree exists: the node, the path, and
 /// the properties the scene set on it.
 type PendingScript = (Entity, String, Vec<(String, Value)>);
@@ -491,6 +593,7 @@ fn build_scene(eng: &Engine, source: &str, base: Entity, build: &mut Build) -> R
 /// A scene file's text: from the pack in a packed run, from disk otherwise —
 /// the same resolution an asset document gets.
 pub fn scene_text(eng: &Engine, path: &str) -> Result<String> {
+    let path = &path_of(eng, path)?;
     if let Some(source) = eng.script_host().and_then(|host| host.scene_source(path)) {
         return Ok(source);
     }

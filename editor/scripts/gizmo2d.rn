@@ -375,21 +375,24 @@ pub fn update(S, vp) {
     pmy = pmy / (dpi * S.ui_scale);
     let over_viewport = viewport::owns_pointer(S, pmx, pmy);
 
-    // The Rig bone and Polygon tools own the click: no gizmo hover, no
+    // The Rig bone, Polygon and Tiles tools own the click: no gizmo hover, no
     // camera drag.
-    if S.tool == "bone" || S.tool == "polygon" {
+    if S.tool == "bone" || S.tool == "polygon" || S.tool == "tiles" {
         S.gizmo.hover = None;
         S.gizmo.drag = None;
         render::set_camera_input(false);
         if S.tool == "bone" {
             rig::update(S, over_viewport, mx, my);
-        } else {
+        } else if S.tool == "polygon" {
             polygon::update(S, over_viewport, mx, my);
+        } else {
+            crate::tiles::update(S, over_viewport, mx, my);
         }
         return;
     }
     S.rig.hover = None;
     S.polygon.hover = None;
+    S.tiles.hover = None;
 
     if S.gizmo.drag.is_none() {
         S.gizmo.hover = match geo {

@@ -7,14 +7,17 @@ use kiss3d::event::{Action, ImeEvent, TouchAction, WindowEvent};
 use kiss3d::window::Window;
 
 /// Feed this frame's OS events into the input resource (if the input plugin
-/// is installed).
-pub(crate) fn pump_input(app: &App, window: &Window) {
+/// is installed). Answers whether any event arrived; without the plugin
+/// nothing counts them, so it answers yes.
+pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
     let Some(input) = app.engine.try_resource::<InputSnapshot>() else {
-        return;
+        return true;
     };
     let mut input = input.borrow_mut();
     input.begin_frame();
+    let mut seen = false;
     for event in window.events().iter() {
+        seen = true;
         if matches!(
             event.value,
             WindowEvent::Key(_, Action::Press, _)
@@ -89,8 +92,10 @@ pub(crate) fn pump_input(app: &App, window: &Window) {
     // kiss3d has no such event on mobile.
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
     for path in window.dropped_files() {
+        seen = true;
         input.file_drop_event(path.to_string_lossy().into_owned());
     }
+    seen
 }
 
 /// The name this backend reports for a key.

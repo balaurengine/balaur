@@ -537,11 +537,7 @@ fn free_spawned_since(eng: &Engine, root: Entity, wanted: &crate::DetHashSet<&st
 /// walks the tree in order, and a node left under its new parent is a desync.
 fn restore_placement(eng: &Engine, entity: Entity, parent: Entity, node: &NodeFrame) {
     let mut world = eng.world_mut();
-    if let Ok(mut name) = world.get::<&mut Name>(entity)
-        && name.0 != node.name
-    {
-        name.0.clone_from(&node.name);
-    }
+    crate::scene::rename(&world, entity, &node.name);
     if world.get::<&Parent>(entity).ok().map(|p| p.0) == Some(parent) {
         return;
     }
@@ -550,21 +546,7 @@ fn restore_placement(eng: &Engine, entity: Entity, parent: Entity, node: &NodeFr
         return;
     }
     // `reparent` appends; the recorded index is where it actually sat.
-    move_child_to(&mut world, parent, entity, node.index);
-}
-
-/// Move `entity` to `index` among `parent`'s children, which is what makes a
-/// restore reproduce the tree order the digest walks rather than only the set.
-fn move_child_to(world: &mut hecs::World, parent: Entity, entity: Entity, index: usize) {
-    let Ok(mut children) = world.get::<&mut Children>(parent) else {
-        return;
-    };
-    let Some(at) = children.0.iter().position(|&c| c == entity) else {
-        return;
-    };
-    let moved = children.0.remove(at);
-    let to = index.min(children.0.len());
-    children.0.insert(to, moved);
+    crate::scene::move_child_to(&world, parent, entity, node.index);
 }
 
 /// Put one node back, if it is not already there.

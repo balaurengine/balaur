@@ -16,13 +16,20 @@ pub(crate) fn image_size(bytes: &[u8], name: &str) -> Result<(u32, u32)> {
         .map_err(|why| anyhow!("reading the size of {name}: {why}"))
 }
 
-/// The name an image is uploaded under: its path and the asset generation.
+/// The name an image is uploaded under: its path and when the file was last
+/// written.
 ///
 /// kiss3d's `TextureManager` caches by name and never invalidates, so without
-/// the generation an edited PNG keeps drawing the old pixels for the session.
+/// the stamp an edited PNG keeps drawing the old pixels for the session. The
+/// file's own time rather than the asset generation, which is global: saving
+/// one image would otherwise re-decode and re-upload every other one. A
+/// packed game has no times to read, and its textures are uploaded once.
 #[cfg(any(feature = "kiss3d", test))]
-pub(crate) fn upload_name(path: &str, generation: u64) -> String {
-    format!("{path}#{generation}")
+pub(crate) fn upload_name(path: &str, stamp: Option<f64>) -> String {
+    match stamp {
+        Some(seconds) => format!("{path}#{:x}", seconds.to_bits()),
+        None => path.to_string(),
+    }
 }
 
 #[cfg(feature = "kiss3d")]
@@ -57,17 +64,14 @@ mod windowed {
         if path.is_empty() {
             return None;
         }
-        let name = super::upload_name(path, balaur_core::assets::generation(eng));
+        let files = eng.resource::<balaur_core::project::ProjectFiles>();
+        let name = super::upload_name(path, files.borrow().mtime(path));
         if let Some(cached) = TextureManager::get_global_manager(|tm| tm.get(&name)) {
             return Some(cached);
         }
         // Bytes rather than a path: a packed game carries its textures inside
         // the pack, with nothing beside it on disk.
-        let bytes = match eng
-            .resource::<balaur_core::project::ProjectFiles>()
-            .borrow()
-            .read(path)
-        {
+        let bytes = match files.borrow().read(path) {
             Ok(bytes) => bytes,
             // A frame is not the place to abort: say which asset is missing
             // and keep drawing the rest of the scene.
@@ -124,8 +128,23 @@ mod tests {
     #[test]
     fn an_edited_image_is_uploaded_under_a_new_name() {
         assert_ne!(
-            upload_name("art/hero.png", 0),
-            upload_name("art/hero.png", 1)
+            upload_name("art/hero.png", Some(1.0)),
+            upload_name("art/hero.png", Some(2.0))
         );
+    }
+
+    #[test]
+    fn a_file_nobody_touched_keeps_its_name() {
+        assert_eq!(
+            upload_name("art/hero.png", Some(1.0)),
+            upload_name("art/hero.png", Some(1.0)),
+        );
+    }
+
+    /// A packed game has no modification times, so every texture is uploaded
+    /// once and none of them is ever renamed.
+    #[test]
+    fn a_packed_texture_is_named_by_its_path_alone() {
+        assert_eq!(upload_name("art/hero.png", None), "art/hero.png");
     }
 }

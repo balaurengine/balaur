@@ -367,7 +367,7 @@ pub(crate) fn nine_patch_plate(
     scale: f32,
 ) {
     let ctx = ui.ctx().clone();
-    if let Ok(texture) = crate::widgets::texture_of(eng, &ctx, path) {
+    if let Ok(texture) = crate::images::texture_of(eng, &ctx, path) {
         let shapes = nine_patch(texture.id(), texture.size_vec2(), rect, slice, scale);
         ui.painter().set(plate, egui::Shape::Vec(shapes));
     }

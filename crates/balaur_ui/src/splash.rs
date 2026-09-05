@@ -25,7 +25,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         egui::Id::new("balaur-splash"),
     ));
     painter.rect_filled(rect, 0.0, Color32::BLACK);
-    let Ok(texture) = crate::widgets::texture_of(eng, ctx, &path) else {
+    let Ok(texture) = crate::images::texture_of(eng, ctx, &path) else {
         return;
     };
     // Fit inside the screen, keeping the picture's aspect.

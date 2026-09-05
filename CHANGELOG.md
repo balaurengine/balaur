@@ -18,13 +18,19 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 ### Scenes and assets
 
 - A frame's queued frees run as one pass per parent, so freeing a whole container is linear.
+- Children are indexed by name, so a path lookup is one hash per segment; freeing a node with no components asks no plugin anything.
 - Prefabs with per-path overrides.
+- Hot reload for textures, models, fonts and sounds: a saved file moves the asset generation and every node built from one is built again.
+- The browser editor keeps the project it is editing, so a refresh comes back to the scene as it was left.
 - Component tags and presets.
 - Binary asset packs, sha256-verified.
 - Mesh (OBJ, glTF) and heightfield assets.
 - Scene and node query APIs; reparenting keeps the world pose.
 - Node visibility, z-index and tags.
 - Comment-preserving TOML patching.
+- Stable asset ids: `id://` references through `assets/index.toml`, and `assets.rename` rewriting every reference to a moved file.
+- `sprite_sheet` assets with frames of any size, tags and slices; `sprite.sheet` draws them.
+- `balaur import` reads `.aseprite` files into an atlas, a sheet and a clip per tag.
 
 ### Rendering
 
@@ -76,10 +82,12 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 
 ### UI and text
 
+- `ui.set_lazy`: the UI pass runs only when input, a request, a log line, a reload or an egui animation asks, and the last one is shown in between; the editor turns it on.
 - Containers, layout, focus, themes, presets and surfaces.
 - Widget kinds: draw, scroll, tab, image, check, dropdown, slider, progress, grid, flow, fold, dialog, separator.
 - Text field widget with IME composition.
 - Nine-patch images; draggable seams.
+- `ui.image` draws one region of a file, and `ui.image_button` answers a click, so an atlas can be shown and picked from a tile at a time.
 - Fill anchors, insets, UI scale, scroll deadzone.
 - Shaped text through cosmic-text: bidi, complex scripts, CJK breaks, font fallback.
 - Markup tags, font weight and style.
@@ -111,6 +119,9 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 
 ### Web
 
+- Projects kept in IndexedDB, so one with its textures and sounds survives a refresh rather than filling a `localStorage` quota.
+- Opening a folder from your own machine in the browser editor, and taking the whole project back out as a zip.
+- `export` in a tab: a `.bpak`, and a web bundle zipped beside the module the page is already running. Native targets still need a linker.
 - Browser audio.
 - Phoenix (`gamend`) over Fetch and WebSocket.
 - `web` module: messages, visibility, user agent, location.
@@ -131,7 +142,8 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 
 - Undo/redo, copy/paste, collapsible inspector, search.
 - Prefab instances and overrides.
-- Rig and Polygon tools.
+- Rig, Polygon and Tiles tools.
+- The Tiles tool paints a tilemap from a palette cut out of its tile set: paint, erase, a rectangle fill, and layers as sibling nodes.
 - Ray picking, asset filesystem verbs, language server linting.
 - Profiler dock; `--timings`.
 - Showcase and UI audit scripts.
@@ -140,6 +152,7 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - Bundled fonts and icons; project branding.
 - Narrow-window layout; `--state scale`.
 - One top bar with closable document tabs; docks minimise to a handle; script rename, pick and detach.
+- Renaming in the Assets dock rewrites every reference to the file.
 
 ### Breaking
 

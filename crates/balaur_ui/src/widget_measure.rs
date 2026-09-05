@@ -79,7 +79,7 @@ impl<'a> Measure<'a> {
             w::DRAW | w::SCROLL => egui::Vec2::ZERO,
             // A picture knows its own size, so a row can divide by it.
             w::IMAGE => {
-                crate::widgets::texture_of(self.eng, &self.painter.ctx().clone(), &widget.source)
+                crate::images::texture_of(self.eng, &self.painter.ctx().clone(), &widget.source)
                     .map_or(egui::Vec2::ZERO, |texture| {
                         crate::widget_layer::image_size(
                             vec2(widget.width, widget.height) * self.scale,

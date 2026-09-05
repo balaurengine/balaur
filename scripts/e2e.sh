@@ -137,6 +137,11 @@ for ex in examples/*/; do
   edit_step "$name: polygon" "$ex" polydemo
   printf 'ok\n'
 
+  # The Tiles tool builds its own map, so it runs on every example.
+  printf '  tiles ...  '
+  edit_step "$name: tiles" "$ex" tilesdemo
+  printf 'ok\n'
+
   # The showcase seam: a scripted sequence feeds input and drives the
   # editor; ninety frames of it is enough to fail on a broken call.
   printf '  show ...   '

@@ -77,19 +77,23 @@ impl Pack {
         compiler: &dyn balaur_script::ScriptCompiler,
         keep_sources: bool,
     ) -> Result<Self> {
-        let manifest = std::fs::read_to_string(project_root.join("project.toml"))
+        // Through the file backend, not `std::fs`: on a desktop that is the
+        // disk, and in a browser it is the project the editor is editing, so
+        // `balaur export` to a pack is the one export a tab can finish.
+        let fs = crate::files::default_backend();
+        let manifest = text(&*fs, &project_root.join("project.toml"))
             .with_context(|| format!("no project.toml in {}", project_root.display()))?;
         let mut pack = Self {
             manifest,
             ..Default::default()
         };
         let mut files = Vec::new();
-        collect_files(project_root, project_root, &mut files)?;
+        collect_files(&*fs, project_root, project_root, &mut files);
         for rel in files {
             let path = project_root.join(&rel);
             match Path::new(&rel).extension().and_then(|e| e.to_str()) {
                 Some(ext) if compiler.extensions().contains(&ext) => {
-                    let source = std::fs::read_to_string(&path)?;
+                    let source = text(&*fs, &path)?;
                     let bytes = compiler.compile(&rel, &source)?;
                     pack.scripts.insert(
                         rel,
@@ -103,13 +107,13 @@ impl Pack {
                 // `scenes` is the pack's text map: scene documents, asset
                 // documents and shader sources all read back through it.
                 Some("toml") if rel != "project.toml" => {
-                    pack.scenes.insert(rel, std::fs::read_to_string(&path)?);
+                    pack.scenes.insert(rel, text(&*fs, &path)?);
                 }
                 Some("wesl") => {
-                    pack.scenes.insert(rel, std::fs::read_to_string(&path)?);
+                    pack.scenes.insert(rel, text(&*fs, &path)?);
                 }
                 Some(ext) if ASSET_EXTENSIONS.contains(&ext) => {
-                    pack.assets.insert(rel, std::fs::read(&path)?);
+                    pack.assets.insert(rel, fs.read(&path)?);
                 }
                 _ => {}
             }
@@ -200,22 +204,31 @@ impl Pack {
     }
 }
 
-fn collect_files(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<()> {
-    for entry in std::fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
+/// One file's text, wherever the backend keeps it.
+fn text(fs: &dyn crate::files::FileBackend, path: &Path) -> Result<String> {
+    String::from_utf8(fs.read(path)?).with_context(|| format!("'{}' is not text", path.display()))
+}
+
+/// Every file under `dir`, project-relative. A directory the backend cannot
+/// read contributes nothing: the manifest was read first, so a root that is
+/// not there has already failed.
+fn collect_files(
+    fs: &dyn crate::files::FileBackend,
+    root: &Path,
+    dir: &Path,
+    out: &mut Vec<String>,
+) {
+    for (name, is_dir) in fs.list(dir) {
         if name.starts_with('.') {
             continue;
         }
-        if path.is_dir() {
-            collect_files(root, &path, out)?;
+        let path = dir.join(&name);
+        if is_dir {
+            collect_files(fs, root, &path, out);
         } else if let Ok(rel) = path.strip_prefix(root) {
             out.push(rel.to_string_lossy().replace('\\', "/"));
         }
     }
-    Ok(())
 }
 
 fn write_u32(out: &mut Vec<u8>, v: u32) {

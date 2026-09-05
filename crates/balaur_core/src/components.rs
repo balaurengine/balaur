@@ -457,6 +457,43 @@ impl ComponentRegistry {
     pub fn def(&self, name: &str) -> Option<&ComponentDef> {
         self.0.iter().find(|(n, _)| n == name).map(|(_, def)| def)
     }
+
+    /// Where `name` sits in registration order, which is its bit in
+    /// [`Attached`].
+    pub fn index_of(&self, name: &str) -> Option<usize> {
+        self.0.iter().position(|(n, _)| n == name)
+    }
+}
+
+/// The most components one build may register: a bit each in [`Attached`].
+pub const MAX_COMPONENTS: usize = 128;
+
+/// Which registered components each node was given through the registry,
+/// one bit per definition in registration order.
+///
+/// Set by `apply`, cleared by `remove`, dropped when the node is freed. A
+/// node with no entry was never given one, so freeing fifty thousand bare
+/// nodes asks no plugin anything. A component attached behind the registry's
+/// back is not in here: a debug build still finds it on free and warns, a
+/// release build skips its hook.
+#[derive(Default)]
+pub struct Attached(pub crate::collections::DetHashMap<Entity, u128>);
+
+/// Set or clear one node's bit for the definition at `index`.
+fn mark(eng: &Engine, entity: Entity, index: usize, on: bool) {
+    let Some(attached) = eng.try_resource::<Attached>() else {
+        return;
+    };
+    let mut attached = attached.borrow_mut();
+    let bit = 1u128 << index;
+    if on {
+        *attached.0.entry(entity).or_insert(0) |= bit;
+    } else if let Some(bits) = attached.0.get_mut(&entity) {
+        *bits &= !bit;
+        if *bits == 0 {
+            attached.0.swap_remove(&entity);
+        }
+    }
 }
 
 /// Merge `params` over the schema's defaults, producing the full property
@@ -699,37 +736,96 @@ fn schema_of(eng: &Engine, name: &str) -> Result<toml::Value> {
         .clone())
 }
 
-/// Hand a finished property table to the component's `apply` hook.
-fn apply_full(eng: &Engine, entity: Entity, name: &str, full: &toml::Value) -> Result<()> {
+/// Hand a finished property table to the component's `apply` hook, and note
+/// in [`Attached`] that the node now carries it.
+pub(crate) fn apply_full(
+    eng: &Engine,
+    entity: Entity,
+    name: &str,
+    full: &toml::Value,
+) -> Result<()> {
     let registry = eng
         .try_resource::<ComponentRegistry>()
         .ok_or_else(|| anyhow!("component registry missing"))?;
-    let registry = registry.borrow();
-    let def = registry
-        .def(name)
-        .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-    (def.apply)(eng, entity, full).with_context(|| format!("applying component '{name}'"))
+    let index = {
+        let registry = registry.borrow();
+        let index = registry
+            .index_of(name)
+            .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
+        (registry.0[index].1.apply)(eng, entity, full)
+            .with_context(|| format!("applying component '{name}'"))?;
+        index
+    };
+    mark(eng, entity, index, true);
+    Ok(())
 }
 
 pub fn remove(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
     let registry = eng
         .try_resource::<ComponentRegistry>()
         .ok_or_else(|| anyhow!("component registry missing"))?;
-    let registry = registry.borrow();
-    let def = registry
-        .def(name)
-        .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-    (def.remove)(eng, entity)
+    let index = {
+        let registry = registry.borrow();
+        let index = registry
+            .index_of(name)
+            .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
+        (registry.0[index].1.remove)(eng, entity)?;
+        index
+    };
+    mark(eng, entity, index, false);
+    Ok(())
 }
 
 /// Run the `remove` hook of every component the node carries, in
 /// registration order, which is what a node's destruction owes its plugins.
+///
+/// Reads [`Attached`] rather than asking every definition, so a node that
+/// was never given a component costs one lookup.
 pub fn remove_present(eng: &Engine, entity: Entity) {
-    for name in present_on(eng, entity) {
+    let bits = eng
+        .try_resource::<Attached>()
+        .and_then(|attached| attached.borrow_mut().0.swap_remove(&entity))
+        .unwrap_or(0);
+    #[cfg(debug_assertions)]
+    let bits = bits | untracked(eng, entity, bits);
+    if bits == 0 {
+        return;
+    }
+    let Some(registry) = eng.try_resource::<ComponentRegistry>() else {
+        return;
+    };
+    let names: Vec<String> = registry
+        .borrow()
+        .0
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| bits & (1u128 << i) != 0)
+        .map(|(_, (name, _))| name.clone())
+        .collect();
+    for name in names {
         if let Err(why) = remove(eng, entity, &name) {
             tracing::error!(error = %why, component = %name, "removing a component from a freed node");
         }
     }
+}
+
+/// A debug build's safety net for [`remove_present`]: the bits of components
+/// a definition's `get` reports on the node and [`Attached`] does not, each
+/// with a warning naming what attached it behind the registry's back.
+#[cfg(debug_assertions)]
+fn untracked(eng: &Engine, entity: Entity, bits: u128) -> u128 {
+    let Some(registry) = eng.try_resource::<ComponentRegistry>() else {
+        return 0;
+    };
+    let registry = registry.borrow();
+    let mut extra = 0u128;
+    for (i, (name, def)) in registry.0.iter().enumerate() {
+        if bits & (1u128 << i) == 0 && (def.get)(eng, entity).is_some() {
+            tracing::warn!(component = %name, "attached behind the component registry; a release build would not run its remove hook");
+            extra |= 1u128 << i;
+        }
+    }
+    extra
 }
 
 pub fn get(eng: &Engine, entity: Entity, name: &str) -> Option<toml::Value> {

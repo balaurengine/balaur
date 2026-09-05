@@ -11,7 +11,7 @@
 //! migrate = "scripts/saves.rn"      # brings an older file forward
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
 
@@ -100,22 +100,12 @@ pub fn write(eng: &Engine, slot: &str, data: &balaur_script::Value) -> Result<()
     let temporary = path.with_extension("toml.part");
     fs.write(&temporary, text.as_bytes())
         .with_context(|| format!("writing {}", temporary.display()))?;
-    sync_durably(&temporary);
+    // The rename is only atomic against a crash; without this the promise
+    // that a save cannot be found truncated does not survive a power cut.
+    fs.sync(&temporary);
     fs.rename(&temporary, &path)
         .with_context(|| format!("replacing {}", path.display()))?;
     Ok(())
-}
-
-/// Flush what was just written to the device.
-///
-/// The rename is only atomic against a crash; without this the promise that a
-/// save cannot be found truncated does not survive the machine losing power.
-/// A virtual filesystem has no device to reach and nothing to promise, so
-/// this is a no-op wherever the path is not a real file.
-fn sync_durably(path: &Path) {
-    if let Ok(file) = std::fs::File::open(path) {
-        let _ = file.sync_all();
-    }
 }
 
 /// Read `slot`, brought forward to the version this build writes.

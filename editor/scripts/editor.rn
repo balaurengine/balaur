@@ -33,6 +33,7 @@ mod shell;
 mod showcase;
 mod style;
 mod theme;
+mod tiles;
 mod util;
 mod viewport;
 
@@ -94,6 +95,9 @@ pub fn init(this) {
         mode2d: false,
         refs: [],
         sources: #{},
+        // Absolute path → the `id://` a document spelled it as, so a value
+        // read back off the mirror keeps the id.
+        id_paths: #{},
         // The edited scene's whole document, so a save keeps what the editor
         // does not model and the mirror sees its `[[assets]]`.
         scene_doc: #{},
@@ -113,6 +117,7 @@ pub fn init(this) {
         gizmo: gizmo::state(),
         rig: rig::state(),
         polygon: polygon::state(),
+        tiles: tiles::state(),
         anim: anim::state(),
         debug: shell::debug_state(),
         exporter: exporter::state(),
@@ -139,6 +144,9 @@ pub fn init(this) {
     theme::apply(S);
     render::set_app_icon("assets/balaur-logo.png");
     ui::set_scale(S.ui_scale);
+    // The shell redraws when something asks, not every frame: on the web the
+    // pass is most of the frame, and nothing in it moves untouched.
+    ui::set_lazy(true);
     render::set_grid(true, 1.0, 5, 20);
     shell::apply_camera(S);
     log::info(format!("editing {} ({} nodes)", S.game_name, S.doc.len()));
@@ -250,6 +258,7 @@ pub fn update(this, dt) {
         polygon::idle(S);
     }
     polygon::draw(S);
+    tiles::draw(S);
     let chips = util::obj(S.chip_state.get(S.persona).unwrap_or(#{}));
     if S.persona == "scene" && chips.get("guides").unwrap_or(false) {
         overlays::guides(S);
@@ -266,6 +275,15 @@ pub fn update(this, dt) {
         } else {
             overlays::colliders(S);
         }
+    }
+    // What moves without input asks for the next pass; the rest waits for one.
+    if S.playing || S.showcase is Object || session::scrubbing(S) || S.capture is Object
+        || S.session.demo is Object || S.layout_demo >= 0 || S.settings.demo >= 0
+    {
+        ui::request_repaint();
+    }
+    if let Some(_) = S.debug.demo {
+        ui::request_repaint();
     }
 }
 
@@ -364,6 +382,7 @@ pub fn draw_ui(this) {
         }
         if ui::shortcut("none", "Escape") {
             polygon::cancel(S);
+            tiles::cancel(S);
         }
     }
 
@@ -402,4 +421,5 @@ fn padded(n) {
 
 pub fn hot_reload(this) {
     theme::apply(this.S);
+    ui::request_repaint();
 }

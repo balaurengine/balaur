@@ -7,6 +7,7 @@
 //! plugin and every game built on Balaur gets them for free.
 
 pub mod app;
+pub mod asset_index;
 pub mod assets;
 mod batteries_api;
 pub mod collections;

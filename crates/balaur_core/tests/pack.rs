@@ -280,3 +280,52 @@ fn a_pack_writes_its_entries_in_sorted_order() {
     sorted.sort_unstable();
     assert_eq!(positions, sorted, "keys are not written in sorted order");
 }
+
+/// The builder reads through the file backend, which is what lets a browser
+/// export a project it only ever held in memory.
+///
+/// On a thread of its own: the default backend is thread-local, and no other
+/// test in this binary may find a memory filesystem where the disk should be.
+#[test]
+fn a_pack_builds_from_a_project_the_backend_holds_in_memory() {
+    std::thread::spawn(|| {
+        let root = std::path::Path::new("/project");
+        let fs = std::rc::Rc::new(balaur_core::files::MemoryFs::new());
+        fs.seed(
+            root,
+            [
+                (
+                    "project.toml".to_string(),
+                    b"[application]\nname = \"p\"\nmain_scene = \"m.toml\"\n".to_vec(),
+                ),
+                (
+                    "m.toml".to_string(),
+                    b"[[nodes]]\nid = \"n\"\nname = \"Root\"\n".to_vec(),
+                ),
+                ("s.txt".to_string(), b"abc".to_vec()),
+                ("art/hero.png".to_string(), PNG.to_vec()),
+                ("art/notes.md".to_string(), b"not shippable".to_vec()),
+            ],
+        );
+        balaur_core::files::set_default(fs);
+        let pack = Pack::build(root, &Reversing).unwrap();
+        assert!(pack.manifest.contains("name = \"p\""), "{}", pack.manifest);
+        assert_eq!(
+            pack.scripts.get("s.txt").map(Vec::as_slice),
+            Some(b"cba".as_slice()),
+            "the compiler's output, not the source"
+        );
+        assert!(pack.scenes.contains_key("m.toml"), "no scene in the pack");
+        assert_eq!(
+            pack.assets.get("art/hero.png").map(Vec::as_slice),
+            Some(PNG),
+            "no texture in the pack"
+        );
+        assert!(
+            !pack.assets.contains_key("art/notes.md"),
+            "a note is not shippable"
+        );
+    })
+    .join()
+    .unwrap();
+}

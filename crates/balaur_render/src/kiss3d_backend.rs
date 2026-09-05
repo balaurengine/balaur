@@ -17,9 +17,8 @@ use crate::kiss3d_camera::{
     publish_camera_2d,
 };
 use crate::{
-    AppIconConfig, ClearColorConfig, DebugLineBuffer, DebugLineBuffer2d, GridConfig, PostConfig,
-    Renderable, Renderable2d, ScreenshotRequest, Shape, Shape2d, SpriteTexture, WindowConfig,
-    WindowedBackend,
+    ClearColorConfig, DebugLineBuffer, DebugLineBuffer2d, GridConfig, PostConfig, Renderable,
+    Renderable2d, ScreenshotRequest, Shape, Shape2d, SpriteTexture, WindowConfig, WindowedBackend,
 };
 
 struct Slot {
@@ -83,6 +82,10 @@ struct Frontend {
     camera_buttons: CameraButtons,
     /// What the display says, measured frame by frame.
     device: crate::device::Probe,
+    /// The asset generation the nodes below were built at. A saved texture,
+    /// model or tileset moves it, and every node built from a file is built
+    /// again — the material caches watch the same counter for their shaders.
+    asset_generation: u64,
 }
 
 impl Frontend {
@@ -116,7 +119,16 @@ impl Frontend {
             keyboard_shown: false,
             camera_buttons,
             device: crate::device::Probe::default(),
+            asset_generation: 0,
         }
+    }
+
+    /// Whether an asset was reloaded since the last frame drew.
+    fn assets_reloaded(&mut self, app: &App) -> bool {
+        let now = balaur_core::assets::generation(&app.engine);
+        let moved = now != self.asset_generation;
+        self.asset_generation = now;
+        moved
     }
 
     /// One frame: apply what scripts asked for, tick, mirror the world into
@@ -130,15 +142,18 @@ impl Frontend {
             &mut self.camera_2d,
             &self.camera_buttons,
         );
-        apply_app_icon(app);
+        crate::app_icon::apply_app_icon(app);
         apply_window_config(app, window);
         publish_camera(app, &self.camera, window);
         publish_camera_2d(app, &self.camera_2d, window);
         apply_clear_color(app, window);
         apply_post(app, window);
-        crate::kiss3d_input::pump_input(app, window);
+        let input_seen = crate::kiss3d_input::pump_input(app, window);
         self.device.publish(app, window, dt);
         app.advance(dt);
+        // Read once for the whole frame: three syncs ask, and each would
+        // otherwise see the reload and hide it from the next.
+        let reloaded = self.assets_reloaded(app);
         // Before the 2D syncs move nodes around underneath it.
         self.light_map.detach();
         sync(
@@ -146,6 +161,7 @@ impl Frontend {
             &mut self.scene,
             &mut self.slots,
             &mut self.materials_3d,
+            reloaded,
         );
         sync_2d(
             app,
@@ -153,12 +169,14 @@ impl Frontend {
             &mut self.slots_2d,
             &mut self.order_2d,
             &mut self.materials,
+            reloaded,
         );
         crate::tilemap::sync_tilemaps(
             app,
             &mut self.scene_2d,
             &mut self.tilemap_slots,
             &mut self.materials,
+            reloaded,
         );
         // The step the frame actually ran, which under --fixed-tick is not
         // the measured one.
@@ -178,7 +196,10 @@ impl Frontend {
         draw_grid(app, window);
         flush_debug_lines(app, window);
         flush_debug_lines_2d(app, window);
-        window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
+        // A lazy UI skips the pass; the last one's shapes are drawn again.
+        if balaur_ui::wants_pass(&app.engine, window.egui_context(), input_seen) {
+            window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
+        }
         // On-screen keyboard follows ui keyboard focus, edge-detected after
         // the ui pass has settled focus. A no-op on desktop.
         let wants_keyboard = window.is_egui_capturing_keyboard();
@@ -218,6 +239,7 @@ pub async fn run_windowed_async(
     // Claim the debug-line buffers: `flush_debug_lines`/`_2d` below drain
     // them as they draw, so the plugin's headless fallback stands down.
     app.engine.insert_resource(WindowedBackend);
+    balaur_ui::honour_lazy(&app.engine);
     let setup = CanvasSetup {
         canvas_id: canvas_id.unwrap_or("canvas").to_string(),
         ..CanvasSetup::default()
@@ -444,93 +466,6 @@ fn apply_window_config(app: &App, window: &Window) {
     crate::device::keep_awake(config.keep_awake);
 }
 
-/// Apply a requested dock/application icon (macOS only for now).
-fn apply_app_icon(app: &App) {
-    let Some(icon) = app.engine.try_resource::<AppIconConfig>() else {
-        return;
-    };
-    let (source, name) = {
-        let mut icon = icon.borrow_mut();
-        if !icon.changed {
-            return;
-        }
-        icon.changed = false;
-        (icon.bytes.clone(), icon.name.clone())
-    };
-    #[cfg(target_os = "macos")]
-    {
-        use objc2::AnyThread;
-        use objc2_app_kit::{NSApplication, NSImage};
-        use objc2_foundation::{MainThreadMarker, NSData};
-        let Some(bytes) = dock_icon_png(&source) else {
-            tracing::warn!("app icon not usable: {name}");
-            return;
-        };
-        if let Ok(dump) = std::env::var("BALAUR_ICON_DUMP") {
-            let _ = std::fs::write(&dump, &bytes);
-        }
-        let data = NSData::with_bytes(&bytes);
-        let image = NSImage::initWithData(NSImage::alloc(), &data);
-        if let (Some(image), Some(mtm)) = (image, MainThreadMarker::new()) {
-            let ns_app = NSApplication::sharedApplication(mtm);
-            unsafe { ns_app.setApplicationIconImage(Some(&image)) };
-            tracing::info!("app icon set from {name}");
-        }
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = (&source, &name);
-    }
-}
-
-/// Build a macOS-style dock icon: the source image composited onto a white
-/// rounded-rect plate (Big Sur proportions: 824-of-1024 plate, ~185 corner
-/// radius) with transparent margins.
-#[cfg(target_os = "macos")]
-fn dock_icon_png(source: &[u8]) -> Option<Vec<u8>> {
-    use image::ImageEncoder;
-
-    const CANVAS: u32 = 1024;
-    const PLATE: u32 = 824;
-    const RADIUS: f32 = 185.0;
-    const LOGO: u32 = 660;
-    let source = image::load_from_memory(source).ok()?.to_rgba8();
-    let logo =
-        image::imageops::resize(&source, LOGO, LOGO, image::imageops::FilterType::CatmullRom);
-    let mut canvas = image::RgbaImage::new(CANVAS, CANVAS);
-    let plate_min = ((CANVAS - PLATE) / 2) as f32;
-    let plate_max = plate_min + PLATE as f32;
-    let inside_plate = |x: f32, y: f32| -> bool {
-        if x < plate_min || x > plate_max || y < plate_min || y > plate_max {
-            return false;
-        }
-        let cx = x.clamp(plate_min + RADIUS, plate_max - RADIUS);
-        let cy = y.clamp(plate_min + RADIUS, plate_max - RADIUS);
-        (x - cx).powi(2) + (y - cy).powi(2) <= RADIUS * RADIUS
-    };
-    let logo_min = (CANVAS - LOGO) / 2;
-    for (x, y, px) in canvas.enumerate_pixels_mut() {
-        if inside_plate(x as f32 + 0.5, y as f32 + 0.5) {
-            let mut color = [255u8, 255, 255, 255];
-            if x >= logo_min && x < logo_min + LOGO && y >= logo_min && y < logo_min + LOGO {
-                let lp = logo.get_pixel(x - logo_min, y - logo_min).0;
-                // Alpha-over white.
-                let a = f32::from(lp[3]) / 255.0;
-                for c in 0..3 {
-                    color[c] = (f32::from(lp[c]) * a + 255.0 * (1.0 - a)) as u8;
-                }
-            }
-            *px = image::Rgba(color);
-        }
-    }
-    let mut out = Vec::new();
-    let encoder = image::codecs::png::PngEncoder::new(&mut out);
-    encoder
-        .write_image(&canvas, CANVAS, CANVAS, image::ExtendedColorType::Rgba8)
-        .ok()?;
-    Some(out)
-}
-
 fn take_screenshot_if_due(app: &App, window: &Window, frame: u64) {
     let Some(request) = app.engine.try_resource::<ScreenshotRequest>() else {
         return;
@@ -566,6 +501,7 @@ fn sync(
     scene: &mut SceneNode3d,
     slots: &mut HashMap<Entity, Slot>,
     materials: &mut crate::shader_material_3d::MaterialCache3d,
+    reloaded: bool,
 ) {
     let world = app.engine.world();
     // A relink rebuilds the nodes holding the old pipeline; a channel view
@@ -580,11 +516,15 @@ fn sync(
         &mut world.query::<(Entity, &Renderable, &GlobalTransform)>()
     {
         seen.insert(entity);
+        // A reload rebuilds what was built from a file: the mesh is read
+        // again and the texture uploaded under the new generation's name.
+        let from_file = renderable.mesh.is_some() || !renderable.texture.is_empty();
         let rebuild = match slots.get(&entity) {
             Some(slot) => {
                 slot.version != renderable.version
                     || channel_changed
                     || (relinked && !renderable.material.is_empty())
+                    || (reloaded && from_file)
             }
             None => true,
         };
@@ -1008,6 +948,7 @@ fn sync_2d(
     slots: &mut HashMap<Entity, Slot2d>,
     order_cache: &mut Vec<Entity>,
     materials: &mut crate::shader_material::MaterialCache,
+    reloaded: bool,
 ) {
     let world = app.engine.world();
     let order = draw_order_2d(&world, app.engine.root(), slots, order_cache);
@@ -1028,11 +969,15 @@ fn sync_2d(
             continue;
         };
         seen.insert(entity);
+        // A sprite's image and a polyline's mesh are both files; a reload
+        // re-reads them, as it does in three dimensions.
+        let from_file = renderable.sprite.is_some() || renderable.polyline.is_some();
         let rebuild = match slots.get(&entity) {
             Some(slot) => {
                 slot.version != renderable.version
                     || channel_changed
                     || (relinked && !renderable.material.is_empty())
+                    || (reloaded && from_file)
             }
             None => true,
         };

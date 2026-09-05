@@ -129,6 +129,38 @@ positions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
 indices = [[0, 1, 2]]
 ```
 
+### `sprite_sheet`
+
+Files: `sheets/`. Used by: `sprite.sheet`.
+
+An image cut into frames of any size, for `sprite.sheet`: `texture` names
+the image and each of `frames` is a `rect` of `[x, y, w, h]` texture pixels
+with the `duration` in seconds a clip shows it for. `sprite.frame` indexes
+the list, past the end drawing the last frame. `[tags.<name>]` is a run of
+frames `from` one index `to` another with a `direction` (`forward`,
+`reverse`, `pingpong`, `pingpong_reverse`) and a `repeat` count, zero for
+ever; `[slices.<name>]` is a `rect` on a frame, in the frame's own pixels,
+with an optional nine-patch `center` and `pivot`, and `keys` when the slice
+moves between frames. `balaur import file.aseprite` writes one of these
+beside the atlas it packs and a clip per tag.
+
+```toml
+type = "sprite_sheet"
+texture = "art/walk.png"
+frames = [
+  { rect = [0, 0, 32, 32], duration = 0.1 },
+  { rect = [32, 0, 32, 32], duration = 0.1 },
+]
+
+[tags.walk]
+from = 0
+to = 1
+direction = "forward"
+
+[slices.hitbox]
+rect = [8, 4, 16, 28]
+```
+
 ### `tileset`
 
 Files: `tilesets/`. Used by: `tilemap.tileset`.
@@ -172,7 +204,7 @@ How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius` and `p
 
 ## The `assets` script module
 
-`directory`, `duplicate`, `exists`, `invalidate`, `load`, `reload`, `save`.
+`assign_id`, `directory`, `duplicate`, `exists`, `id`, `invalidate`, `load`, `path`, `reload`, `rename`, `save`.
 
 ## Plugins define asset types
 

@@ -218,6 +218,26 @@ impl Opts {
         }
         out
     }
+    /// Four raw numbers — x, y, width, height. Source pixels into an image,
+    /// so the UI scale never touches them: they index the file, not the
+    /// screen.
+    pub(crate) fn rect(&self, key: &str) -> Option<[f32; 4]> {
+        let Some(Value::List(items)) = self.get(key) else {
+            return None;
+        };
+        if items.len() < 4 {
+            return None;
+        }
+        let mut out = [0.0f32; 4];
+        for (slot, item) in out.iter_mut().zip(items) {
+            *slot = match item {
+                Value::Num(n) => *n as f32,
+                Value::Int(i) => *i as f32,
+                _ => return None,
+            };
+        }
+        Some(out)
+    }
     pub(crate) fn callback(&self, key: &str) -> Option<CallbackId> {
         match self.get(key) {
             Some(Value::Callback(id)) => Some(*id),
@@ -378,6 +398,7 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
     crate::widget_bindings::install_window(m);
     crate::widget_bindings::install_widget_layer(m);
     crate::widget_bindings::install_scale(m);
+    crate::pacing::install(m);
     crate::widget_bindings::install_code_editor(m);
     crate::widget_bindings::install_dropdown_select(m);
     crate::widget_bindings::install_images(m);
@@ -897,104 +918,6 @@ pub(crate) fn code_editor(
         .text_buffers
         .insert(id.to_string(), buffer.clone());
     Ok((buffer, changed, clicked))
-}
-
-/// A project image as an egui texture, cached by path.
-///
-/// Shared with the `image` widget kind, which draws into a `Ui` of its own
-/// rather than the bridge's, so the loading cannot live inside `with_ui`.
-///
-/// # Errors
-/// When the file cannot be read or is not an image this build decodes.
-pub(crate) fn texture_of(
-    eng: &Engine,
-    ctx: &egui::Context,
-    path: &str,
-) -> anyhow::Result<egui::TextureHandle> {
-    let state = eng.resource::<UiState>();
-    let generation = balaur_core::assets::generation(eng);
-    let cached = {
-        let mut state = state.borrow_mut();
-        // An edited image is a new picture under the same path, and the map
-        // would otherwise hold every one a session ever drew.
-        if state.texture_generation != generation {
-            state.textures.clear();
-            state.texture_generation = generation;
-        }
-        state.textures.get(path).cloned()
-    };
-    if let Some(found) = cached {
-        return Ok(found);
-    }
-    // Through ProjectFiles, so an image in a packed game loads from the pack
-    // rather than from a file that is not shipped.
-    let bytes = eng
-        .resource::<balaur_core::project::ProjectFiles>()
-        .borrow()
-        .read(path)?;
-    let dynamic = image::load_from_memory(&bytes)?;
-    let rgba = dynamic.to_rgba8();
-    let size = [rgba.width() as usize, rgba.height() as usize];
-    let color = egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw());
-    let handle = ctx.load_texture(path, color, egui::TextureOptions::LINEAR);
-    state
-        .borrow_mut()
-        .textures
-        .insert(path.to_string(), handle.clone());
-    Ok(handle)
-}
-
-/// Draw a PNG from the project (cached as an egui texture by path).
-pub(crate) fn draw_image(eng: &Engine, path: &str, opts: &Opts) -> anyhow::Result<()> {
-    with_ui(|ui| {
-        let texture = texture_of(eng, &ui.ctx().clone(), path)?;
-        let native = texture.size_vec2();
-        let aspect = if native.y > 0.0 {
-            native.x / native.y
-        } else {
-            1.0
-        };
-        let w = opts.px(k::WIDTH, 0.0);
-        let h = opts.px(k::HEIGHT, 0.0);
-        let size = if w > 0.0 && h > 0.0 {
-            vec2(w, h)
-        } else if h > 0.0 {
-            vec2(h * aspect, h)
-        } else if w > 0.0 {
-            vec2(w, w / aspect)
-        } else {
-            native
-        };
-        let radius = opts.px(k::RADIUS, 0.0);
-        let padding = opts.px(k::PADDING, 0.0);
-        if let Some(bg) = opts.opt_color(k::BG) {
-            // Backing plate (e.g. white circle behind a logo) with padding.
-            let total = size + vec2(padding * 2.0, padding * 2.0);
-            let (rect, _) = ui.allocate_exact_size(total, Sense::hover());
-            ui.painter().rect_filled(
-                rect,
-                if radius > 0.0 {
-                    pill_radius((radius + padding) * 2.0)
-                } else {
-                    pill_radius(total.y)
-                },
-                bg,
-            );
-            let inner = egui::Rect::from_center_size(rect.center(), size);
-            let mut img = egui::Image::new((texture.id(), size));
-            if radius > 0.0 {
-                img = img.corner_radius(pill_radius(radius * 2.0));
-            }
-            img.paint_at(ui, inner);
-            return Ok(());
-        }
-        let mut img = egui::Image::new((texture.id(), size));
-        if radius > 0.0 {
-            img = img.corner_radius(pill_radius(radius * 2.0));
-        }
-        ui.add(img);
-        Ok(())
-    })
 }
 
 /// A left-aligned pill row (tree rows, list rows, menu items): custom paint

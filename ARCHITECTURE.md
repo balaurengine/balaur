@@ -278,6 +278,16 @@ next call resolves against the new code. Measured save-to-live latency is
 file-watcher latency, a few milliseconds. The optional `hot_reload` hook
 lets scripts migrate state shapes.
 
+The same watcher reloads content, sorting a saved file by extension exactly
+as `Pack::build` does, so what reloads is what ships. A `.toml` asset was
+parsed into the cache, so the cache forgets it. A texture, model, font or
+sound was not — like a `.wesl` shader it is a source something derives from —
+so nothing is dropped and only the asset generation moves; the material
+caches, the animation player, the widget textures and the renderer's own
+nodes each re-derive when they see it change. A texture is uploaded under its
+path and the file's modification time, so saving one image re-decodes that
+image alone.
+
 ### Debugger (core feature)
 
 Breakpoints, stepping and a call stack with locals, for scripts running in
@@ -320,7 +330,12 @@ Plugins declare named, schema-described components through
 `type` per property from the closed set `PROPERTY_TYPES` (`float`, `bool`,
 `string`, `enum`, `vec2`, `vec3`, `color`, `asset`), defaults, enum options, a
 `shorthand` marker for scalar scene syntax and a `readonly` marker the
-inspector honours — plus apply/get/remove hooks.
+inspector honours — plus apply/get/remove hooks. Applying and removing
+through the registry is what keeps `components::Attached`, one bit per
+registered component on each node: a free runs only the `remove` hooks
+whose bits are set, so a node with none asks no plugin anything. A plugin
+that attaches its state by any other path gets a warning in a debug build
+and no `remove` in a release one.
 `parse_schema` validates all of that at registration and panics naming the
 component and the property, so a malformed schema fails at boot rather than
 at the first inspector row. A tagged-union property is always called `kind`,
@@ -479,9 +494,23 @@ adding one would mean per-backend userdata in every backend, which is
 exactly what the seam exists to avoid. The parsed side belongs to the plugin
 that registered the type.
 
-Not done, deliberately: stable ids (`uid://`, GUIDs) — paths until renames
-actually hurt. Binary assets landed with pack format 2, which carries them
-beside the text and verifies each by sha256.
+Paths stay the reference in files, and two things keep a rename from
+breaking them. `assets.rename(from, to)` (`balaur_core::asset_index`) moves
+a file or directory and rewrites every `.toml` under the project through
+`toml_edit` — a string equal to the old path, an `old#entry`, or a path
+under a moved directory — so comments and key order survive; the Assets
+dock's rename goes through it, by absolute path, since the editor's own
+project is the editor. `assets/index.toml` is `id = "path"` per line, and
+`id://<id>` (with the same `#entry`) stands in for a path wherever one is
+written: `ProjectFiles::path_of` resolves it for textures and sounds,
+`scene_text` for scenes and documents, and `assets::resolve` before the
+cache key, so one asset has one cache entry however it is spelled. A pack
+carries the index in its text map. `assets.assign_id` writes an id that is
+a digest of the path and content — so a rebuilt index gives a file the id
+it had — and stamps it into an asset document as a top-level `id`. Script
+sources are not rewritten: a path in a `.rn` is the script's own value.
+Binary assets landed with pack format 2, which carries them beside the text
+and verifies each by sha256.
 
 ### Animation (plugin feature)
 
@@ -1508,6 +1537,8 @@ they belong to the game. A setting the engine only reads while starting says
 
 Transport, session and rollback are built; replication is not.
 `docs/PLAN-networking.md` has the steps, in order, and says which are done.
+A session a script can open is `docs/PLAN-sessions.md`, the server behind it
+is `docs/PLAN-gamend.md`, and voice over it is `docs/PLAN-voice.md`.
 The rest is written down because the determinism work above was done *for*
 it, and because the shape of the engine already decides most of the answers.
 
@@ -1958,37 +1989,52 @@ release finished.
 | Item | Plan |
 | --- | --- |
 | A green `main`, and the holes the 2026-09-04 audit found: widget clicks and the animation player outside the digest and the snapshot, colliders that outlive their node, a bus mix that never reaches `master`, an `fs` module with no root, a `f64` switch that leaves `f32` on | `docs/PLAN-hardening.md`. Phase 0 is CI: every push since 2026-09-03 has failed it, for six independent reasons, and nothing blocks a red push |
-| Tilemap editor, curve editor and onion skin | `docs/PLAN-editor.md` §6 |
-| The editor in a browser: the same wasm build with a canvas under it, files in the browser's origin-private filesystem, and a project kept on Gamend | `docs/PLAN-web-editor.md`. The editor is a Balaur project and the engine already builds for `wasm32-unknown-emscripten` headless, so the missing halves are a surface on a canvas and a backend under `fs` |
+| Tile maps: collision from the tileset, terrains and autotile, animated and occluding tiles, chunking, the Tiles tool and a tileset editor, isometric and hexagonal layouts, Tiled and LDtk import | `docs/PLAN-tilemap.md` |
+| Curve editor and onion skin | `docs/PLAN-editor.md` §6 |
+| Rigging panels: a weight table, modifier gizmos, bone names in the viewport, mirror and symmetry, a mesh traced from alpha, deform keys, a bone map | `docs/PLAN-editor.md` §6 "Rigging panels". The Rig and Polygon tools, four mesh modes with a brush, and the rest-pose verbs are built |
+| Editor ergonomics: multi-select and box select, group, align and distribute, hide, lock and isolate, an outliner filter, drag-in import, light and camera gizmos, view modes, a pen tool, a material panel, an Events view that authors, a cost dock, and a library of materials, skies, models and templates | `docs/PLAN-editor-ergonomics.md`. `S.sel` is one index today and every command reads it; the fork's wireframe, normals and UV materials are the view modes |
+| The 3D look: `light3d` with shadows, an `environment` component for sky, image-based lighting, fog, exposure, tonemap and grading, a PBR material contract with texture maps and glTF import, alpha modes and glass, mirrors and reflection probes, finishing passes as post-process materials, a path-traced still | `docs/PLAN-3d-rendering.md`. The fork carries each pass; the only light today is hard-coded at window creation. Baked lightmaps are **not planned** |
+| Objects: torus and parametric primitives, glyph outlines as meshes, bezier paths with extrude, lathe and sweep, a boolean node, a cloner, the instanced draw path, vertex colours and morph targets, ellipse, star and ngon in 2D | `docs/PLAN-objects.md`. Every one is a `mesh` built headless in core, so colliders, picking and tests share the triangles; `docs/PLAN-text.md`, `docs/PLAN-particles.md` and `docs/PLAN-views-and-culling.md` draw through the paths it opens |
+| Texture import settings: nearest or linear filtering, repeat, mipmaps, anisotropy, sRGB, premultiplied alpha, project defaults, a sidecar the editor writes, GPU compression at export, atlases | `docs/PLAN-textures.md` |
+| Pause with a `process` mode per subtree, time scale, interpolation between fixed steps for smooth motion on fast displays, `max_fps` and vsync, a tick rate setting | `docs/PLAN-time.md` |
+| Script completion, hover, signature help, go-to-definition, symbols, formatting, rename and references in `balaur lsp` and the Script persona, a Docs dock, a VS Code extension | `docs/PLAN-script-tooling.md`. The server publishes diagnostics only today |
+| Text in the world: `render.draw_text_2d` and `draw_text`, `text2d`, `text3d`, outline and shadow, `render.text_size`, a `font` asset with bitmap fonts | `docs/PLAN-text.md` |
+| Particles in 3D as `particles3d`, and in both: emission shapes, randomness, sheets, attractors, colliders, trails, sub-emitters, mesh and lit particles, a compute stepper | `docs/PLAN-particles.md`; the instanced draw path is `docs/PLAN-objects.md` step 6. Renames `particles` to `particles2d` |
+| The editor in a browser: a project kept on Gamend rather than only in the browser, and the native targets exported from a tab | `docs/PLAN-web-editor.md`, steps 4, 5 and the rest of 7. Built: the canvas, `fs` behind a backend, the editor as a page, hot reload driven by the write, a project kept in IndexedDB, a folder opened from a machine, and the pack and web-bundle exports a tab can finish by itself |
+| Projects in the cloud: files on a Gamend account with a version per save, share links with roles, presence in the viewport, comments anchored to nodes, a lock per scene, and a CRDT over the node table (`automerge`) if a team asks | `docs/PLAN-collaboration.md`. Gamend's accounts, REST, channels and object storage are the substrate; the browser editor keeps a project in IndexedDB today and nothing names one outside the browser it is in |
+| An MCP server: `balaur mcp` over stdio (`rmcp`) with the project, `check`, a headless run and a screenshot as tools, and `balaur edit --mcp` exposing the palette to an agent | `docs/PLAN-mcp.md`. Files are the API — the editor reloads what changes on disk — and `balaur api`, `check`, the debug adapter and the palette are the verbs; generation stays an extension |
 | `#[export]` on a script constant, in place of the `exports` table | `docs/PLAN-scripting.md` |
-| Stable asset ids, rename refactoring, sprite-sheet import | `docs/PLAN-scenes-and-assets.md` phases 3, 5, 6 |
 | Asset streaming: a load that runs off the tick, a scene added to one already running, and an asset dropped when nothing names it | no plan yet; a pack is held whole in memory today. `ExternalIo` already lands background work on a tick boundary and records it for replay, `assets` caches by reference, and `pack` hashes every entry |
 | Extensions tier two: components, systems, calling back into scripts | `docs/PLAN-c-api.md` "What Tier 1 does not do" |
 | Soft bodies, tearing, fluids, granular materials | `docs/PLAN-physics.md` — waiting on the solvers landing in Rapier itself |
 | Named collision layers, solver tuning carried in a recording's header, and a solver that actually threads | `docs/PLAN-rapier.md`. Everything else rapier has is built. A `f64` world is **not planned**. `parallel` is built but inert until the physics hooks stop calling scripts, which §4 costs out |
 | Animation blending, blend trees, state machines | `docs/PLAN-animation-and-resources.md`. 3D IK exists for a reduced-coordinates joint chain (`physics3d.solve_ik`); an animation-side solver over a rig does not |
+| Rig tooling: FABRIK and CCDIK chains, jiggle, retargeting through a `bone_map` asset, deform tracks, physical bones | `docs/PLAN-animation-and-resources.md` "Rig tooling". `look_at` and `two_bone_ik` are built as `modifier2d` |
 | A sequencer: cutscenes and cameras on a timeline, with tracks that call something rather than only move it | no plan yet; `balaur_anim` already samples clips onto nodes, with twelve easing curves in four modes, and the editor has the timeline dock |
-| Tile-map occluders, and normal-mapped lit sprites | `docs/PLAN-rendering.md`. 2D lights and shadows are built; these are the two that plan deferred |
-| Shadow maps in 3D, and baked lightmaps | no plan yet; directional, point and spot lights and fog already reach the 3D material shader, with no shadow pass behind them |
-| Frustum and occlusion culling, level of detail, instancing of repeated meshes | no plan yet; the renderer draws every node it is handed, and `Renderable` + `GlobalTransform` is where a visibility pass would sit |
+| Interactivity without a script: pointer, key, action and resize hooks on any drawn node, states with transitions, scene variables in the digest, event bindings edited in the Events view and convertible to a script, and orbit, first-person, third-person and click-to-move rigs as presets | `docs/PLAN-interactivity.md`. Picking is headless already (`render.pick_ray`), tweens and `patch_component` are the transition, and every binding resolves to a call a script makes |
+| Normal-mapped lit sprites | `docs/PLAN-rendering.md`. 2D lights and shadows are built; tile occluders moved to `docs/PLAN-tilemap.md` |
+| Camera projection (perspective or orthographic, `fov`, `near`, `far`), frustum culling and `render.in_view`, cull masks, automatic instancing, MSAA, level of detail in the mesh asset, 2D batching, `multimesh` | `docs/PLAN-views-and-culling.md`. Occlusion culling is not planned until a scene asks |
 | Drawing terrain: a mesher for the `heightfield` and `voxels` assets, and tools to paint them | no plan yet; both asset types exist and physics builds colliders from them — nothing draws either |
-| More than one view: split screen, a camera rendered to a texture, picture-in-picture | no plan yet; the `camera` component drives one 2D and one 3D view, and the offscreen path already renders with no OS window |
+| More than one view: a `viewport` component for split screen, a camera rendered to a texture referenced as `view:<path>`, picture-in-picture | `docs/PLAN-views-and-culling.md` steps 4 and 5 |
 | Video playback: a movie on a texture with its audio on a bus | no plan yet; nothing decodes a container, and a frame would ride the texture path sprites use. Render-side only — a video never feeds simulation state |
 | Post-process materials on `camera.post`, and Balaur's shader helpers published as a package | `docs/PLAN-shaders.md` |
 | More widget kinds, as games ask for them | no plan yet, and demand-driven by design: the `widget` tree, its theme and its focus order are built, so a kind is a schema and a draw |
 | Accessibility: a screen reader over the widget tree, text scaling, captions, colour-blind-safe defaults | no plan yet; the retained `widget` tree already carries text, `focusable` and a focus order, which is what a reader walks; egui can emit an AccessKit tree, localization is there for captions, and actions already rebind |
-| Navigation: a navmesh baked from the scene, A* over it or over a grid, agents that avoid each other | no plan yet; nothing in the tree pathfinds. Behaviour over it stays a script's job |
+| Navigation: a `navmesh` asset, paths over it through `polyanya`, `agent2d` and `agent3d` with ORCA avoidance through `dodgy_2d`, obstacles and links, a 2D baker over `i_overlay` and a 3D baker ported from Recast, grid paths over a tile map, all of it on the fixed step and in the digest so a lockstep game runs it on every peer | `docs/PLAN-navigation.md`. Behaviour over a path stays a script's job |
 | Motion and haptics beyond a PlayStation pad: Switch Pro and Joy-Con gyro, per-unit sensor calibration, adaptive triggers and light bars, waveform haptics, device motion on a phone, gamepads on iOS and Android | `docs/PLAN-input.md` §2 and steps 2-7. Rumble over `gilrs::ff`, and gyro, accelerometer and touchpad decoded from DualSense and DualShock 4 HID reports, are built |
-| Gamend sessions and matchmaking, WebTransport in the browser, WebRTC data channels for browser peer-to-peer; never raw UDP, never ENet | `docs/PLAN-networking.md` §2 and steps 8, 13, 14. Native QUIC datagrams, binary frames, run-time stable ids and rollback (one machine and over a socket) are built |
+| A session a script can open: host, join, leave, a roster whose slots are bound to links; `peer`, `host` and headless `server` roles; server-ordered inputs and digest verification on the server; late join, reconnect and spectators under lockstep; host migration; bincode on the wire; a Network dock and a two-peer run from the editor | `docs/PLAN-sessions.md`. `NetSession` is built and reachable only from Rust tests |
+| Gamend as the session backend: a game server per lobby that Gamend launches and registers, lobby-scoped tokens, rejoin grace, the match recording uploaded as the lobby's record, the WebRTC peer as a relay for browsers, and typed bindings generated over the whole API in place of `rest` and `push` | `docs/PLAN-gamend.md`. Server steps run in the `gamend` repository; the engine's `gamend` module has nine calls today |
+| WebTransport in the browser, WebRTC data channels for browser peer-to-peer, Steam's relay as a transport; never raw UDP, never ENet | `docs/PLAN-networking.md` §2 and steps 13, 14, `docs/PLAN-steam.md` step 8. Native QUIC datagrams, binary frames, run-time stable ids and rollback (one machine and over a socket) are built |
 | Replication and RPC, client-side prediction, server reconciliation, interpolation of unowned nodes, lag compensation, interest management, a bandwidth budget; join in progress; a client-authoritative hit is never planned | `docs/PLAN-networking.md` §1 "Hiding latency" and steps 9 to 12 |
-| Voice in a session | no plan yet; the transport carries unreliable datagrams and audio has buses to mix a stream into. What is missing is a codec |
+| Voice in a session: capture, Opus, a jitter buffer, push-to-talk and voice activity, echo cancellation, positional voice on a bus, a browser path | `docs/PLAN-voice.md`. Datagrams, buses and positional playback are built; voice never enters the simulation, the digest or a recording |
 | A crash report that reproduces itself: the recording, the log and the build id in one file | no plan yet; `replay` already writes a file that re-runs a session bit for bit and `logbuf` holds the log — nothing packages the two when a game falls over |
 | Store and platform services on Steam and Google Play: sign-in, achievements, leaderboards, cloud saves, rich presence, in-app purchase | `docs/PLAN-steam.md` and `docs/PLAN-google.md`. Apple already built (`docs/PLAN-apple.md`) and built what both plug into: the `platform` script module, the `PlatformBackend` seam, and the rule that a store write waits for its tick to settle. Both remaining plans start with work that is worth doing anyway — Steam's redistributable beside the executable, and an Android package id, app bundle and 16 KB page alignment |
-| Signed binary releases, published benchmarks | `docs/PLAN-release.md`. The benchmarks are measured and written down: `examples/benchmark` runs the Godot suites' cases and `scripts/bench_compare.py` writes `docs/BENCHMARKS.md` (`docs/PLAN-benchmarks.md`). What is missing is a pinned runner per tag |
+| Signed binary releases | `docs/PLAN-release.md`. Benchmarks are not on the roadmap: `examples/benchmark` runs the Godot suites' cases and `scripts/bench_compare.py` writes `docs/BENCHMARKS.md` from a run on a real machine, by hand at a release rather than on a shared runner |
 | Node destruction that is not quadratic in siblings, and a sibling-reorder operation | no plan yet; `docs/BENCHMARKS.md` measures the first at fifty times Godot's, and the second is why `move_child` has no row |
-| Web export: a wgpu surface on a canvas, a shell page, and the pack fetched beside the wasm | `docs/PLAN-mobile-export.md` "Web". The headless wasm template already links and is packaged on every push (`scripts/package_template.sh web`); the window is what is missing, and it blocks `docs/PLAN-web-editor.md` too |
+| Embedding: a runtime package on npm with a `<balaur-viewer>` element and a React wrapper, a typed page API over the message bridge, a web module sized to the game, and image, video and glTF export from the editor | `docs/PLAN-embed.md`. `balaur export --target web` already writes a page, the module and a pack, and the site runs the examples and the editor on them |
+| A progressive web app: an offline manifest and a service worker around the shell `balaur export --target web` already writes | `docs/PLAN-embed.md` step 2, an option of the exported shell; the canvas, the shell, browser audio and browser-backed files shipped, and `docs/PLAN-deploy.md` puts the result on a URL |
 | One-click deploy: a game on a URL or on a phone from one command or one button, rather than a bundle in `dist/` | `docs/PLAN-deploy.md`. `balaur export` builds and signs; nothing sends the result anywhere, and the three store plans each end at a file on the developer's disk |
-| Signing on every target, GitHub Actions a game's repository reuses (`setup`, `export-game`, `build-engine`), and an Export sheet in the editor | `docs/PLAN-actions.md`. Only the macOS `.app` signs today; the reusable workflows serve this repo's own CI; the editor's one "export" copies a replay session |
+| The self-signed signing pass in CI | `docs/PLAN-actions.md` §5. Signing on every target, the reusable workflows and the editor's Export sheet are built |
 | Console export: Switch, PlayStation, Xbox | no plan yet, and not a target flag: `balaur export --target` and the pack shape travel, but each console's graphics, input and store layer is an NDA SDK that is not wgpu, winit or gilrs |
 | XR: OpenXR on desktop and standalone headsets, WebXR in the browser — stereo views, tracked poses, controller and hand input | no plan yet; the wgpu device, the offscreen path that renders with no OS window, and input actions (the shape an OpenXR action set wants) are the reusable half. kiss3d owning the window and the swapchain is what is in the way, and a 60 Hz fixed tick against a 90 Hz display is the open question |
 | Parallel system execution, once profiling demands it | no plan yet; the gameplay tick is serial by design |

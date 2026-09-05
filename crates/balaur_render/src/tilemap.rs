@@ -333,6 +333,7 @@ pub(crate) fn sync_tilemaps(
     scene: &mut kiss3d::scene::SceneNode2d,
     slots: &mut std::collections::HashMap<Entity, TilemapSlot>,
     materials: &mut crate::shader_material::MaterialCache,
+    reloaded: bool,
 ) {
     use balaur_core::{GlobalAppearance, GlobalTransform};
 
@@ -341,9 +342,12 @@ pub(crate) fn sync_tilemaps(
     let mut seen: std::collections::HashSet<Entity> = std::collections::HashSet::new();
     for (entity, map, global) in &mut world.query::<(Entity, &Tilemap, &GlobalTransform)>() {
         seen.insert(entity);
-        let rebuild = slots
-            .get(&entity)
-            .is_none_or(|slot| slot.version != map.version);
+        // Every map is built from a file — the tileset document and the
+        // atlas it names — so a reload rebuilds all of them.
+        let rebuild = reloaded
+            || slots
+                .get(&entity)
+                .is_none_or(|slot| slot.version != map.version);
         if rebuild {
             if let Some(mut old) = slots.remove(&entity) {
                 old.node.detach();

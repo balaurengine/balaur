@@ -13,11 +13,11 @@ renders on a phone is unproven, and needs hardware.
 
 ## Web
 
-Emscripten compiles today (audio is stubbed; see `balaur_audio`). Web is
-closer than mobile was because there is no signing and no bundle format — the
-output is a `.wasm` plus a small HTML/JS shell, and the pack can be a fetched
-asset or preloaded into the emscripten filesystem. It still needs the window
-problem solved: a wgpu surface on a canvas.
+**Built.** `balaur export --target web` writes a `.wasm`, its glue and a
+shell page with the pack beside them, and the canvas problem this section
+carried — a wgpu surface on an HTML canvas — is solved on
+`wasm32-unknown-unknown` with wasm-bindgen. Audio plays. Web needed no signing
+and no bundle format, which is why it landed before the rest of this plan.
 
 `scripts/package_template.sh web` builds and packages that `.wasm` on every
 push. The target is `wasm32-unknown-unknown` with wasm-bindgen, not
@@ -26,11 +26,6 @@ emscripten: kiss3d and wgpu only support the browser there
 and prints the raw, gzip and brotli size, so the download cost is a number in
 every run rather than a guess.
 
-Web is worth doing before anything else left here — one blocker instead of
-three, and it is the platform where "click a link and play it" is worth most.
-Two plans wait behind it: `docs/PLAN-web-editor.md` needs the same canvas to
-run the editor in a tab, and `docs/PLAN-deploy.md`'s most valuable destination
-is a URL that needs a web build to put at it.
-
-The step: a canvas surface, the pack as a preloaded asset, and a `.wasm` plus
-shell template.
+Both plans that waited behind it have collected: `docs/PLAN-web-editor.md`
+runs the editor on the same canvas, and `docs/PLAN-deploy.md` has a web build
+to put at a URL. What is left of this plan is mobile.

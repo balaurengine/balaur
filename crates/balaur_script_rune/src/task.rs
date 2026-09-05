@@ -123,6 +123,7 @@ impl RuneHost {
     pub fn pump_reloads(&self) {
         let mut changed: Vec<String> = Vec::new();
         let mut assets: Vec<String> = Vec::new();
+        let mut binaries: Vec<String> = Vec::new();
         let mut sources = false;
         {
             let state = self.state.borrow();
@@ -154,13 +155,28 @@ impl RuneHost {
                         // anything parsed: there is nothing cached to drop,
                         // only the counter its material watches.
                         Some("wesl") => sources = true,
+                        // The same for a texture, model, font or sound: the
+                        // cache parsed none of them, and the extensions are
+                        // the pack's, so what reloads is what ships.
+                        Some(ext)
+                            if balaur_core::pack::ASSET_EXTENSIONS.contains(&ext)
+                                && !binaries.contains(&key) =>
+                        {
+                            binaries.push(key);
+                        }
                         _ => {}
                     }
                 }
             }
         }
-        if sources {
+        if sources || !binaries.is_empty() {
             balaur_core::assets::invalidate(&self.engine);
+        }
+        // Sorted for the same reason the scripts are: two runs that saw the
+        // same saves say so in the same order.
+        binaries.sort();
+        for key in binaries {
+            tracing::info!("hot reloaded {key}");
         }
         for key in assets {
             // A strings file is not an asset — nothing references it — so the

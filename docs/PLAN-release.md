@@ -1,9 +1,10 @@
-> **Status:** partly built. Written 2026-09-02. Nightly and tagged drafts,
-> `balaur update`, runtime templates, the export paths and `scripts/bench.py`
-> exist; what does not is a signed, notarized, published build and a benchmark
-> page.
+> **Status:** partly built. Written 2026-09-02. The `nightly` prerelease on
+> every push to main, tagged drafts, `balaur update`, runtime templates and
+> the export paths exist, and the website's Download page and web editor
+> follow the nightly until a version is tagged (2026-09-05). What does not
+> exist is a signed, notarized, published build.
 
-# Plan: binary releases and published benchmarks
+# Plan: binary releases
 
 ## Binary releases
 
@@ -21,8 +22,10 @@ artifacts and nothing is signed but a macOS bundle the developer signs itself.
    store needs. Putting the signed result where a player can reach it is
    `docs/PLAN-deploy.md`; the flags themselves — notarization, an iOS
    profile, a release keystore, Authenticode — are `docs/PLAN-actions.md` §2.
-5. **The Download page** on the website reads the latest release's assets and
-   checksums; a nightly channel beside it.
+5. **The Download page** on the website reads the nightly by tag today
+   (`RELEASE_TAG` in its `src/pages/download.tsx`); once a version is tagged it
+   reads that release's assets and checksums, with the nightly as a channel
+   beside it.
 
 ## Cutting a release
 
@@ -43,24 +46,12 @@ what says which.
 6. Tag `v<version>`; `scripts/draft_release.sh` turns CI's artifacts into a
    draft, and publishing stays a decision.
 
-## Published benchmarks
-
-Numbers that nobody can reproduce are marketing. `scripts/bench.py` runs the
-headless suite and reports each result as a share of a 60 fps frame; nothing
-publishes the numbers. The suite should run on one pinned runner per platform,
-headless, on every tag, with the results going to
-`docs/generated/benchmarks.md` in the engine and to a page on the website,
-carrying the commit, the machine and the variance. A budget row per scenario
-turns a regression into a failed job.
-
 ## Phases
 
 1. macOS signing and notarization in CI; a notarized nightly.
 2. Windows signing; Linux tarball and AppImage.
-3. The Download page wired to releases; `balaur update` verified against a
-   real published tag.
-4. Benchmarks on a pinned runner per tag, the generated page, budgets as job
-   failures.
+3. The Download page wired to a tagged release beside the nightly; `balaur
+   update` verified against a real published tag.
 
 ## Open questions
 

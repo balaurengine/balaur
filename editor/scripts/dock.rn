@@ -300,10 +300,11 @@ pub fn rename_asset(S, name) {
         log::warn(format!("res://{} already exists", to));
         return;
     }
-    fs::rename(asset_path(S, from), asset_path(S, to));
+    // The engine moves the file and rewrites every `.toml` naming it.
+    let rewritten = ::assets::rename(asset_path(S, from), asset_path(S, to));
     model::forget(S, None);
     S.assets.sel = to;
-    log::info(format!("renamed res://{} to res://{}", from, to));
+    log::info(format!("renamed res://{} to res://{}; {} file(s) updated", from, to, rewritten.len()));
 }
 
 pub fn delete_asset(S) {
@@ -944,6 +945,8 @@ fn fixed(v, decimals) {
 }
 
 pub fn profiler(S, k) {
+    // Live numbers: the panel asks for the next pass for as long as it is open.
+    ui::request_repaint();
     let timings = engine::timings();
     if !(timings is Object) {
         style::empty(k, "no timings yet");

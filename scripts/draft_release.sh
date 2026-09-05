@@ -19,11 +19,11 @@ assets=(
   "$dist"/balaur.js
   "$dist"/balaur-play.tar.gz
 )
-# nullglob drops a pattern that matches nothing, but the web names carry no
-# wildcard to expand, so a run without the web build would list them anyway.
+# Regular files only: nullglob leaves the wildcard-free web names in place when
+# they are absent, and a wildcard can catch a staging directory left in dist.
 present=()
 for asset in "${assets[@]}"; do
-  [ -e "$asset" ] && present+=("$asset")
+  [ -f "$asset" ] && present+=("$asset")
 done
 # Guarded: an empty array expands to an unbound variable under `set -u` on
 # bash 3.2, which is what the macOS runners have.

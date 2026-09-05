@@ -8,6 +8,7 @@ use crate::lint;
 use crate::model;
 use crate::polygon;
 use crate::rig;
+use crate::tiles;
 use crate::shell;
 use crate::style;
 use crate::theme;
@@ -281,6 +282,82 @@ pub fn polygons(S) {
     log::info("selftest polygon: done");
 }
 
+/// The Tiles tool: paint, erase, a rectangle, the map growing around a node
+/// that stays put, and layers.
+///
+/// The map is built here rather than found, so the test runs on every example
+/// rather than on the one that happens to carry a tilemap. Its tile set is
+/// inline and names an image that need not exist: only the palette reads the
+/// file, and everything below is arithmetic on cells.
+pub fn tiles_tool(S) {
+    let before = S.doc.len();
+    model::add_child(S, None);
+    let node = S.doc[S.sel];
+    // The editor's own cursor image as the atlas: it is there whichever game
+    // is open, so the map draws rather than logging a missing texture.
+    node.tilemap = #{
+        tileset: #{ texture: "assets/cursor.png", tile_size: 16.0, columns: 4 },
+        cells: "..\n..",
+        pixels_per_unit: 16.0,
+    };
+    model::apply_component(S, "tilemap");
+    check(tiles::editable(S), "a node with a tilemap is paintable");
+    let set = tiles::tileset(S);
+    check(set.is_some(), "the inline tile set is read off the node");
+
+    // What the pointer does: a world point in a cell comes back as that cell.
+    // The map is two by two at one unit a tile, so its centre is the corner
+    // where all four meet and (0.5, -0.5) is the middle of the bottom-right.
+    let frame_some = tiles::frame(S);
+    check(frame_some.is_some(), "the map has a frame to aim at");
+    if let Some(f) = frame_some {
+        check(tiles::cell_at(S, f, 0.5, -0.5) == (1, 1), format!("a world point lands in its cell ({:?})", tiles::cell_at(S, f, 0.5, -0.5)));
+        check(tiles::cell_at(S, f, -0.5, 0.5) == (0, 0), "and the opposite corner in the first one");
+    }
+
+    check(tiles::paint(S, 0, 0, 3), "painting writes a cell");
+    check(tiles::cell(S, 0, 0) == 3, format!("the cell holds the tile ({})", tiles::cell(S, 0, 0)));
+    check(!tiles::paint(S, 0, 0, 3), "painting the same tile again changes nothing");
+    let text_form = S.doc[S.sel].tilemap.cells;
+    check(text_form is String, "a map authored as text stays text");
+    check(text_form.starts_with("3"), format!("the text spells the tile ({})", text_form));
+
+    check(tiles::paint(S, 0, 0, -1), "erasing writes an empty cell");
+    check(tiles::cell(S, 0, 0) == -1, "the cell is empty again");
+
+    // Growing moves the node, so the tiles already down stay put. Read from
+    // the document: a global transform propagates on the next tick, not here.
+    let was_x = util::f(util::vec3(S.doc[S.sel].get("position").unwrap_or(()), [0.0, 0.0, 0.0])[0]);
+    check(tiles::paint(S, 4, 0, 1), "painting past the edge grows the map");
+    let rows = tiles::grid(S);
+    check(tiles::columns(rows) == 5, format!("the map is five columns wide ({})", tiles::columns(rows)));
+    let now_x = util::f(util::vec3(S.doc[S.sel].get("position").unwrap_or(()), [0.0, 0.0, 0.0])[0]);
+    // Three columns added at one world unit each: half of that to the right.
+    check(util::abs(now_x - was_x - 1.5) < 1e-4, format!("the node moved half the growth ({} to {})", was_x, now_x));
+
+    check(tiles::fill_rect(S, (0, 0), (1, 1), 2), "a rectangle fills every cell in it");
+    check(tiles::cell(S, 0, 0) == 2 && tiles::cell(S, 1, 1) == 2, "the rectangle's corners are filled");
+    check(tiles::cell(S, 2, 0) == -1, "and nothing outside it is");
+
+    // A tile past the alphabet has no character, so the whole map turns into
+    // rows of ids rather than losing it.
+    check(tiles::paint(S, 0, 0, 40), "a tile past the alphabet is painted");
+    check(!(S.doc[S.sel].tilemap.cells is String), "and turns the map into rows of ids");
+    check(tiles::cell(S, 0, 0) == 40, "the id form holds the tile");
+
+    let layers = S.doc.len();
+    check(tiles::add_layer(S), "a layer is added beside the map");
+    check(S.doc.len() == layers + 1, format!("the layer is a new node ({})", S.doc.len()));
+    check(tiles::grid(S).len() == 0 || tiles::columns(tiles::grid(S)) == 0, "the layer has no tiles in it");
+    check(tiles::layers(S).len() == 2, format!("both maps are layers of one another ({})", tiles::layers(S).len()));
+    check(mirror_resolves(S), "every tilemap node resolves in the mirror");
+
+    undo_all(S);
+    check(S.doc.len() == before, format!("undoing everything removes both maps ({})", S.doc.len()));
+    check(mirror_resolves(S), "the fully-undone scene resolves in the mirror");
+    log::info("selftest tiles: done");
+}
+
 /// Copy and paste, which the shell drives from a clipboard event no headless
 /// run can raise: the two document verbs behind it, asserted directly.
 pub fn clipboard(S) {
@@ -321,11 +398,19 @@ pub fn assets(S) {
     let second = S.assets.sel;
     check(second != made, format!("a second folder gets its own name ({})", second));
 
+    // A scene inside the folder names a file beside it; the rename rewrites
+    // the reference and keeps the comment next to it.
+    fs::write(root + made + "/thing.toml", "type = \"note\"\npitch = 1.0\n");
+    fs::write(root + made + "/user.toml",
+        format!("[[nodes]]\nname = \"N\"\nsong = \"{}/thing.toml\" # kept\n", made));
     S.assets.sel = made;
     dock::rename_asset(S, "renamed-folder");
     check(!fs::exists(root + made), "the old name is gone");
     check(fs::exists(root + "renamed-folder"), "the new name is there");
     check(S.assets.sel == "renamed-folder", "the selection followed the rename");
+    let user = fs::read(root + "renamed-folder/user.toml");
+    check(user is String && user.contains("\"renamed-folder/thing.toml\" # kept"),
+        "the rename rewrote the reference and kept the comment");
 
     dock::rename_asset(S, "with/slash");
     check(fs::exists(root + "renamed-folder"), "a name with a slash is refused");

@@ -13,6 +13,7 @@ use balaur_core::Engine;
 use balaur_script::{BoundFn, CallbackId, Value};
 use rune::alloc::clone::TryClone as _;
 use rune::runtime::{InstAddress, Memory, Output, VmError, VmResult};
+use smallvec::SmallVec;
 
 thread_local! {
     /// Registered bindings, indexed by the handle a Rune handler carries.
@@ -277,9 +278,9 @@ pub(crate) fn bound_handler(
 ) -> impl 'static + Fn(&mut dyn Memory, InstAddress, usize, Output) -> VmResult<()> + Send + Sync {
     move |stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output| {
         let _scope = CallbackScope::enter();
-        // Converted straight off the stack: copying the arguments out first
-        // was an allocation and a refcount round on every call.
-        let mut neutral = Vec::with_capacity(args);
+        // Converted straight off the stack, into a buffer that stays on this
+        // one: a call with up to four arguments allocates nothing.
+        let mut neutral: SmallVec<[Value; 4]> = SmallVec::with_capacity(args);
         {
             let values = rune::vm_try!(stack.slice_at(addr, args));
             for v in values {

@@ -232,7 +232,7 @@ in the game; "not planned" is a deliberate no.
 | Clip a subtree to a node's bounds | Step 3: `clip = true` on a node, a scissor to the node's own quad or polygon for its subtree |
 | A material inherited down a subtree | Not planned: it hides which node a shader is on. Fallback: the material is named on each node that draws with it |
 | Tint a subtree | Have `color` on the node, non-propagating; §5 asks whether a propagating tint is worth a second property |
-| A tilemap with a shader, more than 36 tiles, and per-cell writes | Step 3: `material` on `tilemap`; `cells` also accepts a list of rows of ids; `set_cell(x, y, id)` and `cell(x, y)` on the component handle. Autotile, terrains and tile collision **not planned**; `docs/PLAN-rendering.md` owns tile occluders |
+| A tilemap with a shader, more than 36 tiles, and per-cell writes | Step 3: `material` on `tilemap`; `cells` also accepts a list of rows of ids; `set_cell(x, y, id)` and `cell(x, y)` on the component handle. Autotile, terrains, tile collision and tile occluders are `docs/PLAN-tilemap.md`, which reversed the *not planned* this row first said |
 | A line with a gradient, a texture and round corners | Step 3: `gradient` (two colours), `texture` with U running along the length so a dash shader works, round joins and caps, on the `shape2d` polyline |
 | Textured particles that burst and fade | Step 3: `texture`, `one_shot`, `explosiveness`, `size_ramp` and `color_ramp` as two keys each on `particles`; curve assets **not planned** |
 | Immediate drawing in world space | Step 3: `render.draw_circle_2d`, `draw_rect_2d`, `draw_arc_2d`, `draw_polyline_2d`, `draw_texture_2d`, one frame, beside `draw_line_2d`; unrecorded, like debug lines |

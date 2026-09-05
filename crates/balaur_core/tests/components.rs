@@ -300,3 +300,43 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
         .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
         .unwrap_or_else(|| "panicked with no message".to_string())
 }
+
+#[test]
+fn freeing_a_node_runs_its_remove_hook_and_forgets_it() {
+    let app = app_with_marker();
+    let e = spawn(&app);
+    components::add(&app.engine, e, "marker", None).unwrap();
+    let registry = app.engine.resource::<ComponentRegistry>();
+    let bit = 1u128 << registry.borrow().index_of("marker").unwrap();
+    let attached = app.engine.resource::<components::Attached>();
+    assert_eq!(attached.borrow().0.get(&e), Some(&bit));
+
+    components::remove_present(&app.engine, e);
+    assert!(components::get(&app.engine, e, "marker").is_none());
+    assert!(attached.borrow().0.get(&e).is_none());
+}
+
+#[test]
+fn removing_a_component_clears_its_bit() {
+    let app = app_with_marker();
+    let e = spawn(&app);
+    components::add(&app.engine, e, "marker", None).unwrap();
+    components::remove(&app.engine, e, "marker").unwrap();
+    let attached = app.engine.resource::<components::Attached>();
+    assert!(attached.borrow().0.get(&e).is_none());
+}
+
+/// A debug build still finds a component attached behind the registry's
+/// back, so a plugin that forgot the registry hears about it in tests.
+#[cfg(debug_assertions)]
+#[test]
+fn a_component_attached_behind_the_registry_is_still_removed_in_debug() {
+    let app = app_with_marker();
+    let e = spawn(&app);
+    app.engine
+        .world_mut()
+        .insert_one(e, Marker(toml::Value::String("x".into())))
+        .unwrap();
+    components::remove_present(&app.engine, e);
+    assert!(components::get(&app.engine, e, "marker").is_none());
+}

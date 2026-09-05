@@ -218,22 +218,33 @@ enum Command {
     /// script can reach. Read from a booted engine, not from the source, so
     /// derived constants are included and nothing can drift.
     Api,
-    /// Bring a `.glb` model into a project: the file under `models/`, its
-    /// node hierarchy as a scene with `bone3d` on every joint, and its
-    /// animations as a clip library — all plain TOML the editor edits.
+    /// Bring a model or a sprite into a project. A `.glb` becomes the file
+    /// under `models/`, its node hierarchy as a scene with `bone3d` on every
+    /// joint, and its animations as a clip library; an `.aseprite` becomes
+    /// an atlas under `art/`, a `sprite_sheet` under `sheets/` with every
+    /// frame, tag and slice, and one clip per tag under `animations/` — all
+    /// plain TOML the editor edits.
     Import {
-        /// The model to import (self-contained .glb).
+        /// The file to import: a self-contained `.glb`, or an `.aseprite`.
         file: PathBuf,
         /// The project to write into.
         #[arg(long, default_value = ".")]
         project: PathBuf,
+        /// A layer of an `.aseprite` to composite, repeatable; none means
+        /// the layers visible in the editor.
+        #[arg(long = "layer")]
+        layers: Vec<String>,
     },
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+mod import;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
-mod web_fs;
+mod web_export;
+#[cfg(all(target_arch = "wasm32", feature = "window"))]
+mod web_store;
 
 /// In a browser there is no command line: the page calls `web::start` with
 /// a canvas and a pack instead, and wasm-bindgen runs this empty `main` on
@@ -241,18 +252,23 @@ mod web_fs;
 #[cfg(target_arch = "wasm32")]
 fn main() {}
 
+/// The level `RUST_LOG` asks for; info when it says nothing.
 #[cfg(not(target_arch = "wasm32"))]
-fn main() -> Result<()> {
-    // The capturing logger tees to stderr and to the in-engine ring buffer
-    // that powers `log.recent` (the editor's Output dock).
-    let level = match std::env::var("RUST_LOG").ok().as_deref() {
+fn log_level() -> tracing::level_filters::LevelFilter {
+    match std::env::var("RUST_LOG").ok().as_deref() {
         Some("debug") => tracing::level_filters::LevelFilter::DEBUG,
         Some("trace") => tracing::level_filters::LevelFilter::TRACE,
         Some("warn") => tracing::level_filters::LevelFilter::WARN,
         Some("error") => tracing::level_filters::LevelFilter::ERROR,
         _ => tracing::level_filters::LevelFilter::INFO,
-    };
-    balaur::logbuf::capture(level);
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn main() -> Result<()> {
+    // The capturing logger tees to stderr and to the in-engine ring buffer
+    // that powers `log.recent` (the editor's Output dock).
+    balaur::logbuf::capture(log_level());
     // A standalone build is a game: the pack is appended to this very executable,
     // so boot it and never look at argv. A plain build finds nothing here and
     // carries on as the CLI.
@@ -272,7 +288,11 @@ fn main() -> Result<()> {
     }
     match Cli::parse().command {
         Command::Api => dump_api(),
-        Command::Import { file, project } => import_model(&file, &project),
+        Command::Import {
+            file,
+            project,
+            layers,
+        } => import::import_file(&file, &project, &layers),
         Command::New { path } => new_project(&path),
         Command::Run {
             path,
@@ -972,56 +992,6 @@ fn dump_api() -> Result<()> {
         .unwrap_or_default();
     api["asset_types"] = serde_json::to_value(asset_types)?;
     println!("{}", serde_json::to_string_pretty(&api)?);
-    Ok(())
-}
-
-/// `balaur import model.glb --project game`: `models/model.glb` (and the
-/// files a `.gltf` names beside itself), `scenes/model.toml` and, with
-/// animations, `animations/model.toml`.
-fn import_model(file: &Path, project: &Path) -> Result<()> {
-    let bytes = std::fs::read(file).with_context(|| format!("reading {}", file.display()))?;
-    let stem = file
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .filter(|s| !s.is_empty())
-        .context("the model file has no name")?
-        .to_ascii_lowercase()
-        .replace([' ', '-'], "_");
-    let extension = file
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("glb")
-        .to_ascii_lowercase();
-    let model_file = format!("{stem}.{extension}");
-    let directory = file.parent().map(Path::to_path_buf).unwrap_or_default();
-    let side = |uri: &str| -> Result<Vec<u8>> {
-        let path = directory.join(uri);
-        std::fs::read(&path).with_context(|| format!("reading {}", path.display()))
-    };
-    let imported = balaur::glb::import(&bytes, &model_file, &side)?;
-    let models = project.join("models");
-    std::fs::create_dir_all(&models)?;
-    std::fs::create_dir_all(project.join("scenes"))?;
-    let model = models.join(&model_file);
-    std::fs::write(&model, &bytes)?;
-    println!("wrote {}", model.display());
-    for (name, data) in &imported.files {
-        let path = models.join(name);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        std::fs::write(&path, data)?;
-        println!("wrote {}", path.display());
-    }
-    let scene = project.join("scenes").join(format!("{stem}.toml"));
-    std::fs::write(&scene, imported.scene_toml()?)?;
-    println!("wrote {}", scene.display());
-    if let Some(clips) = imported.clips_toml()? {
-        std::fs::create_dir_all(project.join("animations"))?;
-        let library = project.join("animations").join(format!("{stem}.toml"));
-        std::fs::write(&library, clips)?;
-        println!("wrote {}", library.display());
-    }
     Ok(())
 }
 

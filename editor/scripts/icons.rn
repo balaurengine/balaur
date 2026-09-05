@@ -13,6 +13,7 @@ pub fn tool(id) {
         "key" => "\u{e1ec}",
         "bone" => "\u{e7f2}",
         "polygon" => "\u{e6d0}",
+        "tiles" => "\u{e464}",
         _ => "\u{e1dc}",
     }
 }
@@ -42,6 +43,7 @@ pub fn panel(id) {
         "debugger" => "\u{e5f4}",
         "session" => "\u{e3ee}",
         "profiler" => "\u{e150}",
+        "tiles" => "\u{e464}",
         _ => "\u{e546}",
     }
 }

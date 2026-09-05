@@ -1,0 +1,645 @@
+// The Tiles tool: paint a `tilemap` in the viewport from a palette cut out of
+// its tile set, and keep the layers of a map as sibling nodes.
+
+use crate::history;
+use crate::model;
+use crate::style;
+use crate::util;
+use crate::viewport;
+
+/// The tool's own state, hung on `S.tiles`. `stroke` is the button held down,
+/// `anchor` the cell a rectangle was started at, `sheet` the cached size of
+/// the atlas image.
+pub fn state() {
+    #{ tile: 0, mode: "paint", stroke: None, anchor: None, hover: None, sheet: () }
+}
+
+// A map is centred on its node, so the grid grows to the right and down only
+// and the node is moved to hold the tiles that are already down still. A cell
+// left of column zero or above row zero has nowhere to go: move the node.
+const MODES = ["paint", "rect"];
+
+pub fn mode_name(id) {
+    match id {
+        "paint" => "Paint",
+        "rect" => "Rectangle",
+        _ => id,
+    }
+}
+
+/// The `tilemap` table on a node, or `None` for a node that carries none.
+pub fn component(node) {
+    match node.get("tilemap") {
+        Some(comp) => if comp is Object { Some(comp) } else { None },
+        None => None,
+    }
+}
+
+pub fn editable(S) {
+    S.sel >= 0 && S.sel < S.doc.len() && component(S.doc[S.sel]).is_some()
+}
+
+/// The tile set behind the selected map: its texture, tile size and columns.
+///
+/// An inline table is the definition itself; a string names a file, which the
+/// engine reads by absolute path because the editor's own project root is not
+/// the game's.
+pub fn tileset(S) {
+    let comp = match component(S.doc[S.sel]) {
+        Some(comp) => comp,
+        None => return None,
+    };
+    let named = comp.get("tileset").unwrap_or("");
+    let def = if named is Object {
+        named
+    } else if named is String && named != "" {
+        let (ok, loaded) = script::attempt(|| assets::load(S.game_root + "/" + named));
+        if !ok || !(loaded is Object) {
+            return None;
+        }
+        loaded
+    } else {
+        return None;
+    };
+    let size = util::f(def.get("tile_size").unwrap_or(0.0));
+    let columns = util::i(def.get("columns").unwrap_or(0));
+    let texture = def.get("texture").unwrap_or("");
+    if size <= 0.0 || columns < 1 || !(texture is String) || texture == "" {
+        return None;
+    }
+    Some(#{ texture: texture, size: size, columns: columns })
+}
+
+/// How many tiles the atlas holds: its columns times the rows its height
+/// makes. Cached by path, because it costs a file read.
+pub fn tile_count(S) {
+    let set = match tileset(S) {
+        Some(set) => set,
+        None => return 0,
+    };
+    let cache = S.tiles.sheet;
+    if !(cache is Object) || cache.path != set.texture {
+        let (ok, size) = script::attempt(|| render::texture_size(S.game_root + "/" + set.texture));
+        let height = if ok {
+            let (_, h) = size;
+            util::f(h)
+        } else {
+            log::warn(format!("tile set texture {}: {:?}", set.texture, size));
+            0.0
+        };
+        S.tiles.sheet = #{ path: set.texture, height: height };
+        cache = S.tiles.sheet;
+    }
+    let rows = util::i(math::floor(cache.height / set.size));
+    set.columns * util::max(rows, 0)
+}
+
+fn pixels_per_unit(S) {
+    match component(S.doc[S.sel]) {
+        Some(comp) => util::max(util::f(comp.get("pixels_per_unit").unwrap_or(100.0)), 0.01),
+        None => 100.0,
+    }
+}
+
+/// The grid as rows of tile ids, whichever form the document wrote. Empty is
+/// -1, the same spelling `cells` takes as a list.
+pub fn grid(S) {
+    let comp = match component(S.doc[S.sel]) {
+        Some(comp) => comp,
+        None => return [],
+    };
+    let cells = comp.get("cells").unwrap_or("");
+    if cells is String {
+        let rows = [];
+        for line in cells.split('\n') {
+            if line == "" {
+                continue;
+            }
+            let row = [];
+            for c in line.chars() {
+                row.push(tile_of_char(c));
+            }
+            rows.push(row);
+        }
+        return rows;
+    }
+    let rows = [];
+    for row in util::vec(cells) {
+        let ids = [];
+        for id in util::vec(row) {
+            ids.push(util::i(id));
+        }
+        rows.push(ids);
+    }
+    rows
+}
+
+// The characters `cells` spells a tile with, tile 0 first. A tile past the
+// end of this has no character, which is what the list-of-rows form is for.
+fn alphabet() {
+    "0123456789abcdefghijklmnopqrstuvwxyz".chars().collect::<Vec>()
+}
+
+// A signed id, not the unsigned one `enumerate` counts with: -1 is what an
+// empty cell holds, and an unsigned slot cannot be compared against it.
+fn tile_of_char(c) {
+    match util::position(alphabet(), c) {
+        Some(index) => util::i(index),
+        None => -1,
+    }
+}
+
+fn char_of_tile(tile) {
+    let letters = alphabet();
+    if tile < 0 || tile >= letters.len() {
+        return ".";
+    }
+    format!("{}", letters[tile])
+}
+
+/// The widest row: what the engine counts as the map's columns.
+pub fn columns(rows) {
+    let widest = 0;
+    for row in rows {
+        widest = util::max(widest, util::i(row.len()));
+    }
+    widest
+}
+
+/// Write a grid back in the form it was authored in.
+///
+/// The text form stays text while every tile it holds has a character, so a
+/// hand-written map keeps the shape its author can read in a diff; a tile
+/// past 35 has no character and turns the whole map into rows of ids.
+fn cells_value(rows, was_text) {
+    if was_text && spellable(rows) {
+        let lines = [];
+        for row in rows {
+            let line = "";
+            for tile in row {
+                line += char_of_tile(tile);
+            }
+            lines.push(line);
+        }
+        return util::join(lines, "\n");
+    }
+    rows
+}
+
+/// Whether every tile has a character, so the text form can still spell the
+/// map. A tile set past 36 tiles is what takes it away.
+fn spellable(rows) {
+    let letters = alphabet().len();
+    for row in rows {
+        for tile in row {
+            if tile >= letters {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+fn authored_as_text(S) {
+    match component(S.doc[S.sel]) {
+        Some(comp) => comp.get("cells").unwrap_or("") is String,
+        None => true,
+    }
+}
+
+/// The map's frame: where its top-left corner sits and how a world point
+/// lands in it. `tile` is one cell's edge in world units.
+pub fn frame(S) {
+    let found = match model::live(S, S.sel) {
+        Some(found) => found,
+        None => return None,
+    };
+    let set = match tileset(S) {
+        Some(set) => set,
+        None => return None,
+    };
+    let rows = grid(S);
+    let p = found.global_position();
+    let angle = found.global_rotation_euler().z;
+    let s = found.global_scale();
+    Some(#{
+        x: p.x, y: p.y, c: math::cos(angle), s: math::sin(angle),
+        sx: s.x, sy: s.y,
+        tile: set.size / pixels_per_unit(S),
+        columns: util::max(columns(rows), 1),
+        rows: util::max(rows.len(), 1),
+    })
+}
+
+fn to_local(f, wx, wy) {
+    let dx = wx - f.x;
+    let dy = wy - f.y;
+    let px = f.c * dx + f.s * dy;
+    let py = -f.s * dx + f.c * dy;
+    (px / (if util::abs(f.sx) > 1e-6 { f.sx } else { 1.0 }), py / (if util::abs(f.sy) > 1e-6 { f.sy } else { 1.0 }))
+}
+
+fn to_world(f, lx, ly) {
+    let px = lx * f.sx;
+    let py = ly * f.sy;
+    (f.x + f.c * px - f.s * py, f.y + f.s * px + f.c * py)
+}
+
+/// The cell a world point falls in, counted from the top left. Outside the
+/// grid is still a cell: painting there is what grows the map.
+pub fn cell_at(S, f, wx, wy) {
+    let (lx, ly) = to_local(f, wx, wy);
+    let half_w = util::f(f.columns) * f.tile / 2.0;
+    let half_h = util::f(f.rows) * f.tile / 2.0;
+    let column = util::i(math::floor((lx + half_w) / f.tile));
+    let row = util::i(math::floor((half_h - ly) / f.tile));
+    (column, row)
+}
+
+/// A cell's four corners in world space, for the hover outline.
+fn cell_corners(f, column, row) {
+    let half_w = util::f(f.columns) * f.tile / 2.0;
+    let half_h = util::f(f.rows) * f.tile / 2.0;
+    let x0 = util::f(column) * f.tile - half_w;
+    let y1 = half_h - util::f(row) * f.tile;
+    [
+        to_world(f, x0, y1),
+        to_world(f, x0 + f.tile, y1),
+        to_world(f, x0 + f.tile, y1 - f.tile),
+        to_world(f, x0, y1 - f.tile),
+    ]
+}
+
+fn apply(S) {
+    model::apply_component(S, "tilemap");
+}
+
+/// Put `tile` in every one of `cells`, growing the map to reach them.
+///
+/// The grid is read once, changed, and written back, so a drag across fifty
+/// cells is one document write rather than fifty. History is recorded here
+/// and only when something actually changes: clicking a cell that already
+/// holds the tile must not cost an undo step.
+pub fn write_cells(S, cells, tile, label, key) {
+    let comp = match component(S.doc[S.sel]) {
+        Some(comp) => comp,
+        None => return false,
+    };
+    let rows = grid(S);
+    let was_text = authored_as_text(S);
+    let before_columns = util::i(util::max(columns(rows), 1));
+    let before_rows = util::i(util::max(rows.len(), 1));
+    let changed = false;
+    for cell in cells {
+        let (x, y) = cell;
+        // Negative cells have no index. The map is centred on its node, so
+        // reaching further up or left is a move, not a paint.
+        if x < 0 || y < 0 {
+            continue;
+        }
+        while rows.len() <= y {
+            rows.push([]);
+        }
+        let row = rows[y];
+        while row.len() <= x {
+            row.push(-1);
+        }
+        if row[x] != tile {
+            row[x] = tile;
+            changed = true;
+        }
+        rows[y] = row;
+    }
+    if !changed {
+        return false;
+    }
+    // Every row is as wide as the widest: a ragged grid draws the same, but
+    // the text form cannot spell one and a diff of it reads badly.
+    let widest = columns(rows);
+    for i in 0..rows.len() {
+        let row = rows[i];
+        while row.len() < widest {
+            row.push(-1);
+        }
+        rows[i] = row;
+    }
+    // Recorded with the document still as it was: everything below is the
+    // step this undoes.
+    history::record(S, label, key);
+    comp.cells = cells_value(rows, was_text);
+    // The map grew around its centre, which would slide every tile already
+    // down. Move the node by half of what was added to hold them still.
+    let set_some = tileset(S);
+    if let Some(set) = set_some {
+        let tile_world = set.size / pixels_per_unit(S);
+        let dw = util::f(util::i(widest) - before_columns) * tile_world;
+        let dh = util::f(util::i(rows.len()) - before_rows) * tile_world;
+        if dw != 0.0 || dh != 0.0 {
+            recentre(S, dw / 2.0, -dh / 2.0);
+        }
+    }
+    apply(S);
+    true
+}
+
+/// Move the node by a local offset, so growing the grid leaves the tiles
+/// already painted where they were.
+fn recentre(S, lx, ly) {
+    let node = S.doc[S.sel];
+    let angle = util::f(util::vec3(node.get("rotation_euler").unwrap_or(()), [0.0, 0.0, 0.0])[2]);
+    let scale = util::vec3(node.get("scale").unwrap_or(()), [1.0, 1.0, 1.0]);
+    let px = lx * util::f(scale[0]);
+    let py = ly * util::f(scale[1]);
+    let c = math::cos(angle);
+    let s = math::sin(angle);
+    let p = util::vec3(node.get("position").unwrap_or(()), [0.0, 0.0, 0.0]);
+    model::set_transform(S, S.sel, #{
+        position: [
+            util::f(p[0]) + c * px - s * py,
+            util::f(p[1]) + s * px + c * py,
+            util::f(p[2]),
+        ],
+    });
+}
+
+/// The tile at a cell, or -1 for an empty one or one off the grid.
+pub fn cell(S, x, y) {
+    let rows = grid(S);
+    if y < 0 || y >= rows.len() {
+        return -1;
+    }
+    let row = rows[y];
+    if x < 0 || x >= row.len() {
+        return -1;
+    }
+    row[x]
+}
+
+/// One cell. Every cell of one drag shares a history key, so the stroke is
+/// one undo step however many cells it crossed.
+pub fn paint(S, x, y, tile) {
+    write_cells(S, [(x, y)], tile, if tile < 0 { "erase tiles" } else { "paint tiles" }, Some("tiles"))
+}
+
+/// Every cell of the rectangle between two corners, as one step.
+pub fn fill_rect(S, from, to, tile) {
+    let (x0, y0) = from;
+    let (x1, y1) = to;
+    let (lo_x, hi_x) = if x0 <= x1 { (x0, x1) } else { (x1, x0) };
+    let (lo_y, hi_y) = if y0 <= y1 { (y0, y1) } else { (y1, y0) };
+    let cells = [];
+    for y in lo_y..(hi_y + 1) {
+        for x in lo_x..(hi_x + 1) {
+            cells.push((x, y));
+        }
+    }
+    write_cells(S, cells, tile, if tile < 0 { "erase tiles" } else { "fill tiles" }, None)
+}
+
+/// A second map beside this one, same tile set and same place, with no tiles
+/// in it: what a layer is. Duplicating is what gives it the parent, the
+/// transform and a name nothing else has.
+pub fn add_layer(S) {
+    if !editable(S) {
+        log::warn("select a tilemap to add a layer beside it");
+        return false;
+    }
+    model::duplicate_selected(S);
+    let comp = match component(S.doc[S.sel]) {
+        Some(comp) => comp,
+        None => return false,
+    };
+    comp.cells = if authored_as_text(S) { "" } else { [] };
+    apply(S);
+    true
+}
+
+/// Every tilemap under the selected map's parent: the layers of one map.
+pub fn layers(S) {
+    if !editable(S) {
+        return [];
+    }
+    let parent = S.doc[S.sel].get("parent").unwrap_or("");
+    let out = [];
+    for (i, node) in S.doc.iter().enumerate() {
+        if component(node).is_some() && node.get("parent").unwrap_or("") == parent {
+            out.push(#{ index: i, name: node.name });
+        }
+    }
+    out
+}
+
+pub fn set_mode(S, mode) {
+    if util::contains(MODES, mode) {
+        S.tiles.mode = mode;
+        S.tiles.anchor = None;
+    }
+}
+
+pub fn cancel(S) {
+    S.tiles.stroke = None;
+    S.tiles.anchor = None;
+}
+
+/// The pointer over the viewport, once per frame. The Tiles tool owns the
+/// click the way the Polygon tool does: no gizmo, no camera drag.
+pub fn update(S, over_viewport, mx, my) {
+    let f = match frame(S) {
+        Some(f) => f,
+        None => {
+            S.tiles.hover = None;
+            return;
+        }
+    };
+    let (x, y) = cell_at(S, f, mx, my);
+    S.tiles.hover = if over_viewport { Some((x, y)) } else { None };
+    let left = input::is_mouse_down(input::MOUSE_LEFT);
+    let right = input::is_mouse_down(input::MOUSE_RIGHT);
+    if !left && !right {
+        // A rectangle is drawn on release, from the cell the drag began in.
+        let anchor_some = S.tiles.anchor;
+        if let Some(anchor) = anchor_some {
+            let tile = if S.tiles.stroke == Some("erase") { -1 } else { S.tiles.tile };
+            fill_rect(S, anchor, (x, y), tile);
+        }
+        cancel(S);
+        history::commit(S);
+        return;
+    }
+    if !over_viewport && S.tiles.stroke.is_none() {
+        return;
+    }
+    let stroke = if left { "paint" } else { "erase" };
+    let tile = if left { S.tiles.tile } else { -1 };
+    if S.tiles.mode == "rect" {
+        if S.tiles.anchor.is_none() {
+            S.tiles.anchor = Some((x, y));
+            S.tiles.stroke = Some(stroke);
+        }
+        return;
+    }
+    S.tiles.stroke = Some(stroke);
+    paint(S, x, y, tile);
+}
+
+fn line(a, b, color, width) {
+    render::draw_line_2d(a.0, a.1, b.0, b.1, color[0], color[1], color[2], width);
+}
+
+fn outline(f, x, y, color, width) {
+    let corners = cell_corners(f, x, y);
+    for i in 0..4 {
+        line(corners[i], corners[(i + 1) % 4], color, width);
+    }
+}
+
+/// The grid over the map, the cell under the pointer, and the rectangle a
+/// drag has swept so far.
+pub fn draw(S) {
+    if S.tool != "tiles" || !S.mode2d {
+        return;
+    }
+    let f = match frame(S) {
+        Some(f) => f,
+        None => return,
+    };
+    let k = S.theme;
+    let faint = util::rgb(k.faint);
+    let accent = util::rgb(k.accent);
+    let w = viewport::world_per_px(S);
+    // The grid is a guide, not the drawing: one pixel wide, and skipped
+    // entirely when a cell is too small on screen to aim at.
+    if f.tile / w >= 6.0 {
+        for row in 0..(f.rows + 1) {
+            let a = cell_corners(f, 0, row)[0];
+            let b = cell_corners(f, f.columns - 1, row)[1];
+            line(a, b, faint, 1.0);
+        }
+        for column in 0..(f.columns + 1) {
+            let a = cell_corners(f, column, 0)[0];
+            let b = cell_corners(f, column, f.rows - 1)[3];
+            line(a, b, faint, 1.0);
+        }
+    }
+    let anchor_some = S.tiles.anchor;
+    let hover_some = S.tiles.hover;
+    if let Some(anchor) = anchor_some {
+        if let Some(hover) = hover_some {
+            let (x0, y0) = anchor;
+            let (x1, y1) = hover;
+            let (lo_x, hi_x) = if x0 <= x1 { (x0, x1) } else { (x1, x0) };
+            let (lo_y, hi_y) = if y0 <= y1 { (y0, y1) } else { (y1, y0) };
+            for y in lo_y..(hi_y + 1) {
+                for x in lo_x..(hi_x + 1) {
+                    outline(f, x, y, accent, 1.5);
+                }
+            }
+            return;
+        }
+    }
+    if let Some(hover) = hover_some {
+        let (x, y) = hover;
+        outline(f, x, y, viewport::hover_color(), 2.0);
+    }
+}
+
+const SWATCH = 34.0;
+
+/// The palette dock: the tile set's texture cut into tiles to pick from, the
+/// two modes, and the layers of the map beside it.
+pub fn palette(S, k) {
+    if !editable(S) {
+        ui::add_space(10);
+        style::empty(k, "Select a node with a tilemap to paint it.");
+        return;
+    }
+    let set = match tileset(S) {
+        Some(set) => set,
+        None => {
+            ui::add_space(10);
+            style::empty(k, "This tilemap names no tile set, or one that will not load.");
+            return;
+        }
+    };
+    ui::horizontal(#{ height: 30 }, || {
+        ui::add_space(8);
+        for id in MODES {
+            let on = S.tiles.mode == id;
+            if ui::pill(mode_name(id), #{
+                height: 24, size: 11, strong: true,
+                fill: if on { k.accent_soft } else { k.panel },
+                stroke: k.line_soft,
+                color: if on { k.accent } else { k.dim },
+            }) {
+                set_mode(S, id);
+            }
+        }
+        ui::add_space(10);
+        if ui::pill("Add layer", #{ height: 24, size: 11, fill: k.panel, stroke: k.line_soft, color: k.text }) {
+            add_layer(S);
+        }
+        ui::right(|| {
+            ui::add_space(8);
+            ui::label(format!("tile {}", S.tiles.tile), style::mono_sm(k.faint));
+        });
+    });
+    let count = tile_count(S);
+    if count < 1 {
+        ui::add_space(10);
+        style::empty(k, "The tile set's texture could not be measured.");
+        return;
+    }
+    let texture = S.game_root + "/" + set.texture;
+    let per_row = util::max(util::i(math::floor((ui::available_width() - 16.0) / (SWATCH + 4.0))), 1);
+    // The rows are cut before they are drawn: a `ui::` closure captures what
+    // it reads, so a counter advanced inside one never reaches the loop
+    // outside it, and the loop would never end.
+    let shelves = [];
+    let index = 0;
+    while index < count {
+        let shelf = [];
+        let column = 0;
+        while column < per_row && index < count {
+            shelf.push(index);
+            index += 1;
+            column += 1;
+        }
+        shelves.push(shelf);
+    }
+    ui::scroll("tiles-palette", #{ max_height: util::max(S.layout.body_h - 44.0, 60.0) }, || {
+        for shelf in shelves {
+            ui::horizontal(#{ height: SWATCH + 4.0 }, || {
+                ui::add_space(8);
+                for tile in shelf {
+                    let sx = util::f(tile % set.columns) * set.size;
+                    let sy = math::floor(util::f(tile) / util::f(set.columns)) * set.size;
+                    if ui::image_button(texture, #{
+                        width: SWATCH, height: SWATCH,
+                        region: [sx, sy, set.size, set.size],
+                        selected: S.tiles.tile == tile,
+                        fill: k.sunken, stroke: k.accent, hover_fill: k.line,
+                        tooltip: format!("tile {}", tile),
+                    }) {
+                        S.tiles.tile = tile;
+                    }
+                }
+            });
+        }
+    });
+    let found = layers(S);
+    if found.len() > 1 {
+        ui::add_space(6);
+        style::section_label(k, "Layers");
+        for layer in found {
+            let on = layer.index == S.sel;
+            if ui::pill(layer.name, #{
+                height: 22, size: 11,
+                fill: if on { k.accent_soft } else { k.panel },
+                stroke: k.line_soft,
+                color: if on { k.accent } else { k.dim },
+            }) {
+                S.sel = layer.index;
+            }
+        }
+    }
+}

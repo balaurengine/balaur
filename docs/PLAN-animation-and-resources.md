@@ -31,6 +31,34 @@ solver already in the tree, but it solves a reduced-coordinates joint chain
 (`physics3d.solve_ik`), not a rig. Everything stays on `libm` and the fixed
 step; the digest already covers bone transforms.
 
+## Rig tooling
+
+The engine halves of what `docs/PLAN-editor.md` §6 "Rigging panels" draws,
+written down on 2026-09-05. Each is a data change with a headless test
+before it is a panel.
+
+- **Chain solvers and jiggle.** `modifier2d` and, with 3D IK above,
+  `modifier3d` gain kinds beside `look_at` and `two_bone_ik`: `fabrik` and
+  `ccdik` over a chain of any length (Godot's SkeletonModification2DFABRIK
+  and CCDIK; iterations and a per-bone angle limit), and `jiggle` (a
+  spring per bone toward its rest, stepped on the fixed tick so it
+  replays). Planned; every transcendental on `libm`.
+- **Retargeting through a bone map.** A `bone_map` asset: canonical bone
+  names (a `skeleton_profile` shipped for a humanoid, or one the project
+  writes) to a rig's node paths. `animation.play(node, clip, { retarget =
+  "maps/hero.toml" })` renames each track's `target` through the map
+  before sampling, and rest-pose differences are corrected per bone by
+  the rig's `Bone` rest against the profile's. Planned; the editor panel
+  follows the asset.
+- **Deform tracks.** A `polygon/deform` track keys a list of `[dx, dy]`
+  per vertex, added to `positions` before skinning; the sampler already
+  lerps any width, and `skin_positions` is where the offset lands. Planned,
+  behind a `channels` change: a track today holds four numbers a key.
+- **Physical bones.** A body and a joint per bone, built from a rig by one
+  call (`physics2d.ragdoll(root)`, and the 3D twin) and blended back with
+  the clip by a weight. `docs/PLAN-physics.md`'s, listed here so the panel
+  and the call are one item.
+
 ## Also deferred
 
 - **The player is in neither the snapshot nor the digest.** `balaur_anim`
@@ -40,11 +68,13 @@ step; the digest already covers bone transforms.
   `docs/PLAN-hardening.md` phase 1; nothing above should be built on top of
   a player that rollback cannot put back.
 - **Skinning, rigs and retargeting** shipped since, in 2D and 3D; retargeting
-  a clip from one rig to another did not.
-- **Stable asset ids** (`uid://`, GUIDs) — paths until renames actually hurt.
+  a clip from one rig to another did not — "Rig tooling" above.
+- ~~**Stable asset ids**~~ — built 2026-09-05 as `id://` over
+  `assets/index.toml`, with `assets.rename` for the paths
+  (`docs/PLAN-scenes-and-assets.md`).
 - **`tween_method` / `tween_subtween`**, and the `loop_finished` /
   `step_finished` signals.
-- **Asset hot reload through the file watcher.** `assets.reload` is the
-  mechanism a watcher would call; the watcher is script-only today.
+- ~~**Asset hot reload through the file watcher.**~~ Built: the watcher
+  reloads every `.toml` asset and moves the generation for every binary.
 - **Animating a dynamic body fights physics**, as it does in Godot. Warn
   once, document, and let it be.

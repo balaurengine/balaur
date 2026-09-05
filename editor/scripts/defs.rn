@@ -24,7 +24,7 @@ pub fn persona_name(id) {
 // advertises an editor that does not exist. Re-add each on its `gizmo` handler.
 pub fn tools(persona) {
     match persona {
-        "scene" => ["select", "move", "rotate", "scale", "zoom"],
+        "scene" => ["select", "move", "rotate", "scale", "tiles", "zoom"],
         "anim" => ["select", "move", "bone", "polygon", "key", "zoom"],
         "phys" => ["select", "move", "polygon", "zoom"],
         "ui" => ["select", "move", "zoom"],
@@ -42,6 +42,7 @@ pub fn tool_name(tool) {
         "key" => "Key frame",
         "bone" => "Rig bone",
         "polygon" => "Polygon",
+        "tiles" => "Tiles",
         _ => tool,
     }
 }

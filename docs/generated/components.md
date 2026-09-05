@@ -391,9 +391,9 @@ On a node carrying `shape2d`, as `node.shape2d.<method>`:
 
 ### `sprite`
 
-`2d` · `render` · 12 properties · 7 methods
+`2d` · `render` · 13 properties · 7 methods
 
-A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` sheet makes it a flipbook `frame` steps through.
+A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` grid, or a `sprite_sheet` asset on `sheet`, makes it a flipbook `frame` steps through.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -409,6 +409,7 @@ A textured 2D quad at the node, sized from its image at `pixels_per_unit` textur
 <tr><td><code>region_origin</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Top-left corner of the atlas cell to draw, in texture pixels; used with `region_size`</td></tr>
 <tr><td><code>region_size</code></td><td>vec2</td><td><code>[0.0, 0.0]</code></td><td>Size of the atlas cell to draw, in texture pixels; [0, 0] draws the whole image and sizes the quad from the cell</td></tr>
 <tr><td><code>rows</code></td><td>float</td><td><code>0.0</code></td><td>Sheet grid rows for flipbook sprites; 0 means a single image At least 0.0.</td></tr>
+<tr><td><code>sheet</code></td><td>asset · <code>sprite_sheet</code></td><td>—</td><td>A sprite_sheet whose frames `frame` indexes; its texture is drawn unless `texture` names another, and it wins over `columns`, `rows` and the region</td></tr>
 <tr><td><code>texture</code></td><td>string</td><td>—</td><td>Image file, project-relative; required</td></tr>
 </tbody>
 </table>
