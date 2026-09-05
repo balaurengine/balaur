@@ -898,11 +898,14 @@ fn with_component(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn spawn(eng: &Engine, args: &[Value]) -> Result<Value> {
     let parent = optional_node(args, 1)?.unwrap_or_else(|| eng.root());
     let name = text(args, 0)?.to_string();
+    let id = crate::ids::mint(eng);
     let entity = {
         let mut world = eng.world_mut();
-        let entity = scene::spawn_node(&mut world, &name, parent);
-        crate::ids::assign(eng, &mut world, entity);
-        entity
+        if id.is_empty() {
+            scene::spawn_node(&mut world, &name, parent)
+        } else {
+            scene::spawn_node_with_id(&mut world, &name, parent, id)
+        }
     };
     // A game that spawns is a game whose world changed, which is what a
     // session timeline is for. Scene loading does not come through here.

@@ -79,7 +79,11 @@ fn rust_side(c: &mut Criterion) {
             let (parent, above) = nodes[(seed as usize) % nodes.len()].clone();
             let name = format!("n{i}");
             let e = scene::spawn_node(&mut world, &name, parent);
-            let path = if above.is_empty() { name } else { format!("{above}/{name}") };
+            let path = if above.is_empty() {
+                name
+            } else {
+                format!("{above}/{name}")
+            };
             paths.push(path.clone());
             nodes.push((e, path));
         }
@@ -101,10 +105,22 @@ fn rune_side(c: &mut Criterion) {
     let mut group = c.benchmark_group("node_ops_rune");
     group.throughput(Throughput::Elements(COUNT as u64));
     let bodies = [
-        ("loop_only", "pub fn update(this, dt) { for i in 0..1000 { let s = format!(\"n{}\", i); } }"),
-        ("noop_call", "pub fn update(this, dt) { for i in 0..1000 { bench::noop(i); } }"),
-        ("add_child", "pub fn update(this, dt) { let p = this.node.add_child(\"batch\"); for i in 0..1000 { p.add_child(format!(\"n{}\", i)); } }"),
-        ("get_node", "pub fn init(this) { this.paths = []; let nodes = [this.node]; let names = [\"\"]; for i in 0..1000 { let at = rng::int(0, (nodes.len() - 1) as i64); let name = format!(\"n{}\", i); nodes.push(nodes[at].add_child(name)); let above = names[at]; let path = if above == \"\" { name } else { format!(\"{}/{}\", above, name) }; names.push(path); this.paths.push(path); } }\npub fn update(this, dt) { for path in this.paths { this.node.get_node(path); } }"),
+        (
+            "loop_only",
+            "pub fn update(this, dt) { for i in 0..1000 { let s = format!(\"n{}\", i); } }",
+        ),
+        (
+            "noop_call",
+            "pub fn update(this, dt) { for i in 0..1000 { bench::noop(i); } }",
+        ),
+        (
+            "add_child",
+            "pub fn update(this, dt) { let p = this.node.add_child(\"batch\"); for i in 0..1000 { p.add_child(format!(\"n{}\", i)); } }",
+        ),
+        (
+            "get_node",
+            "pub fn init(this) { this.paths = []; let nodes = [this.node]; let names = [\"\"]; for i in 0..1000 { let at = rng::int(0, (nodes.len() - 1) as i64); let name = format!(\"n{}\", i); nodes.push(nodes[at].add_child(name)); let above = names[at]; let path = if above == \"\" { name } else { format!(\"{}/{}\", above, name) }; names.push(path); this.paths.push(path); } }\npub fn update(this, dt) { for path in this.paths { this.node.get_node(path); } }",
+        ),
     ];
     for (name, body) in bodies {
         let source = if body.contains("pub fn init") {
@@ -121,7 +137,9 @@ fn rune_side(c: &mut Criterion) {
         }
         attach_many(&app, Backend::Rune, 1).unwrap();
         let host = app.engine.script_host().unwrap();
-        group.bench_function(BenchmarkId::new(name, COUNT), |b| b.iter(|| host.update(1.0 / 60.0)));
+        group.bench_function(BenchmarkId::new(name, COUNT), |b| {
+            b.iter(|| host.update(1.0 / 60.0));
+        });
     }
     group.finish();
 }

@@ -564,9 +564,13 @@ fn get_node(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn add_child(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
+    let id = crate::ids::mint(eng);
     let mut world = eng.world_mut();
-    let child = scene::spawn_node(&mut world, text(args, 1)?, e);
-    crate::ids::assign(eng, &mut world, child);
+    let child = if id.is_empty() {
+        scene::spawn_node(&mut world, text(args, 1)?, e)
+    } else {
+        scene::spawn_node_with_id(&mut world, text(args, 1)?, e, id)
+    };
     Ok(Value::Node(crate::node_id_of(child).0))
 }
 

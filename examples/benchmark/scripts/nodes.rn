@@ -26,13 +26,15 @@ fn case(name, stages, parts) {
     out
 }
 
-/// `add_child` fifty thousand times under one fresh parent.
+/// `add_child` fifty thousand times under one fresh parent, every child
+/// named alike, as the Godot case is: formatting a fresh name per child
+/// costs the script more than the engine costs to add it.
 fn adding() {
     case("add_children", ["update"], [
         ("run", |w| {
             let parent = scene::spawn("Adds", w.container);
             for i in 0..ITERATIONS {
-                parent.add_child(format!("n{}", i));
+                parent.add_child("n");
             }
             w.made.push(parent);
         }),

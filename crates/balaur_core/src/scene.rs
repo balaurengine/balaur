@@ -244,6 +244,27 @@ pub fn spawn_node(world: &mut World, name: &str, parent: Entity) -> Entity {
     entity
 }
 
+/// [`spawn_node`] with a stable id, in one spawn.
+///
+/// Adding the id afterwards moved the entity to another archetype, and that
+/// move was the single hottest function of a script adding children.
+pub fn spawn_node_with_id(world: &mut World, name: &str, parent: Entity, id: String) -> Entity {
+    let entity = world.spawn((
+        Name(name.to_string()),
+        Transform::identity(),
+        GlobalTransform::identity(),
+        Appearance::identity(),
+        GlobalAppearance::identity(),
+        Children(Vec::new()),
+        Parent(parent),
+        crate::components::StableId(id),
+    ));
+    if let Ok(mut children) = world.get::<&mut Children>(parent) {
+        children.0.push(entity);
+    }
+    entity
+}
+
 /// Spawn a node as `parent`'s child number `index`, clamped to the end.
 ///
 /// Where a snapshot puts a freed node back: the digest walks the tree in
