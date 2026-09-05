@@ -1161,12 +1161,13 @@ fn sync_sprite_uvs(node: &mut SceneNode2d, sprite: &SpriteTexture) {
         // The sliver keeps a nearest-sampled edge fragment from rounding into
         // the neighbouring frame, matching kiss3d's own `set_sprite_frame`.
         let size = node.data().object().map(|o| o.data().texture().size);
-        if let Some((w, h)) = size {
-            if w > 1 && h > 1 {
-                let inset = Vec2::new(0.05 / w as f32, 0.05 / h as f32);
-                min += inset;
-                max -= inset;
-            }
+        if let Some((w, h)) = size
+            && w > 1
+            && h > 1
+        {
+            let inset = Vec2::new(0.05 / w as f32, 0.05 / h as f32);
+            min += inset;
+            max -= inset;
         }
     }
     if sprite.flip_x {

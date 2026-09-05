@@ -63,9 +63,13 @@ graph TD
   balaur_bench --> balaur_script
   balaur_bench --> balaur_script_rune
   balaur_cli --> balaur
+  balaur_cli --> balaur_core
   balaur_cli --> balaur_export
+  balaur_cli --> balaur_plugin
+  balaur_cli --> balaur_script
   balaur_core --> balaur_script
   balaur_export --> balaur
+  balaur_export --> balaur_plugin
   balaur_gamend --> balaur_core
   balaur_gamend --> balaur_plugin
   balaur_gamend --> balaur_script

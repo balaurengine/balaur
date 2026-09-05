@@ -7,29 +7,74 @@ use balaur_plugin::Registry;
 use crate::shape::{keys as k, words};
 use crate::{Renderable2d, Shape2d, SpriteSheet2d, SpriteTexture, set_sprite};
 
+/// The `sprite` component's property schema, lifted out so the
+/// registration below stays readable.
+fn sprite_schema() -> toml::Value {
+    ComponentDef::parse_schema(
+        "sprite",
+        &balaur_core::components::ComponentDef::schema(&[
+            (
+                k::TEXTURE,
+                r#"{ type = "string", default = "", description = "Image file, project-relative; required" }"#,
+            ),
+            (
+                k::COLUMNS,
+                r#"{ type = "float", default = 0.0, min = 0.0, description = "Sheet grid columns for flipbook sprites; 0 means a single image" }"#,
+            ),
+            (
+                k::ROWS,
+                r#"{ type = "float", default = 0.0, min = 0.0, description = "Sheet grid rows for flipbook sprites; 0 means a single image" }"#,
+            ),
+            (
+                k::FRAME,
+                r#"{ type = "float", default = 0.0, min = 0.0, description = "Current sheet cell, counted left-to-right then top-to-bottom" }"#,
+            ),
+            (
+                k::FLIP_X,
+                r#"{ type = "bool", default = false, description = "Mirror horizontally" }"#,
+            ),
+            (
+                k::FLIP_Y,
+                r#"{ type = "bool", default = false, description = "Mirror vertically" }"#,
+            ),
+            (
+                k::PIXELS_PER_UNIT,
+                r#"{ type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit" }"#,
+            ),
+            (
+                k::HALF_EXTENTS,
+                r#"{ type = "vec2", default = [0.0, 0.0], description = "Size override in world units; [0, 0] sizes from the texture" }"#,
+            ),
+            (
+                k::REGION_ORIGIN,
+                r#"{ type = "vec2", default = [0.0, 0.0], description = "Top-left corner of the atlas cell to draw, in texture pixels; used with `region_size`" }"#,
+            ),
+            (
+                k::REGION_SIZE,
+                r#"{ type = "vec2", default = [0.0, 0.0], description = "Size of the atlas cell to draw, in texture pixels; [0, 0] draws the whole image and sizes the quad from the cell" }"#,
+            ),
+            (
+                k::COLOR,
+                r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
+            ),
+            (
+                k::MATERIAL,
+                &format!(
+                    r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#,
+                    crate::material::MATERIAL_ASSET_TYPE
+                ),
+            ),
+        ]),
+    )
+}
+
 /// The `sprite` component: a textured 2D quad.
 pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "sprite",
         ComponentDef {
             doc: "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` sheet makes it a flipbook `frame` steps through.",
-            schema: ComponentDef::parse_schema(
-                "sprite",
-                &balaur_core::components::ComponentDef::schema(&[
-                    (k::TEXTURE, r#"{ type = "string", default = "", description = "Image file, project-relative; required" }"#),
-                    (k::COLUMNS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Sheet grid columns for flipbook sprites; 0 means a single image" }"#),
-                    (k::ROWS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Sheet grid rows for flipbook sprites; 0 means a single image" }"#),
-                    (k::FRAME, r#"{ type = "float", default = 0.0, min = 0.0, description = "Current sheet cell, counted left-to-right then top-to-bottom" }"#),
-                    (k::FLIP_X, r#"{ type = "bool", default = false, description = "Mirror horizontally" }"#),
-                    (k::FLIP_Y, r#"{ type = "bool", default = false, description = "Mirror vertically" }"#),
-                    (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit" }"#),
-                    (k::HALF_EXTENTS, r#"{ type = "vec2", default = [0.0, 0.0], description = "Size override in world units; [0, 0] sizes from the texture" }"#),
-                    (k::REGION_ORIGIN, r#"{ type = "vec2", default = [0.0, 0.0], description = "Top-left corner of the atlas cell to draw, in texture pixels; used with `region_size`" }"#),
-                    (k::REGION_SIZE, r#"{ type = "vec2", default = [0.0, 0.0], description = "Size of the atlas cell to draw, in texture pixels; [0, 0] draws the whole image and sizes the quad from the cell" }"#),
-                    (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
-                    (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
-                ]),
-            ),
+            schema: sprite_schema(),
             tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {

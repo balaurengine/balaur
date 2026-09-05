@@ -222,6 +222,7 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
         body::install_body2d_sleep_api(&mut *m);
         body::install_body2d_force_reader_api(&mut *m);
         query::install_physics2d_query_api(&mut *m);
+        query::install_physics2d_raycast_all_api(&mut *m);
         query::install_physics2d_shapecast_api(&mut *m);
         query::install_physics2d_volume_query_api(&mut *m);
         query::install_physics2d_shape_query_api(&mut *m);

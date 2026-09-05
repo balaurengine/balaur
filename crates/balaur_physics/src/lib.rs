@@ -187,6 +187,7 @@ prediction_distance = { type = "float", default = 0.002, min = 0.0, max = 1.0, h
         collider::install_voxel_api(&mut *m);
         collider::install_collider_reader_api(&mut *m);
         query::install_query_api(&mut *m);
+        query::install_raycast_all_api(&mut *m);
         query::install_shapecast_api(&mut *m);
         query::install_volume_query_api(&mut *m);
         query::install_pair_query_api(&mut *m);

@@ -13,7 +13,7 @@ Batteries-included entry points for Balaur games and tools.
 
 - **workspace deps:** `balaur_anim`, `balaur_apple`, `balaur_audio`, `balaur_core`, `balaur_gamend`, `balaur_http`, `balaur_input`, `balaur_physics`, `balaur_platform`, `balaur_plugin`, `balaur_render`, `balaur_script`, `balaur_script_rune`, `balaur_ui`, `balaur_web`, `balaur_websocket`, `balaur_webtransport`
 - **external deps:** 3 (anyhow, toml, tracing)
-- **public surface:** 11 fn
+- **public surface:** 13 fn, 1 type
 
 ## `balaur_android`
 
@@ -78,8 +78,8 @@ The `balaur` command: run, edit, export, replay and check a project
 
 The `balaur` command line tool: create, run, export, and play projects.
 
-- **workspace deps:** `balaur`, `balaur_export`
-- **external deps:** 18 (anyhow, base64, clap, console_error_panic_hook, dirs, flate2, js-sys, serde_json, …)
+- **workspace deps:** `balaur`, `balaur_core`, `balaur_export`, `balaur_plugin`, `balaur_script`
+- **external deps:** 19 (anyhow, base64, clap, console_error_panic_hook, dirs, flate2, js-sys, serde, …)
 - **public surface:** 3 fn
 
 ## `balaur_core`
@@ -90,7 +90,7 @@ Balaur engine core: the ECS world every plugin builds on.
 
 - **workspace deps:** `balaur_script`
 - **external deps:** 21 (anyhow, base64, dirs, glamx, gltf, hecs, i_overlay, indexmap, …)
-- **public surface:** 163 fn, 104 struct, 11 enum, 2 trait, 20 const, 19 type
+- **public surface:** 167 fn, 104 struct, 11 enum, 2 trait, 20 const, 19 type
 - **traits:** `FileBackend`, `Transport`
 - **structs:** `App`, `AppConfig`, `Appearance`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Bone`, `Children`, `Clock`, `ComponentDef`, `ComponentRegistry`, `DebugLineBuffer`, `DebugLineBuffer2d`, `Desync`, `Device`, `DeviceFacts`, `Digest`, `DigestRegistry`, `DiskFs`, `Divergence`, `Engine`, `EngineOp`, `Entry`, `Event`, `EventLog`, `EventState`, `ExternalIo`, `Facts`, `Faults`, `Faulty`, `FileRoots`, `Files`, `Frame`, `GlbImport`, `GlobalAppearance`, `GlobalTransform`, `Handler`, `Hasher`, `Header`, `HeightfieldData`, `IdAllocator`, `LinkStats`, `LocaleConfig`, `LogEntry`, `ManifestSource`, `MemoryFs`, `MeshData`, `MeshSkin`, `Name`, `NetSession`, `NodeOp`, `Origin`, `Pack`, `Parent`, `Pcg32`, `PeerTraffic`, `PlatformFacts`, `PluginConfigs`, `PluginInfo`, `PluginRegistry`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Received`, `Recorder`, `Recording`, `ReplayFeed`, `ReplayPlayer`, `ReplayRegistry`, `ReplaySetupRegistry`, `Resimulating`, `Resources`, `RngState`, `SaveConfig`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptProps`, `ScriptSetup`, `Server`, `Session`, `SessionStats`, `SettingDef`, `SettingsRegistry`, `SettingsValues`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `Strings`, `Tags`, `TickInputs`, `Timers`, `TimingLog`, `Timings`, `Trailer`, `Transform`, `UserActivation`, `VoxelsData`, `WallClock`
 - **enums:** `AssetRef`, `AssetSource`, `Command`, `Delivery`, `LinkState`, `PlayState`, `PluginChoice`, `ReplayMode`, `Scope`, `Stage`, `Step`
@@ -101,10 +101,10 @@ Exporting a project: packs, fused executables, and the platform bundles
 
 `balaur export` as a library: a project directory in, a `.bpak` or a game the player can run out.
 
-- **workspace deps:** `balaur`
-- **external deps:** 4 (anyhow, serde, toml, tracing)
-- **public surface:** 2 fn, 1 struct, 1 type
-- **structs:** `Options`
+- **workspace deps:** `balaur`, `balaur_plugin`
+- **external deps:** 5 (anyhow, serde, toml, tracing, zip)
+- **public surface:** 3 fn, 2 struct, 2 const, 2 type
+- **structs:** `ExportConfig`, `Options`
 
 ## `balaur_gamend`
 
@@ -149,7 +149,7 @@ Rapier physics as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
 - **external deps:** 11 (anyhow, glamx, parry2d, parry3d, rapier2d, rapier3d, rayon, serde, …)
-- **public surface:** 6 fn, 12 struct, 2 enum, 4 const
+- **public surface:** 4 fn, 12 struct, 2 enum, 19 const
 - **structs:** `Character2d`, `Character3d`, `JointRef`, `JointRef2d`, `PhysicsDebugConfig`, `PhysicsDebugState`, `PhysicsPlugin`, `PhysicsState`, `PhysicsState2d`, `Vehicle3d`, `Wheel3d`, `WheelInput`
 - **enums:** `JointHandle`, `JointHandle2d`
 
@@ -222,7 +222,7 @@ Immediate-mode UI for scripts, rendered with egui.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
 - **external deps:** 9 (anyhow, cosmic-text, egui, image, libm, serde, toml, tracing, …)
-- **public surface:** 3 fn, 12 struct, 1 enum, 4 const
+- **public surface:** 3 fn, 12 struct, 1 enum, 7 const
 - **structs:** `Style`, `Surface`, `ThemeTokens`, `UiConfig`, `UiFocus`, `UiPlugin`, `UiState`, `Widget`, `WidgetInputBuffer`, `WidgetInputSnapshot`, `WidgetLayerConfig`, `WidgetTheme`
 - **enums:** `Move`
 

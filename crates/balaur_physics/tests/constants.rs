@@ -30,11 +30,20 @@ fn registered_options(component: &str, field: &str) -> Vec<String> {
         .collect()
 }
 
+/// One constant table under test: its name, its entries, and the component
+/// property whose schema has to agree with it.
+type TableCase = (
+    &'static str,
+    &'static [(&'static str, &'static str)],
+    &'static str,
+    &'static str,
+);
+
 /// Read from the live registry, not from a copy of the schema literal: the
 /// point is to catch the two drifting apart.
 #[test]
 fn every_constant_table_matches_the_registered_schema() {
-    let tables: &[(&str, &[(&str, &str)], &str, &str)] = &[
+    let tables: &[TableCase] = &[
         ("BODY_KINDS", BODY_KINDS, "body3d", "kind"),
         ("BODY_KINDS", BODY_KINDS, "body2d", "kind"),
         ("SHAPE_KINDS", SHAPE_KINDS, "collider3d", "kind"),

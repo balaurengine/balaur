@@ -45,7 +45,6 @@ fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
 pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("raycast", &[], "(opts: table)", "The first collider a ray meets: `#{ from = [x, y, z], dir = [x, y, z], max = 100.0, filter = #{ exclude = node, only = \"dynamic\" } }`. Returns `#{ node, point, normal, distance }`, or nothing."),
-        ("raycast_all", &[], "(opts: table)", "Every collider a ray meets, nearest first."),
     ]);
     m.function("raycast", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
@@ -115,6 +114,18 @@ pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
         }
         Ok(Value::Nil)
     });
+}
+
+/// Every collider along a ray rather than the nearest one.
+///
+/// Split from [`install_query_api`] under `MAX_FN_LINES`.
+pub(crate) fn install_raycast_all_api(m: &mut dyn Bindings<Engine>) {
+    m.describe(&[(
+        "raycast_all",
+        &[],
+        "(opts: table)",
+        "Every collider a ray meets, nearest first.",
+    )]);
     m.function("raycast_all", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));

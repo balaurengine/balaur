@@ -229,7 +229,7 @@ On a node carrying `collider2d`, as `node.collider2d.<method>`:
 
 `2d` · `physics` · 18 properties · 6 methods
 
-Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`.
+Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -580,7 +580,7 @@ The view the scene is drawn from, following the node's global pose: `look_at` ai
 <tr><td><code>kind</code></td><td>enum</td><td><code>3d</code></td><td>Which camera this node drives One of <code>3d</code>, <code>2d</code>.</td></tr>
 <tr><td><code>look_at</code></td><td>vec3</td><td><code>[0.0, 0.0, 0.0]</code></td><td>World point the 3D camera looks at</td></tr>
 <tr><td><code>post</code></td><td>flags</td><td><code>[]</code></td><td>Screen-space effects the frame resolves through; `ssao`, `ssr` and `dof` are 3D only One of <code>bloom</code>, <code>ssao</code>, <code>ssr</code>, <code>dof</code>.</td></tr>
-<tr><td><code>zoom</code></td><td>float</td><td><code>60.0</code></td><td>2D zoom in logical pixels per world unit At least 1.0.</td></tr>
+<tr><td><code>zoom</code></td><td>float</td><td><code>60.0</code></td><td>2D zoom in logical pixels per world unit At least 0.01.</td></tr>
 </tbody>
 </table>
 
@@ -696,7 +696,7 @@ On a node carrying `collider3d`, as `node.collider3d.<method>`:
 
 `3d` · `physics` · 18 properties · 7 methods
 
-Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`.
+Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>

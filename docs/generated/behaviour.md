@@ -10,6 +10,7 @@ flow nothing checks.
 - a 2d camera matching the defaults still reaches the backend
 - a 2d capsule collider applies
 - a 2d collider round trips through get
+- a 2d joint on a bodiless child ties the body above it
 - a 2d one way collider carries its axis into the world
 - a 2d shape component puts a 2d renderable on the node
 - a 3d collider takes friction restitution and density
@@ -172,6 +173,7 @@ flow nothing checks.
 - a join frame carries its own ref as join ref
 - a joint holds two bodies together
 - a joint is remade when the body it lost returns
+- a joint on a bodiless child ties the body above it
 - a joint waits for a node that comes later
 - a key answers in the locale in force
 - a key nothing has comes back as itself
@@ -244,6 +246,7 @@ flow nothing checks.
 - a modal runs its body
 - a module the project asks for still loads
 - a module the project turns off does not load
+- a name the two worlds share has one meaning
 - a negative index counts back from the newest vertex
 - a nested path reads and writes where it says
 - a node cannot be moved under itself or its descendants
@@ -276,6 +279,9 @@ flow nothing checks.
 - a parallel group runs together and the next step waits for all of it
 - a param of the wrong type names both sides
 - a param the shader does not read is dropped not fatal
+- a parent id wins over a sibling name that matches it
+- a parent path may not leave its scene
+- a parent path of names builds the same tree as ids
 - a particles component round trips and stays out of the simulation
 - a pass with no widgets is quiet
 - a patch leaves the properties it does not name
@@ -326,6 +332,7 @@ flow nothing checks.
 - a project with no apple table keeps the invented identifier
 - a project with no events file is empty
 - a project with no manifest fails to load
+- a project with no table gets the defaults
 - a project without a language runs on rune
 - a project without a manifest is an error
 - a projects own page wins over the built in shell
@@ -444,6 +451,7 @@ flow nothing checks.
 - a scrub moves nothing but the playhead
 - a scrub poses a paused clip where the playhead lands
 - a second wait counts simulation time not the clock
+- a security directory that does not end the file is ignored
 - a seek does not fire the keys it skipped
 - a self crossing loop still yields a triangulation
 - a sensor reports overlap without collision response
@@ -473,6 +481,8 @@ flow nothing checks.
 - a sheet is sized to one frame
 - a short frame runs no steps and carries the remainder
 - a sign in lands a player the module can read back
+- a signed binary with no pack is not a game
+- a signed windows game still finds its pack
 - a silent peer does not stall the session
 - a skin that is not under the rig still deforms in its own space
 - a skin whose weights do not match the vertices is refused
@@ -510,6 +520,7 @@ flow nothing checks.
 - a step that says nothing is rejected
 - a stopped clip and a played one at the same pose digest differently
 - a subtree is collected parent first
+- a surface appears at full alpha rather than fading in
 - a suspended task dies with its node
 - a tab shows the page it names and only that one
 - a table for a plugin this build has not got is still an error
@@ -529,6 +540,7 @@ flow nothing checks.
 - a tile set from a script reads back and the map grows to fit
 - a tilemap parses cells and round trips
 - a tileset that declares no grid is refused
+- a tool that is not installed is not found
 - a touch point unpacks the shared middle byte
 - a track can name a component property
 - a track naming a component nothing registered leaves the node alone
@@ -583,6 +595,7 @@ flow nothing checks.
 - add then get returns what was set
 - adding twice updates rather than duplicating
 - affine 2d is translate rotate scale in that order
+- align and font style constants match the registered schema
 - alignment is a block property not a span
 - an absent pad reads neutral and cannot be written
 - an access point corner is one of four
@@ -636,6 +649,7 @@ flow nothing checks.
 - an inline table is a definition and a string is a reference
 - an input for an unknown player or an impossible tick is refused
 - an input older than the ring is refused
+- an installer identity is the application one renamed
 - an instance builds the prefab under the node that names it
 - an integer is accepted where a float is wanted
 - an interval and a call sequence among the property steps
@@ -659,6 +673,7 @@ flow nothing checks.
 - an unknown event reply carries the error status
 - an unknown extension names what is supported
 - an unknown handle answers not playing and its setters no op
+- an unknown key is refused
 - an unknown key is simply not down
 - an unknown language falls back to rune
 - an unknown language is a named error
@@ -696,7 +711,6 @@ flow nothing checks.
 - base64 round trips bytes and sha256 matches the known vector
 - binary assets travel inside the pack
 - bindings forward through references and boxes
-- body constants match the registered schema
 - body properties round trip
 - bone2d applies from a scene and reads back what was written
 - bone3d reads back every axis
@@ -709,6 +723,7 @@ flow nothing checks.
 - break on error stops where the script threw
 - breakpoints survive a hot reload
 - build pack compiles with or without a language line
+- build tools sort by version and not by string
 - by is relative to the value at the start of its step
 - by on its own offsets where the node already is
 - camera input can be switched off
@@ -726,6 +741,7 @@ flow nothing checks.
 - comments materials and groups are read past
 - compiling links the shader and packs the values
 - composed appearance matches what propagation wrote
+- composed text outlives the frame and commits into typed
 - constant names are unique and well formed
 - core defines settings in both scopes
 - corners sharing a position but not a uv become separate vertices
@@ -752,6 +768,7 @@ flow nothing checks.
 - duplicate hands back a private copy rather than the shared one
 - each event keeps its own place
 - each part of a fingerprint is reported separately
+- editor scripts draw only bundled glyphs
 - emitted reports what this frame delivered
 - emphasis splits the string into runs
 - english counts one and the rest
@@ -767,7 +784,9 @@ flow nothing checks.
 - every component emits only keys its schema declares
 - every component round trips through get and apply
 - every constant is screaming snake and unique
+- every constant is screaming snake and unique in its world
 - every constant names a key the engine knows
+- every constant table matches the registered schema
 - every curve starts at zero and ends at one
 - every dashboard screen carries gamekits own number
 - every declaration rejects a non node
@@ -807,6 +826,7 @@ flow nothing checks.
 - freeing a node runs the remove hook on it and on its children
 - freeing a node takes its standalone collider out of the world
 - freeing a subtree removes all of it and unlinks the parent
+- freeing many siblings at once keeps the survivors in order
 - freeing one end of a joint drops the joint too
 - from states the start outright
 - fs is rooted at the project
@@ -887,6 +907,7 @@ flow nothing checks.
 - one inline definition written twice is cached once
 - one variation is a sound with no variation
 - only the pads with sensors are claimed
+- only the schemes a game may open are opened
 - options default to a pack and no download
 - overlaps returns an empty list for a node touching nothing
 - overwrite then apply is the identity bit for bit
@@ -1054,7 +1075,9 @@ flow nothing checks.
 - the node api is available as methods
 - the order does not depend on how the plugins were listed
 - the pad vocabulary and the gilrs mapping agree
+- the padding before a certificate table is searched
 - the pause request stops the game at the next line a script runs
+- the payload is the library and the pack in a stable order
 - the platform and device id are stable facts
 - the plist carries the projects identifier and its own keys
 - the plugin builds without an output device
@@ -1089,8 +1112,8 @@ flow nothing checks.
 - the standard app records every plugin it loaded
 - the stream is pinned for a given seed
 - the string form of the script key still attaches
+- the table is read and paths resolve against the project
 - the thread count does not change the simulation
-- the two worlds share body kinds and differ on shapes
 - the update stage still sees the measured frame time
 - the value at the line replaces the colour
 - the wall clock is read at the top of a tick

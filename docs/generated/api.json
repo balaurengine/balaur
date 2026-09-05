@@ -40,8 +40,8 @@
     "character3d": "Moves a node the way a player expects rather than the way physics would: `physics3d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider3d`; a `body3d` of kind kinematic lets it push what it walks into.",
     "collider2d": "The shape the node collides with in 2D. On a node with a `body2d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
     "collider3d": "The shape the node collides with in 3D. On a node with a `body3d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
-    "joint2d": "Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`.",
-    "joint3d": "Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`.",
+    "joint2d": "Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.",
+    "joint3d": "Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.",
     "light2d": "A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it \u2014 sprites, polygons, tiles, a 3D scene behind them \u2014 is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.",
     "listener": "The ears a positional sound is heard from: its distance to this node sets its volume, and its offset across this node's right sets its pan. The last `current` listener applied wins; with no listener in the scene at all, every sound plays flat.",
     "mesh": "Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.",
@@ -544,7 +544,7 @@
       "zoom": {
         "default": 60.0,
         "description": "2D zoom in logical pixels per world unit",
-        "min": 1.0,
+        "min": 0.01,
         "type": "float"
       }
     },
@@ -3131,11 +3131,13 @@
         "device_id": "One id per install, made on first use and kept in the user directory: what a device login sends. Recorded with the session.",
         "focused": "Whether the window is in front of the player this tick; every script's `on_focus_changed(bool)` is called when it changes. True with no window.",
         "has_plugin": "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there.",
+        "open_url": "Open an http, https or mailto URL in whatever the player browses with. An effect on the world outside the game: never recorded, and it does nothing while a recording plays.",
         "platform": "Where this runs: `{ os, web, mobile, editor }`. Recorded in a session's header, so a replay on another machine answers as the original did.",
         "plugin_version": "The version of one loaded plugin, or nil when it did not load.",
         "plugins": "Every plugin this build loaded, named, in load order.",
         "quit": "Ask the app to shut down; the frame in flight still finishes.",
         "reload_script": "Recompile one script by its project-relative key, for a tool editing files outside the watched root.",
+        "reveal": "Show a file or directory in the system file manager, selected where the platform can. Never recorded, like `open_url`.",
         "tick": "Which frame this is, counted whole \u2014 what simulation code branches on instead of `time`.",
         "time": "Seconds of engine time since the app started, accumulated as a float.",
         "timings": "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only \u2014 branching a `fixed_update` on wall time desyncs, and nothing records it.",
@@ -3149,11 +3151,13 @@
         "device_id",
         "focused",
         "has_plugin",
+        "open_url",
         "platform",
         "plugin_version",
         "plugins",
         "quit",
         "reload_script",
+        "reveal",
         "tick",
         "time",
         "timings",
@@ -3168,11 +3172,13 @@
         "device_id": "()",
         "focused": "()",
         "has_plugin": "(name: string)",
+        "open_url": "(url: string)",
         "platform": "()",
         "plugin_version": "(name: string)",
         "plugins": "()",
         "quit": "()",
         "reload_script": "(key: string)",
+        "reveal": "(path: string)",
         "tick": "()",
         "time": "()",
         "timings": "()",
@@ -3203,6 +3209,34 @@
         "emitted": "String -> Value",
         "subscribe": "(NodeId, String) -> ()",
         "unsubscribe": "(NodeId, String) -> ()"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "Exporting the project being edited. `targets` says what this install can build and what it would have to fetch; `start` runs one off the frame and reports to `on_export`. Nothing here exports while a recording plays.",
+      "docs": {
+        "listen": "Have the node's `on_export(event)` \u2014 or the `on_event` method the options name \u2014 called as each export starts, finishes or fails.",
+        "output": "Where an export for this target will be written, as the project's `[export] output` decides.",
+        "running": "How many exports are in flight.",
+        "start": "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays.",
+        "targets": "Every target, each `{ name, bundle, installed, note }`: whether its runtime template is already here, and what a signed build of it would additionally need."
+      },
+      "functions": [
+        "listen",
+        "output",
+        "running",
+        "start",
+        "targets"
+      ],
+      "name": "export",
+      "signatures": {
+        "listen": "(NodeId, Option<Value>) -> ()",
+        "output": "String -> Value",
+        "running": "() -> i64",
+        "start": "(String, Option<Value>) -> bool",
+        "targets": "() -> Value"
       }
     },
     {
@@ -4162,6 +4196,7 @@
         "actions": "Every action `[input.actions]` declares, so a rebinding screen can list them.",
         "bind": "Rebind the action to one binding or a list of them, replacing what it had and saving to the user data directory.",
         "bindings": "What the action is bound to now, whether from the project or from the player's own rebinding.",
+        "composing": "The text an input method is still composing, for a field to show under its caret; empty once it commits into `typed`, and always empty without an input method.",
         "declare_actions": "Declare the actions a project's `[input.actions]` would, from a table of name to binding list; for a host running a project other than its own, such as the editor.",
         "dropped_files": "The absolute paths of files dropped onto the window this frame, in drop order; desktop only.",
         "feed_key": "Press or release a `KEY_*` key as if the window had reported it; the edge lasts this frame, the state until the opposite feed.",
@@ -4204,6 +4239,7 @@
         "actions",
         "bind",
         "bindings",
+        "composing",
         "declare_actions",
         "dropped_files",
         "feed_key",
@@ -4247,6 +4283,7 @@
         "actions": "() -> Value",
         "bind": "(String, Value) -> ()",
         "bindings": "String -> Value",
+        "composing": "() -> Value",
         "declare_actions": "Value -> ()",
         "dropped_files": "() -> Value",
         "feed_key": "(String, bool) -> ()",
@@ -4788,6 +4825,18 @@
       ],
       "constants": [
         {
+          "name": "AXIS_ANG_X",
+          "value": "ang_x"
+        },
+        {
+          "name": "AXIS_X",
+          "value": "x"
+        },
+        {
+          "name": "AXIS_Y",
+          "value": "y"
+        },
+        {
           "name": "BODY_DYNAMIC",
           "value": "dynamic"
         },
@@ -4804,12 +4853,164 @@
           "value": "static"
         },
         {
+          "name": "COLLIDE_DYNAMIC_DYNAMIC",
+          "value": "dynamic_dynamic"
+        },
+        {
+          "name": "COLLIDE_DYNAMIC_KINEMATIC",
+          "value": "dynamic_kinematic"
+        },
+        {
+          "name": "COLLIDE_DYNAMIC_STATIC",
+          "value": "dynamic_static"
+        },
+        {
+          "name": "COLLIDE_KINEMATIC_KINEMATIC",
+          "value": "kinematic_kinematic"
+        },
+        {
+          "name": "COLLIDE_KINEMATIC_STATIC",
+          "value": "kinematic_static"
+        },
+        {
+          "name": "COLLIDE_STATIC_STATIC",
+          "value": "static_static"
+        },
+        {
+          "name": "COMBINE_AVERAGE",
+          "value": "average"
+        },
+        {
+          "name": "COMBINE_CLAMPED_SUM",
+          "value": "clamped_sum"
+        },
+        {
+          "name": "COMBINE_GEOMETRIC_MEAN",
+          "value": "geometric_mean"
+        },
+        {
+          "name": "COMBINE_MAX",
+          "value": "max"
+        },
+        {
+          "name": "COMBINE_MIN",
+          "value": "min"
+        },
+        {
+          "name": "COMBINE_MULTIPLY",
+          "value": "multiply"
+        },
+        {
+          "name": "EVENT_COLLISION",
+          "value": "collision"
+        },
+        {
+          "name": "EVENT_CONTACT_FORCE",
+          "value": "contact_force"
+        },
+        {
+          "name": "JOINT_FIXED",
+          "value": "fixed"
+        },
+        {
+          "name": "JOINT_GENERIC",
+          "value": "generic"
+        },
+        {
+          "name": "JOINT_PIN_SLOT",
+          "value": "pin_slot"
+        },
+        {
+          "name": "JOINT_PRISMATIC",
+          "value": "prismatic"
+        },
+        {
+          "name": "JOINT_REVOLUTE",
+          "value": "revolute"
+        },
+        {
+          "name": "JOINT_ROPE",
+          "value": "rope"
+        },
+        {
+          "name": "JOINT_SPRING",
+          "value": "spring"
+        },
+        {
+          "name": "LENGTHS_ABSOLUTE",
+          "value": "absolute"
+        },
+        {
+          "name": "LENGTHS_RELATIVE",
+          "value": "relative"
+        },
+        {
+          "name": "MOTOR_MODEL_ACCELERATION",
+          "value": "acceleration"
+        },
+        {
+          "name": "MOTOR_MODEL_FORCE",
+          "value": "force"
+        },
+        {
+          "name": "MOTOR_OFF",
+          "value": "off"
+        },
+        {
+          "name": "MOTOR_POSITION",
+          "value": "position"
+        },
+        {
+          "name": "MOTOR_VELOCITY",
+          "value": "velocity"
+        },
+        {
+          "name": "SHAPE_CAPSULE",
+          "value": "capsule"
+        },
+        {
           "name": "SHAPE_CIRCLE",
           "value": "circle"
         },
         {
+          "name": "SHAPE_CONVEX_HULL",
+          "value": "convex_hull"
+        },
+        {
+          "name": "SHAPE_HALFSPACE",
+          "value": "halfspace"
+        },
+        {
+          "name": "SHAPE_HEIGHTFIELD",
+          "value": "heightfield"
+        },
+        {
+          "name": "SHAPE_POLYLINE",
+          "value": "polyline"
+        },
+        {
           "name": "SHAPE_RECT",
           "value": "rect"
+        },
+        {
+          "name": "SHAPE_SEGMENT",
+          "value": "segment"
+        },
+        {
+          "name": "SHAPE_TRIANGLE",
+          "value": "triangle"
+        },
+        {
+          "name": "SHAPE_TRIMESH",
+          "value": "trimesh"
+        },
+        {
+          "name": "SOLVER_IMPULSE",
+          "value": "impulse"
+        },
+        {
+          "name": "SOLVER_REDUCED",
+          "value": "reduced"
         }
       ],
       "doc": "The 2D rigid-body world: bodies and colliders on nodes, their velocities, and overlap queries. `physics` holds what spans both worlds.",
@@ -5236,6 +5437,30 @@
       ],
       "constants": [
         {
+          "name": "AXIS_ANG_X",
+          "value": "ang_x"
+        },
+        {
+          "name": "AXIS_ANG_Y",
+          "value": "ang_y"
+        },
+        {
+          "name": "AXIS_ANG_Z",
+          "value": "ang_z"
+        },
+        {
+          "name": "AXIS_X",
+          "value": "x"
+        },
+        {
+          "name": "AXIS_Y",
+          "value": "y"
+        },
+        {
+          "name": "AXIS_Z",
+          "value": "z"
+        },
+        {
           "name": "BODY_DYNAMIC",
           "value": "dynamic"
         },
@@ -5252,12 +5477,212 @@
           "value": "static"
         },
         {
+          "name": "COLLIDE_DYNAMIC_DYNAMIC",
+          "value": "dynamic_dynamic"
+        },
+        {
+          "name": "COLLIDE_DYNAMIC_KINEMATIC",
+          "value": "dynamic_kinematic"
+        },
+        {
+          "name": "COLLIDE_DYNAMIC_STATIC",
+          "value": "dynamic_static"
+        },
+        {
+          "name": "COLLIDE_KINEMATIC_KINEMATIC",
+          "value": "kinematic_kinematic"
+        },
+        {
+          "name": "COLLIDE_KINEMATIC_STATIC",
+          "value": "kinematic_static"
+        },
+        {
+          "name": "COLLIDE_STATIC_STATIC",
+          "value": "static_static"
+        },
+        {
+          "name": "COMBINE_AVERAGE",
+          "value": "average"
+        },
+        {
+          "name": "COMBINE_CLAMPED_SUM",
+          "value": "clamped_sum"
+        },
+        {
+          "name": "COMBINE_GEOMETRIC_MEAN",
+          "value": "geometric_mean"
+        },
+        {
+          "name": "COMBINE_MAX",
+          "value": "max"
+        },
+        {
+          "name": "COMBINE_MIN",
+          "value": "min"
+        },
+        {
+          "name": "COMBINE_MULTIPLY",
+          "value": "multiply"
+        },
+        {
+          "name": "EVENT_COLLISION",
+          "value": "collision"
+        },
+        {
+          "name": "EVENT_CONTACT_FORCE",
+          "value": "contact_force"
+        },
+        {
+          "name": "FILL_SOLID",
+          "value": "solid"
+        },
+        {
+          "name": "FILL_SURFACE",
+          "value": "surface"
+        },
+        {
+          "name": "FIT_AABB",
+          "value": "aabb"
+        },
+        {
+          "name": "FIT_CONVEX_DECOMPOSITION",
+          "value": "convex_decomposition"
+        },
+        {
+          "name": "FIT_CONVEX_HULL",
+          "value": "convex_hull"
+        },
+        {
+          "name": "FIT_OBB",
+          "value": "obb"
+        },
+        {
+          "name": "JOINT_FIXED",
+          "value": "fixed"
+        },
+        {
+          "name": "JOINT_GENERIC",
+          "value": "generic"
+        },
+        {
+          "name": "JOINT_PRISMATIC",
+          "value": "prismatic"
+        },
+        {
+          "name": "JOINT_REVOLUTE",
+          "value": "revolute"
+        },
+        {
+          "name": "JOINT_ROPE",
+          "value": "rope"
+        },
+        {
+          "name": "JOINT_SPHERICAL",
+          "value": "spherical"
+        },
+        {
+          "name": "JOINT_SPRING",
+          "value": "spring"
+        },
+        {
+          "name": "LENGTHS_ABSOLUTE",
+          "value": "absolute"
+        },
+        {
+          "name": "LENGTHS_RELATIVE",
+          "value": "relative"
+        },
+        {
+          "name": "MOTOR_MODEL_ACCELERATION",
+          "value": "acceleration"
+        },
+        {
+          "name": "MOTOR_MODEL_FORCE",
+          "value": "force"
+        },
+        {
+          "name": "MOTOR_OFF",
+          "value": "off"
+        },
+        {
+          "name": "MOTOR_POSITION",
+          "value": "position"
+        },
+        {
+          "name": "MOTOR_VELOCITY",
+          "value": "velocity"
+        },
+        {
           "name": "SHAPE_BALL",
           "value": "ball"
         },
         {
+          "name": "SHAPE_CAPSULE",
+          "value": "capsule"
+        },
+        {
+          "name": "SHAPE_CONE",
+          "value": "cone"
+        },
+        {
+          "name": "SHAPE_CONVEX_DECOMPOSITION",
+          "value": "convex_decomposition"
+        },
+        {
+          "name": "SHAPE_CONVEX_HULL",
+          "value": "convex_hull"
+        },
+        {
           "name": "SHAPE_CUBOID",
           "value": "cuboid"
+        },
+        {
+          "name": "SHAPE_CYLINDER",
+          "value": "cylinder"
+        },
+        {
+          "name": "SHAPE_FIT",
+          "value": "fit"
+        },
+        {
+          "name": "SHAPE_HALFSPACE",
+          "value": "halfspace"
+        },
+        {
+          "name": "SHAPE_HEIGHTFIELD",
+          "value": "heightfield"
+        },
+        {
+          "name": "SHAPE_POLYLINE",
+          "value": "polyline"
+        },
+        {
+          "name": "SHAPE_SEGMENT",
+          "value": "segment"
+        },
+        {
+          "name": "SHAPE_TRIANGLE",
+          "value": "triangle"
+        },
+        {
+          "name": "SHAPE_TRIMESH",
+          "value": "trimesh"
+        },
+        {
+          "name": "SHAPE_VOXELIZED_MESH",
+          "value": "voxelized_mesh"
+        },
+        {
+          "name": "SHAPE_VOXELS",
+          "value": "voxels"
+        },
+        {
+          "name": "SOLVER_IMPULSE",
+          "value": "impulse"
+        },
+        {
+          "name": "SOLVER_REDUCED",
+          "value": "reduced"
         }
       ],
       "doc": "The 3D rigid-body world: bodies and colliders on nodes, their velocities, and overlap queries. `physics` holds what spans both worlds.",
@@ -5646,7 +6071,60 @@
         "sprite",
         "tilemap"
       ],
-      "constants": [],
+      "constants": [
+        {
+          "name": "CAMERA_2D",
+          "value": "2d"
+        },
+        {
+          "name": "CAMERA_3D",
+          "value": "3d"
+        },
+        {
+          "name": "LIGHT_DIRECTIONAL",
+          "value": "directional"
+        },
+        {
+          "name": "LIGHT_POINT",
+          "value": "point"
+        },
+        {
+          "name": "SHAPE_BALL",
+          "value": "ball"
+        },
+        {
+          "name": "SHAPE_CAPSULE",
+          "value": "capsule"
+        },
+        {
+          "name": "SHAPE_CIRCLE",
+          "value": "circle"
+        },
+        {
+          "name": "SHAPE_CONE",
+          "value": "cone"
+        },
+        {
+          "name": "SHAPE_CUBOID",
+          "value": "cuboid"
+        },
+        {
+          "name": "SHAPE_CYLINDER",
+          "value": "cylinder"
+        },
+        {
+          "name": "SHAPE_PLANE",
+          "value": "plane"
+        },
+        {
+          "name": "SHAPE_POLYLINE",
+          "value": "polyline"
+        },
+        {
+          "name": "SHAPE_RECT",
+          "value": "rect"
+        }
+      ],
       "doc": "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the OS window, and the backdrop and debug lines drawn around the scene.",
       "docs": {
         "camera_2d": "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window.",
@@ -6209,6 +6687,22 @@
       "components": [],
       "constants": [
         {
+          "name": "ALIGN_CENTER",
+          "value": "center"
+        },
+        {
+          "name": "ALIGN_END",
+          "value": "end"
+        },
+        {
+          "name": "ALIGN_LEFT",
+          "value": "left"
+        },
+        {
+          "name": "ALIGN_START",
+          "value": "start"
+        },
+        {
           "name": "ANCHOR_BOTTOM_LEFT",
           "value": "bottom_left"
         },
@@ -6239,6 +6733,14 @@
         {
           "name": "FONT_MONO",
           "value": "mono"
+        },
+        {
+          "name": "FONT_STYLE_ITALIC",
+          "value": "italic"
+        },
+        {
+          "name": "FONT_STYLE_NORMAL",
+          "value": "normal"
         },
         {
           "name": "MOD_ALT",
@@ -6342,7 +6844,7 @@
         "bottom_panel": "Dock a strip across the bottom of the window and draw the callback inside it; `height` is in design pixels. Answers the height it ended up with.",
         "central_panel": "Draw the callback into whatever room the docked panels left over.",
         "central_rect": "The x, y, width and height of the surface being drawn into, in design pixels.",
-        "circle_button": "Draw a round button holding one glyph, `d` design pixels across; true on the frame it was clicked.",
+        "circle_button": "Draw a round button holding one glyph, `d` design pixels across; true on the frame it was clicked. `disabled` greys it out and swallows the click.",
         "clipboard": "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand.",
         "code_editor": "Draw an editable, highlighted buffer with a gutter; returns the text, whether it changed, and any line clicked.",
         "code_line": "Draw one read-only code row from a list of `{ text, color, strong }` spans, with a gutter label on the left.",
@@ -6362,7 +6864,7 @@
         "menu_item": "Draw a row inside a context menu; true on the frame it was clicked, which also closes the menu.",
         "modal": "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked. `width`, `height` and `top` size and place it, `fill`, `stroke` and `scrim` colour it; height follows the content when it is not given.",
         "overlay": "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `w`/`h` fix its size, and `fill`, `stroke`, `radius` and padding make it a sheet.",
-        "pill": "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked.",
+        "pill": "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked. `disabled` greys it out and swallows the click.",
         "rect_stroke": "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked.",
         "right": "Lay the callback's widgets out against the right edge, still declared left to right.",
         "right_panel": "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
