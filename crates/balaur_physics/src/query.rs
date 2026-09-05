@@ -51,12 +51,8 @@ pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let (ray, max, solid) = ray_of(&opts);
-        // Without a script predicate rapier can stop at the nearest hit and
-        // prune the tree by it. Walking every collider the ray crosses is
-        // what `raycast_all` is for, and on a long ray across a full world it
-        // is the difference between visiting a few nodes and visiting
-        // hundreds. Which collider a tie picks is rapier's, and
-        // `enhanced-determinism` makes that the same answer on every machine.
+        // Without a script predicate rapier stops at the nearest hit and prunes
+        // the tree by it; `raycast_all` is what walks every collider instead.
         if !has_predicate(&opts) {
             let state = eng.resource::<PhysicsState>();
             let state = state.borrow();

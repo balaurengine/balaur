@@ -56,6 +56,8 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - Physics debug draw and tuning.
 - A joint on a node with no body ties the nearest body above it.
 - `physics3d/step` and `physics2d/step` profiler spans.
+- `raycast` stops at the nearest hit rather than visiting every collider along the ray.
+- Creating a body composes the node's pose from its ancestors rather than propagating the whole tree.
 
 ### Determinism and networking
 

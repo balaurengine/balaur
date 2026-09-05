@@ -45,10 +45,9 @@ capabilities = ["applesignin", "game-center", "icloud-kv", "in-app-purchase"]
 ITSAppUsesNonExemptEncryption = false
 TOML
 fi
-# `--apk` on Android: assembling and signing belongs to the exporter, so a
-# game built in the editor and one built here take the same path.
-# A plain string, not an array: `"${empty[@]}"` is an unbound variable under
-# `set -u` on the bash 3.2 the macOS runners ship.
+# `--apk` on Android: the exporter assembles and signs, so a game built in the
+# editor and one built here take the same path. A string, not an array:
+# `"${empty[@]}"` is unbound under `set -u` on the macOS runners' bash 3.2.
 apk=""
 [ "$platform" = android ] && apk=--apk
 (cd "$work" && BALAUR_TEMPLATES="$work/templates" \

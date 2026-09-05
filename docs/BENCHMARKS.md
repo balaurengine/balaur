@@ -2,32 +2,34 @@
 
 # Benchmarks
 
-Balaur `0108981c0` on Apple M1, 8 cores, Darwin 25.6.0, 2026-09-05.
+Balaur `653cc01c1` on Apple M1, 8 cores, Darwin 25.6.0, 2026-09-05.
 
-Every case is the scene the reference suite builds, with the same counts, the same 60 Hz tick and the same window: a settle, then 300 timed steps, reported as the median and the 99th percentile of one tick.
+Every case is a scene from the [godot-rapier benchmark suite](https://github.com/Ughuuu/benchmarks-repo), the one behind [its v0.35 post](https://godot.rapier.rs/blog/v0-35-0) and [its performance page](https://godot.rapier.rs/docs/documentation/performance), built body for body with the same counts, the same 60 Hz tick and the same window: a settle, then 300 timed steps, reported as the median and the 99th percentile of one tick.
 
-**step p50** is a whole physics tick: script `fixed_update`, the solver, and writing every simulated pose back to the scene tree — what the Godot suite calls `step_ms`. **rapier's own step** is the solver alone, and the gap between the two is what the engine adds. **script seam** is what the case's own script cost inside that tick.
+**step p50** is a whole physics tick: script `fixed_update`, the solver, and writing every simulated pose back to the scene tree — what the Godot suite calls `step_ms`. The profiler also records rapier's own step inside it; what is left over is the engine, and in the query cases the queries themselves, which run inside the script call.
 
 Across the 12 physics cases the engine itself costs 1% to 13% of a tick; the rest is rapier, and in the query cases the script's own calls.
+
+![3D chart](/img/benchmarks/chart_3d.svg)
+
+![2D chart](/img/benchmarks/chart_2d.svg)
 
 Median tick, lower better:
 
 | case | bodies | Balaur | quickest in Godot | that engine's tick, over ours |
 | --- | ---: | ---: | --- | ---: |
-| `3d/pyramid` | 3795 | 10.43 ms | Box3D 13.52 ms | 1.30x |
-| `3d/mixed_pile` | 5000 | 5.04 ms | Box3D 9.72 ms | 1.93x |
-| `3d/joint_grid` | 5000 | 3.08 ms | Rapier 3D 8.92 ms | 2.90x |
-| `3d/smash` | 5001 | 7.99 ms | Box3D 9.62 ms | 1.20x |
-| `3d/query_storm` | 2000 | 5.50 ms | Rapier 3D 5.93 ms | 1.08x |
-| `3d/drop` | 8000 | 3.06 ms | Box3D 11.34 ms | 3.70x |
-| `2d/pyramid` | 10000 | 7.10 ms | Rapier 2D 20.03 ms | 2.82x |
-| `2d/mixed_pile` | 5000 | 2.86 ms | Box2D v3 6.71 ms | 2.35x |
-| `2d/joint_grid` | 5000 | 2.17 ms | Box2D v3 4.93 ms | 2.27x |
-| `2d/smash` | 5001 | 3.50 ms | Box2D v3 11.57 ms | 3.31x |
-| `2d/query_storm` | 2000 | 12.45 ms | Box2D v3 4.56 ms | 0.37x |
-| `2d/drop` | 8000 | 6.07 ms | Rapier 2D 16.54 ms | 2.73x |
-
-The one case Balaur loses is `2d/query_storm`, and the table below says why: nine hundred queries a tick cost 11 ms crossing the script seam and 1 ms inside rapier. A game asking that many questions per tick from script pays for the questions, not for the broad phase.
+| `3d/pyramid` | 3795 | 10.43 ms | Godot Box3D 13.52 ms | 1.30x |
+| `3d/mixed_pile` | 5000 | 5.04 ms | Godot Box3D 9.72 ms | 1.93x |
+| `3d/joint_grid` | 5000 | 3.08 ms | Godot Rapier 3D 8.92 ms | 2.90x |
+| `3d/smash` | 5001 | 7.99 ms | Godot Box3D 9.62 ms | 1.20x |
+| `3d/query_storm` | 2000 | 5.50 ms | Godot Rapier 3D 5.93 ms | 1.08x |
+| `3d/drop` | 8000 | 3.06 ms | Godot Box3D 11.34 ms | 3.70x |
+| `2d/pyramid` | 10000 | 7.10 ms | Godot Rapier 2D 20.03 ms | 2.82x |
+| `2d/mixed_pile` | 5000 | 2.86 ms | Godot Box2D v3 6.71 ms | 2.35x |
+| `2d/joint_grid` | 5000 | 2.17 ms | Godot Box2D v3 4.93 ms | 2.27x |
+| `2d/smash` | 5001 | 3.50 ms | Godot Box2D v3 11.57 ms | 3.31x |
+| `2d/query_storm` | 2000 | 12.45 ms | Godot Box2D v3 4.56 ms | 0.37x |
+| `2d/drop` | 8000 | 6.07 ms | Godot Rapier 2D 16.54 ms | 2.73x |
 
 The Godot columns are 4.7-stable (official) with the addons the reference suite commits, run on this same machine.
 
@@ -35,152 +37,176 @@ The Godot columns are 4.7-stable (official) with the addons the reference suite 
 
 ### `pyramid` (3d)
 
+![3d pyramid in Balaur](/img/benchmarks/3d_pyramid.png)
+
 3795 bodies. 300 timed steps after 60.
 
-| engine | step p50 | step p99 | rapier's own step | script seam |
-| --- | ---: | ---: | ---: | ---: |
-| **Balaur** | 10.43 | 15.28 | 10.30 | 0.002 |
-| Box3D | 13.52 | 33.12 | — | — |
-| Rapier 3D | 14.62 | 34.17 | — | — |
-| Jolt | 26.92 | 106.63 | — | — |
-| Godot Physics 3D | 48.03 | 133.30 | — | — |
+| engine | step p50 | step p99 |
+| --- | ---: | ---: |
+| **Balaur** | 10.43 | 15.28 |
+| Godot Box3D | 13.52 | 33.12 |
+| Godot Rapier 3D | 14.62 | 34.17 |
+| Godot Jolt | 26.92 | 106.63 |
+| Godot Physics 3D | 48.03 | 133.30 |
 
 ### `mixed_pile` (3d)
 
+![3d mixed_pile in Balaur](/img/benchmarks/3d_mixed_pile.png)
+
 5000 bodies, 5 static. 300 timed steps after 60.
 
-| engine | step p50 | step p99 | rapier's own step | script seam |
-| --- | ---: | ---: | ---: | ---: |
-| **Balaur** | 5.04 | 7.41 | 4.87 | 0.003 |
-| Box3D | 9.72 | 17.16 | — | — |
-| Rapier 3D | 11.28 | 34.73 | — | — |
-| Jolt | 13.70 | 37.14 | — | — |
-| Godot Physics 3D | 84.90 | 149.55 | — | — |
+| engine | step p50 | step p99 |
+| --- | ---: | ---: |
+| **Balaur** | 5.04 | 7.41 |
+| Godot Box3D | 9.72 | 17.16 |
+| Godot Rapier 3D | 11.28 | 34.73 |
+| Godot Jolt | 13.70 | 37.14 |
+| Godot Physics 3D | 84.90 | 149.55 |
 
 ### `joint_grid` (3d)
 
+![3d joint_grid in Balaur](/img/benchmarks/3d_joint_grid.png)
+
 5000 bodies, 9950 joints. 300 timed steps after 60.
 
-| engine | step p50 | step p99 | rapier's own step | script seam |
-| --- | ---: | ---: | ---: | ---: |
-| **Balaur** | 3.08 | 4.40 | 2.82 | 0.002 |
-| Rapier 3D | 8.92 | 14.13 | — | — |
-| Box3D | 10.27 | 17.44 | — | — |
-| Godot Physics 3D | 26.08 | 52.31 | — | — |
+| engine | step p50 | step p99 |
+| --- | ---: | ---: |
+| **Balaur** | 3.08 | 4.40 |
+| Godot Rapier 3D | 8.92 | 14.13 |
+| Godot Box3D | 10.27 | 17.44 |
+| Godot Physics 3D | 26.08 | 52.31 |
 
 Balaur: displacement_max 49.58. Fingerprint `cc96e435`.
 
 ### `smash` (3d)
 
+![3d smash in Balaur](/img/benchmarks/3d_smash.png)
+
 5001 bodies. 300 timed steps after 60.
 
-| engine | step p50 | step p99 | rapier's own step | script seam |
-| --- | ---: | ---: | ---: | ---: |
-| **Balaur** | 7.99 | 10.68 | 7.81 | 0.003 |
-| Box3D | 9.62 | 14.37 | — | — |
-| Jolt | 12.12 | 29.06 | — | — |
-| Rapier 3D | 19.14 | 25.05 | — | — |
-| Godot Physics 3D | 99.98 | 201.82 | — | — |
+| engine | step p50 | step p99 |
+| --- | ---: | ---: |
+| **Balaur** | 7.99 | 10.68 |
+| Godot Box3D | 9.62 | 14.37 |
+| Godot Jolt | 12.12 | 29.06 |
+| Godot Rapier 3D | 19.14 | 25.05 |
+| Godot Physics 3D | 99.98 | 201.82 |
 
 Balaur: non_finite 0, spread 430.5. Fingerprint `8a46de70`.
 
 ### `query_storm` (3d)
 
+![3d query_storm in Balaur](/img/benchmarks/3d_query_storm.png)
+
 2000 bodies, 8000 static. 300 timed steps after 60.
 
-| engine | step p50 | step p99 | rapier's own step | script seam |
-| --- | ---: | ---: | ---: | ---: |
-| **Balaur** | 5.50 | 6.03 | 1.12 | 4.09 |
-| Rapier 3D | 5.93 | 6.80 | — | — |
-| Box3D | 6.67 | 8.86 | — | — |
-| Jolt | 26.45 | 34.11 | — | — |
-| Godot Physics 3D | 73.26 | 86.42 | — | — |
+| engine | step p50 | step p99 |
+| --- | ---: | ---: |
+| **Balaur** | 5.50 | 6.03 |
+| Godot Rapier 3D | 5.93 | 6.80 |
+| Godot Box3D | 6.67 | 8.86 |
+| Godot Jolt | 26.45 | 34.11 |
+| Godot Physics 3D | 73.26 | 86.42 |
 
 Balaur: hits 201175, queries 270000. Fingerprint `dc3e3b83`.
 
 ### `drop` (3d)
 
+![3d drop in Balaur](/img/benchmarks/3d_drop.png)
+
 8000 bodies, 5 static. 300 timed steps after 60.
 
-| engine | step p50 | step p99 | rapier's own step | script seam |
-| --- | ---: | ---: | ---: | ---: |
-| **Balaur** | 3.06 | 4.24 | 2.77 | 0.002 |
-| Box3D | 11.34 | 41.58 | — | — |
-| Rapier 3D | 12.26 | 18.59 | — | — |
-| Jolt | 22.14 | 37.79 | — | — |
+| engine | step p50 | step p99 |
+| --- | ---: | ---: |
+| **Balaur** | 3.06 | 4.24 |
+| Godot Box3D | 11.34 | 41.58 |
+| Godot Rapier 3D | 12.26 | 18.59 |
+| Godot Jolt | 22.14 | 37.79 |
 
 ## 2D
 
 ### `pyramid` (2d)
 
+![2d pyramid in Balaur](/img/benchmarks/2d_pyramid.png)
+
 10000 bodies. 300 timed steps after 60.
 
-| engine | step p50 | step p99 | rapier's own step | script seam |
-| --- | ---: | ---: | ---: | ---: |
-| **Balaur** | 7.10 | 8.53 | 6.71 | 0.002 |
-| Rapier 2D | 20.03 | 28.12 | — | — |
-| Box2D v3 | 21.33 | 52.38 | — | — |
-| Godot Physics 2D | 147.26 | 442.54 | — | — |
+| engine | step p50 | step p99 |
+| --- | ---: | ---: |
+| **Balaur** | 7.10 | 8.53 |
+| Godot Rapier 2D | 20.03 | 28.12 |
+| Godot Box2D v3 | 21.33 | 52.38 |
+| Godot Physics 2D | 147.26 | 442.54 |
 
 ### `mixed_pile` (2d)
 
+![2d mixed_pile in Balaur](/img/benchmarks/2d_mixed_pile.png)
+
 5000 bodies, 3 static. 300 timed steps after 60.
 
-| engine | step p50 | step p99 | rapier's own step | script seam |
-| --- | ---: | ---: | ---: | ---: |
-| **Balaur** | 2.86 | 4.69 | 2.60 | 0.002 |
-| Box2D v3 | 6.71 | 11.73 | — | — |
-| Rapier 2D | 9.25 | 15.28 | — | — |
-| Godot Physics 2D | 71.12 | 136.33 | — | — |
+| engine | step p50 | step p99 |
+| --- | ---: | ---: |
+| **Balaur** | 2.86 | 4.69 |
+| Godot Box2D v3 | 6.71 | 11.73 |
+| Godot Rapier 2D | 9.25 | 15.28 |
+| Godot Physics 2D | 71.12 | 136.33 |
 
 ### `joint_grid` (2d)
 
+![2d joint_grid in Balaur](/img/benchmarks/2d_joint_grid.png)
+
 5000 bodies, 9950 joints. 300 timed steps after 60.
 
-| engine | step p50 | step p99 | rapier's own step | script seam |
-| --- | ---: | ---: | ---: | ---: |
-| **Balaur** | 2.17 | 2.75 | 1.88 | 0.002 |
-| Box2D v3 | 4.93 | 8.75 | — | — |
-| Rapier 2D | 10.16 | 19.44 | — | — |
+| engine | step p50 | step p99 |
+| --- | ---: | ---: |
+| **Balaur** | 2.17 | 2.75 |
+| Godot Box2D v3 | 4.93 | 8.75 |
+| Godot Rapier 2D | 10.16 | 19.44 |
 
 Balaur: displacement_max 190.9. Fingerprint `f779b873`.
 
 ### `smash` (2d)
 
+![2d smash in Balaur](/img/benchmarks/2d_smash.png)
+
 5001 bodies. 300 timed steps after 60.
 
-| engine | step p50 | step p99 | rapier's own step | script seam |
-| --- | ---: | ---: | ---: | ---: |
-| **Balaur** | 3.50 | 4.39 | 3.29 | 0.002 |
-| Box2D v3 | 11.57 | 28.63 | — | — |
-| Rapier 2D | 11.86 | 21.93 | — | — |
-| Godot Physics 2D | 55.09 | 104.59 | — | — |
+| engine | step p50 | step p99 |
+| --- | ---: | ---: |
+| **Balaur** | 3.50 | 4.39 |
+| Godot Box2D v3 | 11.57 | 28.63 |
+| Godot Rapier 2D | 11.86 | 21.93 |
+| Godot Physics 2D | 55.09 | 104.59 |
 
 Balaur: non_finite 0, spread 2999. Fingerprint `7c549757`.
 
 ### `query_storm` (2d)
 
+![2d query_storm in Balaur](/img/benchmarks/2d_query_storm.png)
+
 2000 bodies, 8000 static. 300 timed steps after 60.
 
-| engine | step p50 | step p99 | rapier's own step | script seam |
-| --- | ---: | ---: | ---: | ---: |
-| Box2D v3 | 4.56 | 5.49 | — | — |
-| Rapier 2D | 6.25 | 7.70 | — | — |
-| **Balaur** | 12.45 | 15.57 | 1.14 | 11.03 |
-| Godot Physics 2D | 57.24 | 67.48 | — | — |
+| engine | step p50 | step p99 |
+| --- | ---: | ---: |
+| Godot Box2D v3 | 4.56 | 5.49 |
+| Godot Rapier 2D | 6.25 | 7.70 |
+| **Balaur** | 12.45 | 15.57 |
+| Godot Physics 2D | 57.24 | 67.48 |
 
 Balaur: hits 280111, queries 324000. Fingerprint `5ff47d2c`.
 
 ### `drop` (2d)
 
+![2d drop in Balaur](/img/benchmarks/2d_drop.png)
+
 8000 bodies, 3 static. 300 timed steps after 60.
 
-| engine | step p50 | step p99 | rapier's own step | script seam |
-| --- | ---: | ---: | ---: | ---: |
-| **Balaur** | 6.07 | 9.75 | 5.75 | 0.003 |
-| Rapier 2D | 16.54 | 31.08 | — | — |
-| Box2D v3 | 22.66 | 46.56 | — | — |
-| Godot Physics 2D | 103.34 | 286.81 | — | — |
+| engine | step p50 | step p99 |
+| --- | ---: | ---: |
+| **Balaur** | 6.07 | 9.75 |
+| Godot Rapier 2D | 16.54 | 31.08 |
+| Godot Box2D v3 | 22.66 | 46.56 |
+| Godot Physics 2D | 103.34 | 286.81 |
 
 ## Nodes
 

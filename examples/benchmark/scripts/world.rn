@@ -121,14 +121,23 @@ fn draw(w, node, shape) {
         return;
     }
     let kind = shape.get("kind").unwrap_or(if w.dimensions == 2 { "rect" } else { "cuboid" });
-    if w.dimensions == 2 {
-        let drawn = if kind == "convex_hull" { #{ kind: "circle", radius: 13.0 } } else { copy(shape) };
-        node.set_component("shape2d", drawn);
+    let drawn = if w.dimensions == 2 {
+        if kind == "convex_hull" { #{ kind: "circle", radius: 13.0 } } else { copy(shape) }
     } else {
-        let drawn = if kind == "convex_hull" { #{ kind: "ball", radius: 0.45 } } else { copy(shape) };
-        node.set_component("shape3d", drawn);
-    }
+        if kind == "convex_hull" { #{ kind: "ball", radius: 0.45 } } else { copy(shape) }
+    };
+    // A few colours in turn, so a stack reads as bodies rather than as a slab.
+    drawn.insert("color", PALETTE[(w.bodies.len() + w.statics) % PALETTE.len()]);
+    node.set_component(if w.dimensions == 2 { "shape2d" } else { "shape3d" }, drawn);
 }
+
+const PALETTE = [
+    [0.86, 0.36, 0.30, 1.0],
+    [0.95, 0.68, 0.25, 1.0],
+    [0.40, 0.70, 0.45, 1.0],
+    [0.30, 0.55, 0.85, 1.0],
+    [0.62, 0.45, 0.80, 1.0],
+];
 
 /// A shape table without the collider-only keys the renderer would reject.
 fn copy(shape) {

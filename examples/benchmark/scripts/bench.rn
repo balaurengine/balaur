@@ -27,6 +27,7 @@ pub fn init(this) {
     this.samples = #{};
     this.status = "pick a case";
     this.out = "";
+    this.shot = "";
     this.draw = true;
     this.steps = STEPS;
     this.warmup = WARMUP;
@@ -34,7 +35,7 @@ pub fn init(this) {
     this.build_ms = 0.0;
     read_args(this);
     render::set_background(0.09, 0.10, 0.12);
-    frame_view(3);
+    frame_view(3, None);
 }
 
 /// Every case, keyed the way a `--case` argument names one.
@@ -73,13 +74,17 @@ fn read_args(this) {
             this.warmup = value.parse::<i64>().unwrap_or(WARMUP);
         } else if key == "--out" {
             this.out = value;
+        } else if key == "--shot" {
+            this.shot = value;
         }
     }
     if wanted.is_empty() {
         return;
     }
     this.headless = true;
-    this.draw = false;
+    // Shapes are the viewer's, not the measurement's: off for a number,
+    // on for a picture.
+    this.draw = this.shot != "";
     for key in wanted {
         let found = find(this, key);
         if found is Object {
@@ -199,7 +204,7 @@ fn advance(this) {
     if state == "setup" {
         rng::seed(this.case.seed);
         tune(this, c);
-        frame_view(dimensions_of(c));
+        frame_view(dimensions_of(c), c.get("view"));
         this.world = world::new(this.node, dimensions_of(c), this.draw);
         this.world.made = [];
         this.world.targets = [];
@@ -237,6 +242,9 @@ fn advance(this) {
             this.samples = #{};
             this.state = "time";
             this.status = format!("{}: measuring", this.case.key);
+            if this.shot != "" {
+                render::screenshot(this.shot);
+            }
         }
         return;
     }
@@ -382,13 +390,16 @@ fn start_next(this) {
     this.status = format!("{}: building", this.case.key);
 }
 
-/// Where to stand to watch a case. The 2D scenes are thousands of pixels
-/// across and the 3D ones tens of units, so the two need different cameras.
-fn frame_view(dimensions) {
+/// Where to stand to watch a case: its own `view` when it names one — an
+/// eye and a target in 3D, a centre and a zoom in 2D — else a default that
+/// fits most of them.
+fn frame_view(dimensions, view) {
     if dimensions == 2 {
-        render::set_camera_2d(0.0, 0.0, 0.16);
+        let (centre, zoom) = if let Some(v) = view { (v[0], v[1]) } else { ([0.0, 0.0], 0.16) };
+        render::set_camera_2d(centre[0], centre[1], zoom);
     } else {
-        render::set_camera(0.0, 40.0, 110.0, 0.0, 10.0, 0.0);
+        let (eye, at) = if let Some(v) = view { (v[0], v[1]) } else { ([0.0, 40.0, 110.0], [0.0, 10.0, 0.0]) };
+        render::set_camera(eye[0], eye[1], eye[2], at[0], at[1], at[2]);
     }
 }
 

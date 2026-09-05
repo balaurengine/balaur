@@ -32,6 +32,7 @@ fn pyramid() {
     let spots = pyramid_spots();
     let base = pyramid_base();
     case("pyramid", spots.len(), 0, [
+        ("view", [[0.0, 1450.0], 0.32]),
         ("setup", |w| { world::fixed(w, [0.0, -20.0], rect((base as f64) * BOX * 2.0, 40.0)); }),
         ("place", |w, i| { world::body(w, spots[i], rect(BOX, BOX)); }),
     ])
@@ -67,6 +68,7 @@ const HALF = 1400.0;
 
 fn mixed_pile() {
     case("mixed_pile", 5000, 90, [
+        ("view", [[0.0, -500.0], 0.5]),
         ("setup", |w| {
             world::fixed(w, [0.0, -960.0], rect(HALF * 2.0, 40.0));
             world::fixed(w, [-HALF, 0.0], rect(40.0, 3000.0));
@@ -103,6 +105,7 @@ const PITCH = 24.0;
 
 fn joint_grid() {
     case("joint_grid", COLS * ROWS, 0, [
+        ("view", [[0.0, -580.0], 0.6]),
         ("links", COLS * ROWS),
         ("setup", |w| {
             w.anchor = world::fixed(w, anchor_at(), rect((COLS as f64) * PITCH + 80.0, 16.0));
@@ -153,6 +156,7 @@ const SMASH_ROWS = 50;
 
 fn smash() {
     case("smash", SMASH_COLUMNS * SMASH_ROWS, 90, [
+        ("view", [[0.0, 500.0], 0.5]),
         ("setup", |w| { world::fixed(w, [0.0, -20.0], rect(8000.0, 40.0)); }),
         ("place", |w, i| { world::body(w, smash_at(i), rect(BOX, BOX)); }),
         ("after", |w| {
@@ -212,6 +216,7 @@ const POINTS = 180;
 
 fn query_storm() {
     case("query_storm", STATICS + MOVERS, 0, [
+        ("view", [[0.0, 0.0], 0.25]),
         ("place", |w, i| {
             if i < STATICS {
                 let node = world::fixed(w, scatter(),
@@ -274,6 +279,7 @@ const GAP = 22.0;
 
 fn drop() {
     case("drop", 8000, 0, [
+        ("view", [[0.0, 750.0], 0.5]),
         ("setup", |w| {
             let half = 0.5 * (DROP_COLS as f64) * GAP;
             world::fixed(w, [0.0, -20.0], rect((DROP_COLS as f64) * GAP + 80.0, 40.0));

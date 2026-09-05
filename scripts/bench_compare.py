@@ -41,10 +41,16 @@ FRAME_CAP = 4000
 # What each Godot engine is called in the suite's results/ tree, and what the
 # report calls it.
 GODOT_ENGINES = {
-    "Rapier2D": "Rapier 2D", "Box2D": "Box2D v3", "GodotPhysics2D": "Godot Physics 2D",
-    "Rapier3D": "Rapier 3D", "Jolt_Physics": "Jolt", "Box3D_Physics": "Box3D",
+    "Rapier2D": "Godot Rapier 2D", "Box2D": "Godot Box2D v3",
+    "GodotPhysics2D": "Godot Physics 2D", "Rapier3D": "Godot Rapier 3D",
+    "Jolt_Physics": "Godot Jolt", "Box3D_Physics": "Godot Box3D",
     "GodotPhysics3D": "Godot Physics 3D",
 }
+SUITE_REPO = "https://github.com/Ughuuu/benchmarks-repo"
+SUITE_POST = "https://godot.rapier.rs/blog/v0-35-0"
+SUITE_DOCS = "https://godot.rapier.rs/docs/documentation/performance"
+# Where the site keeps the pictures the report points at, under static/.
+IMAGES = "img/benchmarks"
 
 
 def cases(only, dims):
@@ -83,6 +89,26 @@ def run_case(key, steps, warmup):
     for line in (out.stderr or "").splitlines()[:4]:
         print(f"    {line}", file=sys.stderr)
     return None
+
+
+def shoot_case(key, warmup, path):
+    """One picture of a case, offscreen, at the first timed tick.
+
+    A separate run from the timed one: drawing every body is the viewer's
+    cost, not the measurement's, and the timed run keeps shapes off.
+    """
+    argv = [
+        str(binary()), "run", str(PROJECT), "--offscreen", "--fixed-tick",
+        "--frames", str(FRAME_CAP), "--", f"--case={key}", "--steps=1",
+        f"--warmup={warmup}", f"--shot={path}",
+    ]
+    out = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, check=False)
+    if not Path(path).exists():
+        print(f"  {key}: no screenshot", file=sys.stderr)
+        for line in (out.stderr or "").splitlines()[-4:]:
+            print(f"    {line}", file=sys.stderr)
+        return False
+    return True
 
 
 def godot_results(directory):
@@ -167,13 +193,6 @@ def ms(value):
     return f"{value:.2f}" if value is not None else "—"
 
 
-def small(value):
-    """A seam cost, which is microseconds in every case but the query ones."""
-    if value is None:
-        return "—"
-    return f"{value:.3f}" if value < 1.0 else f"{value:.2f}"
-
-
 def best_godot(dim, name, godot):
     """The quickest Godot engine on this case, and what it took."""
     found = [
@@ -182,6 +201,56 @@ def best_godot(dim, name, godot):
         if (dim, name, engine) in godot
     ]
     return min(found, key=lambda row: row[1]) if found else None
+
+
+def chart(dim, results, godot):
+    """A bar chart of every engine on every case of one dimension, as SVG.
+
+    Drawn by hand rather than through a plotting library, so the only
+    dependency the driver has is the engine it measures.
+    """
+    groups = []
+    for name in PHYSICS:
+        bars = []
+        found = results.get(f"{dim}/{name}")
+        if found:
+            bars.append(("Balaur", found["step_ms"]["p50_ms"], True))
+        for engine, label in GODOT_ENGINES.items():
+            entry = godot.get((dim, name, engine))
+            if entry:
+                bars.append((label, entry["step_ms"]["p50_ms"], False))
+        if bars:
+            groups.append((name, bars))
+    if not groups:
+        return None
+    longest = max(value for _, bars in groups for _, value, _ in bars)
+    # Room after the longest bar for its label: "84.90 ms · Godot Physics 3D".
+    left, bar_w, bar_h, gap, top = 150, 460, 14, 3, 34
+    rows = sum(len(bars) for _, bars in groups)
+    height = top + rows * (bar_h + gap) + len(groups) * 14 + 16
+    width = left + bar_w + 330
+    out = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}" font-family="system-ui, sans-serif" font-size="12">',
+        f'<rect width="{width}" height="{height}" fill="#ffffff"/>',
+        f'<text x="{left}" y="20" fill="#222" font-size="13" font-weight="600">'
+        f'{dim.upper()}: median physics tick, milliseconds, lower is better</text>',
+    ]
+    y = top
+    for name, bars in groups:
+        out.append(f'<text x="{left - 8}" y="{y + 11}" fill="#222" text-anchor="end" '
+                   f'font-weight="600">{name}</text>')
+        for label, value, ours in bars:
+            w = max(2.0, bar_w * value / longest)
+            fill = "#2f6fed" if ours else "#b9bec7"
+            out.append(f'<rect x="{left}" y="{y}" width="{w:.1f}" height="{bar_h}" '
+                       f'fill="{fill}" rx="2"/>')
+            out.append(f'<text x="{left + w + 6:.1f}" y="{y + 11}" fill="#222">'
+                       f'{value:.2f} ms · {label}</text>')
+            y += bar_h + gap
+        y += 14
+    out.append("</svg>")
+    return "\n".join(out) + "\n"
 
 
 def summary_table(results, godot):
@@ -209,7 +278,7 @@ def summary_table(results, godot):
     return lines if rows else []
 
 
-def physics_table(dim, results, godot):
+def physics_table(dim, results, godot, shots):
     """One table per case: us, rapier inside us, and every Godot engine."""
     lines = []
     for name in PHYSICS:
@@ -217,19 +286,17 @@ def physics_table(dim, results, godot):
         rows = []
         if found:
             step = found["step_ms"]
-            rows.append((
-                "**Balaur**", ms(step["p50_ms"]), ms(step["p99_ms"]),
-                ms(found["physics_ms"]["p50_ms"]), small(found["script_ms"]["p50_ms"]),
-            ))
+            rows.append(("**Balaur**", ms(step["p50_ms"]), ms(step["p99_ms"])))
         for engine, label in GODOT_ENGINES.items():
             entry = godot.get((dim, name, engine))
             if entry:
-                rows.append((label, ms(entry["step_ms"]["p50_ms"]),
-                             ms(entry["step_ms"]["p99_ms"]), "—", "—"))
+                rows.append((label, ms(entry["step_ms"]["p50_ms"]), ms(entry["step_ms"]["p99_ms"])))
         if not rows:
             continue
         rows.sort(key=lambda r: float(r[1]) if r[1] != "—" else 1e9)
         lines.append(f"### `{name}` ({dim})\n")
+        if (shots / f"{dim}_{name}.png").exists():
+            lines.append(f"![{dim} {name} in Balaur](/{IMAGES}/{dim}_{name}.png)\n")
         if found:
             lines.append(
                 f"{found['body_count']} bodies"
@@ -237,8 +304,8 @@ def physics_table(dim, results, godot):
                 + (f", {found['static_count']} static" if found["static_count"] > 1 else "")
                 + f". {found['steps']} timed steps after {found['warmup']}.\n"
             )
-        lines.append("| engine | step p50 | step p99 | rapier's own step | script and its queries |")
-        lines.append("| --- | ---: | ---: | ---: | ---: |")
+        lines.append("| engine | step p50 | step p99 |")
+        lines.append("| --- | ---: | ---: |")
         for row in rows:
             lines.append("| " + " | ".join(row) + " |")
         lines.append("")
@@ -283,24 +350,24 @@ def nodes_table(results, godot):
     return lines
 
 
-def report(results, godot, nodes, args):  # noqa: C901
+def report(results, godot, nodes, args, shots):  # noqa: C901
     ran = [r for r in results.values() if r and r["dimensions"] != "nodes"]
     lines = [
         "<!-- Written by scripts/bench_compare.py from a real run. -->\n",
         "# Benchmarks\n",
         f"Balaur `{commit()}` on {machine()}, {date.today().isoformat()}.\n",
-        "Every case is the scene the reference suite builds, with the same "
-        "counts, the same 60 Hz tick and the same window: a settle, then "
+        "Every case is a scene from the [godot-rapier benchmark suite]"
+        f"({SUITE_REPO}), the one behind [its v0.35 post]({SUITE_POST}) and "
+        f"[its performance page]({SUITE_DOCS}), built body for body with the "
+        "same counts, the same 60 Hz tick and the same window: a settle, then "
         f"{args.steps} timed steps, reported as the median and the 99th "
         "percentile of one tick.\n",
         "**step p50** is a whole physics tick: script `fixed_update`, the "
         "solver, and writing every simulated pose back to the scene tree — "
-        "what the Godot suite calls `step_ms`. **rapier's own step** is the "
-        "solver alone. **script and its queries** is what the case's script "
-        "cost, the query pipeline included, since a query runs inside the "
-        "script call rather than inside the step; a binding call itself is "
-        "under a microsecond. What is left over is the engine: the scene "
-        "tree, the components, the pose write-back.\n",
+        "what the Godot suite calls `step_ms`. The profiler also records "
+        "rapier's own step inside it; what is left over is the engine, and "
+        "in the query cases the queries themselves, which run inside the "
+        "script call.\n",
     ]
     if ran:
         # What is left of a tick once rapier and the case's own script are
@@ -317,6 +384,9 @@ def report(results, godot, nodes, args):  # noqa: C901
                 "tick; the rest is rapier, and in the query cases the "
                 "script's own calls.\n"
             )
+    for dim in ("3d", "2d"):
+        if (shots / f"chart_{dim}.svg").exists():
+            lines.append(f"![{dim.upper()} chart](/{IMAGES}/chart_{dim}.svg)\n")
     summary = summary_table(results, godot)
     if summary:
         lines.append("Median tick, lower better:\n")
@@ -328,7 +398,7 @@ def report(results, godot, nodes, args):  # noqa: C901
             "suite commits, run on this same machine.\n"
         )
     for dim in ("3d", "2d"):
-        table = physics_table(dim, results, godot)
+        table = physics_table(dim, results, godot, shots)
         if table:
             lines.append(f"## {dim.upper()}\n")
             lines += table
@@ -376,6 +446,10 @@ def main():
     ap.add_argument("--godot-results", help="the benchmarks-repo results/ directory")
     ap.add_argument("--godot-nodes", help="a godot-benchmarks results JSON")
     ap.add_argument("--out", default=str(REPORT))
+    ap.add_argument("--site", default=str(ROOT.parent / "balaur-website"),
+                    help="the website checkout; pictures land in its static/")
+    ap.add_argument("--shots", action="store_true",
+                    help="also take one screenshot per physics case, offscreen")
     ap.add_argument("--no-run", action="store_true", help="report from results.json")
     ap.add_argument("--json", default=str(ROOT / "target" / "bench-results.json"))
     args = ap.parse_args()
@@ -407,8 +481,22 @@ def main():
     if not results:
         print("nothing ran", file=sys.stderr)
         return 1
+    shots = Path(args.site).expanduser() / "static" / IMAGES
+    if args.shots:
+        shots.mkdir(parents=True, exist_ok=True)
+        for key in [k for k in results if not k.startswith("nodes/")]:
+            dim, name = key.split("/", 1)
+            print(f"shot {key}", flush=True)
+            shoot_case(key, args.warmup, str(shots / f"{dim}_{name}.png"))
+    godot = godot_results(args.godot_results)
+    if shots.parent.exists():
+        shots.mkdir(parents=True, exist_ok=True)
+        for dim in ("3d", "2d"):
+            drawn = chart(dim, results, godot)
+            if drawn:
+                (shots / f"chart_{dim}.svg").write_text(drawn)
     nodes = godot_nodes(args.godot_nodes)
-    text = report(results, godot_results(args.godot_results), nodes, args)
+    text = report(results, godot, nodes, args, shots)
     Path(args.out).write_text(text)
     print(f"wrote {Path(args.out).relative_to(ROOT)} ({len(results)} cases)")
     return 0

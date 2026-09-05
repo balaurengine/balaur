@@ -87,6 +87,9 @@ fn collect_modules() -> BTreeMap<String, Module> {
 /// The entries the host installs on Rune modules of its own rather than
 /// through a plugin's `Bindings`, so nothing records them as they are
 /// declared; `api_lints.py` checks this list against `RuneHost::context`.
+///
+/// Takes the `Module` map it is filling rather than a `Bindings`, because
+/// there is no plugin here whose declarations something could record.
 fn install_host_entries(modules: &mut BTreeMap<String, Module>) {
     for (module, name, args, doc) in [
         (

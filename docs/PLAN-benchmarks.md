@@ -149,7 +149,10 @@ from `/usr/bin/time -l`.
 
 - `sync-docs.sh` fetches `docs/BENCHMARKS.md` into `docs/benchmarks.md` with
   front matter, as it does the changelog; the docs sidebar lists it after
-  Crates.
+  Crates. The pictures the report points at — one screenshot per physics
+  case, taken offscreen at the first timed tick with `--shot`, and a bar
+  chart per dimension — are written by the driver straight into the site's
+  `static/img/benchmarks/`, as `showcase.sh` does for the manual.
 - `package_play.sh` packs `examples/benchmark`; `/benchmark` is the play
   page pointed at that pack, with the note that a browser build is
   single-threaded and vsynced, so its numbers describe the browser, not the
@@ -193,6 +196,11 @@ from `/usr/bin/time -l`.
    against Godot's ten milliseconds, because `scene::free_subtree` unlinks
    each node from its parent with a `retain` over every sibling. Its own
    plan, not this one.
-5. **The joint grid sags about twice as far as the addon's.** Same rapier
+5. **Fixed by the first run:** `raycast` walked every collider along the
+   ray with no distance pruning and sorted the lot — `intersect_ray` where
+   `cast_ray_and_get_normal` was meant — which put the 2D query storm at
+   12.45 ms; it is 5.6 ms now. The 2D step also never marked the broad phase
+   fresh, so a query after any collider insertion rebuilt it a second time.
+6. **The joint grid sags about twice as far as the addon's.** Same rapier
    version, same joint kind, same pitch; the addon's build has SIMD and ours
    does not, which is the first thing to rule out.

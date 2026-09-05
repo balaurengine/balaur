@@ -553,9 +553,7 @@ fn normalize(doc) {
 }
 
 // The node a `/`-separated path of names denotes, walked down from the root.
-//
-// A parent is always declared before its children, so by the time a path is
-// walked every node along it has had its own `parent` resolved to an id.
+// Parents come before children, so each step's `parent` is already an id.
 fn node_at_path(doc, path) {
     let parent_id = "";
     let found = None;
