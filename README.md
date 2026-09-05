@@ -11,9 +11,9 @@
 
 Written in Rust. Fast to run, fast to iterate, easy to use — and one file to ship.
 
-[**Read the docs**](https://balaurengine.org/docs/intro) · [Features](https://balaurengine.org/features) · [Principles](https://balaurengine.org/docs/principles) · [Download](https://balaurengine.org/download) · [Roadmap](https://balaurengine.org/docs/roadmap)
+[**Read the docs**](https://balaurengine.org/docs/intro) · [Features](https://balaurengine.org/features) · [Principles](https://balaurengine.org/docs/principles) · [Download](https://balaurengine.org/download) · [Roadmap](https://balaurengine.org/docs/roadmap) · [Discord](https://discord.gg/v649emcpAu)
 
-[![CI](https://github.com/balaurengine/balaur/actions/workflows/runner.yml/badge.svg)](https://github.com/balaurengine/balaur/actions/workflows/runner.yml) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/balaurengine/balaur/actions/workflows/runner.yml/badge.svg)](https://github.com/balaurengine/balaur/actions/workflows/runner.yml) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Discord](https://img.shields.io/discord/1138836561102897172?logo=discord&logoColor=white&label=Discord&color=5865F2)](https://discord.gg/v649emcpAu)
 
 </div>
 
@@ -174,6 +174,12 @@ In this repository:
 - [docs/NAMING.md](docs/NAMING.md) — what every name means and the rules new ones follow; it governs the other docs
 - [docs/generated/](docs/generated/) — the script API, components, assets, crates and behaviour, written by `python3 scripts/gen_docs.py`; CI fails on drift
 - [docs/PLAN-*.md](docs/) — the plan behind each subsystem
+
+## Community
+
+- [Discord](https://discord.gg/v649emcpAu) — questions, help, and chat about what you are building
+- [Discussions](https://github.com/balaurengine/balaur/discussions) — proposals and longer threads
+- [Issues](https://github.com/balaurengine/balaur/issues) — bugs and feature requests
 
 ## Contributing
 

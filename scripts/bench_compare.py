@@ -15,6 +15,7 @@ gates a regression.
 """
 import argparse
 import json
+import math
 import platform
 import subprocess
 import sys
@@ -46,6 +47,12 @@ GODOT_ENGINES = {
     "Jolt_Physics": "Godot Jolt", "Box3D_Physics": "Godot Box3D",
     "GodotPhysics3D": "Godot Physics 3D",
 }
+# What the headline sentence compares against: Godot's best-known 3D engine
+# and the one Godot ships with.
+HEADLINE = [
+    ({"Jolt_Physics"}, "Godot Jolt"),
+    ({"GodotPhysics3D", "GodotPhysics2D"}, "Godot Physics"),
+]
 SUITE_REPO = "https://github.com/Ughuuu/benchmarks-repo"
 SUITE_POST = "https://godot.rapier.rs/blog/v0-35-0"
 SUITE_DOCS = "https://godot.rapier.rs/docs/documentation/performance"
@@ -318,34 +325,64 @@ def nodes_table(results, godot):
     return lines
 
 
+def faster(ratios):
+    """`2× faster`, `2–3× faster` or `2× slower` from speed ratios (theirs /
+    ours), rounded to whole numbers as a headline should be."""
+    lo, hi = min(ratios), max(ratios)
+    if lo >= 1:
+        lo, hi, word = round(lo), round(hi), "faster"
+    elif hi <= 1:
+        lo, hi, word = round(1 / hi), round(1 / lo), "slower"
+    else:
+        return f"{lo:.1f}–{hi:.1f}× the speed of"
+    return f"{lo}× {word}" if lo == hi else f"{lo}–{hi}× {word}"
+
+
+def geomean(values):
+    return math.exp(sum(math.log(v) for v in values) / len(values))
+
+
 def conclusion(results, godot):
-    """One sentence: how many cases Balaur is quickest on, and the worst gap."""
-    won, total, worst = 0, 0, 0.0
+    """The first sentence of the report: how many physics cases Balaur is the
+    quickest on, and how much faster it is than each HEADLINE engine — a
+    geometric mean per dimension over the cases both ran, given as a range
+    when the dimensions differ."""
+    per_engine, won, total = {}, 0, 0
     for dim in ("3d", "2d"):
         for name in PHYSICS:
             found = results.get(f"{dim}/{name}")
-            if not found:
+            if not found or found["step_ms"]["p50_ms"] <= 0:
                 continue
             ours = found["step_ms"]["p50_ms"]
-            others = [
-                godot[(dim, name, e)]["step_ms"]["p50_ms"]
+            others = {
+                e: godot[(dim, name, e)]["step_ms"]["p50_ms"]
                 for e in GODOT_ENGINES if (dim, name, e) in godot
-            ]
-            if not others or ours <= 0:
+            }
+            if not others:
                 continue
             total += 1
-            if ours <= min(others):
-                won += 1
-            else:
-                worst = max(worst, ours / min(others))
+            won += ours <= min(others.values())
+            for engine, theirs in others.items():
+                per_engine.setdefault((dim, engine), []).append(theirs / ours)
     if not total:
         return None
-    if won == total:
-        return f"Balaur is the quickest engine on all {total} physics cases.\n"
-    return (
-        f"Balaur is the quickest engine on {won} of {total} physics cases, and "
-        f"at worst {worst:.2f}x the quickest on the rest.\n"
+    lead = (
+        f"Balaur is the quickest engine on all {total} physics cases" if won == total
+        else f"Balaur is the quickest engine on {won} of {total} physics cases"
     )
+    clauses = []
+    for engines, label in HEADLINE:
+        means = [
+            geomean([r for (d, e), rs in per_engine.items() if d == dim and e in engines for r in rs])
+            for dim in ("3d", "2d")
+            if any(d == dim and e in engines for (d, e) in per_engine)
+        ]
+        if means:
+            clauses.append(f"{faster(means)} than {label}")
+    if not clauses:
+        return f"**{lead}.**\n"
+    joined = ", ".join(clauses[:-1]) + (" and " if len(clauses) > 1 else "") + clauses[-1]
+    return f"**{lead}**: about {joined}.\n"
 
 
 def report(results, godot, nodes, args, shots):
@@ -353,12 +390,10 @@ def report(results, godot, nodes, args, shots):
     lines = [
         "<!-- Written by scripts/bench_compare.py from a real run. -->\n",
         "# Benchmarks\n",
-        f"Balaur `{commit()}` and Godot {version} on {machine()}, "
-        f"{date.today().isoformat()}: the scenes of the [godot-rapier benchmark "
-        f"suite]({SUITE_REPO}) ([post]({SUITE_POST}), [docs]({SUITE_DOCS})), "
-        f"body for body, {args.steps} timed steps at 60 Hz after a settle. "
-        "Median physics tick in milliseconds, lower is better.\n",
     ]
+    summary = conclusion(results, godot)
+    if summary:
+        lines.append(summary)
     for dim in ("3d", "2d"):
         table = physics_table(dim, results, godot, shots)
         if not table:
@@ -370,10 +405,13 @@ def report(results, godot, nodes, args, shots):
     if any(k.startswith("nodes/") for k in results):
         lines.append("## Nodes\n")
         lines += nodes_table(results, nodes)
-    summary = conclusion(results, godot)
-    if summary:
-        lines.append(summary)
     lines += [
+        "## How it was measured\n",
+        f"Balaur `{commit()}` against Godot {version} on {machine()}, "
+        f"{date.today().isoformat()}. The scenes are the [godot-rapier benchmark "
+        f"suite]({SUITE_REPO})'s ([post]({SUITE_POST}), [docs]({SUITE_DOCS})), body "
+        f"for body; each runs {args.steps} timed steps at 60 Hz after a settle, and "
+        "the tables show the median physics tick.\n",
         "## Running it\n",
         "```bash\n"
         "cargo build --release -p balaur_cli --features window --bin balaur\n"
@@ -412,10 +450,10 @@ def main():
         args.steps, args.warmup = 60, 20
 
     raw = Path(args.json)
-    results = {}
-    if args.no_run and raw.exists():
-        results = json.loads(raw.read_text())
-    else:
+    # The last run's results, so a partial run (`--dims nodes`, `--cases ..`)
+    # refreshes its own rows and keeps the rest.
+    results = json.loads(raw.read_text()) if raw.exists() else {}
+    if not args.no_run:
         wanted = cases(args.cases, args.dims)
         for i, key in enumerate(wanted, 1):
             print(f"[{i}/{len(wanted)}] {key}", flush=True)
@@ -453,7 +491,9 @@ def main():
     nodes = godot_nodes(args.godot_nodes)
     text = report(results, godot, nodes, args, shots)
     Path(args.out).write_text(text)
-    print(f"wrote {Path(args.out).relative_to(ROOT)} ({len(results)} cases)")
+    out = Path(args.out)
+    shown = out.relative_to(ROOT) if out.is_relative_to(ROOT) else out
+    print(f"wrote {shown} ({len(results)} cases)")
     return 0
 
 

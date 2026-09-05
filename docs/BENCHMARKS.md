@@ -2,7 +2,7 @@
 
 # Benchmarks
 
-Balaur `dcc9baba4` and Godot 4.7-stable (official) on Apple M1, 8 cores, Darwin 25.6.0, 2026-09-05: the scenes of the [godot-rapier benchmark suite](https://github.com/Ughuuu/benchmarks-repo) ([post](https://godot.rapier.rs/blog/v0-35-0), [docs](https://godot.rapier.rs/docs/documentation/performance)), body for body, 300 timed steps at 60 Hz after a settle. Median physics tick in milliseconds, lower is better.
+**Balaur is the quickest engine on all 12 physics cases**: about 3× faster than Godot Jolt and 10–18× faster than Godot Physics.
 
 ## 3D
 
@@ -42,7 +42,9 @@ Milliseconds for the whole loop, lower is better. Godot's numbers are its own pu
 | `delete_children_random` | 48.00 ms | 19.63 ms |
 | `get_node` | 68.59 ms | 29.60 ms |
 
-Balaur is the quickest engine on all 12 physics cases.
+## How it was measured
+
+Balaur `dcc9baba4` against Godot 4.7-stable (official) on Apple M1, 8 cores, Darwin 25.6.0, 2026-09-05. The scenes are the [godot-rapier benchmark suite](https://github.com/Ughuuu/benchmarks-repo)'s ([post](https://godot.rapier.rs/blog/v0-35-0), [docs](https://godot.rapier.rs/docs/documentation/performance)), body for body; each runs 300 timed steps at 60 Hz after a settle, and the tables show the median physics tick.
 
 ## Running it
 

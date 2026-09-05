@@ -276,13 +276,17 @@ pub(crate) fn bound_handler(
     orphaned: &'static str,
 ) -> impl 'static + Fn(&mut dyn Memory, InstAddress, usize, Output) -> VmResult<()> + Send + Sync {
     move |stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output| {
-        let values = rune::vm_try!(stack.slice_at(addr, args)).to_vec();
         let _scope = CallbackScope::enter();
-        let mut neutral = Vec::with_capacity(values.len());
-        for v in &values {
-            match crate::value::to_neutral(v) {
-                Ok(n) => neutral.push(n),
-                Err(err) => return VmResult::Err(VmError::panic(err.to_string())),
+        // Converted straight off the stack: copying the arguments out first
+        // was an allocation and a refcount round on every call.
+        let mut neutral = Vec::with_capacity(args);
+        {
+            let values = rune::vm_try!(stack.slice_at(addr, args));
+            for v in values {
+                match crate::value::to_neutral(v) {
+                    Ok(n) => neutral.push(n),
+                    Err(err) => return VmResult::Err(VmError::panic(err.to_string())),
+                }
             }
         }
         let called = BOUND.with_borrow(|b| b.get(handle).map(|(engine, f)| f(engine, &neutral)));
