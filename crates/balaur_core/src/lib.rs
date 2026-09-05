@@ -10,6 +10,7 @@ pub mod app;
 pub mod asset_index;
 pub mod assets;
 mod batteries_api;
+pub mod cloner;
 pub mod collections;
 pub mod components;
 pub mod csg;

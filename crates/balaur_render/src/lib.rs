@@ -17,6 +17,7 @@ use balaur_script::Bindings;
 pub mod aseprite;
 mod boolean;
 mod camera;
+mod cloner;
 mod debug_view;
 mod draw_2d;
 pub mod light;
@@ -38,6 +39,7 @@ mod sprite;
 mod texture;
 mod tilemap;
 pub use camera::{Camera, CameraKind};
+pub use cloner::Clones;
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
 pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
 pub use particles::Particles;
@@ -57,6 +59,8 @@ mod device;
     not(target_os = "emscripten")
 ))]
 mod hidden_tab;
+#[cfg(feature = "kiss3d")]
+mod instancing;
 #[cfg(feature = "kiss3d")]
 pub mod kiss3d_backend;
 #[cfg(feature = "kiss3d")]
@@ -879,6 +883,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         material::install_material_params(&mut *m);
         shape::install_shape_api(&mut *m);
         boolean::install_boolean_api(&mut *m);
+        cloner::install_cloner_api(&mut *m);
         light::install_occluder_api(&mut *m);
         script_api::install_sprite_api(&mut *m);
         script_api::install_sprite_state_api(&mut *m);
@@ -895,6 +900,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         light::register_occluder2d_component(reg);
         boolean::register_boolean3d_component(reg);
         boolean::register_boolean2d_component(reg);
+        cloner::register_cloner_component(reg);
         mesh::register_mesh_component(reg);
         material::register_material_asset(reg);
         sheet::register_sheet_asset(reg);
@@ -910,6 +916,8 @@ impl balaur_plugin::Plugin for RenderPlugin {
         // Same stage: a boolean's operands have settled, so its result is
         // built from where they ended up this tick.
         reg.add_system(Stage::SceneSync, boolean::resolve_booleans_system);
+        // After the booleans: a cloner may multiply their result too.
+        reg.add_system(Stage::SceneSync, cloner::resolve_cloners_system);
         reg.add_system(Stage::Render, clear_debug_lines_system);
 
         Ok(())

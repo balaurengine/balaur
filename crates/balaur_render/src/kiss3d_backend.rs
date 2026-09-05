@@ -586,6 +586,14 @@ fn sync(
             .set_local_scale(scale.x, scale.y, scale.z)
             .set_color(Color::new(r, g, b, a))
             .set_visible(visible);
+        // A cloner above this node turns it into one draw of many copies.
+        let clones = world.get::<&crate::Clones>(entity).ok();
+        crate::instancing::set_instances_3d(
+            &mut slot.node,
+            clones.as_deref(),
+            global,
+            [r, g, b, a],
+        );
     }
     slots.retain(|entity, slot| {
         if seen.contains(entity) {
