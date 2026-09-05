@@ -19,10 +19,8 @@ assets=(
   "$dist"/balaur.js
   "$dist"/balaur-play.tar.gz
 )
-# nullglob drops a pattern that matches nothing, but the web names carry no
-# wildcard to expand, so a run without the web build would list them anyway.
-# Regular files only: a wildcard can also catch a staging directory a build
-# left in dist, and sha256sum and `gh release create` both choke on one.
+# Regular files only: nullglob leaves the wildcard-free web names in place when
+# they are absent, and a wildcard can catch a staging directory left in dist.
 present=()
 for asset in "${assets[@]}"; do
   [ -f "$asset" ] && present+=("$asset")
