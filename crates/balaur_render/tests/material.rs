@@ -209,3 +209,66 @@ fn a_3d_material_links_against_the_mesh_contract() {
     assert!(compiled.wgsl.contains("fog_color"), "{}", compiled.wgsl);
     assert_eq!(compiled.params.len(), 16);
 }
+
+/// A material that never mentions instancing still gets the per-copy inputs,
+/// which is what lets a cloner multiply a node the shader knows nothing
+/// about. The locations have to match `vertex_layouts` in
+/// `shader_material_3d.rs`, and this is what says so without a GPU.
+#[test]
+fn a_3d_material_carries_the_per_copy_inputs_it_never_asked_for() {
+    let dir = project();
+    let app = app(dir.path());
+    let asset =
+        balaur_core::assets::load_typed::<Material>(&app.engine, "materials/lit.toml").unwrap();
+    let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
+    let compiled = compile(&asset, &source).unwrap();
+    for location in 3..=7 {
+        assert!(
+            compiled.wgsl.contains(&format!("@location({location})")),
+            "location {location} is missing from the vertex contract: {}",
+            compiled.wgsl
+        );
+    }
+    assert!(
+        compiled.wgsl.contains("instance_index"),
+        "a material should be able to ask which copy it is: {}",
+        compiled.wgsl
+    );
+}
+
+/// A material may ask which copy it is drawing, and tint it by that alone.
+#[test]
+fn a_material_can_read_the_copy_it_is_drawing() {
+    let dir = project();
+    std::fs::write(
+        dir.path().join("shaders/striped.wesl"),
+        r"
+import package::mesh::{VertexInput, VertexOutput, vertex, copy_index, copy_tint, shade};
+
+struct Stripe { color: vec4<f32> }
+@group(3) @binding(0) var<uniform> stripe: Stripe;
+
+@vertex fn vs_main(in: VertexInput) -> VertexOutput {
+    let which: u32 = copy_index(in);
+    let tint: vec4<f32> = copy_tint(in);
+    return vertex(in);
+}
+
+@fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    return shade(in) * stripe.color;
+}
+",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("materials/striped.toml"),
+        "type = \"material\"\nshader = \"shaders/striped.wesl\"\nparams = { color = \"#ffffff\" }\n",
+    )
+    .unwrap();
+    let app = app(dir.path());
+    let asset =
+        balaur_core::assets::load_typed::<Material>(&app.engine, "materials/striped.toml").unwrap();
+    let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
+    let compiled = compile(&asset, &source).expect("a shader that reads its copy links");
+    assert!(compiled.wgsl.contains("fn vs_main"), "{}", compiled.wgsl);
+}

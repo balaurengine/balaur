@@ -20,6 +20,7 @@ mod camera;
 mod cloner;
 mod debug_view;
 mod draw_2d;
+mod instancing;
 pub mod light;
 pub mod material;
 pub mod mesh;
@@ -59,8 +60,6 @@ mod device;
     not(target_os = "emscripten")
 ))]
 mod hidden_tab;
-#[cfg(feature = "kiss3d")]
-mod instancing;
 #[cfg(feature = "kiss3d")]
 pub mod kiss3d_backend;
 #[cfg(feature = "kiss3d")]

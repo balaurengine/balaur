@@ -191,3 +191,25 @@ fn an_unknown_mode_is_refused_rather_than_guessed() {
     let params: toml::Value = toml::from_str("mode = \"sprinkle\"").unwrap();
     assert!(components::add(&app.engine, owner, "cloner", Some(&params)).is_err());
 }
+
+/// The plan's end for this step: a thousand copies are one list, and so one
+/// draw. Counting the poses is what a headless run can prove; the draw call
+/// is the backend handing exactly this list to the pipeline.
+#[test]
+fn a_thousand_copies_are_one_list() {
+    let (_dir, mut app) = app();
+    let root = app.engine.root();
+    let owner = node(&app, "Crowd", root);
+    add(
+        &app,
+        owner,
+        "cloner",
+        "mode = \"grid\"\ncounts = [10, 10, 10]\nstep = [1.0, 1.0, 1.0]",
+    );
+    let child = cube(&app, owner, "One");
+    app.tick(1.0 / 60.0);
+    let at = placements(&app, child);
+    assert_eq!(at.len(), 1000, "a thousand copies in one go");
+    let far = at.iter().fold(Vec3::ZERO, |far, p| far.max(*p));
+    assert_eq!(far, Vec3::splat(9.0), "the far corner of the crowd");
+}

@@ -588,12 +588,7 @@ fn sync(
             .set_visible(visible);
         // A cloner above this node turns it into one draw of many copies.
         let clones = world.get::<&crate::Clones>(entity).ok();
-        crate::instancing::set_instances_3d(
-            &mut slot.node,
-            clones.as_deref(),
-            global,
-            [r, g, b, a],
-        );
+        crate::instancing::set_instances_3d(&mut slot.node, clones.as_deref(), global);
     }
     slots.retain(|entity, slot| {
         if seen.contains(entity) {

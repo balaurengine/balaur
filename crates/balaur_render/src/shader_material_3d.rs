@@ -195,25 +195,53 @@ const fn attribute(shader_location: u32, format: wgpu::VertexFormat) -> wgpu::Ve
     }
 }
 
-// Locations 0-2 are `VertexInput` in `shaders/mesh.wesl`.
+// Locations 0-2 are `VertexInput` in `shaders/mesh.wesl`, and 3-7 are the
+// per-copy half of it, stepped once per instance rather than once per vertex.
 const POSITION: [wgpu::VertexAttribute; 1] = [attribute(0, wgpu::VertexFormat::Float32x3)];
 const NORMAL: [wgpu::VertexAttribute; 1] = [attribute(1, wgpu::VertexFormat::Float32x3)];
 const UV: [wgpu::VertexAttribute; 1] = [attribute(2, wgpu::VertexFormat::Float32x2)];
+const COPY_OFFSET: [wgpu::VertexAttribute; 1] = [attribute(3, wgpu::VertexFormat::Float32x3)];
+const COPY_COLOR: [wgpu::VertexAttribute; 1] = [attribute(4, wgpu::VertexFormat::Float32x4)];
+/// Three columns of one 3x3, laid out back to back for each copy.
+const COPY_DEFORM: [wgpu::VertexAttribute; 3] = [
+    attribute(5, wgpu::VertexFormat::Float32x3),
+    wgpu::VertexAttribute {
+        offset: 12,
+        shader_location: 6,
+        format: wgpu::VertexFormat::Float32x3,
+    },
+    wgpu::VertexAttribute {
+        offset: 24,
+        shader_location: 7,
+        format: wgpu::VertexFormat::Float32x3,
+    },
+];
 
-fn vertex_layouts() -> [Option<wgpu::VertexBufferLayout<'static>>; 3] {
+fn vertex_layouts() -> [Option<wgpu::VertexBufferLayout<'static>>; 6] {
     const VEC3: u64 = std::mem::size_of::<[f32; 3]>() as u64;
     const VEC2: u64 = std::mem::size_of::<[f32; 2]>() as u64;
-    let layout = |stride: u64, attributes| {
+    const VEC4: u64 = std::mem::size_of::<[f32; 4]>() as u64;
+    let per_vertex = |stride: u64, attributes| {
         Some(wgpu::VertexBufferLayout {
             array_stride: stride,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes,
         })
     };
+    let per_copy = |stride: u64, attributes| {
+        Some(wgpu::VertexBufferLayout {
+            array_stride: stride,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes,
+        })
+    };
     [
-        layout(VEC3, &POSITION),
-        layout(VEC3, &NORMAL),
-        layout(VEC2, &UV),
+        per_vertex(VEC3, &POSITION),
+        per_vertex(VEC3, &NORMAL),
+        per_vertex(VEC2, &UV),
+        per_copy(VEC3, &COPY_OFFSET),
+        per_copy(VEC4, &COPY_COLOR),
+        per_copy(3 * VEC3, &COPY_DEFORM),
     ]
 }
 
@@ -463,7 +491,7 @@ impl Material3d for ShaderMaterial3d {
         _lights: &LightCollection,
         data: &ObjectData3d,
         mesh: &mut GpuMesh3d,
-        _instances: &mut InstancesBuffer3d,
+        instances: &mut InstancesBuffer3d,
         gpu_data: &mut dyn GpuData,
         render_pass: &mut wgpu::RenderPass<'_>,
         context: &RenderContext,
@@ -491,6 +519,12 @@ impl Material3d for ShaderMaterial3d {
             .write()
             .expect("kiss3d panicked while writing the mesh's faces")
             .load_to_gpu();
+        // The per-copy half. One identity copy when nothing is multiplying
+        // this node, which is what makes instancing invisible to a material.
+        let copies = instances.len().max(1) as u32;
+        instances.positions.load_to_gpu();
+        instances.colors.load_to_gpu();
+        instances.deformations.load_to_gpu();
 
         let (
             Some(coords),
@@ -499,6 +533,9 @@ impl Material3d for ShaderMaterial3d {
             Some(faces),
             Some(object_bind_group),
             Some(texture_bind_group),
+            Some(copy_offsets),
+            Some(copy_colors),
+            Some(copy_deforms),
         ) = (
             mesh.coords_buffer(),
             mesh.normals_buffer(),
@@ -506,6 +543,9 @@ impl Material3d for ShaderMaterial3d {
             mesh.faces_buffer(),
             gpu_data.object_bind_group.as_ref(),
             gpu_data.texture_bind_group.as_ref(),
+            instances.positions.buffer(),
+            instances.colors.buffer(),
+            instances.deformations.buffer(),
         )
         else {
             return;
@@ -526,8 +566,11 @@ impl Material3d for ShaderMaterial3d {
         render_pass.set_vertex_buffer(0, coords.slice(..));
         render_pass.set_vertex_buffer(1, normals.slice(..));
         render_pass.set_vertex_buffer(2, uvs.slice(..));
+        render_pass.set_vertex_buffer(3, copy_offsets.slice(..));
+        render_pass.set_vertex_buffer(4, copy_colors.slice(..));
+        render_pass.set_vertex_buffer(5, copy_deforms.slice(..));
         render_pass.set_index_buffer(faces.slice(..), VERTEX_INDEX_FORMAT);
-        render_pass.draw_indexed(0..mesh.num_indices(), 0, 0..1);
+        render_pass.draw_indexed(0..mesh.num_indices(), 0, 0..copies);
     }
 }
 

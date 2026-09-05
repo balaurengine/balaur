@@ -46,9 +46,19 @@ struct ObjectUniforms {
 @group(2) @binding(1) var albedo_sampler: sampler;
 
 struct VertexInput {
+    // Which copy this is, when something is drawing the mesh many times.
+    @builtin(instance_index) copy: u32,
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) uv: vec2<f32>,
+    // Where this copy sits, what colour it draws, and the 3x3 it is turned
+    // and scaled by. A mesh drawn once gets the identity and white, so a
+    // material need not know the difference.
+    @location(3) copy_offset: vec3<f32>,
+    @location(4) copy_color: vec4<f32>,
+    @location(5) copy_x: vec3<f32>,
+    @location(6) copy_y: vec3<f32>,
+    @location(7) copy_z: vec3<f32>,
 }
 
 struct VertexOutput {
@@ -88,9 +98,37 @@ fn place_deformed(position: vec3<f32>, normal: vec3<f32>, uv: vec2<f32>) -> Vert
     return out;
 }
 
+// Which copy of the mesh this vertex belongs to, counting from zero. One
+// mesh drawn once is copy zero, so a material can always ask.
+fn copy_index(in: VertexInput) -> u32 {
+    return in.copy;
+}
+
+// The 3x3 this copy is turned and scaled by, in the node's own space.
+fn copy_deform(in: VertexInput) -> mat3x3<f32> {
+    return mat3x3<f32>(in.copy_x, in.copy_y, in.copy_z);
+}
+
+// The node's tint with this copy's own multiplied in. A copy that asked for
+// no colour of its own is white, so this is `tint()` for a lone mesh.
+fn copy_tint(in: VertexInput) -> vec4<f32> {
+    return object.color * in.copy_color;
+}
+
 // Where a vertex lands, with `offset` displacing it in the node's own space.
+//
+// The copy's deformation applies before the node's transform and its
+// translation after, which is the split the instance buffers are written in.
 fn place(in: VertexInput, offset: vec3<f32>) -> VertexOutput {
-    return place_deformed(in.position + offset, in.normal, in.uv);
+    let deform = copy_deform(in);
+    var out = place_deformed(
+        deform * (in.position + offset),
+        deform * in.normal,
+        in.uv,
+    );
+    out.world = out.world + in.copy_offset;
+    out.clip_position = frame.proj * frame.view * vec4<f32>(out.world, 1.0);
+    return out;
 }
 
 fn vertex(in: VertexInput) -> VertexOutput {
