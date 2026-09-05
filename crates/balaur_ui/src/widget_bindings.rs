@@ -10,11 +10,11 @@ use egui::{Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKind, pos2, vec2}
 
 use crate::bridge::{scale, scoped, with_ctx, with_ui};
 use crate::theme::{self, parse_hex};
+use crate::vocabulary::{keys as k, words as w};
 use crate::widgets::{
     Opts, code_editor, draw_image, panel_frame, pill_radius, sc, text, text_field,
 };
 use crate::{UiConfig, UiState};
-use crate::vocabulary::{keys as k, words as w};
 
 /// `ui.*` bindings: theme.
 pub(crate) fn install_theme(m: &mut dyn Bindings<Engine>) {
@@ -983,10 +983,11 @@ fn install_toggle_and_slider(m: &mut dyn Bindings<Engine>) {
                     ui.allocate_exact_size(vec2(w, sc(28.0)), Sense::click_and_drag());
                 let mut value = value;
                 if (response.dragged() || response.clicked())
-                    && let Some(pos) = response.interact_pointer_pos() {
-                        let t = ((pos.x - rect.min.x) / rect.width()).clamp(0.0, 1.0);
-                        value = min + t * (max - min);
-                    }
+                    && let Some(pos) = response.interact_pointer_pos()
+                {
+                    let t = ((pos.x - rect.min.x) / rect.width()).clamp(0.0, 1.0);
+                    value = min + t * (max - min);
+                }
                 let t = if max > min {
                     ((value - min) / (max - min)).clamp(0.0, 1.0)
                 } else {

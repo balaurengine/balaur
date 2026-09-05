@@ -313,9 +313,10 @@ pub(crate) fn resolve_key(eng: &Engine, key: &NodeKey) -> Option<Entity> {
     let root = eng.root();
     let world = eng.world();
     if !key.0.is_empty()
-        && let Some(entity) = balaur_core::ids::find(&world, root, &key.0) {
-            return Some(entity);
-        }
+        && let Some(entity) = balaur_core::ids::find(&world, root, &key.0)
+    {
+        return Some(entity);
+    }
     let entity = Entity::from_bits(key.1)?;
     world.contains(entity).then_some(entity)
 }
@@ -399,16 +400,28 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
         "rigid_body3d",
         balaur_core::presets::preset(
             "A body physics simulates, with a box collider",
-            &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
-            &[(c::BODY_3D, Some("kind = \"dynamic\"")), (c::COLLIDER_3D, None)],
+            &[
+                balaur_core::components::tag::DIM_3D,
+                balaur_core::components::tag::PHYSICS,
+            ],
+            &[
+                (c::BODY_3D, Some("kind = \"dynamic\"")),
+                (c::COLLIDER_3D, None),
+            ],
         )?,
     );
     reg.register_preset(
         "static_body3d",
         balaur_core::presets::preset(
             "An immovable body with a box collider: ground, walls",
-            &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
-            &[(c::BODY_3D, Some("kind = \"static\"")), (c::COLLIDER_3D, None)],
+            &[
+                balaur_core::components::tag::DIM_3D,
+                balaur_core::components::tag::PHYSICS,
+            ],
+            &[
+                (c::BODY_3D, Some("kind = \"static\"")),
+                (c::COLLIDER_3D, None),
+            ],
         )?,
     );
     Ok(())
@@ -446,9 +459,10 @@ fn step_system(eng: &Engine, _dt: f32) {
             for (&entity, &handle) in &state.bodies {
                 let body = &mut state.world.bodies[handle];
                 if body.is_kinematic()
-                    && let Ok(t) = world.get::<&Transform>(entity) {
-                        body.set_next_kinematic_position(scalar::pose_of(t.position, t.rotation));
-                    }
+                    && let Ok(t) = world.get::<&Transform>(entity)
+                {
+                    body.set_next_kinematic_position(scalar::pose_of(t.position, t.rotation));
+                }
             }
         }
 
@@ -458,7 +472,11 @@ fn step_system(eng: &Engine, _dt: f32) {
         // The step rebuilds the broad phase itself.
         state.queries_ready = true;
         let collector = events::Collector::default();
-        state.world.step_with_events(&events::Hooks, &collector);
+        // A span of its own, so a profiler tells rapier's step from what the
+        // engine wraps around it.
+        balaur_core::timings::measure(eng, "physics3d/step", || {
+            state.world.step_with_events(&events::Hooks, &collector);
+        });
 
         // Write simulated poses back to the scene tree.
         let world = eng.world();
@@ -720,7 +738,8 @@ pub const AXES: &[(&str, &str)] = &[
 ];
 
 /// The same, in 2D: two translations and the one rotation there is.
-pub const AXES_2D: &[(&str, &str)] = &[("AXIS_X", w::X), ("AXIS_Y", w::Y), ("AXIS_ANG_X", w::ANG_X)];
+pub const AXES_2D: &[(&str, &str)] =
+    &[("AXIS_X", w::X), ("AXIS_Y", w::Y), ("AXIS_ANG_X", w::ANG_X)];
 
 /// Every table `physics3d` spells as constants.
 pub const CONSTANTS_3D: &[&[(&str, &str)]] = &[

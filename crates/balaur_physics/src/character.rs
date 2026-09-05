@@ -30,17 +30,53 @@ pub(crate) fn shared_character_schema() -> String {
     let modes = v::options(w::LENGTH_MODES);
     let absolute = w::ABSOLUTE;
     v::schema(&[
-        (k::OFFSET, r#"{ type = "float", default = 0.01, min = 0.0, description = "A gap kept between the character and everything else, so the solver never has to push it out of a wall" }"#),
-        (k::SLIDE, r#"{ type = "bool", default = true, description = "Slide along what is in the way instead of stopping dead against it" }"#),
-        (k::AUTOSTEP, r#"{ type = "float", default = 0.3, min = 0.0, description = "The tallest step the character climbs without jumping; 0 turns stepping off" }"#),
-        (k::AUTOSTEP_MIN_WIDTH, r#"{ type = "float", default = 0.2, min = 0.0, description = "How much clear ground a step needs on top before it may be climbed" }"#),
-        (k::AUTOSTEP_DYNAMIC, r#"{ type = "bool", default = false, description = "Climb onto dynamic bodies too, not only static and kinematic ones" }"#),
-        (k::MAX_CLIMB_ANGLE, r#"{ type = "float", default = 45.0, min = 0.0, max = 90.0, description = "The steepest slope the character may walk up, in degrees" }"#),
-        (k::MIN_SLIDE_ANGLE, r#"{ type = "float", default = 30.0, min = 0.0, max = 90.0, description = "The shallowest slope the character slides back down, in degrees" }"#),
-        (k::SNAP_TO_GROUND, r#"{ type = "float", default = 0.2, min = 0.0, description = "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off" }"#),
-        (k::NORMAL_NUDGE, r#"{ type = "float", default = 0.0001, min = 0.0, description = "A tiny push along the contact normal that stops the character catching on seams" }"#),
-        (k::PUSH_BODIES, r#"{ type = "bool", default = true, description = "Push dynamic bodies the character walks into, rather than passing through them" }"#),
-        (k::LENGTHS, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Whether offset, autostep and snap_to_ground are in world units or as a fraction of the character's own height" }}"#, absolute, modes)),
+        (
+            k::OFFSET,
+            r#"{ type = "float", default = 0.01, min = 0.0, description = "A gap kept between the character and everything else, so the solver never has to push it out of a wall" }"#,
+        ),
+        (
+            k::SLIDE,
+            r#"{ type = "bool", default = true, description = "Slide along what is in the way instead of stopping dead against it" }"#,
+        ),
+        (
+            k::AUTOSTEP,
+            r#"{ type = "float", default = 0.3, min = 0.0, description = "The tallest step the character climbs without jumping; 0 turns stepping off" }"#,
+        ),
+        (
+            k::AUTOSTEP_MIN_WIDTH,
+            r#"{ type = "float", default = 0.2, min = 0.0, description = "How much clear ground a step needs on top before it may be climbed" }"#,
+        ),
+        (
+            k::AUTOSTEP_DYNAMIC,
+            r#"{ type = "bool", default = false, description = "Climb onto dynamic bodies too, not only static and kinematic ones" }"#,
+        ),
+        (
+            k::MAX_CLIMB_ANGLE,
+            r#"{ type = "float", default = 45.0, min = 0.0, max = 90.0, description = "The steepest slope the character may walk up, in degrees" }"#,
+        ),
+        (
+            k::MIN_SLIDE_ANGLE,
+            r#"{ type = "float", default = 30.0, min = 0.0, max = 90.0, description = "The shallowest slope the character slides back down, in degrees" }"#,
+        ),
+        (
+            k::SNAP_TO_GROUND,
+            r#"{ type = "float", default = 0.2, min = 0.0, description = "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off" }"#,
+        ),
+        (
+            k::NORMAL_NUDGE,
+            r#"{ type = "float", default = 0.0001, min = 0.0, description = "A tiny push along the contact normal that stops the character catching on seams" }"#,
+        ),
+        (
+            k::PUSH_BODIES,
+            r#"{ type = "bool", default = true, description = "Push dynamic bodies the character walks into, rather than passing through them" }"#,
+        ),
+        (
+            k::LENGTHS,
+            &format!(
+                r#"{{ type = "enum", default = "{}", options = [{}], description = "Whether offset, autostep and snap_to_ground are in world units or as a fraction of the character's own height" }}"#,
+                absolute, modes
+            ),
+        ),
     ])
 }
 

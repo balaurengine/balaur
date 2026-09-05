@@ -167,11 +167,13 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
     let Some(other) = as_node(eng, entity, params.get(k::BODY)) else {
         return Ok(());
     };
+    // A bodiless child stands for the nearest body above it, as in 3D.
+    let (a, b) = (body_above(eng, entity), body_above(eng, other));
     let joint = joint_of(params)?;
     let reduced = v::text(params, k::SOLVER, w::IMPULSE) == w::REDUCED;
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
-    let (first, second) = handles(&state, entity, other)?;
+    let (first, second) = handles(&state, a, b)?;
     let handle = if reduced {
         state
             .world
@@ -191,6 +193,10 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
         },
     );
     Ok(())
+}
+
+fn body_above(eng: &Engine, entity: Entity) -> Entity {
+    super::collider::nearest_body(eng, entity).map_or(entity, |(node, _)| node)
 }
 
 pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
@@ -338,7 +344,7 @@ pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::JOINT_2D,
         ComponentDef {
-            doc: "Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`.",
+            doc: "Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.",
             schema: ComponentDef::parse_schema(c::JOINT_2D, &schema),
             tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
             expects: &[c::BODY_2D],

@@ -6,8 +6,8 @@ use anyhow::Result;
 use balaur_core::components::ComponentDef;
 use balaur_plugin::Registry;
 
-use crate::widget_layer::Widget;
 use crate::vocabulary::{self as v, keys as k, words as w};
+use crate::widget_layer::Widget;
 
 /// The `widget` key, backed by exactly one `Widget` component on the node.
 ///
@@ -238,14 +238,8 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
     let recipes = [
         (w::LABEL, "A line of text"),
         (w::FIELD, "A line the player types into"),
-        (
-            w::BUTTON,
-            "Text that reports its clicks",
-        ),
-        (
-            w::PANEL,
-            "A framed box that lays out what is inside it",
-        ),
+        (w::BUTTON, "Text that reports its clicks"),
+        (w::PANEL, "A framed box that lays out what is inside it"),
         (
             w::ROW,
             "Children side by side, sharing the leftover by `grow`",
@@ -262,23 +256,14 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
             w::TAB,
             "One child showing, the rest named on a strip above it",
         ),
-        (
-            "draw",
-            "A rect a script fills, named by `draw`",
-        ),
+        ("draw", "A rect a script fills, named by `draw`"),
         (
             w::IMAGE,
             "A picture from the project, sized by itself or by what it states",
         ),
         (w::CHECK, "A box that ticks"),
-        (
-            w::DROPDOWN,
-            "One of its `options`, picked from a list",
-        ),
-        (
-            w::SLIDER,
-            "A number dragged between `min` and `max`",
-        ),
+        (w::DROPDOWN, "One of its `options`, picked from a list"),
+        (w::SLIDER, "A number dragged between `min` and `max`"),
         (
             w::PROGRESS,
             "A bar filled to `value` between `min` and `max`",
@@ -291,24 +276,22 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
             w::FLOW,
             "Children left to right, wrapping when the row is full",
         ),
-        (
-            w::FOLD,
-            "A header that shows or hides what is under it",
-        ),
+        (w::FOLD, "A header that shows or hides what is under it"),
         (
             w::DIALOG,
             "A panel over everything, with the screen behind it dimmed and deaf",
         ),
-        (
-            "separator",
-            "A line between siblings",
-        ),
+        ("separator", "A line between siblings"),
     ];
     for (name, description) in recipes {
         let params = format!("{} = \"{name}\"", k::KIND);
         reg.register_preset(
             name,
-            preset(description, &[balaur_core::components::tag::UI], &[("widget", Some(params.as_str()))])?,
+            preset(
+                description,
+                &[balaur_core::components::tag::UI],
+                &[("widget", Some(params.as_str()))],
+            )?,
         );
     }
     Ok(())

@@ -3,9 +3,9 @@
 
 use egui::vec2;
 
+use crate::vocabulary::words as w;
 use crate::widget_arrange::box_of;
 use crate::widget_layer::{Edit, Painting, Widget};
-use crate::vocabulary::{words as w};
 
 /// What a widget's text asks the shaper for, at this scale.
 pub(crate) fn text_request(

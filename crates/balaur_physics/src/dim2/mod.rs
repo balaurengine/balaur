@@ -32,8 +32,8 @@ use query::overlaps_value;
 
 use balaur_core::digest::{Entry, Hasher, node_label};
 
-use balaur_core::FIXED_DT;
 use crate::vocabulary::{component as c, hook};
+use balaur_core::FIXED_DT;
 
 pub struct PhysicsState2d {
     pub world: PhysicsWorld2,
@@ -119,13 +119,14 @@ fn step_system(eng: &Engine, _dt: f32) {
             for (&entity, &handle) in &state.bodies {
                 let body = &mut state.world.bodies[handle];
                 if body.is_kinematic()
-                    && let Ok(t) = world.get::<&Transform>(entity) {
-                        let (angle, _, _) = t.rotation.to_euler(EulerRot::ZYX);
-                        body.set_next_kinematic_position(Pose2::from_parts(
-                            scalar::v2(t.position.x, t.position.y),
-                            Rotation2::from_angle(scalar::real(angle)),
-                        ));
-                    }
+                    && let Ok(t) = world.get::<&Transform>(entity)
+                {
+                    let (angle, _, _) = t.rotation.to_euler(EulerRot::ZYX);
+                    body.set_next_kinematic_position(Pose2::from_parts(
+                        scalar::v2(t.position.x, t.position.y),
+                        Rotation2::from_angle(scalar::real(angle)),
+                    ));
+                }
             }
         }
 
@@ -133,7 +134,9 @@ fn step_system(eng: &Engine, _dt: f32) {
         // second accumulator here would drift out of step with the scripts.
         state.world.integration_parameters.dt = scalar::real(FIXED_DT);
         let collector = events::Collector::default();
-        state.world.step_with_events(&events::Hooks, &collector);
+        balaur_core::timings::measure(eng, "physics2d/step", || {
+            state.world.step_with_events(&events::Hooks, &collector);
+        });
 
         // Write simulated poses back (x, y and the rotation about z).
         let world = eng.world();
@@ -232,16 +235,28 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
         "rigid_body2d",
         balaur_core::presets::preset(
             "A 2D body physics simulates, with a rect collider",
-            &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
-            &[(c::BODY_2D, Some("kind = \"dynamic\"")), (c::COLLIDER_2D, None)],
+            &[
+                balaur_core::components::tag::DIM_2D,
+                balaur_core::components::tag::PHYSICS,
+            ],
+            &[
+                (c::BODY_2D, Some("kind = \"dynamic\"")),
+                (c::COLLIDER_2D, None),
+            ],
         )?,
     );
     reg.register_preset(
         "static_body2d",
         balaur_core::presets::preset(
             "An immovable 2D body with a rect collider: ground, walls",
-            &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
-            &[(c::BODY_2D, Some("kind = \"static\"")), (c::COLLIDER_2D, None)],
+            &[
+                balaur_core::components::tag::DIM_2D,
+                balaur_core::components::tag::PHYSICS,
+            ],
+            &[
+                (c::BODY_2D, Some("kind = \"static\"")),
+                (c::COLLIDER_2D, None),
+            ],
         )?,
     );
 

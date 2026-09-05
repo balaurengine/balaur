@@ -667,23 +667,98 @@ pub(crate) fn shared_collider_schema() -> String {
     let collisions = v::options(&v::flags::collision_types().map(|(name, _)| name));
     let watched = v::options(w::DEFAULT_COLLISIONS);
     v::schema(&[
-        (k::RESTITUTION, r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness: 0 is a dead stop, 1 a full rebound" }"#),
-        (k::FRICTION, r#"{ type = "float", default = 0.5, min = 0.0, description = "Surface friction; 0 is ice" }"#),
-        (k::DENSITY, r#"{ type = "float", default = 1.0, min = 0.001, description = "Mass per volume, so the shape's size sets its mass" }"#),
-        (k::MASS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Mass in kilograms, overriding what density works out to; 0 keeps the density" }"#),
-        (k::FRICTION_COMBINE, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How this surface's friction combines with the other one's" }}"#, average, combine)),
-        (k::RESTITUTION_COMBINE, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How this surface's bounciness combines with the other one's" }}"#, average, combine)),
-        (k::CONTACT_SKIN, r#"{ type = "float", default = 0.0, min = 0.0, description = "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering" }"#),
-        (k::SENSOR, r#"{ type = "bool", default = false, description = "Detects overlaps without colliding: bodies pass through and are reported" }"#),
-        (k::ENABLED, r#"{ type = "bool", default = true, description = "Collide at all; a disabled collider keeps its shape and costs nothing" }"#),
-        (k::LAYERS, &format!(r#"{{ type = "flags", default = ["0"], options = [{}], description = "The layers this collider is on" }}"#, layers)),
-        (k::MASK, &format!(r#"{{ type = "flags", default = [], options = [{}], description = "The layers it collides with; empty means every layer" }}"#, layers)),
-        (k::SOLVER_LAYERS, &format!(r#"{{ type = "flags", default = ["0"], options = [{}], description = "Layers for the solver alone: a pair can be detected but not resolved" }}"#, layers)),
-        (k::SOLVER_MASK, &format!(r#"{{ type = "flags", default = [], options = [{}], description = "Which solver layers this one pushes against; empty means all of them" }}"#, layers)),
-        (k::EVENTS, &format!(r#"{{ type = "flags", default = [], options = [{}], description = "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force" }}"#, events)),
-        (k::CONTACT_FORCE_THRESHOLD, r#"{ type = "float", default = 0.0, min = 0.0, description = "How hard a contact must be before on_contact_force is called" }"#),
-        (k::ACTIVE_COLLISIONS, &format!(r#"{{ type = "flags", default = [{}], options = [{}], description = "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default" }}"#, watched, collisions)),
-        (k::ONE_WAY, r#"{ type = "bool", default = false, description = "A platform bodies pass through from below and land on from above" }"#),
+        (
+            k::RESTITUTION,
+            r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness: 0 is a dead stop, 1 a full rebound" }"#,
+        ),
+        (
+            k::FRICTION,
+            r#"{ type = "float", default = 0.5, min = 0.0, description = "Surface friction; 0 is ice" }"#,
+        ),
+        (
+            k::DENSITY,
+            r#"{ type = "float", default = 1.0, min = 0.001, description = "Mass per volume, so the shape's size sets its mass" }"#,
+        ),
+        (
+            k::MASS,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Mass in kilograms, overriding what density works out to; 0 keeps the density" }"#,
+        ),
+        (
+            k::FRICTION_COMBINE,
+            &format!(
+                r#"{{ type = "enum", default = "{}", options = [{}], description = "How this surface's friction combines with the other one's" }}"#,
+                average, combine
+            ),
+        ),
+        (
+            k::RESTITUTION_COMBINE,
+            &format!(
+                r#"{{ type = "enum", default = "{}", options = [{}], description = "How this surface's bounciness combines with the other one's" }}"#,
+                average, combine
+            ),
+        ),
+        (
+            k::CONTACT_SKIN,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering" }"#,
+        ),
+        (
+            k::SENSOR,
+            r#"{ type = "bool", default = false, description = "Detects overlaps without colliding: bodies pass through and are reported" }"#,
+        ),
+        (
+            k::ENABLED,
+            r#"{ type = "bool", default = true, description = "Collide at all; a disabled collider keeps its shape and costs nothing" }"#,
+        ),
+        (
+            k::LAYERS,
+            &format!(
+                r#"{{ type = "flags", default = ["0"], options = [{}], description = "The layers this collider is on" }}"#,
+                layers
+            ),
+        ),
+        (
+            k::MASK,
+            &format!(
+                r#"{{ type = "flags", default = [], options = [{}], description = "The layers it collides with; empty means every layer" }}"#,
+                layers
+            ),
+        ),
+        (
+            k::SOLVER_LAYERS,
+            &format!(
+                r#"{{ type = "flags", default = ["0"], options = [{}], description = "Layers for the solver alone: a pair can be detected but not resolved" }}"#,
+                layers
+            ),
+        ),
+        (
+            k::SOLVER_MASK,
+            &format!(
+                r#"{{ type = "flags", default = [], options = [{}], description = "Which solver layers this one pushes against; empty means all of them" }}"#,
+                layers
+            ),
+        ),
+        (
+            k::EVENTS,
+            &format!(
+                r#"{{ type = "flags", default = [], options = [{}], description = "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force" }}"#,
+                events
+            ),
+        ),
+        (
+            k::CONTACT_FORCE_THRESHOLD,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "How hard a contact must be before on_contact_force is called" }"#,
+        ),
+        (
+            k::ACTIVE_COLLISIONS,
+            &format!(
+                r#"{{ type = "flags", default = [{}], options = [{}], description = "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default" }}"#,
+                watched, collisions
+            ),
+        ),
+        (
+            k::ONE_WAY,
+            r#"{ type = "bool", default = false, description = "A platform bodies pass through from below and land on from above" }"#,
+        ),
     ])
 }
 

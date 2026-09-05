@@ -26,18 +26,54 @@ use crate::{PhysicsState, node_pose};
 /// things in two dimensions.
 pub(crate) fn shared_body_schema() -> String {
     v::schema(&[
-        (k::LINEAR_DAMPING, r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on travel: how fast the body loses speed with nothing touching it" }"#),
-        (k::ANGULAR_DAMPING, r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on spin, in the same terms as linear_damping" }"#),
-        (k::GRAVITY_SCALE, r#"{ type = "float", default = 1.0, description = "Multiplier on world gravity for this body: 0 hangs in the air, negative floats up" }"#),
-        (k::MASS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra mass on top of what the colliders' density gives; 0 leaves the body at its collider mass" }"#),
-        (k::DOMINANCE, r#"{ type = "float", default = 0.0, min = -127.0, max = 127.0, description = "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all" }"#),
-        (k::SOLVER_ITERATIONS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra solver iterations for this body alone, for the one stack that jitters" }"#),
-        (k::CCD, r#"{ type = "bool", default = false, description = "Sweep the body's whole path each step so a fast one cannot pass through a wall" }"#),
-        (k::SOFT_CCD, r#"{ type = "float", default = 0.0, min = 0.0, description = "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies" }"#),
-        (k::FAST_ROTATION, r#"{ type = "bool", default = false, description = "Allow a spin fast enough that rapier would otherwise clamp it" }"#),
-        (k::CAN_SLEEP, r#"{ type = "bool", default = true, description = "Let the body stop being simulated once it has held still" }"#),
-        (k::SLEEP_TIME, r#"{ type = "float", default = 0.5, min = 0.0, description = "Seconds of stillness before the body sleeps" }"#),
-        (k::ENABLED, r#"{ type = "bool", default = true, description = "Simulate this body at all; a disabled body keeps its state and costs nothing" }"#),
+        (
+            k::LINEAR_DAMPING,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on travel: how fast the body loses speed with nothing touching it" }"#,
+        ),
+        (
+            k::ANGULAR_DAMPING,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on spin, in the same terms as linear_damping" }"#,
+        ),
+        (
+            k::GRAVITY_SCALE,
+            r#"{ type = "float", default = 1.0, description = "Multiplier on world gravity for this body: 0 hangs in the air, negative floats up" }"#,
+        ),
+        (
+            k::MASS,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra mass on top of what the colliders' density gives; 0 leaves the body at its collider mass" }"#,
+        ),
+        (
+            k::DOMINANCE,
+            r#"{ type = "float", default = 0.0, min = -127.0, max = 127.0, description = "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all" }"#,
+        ),
+        (
+            k::SOLVER_ITERATIONS,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra solver iterations for this body alone, for the one stack that jitters" }"#,
+        ),
+        (
+            k::CCD,
+            r#"{ type = "bool", default = false, description = "Sweep the body's whole path each step so a fast one cannot pass through a wall" }"#,
+        ),
+        (
+            k::SOFT_CCD,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies" }"#,
+        ),
+        (
+            k::FAST_ROTATION,
+            r#"{ type = "bool", default = false, description = "Allow a spin fast enough that rapier would otherwise clamp it" }"#,
+        ),
+        (
+            k::CAN_SLEEP,
+            r#"{ type = "bool", default = true, description = "Let the body stop being simulated once it has held still" }"#,
+        ),
+        (
+            k::SLEEP_TIME,
+            r#"{ type = "float", default = 0.5, min = 0.0, description = "Seconds of stillness before the body sleeps" }"#,
+        ),
+        (
+            k::ENABLED,
+            r#"{ type = "bool", default = true, description = "Simulate this body at all; a disabled body keeps its state and costs nothing" }"#,
+        ),
     ])
 }
 
@@ -82,9 +118,10 @@ fn locked_axes(params: &toml::Value) -> LockedAxes {
 /// property at a time, from an animation) honest.
 pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_sleep: bool) {
     if let Ok(kind) = body_type(v::text(params, k::KIND, w::DYNAMIC))
-        && body.body_type() != kind {
-            body.set_body_type(kind, true);
-        }
+        && body.body_type() != kind
+    {
+        body.set_body_type(kind, true);
+    }
     body.set_linear_damping(scalar::real(v::f(params, k::LINEAR_DAMPING, 0.0)));
     body.set_angular_damping(scalar::real(v::f(params, k::ANGULAR_DAMPING, 0.0)));
     body.set_gravity_scale(scalar::real(v::f(params, k::GRAVITY_SCALE, 1.0)), true);
@@ -187,7 +224,10 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
         k::FAST_ROTATION.into(),
         body.is_fast_rotation_allowed().into(),
     );
-    map.insert(k::GYROSCOPIC.into(), body.gyroscopic_forces_enabled().into());
+    map.insert(
+        k::GYROSCOPIC.into(),
+        body.gyroscopic_forces_enabled().into(),
+    );
     map.insert(k::ENABLED.into(), body.is_enabled().into());
     map.insert(
         k::CAN_SLEEP.into(),
@@ -525,7 +565,7 @@ fn install_body_readers(m: &mut dyn Bindings<Engine>) {
     m.function("potential_energy", |eng: &Engine, node: NodeId| {
         let gravity = {
             let state = eng.resource::<PhysicsState>();
-            
+
             state.borrow().world.gravity
         };
         read_body(eng, entity_of(node)?, |body| {
@@ -724,7 +764,12 @@ pub(crate) fn install_body_lock_api(m: &mut dyn Bindings<Engine>) {
 ///
 /// Split from [`install_body_tuning_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_body_ccd_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[("dominance", &[c::BODY_3D], "", "This body's dominance group.")]);
+    m.describe(&[(
+        "dominance",
+        &[c::BODY_3D],
+        "",
+        "This body's dominance group.",
+    )]);
     m.function("set_ccd", |eng: &Engine, (node, on): (NodeId, bool)| {
         with_body(eng, entity_of(node)?, |state, handle| {
             state.world.bodies[handle].enable_ccd(on);

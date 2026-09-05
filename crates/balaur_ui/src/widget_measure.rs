@@ -6,6 +6,7 @@
 //! this frame rather than to the one it showed last.
 
 use crate::theme::family;
+use crate::vocabulary::words as w;
 use crate::widget_arrange::padding_of;
 use crate::widget_layer::{Placed, Widget, caption, lays_out, theme_of};
 use crate::widget_theme::WidgetTheme;
@@ -13,7 +14,6 @@ use balaur_core::Engine;
 use egui::vec2;
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::vocabulary::{words as w};
 
 /// A measure over one tree, memoised within itself: a container asks each
 /// child for a whole subtree, and its own parent will ask again. egui caches

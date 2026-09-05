@@ -53,9 +53,10 @@ fn locked_axes(params: &toml::Value) -> LockedAxes {
 
 pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_sleep: bool) {
     if let Ok(kind) = body_type(v::text(params, k::KIND, w::DYNAMIC))
-        && body.body_type() != kind {
-            body.set_body_type(kind, true);
-        }
+        && body.body_type() != kind
+    {
+        body.set_body_type(kind, true);
+    }
     body.set_linear_damping(scalar::real(v::f(params, k::LINEAR_DAMPING, 0.0)));
     body.set_angular_damping(scalar::real(v::f(params, k::ANGULAR_DAMPING, 0.0)));
     body.set_gravity_scale(scalar::real(v::f(params, k::GRAVITY_SCALE, 1.0)), true);
@@ -359,7 +360,12 @@ pub(crate) fn install_body2d_lock_api(m: &mut dyn Bindings<Engine>) {
 ///
 /// Split from [`install_body2d_tuning_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_body2d_ccd_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[("dominance", &[c::BODY_2D], "", "This body's dominance group.")]);
+    m.describe(&[(
+        "dominance",
+        &[c::BODY_2D],
+        "",
+        "This body's dominance group.",
+    )]);
     m.function("set_ccd", |eng: &Engine, (node, on): (NodeId, bool)| {
         with_body(eng, entity_of(node)?, |state, handle| {
             state.world.bodies[handle].enable_ccd(on);

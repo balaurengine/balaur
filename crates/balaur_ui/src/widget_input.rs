@@ -11,8 +11,8 @@ use balaur_core::{Engine, Stage, replay};
 use balaur_script::Value;
 use serde::{Deserialize, Serialize};
 
+use crate::vocabulary::words as w;
 use crate::widget_layer::{Edit, Widget};
-use crate::vocabulary::{words as w};
 
 /// How a frame names a widget: its stable id, and its entity bits for a tree
 /// built by hand. Bits alone would not survive the respawn a rollback does.
@@ -54,9 +54,10 @@ fn key_of(world: &World, entity: Entity) -> WidgetKey {
 fn resolve(eng: &Engine, key: &WidgetKey) -> Option<Entity> {
     let world = eng.world();
     if !key.0.is_empty()
-        && let Some(entity) = balaur_core::ids::find(&world, eng.root(), &key.0) {
-            return Some(entity);
-        }
+        && let Some(entity) = balaur_core::ids::find(&world, eng.root(), &key.0)
+    {
+        return Some(entity);
+    }
     let entity = Entity::from_bits(key.1)?;
     world.contains(entity).then_some(entity)
 }

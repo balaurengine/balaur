@@ -8,10 +8,10 @@
 
 use std::collections::HashMap;
 
+use crate::vocabulary::words as w;
 use balaur_core::Engine;
 use balaur_core::project::ProjectFiles;
 use egui::{Color32, CornerRadius, FontFamily, Shadow, Stroke};
-use crate::vocabulary::words as w;
 
 #[derive(Clone)]
 pub struct ThemeTokens {

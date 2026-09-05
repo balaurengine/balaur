@@ -26,7 +26,10 @@ pub(crate) mod words {
     pub(crate) const DIALOG: &str = "dialog";
     pub(crate) const SEPARATOR: &str = "separator";
     /// The widget kinds, in the order the picker offers them.
-    pub(crate) const WIDGET_KINDS: &[&str] = &[LABEL, BUTTON, PANEL, ROW, COLUMN, SCROLL, TAB, DRAW, IMAGE, FIELD, CHECK, DROPDOWN, SLIDER, PROGRESS, GRID, FLOW, FOLD, DIALOG, SEPARATOR];
+    pub(crate) const WIDGET_KINDS: &[&str] = &[
+        LABEL, BUTTON, PANEL, ROW, COLUMN, SCROLL, TAB, DRAW, IMAGE, FIELD, CHECK, DROPDOWN,
+        SLIDER, PROGRESS, GRID, FLOW, FOLD, DIALOG, SEPARATOR,
+    ];
 
     pub(crate) const TOP_LEFT: &str = "top_left";
     pub(crate) const TOP_RIGHT: &str = "top_right";
@@ -35,7 +38,8 @@ pub(crate) mod words {
     pub(crate) const CENTER: &str = "center";
     pub(crate) const FILL: &str = "fill";
     /// Screen anchors.
-    pub(crate) const ANCHORS: &[&str] = &[TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, CENTER, FILL];
+    pub(crate) const ANCHORS: &[&str] =
+        &[TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, CENTER, FILL];
 
     pub(crate) const START: &str = "start";
     pub(crate) const END: &str = "end";

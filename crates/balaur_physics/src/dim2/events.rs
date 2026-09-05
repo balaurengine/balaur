@@ -10,11 +10,11 @@ use crate::rapier2d::prelude::{
     ColliderHandle, ColliderSet, CollisionEvent, ContactForceEvent, ContactModificationContext,
     EventHandler, PhysicsHooks,
 };
+use crate::vocabulary::hook;
 use balaur_core::Engine;
 use balaur_core::hecs::Entity;
 use balaur_script::Value;
 use std::sync::Mutex;
-use crate::vocabulary::{hook};
 
 pub(crate) enum Event {
     Started(Entity, Entity),
@@ -120,12 +120,28 @@ pub(crate) fn deliver(eng: &Engine, events: &[Event]) {
     for event in events {
         match *event {
             Event::Started(a, b) => {
-                host.call_on(balaur_core::node_id_of(a), hook::ON_COLLISION_START, &[node(b)]);
-                host.call_on(balaur_core::node_id_of(b), hook::ON_COLLISION_START, &[node(a)]);
+                host.call_on(
+                    balaur_core::node_id_of(a),
+                    hook::ON_COLLISION_START,
+                    &[node(b)],
+                );
+                host.call_on(
+                    balaur_core::node_id_of(b),
+                    hook::ON_COLLISION_START,
+                    &[node(a)],
+                );
             }
             Event::Stopped(a, b) => {
-                host.call_on(balaur_core::node_id_of(a), hook::ON_COLLISION_STOP, &[node(b)]);
-                host.call_on(balaur_core::node_id_of(b), hook::ON_COLLISION_STOP, &[node(a)]);
+                host.call_on(
+                    balaur_core::node_id_of(a),
+                    hook::ON_COLLISION_STOP,
+                    &[node(b)],
+                );
+                host.call_on(
+                    balaur_core::node_id_of(b),
+                    hook::ON_COLLISION_STOP,
+                    &[node(a)],
+                );
             }
             Event::Force(a, b, magnitude, direction) => {
                 let force = Value::Num(f64::from(magnitude));

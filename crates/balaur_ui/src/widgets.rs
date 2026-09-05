@@ -324,8 +324,10 @@ pub const ALIGNS: &[(&str, &str)] = &[
 pub const PILL_ALIGNS: &[(&str, &str)] = &[("ALIGN_LEFT", w::LEFT)];
 
 /// Slant, for `font_style`.
-pub const FONT_STYLES: &[(&str, &str)] =
-    &[("FONT_STYLE_NORMAL", w::NORMAL), ("FONT_STYLE_ITALIC", w::ITALIC)];
+pub const FONT_STYLES: &[(&str, &str)] = &[
+    ("FONT_STYLE_NORMAL", w::NORMAL),
+    ("FONT_STYLE_ITALIC", w::ITALIC),
+];
 
 /// Font families the theme registers.
 pub const FONTS: &[(&str, &str)] = &[("FONT_MONO", w::MONO), ("FONT_HEADING", w::HEADING)];
@@ -397,10 +399,11 @@ pub(crate) fn text_field(
     let mut buffer = {
         let mut state = state.borrow_mut();
         if let Some(value) = seed
-            && state.text_seeds.get(id) != Some(&value) {
-                state.text_seeds.insert(id.to_string(), value.clone());
-                state.text_buffers.insert(id.to_string(), value);
-            }
+            && state.text_seeds.get(id) != Some(&value)
+        {
+            state.text_seeds.insert(id.to_string(), value.clone());
+            state.text_buffers.insert(id.to_string(), value);
+        }
         state.text_buffers.get(id).cloned().unwrap_or_default()
     };
     let autofocus = opts.boolean(k::AUTOFOCUS, false) && {
@@ -438,7 +441,10 @@ pub(crate) fn text_field(
             };
             egui::Frame::new()
                 .fill(opts.color(k::FILL, Color32::TRANSPARENT))
-                .stroke(Stroke::new(1.0, opts.color(k::STROKE, Color32::TRANSPARENT)))
+                .stroke(Stroke::new(
+                    1.0,
+                    opts.color(k::STROKE, Color32::TRANSPARENT),
+                ))
                 .corner_radius(corner)
                 .inner_margin(Margin::symmetric(pad as i8, 0))
                 .show(ui, |ui| {
@@ -1014,10 +1020,12 @@ pub(crate) fn left_pill(
     let (rect, mut response) = ui.allocate_exact_size(vec2(w, h), Sense::click());
     let hovered = response.hovered();
     let mut fill = opts.color(k::FILL, Color32::TRANSPARENT);
-    if hovered && fill == Color32::TRANSPARENT
-        && let Some(hover) = opts.opt_color(k::HOVER_FILL) {
-            fill = hover;
-        }
+    if hovered
+        && fill == Color32::TRANSPARENT
+        && let Some(hover) = opts.opt_color(k::HOVER_FILL)
+    {
+        fill = hover;
+    }
     // Tiles by default, like every other pill; `round` opts back in.
     let asked = opts.px(k::RADIUS, 0.0);
     let corner = if asked > 0.0 {

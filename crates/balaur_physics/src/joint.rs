@@ -174,10 +174,20 @@ fn write_limits_and_motor(joint: &mut GenericJoint, params: &toml::Value, kind: 
 }
 
 /// The two bodies a joint ties: the node it sits on, and the one `body` names.
+///
+/// Either end may be a bodiless child, which stands for the nearest body
+/// above it — as a collider on a child does. A joint is one per node, so
+/// this is how one body carries several.
 fn ends(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<(Entity, Entity)> {
     let other = as_node(eng, entity, params.get(k::BODY))
         .ok_or_else(|| anyhow!("a joint needs a `body` naming the node at its other end"))?;
-    Ok((entity, other))
+    Ok((body_above(eng, entity), body_above(eng, other)))
+}
+
+/// The node itself when it has a body, else the nearest ancestor that does;
+/// the node again when none does, so `handles` reports the missing body.
+fn body_above(eng: &Engine, entity: Entity) -> Entity {
+    crate::collider::nearest_body(eng, entity).map_or(entity, |(node, _)| node)
 }
 
 crate::shared::joint::functions!(
@@ -437,17 +447,59 @@ pub(crate) fn shared_joint_schema() -> String {
     let solvers = v::options(w::JOINT_SOLVERS);
     let (off, acceleration, impulse) = (w::OFF, w::ACCELERATION, w::IMPULSE);
     v::schema(&[
-        (k::MOTOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Drive the joint towards a speed, towards a position, or not at all" }}"#, off, motors)),
-        (k::MOTOR_TARGET, r#"{ type = "float", default = 0.0, description = "The speed or the position the motor drives towards" }"#),
-        (k::MOTOR_MAX_FORCE, r#"{ type = "float", default = 0.0, min = 0.0, description = "The most force the motor may use; 0 means as much as it takes" }"#),
-        (k::MOTOR_MODEL, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Whether the motor's strength is felt as an acceleration, ignoring mass, or as a force" }}"#, acceleration, models)),
-        (k::STIFFNESS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Spring stiffness, for a spring joint or a position motor" }"#),
-        (k::DAMPING, r#"{ type = "float", default = 1.0, min = 0.0, description = "How quickly the motion settles, for a spring joint or a motor" }"#),
-        (k::LENGTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "The rope's greatest length, or the spring's rest length" }"#),
-        (k::CONTACTS, r#"{ type = "bool", default = false, description = "Let the two joined bodies collide with each other" }"#),
-        (k::BREAK_FORCE, r#"{ type = "float", default = 0.0, min = 0.0, description = "The pull that snaps the joint and calls on_joint_break; 0 never breaks" }"#),
-        (k::SOLVER, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop" }}"#, impulse, solvers)),
-        (k::ENABLED, r#"{ type = "bool", default = true, description = "Hold the two bodies together at all" }"#),
+        (
+            k::MOTOR,
+            &format!(
+                r#"{{ type = "enum", default = "{}", options = [{}], description = "Drive the joint towards a speed, towards a position, or not at all" }}"#,
+                off, motors
+            ),
+        ),
+        (
+            k::MOTOR_TARGET,
+            r#"{ type = "float", default = 0.0, description = "The speed or the position the motor drives towards" }"#,
+        ),
+        (
+            k::MOTOR_MAX_FORCE,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "The most force the motor may use; 0 means as much as it takes" }"#,
+        ),
+        (
+            k::MOTOR_MODEL,
+            &format!(
+                r#"{{ type = "enum", default = "{}", options = [{}], description = "Whether the motor's strength is felt as an acceleration, ignoring mass, or as a force" }}"#,
+                acceleration, models
+            ),
+        ),
+        (
+            k::STIFFNESS,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Spring stiffness, for a spring joint or a position motor" }"#,
+        ),
+        (
+            k::DAMPING,
+            r#"{ type = "float", default = 1.0, min = 0.0, description = "How quickly the motion settles, for a spring joint or a motor" }"#,
+        ),
+        (
+            k::LENGTH,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "The rope's greatest length, or the spring's rest length" }"#,
+        ),
+        (
+            k::CONTACTS,
+            r#"{ type = "bool", default = false, description = "Let the two joined bodies collide with each other" }"#,
+        ),
+        (
+            k::BREAK_FORCE,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "The pull that snaps the joint and calls on_joint_break; 0 never breaks" }"#,
+        ),
+        (
+            k::SOLVER,
+            &format!(
+                r#"{{ type = "enum", default = "{}", options = [{}], description = "impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop" }}"#,
+                impulse, solvers
+            ),
+        ),
+        (
+            k::ENABLED,
+            r#"{ type = "bool", default = true, description = "Hold the two bodies together at all" }"#,
+        ),
     ])
 }
 
@@ -472,7 +524,7 @@ pub(crate) fn register_joint_component(reg: &mut Registry<'_>) {
     reg.register_component(
         c::JOINT_3D,
         ComponentDef {
-            doc: "Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`.",
+            doc: "Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.",
             schema: ComponentDef::parse_schema(c::JOINT_3D, &schema),
             tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
             expects: &[c::BODY_3D],

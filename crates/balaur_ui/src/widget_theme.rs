@@ -25,8 +25,8 @@
 
 use std::collections::BTreeMap;
 
-use egui::Color32;
 use crate::vocabulary::keys as k;
+use egui::Color32;
 
 /// How one widget kind is drawn.
 #[derive(Clone)]

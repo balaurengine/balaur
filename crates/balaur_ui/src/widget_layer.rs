@@ -10,19 +10,19 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use balaur_core::hecs::Entity;
 use balaur_core::Engine;
-use egui::{pos2, vec2, Align2, Color32, Stroke};
+use balaur_core::hecs::Entity;
+use egui::{Align2, Color32, Stroke, pos2, vec2};
 
 use crate::theme::family;
+use crate::vocabulary::words as w;
 pub(crate) use crate::widget_arrange::drawn_at;
 use crate::widget_arrange::{
-    box_of, contain, hold_to, lay_out, padding_of, record_rect, roll_measurements, scroller,
-    settle_rects, tabs, Axis,
+    Axis, box_of, contain, hold_to, lay_out, padding_of, record_rect, roll_measurements, scroller,
+    settle_rects, tabs,
 };
 pub(crate) use crate::widget_schema::{register_widget_component, register_widget_presets};
 use crate::widget_theme::WidgetTheme;
-use crate::vocabulary::{words as w};
 
 /// A component colour (`[r, g, b, a]` in 0..=1) as egui's 8-bit one.
 pub(crate) fn rgba_color(rgba: [f32; 4]) -> Color32 {
@@ -163,7 +163,15 @@ fn takes_focus(widget: &Widget) -> bool {
 pub(crate) fn lays_out(kind: &str) -> bool {
     matches!(
         kind,
-        w::ROW | w::COLUMN | w::PANEL | w::SCROLL | w::TAB | w::GRID | w::FLOW | w::FOLD | w::DIALOG
+        w::ROW
+            | w::COLUMN
+            | w::PANEL
+            | w::SCROLL
+            | w::TAB
+            | w::GRID
+            | w::FLOW
+            | w::FOLD
+            | w::DIALOG
     )
 }
 

@@ -5,13 +5,13 @@
 //! over the world, and this is the arithmetic between them.
 
 use crate::theme::family;
+use crate::vocabulary::words as w;
 use crate::widget_layer::{Edit, Painting, Widget, draw_one, rgba_color};
 use crate::widget_measure::Measure;
 use balaur_core::hecs::Entity;
 use egui::{Color32, Stroke, pos2, vec2};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use crate::vocabulary::{words as w};
 
 thread_local! {
     /// What each widget drew last frame. Only a `draw` node needs it now —

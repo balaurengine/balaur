@@ -44,7 +44,10 @@ macro_rules! functions {
         /// sphere as two child nodes under one body, each with its own transform and
         /// each pickable in the editor. Rapier has `compound`, but a compound shape is
         /// one collider with one material and no way to tell which part was hit.
-        fn nearest_body(eng: &Engine, entity: Entity) -> Option<(Entity, RigidBodyHandle)> {
+        pub(crate) fn nearest_body(
+            eng: &Engine,
+            entity: Entity,
+        ) -> Option<(Entity, RigidBodyHandle)> {
             let state = eng.resource::<$State>();
             let state = state.borrow();
             let world = eng.world();

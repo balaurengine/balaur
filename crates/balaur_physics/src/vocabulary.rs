@@ -587,9 +587,10 @@ pub(crate) fn layer_bits(params: &toml::Value, key: &str, empty_is_all: bool) ->
     let mut bits = 0u32;
     for name in balaur_core::components::as_flags(params.get(key)) {
         if let Ok(layer) = name.parse::<u32>()
-            && layer < 32 {
-                bits |= 1 << layer;
-            }
+            && layer < 32
+        {
+            bits |= 1 << layer;
+        }
     }
     if bits != 0 {
         bits
