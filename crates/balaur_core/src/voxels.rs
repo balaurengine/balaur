@@ -12,7 +12,6 @@ use anyhow::{anyhow, bail, Result};
 
 use crate::App;
 
-/// The `voxels` asset type.
 pub const VOXELS_ASSET_TYPE: &str = "voxels";
 
 /// The filled cells of a grid, and how big one cell is.

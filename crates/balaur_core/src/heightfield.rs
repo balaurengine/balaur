@@ -11,7 +11,6 @@ use anyhow::{anyhow, bail, Result};
 
 use crate::App;
 
-/// The `heightfield` asset type.
 pub const HEIGHTFIELD_ASSET_TYPE: &str = "heightfield";
 
 /// A grid of heights, row-major.

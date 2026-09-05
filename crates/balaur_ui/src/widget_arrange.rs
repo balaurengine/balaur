@@ -327,7 +327,6 @@ impl Axis {
         }
     }
 
-    /// The component across it.
     fn across(self, v: egui::Vec2) -> f32 {
         match self {
             Axis::Row => v.y,

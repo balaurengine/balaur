@@ -15,7 +15,7 @@ use std::sync::mpsc::Sender;
 
 use crate::{HttpCall, HttpEvent};
 
-extern "C" {
+unsafe extern "C" {
     fn balaur_fetch(
         method: *const c_char,
         url: *const c_char,

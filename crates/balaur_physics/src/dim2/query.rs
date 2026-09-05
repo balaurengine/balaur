@@ -18,112 +18,7 @@ use balaur_script::{Bindings, BindingsExt, CallbackHost, NodeId, Value};
 use crate::dim2::PhysicsState2d;
 use crate::vocabulary::{map, Opts};
 
-/// The 2D twin of `crate::query::ensure_queries`: rapier fills the broad
-/// phase during a step, and a game asks questions before its first one.
-pub(crate) fn ensure_queries(eng: &Engine) {
-    let state = eng.resource::<PhysicsState2d>();
-    let mut state = state.borrow_mut();
-    if state.queries_ready {
-        return;
-    }
-    let state = &mut *state;
-    let handles: Vec<ColliderHandle> = state.world.colliders.iter().map(|(h, _)| h).collect();
-    let params = state.world.integration_parameters;
-    let mut pairs = Vec::new();
-    state.world.broad_phase.update(
-        &params,
-        &state.world.colliders,
-        &state.world.bodies,
-        &handles,
-        &[],
-        &mut pairs,
-    );
-    state.queries_ready = true;
-}
-
-pub(crate) fn entity_of_collider(collider: &Collider) -> Option<Entity> {
-    Entity::from_bits(collider.user_data as u64)
-}
-
-fn filter_of<'a>(opts: &Opts<'_>, groups: &'a mut Option<InteractionGroups>) -> QueryFilter<'a> {
-    let filter = Opts(opts.get("filter"));
-    let mut flags = QueryFilterFlags::empty();
-    match filter.text("only") {
-        Some("dynamic") => flags |= QueryFilterFlags::ONLY_DYNAMIC,
-        Some("kinematic") => flags |= QueryFilterFlags::ONLY_KINEMATIC,
-        Some("static") => flags |= QueryFilterFlags::ONLY_FIXED,
-        _ => {}
-    }
-    if !filter.boolean("sensors", true) {
-        flags |= QueryFilterFlags::EXCLUDE_SENSORS;
-    }
-    if !filter.boolean("solids", true) {
-        flags |= QueryFilterFlags::EXCLUDE_SOLIDS;
-    }
-    let mut out = QueryFilter::from(flags);
-    if let Some(Value::List(items)) = filter.get("mask") {
-        let mut bits = 0u32;
-        for item in items {
-            let layer = match item {
-                Value::Int(i) => Some(*i as u32),
-                Value::Num(n) => Some(*n as u32),
-                Value::Str(s) => s.parse().ok(),
-                _ => None,
-            };
-            if let Some(layer) = layer.filter(|l| *l < 32) {
-                bits |= 1 << layer;
-            }
-        }
-        *groups = Some(InteractionGroups::new(
-            Group::ALL,
-            Group::from_bits_truncate(if bits == 0 { u32::MAX } else { bits }),
-            InteractionTestMode::And,
-        ));
-        if let Some(groups) = groups.as_ref() {
-            out = out.groups(*groups);
-        }
-    }
-    out
-}
-
-fn excluded(opts: &Opts<'_>, state: &PhysicsState2d) -> Vec<ColliderHandle> {
-    let filter = Opts(opts.get("filter"));
-    let mut out = Vec::new();
-    for key in ["exclude", "exclude_body"] {
-        let Some(bits) = filter.node(key) else {
-            continue;
-        };
-        let Some(entity) = Entity::from_bits(bits) else {
-            continue;
-        };
-        if let Some(handles) = state.colliders.get(&entity) {
-            out.extend(handles.iter().copied());
-        }
-    }
-    out
-}
-
-fn allowed(eng: &Engine, opts: &Opts<'_>, entity: Entity) -> Result<bool> {
-    let Some(Value::Callback(id)) = opts
-        .get("filter")
-        .and_then(|f| Opts(Some(f)).get("predicate"))
-    else {
-        return Ok(true);
-    };
-    match eng.invoke(*id, &[Value::Node(entity.to_bits().get())])? {
-        Value::Bool(false) | Value::Nil => Ok(false),
-        _ => Ok(true),
-    }
-}
-
-fn hit_value(entity: Entity, point: [f32; 2], normal: [f32; 2], distance: Real) -> Value {
-    map([
-        ("node", Value::Node(entity.to_bits().get())),
-        ("point", Value::Vec2(point)),
-        ("normal", Value::Vec2(normal)),
-        ("distance", Value::Num(f64::from(distance))),
-    ])
-}
+crate::shared::query::functions!(state = PhysicsState2d, vector = Vec2, dimensions = 2, vocabulary = "collider2d");
 
 fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
     let from = opts.vec2("from", [0.0; 2]);
@@ -133,33 +28,6 @@ fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
         scalar::real(opts.f32("max", 1000.0)),
         opts.boolean("solid", true),
     )
-}
-
-/// Sorted by distance, then by entity bits, as in 3D.
-fn sort_hits(hits: &mut [(Entity, Real, [f32; 2], [f32; 2])]) {
-    // `total_cmp`, not `partial_cmp`: a NaN distance makes the latter a
-    // non-order, which `sort_by` is allowed to panic on.
-    hits.sort_by(|a, b| {
-        a.1.total_cmp(&b.1)
-            .then_with(|| a.0.to_bits().cmp(&b.0.to_bits()))
-    });
-}
-
-fn node_list(hits: &mut Vec<Entity>) -> Value {
-    hits.sort_unstable_by_key(|e| e.to_bits());
-    hits.dedup();
-    Value::List(
-        hits.iter()
-            .map(|e| Value::Node(e.to_bits().get()))
-            .collect(),
-    )
-}
-
-fn shape_params(opts: &Opts<'_>) -> Result<toml::Value> {
-    let shape = opts
-        .get("shape")
-        .ok_or_else(|| anyhow!("this query needs a `shape` table, in collider2d's vocabulary"))?;
-    balaur_core::node_api::to_toml(shape)
 }
 
 pub(crate) fn install_physics2d_query_api(m: &mut dyn Bindings<Engine>) {
@@ -473,37 +341,4 @@ fn with_pair(
         &state.world.colliders[first],
         &state.world.colliders[second],
     )
-}
-
-/// Nodes whose colliders intersect this node's, sorted by entity bits.
-pub fn overlaps(eng: &Engine, entity: Entity) -> Vec<Entity> {
-    let state = eng.resource::<PhysicsState2d>();
-    let state = state.borrow();
-    let Some(handles) = state.colliders.get(&entity) else {
-        return Vec::new();
-    };
-    let mut hits = Vec::new();
-    for &handle in handles {
-        for (h1, _, h2, _, intersecting) in state.world.intersection_pairs_with(handle) {
-            if !intersecting {
-                continue;
-            }
-            let other = if h1 == handle { h2 } else { h1 };
-            if let Some(found) = entity_of_collider(&state.world.colliders[other]) {
-                if found != entity {
-                    hits.push(found);
-                }
-            }
-        }
-    }
-    hits.sort_unstable_by_key(|e| e.to_bits());
-    hits.dedup();
-    hits
-}
-
-pub(crate) fn overlaps_value(eng: &Engine, node: NodeId) -> Result<Vec<NodeId>> {
-    Ok(overlaps(eng, entity_of(node)?)
-        .into_iter()
-        .map(node_id_of)
-        .collect())
 }

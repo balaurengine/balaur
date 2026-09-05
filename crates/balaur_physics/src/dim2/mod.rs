@@ -91,64 +91,7 @@ pub(crate) fn node_pose_2d(eng: &Engine, entity: Entity) -> Result<Pose2> {
     ))
 }
 
-/// Make the 2D joints whose other end had not been spawned when they were
-/// applied — a scene file names nodes in whatever order it likes.
-fn resolve_pending_joints(eng: &Engine) {
-    let pending = {
-        let state = eng.resource::<PhysicsState2d>();
-        let state = state.borrow();
-        joint::pending(&state)
-    };
-    for entity in pending {
-        let params = {
-            let state = eng.resource::<PhysicsState2d>();
-            let state = state.borrow();
-            state.joint_params.get(&entity).cloned()
-        };
-        let Some(params) = params else { continue };
-        if let Err(why) = joint::apply_joint(eng, entity, &params) {
-            tracing::debug!("joint2d is still waiting: {why:#}");
-        }
-    }
-}
-
-/// The 2D twin of `crate::prune_freed_nodes`, and run at the same point:
-/// before the pause check, because a paused editor still frees nodes.
-pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState2d) {
-    let world = eng.world();
-    let before = state.world.colliders.len();
-    state.bodies.retain(|&entity, handle| {
-        if world.contains(entity) {
-            return true;
-        }
-        state.world.remove_body(*handle);
-        false
-    });
-    state.colliders.retain(|&entity, handles| {
-        let alive = world.contains(entity);
-        handles.retain(|&handle| {
-            if alive && state.world.colliders.contains(handle) {
-                return true;
-            }
-            state.world.remove_collider(handle);
-            false
-        });
-        !handles.is_empty()
-    });
-    state.joints.retain(|&entity, reference| {
-        if !world.contains(entity) {
-            joint::drop_joint(&mut state.world, reference);
-            return false;
-        }
-        joint::is_live(&state.world, reference)
-    });
-    state.collider_params.retain(|e, _| world.contains(*e));
-    state.joint_params.retain(|e, _| world.contains(*e));
-    state.grounded.retain(|e, _| world.contains(*e));
-    if state.world.colliders.len() != before {
-        state.queries_ready = false;
-    }
-}
+crate::shared::world::functions!(state = PhysicsState2d, component = "joint2d", prune = prune_freed_nodes);
 
 fn step_system(eng: &Engine, _dt: f32) {
     {
@@ -380,20 +323,6 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
     state.joint_params = joint_params;
     state.grounded = grounded;
     restamp_collider_owners(&mut state);
-}
-
-/// Point every restored collider at the entity its node has now, as in 3D:
-/// the owner rides in `user_data` and a respawn mints a new entity.
-fn restamp_collider_owners(state: &mut PhysicsState2d) {
-    for (entity, handles) in &state.colliders {
-        for &handle in handles {
-            let Some(collider) = state.world.colliders.get_mut(handle) else {
-                continue;
-            };
-            let flags = collider.user_data & !u128::from(u64::MAX);
-            collider.user_data = flags | u128::from(entity.to_bits().get());
-        }
-    }
 }
 
 fn build_physics2d_snapshot(reg: &mut Registry<'_>) {

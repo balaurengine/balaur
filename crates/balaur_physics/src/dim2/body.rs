@@ -27,39 +27,13 @@ use crate::dim2::collider::{apply_collider, get_collider_params};
 use crate::dim2::{node_pose_2d, PhysicsState2d};
 use crate::vocabulary as v;
 
-fn body_type(kind: &str) -> Result<RigidBodyType> {
-    Ok(match kind {
-        "dynamic" => RigidBodyType::Dynamic,
-        "static" => RigidBodyType::Fixed,
-        "kinematic" => RigidBodyType::KinematicPositionBased,
-        "kinematic_velocity" => RigidBodyType::KinematicVelocityBased,
-        other => return Err(anyhow!("unknown body kind '{other}'")),
-    })
-}
-
-fn kind_name(body: &RigidBody) -> &'static str {
-    match body.body_type() {
-        RigidBodyType::Dynamic => "dynamic",
-        RigidBodyType::Fixed => "static",
-        RigidBodyType::KinematicPositionBased => "kinematic",
-        RigidBodyType::KinematicVelocityBased => "kinematic_velocity",
-    }
-}
-
-pub(crate) fn add_body(eng: &Engine, entity: Entity, kind: &str) -> Result<()> {
-    let pose = node_pose_2d(eng, entity)?;
-    let builder = RigidBodyBuilder2::new(body_type(kind)?).pose(pose);
-    let state = eng.resource::<PhysicsState2d>();
-    let mut state = state.borrow_mut();
-    let builder = if state.sleeping_allowed {
-        builder
-    } else {
-        builder.can_sleep(false)
-    };
-    let handle = state.world.insert_body(builder);
-    state.bodies.insert(entity, handle);
-    Ok(())
-}
+crate::shared::body::functions!(
+    state = PhysicsState2d,
+    handle = RigidBodyHandle2,
+    builder = RigidBodyBuilder2,
+    node_pose = node_pose_2d,
+    missing = "node has no 2D rigid body"
+);
 
 /// 2D locks two translation axes and the one rotation there is, so the flag
 /// set is built by hand rather than shared with 3D.
@@ -122,26 +96,6 @@ fn write_mass(body: &mut RigidBody, params: &toml::Value) {
             true,
         );
     }
-}
-
-pub(crate) fn apply_body(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let exists = {
-        let state = eng.resource::<PhysicsState2d>();
-        let exists = state.borrow().bodies.contains_key(&entity);
-        exists
-    };
-    if !exists {
-        add_body(eng, entity, v::text(params, "kind", "dynamic"))?;
-        if let Some(collider) = get_collider_params(eng, entity) {
-            apply_collider(eng, entity, &collider)?;
-        }
-    }
-    with_body(eng, entity, |state, handle| {
-        let may_sleep = state.sleeping_allowed;
-        write_body(&mut state.world.bodies[handle], params, may_sleep);
-        let colliders = &state.world.colliders;
-        state.world.bodies[handle].recompute_mass_properties_from_colliders(colliders);
-    })
 }
 
 pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
@@ -211,53 +165,6 @@ fn read_mass(body: &RigidBody, map: &mut toml::map::Map<String, toml::Value>) {
         "center_of_mass".into(),
         toml::Value::Array(vec![f(com.x), f(com.y)]),
     );
-}
-
-/// A node's body handle, checked against rapier's arena.
-///
-/// A freed node's handle outlives it until the next prune, and indexing the
-/// arena with one panics inside rapier rather than failing the call.
-pub(crate) fn body_handle(state: &PhysicsState2d, entity: Entity) -> Result<RigidBodyHandle2> {
-    let handle = state
-        .bodies
-        .get(&entity)
-        .copied()
-        .ok_or_else(|| anyhow!("node has no 2D rigid body"))?;
-    if !state.world.bodies.contains(handle) {
-        return Err(anyhow!("this node's body is gone: the node was freed"));
-    }
-    Ok(handle)
-}
-
-pub(crate) fn with_body<R>(
-    eng: &Engine,
-    entity: Entity,
-    f: impl FnOnce(&mut PhysicsState2d, RigidBodyHandle2) -> R,
-) -> Result<R> {
-    let state = eng.resource::<PhysicsState2d>();
-    let mut state = state.borrow_mut();
-    let handle = body_handle(&state, entity)?;
-    Ok(f(&mut state, handle))
-}
-
-pub(crate) fn read_body<R>(
-    eng: &Engine,
-    entity: Entity,
-    f: impl FnOnce(&RigidBody) -> R,
-) -> Result<R> {
-    let state = eng.resource::<PhysicsState2d>();
-    let state = state.borrow();
-    let handle = body_handle(&state, entity)?;
-    Ok(f(&state.world.bodies[handle]))
-}
-
-pub(crate) fn remove_body_and_colliders(eng: &Engine, entity: Entity) {
-    let state = eng.resource::<PhysicsState2d>();
-    let mut state = state.borrow_mut();
-    state.colliders.swap_remove(&entity);
-    if let Some(handle) = state.bodies.swap_remove(&entity) {
-        state.world.remove_body(handle);
-    }
 }
 
 /// The 2D twin of `crate::body::install_body_state_api`. Every function here

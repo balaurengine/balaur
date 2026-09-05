@@ -18,21 +18,7 @@ use crate::scalar::{self, Pose2, Real, Rotation2};
 use crate::dim2::{node_pose_2d, PhysicsState2d};
 use crate::vocabulary as v;
 
-/// The nearest 2D body at or above `entity`, and the node that owns it: the
-/// 2D half of `crate::collider::nearest_body`, and the reason a child node's
-/// collider belongs to its parent's body.
-fn nearest_body(eng: &Engine, entity: Entity) -> Option<(Entity, RigidBodyHandle)> {
-    let state = eng.resource::<PhysicsState2d>();
-    let state = state.borrow();
-    let world = eng.world();
-    let mut current = entity;
-    loop {
-        if let Some(handle) = state.bodies.get(&current) {
-            return Some((current, *handle));
-        }
-        current = world.get::<&balaur_core::scene::Parent>(current).ok()?.0;
-    }
-}
+crate::shared::collider::functions!(state = PhysicsState2d);
 
 fn pose_relative_to(eng: &Engine, entity: Entity, body_node: Entity) -> Result<Pose2> {
     let here = node_pose_2d(eng, entity)?;
@@ -78,33 +64,6 @@ pub(crate) fn add_collider_at(
 
 pub(crate) fn add_collider(eng: &Engine, entity: Entity, builder: ColliderBuilder2) -> Result<()> {
     add_collider_at(eng, entity, builder, Pose2::IDENTITY)
-}
-
-pub(crate) fn remove_colliders(eng: &Engine, entity: Entity) {
-    let state = eng.resource::<PhysicsState2d>();
-    let mut state = state.borrow_mut();
-    if let Some(handles) = state.colliders.swap_remove(&entity) {
-        for handle in handles {
-            state.world.remove_collider(handle);
-        }
-        state.collider_params.swap_remove(&entity);
-        state.queries_ready = false;
-    }
-}
-
-/// The 2D twin of `crate::collider::first_collider`: a handle checked against
-/// rapier's arena, because a freed node's outlives it by a step.
-pub(crate) fn first_collider(state: &PhysicsState2d, entity: Entity) -> Result<ColliderHandle> {
-    let handle = state
-        .colliders
-        .get(&entity)
-        .and_then(|handles| handles.first())
-        .copied()
-        .ok_or_else(|| anyhow!("node has no collider"))?;
-    if !state.world.colliders.contains(handle) {
-        return Err(anyhow!("this node's collider is gone: the node was freed"));
-    }
-    Ok(handle)
 }
 
 /// The collider described by `params`, in the `collider2d` schema's own
@@ -247,37 +206,6 @@ fn with_material(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBui
     builder
 }
 
-/// The one hook left: a one-way platform, whose axis is data on the collider.
-fn active_hooks(params: &toml::Value) -> ActiveHooks {
-    if v::boolean(params, "one_way", false) {
-        ActiveHooks::MODIFY_SOLVER_CONTACTS
-    } else {
-        ActiveHooks::empty()
-    }
-}
-
-fn combine_rule(name: &str) -> CoefficientCombineRule {
-    match name {
-        "min" => CoefficientCombineRule::Min,
-        "multiply" => CoefficientCombineRule::Multiply,
-        "max" => CoefficientCombineRule::Max,
-        "clamped_sum" => CoefficientCombineRule::ClampedSum,
-        "geometric_mean" => CoefficientCombineRule::GeometricMean,
-        _ => CoefficientCombineRule::Average,
-    }
-}
-
-fn combine_name(rule: CoefficientCombineRule) -> &'static str {
-    match rule {
-        CoefficientCombineRule::Min => "min",
-        CoefficientCombineRule::Multiply => "multiply",
-        CoefficientCombineRule::Max => "max",
-        CoefficientCombineRule::ClampedSum => "clamped_sum",
-        CoefficientCombineRule::GeometricMean => "geometric_mean",
-        CoefficientCombineRule::Average => "average",
-    }
-}
-
 /// Build and insert the collider described by `params`, replacing any
 /// existing one.
 pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
@@ -383,50 +311,6 @@ fn shape_params(collider: &Collider) -> Option<toml::map::Map<String, toml::Valu
         return Some(map);
     }
     None
-}
-
-/// The 2D twin of `crate::collider::read_material`, property for property.
-fn read_material(collider: &Collider, map: &mut toml::map::Map<String, toml::Value>) {
-    let f = |value: Real| toml::Value::Float(f64::from(value));
-    map.insert("restitution".into(), f(collider.restitution()));
-    map.insert("friction".into(), f(collider.friction()));
-    map.insert("density".into(), f(collider.density()));
-    map.insert("mass".into(), f(collider.mass()));
-    map.insert("contact_skin".into(), f(collider.contact_skin()));
-    map.insert(
-        "contact_force_threshold".into(),
-        f(collider.contact_force_event_threshold()),
-    );
-    map.insert("sensor".into(), collider.is_sensor().into());
-    map.insert("enabled".into(), collider.is_enabled().into());
-    map.insert(
-        "friction_combine".into(),
-        combine_name(collider.friction_combine_rule()).into(),
-    );
-    map.insert(
-        "restitution_combine".into(),
-        combine_name(collider.restitution_combine_rule()).into(),
-    );
-    let groups = collider.collision_groups();
-    map.insert("layers".into(), v::layer_names(groups.memberships.bits()));
-    map.insert("mask".into(), v::layer_names(groups.filter.bits()));
-    let solver = collider.solver_groups();
-    map.insert(
-        "solver_layers".into(),
-        v::layer_names(solver.memberships.bits()),
-    );
-    map.insert("solver_mask".into(), v::layer_names(solver.filter.bits()));
-    map.insert(
-        "events".into(),
-        v::names(collider.active_events().bits(), &v::flags::events()),
-    );
-    map.insert(
-        "active_collisions".into(),
-        v::names(
-            collider.active_collision_types().bits(),
-            &v::flags::collision_types(),
-        ),
-    );
 }
 
 /// Largest contact normal impulse currently applied to the node's colliders

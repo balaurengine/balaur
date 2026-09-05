@@ -40,6 +40,7 @@ pub mod joint;
 pub mod query;
 pub(crate) mod scalar;
 pub mod tuning;
+mod shared;
 pub mod vehicle;
 mod vocabulary;
 
@@ -376,22 +377,16 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
     restamp_collider_owners(&mut state);
 }
 
-/// Point every restored collider at the entity its node has *now*.
-///
-/// The id rides in a collider's `user_data`, so a world deserialised from
-/// before a respawn names an entity that no longer exists — and every event
-/// and query reads that field.
-fn restamp_collider_owners(state: &mut PhysicsState) {
-    for (entity, handles) in &state.colliders {
-        for &handle in handles {
-            let Some(collider) = state.world.colliders.get_mut(handle) else {
-                continue;
-            };
-            // The one-way platform's axis rides above the entity bits.
-            let flags = collider.user_data & !u128::from(u64::MAX);
-            collider.user_data = flags | u128::from(entity.to_bits().get());
-        }
-    }
+crate::shared::world::functions!(
+    state = PhysicsState,
+    component = "joint3d",
+    prune = prune_freed_nodes_except_wheels
+);
+
+pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState) {
+    prune_freed_nodes_except_wheels(eng, state);
+    let world = eng.world();
+    state.wheel_inputs.retain(|e, _| world.contains(*e));
 }
 
 fn build_physics_snapshot(reg: &mut Registry<'_>) {
@@ -428,49 +423,6 @@ pub(crate) fn node_pose(eng: &Engine, entity: Entity) -> Result<scalar::Pose> {
         .get::<&balaur_core::GlobalTransform>(entity)
         .map_err(|_| anyhow!("node is dead or not in the scene tree"))?;
     Ok(scalar::pose_of(global.position, global.rotation))
-}
-
-/// Drop everything a freed node left behind, in every map the plugin owns.
-///
-/// Before the pause check on purpose: an editor sits paused, and a handle
-/// left behind by a free is one script call away from indexing rapier's arena.
-pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState) {
-    let world = eng.world();
-    let before = state.world.colliders.len();
-    state.bodies.retain(|&entity, handle| {
-        if world.contains(entity) {
-            return true;
-        }
-        state.world.remove_body(*handle);
-        false
-    });
-    // Rapier drops a body's colliders with the body, so a handle here can be
-    // stale even when its node is alive.
-    state.colliders.retain(|&entity, handles| {
-        let alive = world.contains(entity);
-        handles.retain(|&handle| {
-            if alive && state.world.colliders.contains(handle) {
-                return true;
-            }
-            state.world.remove_collider(handle);
-            false
-        });
-        !handles.is_empty()
-    });
-    state.joints.retain(|&entity, reference| {
-        if !world.contains(entity) {
-            joint::drop_joint(&mut state.world, reference);
-            return false;
-        }
-        joint::is_live(&state.world, reference)
-    });
-    state.collider_params.retain(|e, _| world.contains(*e));
-    state.joint_params.retain(|e, _| world.contains(*e));
-    state.wheel_inputs.retain(|e, _| world.contains(*e));
-    state.grounded.retain(|e, _| world.contains(*e));
-    if state.world.colliders.len() != before {
-        state.queries_ready = false;
-    }
 }
 
 fn step_system(eng: &Engine, _dt: f32) {
@@ -530,31 +482,6 @@ fn step_system(eng: &Engine, _dt: f32) {
     // Rapier disables a body whose pose went non-finite rather than letting
     // the world become NaN. A game that never asks still deserves to be told.
     tuning::warn_about_quarantine(eng);
-}
-
-/// Make the joints whose other end had not been spawned when they were
-/// applied.
-///
-/// A scene file names nodes in whatever order it likes, so a joint that points
-/// forwards is normal rather than an error; it is made on the first step after
-/// its partner exists.
-fn resolve_pending_joints(eng: &Engine) {
-    let pending = {
-        let state = eng.resource::<PhysicsState>();
-        let state = state.borrow();
-        joint::pending(&state)
-    };
-    for entity in pending {
-        let params = {
-            let state = eng.resource::<PhysicsState>();
-            let state = state.borrow();
-            state.joint_params.get(&entity).cloned()
-        };
-        let Some(params) = params else { continue };
-        if let Err(why) = joint::apply_joint(eng, entity, &params) {
-            tracing::debug!("joint3d is still waiting: {why:#}");
-        }
-    }
 }
 
 /// Remove the joints that gave way this step and tell both ends.

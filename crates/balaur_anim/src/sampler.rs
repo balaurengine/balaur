@@ -16,7 +16,6 @@ use glamx::{Quat, Vec3, Vec4};
 
 use crate::clip::{Clip, Interp, Key, Property, Track, Wrap};
 
-/// One track's value at a moment.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TrackValue {
     Position(Vec3),

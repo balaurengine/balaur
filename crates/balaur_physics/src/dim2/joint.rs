@@ -17,7 +17,7 @@ use balaur_core::{entity_of, Engine};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
-use crate::joint::SHARED_JOINT_SCHEMA;
+use crate::joint::{impulse_magnitude_2d, SHARED_JOINT_SCHEMA};
 use crate::rapier2d::pipeline::PhysicsWorld as PhysicsWorld2;
 use crate::vocabulary as v;
 use crate::PhysicsState2d;
@@ -140,21 +140,15 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
     Ok(joint)
 }
 
-fn handles(
-    state: &PhysicsState2d,
-    a: Entity,
-    b: Entity,
-) -> Result<(RigidBodyHandle, RigidBodyHandle)> {
-    let first = *state
-        .bodies
-        .get(&a)
-        .ok_or_else(|| anyhow!("the node holding the joint has no body2d"))?;
-    let second = *state
-        .bodies
-        .get(&b)
-        .ok_or_else(|| anyhow!("the node at the joint's other end has no body2d"))?;
-    Ok((first, second))
-}
+crate::shared::joint::functions!(
+    state = PhysicsState2d,
+    world = PhysicsWorld2,
+    reference = JointRef2d,
+    handle = JointHandle2d,
+    component = "joint2d",
+    body = "body2d",
+    impulse_magnitude = impulse_magnitude_2d
+);
 
 pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     remove_joint(eng, entity);
@@ -199,33 +193,6 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
     Ok(())
 }
 
-pub(crate) fn remove_joint(eng: &Engine, entity: Entity) {
-    let state = eng.resource::<PhysicsState2d>();
-    let mut state = state.borrow_mut();
-    state.joint_params.swap_remove(&entity);
-    if let Some(reference) = state.joints.swap_remove(&entity) {
-        drop_joint(&mut state.world, &reference);
-    }
-}
-
-/// Whether rapier still holds this joint, as in 3D: it drops one when either
-/// end's body goes, and the map must not keep the handle.
-pub(crate) fn is_live(world: &PhysicsWorld2, reference: &JointRef2d) -> bool {
-    match reference.handle {
-        JointHandle2d::Impulse(handle) => world.impulse_joints.get(handle).is_some(),
-        JointHandle2d::Multibody(handle) => world.multibody_joints.get(handle).is_some(),
-    }
-}
-
-pub(crate) fn drop_joint(world: &mut PhysicsWorld2, reference: &JointRef2d) {
-    match reference.handle {
-        JointHandle2d::Impulse(handle) => {
-            world.remove_impulse_joint(handle);
-        }
-        JointHandle2d::Multibody(handle) => world.remove_multibody_joint(handle),
-    }
-}
-
 pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let state = eng.resource::<PhysicsState2d>();
     let state = state.borrow();
@@ -266,44 +233,6 @@ pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Val
         toml::Value::Float(f64::from(reference.break_force)),
     );
     Some(toml::Value::Table(map))
-}
-
-/// Joints authored but not yet made, because the node at the other end had not
-/// been spawned when this one was.
-pub fn pending(state: &PhysicsState2d) -> Vec<Entity> {
-    let mut out: Vec<Entity> = state
-        .joint_params
-        .iter()
-        // A joint switched off never gets a handle; retrying it every step
-        // would re-apply the component sixty times a second.
-        .filter(|(entity, params)| {
-            !state.joints.contains_key(*entity) && v::boolean(params, "enabled", true)
-        })
-        .map(|(entity, _)| *entity)
-        .collect();
-    out.sort_unstable_by_key(|e| e.to_bits());
-    out
-}
-
-/// Joints whose pull passed their `break_force` this step.
-pub(crate) fn broken(state: &PhysicsState2d) -> Vec<Entity> {
-    let mut out = Vec::new();
-    for (entity, reference) in &state.joints {
-        if reference.break_force <= 0.0 {
-            continue;
-        }
-        let JointHandle2d::Impulse(handle) = reference.handle else {
-            continue;
-        };
-        let Some(joint) = state.world.impulse_joints.get(handle) else {
-            continue;
-        };
-        if crate::joint::impulse_magnitude_2d(&joint.impulses) > reference.break_force {
-            out.push(*entity);
-        }
-    }
-    out.sort_unstable_by_key(|e| e.to_bits());
-    out
 }
 
 pub(crate) fn install_joint2d_api(m: &mut dyn Bindings<Engine>) {
@@ -386,44 +315,6 @@ pub(crate) fn install_joint2d_api(m: &mut dyn Bindings<Engine>) {
             crate::joint::impulse_magnitude_2d(&joint.impulses)
         }))
     });
-}
-
-fn with_joint(eng: &Engine, node: NodeId, f: impl FnOnce(&mut GenericJoint, &str)) -> Result<()> {
-    let entity = entity_of(node)?;
-    let kind = balaur_core::components::get(eng, entity, "joint2d")
-        .and_then(|params| {
-            params
-                .get("kind")
-                .and_then(toml::Value::as_str)
-                .map(str::to_string)
-        })
-        .unwrap_or_else(|| "revolute".to_string());
-    let state = eng.resource::<PhysicsState2d>();
-    let mut state = state.borrow_mut();
-    match state.joints.get(&entity).map(|j| j.handle) {
-        Some(JointHandle2d::Impulse(handle)) => {
-            let joint = state
-                .world
-                .impulse_joints
-                .get_mut(handle, true)
-                .ok_or_else(|| anyhow!("this node's joint is gone"))?;
-            f(&mut joint.data, &kind);
-            Ok(())
-        }
-        Some(JointHandle2d::Multibody(handle)) => {
-            let (multibody, link) = state
-                .world
-                .multibody_joints
-                .get_mut(handle)
-                .ok_or_else(|| anyhow!("this node's joint is gone"))?;
-            let link = multibody
-                .link_mut(link)
-                .ok_or_else(|| anyhow!("this node's joint is gone"))?;
-            f(&mut link.joint.data, &kind);
-            Ok(())
-        }
-        None => Err(anyhow!("node has no joint2d")),
-    }
 }
 
 pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {

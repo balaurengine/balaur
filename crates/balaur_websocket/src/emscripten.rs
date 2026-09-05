@@ -16,7 +16,7 @@ use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
 use crate::{SocketCommand, SocketEvent, SocketOptions};
 
-extern "C" {
+unsafe extern "C" {
     fn balaur_ws_connect(
         url: *const c_char,
         user: *mut c_void,

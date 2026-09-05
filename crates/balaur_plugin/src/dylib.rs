@@ -75,12 +75,12 @@ pub const fn library_suffix() -> &'static str {
 #[macro_export]
 macro_rules! export_plugin {
     ($plugin:ty) => {
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn balaur_plugin_abi() -> $crate::AbiTag {
             $crate::AbiTag::current()
         }
 
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn balaur_plugin_create() -> *mut ::std::boxed::Box<dyn $crate::Plugin> {
             let plugin: ::std::boxed::Box<dyn $crate::Plugin> =
                 ::std::boxed::Box::new(<$plugin as ::std::default::Default>::default());

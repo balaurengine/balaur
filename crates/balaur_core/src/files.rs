@@ -70,7 +70,6 @@ pub fn set_default(fs: Rc<dyn FileBackend>) {
     DEFAULT.with(|d| *d.borrow_mut() = Some(fs));
 }
 
-/// The thread's default backend.
 #[must_use]
 pub fn default_backend() -> Rc<dyn FileBackend> {
     DEFAULT

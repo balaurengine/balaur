@@ -117,6 +117,4 @@ strip = true
 rune = { git = "https://github.com/balaurengine/rune.git", branch = "deterministic-pow" }
 # Upstream v0.46.0 plus the opaque web canvas and the engine's three hooks:
 # IME events, a mid-pass screen copy for 2D materials, UIKit's safe area.
-
-# LOCAL VERIFICATION ONLY, restore before finishing: kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "balaur-hooks" }
-kiss3d = { path = "../kiss3d" }
+kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "balaur-hooks" }

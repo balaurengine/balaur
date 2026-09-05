@@ -39,40 +39,13 @@ sleep_time = { type = "float", default = 0.5, min = 0.0, description = "Seconds 
 enabled = { type = "bool", default = true, description = "Simulate this body at all; a disabled body keeps its state and costs nothing" }
 "#;
 
-/// The body types both dimensions accept, in Balaur's vocabulary (N14).
-pub(crate) fn body_type(kind: &str) -> Result<RigidBodyType> {
-    Ok(match kind {
-        "dynamic" => RigidBodyType::Dynamic,
-        "static" => RigidBodyType::Fixed,
-        "kinematic" => RigidBodyType::KinematicPositionBased,
-        "kinematic_velocity" => RigidBodyType::KinematicVelocityBased,
-        other => return Err(anyhow!("unknown body kind '{other}'")),
-    })
-}
-
-pub(crate) fn kind_name(body: &RigidBody) -> &'static str {
-    match body.body_type() {
-        RigidBodyType::Dynamic => "dynamic",
-        RigidBodyType::Fixed => "static",
-        RigidBodyType::KinematicPositionBased => "kinematic",
-        RigidBodyType::KinematicVelocityBased => "kinematic_velocity",
-    }
-}
-
-pub(crate) fn add_body(eng: &Engine, entity: Entity, kind: &str) -> Result<()> {
-    let pose = node_pose(eng, entity)?;
-    let builder = RigidBodyBuilder::new(body_type(kind)?).pose(pose);
-    let state = eng.resource::<PhysicsState>();
-    let mut state = state.borrow_mut();
-    let builder = if state.sleeping_allowed {
-        builder
-    } else {
-        builder.can_sleep(false)
-    };
-    let handle = state.world.insert_body(builder);
-    state.bodies.insert(entity, handle);
-    Ok(())
-}
+crate::shared::body::functions!(
+    state = PhysicsState,
+    handle = RigidBodyHandle,
+    builder = RigidBodyBuilder,
+    node_pose = node_pose,
+    missing = "node has no rigid body"
+);
 
 /// The axes a `flags` property locks, as rapier's flag set.
 fn locked_axes(params: &toml::Value) -> LockedAxes {
@@ -165,32 +138,6 @@ fn write_mass(body: &mut RigidBody, params: &toml::Value) {
     }
 }
 
-/// Create the body if the node has none, then write every property onto it.
-pub(crate) fn apply_body(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let exists = {
-        let state = eng.resource::<PhysicsState>();
-        let exists = state.borrow().bodies.contains_key(&entity);
-        exists
-    };
-    if !exists {
-        add_body(eng, entity, v::text(params, "kind", "dynamic"))?;
-        // A collider inserted while the node had no body is standalone
-        // geometry in rapier; re-inserting it attaches it to the new body.
-        if let Some(collider) = get_collider_params(eng, entity) {
-            apply_collider(eng, entity, &collider)?;
-        }
-    }
-    with_body(eng, entity, |state, handle| {
-        let may_sleep = state.sleeping_allowed;
-        write_body(&mut state.world.bodies[handle], params, may_sleep);
-        // Rapier folds additional mass in at the next step; a scene that sets
-        // `mass = 5` and a script that reads it back in the same tick would
-        // otherwise disagree.
-        let colliders = &state.world.colliders;
-        state.world.bodies[handle].recompute_mass_properties_from_colliders(colliders);
-    })
-}
-
 /// Every property `apply` writes, read back off the body.
 pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let state = eng.resource::<PhysicsState>();
@@ -266,55 +213,6 @@ fn read_mass(body: &RigidBody, map: &mut toml::map::Map<String, toml::Value>) {
     map.insert("mass".into(), f(mass));
     map.insert("inertia".into(), vec3(inertia));
     map.insert("center_of_mass".into(), vec3(com));
-}
-
-/// A node's body handle, checked against rapier's arena.
-///
-/// A freed node's handle outlives it until the next prune, and indexing the
-/// arena with one panics inside rapier rather than failing the call.
-pub(crate) fn body_handle(state: &PhysicsState, entity: Entity) -> Result<RigidBodyHandle> {
-    let handle = state
-        .bodies
-        .get(&entity)
-        .copied()
-        .ok_or_else(|| anyhow!("node has no rigid body"))?;
-    if !state.world.bodies.contains(handle) {
-        return Err(anyhow!("this node's body is gone: the node was freed"));
-    }
-    Ok(handle)
-}
-
-pub(crate) fn with_body<R>(
-    eng: &Engine,
-    entity: Entity,
-    f: impl FnOnce(&mut PhysicsState, RigidBodyHandle) -> R,
-) -> Result<R> {
-    let state = eng.resource::<PhysicsState>();
-    let mut state = state.borrow_mut();
-    let handle = body_handle(&state, entity)?;
-    Ok(f(&mut state, handle))
-}
-
-/// The same, for a caller that only reads.
-pub(crate) fn read_body<R>(
-    eng: &Engine,
-    entity: Entity,
-    f: impl FnOnce(&RigidBody) -> R,
-) -> Result<R> {
-    let state = eng.resource::<PhysicsState>();
-    let state = state.borrow();
-    let handle = body_handle(&state, entity)?;
-    Ok(f(&state.world.bodies[handle]))
-}
-
-pub(crate) fn remove_body_and_colliders(eng: &Engine, entity: Entity) {
-    let state = eng.resource::<PhysicsState>();
-    let mut state = state.borrow_mut();
-    // Attached colliders die with the body inside rapier.
-    state.colliders.swap_remove(&entity);
-    if let Some(handle) = state.bodies.swap_remove(&entity) {
-        state.world.remove_body(handle);
-    }
 }
 
 /// Body creation, the forces that move one, and the overlap query.

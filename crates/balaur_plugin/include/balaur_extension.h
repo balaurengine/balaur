@@ -132,8 +132,6 @@ typedef struct BalaurApi {
     void (*log)(uint32_t level, BalaurStr message);
 } BalaurApi;
 
-/* ---- convenience, header-only -------------------------------------------- */
-
 static inline BalaurStr balaur_str(const char *text) {
     BalaurStr out;
     out.ptr = (const uint8_t *)text;
@@ -203,8 +201,6 @@ static inline BalaurValue balaur_list(const BalaurValue *items, size_t len) {
     return out;
 }
 
-/* ---- what your library must export --------------------------------------- */
-
 /* Must return BALAUR_ABI_VERSION. Called before anything else. */
 uint32_t balaur_extension_abi(void);
 /* Static, NUL-terminated. This, not the file name, is the plugin's name. */
@@ -212,8 +208,6 @@ const char *balaur_extension_name(void);
 const char *balaur_extension_version(void);
 /* Register everything here. Return 0 for success. */
 int32_t balaur_extension_declare(const BalaurApi *api, BalaurRegistry *registry);
-
-/* ---- layout, asserted rather than assumed -------------------------------- */
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 _Static_assert(sizeof(void *) == 8, "the balaur abi is defined for 64-bit builds");

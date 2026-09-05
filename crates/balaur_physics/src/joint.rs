@@ -180,21 +180,15 @@ fn ends(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<(Entity, E
     Ok((entity, other))
 }
 
-fn handles(
-    state: &PhysicsState,
-    a: Entity,
-    b: Entity,
-) -> Result<(RigidBodyHandle, RigidBodyHandle)> {
-    let first = *state
-        .bodies
-        .get(&a)
-        .ok_or_else(|| anyhow!("the node holding the joint has no body3d"))?;
-    let second = *state
-        .bodies
-        .get(&b)
-        .ok_or_else(|| anyhow!("the node at the joint's other end has no body3d"))?;
-    Ok((first, second))
-}
+crate::shared::joint::functions!(
+    state = PhysicsState,
+    world = PhysicsWorld,
+    reference = JointRef,
+    handle = JointHandle,
+    component = "joint3d",
+    body = "body3d",
+    impulse_magnitude = impulse_magnitude
+);
 
 pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     remove_joint(eng, entity);
@@ -237,35 +231,6 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
         },
     );
     Ok(())
-}
-
-pub(crate) fn remove_joint(eng: &Engine, entity: Entity) {
-    let state = eng.resource::<PhysicsState>();
-    let mut state = state.borrow_mut();
-    state.joint_params.swap_remove(&entity);
-    if let Some(reference) = state.joints.swap_remove(&entity) {
-        drop_joint(&mut state.world, &reference);
-    }
-}
-
-/// Whether rapier still holds this joint.
-///
-/// It drops one when either end's body goes, and a map that kept the handle
-/// would report a joint that is not there and never retry it.
-pub(crate) fn is_live(world: &PhysicsWorld, reference: &JointRef) -> bool {
-    match reference.handle {
-        JointHandle::Impulse(handle) => world.impulse_joints.get(handle).is_some(),
-        JointHandle::Multibody(handle) => world.multibody_joints.get(handle).is_some(),
-    }
-}
-
-pub(crate) fn drop_joint(world: &mut PhysicsWorld, reference: &JointRef) {
-    match reference.handle {
-        JointHandle::Impulse(handle) => {
-            world.remove_impulse_joint(handle);
-        }
-        JointHandle::Multibody(handle) => world.remove_multibody_joint(handle),
-    }
 }
 
 /// What `apply` wrote, read back off the joint.
@@ -323,53 +288,6 @@ fn impulse_magnitude(impulses: &[Real; 6]) -> Real {
 /// angular), which rapier hands back as a vector.
 pub(crate) fn impulse_magnitude_2d(impulses: &crate::rapier2d::math::SpatialVector) -> Real {
     impulses.length()
-}
-
-/// Joints authored but not yet made, because the node at the other end had
-/// not been spawned when this one was.
-///
-/// A scene file names nodes in whatever order it likes, and a joint that
-/// pointed forwards used to be silently inert. Retried once per step, over
-/// the few that are unresolved rather than over every joint.
-pub fn pending(state: &PhysicsState) -> Vec<Entity> {
-    let mut out: Vec<Entity> = state
-        .joint_params
-        .iter()
-        // A joint switched off has params and no handle for ever; retrying it
-        // every step would re-apply the whole component sixty times a second.
-        .filter(|(entity, params)| {
-            !state.joints.contains_key(*entity) && v::boolean(params, "enabled", true)
-        })
-        .map(|(entity, _)| *entity)
-        .collect();
-    out.sort_unstable_by_key(|e| e.to_bits());
-    out
-}
-
-/// Joints whose reaction force passed their `break_force` this step.
-///
-/// Checked after the step with the world still borrowed, and acted on after it
-/// is released — the same shape as an event, because a break *is* one.
-pub(crate) fn broken(state: &PhysicsState) -> Vec<Entity> {
-    let mut out = Vec::new();
-    for (entity, reference) in &state.joints {
-        if reference.break_force <= 0.0 {
-            continue;
-        }
-        let JointHandle::Impulse(handle) = reference.handle else {
-            // A reduced-coordinates joint has no reaction impulse to read:
-            // its constraint is built into the coordinates.
-            continue;
-        };
-        let Some(joint) = state.world.impulse_joints.get(handle) else {
-            continue;
-        };
-        if impulse_magnitude(&joint.impulses) > reference.break_force {
-            out.push(*entity);
-        }
-    }
-    out.sort_unstable_by_key(|e| e.to_bits());
-    out
 }
 
 pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
@@ -452,45 +370,6 @@ pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
             solve_ik(eng, entity_of(node)?, scalar::v3(x, y, z))
         },
     );
-}
-
-/// A joint's own data, whichever set it lives in.
-fn with_joint(eng: &Engine, node: NodeId, f: impl FnOnce(&mut GenericJoint, &str)) -> Result<()> {
-    let entity = entity_of(node)?;
-    let kind = balaur_core::components::get(eng, entity, "joint3d")
-        .and_then(|params| {
-            params
-                .get("kind")
-                .and_then(toml::Value::as_str)
-                .map(str::to_string)
-        })
-        .unwrap_or_else(|| "revolute".to_string());
-    let state = eng.resource::<PhysicsState>();
-    let mut state = state.borrow_mut();
-    match state.joints.get(&entity).map(|j| j.handle) {
-        Some(JointHandle::Impulse(handle)) => {
-            let joint = state
-                .world
-                .impulse_joints
-                .get_mut(handle, true)
-                .ok_or_else(|| anyhow!("this node's joint is gone"))?;
-            f(&mut joint.data, &kind);
-            Ok(())
-        }
-        Some(JointHandle::Multibody(handle)) => {
-            let (multibody, link) = state
-                .world
-                .multibody_joints
-                .get_mut(handle)
-                .ok_or_else(|| anyhow!("this node's joint is gone"))?;
-            let link = multibody
-                .link_mut(link)
-                .ok_or_else(|| anyhow!("this node's joint is gone"))?;
-            f(&mut link.joint.data, &kind);
-            Ok(())
-        }
-        None => Err(anyhow!("node has no joint3d")),
-    }
 }
 
 /// Move a reduced-coordinates chain so the node's own body reaches `target`.
