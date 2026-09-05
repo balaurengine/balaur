@@ -100,7 +100,11 @@ pub async fn open_project(
             JsValue::from_str("nothing is kept under that project id, and no pack to start it from")
         })?;
         let seed = balaur::Pack::decode(&fetch_bytes(&url).await?).map_err(err)?;
-        fs.name(manifest_name(&seed.manifest).as_deref().unwrap_or(&project_id));
+        fs.name(
+            manifest_name(&seed.manifest)
+                .as_deref()
+                .unwrap_or(&project_id),
+        );
         fs.seed_at(Path::new(PROJECT_ROOT), seed.entries());
     }
     fs.seed_at(Path::new(EDITOR_ROOT), editor_pack.entries());

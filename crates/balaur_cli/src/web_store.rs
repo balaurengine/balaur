@@ -27,10 +27,7 @@ use balaur::files::{FileBackend, MemoryFs, lexical};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{
-    IdbDatabase, IdbObjectStore, IdbRequest, IdbTransaction, IdbTransactionDurability,
-    IdbTransactionMode, IdbTransactionOptions,
-};
+use web_sys::{IdbDatabase, IdbObjectStore, IdbRequest, IdbTransaction, IdbTransactionMode};
 
 /// The database everything on this origin lives in.
 const DB_NAME: &str = "balaur-projects";
@@ -171,7 +168,8 @@ impl ProjectFs {
             }
         });
         for event in ["pagehide", "visibilitychange"] {
-            let _ = window.add_event_listener_with_callback(event, leaving.as_ref().unchecked_ref());
+            let _ =
+                window.add_event_listener_with_callback(event, leaving.as_ref().unchecked_ref());
         }
         // One store per tab, so the listener lives as long as the page.
         leaving.forget();
@@ -504,19 +502,23 @@ fn unrecord(value: &JsValue) -> (Vec<u8>, f64) {
 }
 
 /// A read-write transaction over both stores, durable when asked.
+///
+/// The durable form is called as a page would call it: web-sys keeps
+/// `durability` behind its unstable cfg, and a browser without the option
+/// ignores the third argument, which leaves the ordinary transaction.
 fn transaction(db: &IdbDatabase, strict: bool) -> Result<IdbTransaction, JsValue> {
     let names = js_sys::Array::of2(&FILES.into(), &META.into());
-    if strict {
-        let options = IdbTransactionOptions::new();
-        options.set_durability(IdbTransactionDurability::Strict);
-        db.transaction_with_str_sequence_and_mode_and_options(
-            &names,
-            IdbTransactionMode::Readwrite,
-            &options,
-        )
-    } else {
-        db.transaction_with_str_sequence_and_mode(&names, IdbTransactionMode::Readwrite)
+    if !strict {
+        return db.transaction_with_str_sequence_and_mode(&names, IdbTransactionMode::Readwrite);
     }
+    let options = js_sys::Object::new();
+    js_sys::Reflect::set(&options, &"durability".into(), &"strict".into())?;
+    let method =
+        js_sys::Reflect::get(db.as_ref(), &"transaction".into())?.dyn_into::<js_sys::Function>()?;
+    method
+        .call3(db.as_ref(), &names, &"readwrite".into(), &options)?
+        .dyn_into::<IdbTransaction>()
+        .map_err(|_| JsValue::from_str("transaction() answered with no transaction"))
 }
 
 /// Open the database, creating its stores the first time.

@@ -11,7 +11,7 @@
 //! migrate = "scripts/saves.rn"      # brings an older file forward
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
 
