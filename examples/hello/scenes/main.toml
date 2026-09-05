@@ -1,3 +1,14 @@
+# The torus below is drawn from this asset and collided with it: one mesher
+# builds both, so the ring a ball rolls through is the ring on screen.
+[[assets]]
+id = "ring"
+type = "mesh"
+kind = "torus"
+radius = 1.1
+tube_radius = 0.28
+segments = 32
+rings = 16
+
 [[nodes]]
 id = "n_world"
 name = "World"
@@ -87,6 +98,23 @@ position = [-0.5, 5, 1.5]
 
 [nodes.overrides."Crate/Lid".shape3d]
 color = [0.9, 0.3, 0.25, 1]
+
+# A shape the renderer could not have built for itself, with a collider
+# fitted to the very triangles it draws rather than to a box around them.
+[[nodes]]
+body3d = "static"
+id = "n_ring"
+name = "Ring"
+parent = "n_world"
+position = [2.5, 1.6, -2.5]
+rotation = [90, 0, 0]
+
+[nodes.mesh]
+source = "ring"
+
+[nodes.collider3d]
+kind = "trimesh"
+mesh = "ring"
 
 [[nodes]]
 id = "n_hud"

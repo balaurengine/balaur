@@ -27,7 +27,11 @@ pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_cuboid",
         |eng: &Engine, (node, hx, hy, hz): (NodeId, f32, f32, f32)| {
-            set_shape(eng, entity_of(node)?, Shape::Solid(Solid::cuboid(hx, hy, hz)))
+            set_shape(
+                eng,
+                entity_of(node)?,
+                Shape::Solid(Solid::cuboid(hx, hy, hz)),
+            )
         },
     );
     m.function(

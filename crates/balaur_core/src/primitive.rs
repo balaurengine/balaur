@@ -107,11 +107,7 @@ pub enum Solid {
         segments: u32,
     },
     /// A flat quad in the xz plane, for ground and walls.
-    Plane {
-        hx: f32,
-        hz: f32,
-        segments: u32,
-    },
+    Plane { hx: f32, hz: f32, segments: u32 },
     Torus {
         radius: f32,
         tube_radius: f32,

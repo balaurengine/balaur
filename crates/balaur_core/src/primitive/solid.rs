@@ -50,9 +50,10 @@ pub fn capsule(radius: f32, height: f32, segments: u32, rings: u32) -> MeshData 
             let t = i as f32 / arc as f32;
             // Each cap is half a meridian: the lower one runs pole to equator
             // and the upper one equator to pole, so both ends stay exact.
-            let direction = meridian((cap as f32 + t) / 2.0);
+            let v = f32::midpoint(cap as f32, t);
+            let direction = meridian(v);
             let position = Vec2::new(radius * direction.x, radius.mul_add(direction.y, offset));
-            profile.push(ProfilePoint::new(position, direction, (cap as f32 + t) / 2.0));
+            profile.push(ProfilePoint::new(position, direction, v));
         }
     }
     revolve(&profile, segments, Facets::Smooth)
@@ -168,11 +169,7 @@ pub fn pyramid(hx: f32, hy: f32, hz: f32, sides: u32) -> MeshData {
         );
         build.face(
             &[near, apex, far],
-            &[
-                Vec2::new(u, 0.0),
-                Vec2::new(u, 1.0),
-                Vec2::new(next_u, 0.0),
-            ],
+            &[Vec2::new(u, 0.0), Vec2::new(u, 1.0), Vec2::new(next_u, 0.0)],
         );
     }
     build.finish()
@@ -249,7 +246,11 @@ pub fn cuboid(hx: f32, hy: f32, hz: f32, corner_radius: f32, segments: u32) -> M
     let radius = corner_radius.clamp(0.0, smallest.max(0.0));
     let inner = Vec3::from_array(half) - Vec3::splat(radius);
     let inner = inner.max(Vec3::ZERO);
-    let arc = if radius > 0.0 { (segments / 4).max(1) } else { 1 };
+    let arc = if radius > 0.0 {
+        (segments / 4).max(1)
+    } else {
+        1
+    };
     let samples = [
         arc_samples(inner.x, radius, arc),
         arc_samples(inner.y, radius, arc),
@@ -275,8 +276,7 @@ pub fn cuboid(hx: f32, hy: f32, hz: f32, corner_radius: f32, segments: u32) -> M
                 p[axis] = sign * half[axis];
                 p[u_axis] = u;
                 p[v_axis] = v;
-                let (position, normal) =
-                    project(Vec3::from_array(p), Vec3::from_array(face));
+                let (position, normal) = project(Vec3::from_array(p), Vec3::from_array(face));
                 let uv = Vec2::new(
                     i as f32 / (us.len() - 1).max(1) as f32,
                     j as f32 / (vs.len() - 1).max(1) as f32,

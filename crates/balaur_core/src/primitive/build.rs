@@ -152,7 +152,7 @@ pub fn revolve(profile: &[ProfilePoint], segments: u32, facets: Facets) -> MeshD
         let (sin, cos) = libm::sincosf(std::f32::consts::TAU * turn);
         (u, sin, cos)
     };
-    let spin = |p: &ProfilePoint, sin: f32, cos: f32| {
+    let placed = |p: &ProfilePoint, sin: f32, cos: f32| {
         (
             Vec3::new(p.position.x * cos, p.position.y, p.position.x * sin),
             Vec3::new(p.normal.x * cos, p.normal.y, p.normal.x * sin),
@@ -163,10 +163,10 @@ pub fn revolve(profile: &[ProfilePoint], segments: u32, facets: Facets) -> MeshD
             let (u, sin, cos) = around(i);
             let (next_u, next_sin, next_cos) = around(i + 1);
             for j in 0..count - 1 {
-                let (low, _) = spin(&profile[j], sin, cos);
-                let (high, _) = spin(&profile[j + 1], sin, cos);
-                let (next_high, _) = spin(&profile[j + 1], next_sin, next_cos);
-                let (next_low, _) = spin(&profile[j], next_sin, next_cos);
+                let (low, _) = placed(&profile[j], sin, cos);
+                let (high, _) = placed(&profile[j + 1], sin, cos);
+                let (next_high, _) = placed(&profile[j + 1], next_sin, next_cos);
+                let (next_low, _) = placed(&profile[j], next_sin, next_cos);
                 let (v0, v1) = (profile[j].v, profile[j + 1].v);
                 build.face(
                     &[low, high, next_high, next_low],
@@ -185,7 +185,7 @@ pub fn revolve(profile: &[ProfilePoint], segments: u32, facets: Facets) -> MeshD
     for i in 0..=segments {
         let (u, sin, cos) = around(i);
         for p in profile {
-            let (position, normal) = spin(p, sin, cos);
+            let (position, normal) = placed(p, sin, cos);
             ring.push(build.vertex(position, normal, Vec2::new(u, p.v)));
         }
     }

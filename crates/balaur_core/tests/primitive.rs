@@ -176,12 +176,18 @@ fn a_solid_carries_a_normal_and_a_uv_per_vertex() {
     for (name, solid) in closed_solids() {
         let mesh = solid.build();
         let normals = mesh.normals.as_ref().expect("a mesher writes normals");
-        let uvs = mesh.uvs.as_ref().expect("a mesher writes texture coordinates");
+        let uvs = mesh
+            .uvs
+            .as_ref()
+            .expect("a mesher writes texture coordinates");
         assert_eq!(normals.len(), mesh.positions.len(), "{name} normals");
         assert_eq!(uvs.len(), mesh.positions.len(), "{name} uvs");
         for normal in normals {
             let length = Vec3::from_array(*normal).length();
-            assert!((length - 1.0).abs() < 1e-3, "{name} has a normal of {length}");
+            assert!(
+                (length - 1.0).abs() < 1e-3,
+                "{name} has a normal of {length}"
+            );
         }
     }
 }
@@ -193,7 +199,13 @@ fn the_same_parameters_give_the_same_mesh() {
     }
 }
 
+/// The grid's corners land on the half-extents exactly, with no arithmetic
+/// between them and the numbers asked for, so exact equality is the claim.
 #[test]
+#[allow(
+    clippy::float_cmp,
+    reason = "a plane's corners are placed, not computed"
+)]
 fn a_plane_is_a_grid_facing_up() {
     let mesh = Solid::Plane {
         hx: 2.0,
@@ -265,7 +277,13 @@ fn flats() -> Vec<(&'static str, Flat)> {
                 inner_radius: 0.3,
             },
         ),
-        ("ngon", Flat::Ngon { sides: 6, radius: 0.5 }),
+        (
+            "ngon",
+            Flat::Ngon {
+                sides: 6,
+                radius: 0.5,
+            },
+        ),
     ]
 }
 
@@ -293,7 +311,10 @@ fn every_flat_shape_fills() {
                 half[axis]
             );
         }
-        assert!(mesh.positions.iter().all(|p| p[2] == 0.0), "{name} is not flat");
+        assert!(
+            mesh.positions.iter().all(|p| p[2] == 0.0),
+            "{name} is not flat"
+        );
     }
 }
 

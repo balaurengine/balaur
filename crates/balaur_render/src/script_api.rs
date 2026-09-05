@@ -496,7 +496,12 @@ fn install_shape_readers(m: &mut dyn Bindings<Engine>) {
                     let [x, y, z] = solid.dimensions();
                     (solid.kind().to_string(), x, y, z)
                 }
-                None => (balaur_core::mesh::MESH_ASSET_TYPE.to_string(), 0.0, 0.0, 0.0),
+                None => (
+                    balaur_core::mesh::MESH_ASSET_TYPE.to_string(),
+                    0.0,
+                    0.0,
+                    0.0,
+                ),
             },
             Err(_) => (String::new(), 0.0, 0.0, 0.0),
         };

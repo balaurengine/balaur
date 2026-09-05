@@ -280,8 +280,12 @@ mod tests {
     #[test]
     fn a_plane_is_pickable_from_above() {
         let place = at(Vec3::ZERO);
-        let plane = Shape::Solid(Solid::Plane { hx: 5.0, hz: 5.0, segments: 1 });
-        let (_, half) = local_box(&renderable(plane)).unwrap();
+        let flat = Shape::Solid(Solid::Plane {
+            hx: 5.0,
+            hz: 5.0,
+            segments: 1,
+        });
+        let (_, half) = local_box(&renderable(flat)).unwrap();
         let above = Vec3::new(1.0, 4.0, 1.0);
         let down = Vec3::new(0.0, -1.0, 0.0);
         assert!(hit_box(&place, Vec3::ZERO, half, above, down).is_some());

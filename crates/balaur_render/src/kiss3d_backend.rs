@@ -594,7 +594,11 @@ fn sync(
 /// optional in the format; kiss3d computes normals from the faces when they
 /// are absent, which is the right answer for a bare OBJ.
 fn upload_geometry(scene: &mut SceneNode3d, data: &balaur_core::mesh::MeshData) -> SceneNode3d {
-    let coords: Vec<Vec3> = data.positions.iter().map(|p| Vec3::from_array(*p)).collect();
+    let coords: Vec<Vec3> = data
+        .positions
+        .iter()
+        .map(|p| Vec3::from_array(*p))
+        .collect();
     let normals = data
         .normals
         .as_ref()
@@ -762,7 +766,11 @@ fn build_2d_node(scene: &mut SceneNode2d, renderable: &Renderable2d) -> Option<S
         // a circle arrive by the same path.
         Shape2d::Flat(flat) => {
             let mesh = flat.build();
-            let coords: Vec<Vec2> = mesh.positions.iter().map(|p| Vec2::new(p[0], p[1])).collect();
+            let coords: Vec<Vec2> = mesh
+                .positions
+                .iter()
+                .map(|p| Vec2::new(p[0], p[1]))
+                .collect();
             let uvs = mesh
                 .uvs
                 .as_ref()

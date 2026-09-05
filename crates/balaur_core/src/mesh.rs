@@ -328,7 +328,9 @@ fn parse_definition(value: &toml::Value) -> Result<MeshData> {
         }
         (None, true) => parse_inline(value),
         (None, false) => {
-            bail!("a mesh needs a `source` file, a primitive `kind`, or inline `positions` and `indices`")
+            bail!(
+                "a mesh needs a `source` file, a primitive `kind`, or inline `positions` and `indices`"
+            )
         }
     }
 }
