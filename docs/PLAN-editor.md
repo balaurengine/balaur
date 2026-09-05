@@ -87,8 +87,9 @@ command, and the async self-tests once the tokens exist.
 
 ## 6. Tools not yet built
 
-One tool left. Each is a persona tool or a dock registered like the
-built-ins, and each lands with a `--state` self-test.
+The curve editor, and the rigging panels below it. Each is a persona tool
+or a dock registered like the built-ins, and each lands with a `--state`
+self-test.
 
 ### Tilemap editor — built, 2026-09-05
 
@@ -124,3 +125,58 @@ so the file stays readable. Onion skin ghosts the posed rig at the previous
 and next keys behind the viewport, from the same sampler the preview uses.
 
 The profiler that was to measure both shipped on 2026-09-03.
+
+### Rigging panels
+
+Measured on 2026-09-05 against what Godot 4's Skeleton2D, Polygon2D and
+Skeleton3D editors and Spine's setup mode show. Built: the Rig tool (a
+chain grown by clicking, picking in 2D and 3D, Reset and Overwrite Rest
+Pose), the Polygon tool's Points, Polygons, UV and Weights modes with a
+brush, `modifier2d` as inspector rows, the timeline dock, and `bone3d`
+from `balaur import`. What a rigger still reaches for, in the order it
+pays off; every entry is editor work over data the engine already has,
+except where it names the animation plan.
+
+- **A weight table.** Spine's Weights view. A dock for the Weights mode
+  listing the selected vertices with one number per bone, editable in
+  place, with Bind and Unbind, Normalise, Auto (weights by distance to
+  each bone's segment, the same segment `rig::geometry` draws) and Smooth
+  (average with the vertices sharing an edge). Writes `mesh.skin.weights`
+  through `history`, as the brush does. Planned.
+- **Modifier gizmos.** Godot's SkeletonModification2D editor shows the
+  target and the elbow; here `look_at` and `two_bone_ik` are inspector
+  rows. Planned: a handle at the target node, a line from the driven bone,
+  and a `flip` toggle on the chain, drawn by `rig::draw` from the same
+  `modifier2d` table. Chain solvers and jiggle are the engine's first —
+  `docs/PLAN-animation-and-resources.md` "Rig tooling".
+- **Bone names in the viewport.** Needs `render.draw_text_2d` (§3); until
+  then the inspector's Skeleton row is the only place a bone is named.
+  Planned with §3.
+- **Mirror and symmetry.** Godot has neither; Spine mirrors bones, vertices
+  and weights across an axis. Planned as one verb, Mirror, in the Rig and
+  Polygon tools: reflect the selection's rest pose or vertices over the
+  node's x or y axis, and map each bone's weights to the bone whose name
+  differs by a `left`/`right` or `l_`/`r_` prefix.
+- **A mesh traced from the texture's alpha.** Spine's Generate. Planned:
+  a Trace button in the Polygon section that walks the image's alpha at a
+  threshold, simplifies the outline to a tolerance in pixels, and writes
+  `positions`; the image is already read headless for `natural_half_extents`,
+  so the tracer is CPU code in `balaur_core::geometry2d` with a test.
+- **Deform keys.** Spine's free-form deformation: a clip animating vertex
+  positions without a bone. The engine half is a `polygon/deform` track
+  (`docs/PLAN-animation-and-resources.md` "Rig tooling"); the editor half is
+  the Points mode recording a key when the Animate persona is armed, the
+  way a transform edit does today. Planned after the engine track.
+- **A bone map for retargeting.** Godot's BoneMap and SkeletonProfile
+  panel: an imported humanoid rig mapped to a canonical one so a clip
+  plays on another rig. The engine has no `bone_map` asset yet; when it
+  does, the panel is a two-column list of canonical names against the
+  rig's bones with a guess by name. Planned after the asset.
+- **Physical bones.** Godot's Create Physical Skeleton: a body and a
+  joint per bone, for a ragdoll. Engine first (`docs/PLAN-physics.md`);
+  the button is one command once a rig can be walked into bodies.
+- **Not planned:** slots, attachments and skins as Spine has them — a
+  node with a `sprite` and `visible` is the same thing here; a separate
+  Skeleton node — a rig is the bones under a node, by design
+  (ARCHITECTURE.md "Skeletons and skins"); 3D weight painting — weights
+  come from the file, as in Godot.
