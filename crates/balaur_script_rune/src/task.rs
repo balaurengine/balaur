@@ -221,3 +221,29 @@ fn end_recording(eng: &balaur_core::Engine, changed: &[String]) {
         );
     }
 }
+
+/// `task::frames(n).await` and `task::seconds(t).await` park until the
+/// fixed step has counted that far, so a wait replays exactly. The engine
+/// is reached by host slot: Rune wants these `Send`.
+pub(crate) fn declare_waits(host: &RuneHost, task: &mut rune::Module) -> anyhow::Result<()> {
+    let slot = crate::HOSTS.with(|hosts| {
+        let mut hosts = hosts.borrow_mut();
+        hosts.push(host.clone());
+        hosts.len() - 1
+    });
+    task.function("frames", move |count: i64| {
+        let engine = crate::HOSTS.with(|hosts| hosts.borrow()[slot].engine.clone());
+        WaitFuture {
+            token: balaur_core::timers::after_frames(&engine, u32::try_from(count).unwrap_or(0)),
+        }
+    })
+    .build()?;
+    task.function("seconds", move |seconds: f64| {
+        let engine = crate::HOSTS.with(|hosts| hosts.borrow()[slot].engine.clone());
+        WaitFuture {
+            token: balaur_core::timers::after_seconds(&engine, seconds as f32),
+        }
+    })
+    .build()?;
+    Ok(())
+}

@@ -75,6 +75,10 @@ pub struct InputSnapshot {
     /// fed nothing at all, which is a divergence with no message.
     #[serde(default)]
     typed: String,
+    /// How much of the window the on-screen keyboard covers, in pixels from
+    /// the bottom; 0 with no keyboard up, and always 0 on a desktop.
+    #[serde(default)]
+    keyboard_height: f32,
 }
 
 impl InputSnapshot {
@@ -129,6 +133,15 @@ impl InputSnapshot {
     }
 
     /// What was typed this frame, in order, or empty.
+    /// Published by a backend that can see the on-screen keyboard.
+    pub fn set_keyboard_height(&mut self, pixels: f32) {
+        self.keyboard_height = pixels.max(0.0);
+    }
+
+    pub fn keyboard_height(&self) -> f32 {
+        self.keyboard_height
+    }
+
     pub fn typed(&self) -> &str {
         &self.typed
     }
@@ -637,6 +650,7 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
         ("touches_ended", &[], "", "The ids of the fingers that lifted or were cancelled this frame."),
         ("dropped_files", &[], "", "The absolute paths of files dropped onto the window this frame, in drop order; desktop only."),
         ("typed", &[], "", "The characters typed this frame, in order: what a text field appends, where `just_pressed` says which key went down."),
+        ("keyboard_height", &[], "", "How much of the window the on-screen keyboard covers, in pixels from the bottom: what a form moves up by. Zero with no keyboard up, and always zero on a desktop."),
     ]);
     // Active touches as `{ id, x, y }` maps, oldest finger first. Pixel
     // coordinates, same space as `mouse_position`.
@@ -682,6 +696,11 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
         let state = eng.resource::<InputSnapshot>();
         let typed = state.borrow().typed().to_string();
         Ok(Value::Str(typed))
+    });
+    m.function("keyboard_height", |eng: &Engine, ()| {
+        let state = eng.resource::<InputSnapshot>();
+        let height = state.borrow().keyboard_height();
+        Ok(Value::Num(f64::from(height)))
     });
     // Files dropped onto the window this frame, absolute paths in drop order.
     // Desktop only: browsers and phones have no window to drop onto.

@@ -116,7 +116,7 @@ web)
   # [target.wasm32-unknown-unknown] and wgpu reaches WebGPU only through web-sys.
   # webtransport is left out until it grows the wasm stub http and websocket have.
   cargo build --profile web --target "$target" -p balaur_cli \
-    --no-default-features --features audio,http,websocket,gamend,window
+    --no-default-features --features audio,http,websocket,gamend,web,window
 
   wasm="target/$target/web/balaur.wasm"
   [ -f "$wasm" ] || { printf '::error::no %s\n' "$wasm"; exit 1; }
@@ -166,6 +166,15 @@ web)
       [ "$br" -gt 0 ] && printf '| brotli | %.2f |\n' "$(echo "$br/1048576" | bc -l)"
     } >>"$GITHUB_STEP_SUMMARY"
   fi
+
+  # The directory `balaur export --target web` copies: the glue and the wasm.
+  # The exporter adds the page and the pack beside them.
+  step "template dir"
+  skeleton="$dist/balaur-template-web"
+  rm -rf "$skeleton"
+  mkdir -p "$skeleton"
+  cp "$dist/balaur.js" "$dist/balaur_bg.wasm" "$skeleton/"
+  (cd "$dist" && tar -czf balaur-template-web.tar.gz balaur-template-web)
   ;;
 
 *)

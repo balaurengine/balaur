@@ -8,7 +8,9 @@
 use anyhow::{anyhow, Result};
 use serde_json::{json, Value};
 
-use super::rest::{required, Client};
+use super::rest::required;
+#[cfg(not(target_family = "wasm"))]
+use super::rest::Client;
 
 /// A logged-in identity: the token pair plus who it belongs to.
 ///
@@ -37,9 +39,9 @@ pub enum Credentials {
     },
 }
 
-/// Log in and store the session on the client for every later call.
-pub fn login(client: &mut Client, credentials: &Credentials) -> Result<Session> {
-    let (path, body) = match credentials {
+/// The path and body a login posts, for whichever transport sends it.
+pub(crate) fn login_request(credentials: &Credentials) -> (&'static str, Value) {
+    match credentials {
         Credentials::EmailPassword { email, password } => (
             "/api/v1/login",
             json!({ "email": email, "password": password }),
@@ -47,7 +49,18 @@ pub fn login(client: &mut Client, credentials: &Credentials) -> Result<Session> 
         Credentials::Device { device_id } => {
             ("/api/v1/login/device", json!({ "device_id": device_id }))
         }
-    };
+    }
+}
+
+/// The path and body a refresh posts.
+pub(crate) fn refresh_request(refresh_token: &str) -> (&'static str, Value) {
+    ("/api/v1/refresh", json!({ "refresh_token": refresh_token }))
+}
+
+/// Log in and store the session on the client for every later call.
+#[cfg(not(target_family = "wasm"))]
+pub fn login(client: &mut Client, credentials: &Credentials) -> Result<Session> {
+    let (path, body) = login_request(credentials);
     let reply = client.call_raw("POST", path, Some(&body), false)?;
     let session = session_of(&reply.body, reply.status, "login")?;
     client.set_session(Some(session.clone()));
@@ -56,14 +69,15 @@ pub fn login(client: &mut Client, credentials: &Credentials) -> Result<Session> 
 
 /// Trade a refresh token for a fresh access token. The refresh token itself
 /// is echoed back unchanged by the server.
+#[cfg(not(target_family = "wasm"))]
 pub fn refresh(client: &Client, refresh_token: &str) -> Result<Session> {
-    let body = json!({ "refresh_token": refresh_token });
-    let reply = client.call_raw("POST", "/api/v1/refresh", Some(&body), false)?;
+    let (path, body) = refresh_request(refresh_token);
+    let reply = client.call_raw("POST", path, Some(&body), false)?;
     session_of(&reply.body, reply.status, "refresh")
 }
 
 /// The `{"data": {...}}` envelope both login and refresh reply with.
-fn session_of(body: &Value, status: u16, what: &str) -> Result<Session> {
+pub(crate) fn session_of(body: &Value, status: u16, what: &str) -> Result<Session> {
     if status != 200 {
         let error = body
             .get("error")

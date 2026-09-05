@@ -44,7 +44,7 @@ fn measured_of(entity: Entity) -> egui::Vec2 {
     })
 }
 
-fn record_measure(entity: Entity, size: egui::Vec2) {
+pub(crate) fn record_measure(entity: Entity, size: egui::Vec2) {
     MEASURING.with(|m| {
         m.borrow_mut().insert(entity.to_bits().get(), size);
     });
@@ -135,24 +135,44 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let pad = padding_of(&widget, &style, at.scale);
     let frame = themed_frame(&style, at.scale, None);
     let inner = (size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);
-    frame.show(ui, |ui| {
+    frame.show(ui, |frame_ui| {
         // The padding comes off the box in floats; the frame itself carries
         // none, so a scroll at a fractional scale keeps the size it was given.
-        let held = ui.max_rect();
-        let mut ui = ui.new_child(egui::UiBuilder::new().max_rect(held.shrink(pad)));
-        let ui = &mut ui;
+        let held = frame_ui.max_rect();
+        let mut inner_ui = frame_ui.new_child(egui::UiBuilder::new().max_rect(held.shrink(pad)));
+        let ui = &mut inner_ui;
         hold_to(ui, inner);
-        egui::ScrollArea::both()
+        let dead = widget.deadzone * at.scale;
+        let mut area = egui::ScrollArea::both()
             .id_salt(("balaur-scroll", entity))
             .max_width(inner.x)
-            .max_height(inner.y)
-            .show(ui, |ui| {
-                // Along the scroll the room is unbounded: children take what
-                // they measure and the bar makes up the difference.
-                let held = std::mem::replace(&mut at.bounds, vec2(inner.x, 0.0));
-                lay_out(ui, at, index, Axis::Column);
-                at.bounds = held;
+            .max_height(inner.y);
+        // With a deadzone the finger scrolls nothing until it has travelled
+        // that far, so a tap on a child lands; past it, this drags the
+        // offset itself.
+        let dragged = (dead > 0.0)
+            .then(|| crate::widget_kinds::deadzone_drag(ui, at.eng, entity, dead))
+            .flatten();
+        if dead > 0.0 {
+            area = area.scroll_source(egui::scroll_area::ScrollSource {
+                drag: egui::scroll_area::DragScroll::Never,
+                ..egui::scroll_area::ScrollSource::default()
             });
+        }
+        if let Some(offset) = dragged {
+            area = area.scroll_offset(offset);
+        }
+        area.show(ui, |ui| {
+            // Along the scroll the room is unbounded: children take what
+            // they measure and the bar makes up the difference.
+            let held = std::mem::replace(&mut at.bounds, vec2(inner.x, 0.0));
+            lay_out(ui, at, index, Axis::Column);
+            at.bounds = held;
+        });
+        // The frame, and the area above it, learn the box the child took;
+        // a child ui reports nothing to its parent on its own.
+        let used = inner_ui.min_rect().expand(pad);
+        frame_ui.allocate_rect(used, egui::Sense::hover());
     });
 }
 

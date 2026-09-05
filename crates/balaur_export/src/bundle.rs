@@ -1,5 +1,6 @@
 //! Exporting to a platform whose game is a directory rather than a file: the
-//! iOS `.app`, the Android APK layout, and the signed macOS `.app`.
+//! iOS `.app`, the Android APK layout, the web directory a static host
+//! serves, and the signed macOS `.app`.
 //!
 //! Split out of `main.rs`, which keeps the command line itself.
 
@@ -17,6 +18,9 @@ pub(crate) enum Bundle {
     Ios,
     /// An APK layout, with the pack under `assets/`.
     Android,
+    /// A directory for a static host: the shell page, the wasm and its
+    /// glue, and the pack beside them.
+    Web,
 }
 
 impl Bundle {
@@ -24,6 +28,7 @@ impl Bundle {
         match target {
             "ios" => Some(Self::Ios),
             "android" => Some(Self::Android),
+            "web" => Some(Self::Web),
             _ => None,
         }
     }
@@ -33,6 +38,7 @@ impl Bundle {
         match self {
             Self::Ios => "Balaur.app",
             Self::Android => "balaur-template-android",
+            Self::Web => "balaur-template-web",
         }
     }
 
@@ -40,8 +46,22 @@ impl Bundle {
         match self {
             Self::Ios => "ios",
             Self::Android => "android",
+            Self::Web => "web",
         }
     }
+}
+
+/// The page a web export ships, unless the project has `web/index.html` of
+/// its own. `{{title}}` and `{{pack}}` are filled in.
+const WEB_SHELL: &str = include_str!("web/index.html");
+
+/// The shell for a project: its own, or the built-in one.
+pub(crate) fn web_shell(project: &Path) -> Result<String> {
+    let own = project.join("web").join("index.html");
+    if own.is_file() {
+        return std::fs::read_to_string(&own).with_context(|| format!("reading {}", own.display()));
+    }
+    Ok(WEB_SHELL.to_string())
 }
 
 /// Replace what an earlier export wrote, and refuse anything else: `-o .`
@@ -68,6 +88,7 @@ pub(crate) fn export_bundle(
     name: &str,
     output: Option<PathBuf>,
     apple: &AppleConfig,
+    shell: &str,
 ) -> Result<()> {
     if kind == Bundle::Ios {
         apple.check(Platform::Ios)?;
@@ -75,15 +96,16 @@ pub(crate) fn export_bundle(
     let output = output.unwrap_or_else(|| match kind {
         Bundle::Ios => PathBuf::from(format!("{name}.app")),
         Bundle::Android => PathBuf::from(format!("{name}-android")),
+        Bundle::Web => PathBuf::from(format!("{name}-web")),
     });
     let inside = match kind {
-        Bundle::Ios => PathBuf::from(balaur::standalone::BUNDLED_PACK),
+        Bundle::Ios | Bundle::Web => PathBuf::from(balaur::standalone::BUNDLED_PACK),
         Bundle::Android => Path::new("assets").join(balaur::standalone::BUNDLED_PACK),
     };
     replace_export(&output, &inside)?;
     copy_dir(template, &output)?;
     let pack_path = match kind {
-        Bundle::Ios => output.join(balaur::standalone::BUNDLED_PACK),
+        Bundle::Ios | Bundle::Web => output.join(balaur::standalone::BUNDLED_PACK),
         Bundle::Android => {
             let assets = output.join("assets");
             std::fs::create_dir_all(&assets)?;
@@ -91,6 +113,18 @@ pub(crate) fn export_bundle(
         }
     };
     std::fs::write(&pack_path, pack).with_context(|| format!("writing {}", pack_path.display()))?;
+    if kind == Bundle::Web {
+        let page = shell
+            .replace("{{title}}", name)
+            .replace("{{pack}}", balaur::standalone::BUNDLED_PACK);
+        let index = output.join("index.html");
+        std::fs::write(&index, page).with_context(|| format!("writing {}", index.display()))?;
+        tracing::info!(
+            "exported for the web -> {} (serve the directory; the page fetches the pack beside it)",
+            output.display()
+        );
+        return Ok(());
+    }
     if kind == Bundle::Ios {
         let plist = output.join("Info.plist");
         let executable = template_executable(&plist).unwrap_or_else(|| "Balaur".to_string());
@@ -268,6 +302,54 @@ mod tests {
         replace_export(&app, Path::new(balaur::standalone::BUNDLED_PACK)).unwrap();
 
         assert!(!app.exists());
+    }
+
+    #[test]
+    fn a_web_export_is_the_template_the_pack_and_a_page_that_names_both() {
+        let dir = tempfile::tempdir().unwrap();
+        let template = dir.path().join("balaur-template-web");
+        std::fs::create_dir(&template).unwrap();
+        std::fs::write(template.join("balaur.js"), b"export default 1;").unwrap();
+        std::fs::write(template.join("balaur_bg.wasm"), b"\0asm").unwrap();
+        let out = dir.path().join("game-web");
+
+        export_bundle(
+            Bundle::Web,
+            &template,
+            b"pack",
+            "Tide",
+            Some(out.clone()),
+            &AppleConfig::default(),
+            WEB_SHELL,
+        )
+        .unwrap();
+
+        assert_eq!(
+            std::fs::read(out.join("balaur.js")).unwrap(),
+            b"export default 1;"
+        );
+        assert_eq!(std::fs::read(out.join("balaur_bg.wasm")).unwrap(), b"\0asm");
+        assert_eq!(
+            std::fs::read(out.join(balaur::standalone::BUNDLED_PACK)).unwrap(),
+            b"pack"
+        );
+        let page = std::fs::read_to_string(out.join("index.html")).unwrap();
+        assert!(page.contains("<title>Tide</title>"), "{page}");
+        assert!(
+            page.contains(&format!("./{}", balaur::standalone::BUNDLED_PACK)),
+            "the page fetches the pack beside it: {page}"
+        );
+        assert!(!page.contains("{{"), "every placeholder was filled: {page}");
+    }
+
+    #[test]
+    fn a_projects_own_page_wins_over_the_built_in_shell() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("web")).unwrap();
+        std::fs::write(dir.path().join("web").join("index.html"), "<p>mine</p>").unwrap();
+        assert_eq!(web_shell(dir.path()).unwrap(), "<p>mine</p>");
+        let other = tempfile::tempdir().unwrap();
+        assert_eq!(web_shell(other.path()).unwrap(), WEB_SHELL);
     }
 
     #[test]

@@ -15,8 +15,8 @@
 //!    plugin components are addable and editable without editor changes.
 //!
 //! Property specs (`schema` is a TOML table of `name = { ... }`):
-//!   type = "float" | "int" | "bool" | "string" | "enum" | "vec2" | "vec3"
-//!          | "color" | "asset" | "flags" | "node"
+//!   type = "float" | "int" | "bool" | "string" | "enum" | "vec2" | "vec3" | "vec4"
+//!          | "color" | "asset" | "flags" | "node" | "strings"
 //!   default = ...          (required, and of the declared type)
 //!   options = [...]        (enum and flags only, and required there)
 //!   asset = "clip_type"    (asset only, and required there)
@@ -174,8 +174,9 @@ pub struct ComponentDef {
 /// The datatypes a schema property may declare (rule N6). Closed: a plugin
 /// that wants another one adds it here, so the editor's inspector and the
 /// scene format learn about it at the same moment.
-pub const PROPERTY_TYPES: [&str; 11] = [
-    "float", "int", "bool", "string", "enum", "vec2", "vec3", "color", "asset", "flags", "node",
+pub const PROPERTY_TYPES: [&str; 13] = [
+    "float", "int", "bool", "string", "enum", "vec2", "vec3", "vec4", "color", "asset", "flags",
+    "node", "strings",
 ];
 
 impl ComponentDef {
@@ -296,7 +297,14 @@ fn check_default(
         "flags" => return check_flags_default(default, options),
         "vec2" => return check_numbers(declared, default, &[2]),
         "vec3" => return check_numbers(declared, default, &[3]),
+        "vec4" => return check_numbers(declared, default, &[4]),
         "color" => return check_color_default(default),
+        "strings" => (
+            default
+                .as_array()
+                .is_some_and(|items| items.iter().all(toml::Value::is_str)),
+            "a list of strings",
+        ),
         _ => (true, ""),
     };
     if ok {

@@ -189,6 +189,52 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(crate::snapshot::SnapshotRegistry::default());
 }
 
+/// The facts and timers every app carries: recorded as replay sources so a
+/// replay answers as the original run did, and timers in the snapshot.
+fn register_facts(app: &mut App) {
+    app.engine.insert_resource(crate::facts::Facts::default());
+    app.engine
+        .insert_resource(crate::facts::WallClock::default());
+    app.engine.insert_resource(crate::timers::Timers::default());
+    app.engine.insert_resource(crate::facts::Device::default());
+    app.add_replay_source(
+        "device",
+        |eng| serde_json::to_value(crate::facts::device(eng)).unwrap_or_default(),
+        |eng, value| {
+            if let Ok(facts) = serde_json::from_value::<crate::facts::DeviceFacts>(value.clone()) {
+                eng.resource::<crate::facts::Device>().borrow_mut().now = facts;
+            }
+        },
+    );
+    app.add_replay_source(
+        "wall_clock",
+        |eng| {
+            serde_json::to_value(*eng.resource::<crate::facts::WallClock>().borrow())
+                .unwrap_or_default()
+        },
+        |eng, value| {
+            if let Ok(clock) = serde_json::from_value::<crate::facts::WallClock>(value.clone()) {
+                *eng.resource::<crate::facts::WallClock>().borrow_mut() = clock;
+            }
+        },
+    );
+    app.add_replay_setup(
+        "platform",
+        |eng| serde_json::to_value(crate::facts::platform(eng)).unwrap_or_default(),
+        |eng, value| {
+            if let Ok(facts) = serde_json::from_value::<crate::facts::PlatformFacts>(value.clone())
+            {
+                eng.resource::<crate::facts::Facts>().borrow_mut().0 = Some(facts);
+            }
+        },
+    );
+    app.add_snapshot_source(
+        "timers",
+        crate::timers::save_timers,
+        crate::timers::load_timers,
+    );
+}
+
 impl App {
     pub fn new(mut config: AppConfig) -> Result<Self> {
         let engine = Engine::new();
@@ -225,6 +271,7 @@ impl App {
         crate::skeleton::register_bone3d_component(&mut app);
         crate::snapshot::build_core_sources(&mut app);
         crate::netsession::build_session_source(&mut app);
+        register_facts(&mut app);
         crate::settings::build_core_settings(&app.engine);
         // Before every plugin's First work, so a subsystem that dispatches
         // incoming traffic there sees the recording rather than the network.
@@ -235,6 +282,9 @@ impl App {
                 crate::replay::restore(eng, &frame);
             }
         });
+        app.add_system(Stage::First, crate::facts::read_clock_system);
+        app.add_system(Stage::First, crate::facts::announce_device_system);
+        app.add_system(Stage::FixedUpdate, crate::timers::step_timers_system);
         app.add_system(Stage::PreUpdate, |eng, _| {
             if let Some(host) = eng.script_host() {
                 crate::timings::measure(eng, "scripts/reload", || host.pump_reloads());

@@ -87,6 +87,9 @@ struct TweenFrame {
     running: bool,
     loops: u32,
     played: u32,
+    after: Option<TweenId>,
+    pending: Option<String>,
+    value: bool,
     clip: ClipFrame,
 }
 
@@ -168,6 +171,9 @@ fn capture(eng: &Engine) -> Value {
                 running: tween.running,
                 loops: tween.loops,
                 played: tween.played,
+                after: tween.after,
+                pending: tween.pending.clone(),
+                value: tween.value,
                 clip: clip_frame(&tween.clip),
             })
             .collect(),
@@ -218,6 +224,9 @@ fn restore(eng: &Engine, value: &Value) {
                         running: tween.running,
                         loops: tween.loops,
                         played: tween.played,
+                        after: tween.after,
+                        pending: tween.pending,
+                        value: tween.value,
                     },
                 ))
             })

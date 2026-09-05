@@ -72,6 +72,10 @@ pub struct HttpCall {
     pub body: Option<String>,
     /// Seconds for the whole request; `None` takes the 10 second default.
     pub timeout: Option<f64>,
+    /// Write a 2xx body here instead of handing it back, streamed as it
+    /// arrives with a progress event per chunk. Absolute: the script API
+    /// resolves it under the user directory.
+    pub save_to: Option<std::path::PathBuf>,
 }
 
 /// Project-wide defaults, the `[http]` table of `project.toml`:
@@ -126,11 +130,30 @@ pub(crate) enum HttpEvent {
         status: u16,
         headers: Vec<(String, String)>,
         body: String,
+        /// Where the body went when the call asked for a file.
+        #[serde(default)]
+        saved: Option<String>,
+    },
+    /// Part of a body written to its file; `total` when the server said.
+    Progress {
+        request: u64,
+        received: u64,
+        total: Option<u64>,
     },
     Error {
         request: u64,
         message: String,
     },
+}
+
+impl HttpEvent {
+    pub(crate) const fn request(&self) -> u64 {
+        match self {
+            Self::Response { request, .. }
+            | Self::Progress { request, .. }
+            | Self::Error { request, .. } => *request,
+        }
+    }
 }
 
 /// The request table and the channel every worker thread reports into.
@@ -140,6 +163,8 @@ pub struct HttpState {
     /// never reaches the network — all three live in here.
     io: ExternalIo<HttpEvent>,
     handlers: DetHashMap<u64, Handler>,
+    /// Who hears a download's progress, by request.
+    progress: DetHashMap<u64, Handler>,
 }
 
 impl HttpState {
@@ -147,12 +172,28 @@ impl HttpState {
     /// awaiting it can never collide with another subsystem's ids. The
     /// response (or error) reaches `handler` on a later tick, and is recorded
     /// in that tick's [`HttpSnapshot`] either way.
-    pub fn request(&mut self, eng: &Engine, id: u64, mut call: HttpCall, handler: Option<Handler>) {
+    pub fn request(&mut self, eng: &Engine, id: u64, call: HttpCall, handler: Option<Handler>) {
+        self.request_with_progress(eng, id, call, handler, None);
+    }
+
+    /// As [`Self::request`], with a second handler hearing each chunk of a
+    /// download land as `{ request, received, total }`.
+    pub fn request_with_progress(
+        &mut self,
+        eng: &Engine,
+        id: u64,
+        mut call: HttpCall,
+        handler: Option<Handler>,
+        progress: Option<Handler>,
+    ) {
         call.id = id;
         // The handler is wired up either way: on a replay the recorded reply
         // still has to find its way home.
         if let Some(handler) = handler {
             self.handlers.insert(id, handler);
+        }
+        if let Some(handler) = progress {
+            self.progress.insert(id, handler);
         }
         // The outbound side, which no source records: a reply is captured
         // with the id it answers, and nothing else says the request went out.
@@ -188,6 +229,7 @@ fn pump_http_system(eng: &Engine, _: f32) {
     // here; the native one is a no-op.
     backend::pump();
     let mut dispatches: Vec<(Option<Handler>, u64, Value)> = Vec::new();
+    let mut progress: Vec<(Option<Handler>, Value)> = Vec::new();
     {
         let state = eng.resource::<HttpState>();
         let snapshot = eng.resource::<HttpSnapshot>();
@@ -195,12 +237,19 @@ fn pump_http_system(eng: &Engine, _: f32) {
         let mut snapshot = snapshot.borrow_mut();
         snapshot.responses.clear();
         for event in state.io.drain() {
-            let request = match &event {
-                HttpEvent::Response { request, .. } | HttpEvent::Error { request, .. } => *request,
-            };
+            let request = event.request();
+            // A chunk landing wakes nothing: the download is still going.
+            if let HttpEvent::Progress { .. } = &event {
+                let handler = state.progress.get(&request).cloned();
+                let value = event_value(event);
+                snapshot.responses.push(value.clone());
+                progress.push((handler, value));
+                continue;
+            }
             // shift_remove: keeps the remaining entries in insertion order,
             // so iteration stays deterministic.
             let handler = state.handlers.shift_remove(&request);
+            state.progress.shift_remove(&request);
             let value = event_value(event);
             snapshot.responses.push(value.clone());
             // Every completion wakes its id too, so a script that chose
@@ -209,6 +258,11 @@ fn pump_http_system(eng: &Engine, _: f32) {
         }
     }
     if let Some(host) = eng.script_host() {
+        for (handler, value) in progress {
+            if let Some(handler) = handler {
+                host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
+            }
+        }
         for (handler, token, value) in dispatches {
             if let Some(handler) = handler {
                 host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
@@ -225,19 +279,43 @@ fn event_value(event: HttpEvent) -> Value {
             status,
             headers,
             body,
+            saved,
+        } => {
+            let mut pairs = vec![
+                ("request".into(), id_value(request)),
+                ("status".into(), Value::Int(i64::from(status))),
+                (
+                    "headers".into(),
+                    Value::Map(
+                        headers
+                            .into_iter()
+                            .map(|(k, v)| (k, Value::Str(v)))
+                            .collect(),
+                    ),
+                ),
+                ("body".into(), Value::Str(body)),
+            ];
+            if let Some(path) = saved {
+                pairs.push(("path".into(), Value::Str(path)));
+            }
+            pairs
+        }
+        HttpEvent::Progress {
+            request,
+            received,
+            total,
         } => vec![
             ("request".into(), id_value(request)),
-            ("status".into(), Value::Int(i64::from(status))),
             (
-                "headers".into(),
-                Value::Map(
-                    headers
-                        .into_iter()
-                        .map(|(k, v)| (k, Value::Str(v)))
-                        .collect(),
-                ),
+                "received".into(),
+                Value::Int(i64::try_from(received).unwrap_or(i64::MAX)),
             ),
-            ("body".into(), Value::Str(body)),
+            (
+                "total".into(),
+                total.map_or(Value::Nil, |n| {
+                    Value::Int(i64::try_from(n).unwrap_or(i64::MAX))
+                }),
+            ),
         ],
         HttpEvent::Error { request, message } => vec![
             ("request".into(), id_value(request)),
@@ -330,7 +408,33 @@ fn call_of(url: &str, opts: Option<&Value>) -> Result<HttpCall> {
         headers,
         body,
         timeout,
+        save_to: None,
     })
+}
+
+/// Where `save_to` lands: a relative path kept under the user directory, so
+/// a download can never be aimed outside it.
+fn save_path_of(eng: &Engine, opts: Option<&Value>) -> Result<Option<std::path::PathBuf>> {
+    let path = match opt(opts, "save_to") {
+        None => return Ok(None),
+        Some(Value::Str(path)) => std::path::Path::new(path),
+        Some(other) => return Err(anyhow!("`save_to` should be a path, got {other:?}")),
+    };
+    let clean = balaur_core::files::lexical(path);
+    if path.is_absolute()
+        || clean.as_os_str().is_empty()
+        || clean
+            .components()
+            .any(|c| !matches!(c, std::path::Component::Normal(_)))
+    {
+        return Err(anyhow!(
+            "`save_to` is a path under the user directory, got {}",
+            path.display()
+        ));
+    }
+    Ok(Some(
+        balaur_core::engine_api::user_data_dir_of(eng).join(clean),
+    ))
 }
 
 /// `http.*`. Declared against the neutral seam, so it works on any backend.
@@ -340,10 +444,13 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
          with `status`, `headers` and `body`, or with `error`, both to the \
          node's `on_response` method and to whoever awaits the returned id. \
          Options are `method`, `headers`, `body` and a `timeout` in seconds, \
-         which falls back to the project's `[http] timeout`.",
+         which falls back to the project's `[http] timeout`. `save_to` streams \
+         a 2xx body to that path under the user directory instead, the reply \
+         carrying `path`, and each chunk reaches the node's `on_progress` as \
+         `{ request, received, total }`.",
     );
     m.describe(&[
-        ("request", &[], "", "Start an HTTP request and return the id its reply carries, to await or to match inside the handler."),
+        ("request", &[], "", "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."),
     ]);
     // An HTTP error status is a response, not an error. With a nil node the
     // returned id is a token to suspend on (`await` / `task::wait`).
@@ -359,12 +466,20 @@ fn install_http_api(m: &mut dyn Bindings<Engine>) {
             };
             let handler = handler_of(&node, opts.as_ref(), "on_response", "on_response")?;
             let mut call = call_of(&url, opts.as_ref())?;
+            call.save_to = save_path_of(eng, opts.as_ref())?;
+            let progress = if call.save_to.is_some() {
+                handler_of(&node, opts.as_ref(), "on_progress", "on_progress")?
+            } else {
+                None
+            };
             if call.timeout.is_none() {
                 call.timeout = Some(eng.resource::<HttpConfig>().borrow().timeout);
             }
             let id = eng.next_token();
             let state = eng.resource::<HttpState>();
-            state.borrow_mut().request(eng, id, call, handler);
+            state
+                .borrow_mut()
+                .request_with_progress(eng, id, call, handler, progress);
             Ok(id_value(id))
         },
     );

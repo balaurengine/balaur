@@ -150,9 +150,11 @@ fn install_tween_api(m: &mut dyn Bindings<Engine>) {
     // No component: a tween is generated from the node's current values and
     // kept beside the players, so the node needs no `animation` of its own.
     m.describe(&[
-        ("tween", &[], "", "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take."),
+        ("tween", &[], "", "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed`; the node's `on_tween_finished(handle)` is called when it runs out."),
         ("tween_to", &[], "", "Move one property of the node to a value over a number of seconds on an optional easing curve, returning a handle."),
         ("is_tween_running", &[], "", "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip."),
+        ("tween_value", &[], "(from: number, to: number, seconds: float, ease: string) -> int", "A tween over a number, or a list of up to four, that drives no node: read it each frame with `tween_value_of` and write it wherever you like. Returns a handle `stop` takes."),
+        ("tween_value_of", &[], "(handle: int) -> number", "Where a value tween has got to, in the shape it was started with; nil once it is over."),
     ]);
     // `{ loops = 1, speed = 1.0, steps = { ... } }`. Steps run one after
     // another; `parallel = true` joins a step to the one before it. Returns
@@ -176,6 +178,21 @@ fn install_tween_api(m: &mut dyn Bindings<Engine>) {
             )
         },
     );
+    m.function(
+        "tween_value",
+        |eng: &Engine, (from, to, duration, ease): (Value, Value, f32, Option<String>)| {
+            tween::start_value(
+                eng,
+                &node_api::to_toml(&from)?,
+                &node_api::to_toml(&to)?,
+                duration,
+                ease.as_deref(),
+            )
+        },
+    );
+    m.function("tween_value_of", |eng: &Engine, what: Value| {
+        Ok(tween::value_of(eng, tween_id(&what)?).unwrap_or(Value::Nil))
+    });
     // Whether a tween handle still names something going. A handle whose
     // tween has finished, been stopped, or died with its node names nothing,
     // and answers false.

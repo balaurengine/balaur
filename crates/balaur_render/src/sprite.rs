@@ -22,6 +22,8 @@ flip_x = { type = "bool", default = false, description = "Mirror horizontally" }
 flip_y = { type = "bool", default = false, description = "Mirror vertically" }
 pixels_per_unit = { type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit" }
 half_extents = { type = "vec2", default = [0.0, 0.0], description = "Size override in world units; [0, 0] sizes from the texture" }
+region_origin = { type = "vec2", default = [0.0, 0.0], description = "Top-left corner of the atlas cell to draw, in texture pixels; used with `region_size`" }
+region_size = { type = "vec2", default = [0.0, 0.0], description = "Size of the atlas cell to draw, in texture pixels; [0, 0] draws the whole image and sizes the quad from the cell" }
 color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }
 material = { type = "asset", asset = "material", default = "", description = "The material this draws with; empty draws with the built-in one" }"#,
             ),
@@ -53,6 +55,23 @@ material = { type = "asset", asset = "material", default = "", description = "Th
                 };
                 // Absent (or zero) half-extents mean "size it from the image".
                 let explicit = (he(0) > 0.0 && he(1) > 0.0).then(|| (he(0), he(1)));
+                let pair = |key: &str, i: usize| {
+                    params
+                        .get(key)
+                        .and_then(|v| v.as_array())
+                        .and_then(|a| a.get(i))
+                        .and_then(balaur_core::components::as_f64)
+                        .unwrap_or(0.0) as f32
+                };
+                let (rw, rh) = (pair("region_size", 0), pair("region_size", 1));
+                let region = (rw > 0.0 && rh > 0.0).then(|| {
+                    [
+                        pair("region_origin", 0).max(0.0).round() as u32,
+                        pair("region_origin", 1).max(0.0).round() as u32,
+                        rw.round() as u32,
+                        rh.round() as u32,
+                    ]
+                });
                 let ppu = num("pixels_per_unit") as f32;
                 set_sprite(
                     eng,
@@ -63,6 +82,7 @@ material = { type = "asset", asset = "material", default = "", description = "Th
                         frame: num("frame") as u32,
                         flip_x: params.get("flip_x").and_then(toml::Value::as_bool) == Some(true),
                         flip_y: params.get("flip_y").and_then(toml::Value::as_bool) == Some(true),
+                        region,
                     },
                     explicit,
                     if ppu > 0.0 {
@@ -114,6 +134,16 @@ fn read_sprite(
     map.insert("frame".into(), toml::Value::Float(f64::from(sprite.frame)));
     map.insert("flip_x".into(), toml::Value::Boolean(sprite.flip_x));
     map.insert("flip_y".into(), toml::Value::Boolean(sprite.flip_y));
+    if let Some([x, y, w, h]) = sprite.region {
+        let pair = |a: u32, b: u32| {
+            toml::Value::Array(vec![
+                toml::Value::Float(f64::from(a)),
+                toml::Value::Float(f64::from(b)),
+            ])
+        };
+        map.insert("region_origin".into(), pair(x, y));
+        map.insert("region_size".into(), pair(w, h));
+    }
     // A derived size is absent, not resolved: `patch` overlays what `get`
     // reports, so reporting it would freeze the quad the first time anything
     // read the component back.

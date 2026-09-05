@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>{{title}}</title>
+<style>
+  /* The safe area, where the engine reads it: `render.safe_area()`. */
+  :root { --balaur-safe-left: env(safe-area-inset-left); --balaur-safe-top: env(safe-area-inset-top);
+          --balaur-safe-right: env(safe-area-inset-right); --balaur-safe-bottom: env(safe-area-inset-bottom); }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; outline: none; touch-action: none; }
+  #status { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+            color: #ddd; font: 16px/1.4 system-ui, sans-serif; text-align: center; padding: 1em;
+            background: #000; }
+  #status[hidden] { display: none; }
+</style>
+</head>
+<body>
+<canvas id="canvas" tabindex="0"></canvas>
+<div id="status">Loading…</div>
+<script type="module">
+  import init, { start } from "./balaur.js";
+  const status = document.getElementById("status");
+  const canvas = document.getElementById("canvas");
+  try {
+    await init();
+    status.hidden = true;
+    canvas.focus();
+    await start("canvas", "./{{pack}}");
+  } catch (error) {
+    status.hidden = false;
+    status.textContent = String(error);
+  }
+</script>
+</body>
+</html>

@@ -24,7 +24,7 @@ use hecs::Entity;
 use serde::Deserialize;
 
 use crate::engine::Engine;
-use crate::scene::{self, Transform};
+use crate::scene::{self, Appearance, Tags, Transform};
 
 /// A project's manifest, `project.toml`.
 ///
@@ -45,6 +45,11 @@ pub struct ProjectManifest {
     /// Which plugins this project wants. Every module the build linked in
     /// loads unless it is named `false` here.
     pub plugins: BTreeMap<String, PluginChoice>,
+    /// A project-relative picture the runtime shows over the first frames,
+    /// on every target; empty shows none.
+    pub splash: String,
+    /// How long the splash stays, in seconds of engine time.
+    pub splash_seconds: f32,
 }
 
 /// What a project says about one plugin: whether it wants it, and the
@@ -108,6 +113,14 @@ struct Application {
     language: String,
     #[serde(default)]
     assets: AssetSource,
+    #[serde(default)]
+    splash: String,
+    #[serde(default = "default_splash_seconds")]
+    splash_seconds: f32,
+}
+
+fn default_splash_seconds() -> f32 {
+    1.5
 }
 
 impl From<RawManifest> for ProjectManifest {
@@ -118,6 +131,8 @@ impl From<RawManifest> for ProjectManifest {
             language: raw.application.language,
             assets: raw.application.assets,
             plugins: raw.plugins,
+            splash: raw.application.splash,
+            splash_seconds: raw.application.splash_seconds.max(0.0),
         }
     }
 }
@@ -164,6 +179,14 @@ struct SceneNode {
     position: Option<[f32; 3]>,
     rotation_euler: Option<[f32; 3]>,
     scale: Option<[f32; 3]>,
+    /// Hides the node and everything under it. Physics is unaffected.
+    visible: Option<bool>,
+    z_index: Option<i32>,
+    /// False makes `z_index` absolute rather than added to the parent's.
+    z_relative: Option<bool>,
+    /// Names the node is filed under, for `scene.tagged`.
+    #[serde(default)]
+    tags: Vec<String>,
     script: Option<ScriptRef>,
     /// A prefab: another scene file, built as this node's children.
     ///
@@ -326,6 +349,20 @@ impl ProjectFiles {
     #[must_use]
     pub fn root(&self) -> &std::path::Path {
         &self.root
+    }
+
+    /// When the file behind a path last changed, in the backend's own units,
+    /// or `None` for one only the pack holds — the pack never changes.
+    #[must_use]
+    pub fn mtime(&self, path: &str) -> Option<f64> {
+        let p = std::path::Path::new(path);
+        if p.is_absolute() {
+            return self.fs.mtime(p);
+        }
+        if self.source == AssetSource::Embedded {
+            return None;
+        }
+        self.fs.mtime(&self.root.join(p))
     }
 
     /// The bytes for a project-relative path. An absolute path is read from
@@ -521,6 +558,24 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
             if let Some([x, y, z]) = node.scale {
                 transform.scale = Vec3::new(x, y, z);
             }
+            // spawn_node inserts an Appearance on every node it creates.
+            let mut appearance = world.get::<&mut Appearance>(entity).unwrap();
+            if let Some(on) = node.visible {
+                appearance.visible = on;
+            }
+            if let Some(z) = node.z_index {
+                appearance.z_index = z;
+            }
+            if let Some(on) = node.z_relative {
+                appearance.z_relative = on;
+            }
+        }
+        if !node.tags.is_empty() {
+            let mut tags = Tags::default();
+            for tag in &node.tags {
+                tags.add(tag);
+            }
+            eng.world_mut().insert_one(entity, tags)?;
         }
         for (key, handler) in handlers {
             if let Some(value) = node.extra.get(key) {
@@ -609,7 +664,7 @@ fn apply_overrides(
             );
             continue;
         };
-        apply_transform_keys(eng, target, table);
+        apply_node_keys(eng, target, table);
         if let Some(script) = table.get("script") {
             if let Err(err) = override_script(build, target, script) {
                 tracing::error!("override '{path}.script' on node '{}': {err:#}", node.name);
@@ -633,7 +688,7 @@ fn apply_overrides(
         }
         for key in table.keys() {
             if key != "script"
-                && !TRANSFORM_KEYS.contains(&key.as_str())
+                && !NODE_KEYS.contains(&key.as_str())
                 && !handlers.iter().any(|(k, _)| k == key)
             {
                 tracing::warn!(
@@ -672,21 +727,49 @@ fn override_script(build: &mut Build, target: Entity, value: &toml::Value) -> Re
 }
 
 /// The keys every node has, which an override may set like any other.
-const TRANSFORM_KEYS: [&str; 3] = ["position", "rotation_euler", "scale"];
+const NODE_KEYS: [&str; 7] = [
+    "position",
+    "rotation_euler",
+    "scale",
+    "visible",
+    "z_index",
+    "z_relative",
+    "tags",
+];
 
-fn apply_transform_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
+fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
     let world = eng.world();
-    let Ok(mut transform) = world.get::<&mut Transform>(entity) else {
+    if let Ok(mut transform) = world.get::<&mut Transform>(entity) {
+        if let Some([x, y, z]) = triple(table.get("position")) {
+            transform.position = Vec3::new(x, y, z);
+        }
+        if let Some([roll, pitch, yaw]) = triple(table.get("rotation_euler")) {
+            transform.rotation = Quat::from_euler(EulerRot::ZYX, yaw, pitch, roll);
+        }
+        if let Some([x, y, z]) = triple(table.get("scale")) {
+            transform.scale = Vec3::new(x, y, z);
+        }
+    }
+    let Ok(mut appearance) = world.get::<&mut Appearance>(entity) else {
         return;
     };
-    if let Some([x, y, z]) = triple(table.get("position")) {
-        transform.position = Vec3::new(x, y, z);
+    if let Some(on) = table.get("visible").and_then(toml::Value::as_bool) {
+        appearance.visible = on;
     }
-    if let Some([roll, pitch, yaw]) = triple(table.get("rotation_euler")) {
-        transform.rotation = Quat::from_euler(EulerRot::ZYX, yaw, pitch, roll);
+    if let Some(z) = table.get("z_index").and_then(toml::Value::as_integer) {
+        appearance.z_index = z as i32;
     }
-    if let Some([x, y, z]) = triple(table.get("scale")) {
-        transform.scale = Vec3::new(x, y, z);
+    if let Some(on) = table.get("z_relative").and_then(toml::Value::as_bool) {
+        appearance.z_relative = on;
+    }
+    drop(appearance);
+    if let Some(list) = table.get("tags").and_then(toml::Value::as_array) {
+        let mut tags = Tags::default();
+        for tag in list.iter().filter_map(toml::Value::as_str) {
+            tags.add(tag);
+        }
+        drop(world);
+        let _ = eng.world_mut().insert_one(entity, tags);
     }
 }
 

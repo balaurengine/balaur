@@ -81,6 +81,7 @@ impl ScriptHost<balaur_core::Engine> for Calls {
         None
     }
     fn call_all(&self, _: &str) {}
+    fn call_all_with(&self, _: &str, _: &[Value]) {}
     fn wake(&self, _: u64, _: &Value) {}
     fn scene_source(&self, _: &str) -> Option<String> {
         None

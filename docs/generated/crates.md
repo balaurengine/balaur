@@ -11,7 +11,7 @@ Balaur game engine: batteries-included facade over the core and standard plugins
 
 Batteries-included entry points for Balaur games and tools.
 
-- **workspace deps:** `balaur_anim`, `balaur_apple`, `balaur_audio`, `balaur_core`, `balaur_gamend`, `balaur_http`, `balaur_input`, `balaur_physics`, `balaur_platform`, `balaur_plugin`, `balaur_render`, `balaur_script`, `balaur_script_rune`, `balaur_ui`, `balaur_websocket`, `balaur_webtransport`
+- **workspace deps:** `balaur_anim`, `balaur_apple`, `balaur_audio`, `balaur_core`, `balaur_gamend`, `balaur_http`, `balaur_input`, `balaur_physics`, `balaur_platform`, `balaur_plugin`, `balaur_render`, `balaur_script`, `balaur_script_rune`, `balaur_ui`, `balaur_web`, `balaur_websocket`, `balaur_webtransport`
 - **external deps:** 3 (anyhow, toml, tracing)
 - **public surface:** 11 fn
 
@@ -33,7 +33,7 @@ Animation as a Balaur plugin: clips, a pure sampler, and playback.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
 - **external deps:** 7 (anyhow, glamx, libm, serde, serde_json, toml, tracing)
-- **public surface:** 27 fn, 9 struct, 6 enum, 1 const, 2 type
+- **public surface:** 29 fn, 9 struct, 6 enum, 1 const, 2 type
 - **structs:** `AnimationPlugin`, `AnimationState`, `Clip`, `Easing`, `Key`, `Modifier2d`, `Playback`, `Track`, `Tween`
 - **enums:** `Interp`, `Mode`, `Property`, `TrackValue`, `Transition`, `Wrap`
 
@@ -56,7 +56,7 @@ Balaur audio plugin backed by rodio
 Audio as a Balaur plugin, backed by rodio.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
-- **external deps:** 6 (anyhow, rodio, serde, toml, tracing, windows-sys)
+- **external deps:** 7 (anyhow, rodio, rodio, serde, toml, tracing, windows-sys)
 - **public surface:** 6 fn, 13 struct, 2 const
 - **structs:** `AudioPlugin`, `AudioState`, `Bus`, `Buses`, `Cue`, `Emitter`, `Event`, `Events`, `Listener`, `ListenerPose`, `Placement`, `Sound`, `SoundCache`
 
@@ -79,7 +79,7 @@ The `balaur` command: run, edit, export, replay and check a project
 The `balaur` command line tool: create, run, export, and play projects.
 
 - **workspace deps:** `balaur`, `balaur_export`
-- **external deps:** 17 (anyhow, clap, console_error_panic_hook, dirs, flate2, js-sys, serde_json, sha2, …)
+- **external deps:** 18 (anyhow, base64, clap, console_error_panic_hook, dirs, flate2, js-sys, serde_json, …)
 - **public surface:** 3 fn
 
 ## `balaur_core`
@@ -89,10 +89,10 @@ Balaur engine core: ECS world, scene tree, frame scheduler, plugin API
 Balaur engine core: the ECS world every plugin builds on.
 
 - **workspace deps:** `balaur_script`
-- **external deps:** 18 (anyhow, dirs, glamx, gltf, hecs, indexmap, libm, rustc-hash, …)
-- **public surface:** 156 fn, 94 struct, 11 enum, 2 trait, 20 const, 19 type
+- **external deps:** 21 (anyhow, base64, dirs, glamx, gltf, hecs, i_overlay, indexmap, …)
+- **public surface:** 163 fn, 104 struct, 11 enum, 2 trait, 20 const, 19 type
 - **traits:** `FileBackend`, `Transport`
-- **structs:** `App`, `AppConfig`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Bone`, `Children`, `Clock`, `ComponentDef`, `ComponentRegistry`, `DebugLineBuffer`, `DebugLineBuffer2d`, `Desync`, `Digest`, `DigestRegistry`, `DiskFs`, `Divergence`, `Engine`, `EngineOp`, `Entry`, `Event`, `EventLog`, `EventState`, `ExternalIo`, `Faults`, `Faulty`, `FileRoots`, `Files`, `Frame`, `GlbImport`, `GlobalTransform`, `Handler`, `Hasher`, `Header`, `HeightfieldData`, `IdAllocator`, `LinkStats`, `LocaleConfig`, `LogEntry`, `ManifestSource`, `MemoryFs`, `MeshData`, `MeshSkin`, `Name`, `NetSession`, `NodeOp`, `Origin`, `Pack`, `Parent`, `Pcg32`, `PeerTraffic`, `PluginConfigs`, `PluginInfo`, `PluginRegistry`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Received`, `Recorder`, `Recording`, `ReplayFeed`, `ReplayPlayer`, `ReplayRegistry`, `ReplaySetupRegistry`, `Resimulating`, `Resources`, `RngState`, `SaveConfig`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptProps`, `ScriptSetup`, `Server`, `Session`, `SessionStats`, `SettingDef`, `SettingsRegistry`, `SettingsValues`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `Strings`, `TickInputs`, `TimingLog`, `Timings`, `Trailer`, `Transform`, `VoxelsData`
+- **structs:** `App`, `AppConfig`, `Appearance`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Bone`, `Children`, `Clock`, `ComponentDef`, `ComponentRegistry`, `DebugLineBuffer`, `DebugLineBuffer2d`, `Desync`, `Device`, `DeviceFacts`, `Digest`, `DigestRegistry`, `DiskFs`, `Divergence`, `Engine`, `EngineOp`, `Entry`, `Event`, `EventLog`, `EventState`, `ExternalIo`, `Facts`, `Faults`, `Faulty`, `FileRoots`, `Files`, `Frame`, `GlbImport`, `GlobalAppearance`, `GlobalTransform`, `Handler`, `Hasher`, `Header`, `HeightfieldData`, `IdAllocator`, `LinkStats`, `LocaleConfig`, `LogEntry`, `ManifestSource`, `MemoryFs`, `MeshData`, `MeshSkin`, `Name`, `NetSession`, `NodeOp`, `Origin`, `Pack`, `Parent`, `Pcg32`, `PeerTraffic`, `PlatformFacts`, `PluginConfigs`, `PluginInfo`, `PluginRegistry`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Received`, `Recorder`, `Recording`, `ReplayFeed`, `ReplayPlayer`, `ReplayRegistry`, `ReplaySetupRegistry`, `Resimulating`, `Resources`, `RngState`, `SaveConfig`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptProps`, `ScriptSetup`, `Server`, `Session`, `SessionStats`, `SettingDef`, `SettingsRegistry`, `SettingsValues`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `Strings`, `Tags`, `TickInputs`, `Timers`, `TimingLog`, `Timings`, `Trailer`, `Transform`, `UserActivation`, `VoxelsData`, `WallClock`
 - **enums:** `AssetRef`, `AssetSource`, `Command`, `Delivery`, `LinkState`, `PlayState`, `PluginChoice`, `ReplayMode`, `Scope`, `Stage`, `Step`
 
 ## `balaur_export`
@@ -113,9 +113,9 @@ Balaur plugin for the Gamend backend: login, REST, realtime and server hooks for
 The Gamend backend as a Balaur plugin: `gamend.*` for scripts.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
-- **external deps:** 6 (anyhow, serde, serde_json, tracing, tungstenite, ureq)
+- **external deps:** 10 (anyhow, js-sys, serde, serde_json, tracing, tungstenite, ureq, wasm-bindgen, …)
 - **public surface:** 2 fn, 8 struct, 3 enum
-- **structs:** `Client`, `GamendPlugin`, `GamendSnapshot`, `GamendState`, `Handler`, `Reply`, `Session`, `Socket`
+- **structs:** `Client`, `GamendPlugin`, `GamendSnapshot`, `GamendState`, `Handler`, `Protocol`, `Reply`, `Session`
 - **enums:** `Credentials`, `LoginCredentials`, `SocketEvent`
 
 ## `balaur_http`
@@ -136,7 +136,7 @@ Balaur input plugin: backend-agnostic input state and the `input` script module
 Input as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
-- **external deps:** 7 (anyhow, gilrs, hidapi, serde, serde_json, toml, tracing)
+- **external deps:** 8 (anyhow, gilrs, hidapi, serde, serde_json, toml, tracing, web-sys)
 - **public surface:** 1 fn, 7 struct, 1 enum, 4 const
 - **structs:** `GamepadState`, `InputActions`, `InputPlugin`, `InputSnapshot`, `Motion`, `Pad`, `PadTouch`
 - **enums:** `TouchPhase`
@@ -185,10 +185,10 @@ Balaur rendering plugin: renderable components, with a kiss3d backend
 Rendering as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_input`, `balaur_plugin`, `balaur_script`, `balaur_ui`
-- **external deps:** 14 (anyhow, bytemuck, glamx, image, kiss3d, libm, objc2, objc2-app-kit, …)
-- **public surface:** 19 fn, 36 struct, 6 enum, 5 const
-- **structs:** `AppIconConfig`, `Bounds`, `Camera`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ChannelView`, `ClearColorConfig`, `Compiled`, `Field`, `GridConfig`, `Light2d`, `LitLight2d`, `Material`, `Occluder2d`, `Particles`, `PolygonMesh`, `Post`, `PostConfig`, `Preview`, `PreviewRequest`, `ProbeReading`, `ProbeRequest`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `ShaderModules`, `SpriteSheet2d`, `SpriteTexture`, `Tilemap`, `Tileset`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
-- **enums:** `CameraKind`, `FieldType`, `LightKind2d`, `Param`, `Shape`, `Shape2d`
+- **external deps:** 18 (anyhow, bytemuck, glamx, image, js-sys, kiss3d, libm, objc2, …)
+- **public surface:** 19 fn, 38 struct, 7 enum, 5 const
+- **structs:** `AppIconConfig`, `Bounds`, `Camera`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ChannelView`, `ClearColorConfig`, `Compiled`, `DrawBuffer2d`, `Field`, `GridConfig`, `Light2d`, `LineStyle`, `LitLight2d`, `Material`, `Occluder2d`, `Particles`, `PolygonMesh`, `Post`, `PostConfig`, `Preview`, `PreviewRequest`, `ProbeReading`, `ProbeRequest`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `ShaderModules`, `SpriteSheet2d`, `SpriteTexture`, `Tilemap`, `Tileset`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
+- **enums:** `CameraKind`, `Draw2d`, `FieldType`, `LightKind2d`, `Param`, `Shape`, `Shape2d`
 
 ## `balaur_script`
 
@@ -221,10 +221,21 @@ Balaur UI plugin: an immediate-mode egui API for scripts
 Immediate-mode UI for scripts, rendered with egui.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
-- **external deps:** 6 (anyhow, egui, image, serde, toml, tracing)
-- **public surface:** 2 fn, 12 struct, 1 enum, 4 const
+- **external deps:** 9 (anyhow, cosmic-text, egui, image, libm, serde, toml, tracing, …)
+- **public surface:** 3 fn, 12 struct, 1 enum, 4 const
 - **structs:** `Style`, `Surface`, `ThemeTokens`, `UiConfig`, `UiFocus`, `UiPlugin`, `UiState`, `Widget`, `WidgetInputBuffer`, `WidgetInputSnapshot`, `WidgetLayerConfig`, `WidgetTheme`
 - **enums:** `Move`
+
+## `balaur_web`
+
+Balaur web plugin: the page a browser build runs in, as named verbs for scripts
+
+The page a browser build runs in, as a Balaur plugin: `web.*` for scripts.
+
+- **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
+- **external deps:** 7 (anyhow, js-sys, serde, serde_json, tracing, wasm-bindgen, web-sys)
+- **public surface:** 1 fn, 5 struct
+- **structs:** `Handler`, `PageFacts`, `WebPlugin`, `WebSnapshot`, `WebState`
 
 ## `balaur_websocket`
 

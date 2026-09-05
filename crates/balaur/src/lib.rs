@@ -66,6 +66,7 @@ modules! {
     audio = "audio" => balaur_audio::AudioPlugin,
     gamend = "gamend" => balaur_gamend::GamendPlugin,
     http = "http" => balaur_http::HttpPlugin,
+    web = "web" => balaur_web::WebPlugin,
     websocket = "websocket" => balaur_websocket::WebsocketPlugin,
 }
 

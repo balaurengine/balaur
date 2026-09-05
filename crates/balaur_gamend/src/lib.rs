@@ -34,7 +34,8 @@ use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 use serde_json::Value as Json;
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+mod browser;
 pub mod client;
 #[cfg(not(target_family = "wasm"))]
 mod worker;
@@ -42,11 +43,19 @@ mod worker;
 #[cfg(not(target_family = "wasm"))]
 mod backend {
     pub(crate) use crate::worker::{spawn_login, spawn_rest, spawn_socket, SharedClient};
+
+    /// Nothing to pump: the worker threads deliver on their own.
+    pub(crate) fn pump() {}
 }
 
-/// The wasm stub: no networking stack compiles there, so every operation
-/// resolves to an error event and scripts keep running.
-#[cfg(target_family = "wasm")]
+#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+mod backend {
+    pub(crate) use crate::browser::{pump, spawn_login, spawn_rest, spawn_socket, SharedClient};
+}
+
+/// The emscripten stub: no networking stack compiles there, so every
+/// operation resolves to an error event and scripts keep running.
+#[cfg(all(target_family = "wasm", target_os = "emscripten"))]
 mod backend {
     use std::sync::mpsc::{Receiver, Sender};
 
@@ -60,6 +69,8 @@ mod backend {
             Self
         }
     }
+
+    pub(crate) fn pump() {}
 
     fn refuse(events: &Sender<GamendEvent>, request: u64) {
         let _ = events.send(GamendEvent::Failed {
@@ -360,6 +371,9 @@ fn restore_gamend(eng: &Engine, value: &serde_json::Value) {
 }
 
 fn pump_gamend_system(eng: &Engine, _: f32) {
+    // A backend with no delivery threads (the browser) drives its sockets
+    // here; the native one is a no-op.
+    backend::pump();
     let mut dispatches: Vec<(Option<Handler>, Option<u64>, Value)> = Vec::new();
     {
         let state = eng.resource::<GamendState>();

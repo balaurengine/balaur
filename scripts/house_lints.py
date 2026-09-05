@@ -160,7 +160,9 @@ def scan_context(files: list[Path]) -> Context:
     glued, det_aliases, plugin_crates = set(), set(), set()
     for path in files:
         text = path.read_text(encoding="utf-8", errors="replace")
-        for pat in (r'register_component\(\s*"([a-z0-9_]+)"', r'script_module\(\s*"([a-z0-9_]+)"'):
+        # `host.module("...")` is how core registers its own script modules.
+        for pat in (r'register_component\(\s*"([a-z0-9_]+)"', r'script_module\(\s*"([a-z0-9_]+)"',
+                    r'host\.module\(\s*"([a-z0-9_]+)"'):
             glued.update(re.findall(pat, text, re.S))
         if path.name == "collections.rs":
             det_aliases.update(re.findall(r"type\s+(Det[A-Za-z0-9_]*)", text))

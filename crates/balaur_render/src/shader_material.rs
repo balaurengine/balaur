@@ -24,6 +24,7 @@ use kiss3d::scene::{InstancesBuffer2d, ObjectData2d};
 
 use crate::material::{Compiled, PARAMS_GROUP};
 use crate::probe::Probe;
+use crate::screen_capture::{ScreenCapture, ScreenShare, ScreenTexture};
 
 /// Matches `FrameUniforms` in `shaders/sprite.wesl`.
 #[repr(C)]
@@ -65,6 +66,8 @@ struct ShaderGpuData {
     /// Which texture the bind group was built for, so it is rebuilt only when
     /// the node's image actually changes.
     texture_ptr: usize,
+    /// Which screen texture it was built with, for a material that reads one.
+    screen_generation: u64,
 }
 
 impl ShaderGpuData {
@@ -79,6 +82,7 @@ impl ShaderGpuData {
             object_bind_group: None,
             texture_bind_group: None,
             texture_ptr: 0,
+            screen_generation: u64::MAX,
         }
     }
 }
@@ -107,6 +111,8 @@ pub(crate) struct ShaderMaterial {
     started: Instant,
     frame_counter: Cell<u64>,
     last_frame: Cell<u64>,
+    /// The last frame drawn, for a material whose `features` has `screen`.
+    screen: Option<ScreenShare>,
 }
 
 fn uniform_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
@@ -170,9 +176,32 @@ fn vertex_layouts() -> [Option<wgpu::VertexBufferLayout<'static>>; 5] {
     ]
 }
 
+/// A texture and its sampler at two consecutive bindings.
+fn sampled_entries(first: u32) -> [wgpu::BindGroupLayoutEntry; 2] {
+    [
+        wgpu::BindGroupLayoutEntry {
+            binding: first,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Texture {
+                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                view_dimension: wgpu::TextureViewDimension::D2,
+                multisampled: false,
+            },
+            count: None,
+        },
+        wgpu::BindGroupLayoutEntry {
+            binding: first + 1,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+            count: None,
+        },
+    ]
+}
+
 /// The frame, object and texture layouts, in the order the pipeline binds
-/// them. `shaders/sprite.wesl` declares the matching groups.
-fn bind_group_layouts() -> [wgpu::BindGroupLayout; 3] {
+/// them. `shaders/sprite.wesl` declares the matching groups; a material
+/// reading the screen has it at bindings 2 and 3 of the texture group.
+fn bind_group_layouts(screen: bool) -> [wgpu::BindGroupLayout; 3] {
     let ctxt = Context::get();
     let uniform = |label| {
         ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -180,29 +209,16 @@ fn bind_group_layouts() -> [wgpu::BindGroupLayout; 3] {
             entries: &[uniform_entry(0)],
         })
     };
+    let mut entries = sampled_entries(0).to_vec();
+    if screen {
+        entries.extend(sampled_entries(2));
+    }
     [
         uniform("material_frame_layout"),
         uniform("material_object_layout"),
         ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("material_texture_layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
+            entries: &entries,
         }),
     ]
 }
@@ -293,10 +309,15 @@ fn build_pipeline(layout: wgpu::PipelineLayout, shader: wgpu::ShaderModule) -> P
 }
 
 impl ShaderMaterial {
-    /// Build the pipeline for one linked material.
-    pub(crate) fn new(compiled: &Compiled, probe: Option<&Probe>) -> Self {
+    /// Build the pipeline for one linked material; `screen` is the last
+    /// frame, for one whose `features` asked for it.
+    pub(crate) fn new(
+        compiled: &Compiled,
+        probe: Option<&Probe>,
+        screen: Option<ScreenShare>,
+    ) -> Self {
         let ctxt = Context::get();
-        let [frame_layout, object_layout, texture_layout] = bind_group_layouts();
+        let [frame_layout, object_layout, texture_layout] = bind_group_layouts(screen.is_some());
         let params = material_group(&compiled.params, probe);
         let mut groups = vec![
             Some(&frame_layout),
@@ -340,24 +361,44 @@ impl ShaderMaterial {
             started: Instant::now(),
             frame_counter: Cell::new(0),
             last_frame: Cell::new(u64::MAX),
+            screen,
         }
     }
 
     fn texture_bind_group(&self, texture: &Texture) -> wgpu::BindGroup {
+        let screen = self.screen.as_ref().map(|share| share.borrow());
+        let mut entries = vec![
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&texture.view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(&texture.sampler),
+            },
+        ];
+        if let Some(screen) = screen.as_deref() {
+            entries.push(wgpu::BindGroupEntry {
+                binding: 2,
+                resource: wgpu::BindingResource::TextureView(&screen.view),
+            });
+            entries.push(wgpu::BindGroupEntry {
+                binding: 3,
+                resource: wgpu::BindingResource::Sampler(&screen.sampler),
+            });
+        }
         Context::get().create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("material_texture_bind_group"),
             layout: &self.texture_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
-                },
-            ],
+            entries: &entries,
         })
+    }
+
+    /// Which screen texture is current, for a bind group to compare with.
+    fn screen_generation(&self) -> u64 {
+        self.screen
+            .as_ref()
+            .map_or(u64::MAX, |share| share.borrow().generation)
     }
 }
 
@@ -380,7 +421,7 @@ impl Material2d for ShaderMaterial {
         _mesh: &mut GpuMesh2d,
         _instances: &mut InstancesBuffer2d,
         gpu_data: &mut dyn GpuData,
-        _context: &RenderContext2d,
+        context: &RenderContext2d,
     ) {
         let ctxt = Context::get();
         let gpu_data = gpu_data
@@ -399,7 +440,12 @@ impl Material2d for ShaderMaterial {
                 bytemuck::bytes_of(&FrameUniforms {
                     view: padded_mat3(&view),
                     proj: padded_mat3(&proj),
-                    clock: [elapsed, 0.0, 0.0, 0.0],
+                    clock: [
+                        elapsed,
+                        context.viewport_width as f32,
+                        context.viewport_height as f32,
+                        0.0,
+                    ],
                 }),
             );
         }
@@ -425,9 +471,14 @@ impl Material2d for ShaderMaterial {
         }
         let texture = data.texture();
         let ptr = Arc::as_ptr(texture) as usize;
-        if gpu_data.texture_bind_group.is_none() || gpu_data.texture_ptr != ptr {
+        let screen = self.screen_generation();
+        if gpu_data.texture_bind_group.is_none()
+            || gpu_data.texture_ptr != ptr
+            || gpu_data.screen_generation != screen
+        {
             gpu_data.texture_bind_group = Some(self.texture_bind_group(texture));
             gpu_data.texture_ptr = ptr;
+            gpu_data.screen_generation = screen;
         }
     }
 
@@ -520,6 +571,10 @@ pub(crate) struct MaterialCache {
     active: String,
     /// The previewing material's probe, shared with it.
     probe: Option<std::rc::Rc<Probe>>,
+    /// The last frame, kept for materials that read the screen, and the pass
+    /// that keeps it; neither exists until a material asks.
+    screen: Option<ScreenShare>,
+    capture: Option<ScreenCapture>,
 }
 
 /// What kiss3d takes on a node.
@@ -618,6 +673,7 @@ impl MaterialCache {
                     probes: false,
                 },
                 None,
+                None,
             )
         })
         .inspect_err(|why| tracing::error!(channel, "{why:#}"))
@@ -643,7 +699,7 @@ impl MaterialCache {
         if let Some(hit) = self.linked.get(reference) {
             return hit.clone();
         }
-        let built = build(app, reference)
+        let built = build(app, reference, &mut self.screen)
             .inspect_err(|why| tracing::error!(material = reference, "{why:#}"))
             .ok()
             .map(|(material, probe)| {
@@ -661,7 +717,22 @@ impl MaterialCache {
                 shared
             });
         self.linked.insert(reference.to_string(), built.clone());
+        if self.capture.is_none() {
+            if let Some(share) = &self.screen {
+                self.capture = Some(ScreenCapture::new(share.clone()));
+            }
+        }
         built
+    }
+
+    /// The pass that keeps the frame for screen-reading materials, once one
+    /// has asked; the frame loop runs it at the end of the post chain.
+    pub(crate) fn screen_effect(
+        &mut self,
+    ) -> Option<&mut dyn kiss3d::post_processing::PostProcessingEffect> {
+        self.capture
+            .as_mut()
+            .map(|capture| capture as &mut dyn kiss3d::post_processing::PostProcessingEffect)
     }
 }
 
@@ -675,6 +746,7 @@ fn manager_name(reference: &str) -> String {
 fn build(
     app: &balaur_core::App,
     reference: &str,
+    screen: &mut Option<ScreenShare>,
 ) -> anyhow::Result<(ShaderMaterial, Option<std::rc::Rc<Probe>>)> {
     let asset =
         balaur_core::assets::load_typed::<crate::material::Material>(&app.engine, reference)?;
@@ -683,6 +755,16 @@ fn build(
     let modules = crate::shaders::plugin_modules(&app.engine);
     let compiled = crate::material::compile_with(&asset, &source, &modules)?;
     let probe = compiled.probes.then(|| std::rc::Rc::new(Probe::new()));
-    let material = ShaderMaterial::new(&compiled, probe.as_deref());
+    // The screen texture is shared by every material that reads it, and made
+    // the first time one does.
+    let reads_screen = asset.reads_screen();
+    if reads_screen && screen.is_none() {
+        *screen = Some(ScreenTexture::share());
+    }
+    let material = ShaderMaterial::new(
+        &compiled,
+        probe.as_deref(),
+        reads_screen.then(|| screen.clone()).flatten(),
+    );
     Ok((material, probe))
 }

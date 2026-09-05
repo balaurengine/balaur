@@ -348,3 +348,57 @@ fn set_parent_is_a_node_operation() {
     .unwrap();
     assert_eq!(engine.world().get::<&Parent>(b).unwrap().0, a);
 }
+
+#[test]
+fn a_node_starts_visible_and_remembers_being_hidden() {
+    let app = app();
+    let node = spawn(&app, "N");
+    assert_eq!(
+        call(&app.engine, "visible", std::slice::from_ref(&node)).unwrap(),
+        Value::Bool(true)
+    );
+    call(
+        &app.engine,
+        "set_visible",
+        &[node.clone(), Value::Bool(false)],
+    )
+    .unwrap();
+    assert_eq!(
+        call(&app.engine, "visible", &[node]).unwrap(),
+        Value::Bool(false)
+    );
+}
+
+#[test]
+fn global_visible_reports_a_hidden_ancestor() {
+    let app = app();
+    let parent = spawn(&app, "P");
+    let Value::Node(parent_id) = parent else {
+        unreachable!()
+    };
+    let parent_entity = balaur_core::entity_of(balaur_script::NodeId(parent_id)).unwrap();
+    let child = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "C", parent_entity);
+    let child = Value::Node(balaur_core::node_id_of(child).0);
+    call(&app.engine, "set_visible", &[parent, Value::Bool(false)]).unwrap();
+    assert_eq!(
+        call(&app.engine, "visible", std::slice::from_ref(&child)).unwrap(),
+        Value::Bool(true),
+        "the child's own flag is untouched"
+    );
+    assert_eq!(
+        call(&app.engine, "global_visible", &[child]).unwrap(),
+        Value::Bool(false),
+        "but nothing under a hidden node draws"
+    );
+}
+
+#[test]
+fn a_z_index_survives_a_write_and_read() {
+    let app = app();
+    let node = spawn(&app, "N");
+    call(&app.engine, "set_z_index", &[node.clone(), Value::Int(7)]).unwrap();
+    assert_eq!(
+        call(&app.engine, "z_index", &[node]).unwrap(),
+        Value::Int(7)
+    );
+}

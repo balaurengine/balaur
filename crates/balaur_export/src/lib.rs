@@ -19,7 +19,7 @@ mod apple;
 mod bundle;
 
 use apple::AppleConfig;
-use bundle::{export_bundle, export_macos_app, find_bundle_template, Bundle};
+use bundle::{export_bundle, export_macos_app, find_bundle_template, web_shell, Bundle};
 
 /// Everything an export was asked for.
 #[derive(Default)]
@@ -77,19 +77,32 @@ pub fn default_roots(cache: Option<PathBuf>) -> Vec<PathBuf> {
 
 /// Write a `.bpak`, or a standalone game when a template is in play.
 pub fn export(opts: &Options<'_>) -> Result<()> {
-    let pack = balaur::build_pack_with(&opts.path, opts.keep_sources)?;
+    let target = opts.target.as_deref();
+    let bundle = target.and_then(Bundle::for_target);
+    // The web runtime is 32-bit, so its pack carries sources whatever the
+    // machine exporting it is.
+    let keep_sources = opts.keep_sources || bundle == Some(Bundle::Web);
+    let pack = balaur::build_pack_with(&opts.path, keep_sources)?;
     let apple = AppleConfig::load(&opts.path)?;
     let name = project_name(&opts.path);
-    let target = opts.target.as_deref();
     let output = opts.output.clone();
-    // Mobile ships a bundle, not an executable: the pack goes inside it as a
-    // resource rather than onto the end of a binary.
-    if let Some(kind) = target.and_then(Bundle::for_target) {
+    // Mobile and the web ship a bundle, not an executable: the pack goes
+    // inside it as a resource rather than onto the end of a binary.
+    if let Some(kind) = bundle {
         let template = match opts.template.clone() {
             Some(explicit) => explicit,
             None => find_bundle_template(kind, &opts.template_roots)?,
         };
-        return export_bundle(kind, &template, &pack.encode(), &name, output, &apple);
+        let shell = web_shell(&opts.path)?;
+        return export_bundle(
+            kind,
+            &template,
+            &pack.encode(),
+            &name,
+            output,
+            &apple,
+            &shell,
+        );
     }
     let template = match (opts.template.clone(), target) {
         (Some(explicit), _) => Some(explicit),

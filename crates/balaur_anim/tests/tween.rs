@@ -806,3 +806,143 @@ duration = 0.5
     let angles = balaur_anim::sampler::euler_from_quat(transform(&app, entity).rotation);
     near(angles.z, 0.0, "and so is the end");
 }
+
+#[test]
+fn a_delay_holds_the_start_before_the_first_step() {
+    let mut app = app();
+    let entity = spawn(&app, "Held");
+    start(
+        &app,
+        entity,
+        r#"
+delay = 0.5
+[[steps]]
+property = "position"
+to = [0.0, 10.0, 0.0]
+duration = 0.5
+"#,
+    );
+    tick(&mut app, 30);
+    near(
+        height(&app, entity),
+        0.0,
+        "still held at the end of the delay",
+    );
+    tick(&mut app, 15);
+    near(height(&app, entity), 5.0, "halfway up, a quarter second in");
+    tick(&mut app, 15);
+    near(height(&app, entity), 10.0, "there");
+}
+
+#[test]
+fn then_waits_for_the_other_tween_and_starts_from_where_it_left_the_node() {
+    let mut app = app();
+    let entity = spawn(&app, "Chained");
+    let first = start(
+        &app,
+        entity,
+        r#"
+[[steps]]
+property = "position"
+to = [0.0, 10.0, 0.0]
+duration = 0.5
+"#,
+    );
+    let second = start(
+        &app,
+        entity,
+        &format!(
+            r#"
+then = {first}
+[[steps]]
+property = "position"
+by = [0.0, 5.0, 0.0]
+duration = 0.5
+"#
+        ),
+    );
+    tick(&mut app, 15);
+    near(height(&app, entity), 5.0, "only the first one moves it");
+    assert!(
+        tween::is_running(&app.engine, second),
+        "waiting is still alive"
+    );
+    tick(&mut app, 15);
+    near(height(&app, entity), 10.0, "the first one lands");
+    tick(&mut app, 15);
+    near(
+        height(&app, entity),
+        12.5,
+        "`by` counts from where the first one left it",
+    );
+    tick(&mut app, 15);
+    near(height(&app, entity), 15.0, "and the second one lands");
+    assert!(!tween::is_running(&app.engine, second));
+}
+
+#[test]
+fn then_on_a_tween_already_over_starts_at_once() {
+    let mut app = app();
+    let entity = spawn(&app, "Eager");
+    let gone = start(&app, entity, "[[steps]]\ninterval = 0.01\n");
+    tick(&mut app, 5);
+    assert!(!tween::is_running(&app.engine, gone));
+    start(
+        &app,
+        entity,
+        &format!("then = {gone}\n[[steps]]\nproperty = \"position\"\nto = [0.0, 6.0, 0.0]\nduration = 0.5\n"),
+    );
+    tick(&mut app, 15);
+    near(
+        height(&app, entity),
+        3.0,
+        "no waiting on a handle that names nothing",
+    );
+}
+
+#[test]
+fn a_value_tween_is_read_not_written() {
+    let mut app = app();
+    let from = toml::Value::Float(0.0);
+    let to = toml::Value::Float(100.0);
+    let id = tween::start_value(&app.engine, &from, &to, 0.5, Some("linear")).unwrap();
+    assert_eq!(
+        tween::value_of(&app.engine, id),
+        Some(balaur_script::Value::Num(0.0))
+    );
+    tick(&mut app, 15);
+    let Some(balaur_script::Value::Num(half)) = tween::value_of(&app.engine, id) else {
+        panic!("a number")
+    };
+    near(half as f32, 50.0, "halfway");
+    tick(&mut app, 15);
+    assert_eq!(
+        tween::value_of(&app.engine, id),
+        Some(balaur_script::Value::Num(100.0)),
+        "over, and readable for the tick it landed on"
+    );
+    assert!(!tween::is_running(&app.engine, id));
+    tick(&mut app, 1);
+    assert_eq!(
+        tween::value_of(&app.engine, id),
+        None,
+        "and gone the tick after"
+    );
+
+    let pair = toml::Value::Array(vec![toml::Value::Float(0.0), toml::Value::Float(2.0)]);
+    let far = toml::Value::Array(vec![toml::Value::Float(4.0), toml::Value::Float(2.0)]);
+    let id = tween::start_value(&app.engine, &pair, &far, 1.0, None).unwrap();
+    tick(&mut app, 30);
+    let Some(balaur_script::Value::List(mid)) = tween::value_of(&app.engine, id) else {
+        panic!("a list")
+    };
+    assert_eq!(mid.len(), 2, "the shape it was started with");
+    let balaur_script::Value::Num(x) = mid[0] else {
+        panic!()
+    };
+    near(x as f32, 2.0, "x halfway");
+    assert!(
+        tween::start_value(&app.engine, &from, &pair, 1.0, None).is_err(),
+        "widths differ"
+    );
+}

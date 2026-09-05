@@ -137,9 +137,10 @@ without setting up signing; ship neither.
 
 ### Web
 
-**`balaur_bg.wasm` / `balaur.js`** — the web build. No canvas surface yet, so it
-is published to make the work visible, not because it is finished. See
-docs/PLAN-mobile-export.md.
+**`balaur-template-web.tar.gz`** — the web runtime `balaur export --target web`
+copies: unpack it into the templates directory and the export writes a
+directory a static host serves. `balaur_bg.wasm` / `balaur.js` are the same
+two files loose, for a page of your own.
 
 Exported macOS games are unsigned: appending the pack invalidates any
 signature, so sign or notarise after exporting, not before.

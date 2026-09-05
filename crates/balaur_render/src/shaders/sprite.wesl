@@ -5,7 +5,7 @@ import package::common::unpack_mat3;
 struct FrameUniforms {
     view_0: vec4<f32>, view_1: vec4<f32>, view_2: vec4<f32>,
     proj_0: vec4<f32>, proj_1: vec4<f32>, proj_2: vec4<f32>,
-    // x is seconds since the run began; the rest is spare.
+    // x is seconds since the run began; y and z are the viewport in pixels.
     clock: vec4<f32>,
 }
 struct ObjectUniforms {
@@ -17,6 +17,9 @@ struct ObjectUniforms {
 @group(1) @binding(0) var<uniform> object: ObjectUniforms;
 @group(2) @binding(0) var albedo_texture: texture_2d<f32>;
 @group(2) @binding(1) var albedo_sampler: sampler;
+// The last frame drawn, bound when the material's `features` has `screen`.
+@if(screen) @group(2) @binding(2) var screen_texture: texture_2d<f32>;
+@if(screen) @group(2) @binding(3) var screen_sampler: sampler;
 
 struct VertexInput {
     @location(0) position: vec2<f32>,
@@ -42,6 +45,18 @@ fn time() -> f32 {
 
 fn sample_albedo(uv: vec2<f32>) -> vec4<f32> {
     return textureSample(albedo_texture, albedo_sampler, uv);
+}
+
+// Where a fragment sits on the screen, 0..1 from the top left: what
+// `sample_screen` takes. `position` is the fragment's `@builtin(position)`.
+fn screen_uv(position: vec4<f32>) -> vec2<f32> {
+    return position.xy / frame.clock.yz;
+}
+
+// The last frame drawn, under this fragment or wherever `uv` points. One
+// frame behind, and only with `features = { screen = true }`.
+@if(screen) fn sample_screen(uv: vec2<f32>) -> vec4<f32> {
+    return textureSample(screen_texture, screen_sampler, uv);
 }
 
 // The node's tint times the instance's own.

@@ -404,6 +404,7 @@ impl RuneHost {
             token: u64::try_from(token).unwrap_or(u64::MAX),
         })
         .build()?;
+        task::declare_waits(self, &mut task)?;
         ctx.install(task)?;
         ctx.install(script_module(self)?)?;
         let pending = self.state.borrow().pending.clone();
@@ -830,6 +831,25 @@ impl RuneHost {
         }
     }
 
+    /// As [`Self::call_all`], with `args` after the instance.
+    pub fn call_all_with(&self, method: &str, args: &[balaur_script::Value]) {
+        let mut extra = Vec::with_capacity(args.len());
+        for arg in args {
+            match value::from_neutral(arg) {
+                Ok(value) => extra.push(value),
+                Err(err) => {
+                    tracing::error!("{method}: {err}");
+                    return;
+                }
+            }
+        }
+        for (entity, key, state) in self.live_batch() {
+            let mut call_args = vec![state];
+            call_args.extend(extra.iter().cloned());
+            self.invoke(entity, &key, method, call_args, true);
+        }
+    }
+
     /// Recompile a script and rebind its live instances.
     ///
     /// Rune compiles to an immutable unit, so there is no class table to swap
@@ -1097,6 +1117,10 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
 
     fn call_all(&self, method: &str) {
         RuneHost::call_all(self, method);
+    }
+
+    fn call_all_with(&self, method: &str, args: &[balaur_script::Value]) {
+        RuneHost::call_all_with(self, method, args);
     }
 
     fn wake(&self, token: u64, payload: &balaur_script::Value) {

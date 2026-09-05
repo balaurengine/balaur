@@ -185,6 +185,7 @@ impl balaur_script::ScriptHost<balaur_core::Engine> for PackedHost {
         None
     }
     fn call_all(&self, _: &str) {}
+    fn call_all_with(&self, _: &str, _: &[balaur_script::Value]) {}
     fn wake(&self, _: u64, _: &balaur_script::Value) {}
     fn scene_source(&self, rel: &str) -> Option<String> {
         self.0.scenes.get(rel).cloned()

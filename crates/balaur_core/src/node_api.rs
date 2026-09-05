@@ -15,7 +15,9 @@ use glamx::{EulerRot, Quat, Vec3};
 use hecs::Entity;
 
 use crate::engine::{Command, Engine};
-use crate::scene::{self, Children, GlobalTransform, Name, Parent, ScriptAttachment, Transform};
+use crate::scene::{
+    self, Appearance, Children, GlobalTransform, Name, Parent, ScriptAttachment, Tags, Transform,
+};
 
 /// One node operation, as a plain function pointer so the list stays a `const`.
 pub struct NodeOp {
@@ -162,6 +164,46 @@ pub const NODE_OPS: &[NodeOp] = &[
         name: "queue_free",
         call: queue_free,
     },
+    NodeOp {
+        name: "visible",
+        call: visible,
+    },
+    NodeOp {
+        name: "set_visible",
+        call: set_visible,
+    },
+    NodeOp {
+        name: "global_visible",
+        call: global_visible,
+    },
+    NodeOp {
+        name: "z_index",
+        call: z_index,
+    },
+    NodeOp {
+        name: "set_z_index",
+        call: set_z_index,
+    },
+    NodeOp {
+        name: "global_z_index",
+        call: global_z_index,
+    },
+    NodeOp {
+        name: "tags",
+        call: tags,
+    },
+    NodeOp {
+        name: "has_tag",
+        call: has_tag,
+    },
+    NodeOp {
+        name: "add_tag",
+        call: add_tag,
+    },
+    NodeOp {
+        name: "remove_tag",
+        call: remove_tag,
+    },
 ];
 
 /// Register every node operation into a binding group as a free function.
@@ -211,6 +253,16 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("attach_script", &[], "(path: string, props: any?)", "Attach the script at a path, with an optional table overriding what the script exports."),
         ("detach_script", &[], "()", "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay."),
         ("queue_free", &[], "()", "Destroy the node and its subtree at the end of the frame."),
+        ("visible", &[], "(node)", "Whether the node itself is set to draw; an ancestor may still hide it."),
+        ("set_visible", &[], "(node, on: bool)", "Show or hide the node and everything under it. Physics is untouched: a hidden collider still collides."),
+        ("global_visible", &[], "(node)", "What the renderer sees: false when the node or any ancestor is hidden."),
+        ("z_index", &[], "(node)", "The node's own draw layer, added to its parent's unless set absolute."),
+        ("set_z_index", &[], "(node, z: int, relative: bool)", "Put the node and its subtree on a draw layer: higher draws later. Relative by default, adding to the parent's layer; false makes it absolute."),
+        ("global_z_index", &[], "(node)", "The layer the node actually draws on, with every ancestor's added in."),
+        ("tags", &[], "(node)", "The names the node is filed under, sorted."),
+        ("has_tag", &[], "(node, tag: string)", "Whether the node is filed under a name."),
+        ("add_tag", &[], "(node, tag: string)", "File the node under a name; `scene.tagged` finds it from then on."),
+        ("remove_tag", &[], "(node, tag: string)", "Take a name off the node; a name it never had is left alone."),
     ]);
     for d in NODE_OPS {
         m.function_raw(d.name, Box::new(d.call));
@@ -254,6 +306,123 @@ fn xyz(args: &[Value], from: usize) -> Result<Vec3> {
 
 fn vec3(v: Vec3) -> Value {
     Value::Vec3([v.x, v.y, v.z])
+}
+
+fn flag(args: &[Value], i: usize) -> Result<bool> {
+    match args.get(i) {
+        Some(Value::Bool(b)) => Ok(*b),
+        other => Err(anyhow!(
+            "argument {i} should be true or false, got {other:?}"
+        )),
+    }
+}
+
+fn integer(args: &[Value], i: usize) -> Result<i32> {
+    match args.get(i) {
+        Some(Value::Int(n)) => Ok(*n as i32),
+        Some(Value::Num(n)) => Ok(*n as i32),
+        other => Err(anyhow!(
+            "argument {i} should be a whole number, got {other:?}"
+        )),
+    }
+}
+
+fn with_appearance<R>(eng: &Engine, e: Entity, f: impl FnOnce(&mut Appearance) -> R) -> Result<R> {
+    let world = eng.world();
+    let mut appearance = world
+        .get::<&mut Appearance>(e)
+        .map_err(|_| anyhow!("node is dead"))?;
+    Ok(f(&mut appearance))
+}
+
+fn visible(eng: &Engine, args: &[Value]) -> Result<Value> {
+    with_appearance(eng, node(args)?, |a| Value::Bool(a.visible))
+}
+
+fn set_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let on = flag(args, 1)?;
+    with_appearance(eng, node(args)?, |a| a.visible = on)?;
+    Ok(Value::Nil)
+}
+
+/// What the renderer sees: false when any ancestor is hidden.
+fn global_visible(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let world = eng.world();
+    Ok(Value::Bool(scene::composed_appearance(&world, e).visible))
+}
+
+fn z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
+    with_appearance(eng, node(args)?, |a| Value::Int(i64::from(a.z_index)))
+}
+
+/// `set_z_index(node, z)` adds to the parent's; a third argument of false
+/// makes it absolute.
+fn set_z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let z = integer(args, 1)?;
+    let relative = match args.get(2) {
+        Some(Value::Bool(b)) => *b,
+        _ => true,
+    };
+    with_appearance(eng, node(args)?, |a| {
+        a.z_index = z;
+        a.z_relative = relative;
+    })?;
+    Ok(Value::Nil)
+}
+
+fn global_z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let world = eng.world();
+    Ok(Value::Int(i64::from(
+        scene::composed_appearance(&world, e).z_index,
+    )))
+}
+
+fn tags(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let world = eng.world();
+    let list = world
+        .get::<&Tags>(e)
+        .map(|t| t.0.iter().cloned().map(Value::Str).collect())
+        .unwrap_or_default();
+    Ok(Value::List(list))
+}
+
+fn has_tag(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let tag = text(args, 1)?;
+    let world = eng.world();
+    Ok(Value::Bool(world.get::<&Tags>(e).is_ok_and(|t| t.has(tag))))
+}
+
+fn add_tag(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let tag = text(args, 1)?.to_string();
+    if tag.is_empty() {
+        bail!("a tag needs a name");
+    }
+    let mut world = eng.world_mut();
+    if let Ok(mut tags) = world.get::<&mut Tags>(e) {
+        tags.add(&tag);
+        return Ok(Value::Nil);
+    }
+    let mut tags = Tags::default();
+    tags.add(&tag);
+    world
+        .insert_one(e, tags)
+        .map_err(|_| anyhow!("node is dead"))?;
+    Ok(Value::Nil)
+}
+
+fn remove_tag(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let tag = text(args, 1)?;
+    let world = eng.world();
+    if let Ok(mut tags) = world.get::<&mut Tags>(e) {
+        tags.remove(tag);
+    }
+    Ok(Value::Nil)
 }
 
 fn with_transform<R>(eng: &Engine, e: Entity, f: impl FnOnce(&mut Transform) -> R) -> Result<R> {

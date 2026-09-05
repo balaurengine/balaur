@@ -637,7 +637,7 @@ pub(crate) fn install_scale(m: &mut dyn Bindings<Engine>) {
             "set_scale",
             &[],
             "",
-            "Set the global UI scale, clamped to between 0.5 and 3.0 real pixels per design pixel.",
+            "Set the global UI scale, clamped to between 0.25 and 3.0 real pixels per design pixel; a design resolution is `screen_size` divided by it.",
         ),
     ]);
     m.function("scale", |eng: &Engine, ()| {
@@ -647,7 +647,7 @@ pub(crate) fn install_scale(m: &mut dyn Bindings<Engine>) {
     });
     m.function("set_scale", |eng: &Engine, f: f32| {
         let config = eng.resource::<UiConfig>();
-        config.borrow_mut().scale = f.clamp(0.5, 3.0);
+        config.borrow_mut().scale = f.clamp(0.25, 3.0);
         Ok(())
     });
 }

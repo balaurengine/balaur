@@ -550,3 +550,166 @@ fn fs_reaches_a_second_root_the_host_declared() {
         "a declared root is writable, subdirectories included"
     );
 }
+
+#[test]
+fn a_uuid_from_the_engine_stream_is_well_formed_and_repeats_from_a_seed() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    call(&app.engine, "rng", "seed", &[Value::Int(9)]).unwrap();
+    let Value::Str(first) = call(&app.engine, "rng", "uuid", &[]).unwrap() else {
+        panic!("a string")
+    };
+    assert_eq!(first.len(), 36);
+    assert_eq!(&first[14..15], "4", "version nibble: {first}");
+    assert!(
+        matches!(&first[19..20], "8" | "9" | "a" | "b"),
+        "variant: {first}"
+    );
+    call(&app.engine, "rng", "seed", &[Value::Int(9)]).unwrap();
+    assert_eq!(
+        call(&app.engine, "rng", "uuid", &[]).unwrap(),
+        Value::Str(first)
+    );
+}
+
+#[test]
+fn base64_round_trips_bytes_and_sha256_matches_the_known_vector() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let encoded = call(
+        &app.engine,
+        "encoding",
+        "base64",
+        &[Value::Str("hello".into())],
+    )
+    .unwrap();
+    assert_eq!(encoded, Value::Str("aGVsbG8=".into()));
+    let decoded = call(&app.engine, "encoding", "from_base64", &[encoded]).unwrap();
+    assert_eq!(decoded, Value::Bytes(b"hello".to_vec()));
+    assert!(call(
+        &app.engine,
+        "encoding",
+        "from_base64",
+        &[Value::Str("@@".into())]
+    )
+    .is_err());
+    let digest = call(
+        &app.engine,
+        "hash",
+        "sha256_text",
+        &[Value::Str("abc".into())],
+    )
+    .unwrap();
+    assert_eq!(
+        digest,
+        Value::Str("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".into())
+    );
+    std::fs::write(dir.path().join("pack.bin"), b"abc").unwrap();
+    let from_file = call(
+        &app.engine,
+        "hash",
+        "sha256",
+        &[Value::Str("pack.bin".into())],
+    )
+    .unwrap();
+    assert_eq!(from_file, digest);
+}
+
+#[test]
+fn the_platform_and_device_id_are_stable_facts() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let Value::Map(facts) = call(&app.engine, "engine", "platform", &[]).unwrap() else {
+        panic!("a map")
+    };
+    let keys: Vec<&str> = facts.iter().map(|(k, _)| k.as_str()).collect();
+    assert_eq!(keys, ["os", "web", "mobile", "editor"]);
+    let first = call(&app.engine, "engine", "device_id", &[]).unwrap();
+    let again = call(&app.engine, "engine", "device_id", &[]).unwrap();
+    assert_eq!(first, again, "one id per install");
+    assert!(matches!(&first, Value::Str(s) if s.len() >= 8));
+}
+
+#[test]
+fn the_wall_clock_is_read_at_the_top_of_a_tick() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_in(dir.path());
+    assert_eq!(
+        call(&app.engine, "engine", "unix_time", &[]).unwrap(),
+        Value::Num(0.0)
+    );
+    app.tick(1.0 / 60.0);
+    let Value::Num(now) = call(&app.engine, "engine", "unix_time", &[]).unwrap() else {
+        panic!("a number")
+    };
+    assert!(now > 1.7e9, "seconds since 1970, got {now}");
+}
+
+#[test]
+fn a_tagged_node_is_found_and_an_untagged_one_is_not() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let root = app.engine.root();
+    let (door, wall) = {
+        let mut world = app.engine.world_mut();
+        (
+            balaur_core::scene::spawn_node(&mut world, "Door", root),
+            balaur_core::scene::spawn_node(&mut world, "Wall", root),
+        )
+    };
+    let node = |e| Value::Node(balaur_core::node_id_of(e).0);
+    let op = |name: &str| {
+        balaur_core::node_api::NODE_OPS
+            .iter()
+            .find(|d| d.name == name)
+            .unwrap()
+            .call
+    };
+    op("add_tag")(&app.engine, &[node(door), Value::Str("door".into())]).unwrap();
+    op("add_tag")(&app.engine, &[node(door), Value::Str("wood".into())]).unwrap();
+    assert_eq!(
+        op("tags")(&app.engine, &[node(door)]).unwrap(),
+        Value::List(vec![Value::Str("door".into()), Value::Str("wood".into())])
+    );
+    assert_eq!(
+        call(&app.engine, "scene", "tagged", &[Value::Str("door".into())]).unwrap(),
+        Value::List(vec![node(door)])
+    );
+    assert_eq!(
+        op("has_tag")(&app.engine, &[node(wall), Value::Str("door".into())]).unwrap(),
+        Value::Bool(false)
+    );
+    op("remove_tag")(&app.engine, &[node(door), Value::Str("door".into())]).unwrap();
+    assert_eq!(
+        call(&app.engine, "scene", "tagged", &[Value::Str("door".into())]).unwrap(),
+        Value::List(vec![])
+    );
+}
+
+#[test]
+fn the_device_facts_default_and_take_a_backends_report() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    assert_eq!(
+        call(&app.engine, "engine", "focused", &[]).unwrap(),
+        Value::Bool(true)
+    );
+    assert_eq!(
+        call(&app.engine, "engine", "dark_mode", &[]).unwrap(),
+        Value::Bool(false)
+    );
+    balaur_core::facts::update_device(&app.engine, |facts| {
+        facts.focused = false;
+        facts.dark_mode = true;
+        facts.safe_area = [0.0, 44.0, 0.0, 34.0];
+    });
+    assert_eq!(
+        call(&app.engine, "engine", "focused", &[]).unwrap(),
+        Value::Bool(false)
+    );
+    assert_eq!(
+        call(&app.engine, "engine", "dark_mode", &[]).unwrap(),
+        Value::Bool(true)
+    );
+    assert!((balaur_core::facts::device(&app.engine).safe_area[1] - 44.0).abs() < f32::EPSILON);
+}

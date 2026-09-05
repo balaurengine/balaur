@@ -14,14 +14,15 @@ balaur_script.workspace = true
 serde.workspace = true
 toml.workspace = true
 tracing.workspace = true
+rodio = "0.22"
 
 [dev-dependencies]
 tempfile = "3"
 
-# No cpal host compiles for wasm (cpal 0.18 dropped emscripten), so wasm gets
-# the stub backend in lib.rs; the gate also keeps getrandom out of the wasm tree.
-[target.'cfg(not(target_family = "wasm"))'.dependencies]
-rodio = "0.22"
+# The WebAudio host: cpal reaches the browser's AudioContext through
+# wasm-bindgen, so the same rodio backend plays on every target.
+[target.'cfg(target_family = "wasm")'.dependencies]
+rodio = { version = "0.22", features = ["wasm-bindgen"] }
 
 # For the COM keep-alive in the backend; see `keep_com_alive` in lib.rs.
 [target.'cfg(windows)'.dependencies]

@@ -445,3 +445,46 @@ pub fn init(this) {
         height(&app, entity)
     );
 }
+
+/// The finished callback carries the handle, so a script holding several
+/// tweens knows which one ran out; a value tween is read each frame.
+const FINISHED: &str = r#"
+pub fn init(this) {
+    this.handle = animation::tween_to(this.node, "position", [0.0, 6.0, 0.0], 0.25, "linear");
+    this.finished = 0;
+    this.meter = animation::tween_value(0.0, 10.0, 0.5, "linear");
+    this.read = 0.0;
+}
+pub fn update(this, dt) {
+    let now = animation::tween_value_of(this.meter);
+    if now is f64 { this.read = now; }
+}
+pub fn on_tween_finished(this, handle) {
+    if handle == this.handle { this.finished = handle; }
+}
+"#;
+
+#[test]
+fn a_script_hears_which_tween_finished_and_reads_a_value_tween() {
+    let dir = project(("mover.rn", FINISHED));
+    let mut app = app_in(dir.path());
+    let entity = hero(&app, "mover.rn");
+    let number = |app: &App, name: &str| match field(app, entity, name) {
+        Value::Num(n) => n,
+        #[allow(clippy::cast_precision_loss, reason = "a test's small handle")]
+        Value::Int(n) => n as f64,
+        other => panic!("`{name}` is {other:?}"),
+    };
+    tick(&mut app, 10);
+    assert!(number(&app, "finished") < 0.5, "not over yet");
+    let read = number(&app, "read");
+    assert!(read > 0.5 && read < 4.0, "the meter climbs: {read}");
+    tick(&mut app, 10);
+    assert!(
+        number(&app, "finished") > 0.0,
+        "`on_tween_finished` carried the handle"
+    );
+    tick(&mut app, 15);
+    let read = number(&app, "read");
+    assert!((read - 10.0).abs() < 0.05, "read to the end: {read}");
+}

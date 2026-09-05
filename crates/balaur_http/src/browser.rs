@@ -24,7 +24,7 @@ const DEFAULT_TIMEOUT: f64 = 10.0;
 pub(crate) fn spawn_request(call: HttpCall, events: Sender<HttpEvent>) {
     let request = call.id;
     spawn_local(async move {
-        let event = match send(call).await {
+        let event = match send(call, &events).await {
             Ok(event) => event,
             Err(message) => HttpEvent::Error { request, message },
         };
@@ -35,7 +35,7 @@ pub(crate) fn spawn_request(call: HttpCall, events: Sender<HttpEvent>) {
 /// Nothing to pump: the browser calls us, not the other way round.
 pub(crate) fn pump() {}
 
-async fn send(call: HttpCall) -> Result<HttpEvent, String> {
+async fn send(call: HttpCall, events: &Sender<HttpEvent>) -> Result<HttpEvent, String> {
     let init = RequestInit::new();
     init.set_method(&call.method);
     // Fetch has no timeout of its own; an abort signal is how one is spelled.
@@ -62,6 +62,33 @@ async fn send(call: HttpCall) -> Result<HttpEvent, String> {
     let headers = read_headers(&response.headers());
     // The body is a second promise, and a failure reading it is still a
     // failure of the request as the script asked for it.
+    if let Some(path) = call
+        .save_to
+        .as_ref()
+        .filter(|_| (200..300).contains(&status))
+    {
+        let buffer = JsFuture::from(response.array_buffer().map_err(describe)?)
+            .await
+            .map_err(describe)?;
+        let bytes = js_sys::Uint8Array::new(&buffer).to_vec();
+        // The page's filesystem is whatever backend the host installed, and
+        // it takes the whole body at once: a browser has no disk to stream to.
+        balaur_core::files::default_backend()
+            .write(path, &bytes)
+            .map_err(|err| err.to_string())?;
+        let _ = events.send(HttpEvent::Progress {
+            request: call.id,
+            received: bytes.len() as u64,
+            total: Some(bytes.len() as u64),
+        });
+        return Ok(HttpEvent::Response {
+            request: call.id,
+            status,
+            headers,
+            body: String::new(),
+            saved: Some(path.display().to_string()),
+        });
+    }
     let body = JsFuture::from(response.text().map_err(describe)?)
         .await
         .map_err(describe)?
@@ -72,6 +99,7 @@ async fn send(call: HttpCall) -> Result<HttpEvent, String> {
         status,
         headers,
         body,
+        saved: None,
     })
 }
 

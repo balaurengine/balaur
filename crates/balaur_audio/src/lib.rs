@@ -13,9 +13,10 @@
 //! `sound` component's "already started" check) is therefore tracked as
 //! intent on [`Sound`] and [`AudioState`], never read off a sink.
 //!
-//! Wasm builds are the extreme case of that rule: no audio stack compiles
-//! there at all (see the backend modules below), so the whole backend is the
-//! "no device" path and scripts calling `audio.*` still run.
+//! A browser refuses to start audio until the page has seen a gesture, so
+//! there the device is opened on the first key, button or touch —
+//! `UserActivation` — rather than at load. `audio.ready` says whether it is
+//! open yet; before that every call takes the "no device" path above.
 
 use anyhow::{anyhow, bail, Result};
 use balaur_core::components::{as_f64, ComponentDef};
@@ -32,8 +33,7 @@ pub mod spatial;
 use bus::Buses;
 use spatial::{Emitter, Listener, ListenerPose, Placement};
 
-/// The rodio/cpal backend: every target with a real audio stack.
-#[cfg(not(target_family = "wasm"))]
+/// The rodio/cpal backend: native audio stacks, and WebAudio on wasm.
 mod backend {
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
@@ -186,56 +186,6 @@ mod backend {
     }
 }
 
-/// The wasm stub. cpal's emscripten host does not compile — broken upstream
-/// against current wasm-bindgen and deleted outright in cpal 0.18 — and its
-/// WebAudio host only runs inside a wasm-bindgen app, which an engine on
-/// emscripten is not. Both types are uninhabited: opening always fails, the
-/// plugin warns once, and the compiler proves the rest of this module dead.
-#[cfg(target_family = "wasm")]
-mod backend {
-    use anyhow::{bail, Result};
-
-    pub(crate) enum Device {}
-    pub(crate) enum Sound {}
-
-    pub(crate) fn open_default() -> Result<Device> {
-        bail!("no audio backend compiles for wasm")
-    }
-
-    pub(crate) fn play(
-        device: &Device,
-        _: Vec<u8>,
-        _: f32,
-        _: f32,
-        _: bool,
-        _: Option<[f32; 2]>,
-    ) -> Result<Sound> {
-        match *device {}
-    }
-
-    impl Sound {
-        pub(crate) fn stop(&self) {
-            match *self {}
-        }
-
-        pub(crate) fn set_volume(&self, _: f32) {
-            match *self {}
-        }
-
-        pub(crate) fn set_pitch(&self, _: f32) {
-            match *self {}
-        }
-
-        pub(crate) fn set_pan(&self, _: [f32; 2]) {
-            match *self {}
-        }
-
-        pub(crate) fn finished(&self) -> bool {
-            match *self {}
-        }
-    }
-}
-
 /// The floor `pitch` is clamped to, matching the schema's `min`: rodio takes
 /// a playback speed, and zero would park the sink forever.
 const MIN_PITCH: f32 = 0.01;
@@ -292,6 +242,9 @@ const DEFAULT_MAX_DISTANCE: f32 = 50.0;
 
 pub struct AudioState {
     device: Option<backend::Device>,
+    /// True while the device waits for `UserActivation`: a browser refuses
+    /// to start audio before a gesture, so the open is deferred to one.
+    awaiting_activation: bool,
     /// Live sinks by handle. A handle absent here answers `is_playing` false
     /// and its setters no-op.
     playing: DetHashMap<u64, backend::Sound>,
@@ -652,6 +605,27 @@ impl Default for AudioPlugin {
 }
 
 /// Drop finished sinks, and stop the sounds of nodes that were freed.
+fn open_device() -> Option<backend::Device> {
+    match backend::open_default() {
+        Ok(device) => Some(device),
+        Err(err) => {
+            tracing::warn!("audio disabled: {err}");
+            None
+        }
+    }
+}
+
+/// Open the device the first tick after the page has seen a gesture.
+fn open_on_activation_system(eng: &Engine, _: f32) {
+    let state = eng.resource::<AudioState>();
+    let mut state = state.borrow_mut();
+    if !state.awaiting_activation || eng.try_resource::<balaur_core::UserActivation>().is_none() {
+        return;
+    }
+    state.awaiting_activation = false;
+    state.device = open_device();
+}
+
 fn sweep_sounds_system(eng: &Engine, _: f32) {
     let state = eng.resource::<AudioState>();
     let mut state = state.borrow_mut();
@@ -697,15 +671,11 @@ impl balaur_plugin::Plugin for AudioPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
-        let device = match backend::open_default() {
-            Ok(device) => Some(device),
-            Err(err) => {
-                tracing::warn!("audio disabled: {err}");
-                None
-            }
-        };
+        let eager = !cfg!(target_family = "wasm");
+        let device = if eager { open_device() } else { None };
         reg.insert_resource(AudioState {
             device,
+            awaiting_activation: !eager,
             playing: DetHashMap::default(),
             routing: DetHashMap::default(),
             nodes: DetHashMap::default(),
@@ -718,6 +688,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
         reg.insert_resource(event::Events::default());
         reg.insert_resource(cache::SoundCache::default());
 
+        reg.add_system(Stage::First, open_on_activation_system);
         reg.add_system(Stage::PostUpdate, sweep_sounds_system);
         reg.add_system(Stage::SceneSync, spatial::spatialize_system);
         register_sound_component(reg);
@@ -939,6 +910,7 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
         ("stop", &[], "", "Silence the sound a handle names; a finished, stopped or unknown handle is left alone."),
         ("set_volume", &[], "", "Set a playing handle's linear gain, where 1 is the file's own level."),
         ("set_pitch", &[], "", "Set a playing handle's speed multiplier, which carries its pitch with it."),
+        ("ready", &[], "()", "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound."),
         ("is_playing", &[], "", "Whether a handle's sound is still audible; false once it ends, and always false with no output device."),
         ("stop_all", &[], "", "Silence everything at once and clear the playback every `sound` component was holding."),
         ("play_on", &["sound"], "", "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
@@ -994,6 +966,9 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
             .borrow_mut()
             .set_pitch(handle_of(handle), pitch);
         Ok(())
+    });
+    m.function("ready", |eng: &Engine, ()| {
+        Ok(eng.resource::<AudioState>().borrow().device.is_some())
     });
     m.function("is_playing", |eng: &Engine, handle: i64| {
         Ok(eng

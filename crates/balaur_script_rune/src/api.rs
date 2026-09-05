@@ -91,6 +91,8 @@ fn collect_modules() -> BTreeMap<String, Module> {
         ("script", "exports", "(path: string)", "The tunable properties a script declares in `exports()`, with their defaults."),
         ("script", "shared", "(f: fn, arity: int)", "Wrap a script function so it can be called from several places with a fixed argument count."),
         ("task", "wait", "(token: int)", "Park an async handler until the engine wakes the token it was given."),
+        ("task", "frames", "(count: int)", "Park an async handler for a number of fixed steps; counted on the tick, so a replay waits exactly as long."),
+        ("task", "seconds", "(seconds: float)", "Park an async handler for a span of simulation time, in fixed steps; the wall clock never enters it."),
     ] {
         let entry = modules.entry(module.to_string()).or_default();
         entry.functions.insert(name.to_string());

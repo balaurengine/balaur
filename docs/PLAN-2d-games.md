@@ -1,6 +1,9 @@
-> **Status:** not started. Written down on 2026-09-04 after measuring the
-> tree at `c18f23f` against what a shipped 2D game for phones and the web
-> asks of an engine — a game with text in thirty languages, touch as its
+> **Status:** steps 1–5 built on 2026-09-05; what each row says "have" is
+> in the tree, and the rows that say **not planned** or name another plan
+> still do. Two things the kiss3d fork does not yet hand over stay open:
+> IME composition and a mid-pass copy for `screen` (see §5). Written down
+> on 2026-09-04 after measuring the tree at `c18f23f` against what a
+> shipped 2D game for phones and the web asks of an engine — a game with text in thirty languages, touch as its
 > first input, a server behind it, and a store on every side. The order is
 > forced by what blocks a platform: the web first, because the build exists
 > and the runtime does not; then text, because a game that cannot shape
@@ -45,7 +48,9 @@ Built, and load-bearing for a 2D game:
 | A fused desktop binary, a signed macOS `.app`, an unsigned iOS `.app`, an unsigned APK, a wasm build that boots a pack on a canvas | `crates/balaur_export`, `crates/balaur_cli/src/web.rs` |
 | One fixed tick, record and replay, a digest, rollback | `Stage::FixedUpdate`, `balaur_core::{replay,digest,rollback}` |
 
-Missing, grouped by what blocks a platform and what blocks a screen:
+What was missing on 2026-09-04, grouped by what blocks a platform and what
+blocks a screen; every bullet is now built unless it says otherwise, and
+the §2 rows say where:
 
 - **Web is a build, not a runtime.** `crates/balaur_audio` compiles to a
   no-op on wasm; `crates/balaur_gamend`'s wasm backend refuses every call
@@ -234,7 +239,7 @@ in the game; "not planned" is a deliberate no.
 | Render to a texture | Fallback: bake with `render.screenshot` in a tool run and ship the image. The roadmap's "More than one view" |
 | A 2D camera with limits, smoothing and drag margins | Have zoom; the rest is a script's `update`. **Not planned** as properties |
 | Canvas layers | Have: `widget.layer` for UI; `z_index` for the world |
-| A design resolution scaled to the screen | Step 4: `ui.set_scale` floor lowered to 0.25; the scale itself is one line in `update` from `ui.screen_size` |
+| A design resolution scaled to the screen | Have: `ui.set_scale` goes down to 0.25; the scale itself is one line in `update` from `ui.screen_size` |
 | Compressed textures on mobile | `docs/PLAN-scenes-and-assets.md`'s import phase, when memory says so |
 
 ### Shaders
@@ -242,7 +247,7 @@ in the game; "not planned" is a deliberate no.
 | Need | Decision |
 | --- | --- |
 | Time, UV, colour, texture, vertex displacement, sampler hints, unshaded, blend modes | Have: `time()`, `place(in, offset)`, `material.features` |
-| A material that samples what the frame drew before it | Step 5: a `screen` feature on `material` binding the frame so far as a texture, one copy pass, only when a material asks — the same pass `docs/PLAN-shaders.md` phase 9's post-process materials need, built once there. Fallback until then: a tinted full-screen quad |
+| A material that samples what the frame drew before it | Have: `features = { screen = true }` binds the last frame as `screen_texture`, `sample_screen(screen_uv(in.clip_position))` reads it; one copy pass at the end of the frame, only while a material asks. A frame behind: kiss3d draws every 2D object in one pass, and the frame-so-far copy needs that pass split in the fork (§5). The pass is what `docs/PLAN-shaders.md` phase 9's post-process materials build on |
 | Per-instance uniforms | Have: `material.params`, `render.material_params` |
 | Gradient and curve resources | Not planned: a gradient is an image, a ramp is two keys |
 
@@ -251,19 +256,19 @@ in the game; "not planned" is a deliberate no.
 | Need | Decision |
 | --- | --- |
 | Label, button, image, rows, columns, panels, padding, scroll, tabs | Have |
-| Checkbox, dropdown, slider, progress bar, spin box, texture button | Step 4: `check`, `dropdown`, `slider`, `progress` kinds promoted from the `ui` module; a spin box is `field` with `numeric = true`; a texture button is `button` with `image` |
-| Grid, wrapping flow, centre, split | Step 4: `grid` (with `columns`) and `flow` kinds; centre is `align = "center"`; split is `handle`, which exists |
-| A collapsible section, grouped so one open closes the others | Step 4: `fold` kind with `open` and `group` |
-| Dialogs, popups, menus | Step 4: `dialog` kind over `ui.modal` with `on_confirm`/`on_cancel`; a popup menu is a `column` on a `layer` |
-| Separators | Step 4: `separator` kind with `vertical` |
+| Checkbox, dropdown, slider, progress bar, spin box, texture button | Have: `check`, `dropdown`, `slider`, `progress` kinds; a spin box is `field` with `numeric = true`; a texture button is `button` under a theme entry with `image` |
+| Grid, wrapping flow, centre, split | Have: `grid` (with `columns`) and `flow` kinds; centre is `align = "center"`; split is `handle` |
+| A collapsible section, grouped so one open closes the others | Have: `fold` kind with `open` and `on_change(bool)`; a group is the script closing the others in that handler — `group` **not planned** |
+| Dialogs, popups, menus | Have: `dialog` kind, a panel in the middle over a dimmed screen that swallows clicks; its buttons are its children, so `on_confirm`/`on_cancel` are their `on_click`; a popup menu is a `column` on a `layer` |
+| Separators | Have: `separator` kind, across whichever way its parent runs |
 | Flat styles: fill, stroke, radius, padding | Have: `widget_theme` |
-| Nine-patch images | Step 4: `image` and `slice = [left, top, right, bottom]` on a `widget_theme` entry and on the `image` kind |
-| A widget that fills its parent minus a margin | Step 4: `anchor = "fill"` with `inset`; four fractional anchors **not planned** |
+| Nine-patch images | Have: `image` and `slice = [left, top, right, bottom]` on a `widget_theme` entry and `slice` on the `image` kind |
+| A widget that fills its parent minus a margin | Have: `anchor = "fill"` with `inset`; four fractional anchors **not planned** |
 | Per-node theme overrides | Have: a node's own properties override its theme |
-| Runtime theme switch and dark mode | Step 4: `engine.dark_mode()` in the snapshot, `on_dark_mode(bool)` on change; a game ships two `widget_theme` assets and swaps `theme` on the root, as the editor does |
-| The display's safe area | Step 4: `render.safe_area()` as four insets in the snapshot |
+| Runtime theme switch and dark mode | Have: `engine.dark_mode()`, recorded, `on_dark_mode(bool)` on change (macOS and the page answer; other desktops say false); a game ships two `widget_theme` assets and swaps `theme` on the root, as the editor does |
+| The display's safe area | Have: `render.safe_area()`, recorded; the page reads `env(safe-area-inset-*)` through the shell's CSS variables, a desktop answers zero. iOS native answers zero until the kiss3d fork hands over UIKit's insets |
 | Focus, neighbours, focus visuals off on pointer input | Have `focusable`, `ui.focus_*`; explicit neighbours **not planned** — the arrangement order is the neighbour order |
-| A drag threshold before a scroll view scrolls, so a tap on a child lands | Step 4: `deadzone` on `scroll`, in design pixels; 0 on desktop, 32 under a touch screen |
+| A drag threshold before a scroll view scrolls, so a tap on a child lands | Have: `deadzone` on `scroll`, in design pixels; 0 scrolls at once, so a touch scene sets 32 |
 | Tooltips | Not planned; nothing has asked |
 | Accessibility | Roadmap, unchanged |
 
@@ -275,25 +280,25 @@ in the game; "not planned" is a deliberate no.
 | Pinch and two-finger pan | Have as raw touches; a gesture recogniser **not planned** — two points and a distance are three lines of script |
 | Mouse as a touch on desktop | Have: a script reads both; a `touch_from_mouse` setting is a step 4 convenience |
 | Actions bound to keys, pad and axes | Have: `[input.actions]` |
-| A phone's vibration | Step 4: `input.vibrate(milliseconds)` — an effect, through `ExternalIo` like rumble |
-| The Android back button | Step 4: `input::KEY_BACK`, a key like any other |
-| Focus lost, app paused, quit requested | Step 4: `engine.focused()` in the snapshot, `on_focus_changed(bool)`, `on_quit_requested` |
-| Keep the screen on | Step 4: `render.set_keep_awake(bool)` |
-| Screen refresh rate | Step 4: `render.refresh_rate()`; `ui.scale` and `ui.screen_size` exist |
-| The OS, and whether this is a phone, a browser or the editor | Step 4: `engine.platform()`, recorded, since a replay on another machine must answer as the original did |
-| A stable per-install id, for device login | Step 4: `engine.device_id()`, generated once into the user directory |
-| Wall-clock time | Step 4: `engine.unix_time()`, in the snapshot, since it is external input |
-| Frame cost, draw calls, memory, for an in-game panel | Step 4: `engine.stats()` — what the profiler dock already collects, as a map |
-| The OS locale | Step 4: `strings.system_locale()` through `sys-locale`, recorded |
+| A phone's vibration | Have: `input.vibrate(milliseconds)` — the page's `navigator.vibrate`; an effect, never recorded, like rumble. A phone's native motor is the export's to wire (`docs/PLAN-google.md`) |
+| The Android back button | Have: it arrives as `KEY_NAVIGATE_BACKWARD`, the same key the browser's back key is; `KEY_BACK` is backspace, as kiss3d names it |
+| Focus lost, app paused, quit requested | Have: `engine.focused()`, recorded, `on_focus_changed(bool)` on change, `on_quit_requested` on every script before the window closes — a chance to save, not a veto |
+| Keep the screen on | Have: `render.set_keep_awake(bool)` — a wake lock on the page, nothing to ask on a desktop |
+| Screen refresh rate | Have: `render.refresh_rate()`, measured from the frame intervals vsync paces, recorded |
+| The OS, and whether this is a phone, a browser or the editor | Have: `engine.platform()`, recorded in the session's header, since a replay on another machine must answer as the original did |
+| A stable per-install id, for device login | Have: `engine.device_id()`, generated once into the user directory |
+| Wall-clock time | Have: `engine.unix_time()`, read at the top of the tick and recorded |
+| Frame cost, draw calls, memory, for an in-game panel | Have: `engine.timings()` is that map; a second name **not planned** |
+| The OS locale | Have: `strings.system_locale()` through `sys-locale`, recorded |
 
 ### Audio
 
 | Need | Decision |
 | --- | --- |
-| Buses with volume and mute, declared and at run time | Have `[audio.buses]`, `audio.set_bus_volume`; step 4: `audio.define_bus(name, parent)` |
+| Buses with volume and mute, declared and at run time | Have: `[audio.buses]`, `audio.set_bus_volume`, which makes a bus it does not know; `define_bus` **not planned** |
 | Effects on a bus: a limiter, reverb | Not planned: buses are gain, not a graph (`bus.rs:1-18`). Fallback: normalise the files offline |
-| Duck music under speech | Step 4: `tween_value` (below) driving `audio.set_bus_volume`; `audio.duck(bus, to, seconds)` if the pattern recurs |
-| Content downloaded at run time: a manifest, a pack per language, verified, then played | Step 4: `http.request` gains `save_to` (a path under the user directory, streamed to disk, `on_progress`); `hash.sha256(path)` over `sha2`, already a `balaur_core` dependency for packs; the content is a directory of files, and `audio.play` on an absolute path does the rest (`cache.rs:89`). Mounting a second pack **not planned**: the roadmap's asset streaming is the general answer, a directory the specific one |
+| Duck music under speech | Have: `animation.tween_value` driving `audio.set_bus_volume` from `update`; `audio.duck(bus, to, seconds)` if the pattern recurs |
+| Content downloaded at run time: a manifest, a pack per language, verified, then played | Have: `http.request` with `save_to` (a path under the user directory, streamed to disk, `on_progress` per chunk, the reply's `path`); `hash.sha256(path)`; the content is a directory of files, and `audio.play` on an absolute path does the rest. Mounting a second pack **not planned**: the roadmap's asset streaming is the general answer, a directory the specific one |
 | Streaming a long file | Roadmap's asset streaming; every play decodes from memory today |
 | Positional audio, pitch | Have |
 | A gate for a browser that refuses audio | Step 1: `audio.ready()` |
@@ -306,7 +311,7 @@ in the game; "not planned" is a deliberate no.
 | Clips with property tracks, libraries, backwards play, a finished event | Have |
 | Skeletal 2D: bones, skinned polygons, weights | Have |
 | Sprite flipbooks | Have: a clip over `sprite/frame` |
-| Tweens that wait, chain, call back, and drive a value a script owns | Step 4: `delay` and `then = <id>` options on `animation.tween`; `on_tween_finished(id)`; `animation.tween_value(from, to, seconds, ease)` returning an id whose `animation.tween_value_of(id)` a script reads each frame — the method tween without a callback into the middle of a tick; `loop = n`. Nested tweens **not planned** |
+| Tweens that wait, chain, call back, and drive a value a script owns | Have: `delay` and `then = <handle>` on `animation.tween` (a chained tween reads its start values when its turn comes); `on_tween_finished(handle)`; `animation.tween_value(from, to, seconds, ease)` and `tween_value_of(handle)`, read each frame — the method tween without a callback into the middle of a tick; `loops`. Nested tweens **not planned** |
 | State machines and blend trees | `docs/PLAN-animation-and-resources.md`. Fallback: a script with a `state` and `animation.play` on transitions |
 
 ### Scripting
@@ -314,12 +319,12 @@ in the game; "not planned" is a deliberate no.
 | Need | Decision |
 | --- | --- |
 | Signals between nodes | Have: `events.subscribe`/`emit` and direct method calls; §5 asks whether UI-driven chains need a same-frame path |
-| Classify nodes and query by class | Step 4: `tags = ["door", "obstacle"]` on a node, `node.has_tag`, `node.add_tag`, `node.remove_tag`, `scene.tagged(name)` — the word `presets.toml` already uses for components, so one vocabulary classifies both |
-| Wait a frame, wait a second | Step 4: `task.frames(n)` and `task.seconds(t)` tokens, named in `docs/PLAN-editor.md` §2, ticking on the fixed step so they replay |
+| Classify nodes and query by class | Have: `tags = ["door", "obstacle"]` on a node, `node.tags`, `has_tag`, `add_tag`, `remove_tag`, `scene.tagged(name)`; in the digest and the snapshot |
+| Wait a frame, wait a second | Have: `task::frames(n).await` and `task::seconds(t).await`, counted on the fixed step so they replay and survive a snapshot |
 | Defer a call to the next frame | Have: `events.emit` to self; `node.queue_free` already defers |
-| Polygon booleans, triangulation, point-in-polygon, segment intersection | Step 4: a `geometry2d` module beside `geometry3d`: `triangulate` over `balaur_core::triangulate`, `union`, `intersection`, `difference` from `i_overlay` if its output order is stable across platforms, else written out as the triangulator was; `contains`, `segments_intersect`, `area`, `is_clockwise`, `convex_hull` |
-| Base64, a random id | Step 4: `encoding.base64`/`from_base64` over the `base64` crate already in the lock; `rng.uuid()` from the engine's own stream |
-| A test runner for a game's own headless tests | Step 4: `balaur test` running `tests/*.rn` headless with an assertion module and a non-zero exit |
+| Polygon booleans, triangulation, point-in-polygon, segment intersection | Have: `geometry2d` — `triangulate` over `balaur_core::triangulate`; `union`, `intersection`, `difference` from `i_overlay`, which works in fixed point and so lands on the same vertices everywhere; `contains`, `segments_intersect`, `area`, `is_clockwise`, `convex_hull` |
+| Base64, a random id | Have: `encoding.base64`/`from_base64`; `rng.uuid()` from the engine's own stream, so it replays |
+| A test runner for a game's own headless tests | Have: `balaur test` runs every `tests/**/*.rn` on its own node in a headless copy of the project; Rune's own `assert!` is the assertion, a logged script error fails the test, and the exit code says so |
 | Threads | Have: none, by design; I/O lands on a tick |
 | A CSV or spreadsheet importer for game data | Not planned: a build step writes TOML or JSON into the pack and `fs`/`json` read it |
 
@@ -328,7 +333,7 @@ in the game; "not planned" is a deliberate no.
 | Need | Decision |
 | --- | --- |
 | Strings per locale, interpolation, plurals, a runtime switch | Have |
-| The OS locale at first launch | Step 4: `strings.system_locale()` |
+| The OS locale at first launch | Have: `strings.system_locale()` |
 | A localized app name on the store and the home screen | `docs/PLAN-apple.md`: `[apple] name_localized` writing `InfoPlist.strings`; `docs/PLAN-google.md`: `strings.xml` per locale in the AAB step |
 | Fonts per script | Have: the chain; step 2 makes them shape |
 
@@ -338,7 +343,7 @@ in the game; "not planned" is a deliberate no.
 | --- | --- |
 | REST, hooks, a realtime socket, token refresh | Have: `gamend.*`, `settings` or `save` for the token |
 | Binary realtime frames | Have text and binary frames; a protobuf codec **not planned** until measured against JSON |
-| OAuth through the system browser and back | Step 4: `engine.open_url(url)` through `ExternalIo`; the return leg is `apple.watch_urls` on Apple, `[android] urls` in `docs/PLAN-google.md`, `web.location` on the web |
+| OAuth through the system browser and back | Have: `web.open(url, target)` on the page; a desktop `engine.open_url` is `docs/PLAN-deploy.md`'s to add beside the store links; the return leg is `apple.watch_urls` on Apple, `[android] urls` in `docs/PLAN-google.md`, `web.location` on the web |
 | Sign in with the platform | Have on Apple in code; `docs/PLAN-apple.md` §4 says it has never reached Apple's servers; Google is `docs/PLAN-google.md` step 3 |
 | In-app purchases | `docs/PLAN-apple.md` (have, untested), `docs/PLAN-google.md` step 4; a web checkout is `engine.open_url` |
 | Deep links | Have `apple.watch_urls`; Android in `docs/PLAN-google.md` |
@@ -350,7 +355,7 @@ in the game; "not planned" is a deliberate no.
 | Need | Decision |
 | --- | --- |
 | Web with a custom shell | Step 1 |
-| iOS: signed, on a device, portrait lock, audio session, a localized name, a splash | `docs/PLAN-mobile-export.md` for signing and the first frame; `docs/PLAN-apple.md` gains `orientation`, `audio_session`, `name_localized`; step 4: `[application] splash` drawn by the runtime before the first scene, on every target |
+| iOS: signed, on a device, portrait lock, audio session, a localized name, a splash | `docs/PLAN-mobile-export.md` for signing and the first frame; `docs/PLAN-apple.md` gains `orientation`, `audio_session`, `name_localized`; have: `[application] splash` and `splash_seconds`, drawn by the runtime over the first seconds, on every target |
 | Android: Gradle, AAB and APK, signing, orientation, keep-awake, immersive, vibration, back | `docs/PLAN-google.md` steps 1–2 plus `[android] orientation`, `keep_awake`, `immersive`; `x86` ABIs **not planned** |
 | Windows and Linux 64-bit, macOS | Have; Linux arm64 too |
 | Windows arm64 | Step 4's long tail |
@@ -370,7 +375,10 @@ in the game; "not planned" is a deliberate no.
 
 Ordered so a game reaches a browser after step 1, draws its screens after
 step 3, and plays after step 5. Each step ends with something a person can
-open.
+open. All five are built; what each list names is in the tree, with the
+exceptions the rows above spell out (`engine.stats` is `engine.timings`,
+`audio.define_bus` was never needed, `KEY_BACK` is `KEY_NAVIGATE_BACKWARD`,
+IME composition and a frame-so-far `screen` wait on the kiss3d fork).
 
 1. **The web runtime.** `balaur export --target web` with a shell
    template; audio on wasm behind `audio.ready()`; `balaur_gamend`'s wasm
@@ -451,10 +459,14 @@ every platform plan says; the last is a person.
    will feel it. Either the widget layer's handlers are the same-frame
    path and a game routes through them, or `events` gains an `immediate`
    flag with the re-entrancy rule `on_free` already needs.
-4. **The screen texture and phase 9.** One copy pass serves both a
-   material reading the screen and a post-process material; building it in
-   `docs/PLAN-shaders.md` and exposing it here keeps one mechanism. If that
-   plan stalls, the tinted-quad fallback holds indefinitely.
+4. **The screen texture and phase 9.** Answered in part: the copy pass is
+   a kiss3d post-processing effect at the end of the chain, so a
+   post-process material is the same effect with the project's shader in
+   place of the blit. What it cannot do is the frame *so far*: kiss3d draws
+   every 2D object in one render pass, and a copy between two sprites needs
+   that pass split in the fork — an upstream ask, not engine work. Until
+   then `screen` is one frame behind, which a refraction never shows and a
+   feedback effect does.
 5. **Does tint propagate?** `color` on a node tints that node. A
    propagating tint is a `SceneSync` change the size of `visible`; the
    question is whether a second, non-propagating tint is then worth a
@@ -463,7 +475,7 @@ every platform plan says; the last is a person.
    wants 30 runs its own clock in script over it. `FIXED_DT` as a project
    setting is small; every determinism check, recording and rollback
    assumes 60. Leave it until a game's own clock proves insufficient.
-7. **`i_overlay` determinism.** Polygon booleans with `f32` inputs must
-   give the same triangles on every platform for a result to digest
-   equally. If the crate's traversal order depends on a hash map, the
+7. **`i_overlay` determinism.** Answered: the crate works in fixed-point
+   integers with ordered traversal, and a test runs the same boolean twice
+   and compares the vertices. If a platform ever disagrees, the
    triangulator's precedent applies: write it out.

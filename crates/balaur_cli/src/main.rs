@@ -109,6 +109,19 @@ enum Command {
         #[arg(default_value = ".")]
         path: PathBuf,
     },
+    /// Run a project's own tests: every `tests/**/*.rn` is attached to a
+    /// fresh node in a headless copy of the project and ticked; a script
+    /// error, an `assert!` included, fails it.
+    Test {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        /// Frames each test runs for, so a test may await timers and replies.
+        #[arg(long, default_value_t = 120)]
+        frames: u64,
+        /// Only tests whose path contains this.
+        #[arg(long)]
+        filter: Option<String>,
+    },
     /// Check a project without running it: every script a scene attaches is
     /// compiled, and every finding is printed with its file and line.
     Check {
@@ -193,6 +206,8 @@ enum Command {
 
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web;
+#[cfg(all(target_arch = "wasm32", feature = "window"))]
+mod web_fs;
 
 /// In a browser there is no command line: the page calls `web::start` with
 /// a canvas and a pack instead, and wasm-bindgen runs this empty `main` on
@@ -295,23 +310,30 @@ fn main() -> Result<()> {
             })
         }
         Command::Check { path, strict } => check_project(&path, strict),
+        Command::Test {
+            path,
+            frames,
+            filter,
+        } => test_project(&path, frames, filter.as_deref()),
         Command::Lsp { path } => lsp::run(&path),
         Command::Update { tag, check } => update::run(tag.as_deref(), check),
-        Command::Play { pack, frames } => {
-            let bytes =
-                std::fs::read(&pack).with_context(|| format!("reading {}", pack.display()))?;
-            if let Some(frames) = frames {
-                let pack = Pack::decode(&bytes)?;
-                let mut app = balaur::standard_app(AppConfig::packed(pack))?;
-                app.load_project()?;
-                for _ in 0..frames {
-                    app.tick(balaur::FIXED_DT);
-                }
-                return Ok(());
-            }
-            balaur::boot_pack(&bytes)
-        }
+        Command::Play { pack, frames } => play_pack(&pack, frames),
     }
+}
+
+/// `balaur play`: an exported pack, windowed, or headless for a frame budget.
+fn play_pack(pack: &Path, frames: Option<u64>) -> Result<()> {
+    let bytes = std::fs::read(pack).with_context(|| format!("reading {}", pack.display()))?;
+    if let Some(frames) = frames {
+        let pack = Pack::decode(&bytes)?;
+        let mut app = balaur::standard_app(AppConfig::packed(pack))?;
+        app.load_project()?;
+        for _ in 0..frames {
+            app.tick(balaur::FIXED_DT);
+        }
+        return Ok(());
+    }
+    balaur::boot_pack(&bytes)
 }
 
 /// Frames a standalone game should run before quitting, from `BALAUR_FRAMES`.
@@ -647,6 +669,90 @@ fn edit_project(
 ///
 /// The engine is asked, not the source: constants like `input.KEY_SPACE` are
 /// derived at registration, so parsing Rust would miss them.
+/// `balaur test`: each test script on its own node in its own headless app,
+/// failed by any script error the run logs. The project's main scene loads
+/// first, so a test finds the nodes a game would.
+fn test_project(path: &Path, frames: u64, filter: Option<&str>) -> Result<()> {
+    let tests = test_scripts(path);
+    let mut failed = 0usize;
+    let mut ran = 0usize;
+    for rel in tests {
+        if filter.is_some_and(|f| !rel.contains(f)) {
+            continue;
+        }
+        ran += 1;
+        balaur::logbuf::clear();
+        let outcome = run_test(path, &rel, frames);
+        let errors: Vec<String> = balaur::logbuf::recent(500)
+            .into_iter()
+            .filter(|entry| entry.level == "error")
+            .map(|entry| entry.message)
+            .collect();
+        match (outcome, errors.is_empty()) {
+            (Ok(()), true) => println!("test {rel} ... ok"),
+            (Ok(()), false) => {
+                failed += 1;
+                println!("test {rel} ... FAILED");
+                for message in errors {
+                    println!("    {message}");
+                }
+            }
+            (Err(why), _) => {
+                failed += 1;
+                println!("test {rel} ... FAILED\n    {why:#}");
+            }
+        }
+    }
+    if ran == 0 {
+        println!("no tests: put `.rn` files under tests/");
+        return Ok(());
+    }
+    println!("{} passed, {failed} failed", ran - failed);
+    if failed > 0 {
+        anyhow::bail!("{failed} of {ran} tests failed");
+    }
+    Ok(())
+}
+
+/// Every `.rn` under `tests/`, project-relative and sorted.
+fn test_scripts(project_root: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut dirs = vec![project_root.join("tests")];
+    while let Some(dir) = dirs.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                dirs.push(path);
+            } else if path.extension().and_then(|e| e.to_str()) == Some("rn") {
+                if let Ok(rel) = path.strip_prefix(project_root) {
+                    out.push(rel.to_string_lossy().replace('\\', "/"));
+                }
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+fn run_test(project_root: &Path, rel: &str, frames: u64) -> Result<()> {
+    let mut app = balaur::standard_app(AppConfig::export(project_root))?;
+    app.load_project()?;
+    let root = app.engine.root();
+    let node = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Test", root);
+    let host = app
+        .engine
+        .script_host()
+        .context("no script backend for the project")?;
+    host.attach(balaur::node_id_of(node), rel)?;
+    for _ in 0..frames {
+        app.tick(balaur::FIXED_DT);
+    }
+    Ok(())
+}
+
 /// `balaur check`: the editor's Problems list, headless, for CI.
 ///
 /// Exits non-zero when anything would stop the project running, so a broken
@@ -845,7 +951,7 @@ pub fn update(this, dt) {
 
 #[cfg(test)]
 mod tests {
-    use super::joinable;
+    use super::{joinable, run_test, test_scripts};
     use std::path::{Path, PathBuf};
 
     /// The editor joins `<root>/project.toml` by hand, which a `\\?\` path
@@ -863,6 +969,47 @@ mod tests {
         assert_eq!(
             joinable(Path::new("/Users/x/balaur/examples/hello")),
             PathBuf::from("/Users/x/balaur/examples/hello")
+        );
+    }
+
+    #[test]
+    fn a_test_script_that_asserts_false_fails_and_one_that_passes_passes() {
+        balaur::logbuf::capture_for_test();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("project.toml"),
+            "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("main.toml"), "").unwrap();
+        std::fs::create_dir_all(dir.path().join("tests")).unwrap();
+        std::fs::write(
+            dir.path().join("tests/pass.rn"),
+            "pub fn init(this) { assert!(1 + 1 == 2); }\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("tests/fail.rn"),
+            "pub fn init(this) { assert!(false, \"boom\"); }\n",
+        )
+        .unwrap();
+        assert_eq!(test_scripts(dir.path()), ["tests/fail.rn", "tests/pass.rn"]);
+        let errors_of = |rel: &str| {
+            balaur::logbuf::clear();
+            run_test(dir.path(), rel, 2).unwrap();
+            balaur::logbuf::recent(500)
+                .into_iter()
+                .filter(|e| e.level == "error")
+                .count()
+        };
+        assert_eq!(
+            errors_of("tests/pass.rn"),
+            0,
+            "a passing test logs no error"
+        );
+        assert!(
+            errors_of("tests/fail.rn") >= 1,
+            "a failed assert is a logged error"
         );
     }
 }

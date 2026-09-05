@@ -11,12 +11,18 @@
 use anyhow::{anyhow, Result};
 use balaur_script::{Bindings as _, Value};
 
+use crate::batteries_api::{
+    assets_directory, assets_duplicate, assets_exists, assets_invalidate, assets_load,
+    assets_reload, assets_save, dark_mode, device_id, encoding_base64, encoding_from_base64,
+    focused, hash_sha256, hash_sha256_text, log_clear, log_error, log_info, log_recent, log_warn,
+    platform, rng_int, rng_random, rng_range, rng_seed, rng_uuid, scene_tagged,
+    strings_system_locale, unix_time,
+};
 use crate::engine::Engine;
 use crate::file_api::{
     fs_exists, fs_list, fs_mkdir, fs_mtime, fs_read, fs_remove, fs_rename, fs_write, json_encode,
     json_parse, toml_encode, toml_parse, toml_patch,
 };
-use crate::rng::Pcg32;
 use crate::scene;
 
 // Callers reach these through `engine_api` because that is where they were
@@ -67,6 +73,31 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         module: "engine",
         name: "user_data_dir",
         call: user_data_dir,
+    },
+    EngineOp {
+        module: "engine",
+        name: "platform",
+        call: platform,
+    },
+    EngineOp {
+        module: "engine",
+        name: "device_id",
+        call: device_id,
+    },
+    EngineOp {
+        module: "engine",
+        name: "unix_time",
+        call: unix_time,
+    },
+    EngineOp {
+        module: "engine",
+        name: "focused",
+        call: focused,
+    },
+    EngineOp {
+        module: "engine",
+        name: "dark_mode",
+        call: dark_mode,
     },
     EngineOp {
         module: "scene",
@@ -199,6 +230,16 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         call: strings_set_root,
     },
     EngineOp {
+        module: "strings",
+        name: "system_locale",
+        call: strings_system_locale,
+    },
+    EngineOp {
+        module: "scene",
+        name: "tagged",
+        call: scene_tagged,
+    },
+    EngineOp {
         module: "skeleton",
         name: "apply_rest",
         call: crate::skeleton::apply_rest_op,
@@ -292,6 +333,31 @@ pub const ENGINE_OPS: &[EngineOp] = &[
         module: "rng",
         name: "int",
         call: rng_int,
+    },
+    EngineOp {
+        module: "rng",
+        name: "uuid",
+        call: rng_uuid,
+    },
+    EngineOp {
+        module: "hash",
+        name: "sha256",
+        call: hash_sha256,
+    },
+    EngineOp {
+        module: "hash",
+        name: "sha256_text",
+        call: hash_sha256_text,
+    },
+    EngineOp {
+        module: "encoding",
+        name: "base64",
+        call: encoding_base64,
+    },
+    EngineOp {
+        module: "encoding",
+        name: "from_base64",
+        call: encoding_from_base64,
     },
     EngineOp {
         module: "fs",
@@ -416,6 +482,8 @@ pub fn install_engine_api(eng: &Engine) -> Result<()> {
     crate::settings_api::install_settings_api(&mut *settings);
     let mut events = host.module("events")?;
     crate::events::install_events_api(&mut *events);
+    let mut geometry2d = host.module("geometry2d")?;
+    crate::geometry2d::install_geometry2d_api(&mut *geometry2d);
     Ok(())
 }
 
@@ -436,6 +504,8 @@ fn document(module: &str, m: &mut dyn balaur_script::Bindings<Engine>) {
         "fs" => document_fs(m),
         "toml" => document_toml(m),
         "json" => document_json(m),
+        "hash" => document_hash(m),
+        "encoding" => document_encoding(m),
         _ => {}
     }
 }
@@ -457,6 +527,37 @@ fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("plugins", &[], "()", "Every plugin this build loaded, named, in load order."),
         ("has_plugin", &[], "(name: string)", "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there."),
         ("plugin_version", &[], "(name: string)", "The version of one loaded plugin, or nil when it did not load."),
+        ("platform", &[], "()", "Where this runs: `{ os, web, mobile, editor }`. Recorded in a session's header, so a replay on another machine answers as the original did."),
+        ("device_id", &[], "()", "One id per install, made on first use and kept in the user directory: what a device login sends. Recorded with the session."),
+        ("unix_time", &[], "()", "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw."),
+        ("focused", &[], "()", "Whether the window is in front of the player this tick; every script's `on_focus_changed(bool)` is called when it changes. True with no window."),
+        ("dark_mode", &[], "()", "Whether the system is in dark mode this tick; every script's `on_dark_mode(bool)` is called when it changes. False where nothing says."),
+    ]);
+}
+
+fn document_hash(m: &mut dyn balaur_script::Bindings<Engine>) {
+    m.module_doc("Content hashes, for a download a game verifies before it trusts it.");
+    m.describe(&[
+        ("sha256", &[], "(path: string)", "The SHA-256 of a file as lowercase hex, read through the project's file roots; an absolute path is read as given."),
+        ("sha256_text", &[], "(text: string)", "The SHA-256 of a string as lowercase hex."),
+    ]);
+}
+
+fn document_encoding(m: &mut dyn balaur_script::Bindings<Engine>) {
+    m.module_doc("Bytes as text and back, for what a server hands over in base64.");
+    m.describe(&[
+        (
+            "base64",
+            &[],
+            "(data: bytes | string)",
+            "Bytes, or a string's UTF-8, as standard base64 with padding.",
+        ),
+        (
+            "from_base64",
+            &[],
+            "(text: string)",
+            "The bytes a base64 string encodes; an error for text that is not base64.",
+        ),
     ]);
 }
 
@@ -471,6 +572,7 @@ fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("get_node", &[], "(path: string)", "The node at an `A/B/C` path from the root, where `..` climbs to the parent; nil when nothing matches."),
         ("node_by_id", &[], "(id: string, under: node?)", "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree."),
         ("with_component", &[], "(component: string)", "Every node carrying the named component, in tree order. What a script asks instead of walking the tree itself."),
+        ("tagged", &[], "(tag: string)", "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed."),
         ("spawn", &[], "(name: string, parent: node?)", "Create one empty named node under the given parent, or under the root when none is given."),
         ("instantiate", &[], "(source: string, parent: node?, opts: any?)", "Build a scene document — TOML text, not a path — under a parent; `{ scripts: false }` leaves scripts unattached."),
         ("source", &[], "(path: string)", "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing."),
@@ -529,6 +631,7 @@ fn document_strings(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("locale", &[], "()", "The locale in force."),
         ("set_locale", &[], "(locale: string)", "Switch locale; the next `tr` answers in it, which for a widget showing a key is the next frame."),
         ("locales", &[], "()", "Every locale the project ships a `strings/<locale>.toml` for, in name order."),
+        ("system_locale", &[], "()", "The locale the operating system reports, like `en-US`, or nil when it says nothing; recorded with the session. A game picks its starting locale from it once and saves the choice."),
         ("set_root", &[], "(root: string)", "Read the catalogues from this directory instead of the project root, forgetting the ones already read; an empty string puts it back. For a host running a project other than its own — the editor, whose own root has no `strings/`, so without this every `text_key` in a played scene draws as its key."),
     ]);
 }
@@ -577,6 +680,7 @@ fn document_rng(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.describe(&[
         ("seed", &[], "(seed: int)", "Restart the deterministic engine stream at the given seed, so every draw after it repeats."),
         ("random", &[], "()", "A float from the deterministic engine stream, uniform in `[0, 1)`."),
+        ("uuid", &[], "()", "A version-4 UUID drawn from the deterministic engine stream, so a replay makes the same ids; not for anything that must be unique across machines."),
         ("range", &[], "(low: float, high: float)", "A float from the deterministic engine stream, uniform in `[low, high)` — the two arguments."),
         ("int", &[], "(low: int, high: int)", "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included."),
     ]);
@@ -1017,138 +1121,6 @@ fn component_properties(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// A script gets the data, not the engine's parsed object: a table is what a
 /// script can read, edit and hand to `toml.encode`. The parsed side belongs to
 /// the plugin that registered the type.
-fn assets_load(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let definition = crate::assets::definition(eng, text(args, 0)?)?;
-    crate::node_api::from_toml(&definition)
-}
-
-/// A private copy: read past the cache, so editing it cannot disturb what
-/// every other holder of that reference sees.
-fn assets_duplicate(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let definition = crate::assets::duplicate_definition(eng, text(args, 0)?)?;
-    crate::node_api::from_toml(&definition)
-}
-
-fn assets_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
-    Ok(Value::Bool(crate::assets::exists(eng, text(args, 0)?)))
-}
-
-/// Forget a reference, so the next load re-reads its source. What the editor
-/// calls after writing an asset file.
-fn assets_reload(eng: &Engine, args: &[Value]) -> Result<Value> {
-    crate::assets::reload(eng, text(args, 0)?)?;
-    Ok(Value::Nil)
-}
-
-fn assets_invalidate(eng: &Engine, _args: &[Value]) -> Result<Value> {
-    crate::assets::invalidate(eng);
-    Ok(Value::Nil)
-}
-
-/// Write a definition table back to the file a reference names, and forget the
-/// cached copy so the next load reads what was written.
-fn assets_save(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let definition = crate::node_api::to_toml(
-        args.get(1)
-            .ok_or_else(|| anyhow!("assets.save needs the table to write"))?,
-    )?;
-    crate::assets::save(eng, text(args, 0)?, &definition)?;
-    Ok(Value::Nil)
-}
-
-/// Where files of an asset type belong, as its plugin declared it.
-///
-/// The editor promotes an inline definition to a file and has to put it
-/// somewhere; only the type knows where. Empty when the type is unknown or
-/// declared no directory, which a caller reads as "cannot promote".
-fn assets_directory(eng: &Engine, args: &[Value]) -> Result<Value> {
-    Ok(Value::Str(crate::assets::directory(eng, text(args, 0)?)))
-}
-
-/// The three writers a script has. They emit through `tracing`, so a scripted
-/// line lands in the same stream, and the same `logbuf`, as an engine one --
-/// which is what makes `log.recent` able to show both.
-fn log_info(_: &Engine, args: &[Value]) -> Result<Value> {
-    tracing::info!("[script] {}", text(args, 0)?);
-    Ok(Value::Nil)
-}
-
-fn log_warn(_: &Engine, args: &[Value]) -> Result<Value> {
-    tracing::warn!("[script] {}", text(args, 0)?);
-    Ok(Value::Nil)
-}
-
-fn log_error(_: &Engine, args: &[Value]) -> Result<Value> {
-    tracing::error!("[script] {}", text(args, 0)?);
-    Ok(Value::Nil)
-}
-
-fn log_recent(_: &Engine, args: &[Value]) -> Result<Value> {
-    let n = match args.first() {
-        Some(Value::Int(n)) => usize::try_from(*n).unwrap_or(100),
-        Some(Value::Num(n)) => *n as usize,
-        _ => 100,
-    };
-    Ok(Value::List(
-        crate::logbuf::recent(n)
-            .into_iter()
-            .map(|e| {
-                // The structured fields ride along: a viewer that drops them
-                // shows a message the event deliberately did not put there.
-                let fields = e
-                    .fields
-                    .iter()
-                    .map(|(name, value)| {
-                        Value::Map(vec![
-                            ("name".into(), Value::Str(name.clone())),
-                            ("value".into(), Value::Str(value.clone())),
-                        ])
-                    })
-                    .collect();
-                Value::Map(vec![
-                    ("time".into(), Value::Num(e.time)),
-                    ("level".into(), Value::Str(e.level.clone())),
-                    ("tag".into(), Value::Str(e.tag.clone())),
-                    ("message".into(), Value::Str(e.message.clone())),
-                    ("fields".into(), Value::List(fields)),
-                ])
-            })
-            .collect(),
-    ))
-}
-
-fn log_clear(_: &Engine, _: &[Value]) -> Result<Value> {
-    crate::logbuf::clear();
-    Ok(Value::Nil)
-}
-
-fn rng_seed(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let seed = match args.first() {
-        Some(Value::Int(n)) => *n,
-        Some(Value::Num(n)) => *n as i64,
-        other => return Err(anyhow!("seed should be a number, got {other:?}")),
-    };
-    crate::rng::with_rng(eng, |rng| *rng = Pcg32::new(seed as u64));
-    Ok(Value::Nil)
-}
-
-fn rng_random(eng: &Engine, _: &[Value]) -> Result<Value> {
-    let v = crate::rng::with_rng(eng, Pcg32::next_f64);
-    Ok(Value::Num(v))
-}
-
-fn rng_range(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let (lo, hi) = (number(args, 0)?, number(args, 1)?);
-    let v = crate::rng::with_rng(eng, Pcg32::next_f64);
-    Ok(Value::Num(v.mul_add(hi - lo, lo)))
-}
-
-fn rng_int(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let (lo, hi) = (integer(args, 0)?, integer(args, 1)?);
-    let v = crate::rng::with_rng(eng, |rng| rng.next_range_i64(lo, hi));
-    Ok(Value::Int(v))
-}
-
 pub(crate) fn number(args: &[Value], i: usize) -> Result<f64> {
     match args.get(i) {
         Some(Value::Num(n)) => Ok(*n),
@@ -1157,7 +1129,7 @@ pub(crate) fn number(args: &[Value], i: usize) -> Result<f64> {
     }
 }
 
-fn integer(args: &[Value], i: usize) -> Result<i64> {
+pub(crate) fn integer(args: &[Value], i: usize) -> Result<i64> {
     match args.get(i) {
         Some(Value::Int(n)) => Ok(*n),
         Some(Value::Num(n)) => Ok(*n as i64),

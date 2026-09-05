@@ -16,6 +16,10 @@ serde.workspace = true
 balaur_script.workspace = true
 tracing.workspace = true
 image = { version = "0.25", default-features = false, features = ["png"] }
+# The wave in marked-up text is drawn with a sine that must not vary by OS.
+libm.workspace = true
+cosmic-text = { version = "0.19", default-features = false, features = ["std", "shape-run-cache", "swash"] }
+unicode-script = "0.5"
 
 [dev-dependencies]
 balaur.workspace = true

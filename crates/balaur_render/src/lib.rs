@@ -14,12 +14,15 @@ use balaur_script::Bindings;
 
 mod camera;
 mod debug_view;
+mod draw_2d;
 pub mod light;
 pub mod material;
 pub mod mesh;
 mod particles;
 mod pick;
 mod polygon;
+#[cfg(feature = "kiss3d")]
+mod polyline_strip;
 pub mod preview;
 #[cfg(feature = "kiss3d")]
 mod probe;
@@ -37,11 +40,23 @@ pub use polygon::PolygonMesh;
 pub use tilemap::{Tilemap, Tileset, TILESET_ASSET_TYPE};
 
 #[cfg(feature = "kiss3d")]
+mod device;
+#[cfg(all(
+    feature = "kiss3d",
+    target_family = "wasm",
+    not(target_os = "emscripten")
+))]
+mod hidden_tab;
+#[cfg(feature = "kiss3d")]
 pub mod kiss3d_backend;
 #[cfg(feature = "kiss3d")]
 mod kiss3d_camera;
 #[cfg(feature = "kiss3d")]
+mod kiss3d_input;
+#[cfg(feature = "kiss3d")]
 mod light_map;
+#[cfg(feature = "kiss3d")]
+mod screen_capture;
 #[cfg(feature = "kiss3d")]
 mod shader_material;
 #[cfg(feature = "kiss3d")]
@@ -110,6 +125,9 @@ pub struct WindowConfig {
     pub fullscreen: bool,
     pub cursor_grabbed: bool,
     pub cursor_hidden: bool,
+    /// Keep the screen from dimming while the game runs; a page asks the
+    /// browser for a wake lock, a desktop needs nothing.
+    pub keep_awake: bool,
     pub changed: bool,
 }
 
@@ -201,6 +219,7 @@ type DrawLineArgs = (
 /// editor fill them too and a producer must not depend on the renderer to draw
 /// a line. Re-exported: `balaur::render::DebugLineBuffer` is published API.
 pub use balaur_core::debug_lines::{DebugLine, DebugLine2d, DebugLineBuffer, DebugLineBuffer2d};
+pub use draw_2d::{Draw2d, DrawBuffer2d};
 
 /// Where the 2D camera looks (world center) and its zoom in logical pixels
 /// per world unit. Backends apply it when changed and keep their own
@@ -413,6 +432,18 @@ pub struct SpriteTexture {
     /// change: backends re-apply it without rebuilding their node.
     pub flip_x: bool,
     pub flip_y: bool,
+    /// One rectangle of the image, in texture pixels as `[x, y, w, h]`: an
+    /// atlas cell. `None` draws the whole image, or the sheet's frame.
+    pub region: Option<[u32; 4]>,
+}
+
+/// How a polyline is dressed beyond its colour.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LineStyle {
+    /// The colour at the chain's end, blended from `color` along it.
+    pub gradient: Option<[f32; 4]>,
+    /// An image drawn along the chain, `u` in world units along it.
+    pub texture: String,
 }
 
 /// 2D renderable, mirrored into the backend's 2D scene. The node's regular
@@ -424,6 +455,8 @@ pub struct Renderable2d {
     pub sprite: Option<SpriteTexture>,
     /// The `mesh` asset a polyline draws, present exactly when `shape` is one.
     pub polyline: Option<String>,
+    /// A polyline's gradient and texture, present exactly when `shape` is one.
+    pub line: Option<LineStyle>,
     /// What a polygon draws, present exactly when `shape` is one.
     pub polygon: Option<std::sync::Arc<PolygonMesh>>,
     /// The `material` asset this draws with; empty means the built-in one.
@@ -460,6 +493,7 @@ pub(crate) fn set_polygon(
                 color: [1.0, 1.0, 1.0, 1.0],
                 sprite: None,
                 polyline: None,
+                line: None,
                 polygon: Some(polygon),
                 material: String::new(),
                 sized: false,
@@ -569,12 +603,16 @@ pub(crate) fn set_polyline(
     entity: Entity,
     source: String,
     shape: Shape2d,
+    style: LineStyle,
 ) -> Result<()> {
     let mut world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
-        let rebuild = r.shape != shape || r.polyline.as_deref() != Some(source.as_str());
+        let rebuild = r.shape != shape
+            || r.polyline.as_deref() != Some(source.as_str())
+            || r.line.as_ref() != Some(&style);
         r.shape = shape;
         r.polyline = Some(source);
+        r.line = Some(style);
         if rebuild {
             r.version += 1;
         }
@@ -588,6 +626,7 @@ pub(crate) fn set_polyline(
                 color: [1.0, 1.0, 1.0, 1.0],
                 sprite: None,
                 polyline: Some(source),
+                line: Some(style),
                 polygon: None,
                 material: String::new(),
                 sized: false,
@@ -612,6 +651,7 @@ pub(crate) fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Resul
                 color: [0.8, 0.8, 0.8, 1.0],
                 sprite: None,
                 polyline: None,
+                line: None,
                 polygon: None,
                 material: String::new(),
                 sized: false,
@@ -629,15 +669,20 @@ fn natural_half_extents(
     bytes: &[u8],
     name: &str,
     sheet: Option<SpriteSheet2d>,
+    region: Option<[u32; 4]>,
     ppu: f32,
 ) -> Result<(f32, f32)> {
-    let (w, h) = texture::image_size(bytes, name)?;
-    let (cols, rows) = sheet.map_or((1, 1), |s| (s.columns.max(1), s.rows.max(1)));
     let ppu = if ppu > 0.0 {
         ppu
     } else {
         DEFAULT_PIXELS_PER_UNIT
     };
+    // A region states its own size; the image is only read when nothing does.
+    if let Some([_, _, w, h]) = region {
+        return Ok((w as f32 / ppu / 2.0, h as f32 / ppu / 2.0));
+    }
+    let (w, h) = texture::image_size(bytes, name)?;
+    let (cols, rows) = sheet.map_or((1, 1), |s| (s.columns.max(1), s.rows.max(1)));
     Ok((
         (w as f32 / cols as f32) / ppu / 2.0,
         (h as f32 / rows as f32) / ppu / 2.0,
@@ -664,7 +709,7 @@ pub(crate) fn set_sprite(
             .resource::<balaur_core::project::ProjectFiles>()
             .borrow()
             .read(&texture.path)?;
-        natural_half_extents(&bytes, &texture.path, texture.sheet, ppu)?
+        natural_half_extents(&bytes, &texture.path, texture.sheet, texture.region, ppu)?
     };
     let shape = Shape2d::Sprite {
         hx: hx.max(f32::EPSILON),
@@ -697,6 +742,7 @@ pub(crate) fn set_sprite(
                 color: [1.0, 1.0, 1.0, 1.0],
                 sprite: Some(texture),
                 polyline: None,
+                line: None,
                 polygon: None,
                 material: String::new(),
                 sized,
@@ -782,6 +828,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         reg.insert_resource(GridConfig::default());
         reg.insert_resource(DebugLineBuffer::default());
         reg.insert_resource(DebugLineBuffer2d::default());
+        reg.insert_resource(DrawBuffer2d::default());
         reg.insert_resource(CameraConfig2d::default());
         reg.insert_resource(PostConfig::default());
         reg.insert_resource(ViewportSnapshot2d::default());
@@ -805,6 +852,8 @@ impl balaur_plugin::Plugin for RenderPlugin {
         script_api::install_sprite_api(&mut *m);
         script_api::install_sprite_state_api(&mut *m);
         script_api::install_texture_api(&mut *m);
+        draw_2d::install_draw_2d_api(&mut *m);
+        tilemap::install_tilemap_api(&mut *m);
         shape::register_shape_component(reg);
         shape::register_shape2d_component(reg);
         register_render_presets(reg)?;
@@ -847,6 +896,9 @@ fn clear_debug_lines_system(eng: &Engine, _dt: f32) {
     }
     if let Some(lines) = eng.try_resource::<DebugLineBuffer2d>() {
         lines.borrow_mut().lines.clear();
+    }
+    if let Some(shapes) = eng.try_resource::<DrawBuffer2d>() {
+        shapes.borrow_mut().shapes.clear();
     }
 }
 

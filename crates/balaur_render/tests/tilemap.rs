@@ -187,3 +187,39 @@ tile_size = 50.0
         "the error should name the missing field: {err:#}"
     );
 }
+
+#[test]
+fn cells_as_rows_of_ids_reach_past_the_thirty_sixth_tile() {
+    let app = app();
+    let entity = node(&app);
+    let mut table = tilemap_table();
+    table.as_table_mut().unwrap().insert(
+        "cells".into(),
+        toml::from_str::<toml::Value>("v = [[40, -1], [0, 99]]").unwrap()["v"].clone(),
+    );
+    components::add(&app.engine, entity, "tilemap", Some(&table)).unwrap();
+    let world = app.engine.world();
+    let map = world.get::<&Tilemap>(entity).unwrap();
+    assert_eq!(
+        map.grid,
+        vec![vec![Some(40), None], vec![Some(0), Some(99)]]
+    );
+}
+
+#[test]
+fn a_material_on_the_map_is_kept_and_bumps_the_version_when_it_changes() {
+    let app = app();
+    let entity = node(&app);
+    components::add(&app.engine, entity, "tilemap", Some(&tilemap_table())).unwrap();
+    let before = app.engine.world().get::<&Tilemap>(entity).unwrap().version;
+    let mut table = tilemap_table();
+    table.as_table_mut().unwrap().insert(
+        "material".into(),
+        toml::Value::String("materials/water.toml".into()),
+    );
+    components::add(&app.engine, entity, "tilemap", Some(&table)).unwrap();
+    let world = app.engine.world();
+    let map = world.get::<&Tilemap>(entity).unwrap();
+    assert_eq!(map.material, "materials/water.toml");
+    assert_eq!(map.version, before + 1);
+}

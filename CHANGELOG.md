@@ -99,6 +99,55 @@ Unreleased; a release is a `v*` tag whose notes become that version's section.
 - `export -o <dir>` refuses a directory that is not an earlier export of this game.
 - `scripts/lint.sh` runs what CI runs; `.githooks/pre-push` runs it before a push.
 
+### Web
+
+- Audio in the browser through rodio's WebAudio host, opened on the first gesture; `audio.ready`.
+- `gamend.*` in the browser: Fetch and the WebSocket API drive the same Phoenix protocol code as the native workers.
+- `web.*`: `listen`, `messages`, `post_message`, `visible`, `user_agent`, `location`, `hardware_concurrency` — recorded, nil off the web.
+- The user directory survives a reload: `fs`, `save` and `settings` mirror into `localStorage`.
+- A hidden tab keeps ticking on a timer, so heartbeats and the fixed step continue.
+- `balaur export --target web`: the template, the pack and a shell page a static host serves; a project's `web/index.html` overrides it.
+- `save.slots`, `save.remove`, input rebindings and the sound cache go through the file backend, so a virtual filesystem serves them.
+
+### Text
+
+- Labels and captions are shaped through cosmic-text: bidi, Arabic joining, Thai and Devanagari reordering, CJK line breaks, fallback across the project's `fonts/` chain, drawn from an atlas the widget layer owns.
+- `markup` on a widget: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]`, `[img=path width=N]`.
+- `font_weight` and `font_style` on a widget.
+- The `field` widget kind: a line the player types into, with `placeholder`, `max_length`, `secret`, `numeric`, `on_change(text)` and `on_submit(text)`.
+- `input.keyboard_height`: what the on-screen keyboard covers, from the page's visual viewport.
+
+### Canvas
+
+- `visible` and `z_index` on every node: a hidden node hides its subtree and physics is untouched; layers add to the parent's unless `z_relative = false`. Both in the digest and the rollback snapshot, and as `node.visible`, `set_visible`, `global_visible`, `z_index`, `set_z_index`, `global_z_index`.
+- `region_origin` and `region_size` on `sprite`: an atlas cell in texture pixels, sizing the quad from the cell.
+- `tilemap`: `material`, `cells` as rows of tile ids past the 36-character alphabet, and `set_cell` / `cell` on the handle.
+- `shape2d` polylines are triangle strips with round joins and caps; `gradient` fades the colour along the chain and `texture` rides it.
+- `particles`: `texture`, `color_end`, `size_end`, `one_shot` and `explosiveness`; particles are quads rather than points.
+- `render.draw_circle_2d`, `draw_rect_2d`, `draw_arc_2d`, `draw_polyline_2d`, `draw_texture_2d`: world-space shapes for one frame, over the scene.
+
+### Widgets and batteries
+
+- Widget kinds `check`, `dropdown` (with `options`), `slider` (`value`, `min`, `max`, `step`), `progress`, `grid` (`columns`), `flow`, `fold` (`open`), `dialog` and `separator`; `on_change` carries the new state.
+- Nine-patch pictures: `slice` on the `image` kind and `image` + `slice` on a `widget_theme` entry.
+- `anchor = "fill"` with `inset` on a root widget; `ui.set_scale` goes down to 0.25; `deadzone` on `scroll` so a tap on a child lands under a finger.
+- `ui.widget_rect` answers for roots as well as children; `balaur_ui::widget_rect` for hosts.
+- `task::frames(n)` and `task::seconds(t)` wait on the fixed step, so they replay.
+- Node `tags`: `node.tags`, `has_tag`, `add_tag`, `remove_tag`, `scene.tagged(name)`; a `tags` key in scene files; in the digest and the snapshot.
+- Tweens: `delay`, `then = <handle>` (waits for another tween, then reads its start values), `on_tween_finished(handle)`, `animation.tween_value` / `tween_value_of` for a number a script owns.
+- `geometry2d`: `triangulate`, `contains`, `segments_intersect`, `area`, `is_clockwise`, `convex_hull`, `union`, `intersection`, `difference` (fixed-point booleans, so every platform lands on the same vertices).
+- `hash.sha256` / `sha256_text`, `encoding.base64` / `from_base64`, `rng.uuid` from the engine's own stream.
+- `http.request` takes `save_to`: a 2xx body streams to a file under the user directory, `on_progress` hears each chunk, the reply carries `path`.
+- Facts, recorded so a replay answers as the original did: `engine.platform`, `device_id`, `unix_time`, `focused`, `dark_mode`, `strings.system_locale`; `on_focus_changed(bool)` and `on_dark_mode(bool)` on every script when they change; `on_quit_requested` before the window closes.
+- `render.safe_area`, `render.refresh_rate`, `render.set_keep_awake`; `input.vibrate`; the Android back button and the browser's back key arrive as `KEY_NAVIGATE_BACKWARD`.
+- `[application] splash` and `splash_seconds`: a picture over the first seconds on every target.
+- `balaur test`: every `tests/**/*.rn` on its own node in a headless copy of the project; a script error, `assert!` included, fails it.
+- Schema types `vec4` and `strings`.
+
+### Shaders
+
+- `features = { screen = true }` on a `material` binds the last frame drawn as `screen_texture`; `sample_screen(screen_uv(in.clip_position))` reads it. One copy pass at the end of the frame, only while a material asks; a frame behind, since kiss3d draws all 2D objects in one pass.
+
 ### Platform services
 
 - `platform.*`: sign-in, achievements, leaderboards, cloud saves and presence over one module.

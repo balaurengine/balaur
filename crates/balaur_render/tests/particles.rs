@@ -93,3 +93,23 @@ fn a_particles_component_round_trips_and_stays_out_of_the_simulation() {
         "an emitter moved the engine's rng stream"
     );
 }
+
+#[test]
+fn a_burst_and_a_ramp_round_trip() {
+    let app = app();
+    let entity = node(&app);
+    let params: toml::Value = toml::from_str(
+        "one_shot = true\nexplosiveness = 0.5\nsize_end = 0.0\ntexture = \"art/spark.png\"\ncolor_end = [1.0, 0.5, 0.0, 0.0]",
+    )
+    .expect("the emitter params are valid TOML");
+    components::add(&app.engine, entity, "particles", Some(&params)).expect("applies");
+    let saved = components::get(&app.engine, entity, "particles").expect("reads back");
+    let table = saved.as_table().unwrap();
+    assert!(table["one_shot"].as_bool().unwrap());
+    assert!((table["explosiveness"].as_float().unwrap() - 0.5).abs() < 1e-6);
+    assert!(table["size_end"].as_float().unwrap().abs() < 1e-6);
+    assert_eq!(table["texture"].as_str().unwrap(), "art/spark.png");
+    let end = table["color_end"].as_array().unwrap();
+    assert!((end[1].as_float().unwrap() - 0.5).abs() < 1e-6);
+    assert!(end[3].as_float().unwrap().abs() < 1e-6);
+}

@@ -19,13 +19,18 @@
 //! table), so entire themes live in scripts and hot reload with them.
 
 mod bridge;
+mod splash;
+mod text;
 mod theme;
 mod widget_arrange;
 mod widget_bindings;
 mod widget_input;
+mod widget_kinds;
 mod widget_layer;
 mod widget_layout;
 mod widget_measure;
+mod widget_schema;
+mod widget_text;
 mod widget_theme;
 mod widgets;
 
@@ -37,6 +42,13 @@ pub use theme::ThemeTokens;
 pub use widget_input::{WidgetInputBuffer, WidgetInputSnapshot};
 pub use widget_layer::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
 pub use widget_theme::WidgetTheme;
+
+/// Where the layer last drew a widget, in device pixels, or `None` for one
+/// it did not draw last frame. What `ui.widget_rect` answers a script.
+#[must_use]
+pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
+    widget_arrange::drawn_at(entity)
+}
 pub use widgets::{ANCHORS, FONTS, MODIFIERS, WIDGET_KINDS};
 
 /// What scripts ask the UI to look like: the theme tokens `ui.set_theme`
@@ -77,6 +89,9 @@ pub struct UiState {
     /// when its source changes but not while someone is typing into it.
     pub text_seeds: HashMap<String, String>,
     pub focused_once: HashSet<String>,
+    /// A finger down on a `scroll` with a deadzone: where it landed and the
+    /// offset the scroll had then, until it lifts.
+    pub scroll_drags: HashMap<u64, (egui::Pos2, egui::Vec2)>,
     pub textures: HashMap<String, egui::TextureHandle>,
     /// The asset generation `textures` was filled at: an image reloaded on
     /// disk is a new picture under the same path, so the cache goes with it.
@@ -154,7 +169,10 @@ pub fn run_pass(eng: &Engine, ctx: &egui::Context) {
         if !state.fonts_installed {
             // Fonts registered mid-pass only take effect next pass; skip one
             // frame of drawing so widgets never see unbound families.
-            theme::load_fonts(eng, ctx);
+            let faces = theme::font_faces(eng);
+            theme::load_fonts(ctx, &faces);
+            let locale = balaur_core::strings::locale(eng);
+            eng.insert_resource(text::TextState::new(&faces, &locale));
             state.fonts_installed = true;
             return;
         }
@@ -185,5 +203,7 @@ pub fn run_pass(eng: &Engine, ctx: &egui::Context) {
     if let Some(host) = eng.script_host() {
         host.call_all("draw_ui");
     }
+    // Over everything, scripts' overlays included, for as long as it lasts.
+    splash::draw(eng, ctx);
     bridge::leave_pass();
 }

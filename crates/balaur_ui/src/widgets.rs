@@ -285,6 +285,7 @@ pub const ANCHORS: &[(&str, &str)] = &[
     ("ANCHOR_BOTTOM_LEFT", "bottom_left"),
     ("ANCHOR_BOTTOM_RIGHT", "bottom_right"),
     ("ANCHOR_CENTER", "center"),
+    ("ANCHOR_FILL", "fill"),
 ];
 
 /// Widget kinds the layer draws.
@@ -298,6 +299,16 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_TAB", "tab"),
     ("WIDGET_DRAW", "draw"),
     ("WIDGET_IMAGE", "image"),
+    ("WIDGET_FIELD", "field"),
+    ("WIDGET_CHECK", "check"),
+    ("WIDGET_DROPDOWN", "dropdown"),
+    ("WIDGET_SLIDER", "slider"),
+    ("WIDGET_PROGRESS", "progress"),
+    ("WIDGET_GRID", "grid"),
+    ("WIDGET_FLOW", "flow"),
+    ("WIDGET_FOLD", "fold"),
+    ("WIDGET_DIALOG", "dialog"),
+    ("WIDGET_SEPARATOR", "separator"),
 ];
 
 /// Font families the theme registers.

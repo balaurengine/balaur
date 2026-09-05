@@ -192,6 +192,27 @@ material = { type = "asset", asset = "material", default = "", description = "Th
     );
 }
 
+/// A polyline's gradient and texture, from its params. A gradient with no
+/// alpha is no gradient: the schema's default.
+fn line_style_from_params(params: &toml::Value) -> crate::LineStyle {
+    let gradient = params.get("gradient").map(|_| {
+        let table = toml::Value::Table(
+            [("color".to_string(), params["gradient"].clone())]
+                .into_iter()
+                .collect(),
+        );
+        color_from_params(&table)
+    });
+    crate::LineStyle {
+        gradient: gradient.filter(|c| c[3] > 0.0),
+        texture: params
+            .get("texture")
+            .and_then(toml::Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+    }
+}
+
 /// A `shape2d` component's params, as the shape plus -- for a polyline --
 /// the mesh asset its points come from.
 fn shape2d_from_params(params: &toml::Value) -> Result<(Shape2d, Option<String>)> {
@@ -265,6 +286,8 @@ height = { type = "float", default = 1.0, min = 0.01, description = "Length alon
 mesh = { type = "asset", asset = "mesh", default = "", description = "Points of a polyline, taken from a mesh asset's vertices" }
 width = { type = "float", default = 0.02, min = 0.001, description = "Line thickness in world units, when kind is polyline" }
 closed = { type = "bool", default = false, description = "Join the last point back to the first, making a polygon outline" }
+gradient = { type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient" }
+texture = { type = "string", default = "", description = "An image drawn along a polyline, repeating once per world unit of its length" }
 half_extents = { type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }
 color = { type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }
 material = { type = "asset", asset = "material", default = "", description = "The material this draws with; empty draws with the built-in one" }"#,
@@ -274,7 +297,10 @@ material = { type = "asset", asset = "material", default = "", description = "Th
             apply: Box::new(|eng, entity, params| {
                 let (shape, polyline) = shape2d_from_params(params)?;
                 match polyline {
-                    Some(source) => set_polyline(eng, entity, source, shape)?,
+                    Some(source) => {
+                        let style = line_style_from_params(params);
+                        set_polyline(eng, entity, source, shape, style)?;
+                    }
                     None => set_shape2d(eng, entity, shape)?,
                 }
                 set_color(eng, entity, color_from_params(params))?;
@@ -310,6 +336,17 @@ material = { type = "asset", asset = "material", default = "", description = "Th
                         map.insert("closed".into(), toml::Value::Boolean(closed));
                         if let Some(source) = renderable.polyline.clone() {
                             map.insert("mesh".into(), toml::Value::String(source));
+                        }
+                        if let Some(style) = &renderable.line {
+                            if let Some(gradient) = style.gradient {
+                                map.insert("gradient".into(), color_to_toml(gradient));
+                            }
+                            if !style.texture.is_empty() {
+                                map.insert(
+                                    "texture".into(),
+                                    toml::Value::String(style.texture.clone()),
+                                );
+                            }
                         }
                     }
                     Shape2d::Capsule { radius, height } => {

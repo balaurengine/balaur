@@ -195,15 +195,12 @@ fn migrate(
 /// Every slot that has been written, in name order.
 pub fn slots(eng: &Engine) -> Vec<String> {
     let dir = crate::engine_api::user_data_dir_of(eng).join("saves");
-    let mut out = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if let Some(slot) = name.strip_suffix(".toml") {
-                out.push(slot.to_string());
-            }
-        }
-    }
+    let mut out: Vec<String> = crate::files::backend(eng)
+        .list(&dir)
+        .into_iter()
+        .filter(|(_, is_dir)| !is_dir)
+        .filter_map(|(name, _)| name.strip_suffix(".toml").map(str::to_string))
+        .collect();
     out.sort();
     out
 }
@@ -212,9 +209,8 @@ pub fn slots(eng: &Engine) -> Vec<String> {
 /// gone, and it is.
 pub fn remove(eng: &Engine, slot: &str) -> Result<()> {
     let path = path_of(eng, slot)?;
-    match std::fs::remove_file(&path) {
-        Ok(()) => Ok(()),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(err) => Err(err).with_context(|| format!("removing {}", path.display())),
-    }
+    crate::files::backend(eng)
+        .remove(&path)
+        .map(|_| ())
+        .with_context(|| format!("removing {}", path.display()))
 }

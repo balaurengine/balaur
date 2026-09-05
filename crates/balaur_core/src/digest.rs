@@ -12,7 +12,7 @@ use hecs::Entity;
 
 use crate::components::{ComponentRegistry, StableId};
 use crate::engine::Engine;
-use crate::scene::{collect_subtree, Name, Parent, Transform};
+use crate::scene::{collect_subtree, Appearance, Name, Parent, Tags, Transform};
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -108,7 +108,7 @@ pub struct DigestRegistry(pub Vec<(String, DigestFn)>);
 /// tree, and a reparent is itself simulation state worth catching.
 pub fn entries(eng: &Engine) -> Vec<Entry> {
     let mut out = Vec::new();
-    let nodes: Vec<(Entity, String, Option<Transform>)> = {
+    let nodes: Vec<(Entity, String, Option<Transform>, Option<Appearance>)> = {
         let world = eng.world();
         // The debug scope when there is one: inside an editor the game is a
         // subtree, and the editor's own nodes are not the run being checked.
@@ -123,12 +123,23 @@ pub fn entries(eng: &Engine) -> Vec<Entry> {
             .into_iter()
             .map(|e| {
                 let transform = world.get::<&Transform>(e).ok().map(|t| *t);
-                (e, node_label(&world, e), transform)
+                let appearance = world.get::<&Appearance>(e).ok().map(|a| *a);
+                (e, node_label(&world, e), transform, appearance)
             })
             .collect()
     };
 
-    for (entity, label, transform) in &nodes {
+    for (entity, label, transform, appearance) in &nodes {
+        if let Some(a) = appearance {
+            let mut h = Hasher::new();
+            h.write_u64(u64::from(a.visible));
+            h.write(&a.z_index.to_le_bytes());
+            h.write_u64(u64::from(a.z_relative));
+            out.push(Entry {
+                label: format!("{label}/appearance"),
+                digest: h.finish(),
+            });
+        }
         if let Some(t) = transform {
             let mut h = Hasher::new();
             for v in [
@@ -147,6 +158,16 @@ pub fn entries(eng: &Engine) -> Vec<Entry> {
             }
             out.push(Entry {
                 label: format!("{label}/transform"),
+                digest: h.finish(),
+            });
+        }
+        if let Ok(tags) = eng.world().get::<&Tags>(*entity) {
+            let mut h = Hasher::new();
+            for tag in &tags.0 {
+                h.write_str(tag);
+            }
+            out.push(Entry {
+                label: format!("{label}/tags"),
                 digest: h.finish(),
             });
         }

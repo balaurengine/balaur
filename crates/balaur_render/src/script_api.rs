@@ -155,6 +155,9 @@ pub(crate) fn install_window_api(m: &mut dyn Bindings<Engine>) {
         ("set_fullscreen", &[], "", "Put the window into borderless fullscreen on the current monitor, or back into a window."),
         ("set_cursor_grab", &[], "", "Confine the cursor to the window, for FPS-style mouse look."),
         ("set_cursor_hidden", &[], "", "Hide or show the mouse cursor over the window."),
+        ("set_keep_awake", &[], "(on: bool)", "Keep the screen from dimming while the game runs: a page takes a wake lock, a phone its equivalent, a desktop needs nothing."),
+        ("safe_area", &[], "() -> map", "The display's insets in pixels, `{ left, top, right, bottom }`: what a notch or a home bar covers, read once per frame and recorded. Zero on a desktop."),
+        ("refresh_rate", &[], "() -> float", "Frames per second the display refreshes at, as measured over the last frames; 60 with no window."),
     ]);
     // PNG on the next rendered frame; a run with no renderer says so. Fire
     // and forget — the log line naming the file is the completion signal.
@@ -206,6 +209,26 @@ pub(crate) fn install_window_api(m: &mut dyn Bindings<Engine>) {
         config.cursor_hidden = hidden;
         config.changed = true;
         Ok(())
+    });
+    m.function("set_keep_awake", |eng: &Engine, on: bool| {
+        let config = eng.resource::<WindowConfig>();
+        let mut config = config.borrow_mut();
+        config.keep_awake = on;
+        config.changed = true;
+        Ok(())
+    });
+    m.function("safe_area", |eng: &Engine, ()| {
+        let [left, top, right, bottom] = balaur_core::facts::device(eng).safe_area;
+        let num = |v: f32| balaur_script::Value::Num(f64::from(v));
+        Ok(balaur_script::Value::Map(vec![
+            ("left".into(), num(left)),
+            ("top".into(), num(top)),
+            ("right".into(), num(right)),
+            ("bottom".into(), num(bottom)),
+        ]))
+    });
+    m.function("refresh_rate", |eng: &Engine, ()| {
+        Ok(f64::from(balaur_core::facts::device(eng).refresh_rate))
     });
 }
 
@@ -326,6 +349,7 @@ pub(crate) fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
                     frame: 0,
                     flip_x: false,
                     flip_y: false,
+                    region: None,
                 },
                 None,
                 DEFAULT_PIXELS_PER_UNIT,
@@ -349,6 +373,7 @@ pub(crate) fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
                     frame: 0,
                     flip_x: false,
                     flip_y: false,
+                    region: None,
                 },
                 None,
                 DEFAULT_PIXELS_PER_UNIT,

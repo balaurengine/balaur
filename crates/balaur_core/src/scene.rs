@@ -66,6 +66,110 @@ impl Transform {
     }
 }
 
+/// Whether a node draws, and which layer it draws on.
+///
+/// Nothing in physics reads either field: a hidden collider still collides,
+/// which is what a game hiding a sprite for a frame expects.
+#[derive(Clone, Copy)]
+pub struct Appearance {
+    pub visible: bool,
+    pub z_index: i32,
+    /// Add `z_index` to the parent's rather than replacing it, so moving a
+    /// subtree between layers keeps the order inside it.
+    pub z_relative: bool,
+}
+
+impl Appearance {
+    pub const fn identity() -> Self {
+        Self {
+            visible: true,
+            z_index: 0,
+            z_relative: true,
+        }
+    }
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        Self::identity()
+    }
+}
+
+/// The names a node is filed under, for a query: `door`, `enemy`. The same
+/// word `presets.toml` uses for components, so one vocabulary classifies
+/// both. Kept sorted and unique, so two runs list them alike.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Tags(pub Vec<String>);
+
+impl Tags {
+    pub fn add(&mut self, tag: &str) -> bool {
+        match self.0.binary_search_by(|t| t.as_str().cmp(tag)) {
+            Ok(_) => false,
+            Err(at) => {
+                self.0.insert(at, tag.to_string());
+                true
+            }
+        }
+    }
+
+    pub fn remove(&mut self, tag: &str) -> bool {
+        match self.0.binary_search_by(|t| t.as_str().cmp(tag)) {
+            Ok(at) => {
+                self.0.remove(at);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    #[must_use]
+    pub fn has(&self, tag: &str) -> bool {
+        self.0.binary_search_by(|t| t.as_str().cmp(tag)).is_ok()
+    }
+}
+
+/// Every node carrying `tag`, in tree order.
+#[must_use]
+pub fn tagged(world: &World, root: Entity, tag: &str) -> Vec<Entity> {
+    collect_subtree(world, root)
+        .into_iter()
+        .filter(|&e| world.get::<&Tags>(e).is_ok_and(|t| t.has(tag)))
+        .collect()
+}
+
+/// World-space appearance, recomputed beside `GlobalTransform`.
+#[derive(Clone, Copy)]
+pub struct GlobalAppearance {
+    pub visible: bool,
+    pub z_index: i32,
+}
+
+impl GlobalAppearance {
+    pub const fn identity() -> Self {
+        Self {
+            visible: true,
+            z_index: 0,
+        }
+    }
+
+    fn mul(self, local: Appearance) -> Self {
+        Self {
+            visible: self.visible && local.visible,
+            z_index: if local.z_relative {
+                self.z_index.saturating_add(local.z_index)
+            } else {
+                local.z_index
+            },
+        }
+    }
+}
+
+impl Default for GlobalAppearance {
+    fn default() -> Self {
+        Self::identity()
+    }
+}
+
 /// World-space transform, recomputed every frame after the update stages.
 /// Composition ignores shear (scale is combined component-wise), matching the
 /// usual game engine convention.
@@ -99,6 +203,8 @@ pub(crate) fn spawn_root(world: &mut World) -> Entity {
         Name("Root".to_string()),
         Transform::identity(),
         GlobalTransform::identity(),
+        Appearance::identity(),
+        GlobalAppearance::identity(),
         Children(Vec::new()),
     ))
 }
@@ -109,6 +215,8 @@ pub fn spawn_node(world: &mut World, name: &str, parent: Entity) -> Entity {
         Name(name.to_string()),
         Transform::identity(),
         GlobalTransform::identity(),
+        Appearance::identity(),
+        GlobalAppearance::identity(),
         Children(Vec::new()),
         Parent(parent),
     ));
@@ -177,13 +285,19 @@ pub fn node_path(world: &World, entity: Entity) -> String {
     segments.join("/")
 }
 
-/// Recompute every `GlobalTransform` from the root down.
+/// Recompute every `GlobalTransform` and `GlobalAppearance` from the root down.
 pub fn propagate_transforms(world: &mut World, root: Entity) {
     let identity = GlobalTransform::identity();
-    propagate_recursive(world, root, &identity);
+    let visible = GlobalAppearance::identity();
+    propagate_recursive(world, root, &identity, visible);
 }
 
-fn propagate_recursive(world: &mut World, entity: Entity, parent_global: &GlobalTransform) {
+fn propagate_recursive(
+    world: &mut World,
+    entity: Entity,
+    parent_global: &GlobalTransform,
+    parent_appearance: GlobalAppearance,
+) {
     let global = match world.get::<&Transform>(entity) {
         Ok(local) => parent_global.mul(&local),
         Err(_) => *parent_global,
@@ -191,13 +305,39 @@ fn propagate_recursive(world: &mut World, entity: Entity, parent_global: &Global
     if let Ok(mut slot) = world.get::<&mut GlobalTransform>(entity) {
         *slot = global;
     }
+    let appearance = match world.get::<&Appearance>(entity) {
+        Ok(local) => parent_appearance.mul(*local),
+        Err(_) => parent_appearance,
+    };
+    if let Ok(mut slot) = world.get::<&mut GlobalAppearance>(entity) {
+        *slot = appearance;
+    }
     let children: Vec<Entity> = match world.get::<&Children>(entity) {
         Ok(children) => children.0.clone(),
         Err(_) => return,
     };
     for child in children {
-        propagate_recursive(world, child, &global);
+        propagate_recursive(world, child, &global, appearance);
     }
+}
+
+/// A node's world appearance composed from local ones, current this instant
+/// rather than as of the last scene sync.
+#[must_use]
+pub fn composed_appearance(world: &World, entity: Entity) -> GlobalAppearance {
+    let mut chain = vec![entity];
+    let mut current = entity;
+    while let Ok(parent) = world.get::<&Parent>(current) {
+        current = parent.0;
+        chain.push(current);
+    }
+    let mut appearance = GlobalAppearance::identity();
+    for e in chain.into_iter().rev() {
+        if let Ok(local) = world.get::<&Appearance>(e) {
+            appearance = appearance.mul(*local);
+        }
+    }
+    appearance
 }
 
 /// A node's world transform composed from local ones, current this instant

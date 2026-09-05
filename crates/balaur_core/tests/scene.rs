@@ -224,3 +224,90 @@ fn a_node_cannot_be_moved_under_itself_or_its_descendants() {
     let world = engine.world();
     assert_eq!(world.get::<&Parent>(a).unwrap().0, engine.root());
 }
+
+#[test]
+fn hiding_a_node_hides_everything_under_it() {
+    let (engine, a, b, c) = tree();
+    {
+        let world = engine.world();
+        world.get::<&mut scene::Appearance>(a).unwrap().visible = false;
+    }
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    for entity in [a, b, c] {
+        assert!(
+            !world
+                .get::<&scene::GlobalAppearance>(entity)
+                .unwrap()
+                .visible,
+            "a hidden ancestor should hide the whole subtree"
+        );
+    }
+}
+
+#[test]
+fn a_relative_z_index_adds_to_its_parents_and_an_absolute_one_does_not() {
+    let (engine, a, b, c) = tree();
+    {
+        let world = engine.world();
+        world.get::<&mut scene::Appearance>(a).unwrap().z_index = 10;
+        world.get::<&mut scene::Appearance>(b).unwrap().z_index = 5;
+        let mut leaf = world.get::<&mut scene::Appearance>(c).unwrap();
+        leaf.z_index = 2;
+        leaf.z_relative = false;
+    }
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    assert_eq!(
+        world.get::<&scene::GlobalAppearance>(b).unwrap().z_index,
+        15
+    );
+    assert_eq!(world.get::<&scene::GlobalAppearance>(c).unwrap().z_index, 2);
+}
+
+#[test]
+fn composed_appearance_matches_what_propagation_wrote() {
+    let (engine, a, b, c) = tree();
+    {
+        let world = engine.world();
+        world.get::<&mut scene::Appearance>(b).unwrap().visible = false;
+        world.get::<&mut scene::Appearance>(a).unwrap().z_index = 3;
+    }
+    propagate_transforms(&mut engine.world_mut(), engine.root());
+    let world = engine.world();
+    for entity in [a, b, c] {
+        let propagated = *world.get::<&scene::GlobalAppearance>(entity).unwrap();
+        let composed = scene::composed_appearance(&world, entity);
+        assert_eq!(propagated.visible, composed.visible);
+        assert_eq!(propagated.z_index, composed.z_index);
+    }
+}
+
+#[test]
+fn a_scene_files_a_node_under_its_tags() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("main.toml"),
+        "[[nodes]]\nname = \"Gate\"\ntags = [\"door\", \"exit\"]\n[[nodes]]\nname = \"Rock\"\n",
+    )
+    .unwrap();
+    let mut app = balaur_core::App::new(balaur_core::AppConfig {
+        project_root: dir.path().to_path_buf(),
+        pack: None,
+        watch: false,
+        script_args: Vec::new(),
+        script_backend: None,
+    })
+    .unwrap();
+    app.load_project().unwrap();
+    let world = app.engine.world();
+    let found = scene::tagged(&world, app.engine.root(), "door");
+    assert_eq!(found.len(), 1);
+    assert_eq!(world.get::<&Name>(found[0]).unwrap().0, "Gate");
+    assert!(scene::tagged(&world, app.engine.root(), "lava").is_empty());
+}

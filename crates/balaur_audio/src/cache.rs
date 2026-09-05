@@ -18,7 +18,7 @@ struct Entry {
     bytes: Vec<u8>,
     /// When the file on disk was last written, so an edit in the editor is
     /// picked up; `None` for bytes that came out of a pack and cannot change.
-    stamp: Option<std::time::SystemTime>,
+    stamp: Option<f64>,
 }
 
 /// Sound bytes by project-relative path, oldest first so the bound evicts in
@@ -30,12 +30,12 @@ pub struct SoundCache {
 }
 
 impl SoundCache {
-    fn get(&self, path: &str, stamp: Option<std::time::SystemTime>) -> Option<Vec<u8>> {
+    fn get(&self, path: &str, stamp: Option<f64>) -> Option<Vec<u8>> {
         let entry = self.entries.get(path)?;
         (entry.stamp == stamp).then(|| entry.bytes.clone())
     }
 
-    fn put(&mut self, path: &str, stamp: Option<std::time::SystemTime>, bytes: &[u8]) {
+    fn put(&mut self, path: &str, stamp: Option<f64>, bytes: &[u8]) {
         if bytes.len() > MAX_ENTRY {
             return;
         }
@@ -82,14 +82,8 @@ pub fn read(eng: &Engine, path: &str) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-/// When the file behind a path was last written, or `None` when it is not a
-/// file the project reader would reach on disk.
-fn modified(files: &ProjectFiles, path: &str) -> Option<std::time::SystemTime> {
-    let relative = std::path::Path::new(path);
-    let full = if relative.is_absolute() {
-        relative.to_path_buf()
-    } else {
-        files.root().join(relative)
-    };
-    std::fs::metadata(full).ok()?.modified().ok()
+/// When the file behind a path was last written, through the project's own
+/// backend, so a browser's virtual files are stamped like disk ones.
+fn modified(files: &ProjectFiles, path: &str) -> Option<f64> {
+    files.mtime(path)
 }

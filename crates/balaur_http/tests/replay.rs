@@ -68,6 +68,7 @@ fn record_a_fetch(url: &str) -> Vec<serde_json::Map<String, serde_json::Value>> 
             headers: Vec::new(),
             body: None,
             timeout: Some(5.0),
+            save_to: None,
         },
         None,
     );
@@ -110,6 +111,7 @@ fn a_recorded_response_replays_with_no_server_listening() {
             headers: Vec::new(),
             body: None,
             timeout: Some(5.0),
+            save_to: None,
         },
         None,
     );
@@ -158,6 +160,7 @@ fn replaying_does_not_reach_the_network() {
             headers: Vec::new(),
             body: None,
             timeout: Some(5.0),
+            save_to: None,
         },
         None,
     );

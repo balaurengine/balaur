@@ -7,8 +7,7 @@ use balaur_core::time::Instant;
 use std::collections::{HashMap, HashSet};
 
 use balaur_core::hecs::Entity;
-use balaur_core::{App, GlobalTransform};
-use balaur_input::InputSnapshot;
+use balaur_core::{App, GlobalAppearance, GlobalTransform};
 use glamx::Pose3;
 use kiss3d::prelude::*;
 use kiss3d::resource::GpuMesh3d;
@@ -53,6 +52,9 @@ struct Slot2d {
     flip: (bool, bool),
     /// A skinned polygon's joint palette, rewritten every frame from the rig.
     skin: Option<crate::skinned_2d::SkinHandle>,
+    /// A polyline's pieces with where along the chain each sits, so a
+    /// gradient can colour them every frame under the node's tint.
+    pieces: Vec<(SceneNode2d, f32)>,
 }
 
 /// Everything one frame of the render loop reads and writes, so the windowed
@@ -70,6 +72,8 @@ struct Frontend {
     materials_3d: crate::shader_material_3d::MaterialCache3d,
     light_map: crate::light_map::LightMap,
     order_2d: Vec<Entity>,
+    /// Last frame's immediate 2D shapes, detached before this frame's are drawn.
+    transients: Vec<SceneNode2d>,
     frame: u64,
     /// Whether the on-screen keyboard was summoned last frame, so it is
     /// shown/hidden on the edge rather than re-requested every frame.
@@ -77,6 +81,8 @@ struct Frontend {
     /// The cameras' drag bindings as built: taking the pointer away from the
     /// camera unbinds them, and these are what it puts back.
     camera_buttons: CameraButtons,
+    /// What the display says, measured frame by frame.
+    device: crate::device::Probe,
 }
 
 impl Frontend {
@@ -105,9 +111,11 @@ impl Frontend {
             materials_3d: crate::shader_material_3d::MaterialCache3d::default(),
             light_map: crate::light_map::LightMap::new(),
             order_2d: Vec::new(),
+            transients: Vec::new(),
             frame: 0,
             keyboard_shown: false,
             camera_buttons,
+            device: crate::device::Probe::default(),
         }
     }
 
@@ -128,7 +136,8 @@ impl Frontend {
         publish_camera_2d(app, &self.camera_2d, window);
         apply_clear_color(app, window);
         apply_post(app, window);
-        pump_input(app, window);
+        crate::kiss3d_input::pump_input(app, window);
+        self.device.publish(app, dt);
         app.advance(dt);
         // Before the 2D syncs move nodes around underneath it.
         self.light_map.detach();
@@ -145,14 +154,27 @@ impl Frontend {
             &mut self.order_2d,
             &mut self.materials,
         );
-        crate::tilemap::sync_tilemaps(app, &mut self.scene_2d, &mut self.tilemap_slots);
-        // Last of the 2D syncs: the composite draws over everything the two
-        // above just put in the scene.
-        self.light_map.sync(app, &mut self.scene_2d);
+        crate::tilemap::sync_tilemaps(
+            app,
+            &mut self.scene_2d,
+            &mut self.tilemap_slots,
+            &mut self.materials,
+        );
         // The step the frame actually ran, which under --fixed-tick is not
         // the measured one.
         let dt = app.engine.delta();
-        crate::particles::sync_particles(app, window, &mut self.emitter_slots, dt);
+        crate::particles::sync_particles(
+            app,
+            window,
+            &mut self.scene_2d,
+            &mut self.emitter_slots,
+            dt,
+        );
+        // Last of the lit 2D syncs: the composite draws over everything the
+        // syncs above put in the scene.
+        self.light_map.sync(app, &mut self.scene_2d);
+        // Immediate shapes go over the composite, unlit, like debug lines.
+        crate::draw_2d::flush(app, window, &mut self.scene_2d, &mut self.transients);
         draw_grid(app, window);
         flush_debug_lines(app, window);
         flush_debug_lines_2d(app, window);
@@ -203,17 +225,36 @@ pub async fn run_windowed_async(
     let mut window = Window::new_with_setup(title, 1600, 1000, setup).await;
     let mut f = Frontend::new();
     let mut last = Instant::now();
-    while window
-        .render(
-            Some(&mut f.scene),
-            Some(&mut f.scene_2d),
-            Some(&mut f.camera),
-            Some(&mut f.camera_2d),
-            None,
-            None,
-        )
-        .await
-    {
+    loop {
+        // A hidden tab gets no animation frame, so `render` would never
+        // return: step the simulation on a timer and draw nothing, so a
+        // socket's heartbeats and a fixed tick keep going behind the tab.
+        #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+        if crate::hidden_tab::is_hidden() {
+            crate::kiss3d_input::pump_input(&app, &window);
+            let now = Instant::now();
+            let dt = (now - last).as_secs_f32().min(0.1);
+            last = now;
+            app.advance(dt);
+            if app.engine.quit_requested() {
+                break;
+            }
+            crate::hidden_tab::sleep().await;
+            continue;
+        }
+        let open = window
+            .render(
+                Some(&mut f.scene),
+                Some(&mut f.scene_2d),
+                Some(&mut f.camera),
+                Some(&mut f.camera_2d),
+                None,
+                f.materials.screen_effect(),
+            )
+            .await;
+        if !open {
+            break;
+        }
         let now = Instant::now();
         let dt = (now - last).as_secs_f32().min(0.1);
         last = now;
@@ -260,7 +301,7 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
                 Some(&mut f.camera),
                 Some(&mut f.camera_2d),
                 None,
-                None,
+                f.materials.screen_effect(),
             )
             .await
         {
@@ -399,6 +440,7 @@ fn apply_window_config(app: &App, window: &Window) {
     window.set_fullscreen(config.fullscreen);
     window.set_cursor_grab(config.cursor_grabbed);
     window.hide_cursor(config.cursor_hidden);
+    crate::device::keep_awake(config.keep_awake);
 }
 
 /// Apply a requested dock/application icon (macOS only for now).
@@ -486,59 +528,6 @@ fn dock_icon_png(source: &[u8]) -> Option<Vec<u8>> {
         .write_image(&canvas, CANVAS, CANVAS, image::ExtendedColorType::Rgba8)
         .ok()?;
     Some(out)
-}
-
-/// Feed this frame's OS events into the input resource (if the input plugin
-/// is installed).
-fn pump_input(app: &App, window: &Window) {
-    let Some(input) = app.engine.try_resource::<InputSnapshot>() else {
-        return;
-    };
-    let mut input = input.borrow_mut();
-    input.begin_frame();
-    for event in window.events().iter() {
-        match event.value {
-            WindowEvent::Key(key, action, _) => {
-                let name = key_name(key);
-                match action {
-                    Action::Press => input.key_event(&name, true),
-                    Action::Release => input.key_event(&name, false),
-                }
-            }
-            WindowEvent::MouseButton(button, action, _) => {
-                let idx = button as usize;
-                match action {
-                    Action::Press => input.mouse_button_event(idx, true),
-                    Action::Release => input.mouse_button_event(idx, false),
-                }
-            }
-            WindowEvent::Char(c) | WindowEvent::CharModifiers(c, _) => {
-                // Control characters are key presses that produced no text.
-                if !c.is_control() {
-                    input.char_event(c);
-                }
-            }
-            WindowEvent::CursorPos(x, y, _) => input.set_mouse_pos(x as f32, y as f32),
-            WindowEvent::Scroll(dx, dy, _) => input.add_scroll(dx as f32, dy as f32),
-            WindowEvent::Touch(id, x, y, action, _) => {
-                let phase = match action {
-                    TouchAction::Start => balaur_input::TouchPhase::Start,
-                    TouchAction::Move => balaur_input::TouchPhase::Move,
-                    TouchAction::End => balaur_input::TouchPhase::End,
-                    TouchAction::Cancel => balaur_input::TouchPhase::Cancel,
-                };
-                input.touch_event(id, x as f32, y as f32, phase);
-            }
-            WindowEvent::Close => app.engine.request_quit(),
-            _ => {}
-        }
-    }
-    // Dragging a file onto the window needs a desktop with a file manager;
-    // kiss3d has no such event on mobile.
-    #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    for path in window.dropped_files() {
-        input.file_drop_event(path.to_string_lossy().into_owned());
-    }
 }
 
 fn take_screenshot_if_due(app: &App, window: &Window, frame: u64) {
@@ -661,10 +650,14 @@ fn sync(
             Shape::Capsule { .. } | Shape::Plane { .. } | Shape::Mesh => Vec3::ONE,
         };
         let scale = size * global.scale;
+        let visible = world
+            .get::<&GlobalAppearance>(entity)
+            .is_ok_and(|a| a.visible);
         slot.node
             .set_pose(Pose3::from_parts(global.position, global.rotation))
             .set_local_scale(scale.x, scale.y, scale.z)
-            .set_color(Color::new(r, g, b, a));
+            .set_color(Color::new(r, g, b, a))
+            .set_visible(visible);
     }
     slots.retain(|entity, slot| {
         if seen.contains(entity) {
@@ -825,29 +818,50 @@ fn pose_mesh(
 
 /// The kiss3d node a 2D shape needs. `None` when a polyline names no usable
 /// points, which is the one shape that can fail to have any.
-fn build_2d_node(
-    app: &App,
-    scene: &mut SceneNode2d,
-    renderable: &Renderable2d,
-) -> Option<SceneNode2d> {
+fn build_2d_node(scene: &mut SceneNode2d, renderable: &Renderable2d) -> Option<SceneNode2d> {
     // Unit primitives: like the 3D path, dimensions live in the node's local
     // scale, which the caller updates every frame.
     Some(match renderable.shape {
         Shape2d::Circle { .. } => scene.add_circle(0.5),
         Shape2d::Capsule { radius, height } => scene.add_capsule(radius, height),
-        Shape2d::Polyline { width, closed } => {
-            // The points come from the same mesh asset physics reads, flattened
-            // to xy: a 2D chain is a 3D one seen from above.
-            let points = polyline_points(app, renderable.polyline.as_deref(), closed);
-            if points.len() < 2 {
-                return None;
-            }
-            scene.add_polyline(points, None, width)
-        }
         Shape2d::Rect { .. } | Shape2d::Sprite { .. } => scene.add_rectangle(1.0, 1.0),
-        // Built by `build_polygon_node`, which also hands back the palette.
-        Shape2d::Polygon => return None,
+        // Built by `build_polyline_node` and `build_polygon_node`, which also
+        // hand back the pieces and the palette.
+        Shape2d::Polyline { .. } | Shape2d::Polygon => return None,
     })
+}
+
+/// A polyline as a group of triangle strips with round joins: one piece per
+/// segment and joint, each with its place along the chain for the gradient.
+/// The points come from the same mesh asset physics reads, flattened to xy.
+fn build_polyline_node(
+    app: &App,
+    scene: &mut SceneNode2d,
+    renderable: &Renderable2d,
+    width: f32,
+    closed: bool,
+) -> Option<(SceneNode2d, Vec<(SceneNode2d, f32)>)> {
+    let points = polyline_points(app, renderable.polyline.as_deref(), false);
+    if points.len() < 2 {
+        return None;
+    }
+    let texture = renderable
+        .line
+        .as_ref()
+        .map(|style| style.texture.as_str())
+        .unwrap_or_default();
+    let mut group = scene.add_group();
+    let mut pieces = Vec::new();
+    for piece in crate::polyline_strip::pieces(&points, width, closed) {
+        let mesh =
+            kiss3d::resource::GpuMesh2d::new(piece.coords, piece.faces, Some(piece.uvs), false);
+        let mut node = group.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(mesh)), Vec2::ONE);
+        if !texture.is_empty() {
+            crate::texture::attach_texture_2d(&app.engine, &mut node, texture);
+        }
+        pieces.push((node, piece.along));
+    }
+    Some((group, pieces))
 }
 
 /// A polygon's kiss3d node and, when its mesh carries a skin, the palette
@@ -948,17 +962,25 @@ fn draw_order_2d(
     slots: &mut HashMap<Entity, Slot2d>,
     order_cache: &mut Vec<Entity>,
 ) -> Vec<Entity> {
-    let mut desired: Vec<(f32, Entity)> = Vec::new();
+    let mut desired: Vec<(i32, f32, Entity)> = Vec::new();
     for entity in balaur_core::scene::collect_subtree(world, root) {
         if world.get::<&Renderable2d>(entity).is_ok() {
             let z = world
                 .get::<&GlobalTransform>(entity)
                 .map_or(0.0, |g| g.position.z);
-            desired.push((z, entity));
+            let layer = world
+                .get::<&GlobalAppearance>(entity)
+                .map_or(0, |a| a.z_index);
+            desired.push((layer, z, entity));
         }
     }
-    desired.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-    let order: Vec<Entity> = desired.iter().map(|&(_, e)| e).collect();
+    // A hidden node keeps its place: visibility is a flag on the kiss3d node,
+    // so toggling one never reshuffles the order and rebuilds its neighbours.
+    desired.sort_by(|a, b| {
+        a.0.cmp(&b.0)
+            .then(a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+    });
+    let order: Vec<Entity> = desired.iter().map(|&(_, _, e)| e).collect();
     let kept = order
         .iter()
         .zip(order_cache.iter())
@@ -1017,10 +1039,18 @@ fn sync_2d(
             if let Some(mut old) = slots.remove(&entity) {
                 old.node.detach();
             }
-            let built = if renderable.shape == Shape2d::Polygon {
-                build_polygon_node(app, scene, &renderable)
-            } else {
-                build_2d_node(app, scene, &renderable).map(|node| (node, None))
+            let mut pieces = Vec::new();
+            let built = match renderable.shape {
+                Shape2d::Polygon => build_polygon_node(app, scene, &renderable),
+                Shape2d::Polyline { width, closed } => {
+                    build_polyline_node(app, scene, &renderable, width, closed).map(
+                        |(node, built)| {
+                            pieces = built;
+                            (node, None)
+                        },
+                    )
+                }
+                _ => build_2d_node(scene, &renderable).map(|node| (node, None)),
             };
             let Some((mut node, skin)) = built else {
                 continue;
@@ -1040,6 +1070,7 @@ fn sync_2d(
                     version: renderable.version,
                     flip: (false, false),
                     skin,
+                    pieces,
                 },
             );
         }
@@ -1058,21 +1089,26 @@ fn sync_2d(
         if let (Some(handle), Some(polygon)) = (&slot.skin, renderable.polygon.as_deref()) {
             handle.set(polygon_palette(&world, entity, polygon));
         }
+        tint_pieces(slot, &renderable);
         // Every sync, not just on rebuild: frames and flips are UV changes, so
         // an animation that flips frames must not rebuild the node.
         if let Some(sprite) = &renderable.sprite {
             let flip = (sprite.flip_x, sprite.flip_y);
-            if sprite.sheet.is_some() || flip != slot.flip {
+            if sprite.sheet.is_some() || sprite.region.is_some() || flip != slot.flip {
                 sync_sprite_uvs(&mut slot.node, sprite);
             }
             slot.flip = flip;
         }
         let (angle, _, _) = global.rotation.to_euler(glamx::EulerRot::ZYX);
+        let visible = world
+            .get::<&GlobalAppearance>(entity)
+            .is_ok_and(|a| a.visible);
         slot.node
             .set_position(Vec2::new(global.position.x, global.position.y))
             .set_rotation(angle)
             .set_local_scale(size.x * global.scale.x, size.y * global.scale.y)
-            .set_color(Color::new(r, g, b, a));
+            .set_color(Color::new(r, g, b, a))
+            .set_visible(visible);
     }
     slots.retain(|entity, slot| {
         if seen.contains(entity) {
@@ -1084,6 +1120,26 @@ fn sync_2d(
     });
 }
 
+/// A polyline's pieces carry their own colour: the tint blended toward the
+/// gradient by where each sits, since a group's colour stops at the group.
+fn tint_pieces(slot: &mut Slot2d, renderable: &Renderable2d) {
+    let [r, g, b, a] = renderable.color;
+    let end = renderable
+        .line
+        .as_ref()
+        .and_then(|style| style.gradient)
+        .unwrap_or(renderable.color);
+    for (piece, along) in &mut slot.pieces {
+        let t = *along;
+        piece.set_color(Color::new(
+            r + (end[0] - r) * t,
+            g + (end[1] - g) * t,
+            b + (end[2] - b) * t,
+            a + (end[3] - a) * t,
+        ));
+    }
+}
+
 /// Remap the node's UVs to the sprite's sheet frame, with the U or V extents
 /// swapped for flips.
 fn sync_sprite_uvs(node: &mut SceneNode2d, sprite: &SpriteTexture) {
@@ -1091,7 +1147,16 @@ fn sync_sprite_uvs(node: &mut SceneNode2d, sprite: &SpriteTexture) {
         .sheet
         .map(|s| kiss3d::scene::SpriteSheet::new(s.columns, s.rows));
     let (mut min, mut max) = sheet.map_or((Vec2::ZERO, Vec2::ONE), |s| s.frame_uv(sprite.frame));
-    if sheet.is_some() {
+    // A region is a rectangle of the image in pixels; it wins over a sheet.
+    if let Some([x, y, w, h]) = sprite.region {
+        let size = node.data().object().map(|o| o.data().texture().size);
+        if let Some((tw, th)) = size.filter(|(tw, th)| *tw > 0 && *th > 0) {
+            let (tw, th) = (tw as f32, th as f32);
+            min = Vec2::new(x as f32 / tw, y as f32 / th);
+            max = Vec2::new((x + w) as f32 / tw, (y + h) as f32 / th);
+        }
+    }
+    if sheet.is_some() && sprite.region.is_none() {
         // The sliver keeps a nearest-sampled edge fragment from rounding into
         // the neighbouring frame, matching kiss3d's own `set_sprite_frame`.
         let size = node.data().object().map(|o| o.data().texture().size);
@@ -1110,70 +1175,4 @@ fn sync_sprite_uvs(node: &mut SceneNode2d, sprite: &SpriteTexture) {
         std::mem::swap(&mut min.y, &mut max.y);
     }
     node.set_uv_rect(min, max);
-}
-
-/// The name this backend reports for a key.
-///
-/// kiss3d's `Key` debug-prints as its variant name, which is where
-/// `balaur_input::KEY_NAMES` came from. If kiss3d ever renames one, the name
-/// stops matching what scripts ask for and the key silently goes dead, so say
-/// so the first time it happens.
-fn key_name(key: kiss3d::event::Key) -> String {
-    let name = format!("{key:?}");
-    if !balaur_input::is_known_key(&name) {
-        use std::sync::atomic::{AtomicBool, Ordering};
-        static WARNED: AtomicBool = AtomicBool::new(false);
-        if !WARNED.swap(true, Ordering::Relaxed) {
-            tracing::warn!(
-                key = name,
-                "the window backend reported a key balaur_input does not know; \
-                 scripts cannot match it"
-            );
-        }
-    }
-    name
-}
-
-#[cfg(test)]
-mod key_name_tests {
-    use super::key_name;
-    use kiss3d::event::Key;
-
-    /// The vocabulary in `balaur_input` was copied from kiss3d's enum. Spot
-    /// check that the copy still matches for the keys games actually use — a
-    /// silent rename upstream would make them stop working.
-    #[test]
-    fn common_keys_are_names_scripts_can_ask_for() {
-        for key in [
-            Key::Space,
-            Key::Return,
-            Key::Escape,
-            Key::Tab,
-            Key::Left,
-            Key::Right,
-            Key::Up,
-            Key::Down,
-            Key::A,
-            Key::Z,
-            Key::Key0,
-            Key::Key9,
-            Key::LShift,
-            Key::LControl,
-            Key::F1,
-        ] {
-            let name = key_name(key);
-            assert!(
-                balaur_input::is_known_key(&name),
-                "kiss3d reports {name:?}, which balaur_input does not know"
-            );
-        }
-    }
-
-    #[test]
-    fn the_vocabulary_has_no_duplicates() {
-        let mut seen = std::collections::BTreeSet::new();
-        for name in balaur_input::KEY_NAMES {
-            assert!(seen.insert(*name), "{name} is listed twice");
-        }
-    }
 }
