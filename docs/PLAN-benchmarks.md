@@ -191,11 +191,11 @@ from `/usr/bin/time -l`.
 3. **`move_child`.** Adding a sibling-reorder operation is an API question
    (`docs/NAMING.md` N9) before it is a benchmark one; the row stays empty
    until it exists.
-4. **Freeing nodes is quadratic**, which the first run of the scene-tree
-   cases showed: fifty thousand `queue_free` calls take about half a second
-   against Godot's ten milliseconds, because `scene::free_subtree` unlinks
-   each node from its parent with a `retain` over every sibling. Its own
-   plan, not this one.
+4. **Fixed by the first run:** freeing nodes was quadratic — fifty thousand
+   `queue_free` calls took half a second against Godot's ten milliseconds,
+   because each free unlinked its node with a `retain` over every sibling.
+   A frame's queued frees now run through `scene::free_nodes`, one pass per
+   parent.
 5. **Fixed by the first run:** `raycast` walked every collider along the
    ray with no distance pruning and sorted the lot — `intersect_ray` where
    `cast_ray_and_get_normal` was meant — which put the 2D query storm at

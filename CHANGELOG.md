@@ -17,6 +17,7 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 
 ### Scenes and assets
 
+- A frame's queued frees run as one pass per parent, so freeing a whole container is linear.
 - Prefabs with per-path overrides.
 - Component tags and presets.
 - Binary asset packs, sha256-verified.
@@ -27,6 +28,7 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 
 ### Rendering
 
+- The 2D camera zooms out to a hundredth of a pixel per unit, enough to frame a pixel-scale level whole.
 - WESL shaders and material assets; screen-reading materials.
 - Sprites, atlas regions, tilemaps and GPU-skinned 2D polygons.
 - 2D lights and shadows.

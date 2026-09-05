@@ -193,16 +193,6 @@ def ms(value):
     return f"{value:.2f}" if value is not None else "—"
 
 
-def best_godot(dim, name, godot):
-    """The quickest Godot engine on this case, and what it took."""
-    found = [
-        (label, godot[(dim, name, engine)]["step_ms"]["p50_ms"])
-        for engine, label in GODOT_ENGINES.items()
-        if (dim, name, engine) in godot
-    ]
-    return min(found, key=lambda row: row[1]) if found else None
-
-
 def chart(dim, results, godot):
     """A bar chart of every engine on every case of one dimension, as SVG.
 
@@ -253,178 +243,129 @@ def chart(dim, results, godot):
     return "\n".join(out) + "\n"
 
 
-def summary_table(results, godot):
-    """The headline: our tick beside the quickest Godot engine's, per case."""
-    lines = [
-        "| case | bodies | Balaur | quickest in Godot | that engine's tick, over ours |",
-        "| --- | ---: | ---: | --- | ---: |",
-    ]
+def quickest(row):
+    """The index of the smallest number in a row of optional milliseconds."""
+    best = None
+    for i, value in enumerate(row):
+        if value is not None and (best is None or value < row[best]):
+            best = i
+    return best
+
+
+def physics_table(dim, results, godot, shots):
+    """One table for a dimension: a row per case, a column per engine, the
+    quickest in bold, the case's picture in its first cell."""
+    engines = [e for e in GODOT_ENGINES if any((dim, n, e) in godot for n in PHYSICS)]
+    header = ["Balaur"] + [GODOT_ENGINES[e] for e in engines]
+    lines = ["| | " + " | ".join(header) + " |", "| --- |" + " ---: |" * len(header)]
     rows = 0
+    for name in PHYSICS:
+        found = results.get(f"{dim}/{name}")
+        values = [found["step_ms"]["p50_ms"] if found else None]
+        values += [
+            godot[(dim, name, e)]["step_ms"]["p50_ms"] if (dim, name, e) in godot else None
+            for e in engines
+        ]
+        if all(v is None for v in values):
+            continue
+        best = quickest(values)
+        cells = []
+        for i, value in enumerate(values):
+            if value is None:
+                cells.append("—")
+            elif i == best:
+                cells.append(f"**{value:.2f} ms**")
+            else:
+                cells.append(f"{value:.2f} ms")
+        label = f"**{name}**"
+        if found:
+            label += f"<br />{found['body_count']} bodies"
+            if found["joint_count"]:
+                label += f", {found['joint_count']} joints"
+        if (shots / f"{dim}_{name}.png").exists():
+            label += f"<br />![{name}](/{IMAGES}/{dim}_{name}.png)"
+        lines.append(f"| {label} | " + " | ".join(cells) + " |")
+        rows += 1
+    lines.append("")
+    return lines if rows else []
+
+
+def nodes_table(results, godot):
+    lines = [
+        "Milliseconds for the whole loop, lower is better. Godot's numbers are "
+        "its own published run, on a 12th-gen i5.\n",
+        "| operation | Balaur | Godot |",
+        "| --- | ---: | ---: |",
+    ]
+    for name in NODES:
+        found = results.get(f"nodes/{name}")
+        if not found:
+            continue
+        lines.append(f"| `{name}` | {ms(found['loop_ms']['p50_ms'])} ms | {ms(godot.get(name))} ms |")
+    lines.append("")
+    return lines
+
+
+def conclusion(results, godot):
+    """One sentence: how many cases Balaur is quickest on, and the worst gap."""
+    won, total, worst = 0, 0, 0.0
     for dim in ("3d", "2d"):
         for name in PHYSICS:
             found = results.get(f"{dim}/{name}")
             if not found:
                 continue
             ours = found["step_ms"]["p50_ms"]
-            other = best_godot(dim, name, godot)
-            against = f"{other[0]} {other[1]:.2f} ms" if other else "—"
-            ratio = f"{other[1] / ours:.2f}x" if other and ours > 0 else "—"
-            lines.append(
-                f"| `{dim}/{name}` | {found['body_count']} | {ours:.2f} ms | "
-                f"{against} | {ratio} |"
-            )
-            rows += 1
-    lines.append("")
-    return lines if rows else []
-
-
-def physics_table(dim, results, godot, shots):
-    """One table per case: us, rapier inside us, and every Godot engine."""
-    lines = []
-    for name in PHYSICS:
-        found = results.get(f"{dim}/{name}")
-        rows = []
-        if found:
-            step = found["step_ms"]
-            rows.append(("**Balaur**", ms(step["p50_ms"]), ms(step["p99_ms"])))
-        for engine, label in GODOT_ENGINES.items():
-            entry = godot.get((dim, name, engine))
-            if entry:
-                rows.append((label, ms(entry["step_ms"]["p50_ms"]), ms(entry["step_ms"]["p99_ms"])))
-        if not rows:
-            continue
-        rows.sort(key=lambda r: float(r[1]) if r[1] != "—" else 1e9)
-        lines.append(f"### `{name}` ({dim})\n")
-        if (shots / f"{dim}_{name}.png").exists():
-            lines.append(f"![{dim} {name} in Balaur](/{IMAGES}/{dim}_{name}.png)\n")
-        if found:
-            lines.append(
-                f"{found['body_count']} bodies"
-                + (f", {found['joint_count']} joints" if found["joint_count"] else "")
-                + (f", {found['static_count']} static" if found["static_count"] > 1 else "")
-                + f". {found['steps']} timed steps after {found['warmup']}.\n"
-            )
-        lines.append("| engine | step p50 | step p99 |")
-        lines.append("| --- | ---: | ---: |")
-        for row in rows:
-            lines.append("| " + " | ".join(row) + " |")
-        lines.append("")
-        if found and found["extra_metrics"]:
-            pairs = ", ".join(
-                f"{k} {v:.4g}" if isinstance(v, float) else f"{k} {v}"
-                for k, v in sorted(found["extra_metrics"].items())
-            )
-            lines.append(f"Balaur: {pairs}. Fingerprint `{found['fingerprint']}`.\n")
-    return lines
-
-
-def nodes_table(results, godot):
-    lines = ["### Scene tree\n"]
-    lines.append(
-        "Milliseconds for the whole loop, lower better. Godot's column is its "
-        "own published run on another machine, so it says which operations are "
-        "in a different class, not how the two machines compare.\n"
+            others = [
+                godot[(dim, name, e)]["step_ms"]["p50_ms"]
+                for e in GODOT_ENGINES if (dim, name, e) in godot
+            ]
+            if not others or ours <= 0:
+                continue
+            total += 1
+            if ours <= min(others):
+                won += 1
+            else:
+                worst = max(worst, ours / min(others))
+    if not total:
+        return None
+    if won == total:
+        return f"Balaur is the quickest engine on all {total} physics cases.\n"
+    return (
+        f"Balaur is the quickest engine on {won} of {total} physics cases, and "
+        f"at worst {worst:.2f}x the quickest on the rest.\n"
     )
-    lines.append("| operation | Balaur p50 | Balaur min | Godot release |")
-    lines.append("| --- | ---: | ---: | ---: |")
-    for name in NODES:
-        found = results.get(f"nodes/{name}")
-        if not found:
-            continue
-        lines.append(
-            f"| `{name}` | {ms(found['loop_ms']['p50_ms'])} | "
-            f"{ms(found['loop_ms']['min_ms'])} | {ms(godot.get(name))} |"
-        )
-    lines.append("")
-    lines.append(
-        "`move_child` has no row: the scene tree has no sibling-reorder "
-        "operation to measure.\n"
-    )
-    lines.append(
-        "Destroying is two orders of magnitude off, and it is the scene tree, "
-        "not the script: `scene::free_subtree` unlinks each node from its "
-        "parent by scanning every sibling, so freeing a flat container of "
-        "fifty thousand is quadratic. Adding and looking up are within a "
-        "small factor of Godot's on a faster machine.\n"
-    )
-    return lines
 
 
-def report(results, godot, nodes, args, shots):  # noqa: C901
-    ran = [r for r in results.values() if r and r["dimensions"] != "nodes"]
+def report(results, godot, nodes, args, shots):
+    version = godot_version(args.godot_results) or "4.7"
     lines = [
         "<!-- Written by scripts/bench_compare.py from a real run. -->\n",
         "# Benchmarks\n",
-        f"Balaur `{commit()}` on {machine()}, {date.today().isoformat()}.\n",
-        "Every case is a scene from the [godot-rapier benchmark suite]"
-        f"({SUITE_REPO}), the one behind [its v0.35 post]({SUITE_POST}) and "
-        f"[its performance page]({SUITE_DOCS}), built body for body with the "
-        "same counts, the same 60 Hz tick and the same window: a settle, then "
-        f"{args.steps} timed steps, reported as the median and the 99th "
-        "percentile of one tick.\n",
-        "**step p50** is a whole physics tick: script `fixed_update`, the "
-        "solver, and writing every simulated pose back to the scene tree — "
-        "what the Godot suite calls `step_ms`. The profiler also records "
-        "rapier's own step inside it; what is left over is the engine, and "
-        "in the query cases the queries themselves, which run inside the "
-        "script call.\n",
+        f"Balaur `{commit()}` and Godot {version} on {machine()}, "
+        f"{date.today().isoformat()}: the scenes of the [godot-rapier benchmark "
+        f"suite]({SUITE_REPO}) ([post]({SUITE_POST}), [docs]({SUITE_DOCS})), "
+        f"body for body, {args.steps} timed steps at 60 Hz after a settle. "
+        "Median physics tick in milliseconds, lower is better.\n",
     ]
-    if ran:
-        # What is left of a tick once rapier and the case's own script are
-        # taken out: the scene tree, the components, the pose write-back.
-        overhead = [
-            100.0 * (r["step_ms"]["p50_ms"] - r["physics_ms"]["p50_ms"]
-                     - r["script_ms"]["p50_ms"]) / r["step_ms"]["p50_ms"]
-            for r in ran if r["step_ms"]["p50_ms"] > 0
-        ]
-        if overhead:
-            lines.append(
-                f"Across the {len(overhead)} physics cases the engine itself "
-                f"costs {min(overhead):.0f}% to {max(overhead):.0f}% of a "
-                "tick; the rest is rapier, and in the query cases the "
-                "script's own calls.\n"
-            )
-    for dim in ("3d", "2d"):
-        if (shots / f"chart_{dim}.svg").exists():
-            lines.append(f"![{dim.upper()} chart](/{IMAGES}/chart_{dim}.svg)\n")
-    summary = summary_table(results, godot)
-    if summary:
-        lines.append("Median tick, lower better:\n")
-        lines += summary
-    version = godot_version(args.godot_results)
-    if version:
-        lines.append(
-            f"The Godot columns are {version} with the addons the reference "
-            "suite commits, run on this same machine.\n"
-        )
     for dim in ("3d", "2d"):
         table = physics_table(dim, results, godot, shots)
-        if table:
-            lines.append(f"## {dim.upper()}\n")
-            lines += table
+        if not table:
+            continue
+        lines.append(f"## {dim.upper()}\n")
+        if (shots / f"chart_{dim}.svg").exists():
+            lines.append(f"![{dim.upper()} chart](/{IMAGES}/chart_{dim}.svg)\n")
+        lines += table
     if any(k.startswith("nodes/") for k in results):
         lines.append("## Nodes\n")
         lines += nodes_table(results, nodes)
+    summary = conclusion(results, godot)
+    if summary:
+        lines.append(summary)
     lines += [
-        "## What is not the same\n",
-        "- Balaur's rapier is built without SIMD; the godot-rapier addon's is "
-        "built with it. Same version, same `enhanced-determinism`, same "
-        "threaded solver.\n",
-        "- The worlds are statistically alike, not bit-identical: the scattered "
-        "cases draw from each engine's own random stream, so a fingerprint "
-        "compares two Balaur runs, never Balaur against Godot.\n",
-        "- The 2D cases are the GDScript's coordinates with y negated, because "
-        "Godot's 2D plane points down and ours points up. Distances, contacts "
-        "and gravity are unchanged, and `length_unit` is 100 as godot-rapier's "
-        "2D default is.\n",
-        "- `mixed_pile`'s convex hull is one fixed size rather than a random "
-        "one: a hull collider is built from a mesh asset and has no scale.\n",
-        "- Godot's own suite runs its scene-tree cases on its CI machine, not "
-        "this one.\n",
         "## Running it\n",
         "```bash\n"
-        "cargo build --release -p balaur_cli --bin balaur\n"
-        "python3 scripts/bench_compare.py --godot-results <benchmarks-repo>/results\n"
+        "cargo build --release -p balaur_cli --features window --bin balaur\n"
+        "python3 scripts/bench_compare.py --shots --godot-results <benchmarks-repo>/results\n"
         "```\n",
         "One case on its own, or in the editor:\n",
         "```bash\n"

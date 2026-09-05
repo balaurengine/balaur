@@ -87,8 +87,8 @@ fn pile_shape(kind) {
 fn bin(w, half, height) {
     world::fixed(w, [0.0, -0.5, 0.0], box3(half, 0.5, half));
     for s in [-1.0, 1.0] {
-        world::fixed(w, [s * half, height * 0.5, 0.0], box3(0.5, height * 0.5, half));
-        world::fixed(w, [0.0, height * 0.5, s * half], box3(half, height * 0.5, 0.5));
+        world::wall(w, [s * half, height * 0.5, 0.0], box3(0.5, height * 0.5, half));
+        world::wall(w, [0.0, height * 0.5, s * half], box3(half, height * 0.5, 0.5));
     }
 }
 
@@ -311,7 +311,7 @@ fn drop() {
             world::fixed(w, [0.0, -0.5, 0.0], box3(PIT + 4.0, 0.5, PIT + 4.0));
             for s in [[1.0, 0.0], [-1.0, 0.0], [0.0, 1.0], [0.0, -1.0]] {
                 let thick = if s[0] != 0.0 { box3(0.5, 40.0, PIT) } else { box3(PIT, 40.0, 0.5) };
-                world::fixed(w, [s[0] * (PIT + 0.5), 40.0, s[1] * (PIT + 0.5)], thick);
+                world::wall(w, [s[0] * (PIT + 0.5), 40.0, s[1] * (PIT + 0.5)], thick);
             }
         }),
         ("place", |w, i| { world::body(w, drop_at(i), box3(0.5, 0.5, 0.5)); }),

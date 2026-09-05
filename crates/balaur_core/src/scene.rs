@@ -471,6 +471,47 @@ pub fn free_node(eng: &Engine, entity: Entity) {
     free_subtree(&mut eng.world_mut(), entity);
 }
 
+/// [`free_node`] for many nodes at once, which is what a frame's queued frees
+/// are.
+///
+/// One pass over each parent's children rather than one per freed node:
+/// fifty thousand siblings freed one at a time is fifty thousand scans of
+/// a fifty-thousand-entry list, and a frame that frees a whole container of
+/// them is ordinary.
+pub fn free_nodes(eng: &Engine, entities: &[Entity]) {
+    let mut subtree = Vec::new();
+    {
+        let world = eng.world();
+        for &entity in entities {
+            subtree.extend(collect_subtree(&world, entity));
+        }
+    }
+    if let Some(host) = eng.script_host() {
+        for &e in &subtree {
+            host.detach(crate::node_id_of(e));
+        }
+    }
+    for &e in &subtree {
+        crate::components::remove_present(eng, e);
+    }
+    let mut world = eng.world_mut();
+    let doomed: crate::collections::DetHashSet<Entity> = entities.iter().copied().collect();
+    let mut parents: Vec<Entity> = entities
+        .iter()
+        .filter_map(|&e| world.get::<&Parent>(e).ok().map(|p| p.0))
+        .collect();
+    parents.sort_unstable_by_key(|e| e.to_bits());
+    parents.dedup();
+    for parent in parents {
+        if let Ok(mut children) = world.get::<&mut Children>(parent) {
+            children.0.retain(|c| !doomed.contains(c));
+        }
+    }
+    for e in subtree {
+        let _ = world.despawn(e);
+    }
+}
+
 /// Despawn a node and its whole subtree, unlinking it from its parent.
 pub fn free_subtree(world: &mut World, entity: Entity) {
     if let Ok(parent) = world.get::<&Parent>(entity).map(|p| p.0)

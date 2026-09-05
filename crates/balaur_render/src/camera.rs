@@ -11,7 +11,9 @@ use crate::{CameraConfig, CameraConfig2d, PostConfig, color_to_toml};
 
 /// The smallest 2D zoom, in logical pixels per world unit. Mirrors the `min`
 /// the `camera` schema below states, which `render.set_camera_2d` also takes.
-pub(crate) const MIN_ZOOM_2D: f32 = 1.0;
+/// A hundredth, not one: a pixel-scale level is thousands of units across,
+/// and a camera that cannot show it whole is a camera that cannot frame it.
+pub(crate) const MIN_ZOOM_2D: f32 = 0.01;
 
 /// Which view a `camera` component drives: `"3d"` in a scene file is the
 /// perspective camera, `"2d"` the orthographic one.
@@ -237,7 +239,7 @@ pub(crate) fn register_camera_component(reg: &mut Registry<'_>) {
                     (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Which camera this node drives" }}"#, words::PERSPECTIVE, options(words::CAMERA_KINDS))),
                     (k::CURRENT, r#"{ type = "bool", default = true, description = "Whether this camera drives the view; the last current one wins" }"#),
                     (k::LOOK_AT, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "World point the 3D camera looks at" }"#),
-                    (k::ZOOM, r#"{ type = "float", default = 60.0, min = 1.0, description = "2D zoom in logical pixels per world unit" }"#),
+                    (k::ZOOM, r#"{ type = "float", default = 60.0, min = 0.01, description = "2D zoom in logical pixels per world unit" }"#),
                     (k::AMBIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`; only a `2d` camera's is read" }"#),
                     (k::POST, r#"{ type = "flags", options = ["bloom", "ssao", "ssr", "dof"], default = [], description = "Screen-space effects the frame resolves through; `ssao`, `ssr` and `dof` are 3D only" }"#),
                     (k::BLOOM_THRESHOLD, r#"{ type = "float", default = 1.0, min = 0.0, description = "Brightness a pixel has to pass to bloom" }"#),

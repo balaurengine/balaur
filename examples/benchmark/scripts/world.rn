@@ -47,13 +47,20 @@ pub fn body(w, at, shape) {
 
 /// An immovable body: the ground, the walls, the anchor bar.
 pub fn fixed(w, at, shape) {
+    let node = wall(w, at, shape);
+    draw(w, node, shape);
+    node
+}
+
+/// An immovable body that is never drawn: the walls of a pit, which would
+/// hide what is inside it from the camera.
+pub fn wall(w, at, shape) {
     let node = scene::spawn(format!("s{}", w.statics), w.container);
     w.statics = w.statics + 1;
     place(w, node, at);
     let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
     node.set_component(kind, #{ kind: "static" });
     node.set_component(collider_key(w), shape);
-    draw(w, node, shape);
     node
 }
 

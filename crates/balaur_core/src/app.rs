@@ -318,19 +318,24 @@ impl App {
             });
         });
         app.add_system(Stage::Last, |eng, _| {
+            // Every free of the frame in one batch: see `scene::free_nodes`.
+            let mut freed = Vec::new();
             for cmd in eng.take_commands() {
                 match cmd {
                     Command::Free(entity) => {
                         let label = crate::digest::node_label(&eng.world(), entity);
-                        scene::free_node(eng, entity);
                         crate::replay::event(
                             eng,
                             "scene.free",
                             format!("freed {label}"),
                             Some(serde_json::json!({ "node": label })),
                         );
+                        freed.push(entity);
                     }
                 }
+            }
+            if !freed.is_empty() {
+                scene::free_nodes(eng, &freed);
             }
         });
         // After deferred destruction, so a recorded digest describes the

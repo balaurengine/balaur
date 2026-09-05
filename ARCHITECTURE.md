@@ -65,6 +65,18 @@ propagation, and recursive free are core systems. Plugins hang their own
 components off the same entities, so "node" is an API surface, not a data
 structure with a cost.
 
+A scene file spells `parent` either way: the parent's `id`, or a path of names
+down from the scene's own root (`parent = "World/Ground"`). Ids are resolved
+first, so no file written before paths existed can change meaning, and a path
+may not climb out of its scene with `..` — that would let a prefab reparent
+into whatever instanced it. The path form exists for hand-written scenes,
+which would otherwise have to mint an id per node just to point at one; ids
+stay what the editor writes and what `StableId` is built from, because a
+replay addresses a node by id and a rename must not move it. The editor
+resolves a path to its id when it loads the document (`normalize` in
+`editor/scripts/model.rn`), so saving a hand-written scene normalises its
+parents to ids.
+
 ### Frame schedule
 
 Fixed stage order: `First → PreUpdate (reload pump) → Update (scripts,
