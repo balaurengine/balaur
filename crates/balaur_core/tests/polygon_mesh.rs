@@ -4,7 +4,7 @@
 
 use balaur_core::mesh::MeshData;
 use balaur_core::triangulate::triangulate;
-use balaur_core::{assets, App, AppConfig};
+use balaur_core::{App, AppConfig, assets};
 use glamx::Vec2;
 
 fn app() -> App {
@@ -118,18 +118,24 @@ fn a_loop_with_no_area_or_too_few_points_is_refused() {
         Vec2::new(1.0, 0.0),
         Vec2::new(2.0, 0.0),
     ];
-    assert!(triangulate(&points, &[0, 1, 2])
-        .unwrap_err()
-        .to_string()
-        .contains("no area"));
-    assert!(triangulate(&points, &[0, 1])
-        .unwrap_err()
-        .to_string()
-        .contains("three"));
-    assert!(triangulate(&points, &[0, 1, 9])
-        .unwrap_err()
-        .to_string()
-        .contains("vertex 9"));
+    assert!(
+        triangulate(&points, &[0, 1, 2])
+            .unwrap_err()
+            .to_string()
+            .contains("no area")
+    );
+    assert!(
+        triangulate(&points, &[0, 1])
+            .unwrap_err()
+            .to_string()
+            .contains("three")
+    );
+    assert!(
+        triangulate(&points, &[0, 1, 9])
+            .unwrap_err()
+            .to_string()
+            .contains("vertex 9")
+    );
 }
 
 #[test]
@@ -258,7 +264,9 @@ fn a_skin_whose_weights_do_not_match_the_vertices_is_refused() {
         "positions = [[0, 0], [1, 0], [0, 1]]\n[[skin.bones]]\npath = \"Hip\"\nweights = [1, 1]",
     );
     assert!(err.contains("2 weights for 3 vertices"), "{err}");
-    let err = mesh_err("positions = [[0, 0], [1, 0], [0, 1]]\n[[skin.bones]]\npath = \"Hip\"\nweights = [1, -1, 0]");
+    let err = mesh_err(
+        "positions = [[0, 0], [1, 0], [0, 1]]\n[[skin.bones]]\npath = \"Hip\"\nweights = [1, -1, 0]",
+    );
     assert!(err.contains("0 or more"), "{err}");
     let err = mesh_err("positions = [[0, 0], [1, 0], [0, 1]]\n[[skin.bones]]\nweights = [1, 0, 0]");
     assert!(err.contains("`path`"), "{err}");

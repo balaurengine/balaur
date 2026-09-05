@@ -11,7 +11,7 @@
 use std::path::{Path, PathBuf};
 
 use balaur_core::{App, AppConfig};
-use balaur_plugin::{library_suffix, load_extension, BalaurValue};
+use balaur_plugin::{BalaurValue, library_suffix, load_extension};
 use balaur_script::{NodeId, Value};
 
 fn app_in(dir: &Path) -> App {

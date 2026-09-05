@@ -9,8 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::Result;
 use balaur_core::Engine;
 
-use crate::bindings::{api_docs, api_entries, api_module_docs};
 use crate::RuneHost;
+use crate::bindings::{api_docs, api_entries, api_module_docs};
 
 /// The Rune host behind an engine's script host.
 ///
@@ -84,15 +84,60 @@ fn collect_modules() -> BTreeMap<String, Module> {
     // `Bindings`, so nothing records them as they are declared; `api_lints.py`
     // checks this list against `RuneHost::context`.
     for (module, name, args, doc) in [
-        ("script", "require", "(path: string)", "Load another script file as a module, compiled once and shared by every caller afterwards."),
-        ("script", "attempt", "(f: fn)", "Call a function, answering `(true, value)` when it returned and `(false, message)` when it failed."),
-        ("script", "check", "(path: string, source: string)", "Every compiler diagnostic about the given source, as `[#{ file, line, column, severity, message }]`; an editor passes the buffer it is showing."),
-        ("script", "functions", "(path: string)", "The public functions a script file declares, with their argument names."),
-        ("script", "exports", "(path: string)", "The tunable properties a script declares in `exports()`, with their defaults."),
-        ("script", "shared", "(f: fn, arity: int)", "Wrap a script function so it can be called from several places with a fixed argument count."),
-        ("task", "wait", "(token: int)", "Park an async handler until the engine wakes the token it was given."),
-        ("task", "frames", "(count: int)", "Park an async handler for a number of fixed steps; counted on the tick, so a replay waits exactly as long."),
-        ("task", "seconds", "(seconds: float)", "Park an async handler for a span of simulation time, in fixed steps; the wall clock never enters it."),
+        (
+            "script",
+            "require",
+            "(path: string)",
+            "Load another script file as a module, compiled once and shared by every caller afterwards.",
+        ),
+        (
+            "script",
+            "attempt",
+            "(f: fn)",
+            "Call a function, answering `(true, value)` when it returned and `(false, message)` when it failed.",
+        ),
+        (
+            "script",
+            "check",
+            "(path: string, source: string)",
+            "Every compiler diagnostic about the given source, as `[#{ file, line, column, severity, message }]`; an editor passes the buffer it is showing.",
+        ),
+        (
+            "script",
+            "functions",
+            "(path: string)",
+            "The public functions a script file declares, with their argument names.",
+        ),
+        (
+            "script",
+            "exports",
+            "(path: string)",
+            "The tunable properties a script declares in `exports()`, with their defaults.",
+        ),
+        (
+            "script",
+            "shared",
+            "(f: fn, arity: int)",
+            "Wrap a script function so it can be called from several places with a fixed argument count.",
+        ),
+        (
+            "task",
+            "wait",
+            "(token: int)",
+            "Park an async handler until the engine wakes the token it was given.",
+        ),
+        (
+            "task",
+            "frames",
+            "(count: int)",
+            "Park an async handler for a number of fixed steps; counted on the tick, so a replay waits exactly as long.",
+        ),
+        (
+            "task",
+            "seconds",
+            "(seconds: float)",
+            "Park an async handler for a span of simulation time, in fixed steps; the wall clock never enters it.",
+        ),
     ] {
         let entry = modules.entry(module.to_string()).or_default();
         entry.functions.insert(name.to_string());

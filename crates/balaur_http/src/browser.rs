@@ -13,7 +13,7 @@
 use std::sync::mpsc::Sender;
 
 use wasm_bindgen::{JsCast, JsValue};
-use wasm_bindgen_futures::{spawn_local, JsFuture};
+use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{AbortSignal, Headers, Request, RequestInit, Response};
 
 use crate::{HttpCall, HttpEvent};

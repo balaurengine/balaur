@@ -4,7 +4,7 @@
 //! the components, so those tests are in the facade crate.
 
 use balaur_core::components::ComponentDef;
-use balaur_core::{components, presets, scene, App, AppConfig};
+use balaur_core::{App, AppConfig, components, presets, scene};
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()

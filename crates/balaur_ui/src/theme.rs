@@ -8,8 +8,8 @@
 
 use std::collections::HashMap;
 
-use balaur_core::project::ProjectFiles;
 use balaur_core::Engine;
+use balaur_core::project::ProjectFiles;
 use egui::{Color32, CornerRadius, FontFamily, Shadow, Stroke};
 
 #[derive(Clone)]

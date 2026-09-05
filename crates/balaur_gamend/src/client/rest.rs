@@ -5,7 +5,7 @@
 //! without a generated model layer. Typed helpers live in [`super::auth`]
 //! and can grow beside it.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde_json::Value;
 
 use super::auth::Session;

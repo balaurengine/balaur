@@ -16,7 +16,7 @@ use std::rc::Rc;
 use balaur_core::components::StableId;
 use balaur_core::netsession::NetSession;
 use balaur_core::transport::{Delivery, Faults, Faulty, LinkState, Received, Transport};
-use balaur_core::{rollback, App, AppConfig, Stage, Transform};
+use balaur_core::{App, AppConfig, Stage, Transform, rollback};
 use balaur_script::Value;
 
 const HOST: u32 = 1;

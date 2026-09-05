@@ -534,7 +534,9 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     }
     if let Some(trace) = trace_digest {
         if !*fixed_tick {
-            tracing::warn!("--trace-digest without --fixed-tick: the trace follows wall-clock frame times and will not match another machine's");
+            tracing::warn!(
+                "--trace-digest without --fixed-tick: the trace follows wall-clock frame times and will not match another machine's"
+            );
         }
         trace_digest_to(&mut app, trace)?;
     }

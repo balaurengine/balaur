@@ -11,10 +11,10 @@ use std::sync::mpsc::Sender;
 
 use objc2::rc::Retained;
 use objc2::runtime::{AnyClass, AnyObject, NSObject, NSObjectProtocol};
-use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker, MainThreadOnly};
+use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send};
 
-use crate::signin::key_window;
 use crate::AppleEvent;
+use crate::signin::key_window;
 
 /// Put a view controller Game Center handed over on screen.
 ///

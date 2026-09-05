@@ -6,7 +6,7 @@
 //! (expectations). None of them adds a type -- a node is still exactly the
 //! components on it.
 
-use balaur::{components, presets, scene, App, AppConfig};
+use balaur::{App, AppConfig, components, presets, scene};
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()

@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use balaur_core::components::ComponentDef;
-use balaur_core::{assets, components, scene, App, AppConfig, Engine, Pack};
+use balaur_core::{App, AppConfig, Engine, Pack, assets, components, scene};
 
 /// What the test's asset type parses to. A plugin's own struct, opaque to
 /// core: only the parser and the code downcasting it know this exists.

@@ -9,7 +9,7 @@ use balaur_anim::{AnimationPlugin, AnimationState};
 use balaur_core::components::StableId;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
-use balaur_core::{components, digest, snapshot, App, AppConfig};
+use balaur_core::{App, AppConfig, components, digest, snapshot};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();

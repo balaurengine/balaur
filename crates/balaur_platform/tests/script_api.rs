@@ -6,7 +6,7 @@
 
 use std::time::{Duration, Instant};
 
-use balaur::{standard_app, AppConfig};
+use balaur::{AppConfig, standard_app};
 
 /// These boot full apps: CI's job. A plain local `cargo test` skips them so
 /// iteration stays fast; `BALAUR_E2E=1` (what `scripts/e2e_tests.sh` and CI

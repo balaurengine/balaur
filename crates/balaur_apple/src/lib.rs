@@ -20,10 +20,10 @@
 //! `unsupported`, so a script does not change shape between a phone and a CI
 //! runner.
 
-use anyhow::anyhow;
 use anyhow::Result;
+use anyhow::anyhow;
 use balaur_core::engine_api::from_json;
-use balaur_core::handler::{handler_of, id_value, opt, Handler};
+use balaur_core::handler::{Handler, handler_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_platform::{Call, PlatformBackend, PlatformEvent};

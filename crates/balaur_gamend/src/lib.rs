@@ -25,9 +25,9 @@
 //! map carries a `kind` — `login`, `rest`, `reply`, `error`, `open`,
 //! `message`, `closed` — so one handler can take them all.
 
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{Sender, channel};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_core::engine_api::from_json;
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
@@ -42,7 +42,7 @@ mod worker;
 
 #[cfg(not(target_family = "wasm"))]
 mod backend {
-    pub(crate) use crate::worker::{spawn_login, spawn_rest, spawn_socket, SharedClient};
+    pub(crate) use crate::worker::{SharedClient, spawn_login, spawn_rest, spawn_socket};
 
     /// Nothing to pump: the worker threads deliver on their own.
     pub(crate) fn pump() {}
@@ -50,7 +50,7 @@ mod backend {
 
 #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
 mod backend {
-    pub(crate) use crate::browser::{pump, spawn_login, spawn_rest, spawn_socket, SharedClient};
+    pub(crate) use crate::browser::{SharedClient, pump, spawn_login, spawn_rest, spawn_socket};
 }
 
 /// The emscripten stub: no networking stack compiles there, so every

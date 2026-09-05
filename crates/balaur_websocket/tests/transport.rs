@@ -10,8 +10,8 @@ use std::net::TcpListener;
 
 use balaur_core::transport::{Delivery, LinkState, Received, Transport};
 use balaur_core::{App, AppConfig};
-use balaur_websocket::transport::WebsocketTransport;
 use balaur_websocket::SocketOptions;
+use balaur_websocket::transport::WebsocketTransport;
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()

@@ -1,8 +1,8 @@
 use balaur_core::transport::{LinkState, Transport};
 use balaur_core::{App, AppConfig};
+use balaur_websocket::SocketOptions;
 use balaur_websocket::listener::WebsocketListener;
 use balaur_websocket::transport::WebsocketTransport;
-use balaur_websocket::SocketOptions;
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()

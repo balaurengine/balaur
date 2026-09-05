@@ -16,13 +16,13 @@ use crate::rapier3d::prelude::{
     QueryFilterFlags,
 };
 use crate::scalar::{self, Pose, Real};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_core::hecs::Entity;
-use balaur_core::{entity_of, node_id_of, Engine};
+use balaur_core::{Engine, entity_of, node_id_of};
 use balaur_script::{Bindings, BindingsExt, CallbackHost, NodeId, Value};
 
-use crate::vocabulary::{map, Opts};
 use crate::PhysicsState;
+use crate::vocabulary::{Opts, map};
 
 crate::shared::query::functions!(
     state = PhysicsState,

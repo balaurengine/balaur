@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use balaur_core::timings::{TimingLog, Timings};
-use balaur_core::{App, AppConfig, Engine, Stage, FIXED_DT};
+use balaur_core::{App, AppConfig, Engine, FIXED_DT, Stage};
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()

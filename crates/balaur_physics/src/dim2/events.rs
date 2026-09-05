@@ -10,8 +10,8 @@ use crate::rapier2d::prelude::{
     ColliderHandle, ColliderSet, CollisionEvent, ContactForceEvent, ContactModificationContext,
     EventHandler, PhysicsHooks,
 };
-use balaur_core::hecs::Entity;
 use balaur_core::Engine;
+use balaur_core::hecs::Entity;
 use balaur_script::Value;
 use std::sync::Mutex;
 

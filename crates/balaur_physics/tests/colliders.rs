@@ -3,7 +3,7 @@
 
 use balaur_core::hecs::Entity;
 use balaur_core::scene;
-use balaur_core::{components, App, AppConfig};
+use balaur_core::{App, AppConfig, components};
 use balaur_physics::{PhysicsPlugin, PhysicsState};
 
 fn app() -> App {
@@ -275,7 +275,9 @@ fn a_2d_one_way_collider_carries_its_axis_into_the_world() {
         0,
         "no one-way axis reached the collider"
     );
-    assert!(collider
-        .active_hooks()
-        .contains(balaur_physics::rapier2d::prelude::ActiveHooks::MODIFY_SOLVER_CONTACTS));
+    assert!(
+        collider
+            .active_hooks()
+            .contains(balaur_physics::rapier2d::prelude::ActiveHooks::MODIFY_SOLVER_CONTACTS)
+    );
 }

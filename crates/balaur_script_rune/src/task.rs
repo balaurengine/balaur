@@ -7,11 +7,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use hecs::Entity;
-use rune::runtime::VmResult;
 use rune::TypeHash as _;
+use rune::runtime::VmResult;
 use std::future::Future as _;
 
-use crate::{value, RuneHost, RuneTask};
+use crate::{RuneHost, RuneTask, value};
 
 thread_local! {
     /// Wake payloads not yet claimed by a `task::wait` future. Entries live

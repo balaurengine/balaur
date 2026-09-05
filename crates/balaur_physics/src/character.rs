@@ -14,15 +14,15 @@ use crate::rapier3d::control::{
 };
 use crate::rapier3d::prelude::QueryFilter;
 use crate::scalar::{self, Vector};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
-use balaur_core::{entity_of, Engine, Transform};
+use balaur_core::{Engine, Transform, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 use crate::vocabulary::{map, words};
-use crate::{PhysicsState, FIXED_DT};
+use crate::{FIXED_DT, PhysicsState};
 
 /// The schema both dimensions share. `up` is the one property whose shape
 /// differs, so each adds its own.

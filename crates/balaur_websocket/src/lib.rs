@@ -14,10 +14,10 @@
 //! immediately, and handlers run at [`Stage::First`] of a later tick, in
 //! arrival order, never from an I/O thread.
 
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{Sender, channel};
 
-use anyhow::{anyhow, bail, Result};
-use balaur_core::handler::{handler_of, headers_of, id_value, opt, Handler};
+use anyhow::{Result, anyhow, bail};
+use balaur_core::handler::{Handler, handler_of, headers_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
@@ -360,7 +360,7 @@ fn socket_options_of(opts: Option<&Value>, config: &WebsocketConfig) -> Result<S
         Some(other) => {
             return Err(anyhow!(
                 "compression should be true or false, got {other:?}"
-            ))
+            ));
         }
         None => config.compression,
     };

@@ -7,7 +7,7 @@
 
 use crate::theme::family;
 use crate::widget_arrange::padding_of;
-use crate::widget_layer::{caption, lays_out, theme_of, Placed, Widget};
+use crate::widget_layer::{Placed, Widget, caption, lays_out, theme_of};
 use crate::widget_theme::WidgetTheme;
 use balaur_core::Engine;
 use egui::vec2;

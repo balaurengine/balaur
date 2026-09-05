@@ -16,7 +16,7 @@
 use balaur_core::components::ComponentDef;
 use balaur_core::glamx::Vec3;
 use balaur_core::hecs::Entity;
-use balaur_core::{scene, Engine, GlobalTransform};
+use balaur_core::{Engine, GlobalTransform, scene};
 
 use crate::bus::{self, Buses};
 use crate::{AudioState, MIN_PITCH};

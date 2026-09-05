@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::components::StableId;
 use crate::engine::Engine;
-use crate::scene::{collect_subtree, Children, Name, Parent, ScriptAttachment};
+use crate::scene::{Children, Name, Parent, ScriptAttachment, collect_subtree};
 
 /// State a subsystem owns, in a form that survives being put down and picked
 /// back up.

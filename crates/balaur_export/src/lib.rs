@@ -22,8 +22,8 @@ mod config;
 mod sign;
 
 use apple::AppleConfig;
-use bundle::{export_bundle, export_macos_app, find_bundle_template, web_shell, Bundle};
-pub use config::{ExportConfig, DEFAULT_OUTPUT};
+use bundle::{Bundle, export_bundle, export_macos_app, find_bundle_template, web_shell};
+pub use config::{DEFAULT_OUTPUT, ExportConfig};
 
 /// Everything an export was asked for.
 #[derive(Default)]
@@ -329,7 +329,7 @@ fn find_template(target: &str, roots: &[PathBuf]) -> Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{find_template, Options};
+    use super::{Options, find_template};
 
     #[test]
     fn a_template_is_found_on_any_root() {

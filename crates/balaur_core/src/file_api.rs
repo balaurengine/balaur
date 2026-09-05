@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, bail, Context as _, Result};
+use anyhow::{Context as _, Result, anyhow, bail};
 use balaur_script::Value;
 
 use crate::engine::Engine;
@@ -274,7 +274,7 @@ pub fn to_json(v: &Value) -> Result<serde_json::Value> {
             .ok_or_else(|| anyhow!("{n} has no JSON representation"))?,
         Value::Str(s) => serde_json::Value::String(s.clone()),
         Value::Node(_) | Value::Callback(_) => {
-            return Err(anyhow!("a node or callback is not JSON data"))
+            return Err(anyhow!("a node or callback is not JSON data"));
         }
         // JSON has no byte string, and guessing an encoding here would make
         // the round trip lossy in a way the caller never asked for.

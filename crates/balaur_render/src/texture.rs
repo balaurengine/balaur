@@ -2,7 +2,7 @@
 //! build — the upload, which logs a file it cannot decode and draws the
 //! default texture rather than taking the frame down with it.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 /// An image's pixel size, read from its header alone.
 ///

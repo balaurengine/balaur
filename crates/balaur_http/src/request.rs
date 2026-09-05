@@ -3,7 +3,7 @@
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 use crate::{HttpCall, HttpEvent};
 

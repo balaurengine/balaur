@@ -6,7 +6,7 @@
 //! `kiss3d`) owns the OS event loop; headless runs just never draw, which
 //! keeps the simulation byte-for-byte identical with and without a window.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Stage};
 use balaur_plugin::Registry;
@@ -37,7 +37,7 @@ pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
 pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
 pub use particles::Particles;
 pub use polygon::PolygonMesh;
-pub use tilemap::{Tilemap, Tileset, TILESET_ASSET_TYPE};
+pub use tilemap::{TILESET_ASSET_TYPE, Tilemap, Tileset};
 
 #[cfg(feature = "kiss3d")]
 mod bind_layout;

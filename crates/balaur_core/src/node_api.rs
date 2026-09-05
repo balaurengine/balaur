@@ -9,7 +9,7 @@
 // function pointers; several of them have nothing to fail at.
 #![allow(clippy::unnecessary_wraps)]
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use balaur_script::{Bindings, Value};
 use glamx::{EulerRot, Quat, Vec3};
 use hecs::Entity;
@@ -798,7 +798,7 @@ pub fn to_toml(v: &Value) -> Result<toml::Value> {
         Value::Num(n) => toml::Value::Float(*n),
         Value::Str(s) => toml::Value::String(s.clone()),
         Value::Node(_) | Value::Callback(_) => {
-            return Err(anyhow!("a node or callback is not component data"))
+            return Err(anyhow!("a node or callback is not component data"));
         }
         Value::Many(_) => return Err(anyhow!("several values are not component data")),
         // TOML has no byte string, and a component that wanted one would be

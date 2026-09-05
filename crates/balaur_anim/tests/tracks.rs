@@ -11,7 +11,7 @@ mod common;
 
 use balaur_anim::{AnimationPlugin, Playback};
 use balaur_core::hecs::Entity;
-use balaur_core::{components, scene, App, AppConfig};
+use balaur_core::{App, AppConfig, components, scene};
 use common::Calls;
 
 fn app() -> App {

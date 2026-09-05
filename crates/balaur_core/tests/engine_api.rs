@@ -474,16 +474,18 @@ fn fs_refuses_an_absolute_path_outside_every_root() {
     let outside = dir.path().join("elsewhere.txt");
     let app = app_in(&project);
 
-    assert!(call(
-        &app.engine,
-        "fs",
-        "write",
-        &[
-            Value::Str(outside.to_string_lossy().into_owned()),
-            Value::Str("hi".into()),
-        ],
-    )
-    .is_err());
+    assert!(
+        call(
+            &app.engine,
+            "fs",
+            "write",
+            &[
+                Value::Str(outside.to_string_lossy().into_owned()),
+                Value::Str("hi".into()),
+            ],
+        )
+        .is_err()
+    );
     assert!(!outside.exists());
 }
 
@@ -500,16 +502,18 @@ fn fs_refuses_a_symlink_that_leaves_the_project() {
     std::os::unix::fs::symlink(&outside, project.join("away")).unwrap();
     let app = app_in(&project);
 
-    assert!(call(
-        &app.engine,
-        "fs",
-        "write",
-        &[
-            Value::Str("away/stolen.txt".into()),
-            Value::Str("hi".into()),
-        ],
-    )
-    .is_err());
+    assert!(
+        call(
+            &app.engine,
+            "fs",
+            "write",
+            &[
+                Value::Str("away/stolen.txt".into()),
+                Value::Str("hi".into()),
+            ],
+        )
+        .is_err()
+    );
     assert!(!outside.join("stolen.txt").exists());
 }
 
@@ -582,13 +586,15 @@ fn base64_round_trips_bytes_and_sha256_matches_the_known_vector() {
     assert_eq!(encoded, Value::Str("aGVsbG8=".into()));
     let decoded = call(&app.engine, "encoding", "from_base64", &[encoded]).unwrap();
     assert_eq!(decoded, Value::Bytes(b"hello".to_vec()));
-    assert!(call(
-        &app.engine,
-        "encoding",
-        "from_base64",
-        &[Value::Str("@@".into())]
-    )
-    .is_err());
+    assert!(
+        call(
+            &app.engine,
+            "encoding",
+            "from_base64",
+            &[Value::Str("@@".into())]
+        )
+        .is_err()
+    );
     let digest = call(
         &app.engine,
         "hash",

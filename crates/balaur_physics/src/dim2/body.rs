@@ -14,17 +14,17 @@ use crate::rapier2d::prelude::{
     RigidBodyBuilder as RigidBodyBuilder2, RigidBodyHandle as RigidBodyHandle2, RigidBodyType,
 };
 use crate::scalar::{self, Real, Vector2};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
+use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
 use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
-use balaur_core::Engine;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::body::SHARED_BODY_SCHEMA;
 use crate::dim2::collider::{apply_collider, get_collider_params};
-use crate::dim2::{node_pose_2d, PhysicsState2d};
+use crate::dim2::{PhysicsState2d, node_pose_2d};
 use crate::vocabulary::{self as v, words as w};
 
 crate::shared::body::functions!(

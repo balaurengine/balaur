@@ -17,7 +17,7 @@ use std::collections::{BTreeMap, HashMap};
 use crate::assets::SceneAsset;
 use crate::collections::DetHashMap;
 use crate::components::StableId;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use balaur_script::Value;
 use glamx::{EulerRot, Quat, Vec3};
 use hecs::Entity;

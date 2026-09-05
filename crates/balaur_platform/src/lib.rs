@@ -27,8 +27,8 @@
 
 use std::sync::mpsc::Sender;
 
-use anyhow::{anyhow, Result};
-use balaur_core::handler::{handler_of, id_value, opt, Handler};
+use anyhow::{Result, anyhow};
+use balaur_core::handler::{Handler, handler_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};

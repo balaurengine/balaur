@@ -17,9 +17,9 @@ use std::sync::Arc;
 
 use balaur_core::Engine;
 use cosmic_text::{
-    fontdb, Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Style, SwashCache, Weight, Wrap,
+    Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Style, SwashCache, Weight, Wrap, fontdb,
 };
-use egui::{pos2, vec2, Color32, Mesh, Pos2, Rect, Vec2};
+use egui::{Color32, Mesh, Pos2, Rect, Vec2, pos2, vec2};
 
 mod atlas;
 pub(crate) mod markup;

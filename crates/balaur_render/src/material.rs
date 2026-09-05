@@ -7,9 +7,9 @@
 //! — a material that sets a value the shader does not read says so, and a
 //! shader that grows a field needs no edit anywhere else.
 
-use anyhow::{anyhow, bail, Result};
-use balaur_core::hecs::Entity;
+use anyhow::{Result, anyhow, bail};
 use balaur_core::Engine;
+use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt};
 use wesl::syntax::{GlobalDeclaration, TranslationUnit};

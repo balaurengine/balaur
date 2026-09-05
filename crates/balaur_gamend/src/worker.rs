@@ -8,7 +8,7 @@
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 
-use crate::client::{auth, Client, Credentials, Socket, SocketEvent};
+use crate::client::{Client, Credentials, Socket, SocketEvent, auth};
 use serde_json::Value as Json;
 
 use crate::{GamendEvent, LoginCredentials, SocketCommand};

@@ -4,7 +4,7 @@
 //! checkout, then `cargo test -p balaur_gamend -- --ignored`. Device login
 //! creates its own throwaway account, so a fresh dev database is enough.
 
-use balaur_gamend::client::{auth, Client, Credentials, Socket, SocketEvent};
+use balaur_gamend::client::{Client, Credentials, Socket, SocketEvent, auth};
 use serde_json::json;
 
 const SERVER: &str = "http://localhost:4000";

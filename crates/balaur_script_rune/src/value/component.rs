@@ -11,13 +11,13 @@
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use balaur_core::node_api::NODE_OPS;
 use balaur_core::Engine;
+use balaur_core::node_api::NODE_OPS;
 use balaur_script::Value as Neutral;
 use rune::runtime::{InstAddress, Memory, Output, Protocol, VmError, VmResult};
 
-use super::{from_neutral, to_neutral, Node};
-use crate::bindings::{api_docs, bound_handle, call_bound, hold_node_fn, CallbackScope};
+use super::{Node, from_neutral, to_neutral};
+use crate::bindings::{CallbackScope, api_docs, bound_handle, call_bound, hold_node_fn};
 
 /// A component on a node, as scripts see it.
 #[derive(rune::Any, Clone)]

@@ -2,7 +2,7 @@
 
 mod support;
 
-use balaur::{standard_app, AppConfig};
+use balaur::{AppConfig, standard_app};
 #[allow(unused_imports, reason = "each suite uses part of the shared helpers")]
 use support::*;
 

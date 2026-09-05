@@ -33,7 +33,7 @@ use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use serde::Deserialize;
 
 use crate::collections::DetHashMap;
@@ -365,12 +365,12 @@ pub fn save(eng: &Engine, reference: &str, definition: &toml::Value) -> Result<(
         AssetRef::Entry(..) => {
             return Err(anyhow!(
                 "'{reference}' names one entry inside a file; save the whole document instead"
-            ))
+            ));
         }
         AssetRef::Scoped(..) | AssetRef::Inline(_) | AssetRef::InlineEntry(..) => {
             return Err(anyhow!(
                 "'{reference}' is not a file, so there is nothing to save it to"
-            ))
+            ));
         }
     };
     let root = eng

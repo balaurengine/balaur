@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 use balaur_core::components::StableId;
 use balaur_core::rollback::{self, Session};
-use balaur_core::{digest, App, AppConfig, Stage, Transform};
+use balaur_core::{App, AppConfig, Stage, Transform, digest};
 use balaur_script::Value;
 
 const PLAYER: u32 = 1;

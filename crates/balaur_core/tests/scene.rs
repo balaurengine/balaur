@@ -1,10 +1,10 @@
 //! The scene tree: naming, paths, parenting, and world transforms.
 
-use balaur_core::scene::{
-    self, collect_subtree, find_node, free_subtree, node_path, propagate_transforms, Children,
-    GlobalTransform, Name, Parent, Transform,
-};
 use balaur_core::Engine;
+use balaur_core::scene::{
+    self, Children, GlobalTransform, Name, Parent, Transform, collect_subtree, find_node,
+    free_subtree, node_path, propagate_transforms,
+};
 use glamx::Vec3;
 use hecs::Entity;
 
@@ -31,11 +31,13 @@ fn a_spawned_node_is_named_parented_and_has_a_transform() {
         world.get::<&Transform>(a).is_ok(),
         "no transform on a new node"
     );
-    assert!(world
-        .get::<&Children>(engine.root())
-        .unwrap()
-        .0
-        .contains(&a));
+    assert!(
+        world
+            .get::<&Children>(engine.root())
+            .unwrap()
+            .0
+            .contains(&a)
+    );
 }
 
 #[test]

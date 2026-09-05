@@ -1,6 +1,6 @@
 //! The neutral value type crossing the engine/script boundary.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 /// A value a script can pass or receive.
 ///
@@ -239,7 +239,9 @@ macro_rules! scalar_args {
         }
     )* };
 }
-scalar_args!(bool, i32, i64, u32, u64, usize, f32, f64, String, NodeId, CallbackId, Value);
+scalar_args!(
+    bool, i32, i64, u32, u64, usize, f32, f64, String, NodeId, CallbackId, Value
+);
 
 impl<T: FromArg> FromArgs for Option<T> {
     fn from_args(args: &[Value]) -> Result<Self> {

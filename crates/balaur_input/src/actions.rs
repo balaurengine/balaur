@@ -18,8 +18,8 @@ use std::path::PathBuf;
 use balaur_core::Engine;
 use balaur_script::Bindings;
 
-use crate::gamepad::GamepadState;
 use crate::InputSnapshot;
+use crate::gamepad::GamepadState;
 
 /// Below this an axis reads as idle, so a worn stick does not hold an action
 /// down forever.
@@ -128,11 +128,7 @@ impl Binding {
                     .fold(
                         0.0_f32,
                         |best, v| {
-                            if v.abs() > best.abs() {
-                                v
-                            } else {
-                                best
-                            }
+                            if v.abs() > best.abs() { v } else { best }
                         },
                     );
                 let raw = if raw.abs() < DEADZONE { 0.0 } else { raw };

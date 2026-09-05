@@ -2,7 +2,7 @@
 //! file apart, and the `overrides` that make them differ.
 
 use balaur_core::components::{ComponentDef, StableId};
-use balaur_core::scene::{find_node, Children, Name};
+use balaur_core::scene::{Children, Name, find_node};
 use balaur_core::{App, AppConfig, Engine};
 
 struct Marker(toml::Value);

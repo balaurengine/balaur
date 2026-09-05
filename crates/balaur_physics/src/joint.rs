@@ -16,16 +16,16 @@ use crate::rapier3d::prelude::{
     RigidBodyHandle, RopeJointBuilder, SphericalJointBuilder, SpringJointBuilder,
 };
 use crate::scalar::{self, Real, Vector};
-use anyhow::{anyhow, Result};
-use balaur_core::components::{as_node, ComponentDef};
+use anyhow::{Result, anyhow};
+use balaur_core::components::{ComponentDef, as_node};
 use balaur_core::hecs::Entity;
-use balaur_core::{entity_of, Engine};
+use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
+use crate::PhysicsState;
 use crate::rapier3d::pipeline::PhysicsWorld;
 use crate::vocabulary::{self as v, words as w};
-use crate::PhysicsState;
 
 /// Which handle a node's joint has, because rapier keeps the two solvers in
 /// two sets and a joint is one or the other for its whole life.

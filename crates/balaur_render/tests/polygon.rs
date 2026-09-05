@@ -2,7 +2,7 @@
 //! to, how UVs default from the texture, and what reads back.
 
 use balaur_core::scene;
-use balaur_core::{components, App, AppConfig};
+use balaur_core::{App, AppConfig, components};
 use balaur_render::{PolygonMesh, RenderPlugin, Renderable2d, Shape2d};
 use glamx::Vec2;
 

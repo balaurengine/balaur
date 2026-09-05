@@ -8,7 +8,7 @@
 // function pointers; several of them have nothing to fail at.
 #![allow(clippy::unnecessary_wraps)]
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_script::{Bindings as _, Value};
 
 use crate::batteries_api::{

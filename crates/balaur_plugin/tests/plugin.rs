@@ -1,5 +1,5 @@
 use balaur_core::{App, AppConfig, Engine, Stage};
-use balaur_plugin::{load, load_all, load_order, Fingerprint, Manifest, Plugin, Registry};
+use balaur_plugin::{Fingerprint, Manifest, Plugin, Registry, load, load_all, load_order};
 use balaur_script::BindingsExt as _;
 
 fn app() -> App {

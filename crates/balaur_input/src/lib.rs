@@ -10,9 +10,9 @@
 //! uses ordered collections so any future iteration/serialization is stable.
 
 use anyhow::Result;
-use balaur_core::collections::DetHashSet;
 use balaur_core::Engine;
 use balaur_core::Stage;
+use balaur_core::collections::DetHashSet;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 pub mod actions;
@@ -21,7 +21,7 @@ pub mod haptics;
 mod sensors;
 
 pub use actions::InputActions;
-pub use gamepad::{GamepadState, Motion, PadTouch, PAD_AXIS_NAMES, PAD_BUTTON_NAMES};
+pub use gamepad::{GamepadState, Motion, PAD_AXIS_NAMES, PAD_BUTTON_NAMES, PadTouch};
 
 const MOUSE_BUTTONS: usize = 8;
 
@@ -864,7 +864,7 @@ fn warn_unknown_once(what: &'static str, name: &str, known: &[&str]) {
 
 #[cfg(test)]
 mod tests {
-    use super::{const_name, is_known_key, InputSnapshot, KEY_NAMES, MOUSE_BUTTON_CONSTANTS};
+    use super::{InputSnapshot, KEY_NAMES, MOUSE_BUTTON_CONSTANTS, const_name, is_known_key};
 
     #[test]
     fn composed_text_outlives_the_frame_and_commits_into_typed() {

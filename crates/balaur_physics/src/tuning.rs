@@ -12,7 +12,7 @@ use balaur_core::{Engine, Stage};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, Value};
 
-use crate::vocabulary::{map, Opts};
+use crate::vocabulary::{Opts, map};
 use crate::{PhysicsState, PhysicsState2d};
 
 /// One writer, two dimensions.

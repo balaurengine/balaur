@@ -4,7 +4,7 @@
 //! the script surface — that every binding is registered, takes the arguments
 //! it claims to, and returns what a script can use.
 
-use balaur::{standard_app, AppConfig};
+use balaur::{AppConfig, standard_app};
 
 /// The log buffer is global and tests run in parallel, so one test's error
 /// would surface in another's assertions.

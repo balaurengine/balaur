@@ -1,9 +1,9 @@
 //! Where a frame's time goes outside scripting: the scene tree, the seam's
 //! own conversions, and physics.
 
-use balaur_bench::{app, Backend, Project};
+use balaur_bench::{Backend, Project, app};
 use balaur_core::scene;
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 
 const EMPTY: &str = "local S = {}\nfunction S:init() end\nreturn S\n";
 

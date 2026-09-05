@@ -2,7 +2,7 @@
 //! settings and never moves the engine's random stream.
 
 use balaur_core::rng::{Pcg32, RngState};
-use balaur_core::{components, scene, App, AppConfig};
+use balaur_core::{App, AppConfig, components, scene};
 use balaur_render::Particles;
 
 fn app() -> App {

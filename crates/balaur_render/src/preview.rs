@@ -10,7 +10,7 @@
 //! matching text: the AST is what says which statement a line holds and where
 //! a `return` ends.
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use wesl::syntax::{
     Attribute, BuiltinValue, CompoundStatement, Expression, Function, GlobalDeclaration, Statement,
     StatementNode, TranslationUnit,

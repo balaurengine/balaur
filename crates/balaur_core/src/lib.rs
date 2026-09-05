@@ -58,7 +58,7 @@ pub mod triangulate;
 pub mod voxels;
 
 pub use app::{
-    App, AppConfig, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage, FIXED_DT, MAX_SUBSTEPS,
+    App, AppConfig, FIXED_DT, MAX_SUBSTEPS, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage,
     TICK_HZ,
 };
 pub use assets::{AssetRef, AssetState, AssetTypeRegistry};

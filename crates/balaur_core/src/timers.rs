@@ -7,8 +7,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::engine::Engine;
 use crate::FIXED_DT;
+use crate::engine::Engine;
 
 /// Every wait in flight, in the order it was asked for.
 #[derive(Default, Serialize, Deserialize)]

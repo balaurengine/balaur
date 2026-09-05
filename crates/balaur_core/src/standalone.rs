@@ -54,8 +54,7 @@ pub fn extract(bytes: &[u8]) -> Option<&[u8]> {
     // Signing happens after fusing, because a signature cannot cover bytes
     // added later, so on Windows the trailer ends before the certificate table.
     let table = pe_certificate_table(bytes)?;
-    (0..=CERTIFICATE_ALIGN)
-        .find_map(|pad| trailer_before(bytes, table.checked_sub(pad)?))
+    (0..=CERTIFICATE_ALIGN).find_map(|pad| trailer_before(bytes, table.checked_sub(pad)?))
 }
 
 /// The pack whose trailer ends at `end`, or `None` when nothing ends there.
@@ -85,7 +84,8 @@ const CERTIFICATE_ALIGN: usize = 8;
 /// included — the security directory holds a file offset, not an address.
 fn pe_certificate_table(bytes: &[u8]) -> Option<usize> {
     let word = |at: usize| Some(u16::from_le_bytes(bytes.get(at..at + 2)?.try_into().ok()?));
-    let long = |at: usize| Some(u32::from_le_bytes(bytes.get(at..at + 4)?.try_into().ok()?) as usize);
+    let long =
+        |at: usize| Some(u32::from_le_bytes(bytes.get(at..at + 4)?.try_into().ok()?) as usize);
     if !bytes.starts_with(b"MZ") {
         return None;
     }

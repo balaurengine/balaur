@@ -8,7 +8,7 @@
 
 use balaur_anim::AnimationPlugin;
 use balaur_core::hecs::Entity;
-use balaur_core::{node_id_of, scene, App, AppConfig};
+use balaur_core::{App, AppConfig, node_id_of, scene};
 use balaur_script::Value;
 
 /// A library the scripts address by name, written where a project would

@@ -1,7 +1,7 @@
 //! The query pipeline, called the way a game calls it — the options table *is* the API, so a Rust-side test would be
 //! testing something else.
 
-use balaur::{standard_app, AppConfig};
+use balaur::{AppConfig, standard_app};
 
 static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 

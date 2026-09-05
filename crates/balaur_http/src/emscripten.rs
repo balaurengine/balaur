@@ -10,7 +10,7 @@
 //! The final web binary links with `-sFETCH`, from `.cargo/config.toml`; see
 //! `build.rs`.
 
-use std::ffi::{c_char, c_int, c_void, CString};
+use std::ffi::{CString, c_char, c_int, c_void};
 use std::sync::mpsc::Sender;
 
 use crate::{HttpCall, HttpEvent};

@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::path::Path;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 
 const MAGIC: &[u8; 5] = b"BPAK\x02";
 

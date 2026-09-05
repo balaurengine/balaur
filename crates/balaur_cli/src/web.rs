@@ -6,8 +6,8 @@
 //! and the URL of a `.bpak`. The pack is fetched, decoded and booted exactly
 //! as `boot_pack` boots an embedded one on desktop, on the windowed loop —
 //! spawned rather than blocked on, since a page may never block.
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
 /// Fetch `pack_url` and run it on the canvas with id `canvas_id`. Resolves

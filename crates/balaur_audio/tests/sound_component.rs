@@ -7,7 +7,7 @@ use std::path::Path;
 use balaur_audio::cache::SoundCache;
 use balaur_audio::{AudioPlugin, AudioState};
 use balaur_core::hecs::Entity;
-use balaur_core::{components, scene, App, AppConfig};
+use balaur_core::{App, AppConfig, components, scene};
 
 /// A valid 16-bit mono PCM wav of a few silent samples, so a machine that
 /// does have a device decodes something real.

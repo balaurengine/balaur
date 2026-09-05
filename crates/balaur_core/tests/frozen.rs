@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use balaur_core::scene::{is_within, spawn_node};
-use balaur_core::{App, AppConfig, Stage, FIXED_DT};
+use balaur_core::{App, AppConfig, FIXED_DT, Stage};
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()

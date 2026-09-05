@@ -22,13 +22,13 @@ use glamx::{Mat3, Pose2, Vec2};
 use kiss3d::camera::Camera2d;
 use kiss3d::context::Context;
 use kiss3d::resource::{
-    multisample_state, GpuData, GpuMesh2d, Material2d, PipelineCache, RenderContext2d,
-    TextureManager,
+    GpuData, GpuMesh2d, Material2d, PipelineCache, RenderContext2d, TextureManager,
+    multisample_state,
 };
 use kiss3d::scene::{InstancesBuffer2d, Object2d, ObjectData2d, SceneNode2d};
 
-use crate::light::{lights as scene_lights, occluder_edges, shadow_quad, LightKind2d, LitLight2d};
-use crate::{shaders, CameraConfig2d};
+use crate::light::{LightKind2d, LitLight2d, lights as scene_lights, occluder_edges, shadow_quad};
+use crate::{CameraConfig2d, shaders};
 
 /// The most lights one frame draws. A shadow-casting light costs a render
 /// pass, so a scene that blows past this is told once rather than quietly

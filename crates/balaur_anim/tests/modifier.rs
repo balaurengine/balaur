@@ -5,7 +5,7 @@ use balaur_anim::AnimationPlugin;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, GlobalTransform, Transform};
 use balaur_core::skeleton::angle_about_z;
-use balaur_core::{components, App, AppConfig};
+use balaur_core::{App, AppConfig, components};
 use glamx::{Vec2, Vec3};
 
 fn app() -> App {

@@ -174,12 +174,13 @@ fn the_declared_actions_are_listed_in_a_stable_order() {
 fn a_project_declaring_no_actions_is_not_an_error() {
     let (_dir, mut app) = app("[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n");
     frame(&mut app, &[("Space", true)]);
-    assert!(app
-        .engine
-        .resource::<InputActions>()
-        .borrow()
-        .names()
-        .is_empty());
+    assert!(
+        app.engine
+            .resource::<InputActions>()
+            .borrow()
+            .names()
+            .is_empty()
+    );
 }
 
 /// A replay records keys and the actions come back from them, so two runs of

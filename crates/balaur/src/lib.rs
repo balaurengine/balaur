@@ -30,7 +30,7 @@ pub use balaur_webtransport as webtransport;
 
 use std::collections::BTreeMap;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 /// Every optional module: the name it goes by, the cargo feature that
 /// switches it on, and the plugin it registers.

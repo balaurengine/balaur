@@ -2,7 +2,7 @@
 //! line buffers. Nothing here touches a GPU, so it runs anywhere CI does.
 
 use balaur_core::scene;
-use balaur_core::{components, App, AppConfig};
+use balaur_core::{App, AppConfig, components};
 use balaur_render::{
     CameraConfig, CameraConfig2d, CameraInputConfig, ClearColorConfig, DebugLineBuffer,
     DebugLineBuffer2d, GridConfig, RenderPlugin, Renderable, Renderable2d, Shape, ViewportSnapshot,

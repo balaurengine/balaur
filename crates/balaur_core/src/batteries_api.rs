@@ -7,7 +7,7 @@
     reason = "every op has the one signature the `ENGINE_OPS` table takes"
 )]
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_script::Value;
 
 use crate::engine::Engine;

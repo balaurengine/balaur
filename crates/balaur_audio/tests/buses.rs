@@ -100,12 +100,13 @@ fn setting_a_volume_makes_a_bus_that_was_not_declared() {
         .borrow_mut()
         .set_volume("voice", 0.3);
     assert!((gain(&app, "voice") - 0.3).abs() < 1e-6);
-    assert!(app
-        .engine
-        .resource::<Buses>()
-        .borrow()
-        .names()
-        .contains(&"voice".to_string()));
+    assert!(
+        app.engine
+            .resource::<Buses>()
+            .borrow()
+            .names()
+            .contains(&"voice".to_string())
+    );
 }
 
 /// The rest of the mix is fine, so a cycle is cut and reported rather than

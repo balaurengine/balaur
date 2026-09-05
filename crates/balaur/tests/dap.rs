@@ -6,8 +6,8 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
 
-use balaur::{dap, standard_app, App, AppConfig, FIXED_DT};
-use serde_json::{json, Value as Json};
+use balaur::{App, AppConfig, FIXED_DT, dap, standard_app};
+use serde_json::{Value as Json, json};
 
 /// Line 4 has no code on it, so a breakpoint asked for there lands on 5.
 /// Line 6 calls out, for stepping into.

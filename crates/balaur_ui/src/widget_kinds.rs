@@ -3,12 +3,12 @@
 //! that dresses both. Each is egui's own widget where egui has one, drawn
 //! from the scene's values and reporting back through the frame's edits.
 
-use balaur_core::hecs::Entity;
 use balaur_core::Engine;
-use egui::{pos2, vec2, Color32, Rect, Sense, Stroke, TextureId};
+use balaur_core::hecs::Entity;
+use egui::{Color32, Rect, Sense, Stroke, TextureId, pos2, vec2};
 
-use crate::widget_arrange::{box_of, lay_out, padding_of, record_measure, record_rect, Axis};
-use crate::widget_layer::{draw_one, rgba_color, Edit, Painting};
+use crate::widget_arrange::{Axis, box_of, lay_out, padding_of, record_measure, record_rect};
+use crate::widget_layer::{Edit, Painting, draw_one, rgba_color};
 use crate::widget_measure::Measure;
 
 /// A ticked box with a caption. The tick lives on the widget: the click is

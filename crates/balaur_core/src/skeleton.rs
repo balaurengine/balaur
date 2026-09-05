@@ -14,15 +14,15 @@
 //! `libm`'s, so a palette computed on one platform is the palette computed
 //! on another.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_script::Value;
 use glamx::{Mat3, Mat4, Quat, Vec2, Vec3};
 use hecs::{Entity, World};
 
-use crate::components::{as_f64, ComponentDef};
+use crate::App;
+use crate::components::{ComponentDef, as_f64};
 use crate::engine::Engine;
 use crate::scene::{Children, GlobalTransform, Parent, Transform};
-use crate::App;
 
 /// A bone's rest pose and gizmo hints, in the node's local space.
 ///
@@ -210,12 +210,13 @@ fn rest_in_rig_3d(world: &World, rig: Entity, bone: Entity) -> Option<Mat4> {
     }
     let mut matrix = Mat4::IDENTITY;
     for entity in chain.into_iter().rev() {
-        let local = match world.get::<&Bone>(entity) { Ok(bone) => {
-            bone.rest_matrix_3d()
-        } _ => {
-            let t = world.get::<&Transform>(entity).ok()?;
-            affine_3d(t.position, t.rotation, t.scale)
-        }};
+        let local = match world.get::<&Bone>(entity) {
+            Ok(bone) => bone.rest_matrix_3d(),
+            _ => {
+                let t = world.get::<&Transform>(entity).ok()?;
+                affine_3d(t.position, t.rotation, t.scale)
+            }
+        };
         matrix *= local;
     }
     Some(matrix)
@@ -335,12 +336,13 @@ fn rest_in_rig(world: &World, rig: Entity, bone: Entity) -> Option<Mat3> {
     }
     let mut matrix = Mat3::IDENTITY;
     for entity in chain.into_iter().rev() {
-        let local = match world.get::<&Bone>(entity) { Ok(bone) => {
-            bone.rest_matrix_2d()
-        } _ => {
-            let t = world.get::<&Transform>(entity).ok()?;
-            affine_2d(t.position, t.rotation, t.scale)
-        }};
+        let local = match world.get::<&Bone>(entity) {
+            Ok(bone) => bone.rest_matrix_2d(),
+            _ => {
+                let t = world.get::<&Transform>(entity).ok()?;
+                affine_2d(t.position, t.rotation, t.scale)
+            }
+        };
         matrix *= local;
     }
     Some(matrix)

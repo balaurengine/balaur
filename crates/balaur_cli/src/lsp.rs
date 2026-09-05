@@ -17,7 +17,7 @@ use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use serde_json::{json, Value as Json};
+use serde_json::{Value as Json, json};
 
 /// Serve LSP on stdin/stdout until the client says to exit.
 ///

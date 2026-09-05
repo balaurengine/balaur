@@ -8,10 +8,10 @@
 
 mod common;
 
-use balaur_anim::{tween, AnimationPlugin, AnimationState};
+use balaur_anim::{AnimationPlugin, AnimationState, tween};
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
-use balaur_core::{components, App, AppConfig};
+use balaur_core::{App, AppConfig, components};
 use common::Calls;
 use glamx::Vec3;
 use std::f32::consts::FRAC_PI_2;
@@ -883,7 +883,9 @@ fn then_on_a_tween_already_over_starts_at_once() {
     start(
         &app,
         entity,
-        &format!("then = {gone}\n[[steps]]\nproperty = \"position\"\nto = [0.0, 6.0, 0.0]\nduration = 0.5\n"),
+        &format!(
+            "then = {gone}\n[[steps]]\nproperty = \"position\"\nto = [0.0, 6.0, 0.0]\nduration = 0.5\n"
+        ),
     );
     tick(&mut app, 15);
     near(

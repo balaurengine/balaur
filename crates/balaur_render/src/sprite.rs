@@ -4,7 +4,7 @@
 use balaur_core::components::ComponentDef;
 use balaur_plugin::Registry;
 
-use crate::{set_sprite, Renderable2d, Shape2d, SpriteSheet2d, SpriteTexture};
+use crate::{Renderable2d, Shape2d, SpriteSheet2d, SpriteTexture, set_sprite};
 
 /// The `sprite` component: a textured 2D quad.
 pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {

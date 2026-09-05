@@ -7,7 +7,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use balaur_core::{App, AppConfig, Stage, FIXED_DT, MAX_SUBSTEPS};
+use balaur_core::{App, AppConfig, FIXED_DT, MAX_SUBSTEPS, Stage};
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()

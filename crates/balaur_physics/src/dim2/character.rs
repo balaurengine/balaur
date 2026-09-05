@@ -8,17 +8,17 @@ use crate::rapier2d::control::{
 };
 use crate::rapier2d::prelude::QueryFilter;
 use crate::scalar::{self, Pose2, Rotation2, Vector2};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
-use balaur_core::{entity_of, Engine, Transform};
+use balaur_core::{Engine, Transform, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
+use crate::FIXED_DT;
 use crate::character::shared_character_schema;
 use crate::dim2::PhysicsState2d;
 use crate::vocabulary::map;
-use crate::FIXED_DT;
 use glamx::EulerRot;
 
 pub struct Character2d(pub toml::Value);

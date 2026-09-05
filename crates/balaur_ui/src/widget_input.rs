@@ -7,7 +7,7 @@
 //! at the top of the next tick, from a resource a recording carries.
 
 use balaur_core::hecs::{Entity, World};
-use balaur_core::{replay, Engine, Stage};
+use balaur_core::{Engine, Stage, replay};
 use balaur_script::Value;
 use serde::{Deserialize, Serialize};
 

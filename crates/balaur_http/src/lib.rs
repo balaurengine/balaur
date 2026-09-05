@@ -24,8 +24,8 @@
 //! and handlers and resumptions run at [`Stage::First`] of a later tick, in
 //! arrival order, never from an I/O thread.
 
-use anyhow::{anyhow, Result};
-use balaur_core::handler::{handler_of, headers_of, id_value, opt, Handler};
+use anyhow::{Result, anyhow};
+use balaur_core::handler::{Handler, handler_of, headers_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};

@@ -15,7 +15,7 @@ use std::sync::mpsc::Sender;
 use crate::{AppleEvent, StoreCall};
 
 #[cfg(swift_shim)]
-use std::ffi::{c_char, CStr, CString};
+use std::ffi::{CStr, CString, c_char};
 
 #[cfg(swift_shim)]
 unsafe extern "C" {

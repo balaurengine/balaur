@@ -11,16 +11,16 @@
 use crate::rapier3d::control::{DynamicRayCastVehicleController, WheelTuning};
 use crate::rapier3d::prelude::QueryFilter;
 use crate::scalar::{self, Real, Vector};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{Children, Transform};
-use balaur_core::{entity_of, Engine, Stage};
+use balaur_core::{Engine, Stage, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 use crate::vocabulary::{self as v, map};
-use crate::{PhysicsState, FIXED_DT};
+use crate::{FIXED_DT, PhysicsState};
 
 /// The chassis settings, held on the node like a character's.
 pub struct Vehicle3d(pub toml::Value);

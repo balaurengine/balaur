@@ -2,7 +2,7 @@
 //! seconds of engine time, on every target, while the scene loads behind it.
 
 use balaur_core::Engine;
-use egui::{pos2, Color32, Rect};
+use egui::{Color32, Rect, pos2};
 
 /// Draw the splash while its seconds last. Engine time, so a replay shows
 /// it for exactly as long as the recording did.

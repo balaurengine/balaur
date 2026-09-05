@@ -3,8 +3,8 @@
 //! A sprite's size lands in a component scripts read back, so it is simulation
 //! state and every number here has to come out the same headless as windowed.
 
-use balaur_core::{components, scene, App, AppConfig};
-use balaur_render::{RenderPlugin, Renderable2d, Shape2d, DEFAULT_PIXELS_PER_UNIT};
+use balaur_core::{App, AppConfig, components, scene};
+use balaur_render::{DEFAULT_PIXELS_PER_UNIT, RenderPlugin, Renderable2d, Shape2d};
 
 /// 200x100 px, so width and height are never confused for each other, and a
 /// 4x2 sheet divides both evenly.

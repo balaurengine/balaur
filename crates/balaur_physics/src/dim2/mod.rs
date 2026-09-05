@@ -9,7 +9,7 @@ use crate::rapier2d::prelude::{
     ColliderHandle as ColliderHandle2, RigidBodyHandle as RigidBodyHandle2,
 };
 use crate::scalar::{self, Pose2, Rotation2};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_core::collections::DetHashMap;
 use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
@@ -30,7 +30,7 @@ use collider::{add_collider, collider_builder, max_contact_impulse};
 pub use query::overlaps;
 use query::overlaps_value;
 
-use balaur_core::digest::{node_label, Entry, Hasher};
+use balaur_core::digest::{Entry, Hasher, node_label};
 
 use balaur_core::FIXED_DT;
 

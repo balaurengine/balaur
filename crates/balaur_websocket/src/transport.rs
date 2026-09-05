@@ -12,14 +12,14 @@
 //! saying which it was. A peer that is not this transport will not understand
 //! them, which is fine: both ends of a session run this code.
 
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
+use balaur_core::Engine;
 use balaur_core::replay;
 use balaur_core::transport::{Delivery, LinkState, Received, Transport};
-use balaur_core::Engine;
 
-use crate::{backend, SocketCommand, SocketEvent, SocketOptions};
+use crate::{SocketCommand, SocketEvent, SocketOptions, backend};
 
 /// The first byte of every frame, saying which promise the payload was sent
 /// under. A tag rather than two websockets, because one connection is one

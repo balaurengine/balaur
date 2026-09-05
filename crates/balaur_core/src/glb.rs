@@ -16,11 +16,11 @@
 //! only the base colour texture is kept, as the mesh node's `texture`;
 //! cameras, lights and morph targets are read past.
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use glamx::{Mat4, Quat, Vec3};
 
 use crate::collections::DetHashMap;
-use crate::mesh::{MeshData, MeshSkin, INFLUENCES_PER_VERTEX};
+use crate::mesh::{INFLUENCES_PER_VERTEX, MeshData, MeshSkin};
 use crate::skeleton::euler_from_quat;
 
 /// Reads a file the model names by relative URI — a `.bin` beside a

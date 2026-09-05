@@ -1,7 +1,7 @@
 //! Collision events, joints and the character controller, driven from scripts
 //! because their whole surface is the script seam.
 
-use balaur::{standard_app, AppConfig};
+use balaur::{AppConfig, standard_app};
 
 static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -218,7 +218,7 @@ pub fn fixed_update(this, dt) {
 fn joints_and_shape_edits_survive_a_snapshot() {
     use balaur_core::hecs::Entity;
     use balaur_core::scene::{self, Transform};
-    use balaur_core::{components, snapshot, App, AppConfig};
+    use balaur_core::{App, AppConfig, components, snapshot};
     use balaur_physics::{PhysicsPlugin, PhysicsState};
 
     let mut app = App::new(AppConfig::bare(".")).unwrap();

@@ -1,6 +1,6 @@
 //! The `web` plugin off the web, and fed from a recording.
 
-use balaur::{standard_app, App, AppConfig};
+use balaur::{App, AppConfig, standard_app};
 use balaur_script::Value;
 use balaur_web::{WebSnapshot, WebState};
 use serde_json::json;

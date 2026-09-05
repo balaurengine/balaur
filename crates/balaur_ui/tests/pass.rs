@@ -5,7 +5,7 @@
 //! path a game takes, and it catches a binding that registers but cannot be
 //! called.
 
-use balaur::{standard_app, AppConfig};
+use balaur::{AppConfig, standard_app};
 use balaur_core::App;
 
 /// The log buffer is global, and tests run in parallel, so one test's

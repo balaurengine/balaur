@@ -10,15 +10,15 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use balaur_core::hecs::Entity;
 use balaur_core::Engine;
-use egui::{pos2, vec2, Align2, Color32, Stroke};
+use balaur_core::hecs::Entity;
+use egui::{Align2, Color32, Stroke, pos2, vec2};
 
 use crate::theme::family;
 pub(crate) use crate::widget_arrange::drawn_at;
 use crate::widget_arrange::{
-    box_of, contain, hold_to, lay_out, padding_of, record_rect, roll_measurements, scroller,
-    settle_rects, tabs, Axis,
+    Axis, box_of, contain, hold_to, lay_out, padding_of, record_rect, roll_measurements, scroller,
+    settle_rects, tabs,
 };
 pub(crate) use crate::widget_schema::{register_widget_component, register_widget_presets};
 use crate::widget_theme::WidgetTheme;

@@ -5,15 +5,15 @@
 //! so a test can assert on them without a GPU. The kiss3d backend
 //! (`light_map`) only rasterises what these hand it.
 
-use anyhow::{anyhow, Result};
-use balaur_core::components::{as_f64, ComponentDef};
+use anyhow::{Result, anyhow};
+use balaur_core::components::{ComponentDef, as_f64};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Vec2, Vec3};
 
-use crate::{color_from_params, color_to_toml, Renderable2d, Shape2d};
+use crate::{Renderable2d, Shape2d, color_from_params, color_to_toml};
 
 /// Which way a `light2d` throws light.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

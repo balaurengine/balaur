@@ -4,8 +4,8 @@
 //! the shader file being found, the `Params` struct being read off the linked
 //! output — runs wherever CI does. What a GPU would add is the pipeline.
 
-use balaur_core::{components, scene, App, AppConfig};
-use balaur_render::material::{compile, Material};
+use balaur_core::{App, AppConfig, components, scene};
+use balaur_render::material::{Material, compile};
 use balaur_render::{RenderPlugin, Renderable2d};
 
 const SHADER: &str = r"

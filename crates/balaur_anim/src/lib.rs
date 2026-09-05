@@ -50,14 +50,14 @@ use std::any::Any;
 use std::rc::Rc;
 
 use anyhow::Result;
-use balaur_core::components::{as_f64, ComponentDef};
+use balaur_core::components::{ComponentDef, as_f64};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Stage};
 
 pub use crate::bindings::install_animation_api;
 pub use crate::player::{
-    current, define, is_playing, just_finished, pause, play, play_from, queue, resume, seek,
-    set_speed, stop, time, AnimationState, Playback, CLIP_ASSET_TYPE,
+    AnimationState, CLIP_ASSET_TYPE, Playback, current, define, is_playing, just_finished, pause,
+    play, play_from, queue, resume, seek, set_speed, stop, time,
 };
 pub use crate::tween::{Tween, TweenId};
 

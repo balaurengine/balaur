@@ -9,7 +9,7 @@ use balaur_audio::spatial::{self, Emitter, ListenerPose};
 use balaur_audio::{AudioPlugin, AudioState, Cue};
 use balaur_core::glamx::Vec3;
 use balaur_core::hecs::Entity;
-use balaur_core::{components, scene, App, AppConfig, Transform};
+use balaur_core::{App, AppConfig, Transform, components, scene};
 
 /// A valid 16-bit mono PCM wav of a few silent samples, so a machine that
 /// does have a device decodes something real.

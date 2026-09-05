@@ -1,7 +1,7 @@
 //! Voxels and the shapes built from a mesh, the solver knobs, and the
 //! geometry toolkit.
 
-use balaur::{standard_app, AppConfig};
+use balaur::{AppConfig, standard_app};
 
 static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 

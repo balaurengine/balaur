@@ -11,13 +11,13 @@ use balaur_plugin::Registry;
 use std::sync::Arc;
 
 use anyhow::Result;
-use balaur_core::components::{as_f64, ComponentDef};
+use balaur_core::Engine;
+use balaur_core::components::{ComponentDef, as_f64};
 use balaur_core::hecs::Entity;
 use balaur_core::mesh::{MeshData, MeshSkin};
-use balaur_core::Engine;
 use glamx::Vec2;
 
-use crate::{color_from_params, color_to_toml, set_color, set_polygon, Renderable2d, Shape2d};
+use crate::{Renderable2d, Shape2d, color_from_params, color_to_toml, set_color, set_polygon};
 
 /// What a `Shape2d::Polygon` draws: resolved geometry, its texture, and the
 /// rig it deforms with.

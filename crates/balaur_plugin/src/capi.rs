@@ -46,10 +46,10 @@
 
 use std::ffi::c_void;
 #[cfg(feature = "dylib")]
-use std::ffi::{c_char, CStr};
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::ffi::{CStr, c_char};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use balaur_core::Engine;
 use balaur_script::{Bindings, Value};
 

@@ -5,7 +5,7 @@
 //! triangulation is the engine's own ear clipping. A polygon is a list of
 //! `[x, y]` pairs or vectors, outline order, either winding.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_script::{Bindings, BindingsExt, Value};
 use glamx::Vec2;
 use i_overlay::core::fill_rule::FillRule;
@@ -259,13 +259,15 @@ mod tests {
         )
         .unwrap();
         assert!((hit - Vec2::new(1.0, 1.0)).length() < 1e-6);
-        assert!(segments_intersect(
-            Vec2::new(0.0, 0.0),
-            Vec2::new(1.0, 0.0),
-            Vec2::new(0.0, 1.0),
-            Vec2::new(1.0, 1.0)
-        )
-        .is_none());
+        assert!(
+            segments_intersect(
+                Vec2::new(0.0, 0.0),
+                Vec2::new(1.0, 0.0),
+                Vec2::new(0.0, 1.0),
+                Vec2::new(1.0, 1.0)
+            )
+            .is_none()
+        );
     }
 
     #[test]

@@ -5,7 +5,7 @@
 
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
-use balaur_core::{components, App, AppConfig};
+use balaur_core::{App, AppConfig, components};
 use balaur_physics::{PhysicsPlugin, PhysicsState, PhysicsState2d};
 
 fn app() -> App {

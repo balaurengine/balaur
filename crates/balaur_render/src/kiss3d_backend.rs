@@ -13,8 +13,8 @@ use kiss3d::prelude::*;
 use kiss3d::resource::GpuMesh3d;
 
 use crate::kiss3d_camera::{
-    apply_camera, apply_camera_2d, apply_camera_input, publish_camera, publish_camera_2d,
-    CameraButtons,
+    CameraButtons, apply_camera, apply_camera_2d, apply_camera_input, publish_camera,
+    publish_camera_2d,
 };
 use crate::{
     AppIconConfig, ClearColorConfig, DebugLineBuffer, DebugLineBuffer2d, GridConfig, PostConfig,

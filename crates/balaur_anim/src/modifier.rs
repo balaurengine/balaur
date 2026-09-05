@@ -9,12 +9,12 @@
 //! from locals, never last frame's globals). Every transcendental is
 //! `libm`'s, so the pose is the same on every platform.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
+use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Children, Parent, Transform};
-use balaur_core::skeleton::{affine_2d, quat_about_z, Bone};
-use balaur_core::Engine;
+use balaur_core::skeleton::{Bone, affine_2d, quat_about_z};
 use balaur_plugin::Registry;
 use glamx::{Mat3, Vec2};
 

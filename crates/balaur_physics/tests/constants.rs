@@ -5,7 +5,7 @@
 
 use balaur_core::components::ComponentRegistry;
 use balaur_core::{App, AppConfig};
-use balaur_physics::{PhysicsPlugin, BODY_KINDS, SHAPE_KINDS, SHAPE_KINDS_2D};
+use balaur_physics::{BODY_KINDS, PhysicsPlugin, SHAPE_KINDS, SHAPE_KINDS_2D};
 
 /// The enum options a registered component actually declares.
 fn registered_options(component: &str, field: &str) -> Vec<String> {

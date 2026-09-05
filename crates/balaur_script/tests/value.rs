@@ -4,8 +4,8 @@
 //! languages, so a mistake here is a mistake everywhere at once.
 
 use balaur_script::{
-    expect_arity, Bindings, BindingsExt, CallbackId, FromArg, FromArgs, IntoValue, NoBindings,
-    NodeId, Value,
+    Bindings, BindingsExt, CallbackId, FromArg, FromArgs, IntoValue, NoBindings, NodeId, Value,
+    expect_arity,
 };
 
 #[test]

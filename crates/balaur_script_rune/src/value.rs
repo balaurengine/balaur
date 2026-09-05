@@ -2,7 +2,7 @@
 
 mod component;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_script::{CallbackId, Value as Neutral};
 use rune::alloc::clone::TryClone as _;
 
@@ -251,7 +251,7 @@ pub(crate) fn from_neutral(v: &Neutral) -> Result<rune::Value> {
             rune::to_value(obj)?
         }
         Neutral::Callback(CallbackId(id)) => {
-            return Err(anyhow!("cannot hand callback {id} back to a script"))
+            return Err(anyhow!("cannot hand callback {id} back to a script"));
         }
     };
     Ok(out)

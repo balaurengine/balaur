@@ -6,8 +6,8 @@
 //! words out (`docs/NAMING.md` D4), and the readers are named for what they
 //! return with `is_` kept for the one that answers a boolean (N7).
 
-use anyhow::{anyhow, Result};
-use balaur_core::{entity_of, node_api, Engine};
+use anyhow::{Result, anyhow};
+use balaur_core::{Engine, entity_of, node_api};
 use balaur_script::{Bindings, BindingsExt as _, NodeId, Value};
 
 use crate::player;

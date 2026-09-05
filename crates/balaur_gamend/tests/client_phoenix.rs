@@ -4,7 +4,7 @@
 use std::net::TcpListener;
 
 use balaur_gamend::client::{Socket, SocketEvent};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// A one-connection Phoenix-ish server: acks joins, echoes `echo` pushes
 /// into their replies, then pushes one server event on the joined topic.

@@ -4,7 +4,7 @@
 //! `balaur_core::mesh`: physics needs them too, and does not depend on this
 //! crate. What lives here is the component that points a node at one.
 
-use balaur_core::mesh::{MeshData, MESH_ASSET_TYPE};
+use balaur_core::mesh::{MESH_ASSET_TYPE, MeshData};
 use balaur_plugin::Registry;
 
 /// The `mesh` component: authored geometry on a node.

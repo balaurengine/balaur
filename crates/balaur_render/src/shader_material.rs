@@ -17,8 +17,8 @@ use kiss3d::camera::Camera2d;
 use kiss3d::context::Context;
 use kiss3d::resource::vertex_index::VERTEX_INDEX_FORMAT;
 use kiss3d::resource::{
-    multisample_state, GpuData, GpuMesh2d, Material2d, MaterialManager2d, PipelineCache,
-    RenderContext2d, Texture,
+    GpuData, GpuMesh2d, Material2d, MaterialManager2d, PipelineCache, RenderContext2d, Texture,
+    multisample_state,
 };
 use kiss3d::scene::{InstancesBuffer2d, ObjectData2d};
 
@@ -528,7 +528,7 @@ type SharedMaterial = std::rc::Rc<std::cell::RefCell<Box<dyn Material2d + 'stati
 crate::material_cache::define!(
     cache = MaterialCache,
     shared = SharedMaterial,
-    material = Material2d,
+    boxed = Box<dyn Material2d>,
     manager = MaterialManager2d,
     prefix = "balaur",
     channel_shader = crate::shaders::CHANNEL_2D,

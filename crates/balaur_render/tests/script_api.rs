@@ -5,7 +5,7 @@
 //! readable without a window. Only `mouse_ray` needs a real viewport, and it
 //! is left to a windowed run.
 
-use balaur::{standard_app, AppConfig};
+use balaur::{AppConfig, standard_app};
 use balaur_core::App;
 
 /// The log buffer is global and tests run in parallel.

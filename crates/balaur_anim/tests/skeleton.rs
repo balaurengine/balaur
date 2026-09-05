@@ -6,7 +6,7 @@ use balaur_anim::AnimationPlugin;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
 use balaur_core::skeleton::{angle_about_z, joint_matrices_2d};
-use balaur_core::{components, App, AppConfig};
+use balaur_core::{App, AppConfig, components};
 use glamx::Mat3;
 
 fn app() -> App {

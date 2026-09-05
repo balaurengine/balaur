@@ -7,11 +7,11 @@ use anyhow::Result;
 use balaur_core::Engine;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, CallbackId, Value};
-use egui::{pos2, vec2, Align2, Color32, CornerRadius, FontId, Margin, Sense, Stroke, StrokeKind};
+use egui::{Align2, Color32, CornerRadius, FontId, Margin, Sense, Stroke, StrokeKind, pos2, vec2};
 
+use crate::UiState;
 use crate::bridge::{scale, scoped, with_ui};
 use crate::theme::{self, parse_hex};
-use crate::UiState;
 
 /// An options table as passed from script: `{ height = 56, fill = "#20242a" }`.
 ///
@@ -1075,7 +1075,7 @@ pub(crate) fn left_pill(
 
 #[cfg(test)]
 mod tests {
-    use super::{syntax_for, RUNE};
+    use super::{RUNE, syntax_for};
 
     #[test]
     fn rune_selects_its_own_tokens() {

@@ -1,15 +1,15 @@
 //! The `shape` and `shape2d` components and the `render.set_*` shape API:
 //! untextured primitives, in both dimensions.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
-use balaur_core::{entity_of, Engine};
+use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::{
-    color_from_params, color_to_toml, set_color, set_polyline, set_shape, set_shape2d, Renderable,
-    Renderable2d, Shape, Shape2d,
+    Renderable, Renderable2d, Shape, Shape2d, color_from_params, color_to_toml, set_color,
+    set_polyline, set_shape, set_shape2d,
 };
 
 pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {

@@ -17,7 +17,7 @@
 //! `post_message` answers false, so a script written for a page still runs
 //! on a desktop.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_core::engine_api::{from_json, to_json};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{Engine, Stage};
@@ -190,7 +190,7 @@ fn install_web_api(m: &mut dyn Bindings<Engine>) {
             let method = match opt(opts.as_ref(), "on_event") {
                 Some(Value::Str(name)) => name.clone(),
                 Some(other) => {
-                    return Err(anyhow!("`on_event` should be a method name, got {other:?}"))
+                    return Err(anyhow!("`on_event` should be a method name, got {other:?}"));
                 }
                 None => "on_web_message".to_string(),
             };

@@ -10,17 +10,17 @@ use crate::rapier2d::prelude::{
     RevoluteJointBuilder, RigidBodyHandle, RopeJointBuilder, SpringJointBuilder,
 };
 use crate::scalar::{self, Real, Vector2};
-use anyhow::{anyhow, Result};
-use balaur_core::components::{as_node, ComponentDef};
+use anyhow::{Result, anyhow};
+use balaur_core::components::{ComponentDef, as_node};
 use balaur_core::hecs::Entity;
-use balaur_core::{entity_of, Engine};
+use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
+use crate::PhysicsState2d;
 use crate::joint::impulse_magnitude_2d;
 use crate::rapier2d::pipeline::PhysicsWorld as PhysicsWorld2;
 use crate::vocabulary::{self as v, words as w};
-use crate::PhysicsState2d;
 
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub enum JointHandle2d {

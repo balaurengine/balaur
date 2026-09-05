@@ -20,9 +20,9 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, bail, Result};
-use rune::runtime::{Logic, Unit};
+use anyhow::{Result, anyhow, bail};
 use rune::Source;
+use rune::runtime::{Logic, Unit};
 
 use crate::inspect::PublicSignature;
 
@@ -246,7 +246,7 @@ impl rune::compile::SourceLoader for PackSourceLoader {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode, is_encoded, FORMAT, MAGIC};
+    use super::{FORMAT, MAGIC, decode, is_encoded};
 
     #[test]
     fn source_is_not_mistaken_for_a_unit() {

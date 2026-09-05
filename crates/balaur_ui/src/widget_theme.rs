@@ -154,8 +154,7 @@ pub(crate) fn four_of(value: Option<&toml::Value>) -> [f32; 4] {
 }
 
 /// The doc string `balaur api` and the editor's asset picker show.
-pub(crate) const ASSET_DOC: &str =
-    "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, \
+pub(crate) const ASSET_DOC: &str = "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, \
      `radius` and `padding` under a table named for the kind (`[button]`, `[panel]`, `[row]`, \
      ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own \
      pixels. A kind the file leaves out keeps the built-in look. A widget takes the theme of \

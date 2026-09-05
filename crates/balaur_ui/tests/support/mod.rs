@@ -7,10 +7,10 @@
     reason = "two test binaries share this module and each uses part of it"
 )]
 
-use balaur::{standard_app, AppConfig};
-use balaur_core::hecs::Entity;
+use balaur::{AppConfig, standard_app};
 use balaur_core::App;
-use egui::{pos2, vec2, Modifiers, PointerButton, Rect};
+use balaur_core::hecs::Entity;
+use egui::{Modifiers, PointerButton, Rect, pos2, vec2};
 
 /// An app booted from an empty scene; widgets are added straight to the world.
 pub fn app() -> (tempfile::TempDir, App) {

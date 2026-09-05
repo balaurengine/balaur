@@ -9,7 +9,7 @@
 use balaur_anim::{AnimationPlugin, AnimationState};
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
-use balaur_core::{components, project, App, AppConfig};
+use balaur_core::{App, AppConfig, components, project};
 use glamx::{Quat, Vec3};
 
 fn app() -> App {
@@ -303,12 +303,13 @@ fn removing_the_component_stops_the_node_being_animated() {
         stopped_at.to_bits(),
         "a removed player kept animating"
     );
-    assert!(app
-        .engine
-        .resource::<AnimationState>()
-        .borrow()
-        .players
-        .is_empty());
+    assert!(
+        app.engine
+            .resource::<AnimationState>()
+            .borrow()
+            .players
+            .is_empty()
+    );
 }
 
 #[test]

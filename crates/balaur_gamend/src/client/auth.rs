@@ -5,12 +5,12 @@
 //! refreshes and retries once on a 401, so callers rarely touch this module
 //! after login.
 
-use anyhow::{anyhow, Result};
-use serde_json::{json, Value};
+use anyhow::{Result, anyhow};
+use serde_json::{Value, json};
 
-use super::rest::required;
 #[cfg(not(target_family = "wasm"))]
 use super::rest::Client;
+use super::rest::required;
 
 /// A logged-in identity: the token pair plus who it belongs to.
 ///

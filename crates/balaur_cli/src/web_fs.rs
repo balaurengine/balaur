@@ -11,7 +11,7 @@ use std::cell::Cell;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use balaur::files::{lexical, FileBackend, MemoryFs};
+use balaur::files::{FileBackend, MemoryFs, lexical};
 use base64::Engine as _;
 
 /// The directory under the project root that is mirrored, as

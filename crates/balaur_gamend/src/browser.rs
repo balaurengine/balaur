@@ -12,18 +12,18 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
-use anyhow::{anyhow, Result};
-use serde_json::{json, Value as Json};
+use anyhow::{Result, anyhow};
+use serde_json::{Value as Json, json};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
-use wasm_bindgen_futures::{spawn_local, JsFuture};
+use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{
     AbortSignal, BinaryType, CloseEvent, ErrorEvent, Headers, MessageEvent, Request, RequestInit,
     Response, WebSocket,
 };
 
-use crate::client::auth::{login_request, refresh_request, session_of, Credentials};
-use crate::client::rest::{reply_of, Prepared, Reply};
+use crate::client::auth::{Credentials, login_request, refresh_request, session_of};
+use crate::client::rest::{Prepared, Reply, reply_of};
 use crate::client::{Client, Protocol, SocketEvent};
 use crate::{GamendEvent, LoginCredentials, SocketCommand};
 

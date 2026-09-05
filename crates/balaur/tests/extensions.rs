@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use balaur::{standard_app, AppConfig};
+use balaur::{AppConfig, standard_app};
 
 /// Build the out-of-tree extension and return the library cargo produced.
 ///

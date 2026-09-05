@@ -5,15 +5,15 @@
 //! scene-file keys; nothing here is called from outside `RenderPlugin::build`.
 
 use anyhow::anyhow;
-use balaur_core::entity_of;
 use balaur_core::Engine;
+use balaur_core::entity_of;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::{
-    set_color, set_shape2d, set_sprite, AppIconConfig, CameraConfig, CameraConfig2d,
-    CameraInputConfig, ClearColorConfig, DebugLineBuffer, DebugLineBuffer2d, DrawLineArgs,
-    GridConfig, Renderable, Renderable2d, ScreenshotRequest, Shape, Shape2d, SpriteSheet2d,
-    SpriteTexture, ViewportSnapshot, ViewportSnapshot2d, WindowConfig, DEFAULT_PIXELS_PER_UNIT,
+    AppIconConfig, CameraConfig, CameraConfig2d, CameraInputConfig, ClearColorConfig,
+    DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer, DebugLineBuffer2d, DrawLineArgs, GridConfig,
+    Renderable, Renderable2d, ScreenshotRequest, Shape, Shape2d, SpriteSheet2d, SpriteTexture,
+    ViewportSnapshot, ViewportSnapshot2d, WindowConfig, set_color, set_shape2d, set_sprite,
 };
 
 /// The 3D camera: where it looks from, whether it takes the mouse, and the

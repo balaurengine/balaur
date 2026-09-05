@@ -16,9 +16,9 @@
 //! while two peers running at different frame rates hold different residuals
 //! and are not thereby desynced.
 
-use balaur_core::digest::{node_label, Entry, Hasher};
+use balaur_core::digest::{Entry, Hasher, node_label};
 use balaur_core::hecs::Entity;
-use balaur_core::{assets, ids, Engine};
+use balaur_core::{Engine, assets, ids};
 use balaur_plugin::Registry;
 use glamx::Vec4;
 use serde::{Deserialize, Serialize};

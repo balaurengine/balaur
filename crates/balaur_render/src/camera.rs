@@ -6,7 +6,7 @@ use balaur_core::components::ComponentDef;
 use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
 
-use crate::{color_to_toml, CameraConfig, CameraConfig2d, PostConfig};
+use crate::{CameraConfig, CameraConfig2d, PostConfig, color_to_toml};
 
 /// The smallest 2D zoom, in logical pixels per world unit. Mirrors the `min`
 /// the `camera` schema below states, which `render.set_camera_2d` also takes.

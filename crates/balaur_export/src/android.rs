@@ -9,9 +9,9 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
-use crate::config::{secret_or, ExportConfig};
+use crate::config::{ExportConfig, secret_or};
 use crate::sign::{run, tool};
 
 /// The Android SDK, and the newest build-tools and platform in it.
@@ -51,7 +51,11 @@ impl Sdk {
 
     /// A build-tools program, whose name carries `.exe` on Windows.
     fn program(&self, name: &str) -> Result<PathBuf> {
-        for candidate in [format!("{name}.exe"), format!("{name}.bat"), name.to_string()] {
+        for candidate in [
+            format!("{name}.exe"),
+            format!("{name}.bat"),
+            name.to_string(),
+        ] {
             let path = self.build_tools.join(candidate);
             if path.is_file() {
                 return Ok(path);
@@ -91,7 +95,12 @@ fn version_key(name: &str) -> Vec<u64> {
 }
 
 /// Assemble a layout directory into an installable, signed APK.
-pub(crate) fn assemble(layout: &Path, output: &Path, project: &Path, config: &ExportConfig) -> Result<PathBuf> {
+pub(crate) fn assemble(
+    layout: &Path,
+    output: &Path,
+    project: &Path,
+    config: &ExportConfig,
+) -> Result<PathBuf> {
     let sdk = Sdk::find()?;
     let apk = output.with_extension("apk");
     let work = apk.with_extension("staging");
@@ -137,7 +146,9 @@ pub(crate) fn assemble(layout: &Path, output: &Path, project: &Path, config: &Ex
         "apksigner sign",
     )?;
     run(
-        Command::new(sdk.program("apksigner")?).arg("verify").arg(&apk),
+        Command::new(sdk.program("apksigner")?)
+            .arg("verify")
+            .arg(&apk),
         "apksigner verify",
     )?;
     std::fs::remove_dir_all(&work)?;
@@ -150,7 +161,10 @@ pub(crate) fn assemble(layout: &Path, output: &Path, project: &Path, config: &Ex
 /// A `.so` goes in uncompressed: the loader maps it out of the APK, and a
 /// deflated one has to be extracted to disk first.
 fn add_payload(apk: &Path, layout: &Path) -> Result<()> {
-    let file = std::fs::OpenOptions::new().read(true).write(true).open(apk)?;
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(apk)?;
     let mut zip = zip::ZipWriter::new_append(file).context("reopening the linked APK")?;
     for (name, path) in payload_files(layout) {
         let stored = name.ends_with(".so");
@@ -256,10 +270,18 @@ fn debug_keystore() -> Result<PathBuf> {
             .args(["-genkeypair", "-keystore"])
             .arg(&path)
             .args([
-                "-storepass", "android", "-keypass", "android",
-                "-alias", "androiddebugkey",
-                "-dname", "CN=Android Debug,O=Android,C=US",
-                "-keyalg", "RSA", "-validity", "10000",
+                "-storepass",
+                "android",
+                "-keypass",
+                "android",
+                "-alias",
+                "androiddebugkey",
+                "-dname",
+                "CN=Android Debug,O=Android,C=US",
+                "-keyalg",
+                "RSA",
+                "-validity",
+                "10000",
             ]),
         "keytool",
     )?;
@@ -272,7 +294,11 @@ mod tests {
 
     #[test]
     fn build_tools_sort_by_version_and_not_by_string() {
-        let mut versions = [version_key("9.0.0"), version_key("34.0.0"), version_key("10.0.1")];
+        let mut versions = [
+            version_key("9.0.0"),
+            version_key("34.0.0"),
+            version_key("10.0.1"),
+        ];
         versions.sort();
         assert_eq!(versions.last().unwrap(), &version_key("34.0.0"));
     }

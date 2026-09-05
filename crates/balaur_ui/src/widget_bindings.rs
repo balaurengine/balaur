@@ -6,12 +6,12 @@
 
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, CallbackId, Value};
-use egui::{pos2, vec2, Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKind};
+use egui::{Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
 
 use crate::bridge::{scale, scoped, with_ctx, with_ui};
 use crate::theme::{self, parse_hex};
 use crate::widgets::{
-    code_editor, draw_image, panel_frame, pill_radius, sc, text, text_field, Opts,
+    Opts, code_editor, draw_image, panel_frame, pill_radius, sc, text, text_field,
 };
 use crate::{UiConfig, UiState};
 

@@ -137,7 +137,12 @@ mod tests {
         assert_eq!(config.macos_identity, "Developer ID Application: Studio");
         assert_eq!(
             config.output_for(dir.path(), "windows-x64", "game.exe"),
-            Some(dir.path().join("builds").join("windows-x64").join("game.exe"))
+            Some(
+                dir.path()
+                    .join("builds")
+                    .join("windows-x64")
+                    .join("game.exe")
+            )
         );
         assert_eq!(
             ExportConfig::beside(dir.path(), &config.ios_profile),

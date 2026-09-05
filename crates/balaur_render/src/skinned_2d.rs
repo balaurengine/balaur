@@ -22,13 +22,13 @@ use glamx::{Mat3, Pose2, Vec2};
 use kiss3d::camera::Camera2d;
 use kiss3d::context::Context;
 use kiss3d::resource::{
-    multisample_state, GpuData, GpuMesh2d, Material2d, PipelineCache, RenderContext2d,
-    TextureManager,
+    GpuData, GpuMesh2d, Material2d, PipelineCache, RenderContext2d, TextureManager,
+    multisample_state,
 };
 use kiss3d::scene::{InstancesBuffer2d, Object2d, ObjectData2d, SceneNode2d};
 
-use crate::shaders;
 use crate::PolygonMesh;
+use crate::shaders;
 
 /// The skinning shader, linked from WESL to WGSL.
 ///

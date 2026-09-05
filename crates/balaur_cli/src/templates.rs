@@ -35,7 +35,7 @@ mod fetch {
     use std::io::{IsTerminal, Read, Write};
     use std::path::{Path, PathBuf};
 
-    use anyhow::{bail, Context, Result};
+    use anyhow::{Context, Result, bail};
     use sha2::Digest;
 
     const RELEASE_BASE: &str = "https://github.com/balaurengine/balaur/releases/download";

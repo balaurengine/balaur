@@ -1,6 +1,6 @@
 //! The `tileset` asset and the `tilemap` component, without a window.
 
-use balaur_core::{components, scene, App, AppConfig};
+use balaur_core::{App, AppConfig, components, scene};
 use balaur_render::{Tilemap, Tileset};
 
 fn app() -> App {

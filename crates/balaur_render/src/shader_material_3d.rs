@@ -25,8 +25,8 @@ use kiss3d::context::Context;
 use kiss3d::light::{FogMode, LightCollection, LightType};
 use kiss3d::resource::vertex_index::VERTEX_INDEX_FORMAT;
 use kiss3d::resource::{
-    multisample_state, GpuData, GpuMesh3d, Material3d, MaterialManager3d, PipelineCache,
-    RenderContext, Texture,
+    GpuData, GpuMesh3d, Material3d, MaterialManager3d, PipelineCache, RenderContext, Texture,
+    multisample_state,
 };
 use kiss3d::scene::{InstancesBuffer3d, ObjectData3d};
 
@@ -232,7 +232,7 @@ pub(crate) fn bind_group_layouts() -> [wgpu::BindGroupLayout; 3] {
     [
         uniform("material3d_frame_layout"),
         uniform("material3d_object_layout"),
-        crate::bind_layout::sampled_layout(ctxt, "material3d_texture_layout"),
+        crate::bind_layout::sampled_layout(&ctxt, "material3d_texture_layout"),
     ]
 }
 
@@ -538,7 +538,7 @@ type Shared3d = std::rc::Rc<std::cell::RefCell<Box<dyn Material3d + 'static>>>;
 crate::material_cache::define!(
     cache = MaterialCache3d,
     shared = Shared3d,
-    material = Material3d,
+    boxed = Box<dyn Material3d>,
     manager = MaterialManager3d,
     prefix = "balaur3d",
     channel_shader = crate::shaders::CHANNEL,

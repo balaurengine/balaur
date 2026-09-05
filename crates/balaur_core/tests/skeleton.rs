@@ -1,12 +1,12 @@
 //! Bones: rest poses, the rig walk, and the joint palette a skin deforms by.
 
 use balaur_core::engine_api::ENGINE_OPS;
-use balaur_core::scene::{self, propagate_transforms, Transform};
+use balaur_core::scene::{self, Transform, propagate_transforms};
 use balaur_core::skeleton::{
-    self, affine_2d, apply_rest, bones_under, joint_matrices_2d, overwrite_rest, quat_about_z,
-    skin_positions, Bone,
+    self, Bone, affine_2d, apply_rest, bones_under, joint_matrices_2d, overwrite_rest,
+    quat_about_z, skin_positions,
 };
-use balaur_core::{components, App, AppConfig, Engine};
+use balaur_core::{App, AppConfig, Engine, components};
 use balaur_script::Value;
 use glamx::{Mat3, Vec2, Vec3};
 use hecs::Entity;

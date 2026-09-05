@@ -10,7 +10,7 @@
 //! `Value::Callback` is valid only during the binding call that received it,
 //! so anything outliving that call is named and looked up later.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_script::{NodeId, Value};
 
 use crate::Engine;

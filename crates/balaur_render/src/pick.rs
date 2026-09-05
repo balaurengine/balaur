@@ -241,14 +241,16 @@ mod tests {
         let beside = Vec3::new(0.0, 0.0, -3.0);
         let across = Vec3::new(1.0, 0.0, 0.0);
         // Long on x, so a ray along x down its length meets its end.
-        assert!(hit_box(
-            &place,
-            Vec3::ZERO,
-            half,
-            Vec3::new(-20.0, 0.0, -10.0),
-            across
-        )
-        .is_some());
+        assert!(
+            hit_box(
+                &place,
+                Vec3::ZERO,
+                half,
+                Vec3::new(-20.0, 0.0, -10.0),
+                across
+            )
+            .is_some()
+        );
         // Turned, the same node no longer reaches a ray 3 units off its side.
         place.rotation = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
         assert!(hit_box(&place, Vec3::ZERO, half, beside, Vec3::new(0.0, 1.0, 0.0)).is_none());

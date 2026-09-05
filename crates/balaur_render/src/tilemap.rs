@@ -2,10 +2,10 @@
 //! from one atlas texture. The component and parser are backend-free; the
 //! kiss3d mirror at the bottom of the file is feature-gated.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
+use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
-use balaur_core::Engine;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt};
 

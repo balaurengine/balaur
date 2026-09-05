@@ -2,11 +2,11 @@
 //! nothing: a collider that answers raycasts forever, or a handle a script
 //! call indexes rapier's arena with, are the same bug seen twice.
 
-use balaur::{standard_app, AppConfig};
+use balaur::{AppConfig, standard_app};
 use balaur_core::components::StableId;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
-use balaur_core::{components, snapshot, App};
+use balaur_core::{App, components, snapshot};
 use balaur_physics::{PhysicsPlugin, PhysicsState};
 
 static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());

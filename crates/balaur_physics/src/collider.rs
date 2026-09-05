@@ -2,10 +2,10 @@
 //! query that reads them back.
 
 use crate::rapier3d::math::Vector;
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
+use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
-use balaur_core::Engine;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
@@ -17,7 +17,7 @@ use crate::rapier3d::prelude::{
 use crate::scalar::{self, Pose, Real};
 
 use crate::vocabulary::{self as v, words as w};
-use crate::{node_pose, PhysicsState};
+use crate::{PhysicsState, node_pose};
 
 /// The geometry a mesh-backed collider names, through the same asset the
 /// renderer uses.

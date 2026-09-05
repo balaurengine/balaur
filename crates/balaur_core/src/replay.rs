@@ -21,7 +21,7 @@
 
 use std::io::{BufRead, BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;

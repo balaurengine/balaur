@@ -18,11 +18,11 @@
 //! `UserActivation` — rather than at load. `audio.ready` says whether it is
 //! open yet; before that every call takes the "no device" path above.
 
-use anyhow::{anyhow, bail, Result};
-use balaur_core::components::{as_f64, ComponentDef};
+use anyhow::{Result, anyhow, bail};
+use balaur_core::components::{ComponentDef, as_f64};
 use balaur_core::glamx::Vec3;
 use balaur_core::hecs::Entity;
-use balaur_core::{entity_of, scene, DetHashMap, Engine, Stage};
+use balaur_core::{DetHashMap, Engine, Stage, entity_of, scene};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 pub mod bus;
@@ -35,8 +35,8 @@ use spatial::{Emitter, Listener, ListenerPose, Placement};
 
 /// The rodio/cpal backend: native audio stacks, and WebAudio on wasm.
 mod backend {
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
     use std::time::Duration;
 
     use anyhow::Result;

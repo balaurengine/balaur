@@ -10,13 +10,13 @@
 
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::Arc;
+use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::time::Duration;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress};
-use tungstenite::client::{uri_mode, IntoClientRequest};
+use tungstenite::client::{IntoClientRequest, uri_mode};
 use tungstenite::handshake::client::generate_request;
 use tungstenite::handshake::derive_accept_key;
 use tungstenite::http::header::{HeaderName, HeaderValue};
@@ -385,7 +385,7 @@ pub(crate) fn run(
                 return SocketEvent::Closed {
                     socket,
                     reason: String::new(),
-                }
+                };
             }
             Err(tungstenite::Error::Io(err)) if idle(&err) => {}
             Err(err) => return failed(err.to_string()),

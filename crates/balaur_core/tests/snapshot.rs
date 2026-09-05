@@ -3,10 +3,10 @@
 //! is what a replay or a netcode peer would compare -- a restore that leaves
 //! the world "close" is a desync, not a rollback.
 
+use balaur_core::Engine;
 use balaur_core::components::{self, ComponentDef, StableId};
 use balaur_core::snapshot::{self, SnapshotRing};
-use balaur_core::Engine;
-use balaur_core::{digest, App, AppConfig, Transform};
+use balaur_core::{App, AppConfig, Transform, digest};
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()

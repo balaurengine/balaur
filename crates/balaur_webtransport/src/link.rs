@@ -11,7 +11,7 @@
 //! them whole or not at all, which is the entire point of using them.
 
 use std::net::SocketAddr;
-use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
+use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -19,7 +19,7 @@ use balaur_core::transport::{Delivery, Received};
 use web_transport_quinn::{ClientBuilder, RecvStream, SendStream, ServerBuilder, Session};
 
 use crate::tls::Certificate;
-use crate::{reason, Accept, LinkCommand, LinkEvent};
+use crate::{Accept, LinkCommand, LinkEvent, reason};
 
 /// How often the worker looks for outbound commands. The engine queues at
 /// most one datagram a tick, so anything under a frame is invisible; this is

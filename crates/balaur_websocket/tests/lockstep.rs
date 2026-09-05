@@ -14,9 +14,9 @@ use balaur_core::rollback;
 use balaur_core::transport::{LinkState, Transport};
 use balaur_core::{App, AppConfig, Stage, Transform};
 use balaur_script::Value;
+use balaur_websocket::SocketOptions;
 use balaur_websocket::listener::WebsocketListener;
 use balaur_websocket::transport::WebsocketTransport;
-use balaur_websocket::SocketOptions;
 
 const HOST: u32 = 1;
 const GUEST: u32 = 2;

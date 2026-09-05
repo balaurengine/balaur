@@ -8,9 +8,9 @@
 //! Parsers take bytes rather than a path: a shipped game's models live inside
 //! its pack (`crate::project::ProjectFiles`), not beside it on disk.
 
-use crate::collections::DetHashMap;
 use crate::App;
-use anyhow::{anyhow, bail, Result};
+use crate::collections::DetHashMap;
+use anyhow::{Result, anyhow, bail};
 
 /// One triangulated mesh, indexed.
 ///
@@ -463,7 +463,9 @@ fn parse_skin(value: &toml::Value, vertices: usize) -> Result<Option<MeshSkin>> 
                 anyhow!("a mesh's `skin.bones[{index}]` weight {vertex} is not a number")
             })? as f32;
             if weight < 0.0 || !weight.is_finite() {
-                bail!("a mesh's `skin.bones[{index}]` weight {vertex} is {weight}; weights are 0 or more");
+                bail!(
+                    "a mesh's `skin.bones[{index}]` weight {vertex} is {weight}; weights are 0 or more"
+                );
             }
             if weight > 0.0 {
                 per_vertex[vertex].push((index as u32, weight));
@@ -643,11 +645,12 @@ mod tests {
                       vt 0 0\nvt 1 0\nvt 0 1\n\
                       vn 0 0 1\nf 1/1/1 2/2/1 3/3/1\n";
         let mesh = parse_obj(source.as_bytes(), "f.obj").unwrap();
-        assert!(mesh
-            .normals
-            .unwrap()
-            .iter()
-            .all(|n| close(*n, [0.0, 0.0, 1.0])));
+        assert!(
+            mesh.normals
+                .unwrap()
+                .iter()
+                .all(|n| close(*n, [0.0, 0.0, 1.0]))
+        );
         let uvs = mesh.uvs.unwrap();
         assert!(
             close(uvs[0], [0.0, 0.0]) && close(uvs[1], [1.0, 0.0]) && close(uvs[2], [0.0, 1.0])

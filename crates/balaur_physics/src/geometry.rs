@@ -13,11 +13,11 @@
 
 use crate::rapier3d::parry::shape::{TriMesh, TriMeshFlags};
 use crate::scalar::{self, Pose, Real, Vector};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, Value};
 
-use crate::vocabulary::{map, Opts};
+use crate::vocabulary::{Opts, map};
 
 /// The most cells a side of a voxelisation may have.
 ///

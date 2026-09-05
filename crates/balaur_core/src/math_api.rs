@@ -13,7 +13,7 @@ use anyhow::Result;
 use balaur_script::{Bindings, Value};
 
 use crate::engine::Engine;
-use crate::engine_api::{number, EngineOp};
+use crate::engine_api::{EngineOp, number};
 
 pub const MATH_OPS: &[EngineOp] = &[
     EngineOp {

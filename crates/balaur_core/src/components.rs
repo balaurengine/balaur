@@ -56,7 +56,7 @@
 //! component currently reports, which is what anything driving one property
 //! over time means.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use hecs::Entity;
 
 use crate::engine::Engine;
@@ -242,7 +242,7 @@ pub fn validate_property(spec: &toml::Value) -> Result<(), String> {
             return Err(format!(
                 "`options` belongs to `type = \"enum\"` and `type = \"flags\"`, not `type = \
                  \"{declared}\"`"
-            ))
+            ));
         }
         _ => {}
     }
@@ -252,15 +252,15 @@ pub fn validate_property(spec: &toml::Value) -> Result<(), String> {
         (true, None) => {
             return Err(
                 "`type = \"asset\"` needs an `asset` key naming the asset type it takes".into(),
-            )
+            );
         }
         (true, Some(name)) if name.as_str().is_none() => {
-            return Err(format!("`asset` is {}, not a type name", name.type_str()))
+            return Err(format!("`asset` is {}, not a type name", name.type_str()));
         }
         (false, Some(_)) => {
             return Err(format!(
                 "`asset` belongs to `type = \"asset\"`, not `type = \"{declared}\"`"
-            ))
+            ));
         }
         _ => {}
     }

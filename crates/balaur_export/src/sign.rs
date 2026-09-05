@@ -10,9 +10,9 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
-use crate::config::{secret, secret_or, ExportConfig};
+use crate::config::{ExportConfig, secret, secret_or};
 
 /// Run a signing tool, and fail with what it printed rather than a status.
 ///
@@ -129,7 +129,9 @@ pub(crate) fn verify(bundle: &Path) -> Result<()> {
         return Ok(());
     }
     run(
-        Command::new("codesign").args(["--verify", "--strict", "--deep"]).arg(bundle),
+        Command::new("codesign")
+            .args(["--verify", "--strict", "--deep"])
+            .arg(bundle),
         "codesign --verify",
     )?;
     Ok(())
@@ -155,7 +157,10 @@ pub(crate) fn notarize(bundle: &Path) -> Result<()> {
             .arg(&archive),
         "ditto",
     )?;
-    tracing::info!("notarizing {} — Apple's queue decides how long", bundle.display());
+    tracing::info!(
+        "notarizing {} — Apple's queue decides how long",
+        bundle.display()
+    );
     let said = run(
         Command::new("xcrun")
             .args(["notarytool", "submit"])
@@ -170,7 +175,9 @@ pub(crate) fn notarize(bundle: &Path) -> Result<()> {
         bail!("the notary service did not accept the build:\n{said}");
     }
     run(
-        Command::new("xcrun").args(["stapler", "staple"]).arg(bundle),
+        Command::new("xcrun")
+            .args(["stapler", "staple"])
+            .arg(bundle),
         "xcrun stapler staple",
     )?;
     tracing::info!("notarized and stapled {}", bundle.display());
@@ -255,8 +262,8 @@ pub(crate) fn sign_windows(exe: &Path, project: &Path, config: &ExportConfig) ->
         }
         run(command.arg(exe), "signtool")?;
     } else {
-        let certificate =
-            certificate.context("[export] windows_certificate names no certificate to sign with")?;
+        let certificate = certificate
+            .context("[export] windows_certificate names no certificate to sign with")?;
         let signed = exe.with_extension("signed.exe");
         let mut command = Command::new(tool(
             "osslsigncode",
@@ -278,10 +285,7 @@ pub(crate) fn sign_windows(exe: &Path, project: &Path, config: &ExportConfig) ->
 
 /// Trusted Signing's signtool plug-in, wherever the developer installed it.
 fn dlib() -> Result<String> {
-    Ok(secret_or(
-        "BALAUR_SIGN_DLIB",
-        "Azure.CodeSigning.Dlib.dll",
-    ))
+    Ok(secret_or("BALAUR_SIGN_DLIB", "Azure.CodeSigning.Dlib.dll"))
 }
 
 fn absolute(path: &Path) -> Result<PathBuf> {

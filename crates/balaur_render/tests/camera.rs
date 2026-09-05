@@ -2,7 +2,7 @@
 //! `CameraConfig` / `CameraConfig2d` resources a windowed backend applies.
 
 use balaur_core::glamx::Vec3;
-use balaur_core::{components, scene, App, AppConfig, Transform};
+use balaur_core::{App, AppConfig, Transform, components, scene};
 use balaur_render::{CameraConfig, CameraConfig2d, PostConfig, RenderPlugin};
 
 fn app() -> App {

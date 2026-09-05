@@ -8,18 +8,18 @@ use crate::rapier3d::prelude::{
     RigidBodyHandle, RigidBodyType,
 };
 use crate::scalar::{self, Real, Vector};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
+use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
 use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
-use balaur_core::Engine;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::collider::{add_collider, apply_collider, get_collider_params};
 use crate::query::overlaps_value;
 use crate::vocabulary::{self as v, words as w};
-use crate::{node_pose, PhysicsState};
+use crate::{PhysicsState, node_pose};
 
 /// The schema `body3d` and `body2d` share, minus the dimension-shaped
 /// properties each adds for itself. One text, so a property cannot mean two

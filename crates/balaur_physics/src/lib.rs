@@ -8,7 +8,7 @@
 //! simulated pose is written to the local transform). Nest them under
 //! non-moving parents only.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_plugin::Registry;
 
 use balaur_core::collections::DetHashMap;
@@ -48,7 +48,7 @@ use crate::vocabulary::words;
 pub use dim2::PhysicsState2d;
 pub use query::overlaps;
 
-use balaur_core::digest::{node_label, Entry, Hasher};
+use balaur_core::digest::{Entry, Hasher, node_label};
 
 use balaur_core::FIXED_DT;
 
