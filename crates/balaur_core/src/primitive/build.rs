@@ -9,7 +9,7 @@ use glamx::{Vec2, Vec3};
 
 /// A mesh under construction: one vertex stream and the triangles over it.
 #[derive(Default)]
-pub(crate) struct Build {
+pub struct Build {
     positions: Vec<[f32; 3]>,
     normals: Vec<[f32; 3]>,
     uvs: Vec<[f32; 2]>,
@@ -17,7 +17,13 @@ pub(crate) struct Build {
 }
 
 impl Build {
-    pub(crate) fn with_capacity(vertices: usize, triangles: usize) -> Self {
+    /// How many vertices are in it so far: where the next one will land.
+    #[must_use]
+    pub fn vertex_count(&self) -> u32 {
+        self.positions.len() as u32
+    }
+
+    pub fn with_capacity(vertices: usize, triangles: usize) -> Self {
         Self {
             positions: Vec::with_capacity(vertices),
             normals: Vec::with_capacity(vertices),
@@ -27,7 +33,7 @@ impl Build {
     }
 
     /// Append one vertex and hand back its index.
-    pub(crate) fn vertex(&mut self, position: Vec3, normal: Vec3, uv: Vec2) -> u32 {
+    pub fn vertex(&mut self, position: Vec3, normal: Vec3, uv: Vec2) -> u32 {
         let index = self.positions.len() as u32;
         self.positions.push(position.to_array());
         self.normals.push(normal.normalize_or_zero().to_array());
@@ -37,7 +43,7 @@ impl Build {
 
     /// Append one triangle. A degenerate one is dropped rather than kept: a
     /// lathe's poles produce them, and a zero-area face has no normal.
-    pub(crate) fn triangle(&mut self, a: u32, b: u32, c: u32) {
+    pub fn triangle(&mut self, a: u32, b: u32, c: u32) {
         if a == b || b == c || a == c {
             return;
         }
@@ -49,7 +55,7 @@ impl Build {
     }
 
     /// Append a quad as two triangles, wound in the order given.
-    pub(crate) fn quad(&mut self, a: u32, b: u32, c: u32, d: u32) {
+    pub fn quad(&mut self, a: u32, b: u32, c: u32, d: u32) {
         self.triangle(a, b, c);
         self.triangle(a, c, d);
     }
@@ -61,7 +67,7 @@ impl Build {
     /// The normal is Newell's, summed around the loop, so a quad with two
     /// corners in the same place -- a cap facet meeting the axis -- still has
     /// one rather than a zero-length cross product.
-    pub(crate) fn face(&mut self, corners: &[Vec3], uvs: &[Vec2]) {
+    pub fn face(&mut self, corners: &[Vec3], uvs: &[Vec2]) {
         if corners.len() < 3 {
             return;
         }
@@ -86,7 +92,7 @@ impl Build {
         }
     }
 
-    pub(crate) fn finish(self) -> MeshData {
+    pub fn finish(self) -> MeshData {
         MeshData {
             positions: self.positions,
             indices: self.indices,
@@ -94,6 +100,7 @@ impl Build {
             uvs: Some(self.uvs),
             source: None,
             text: None,
+            path: None,
             skin: None,
         }
     }

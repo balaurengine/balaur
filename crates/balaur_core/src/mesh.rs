@@ -32,6 +32,9 @@ pub struct MeshData {
     /// Set when the definition asked for a word rather than a file or
     /// vertices. Resolved by [`load_from`] through [`TextGeometry`].
     pub text: Option<TextShape>,
+    /// Set when the definition asked for a path to be given thickness.
+    /// Resolved by [`load_from`], which can reach the path asset.
+    pub path: Option<PathShape>,
     /// Bone influences, when the mesh is meant to deform with a rig.
     pub skin: Option<MeshSkin>,
 }
@@ -60,6 +63,30 @@ pub const INFLUENCES_PER_VERTEX: usize = 4;
 
 /// The `kind` a mesh definition names to be built out of a shaped string.
 pub const TEXT_SHAPE_KIND: &str = "text";
+
+/// The kinds a mesh definition names to be built out of a path asset.
+pub const EXTRUDE_KIND: &str = "extrude";
+pub const LATHE_KIND: &str = "lathe";
+pub const SWEEP_KIND: &str = "sweep";
+
+/// A path to be given thickness: which curve, in which way, and how far.
+///
+/// Carried by a definition and resolved at load, because the curve it names
+/// is another asset and an asset parser cannot reach one.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PathShape {
+    /// One of [`EXTRUDE_KIND`], [`LATHE_KIND`] or [`SWEEP_KIND`].
+    pub kind: String,
+    /// The outline, profile or rail this is built from.
+    pub path: String,
+    /// The cross-section a sweep carries along the rail.
+    pub profile: String,
+    pub depth: f32,
+    pub bevel: f32,
+    pub segments: u32,
+    /// Whether a swept profile is a closed tube or an open ribbon.
+    pub closed: bool,
+}
 
 /// A word to be turned into geometry: which string, in which face, at which
 /// size in world units.
@@ -354,6 +381,9 @@ fn parse_definition(value: &toml::Value) -> Result<MeshData> {
     }
     match kind {
         Some(TEXT_SHAPE_KIND) => return Ok(parse_text_shape(value)),
+        Some(kind @ (EXTRUDE_KIND | LATHE_KIND | SWEEP_KIND)) => {
+            return Ok(parse_path_shape(value, kind));
+        }
         Some(_) => return Ok(crate::primitive::Solid::from_params(value)?.build()),
         None => {}
     }
@@ -405,6 +435,39 @@ fn parse_text_shape(value: &toml::Value) -> MeshData {
                 .get("italic")
                 .and_then(toml::Value::as_bool)
                 .unwrap_or(false),
+        }),
+        ..MeshData::default()
+    }
+}
+
+/// A path to thicken, recorded for [`load_from`] to resolve.
+fn parse_path_shape(value: &toml::Value, kind: &str) -> MeshData {
+    let text = |key: &str| {
+        value
+            .get(key)
+            .and_then(toml::Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    };
+    let number = |key: &str, fallback: f64| {
+        value
+            .get(key)
+            .and_then(crate::components::as_f64)
+            .unwrap_or(fallback)
+    };
+    MeshData {
+        path: Some(PathShape {
+            kind: kind.to_string(),
+            path: text("path"),
+            profile: text("profile"),
+            depth: number("depth", 1.0) as f32,
+            bevel: number("bevel", 0.0).max(0.0) as f32,
+            segments: number("segments", f64::from(crate::primitive::DEFAULT_SEGMENTS))
+                .clamp(1.0, 512.0) as u32,
+            closed: value
+                .get("closed")
+                .and_then(toml::Value::as_bool)
+                .unwrap_or(true),
         }),
         ..MeshData::default()
     }
@@ -646,6 +709,42 @@ fn rows(value: &toml::Value, key: &str, lengths: &[usize], shape: &str) -> Resul
         .collect()
 }
 
+/// A path asset given thickness. The reference is followed here rather than
+/// at parse for the same reason a `source` file is: only a caller with the
+/// engine can reach another asset.
+///
+/// # Errors
+/// If the path is missing, or will not make the shape asked for.
+fn path_mesh(eng: &crate::Engine, shape: &PathShape) -> Result<MeshData> {
+    let flat = |reference: &str| {
+        crate::assets::load_typed::<crate::path::Path2d>(eng, reference).map_err(|e| {
+            anyhow!(
+                "a {} mesh cannot read its path '{reference}': {e}",
+                shape.kind
+            )
+        })
+    };
+    match shape.kind.as_str() {
+        EXTRUDE_KIND => crate::path::extrude(
+            &flat(&shape.path)?.as_ref().clone(),
+            shape.depth,
+            shape.bevel,
+            shape.segments,
+        ),
+        LATHE_KIND => crate::path::lathe(&flat(&shape.path)?.as_ref().clone(), shape.segments),
+        SWEEP_KIND => {
+            let rail = crate::assets::load_typed::<crate::path::Path3d>(eng, &shape.path)
+                .map_err(|e| anyhow!("a sweep cannot read its rail '{}': {e}", shape.path))?;
+            crate::path::sweep(
+                rail.as_ref(),
+                &flat(&shape.profile)?.as_ref().clone(),
+                shape.closed,
+            )
+        }
+        other => bail!("'{other}' is not a shape a path can be given"),
+    }
+}
+
 /// A mesh asset's geometry, with a `source` reference followed to the file it
 /// names. This is the half `parse_definition` cannot do: an asset parser
 /// sees only the definition, and reading a file needs the project reader.
@@ -653,6 +752,9 @@ fn rows(value: &toml::Value, key: &str, lengths: &[usize], shape: &str) -> Resul
 /// # Errors
 /// If the referenced file is missing, or does not parse.
 pub fn load_from(eng: &crate::Engine, definition: &MeshData) -> Result<MeshData> {
+    if let Some(shape) = &definition.path {
+        return path_mesh(eng, shape);
+    }
     if let Some(shape) = &definition.text {
         let geometry = eng.try_resource::<TextGeometry>().ok_or_else(|| {
             anyhow!("a text mesh needs the plugin that owns the fonts, and none is installed")

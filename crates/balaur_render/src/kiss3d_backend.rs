@@ -880,21 +880,38 @@ fn polyline_points(app: &App, reference: Option<&str>, closed: bool) -> Vec<Vec2
     let Some(reference) = reference.filter(|r| !r.is_empty()) else {
         return Vec::new();
     };
-    let loaded =
-        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(&app.engine, reference)
+    // A `path2d` first: a stroked curve names one, and a traced outline names
+    // a mesh. Both end as the same chain of points.
+    let mut points: Vec<Vec2> = match balaur_core::assets::load_typed::<balaur_core::path::Path2d>(
+        &app.engine,
+        reference,
+    ) {
+        Ok(path) => match path.sample(balaur_core::path::TOLERANCE) {
+            Ok(points) => points.into_iter().map(|p| Vec2::new(p.x, p.y)).collect(),
+            Err(err) => {
+                tracing::error!("path '{reference}': {err:#}");
+                return Vec::new();
+            }
+        },
+        Err(_) => {
+            let loaded = balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(
+                &app.engine,
+                reference,
+            )
             .and_then(|definition| balaur_core::mesh::load_from(&app.engine, &definition));
-    let data = match loaded {
-        Ok(data) => data,
-        Err(err) => {
-            tracing::error!("polyline '{reference}': {err:#}");
-            return Vec::new();
+            match loaded {
+                Ok(data) => data
+                    .positions
+                    .iter()
+                    .map(|p| Vec2::new(p[0], p[1]))
+                    .collect(),
+                Err(err) => {
+                    tracing::error!("polyline '{reference}': {err:#}");
+                    return Vec::new();
+                }
+            }
         }
     };
-    let mut points: Vec<Vec2> = data
-        .positions
-        .iter()
-        .map(|p| Vec2::new(p[0], p[1]))
-        .collect();
     // A closed chain repeats its first point rather than carrying a flag: the
     // renderer draws segments, and the join is just one more of them.
     if closed && points.len() > 2 {

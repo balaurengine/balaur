@@ -328,14 +328,14 @@ pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         "shape2d",
         ComponentDef {
-            doc: "An untextured 2D primitive drawn at the node -- circle, rect, capsule, ellipse, star, ngon, or a polyline traced through a mesh asset's points -- sized in world units.",
+            doc: "An untextured 2D primitive drawn at the node -- circle, rect, capsule, ellipse, star, ngon, or a polyline through a `mesh` asset's points or a stroked `path2d` -- sized in world units.",
             schema: ComponentDef::parse_schema(
                 "shape2d",
                 &balaur_core::components::ComponentDef::schema(&[
                     (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Rendered 2D shape" }}"#, words::RECT, options(words::SHAPES_2D))),
                     (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, when kind is circle, capsule, star or ngon" }"#),
                     (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, when kind is capsule" }"#),
-                    (k::MESH, r#"{ type = "asset", asset = "mesh", default = "", description = "Points of a polyline, taken from a mesh asset's vertices" }"#),
+                    (k::MESH, r#"{ type = "asset", asset = "mesh", default = "", description = "Where a polyline's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve" }"#),
                     (k::WIDTH, r#"{ type = "float", default = 0.02, min = 0.001, description = "Line thickness in world units, when kind is polyline" }"#),
                     (k::CLOSED, r#"{ type = "bool", default = false, description = "Join the last point back to the first, making a polygon outline" }"#),
                     (k::GRADIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient" }"#),

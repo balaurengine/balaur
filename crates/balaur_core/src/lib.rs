@@ -38,6 +38,7 @@ pub mod mesh;
 pub mod netsession;
 pub mod node_api;
 pub mod pack;
+pub mod path;
 pub mod plugins;
 pub mod presets;
 pub mod primitive;

@@ -10,7 +10,7 @@ mod flat;
 mod params;
 mod solid;
 
-pub use build::{Facets, ProfilePoint, fill, revolve};
+pub use build::{Build, Facets, ProfilePoint, fill, revolve};
 pub use flat::{
     capsule_outline, circle_outline, ellipse_outline, ngon_outline, rect_outline, star_outline,
 };
