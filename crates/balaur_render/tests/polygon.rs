@@ -16,8 +16,7 @@ fn project() -> tempfile::TempDir {
 }
 
 fn app_in(root: &std::path::Path) -> App {
-    let mut app = App::new(AppConfig::bare(root.to_path_buf()))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(root.to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
     app
 }

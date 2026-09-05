@@ -7,8 +7,7 @@ use balaur_core::{App, AppConfig, Engine};
 use balaur_script::BindingsExt as _;
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 struct Counter(u32);

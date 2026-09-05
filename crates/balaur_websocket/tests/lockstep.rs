@@ -30,8 +30,7 @@ const GUEST: u32 = 2;
 /// live in the tick rather than be poked into the world, because a rollback
 /// restores the world and would quietly heal anything poked in.
 fn app(bias: f32) -> App {
-    let mut app = App::new(AppConfig::bare("."))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     let root = app.engine.root();
     let mover = {
         let mut world = app.engine.world_mut();

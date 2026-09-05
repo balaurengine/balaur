@@ -2,8 +2,7 @@ use balaur_core::plugins::{self, PluginInfo};
 use balaur_core::{App, AppConfig};
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 #[test]

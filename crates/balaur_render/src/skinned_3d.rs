@@ -223,47 +223,17 @@ fn vertex_layouts() -> [Option<wgpu::VertexBufferLayout<'static>>; 5] {
 
 fn build_pipeline(layout: wgpu::PipelineLayout, shader: wgpu::ShaderModule) -> PipelineCache {
     PipelineCache::new(move |sample_count| {
-        let layouts = vertex_layouts();
-        Context::get().create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("skinned3d_pipeline"),
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &layouts,
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: Context::render_format(),
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                // A rig can turn a triangle inside out; culling would drop it.
-                cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: Context::depth_format(),
-                depth_write_enabled: Some(true),
-                depth_compare: Some(wgpu::CompareFunction::Less),
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: multisample_state(sample_count),
-            multiview_mask: None,
-            cache: None,
-        })
+        // No culling: a rig can turn a triangle inside out, and culling
+        // would drop it.
+        crate::pipeline::material_pipeline(
+            "skinned3d_pipeline",
+            &layout,
+            &shader,
+            &vertex_layouts(),
+            None,
+            &crate::pipeline::Depth::Tested,
+            sample_count,
+        )
     })
 }
 

@@ -39,10 +39,11 @@ pub mod geometry;
 pub mod joint;
 pub mod query;
 pub(crate) mod scalar;
-pub mod tuning;
 mod shared;
+pub mod tuning;
 pub mod vehicle;
 mod vocabulary;
+use crate::vocabulary::words;
 
 pub use dim2::PhysicsState2d;
 pub use query::overlaps;
@@ -586,17 +587,19 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
 /// `physics3d.BODY_DYNAMIC` rather than spelling "dynamic" and finding out at
 /// runtime that "Dynamic" silently fell through to the default.
 pub const BODY_KINDS: &[(&str, &str)] = &[
-    ("BODY_DYNAMIC", "dynamic"),
-    ("BODY_STATIC", "static"),
-    ("BODY_KINEMATIC", "kinematic"),
-    ("BODY_KINEMATIC_VELOCITY", "kinematic_velocity"),
+    ("BODY_DYNAMIC", words::DYNAMIC),
+    ("BODY_STATIC", words::STATIC),
+    ("BODY_KINEMATIC", words::KINEMATIC),
+    ("BODY_KINEMATIC_VELOCITY", words::KINEMATIC_VELOCITY),
 ];
 
 /// Collider shapes for the 3D world.
-pub const SHAPE_KINDS: &[(&str, &str)] = &[("SHAPE_BALL", "ball"), ("SHAPE_CUBOID", "cuboid")];
+pub const SHAPE_KINDS: &[(&str, &str)] =
+    &[("SHAPE_BALL", words::BALL), ("SHAPE_CUBOID", words::CUBOID)];
 
 /// Collider shapes for the 2D world.
-pub const SHAPE_KINDS_2D: &[(&str, &str)] = &[("SHAPE_CIRCLE", "circle"), ("SHAPE_RECT", "rect")];
+pub const SHAPE_KINDS_2D: &[(&str, &str)] =
+    &[("SHAPE_CIRCLE", words::CIRCLE), ("SHAPE_RECT", words::RECT)];
 
 pub(crate) fn install_constants(
     m: &mut dyn Bindings<Engine>,

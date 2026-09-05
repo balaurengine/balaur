@@ -295,8 +295,8 @@ fn a_scene_files_a_node_under_its_tags() {
         "[[nodes]]\nname = \"Gate\"\ntags = [\"door\", \"exit\"]\n[[nodes]]\nname = \"Rock\"\n",
     )
     .unwrap();
-    let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(dir.path().to_path_buf()))
-    .unwrap();
+    let mut app =
+        balaur_core::App::new(balaur_core::AppConfig::bare(dir.path().to_path_buf())).unwrap();
     app.load_project().unwrap();
     let world = app.engine.world();
     let found = scene::tagged(&world, app.engine.root(), "door");

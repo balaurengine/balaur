@@ -317,7 +317,10 @@ pub(crate) mod flags {
 
     pub(crate) fn events() -> [(&'static str, u32); 2] {
         [
-            (super::words::COLLISION, ActiveEvents::COLLISION_EVENTS.bits()),
+            (
+                super::words::COLLISION,
+                ActiveEvents::COLLISION_EVENTS.bits(),
+            ),
             (
                 super::words::CONTACT_FORCE,
                 ActiveEvents::CONTACT_FORCE_EVENTS.bits(),

@@ -29,8 +29,7 @@ impl PlatformBackend for Canned {
 }
 
 fn app() -> App {
-    let mut app = App::new(AppConfig::bare("."))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut PlatformPlugin::default()).unwrap();
     app
 }

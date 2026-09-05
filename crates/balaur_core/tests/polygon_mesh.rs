@@ -8,8 +8,7 @@ use balaur_core::{assets, App, AppConfig};
 use glamx::Vec2;
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 /// Parse an inline `mesh` definition through the registered asset type,

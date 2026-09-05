@@ -149,7 +149,7 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
                     u64::from(MAX_VOXEL_RESOLUTION).pow(3)
                 ));
             }
-            let fill = if opts.text("fill") == Some("surface") {
+            let fill = if opts.text("fill") == Some(crate::vocabulary::words::SURFACE) {
                 crate::rapier3d::parry::transformation::voxelization::FillMode::SurfaceOnly
             } else {
                 crate::rapier3d::parry::transformation::voxelization::FillMode::FloodFill {

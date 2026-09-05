@@ -24,7 +24,12 @@ use balaur_script::{Bindings, BindingsExt, CallbackHost, NodeId, Value};
 use crate::vocabulary::{map, Opts};
 use crate::PhysicsState;
 
-crate::shared::query::functions!(state = PhysicsState, vector = Vec3, dimensions = 3, vocabulary = "collider3d");
+crate::shared::query::functions!(
+    state = PhysicsState,
+    vector = Vec3,
+    dimensions = 3,
+    vocabulary = "collider3d"
+);
 
 /// The ray an options table describes.
 fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {

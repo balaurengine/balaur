@@ -15,7 +15,7 @@ use balaur_core::{entity_of, Engine, Transform};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
-use crate::character::SHARED_CHARACTER_SCHEMA;
+use crate::character::shared_character_schema;
 use crate::dim2::PhysicsState2d;
 use crate::vocabulary::map;
 use crate::FIXED_DT;
@@ -23,7 +23,12 @@ use glamx::EulerRot;
 
 pub struct Character2d(pub toml::Value);
 
-crate::shared::character::functions!(state = PhysicsState2d, vector = Vector2, value = Vec2, array = a2);
+crate::shared::character::functions!(
+    state = PhysicsState2d,
+    vector = Vector2,
+    value = Vec2,
+    array = a2
+);
 
 pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2) -> Result<Value> {
     let params = {
@@ -150,9 +155,10 @@ pub(crate) fn install_character2d_api(m: &mut dyn Bindings<Engine>) {
 }
 
 pub(crate) fn register_character2d_component(reg: &mut Registry<'_>) {
+    let shared = shared_character_schema();
     let schema = format!(
         r#"up = {{ type = "vec2", default = [0.0, 1.0], description = "Which way is up for this character: the axis it stands along and measures slopes against" }}
-{SHARED_CHARACTER_SCHEMA}"#
+{shared}"#
     );
     reg.register_component(
         "character2d",

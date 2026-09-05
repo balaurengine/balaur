@@ -7,8 +7,7 @@ use balaur_core::scene::{is_within, spawn_node};
 use balaur_core::{App, AppConfig, Stage, FIXED_DT};
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 #[test]

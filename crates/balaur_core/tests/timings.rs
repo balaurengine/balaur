@@ -7,8 +7,7 @@ use balaur_core::timings::{TimingLog, Timings};
 use balaur_core::{App, AppConfig, Engine, Stage, FIXED_DT};
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 fn last(app: &App) -> Timings {

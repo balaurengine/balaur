@@ -51,9 +51,11 @@ macro_rules! functions {
             let filter = Opts(opts.get("filter"));
             let mut flags = QueryFilterFlags::empty();
             match filter.text("only") {
-                Some("dynamic") => flags |= QueryFilterFlags::ONLY_DYNAMIC,
-                Some("kinematic") => flags |= QueryFilterFlags::ONLY_KINEMATIC,
-                Some("static") => flags |= QueryFilterFlags::ONLY_FIXED,
+                Some(crate::vocabulary::words::DYNAMIC) => flags |= QueryFilterFlags::ONLY_DYNAMIC,
+                Some(crate::vocabulary::words::KINEMATIC) => {
+                    flags |= QueryFilterFlags::ONLY_KINEMATIC;
+                }
+                Some(crate::vocabulary::words::STATIC) => flags |= QueryFilterFlags::ONLY_FIXED,
                 _ => {}
             }
             if !filter.boolean("sensors", true) {
@@ -164,7 +166,10 @@ macro_rules! functions {
         /// vocabulary — so the shape you cast is spelled like the shape you attach.
         fn shape_params(opts: &Opts<'_>) -> Result<toml::Value> {
             let shape = opts.get("shape").ok_or_else(|| {
-                anyhow!("this query needs a `shape` table, in {}'s vocabulary", $vocabulary)
+                anyhow!(
+                    "this query needs a `shape` table, in {}'s vocabulary",
+                    $vocabulary
+                )
             })?;
             balaur_core::node_api::to_toml(shape)
         }

@@ -24,7 +24,7 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::rapier3d::pipeline::PhysicsWorld;
-use crate::vocabulary as v;
+use crate::vocabulary::{self as v, words as w};
 use crate::PhysicsState;
 
 /// Which handle a node's joint has, because rapier keeps the two solvers in
@@ -53,9 +53,9 @@ pub struct JointRef {
 /// limits are applied to all of them, which is what a shoulder wants.
 fn free_axes(kind: &str) -> &'static [JointAxis] {
     match kind {
-        "revolute" => &[JointAxis::AngX],
-        "prismatic" | "rope" | "spring" => &[JointAxis::LinX],
-        "spherical" => &[JointAxis::AngX, JointAxis::AngY, JointAxis::AngZ],
+        w::REVOLUTE => &[JointAxis::AngX],
+        w::PRISMATIC | w::ROPE | w::SPRING => &[JointAxis::LinX],
+        w::SPHERICAL => &[JointAxis::AngX, JointAxis::AngY, JointAxis::AngZ],
         _ => &[],
     }
 }
@@ -64,12 +64,12 @@ fn free_axes(kind: &str) -> &'static [JointAxis] {
 fn locked_axes(params: &toml::Value) -> JointAxesMask {
     let mut mask = JointAxesMask::empty();
     for (name, axis) in [
-        ("x", JointAxesMask::LIN_X),
-        ("y", JointAxesMask::LIN_Y),
-        ("z", JointAxesMask::LIN_Z),
-        ("ang_x", JointAxesMask::ANG_X),
-        ("ang_y", JointAxesMask::ANG_Y),
-        ("ang_z", JointAxesMask::ANG_Z),
+        (w::X, JointAxesMask::LIN_X),
+        (w::Y, JointAxesMask::LIN_Y),
+        (w::Z, JointAxesMask::LIN_Z),
+        (w::ANG_X, JointAxesMask::ANG_X),
+        (w::ANG_Y, JointAxesMask::ANG_Y),
+        (w::ANG_Z, JointAxesMask::ANG_Z),
     ] {
         if v::flag(params, "locked_axes", name) {
             mask |= axis;
@@ -80,7 +80,7 @@ fn locked_axes(params: &toml::Value) -> JointAxesMask {
 
 /// The joint a `joint3d` table describes.
 pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
-    let kind = v::text(params, "kind", "fixed");
+    let kind = v::text(params, "kind", w::FIXED);
     let axis = scalar::v3a(v::vec3(params, "axis", [0.0, 0.0, 1.0]));
     let axis = if axis.length_squared() < 1.0e-12 {
         Vector::Z
@@ -93,37 +93,37 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
     let stiffness = scalar::real(v::f(params, "stiffness", 0.0));
     let damping = scalar::real(v::f(params, "damping", 1.0));
     let mut joint: GenericJoint = match kind {
-        "fixed" => FixedJointBuilder::new()
+        w::FIXED => FixedJointBuilder::new()
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
             .into(),
-        "revolute" => RevoluteJointBuilder::new(axis)
+        w::REVOLUTE => RevoluteJointBuilder::new(axis)
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
             .into(),
-        "prismatic" => PrismaticJointBuilder::new(axis)
+        w::PRISMATIC => PrismaticJointBuilder::new(axis)
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
             .into(),
-        "spherical" => SphericalJointBuilder::new()
+        w::SPHERICAL => SphericalJointBuilder::new()
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
             .into(),
-        "rope" => RopeJointBuilder::new(length.max(0.0))
+        w::ROPE => RopeJointBuilder::new(length.max(0.0))
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
             .into(),
-        "spring" => SpringJointBuilder::new(length.max(0.0), stiffness, damping)
+        w::SPRING => SpringJointBuilder::new(length.max(0.0), stiffness, damping)
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
             .into(),
-        "generic" => GenericJointBuilder::new(locked_axes(params))
+        w::GENERIC => GenericJointBuilder::new(locked_axes(params))
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .local_axis1(axis)
@@ -143,13 +143,13 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
 /// `locked_axes` is for.
 fn write_limits_and_motor(joint: &mut GenericJoint, params: &toml::Value, kind: &str) {
     let limits = scalar::v2a(v::vec2(params, "limits", [0.0; 2]));
-    let motor = v::text(params, "motor", "off");
+    let motor = v::text(params, "motor", w::OFF);
     let target = scalar::real(v::f(params, "motor_target", 0.0));
     let max_force = scalar::real(v::f(params, "motor_max_force", 0.0));
     let stiffness = scalar::real(v::f(params, "stiffness", 0.0));
     let damping = scalar::real(v::f(params, "damping", 1.0));
-    let model = match v::text(params, "motor_model", "acceleration") {
-        "force" => MotorModel::ForceBased,
+    let model = match v::text(params, "motor_model", w::ACCELERATION) {
+        w::FORCE => MotorModel::ForceBased,
         _ => MotorModel::AccelerationBased,
     };
     for axis in free_axes(kind).iter().copied() {
@@ -157,11 +157,11 @@ fn write_limits_and_motor(joint: &mut GenericJoint, params: &toml::Value, kind: 
             joint.set_limits(axis, [limits.x, limits.y]);
         }
         match motor {
-            "velocity" => {
+            w::VELOCITY => {
                 joint.set_motor_model(axis, model);
                 joint.set_motor_velocity(axis, target, damping);
             }
-            "position" => {
+            w::POSITION => {
                 joint.set_motor_model(axis, model);
                 joint.set_motor_position(axis, target, stiffness, damping);
             }
@@ -208,7 +208,7 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
         return Ok(());
     };
     let joint = joint_of(params)?;
-    let reduced = v::text(params, "solver", "impulse") == "reduced";
+    let reduced = v::text(params, "solver", w::IMPULSE) == w::REDUCED;
     let state = eng.resource::<PhysicsState>();
     let mut state = state.borrow_mut();
     let (first, second) = handles(&state, a, b)?;
@@ -263,8 +263,8 @@ pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Val
         "solver".into(),
         toml::Value::String(
             match reference.handle {
-                JointHandle::Impulse(_) => "impulse",
-                JointHandle::Multibody(_) => "reduced",
+                JointHandle::Impulse(_) => w::IMPULSE,
+                JointHandle::Multibody(_) => w::REDUCED,
             }
             .into(),
         ),
@@ -431,30 +431,42 @@ fn joint_schema_value(eng: &Engine) -> Result<toml::Value> {
 }
 
 /// The schema both dimensions share; each adds its own axis-shaped half.
-pub(crate) const SHARED_JOINT_SCHEMA: &str = r#"
-motor = { type = "enum", default = "off", options = ["off", "velocity", "position"], description = "Drive the joint towards a speed, towards a position, or not at all" }
-motor_target = { type = "float", default = 0.0, description = "The speed or the position the motor drives towards" }
-motor_max_force = { type = "float", default = 0.0, min = 0.0, description = "The most force the motor may use; 0 means as much as it takes" }
-motor_model = { type = "enum", default = "acceleration", options = ["acceleration", "force"], description = "Whether the motor's strength is felt as an acceleration, ignoring mass, or as a force" }
-stiffness = { type = "float", default = 0.0, min = 0.0, description = "Spring stiffness, for a spring joint or a position motor" }
-damping = { type = "float", default = 1.0, min = 0.0, description = "How quickly the motion settles, for a spring joint or a motor" }
-length = { type = "float", default = 0.0, min = 0.0, description = "The rope's greatest length, or the spring's rest length" }
-contacts = { type = "bool", default = false, description = "Let the two joined bodies collide with each other" }
-break_force = { type = "float", default = 0.0, min = 0.0, description = "The pull that snaps the joint and calls on_joint_break; 0 never breaks" }
-solver = { type = "enum", default = "impulse", options = ["impulse", "reduced"], description = "impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop" }
-enabled = { type = "bool", default = true, description = "Hold the two bodies together at all" }
-"#;
+pub(crate) fn shared_joint_schema() -> String {
+    let motors = v::options(w::MOTOR_MODES);
+    let models = v::options(w::MOTOR_MODELS);
+    let solvers = v::options(w::JOINT_SOLVERS);
+    let (off, acceleration, impulse) = (w::OFF, w::ACCELERATION, w::IMPULSE);
+    format!(
+        r#"
+motor = {{ type = "enum", default = "{off}", options = [{motors}], description = "Drive the joint towards a speed, towards a position, or not at all" }}
+motor_target = {{ type = "float", default = 0.0, description = "The speed or the position the motor drives towards" }}
+motor_max_force = {{ type = "float", default = 0.0, min = 0.0, description = "The most force the motor may use; 0 means as much as it takes" }}
+motor_model = {{ type = "enum", default = "{acceleration}", options = [{models}], description = "Whether the motor's strength is felt as an acceleration, ignoring mass, or as a force" }}
+stiffness = {{ type = "float", default = 0.0, min = 0.0, description = "Spring stiffness, for a spring joint or a position motor" }}
+damping = {{ type = "float", default = 1.0, min = 0.0, description = "How quickly the motion settles, for a spring joint or a motor" }}
+length = {{ type = "float", default = 0.0, min = 0.0, description = "The rope's greatest length, or the spring's rest length" }}
+contacts = {{ type = "bool", default = false, description = "Let the two joined bodies collide with each other" }}
+break_force = {{ type = "float", default = 0.0, min = 0.0, description = "The pull that snaps the joint and calls on_joint_break; 0 never breaks" }}
+solver = {{ type = "enum", default = "{impulse}", options = [{solvers}], description = "impulse holds any arrangement, loops included; reduced never drifts and can be solved for inverse kinematics, but cannot close a loop" }}
+enabled = {{ type = "bool", default = true, description = "Hold the two bodies together at all" }}
+"#
+    )
+}
 
 pub(crate) fn register_joint_component(reg: &mut Registry<'_>) {
+    let kinds = v::options(w::JOINT_KINDS);
+    let axes = v::options(w::JOINT_AXES);
+    let default = w::FIXED;
+    let shared = shared_joint_schema();
     let schema = format!(
-        r#"kind = {{ type = "enum", default = "fixed", options = ["fixed", "revolute", "prismatic", "spherical", "rope", "spring", "generic"], shorthand = true, description = "How the two bodies may move relative to each other" }}
+        r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], shorthand = true, description = "How the two bodies may move relative to each other" }}
 body = {{ type = "node", default = "", description = "The node at the joint's other end; this node is the first end" }}
 anchor = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the joint attaches on this node, in its own space" }}
 other_anchor = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where it attaches on the other node, in that node's space" }}
 axis = {{ type = "vec3", default = [0.0, 0.0, 1.0], description = "The axis a revolute joint turns about or a prismatic one slides along" }}
 limits = {{ type = "vec2", default = [0.0, 0.0], description = "How far the joint may travel, as a low and a high; equal values mean no limit" }}
-locked_axes = {{ type = "flags", default = [], options = ["x", "y", "z", "ang_x", "ang_y", "ang_z"], description = "Which of the six freedoms a generic joint takes away" }}
-{SHARED_JOINT_SCHEMA}"#
+locked_axes = {{ type = "flags", default = [], options = [{axes}], description = "Which of the six freedoms a generic joint takes away" }}
+{shared}"#
     );
     reg.register_component(
         "joint3d",

@@ -11,8 +11,7 @@ use balaur_render::{RenderPlugin, Renderable2d, Shape2d, DEFAULT_PIXELS_PER_UNIT
 const FIXTURE: &str = "tests/fixtures/sprite_200x100.png";
 
 fn app() -> App {
-    let mut app = App::new(AppConfig::bare("."))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
     app
 }

@@ -24,11 +24,8 @@ fn project(name: &str, manifest_extra: &str, files: &[(&str, &str)]) -> tempfile
 
 fn app_in(dir: &std::path::Path) -> App {
     let mut app = App::new(AppConfig {
-        project_root: dir.to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
         script_backend: Some(balaur_script_rune::factory()),
+        ..AppConfig::bare(dir.to_path_buf())
     })
     .unwrap();
     app.load_project().unwrap();

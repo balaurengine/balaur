@@ -5,21 +5,23 @@ macro_rules! functions {
     (state = $State:ty, handle = $Handle:ty, builder = $Builder:ident, node_pose = $node_pose:ident, missing = $missing:literal) => {
         /// The body types both dimensions accept, in Balaur's vocabulary (N14).
         pub(crate) fn body_type(kind: &str) -> Result<RigidBodyType> {
+            use crate::vocabulary::words as w;
             Ok(match kind {
-                "dynamic" => RigidBodyType::Dynamic,
-                "static" => RigidBodyType::Fixed,
-                "kinematic" => RigidBodyType::KinematicPositionBased,
-                "kinematic_velocity" => RigidBodyType::KinematicVelocityBased,
+                w::DYNAMIC => RigidBodyType::Dynamic,
+                w::STATIC => RigidBodyType::Fixed,
+                w::KINEMATIC => RigidBodyType::KinematicPositionBased,
+                w::KINEMATIC_VELOCITY => RigidBodyType::KinematicVelocityBased,
                 other => return Err(anyhow!("unknown body kind '{other}'")),
             })
         }
 
         pub(crate) fn kind_name(body: &RigidBody) -> &'static str {
+            use crate::vocabulary::words as w;
             match body.body_type() {
-                RigidBodyType::Dynamic => "dynamic",
-                RigidBodyType::Fixed => "static",
-                RigidBodyType::KinematicPositionBased => "kinematic",
-                RigidBodyType::KinematicVelocityBased => "kinematic_velocity",
+                RigidBodyType::Dynamic => w::DYNAMIC,
+                RigidBodyType::Fixed => w::STATIC,
+                RigidBodyType::KinematicPositionBased => w::KINEMATIC,
+                RigidBodyType::KinematicVelocityBased => w::KINEMATIC_VELOCITY,
             }
         }
 
@@ -46,7 +48,7 @@ macro_rules! functions {
                 exists
             };
             if !exists {
-                add_body(eng, entity, v::text(params, "kind", "dynamic"))?;
+                add_body(eng, entity, v::text(params, "kind", w::DYNAMIC))?;
                 // A collider inserted while the node had no body is standalone
                 // geometry in rapier; re-inserting it attaches it to the new body.
                 if let Some(collider) = get_collider_params(eng, entity) {

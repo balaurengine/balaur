@@ -273,39 +273,15 @@ fn build_pipeline(
             Some(vertex_layout(16, 2, wgpu::VertexFormat::Uint32x4)),
             Some(vertex_layout(16, 3, wgpu::VertexFormat::Float32x4)),
         ];
-        ctxt.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("polygon_pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &layouts,
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: Context::render_format(),
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: multisample_state(sample_count),
-            multiview_mask: None,
-            cache: None,
-        })
+        crate::pipeline::material_pipeline(
+            "polygon_pipeline",
+            &pipeline_layout,
+            &shader,
+            &layouts,
+            None,
+            &crate::pipeline::Depth::Ignored,
+            sample_count,
+        )
     })
 }
 

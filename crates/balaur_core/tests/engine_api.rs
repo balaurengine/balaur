@@ -8,11 +8,8 @@ use balaur_script::Value;
 
 fn app_in(root: &std::path::Path) -> App {
     App::new(AppConfig {
-        project_root: root.to_path_buf(),
-        pack: None,
-        watch: false,
         script_args: vec!["first".into(), "second".into()],
-        script_backend: None,
+        ..AppConfig::bare(root.to_path_buf())
     })
     .unwrap()
 }

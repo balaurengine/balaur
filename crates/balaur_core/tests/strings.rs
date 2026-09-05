@@ -33,8 +33,7 @@ fn project(manifest_locale: &str, files: &[(&str, &str)]) -> tempfile::TempDir {
 }
 
 fn app_in(dir: &std::path::Path) -> App {
-    let mut app = App::new(AppConfig::bare(dir.to_path_buf()))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(dir.to_path_buf())).unwrap();
     app.load_project().unwrap();
     app
 }

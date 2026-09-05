@@ -110,7 +110,7 @@ macro_rules! functions {
                         .and_then(toml::Value::as_str)
                         .map(str::to_string)
                 })
-                .unwrap_or_else(|| "revolute".to_string());
+                .unwrap_or_else(|| crate::vocabulary::words::REVOLUTE.to_string());
             let state = eng.resource::<$State>();
             let mut state = state.borrow_mut();
             match state.joints.get(&entity).map(|j| j.handle) {

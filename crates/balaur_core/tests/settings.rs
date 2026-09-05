@@ -9,8 +9,7 @@ use balaur_core::settings::{self, Scope, SettingDef};
 use balaur_core::{App, AppConfig, ComponentDef};
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 #[test]

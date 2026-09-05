@@ -9,8 +9,7 @@
 use balaur::{components, presets, scene, App, AppConfig};
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 fn node(app: &App) -> balaur::hecs::Entity {

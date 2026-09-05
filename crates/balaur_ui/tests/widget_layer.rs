@@ -930,47 +930,33 @@ fn typing_into_a_field_lands_on_its_text_the_next_tick() {
 }
 
 #[test]
-fn a_pass_that_shows_a_new_area_asks_to_be_rerun() {
+fn a_surface_appears_at_full_alpha_rather_than_fading_in() {
     let (_dir, app) = app();
     let params = toml::toml! { kind = "button" text = "new" x = 0.0 y = 0.0 };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
-    // Fonts bind at the next pass; a rerun of this one draws with them.
-    let fonts = pass(&app, &ctx, vec![]);
-    assert!(
-        fonts.platform_output.requested_discard(),
-        "the pass that installed fonts did not ask for a rerun"
-    );
-    // The button's area is sized invisibly this pass: a rerun shows it.
-    let sizing = pass(&app, &ctx, vec![]);
-    assert!(
-        sizing.platform_output.requested_discard(),
-        "the pass that sized a new area did not ask for a rerun"
-    );
-    let settled = pass(&app, &ctx, vec![]);
-    assert!(
-        !settled.platform_output.requested_discard(),
-        "a pass with nothing new still asked for a rerun"
-    );
-    assert!(
-        !settled.shapes.is_empty(),
-        "control: the button drew nothing"
+    // Fonts bind on the first pass, and a new area is sized invisibly on the
+    // next, so the third is the first that draws.
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    let first = format!("{:?}", pass(&app, &ctx, vec![]).shapes);
+    assert!(first.contains("Text"), "control: the button drew no text");
+    let settled = format!("{:?}", pass(&app, &ctx, vec![]).shapes);
+    assert_eq!(
+        first, settled,
+        "the surface's first drawn frame differs from its settled one, which is egui's fade-in"
     );
 
-    // Hidden, then shown again: it appears once more, and once more only.
+    // Hidden, then shown again: egui counts that as a new appearance, and
+    // this is the path a collapsing panel takes.
     let hide = toml::toml! { visible = false };
     balaur::components::patch(&app.engine, entity, "widget", &hide.into()).unwrap();
     pass(&app, &ctx, vec![]);
     let show = toml::toml! { visible = true };
     balaur::components::patch(&app.engine, entity, "widget", &show.into()).unwrap();
-    let shown = pass(&app, &ctx, vec![]);
-    assert!(
-        shown.platform_output.requested_discard(),
-        "the pass that showed the area again did not ask for a rerun"
-    );
-    let steady = pass(&app, &ctx, vec![]);
-    assert!(
-        !steady.platform_output.requested_discard(),
-        "a pass after the area settled still asked for a rerun"
+    let shown = format!("{:?}", pass(&app, &ctx, vec![]).shapes);
+    assert_eq!(
+        shown, settled,
+        "a surface shown again drew faded rather than at the alpha its theme set"
     );
 }

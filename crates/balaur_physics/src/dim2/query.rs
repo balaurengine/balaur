@@ -18,7 +18,12 @@ use balaur_script::{Bindings, BindingsExt, CallbackHost, NodeId, Value};
 use crate::dim2::PhysicsState2d;
 use crate::vocabulary::{map, Opts};
 
-crate::shared::query::functions!(state = PhysicsState2d, vector = Vec2, dimensions = 2, vocabulary = "collider2d");
+crate::shared::query::functions!(
+    state = PhysicsState2d,
+    vector = Vec2,
+    dimensions = 2,
+    vocabulary = "collider2d"
+);
 
 fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
     let from = opts.vec2("from", [0.0; 2]);

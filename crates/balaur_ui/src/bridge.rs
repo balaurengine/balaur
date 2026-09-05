@@ -138,16 +138,3 @@ fn up_from(eng: &Engine, node: NodeId) -> Vec<NodeId> {
     }
     chain
 }
-
-/// Whether an area is visible this pass that was not the pass before. egui
-/// draws none of a new area in the pass that sizes it, so a frame showing
-/// one is worth running again.
-pub(crate) fn area_appeared(ctx: &egui::Context) -> bool {
-    ctx.memory(|memory| {
-        let areas = memory.areas();
-        areas
-            .visible_layer_ids()
-            .iter()
-            .any(|layer| !areas.visible_last_frame(layer))
-    })
-}

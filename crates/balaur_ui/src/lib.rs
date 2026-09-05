@@ -209,9 +209,4 @@ pub fn run_pass(eng: &Engine, ctx: &egui::Context) {
     // Over everything, scripts' overlays included, for as long as it lasts.
     splash::draw(eng, ctx);
     bridge::leave_pass();
-    // A new area is sized in a pass that draws none of it: a rerun shows it
-    // this frame rather than a frame of nothing where a panel or menu was.
-    if bridge::area_appeared(ctx) {
-        ctx.request_discard("an area appeared");
-    }
 }

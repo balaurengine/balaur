@@ -4,8 +4,7 @@ use balaur_core::{components, scene, App, AppConfig};
 use balaur_render::{Tilemap, Tileset};
 
 fn app() -> App {
-    let mut app = App::new(AppConfig::bare("."))
-    .expect("App::new builds headless");
+    let mut app = App::new(AppConfig::bare(".")).expect("App::new builds headless");
     balaur_plugin::load(&mut app, &mut balaur_render::RenderPlugin::default())
         .expect("the render plugin builds headless");
     app

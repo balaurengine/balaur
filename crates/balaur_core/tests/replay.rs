@@ -6,8 +6,7 @@ use balaur_core::replay::{
 use balaur_core::{App, AppConfig, Engine};
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 /// A stand-in for a subsystem that receives something from outside.

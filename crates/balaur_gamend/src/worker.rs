@@ -40,8 +40,7 @@ pub(crate) fn spawn_login(
     let events = events.clone();
     let credentials = Credentials::from(credentials);
     std::thread::spawn(move || {
-        let outcome =
-            auth::login(&mut client.lock(), &credentials).map_err(|err| err.to_string());
+        let outcome = auth::login(&mut client.lock(), &credentials).map_err(|err| err.to_string());
         let _ = events.send(GamendEvent::logged_in(request, outcome));
     });
 }

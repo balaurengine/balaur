@@ -12,7 +12,8 @@ macro_rules! functions {
             params: &toml::Value,
             up: $Vector,
         ) -> KinematicCharacterController {
-            let relative = crate::vocabulary::text(params, "lengths", "absolute") == "relative";
+            use crate::vocabulary::words as w;
+            let relative = crate::vocabulary::text(params, "lengths", w::ABSOLUTE) == w::RELATIVE;
             let length = |value: f32| {
                 let value = scalar::real(value);
                 if relative {

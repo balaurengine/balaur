@@ -12,8 +12,7 @@ use glamx::{Mat3, Vec2, Vec3};
 use hecs::Entity;
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 fn close(a: f32, b: f32) -> bool {
@@ -294,8 +293,7 @@ bone2d = { rest_position = [0, 1], rest_rotation = 0.25, length = 0.5 }
 "#,
     )
     .unwrap();
-    let mut app = App::new(AppConfig::bare(dir.path().to_path_buf()))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
     app.load_project().unwrap();
     let hip = scene::find_node(&app.engine.world(), app.engine.root(), "Rig/Hip").unwrap();
     let got = components::get(&app.engine, hip, "bone2d").unwrap();

@@ -7,8 +7,7 @@ use balaur_core::components::ComponentDef;
 use balaur_core::{components, presets, scene, App, AppConfig};
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 /// Two components that behave like real ones -- each owns storage, so
@@ -234,11 +233,8 @@ fn a_packed_run_resolves_a_project_preset_as_a_dev_run_does() {
     let pack = balaur_core::Pack::build(dir.path(), &NoScripts).unwrap();
     // A project root that does not exist, so nothing can fall back to disk.
     let mut packed = App::new(AppConfig {
-        project_root: dir.path().join("shipped"),
         pack: Some(pack.clone()),
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
+        ..AppConfig::bare(dir.path().join("shipped"))
     })
     .unwrap();
     register_pair(&mut packed);

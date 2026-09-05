@@ -9,8 +9,7 @@ use balaur_core::{App, AppConfig, Engine};
 use balaur_script::Value;
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 fn call(eng: &Engine, name: &str, args: &[Value]) -> anyhow::Result<Value> {

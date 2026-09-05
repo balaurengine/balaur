@@ -11,8 +11,7 @@ use balaur_core::{App, AppConfig};
 use balaur_webtransport::{Accept, WebTransportLink, WebTransportServer};
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 /// Poll until both ends report open, or give up. A QUIC handshake is a round

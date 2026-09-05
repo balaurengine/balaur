@@ -16,7 +16,7 @@ use crate::rapier2d::prelude::{
 use crate::scalar::{self, Pose2, Real, Rotation2};
 
 use crate::dim2::{node_pose_2d, PhysicsState2d};
-use crate::vocabulary as v;
+use crate::vocabulary::{self as v, words as w};
 
 crate::shared::collider::functions!(state = PhysicsState2d);
 
@@ -69,7 +69,7 @@ pub(crate) fn add_collider(eng: &Engine, entity: Entity, builder: ColliderBuilde
 /// The collider described by `params`, in the `collider2d` schema's own
 /// vocabulary — so a script table and a scene-file entry build the same thing.
 pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder2> {
-    let kind = v::text(params, "kind", "rect");
+    let kind = v::text(params, "kind", w::RECT);
     let radius = scalar::real(v::f(params, "radius", 0.5)).max(0.01);
     // `height` is the straight part, caps excluded, as it is in 3D.
     let half_height = scalar::real(v::f(params, "height", 1.0).max(0.01)) / 2.0;
@@ -78,23 +78,23 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
     let border = scalar::real(v::f(params, "border", 0.0)).max(0.0);
     let rounded = border > 0.0;
     let builder = match kind {
-        "circle" => ColliderBuilder2::ball(radius),
-        "rect" if rounded => ColliderBuilder2::round_cuboid(he(0), he(1), border),
-        "rect" => ColliderBuilder2::cuboid(he(0), he(1)),
-        "capsule" => ColliderBuilder2::capsule_y(half_height, radius),
-        "triangle" if rounded => ColliderBuilder2::round_triangle(
+        w::CIRCLE => ColliderBuilder2::ball(radius),
+        w::RECT if rounded => ColliderBuilder2::round_cuboid(he(0), he(1), border),
+        w::RECT => ColliderBuilder2::cuboid(he(0), he(1)),
+        w::CAPSULE => ColliderBuilder2::capsule_y(half_height, radius),
+        w::TRIANGLE if rounded => ColliderBuilder2::round_triangle(
             point("a", [0.0, 0.0]),
             point("b", [1.0, 0.0]),
             point("c", [0.0, 1.0]),
             border,
         ),
-        "triangle" => ColliderBuilder2::triangle(
+        w::TRIANGLE => ColliderBuilder2::triangle(
             point("a", [0.0, 0.0]),
             point("b", [1.0, 0.0]),
             point("c", [0.0, 1.0]),
         ),
-        "segment" => ColliderBuilder2::segment(point("a", [0.0, 0.0]), point("b", [1.0, 0.0])),
-        "halfspace" => {
+        w::SEGMENT => ColliderBuilder2::segment(point("a", [0.0, 0.0]), point("b", [1.0, 0.0])),
+        w::HALFSPACE => {
             let n = point("normal", [0.0, 1.0]);
             if n.length_squared() < 1.0e-12 {
                 return Err(anyhow!("a halfspace collider needs a non-zero `normal`"));
@@ -103,8 +103,8 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
                 n.normalize(),
             ))
         }
-        "trimesh" | "convex_hull" | "polyline" => mesh_collider(eng, params, kind)?,
-        "heightfield" => heightfield_collider(eng, params)?,
+        w::TRIMESH | w::CONVEX_HULL | w::POLYLINE => mesh_collider(eng, params, kind)?,
+        w::HEIGHTFIELD => heightfield_collider(eng, params)?,
         other => return Err(anyhow!("unknown collider2d kind '{other}'")),
     };
     Ok(with_material(builder, params))
@@ -128,9 +128,9 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
         .map(|p| scalar::v2(p[0], p[1]))
         .collect();
     match kind {
-        "trimesh" => ColliderBuilder2::trimesh(points, mesh.indices.clone())
+        w::TRIMESH => ColliderBuilder2::trimesh(points, mesh.indices.clone())
             .map_err(|e| anyhow!("that mesh cannot be a trimesh collider: {e}")),
-        "convex_hull" => ColliderBuilder2::convex_hull(&points)
+        w::CONVEX_HULL => ColliderBuilder2::convex_hull(&points)
             .ok_or_else(|| anyhow!("those {} points have no hull", points.len())),
         _ => {
             if points.len() < 2 {
@@ -168,11 +168,15 @@ fn with_material(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBui
         .restitution(scalar::real(v::f(params, "restitution", 0.0)))
         .friction(scalar::real(v::f(params, "friction", 0.5)))
         .density(scalar::real(v::f(params, "density", 1.0).max(0.001)))
-        .friction_combine_rule(combine_rule(v::text(params, "friction_combine", "average")))
+        .friction_combine_rule(combine_rule(v::text(
+            params,
+            "friction_combine",
+            w::AVERAGE,
+        )))
         .restitution_combine_rule(combine_rule(v::text(
             params,
             "restitution_combine",
-            "average",
+            w::AVERAGE,
         )))
         .contact_skin(scalar::real(v::f(params, "contact_skin", 0.0).max(0.0)))
         .contact_force_event_threshold(scalar::real(v::f(params, "contact_force_threshold", 0.0)))
@@ -265,45 +269,45 @@ fn shape_params(collider: &Collider) -> Option<toml::map::Map<String, toml::Valu
     let shape = collider.shape();
     let mut map = toml::map::Map::new();
     if let Some(ball) = shape.as_ball() {
-        map.insert("kind".into(), "circle".into());
+        map.insert("kind".into(), w::CIRCLE.into());
         map.insert("radius".into(), f(ball.radius));
         return Some(map);
     }
     if let Some(capsule) = shape.as_capsule() {
-        map.insert("kind".into(), "capsule".into());
+        map.insert("kind".into(), w::CAPSULE.into());
         map.insert("radius".into(), f(capsule.radius));
         let straight = (capsule.segment.b - capsule.segment.a).length();
         map.insert("height".into(), f(straight));
         return Some(map);
     }
     if let Some(cuboid) = shape.as_cuboid() {
-        map.insert("kind".into(), "rect".into());
+        map.insert("kind".into(), w::RECT.into());
         let he = cuboid.half_extents;
         map.insert("half_extents".into(), vec2(he.x, he.y));
         return Some(map);
     }
     if let Some(round) = shape.as_round_cuboid() {
-        map.insert("kind".into(), "rect".into());
+        map.insert("kind".into(), w::RECT.into());
         let he = round.inner_shape.half_extents;
         map.insert("half_extents".into(), vec2(he.x, he.y));
         map.insert("border".into(), f(round.border_radius));
         return Some(map);
     }
     if let Some(tri) = shape.as_triangle() {
-        map.insert("kind".into(), "triangle".into());
+        map.insert("kind".into(), w::TRIANGLE.into());
         map.insert("a".into(), vec2(tri.a.x, tri.a.y));
         map.insert("b".into(), vec2(tri.b.x, tri.b.y));
         map.insert("c".into(), vec2(tri.c.x, tri.c.y));
         return Some(map);
     }
     if let Some(segment) = shape.as_segment() {
-        map.insert("kind".into(), "segment".into());
+        map.insert("kind".into(), w::SEGMENT.into());
         map.insert("a".into(), vec2(segment.a.x, segment.a.y));
         map.insert("b".into(), vec2(segment.b.x, segment.b.y));
         return Some(map);
     }
     if let Some(halfspace) = shape.as_halfspace() {
-        map.insert("kind".into(), "halfspace".into());
+        map.insert("kind".into(), w::HALFSPACE.into());
         map.insert(
             "normal".into(),
             vec2(halfspace.normal.x, halfspace.normal.y),
@@ -337,8 +341,10 @@ pub(crate) fn max_contact_impulse(eng: &Engine, entity: Entity) -> Real {
 /// The `collider2d` key, backed by no component type: it writes into
 /// [`crate::PhysicsState2d`].
 pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
+    let shapes = v::options(w::SHAPES_2D);
+    let default = w::RECT;
     let schema = format!(
-        r#"kind = {{ type = "enum", default = "rect", options = ["circle", "rect", "capsule", "triangle", "segment", "halfspace", "trimesh", "convex_hull", "polyline", "heightfield"], description = "Collision shape" }}
+        r#"kind = {{ type = "enum", default = "{default}", options = [{shapes}], description = "Collision shape" }}
 radius = {{ type = "float", default = 0.5, min = 0.01, description = "Circle radius, when kind is circle or capsule" }}
 height = {{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, when kind is capsule" }}
 half_extents = {{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }}

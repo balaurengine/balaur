@@ -9,8 +9,7 @@ use balaur_core::Engine;
 use balaur_core::{digest, App, AppConfig, Transform};
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 fn spawn(app: &App, id: &str, x: f32) -> balaur_core::hecs::Entity {

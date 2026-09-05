@@ -248,40 +248,15 @@ fn material_group(
 
 fn build_pipeline(layout: wgpu::PipelineLayout, shader: wgpu::ShaderModule) -> PipelineCache {
     PipelineCache::new(move |sample_count| {
-        let layouts = vertex_layouts();
-        Context::get().create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("material_pipeline"),
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &layouts,
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: Context::render_format(),
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: multisample_state(sample_count),
-            multiview_mask: None,
-            cache: None,
-        })
+        crate::pipeline::material_pipeline(
+            "material_pipeline",
+            &layout,
+            &shader,
+            &vertex_layouts(),
+            None,
+            &crate::pipeline::Depth::Ignored,
+            sample_count,
+        )
     })
 }
 

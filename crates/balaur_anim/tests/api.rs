@@ -13,16 +13,9 @@ use balaur_core::{components, project, App, AppConfig};
 use glamx::{Quat, Vec3};
 
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        // Asset references resolve against the project root when no script
-        // host is running, which is every Rust-only app and every test.
-        project_root: std::path::PathBuf::from("tests/fixtures"),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    // Asset references resolve against the project root when no script host
+    // is running, which is every Rust-only app and every test.
+    let mut app = App::new(AppConfig::bare("tests/fixtures")).unwrap();
     balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
     app
 }

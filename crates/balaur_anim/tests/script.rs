@@ -69,11 +69,8 @@ fn project(script: (&str, &str)) -> tempfile::TempDir {
 
 fn app_in(dir: &std::path::Path) -> App {
     let mut app = App::new(AppConfig {
-        project_root: dir.to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
         script_backend: Some(balaur::rune::factory()),
+        ..AppConfig::bare(dir.to_path_buf())
     })
     .unwrap();
     balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();

@@ -38,11 +38,8 @@ song = { type = "asset", asset = "note", default = "" }
 
 fn app_in(project_root: &std::path::Path, pack: Option<Pack>) -> App {
     let mut app = App::new(AppConfig {
-        project_root: project_root.to_path_buf(),
         pack,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
+        ..AppConfig::bare(project_root.to_path_buf())
     })
     .unwrap();
     app.engine.insert_resource(Heard::default());

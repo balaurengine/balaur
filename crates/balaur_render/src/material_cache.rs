@@ -163,13 +163,12 @@ macro_rules! define {
                     .ok()
                     .map(|(material, probe)| {
                         self.probe = probe;
-                        let shared: $Shared = std::rc::Rc::new(std::cell::RefCell::new(
-                            Box::new(material) as Box<dyn $Material>,
-                        ));
+                        let shared: $Shared = std::rc::Rc::new(std::cell::RefCell::new(Box::new(
+                            material,
+                        )
+                            as Box<dyn $Material>));
                         // Registered, not just attached: kiss3d calls
-                        // `begin_frame` over the manager's materials, and one
-                        // that misses it writes its view and clock once and
-                        // then never again.
+                        // `begin_frame` only over the manager's own materials.
                         <$Manager>::get_global_manager(|manager| {
                             manager.add(shared.clone(), &manager_name(reference));
                         });

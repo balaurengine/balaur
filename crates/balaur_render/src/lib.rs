@@ -40,6 +40,8 @@ pub use polygon::PolygonMesh;
 pub use tilemap::{Tilemap, Tileset, TILESET_ASSET_TYPE};
 
 #[cfg(feature = "kiss3d")]
+mod bind_layout;
+#[cfg(feature = "kiss3d")]
 mod device;
 #[cfg(all(
     feature = "kiss3d",
@@ -47,8 +49,6 @@ mod device;
     not(target_os = "emscripten")
 ))]
 mod hidden_tab;
-#[cfg(feature = "kiss3d")]
-mod bind_layout;
 #[cfg(feature = "kiss3d")]
 pub mod kiss3d_backend;
 #[cfg(feature = "kiss3d")]
@@ -59,6 +59,8 @@ mod kiss3d_input;
 mod light_map;
 #[cfg(feature = "kiss3d")]
 mod material_cache;
+#[cfg(feature = "kiss3d")]
+mod pipeline;
 #[cfg(feature = "kiss3d")]
 mod shader_material;
 #[cfg(feature = "kiss3d")]

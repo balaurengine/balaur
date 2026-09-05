@@ -11,8 +11,7 @@ use balaur_core::scene::{self, Transform};
 use balaur_core::{assets, components, project, App, AppConfig};
 
 fn app_in(project_root: &std::path::Path) -> App {
-    let mut app = App::new(AppConfig::bare(project_root.to_path_buf()))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(project_root.to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
     app
 }

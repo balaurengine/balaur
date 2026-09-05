@@ -125,11 +125,8 @@ impl AppConfig {
 
     pub fn packed(pack: Pack) -> Self {
         Self {
-            project_root: PathBuf::from("."),
             pack: Some(pack),
-            watch: false,
-            script_args: Vec::new(),
-            script_backend: None,
+            ..Self::bare(".")
         }
     }
 }
@@ -245,17 +242,20 @@ impl App {
     pub fn new(mut config: AppConfig) -> Result<Self> {
         let engine = Engine::new();
         insert_core_resources(&engine, &config);
-        match config.script_backend.take() { Some(make) => {
-            engine.set_script_host(make(ScriptSetup {
-                engine: &engine,
-                project_root: &config.project_root,
-                pack: config.pack.clone(),
-                watch: config.watch,
-            })?);
-            crate::engine_api::install_engine_api(&engine)?;
-        } _ => {
-            tracing::info!("no script backend configured; scripting is off");
-        }}
+        match config.script_backend.take() {
+            Some(make) => {
+                engine.set_script_host(make(ScriptSetup {
+                    engine: &engine,
+                    project_root: &config.project_root,
+                    pack: config.pack.clone(),
+                    watch: config.watch,
+                })?);
+                crate::engine_api::install_engine_api(&engine)?;
+            }
+            _ => {
+                tracing::info!("no script backend configured; scripting is off");
+            }
+        }
         let mut app = Self {
             engine,
             systems: (0..STAGE_COUNT).map(|_| Vec::new()).collect(),

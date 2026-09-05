@@ -295,6 +295,7 @@ pub(crate) fn dialog_backdrop(ctx: &egui::Context, entity: Entity, area: Rect) {
         .order(egui::Order::Foreground)
         .fixed_pos(area.min)
         .interactable(true)
+        .fade_in(false)
         .show(ctx, |ui| {
             let (rect, _) = ui.allocate_exact_size(area.size(), Sense::click());
             ui.painter()

@@ -9,8 +9,7 @@ use balaur_physics::{PhysicsPlugin, BODY_KINDS, SHAPE_KINDS, SHAPE_KINDS_2D};
 
 /// The enum options a registered component actually declares.
 fn registered_options(component: &str, field: &str) -> Vec<String> {
-    let mut app = App::new(AppConfig::bare("."))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
     let registry = registry.borrow();

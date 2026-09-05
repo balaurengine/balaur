@@ -12,8 +12,7 @@ use balaur_core::scene::{self, Transform};
 use balaur_core::{components, digest, snapshot, App, AppConfig};
 
 fn app() -> App {
-    let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures")))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
     balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
     app
 }

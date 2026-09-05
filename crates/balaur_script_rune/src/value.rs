@@ -72,7 +72,7 @@ pub(crate) fn install(
             declared.name,
             crate::bindings::bound_handler(handle, "node method was registered on another thread"),
         )
-            .build_associated::<Node>()?;
+        .build_associated::<Node>()?;
     }
     component::install(m, engine)?;
     Ok(())

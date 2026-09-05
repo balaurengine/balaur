@@ -21,26 +21,37 @@ use balaur_core::{entity_of, Engine, Transform};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
-use crate::vocabulary::map;
+use crate::vocabulary::{map, words};
 use crate::{PhysicsState, FIXED_DT};
 
 /// The schema both dimensions share. `up` is the one property whose shape
 /// differs, so each adds its own.
-pub(crate) const SHARED_CHARACTER_SCHEMA: &str = r#"
-offset = { type = "float", default = 0.01, min = 0.0, description = "A gap kept between the character and everything else, so the solver never has to push it out of a wall" }
-slide = { type = "bool", default = true, description = "Slide along what is in the way instead of stopping dead against it" }
-autostep = { type = "float", default = 0.3, min = 0.0, description = "The tallest step the character climbs without jumping; 0 turns stepping off" }
-autostep_min_width = { type = "float", default = 0.2, min = 0.0, description = "How much clear ground a step needs on top before it may be climbed" }
-autostep_dynamic = { type = "bool", default = false, description = "Climb onto dynamic bodies too, not only static and kinematic ones" }
-max_climb_angle = { type = "float", default = 45.0, min = 0.0, max = 90.0, description = "The steepest slope the character may walk up, in degrees" }
-min_slide_angle = { type = "float", default = 30.0, min = 0.0, max = 90.0, description = "The shallowest slope the character slides back down, in degrees" }
-snap_to_ground = { type = "float", default = 0.2, min = 0.0, description = "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off" }
-normal_nudge = { type = "float", default = 0.0001, min = 0.0, description = "A tiny push along the contact normal that stops the character catching on seams" }
-push_bodies = { type = "bool", default = true, description = "Push dynamic bodies the character walks into, rather than passing through them" }
-lengths = { type = "enum", default = "absolute", options = ["absolute", "relative"], description = "Whether offset, autostep and snap_to_ground are in world units or as a fraction of the character's own height" }
-"#;
+pub(crate) fn shared_character_schema() -> String {
+    let modes = crate::vocabulary::options(words::LENGTH_MODES);
+    let absolute = words::ABSOLUTE;
+    format!(
+        r#"
+offset = {{ type = "float", default = 0.01, min = 0.0, description = "A gap kept between the character and everything else, so the solver never has to push it out of a wall" }}
+slide = {{ type = "bool", default = true, description = "Slide along what is in the way instead of stopping dead against it" }}
+autostep = {{ type = "float", default = 0.3, min = 0.0, description = "The tallest step the character climbs without jumping; 0 turns stepping off" }}
+autostep_min_width = {{ type = "float", default = 0.2, min = 0.0, description = "How much clear ground a step needs on top before it may be climbed" }}
+autostep_dynamic = {{ type = "bool", default = false, description = "Climb onto dynamic bodies too, not only static and kinematic ones" }}
+max_climb_angle = {{ type = "float", default = 45.0, min = 0.0, max = 90.0, description = "The steepest slope the character may walk up, in degrees" }}
+min_slide_angle = {{ type = "float", default = 30.0, min = 0.0, max = 90.0, description = "The shallowest slope the character slides back down, in degrees" }}
+snap_to_ground = {{ type = "float", default = 0.2, min = 0.0, description = "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off" }}
+normal_nudge = {{ type = "float", default = 0.0001, min = 0.0, description = "A tiny push along the contact normal that stops the character catching on seams" }}
+push_bodies = {{ type = "bool", default = true, description = "Push dynamic bodies the character walks into, rather than passing through them" }}
+lengths = {{ type = "enum", default = "{absolute}", options = [{modes}], description = "Whether offset, autostep and snap_to_ground are in world units or as a fraction of the character's own height" }}
+"#
+    )
+}
 
-crate::shared::character::functions!(state = PhysicsState, vector = Vector, value = Vec3, array = a3);
+crate::shared::character::functions!(
+    state = PhysicsState,
+    vector = Vector,
+    value = Vec3,
+    array = a3
+);
 
 /// Move the character by `translation`, and say what happened.
 ///
@@ -188,9 +199,10 @@ pub struct Character3d(pub toml::Value);
 /// The character component writes no rapier state of its own: it is read at
 /// the moment a script moves the node, and the collider does the rest.
 pub(crate) fn register_character_component(reg: &mut Registry<'_>) {
+    let shared = shared_character_schema();
     let schema = format!(
         r#"up = {{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way is up for this character: the axis it stands along and measures slopes against" }}
-{SHARED_CHARACTER_SCHEMA}"#
+{shared}"#
     );
     reg.register_component(
         "character3d",

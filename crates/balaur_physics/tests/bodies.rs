@@ -9,8 +9,7 @@ use balaur_core::{components, App, AppConfig};
 use balaur_physics::{PhysicsPlugin, PhysicsState, PhysicsState2d};
 
 fn app() -> App {
-    let mut app = App::new(AppConfig::bare("."))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
     app
 }

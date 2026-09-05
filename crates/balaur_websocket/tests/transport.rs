@@ -14,8 +14,7 @@ use balaur_websocket::transport::WebsocketTransport;
 use balaur_websocket::SocketOptions;
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 /// Echo every binary frame back untouched, so whatever the transport framed

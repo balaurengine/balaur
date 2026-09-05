@@ -91,7 +91,11 @@ pub(crate) fn node_pose_2d(eng: &Engine, entity: Entity) -> Result<Pose2> {
     ))
 }
 
-crate::shared::world::functions!(state = PhysicsState2d, component = "joint2d", prune = prune_freed_nodes);
+crate::shared::world::functions!(
+    state = PhysicsState2d,
+    component = "joint2d",
+    prune = prune_freed_nodes
+);
 
 fn step_system(eng: &Engine, _dt: f32) {
     {

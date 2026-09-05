@@ -221,8 +221,7 @@ fn joints_and_shape_edits_survive_a_snapshot() {
     use balaur_core::{components, snapshot, App, AppConfig};
     use balaur_physics::{PhysicsPlugin, PhysicsState};
 
-    let mut app = App::new(AppConfig::bare("."))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
 
     let root = app.engine.root();

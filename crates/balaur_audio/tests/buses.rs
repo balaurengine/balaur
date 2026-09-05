@@ -16,8 +16,7 @@ fn app(buses: &str) -> (tempfile::TempDir, App) {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
-    let mut app = App::new(AppConfig::bare(dir.path().to_path_buf()))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
     app.load_project().unwrap();
     (dir, app)
@@ -238,8 +237,7 @@ fn with_events(events: &str) -> (tempfile::TempDir, App) {
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
     std::fs::create_dir_all(dir.path().join("audio")).unwrap();
     std::fs::write(dir.path().join("audio/events.toml"), events).unwrap();
-    let mut app = App::new(AppConfig::bare(dir.path().to_path_buf()))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
     app.load_project().unwrap();
     (dir, app)

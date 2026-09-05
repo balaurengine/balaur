@@ -10,8 +10,7 @@ use balaur_core::{components, App, AppConfig};
 use glamx::Mat3;
 
 fn app() -> App {
-    let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures")))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
     balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
     app
 }

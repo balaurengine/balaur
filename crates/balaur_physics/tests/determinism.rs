@@ -46,8 +46,7 @@ collider3d = { kind = "ball", radius = 0.5 }
 }
 
 fn boot(root: &std::path::Path) -> App {
-    let mut app = App::new(AppConfig::bare(root.to_path_buf()))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(root.to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
     app.load_project().unwrap();
     app

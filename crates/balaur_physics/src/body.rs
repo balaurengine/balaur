@@ -18,7 +18,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::collider::{add_collider, apply_collider, get_collider_params};
 use crate::query::overlaps_value;
-use crate::vocabulary as v;
+use crate::vocabulary::{self as v, words as w};
 use crate::{node_pose, PhysicsState};
 
 /// The schema `body3d` and `body2d` share, minus the dimension-shaped
@@ -64,7 +64,7 @@ fn locked_axes(params: &toml::Value) -> LockedAxes {
             LockedAxes::ROTATION_LOCKED_Z,
         ),
     ] {
-        for (name, flag) in [("x", x), ("y", y), ("z", z)] {
+        for (name, flag) in [(w::X, x), (w::Y, y), (w::Z, z)] {
             if v::flag(params, key, name) {
                 axes |= flag;
             }
@@ -79,7 +79,7 @@ fn locked_axes(params: &toml::Value) -> LockedAxes {
 /// mid-flight without dropping its velocity — and what keeps `patch` (one
 /// property at a time, from an animation) honest.
 pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_sleep: bool) {
-    if let Ok(kind) = body_type(v::text(params, "kind", "dynamic")) {
+    if let Ok(kind) = body_type(v::text(params, "kind", w::DYNAMIC)) {
         if body.body_type() != kind {
             body.set_body_type(kind, true);
         }
@@ -146,7 +146,7 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
     let axes = body.locked_axes();
     let flags = |x: LockedAxes, y: LockedAxes, z: LockedAxes| {
         toml::Value::Array(
-            [("x", x), ("y", y), ("z", z)]
+            [(w::X, x), (w::Y, y), (w::Z, z)]
                 .into_iter()
                 .filter(|(_, flag)| axes.contains(*flag))
                 .map(|(name, _)| toml::Value::String(name.to_string()))
@@ -841,10 +841,13 @@ pub(crate) fn install_body_sleep_api(m: &mut dyn Bindings<Engine>) {
 /// The `body = "dynamic"` shorthand keeps working via the schema's
 /// `shorthand` marker.
 pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
+    let kinds = v::options(w::BODY_KINDS);
+    let axes = v::options(w::LOCK_AXES);
+    let default = w::DYNAMIC;
     let schema = format!(
-        r#"kind = {{ type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic", "kinematic_velocity"], shorthand = true, description = "How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}
-lock_translation = {{ type = "flags", default = [], options = ["x", "y", "z"], description = "World axes the body may not move along" }}
-lock_rotation = {{ type = "flags", default = [], options = ["x", "y", "z"], description = "World axes the body may not turn about; locking all three keeps a character upright" }}
+        r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], shorthand = true, description = "How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}
+lock_translation = {{ type = "flags", default = [], options = [{axes}], description = "World axes the body may not move along" }}
+lock_rotation = {{ type = "flags", default = [], options = [{axes}], description = "World axes the body may not turn about; locking all three keeps a character upright" }}
 center_of_mass = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the extra mass sits, in the node's own space; only read when mass is set" }}
 inertia = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Resistance to spin about each axis; 0 lets rapier derive it from the mass" }}
 gyroscopic = {{ type = "bool", default = false, description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }}

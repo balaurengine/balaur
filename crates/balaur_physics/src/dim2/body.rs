@@ -25,7 +25,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 use crate::body::SHARED_BODY_SCHEMA;
 use crate::dim2::collider::{apply_collider, get_collider_params};
 use crate::dim2::{node_pose_2d, PhysicsState2d};
-use crate::vocabulary as v;
+use crate::vocabulary::{self as v, words as w};
 
 crate::shared::body::functions!(
     state = PhysicsState2d,
@@ -39,10 +39,10 @@ crate::shared::body::functions!(
 /// set is built by hand rather than shared with 3D.
 fn locked_axes(params: &toml::Value) -> LockedAxes {
     let mut axes = LockedAxes::empty();
-    if v::flag(params, "lock_translation", "x") {
+    if v::flag(params, "lock_translation", w::X) {
         axes |= LockedAxes::TRANSLATION_LOCKED_X;
     }
-    if v::flag(params, "lock_translation", "y") {
+    if v::flag(params, "lock_translation", w::Y) {
         axes |= LockedAxes::TRANSLATION_LOCKED_Y;
     }
     if v::boolean(params, "lock_rotation", false) {
@@ -52,7 +52,7 @@ fn locked_axes(params: &toml::Value) -> LockedAxes {
 }
 
 pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_sleep: bool) {
-    if let Ok(kind) = body_type(v::text(params, "kind", "dynamic")) {
+    if let Ok(kind) = body_type(v::text(params, "kind", w::DYNAMIC)) {
         if body.body_type() != kind {
             body.set_body_type(kind, true);
         }
@@ -118,8 +118,8 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
         "lock_translation".into(),
         toml::Value::Array(
             [
-                ("x", LockedAxes::TRANSLATION_LOCKED_X),
-                ("y", LockedAxes::TRANSLATION_LOCKED_Y),
+                (w::X, LockedAxes::TRANSLATION_LOCKED_X),
+                (w::Y, LockedAxes::TRANSLATION_LOCKED_Y),
             ]
             .into_iter()
             .filter(|(_, flag)| axes.contains(*flag))
@@ -630,9 +630,12 @@ pub(crate) fn install_body2d_force_reader_api(m: &mut dyn Bindings<Engine>) {
 /// The `body2d` key. Like `body3d`, backed by no component type: it writes
 /// into [`crate::PhysicsState2d`].
 pub(crate) fn register_body2d_component(reg: &mut Registry<'_>) {
+    let kinds = v::options(w::BODY_KINDS);
+    let axes = v::options(w::LOCK_AXES_2D);
+    let default = w::DYNAMIC;
     let schema = format!(
-        r#"kind = {{ type = "enum", default = "dynamic", options = ["dynamic", "static", "kinematic", "kinematic_velocity"], shorthand = true, description = "How 2D physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}
-lock_translation = {{ type = "flags", default = [], options = ["x", "y"], description = "Axes the body may not move along" }}
+        r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], shorthand = true, description = "How 2D physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}
+lock_translation = {{ type = "flags", default = [], options = [{axes}], description = "Axes the body may not move along" }}
 lock_rotation = {{ type = "bool", default = false, description = "Stop the body turning; how a 2D character stays upright" }}
 center_of_mass = {{ type = "vec2", default = [0.0, 0.0], description = "Where the extra mass sits, in the node's own space; only read when mass is set" }}
 inertia = {{ type = "float", default = 0.0, min = 0.0, description = "Resistance to spin; 0 lets rapier derive it from the mass" }}

@@ -10,8 +10,7 @@ use std::rc::Rc;
 use balaur_core::{App, AppConfig, Stage, FIXED_DT, MAX_SUBSTEPS};
 
 fn app() -> App {
-    App::new(AppConfig::bare("."))
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 /// Every dt the fixed stage was called with, in order.

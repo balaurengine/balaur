@@ -16,7 +16,7 @@ use crate::rapier3d::prelude::{
 };
 use crate::scalar::{self, Pose, Real};
 
-use crate::vocabulary as v;
+use crate::vocabulary::{self as v, words as w};
 use crate::{node_pose, PhysicsState};
 
 /// The geometry a mesh-backed collider names, through the same asset the
@@ -40,7 +40,7 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
     match kind {
         // The flags are what stop a character controller catching on the seam
         // between two triangles of a flat floor.
-        "trimesh" => {
+        w::TRIMESH => {
             let mut flags = crate::rapier3d::prelude::TriMeshFlags::empty();
             if v::boolean(params, "fix_internal_edges", true) {
                 flags |= crate::rapier3d::prelude::TriMeshFlags::FIX_INTERNAL_EDGES;
@@ -58,17 +58,17 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
         }
         // The only way to get a *dynamic* concave shape: rapier's VHACD cuts
         // the mesh into convex pieces and keeps them as one compound.
-        "convex_decomposition" => Ok(ColliderBuilder::convex_decomposition(
+        w::CONVEX_DECOMPOSITION => Ok(ColliderBuilder::convex_decomposition(
             &points,
             &mesh.indices,
         )),
         // A shape fitted to the mesh rather than made of it: a box, an
         // oriented box, or a hull, whichever `fit` asks for.
-        "fit" => {
-            let converter = match v::text(params, "fit", "convex_hull") {
-                "aabb" => crate::rapier3d::prelude::MeshConverter::Aabb,
-                "obb" => crate::rapier3d::prelude::MeshConverter::Obb,
-                "convex_decomposition" => {
+        w::FIT => {
+            let converter = match v::text(params, "fit", w::CONVEX_HULL) {
+                w::AABB => crate::rapier3d::prelude::MeshConverter::Aabb,
+                w::OBB => crate::rapier3d::prelude::MeshConverter::Obb,
+                w::CONVEX_DECOMPOSITION => {
                     crate::rapier3d::prelude::MeshConverter::ConvexDecomposition
                 }
                 _ => crate::rapier3d::prelude::MeshConverter::ConvexHull,
@@ -76,7 +76,7 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
             ColliderBuilder::converted_trimesh(points, mesh.indices.clone(), converter)
                 .map_err(|e| anyhow!("that mesh cannot be fitted: {e}"))
         }
-        "convex_hull" => Ok(ColliderBuilder::convex_hull(&points).unwrap_or_else(|| {
+        w::CONVEX_HULL => Ok(ColliderBuilder::convex_hull(&points).unwrap_or_else(|| {
             // Degenerate input (every point on one line or plane) has no hull.
             // The node keeps a collider rather than losing one silently.
             let (min, max) = mesh.bounds().unwrap_or(([-0.5; 3], [0.5; 3]));
@@ -128,7 +128,7 @@ fn voxelized_mesh_collider(eng: &Engine, params: &toml::Value) -> Result<Collide
     let mesh = collider_mesh(eng, params)?;
     let points: Vec<Vector> = mesh.positions.iter().map(|p| scalar::v3a(*p)).collect();
     let size = scalar::real(v::f(params, "voxel_size", 0.25).max(0.001));
-    let fill = if v::text(params, "fill", "solid") == "surface" {
+    let fill = if v::text(params, "fill", w::SOLID) == w::SURFACE {
         crate::rapier3d::parry::transformation::voxelization::FillMode::SurfaceOnly
     } else {
         crate::rapier3d::parry::transformation::voxelization::FillMode::FloodFill {
@@ -172,7 +172,7 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
     let kind = params
         .get("kind")
         .and_then(|v| v.as_str())
-        .unwrap_or("cuboid");
+        .unwrap_or(w::CUBOID);
     let f = |key: &str, default: f64| {
         params
             .get(key)
@@ -211,35 +211,35 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
     let border = scalar::real(f("border", 0.0)).max(0.0);
     let rounded = border > 0.0;
     let builder = match kind {
-        "ball" => ColliderBuilder::ball(radius),
-        "cuboid" if rounded => {
+        w::BALL => ColliderBuilder::ball(radius),
+        w::CUBOID if rounded => {
             ColliderBuilder::round_cuboid(he(0).max(0.01), he(1).max(0.01), he(2).max(0.01), border)
         }
-        "cuboid" => ColliderBuilder::cuboid(he(0).max(0.01), he(1).max(0.01), he(2).max(0.01)),
-        "capsule" => ColliderBuilder::capsule_y(half_height, radius),
-        "cylinder" if rounded => ColliderBuilder::round_cylinder(half_height, radius, border),
-        "cylinder" => ColliderBuilder::cylinder(half_height, radius),
-        "cone" if rounded => ColliderBuilder::round_cone(half_height, radius, border),
-        "cone" => ColliderBuilder::cone(half_height, radius),
-        "triangle" if rounded => ColliderBuilder::round_triangle(
+        w::CUBOID => ColliderBuilder::cuboid(he(0).max(0.01), he(1).max(0.01), he(2).max(0.01)),
+        w::CAPSULE => ColliderBuilder::capsule_y(half_height, radius),
+        w::CYLINDER if rounded => ColliderBuilder::round_cylinder(half_height, radius, border),
+        w::CYLINDER => ColliderBuilder::cylinder(half_height, radius),
+        w::CONE if rounded => ColliderBuilder::round_cone(half_height, radius, border),
+        w::CONE => ColliderBuilder::cone(half_height, radius),
+        w::TRIANGLE if rounded => ColliderBuilder::round_triangle(
             point("a", [0.0, 0.0, 0.0]),
             point("b", [1.0, 0.0, 0.0]),
             point("c", [0.0, 1.0, 0.0]),
             border,
         ),
-        "triangle" => ColliderBuilder::triangle(
+        w::TRIANGLE => ColliderBuilder::triangle(
             point("a", [0.0, 0.0, 0.0]),
             point("b", [1.0, 0.0, 0.0]),
             point("c", [0.0, 1.0, 0.0]),
         ),
-        "trimesh" | "convex_hull" | "polyline" | "convex_decomposition" | "fit" => {
+        w::TRIMESH | w::CONVEX_HULL | w::POLYLINE | w::CONVEX_DECOMPOSITION | w::FIT => {
             mesh_collider(eng, params, kind)?
         }
-        "voxels" => voxel_collider(eng, params)?,
-        "voxelized_mesh" => voxelized_mesh_collider(eng, params)?,
-        "heightfield" => heightfield_collider(eng, params, point("scale", [1.0, 1.0, 1.0]))?,
+        w::VOXELS => voxel_collider(eng, params)?,
+        w::VOXELIZED_MESH => voxelized_mesh_collider(eng, params)?,
+        w::HEIGHTFIELD => heightfield_collider(eng, params, point("scale", [1.0, 1.0, 1.0]))?,
         // An infinite plane, for a floor that needs no size and no triangles.
-        "halfspace" => {
+        w::HALFSPACE => {
             let n = point("normal", [0.0, 1.0, 0.0]);
             if n.length_squared() < 1.0e-12 {
                 bail!("a halfspace collider needs a non-zero `normal`");
@@ -248,7 +248,7 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
                 n.normalize(),
             ))
         }
-        "segment" => {
+        w::SEGMENT => {
             ColliderBuilder::segment(point("a", [0.0, 0.0, 0.0]), point("b", [1.0, 0.0, 0.0]))
         }
         other => return Err(anyhow!("unknown collider kind '{other}'")),
@@ -266,11 +266,15 @@ pub(crate) fn with_material(builder: ColliderBuilder, params: &toml::Value) -> C
         .restitution(scalar::real(v::f(params, "restitution", 0.0)))
         .friction(scalar::real(v::f(params, "friction", 0.5)))
         .density(scalar::real(v::f(params, "density", 1.0).max(0.001)))
-        .friction_combine_rule(combine_rule(v::text(params, "friction_combine", "average")))
+        .friction_combine_rule(combine_rule(v::text(
+            params,
+            "friction_combine",
+            w::AVERAGE,
+        )))
         .restitution_combine_rule(combine_rule(v::text(
             params,
             "restitution_combine",
-            "average",
+            w::AVERAGE,
         )))
         .contact_skin(scalar::real(v::f(params, "contact_skin", 0.0).max(0.0)))
         .contact_force_event_threshold(scalar::real(v::f(params, "contact_force_threshold", 0.0)))
@@ -492,18 +496,18 @@ fn collider_shape_params(
     let vec3 = |x: Real, y: Real, z: Real| toml::Value::Array(vec![f(x), f(y), f(z)]);
     let mut map = toml::map::Map::new();
     if let Some(ball) = shape.as_ball() {
-        map.insert("kind".into(), "ball".into());
+        map.insert("kind".into(), w::BALL.into());
         map.insert("radius".into(), f(ball.radius));
         return Some(map);
     }
     if let Some(cuboid) = shape.as_cuboid() {
-        map.insert("kind".into(), "cuboid".into());
+        map.insert("kind".into(), w::CUBOID.into());
         let he = cuboid.half_extents;
         map.insert("half_extents".into(), vec3(he.x, he.y, he.z));
         return Some(map);
     }
     if let Some(capsule) = shape.as_capsule() {
-        map.insert("kind".into(), "capsule".into());
+        map.insert("kind".into(), w::CAPSULE.into());
         map.insert("radius".into(), f(capsule.radius));
         // `height` is the straight part: the segment, caps excluded.
         let straight = (capsule.segment.b - capsule.segment.a).length();
@@ -511,32 +515,32 @@ fn collider_shape_params(
         return Some(map);
     }
     if let Some(cylinder) = shape.as_cylinder() {
-        map.insert("kind".into(), "cylinder".into());
+        map.insert("kind".into(), w::CYLINDER.into());
         map.insert("radius".into(), f(cylinder.radius));
         map.insert("height".into(), f(cylinder.half_height * 2.0));
         return Some(map);
     }
     if let Some(cone) = shape.as_cone() {
-        map.insert("kind".into(), "cone".into());
+        map.insert("kind".into(), w::CONE.into());
         map.insert("radius".into(), f(cone.radius));
         map.insert("height".into(), f(cone.half_height * 2.0));
         return Some(map);
     }
     if let Some(tri) = shape.as_triangle() {
-        map.insert("kind".into(), "triangle".into());
+        map.insert("kind".into(), w::TRIANGLE.into());
         map.insert("a".into(), vec3(tri.a.x, tri.a.y, tri.a.z));
         map.insert("b".into(), vec3(tri.b.x, tri.b.y, tri.b.z));
         map.insert("c".into(), vec3(tri.c.x, tri.c.y, tri.c.z));
         return Some(map);
     }
     if let Some(segment) = shape.as_segment() {
-        map.insert("kind".into(), "segment".into());
+        map.insert("kind".into(), w::SEGMENT.into());
         map.insert("a".into(), vec3(segment.a.x, segment.a.y, segment.a.z));
         map.insert("b".into(), vec3(segment.b.x, segment.b.y, segment.b.z));
         return Some(map);
     }
     if let Some(halfspace) = shape.as_halfspace() {
-        map.insert("kind".into(), "halfspace".into());
+        map.insert("kind".into(), w::HALFSPACE.into());
         let n = halfspace.normal;
         map.insert("normal".into(), vec3(n.x, n.y, n.z));
         return Some(map);
@@ -545,20 +549,20 @@ fn collider_shape_params(
     // rounded it, which is exactly how the schema spells them.
     if let Some(round) = shape.as_round_cuboid() {
         let he = round.inner_shape.half_extents;
-        map.insert("kind".into(), "cuboid".into());
+        map.insert("kind".into(), w::CUBOID.into());
         map.insert("half_extents".into(), vec3(he.x, he.y, he.z));
         map.insert("border".into(), f(round.border_radius));
         return Some(map);
     }
     if let Some(round) = shape.as_round_cylinder() {
-        map.insert("kind".into(), "cylinder".into());
+        map.insert("kind".into(), w::CYLINDER.into());
         map.insert("radius".into(), f(round.inner_shape.radius));
         map.insert("height".into(), f(round.inner_shape.half_height * 2.0));
         map.insert("border".into(), f(round.border_radius));
         return Some(map);
     }
     if let Some(round) = shape.as_round_cone() {
-        map.insert("kind".into(), "cone".into());
+        map.insert("kind".into(), w::CONE.into());
         map.insert("radius".into(), f(round.inner_shape.radius));
         map.insert("height".into(), f(round.inner_shape.half_height * 2.0));
         map.insert("border".into(), f(round.border_radius));
@@ -657,13 +661,18 @@ fn collider_mesh_value(eng: &Engine, node: NodeId) -> Result<balaur_script::Valu
 /// with `collider2d`: a material is dimension-free.
 pub(crate) fn shared_collider_schema() -> String {
     let layers = v::layer_options();
+    let combine = v::options(w::COMBINE_RULES);
+    let average = w::AVERAGE;
+    let events = v::options(&v::flags::events().map(|(name, _)| name));
+    let collisions = v::options(&v::flags::collision_types().map(|(name, _)| name));
+    let watched = v::options(w::DEFAULT_COLLISIONS);
     format!(
         r#"restitution = {{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "Bounciness: 0 is a dead stop, 1 a full rebound" }}
 friction = {{ type = "float", default = 0.5, min = 0.0, description = "Surface friction; 0 is ice" }}
 density = {{ type = "float", default = 1.0, min = 0.001, description = "Mass per volume, so the shape's size sets its mass" }}
 mass = {{ type = "float", default = 0.0, min = 0.0, description = "Mass in kilograms, overriding what density works out to; 0 keeps the density" }}
-friction_combine = {{ type = "enum", default = "average", options = ["average", "min", "multiply", "max", "clamped_sum", "geometric_mean"], description = "How this surface's friction combines with the other one's" }}
-restitution_combine = {{ type = "enum", default = "average", options = ["average", "min", "multiply", "max", "clamped_sum", "geometric_mean"], description = "How this surface's bounciness combines with the other one's" }}
+friction_combine = {{ type = "enum", default = "{average}", options = [{combine}], description = "How this surface's friction combines with the other one's" }}
+restitution_combine = {{ type = "enum", default = "{average}", options = [{combine}], description = "How this surface's bounciness combines with the other one's" }}
 contact_skin = {{ type = "float", default = 0.0, min = 0.0, description = "A margin the solver treats as already touching; stops thin shapes tunnelling and jittering" }}
 sensor = {{ type = "bool", default = false, description = "Detects overlaps without colliding: bodies pass through and are reported" }}
 enabled = {{ type = "bool", default = true, description = "Collide at all; a disabled collider keeps its shape and costs nothing" }}
@@ -671,9 +680,9 @@ layers = {{ type = "flags", default = ["0"], options = [{layers}], description =
 mask = {{ type = "flags", default = [], options = [{layers}], description = "The layers it collides with; empty means every layer" }}
 solver_layers = {{ type = "flags", default = ["0"], options = [{layers}], description = "Layers for the solver alone: a pair can be detected but not resolved" }}
 solver_mask = {{ type = "flags", default = [], options = [{layers}], description = "Which solver layers this one pushes against; empty means all of them" }}
-events = {{ type = "flags", default = [], options = ["collision", "contact_force"], description = "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force" }}
+events = {{ type = "flags", default = [], options = [{events}], description = "What this collider reports to its node's script: on_collision_start and on_collision_stop, or on_contact_force" }}
 contact_force_threshold = {{ type = "float", default = 0.0, min = 0.0, description = "How hard a contact must be before on_contact_force is called" }}
-active_collisions = {{ type = "flags", default = ["dynamic_dynamic", "dynamic_kinematic", "dynamic_static"], options = ["dynamic_dynamic", "dynamic_kinematic", "dynamic_static", "kinematic_kinematic", "kinematic_static", "static_static"], description = "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default" }}
+active_collisions = {{ type = "flags", default = [{watched}], options = [{collisions}], description = "Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default" }}
 one_way = {{ type = "bool", default = false, description = "A platform bodies pass through from below and land on from above" }}
 "#
     )
@@ -682,8 +691,14 @@ one_way = {{ type = "bool", default = false, description = "A platform bodies pa
 /// The `collider3d` key. Not backed by a component type either: it writes
 /// into [`crate::PhysicsState`].
 pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
+    let shapes = v::options(w::SHAPES);
+    let default = w::CUBOID;
+    let fills = v::options(w::FILL_MODES);
+    let solid = w::SOLID;
+    let hull = w::CONVEX_HULL;
+    let fits = v::options(w::FIT_MODES);
     let schema = format!(
-        r#"kind = {{ type = "enum", default = "cuboid", options = ["ball", "cuboid", "capsule", "cylinder", "cone", "triangle", "segment", "halfspace", "trimesh", "convex_hull", "convex_decomposition", "polyline", "heightfield", "voxels", "voxelized_mesh", "fit"], description = "Collision shape" }}
+        r#"kind = {{ type = "enum", default = "{default}", options = [{shapes}], description = "Collision shape" }}
 radius = {{ type = "float", default = 0.5, min = 0.01, description = "Radius, for ball, capsule, cylinder and cone" }}
 height = {{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, for capsule, cylinder and cone" }}
 half_extents = {{ type = "vec3", default = [0.5, 0.5, 0.5], description = "Half-sizes of the cuboid, when kind is cuboid" }}
@@ -696,8 +711,8 @@ mesh = {{ type = "asset", asset = "mesh", default = "", description = "Geometry 
 heightfield = {{ type = "asset", asset = "heightfield", default = "", description = "Terrain grid, when kind is heightfield" }}
 voxels = {{ type = "asset", asset = "voxels", default = "", description = "Filled cells, when kind is voxels; a script may dig into them while the game runs" }}
 voxel_size = {{ type = "float", default = 0.25, min = 0.001, description = "How big one cell is, when kind is voxelized_mesh" }}
-fill = {{ type = "enum", default = "solid", options = ["solid", "surface"], description = "Whether voxelizing a mesh fills its inside or only its shell" }}
-fit = {{ type = "enum", default = "convex_hull", options = ["convex_hull", "aabb", "obb", "convex_decomposition"], description = "The shape fitted to the mesh, when kind is fit" }}
+fill = {{ type = "enum", default = "{solid}", options = [{fills}], description = "Whether voxelizing a mesh fills its inside or only its shell" }}
+fit = {{ type = "enum", default = "{hull}", options = [{fits}], description = "The shape fitted to the mesh, when kind is fit" }}
 fix_internal_edges = {{ type = "bool", default = true, description = "Smooth the seams between a trimesh's triangles, so a character does not catch on flat ground" }}
 clean = {{ type = "bool", default = false, description = "Drop duplicate vertices and degenerate triangles when building a trimesh" }}
 oriented = {{ type = "bool", default = false, description = "Treat the trimesh as a closed, outward-facing surface, which makes inside and outside meaningful" }}

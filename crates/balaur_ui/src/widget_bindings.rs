@@ -426,6 +426,9 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
                 egui::Area::new(egui::Id::new(format!("{id}-scrim")))
                     .order(egui::Order::Tooltip)
                     .fixed_pos(screen.min)
+                    // The scrim and its sheet appear together, so a fade on
+                    // either shows the other through a half-lit screen.
+                    .fade_in(false)
                     .show(ctx, |ui| {
                         ui.painter().rect_filled(screen, 0.0, scrim);
                         let response = ui.allocate_rect(screen, Sense::click());
@@ -437,6 +440,7 @@ pub(crate) fn install_modal(m: &mut dyn Bindings<Engine>) {
                 egui::Area::new(egui::Id::new(id))
                     .order(egui::Order::Tooltip)
                     .fixed_pos(pos2(screen.center().x - width / 2.0, top))
+                    .fade_in(false)
                     .show(ctx, |ui| {
                         let mut frame = egui::Frame::new()
                             .corner_radius(pill_radius(sc(32.0)))

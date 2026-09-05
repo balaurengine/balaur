@@ -4,23 +4,25 @@
 macro_rules! functions {
     (state = $State:ty) => {
         fn combine_name(rule: CoefficientCombineRule) -> &'static str {
+            use crate::vocabulary::words as w;
             match rule {
-                CoefficientCombineRule::Min => "min",
-                CoefficientCombineRule::Multiply => "multiply",
-                CoefficientCombineRule::Max => "max",
-                CoefficientCombineRule::ClampedSum => "clamped_sum",
-                CoefficientCombineRule::GeometricMean => "geometric_mean",
-                CoefficientCombineRule::Average => "average",
+                CoefficientCombineRule::Min => w::MIN,
+                CoefficientCombineRule::Multiply => w::MULTIPLY,
+                CoefficientCombineRule::Max => w::MAX,
+                CoefficientCombineRule::ClampedSum => w::CLAMPED_SUM,
+                CoefficientCombineRule::GeometricMean => w::GEOMETRIC_MEAN,
+                CoefficientCombineRule::Average => w::AVERAGE,
             }
         }
 
         fn combine_rule(name: &str) -> CoefficientCombineRule {
+            use crate::vocabulary::words as w;
             match name {
-                "min" => CoefficientCombineRule::Min,
-                "multiply" => CoefficientCombineRule::Multiply,
-                "max" => CoefficientCombineRule::Max,
-                "clamped_sum" => CoefficientCombineRule::ClampedSum,
-                "geometric_mean" => CoefficientCombineRule::GeometricMean,
+                w::MIN => CoefficientCombineRule::Min,
+                w::MULTIPLY => CoefficientCombineRule::Multiply,
+                w::MAX => CoefficientCombineRule::Max,
+                w::CLAMPED_SUM => CoefficientCombineRule::ClampedSum,
+                w::GEOMETRIC_MEAN => CoefficientCombineRule::GeometricMean,
                 _ => CoefficientCombineRule::Average,
             }
         }

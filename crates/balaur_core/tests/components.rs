@@ -5,8 +5,7 @@ use balaur_core::components::{self, ComponentDef, ComponentRegistry};
 use balaur_core::{App, AppConfig, Engine};
 
 fn app_with_marker() -> App {
-    let mut app = App::new(AppConfig::bare("."))
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     app.register_component(
         "marker",
         ComponentDef {
