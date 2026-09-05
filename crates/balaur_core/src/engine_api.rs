@@ -76,6 +76,16 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "engine",
+        name: "open_url",
+        call: crate::desktop_api::open_url,
+    },
+    EngineOp {
+        module: "engine",
+        name: "reveal",
+        call: crate::desktop_api::reveal,
+    },
+    EngineOp {
+        module: "engine",
         name: "platform",
         call: platform,
     },
@@ -524,6 +534,8 @@ fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("args", &[], "()", "The command-line arguments the app was started with, empty when it was given none."),
         ("reload_script", &[], "(key: string)", "Recompile one script by its project-relative key, for a tool editing files outside the watched root."),
         ("user_data_dir", &[], "()", "A writable per-user directory for saves and settings, created on first call and named after the project."),
+        ("open_url", &[], "(url: string)", "Open an http, https or mailto URL in whatever the player browses with. An effect on the world outside the game: never recorded, and it does nothing while a recording plays."),
+        ("reveal", &[], "(path: string)", "Show a file or directory in the system file manager, selected where the platform can. Never recorded, like `open_url`."),
         ("plugins", &[], "()", "Every plugin this build loaded, named, in load order."),
         ("has_plugin", &[], "(name: string)", "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there."),
         ("plugin_version", &[], "(name: string)", "The version of one loaded plugin, or nil when it did not load."),

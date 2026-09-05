@@ -357,8 +357,8 @@ fn named_body(app: &App, name: &str, kind: &str) -> Entity {
 
 fn joint_count(app: &App) -> usize {
     let state = app.engine.resource::<balaur_physics::PhysicsState>();
-    let n = state.borrow().joints.len();
-    n
+    
+    state.borrow().joints.len()
 }
 
 /// Rapier drops a joint with either end's body, so the map must drop the

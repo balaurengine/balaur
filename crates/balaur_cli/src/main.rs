@@ -7,6 +7,9 @@ use anyhow::{Context, Result};
 use balaur::{App, AppConfig, Pack};
 use clap::{Parser, Subcommand};
 
+// The editor's Export sheet, over the same library the command line drives.
+#[cfg(not(target_family = "wasm"))]
+mod export_api;
 mod lsp;
 mod templates;
 mod update;
@@ -461,16 +464,15 @@ fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<
 
     while balaur::replay::is_running(&app.engine) {
         app.advance(balaur::FIXED_DT);
-        if let Some(at) = entries_at {
-            if app.engine.tick() >= at {
+        if let Some(at) = entries_at
+            && app.engine.tick() >= at {
                 for entry in balaur::digest::entries(&app.engine) {
                     println!("{} {}", entry.label, entry.digest);
                 }
                 return Ok(());
             }
-        }
-        if verify {
-            if let Some(d) = app
+        if verify
+            && let Some(d) = app
                 .engine
                 .resource::<balaur::replay::ReplayPlayer>()
                 .borrow()
@@ -485,7 +487,6 @@ fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<
                     d.tick
                 );
             }
-        }
     }
 
     if entries_at.is_some() {
@@ -677,6 +678,13 @@ fn edit_project(
         config.script_args.push(state);
     }
     let mut app = balaur::standard_app(config)?;
+    // Registered here rather than in the engine: exporting is the CLI's
+    // library, and the editor is the only app with a button for it.
+    #[cfg(not(target_family = "wasm"))]
+    balaur_plugin::load(
+        &mut app,
+        &mut export_api::ExportPlugin::new(game.to_path_buf()),
+    )?;
     // The editor's project is the editor; the game it edits is another root,
     // and every path it reads back is an absolute one inside it.
     balaur::file_api::add_root(&app.engine, &game);
@@ -757,11 +765,10 @@ fn test_scripts(project_root: &Path) -> Vec<String> {
             let path = entry.path();
             if path.is_dir() {
                 dirs.push(path);
-            } else if path.extension().and_then(|e| e.to_str()) == Some("rn") {
-                if let Ok(rel) = path.strip_prefix(project_root) {
+            } else if path.extension().and_then(|e| e.to_str()) == Some("rn")
+                && let Ok(rel) = path.strip_prefix(project_root) {
                     out.push(rel.to_string_lossy().replace('\\', "/"));
                 }
-            }
         }
     }
     out.sort();

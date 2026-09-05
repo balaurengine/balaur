@@ -13,7 +13,7 @@ macro_rules! functions {
             up: $Vector,
         ) -> KinematicCharacterController {
             use crate::vocabulary::words as w;
-            let relative = crate::vocabulary::text(params, "lengths", w::ABSOLUTE) == w::RELATIVE;
+            let relative = crate::vocabulary::text(params, k::LENGTHS, w::ABSOLUTE) == w::RELATIVE;
             let length = |value: f32| {
                 let value = scalar::real(value);
                 if relative {
@@ -22,33 +22,33 @@ macro_rules! functions {
                     CharacterLength::Absolute(value)
                 }
             };
-            let autostep_height = crate::vocabulary::f(params, "autostep", 0.3);
+            let autostep_height = crate::vocabulary::f(params, k::AUTOSTEP, 0.3);
             KinematicCharacterController {
                 up,
-                offset: length(crate::vocabulary::f(params, "offset", 0.01)),
-                slide: crate::vocabulary::boolean(params, "slide", true),
+                offset: length(crate::vocabulary::f(params, k::OFFSET, 0.01)),
+                slide: crate::vocabulary::boolean(params, k::SLIDE, true),
                 autostep: (autostep_height > 0.0).then(|| CharacterAutostep {
                     max_height: length(autostep_height),
-                    min_width: length(crate::vocabulary::f(params, "autostep_min_width", 0.2)),
+                    min_width: length(crate::vocabulary::f(params, k::AUTOSTEP_MIN_WIDTH, 0.2)),
                     include_dynamic_bodies: crate::vocabulary::boolean(
                         params,
-                        "autostep_dynamic",
+                        k::AUTOSTEP_DYNAMIC,
                         false,
                     ),
                 }),
                 max_slope_climb_angle: scalar::real(
-                    crate::vocabulary::f(params, "max_climb_angle", 45.0).to_radians(),
+                    crate::vocabulary::f(params, k::MAX_CLIMB_ANGLE, 45.0).to_radians(),
                 ),
                 min_slope_slide_angle: scalar::real(
-                    crate::vocabulary::f(params, "min_slide_angle", 30.0).to_radians(),
+                    crate::vocabulary::f(params, k::MIN_SLIDE_ANGLE, 30.0).to_radians(),
                 ),
                 snap_to_ground: {
-                    let distance = crate::vocabulary::f(params, "snap_to_ground", 0.2);
+                    let distance = crate::vocabulary::f(params, k::SNAP_TO_GROUND, 0.2);
                     (distance > 0.0).then(|| length(distance))
                 },
                 normal_nudge_factor: scalar::real(crate::vocabulary::f(
                     params,
-                    "normal_nudge",
+                    k::NORMAL_NUDGE,
                     0.0001,
                 )),
             }
@@ -73,11 +73,11 @@ macro_rules! functions {
                 out.push((
                     other.to_bits().get(),
                     map([
-                        ("node", Value::Node(other.to_bits().get())),
-                        ("point", Value::$vec(scalar::$a(point))),
-                        ("normal", Value::$vec(scalar::$a(normal))),
+                        (k::NODE, Value::Node(other.to_bits().get())),
+                        (k::POINT, Value::$vec(scalar::$a(point))),
+                        (k::NORMAL, Value::$vec(scalar::$a(normal))),
                         (
-                            "remaining",
+                            k::REMAINING,
                             Value::$vec(scalar::$a(collision.translation_remaining)),
                         ),
                     ]),

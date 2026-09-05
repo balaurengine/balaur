@@ -3,7 +3,7 @@
 //! every joint call goes through.
 
 macro_rules! functions {
-    (state = $State:ty, world = $World:ty, reference = $Ref:ty, handle = $Handle:ident, component = $component:literal, body = $body:literal, impulse_magnitude = $impulse:ident) => {
+    (state = $State:ty, world = $World:ty, reference = $Ref:ty, handle = $Handle:ident, component = $component:expr, body = $body:expr, impulse_magnitude = $impulse:ident) => {
         pub(crate) fn remove_joint(eng: &Engine, entity: Entity) {
             let state = eng.resource::<$State>();
             let mut state = state.borrow_mut();
@@ -62,7 +62,7 @@ macro_rules! functions {
                 // A joint switched off has params and no handle for ever; retrying it
                 // every step would re-apply the whole component sixty times a second.
                 .filter(|(entity, params)| {
-                    !state.joints.contains_key(*entity) && v::boolean(params, "enabled", true)
+                    !state.joints.contains_key(*entity) && v::boolean(params, k::ENABLED, true)
                 })
                 .map(|(entity, _)| *entity)
                 .collect();
@@ -106,7 +106,7 @@ macro_rules! functions {
             let kind = balaur_core::components::get(eng, entity, $component)
                 .and_then(|params| {
                     params
-                        .get("kind")
+                        .get(k::KIND)
                         .and_then(toml::Value::as_str)
                         .map(str::to_string)
                 })

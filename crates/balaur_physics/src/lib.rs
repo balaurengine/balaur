@@ -43,7 +43,7 @@ mod shared;
 pub mod tuning;
 pub mod vehicle;
 mod vocabulary;
-use crate::vocabulary::words;
+use crate::vocabulary::{component as c, hook, words as w};
 
 pub use dim2::PhysicsState2d;
 pub use query::overlaps;
@@ -379,7 +379,7 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
 
 crate::shared::world::functions!(
     state = PhysicsState,
-    component = "joint3d",
+    component = c::JOINT_3D,
     prune = prune_freed_nodes_except_wheels
 );
 
@@ -400,7 +400,7 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
         balaur_core::presets::preset(
             "A body physics simulates, with a box collider",
             &["3d", "physics"],
-            &[("body3d", Some("kind = \"dynamic\"")), ("collider3d", None)],
+            &[(c::BODY_3D, Some("kind = \"dynamic\"")), (c::COLLIDER_3D, None)],
         )?,
     );
     reg.register_preset(
@@ -408,7 +408,7 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
         balaur_core::presets::preset(
             "An immovable body with a box collider: ground, walls",
             &["3d", "physics"],
-            &[("body3d", Some("kind = \"static\"")), ("collider3d", None)],
+            &[(c::BODY_3D, Some("kind = \"static\"")), (c::COLLIDER_3D, None)],
         )?,
     );
     Ok(())
@@ -491,7 +491,7 @@ fn break_joints(eng: &Engine, broken: &[balaur_core::hecs::Entity]) {
     for entity in broken {
         joint::remove_joint(eng, *entity);
         if let Some(host) = eng.script_host() {
-            host.call_on(balaur_core::node_id_of(*entity), "on_joint_break", &[]);
+            host.call_on(balaur_core::node_id_of(*entity), hook::ON_JOINT_BREAK, &[]);
         }
     }
 }
@@ -585,19 +585,19 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
 /// `physics3d.BODY_DYNAMIC` rather than spelling "dynamic" and finding out at
 /// runtime that "Dynamic" silently fell through to the default.
 pub const BODY_KINDS: &[(&str, &str)] = &[
-    ("BODY_DYNAMIC", words::DYNAMIC),
-    ("BODY_STATIC", words::STATIC),
-    ("BODY_KINEMATIC", words::KINEMATIC),
-    ("BODY_KINEMATIC_VELOCITY", words::KINEMATIC_VELOCITY),
+    ("BODY_DYNAMIC", w::DYNAMIC),
+    ("BODY_STATIC", w::STATIC),
+    ("BODY_KINEMATIC", w::KINEMATIC),
+    ("BODY_KINEMATIC_VELOCITY", w::KINEMATIC_VELOCITY),
 ];
 
 /// Collider shapes for the 3D world.
 pub const SHAPE_KINDS: &[(&str, &str)] =
-    &[("SHAPE_BALL", words::BALL), ("SHAPE_CUBOID", words::CUBOID)];
+    &[("SHAPE_BALL", w::BALL), ("SHAPE_CUBOID", w::CUBOID)];
 
 /// Collider shapes for the 2D world.
 pub const SHAPE_KINDS_2D: &[(&str, &str)] =
-    &[("SHAPE_CIRCLE", words::CIRCLE), ("SHAPE_RECT", words::RECT)];
+    &[("SHAPE_CIRCLE", w::CIRCLE), ("SHAPE_RECT", w::RECT)];
 
 pub(crate) fn install_constants(
     m: &mut dyn Bindings<Engine>,

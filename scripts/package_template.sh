@@ -112,11 +112,14 @@ web)
   target=wasm32-unknown-unknown
   step "build ($target, windowed)"
   rustup target add "$target"
+  # WEB_FEATURES builds a smaller template; docs/generated/features.md says
+  # what each feature costs, and gen_docs.py reads the default off this line.
+  features=${WEB_FEATURES:-audio,http,websocket,gamend,web,window}
   # wasm-bindgen, not emscripten: kiss3d declares its web dependencies under
   # [target.wasm32-unknown-unknown] and wgpu reaches WebGPU only through web-sys.
   # webtransport is left out until it grows the wasm stub http and websocket have.
   cargo build --profile web --target "$target" -p balaur_cli \
-    --no-default-features --features audio,http,websocket,gamend,web,window
+    --no-default-features --features "$features"
 
   wasm="target/$target/web/balaur.wasm"
   [ -f "$wasm" ] || { printf '::error::no %s\n' "$wasm"; exit 1; }

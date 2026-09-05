@@ -64,7 +64,8 @@ fn field(map: &Value, key: &str) -> Option<Value> {
 /// The events one tick delivered, as `kind` strings.
 fn kinds(app: &App) -> Vec<String> {
     let snapshot = app.engine.resource::<PlatformSnapshot>();
-    let kinds = snapshot
+    
+    snapshot
         .borrow()
         .events
         .iter()
@@ -72,8 +73,7 @@ fn kinds(app: &App) -> Vec<String> {
             Some(Value::Str(kind)) => Some(kind),
             _ => None,
         })
-        .collect();
-    kinds
+        .collect()
 }
 
 fn set_clock(app: &App, tick: u64, settled: u64) {

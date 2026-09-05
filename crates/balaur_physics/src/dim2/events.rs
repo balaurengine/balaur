@@ -14,6 +14,7 @@ use balaur_core::Engine;
 use balaur_core::hecs::Entity;
 use balaur_script::Value;
 use std::sync::Mutex;
+use crate::vocabulary::{hook};
 
 pub(crate) enum Event {
     Started(Entity, Entity),
@@ -119,24 +120,24 @@ pub(crate) fn deliver(eng: &Engine, events: &[Event]) {
     for event in events {
         match *event {
             Event::Started(a, b) => {
-                host.call_on(balaur_core::node_id_of(a), "on_collision_start", &[node(b)]);
-                host.call_on(balaur_core::node_id_of(b), "on_collision_start", &[node(a)]);
+                host.call_on(balaur_core::node_id_of(a), hook::ON_COLLISION_START, &[node(b)]);
+                host.call_on(balaur_core::node_id_of(b), hook::ON_COLLISION_START, &[node(a)]);
             }
             Event::Stopped(a, b) => {
-                host.call_on(balaur_core::node_id_of(a), "on_collision_stop", &[node(b)]);
-                host.call_on(balaur_core::node_id_of(b), "on_collision_stop", &[node(a)]);
+                host.call_on(balaur_core::node_id_of(a), hook::ON_COLLISION_STOP, &[node(b)]);
+                host.call_on(balaur_core::node_id_of(b), hook::ON_COLLISION_STOP, &[node(a)]);
             }
             Event::Force(a, b, magnitude, direction) => {
                 let force = Value::Num(f64::from(magnitude));
                 let towards = Value::Vec2(direction);
                 host.call_on(
                     balaur_core::node_id_of(a),
-                    "on_contact_force",
+                    hook::ON_CONTACT_FORCE,
                     &[node(b), force.clone(), towards.clone()],
                 );
                 host.call_on(
                     balaur_core::node_id_of(b),
-                    "on_contact_force",
+                    hook::ON_CONTACT_FORCE,
                     &[node(a), force, towards],
                 );
             }

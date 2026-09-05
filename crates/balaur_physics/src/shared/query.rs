@@ -2,7 +2,7 @@
 //! hit shapes and the overlap readers.
 
 macro_rules! functions {
-    (state = $State:ty, vector = $vec:ident, dimensions = $N:literal, vocabulary = $vocabulary:literal) => {
+    (state = $State:ty, vector = $vec:ident, dimensions = $N:literal, vocabulary = $vocabulary:expr) => {
         /// Make sure the broad phase's tree matches the colliders before asking it
         /// anything.
         ///
@@ -48,9 +48,9 @@ macro_rules! functions {
             opts: &Opts<'_>,
             groups: &'a mut Option<InteractionGroups>,
         ) -> QueryFilter<'a> {
-            let filter = Opts(opts.get("filter"));
+            let filter = Opts(opts.get(k::FILTER));
             let mut flags = QueryFilterFlags::empty();
-            match filter.text("only") {
+            match filter.text(k::ONLY) {
                 Some(crate::vocabulary::words::DYNAMIC) => flags |= QueryFilterFlags::ONLY_DYNAMIC,
                 Some(crate::vocabulary::words::KINEMATIC) => {
                     flags |= QueryFilterFlags::ONLY_KINEMATIC;
@@ -58,14 +58,14 @@ macro_rules! functions {
                 Some(crate::vocabulary::words::STATIC) => flags |= QueryFilterFlags::ONLY_FIXED,
                 _ => {}
             }
-            if !filter.boolean("sensors", true) {
+            if !filter.boolean(k::SENSORS, true) {
                 flags |= QueryFilterFlags::EXCLUDE_SENSORS;
             }
-            if !filter.boolean("solids", true) {
+            if !filter.boolean(k::SOLIDS, true) {
                 flags |= QueryFilterFlags::EXCLUDE_SOLIDS;
             }
             let mut out = QueryFilter::from(flags);
-            if let Some(Value::List(items)) = filter.get("mask") {
+            if let Some(Value::List(items)) = filter.get(k::MASK) {
                 let mut bits = 0u32;
                 for item in items {
                     let layer = match item {
@@ -96,9 +96,9 @@ macro_rules! functions {
         /// node is the single most common thing a raycast needs, so it is worth the
         /// two lines it costs here rather than in every script.
         fn excluded(opts: &Opts<'_>, state: &$State) -> Vec<ColliderHandle> {
-            let filter = Opts(opts.get("filter"));
+            let filter = Opts(opts.get(k::FILTER));
             let mut out = Vec::new();
-            for key in ["exclude", "exclude_body"] {
+            for key in [k::EXCLUDE, k::EXCLUDE_BODY] {
                 let Some(bits) = filter.node(key) else {
                     continue;
                 };
@@ -118,8 +118,8 @@ macro_rules! functions {
         /// anything it likes — including another query.
         fn allowed(eng: &Engine, opts: &Opts<'_>, entity: Entity) -> Result<bool> {
             let Some(Value::Callback(id)) = opts
-                .get("filter")
-                .and_then(|f| Opts(Some(f)).get("predicate"))
+                .get(k::FILTER)
+                .and_then(|f| Opts(Some(f)).get(k::PREDICATE))
             else {
                 return Ok(true);
             };
@@ -132,9 +132,9 @@ macro_rules! functions {
         /// One hit, in the shape every query here returns.
         fn hit_value(entity: Entity, point: [f32; $N], normal: [f32; $N], distance: Real) -> Value {
             map([
-                ("node", Value::Node(entity.to_bits().get())),
-                ("point", Value::$vec(point)),
-                ("normal", Value::$vec(normal)),
+                (k::NODE, Value::Node(entity.to_bits().get())),
+                (k::POINT, Value::$vec(point)),
+                (k::NORMAL, Value::$vec(normal)),
                 ("distance", Value::Num(f64::from(distance))),
             ])
         }
@@ -165,7 +165,7 @@ macro_rules! functions {
         /// The `shape` half of a shapecast or shape query, in the collider
         /// vocabulary — so the shape you cast is spelled like the shape you attach.
         fn shape_params(opts: &Opts<'_>) -> Result<toml::Value> {
-            let shape = opts.get("shape").ok_or_else(|| {
+            let shape = opts.get(k::SHAPE).ok_or_else(|| {
                 anyhow!(
                     "this query needs a `shape` table, in {}'s vocabulary",
                     $vocabulary

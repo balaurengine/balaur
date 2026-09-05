@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 # Publish the build's artifacts as a release.
 #
-# A push to main refreshes the rolling `nightly`, published as a prerelease:
-# only a published release's assets can be fetched without a token, which is
-# how balaur-website and `balaur update` reach it. A pushed `v*` tag drafts
-# that version instead, for a human to review and press the button on: what
-# ships as a version is a decision, not a side effect of merging.
+# A push to main refreshes the rolling `nightly` as a prerelease, since only a
+# published release's assets are fetchable without a token. A `v*` tag drafts
+# that version instead, for a human to press the button on.
 #
 # Usage: draft_release.sh <dist-dir>     (needs GH_TOKEN and the gh CLI)
 set -euo pipefail

@@ -164,8 +164,7 @@ macro_rules! define {
                     .map(|(material, probe)| {
                         self.probe = probe;
                         let boxed: $Boxed = Box::new(material);
-                        let shared: $Shared =
-                            std::rc::Rc::new(std::cell::RefCell::new(boxed));
+                        let shared: $Shared = std::rc::Rc::new(std::cell::RefCell::new(boxed));
                         // Registered, not just attached: kiss3d calls
                         // `begin_frame` only over the manager's own materials.
                         <$Manager>::get_global_manager(|manager| {

@@ -17,7 +17,7 @@ use anyhow::{Result, anyhow};
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, Value};
 
-use crate::vocabulary::{Opts, map};
+use crate::vocabulary::{Opts, keys as k, map};
 
 /// The most cells a side of a voxelisation may have.
 ///
@@ -41,7 +41,7 @@ fn mesh_of(eng: &Engine, value: Option<&Value>) -> Result<(Vec<Vector>, Vec<[u32
         Some(value @ Value::Map(_)) => {
             let opts = Opts(Some(value));
             let points = opts
-                .list("points")
+                .list(k::POINTS)
                 .ok_or_else(|| anyhow!("a mesh table needs a `points` list"))?
                 .iter()
                 .map(|p| match p {
@@ -58,7 +58,7 @@ fn mesh_of(eng: &Engine, value: Option<&Value>) -> Result<(Vec<Vector>, Vec<[u32
                 })
                 .collect::<Vec<_>>();
             let flat: Vec<u32> = opts
-                .list("indices")
+                .list(k::INDICES)
                 .ok_or_else(|| anyhow!("a mesh table needs an `indices` list"))?
                 .iter()
                 .map(|i| match i {
@@ -79,11 +79,11 @@ fn mesh_of(eng: &Engine, value: Option<&Value>) -> Result<(Vec<Vector>, Vec<[u32
 fn mesh_value(points: &[Vector], indices: &[[u32; 3]]) -> Value {
     map([
         (
-            "points",
+            k::POINTS,
             Value::List(points.iter().map(|p| Value::Vec3(scalar::a3(*p))).collect()),
         ),
         (
-            "indices",
+            k::INDICES,
             Value::List(
                 indices
                     .iter()
@@ -119,11 +119,11 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
             let opts = Opts(opts.as_ref());
             let mut params =
                 crate::rapier3d::parry::transformation::vhacd::VHACDParameters::default();
-            params.resolution = opts.f32("resolution", params.resolution as f32).max(1.0) as u32;
+            params.resolution = opts.f32(k::RESOLUTION, params.resolution as f32).max(1.0) as u32;
             params.concavity =
-                scalar::real(opts.f32("concavity", scalar::f32_of(params.concavity)));
+                scalar::real(opts.f32(k::CONCAVITY, scalar::f32_of(params.concavity)));
             params.max_convex_hulls = opts
-                .f32("max_pieces", params.max_convex_hulls as f32)
+                .f32(k::MAX_PIECES, params.max_convex_hulls as f32)
                 .max(1.0) as u32;
             let vhacd = crate::rapier3d::parry::transformation::vhacd::VHACD::decompose(
                 &params, &points, &indices, true,
@@ -142,14 +142,14 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (mesh, opts): (Value, Option<Value>)| {
             let (points, indices) = mesh_of(eng, Some(&mesh))?;
             let opts = Opts(opts.as_ref());
-            let resolution = opts.f32("resolution", 32.0).max(1.0) as u32;
+            let resolution = opts.f32(k::RESOLUTION, 32.0).max(1.0) as u32;
             if resolution > MAX_VOXEL_RESOLUTION {
                 return Err(anyhow!(
                     "a voxel resolution of {resolution} would walk {}+ cells; the ceiling is {MAX_VOXEL_RESOLUTION}",
                     u64::from(MAX_VOXEL_RESOLUTION).pow(3)
                 ));
             }
-            let fill = if opts.text("fill") == Some(crate::vocabulary::words::SURFACE) {
+            let fill = if opts.text(k::FILL) == Some(crate::vocabulary::words::SURFACE) {
                 crate::rapier3d::parry::transformation::voxelization::FillMode::SurfaceOnly
             } else {
                 crate::rapier3d::parry::transformation::voxelization::FillMode::FloodFill {
@@ -183,8 +183,8 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
                 }
             }
             Ok(map([
-                ("size", Value::Vec3([scalar::f32_of(size); 3])),
-                ("cells", Value::List(cells)),
+                (k::SIZE, Value::Vec3([scalar::f32_of(size); 3])),
+                (k::CELLS, Value::List(cells)),
             ]))
         },
     );
@@ -203,13 +203,13 @@ pub(crate) fn install_mesh_edit_api(m: &mut dyn Bindings<Engine>) {
     m.function("split", |eng: &Engine, (mesh, opts): (Value, Value)| {
         let (points, indices) = mesh_of(eng, Some(&mesh))?;
         let opts = Opts(Some(&opts));
-        let normal = scalar::v3a(opts.vec3("normal", [0.0, 1.0, 0.0]));
+        let normal = scalar::v3a(opts.vec3(k::NORMAL, [0.0, 1.0, 0.0]));
         let normal = if normal.length_squared() < 1.0e-12 {
             Vector::Y
         } else {
             normal.normalize()
         };
-        let point = scalar::v3a(opts.vec3("point", [0.0; 3]));
+        let point = scalar::v3a(opts.vec3(k::POINT, [0.0; 3]));
         let trimesh =
             TriMesh::new(points, indices).map_err(|e| anyhow!("that mesh cannot be cut: {e}"))?;
         // Rapier's split takes the plane as an axis and a distance along it,

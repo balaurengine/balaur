@@ -30,7 +30,7 @@ macro_rules! functions {
         /// The one hook a collider can ask for: a one-way platform is contact
         /// modification with the answer written for it.
         pub(crate) fn active_hooks(params: &toml::Value) -> ActiveHooks {
-            if v::boolean(params, "one_way", false) {
+            if v::boolean(params, k::ONE_WAY, false) {
                 ActiveHooks::MODIFY_SOLVER_CONTACTS
             } else {
                 ActiveHooks::empty()
@@ -93,40 +93,40 @@ macro_rules! functions {
             map: &mut toml::map::Map<String, toml::Value>,
         ) {
             let f = |value: Real| toml::Value::Float(f64::from(value));
-            map.insert("restitution".into(), f(collider.restitution()));
-            map.insert("friction".into(), f(collider.friction()));
-            map.insert("density".into(), f(collider.density()));
-            map.insert("mass".into(), f(collider.mass()));
-            map.insert("contact_skin".into(), f(collider.contact_skin()));
+            map.insert(k::RESTITUTION.into(), f(collider.restitution()));
+            map.insert(k::FRICTION.into(), f(collider.friction()));
+            map.insert(k::DENSITY.into(), f(collider.density()));
+            map.insert(k::MASS.into(), f(collider.mass()));
+            map.insert(k::CONTACT_SKIN.into(), f(collider.contact_skin()));
             map.insert(
-                "contact_force_threshold".into(),
+                k::CONTACT_FORCE_THRESHOLD.into(),
                 f(collider.contact_force_event_threshold()),
             );
-            map.insert("sensor".into(), collider.is_sensor().into());
-            map.insert("enabled".into(), collider.is_enabled().into());
+            map.insert(k::SENSOR.into(), collider.is_sensor().into());
+            map.insert(k::ENABLED.into(), collider.is_enabled().into());
             map.insert(
-                "friction_combine".into(),
+                k::FRICTION_COMBINE.into(),
                 combine_name(collider.friction_combine_rule()).into(),
             );
             map.insert(
-                "restitution_combine".into(),
+                k::RESTITUTION_COMBINE.into(),
                 combine_name(collider.restitution_combine_rule()).into(),
             );
             let groups = collider.collision_groups();
-            map.insert("layers".into(), v::layer_names(groups.memberships.bits()));
-            map.insert("mask".into(), v::layer_names(groups.filter.bits()));
+            map.insert(k::LAYERS.into(), v::layer_names(groups.memberships.bits()));
+            map.insert(k::MASK.into(), v::layer_names(groups.filter.bits()));
             let solver = collider.solver_groups();
             map.insert(
-                "solver_layers".into(),
+                k::SOLVER_LAYERS.into(),
                 v::layer_names(solver.memberships.bits()),
             );
-            map.insert("solver_mask".into(), v::layer_names(solver.filter.bits()));
+            map.insert(k::SOLVER_MASK.into(), v::layer_names(solver.filter.bits()));
             map.insert(
-                "events".into(),
+                k::EVENTS.into(),
                 v::names(collider.active_events().bits(), &v::flags::events()),
             );
             map.insert(
-                "active_collisions".into(),
+                k::ACTIVE_COLLISIONS.into(),
                 v::names(
                     collider.active_collision_types().bits(),
                     &v::flags::collision_types(),

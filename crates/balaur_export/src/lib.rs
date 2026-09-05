@@ -70,6 +70,28 @@ pub struct Options<'a> {
 /// downloads and verifies it, the editor asks first, a test hands one over.
 pub type ObtainTemplate = dyn Fn(&str) -> Result<PathBuf>;
 
+/// Every target `--target` accepts, in the order an export sheet lists them:
+/// the desktops a player downloads, then the platforms that ship a bundle.
+pub const TARGETS: [&str; 7] = [
+    "linux-x64",
+    "linux-arm64",
+    "macos-universal",
+    "windows-x64",
+    "ios",
+    "android",
+    "web",
+];
+
+/// Whether the runtime template for `target` is already on one of `roots`, so
+/// an export sheet can say what it can build now and what it must fetch.
+#[must_use]
+pub fn template_installed(target: &str, roots: &[PathBuf]) -> bool {
+    Bundle::for_target(target).map_or_else(
+        || find_template(target, roots).is_ok(),
+        |kind| find_bundle_template(kind, roots).is_ok(),
+    )
+}
+
 /// Where templates are looked for: an explicit directory first, then the one
 /// that ships beside the binary in the editor download, then the per-user
 /// cache a download lands in.
@@ -81,11 +103,10 @@ pub fn default_roots(cache: Option<PathBuf>) -> Vec<PathBuf> {
     if let Ok(dir) = std::env::var("BALAUR_TEMPLATES") {
         roots.push(PathBuf::from(dir));
     }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(dir) = exe.parent() {
             roots.push(dir.join("templates"));
         }
-    }
     if let Some(cache) = cache {
         roots.push(cache);
     }

@@ -3,7 +3,7 @@
 //! pointed forwards.
 
 macro_rules! functions {
-    (state = $State:ty, component = $component:literal, prune = $prune:ident) => {
+    (state = $State:ty, component = $component:expr, prune = $prune:ident) => {
         /// Point every restored collider at the entity its node has *now*.
         ///
         /// The id rides in a collider's `user_data`, so a world deserialised from

@@ -19,7 +19,8 @@ fn app() -> App {
 
 fn kinds(app: &App) -> Vec<String> {
     let snapshot = app.engine.resource::<PlatformSnapshot>();
-    let kinds = snapshot
+    
+    snapshot
         .borrow()
         .events
         .iter()
@@ -35,8 +36,7 @@ fn kinds(app: &App) -> Vec<String> {
             }
             _ => None,
         })
-        .collect();
-    kinds
+        .collect()
 }
 
 #[test]

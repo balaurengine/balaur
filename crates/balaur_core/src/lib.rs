@@ -15,6 +15,10 @@ pub mod components;
 pub mod dap;
 pub mod debug_lines;
 pub mod debugger_api;
+// Opening a URL or a folder is the OS's job, and a browser tab has neither.
+#[cfg(not(target_family = "wasm"))]
+pub mod desktop;
+pub mod desktop_api;
 pub mod digest;
 pub mod engine;
 pub mod engine_api;

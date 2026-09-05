@@ -54,6 +54,8 @@ def workspace():
             ),
             "purpose": module_doc(src / "src" / "lib.rs") or module_doc(src / "src" / "main.rs"),
             "dir": src,
+            "features": pkg["features"],
+            "manifest": Path(pkg["manifest_path"]),
         }
     return dict(sorted(crates.items()))
 
@@ -166,6 +168,120 @@ def gen_graph(crates):
         for d in c["deps"]:
             body += f"  {name} --> {d}\n"
     body += "```\n"
+    return body
+
+
+WEB_TARGET = "wasm32-unknown-unknown"
+# The dependencies whose resolved features decide most of a web module's
+# size; features.md lists what each has on.
+WEB_HEAVY = ["egui", "wgpu", "image", "rodio", "rapier3d", "parry3d", "cosmic-text", "wesl"]
+# Named first when a feature's crate list is cut short, so the cut keeps the
+# names a reader knows.
+NOTABLE = ["kiss3d", "wgpu", "naga", "winit", "egui-wgpu", "glow", "image", "exr", "rodio", "cpal", "symphonia", "quinn"]
+
+
+def web_template_features():
+    """The feature set scripts/package_template.sh builds the web template with."""
+    text = (ROOT / "scripts" / "package_template.sh").read_text()
+    m = re.search(r"WEB_FEATURES:-([a-z0-9_,]+)", text)
+    if not m:
+        raise SystemExit("scripts/package_template.sh no longer names WEB_FEATURES")
+    return m.group(1).split(",")
+
+
+def cargo_tree(features, *extra):
+    return run(
+        "cargo", "tree", "--locked", "--target", WEB_TARGET, "-p", "balaur_cli",
+        "--no-default-features", "--features", ",".join(features), "--prefix", "none", *extra,
+    )
+
+
+def web_crates(features):
+    """What a balaur_cli build with `features` links on the web target: name -> version."""
+    crates = {}
+    for line in cargo_tree(features, "-e", "normal").splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[1].startswith("v"):
+            crates[parts[0]] = parts[1][1:]
+    return crates
+
+
+def resolved_features(features, crate, version):
+    """The features of one dependency that a build with `features` turns on."""
+    out = cargo_tree(features, "-e", "features", "-i", f"{crate}@{version}")
+    found = set(re.findall(rf'^{re.escape(crate)} feature "([^"]+)"', out, re.M))
+    return sorted(found - {"default"})
+
+
+def feature_docs(manifest):
+    """The comment above each entry of a manifest's [features] table."""
+    docs, comment, in_features = {}, [], False
+    for line in manifest.read_text().splitlines():
+        if line.startswith("["):
+            in_features = line.strip() == "[features]"
+            comment = []
+        elif not in_features:
+            continue
+        elif line.startswith("#"):
+            comment.append(line.lstrip("#").strip())
+        elif m := re.match(r"^([A-Za-z0-9_-]+)\s*=", line):
+            docs[m.group(1)] = " ".join(comment)
+            comment = []
+        else:
+            comment = []
+    return docs
+
+
+def mdx_safe(text):
+    """The website imports this page into MDX, where a bare `<` or `{` is syntax."""
+    return text.replace("<", "&lt;").replace("{", "&#123;").replace("}", "&#125;")
+
+
+def gen_features(crates):
+    template = web_template_features()
+    cli = crates["balaur_cli"]
+    docs = feature_docs(crates["balaur"]["manifest"])
+    docs.update({k: v for k, v in feature_docs(cli["manifest"]).items() if k not in docs})
+    names = sorted(f for f in cli["features"] if f != "default")
+    default = set(cli["features"]["default"])
+    everything = web_crates(names)
+    linked = web_crates(template)
+    body = (
+        "# Features and the web build\n\n"
+        "The cargo features of `balaur_cli`, the binary every runtime template is built\n"
+        f"from, and what each adds to a `{WEB_TARGET}` build. A feature's native\n"
+        "dependencies are gated off that target, so `http` or `websocket` costs a browser\n"
+        "build only the plugin's own code; the two that matter there are `audio` and\n"
+        "`window`.\n\n"
+        f"The web template (`scripts/package_template.sh web`) is built with\n"
+        f"`--no-default-features --features {','.join(template)}` and links {len(linked)} crates.\n"
+        "Override the set with `WEB_FEATURES=... scripts/package_template.sh web`.\n\n"
+        "| Feature | Default | Web template | What it is | Adds to a web build |\n"
+        "| --- | --- | --- | --- | --- |\n"
+    )
+    for name in names:
+        without = web_crates([n for n in names if n != name])
+        added = sorted(set(everything) - set(without))
+        added.sort(key=lambda c: (c not in NOTABLE, c))
+        shown = ", ".join(f"`{c}`" for c in added[:6]) + (f", … ({len(added)} crates)" if len(added) > 6 else "")
+        body += (
+            f"| `{name}` | {'on' if name in default else 'off'} | {'on' if name in template else 'off'} "
+            f"| {mdx_safe(docs.get(name, ''))} | {shown or 'nothing'} |\n"
+        )
+    body += (
+        "\n## What the web template resolves\n\n"
+        "The features on in the dependencies that weigh most. A feature named here is\n"
+        "enabled; whether it links code on the web is up to that crate's own target\n"
+        "gates (`winit`'s X11 is on and compiles nothing in a browser).\n\n"
+        "| Crate | Version | Features on |\n| --- | --- | --- |\n"
+    )
+    for crate in WEB_HEAVY:
+        if crate not in linked:
+            body += f"| `{crate}` | — | not in the template |\n"
+            continue
+        version = linked[crate]
+        on = resolved_features(template, crate, version)
+        body += f"| `{crate}` | {version} | {', '.join(f'`{f}`' for f in on) or 'none'} |\n"
     return body
 
 
@@ -462,6 +578,7 @@ def main():
             api.get("components", {}),
         ),
         "behaviour.md": gen_flows(test_names()),
+        "features.md": gen_features(crates),
         # The raw probe, for tools that render their own reference (the
         # website builds its per-component pages from it).
         "api.json": json.dumps(api, indent=2, sort_keys=True) + "\n",

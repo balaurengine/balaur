@@ -22,23 +22,23 @@ use balaur_core::{Engine, entity_of, node_id_of};
 use balaur_script::{Bindings, BindingsExt, CallbackHost, NodeId, Value};
 
 use crate::PhysicsState;
-use crate::vocabulary::{Opts, map};
+use crate::vocabulary::{Opts, component as c, keys as k, map};
 
 crate::shared::query::functions!(
     state = PhysicsState,
     vector = Vec3,
     dimensions = 3,
-    vocabulary = "collider3d"
+    vocabulary = c::COLLIDER_3D
 );
 
 /// The ray an options table describes.
 fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
-    let from = opts.vec3("from", [0.0; 3]);
-    let dir = opts.vec3("dir", [0.0, -1.0, 0.0]);
+    let from = opts.vec3(k::FROM, [0.0; 3]);
+    let dir = opts.vec3(k::DIR, [0.0, -1.0, 0.0]);
     (
         Ray::new(scalar::v3a(from), scalar::v3a(dir)),
-        scalar::real(opts.f32("max", 1000.0)),
-        opts.boolean("solid", true),
+        scalar::real(opts.f32(k::MAX, 1000.0)),
+        opts.boolean(k::SOLID, true),
     )
 }
 
@@ -145,11 +145,11 @@ pub(crate) fn install_shapecast_api(m: &mut dyn Bindings<Engine>) {
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
         let builder = crate::collider::collider_builder(eng, &params)?;
-        let from = scalar::v3a(opts.vec3("from", [0.0; 3]));
-        let dir = scalar::v3a(opts.vec3("dir", [0.0, -1.0, 0.0]));
+        let from = scalar::v3a(opts.vec3(k::FROM, [0.0; 3]));
+        let dir = scalar::v3a(opts.vec3(k::DIR, [0.0, -1.0, 0.0]));
         let options = ShapeCastOptions {
-            max_time_of_impact: scalar::real(opts.f32("max", 1000.0)),
-            stop_at_penetration: opts.boolean("stop_at_penetration", true),
+            max_time_of_impact: scalar::real(opts.f32(k::MAX, 1000.0)),
+            stop_at_penetration: opts.boolean(k::STOP_AT_PENETRATION, true),
             ..ShapeCastOptions::default()
         };
         let state = eng.resource::<PhysicsState>();
@@ -191,7 +191,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
     m.function("nearest_point", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
-        let point = scalar::v3a(opts.vec3("point", [0.0; 3]));
+        let point = scalar::v3a(opts.vec3(k::POINT, [0.0; 3]));
         let state = eng.resource::<PhysicsState>();
         let state = state.borrow();
         let mut groups = None;
@@ -201,8 +201,8 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .query_pipeline_with_filter(filter)
             .project_point(
                 point,
-                scalar::real(opts.f32("max", 1000.0)),
-                opts.boolean("solid", true),
+                scalar::real(opts.f32(k::MAX, 1000.0)),
+                opts.boolean(k::SOLID, true),
             );
         let Some((handle, projection)) = found else {
             return Ok(Value::Nil);
@@ -212,16 +212,16 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
         };
         let p = projection.point;
         Ok(map([
-            ("node", Value::Node(entity.to_bits().get())),
-            ("point", Value::Vec3(scalar::a3(p))),
-            ("inside", Value::Bool(projection.is_inside)),
+            (k::NODE, Value::Node(entity.to_bits().get())),
+            (k::POINT, Value::Vec3(scalar::a3(p))),
+            (k::INSIDE, Value::Bool(projection.is_inside)),
             ("distance", Value::Num(f64::from((p - point).length()))),
         ]))
     });
     m.function("point_hits", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
-        let point = scalar::v3a(opts.vec3("point", [0.0; 3]));
+        let point = scalar::v3a(opts.vec3(k::POINT, [0.0; 3]));
         let state = eng.resource::<PhysicsState>();
         let state = state.borrow();
         let mut groups = None;
@@ -239,7 +239,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
         let builder = crate::collider::collider_builder(eng, &params)?;
-        let at = scalar::v3a(opts.vec3("at", [0.0; 3]));
+        let at = scalar::v3a(opts.vec3(k::AT, [0.0; 3]));
         let state = eng.resource::<PhysicsState>();
         let state = state.borrow();
         let mut groups = None;
@@ -255,8 +255,8 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
     m.function("box_hits", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
-        let min = scalar::v3a(opts.vec3("min", [0.0; 3]));
-        let max = scalar::v3a(opts.vec3("max", [0.0; 3]));
+        let min = scalar::v3a(opts.vec3(k::MIN, [0.0; 3]));
+        let max = scalar::v3a(opts.vec3(k::MAX, [0.0; 3]));
         let state = eng.resource::<PhysicsState>();
         let state = state.borrow();
         let mut groups = None;
@@ -281,8 +281,8 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
         ("distance", &[], "(a: node, b: node)", "The gap between two nodes' colliders, zero when they touch or overlap."),
         ("closest_points", &[], "(a: node, b: node)", "The nearest point on each of two nodes' colliders."),
         ("intersects", &[], "(a: node, b: node)", "Whether two nodes' colliders overlap right now, sensor or not."),
-        ("contacts", &["collider3d"], "", "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
-        ("max_contact_impulse", &["collider3d"], "", "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number."),
+        ("contacts", &[c::COLLIDER_3D], "", "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
+        ("max_contact_impulse", &[c::COLLIDER_3D], "", "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number."),
         ("time_of_impact", &[], "(a: node, b: node, opts: table)", "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max = 1.0 }`. Nothing when they never do."),
     ]);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
@@ -316,8 +316,8 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
                 // of closest points to name in either case.
                 Ok(match found {
                     crate::rapier3d::parry::query::ClosestPoints::WithinMargin(p, q) => map([
-                        ("a", Value::Vec3(scalar::a3(p))),
-                        ("b", Value::Vec3(scalar::a3(q))),
+                        (k::A, Value::Vec3(scalar::a3(p))),
+                        (k::B, Value::Vec3(scalar::a3(q))),
                     ]),
                     _ => Value::Nil,
                 })
@@ -329,12 +329,12 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (a, b, opts): (NodeId, NodeId, Value)| {
             let opts = Opts(Some(&opts));
             let (va, vb) = (
-                scalar::v3a(opts.vec3("velocity_a", [0.0; 3])),
-                scalar::v3a(opts.vec3("velocity_b", [0.0; 3])),
+                scalar::v3a(opts.vec3(k::VELOCITY_A, [0.0; 3])),
+                scalar::v3a(opts.vec3(k::VELOCITY_B, [0.0; 3])),
             );
             let options = ShapeCastOptions {
-                max_time_of_impact: scalar::real(opts.f32("max", 1.0)),
-                stop_at_penetration: opts.boolean("stop_at_penetration", true),
+                max_time_of_impact: scalar::real(opts.f32(k::MAX, 1.0)),
+                stop_at_penetration: opts.boolean(k::STOP_AT_PENETRATION, true),
                 ..ShapeCastOptions::default()
             };
             with_pair(eng, a, b, |_, first, second| {
@@ -351,8 +351,8 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
                 Ok(hit.map_or(Value::Nil, |hit| {
                     map([
                         ("distance", Value::Num(f64::from(hit.time_of_impact))),
-                        ("point", Value::Vec3(scalar::a3(hit.witness1))),
-                        ("normal", Value::Vec3(scalar::a3(hit.normal1))),
+                        (k::POINT, Value::Vec3(scalar::a3(hit.witness1))),
+                        (k::NORMAL, Value::Vec3(scalar::a3(hit.normal1))),
                     ])
                 }))
             })
@@ -449,10 +449,10 @@ fn contact_list(eng: &Engine, node: NodeId) -> Result<Value> {
                     out.push((
                         other.to_bits().get(),
                         map([
-                            ("node", Value::Node(other.to_bits().get())),
-                            ("point", Value::Vec3(scalar::a3(p))),
-                            ("normal", Value::Vec3(scalar::a3(normal))),
-                            ("impulse", Value::Num(f64::from(point.data.impulse))),
+                            (k::NODE, Value::Node(other.to_bits().get())),
+                            (k::POINT, Value::Vec3(scalar::a3(p))),
+                            (k::NORMAL, Value::Vec3(scalar::a3(normal))),
+                            (k::IMPULSE, Value::Num(f64::from(point.data.impulse))),
                         ]),
                     ));
                 }

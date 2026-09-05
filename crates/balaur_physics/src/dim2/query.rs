@@ -16,22 +16,22 @@ use balaur_core::{Engine, entity_of, node_id_of};
 use balaur_script::{Bindings, BindingsExt, CallbackHost, NodeId, Value};
 
 use crate::dim2::PhysicsState2d;
-use crate::vocabulary::{Opts, map};
+use crate::vocabulary::{Opts, component as c, keys as k, map};
 
 crate::shared::query::functions!(
     state = PhysicsState2d,
     vector = Vec2,
     dimensions = 2,
-    vocabulary = "collider2d"
+    vocabulary = c::COLLIDER_2D
 );
 
 fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
-    let from = opts.vec2("from", [0.0; 2]);
-    let dir = opts.vec2("dir", [0.0, -1.0]);
+    let from = opts.vec2(k::FROM, [0.0; 2]);
+    let dir = opts.vec2(k::DIR, [0.0, -1.0]);
     (
         Ray::new(scalar::v2a(from), scalar::v2a(dir)),
-        scalar::real(opts.f32("max", 1000.0)),
-        opts.boolean("solid", true),
+        scalar::real(opts.f32(k::MAX, 1000.0)),
+        opts.boolean(k::SOLID, true),
     )
 }
 
@@ -134,11 +134,11 @@ pub(crate) fn install_physics2d_shapecast_api(m: &mut dyn Bindings<Engine>) {
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
         let builder = crate::dim2::collider::collider_builder(eng, &params)?;
-        let from = scalar::v2a(opts.vec2("from", [0.0; 2]));
-        let dir = scalar::v2a(opts.vec2("dir", [0.0, -1.0]));
+        let from = scalar::v2a(opts.vec2(k::FROM, [0.0; 2]));
+        let dir = scalar::v2a(opts.vec2(k::DIR, [0.0, -1.0]));
         let options = ShapeCastOptions {
-            max_time_of_impact: scalar::real(opts.f32("max", 1000.0)),
-            stop_at_penetration: opts.boolean("stop_at_penetration", true),
+            max_time_of_impact: scalar::real(opts.f32(k::MAX, 1000.0)),
+            stop_at_penetration: opts.boolean(k::STOP_AT_PENETRATION, true),
             ..ShapeCastOptions::default()
         };
         let state = eng.resource::<PhysicsState2d>();
@@ -211,7 +211,7 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
     m.function("nearest_point", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
-        let point = scalar::v2a(opts.vec2("point", [0.0; 2]));
+        let point = scalar::v2a(opts.vec2(k::POINT, [0.0; 2]));
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
         let mut groups = None;
@@ -221,8 +221,8 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .query_pipeline_with_filter(filter)
             .project_point(
                 point,
-                scalar::real(opts.f32("max", 1000.0)),
-                opts.boolean("solid", true),
+                scalar::real(opts.f32(k::MAX, 1000.0)),
+                opts.boolean(k::SOLID, true),
             );
         let Some((handle, projection)) = found else {
             return Ok(Value::Nil);
@@ -232,16 +232,16 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
         };
         let p = projection.point;
         Ok(map([
-            ("node", Value::Node(entity.to_bits().get())),
-            ("point", Value::Vec2(scalar::a2(p))),
-            ("inside", Value::Bool(projection.is_inside)),
+            (k::NODE, Value::Node(entity.to_bits().get())),
+            (k::POINT, Value::Vec2(scalar::a2(p))),
+            (k::INSIDE, Value::Bool(projection.is_inside)),
             ("distance", Value::Num(f64::from((p - point).length()))),
         ]))
     });
     m.function("point_hits", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
-        let point = scalar::v2a(opts.vec2("point", [0.0; 2]));
+        let point = scalar::v2a(opts.vec2(k::POINT, [0.0; 2]));
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
         let mut groups = None;
@@ -266,7 +266,7 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut dyn Bindings<Engine>) {
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
         let builder = crate::dim2::collider::collider_builder(eng, &params)?;
-        let at = scalar::v2a(opts.vec2("at", [0.0; 2]));
+        let at = scalar::v2a(opts.vec2(k::AT, [0.0; 2]));
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
         let mut groups = None;
@@ -282,8 +282,8 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut dyn Bindings<Engine>) {
     m.function("box_hits", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
-        let min = scalar::v2a(opts.vec2("min", [0.0; 2]));
-        let max = scalar::v2a(opts.vec2("max", [0.0; 2]));
+        let min = scalar::v2a(opts.vec2(k::MIN, [0.0; 2]));
+        let max = scalar::v2a(opts.vec2(k::MAX, [0.0; 2]));
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
         let mut groups = None;

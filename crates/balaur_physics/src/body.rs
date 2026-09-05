@@ -18,26 +18,28 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::collider::{add_collider, apply_collider, get_collider_params};
 use crate::query::overlaps_value;
-use crate::vocabulary::{self as v, words as w};
+use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 use crate::{PhysicsState, node_pose};
 
 /// The schema `body3d` and `body2d` share, minus the dimension-shaped
 /// properties each adds for itself. One text, so a property cannot mean two
 /// things in two dimensions.
-pub(crate) const SHARED_BODY_SCHEMA: &str = r#"
-linear_damping = { type = "float", default = 0.0, min = 0.0, description = "Drag on travel: how fast the body loses speed with nothing touching it" }
-angular_damping = { type = "float", default = 0.0, min = 0.0, description = "Drag on spin, in the same terms as linear_damping" }
-gravity_scale = { type = "float", default = 1.0, description = "Multiplier on world gravity for this body: 0 hangs in the air, negative floats up" }
-mass = { type = "float", default = 0.0, min = 0.0, description = "Extra mass on top of what the colliders' density gives; 0 leaves the body at its collider mass" }
-dominance = { type = "float", default = 0.0, min = -127.0, max = 127.0, description = "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all" }
-solver_iterations = { type = "float", default = 0.0, min = 0.0, description = "Extra solver iterations for this body alone, for the one stack that jitters" }
-ccd = { type = "bool", default = false, description = "Sweep the body's whole path each step so a fast one cannot pass through a wall" }
-soft_ccd = { type = "float", default = 0.0, min = 0.0, description = "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies" }
-fast_rotation = { type = "bool", default = false, description = "Allow a spin fast enough that rapier would otherwise clamp it" }
-can_sleep = { type = "bool", default = true, description = "Let the body stop being simulated once it has held still" }
-sleep_time = { type = "float", default = 0.5, min = 0.0, description = "Seconds of stillness before the body sleeps" }
-enabled = { type = "bool", default = true, description = "Simulate this body at all; a disabled body keeps its state and costs nothing" }
-"#;
+pub(crate) fn shared_body_schema() -> String {
+    v::schema(&[
+        (k::LINEAR_DAMPING, r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on travel: how fast the body loses speed with nothing touching it" }"#),
+        (k::ANGULAR_DAMPING, r#"{ type = "float", default = 0.0, min = 0.0, description = "Drag on spin, in the same terms as linear_damping" }"#),
+        (k::GRAVITY_SCALE, r#"{ type = "float", default = 1.0, description = "Multiplier on world gravity for this body: 0 hangs in the air, negative floats up" }"#),
+        (k::MASS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra mass on top of what the colliders' density gives; 0 leaves the body at its collider mass" }"#),
+        (k::DOMINANCE, r#"{ type = "float", default = 0.0, min = -127.0, max = 127.0, description = "A body in a higher group is unpushable by a lower one; every non-dynamic body outranks them all" }"#),
+        (k::SOLVER_ITERATIONS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Extra solver iterations for this body alone, for the one stack that jitters" }"#),
+        (k::CCD, r#"{ type = "bool", default = false, description = "Sweep the body's whole path each step so a fast one cannot pass through a wall" }"#),
+        (k::SOFT_CCD, r#"{ type = "float", default = 0.0, min = 0.0, description = "Distance ahead the body predicts contacts, in units; cheaper than ccd for merely fast bodies" }"#),
+        (k::FAST_ROTATION, r#"{ type = "bool", default = false, description = "Allow a spin fast enough that rapier would otherwise clamp it" }"#),
+        (k::CAN_SLEEP, r#"{ type = "bool", default = true, description = "Let the body stop being simulated once it has held still" }"#),
+        (k::SLEEP_TIME, r#"{ type = "float", default = 0.5, min = 0.0, description = "Seconds of stillness before the body sleeps" }"#),
+        (k::ENABLED, r#"{ type = "bool", default = true, description = "Simulate this body at all; a disabled body keeps its state and costs nothing" }"#),
+    ])
+}
 
 crate::shared::body::functions!(
     state = PhysicsState,
@@ -52,13 +54,13 @@ fn locked_axes(params: &toml::Value) -> LockedAxes {
     let mut axes = LockedAxes::empty();
     for (key, x, y, z) in [
         (
-            "lock_translation",
+            k::LOCK_TRANSLATION,
             LockedAxes::TRANSLATION_LOCKED_X,
             LockedAxes::TRANSLATION_LOCKED_Y,
             LockedAxes::TRANSLATION_LOCKED_Z,
         ),
         (
-            "lock_rotation",
+            k::LOCK_ROTATION,
             LockedAxes::ROTATION_LOCKED_X,
             LockedAxes::ROTATION_LOCKED_Y,
             LockedAxes::ROTATION_LOCKED_Z,
@@ -79,29 +81,29 @@ fn locked_axes(params: &toml::Value) -> LockedAxes {
 /// mid-flight without dropping its velocity — and what keeps `patch` (one
 /// property at a time, from an animation) honest.
 pub(crate) fn write_body(body: &mut RigidBody, params: &toml::Value, world_may_sleep: bool) {
-    if let Ok(kind) = body_type(v::text(params, "kind", w::DYNAMIC))
+    if let Ok(kind) = body_type(v::text(params, k::KIND, w::DYNAMIC))
         && body.body_type() != kind {
             body.set_body_type(kind, true);
         }
-    body.set_linear_damping(scalar::real(v::f(params, "linear_damping", 0.0)));
-    body.set_angular_damping(scalar::real(v::f(params, "angular_damping", 0.0)));
-    body.set_gravity_scale(scalar::real(v::f(params, "gravity_scale", 1.0)), true);
-    body.set_dominance_group(v::f(params, "dominance", 0.0).clamp(-127.0, 127.0) as i8);
-    body.set_additional_solver_iterations(v::f(params, "solver_iterations", 0.0).max(0.0) as usize);
+    body.set_linear_damping(scalar::real(v::f(params, k::LINEAR_DAMPING, 0.0)));
+    body.set_angular_damping(scalar::real(v::f(params, k::ANGULAR_DAMPING, 0.0)));
+    body.set_gravity_scale(scalar::real(v::f(params, k::GRAVITY_SCALE, 1.0)), true);
+    body.set_dominance_group(v::f(params, k::DOMINANCE, 0.0).clamp(-127.0, 127.0) as i8);
+    body.set_additional_solver_iterations(v::f(params, k::SOLVER_ITERATIONS, 0.0).max(0.0) as usize);
     body.set_locked_axes(locked_axes(params), true);
-    body.enable_ccd(v::boolean(params, "ccd", false));
-    body.set_soft_ccd_prediction(scalar::real(v::f(params, "soft_ccd", 0.0)));
-    body.set_allow_fast_rotation(v::boolean(params, "fast_rotation", false));
-    body.enable_gyroscopic_forces(v::boolean(params, "gyroscopic", false));
-    body.set_enabled(v::boolean(params, "enabled", true));
+    body.enable_ccd(v::boolean(params, k::CCD, false));
+    body.set_soft_ccd_prediction(scalar::real(v::f(params, k::SOFT_CCD, 0.0)));
+    body.set_allow_fast_rotation(v::boolean(params, k::FAST_ROTATION, false));
+    body.enable_gyroscopic_forces(v::boolean(params, k::GYROSCOPIC, false));
+    body.set_enabled(v::boolean(params, k::ENABLED, true));
     write_mass(body, params);
     // The world-wide toggle wins while it is off: `physics.set_sleeping_allowed`
     // is what an editor's "Sleep bodies" switch writes, and a per-body opinion
     // must not quietly re-enable sleeping under it.
-    let may_sleep = world_may_sleep && v::boolean(params, "can_sleep", true);
+    let may_sleep = world_may_sleep && v::boolean(params, k::CAN_SLEEP, true);
     *body.activation_mut() = if may_sleep {
         let mut activation = RigidBodyActivation::default();
-        activation.time_until_sleep = scalar::real(v::f(params, "sleep_time", 0.5).max(0.0));
+        activation.time_until_sleep = scalar::real(v::f(params, k::SLEEP_TIME, 0.5).max(0.0));
         activation
     } else {
         body.wake_up(true);
@@ -118,9 +120,9 @@ pub(crate) fn is_default(v: &[f32]) -> bool {
 }
 
 fn write_mass(body: &mut RigidBody, params: &toml::Value) {
-    let mass = v::f(params, "mass", 0.0).max(0.0);
-    let inertia = v::vec3(params, "inertia", [0.0; 3]);
-    let com = v::vec3(params, "center_of_mass", [0.0; 3]);
+    let mass = v::f(params, k::MASS, 0.0).max(0.0);
+    let inertia = v::vec3(params, k::INERTIA, [0.0; 3]);
+    let com = v::vec3(params, k::CENTER_OF_MASS, [0.0; 3]);
     if mass <= 0.0 {
         body.set_additional_mass(0.0, false);
     } else if is_default(&inertia) && is_default(&com) {
@@ -154,17 +156,17 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
     };
     let f = |value: Real| toml::Value::Float(f64::from(value));
     let mut map = toml::map::Map::new();
-    map.insert("kind".into(), kind_name(body).into());
-    map.insert("linear_damping".into(), f(body.linear_damping()));
-    map.insert("angular_damping".into(), f(body.angular_damping()));
-    map.insert("gravity_scale".into(), f(body.gravity_scale()));
-    map.insert("dominance".into(), f(Real::from(body.dominance_group())));
+    map.insert(k::KIND.into(), kind_name(body).into());
+    map.insert(k::LINEAR_DAMPING.into(), f(body.linear_damping()));
+    map.insert(k::ANGULAR_DAMPING.into(), f(body.angular_damping()));
+    map.insert(k::GRAVITY_SCALE.into(), f(body.gravity_scale()));
+    map.insert(k::DOMINANCE.into(), f(Real::from(body.dominance_group())));
     map.insert(
-        "solver_iterations".into(),
+        k::SOLVER_ITERATIONS.into(),
         f(body.additional_solver_iterations() as Real),
     );
     map.insert(
-        "lock_translation".into(),
+        k::LOCK_TRANSLATION.into(),
         flags(
             LockedAxes::TRANSLATION_LOCKED_X,
             LockedAxes::TRANSLATION_LOCKED_Y,
@@ -172,26 +174,26 @@ pub(crate) fn get_body_params(eng: &Engine, entity: Entity) -> Option<toml::Valu
         ),
     );
     map.insert(
-        "lock_rotation".into(),
+        k::LOCK_ROTATION.into(),
         flags(
             LockedAxes::ROTATION_LOCKED_X,
             LockedAxes::ROTATION_LOCKED_Y,
             LockedAxes::ROTATION_LOCKED_Z,
         ),
     );
-    map.insert("ccd".into(), body.is_ccd_enabled().into());
-    map.insert("soft_ccd".into(), f(body.soft_ccd_prediction()));
+    map.insert(k::CCD.into(), body.is_ccd_enabled().into());
+    map.insert(k::SOFT_CCD.into(), f(body.soft_ccd_prediction()));
     map.insert(
-        "fast_rotation".into(),
+        k::FAST_ROTATION.into(),
         body.is_fast_rotation_allowed().into(),
     );
-    map.insert("gyroscopic".into(), body.gyroscopic_forces_enabled().into());
-    map.insert("enabled".into(), body.is_enabled().into());
+    map.insert(k::GYROSCOPIC.into(), body.gyroscopic_forces_enabled().into());
+    map.insert(k::ENABLED.into(), body.is_enabled().into());
     map.insert(
-        "can_sleep".into(),
+        k::CAN_SLEEP.into(),
         (body.activation().normalized_linear_threshold >= 0.0).into(),
     );
-    map.insert("sleep_time".into(), f(body.activation().time_until_sleep));
+    map.insert(k::SLEEP_TIME.into(), f(body.activation().time_until_sleep));
     read_mass(body, &mut map);
     Some(toml::Value::Table(map))
 }
@@ -209,9 +211,9 @@ fn read_mass(body: &RigidBody, map: &mut toml::map::Map<String, toml::Value>) {
         Some(Extra::MassProps(props)) => (props.mass(), props.principal_inertia(), props.local_com),
         None => (0.0, Vector::ZERO, Vector::ZERO),
     };
-    map.insert("mass".into(), f(mass));
-    map.insert("inertia".into(), vec3(inertia));
-    map.insert("center_of_mass".into(), vec3(com));
+    map.insert(k::MASS.into(), f(mass));
+    map.insert(k::INERTIA.into(), vec3(inertia));
+    map.insert(k::CENTER_OF_MASS.into(), vec3(com));
 }
 
 /// Body creation, the forces that move one, and the overlap query.
@@ -220,12 +222,12 @@ fn read_mass(body: &RigidBody, map: &mut toml::map::Map<String, toml::Value>) {
 /// between *doing something to* a body and *asking or tuning* one.
 pub(crate) fn install_body_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("add_body", &["body3d"], "", "Give the node a rigid body of the given kind (`BODY_DYNAMIC`, `BODY_STATIC`, `BODY_KINEMATIC`, `BODY_KINEMATIC_VELOCITY`)."),
-        ("add_ball_collider", &["collider3d"], "", "Attach a sphere collider of the given radius."),
-        ("add_cuboid_collider", &["collider3d"], "", "Attach a box collider from its three half-extents."),
-        ("apply_impulse", &["body3d"], "", "Add an instant change in momentum, as if the body were struck."),
-        ("apply_impulse_at_point", &["body3d"], "", "Strike the body at a world point, which spins it as well as moves it."),
-        ("apply_torque_impulse", &["body3d"], "", "Add an instant change in angular momentum, as if the body were spun."),
+        ("add_body", &[c::BODY_3D], "", "Give the node a rigid body of the given kind (`BODY_DYNAMIC`, `BODY_STATIC`, `BODY_KINEMATIC`, `BODY_KINEMATIC_VELOCITY`)."),
+        ("add_ball_collider", &[c::COLLIDER_3D], "", "Attach a sphere collider of the given radius."),
+        ("add_cuboid_collider", &[c::COLLIDER_3D], "", "Attach a box collider from its three half-extents."),
+        ("apply_impulse", &[c::BODY_3D], "", "Add an instant change in momentum, as if the body were struck."),
+        ("apply_impulse_at_point", &[c::BODY_3D], "", "Strike the body at a world point, which spins it as well as moves it."),
+        ("apply_torque_impulse", &[c::BODY_3D], "", "Add an instant change in angular momentum, as if the body were spun."),
     ]);
     m.function(
         "add_body",
@@ -291,43 +293,43 @@ pub(crate) fn install_force_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         (
             "add_force",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Push the body until the force is reset; unlike an impulse this is spread over time.",
         ),
         (
             "add_force_at_point",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Push at a world point, which also turns the body.",
         ),
         (
             "add_torque",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Turn the body until the torque is reset.",
         ),
         (
             "reset_forces",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Drop every force added since the last step.",
         ),
         (
             "reset_torques",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Drop every torque added since the last step.",
         ),
         (
             "user_force",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "The force the next step will integrate.",
         ),
         (
             "user_torque",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "The torque the next step will integrate.",
         ),
@@ -379,7 +381,7 @@ pub(crate) fn install_force_api(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_force_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_force_reader_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("overlaps", &["collider3d"], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
+        ("overlaps", &[c::COLLIDER_3D], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
         ("gravity", &[], "", "The 3D world's gravity."),
     ]);
     m.function("reset_forces", |eng: &Engine, node: NodeId| {
@@ -425,48 +427,48 @@ pub(crate) fn install_force_reader_api(m: &mut dyn Bindings<Engine>) {
 /// a body about itself or changes how it is simulated.
 pub(crate) fn install_body_state_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("potential_energy", &["body3d"], "", "The body's gravitational potential energy over one step."),
-        ("is_moving", &["body3d"], "", "Whether the body is awake and actually going somewhere."),
-        ("effective_dominance", &["body3d"], "", "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with."),
+        ("potential_energy", &[c::BODY_3D], "", "The body's gravitational potential energy over one step."),
+        ("is_moving", &[c::BODY_3D], "", "Whether the body is awake and actually going somewhere."),
+        ("effective_dominance", &[c::BODY_3D], "", "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with."),
         (
             "set_linear_velocity",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Set how fast the body travels, in units per second.",
         ),
         (
             "linear_velocity",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "How fast the body is travelling, in units per second.",
         ),
         (
             "set_angular_velocity",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Set how fast the body spins, in radians per second about each axis.",
         ),
         (
             "angular_velocity",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "How fast the body is spinning, in radians per second about each axis.",
         ),
         (
             "velocity_at_point",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "How fast a world point on the body is moving, spin included.",
         ),
         (
-            "mass",
-            &["body3d"],
+            k::MASS,
+            &[c::BODY_3D],
             "",
             "The body's total mass, colliders included.",
         ),
         (
             "kinetic_energy",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "The body's kinetic energy, for a rest test the solver agrees with.",
         ),
@@ -549,12 +551,12 @@ fn install_body_readers(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_body_state_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_body_pose_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("teleport", &["body3d"], "", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick."),
-        ("set_body_kind", &["body3d"], "", "Change the body between dynamic, static and kinematic in place, keeping its velocity."),
-        ("body_kind", &["body3d"], "", "Whether the body is dynamic, static, kinematic or kinematic_velocity."),
-        ("predict_position", &["body3d"], "", "Where the body will be after `dt` seconds at its current velocity."),
-        ("predict_position_with_forces", &["body3d"], "", "The same, with the forces already applied taken into account: where a thrust or a spring will have put it."),
-        ("next_position", &["body3d"], "", "The pose a kinematic body has been told to move to."),
+        ("teleport", &[c::BODY_3D], "", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick."),
+        ("set_body_kind", &[c::BODY_3D], "", "Change the body between dynamic, static and kinematic in place, keeping its velocity."),
+        ("body_kind", &[c::BODY_3D], "", "Whether the body is dynamic, static, kinematic or kinematic_velocity."),
+        ("predict_position", &[c::BODY_3D], "", "Where the body will be after `dt` seconds at its current velocity."),
+        ("predict_position_with_forces", &[c::BODY_3D], "", "The same, with the forces already applied taken into account: where a thrust or a spring will have put it."),
+        ("next_position", &[c::BODY_3D], "", "The pose a kinematic body has been told to move to."),
     ]);
     m.function(
         "teleport",
@@ -592,61 +594,61 @@ pub(crate) fn install_body_tuning_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         (
             "set_gravity_scale",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Scale world gravity for this body alone.",
         ),
         (
-            "gravity_scale",
-            &["body3d"],
+            k::GRAVITY_SCALE,
+            &[c::BODY_3D],
             "",
             "This body's gravity multiplier.",
         ),
         (
             "set_damping",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Set linear and angular damping together.",
         ),
         (
-            "damping",
-            &["body3d"],
+            k::DAMPING,
+            &[c::BODY_3D],
             "",
             "This body's linear and angular damping.",
         ),
         (
             "set_lock_translation",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Freeze the body's movement along each world axis.",
         ),
         (
             "set_lock_rotation",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Freeze the body's spin about each world axis: how an upright character stays upright.",
         ),
         (
-            "locked_axes",
-            &["body3d"],
+            k::LOCKED_AXES,
+            &[c::BODY_3D],
             "",
             "Which translation and rotation axes are frozen.",
         ),
         (
             "set_ccd",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Sweep this body's whole path each step so it cannot pass through a wall.",
         ),
         (
             "is_ccd",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Whether continuous collision detection is on for this body.",
         ),
         (
             "set_dominance",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Set the group that decides which of two bodies can push the other.",
         ),
@@ -722,7 +724,7 @@ pub(crate) fn install_body_lock_api(m: &mut dyn Bindings<Engine>) {
 ///
 /// Split from [`install_body_tuning_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_body_ccd_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[("dominance", &["body3d"], "", "This body's dominance group.")]);
+    m.describe(&[("dominance", &[c::BODY_3D], "", "This body's dominance group.")]);
     m.function("set_ccd", |eng: &Engine, (node, on): (NodeId, bool)| {
         with_body(eng, entity_of(node)?, |state, handle| {
             state.world.bodies[handle].enable_ccd(on);
@@ -755,26 +757,26 @@ pub(crate) fn install_body_sleep_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         (
             "set_enabled",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Simulate this body or leave it out entirely, keeping its state.",
         ),
         (
             "is_enabled",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Whether the body is being simulated.",
         ),
-        ("sleep", &["body3d"], "", "Put the body to sleep now."),
+        ("sleep", &[c::BODY_3D], "", "Put the body to sleep now."),
         (
             "wake_up",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Wake the body, so the next step moves it.",
         ),
         (
             "is_sleeping",
-            &["body3d"],
+            &[c::BODY_3D],
             "",
             "Whether the body is asleep and being skipped.",
         ),
@@ -843,20 +845,23 @@ pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
     let kinds = v::options(w::BODY_KINDS);
     let axes = v::options(w::LOCK_AXES);
     let default = w::DYNAMIC;
-    let schema = format!(
-        r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], shorthand = true, description = "How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}
-lock_translation = {{ type = "flags", default = [], options = [{axes}], description = "World axes the body may not move along" }}
-lock_rotation = {{ type = "flags", default = [], options = [{axes}], description = "World axes the body may not turn about; locking all three keeps a character upright" }}
-center_of_mass = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the extra mass sits, in the node's own space; only read when mass is set" }}
-inertia = {{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Resistance to spin about each axis; 0 lets rapier derive it from the mass" }}
-gyroscopic = {{ type = "bool", default = false, description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }}
-{SHARED_BODY_SCHEMA}"#
-    );
+    let schema = [
+        v::schema(&[
+            (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], shorthand = true, description = "How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set" }}"#, default, kinds)),
+            (k::LOCK_TRANSLATION, &format!(r#"{{ type = "flags", default = [], options = [{}], description = "World axes the body may not move along" }}"#, axes)),
+            (k::LOCK_ROTATION, &format!(r#"{{ type = "flags", default = [], options = [{}], description = "World axes the body may not turn about; locking all three keeps a character upright" }}"#, axes)),
+            (k::CENTER_OF_MASS, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the extra mass sits, in the node's own space; only read when mass is set" }"#),
+            (k::INERTIA, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Resistance to spin about each axis; 0 lets rapier derive it from the mass" }"#),
+            (k::GYROSCOPIC, r#"{ type = "bool", default = false, description = "Model the wobble a spinning body's own inertia gives it, as a thrown American football has" }"#),
+        ]),
+        shared_body_schema(),
+    ]
+    .join("\n");
     reg.register_component(
-        "body3d",
+        c::BODY_3D,
         ComponentDef {
             doc: "Makes the node a 3D rigid body rapier simulates: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. On its own a body has no shape; add a `collider3d` for it to collide with anything.",
-            schema: ComponentDef::parse_schema("body3d", &schema),
+            schema: ComponentDef::parse_schema(c::BODY_3D, &schema),
             tags: &["3d", "physics"],
             expects: &[],
             apply: Box::new(apply_body),

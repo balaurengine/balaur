@@ -155,6 +155,197 @@ pub(crate) mod words {
         &[DYNAMIC_DYNAMIC, DYNAMIC_KINEMATIC, DYNAMIC_STATIC];
 }
 
+/// Every property, options-table and result key the physics components and
+/// calls spell, so a schema line and the reader behind it name the same key.
+pub(crate) mod keys {
+    pub(crate) const A: &str = "a";
+    pub(crate) const ACTIVE_COLLISIONS: &str = "active_collisions";
+    pub(crate) const ALLOWED_LINEAR_ERROR: &str = "allowed_linear_error";
+    pub(crate) const ANCHOR: &str = "anchor";
+    pub(crate) const ANGULAR_DAMPING: &str = "angular_damping";
+    pub(crate) const AT: &str = "at";
+    pub(crate) const AUTOSTEP: &str = "autostep";
+    pub(crate) const AUTOSTEP_DYNAMIC: &str = "autostep_dynamic";
+    pub(crate) const AUTOSTEP_MIN_WIDTH: &str = "autostep_min_width";
+    pub(crate) const AXIS: &str = "axis";
+    pub(crate) const AXLE: &str = "axle";
+    pub(crate) const B: &str = "b";
+    pub(crate) const BODY: &str = "body";
+    pub(crate) const BORDER: &str = "border";
+    pub(crate) const BRAKE: &str = "brake";
+    pub(crate) const BREAK_FORCE: &str = "break_force";
+    pub(crate) const BROAD_PHASE_MS: &str = "broad_phase_ms";
+    pub(crate) const C: &str = "c";
+    pub(crate) const CAN_SLEEP: &str = "can_sleep";
+    pub(crate) const CCD: &str = "ccd";
+    pub(crate) const CCD_SUBSTEPS: &str = "ccd_substeps";
+    pub(crate) const CELLS: &str = "cells";
+    pub(crate) const CENTER_OF_MASS: &str = "center_of_mass";
+    pub(crate) const CLEAN: &str = "clean";
+    pub(crate) const COLLIDERS: &str = "colliders";
+    pub(crate) const COLLISIONS: &str = "collisions";
+    pub(crate) const COMPRESSION: &str = "compression";
+    pub(crate) const CONCAVITY: &str = "concavity";
+    pub(crate) const CONTACTS: &str = "contacts";
+    pub(crate) const CONTACT_CLUSTERING: &str = "contact_clustering";
+    pub(crate) const CONTACT_DAMPING: &str = "contact_damping";
+    pub(crate) const CONTACT_FORCE_THRESHOLD: &str = "contact_force_threshold";
+    pub(crate) const CONTACT_FREQUENCY: &str = "contact_frequency";
+    pub(crate) const CONTACT_PAIRS: &str = "contact_pairs";
+    pub(crate) const CONTACT_RECYCLING: &str = "contact_recycling";
+    pub(crate) const CONTACT_SKIN: &str = "contact_skin";
+    pub(crate) const DAMPING: &str = "damping";
+    pub(crate) const DENSITY: &str = "density";
+    pub(crate) const DIR: &str = "dir";
+    pub(crate) const DIRECTION: &str = "direction";
+    pub(crate) const DOMINANCE: &str = "dominance";
+    pub(crate) const ENABLED: &str = "enabled";
+    pub(crate) const ENGINE_FORCE: &str = "engine_force";
+    pub(crate) const EVENTS: &str = "events";
+    pub(crate) const EXCLUDE: &str = "exclude";
+    pub(crate) const EXCLUDE_BODY: &str = "exclude_body";
+    pub(crate) const FAST_ROTATION: &str = "fast_rotation";
+    pub(crate) const FILL: &str = "fill";
+    pub(crate) const FILTER: &str = "filter";
+    pub(crate) const FIT: &str = "fit";
+    pub(crate) const FIX_INTERNAL_EDGES: &str = "fix_internal_edges";
+    pub(crate) const FORWARD_AXIS: &str = "forward_axis";
+    pub(crate) const FRICTION: &str = "friction";
+    pub(crate) const FRICTION_COMBINE: &str = "friction_combine";
+    pub(crate) const FRICTION_IN_BIAS_PASS: &str = "friction_in_bias_pass";
+    pub(crate) const FRICTION_SLIP: &str = "friction_slip";
+    pub(crate) const FROM: &str = "from";
+    pub(crate) const GRAVITY_SCALE: &str = "gravity_scale";
+    pub(crate) const GROUNDED: &str = "grounded";
+    pub(crate) const GYROSCOPIC: &str = "gyroscopic";
+    pub(crate) const HALF_EXTENTS: &str = "half_extents";
+    pub(crate) const HEIGHT: &str = "height";
+    pub(crate) const HEIGHTFIELD: &str = "heightfield";
+    pub(crate) const IMPULSE: &str = "impulse";
+    pub(crate) const INDICES: &str = "indices";
+    pub(crate) const INERTIA: &str = "inertia";
+    pub(crate) const INSIDE: &str = "inside";
+    pub(crate) const INTERNAL_ITERATIONS: &str = "internal_iterations";
+    pub(crate) const KIND: &str = "kind";
+    pub(crate) const LAYERS: &str = "layers";
+    pub(crate) const LENGTH: &str = "length";
+    pub(crate) const LENGTHS: &str = "lengths";
+    pub(crate) const LENGTH_UNIT: &str = "length_unit";
+    pub(crate) const LIMITS: &str = "limits";
+    pub(crate) const LINEAR_DAMPING: &str = "linear_damping";
+    pub(crate) const LOCKED_AXES: &str = "locked_axes";
+    pub(crate) const LOCK_ROTATION: &str = "lock_rotation";
+    pub(crate) const LOCK_TRANSLATION: &str = "lock_translation";
+    pub(crate) const MASK: &str = "mask";
+    pub(crate) const MASS: &str = "mass";
+    pub(crate) const MAX: &str = "max";
+    pub(crate) const MAX_CLIMB_ANGLE: &str = "max_climb_angle";
+    pub(crate) const MAX_CORRECTIVE_VELOCITY: &str = "max_corrective_velocity";
+    pub(crate) const MAX_FORCE: &str = "max_force";
+    pub(crate) const MAX_LINEAR_VELOCITY: &str = "max_linear_velocity";
+    pub(crate) const MAX_PIECES: &str = "max_pieces";
+    pub(crate) const MAX_TRAVEL: &str = "max_travel";
+    pub(crate) const MESH: &str = "mesh";
+    pub(crate) const MIN: &str = "min";
+    pub(crate) const MIN_CCD_DT: &str = "min_ccd_dt";
+    pub(crate) const MIN_SLIDE_ANGLE: &str = "min_slide_angle";
+    pub(crate) const MOTOR: &str = "motor";
+    pub(crate) const MOTOR_MAX_FORCE: &str = "motor_max_force";
+    pub(crate) const MOTOR_MODEL: &str = "motor_model";
+    pub(crate) const MOTOR_TARGET: &str = "motor_target";
+    pub(crate) const NARROW_PHASE_MS: &str = "narrow_phase_ms";
+    pub(crate) const NODE: &str = "node";
+    pub(crate) const NORMAL: &str = "normal";
+    pub(crate) const NORMAL_NUDGE: &str = "normal_nudge";
+    pub(crate) const OFFSET: &str = "offset";
+    pub(crate) const OFFSET_ROTATION: &str = "offset_rotation";
+    pub(crate) const ONE_WAY: &str = "one_way";
+    pub(crate) const ONE_WAY_AXIS: &str = "one_way_axis";
+    pub(crate) const ONLY: &str = "only";
+    pub(crate) const ORIENTED: &str = "oriented";
+    pub(crate) const OTHER_ANCHOR: &str = "other_anchor";
+    pub(crate) const POINT: &str = "point";
+    pub(crate) const POINTS: &str = "points";
+    pub(crate) const PREDICATE: &str = "predicate";
+    pub(crate) const PREDICTION_DISTANCE: &str = "prediction_distance";
+    pub(crate) const PUSH_BODIES: &str = "push_bodies";
+    pub(crate) const RADIUS: &str = "radius";
+    pub(crate) const REMAINING: &str = "remaining";
+    pub(crate) const RESOLUTION: &str = "resolution";
+    pub(crate) const RESTITUTION: &str = "restitution";
+    pub(crate) const RESTITUTION_COMBINE: &str = "restitution_combine";
+    pub(crate) const REST_LENGTH: &str = "rest_length";
+    pub(crate) const ROTATION: &str = "rotation";
+    pub(crate) const SCALE: &str = "scale";
+    pub(crate) const SENSOR: &str = "sensor";
+    pub(crate) const SENSORS: &str = "sensors";
+    pub(crate) const SHAPE: &str = "shape";
+    pub(crate) const SIDE_FRICTION: &str = "side_friction";
+    pub(crate) const SIZE: &str = "size";
+    pub(crate) const SLEEP_TIME: &str = "sleep_time";
+    pub(crate) const SLIDE: &str = "slide";
+    pub(crate) const SLIDING: &str = "sliding";
+    pub(crate) const SNAP_TO_GROUND: &str = "snap_to_ground";
+    pub(crate) const SOFT_CCD: &str = "soft_ccd";
+    pub(crate) const SOLID: &str = "solid";
+    pub(crate) const SOLIDS: &str = "solids";
+    pub(crate) const SOLVER: &str = "solver";
+    pub(crate) const SOLVER_ITERATIONS: &str = "solver_iterations";
+    pub(crate) const SOLVER_LAYERS: &str = "solver_layers";
+    pub(crate) const SOLVER_MASK: &str = "solver_mask";
+    pub(crate) const STABILIZATION_ITERATIONS: &str = "stabilization_iterations";
+    pub(crate) const STATIC_CONTACT_DAMPING: &str = "static_contact_damping";
+    pub(crate) const STATIC_CONTACT_FREQUENCY: &str = "static_contact_frequency";
+    pub(crate) const STEERING: &str = "steering";
+    pub(crate) const STEP_MS: &str = "step_ms";
+    pub(crate) const STIFFNESS: &str = "stiffness";
+    pub(crate) const STOP_AT_PENETRATION: &str = "stop_at_penetration";
+    pub(crate) const SUSPENSION_FORCE: &str = "suspension_force";
+    pub(crate) const UP: &str = "up";
+    pub(crate) const UP_AXIS: &str = "up_axis";
+    pub(crate) const VELOCITY_A: &str = "velocity_a";
+    pub(crate) const VELOCITY_B: &str = "velocity_b";
+    pub(crate) const VOXELS: &str = "voxels";
+    pub(crate) const VOXEL_SIZE: &str = "voxel_size";
+    pub(crate) const WARMSTART: &str = "warmstart";
+    pub(crate) const WARMSTART_JOINTS: &str = "warmstart_joints";
+    pub(crate) const X: &str = "x";
+    pub(crate) const Y: &str = "y";
+    pub(crate) const Z: &str = "z";
+}
+
+/// The component keys, as the registry and every `describe` entry spell them.
+pub(crate) mod component {
+    pub(crate) const BODY_3D: &str = "body3d";
+    pub(crate) const BODY_2D: &str = "body2d";
+    pub(crate) const COLLIDER_3D: &str = "collider3d";
+    pub(crate) const COLLIDER_2D: &str = "collider2d";
+    pub(crate) const JOINT_3D: &str = "joint3d";
+    pub(crate) const JOINT_2D: &str = "joint2d";
+    pub(crate) const CHARACTER_3D: &str = "character3d";
+    pub(crate) const CHARACTER_2D: &str = "character2d";
+    pub(crate) const WHEEL_3D: &str = "wheel3d";
+    pub(crate) const VEHICLE_3D: &str = "vehicle3d";
+}
+
+/// The script methods physics calls on a node.
+pub(crate) mod hook {
+    pub(crate) const ON_COLLISION_START: &str = "on_collision_start";
+    pub(crate) const ON_COLLISION_STOP: &str = "on_collision_stop";
+    pub(crate) const ON_CONTACT_FORCE: &str = "on_contact_force";
+    pub(crate) const ON_JOINT_BREAK: &str = "on_joint_break";
+}
+
+/// Schema text from `(key, spec)` lines: the key comes from `keys`, the spec
+/// is the `{ type = ..., description = ... }` table the inspector reads.
+pub(crate) fn schema(lines: &[(&str, &str)]) -> String {
+    lines
+        .iter()
+        .map(|(key, spec)| format!("{key} = {spec}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// The words a schema property offers, as its `options` list.
 pub(crate) fn options(words: &[&str]) -> String {
     words

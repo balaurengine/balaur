@@ -78,7 +78,7 @@ fn pe_template() -> Vec<u8> {
 /// table, and record where it went in the security directory.
 fn authenticode_sign(game: &[u8], certificate: &[u8]) -> Vec<u8> {
     let mut out = game.to_vec();
-    while out.len() % 8 != 0 {
+    while !out.len().is_multiple_of(8) {
         out.push(0);
     }
     let offset = out.len() as u32;

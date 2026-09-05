@@ -18,7 +18,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 use crate::FIXED_DT;
 use crate::character::shared_character_schema;
 use crate::dim2::PhysicsState2d;
-use crate::vocabulary::map;
+use crate::vocabulary::{self as v, component as c, keys as k, map};
 use glamx::EulerRot;
 
 pub struct Character2d(pub toml::Value);
@@ -38,14 +38,14 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
             .map_err(|_| anyhow!("node has no character2d"))?;
         character.0.clone()
     };
-    let up = scalar::v2a(crate::vocabulary::vec2(&params, "up", [0.0, 1.0]));
+    let up = scalar::v2a(crate::vocabulary::vec2(&params, k::UP, [0.0, 1.0]));
     let up = if up.length_squared() < 1.0e-12 {
         Vector2::Y
     } else {
         up.normalize()
     };
     let controller = controller_of(&params, up);
-    let push = crate::vocabulary::boolean(&params, "push_bodies", true);
+    let push = crate::vocabulary::boolean(&params, k::PUSH_BODIES, true);
 
     let (movement, collisions) = {
         let state = eng.resource::<PhysicsState2d>();
@@ -125,18 +125,18 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
         state.grounded.insert(entity, movement.grounded);
     }
     Ok(map([
-        ("x", Value::Num(f64::from(movement.translation.x))),
-        ("y", Value::Num(f64::from(movement.translation.y))),
-        ("grounded", Value::Bool(movement.grounded)),
-        ("sliding", Value::Bool(movement.is_sliding_down_slope)),
-        ("collisions", collision_list(eng, &collisions)),
+        (k::X, Value::Num(f64::from(movement.translation.x))),
+        (k::Y, Value::Num(f64::from(movement.translation.y))),
+        (k::GROUNDED, Value::Bool(movement.grounded)),
+        (k::SLIDING, Value::Bool(movement.is_sliding_down_slope)),
+        (k::COLLISIONS, collision_list(eng, &collisions)),
     ]))
 }
 
 pub(crate) fn install_character2d_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("move_character", &["character2d"], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, grounded, sliding, collisions }`. Call it from fixed_update."),
-        ("is_grounded", &["character2d"], "", "Whether the last move ended with ground under the character's feet."),
+        ("move_character", &[c::CHARACTER_2D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, grounded, sliding, collisions }`. Call it from fixed_update."),
+        ("is_grounded", &[c::CHARACTER_2D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(
         "move_character",
@@ -156,17 +156,20 @@ pub(crate) fn install_character2d_api(m: &mut dyn Bindings<Engine>) {
 
 pub(crate) fn register_character2d_component(reg: &mut Registry<'_>) {
     let shared = shared_character_schema();
-    let schema = format!(
-        r#"up = {{ type = "vec2", default = [0.0, 1.0], description = "Which way is up for this character: the axis it stands along and measures slopes against" }}
-{shared}"#
-    );
+    let schema = [
+        v::schema(&[
+            (k::UP, r#"{ type = "vec2", default = [0.0, 1.0], description = "Which way is up for this character: the axis it stands along and measures slopes against" }"#),
+        ]),
+        shared,
+    ]
+    .join("\n");
     reg.register_component(
-        "character2d",
+        c::CHARACTER_2D,
         ComponentDef {
             doc: "Moves a node the way a 2D player expects: `physics2d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider2d`.",
-            schema: ComponentDef::parse_schema("character2d", &schema),
+            schema: ComponentDef::parse_schema(c::CHARACTER_2D, &schema),
             tags: &["2d", "physics"],
-            expects: &["collider2d"],
+            expects: &[c::COLLIDER_2D],
             apply: Box::new(|eng, entity, params| {
                 let _ = eng
                     .world_mut()

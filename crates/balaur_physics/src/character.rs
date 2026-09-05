@@ -21,29 +21,27 @@ use balaur_core::{Engine, Transform, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
-use crate::vocabulary::{map, words};
+use crate::vocabulary::{self as v, component as c, keys as k, map, words as w};
 use crate::{FIXED_DT, PhysicsState};
 
 /// The schema both dimensions share. `up` is the one property whose shape
 /// differs, so each adds its own.
 pub(crate) fn shared_character_schema() -> String {
-    let modes = crate::vocabulary::options(words::LENGTH_MODES);
-    let absolute = words::ABSOLUTE;
-    format!(
-        r#"
-offset = {{ type = "float", default = 0.01, min = 0.0, description = "A gap kept between the character and everything else, so the solver never has to push it out of a wall" }}
-slide = {{ type = "bool", default = true, description = "Slide along what is in the way instead of stopping dead against it" }}
-autostep = {{ type = "float", default = 0.3, min = 0.0, description = "The tallest step the character climbs without jumping; 0 turns stepping off" }}
-autostep_min_width = {{ type = "float", default = 0.2, min = 0.0, description = "How much clear ground a step needs on top before it may be climbed" }}
-autostep_dynamic = {{ type = "bool", default = false, description = "Climb onto dynamic bodies too, not only static and kinematic ones" }}
-max_climb_angle = {{ type = "float", default = 45.0, min = 0.0, max = 90.0, description = "The steepest slope the character may walk up, in degrees" }}
-min_slide_angle = {{ type = "float", default = 30.0, min = 0.0, max = 90.0, description = "The shallowest slope the character slides back down, in degrees" }}
-snap_to_ground = {{ type = "float", default = 0.2, min = 0.0, description = "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off" }}
-normal_nudge = {{ type = "float", default = 0.0001, min = 0.0, description = "A tiny push along the contact normal that stops the character catching on seams" }}
-push_bodies = {{ type = "bool", default = true, description = "Push dynamic bodies the character walks into, rather than passing through them" }}
-lengths = {{ type = "enum", default = "{absolute}", options = [{modes}], description = "Whether offset, autostep and snap_to_ground are in world units or as a fraction of the character's own height" }}
-"#
-    )
+    let modes = v::options(w::LENGTH_MODES);
+    let absolute = w::ABSOLUTE;
+    v::schema(&[
+        (k::OFFSET, r#"{ type = "float", default = 0.01, min = 0.0, description = "A gap kept between the character and everything else, so the solver never has to push it out of a wall" }"#),
+        (k::SLIDE, r#"{ type = "bool", default = true, description = "Slide along what is in the way instead of stopping dead against it" }"#),
+        (k::AUTOSTEP, r#"{ type = "float", default = 0.3, min = 0.0, description = "The tallest step the character climbs without jumping; 0 turns stepping off" }"#),
+        (k::AUTOSTEP_MIN_WIDTH, r#"{ type = "float", default = 0.2, min = 0.0, description = "How much clear ground a step needs on top before it may be climbed" }"#),
+        (k::AUTOSTEP_DYNAMIC, r#"{ type = "bool", default = false, description = "Climb onto dynamic bodies too, not only static and kinematic ones" }"#),
+        (k::MAX_CLIMB_ANGLE, r#"{ type = "float", default = 45.0, min = 0.0, max = 90.0, description = "The steepest slope the character may walk up, in degrees" }"#),
+        (k::MIN_SLIDE_ANGLE, r#"{ type = "float", default = 30.0, min = 0.0, max = 90.0, description = "The shallowest slope the character slides back down, in degrees" }"#),
+        (k::SNAP_TO_GROUND, r#"{ type = "float", default = 0.2, min = 0.0, description = "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off" }"#),
+        (k::NORMAL_NUDGE, r#"{ type = "float", default = 0.0001, min = 0.0, description = "A tiny push along the contact normal that stops the character catching on seams" }"#),
+        (k::PUSH_BODIES, r#"{ type = "bool", default = true, description = "Push dynamic bodies the character walks into, rather than passing through them" }"#),
+        (k::LENGTHS, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Whether offset, autostep and snap_to_ground are in world units or as a fraction of the character's own height" }}"#, absolute, modes)),
+    ])
 }
 
 crate::shared::character::functions!(
@@ -66,14 +64,14 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
             .map_err(|_| anyhow!("node has no character3d"))?;
         character.0.clone()
     };
-    let up = scalar::v3a(crate::vocabulary::vec3(&params, "up", [0.0, 1.0, 0.0]));
+    let up = scalar::v3a(crate::vocabulary::vec3(&params, k::UP, [0.0, 1.0, 0.0]));
     let up = if up.length_squared() < 1.0e-12 {
         Vector::Y
     } else {
         up.normalize()
     };
     let controller = controller_of(&params, up);
-    let push = crate::vocabulary::boolean(&params, "push_bodies", true);
+    let push = crate::vocabulary::boolean(&params, k::PUSH_BODIES, true);
 
     let (movement, collisions) = {
         let state = eng.resource::<PhysicsState>();
@@ -129,12 +127,12 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
             .insert(entity, movement.grounded);
     }
     Ok(map([
-        ("x", Value::Num(f64::from(movement.translation.x))),
-        ("y", Value::Num(f64::from(movement.translation.y))),
-        ("z", Value::Num(f64::from(movement.translation.z))),
-        ("grounded", Value::Bool(movement.grounded)),
-        ("sliding", Value::Bool(movement.is_sliding_down_slope)),
-        ("collisions", collision_list(eng, &collisions)),
+        (k::X, Value::Num(f64::from(movement.translation.x))),
+        (k::Y, Value::Num(f64::from(movement.translation.y))),
+        (k::Z, Value::Num(f64::from(movement.translation.z))),
+        (k::GROUNDED, Value::Bool(movement.grounded)),
+        (k::SLIDING, Value::Bool(movement.is_sliding_down_slope)),
+        (k::COLLISIONS, collision_list(eng, &collisions)),
     ]))
 }
 
@@ -170,8 +168,8 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector) {
 
 pub(crate) fn install_character_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("move_character", &["character3d"], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, grounded, sliding, collisions }`. Call it from fixed_update — it reads the world the step just wrote."),
-        ("is_grounded", &["character3d"], "", "Whether the last move ended with ground under the character's feet."),
+        ("move_character", &[c::CHARACTER_3D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, grounded, sliding, collisions }`. Call it from fixed_update — it reads the world the step just wrote."),
+        ("is_grounded", &[c::CHARACTER_3D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(
         "move_character",
@@ -200,17 +198,20 @@ pub struct Character3d(pub toml::Value);
 /// the moment a script moves the node, and the collider does the rest.
 pub(crate) fn register_character_component(reg: &mut Registry<'_>) {
     let shared = shared_character_schema();
-    let schema = format!(
-        r#"up = {{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way is up for this character: the axis it stands along and measures slopes against" }}
-{shared}"#
-    );
+    let schema = [
+        v::schema(&[
+            (k::UP, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way is up for this character: the axis it stands along and measures slopes against" }"#),
+        ]),
+        shared,
+    ]
+    .join("\n");
     reg.register_component(
-        "character3d",
+        c::CHARACTER_3D,
         ComponentDef {
             doc: "Moves a node the way a player expects rather than the way physics would: `physics3d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider3d`; a `body3d` of kind kinematic lets it push what it walks into.",
-            schema: ComponentDef::parse_schema("character3d", &schema),
+            schema: ComponentDef::parse_schema(c::CHARACTER_3D, &schema),
             tags: &["3d", "physics"],
-            expects: &["collider3d"],
+            expects: &[c::COLLIDER_3D],
             // Every property is read at move time, so applying one is
             // remembering it and nothing else.
             apply: Box::new(|eng, entity, params| {

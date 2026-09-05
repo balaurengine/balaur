@@ -36,7 +36,10 @@ apple = ["balaur/apple"]
 
 [dependencies]
 balaur = { workspace = true, default-features = false }
+balaur_core.workspace = true
 balaur_export.workspace = true
+balaur_plugin.workspace = true
+balaur_script.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 serde_json.workspace = true

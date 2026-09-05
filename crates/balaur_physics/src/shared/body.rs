@@ -48,7 +48,7 @@ macro_rules! functions {
                 exists
             };
             if !exists {
-                add_body(eng, entity, v::text(params, "kind", w::DYNAMIC))?;
+                add_body(eng, entity, v::text(params, k::KIND, w::DYNAMIC))?;
                 // A collider inserted while the node had no body is standalone
                 // geometry in rapier; re-inserting it attaches it to the new body.
                 if let Some(collider) = get_collider_params(eng, entity) {

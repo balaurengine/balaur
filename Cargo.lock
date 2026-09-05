@@ -500,7 +500,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "balaur",
+ "balaur_core",
  "balaur_export",
+ "balaur_plugin",
+ "balaur_script",
  "base64 0.22.1",
  "clap",
  "console_error_panic_hook",

@@ -190,12 +190,11 @@ mod fetch {
             let _ = write!(out, "{b:02x}");
             out
         });
-        if let Some(expected) = expected {
-            if got != expected {
+        if let Some(expected) = expected
+            && got != expected {
                 std::fs::remove_file(&partial).ok();
                 bail!("checksum mismatch for {url}: expected {expected}, got {got}");
             }
-        }
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
