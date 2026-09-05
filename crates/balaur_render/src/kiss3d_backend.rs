@@ -137,7 +137,7 @@ impl Frontend {
         apply_clear_color(app, window);
         apply_post(app, window);
         crate::kiss3d_input::pump_input(app, window);
-        self.device.publish(app, dt);
+        self.device.publish(app, window, dt);
         app.advance(dt);
         // Before the 2D syncs move nodes around underneath it.
         self.light_map.detach();
@@ -223,6 +223,7 @@ pub async fn run_windowed_async(
         ..CanvasSetup::default()
     };
     let mut window = Window::new_with_setup(title, 1600, 1000, setup).await;
+    window.set_ime_allowed(true);
     let mut f = Frontend::new();
     let mut last = Instant::now();
     loop {
@@ -249,7 +250,7 @@ pub async fn run_windowed_async(
                 Some(&mut f.camera),
                 Some(&mut f.camera_2d),
                 None,
-                f.materials.screen_effect(),
+                None,
             )
             .await;
         if !open {
@@ -301,7 +302,7 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
                 Some(&mut f.camera),
                 Some(&mut f.camera_2d),
                 None,
-                f.materials.screen_effect(),
+                None,
             )
             .await
         {

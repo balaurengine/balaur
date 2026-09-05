@@ -157,7 +157,6 @@ fn re_applying_a_body_keeps_its_velocity() {
     );
 }
 
-/// Changing kind in place is the same promise, one property over.
 #[test]
 fn changing_kind_keeps_the_body() {
     let app = app();
@@ -233,7 +232,6 @@ fn can_sleep_false_keeps_a_body_awake() {
     );
 }
 
-/// 2D carries the same properties, spelled for two dimensions.
 #[test]
 fn the_2d_body_carries_the_same_properties() {
     let app = app();

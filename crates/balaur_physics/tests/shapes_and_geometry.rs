@@ -91,7 +91,6 @@ fn a_voxel_collider_can_be_turned_into_a_mesh() {
     );
 }
 
-/// The mesh-backed shapes this phase added, each built from the same asset.
 #[test]
 fn the_mesh_backed_shapes_build() {
     run_clean(
@@ -108,7 +107,6 @@ fn the_mesh_backed_shapes_build() {
     );
 }
 
-/// Every solver knob a game may set, read back.
 #[test]
 fn the_solver_knobs_are_set_and_read_back() {
     run_clean(
@@ -125,7 +123,6 @@ fn the_solver_knobs_are_set_and_read_back() {
     );
 }
 
-/// The geometry toolkit: what a game reaches for when it breaks something.
 #[test]
 fn the_geometry_toolkit_works_on_a_mesh() {
     run_clean(
@@ -146,7 +143,6 @@ fn the_geometry_toolkit_works_on_a_mesh() {
     );
 }
 
-/// The debug draw is on a switch, and the switch reads back.
 #[test]
 fn debug_draw_is_set_and_read_back() {
     run_clean(

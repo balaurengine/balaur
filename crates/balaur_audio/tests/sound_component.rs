@@ -74,7 +74,6 @@ fn a_sound_component_autoplays_and_stop_on_silences_it() {
     let mut app = app_in(dir.path());
     let entity = sound_node(&app, CHIME);
 
-    // The control: apply stored the component and started a playback.
     let table =
         components::get(&app.engine, entity, "sound").expect("the sound component reports itself");
     assert_eq!(

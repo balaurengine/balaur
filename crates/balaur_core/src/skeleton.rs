@@ -210,12 +210,12 @@ fn rest_in_rig_3d(world: &World, rig: Entity, bone: Entity) -> Option<Mat4> {
     }
     let mut matrix = Mat4::IDENTITY;
     for entity in chain.into_iter().rev() {
-        let local = if let Ok(bone) = world.get::<&Bone>(entity) {
+        let local = match world.get::<&Bone>(entity) { Ok(bone) => {
             bone.rest_matrix_3d()
-        } else {
+        } _ => {
             let t = world.get::<&Transform>(entity).ok()?;
             affine_3d(t.position, t.rotation, t.scale)
-        };
+        }};
         matrix *= local;
     }
     Some(matrix)
@@ -335,12 +335,12 @@ fn rest_in_rig(world: &World, rig: Entity, bone: Entity) -> Option<Mat3> {
     }
     let mut matrix = Mat3::IDENTITY;
     for entity in chain.into_iter().rev() {
-        let local = if let Ok(bone) = world.get::<&Bone>(entity) {
+        let local = match world.get::<&Bone>(entity) { Ok(bone) => {
             bone.rest_matrix_2d()
-        } else {
+        } _ => {
             let t = world.get::<&Transform>(entity).ok()?;
             affine_2d(t.position, t.rotation, t.scale)
-        };
+        }};
         matrix *= local;
     }
     Some(matrix)

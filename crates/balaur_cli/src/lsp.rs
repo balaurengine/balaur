@@ -32,7 +32,6 @@ fn serve(project_root: &Path) -> Result<()> {
     let mut server = Server {
         root,
         host,
-        // Nothing has been published yet, so nothing has to be cleared.
         published: BTreeSet::new(),
         open: Vec::new(),
     };

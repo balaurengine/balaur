@@ -3,6 +3,7 @@
 
 use crate::anim;
 use crate::history;
+use crate::icons;
 use crate::model;
 use crate::shell;
 use crate::style;
@@ -58,7 +59,7 @@ fn commands(S) {
         command("Interface persona", "▤", "⌥5", || shell::set_persona(S, "ui")),
         command(undo_label, "⟲", "⌘Z", || shell::undo(S)),
         command(redo_label, "⟳", "⇧⌘Z", || shell::redo(S)),
-        command("Add child node…", "＋", "⇧A", || model::add_child(S, None)),
+        command("Add child node…", icons::ui("add"), "⇧A", || model::add_child(S, None)),
         command("Attach Rune script to selection", "‹›", "⌥S", || shell::attach_script(S)),
         command("Run scene", "▶", "F5", || shell::toggle_play(S)),
         // One save behind one label: ⌘S writes whichever of the scene, the
@@ -66,20 +67,20 @@ fn commands(S) {
         command("Save", "◇", "⌘S", || shell::save_active(S)),
         command("Reload scripts", "⟳", "⇧R", || shell::reload_scripts(S)),
         command("Settings…", "⚙", "⌘,", || crate::settings::open(S)),
-        command("Toggle dark chrome", "☾", "⌥L", || theme::set_dark(S, !S.theme.dark)),
+        command("Toggle dark chrome", icons::ui("dark"), "⌥L", || theme::set_dark(S, !S.theme.dark)),
         command(if S.show_input { "Hide input overlay" } else { "Show input overlay" }, "⌨", "", || {
             S.show_input = !S.show_input;
         }),
         // No chord: ⌥3 is the Animate persona's, and one chord names one verb.
         command("Open animation timeline", "◷", "", || crate::docks::show(S, "timeline")),
-        command("Duplicate selected node", "⧉", "", || model::duplicate_selected(S)),
-        command("Copy selected node", "⧉", "⌘C", || ui::set_clipboard(model::copy_selected(S))),
+        command("Duplicate selected node", icons::ui("instance"), "", || model::duplicate_selected(S)),
+        command("Copy selected node", icons::ui("instance"), "⌘C", || ui::set_clipboard(model::copy_selected(S))),
         command("Delete selected node", "✕", "", || model::delete_selected(S)),
         command("Create animation clip", "◷", "", || { anim::ensure_clip(S); }),
         command("Insert keyframe at playhead", "◆", "K", || anim::add_key(S, S.anim.time)),
         command("Save clip as file", "◷", "", || anim::promote(S)),
         command("Make clip inline", "◷", "", || anim::make_inline(S)),
-        command("UI scale +", "＋", "⌘=", || shell::set_ui_scale(S, S.ui_scale + 0.125)),
+        command("UI scale +", icons::ui("add"), "⌘=", || shell::set_ui_scale(S, S.ui_scale + 0.125)),
         command("UI scale −", "−", "⌘-", || shell::set_ui_scale(S, S.ui_scale - 0.125)),
     ];
     // One command per scene file, the way the channel views are one per
@@ -87,10 +88,10 @@ fn commands(S) {
     for rel in model::scene_files(S) {
         if rel != S.scene_rel {
             let scene = rel;
-            list.push(command("Instance " + scene, "⧉", "", || model::instance_scene(S, scene)));
+            list.push(command("Instance " + scene, icons::ui("instance"), "", || model::instance_scene(S, scene)));
         }
     }
-    list.push(command("Open the prefab behind the selection", "⧉", "", || model::open_prefab(S)));
+    list.push(command("Open the prefab behind the selection", icons::ui("instance"), "", || model::open_prefab(S)));
     let known = catalogue(S);
     // Channel views: draw normals, UVs or depth instead of the picture.
     list.push(command("View: colour", "◐", "", || render::set_channel("")));
@@ -115,7 +116,7 @@ fn commands(S) {
     // each is just the components it names.
     for known_preset in known.presets {
         let preset = known_preset.name;
-        let entry = command(format!("Add {} node", preset), "＋", "", || model::add_child(S, Some(preset)));
+        let entry = command(format!("Add {} node", preset), icons::ui("add"), "", || model::add_child(S, Some(preset)));
         entry.tags = known_preset.tags;
         list.push(entry);
     }
@@ -130,7 +131,7 @@ fn commands(S) {
             if present.contains_key(name) {
                 list.push(command(format!("Remove {} component", name), "✕", "", || model::remove_component(S, name)));
             } else {
-                let entry = command(format!("Add {} component", name), "＋", "", || model::add_component(S, name));
+                let entry = command(format!("Add {} component", name), icons::ui("add"), "", || model::add_component(S, name));
                 // Facets, so typing "physics" or "2d" narrows the list.
                 entry.tags = known_comp.tags;
                 list.push(entry);
@@ -149,10 +150,9 @@ pub fn draw(S) {
         width: 560, top: 0.11, fill: k.panel, stroke: k.line,
         scrim: "#0b0e126b",
     }, || {
-        // Search row.
         ui::frame(#{ padding_x: 16, padding_y: 12 }, || {
             ui::horizontal(#{ height: 24 }, || {
-                ui::label("⌕", #{ size: 16, color: k.accent });
+                ui::label(icons::ui("search"), #{ size: 16, color: k.accent });
                 ui::add_space(4);
                 let (text, _, submitted) = ui::text_field("palette-query", "Nodes, commands, personas…", #{
                     size: 15, width: 440, autofocus: true, color: k.text,
@@ -167,7 +167,6 @@ pub fn draw(S) {
             });
         });
         ui::separator(k.line_soft);
-        // Results.
         ui::scroll("palette-results", #{ max_height: 326 }, || {
             ui::spacing(4, 4);
             ui::add_space(8);

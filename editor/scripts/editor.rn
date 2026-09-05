@@ -73,7 +73,6 @@ pub fn init(this) {
         shot: None,
         // `frames=<dir>`: a PNG every `every` frames from `from`, numbered.
         capture: (),
-        // The input overlay: keys, buttons, actions and the pointer.
         show_input: false,
         screen_w: 1280.0,
         screen_h: 800.0,
@@ -115,13 +114,11 @@ pub fn init(this) {
         session: session::state(),
         settings: settings::state(),
         window: window::state(),
-        // Every dock's search text, by dock id; see `search::field`.
         search: #{},
         showcase: showcase::state(),
         inputview: inputview::state(),
         lint: lint::state(),
         assets: dock::assets_state(),
-        // Where an editor plugin keeps its own state, by id.
         plugins: #{},
         registry: plugins::state(),
     };
@@ -149,7 +146,6 @@ pub fn init(this) {
     }
 }
 
-// Mirror was rebuilt: re-resolve node handles.
 fn resolve_refs(S) {
     S.refs = [];
     for node in S.doc {
@@ -193,7 +189,6 @@ pub fn update(this, dt) {
     // A sweep is a compile per script, so it waits for typing to stop; the
     // mirror has to be resolved first, since the scene half reads live nodes.
     lint::idle(S);
-    // 2D/3D viewport mode follows the edited scene's components.
     let is2d = model::is_2d(S);
     if is2d != S.mode2d {
         S.mode2d = is2d;
@@ -278,7 +273,6 @@ pub fn draw_ui(this) {
     let compact = S.settings.compact || sw < COMPACT_W;
     S.compact = compact;
 
-    // Global shortcuts.
     if ui::shortcut("cmd", "K") {
         if S.palette {
             shell::close_palette(S);

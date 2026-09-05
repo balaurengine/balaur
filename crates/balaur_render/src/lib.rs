@@ -56,8 +56,6 @@ mod kiss3d_input;
 #[cfg(feature = "kiss3d")]
 mod light_map;
 #[cfg(feature = "kiss3d")]
-mod screen_capture;
-#[cfg(feature = "kiss3d")]
 mod shader_material;
 #[cfg(feature = "kiss3d")]
 mod shader_material_3d;

@@ -36,12 +36,12 @@ pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
     );
     m.function("color", |eng: &Engine, node: NodeId| {
         let world = eng.world();
-        let result = if let Ok(r) = world.get::<&Renderable>(entity_of(node)?) {
-            (r.color[0], r.color[1], r.color[2], r.color[3])
-        } else if let Ok(r) = world.get::<&Renderable2d>(entity_of(node)?) {
-            (r.color[0], r.color[1], r.color[2], r.color[3])
-        } else {
-            (1.0, 1.0, 1.0, 1.0)
+        let result = match world.get::<&Renderable>(entity_of(node)?) {
+            Ok(r) => (r.color[0], r.color[1], r.color[2], r.color[3]),
+            _ => match world.get::<&Renderable2d>(entity_of(node)?) {
+                Ok(r) => (r.color[0], r.color[1], r.color[2], r.color[3]),
+                _ => (1.0, 1.0, 1.0, 1.0),
+            },
         };
         Ok(result)
     });

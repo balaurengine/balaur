@@ -829,7 +829,6 @@ fn dump_api() -> Result<()> {
         })
         .unwrap_or_default();
     api["component_docs"] = serde_json::to_value(component_docs)?;
-    // Facet tags per component, so the reference can group them.
     let component_tags: std::collections::BTreeMap<String, Vec<&'static str>> = app
         .engine
         .try_resource::<balaur::components::ComponentRegistry>()

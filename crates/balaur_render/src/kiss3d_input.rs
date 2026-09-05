@@ -3,7 +3,7 @@
 
 use balaur_core::App;
 use balaur_input::InputSnapshot;
-use kiss3d::event::{Action, TouchAction, WindowEvent};
+use kiss3d::event::{Action, ImeEvent, TouchAction, WindowEvent};
 use kiss3d::window::Window;
 
 /// Feed this frame's OS events into the input resource (if the input plugin
@@ -69,6 +69,19 @@ pub(crate) fn pump_input(app: &App, window: &Window) {
                 app.engine.request_quit();
             }
             _ => {}
+        }
+    }
+    // A preedit shows under the caret; a commit is typed like any character.
+    for ime in window.ime_events() {
+        match ime {
+            ImeEvent::Preedit { text, .. } => input.set_composing(&text),
+            ImeEvent::Commit(text) => {
+                input.set_composing("");
+                for c in text.chars().filter(|c| !c.is_control()) {
+                    input.char_event(c);
+                }
+            }
+            ImeEvent::Enabled | ImeEvent::Disabled => input.set_composing(""),
         }
     }
     input.set_keyboard_height(keyboard_height());

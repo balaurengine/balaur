@@ -81,7 +81,7 @@ mod backend {
     /// Mix a source down to mono and spread it across the two channels at
     /// gains the frame can move. Positioning a stereo file means giving up
     /// the channels it came with: a sound in one place has one direction.
-    fn spread<S>(source: S, pan: &Arc<Pan>) -> impl Source
+    fn spread<S>(source: S, pan: &Arc<Pan>) -> impl Source + use<S>
     where
         S: Source,
     {

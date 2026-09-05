@@ -1,7 +1,8 @@
 > **Status:** steps 1–5 built on 2026-09-05; what each row says "have" is
 > in the tree, and the rows that say **not planned** or name another plan
-> still do. Two things the kiss3d fork does not yet hand over stay open:
-> IME composition and a mid-pass copy for `screen` (see §5). Written down
+> still do. The kiss3d fork's `balaur-hooks` branch carries the three hooks
+> the engine needed from it: IME composition, a mid-pass copy for `screen`
+> and UIKit's safe area. Written down
 > on 2026-09-04 after measuring the tree at `c18f23f` against what a
 > shipped 2D game for phones and the web asks of an engine — a game with text in thirty languages, touch as its
 > first input, a server behind it, and a store on every side. The order is
@@ -216,7 +217,7 @@ in the game; "not planned" is a deliberate no.
 | Inline marks in a localized string | Step 2: `markup = true` on `label`, the span parser in §1 |
 | A text input in the scene tree | Step 2: a `field` widget kind, single-line, with `placeholder`, `max_length`, `secret`, `numeric`, `on_change`, `on_submit`; multi-line is `ui.code_editor` today and a `text` kind when asked |
 | Room above the on-screen keyboard | Step 2: `render.keyboard_height()`, in the input snapshot |
-| Composed input for CJK | Step 2: winit's `Ime` events into `input.typed` as committed text, with `input.composing()` for the preedit |
+| Composed input for CJK | Have: winit's `Ime` events through the fork's `Window::ime_events`; committed text lands in `input.typed`, the preedit in `input.composing()`, and egui's fields compose the same way. A page composes nothing: a browser only composes into an editable element, and a proxy input is **not planned** until a web text field asks |
 | Word wrap that knows CJK and Thai | Step 2: `wrap = "word"` gains the shaper's line breaker; nothing else changes |
 | Text to speech, speech recognition | Not planned; nothing has asked |
 
@@ -247,7 +248,7 @@ in the game; "not planned" is a deliberate no.
 | Need | Decision |
 | --- | --- |
 | Time, UV, colour, texture, vertex displacement, sampler hints, unshaded, blend modes | Have: `time()`, `place(in, offset)`, `material.features` |
-| A material that samples what the frame drew before it | Have: `features = { screen = true }` binds the last frame as `screen_texture`, `sample_screen(screen_uv(in.clip_position))` reads it; one copy pass at the end of the frame, only while a material asks. A frame behind: kiss3d draws every 2D object in one pass, and the frame-so-far copy needs that pass split in the fork (§5). The pass is what `docs/PLAN-shaders.md` phase 9's post-process materials build on |
+| A material that samples what the frame drew before it | Have: `features = { screen = true }` binds the frame so far as `screen_texture`, in linear light, and `sample_screen(screen_uv(in.clip_position))` reads it. The fork splits the 2D pass around each such object and copies the film just before it draws (`Material2d::reads_screen`, `RenderContext2d::screen`), so the copy holds everything beneath it and nothing above; made only while a material asks |
 | Per-instance uniforms | Have: `material.params`, `render.material_params` |
 | Gradient and curve resources | Not planned: a gradient is an image, a ramp is two keys |
 
@@ -266,7 +267,7 @@ in the game; "not planned" is a deliberate no.
 | A widget that fills its parent minus a margin | Have: `anchor = "fill"` with `inset`; four fractional anchors **not planned** |
 | Per-node theme overrides | Have: a node's own properties override its theme |
 | Runtime theme switch and dark mode | Have: `engine.dark_mode()`, recorded, `on_dark_mode(bool)` on change (macOS and the page answer; other desktops say false); a game ships two `widget_theme` assets and swaps `theme` on the root, as the editor does |
-| The display's safe area | Have: `render.safe_area()`, recorded; the page reads `env(safe-area-inset-*)` through the shell's CSS variables, a desktop answers zero. iOS native answers zero until the kiss3d fork hands over UIKit's insets |
+| The display's safe area | Have: `render.safe_area()`, recorded; the page reads `env(safe-area-inset-*)` through the shell's CSS variables, iOS reads UIKit's `safeAreaInsets` through the fork's `Window::safe_area`, a desktop answers zero. Android is `docs/PLAN-google.md`'s |
 | Focus, neighbours, focus visuals off on pointer input | Have `focusable`, `ui.focus_*`; explicit neighbours **not planned** — the arrangement order is the neighbour order |
 | A drag threshold before a scroll view scrolls, so a tap on a child lands | Have: `deadzone` on `scroll`, in design pixels; 0 scrolls at once, so a touch scene sets 32 |
 | Tooltips | Not planned; nothing has asked |
@@ -377,8 +378,9 @@ Ordered so a game reaches a browser after step 1, draws its screens after
 step 3, and plays after step 5. Each step ends with something a person can
 open. All five are built; what each list names is in the tree, with the
 exceptions the rows above spell out (`engine.stats` is `engine.timings`,
-`audio.define_bus` was never needed, `KEY_BACK` is `KEY_NAVIGATE_BACKWARD`,
-IME composition and a frame-so-far `screen` wait on the kiss3d fork).
+`audio.define_bus` was never needed, `KEY_BACK` is `KEY_NAVIGATE_BACKWARD`).
+IME composition, the frame-so-far `screen` copy and UIKit's safe area ride
+the kiss3d fork's `balaur-hooks` branch, which `Cargo.toml` names.
 
 1. **The web runtime.** `balaur export --target web` with a shell
    template; audio on wasm behind `audio.ready()`; `balaur_gamend`'s wasm
@@ -459,14 +461,12 @@ every platform plan says; the last is a person.
    will feel it. Either the widget layer's handlers are the same-frame
    path and a game routes through them, or `events` gains an `immediate`
    flag with the re-entrancy rule `on_free` already needs.
-4. **The screen texture and phase 9.** Answered in part: the copy pass is
-   a kiss3d post-processing effect at the end of the chain, so a
-   post-process material is the same effect with the project's shader in
-   place of the blit. What it cannot do is the frame *so far*: kiss3d draws
-   every 2D object in one render pass, and a copy between two sprites needs
-   that pass split in the fork — an upstream ask, not engine work. Until
-   then `screen` is one frame behind, which a refraction never shows and a
-   feedback effect does.
+4. **The screen texture and phase 9.** Answered: the fork splits the 2D
+   pass around every object whose material reads the screen and copies the
+   HDR film just before it draws, so `screen` is the frame so far in linear
+   light. A post-process material is the other shape of the same idea, a
+   full-screen pass over the finished film, and is what `docs/PLAN-shaders.md`
+   phase 9 still owns.
 5. **Does tint propagate?** `color` on a node tints that node. A
    propagating tint is a `SceneSync` change the size of `visible`; the
    question is whether a second, non-propagating tint is then worth a

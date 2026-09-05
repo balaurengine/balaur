@@ -36,7 +36,6 @@ fn handle_signs() {
     ]
 }
 
-// World units per design pixel (design px = logical px / ui scale).
 fn line(a, b, color, width) {
     render::draw_line_2d(a[0], a[1], b[0], b[1], color[0], color[1], color[2], width);
 }
@@ -48,7 +47,6 @@ fn local_point(geo, ox, oy) {
     [geo.center[0] + c * ox - s * oy, geo.center[1] + s * ox + c * oy]
 }
 
-// World point -> box-local coordinates.
 fn to_local(geo, x, y) {
     let dx = x - geo.center[0];
     let dy = y - geo.center[1];

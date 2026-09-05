@@ -12,7 +12,6 @@ pub fn state() {
     #{
         // The category showing, "" until the first is picked.
         at: "",
-        // Set when a value changed and the files have not caught up.
         dirty: false,
         // The search box. Non-empty means the list is results, not categories.
         query: "",

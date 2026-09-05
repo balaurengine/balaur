@@ -13,7 +13,6 @@ use crate::util;
 const LABEL_W = 82.0;
 // Control area width: 308 panel − 24 padding − 84 label − spacing.
 const CONTROL_W = 184.0;
-// Replaced by `control_w(S)` wherever the panel width is reachable.
 
 // A section heading that folds its rows away on click. Returns whether the
 // caller should draw them; the fold state lives on `S.collapsed` beside the
@@ -176,7 +175,7 @@ fn instance_note(S, k) {
                 // A prefab path is as long as the project makes it: ellipsis
                 // rather than a note that stretches the panel.
                 ui::horizontal(#{ height: 24, width: panel_w(S) - 90.0 }, || {
-                    ui::label("⧉ from " + model::prefab_of(S, node),
+                    ui::label(icons::ui("instance") + " from " + model::prefab_of(S, node),
                         util::merge(style::mono_sm(k.dim), #{ truncate: true }));
                 });
                 ui::add_space(8);
@@ -346,7 +345,7 @@ fn skeleton_section(S, k) {
                 util::merge(style::mono(k.text), #{ truncate: true }));
         });
         ui::right(|| {
-            if ui::pill("＋ bone", #{
+            if ui::pill(icons::ui("add") + " bone", #{
                 role: "row_action_on",
                 tooltip: "Grow a bone under this node (in 2D, the Rig bone tool places one by clicking)",
             }) {
@@ -483,7 +482,7 @@ fn animation_section(S, k) {
         Some(def) => def,
         None => {
             row(S, k, "Clip", || {
-                if ui::pill("＋ Create clip", #{
+                if ui::pill(icons::ui("add") + " Create clip", #{
                     height: 28, size: 12, strong: true,
                     min_width: CONTROL_W,
                     fill: k.accent_soft, color: k.accent,
@@ -1055,7 +1054,6 @@ fn component_sections(S, k, filter) {
         if !crate::search::matches(query, format!("{} {}", comp, props)) {
             continue;
         }
-        // Section header: a fold toggle with a right-aligned remove button.
         let key = format!("inspector/{}", comp);
         let open = !S.collapsed.contains_key(key);
         ui::add_space(12);
@@ -1102,7 +1100,6 @@ fn component_sections(S, k, filter) {
     }
 }
 
-// Hooks defined by the attached script, shown as the events surface.
 fn events_section(S, k) {
     let node = model::selected_node(S);
     if !section(S, k, "Events") {
@@ -1175,7 +1172,6 @@ pub fn body(S, k) {
             ui::add_space(12);
         });
 
-        // Footer: full-width accent button.
         ui::add_space(6);
         if ui::pill(icons::ui("add") + "  Add component", #{
             role: "button", height: 34, min_width: S.layout.right.w - 26.0,

@@ -59,7 +59,6 @@ fn app_driven_by_input() -> (App, Rc<RefCell<Trace>>) {
         let Ok(mut t) = world.get::<&mut Transform>(mover) else {
             return;
         };
-        // The test's inputs are small whole numbers.
         #[allow(clippy::cast_precision_loss, reason = "small whole numbers")]
         {
             t.position.x += step as f32;

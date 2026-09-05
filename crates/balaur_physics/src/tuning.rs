@@ -21,7 +21,7 @@ use crate::{PhysicsState, PhysicsState2d};
 /// rapier3d, and two distinct types to the compiler. A macro is the honest way
 /// to write it once (P4: share the vocabulary, not the calls).
 macro_rules! write_parameters {
-    ($p:expr, $f:expr, $boolean:expr) => {{
+    ($p:expr_2021, $f:expr_2021, $boolean:expr_2021) => {{
         let p = $p;
         // Every knob is rapier's own scalar; the caller hands `f32` because
         // scenes and scripts do.

@@ -5,7 +5,6 @@ use crate::anim;
 use crate::model;
 use crate::util;
 
-// 2D grid, drawn as per-frame world-space lines over the visible extents.
 pub fn grid2d(S) {
     let k = S.theme;
     let (cx, cy, zoom) = render::camera_2d();
@@ -34,7 +33,6 @@ pub fn grid2d(S) {
     }
 }
 
-// Axis guide lines through the selection (Guides chip).
 pub fn guides(S) {
     let found = match model::live(S, S.sel) {
         Some(found) => found,
@@ -103,7 +101,6 @@ pub fn motion_path(S) {
     }
 }
 
-// 2D collider outlines (Show colliders chip, phys persona).
 pub fn colliders2d(S) {
     let k = S.theme;
     let c = util::rgb(k.sage);
@@ -230,7 +227,6 @@ fn occluder_outline(S, found) {
     }
 }
 
-// Collider wireboxes + center-of-mass dots (Show colliders chip).
 pub fn colliders(S) {
     let k = S.theme;
     let c = util::rgb(k.sage);

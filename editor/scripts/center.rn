@@ -237,7 +237,7 @@ fn viewport(S, k) {
                             shell::set_zoom(S, S.zoom - 25.0);
                         }
                         ui::label(format!("{} %", S.zoom as i64), style::mono_sm(k.text));
-                        if ui::pill("＋", #{ height: 20, size: 12, min_width: 20, color: k.dim }) {
+                        if ui::pill(icons::ui("add"), #{ height: 20, size: 12, min_width: 20, color: k.dim }) {
                             shell::set_zoom(S, S.zoom + 25.0);
                         }
                     });

@@ -71,6 +71,9 @@ pub fn ui(name) {
         "arrow-line-left" => "\u{e062}",
         "arrow-line-right" => "\u{e064}",
         "arrow-line-down" => "\u{e05c}",
+        "step-over" => "\u{e08c}",
+        "step-into" => "\u{e05c}",
+        "step-out" => "\u{e066}",
         "scriptfile" => "\u{e914}",
         _ => "\u{ecde}",
     }

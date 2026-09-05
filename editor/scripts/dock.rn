@@ -2,6 +2,7 @@
 // Timeline / Debugger.
 
 use crate::anim;
+use crate::icons;
 use crate::lint;
 use crate::model;
 use crate::session;
@@ -238,7 +239,7 @@ pub fn assets_state() {
 // one could not do until `fs` gained the verbs.
 fn asset_verbs(S, k) {
     let chosen = S.assets.sel != "";
-    if ui::pill("＋ folder", #{
+    if ui::pill(icons::ui("add") + " folder", #{
         height: 20, size: 10, strong: true, tooltip: "Make a folder here",
         fill: k.sunken, color: k.dim,
     }) {
@@ -325,7 +326,6 @@ pub fn assets(S, k) {
             files.push(f);
         }
     }
-    // Breadcrumb: where we are, and the way back up.
     ui::horizontal(#{ height: 24 }, || {
         ui::add_space(12);
         if dir != "" {
@@ -429,7 +429,7 @@ pub fn timeline(S, k) {
                 };
                 ui::label(missing, style::mono_lg(k.faint));
                 ui::add_space(12);
-                if ui::pill("＋ Create clip", #{
+                if ui::pill(icons::ui("add") + " Create clip", #{
                     height: 24, size: 11.5, strong: true,
                     fill: k.accent_fill, color: k.on_accent,
                 }) {
@@ -451,7 +451,7 @@ pub fn timeline(S, k) {
     ui::horizontal(#{ height: 22 }, || {
         ui::add_space(8);
         ui::horizontal(#{ height: 22, width: name_w }, || {
-            if ui::pill("＋ Key", #{
+            if ui::pill(icons::ui("add") + " Key", #{
                 role: "chip_on", tooltip: "Insert keyframe at playhead (or press K)",
             }) {
                 anim::add_key(S, S.anim.time);
@@ -512,7 +512,6 @@ pub fn timeline(S, k) {
                         cursor = x;
                     }
                     let before = t <= S.anim.time + 1e-4;
-                    // A key is a target: clicking one seeks to it.
                     if ui::pill("", #{
                         height: 11, min_width: 11, radius: 10,
                         fill: if before { color } else { k.bg },
@@ -611,9 +610,9 @@ pub fn debugger_view(S, k) {
         ui::add_space(8);
         let steps = [
             ["▶ Continue", debugger::CONTINUE, "F5"],
-            ["⤼ Over", debugger::STEP_OVER, "F10"],
-            ["⤵ Into", debugger::STEP_INTO, "F11"],
-            ["⤴ Out", debugger::STEP_OUT, "⇧F11"],
+            [icons::ui("step-over") + " Over", debugger::STEP_OVER, "F10"],
+            [icons::ui("step-into") + " Into", debugger::STEP_INTO, "F11"],
+            [icons::ui("step-out") + " Out", debugger::STEP_OUT, "⇧F11"],
         ];
         for step in steps {
             if ui::pill(step[0], #{

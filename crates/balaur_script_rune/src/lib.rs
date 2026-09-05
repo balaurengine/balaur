@@ -513,13 +513,14 @@ impl RuneHost {
         if let Some(script) = self.state.borrow().scripts.get(key) {
             return Ok(script.unit.clone());
         }
-        let script = if let Some(script) = self.packed_script(key)? {
-            script
-        } else {
-            let source = self.source_of(key)?;
-            let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
-            let deps = self.source_keys(&sources);
-            Script::new(unit, source, sources, deps)
+        let script = match self.packed_script(key)? {
+            Some(script) => script,
+            _ => {
+                let source = self.source_of(key)?;
+                let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
+                let deps = self.source_keys(&sources);
+                Script::new(unit, source, sources, deps)
+            }
         };
         let unit = script.unit.clone();
         self.state

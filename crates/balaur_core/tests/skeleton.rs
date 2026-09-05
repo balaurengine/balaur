@@ -183,7 +183,6 @@ fn rotating_a_bone_moves_the_vertices_it_weights_and_leaves_the_rest() {
         [0.0, 0.0, 0.0, 0.0],
     ];
     let moved = skin_positions(&positions, &joints, &weights, &palette);
-    // Hip did not move.
     assert!(close2(moved[0], positions[0]));
     // A point straight below the thigh's origin swings to its right... to
     // (1, 0): rotating (0, -1) by +90 degrees.

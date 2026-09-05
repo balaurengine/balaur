@@ -79,6 +79,9 @@ pub struct InputSnapshot {
     /// the bottom; 0 with no keyboard up, and always 0 on a desktop.
     #[serde(default)]
     keyboard_height: f32,
+    /// Uncommitted input-method text, kept until the editor commits or lets go.
+    #[serde(default)]
+    composing: String,
 }
 
 impl InputSnapshot {
@@ -140,6 +143,15 @@ impl InputSnapshot {
 
     pub fn keyboard_height(&self) -> f32 {
         self.keyboard_height
+    }
+
+    pub fn set_composing(&mut self, text: &str) {
+        self.composing.clear();
+        self.composing.push_str(text);
+    }
+
+    pub fn composing(&self) -> &str {
+        &self.composing
     }
 
     pub fn typed(&self) -> &str {
@@ -651,7 +663,13 @@ fn install_touch_api(m: &mut dyn Bindings<Engine>) {
         ("dropped_files", &[], "", "The absolute paths of files dropped onto the window this frame, in drop order; desktop only."),
         ("typed", &[], "", "The characters typed this frame, in order: what a text field appends, where `just_pressed` says which key went down."),
         ("keyboard_height", &[], "", "How much of the window the on-screen keyboard covers, in pixels from the bottom: what a form moves up by. Zero with no keyboard up, and always zero on a desktop."),
+        ("composing", &[], "", "The text an input method is still composing, for a field to show under its caret; empty once it commits into `typed`, and always empty without an input method."),
     ]);
+    m.function("composing", |eng: &Engine, ()| {
+        let state = eng.resource::<InputSnapshot>();
+        let composing = state.borrow().composing().to_string();
+        Ok(Value::Str(composing))
+    });
     // Active touches as `{ id, x, y }` maps, oldest finger first. Pixel
     // coordinates, same space as `mouse_position`.
     m.function("touches", |eng: &Engine, ()| {
@@ -846,7 +864,28 @@ fn warn_unknown_once(what: &'static str, name: &str, known: &[&str]) {
 
 #[cfg(test)]
 mod tests {
-    use super::{const_name, is_known_key, KEY_NAMES, MOUSE_BUTTON_CONSTANTS};
+    use super::{const_name, is_known_key, InputSnapshot, KEY_NAMES, MOUSE_BUTTON_CONSTANTS};
+
+    #[test]
+    fn composed_text_outlives_the_frame_and_commits_into_typed() {
+        let mut input = InputSnapshot::default();
+        input.set_composing("にほ");
+        input.begin_frame();
+        assert_eq!(
+            input.composing(),
+            "にほ",
+            "a preedit stays until the editor decides"
+        );
+        assert_eq!(input.typed(), "");
+        input.set_composing("");
+        for c in "日本".chars() {
+            input.char_event(c);
+        }
+        assert_eq!(input.composing(), "");
+        assert_eq!(input.typed(), "日本");
+        input.begin_frame();
+        assert_eq!(input.typed(), "", "typed text is one frame's");
+    }
 
     #[test]
     fn constant_names_are_unique_and_well_formed() {

@@ -115,7 +115,8 @@ strip = true
 # platform, break points in the VM, an instruction counter. Rune installs its
 # stdlib wholesale and nothing can be overridden, so a fork is the only way.
 rune = { git = "https://github.com/balaurengine/rune.git", branch = "deterministic-pow" }
-# Upstream master (v0.46.0, the egui Command-modifier fix and iOS/Android
-# support, all merged) plus one web fix: present the canvas opaque, or a
-# browser composites the page through a frame whose alpha nothing ever sets.
-kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "web-fixes" }
+# Upstream v0.46.0 plus the opaque web canvas and the engine's three hooks:
+# IME events, a mid-pass screen copy for 2D materials, UIKit's safe area.
+
+# LOCAL VERIFICATION ONLY, restore before finishing: kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "balaur-hooks" }
+kiss3d = { path = "../kiss3d" }

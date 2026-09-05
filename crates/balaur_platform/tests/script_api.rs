@@ -107,7 +107,6 @@ pub fn on_store(this, e) {
     );
 }
 
-/// The reads a script makes before anything has answered.
 #[test]
 fn a_script_reads_the_player_before_a_sign_in_has_landed() {
     if !e2e_enabled() {

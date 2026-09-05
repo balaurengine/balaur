@@ -91,8 +91,6 @@ fn a_project_extension_is_loaded_and_reachable_from_a_script() {
     );
 }
 
-/// A project with no extensions directory is the common case and must not be
-/// an error.
 #[test]
 fn a_project_without_extensions_still_boots() {
     let dir = project(false);

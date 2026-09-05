@@ -87,7 +87,6 @@ pub struct SettingsRegistry(pub Vec<SettingDef>);
 #[derive(Default)]
 pub struct SettingsValues(pub toml::value::Table);
 
-/// Define one setting.
 pub fn define(eng: &Engine, def: SettingDef) {
     if let Some(registry) = eng.try_resource::<SettingsRegistry>() {
         let mut registry = registry.borrow_mut();
@@ -185,7 +184,6 @@ pub fn set(eng: &Engine, path: &str, value: toml::Value) {
         if !entry.is_table() {
             *entry = toml::Value::Table(toml::value::Table::new());
         }
-        // Just replaced with a table if it was not one.
         at = entry.as_table_mut().expect("made a table above");
     }
     at.insert(key.to_string(), value);

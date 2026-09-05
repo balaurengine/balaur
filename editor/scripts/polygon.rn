@@ -60,7 +60,6 @@ pub fn component(node) {
     }
 }
 
-// True when the tool is tracing an occluder outline rather than a polygon.
 pub fn occluding(S) {
     target(S.doc[S.sel]) == Some("occluder2d")
 }
@@ -349,7 +348,6 @@ pub fn move_vertex(S, at, wx, wy) {
     apply(S);
 }
 
-// Close the loop being drawn into one of the mesh's polygons.
 pub fn close_loop(S) {
     let ring = match S.polygon.chain {
         Some(ring) => ring,
@@ -527,7 +525,6 @@ fn uv_of(S, mesh, i, p) {
     default_uv(S, x, y)
 }
 
-// World points of every vertex, in position space or UV space.
 fn world_points(S, mesh, f, in_uv) {
     let out = [];
     for (i, p) in mesh.positions.iter().enumerate() {
@@ -544,7 +541,6 @@ fn world_points(S, mesh, f, in_uv) {
     out
 }
 
-// The vertex under the cursor, in position space or UV space.
 fn pick(S, mesh, f, mx, my, in_uv) {
     let best = None;
     let best_d = PICK_PX * viewport::world_per_px(S);
@@ -708,7 +704,6 @@ fn alt_down() {
     input::is_down("LAlt") || input::is_down("RAlt")
 }
 
-// Runs from the 2D gizmo while the Polygon tool is active.
 pub fn update(S, over_viewport, mx, my) {
     let mode = S.polygon.mode;
     let f = match frame(S) {
@@ -800,7 +795,6 @@ pub fn update(S, over_viewport, mx, my) {
     }
 }
 
-// The selection's modes as pills in the viewport's chip row.
 pub fn mode_chips(S, k) {
     let mode = S.polygon.mode;
     for id in modes(S) {

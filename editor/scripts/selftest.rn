@@ -445,7 +445,6 @@ fn first_script(S) {
     None
 }
 
-// Findings for one file at one severity.
 fn found_in(S, rel, severity) {
     let out = [];
     for f in S.lint.found {

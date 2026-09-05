@@ -273,7 +273,6 @@ fn a_recorded_session_replays_with_no_peer() {
     }
     let recorded = pair.host.session().digest_at(6).expect("tick 6 was kept");
 
-    // Replay: one app, no peers, fed the recorded frames.
     let mut app = app();
     *app.engine.resource::<ReplayMode>().borrow_mut() = ReplayMode::Playing;
     let mut session = NetSession::new(HOST, &[HOST, GUEST], 64);
@@ -317,7 +316,6 @@ fn a_session_measures_its_link() {
     // assertion is that a ping came back at all rather than what it measured.
     assert!(link.rtt_ms >= 0.0);
 
-    // And the same numbers are published for a dock or a meter to read.
     let published = pair
         .guest_app
         .engine

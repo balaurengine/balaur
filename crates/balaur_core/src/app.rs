@@ -239,7 +239,7 @@ impl App {
     pub fn new(mut config: AppConfig) -> Result<Self> {
         let engine = Engine::new();
         insert_core_resources(&engine, &config);
-        if let Some(make) = config.script_backend.take() {
+        match config.script_backend.take() { Some(make) => {
             engine.set_script_host(make(ScriptSetup {
                 engine: &engine,
                 project_root: &config.project_root,
@@ -247,9 +247,9 @@ impl App {
                 watch: config.watch,
             })?);
             crate::engine_api::install_engine_api(&engine)?;
-        } else {
+        } _ => {
             tracing::info!("no script backend configured; scripting is off");
-        }
+        }}
         let mut app = Self {
             engine,
             systems: (0..STAGE_COUNT).map(|_| Vec::new()).collect(),

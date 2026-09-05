@@ -165,7 +165,6 @@ help = "Whether it rains.""#,
     );
 }
 
-/// The faults the Netcode page asks for reach whoever builds a link.
 #[test]
 fn the_netcode_page_produces_the_faults_it_describes() {
     let app = app();

@@ -181,7 +181,7 @@ pub fn install_math_api(m: &mut dyn Bindings<Engine>) {
 }
 
 macro_rules! unary {
-    ($($name:ident => $f:expr),* $(,)?) => { $(
+    ($($name:ident => $f:expr_2021),* $(,)?) => { $(
         fn $name(_: &Engine, args: &[Value]) -> Result<Value> {
             Ok(Value::Num($f(number(args, 0)?)))
         }

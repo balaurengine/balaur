@@ -171,7 +171,6 @@ fn a_required_module_shares_functions_and_hot_reloads_in_place() {
         balaur_core::logbuf::recent(10)
     );
 
-    // The module object held from init sees the new code after a reload.
     std::fs::write(dir.path().join("lib.rn"), "pub fn double(n) { n * 3 }\n").unwrap();
     host.reload("lib.rn").unwrap();
     host.call_on(balaur_core::node_id_of(node), "again", &[]);

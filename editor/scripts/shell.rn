@@ -471,7 +471,6 @@ fn state_tab(S, tab) {
     }
 }
 
-// `shut:left`, `shut:bottom`, `shut:right`: minimise a dock to its edge.
 fn state_fontdemo(S) {
     S.fontdemo = true;
 }

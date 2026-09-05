@@ -81,8 +81,6 @@ pub fn fixed_update(this, dt) {
     );
 }
 
-/// A revolute joint holds two bodies together: the hanging one swings rather
-/// than falling away.
 #[test]
 fn a_joint_holds_two_bodies_together() {
     run_clean(
@@ -202,7 +200,6 @@ snap_to_ground = 0.0
 
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;
-    // Walk into the wall, and along it.
     let moved = physics3d::move_character(this.node, 0.1, 0.0, 0.05);
     if this.ticks == 110 {
         let position = this.node.position();

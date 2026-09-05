@@ -13,7 +13,6 @@ pub fn state() {
         overlays: [],
         editors: #{},
         states: #{},
-        // Which registered windows are open, by id.
         open: #{},
         loaded: [],
     }

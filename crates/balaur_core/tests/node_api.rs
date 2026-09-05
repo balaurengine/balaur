@@ -216,7 +216,6 @@ fn degrees_and_radians_are_two_readings_of_one_rotation() {
         "90 degrees is pi/2 radians, got {rx} {ry} {rz}"
     );
 
-    // And back the other way: radians in, degrees out.
     call(
         &app.engine,
         "set_rotation_euler",

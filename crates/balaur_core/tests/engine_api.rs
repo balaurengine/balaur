@@ -365,7 +365,6 @@ fn a_file_can_be_made_moved_and_deleted() {
         Value::Bool(false)
     );
 
-    // A directory goes with everything under it.
     call(
         eng,
         "fs",

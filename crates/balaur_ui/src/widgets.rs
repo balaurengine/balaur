@@ -36,6 +36,7 @@ const KNOWN_KEYS: &[&str] = &[
     "closable",
     "collapsible",
     "color",
+    "current_fill",
     "current_line",
     "d",
     "dashed",

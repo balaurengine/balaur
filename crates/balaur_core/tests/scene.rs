@@ -220,7 +220,6 @@ fn a_node_cannot_be_moved_under_itself_or_its_descendants() {
     let (engine, a, _, c) = tree();
     assert!(scene::reparent(&mut engine.world_mut(), a, a).is_err());
     assert!(scene::reparent(&mut engine.world_mut(), a, c).is_err());
-    // Nothing moved.
     let world = engine.world();
     assert_eq!(world.get::<&Parent>(a).unwrap().0, engine.root());
 }

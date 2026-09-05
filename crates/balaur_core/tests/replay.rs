@@ -293,8 +293,6 @@ fn a_paused_replay_holds_the_world_still() {
     assert!(app.engine.frozen_root().is_some());
 }
 
-/// Seeking runs many recorded frames in one call, and stops on the tick asked
-/// for rather than running to the end.
 #[test]
 fn seeking_runs_to_the_tick_and_stops() {
     let dir = tempfile::tempdir().unwrap();

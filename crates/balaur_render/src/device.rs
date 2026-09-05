@@ -17,7 +17,7 @@ pub(crate) struct Probe {
 
 impl Probe {
     /// Fold this frame in and publish every fact the platform can answer.
-    pub(crate) fn publish(&mut self, app: &App, dt: f32) {
+    pub(crate) fn publish(&mut self, app: &App, window: &kiss3d::window::Window, dt: f32) {
         if dt > 0.0 {
             if self.intervals.len() == SAMPLES {
                 self.intervals.pop_front();
@@ -26,7 +26,7 @@ impl Probe {
         }
         let refresh_rate = self.refresh_rate();
         let dark_mode = dark_mode();
-        let safe_area = safe_area();
+        let safe_area = safe_area(window);
         balaur_core::facts::update_device(&app.engine, |facts| {
             facts.dark_mode = dark_mode;
             facts.safe_area = safe_area;
@@ -90,14 +90,15 @@ fn dark_mode() -> bool {
     false
 }
 
+/// The page reads its insets off the shell's CSS; a window asks kiss3d.
 #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
-fn safe_area() -> [f32; 4] {
+fn safe_area(_window: &kiss3d::window::Window) -> [f32; 4] {
     web::safe_area()
 }
 
 #[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
-fn safe_area() -> [f32; 4] {
-    [0.0; 4]
+fn safe_area(window: &kiss3d::window::Window) -> [f32; 4] {
+    window.safe_area()
 }
 
 #[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]

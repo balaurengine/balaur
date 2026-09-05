@@ -325,7 +325,6 @@ fn events_are_listed_in_name_order() {
     );
 }
 
-/// A project with no events file is the normal case, not an error.
 #[test]
 fn a_project_with_no_events_file_is_empty() {
     let (_dir, app) = app(NESTED);

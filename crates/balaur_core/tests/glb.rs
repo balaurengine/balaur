@@ -337,7 +337,6 @@ fn an_import_writes_bones_a_mesh_node_and_a_clip_keyed_by_path() {
         last[3].as_float().unwrap() as f32,
         std::f32::consts::FRAC_1_SQRT_2
     ));
-    // Both documents are TOML a scene loader reads.
     toml::to_string(&imported.scene).unwrap();
     toml::to_string(&clips).unwrap();
 }

@@ -165,7 +165,10 @@ fn install_overlay(m: &mut dyn Bindings<Engine>) {
                     // A sized sheet sits where the layout put it. egui slides
                     // an area left to keep it on screen, so without this a row
                     // wider than the sheet moved the whole panel.
-                    .constrain(!sized);
+                    .constrain(!sized)
+                    // Layout, not a popup: a sheet that replaces another, as
+                    // a dock collapsing to its rail does, must not fade in.
+                    .fade_in(false);
                 area.show(ctx, |ui| {
                     // Clipped as well as capped: egui grows a container to
                     // its content, and one long row would stretch the fill.

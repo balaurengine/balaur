@@ -17,7 +17,6 @@ const TALL_EXTRA = 62.0;
 const TAB_ROW_H = 30.0;
 // Every box the shell tree names, by the path `scene::get_node` takes.
 const SHELL = "Editor/Shell";
-// How long a dock takes to open or close.
 const EASE_S = 0.16;
 
 fn rect(x, y, w, h) {

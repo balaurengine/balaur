@@ -290,8 +290,6 @@ mod tests {
         assert!(hit_box(&place, Vec3::ZERO, half, above, down).is_some());
     }
 
-    /// A mesh is picked over the box its vertices filled, wherever that box
-    /// sits relative to the node's origin.
     #[test]
     fn a_mesh_is_picked_over_the_box_its_vertices_filled() {
         let mut r = renderable(Shape::Mesh);

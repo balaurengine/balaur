@@ -289,7 +289,6 @@ fn click(S, q, frame, place, run) {
     at(q, frame + 12, || release(S));
 }
 
-// Click a node's row in the tree, which is how a selection is made.
 fn click_row(S, q, frame, name) {
     click(S, q, frame, || {
         match index_of(S, name) {
@@ -340,7 +339,6 @@ fn edit_source(S, rel, from, to) {
     S.script_dirty[abs] = true;
 }
 
-// Put the file back as it was when the clip began.
 fn restore_source(S, rel, q) {
     let abs = S.game_root + "/" + rel;
     let original = q.kept.get(rel).unwrap_or("");

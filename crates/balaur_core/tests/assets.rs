@@ -222,7 +222,6 @@ fn duplicate_hands_back_a_private_copy_rather_than_the_shared_one() {
         Some(&Note { pitch: 880.0 }),
         "a private copy still holds the same content"
     );
-    // And taking a copy must not evict what everyone else is holding.
     let again = assets::load(&app.engine, "notes/scale.toml#high").unwrap();
     assert!(Rc::ptr_eq(&shared, &again));
 }
@@ -578,7 +577,6 @@ fn saving_an_asset_writes_the_file_and_the_next_load_reads_it() {
     // is what a re-run of the game is.
     let reopened = app_in(dir.path(), None);
     assert!((pitch_of(&reopened.engine, "notes/scale.toml#high") - 1760.0).abs() < f64::EPSILON);
-    // And the entry cut from the old text is gone from the live cache too.
     assert!((pitch_of(&app.engine, "notes/scale.toml#high") - 1760.0).abs() < f64::EPSILON);
 }
 

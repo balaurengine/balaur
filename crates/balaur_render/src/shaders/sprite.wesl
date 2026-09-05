@@ -17,7 +17,8 @@ struct ObjectUniforms {
 @group(1) @binding(0) var<uniform> object: ObjectUniforms;
 @group(2) @binding(0) var albedo_texture: texture_2d<f32>;
 @group(2) @binding(1) var albedo_sampler: sampler;
-// The last frame drawn, bound when the material's `features` has `screen`.
+// The frame so far, in linear light, bound when the material's `features`
+// has `screen`: everything drawn beneath this object this frame.
 @if(screen) @group(2) @binding(2) var screen_texture: texture_2d<f32>;
 @if(screen) @group(2) @binding(3) var screen_sampler: sampler;
 
@@ -53,8 +54,8 @@ fn screen_uv(position: vec4<f32>) -> vec2<f32> {
     return position.xy / frame.clock.yz;
 }
 
-// The last frame drawn, under this fragment or wherever `uv` points. One
-// frame behind, and only with `features = { screen = true }`.
+// The frame so far, under this fragment or wherever `uv` points; only with
+// `features = { screen = true }`.
 @if(screen) fn sample_screen(uv: vec2<f32>) -> vec4<f32> {
     return textureSample(screen_texture, screen_sampler, uv);
 }

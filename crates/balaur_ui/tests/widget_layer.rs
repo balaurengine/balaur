@@ -928,3 +928,49 @@ fn typing_into_a_field_lands_on_its_text_the_next_tick() {
         .map(str::to_string);
     assert_eq!(text.as_deref(), Some("hi"));
 }
+
+#[test]
+fn a_pass_that_shows_a_new_area_asks_to_be_rerun() {
+    let (_dir, app) = app();
+    let params = toml::toml! { kind = "button" text = "new" x = 0.0 y = 0.0 };
+    let entity = add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    // Fonts bind at the next pass; a rerun of this one draws with them.
+    let fonts = pass(&app, &ctx, vec![]);
+    assert!(
+        fonts.platform_output.requested_discard(),
+        "the pass that installed fonts did not ask for a rerun"
+    );
+    // The button's area is sized invisibly this pass: a rerun shows it.
+    let sizing = pass(&app, &ctx, vec![]);
+    assert!(
+        sizing.platform_output.requested_discard(),
+        "the pass that sized a new area did not ask for a rerun"
+    );
+    let settled = pass(&app, &ctx, vec![]);
+    assert!(
+        !settled.platform_output.requested_discard(),
+        "a pass with nothing new still asked for a rerun"
+    );
+    assert!(
+        !settled.shapes.is_empty(),
+        "control: the button drew nothing"
+    );
+
+    // Hidden, then shown again: it appears once more, and once more only.
+    let hide = toml::toml! { visible = false };
+    balaur::components::patch(&app.engine, entity, "widget", &hide.into()).unwrap();
+    pass(&app, &ctx, vec![]);
+    let show = toml::toml! { visible = true };
+    balaur::components::patch(&app.engine, entity, "widget", &show.into()).unwrap();
+    let shown = pass(&app, &ctx, vec![]);
+    assert!(
+        shown.platform_output.requested_discard(),
+        "the pass that showed the area again did not ask for a rerun"
+    );
+    let steady = pass(&app, &ctx, vec![]);
+    assert!(
+        !steady.platform_output.requested_discard(),
+        "a pass after the area settled still asked for a rerun"
+    );
+}

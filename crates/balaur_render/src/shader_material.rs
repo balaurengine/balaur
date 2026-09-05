@@ -24,7 +24,6 @@ use kiss3d::scene::{InstancesBuffer2d, ObjectData2d};
 
 use crate::material::{Compiled, PARAMS_GROUP};
 use crate::probe::Probe;
-use crate::screen_capture::{ScreenCapture, ScreenShare, ScreenTexture};
 
 /// Matches `FrameUniforms` in `shaders/sprite.wesl`.
 #[repr(C)]
@@ -111,8 +110,8 @@ pub(crate) struct ShaderMaterial {
     started: Instant,
     frame_counter: Cell<u64>,
     last_frame: Cell<u64>,
-    /// The last frame drawn, for a material whose `features` has `screen`.
-    screen: Option<ScreenShare>,
+    /// The sampler `screen_texture` is read through, for a screen reader.
+    screen: Option<wgpu::Sampler>,
 }
 
 fn uniform_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
@@ -309,15 +308,21 @@ fn build_pipeline(layout: wgpu::PipelineLayout, shader: wgpu::ShaderModule) -> P
 }
 
 impl ShaderMaterial {
-    /// Build the pipeline for one linked material; `screen` is the last
-    /// frame, for one whose `features` asked for it.
-    pub(crate) fn new(
-        compiled: &Compiled,
-        probe: Option<&Probe>,
-        screen: Option<ScreenShare>,
-    ) -> Self {
+    /// Build the pipeline for one linked material; `reads_screen` binds the
+    /// frame so far at the texture group's bindings 2 and 3.
+    pub(crate) fn new(compiled: &Compiled, probe: Option<&Probe>, reads_screen: bool) -> Self {
         let ctxt = Context::get();
-        let [frame_layout, object_layout, texture_layout] = bind_group_layouts(screen.is_some());
+        let [frame_layout, object_layout, texture_layout] = bind_group_layouts(reads_screen);
+        let screen = reads_screen.then(|| {
+            ctxt.create_sampler(&wgpu::SamplerDescriptor {
+                label: Some("material_screen_sampler"),
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            })
+        });
         let params = material_group(&compiled.params, probe);
         let mut groups = vec![
             Some(&frame_layout),
@@ -365,8 +370,12 @@ impl ShaderMaterial {
         }
     }
 
-    fn texture_bind_group(&self, texture: &Texture) -> wgpu::BindGroup {
-        let screen = self.screen.as_ref().map(|share| share.borrow());
+    /// `None` for a screen reader the frame has no copy for yet.
+    fn texture_bind_group(
+        &self,
+        texture: &Texture,
+        screen: Option<&wgpu::TextureView>,
+    ) -> Option<wgpu::BindGroup> {
         let mut entries = vec![
             wgpu::BindGroupEntry {
                 binding: 0,
@@ -377,34 +386,34 @@ impl ShaderMaterial {
                 resource: wgpu::BindingResource::Sampler(&texture.sampler),
             },
         ];
-        if let Some(screen) = screen.as_deref() {
+        if let Some(sampler) = &self.screen {
+            let view = screen?;
             entries.push(wgpu::BindGroupEntry {
                 binding: 2,
-                resource: wgpu::BindingResource::TextureView(&screen.view),
+                resource: wgpu::BindingResource::TextureView(view),
             });
             entries.push(wgpu::BindGroupEntry {
                 binding: 3,
-                resource: wgpu::BindingResource::Sampler(&screen.sampler),
+                resource: wgpu::BindingResource::Sampler(sampler),
             });
         }
-        Context::get().create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("material_texture_bind_group"),
-            layout: &self.texture_layout,
-            entries: &entries,
-        })
-    }
-
-    /// Which screen texture is current, for a bind group to compare with.
-    fn screen_generation(&self) -> u64 {
-        self.screen
-            .as_ref()
-            .map_or(u64::MAX, |share| share.borrow().generation)
+        Some(
+            Context::get().create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("material_texture_bind_group"),
+                layout: &self.texture_layout,
+                entries: &entries,
+            }),
+        )
     }
 }
 
 impl Material2d for ShaderMaterial {
     fn create_gpu_data(&self) -> Box<dyn GpuData> {
         Box::new(ShaderGpuData::new())
+    }
+
+    fn reads_screen(&self) -> bool {
+        self.screen.is_some()
     }
 
     fn begin_frame(&mut self) {
@@ -471,12 +480,16 @@ impl Material2d for ShaderMaterial {
         }
         let texture = data.texture();
         let ptr = Arc::as_ptr(texture) as usize;
-        let screen = self.screen_generation();
+        let screen = if self.screen.is_some() {
+            context.screen_generation
+        } else {
+            0
+        };
         if gpu_data.texture_bind_group.is_none()
             || gpu_data.texture_ptr != ptr
             || gpu_data.screen_generation != screen
         {
-            gpu_data.texture_bind_group = Some(self.texture_bind_group(texture));
+            gpu_data.texture_bind_group = self.texture_bind_group(texture, context.screen.as_ref());
             gpu_data.texture_ptr = ptr;
             gpu_data.screen_generation = screen;
         }
@@ -571,10 +584,6 @@ pub(crate) struct MaterialCache {
     active: String,
     /// The previewing material's probe, shared with it.
     probe: Option<std::rc::Rc<Probe>>,
-    /// The last frame, kept for materials that read the screen, and the pass
-    /// that keeps it; neither exists until a material asks.
-    screen: Option<ScreenShare>,
-    capture: Option<ScreenCapture>,
 }
 
 /// What kiss3d takes on a node.
@@ -673,7 +682,7 @@ impl MaterialCache {
                     probes: false,
                 },
                 None,
-                None,
+                false,
             )
         })
         .inspect_err(|why| tracing::error!(channel, "{why:#}"))
@@ -699,7 +708,7 @@ impl MaterialCache {
         if let Some(hit) = self.linked.get(reference) {
             return hit.clone();
         }
-        let built = build(app, reference, &mut self.screen)
+        let built = build(app, reference)
             .inspect_err(|why| tracing::error!(material = reference, "{why:#}"))
             .ok()
             .map(|(material, probe)| {
@@ -717,22 +726,7 @@ impl MaterialCache {
                 shared
             });
         self.linked.insert(reference.to_string(), built.clone());
-        if self.capture.is_none() {
-            if let Some(share) = &self.screen {
-                self.capture = Some(ScreenCapture::new(share.clone()));
-            }
-        }
         built
-    }
-
-    /// The pass that keeps the frame for screen-reading materials, once one
-    /// has asked; the frame loop runs it at the end of the post chain.
-    pub(crate) fn screen_effect(
-        &mut self,
-    ) -> Option<&mut dyn kiss3d::post_processing::PostProcessingEffect> {
-        self.capture
-            .as_mut()
-            .map(|capture| capture as &mut dyn kiss3d::post_processing::PostProcessingEffect)
     }
 }
 
@@ -746,7 +740,6 @@ fn manager_name(reference: &str) -> String {
 fn build(
     app: &balaur_core::App,
     reference: &str,
-    screen: &mut Option<ScreenShare>,
 ) -> anyhow::Result<(ShaderMaterial, Option<std::rc::Rc<Probe>>)> {
     let asset =
         balaur_core::assets::load_typed::<crate::material::Material>(&app.engine, reference)?;
@@ -755,16 +748,6 @@ fn build(
     let modules = crate::shaders::plugin_modules(&app.engine);
     let compiled = crate::material::compile_with(&asset, &source, &modules)?;
     let probe = compiled.probes.then(|| std::rc::Rc::new(Probe::new()));
-    // The screen texture is shared by every material that reads it, and made
-    // the first time one does.
-    let reads_screen = asset.reads_screen();
-    if reads_screen && screen.is_none() {
-        *screen = Some(ScreenTexture::share());
-    }
-    let material = ShaderMaterial::new(
-        &compiled,
-        probe.as_deref(),
-        reads_screen.then(|| screen.clone()).flatten(),
-    );
+    let material = ShaderMaterial::new(&compiled, probe.as_deref(), asset.reads_screen());
     Ok((material, probe))
 }

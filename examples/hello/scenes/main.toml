@@ -5,7 +5,6 @@ parent = ""
 
 [[nodes]]
 body3d = "static"
-color = [0.3, 0.55, 0.3]
 id = "n_ground"
 name = "Ground"
 parent = "n_world"
@@ -18,6 +17,7 @@ kind = "cuboid"
 [nodes.shape3d]
 half_extents = [10, 0.5, 10]
 kind = "cuboid"
+color = [0.3, 0.55, 0.3, 1]
 
 [[nodes]]
 id = "n_ball"
@@ -32,7 +32,6 @@ radius = 0.5
 color = [0.9, 0.9, 0.9, 1]
 
 [[nodes]]
-color = [0.2, 0.4, 0.9]
 id = "n_spinner"
 name = "Spinner"
 parent = "n_world"
@@ -47,6 +46,7 @@ speed = 3.5
 [nodes.shape3d]
 half_extents = [0.5, 0.5, 0.5]
 kind = "cuboid"
+color = [0.2, 0.4, 0.9, 1]
 
 [[nodes]]
 body3d = "kinematic"
@@ -85,8 +85,8 @@ parent = "n_world"
 instance = "scenes/crate.toml"
 position = [-0.5, 5, 1.5]
 
-[nodes.overrides."Crate/Lid".color]
-rgba = [0.9, 0.3, 0.25, 1.0]
+[nodes.overrides."Crate/Lid".shape3d]
+color = [0.9, 0.3, 0.25, 1]
 
 [[nodes]]
 id = "n_hud"

@@ -85,14 +85,12 @@ fn a_tilemap_parses_cells_and_round_trips() {
         "an inline definition should have become a reference, got '{reference}'"
     );
 
-    // The reference resolves through the registered parser.
     let tileset = balaur_core::assets::load_typed::<Tileset>(&app.engine, reference)
         .expect("the inline tileset parses");
     assert_eq!(tileset.texture, "tests/fixtures/sprite_200x100.png");
     assert!((tileset.tile_size - 50.0).abs() < 1e-6);
     assert_eq!(tileset.columns, 4);
 
-    // What get returned applies again to the same grid.
     let reloaded = node(&app);
     components::add(&app.engine, reloaded, "tilemap", Some(&saved))
         .expect("a saved tilemap reloads");
