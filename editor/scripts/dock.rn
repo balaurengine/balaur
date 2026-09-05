@@ -945,6 +945,8 @@ fn fixed(v, decimals) {
 }
 
 pub fn profiler(S, k) {
+    // Live numbers: the panel asks for the next pass for as long as it is open.
+    ui::request_repaint();
     let timings = engine::timings();
     if !(timings is Object) {
         style::empty(k, "no timings yet");

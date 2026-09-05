@@ -398,6 +398,7 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
     crate::widget_bindings::install_window(m);
     crate::widget_bindings::install_widget_layer(m);
     crate::widget_bindings::install_scale(m);
+    crate::pacing::install(m);
     crate::widget_bindings::install_code_editor(m);
     crate::widget_bindings::install_dropdown_select(m);
     crate::widget_bindings::install_images(m);

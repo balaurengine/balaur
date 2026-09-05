@@ -82,6 +82,7 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 
 ### UI and text
 
+- `ui.set_lazy`: the UI pass runs only when input, a request, a log line, a reload or an egui animation asks, and the last one is shown in between; the editor turns it on.
 - Containers, layout, focus, themes, presets and surfaces.
 - Widget kinds: draw, scroll, tab, image, check, dropdown, slider, progress, grid, flow, fold, dialog, separator.
 - Text field widget with IME composition.

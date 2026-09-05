@@ -1,11 +1,10 @@
 > **Status:** partly built. Written 2026-09-02. The `nightly` prerelease on
-> every push to main, tagged drafts, `balaur update`, runtime templates, the
-> export paths and `scripts/bench.py` exist, and the website's Download page
-> and web editor follow the nightly until a version is tagged (2026-09-05).
-> What does not exist is a signed, notarized, published build and a benchmark
-> page.
+> every push to main, tagged drafts, `balaur update`, runtime templates and
+> the export paths exist, and the website's Download page and web editor
+> follow the nightly until a version is tagged (2026-09-05). What does not
+> exist is a signed, notarized, published build.
 
-# Plan: binary releases and published benchmarks
+# Plan: binary releases
 
 ## Binary releases
 
@@ -47,24 +46,12 @@ what says which.
 6. Tag `v<version>`; `scripts/draft_release.sh` turns CI's artifacts into a
    draft, and publishing stays a decision.
 
-## Published benchmarks
-
-Numbers that nobody can reproduce are marketing. `scripts/bench.py` runs the
-headless suite and reports each result as a share of a 60 fps frame; nothing
-publishes the numbers. The suite should run on one pinned runner per platform,
-headless, on every tag, with the results going to
-`docs/generated/benchmarks.md` in the engine and to a page on the website,
-carrying the commit, the machine and the variance. A budget row per scenario
-turns a regression into a failed job.
-
 ## Phases
 
 1. macOS signing and notarization in CI; a notarized nightly.
 2. Windows signing; Linux tarball and AppImage.
 3. The Download page wired to a tagged release beside the nightly; `balaur
    update` verified against a real published tag.
-4. Benchmarks on a pinned runner per tag, the generated page, budgets as job
-   failures.
 
 ## Open questions
 

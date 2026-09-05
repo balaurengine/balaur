@@ -20,6 +20,7 @@
 
 mod bridge;
 mod images;
+mod pacing;
 mod splash;
 mod text;
 mod theme;
@@ -40,6 +41,7 @@ use anyhow::Result;
 use balaur_core::Engine;
 use std::collections::{HashMap, HashSet};
 
+pub use pacing::{Pacing, honour_lazy, wants_pass};
 pub use theme::ThemeTokens;
 pub use widget_input::{WidgetInputBuffer, WidgetInputSnapshot};
 pub use widget_layer::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
@@ -141,6 +143,7 @@ impl balaur_plugin::Plugin for UiPlugin {
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(UiConfig::default());
         reg.insert_resource(UiState::default());
+        reg.insert_resource(Pacing::default());
         reg.insert_resource(WidgetLayerConfig::default());
         reg.insert_resource(UiFocus::default());
         reg.register_asset_type(
@@ -211,4 +214,5 @@ pub fn run_pass(eng: &Engine, ctx: &egui::Context) {
     // Over everything, scripts' overlays included, for as long as it lasts.
     splash::draw(eng, ctx);
     bridge::leave_pass();
+    pacing::mark_pass(eng);
 }

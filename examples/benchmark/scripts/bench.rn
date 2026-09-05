@@ -1,6 +1,6 @@
 // The runner: build a case's world, settle it, time it, report it. Every
 // number comes out of `engine::timings()`, the profiler's own table, and
-// `docs/PLAN-benchmarks.md` says what each one means.
+// `docs/BENCHMARKS.md` is the report `scripts/bench_compare.py` writes from it.
 
 mod cases2d;
 mod cases3d;

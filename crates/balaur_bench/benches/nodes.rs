@@ -23,6 +23,10 @@ fn op(name: &str) -> fn(&Engine, &[Value]) -> anyhow::Result<Value> {
 
 /// The Rust half: the bare spawn, the op through the value layer with the
 /// stable id it mints, a batched free, and a path lookup.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "this is the measurement, not simulation"
+)]
 fn rust_side(c: &mut Criterion) {
     let mut group = c.benchmark_group("node_ops_rust");
     group.throughput(Throughput::Elements(COUNT as u64));
@@ -109,6 +113,10 @@ fn rust_side(c: &mut Criterion) {
 /// The whole deferred path: `queue_free` on each, then the frame that drains
 /// them, less a frame that drains nothing. On a fresh app, so nothing else
 /// leaves the frame anything to do.
+#[allow(
+    clippy::disallowed_methods,
+    reason = "this is the measurement, not simulation"
+)]
 fn drain_side(c: &mut Criterion) {
     let mut group = c.benchmark_group("node_ops_rust");
     group.throughput(Throughput::Elements(COUNT as u64));

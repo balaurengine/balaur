@@ -148,7 +148,7 @@ impl Frontend {
         publish_camera_2d(app, &self.camera_2d, window);
         apply_clear_color(app, window);
         apply_post(app, window);
-        crate::kiss3d_input::pump_input(app, window);
+        let input_seen = crate::kiss3d_input::pump_input(app, window);
         self.device.publish(app, window, dt);
         app.advance(dt);
         // Read once for the whole frame: three syncs ask, and each would
@@ -196,7 +196,10 @@ impl Frontend {
         draw_grid(app, window);
         flush_debug_lines(app, window);
         flush_debug_lines_2d(app, window);
-        window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
+        // A lazy UI skips the pass; the last one's shapes are drawn again.
+        if balaur_ui::wants_pass(&app.engine, window.egui_context(), input_seen) {
+            window.draw_ui(|ctx| balaur_ui::run_pass(&app.engine, ctx));
+        }
         // On-screen keyboard follows ui keyboard focus, edge-detected after
         // the ui pass has settled focus. A no-op on desktop.
         let wants_keyboard = window.is_egui_capturing_keyboard();
@@ -236,6 +239,7 @@ pub async fn run_windowed_async(
     // Claim the debug-line buffers: `flush_debug_lines`/`_2d` below drain
     // them as they draw, so the plugin's headless fallback stands down.
     app.engine.insert_resource(WindowedBackend);
+    balaur_ui::honour_lazy(&app.engine);
     let setup = CanvasSetup {
         canvas_id: canvas_id.unwrap_or("canvas").to_string(),
         ..CanvasSetup::default()

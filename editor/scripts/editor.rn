@@ -144,6 +144,9 @@ pub fn init(this) {
     theme::apply(S);
     render::set_app_icon("assets/balaur-logo.png");
     ui::set_scale(S.ui_scale);
+    // The shell redraws when something asks, not every frame: on the web the
+    // pass is most of the frame, and nothing in it moves untouched.
+    ui::set_lazy(true);
     render::set_grid(true, 1.0, 5, 20);
     shell::apply_camera(S);
     log::info(format!("editing {} ({} nodes)", S.game_name, S.doc.len()));
@@ -272,6 +275,15 @@ pub fn update(this, dt) {
         } else {
             overlays::colliders(S);
         }
+    }
+    // What moves without input asks for the next pass; the rest waits for one.
+    if S.playing || S.showcase is Object || session::scrubbing(S) || S.capture is Object
+        || S.session.demo is Object || S.layout_demo >= 0 || S.settings.demo >= 0
+    {
+        ui::request_repaint();
+    }
+    if let Some(_) = S.debug.demo {
+        ui::request_repaint();
     }
 }
 
@@ -409,4 +421,5 @@ fn padded(n) {
 
 pub fn hot_reload(this) {
     theme::apply(this.S);
+    ui::request_repaint();
 }
