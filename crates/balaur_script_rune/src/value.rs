@@ -96,6 +96,12 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
     if let Ok(i) = v.as_signed() {
         return Ok(Neutral::Int(i));
     }
+    // A count — `len()`, an index — is unsigned in Rune and an `Int` here.
+    if let Ok(u) = v.as_unsigned() {
+        return Ok(Neutral::Int(
+            i64::try_from(u).map_err(|_| anyhow!("{u} does not fit a script integer"))?,
+        ));
+    }
     if let Ok(f) = v.as_float() {
         return Ok(Neutral::Num(f));
     }
