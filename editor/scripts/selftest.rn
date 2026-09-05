@@ -294,9 +294,7 @@ pub fn tiles_tool(S) {
     model::add_child(S, None);
     let node = S.doc[S.sel];
     // The editor's own cursor image as the atlas: it is there whichever game
-    // is open, so the map draws rather than logging a missing texture. The
-    // palette's own tile count is not reached from here — it measures the
-    // file under the game's root, and this one is under the editor's.
+    // is open, so the map draws rather than logging a missing texture.
     node.tilemap = #{
         tileset: #{ texture: "assets/cursor.png", tile_size: 16.0, columns: 4 },
         cells: "..\n..",
@@ -306,6 +304,16 @@ pub fn tiles_tool(S) {
     check(tiles::editable(S), "a node with a tilemap is paintable");
     let set = tiles::tileset(S);
     check(set.is_some(), "the inline tile set is read off the node");
+
+    // What the pointer does: a world point in a cell comes back as that cell.
+    // The map is two by two at one unit a tile, so its centre is the corner
+    // where all four meet and (0.5, -0.5) is the middle of the bottom-right.
+    let frame_some = tiles::frame(S);
+    check(frame_some.is_some(), "the map has a frame to aim at");
+    if let Some(f) = frame_some {
+        check(tiles::cell_at(S, f, 0.5, -0.5) == (1, 1), format!("a world point lands in its cell ({:?})", tiles::cell_at(S, f, 0.5, -0.5)));
+        check(tiles::cell_at(S, f, -0.5, 0.5) == (0, 0), "and the opposite corner in the first one");
+    }
 
     check(tiles::paint(S, 0, 0, 3), "painting writes a cell");
     check(tiles::cell(S, 0, 0) == 3, format!("the cell holds the tile ({})", tiles::cell(S, 0, 0)));
@@ -317,10 +325,8 @@ pub fn tiles_tool(S) {
     check(tiles::paint(S, 0, 0, -1), "erasing writes an empty cell");
     check(tiles::cell(S, 0, 0) == -1, "the cell is empty again");
 
-    // Growing: the map is centred on its node, so reaching past the right
-    // edge has to move the node to leave the tiles already down where they are.
-    // The document, not the live node: a global transform propagates on the
-    // next tick and this test is one call deep inside this one.
+    // Growing moves the node, so the tiles already down stay put. Read from
+    // the document: a global transform propagates on the next tick, not here.
     let was_x = util::f(util::vec3(S.doc[S.sel].get("position").unwrap_or(()), [0.0, 0.0, 0.0])[0]);
     check(tiles::paint(S, 4, 0, 1), "painting past the edge grows the map");
     let rows = tiles::grid(S);

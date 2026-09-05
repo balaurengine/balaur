@@ -11,9 +11,7 @@ use egui::{Align2, Color32, FontId, Rect, Sense, Stroke, StrokeKind, pos2, vec2}
 use crate::bridge::{scale, scoped, with_ctx, with_ui};
 use crate::theme::{self, parse_hex};
 use crate::vocabulary::{keys as k, words as w};
-use crate::widgets::{
-    Opts, code_editor, draw_image, panel_frame, pill_radius, sc, text, text_field,
-};
+use crate::widgets::{Opts, code_editor, panel_frame, pill_radius, sc, text, text_field};
 use crate::{UiConfig, UiState};
 
 /// `ui.*` bindings: theme.
@@ -753,14 +751,14 @@ pub(crate) fn install_images(m: &mut dyn Bindings<Engine>) {
             "image",
             |eng: &Engine, (path, opts): (String, Option<Value>)| {
                 let opts = Opts::with_roles(opts);
-                draw_image(eng, &path, &opts)
+                crate::images::draw_image(eng, &path, &opts)
             },
         );
         m.function(
             "image_button",
             |eng: &Engine, (path, opts): (String, Option<Value>)| {
                 let opts = Opts::with_roles(opts);
-                crate::widgets::image_button(eng, &path, &opts)
+                crate::images::image_button(eng, &path, &opts)
             },
         );
     }

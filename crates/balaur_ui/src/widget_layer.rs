@@ -911,7 +911,7 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         return;
     }
     let ctx = ui.ctx().clone();
-    match crate::widgets::texture_of(at.eng, &ctx, &widget.source) {
+    match crate::images::texture_of(at.eng, &ctx, &widget.source) {
         Ok(texture) => {
             let size = image_size(box_of(widget, at.assigned, at.scale), texture.size_vec2());
             if widget.slice.iter().any(|v| *v > 0.0) {

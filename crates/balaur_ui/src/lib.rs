@@ -19,6 +19,7 @@
 //! table), so entire themes live in scripts and hot reload with them.
 
 mod bridge;
+mod images;
 mod splash;
 mod text;
 mod theme;

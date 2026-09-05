@@ -80,7 +80,7 @@ pub(crate) fn shaped_label(
     let origin = rect.min + vec2(shift, 0.0);
     crate::text::paint(ui.painter(), texture, &shaped, origin, color, at.eng.time());
     for picture in &shaped.pictures {
-        if let Ok(handle) = crate::widgets::texture_of(at.eng, ui.ctx(), &picture.path) {
+        if let Ok(handle) = crate::images::texture_of(at.eng, ui.ctx(), &picture.path) {
             ui.painter().image(
                 handle.id(),
                 picture.rect.translate(origin.to_vec2()),

@@ -118,6 +118,9 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 
 ### Web
 
+- Projects kept in IndexedDB, so one with its textures and sounds survives a refresh rather than filling a `localStorage` quota.
+- Opening a folder from your own machine in the browser editor, and taking the whole project back out as a zip.
+- `export` in a tab: a `.bpak`, and a web bundle zipped beside the module the page is already running. Native targets still need a linker.
 - Browser audio.
 - Phoenix (`gamend`) over Fetch and WebSocket.
 - `web` module: messages, visibility, user agent, location.

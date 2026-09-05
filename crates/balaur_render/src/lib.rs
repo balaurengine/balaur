@@ -44,6 +44,8 @@ pub use sheet::{SPRITE_SHEET_ASSET_TYPE, SheetFrame, SheetSlice, SheetTag, Sprit
 pub use tilemap::{TILESET_ASSET_TYPE, Tilemap, Tileset};
 
 #[cfg(feature = "kiss3d")]
+mod app_icon;
+#[cfg(feature = "kiss3d")]
 mod bind_layout;
 #[cfg(feature = "kiss3d")]
 mod device;

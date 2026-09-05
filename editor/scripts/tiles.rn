@@ -504,7 +504,7 @@ pub fn draw(S) {
         None => return,
     };
     let k = S.theme;
-    let faint = util::rgb(k.line);
+    let faint = util::rgb(k.faint);
     let accent = util::rgb(k.accent);
     let w = viewport::world_per_px(S);
     // The grid is a guide, not the drawing: one pixel wide, and skipped
@@ -591,26 +591,37 @@ pub fn palette(S, k) {
     }
     let texture = S.game_root + "/" + set.texture;
     let per_row = util::max(util::i(math::floor((ui::available_width() - 16.0) / (SWATCH + 4.0))), 1);
-    ui::scroll("tiles-palette", #{ max_height: S.layout.body_h - 44.0 }, || {
-        let index = 0;
-        while index < count {
+    // The rows are cut before they are drawn: a `ui::` closure captures what
+    // it reads, so a counter advanced inside one never reaches the loop
+    // outside it, and the loop would never end.
+    let shelves = [];
+    let index = 0;
+    while index < count {
+        let shelf = [];
+        let column = 0;
+        while column < per_row && index < count {
+            shelf.push(index);
+            index += 1;
+            column += 1;
+        }
+        shelves.push(shelf);
+    }
+    ui::scroll("tiles-palette", #{ max_height: util::max(S.layout.body_h - 44.0, 60.0) }, || {
+        for shelf in shelves {
             ui::horizontal(#{ height: SWATCH + 4.0 }, || {
                 ui::add_space(8);
-                let column = 0;
-                while column < per_row && index < count {
-                    let sx = util::f(index % set.columns) * set.size;
-                    let sy = math::floor(util::f(index) / util::f(set.columns)) * set.size;
+                for tile in shelf {
+                    let sx = util::f(tile % set.columns) * set.size;
+                    let sy = math::floor(util::f(tile) / util::f(set.columns)) * set.size;
                     if ui::image_button(texture, #{
                         width: SWATCH, height: SWATCH,
                         region: [sx, sy, set.size, set.size],
-                        selected: S.tiles.tile == index,
+                        selected: S.tiles.tile == tile,
                         fill: k.sunken, stroke: k.accent, hover_fill: k.line,
-                        tooltip: format!("tile {}", index),
+                        tooltip: format!("tile {}", tile),
                     }) {
-                        S.tiles.tile = index;
+                        S.tiles.tile = tile;
                     }
-                    index += 1;
-                    column += 1;
                 }
             });
         }
