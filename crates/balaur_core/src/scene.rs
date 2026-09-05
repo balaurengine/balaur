@@ -13,6 +13,23 @@ pub struct Name(pub String);
 pub struct Parent(pub Entity);
 pub struct Children(pub Vec<Entity>);
 
+/// A parent's children by name, so a path segment is one lookup rather than
+/// a scan of every sibling.
+///
+/// Kept by the functions in this module that add, remove, move or rename a
+/// child; a parent without one (a world built by hand in a test) is scanned.
+#[derive(Default)]
+pub struct NameIndex(pub crate::collections::DetHashMap<String, NameSlot>);
+
+/// One name among a parent's children: the earliest in tree order bearing
+/// it, which is what [`find_node`] answers, and how many do, so losing one of
+/// a unique name is a removal and nothing more.
+#[derive(Clone, Copy)]
+pub struct NameSlot {
+    pub first: Entity,
+    pub count: u32,
+}
+
 /// Which script file drives this node, if any. The live instance is kept
 /// by the script host, keyed by entity.
 pub struct ScriptAttachment {
@@ -224,6 +241,7 @@ pub(crate) fn spawn_root(world: &mut World) -> Entity {
         Appearance::identity(),
         GlobalAppearance::identity(),
         Children(Vec::new()),
+        NameIndex::default(),
     ))
 }
 
@@ -236,11 +254,10 @@ pub fn spawn_node(world: &mut World, name: &str, parent: Entity) -> Entity {
         Appearance::identity(),
         GlobalAppearance::identity(),
         Children(Vec::new()),
+        NameIndex::default(),
         Parent(parent),
     ));
-    if let Ok(mut children) = world.get::<&mut Children>(parent) {
-        children.0.push(entity);
-    }
+    attach(world, parent, name, entity);
     entity
 }
 
@@ -256,12 +273,11 @@ pub fn spawn_node_with_id(world: &mut World, name: &str, parent: Entity, id: Str
         Appearance::identity(),
         GlobalAppearance::identity(),
         Children(Vec::new()),
+        NameIndex::default(),
         Parent(parent),
         crate::components::StableId(id),
     ));
-    if let Ok(mut children) = world.get::<&mut Children>(parent) {
-        children.0.push(entity);
-    }
+    attach(world, parent, name, entity);
     entity
 }
 
@@ -272,13 +288,155 @@ pub fn spawn_node_with_id(world: &mut World, name: &str, parent: Entity, id: Str
 /// of nothing but ordering.
 pub fn spawn_node_at(world: &mut World, name: &str, parent: Entity, index: usize) -> Entity {
     let entity = spawn_node(world, name, parent);
-    if let Ok(mut children) = world.get::<&mut Children>(parent)
-        && let Some(at) = children.0.iter().position(|&c| c == entity)
-    {
-        let moved = children.0.remove(at);
-        children.0.insert(index.min(at), moved);
-    }
+    move_child_to(world, parent, entity, index);
     entity
+}
+
+/// Move `entity` to `index` among `parent`'s children, clamped to the end.
+///
+/// What makes a snapshot restore reproduce the tree order the digest walks
+/// rather than only the set.
+pub fn move_child_to(world: &World, parent: Entity, entity: Entity, index: usize) {
+    {
+        let Ok(mut children) = world.get::<&mut Children>(parent) else {
+            return;
+        };
+        let Some(at) = children.0.iter().position(|&c| c == entity) else {
+            return;
+        };
+        let moved = children.0.remove(at);
+        let to = index.min(children.0.len());
+        children.0.insert(to, moved);
+    }
+    // Among siblings sharing its name, the earliest may now be another; a
+    // unique name stays on its one holder wherever it moves.
+    if let Ok(name) = world.get::<&Name>(entity)
+        && world
+            .get::<&NameIndex>(parent)
+            .is_ok_and(|index| index.0.get(&name.0).is_some_and(|slot| slot.count > 1))
+    {
+        reindex(world, parent, &name.0);
+    }
+}
+
+/// Rename a node, keeping its parent's [`NameIndex`] right.
+pub fn rename(world: &World, entity: Entity, name: &str) {
+    let old = {
+        let Ok(mut current) = world.get::<&mut Name>(entity) else {
+            return;
+        };
+        if current.0 == name {
+            return;
+        }
+        std::mem::replace(&mut current.0, name.to_string())
+    };
+    let Ok(parent) = world.get::<&Parent>(entity).map(|p| p.0) else {
+        return;
+    };
+    unindex(world, parent, &old, entity);
+    index_in_place(world, parent, name, entity);
+}
+
+/// Append `child`, named `name`, to `parent`'s children and index it.
+fn attach(world: &World, parent: Entity, name: &str, child: Entity) {
+    if let Ok(mut children) = world.get::<&mut Children>(parent) {
+        children.0.push(child);
+    }
+    if let Ok(mut index) = world.get::<&mut NameIndex>(parent) {
+        if let Some(slot) = index.0.get_mut(name) {
+            slot.count += 1;
+        } else {
+            index.0.insert(
+                name.to_string(),
+                NameSlot {
+                    first: child,
+                    count: 1,
+                },
+            );
+        }
+    }
+}
+
+/// Take `child` out of `parent`'s children and its name out of the index.
+fn detach(world: &World, parent: Entity, child: Entity) {
+    if let Ok(mut children) = world.get::<&mut Children>(parent) {
+        children.0.retain(|&c| c != child);
+    }
+    if let Ok(name) = world.get::<&Name>(child) {
+        unindex(world, parent, &name.0, child);
+    }
+}
+
+/// Count `child` as a holder of `name` under `parent` wherever it sits in
+/// the order, unlike [`attach`], whose child is always last.
+fn index_in_place(world: &World, parent: Entity, name: &str, child: Entity) {
+    let shared = {
+        let Ok(mut index) = world.get::<&mut NameIndex>(parent) else {
+            return;
+        };
+        if let Some(slot) = index.0.get_mut(name) {
+            slot.count += 1;
+            true
+        } else {
+            index.0.insert(
+                name.to_string(),
+                NameSlot {
+                    first: child,
+                    count: 1,
+                },
+            );
+            false
+        }
+    };
+    if shared {
+        reindex(world, parent, name);
+    }
+}
+
+/// Drop one holder of `name` from `parent`'s index; when it was the earliest
+/// of several, the next in order takes its place. The child must already be
+/// out of the parent's list.
+fn unindex(world: &World, parent: Entity, name: &str, child: Entity) {
+    let lost_first = {
+        let Ok(mut index) = world.get::<&mut NameIndex>(parent) else {
+            return;
+        };
+        let Some(slot) = index.0.get_mut(name) else {
+            return;
+        };
+        slot.count -= 1;
+        if slot.count == 0 {
+            index.0.swap_remove(name);
+            return;
+        }
+        slot.first == child
+    };
+    if lost_first {
+        reindex(world, parent, name);
+    }
+}
+
+/// Point `name`'s slot under `parent` at the earliest child bearing it.
+fn reindex(world: &World, parent: Entity, name: &str) {
+    let Ok(mut index) = world.get::<&mut NameIndex>(parent) else {
+        return;
+    };
+    let Some(slot) = index.0.get_mut(name) else {
+        return;
+    };
+    if let Some(first) = child_named(world, parent, name) {
+        slot.first = first;
+    }
+}
+
+/// The earliest of `parent`'s children named `name`, by scanning them.
+fn child_named(world: &World, parent: Entity, name: &str) -> Option<Entity> {
+    let children = world.get::<&Children>(parent).ok()?;
+    children
+        .0
+        .iter()
+        .copied()
+        .find(|&c| world.get::<&Name>(c).is_ok_and(|n| n.0 == name))
 }
 
 /// Resolve a `A/B/C` path relative to `from` by matching child names; a
@@ -290,18 +448,18 @@ pub fn find_node(world: &World, from: Entity, path: &str) -> Option<Entity> {
             current = world.get::<&Parent>(current).ok()?.0;
             continue;
         }
-        let children = world.get::<&Children>(current).ok()?;
-        let mut next = None;
-        for &child in &children.0 {
-            if let Ok(name) = world.get::<&Name>(child)
-                && name.0 == segment
-            {
-                next = Some(child);
-                break;
+        current = match world.get::<&NameIndex>(current) {
+            Ok(index) => {
+                let found = index.0.get(segment)?.first;
+                debug_assert!(
+                    world.get::<&Name>(found).is_ok_and(|n| n.0 == segment)
+                        && world.get::<&Parent>(found).is_ok_and(|p| p.0 == current),
+                    "the name index of {current:?} is stale for {segment:?}"
+                );
+                found
             }
-        }
-        drop(children);
-        current = next?;
+            Err(_) => child_named(world, current, segment)?,
+        };
     }
     Some(current)
 }
@@ -429,14 +587,14 @@ pub fn reparent(world: &mut World, entity: Entity, new_parent: Entity) -> anyhow
             child_global.scale.z / safe(parent_global.scale.z),
         ),
     };
-    if let Ok(old_parent) = world.get::<&Parent>(entity).map(|p| p.0)
-        && let Ok(mut children) = world.get::<&mut Children>(old_parent)
-    {
-        children.0.retain(|&c| c != entity);
+    if let Ok(old_parent) = world.get::<&Parent>(entity).map(|p| p.0) {
+        detach(world, old_parent, entity);
     }
-    if let Ok(mut children) = world.get::<&mut Children>(new_parent) {
-        children.0.push(entity);
-    }
+    let name = world
+        .get::<&Name>(entity)
+        .map(|n| n.0.clone())
+        .unwrap_or_default();
+    attach(world, new_parent, &name, entity);
     world
         .insert(entity, (Parent(new_parent), local))
         .map_err(|_| anyhow::anyhow!("node is dead"))?;
@@ -448,14 +606,24 @@ pub fn reparent(world: &mut World, entity: Entity, new_parent: Entity) -> anyhow
 /// instances and plugin state).
 pub fn collect_subtree(world: &World, entity: Entity) -> Vec<Entity> {
     let mut out = Vec::new();
-    let mut stack = vec![entity];
+    collect_subtree_into(world, entity, &mut out);
+    out
+}
+
+/// [`collect_subtree`] appending to `out`, for a caller with many to gather;
+/// a leaf costs no allocation.
+pub fn collect_subtree_into(world: &World, entity: Entity, out: &mut Vec<Entity>) {
+    out.push(entity);
+    let mut stack: Vec<Entity> = match world.get::<&Children>(entity) {
+        Ok(children) if !children.0.is_empty() => children.0.clone(),
+        _ => return,
+    };
     while let Some(e) = stack.pop() {
         out.push(e);
         if let Ok(children) = world.get::<&Children>(e) {
             stack.extend(children.0.iter().copied());
         }
     }
-    out
 }
 
 /// Whether `entity` is `root` or somewhere below it.
@@ -500,11 +668,11 @@ pub fn free_node(eng: &Engine, entity: Entity) {
 /// a fifty-thousand-entry list, and a frame that frees a whole container of
 /// them is ordinary.
 pub fn free_nodes(eng: &Engine, entities: &[Entity]) {
-    let mut subtree = Vec::new();
+    let mut subtree = Vec::with_capacity(entities.len());
     {
         let world = eng.world();
         for &entity in entities {
-            subtree.extend(collect_subtree(&world, entity));
+            collect_subtree_into(&world, entity, &mut subtree);
         }
     }
     if let Some(host) = eng.script_host() {
@@ -524,8 +692,31 @@ pub fn free_nodes(eng: &Engine, entities: &[Entity]) {
     parents.sort_unstable_by_key(|e| e.to_bits());
     parents.dedup();
     for parent in parents {
-        if let Ok(mut children) = world.get::<&mut Children>(parent) {
+        let (emptied, gone) = {
+            let Ok(mut children) = world.get::<&mut Children>(parent) else {
+                continue;
+            };
+            let gone: Vec<Entity> = children
+                .0
+                .iter()
+                .copied()
+                .filter(|c| doomed.contains(c))
+                .collect();
             children.0.retain(|c| !doomed.contains(c));
+            (children.0.is_empty(), gone)
+        };
+        // A parent losing every child drops its index whole rather than
+        // one name at a time.
+        if emptied {
+            if let Ok(mut index) = world.get::<&mut NameIndex>(parent) {
+                index.0.clear();
+            }
+            continue;
+        }
+        for child in gone {
+            if let Ok(name) = world.get::<&Name>(child) {
+                unindex(&world, parent, &name.0, child);
+            }
         }
     }
     for e in subtree {
@@ -535,10 +726,8 @@ pub fn free_nodes(eng: &Engine, entities: &[Entity]) {
 
 /// Despawn a node and its whole subtree, unlinking it from its parent.
 pub fn free_subtree(world: &mut World, entity: Entity) {
-    if let Ok(parent) = world.get::<&Parent>(entity).map(|p| p.0)
-        && let Ok(mut children) = world.get::<&mut Children>(parent)
-    {
-        children.0.retain(|&c| c != entity);
+    if let Ok(parent) = world.get::<&Parent>(entity).map(|p| p.0) {
+        detach(world, parent, entity);
     }
     for e in collect_subtree(world, entity) {
         let _ = world.despawn(e);

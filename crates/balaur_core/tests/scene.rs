@@ -330,3 +330,94 @@ fn a_scene_files_a_node_under_its_tags() {
     assert_eq!(world.get::<&Name>(found[0]).unwrap().0, "Gate");
     assert!(scene::tagged(&world, app.engine.root(), "lava").is_empty());
 }
+
+#[test]
+fn freeing_the_first_of_two_namesakes_finds_the_second() {
+    let engine = Engine::new();
+    let root = engine.root();
+    let (first, second) = {
+        let mut world = engine.world_mut();
+        let first = scene::spawn_node(&mut world, "Same", root);
+        let second = scene::spawn_node(&mut world, "Same", root);
+        scene::spawn_node(&mut world, "Other", root);
+        (first, second)
+    };
+    assert_eq!(find_node(&engine.world(), root, "Same"), Some(first));
+    free_subtree(&mut engine.world_mut(), first);
+    assert_eq!(find_node(&engine.world(), root, "Same"), Some(second));
+    free_subtree(&mut engine.world_mut(), second);
+    assert_eq!(find_node(&engine.world(), root, "Same"), None);
+    assert!(find_node(&engine.world(), root, "Other").is_some());
+}
+
+#[test]
+fn a_renamed_node_is_found_by_its_new_name_only() {
+    let (engine, a, b, _) = tree();
+    scene::rename(&engine.world(), b, "Q");
+    let world = engine.world();
+    assert_eq!(find_node(&world, a, "Q"), Some(b));
+    assert_eq!(find_node(&world, a, "B"), None);
+    assert!(find_node(&world, engine.root(), "A/Q/C").is_some());
+}
+
+#[test]
+fn renaming_onto_a_later_siblings_name_makes_the_earlier_one_the_answer() {
+    let engine = Engine::new();
+    let root = engine.root();
+    let (early, late) = {
+        let mut world = engine.world_mut();
+        let early = scene::spawn_node(&mut world, "Early", root);
+        let late = scene::spawn_node(&mut world, "Same", root);
+        (early, late)
+    };
+    assert_eq!(find_node(&engine.world(), root, "Same"), Some(late));
+    scene::rename(&engine.world(), early, "Same");
+    assert_eq!(find_node(&engine.world(), root, "Same"), Some(early));
+    scene::rename(&engine.world(), early, "Early");
+    assert_eq!(find_node(&engine.world(), root, "Same"), Some(late));
+}
+
+#[test]
+fn moving_a_namesake_to_the_front_makes_it_the_answer() {
+    let engine = Engine::new();
+    let root = engine.root();
+    let (first, second) = {
+        let mut world = engine.world_mut();
+        (
+            scene::spawn_node(&mut world, "Same", root),
+            scene::spawn_node(&mut world, "Same", root),
+        )
+    };
+    scene::move_child_to(&engine.world(), root, second, 0);
+    let world = engine.world();
+    assert_eq!(world.get::<&Children>(root).unwrap().0, vec![second, first]);
+    assert_eq!(find_node(&world, root, "Same"), Some(second));
+}
+
+#[test]
+fn reparenting_moves_a_node_between_its_parents_lookups() {
+    let (engine, a, b, _) = tree();
+    let root = engine.root();
+    let other = scene::spawn_node(&mut engine.world_mut(), "Other", root);
+    scene::reparent(&mut engine.world_mut(), b, other).unwrap();
+    let world = engine.world();
+    assert_eq!(find_node(&world, a, "B"), None);
+    assert_eq!(find_node(&world, root, "Other/B"), Some(b));
+}
+
+#[test]
+fn freeing_every_child_at_once_forgets_all_their_names() {
+    let engine = Engine::new();
+    let root = engine.root();
+    let holder = scene::spawn_node(&mut engine.world_mut(), "Holder", root);
+    let made: Vec<Entity> = {
+        let mut world = engine.world_mut();
+        (0..5)
+            .map(|i| scene::spawn_node(&mut world, &format!("n{i}"), holder))
+            .collect()
+    };
+    scene::free_nodes(&engine, &made);
+    assert_eq!(find_node(&engine.world(), holder, "n3"), None);
+    let again = scene::spawn_node(&mut engine.world_mut(), "n3", holder);
+    assert_eq!(find_node(&engine.world(), holder, "n3"), Some(again));
+}

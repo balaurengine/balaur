@@ -83,6 +83,10 @@ struct Frontend {
     camera_buttons: CameraButtons,
     /// What the display says, measured frame by frame.
     device: crate::device::Probe,
+    /// The asset generation the nodes below were built at. A saved texture,
+    /// model or tileset moves it, and every node built from a file is built
+    /// again — the material caches watch the same counter for their shaders.
+    asset_generation: u64,
 }
 
 impl Frontend {
@@ -116,7 +120,16 @@ impl Frontend {
             keyboard_shown: false,
             camera_buttons,
             device: crate::device::Probe::default(),
+            asset_generation: 0,
         }
+    }
+
+    /// Whether an asset was reloaded since the last frame drew.
+    fn assets_reloaded(&mut self, app: &App) -> bool {
+        let now = balaur_core::assets::generation(&app.engine);
+        let moved = now != self.asset_generation;
+        self.asset_generation = now;
+        moved
     }
 
     /// One frame: apply what scripts asked for, tick, mirror the world into
@@ -139,6 +152,9 @@ impl Frontend {
         crate::kiss3d_input::pump_input(app, window);
         self.device.publish(app, window, dt);
         app.advance(dt);
+        // Read once for the whole frame: three syncs ask, and each would
+        // otherwise see the reload and hide it from the next.
+        let reloaded = self.assets_reloaded(app);
         // Before the 2D syncs move nodes around underneath it.
         self.light_map.detach();
         sync(
@@ -146,6 +162,7 @@ impl Frontend {
             &mut self.scene,
             &mut self.slots,
             &mut self.materials_3d,
+            reloaded,
         );
         sync_2d(
             app,
@@ -153,12 +170,14 @@ impl Frontend {
             &mut self.slots_2d,
             &mut self.order_2d,
             &mut self.materials,
+            reloaded,
         );
         crate::tilemap::sync_tilemaps(
             app,
             &mut self.scene_2d,
             &mut self.tilemap_slots,
             &mut self.materials,
+            reloaded,
         );
         // The step the frame actually ran, which under --fixed-tick is not
         // the measured one.
@@ -566,6 +585,7 @@ fn sync(
     scene: &mut SceneNode3d,
     slots: &mut HashMap<Entity, Slot>,
     materials: &mut crate::shader_material_3d::MaterialCache3d,
+    reloaded: bool,
 ) {
     let world = app.engine.world();
     // A relink rebuilds the nodes holding the old pipeline; a channel view
@@ -580,11 +600,15 @@ fn sync(
         &mut world.query::<(Entity, &Renderable, &GlobalTransform)>()
     {
         seen.insert(entity);
+        // A reload rebuilds what was built from a file: the mesh is read
+        // again and the texture uploaded under the new generation's name.
+        let from_file = renderable.mesh.is_some() || !renderable.texture.is_empty();
         let rebuild = match slots.get(&entity) {
             Some(slot) => {
                 slot.version != renderable.version
                     || channel_changed
                     || (relinked && !renderable.material.is_empty())
+                    || (reloaded && from_file)
             }
             None => true,
         };
@@ -1008,6 +1032,7 @@ fn sync_2d(
     slots: &mut HashMap<Entity, Slot2d>,
     order_cache: &mut Vec<Entity>,
     materials: &mut crate::shader_material::MaterialCache,
+    reloaded: bool,
 ) {
     let world = app.engine.world();
     let order = draw_order_2d(&world, app.engine.root(), slots, order_cache);
@@ -1028,11 +1053,15 @@ fn sync_2d(
             continue;
         };
         seen.insert(entity);
+        // A sprite's image and a polyline's mesh are both files; a reload
+        // re-reads them, as it does in three dimensions.
+        let from_file = renderable.sprite.is_some() || renderable.polyline.is_some();
         let rebuild = match slots.get(&entity) {
             Some(slot) => {
                 slot.version != renderable.version
                     || channel_changed
                     || (relinked && !renderable.material.is_empty())
+                    || (reloaded && from_file)
             }
             None => true,
         };

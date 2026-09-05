@@ -453,10 +453,7 @@ fn name(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn set_name(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
-    let world = eng.world();
-    if let Ok(mut n) = world.get::<&mut Name>(e) {
-        n.0 = text(args, 1)?.to_string();
-    }
+    scene::rename(&eng.world(), e, text(args, 1)?);
     Ok(Value::Nil)
 }
 
