@@ -9,8 +9,8 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 
-use balaur::{standard_app, AppConfig};
-use serde_json::{json, Value};
+use balaur::{AppConfig, standard_app};
+use serde_json::{Value, json};
 
 /// The log buffer is global and tests run in parallel, so one test's lines
 /// would surface in another's assertions.

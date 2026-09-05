@@ -138,6 +138,9 @@ pub trait ScriptHost<C: ?Sized> {
     /// order.
     fn call_all(&self, method: &str);
 
+    /// As [`ScriptHost::call_all`], with arguments after the instance.
+    fn call_all_with(&self, method: &str, args: &[Value]);
+
     /// Resume every script task suspended on `token`, giving each `payload`.
     /// No waiter is not an error — the wake is simply dropped.
     ///

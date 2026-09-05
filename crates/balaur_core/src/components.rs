@@ -15,8 +15,8 @@
 //!    plugin components are addable and editable without editor changes.
 //!
 //! Property specs (`schema` is a TOML table of `name = { ... }`):
-//!   type = "float" | "int" | "bool" | "string" | "enum" | "vec2" | "vec3"
-//!          | "color" | "asset" | "flags" | "node"
+//!   type = "float" | "int" | "bool" | "string" | "enum" | "vec2" | "vec3" | "vec4"
+//!          | "color" | "asset" | "flags" | "node" | "strings"
 //!   default = ...          (required, and of the declared type)
 //!   options = [...]        (enum and flags only, and required there)
 //!   asset = "clip_type"    (asset only, and required there)
@@ -56,7 +56,7 @@
 //! component currently reports, which is what anything driving one property
 //! over time means.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use hecs::Entity;
 
 use crate::engine::Engine;
@@ -174,11 +174,44 @@ pub struct ComponentDef {
 /// The datatypes a schema property may declare (rule N6). Closed: a plugin
 /// that wants another one adds it here, so the editor's inspector and the
 /// scene format learn about it at the same moment.
-pub const PROPERTY_TYPES: [&str; 11] = [
-    "float", "int", "bool", "string", "enum", "vec2", "vec3", "color", "asset", "flags", "node",
+pub const PROPERTY_TYPES: [&str; 13] = [
+    "float", "int", "bool", "string", "enum", "vec2", "vec3", "vec4", "color", "asset", "flags",
+    "node", "strings",
 ];
 
+/// The tags a component or preset carries, which the editor's picker
+/// filters by. One spelling for every crate that registers one.
+pub mod tag {
+    pub const DIM_3D: &str = "3d";
+    pub const DIM_2D: &str = "2d";
+    pub const PHYSICS: &str = "physics";
+    pub const RENDER: &str = "render";
+    pub const UI: &str = "ui";
+    pub const AUDIO: &str = "audio";
+    pub const ANIMATION: &str = "animation";
+}
+
 impl ComponentDef {
+    /// Schema text from `(key, spec)` lines, so a key is spelled once, by a
+    /// constant the reader uses too, and the spec stays the TOML table the
+    /// inspector reads.
+    pub fn schema(lines: &[(&str, &str)]) -> String {
+        lines
+            .iter()
+            .map(|(key, spec)| format!("{key} = {spec}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// The words an enum or flags property offers, as its `options` list.
+    pub fn options(words: &[&str]) -> String {
+        words
+            .iter()
+            .map(|word| format!("\"{word}\""))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
     /// Parse and validate a schema from TOML text.
     ///
     /// Panics naming the component, the property and the key at fault. Schemas
@@ -241,7 +274,7 @@ pub fn validate_property(spec: &toml::Value) -> Result<(), String> {
             return Err(format!(
                 "`options` belongs to `type = \"enum\"` and `type = \"flags\"`, not `type = \
                  \"{declared}\"`"
-            ))
+            ));
         }
         _ => {}
     }
@@ -251,25 +284,25 @@ pub fn validate_property(spec: &toml::Value) -> Result<(), String> {
         (true, None) => {
             return Err(
                 "`type = \"asset\"` needs an `asset` key naming the asset type it takes".into(),
-            )
+            );
         }
         (true, Some(name)) if name.as_str().is_none() => {
-            return Err(format!("`asset` is {}, not a type name", name.type_str()))
+            return Err(format!("`asset` is {}, not a type name", name.type_str()));
         }
         (false, Some(_)) => {
             return Err(format!(
                 "`asset` belongs to `type = \"asset\"`, not `type = \"{declared}\"`"
-            ))
+            ));
         }
         _ => {}
     }
-    if let Some(description) = spec.get("description") {
-        if description.as_str().is_none() {
-            return Err(format!(
-                "`description` is {}, not a string",
-                description.type_str()
-            ));
-        }
+    if let Some(description) = spec.get("description")
+        && description.as_str().is_none()
+    {
+        return Err(format!(
+            "`description` is {}, not a string",
+            description.type_str()
+        ));
     }
     let default = spec
         .get("default")
@@ -296,7 +329,14 @@ fn check_default(
         "flags" => return check_flags_default(default, options),
         "vec2" => return check_numbers(declared, default, &[2]),
         "vec3" => return check_numbers(declared, default, &[3]),
+        "vec4" => return check_numbers(declared, default, &[4]),
         "color" => return check_color_default(default),
+        "strings" => (
+            default
+                .as_array()
+                .is_some_and(|items| items.iter().all(toml::Value::is_str)),
+            "a list of strings",
+        ),
         _ => (true, ""),
     };
     if ok {

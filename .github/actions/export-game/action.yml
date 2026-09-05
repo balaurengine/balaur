@@ -1,0 +1,219 @@
+name: Export a Balaur game
+description: >-
+  Run `balaur export` once per target, signed with the credentials given here,
+  and upload each build as an artifact with build provenance.
+
+inputs:
+  project:
+    description: The project directory to export.
+    required: false
+    default: "."
+  targets:
+    description: >-
+      Space-separated targets to export, e.g.
+      "linux-x64 windows-x64 macos-universal web". macOS and iOS need a macOS
+      runner; an installable APK needs the Android SDK.
+    required: false
+    default: linux-x64
+  output:
+    description: Where builds are written, relative to the project.
+    required: false
+    default: export
+  download:
+    description: Let the export fetch a runtime template it does not have.
+    required: false
+    default: "true"
+  macos-certificate:
+    description: Base64 of the Developer ID or Apple Distribution `.p12`.
+    required: false
+    default: ""
+  macos-certificate-password:
+    description: Password for the `.p12`.
+    required: false
+    default: ""
+  macos-identity:
+    description: >-
+      The certificate's common name, e.g.
+      "Developer ID Application: Studio (AB12CD34EF)". Empty signs ad-hoc.
+    required: false
+    default: ""
+  notarize:
+    description: Submit the signed macOS build to Apple's notary service.
+    required: false
+    default: "false"
+  notary-key:
+    description: Base64 of the App Store Connect API key (`.p8`).
+    required: false
+    default: ""
+  notary-key-id:
+    description: The API key's id.
+    required: false
+    default: ""
+  notary-issuer:
+    description: The App Store Connect issuer id.
+    required: false
+    default: ""
+  ios-identity:
+    description: >-
+      The iOS signing identity, e.g. "Apple Distribution: Studio".
+    required: false
+    default: ""
+  ios-profile:
+    description: Base64 of the `.mobileprovision` to embed.
+    required: false
+    default: ""
+  ipa:
+    description: Wrap the signed iOS build as the `.ipa` TestFlight takes.
+    required: false
+    default: "false"
+  android-keystore:
+    description: Base64 of the release keystore. Empty uses the debug identity.
+    required: false
+    default: ""
+  android-keystore-password:
+    description: Password for the keystore.
+    required: false
+    default: ""
+  android-key-password:
+    description: Password for the key, when it differs from the keystore's.
+    required: false
+    default: ""
+  android-key:
+    description: The key alias inside the keystore.
+    required: false
+    default: ""
+  windows-certificate:
+    description: >-
+      Base64 of the Authenticode `.pfx`, or of an Azure Trusted Signing
+      metadata `.json` when the key lives in a cloud HSM.
+    required: false
+    default: ""
+  windows-certificate-password:
+    description: Password for the `.pfx`.
+    required: false
+    default: ""
+  upload:
+    description: Upload each build as an artifact named `game-<target>`.
+    required: false
+    default: "true"
+  attest:
+    description: >-
+      Attach Sigstore build provenance to each artifact. The calling job needs
+      `id-token: write` and `attestations: write`.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    # Every credential lands in a file under RUNNER_TEMP, which the runner
+    # deletes with the job; the last step removes the keychain regardless.
+    - id: credentials
+      shell: bash
+      env:
+        MACOS_CERTIFICATE: ${{ inputs.macos-certificate }}
+        MACOS_CERTIFICATE_PASSWORD: ${{ inputs.macos-certificate-password }}
+        NOTARY_KEY: ${{ inputs.notary-key }}
+        IOS_PROFILE: ${{ inputs.ios-profile }}
+        ANDROID_KEYSTORE: ${{ inputs.android-keystore }}
+        WINDOWS_CERTIFICATE: ${{ inputs.windows-certificate }}
+      run: |
+        set -euo pipefail
+        secrets="$RUNNER_TEMP/balaur-signing"
+        mkdir -p "$secrets"
+        chmod 700 "$secrets"
+        echo "secrets=$secrets" >>"$GITHUB_OUTPUT"
+        write() { [ -n "$2" ] && printf '%s' "$2" | base64 -d >"$secrets/$1" && echo "$1"; }
+        write notary.p8 "$NOTARY_KEY" || true
+        write game.mobileprovision "$IOS_PROFILE" || true
+        write release.jks "$ANDROID_KEYSTORE" || true
+        write certificate.pfx "$WINDOWS_CERTIFICATE" || true
+        if [ -n "$MACOS_CERTIFICATE" ] && [ "$RUNNER_OS" = macOS ]; then
+          printf '%s' "$MACOS_CERTIFICATE" | base64 -d >"$secrets/apple.p12"
+          keychain="$secrets/balaur.keychain-db"
+          password=$(openssl rand -hex 24)
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$secrets/apple.p12" -k "$keychain" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm -f "$secrets/apple.p12"
+          echo "keychain=$keychain" >>"$GITHUB_OUTPUT"
+        fi
+
+    - shell: bash
+      env:
+        PROJECT: ${{ inputs.project }}
+        TARGETS: ${{ inputs.targets }}
+        OUTPUT: ${{ inputs.output }}
+        DOWNLOAD: ${{ inputs.download }}
+        SECRETS: ${{ steps.credentials.outputs.secrets }}
+        MACOS_IDENTITY: ${{ inputs.macos-identity }}
+        NOTARIZE: ${{ inputs.notarize }}
+        IOS_IDENTITY: ${{ inputs.ios-identity }}
+        IPA: ${{ inputs.ipa }}
+        ANDROID_KEY: ${{ inputs.android-key }}
+        BALAUR_NOTARY_KEY_ID: ${{ inputs.notary-key-id }}
+        BALAUR_NOTARY_ISSUER_ID: ${{ inputs.notary-issuer }}
+        BALAUR_KEYSTORE_PASSWORD: ${{ inputs.android-keystore-password }}
+        BALAUR_KEY_PASSWORD: ${{ inputs.android-key-password }}
+        BALAUR_SIGN_PASSWORD: ${{ inputs.windows-certificate-password }}
+      run: |
+        set -euo pipefail
+        export BALAUR_NOTARY_KEY="$SECRETS/notary.p8"
+        fetch=--no-download
+        [ "$DOWNLOAD" = true ] && fetch=--download
+        for target in $TARGETS; do
+          flags=()
+          case "$target" in
+            macos-universal)
+              flags+=(--app)
+              [ -n "$MACOS_IDENTITY" ] && flags+=(--sign "$MACOS_IDENTITY")
+              [ "$NOTARIZE" = true ] && flags+=(--notarize)
+              ;;
+            ios)
+              [ -n "$IOS_IDENTITY" ] && flags+=(--sign "$IOS_IDENTITY")
+              [ -f "$SECRETS/game.mobileprovision" ] &&
+                flags+=(--profile "$SECRETS/game.mobileprovision")
+              [ "$IPA" = true ] && flags+=(--ipa)
+              ;;
+            android)
+              flags+=(--apk)
+              ;;
+            windows-x64)
+              [ -f "$SECRETS/certificate.pfx" ] && flags+=(--sign "$SECRETS/certificate.pfx")
+              ;;
+          esac
+          echo "::group::balaur export --target $target"
+          balaur export "$PROJECT" --target "$target" -o "$PROJECT/$OUTPUT/$target" \
+            "$fetch" "${flags[@]}"
+          echo "::endgroup::"
+        done
+
+    - if: inputs.upload == 'true'
+      uses: actions/upload-artifact@v7
+      with:
+        name: game-${{ runner.os }}-${{ runner.arch }}
+        path: ${{ inputs.project }}/${{ inputs.output }}
+        if-no-files-found: error
+
+    - if: inputs.attest == 'true'
+      uses: actions/attest-build-provenance@v2
+      with:
+        subject-path: ${{ inputs.project }}/${{ inputs.output }}/**/*
+
+    # A keychain outliving the job would be a signing identity left on a
+    # shared runner, so it goes even when an export above failed.
+    - if: always()
+      shell: bash
+      env:
+        KEYCHAIN: ${{ steps.credentials.outputs.keychain }}
+        SECRETS: ${{ steps.credentials.outputs.secrets }}
+      run: |
+        set -uo pipefail
+        [ -n "${KEYCHAIN:-}" ] && security delete-keychain "$KEYCHAIN" 2>/dev/null
+        rm -rf "${SECRETS:-/nonexistent}"
+        exit 0

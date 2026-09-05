@@ -64,6 +64,128 @@ impl Transform {
             scale: Vec3::ONE,
         }
     }
+
+    /// Every component in TRS order, the shape a digest hashes and a
+    /// snapshot stores.
+    #[must_use]
+    pub fn trs(&self) -> [f32; 10] {
+        [
+            self.position.x,
+            self.position.y,
+            self.position.z,
+            self.rotation.x,
+            self.rotation.y,
+            self.rotation.z,
+            self.rotation.w,
+            self.scale.x,
+            self.scale.y,
+            self.scale.z,
+        ]
+    }
+}
+
+/// Whether a node draws, and which layer it draws on.
+///
+/// Nothing in physics reads either field: a hidden collider still collides,
+/// which is what a game hiding a sprite for a frame expects.
+#[derive(Clone, Copy)]
+pub struct Appearance {
+    pub visible: bool,
+    pub z_index: i32,
+    /// Add `z_index` to the parent's rather than replacing it, so moving a
+    /// subtree between layers keeps the order inside it.
+    pub z_relative: bool,
+}
+
+impl Appearance {
+    pub const fn identity() -> Self {
+        Self {
+            visible: true,
+            z_index: 0,
+            z_relative: true,
+        }
+    }
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        Self::identity()
+    }
+}
+
+/// The names a node is filed under, for a query: `door`, `enemy`. The same
+/// word `presets.toml` uses for components, so one vocabulary classifies
+/// both. Kept sorted and unique, so two runs list them alike.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Tags(pub Vec<String>);
+
+impl Tags {
+    pub fn add(&mut self, tag: &str) -> bool {
+        match self.0.binary_search_by(|t| t.as_str().cmp(tag)) {
+            Ok(_) => false,
+            Err(at) => {
+                self.0.insert(at, tag.to_string());
+                true
+            }
+        }
+    }
+
+    pub fn remove(&mut self, tag: &str) -> bool {
+        match self.0.binary_search_by(|t| t.as_str().cmp(tag)) {
+            Ok(at) => {
+                self.0.remove(at);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    #[must_use]
+    pub fn has(&self, tag: &str) -> bool {
+        self.0.binary_search_by(|t| t.as_str().cmp(tag)).is_ok()
+    }
+}
+
+/// Every node carrying `tag`, in tree order.
+#[must_use]
+pub fn tagged(world: &World, root: Entity, tag: &str) -> Vec<Entity> {
+    collect_subtree(world, root)
+        .into_iter()
+        .filter(|&e| world.get::<&Tags>(e).is_ok_and(|t| t.has(tag)))
+        .collect()
+}
+
+/// World-space appearance, recomputed beside `GlobalTransform`.
+#[derive(Clone, Copy)]
+pub struct GlobalAppearance {
+    pub visible: bool,
+    pub z_index: i32,
+}
+
+impl GlobalAppearance {
+    pub const fn identity() -> Self {
+        Self {
+            visible: true,
+            z_index: 0,
+        }
+    }
+
+    fn mul(self, local: Appearance) -> Self {
+        Self {
+            visible: self.visible && local.visible,
+            z_index: if local.z_relative {
+                self.z_index.saturating_add(local.z_index)
+            } else {
+                local.z_index
+            },
+        }
+    }
+}
+
+impl Default for GlobalAppearance {
+    fn default() -> Self {
+        Self::identity()
+    }
 }
 
 /// World-space transform, recomputed every frame after the update stages.
@@ -99,6 +221,8 @@ pub(crate) fn spawn_root(world: &mut World) -> Entity {
         Name("Root".to_string()),
         Transform::identity(),
         GlobalTransform::identity(),
+        Appearance::identity(),
+        GlobalAppearance::identity(),
         Children(Vec::new()),
     ))
 }
@@ -109,8 +233,31 @@ pub fn spawn_node(world: &mut World, name: &str, parent: Entity) -> Entity {
         Name(name.to_string()),
         Transform::identity(),
         GlobalTransform::identity(),
+        Appearance::identity(),
+        GlobalAppearance::identity(),
         Children(Vec::new()),
         Parent(parent),
+    ));
+    if let Ok(mut children) = world.get::<&mut Children>(parent) {
+        children.0.push(entity);
+    }
+    entity
+}
+
+/// [`spawn_node`] with a stable id, in one spawn.
+///
+/// Adding the id afterwards moved the entity to another archetype, and that
+/// move was the single hottest function of a script adding children.
+pub fn spawn_node_with_id(world: &mut World, name: &str, parent: Entity, id: String) -> Entity {
+    let entity = world.spawn((
+        Name(name.to_string()),
+        Transform::identity(),
+        GlobalTransform::identity(),
+        Appearance::identity(),
+        GlobalAppearance::identity(),
+        Children(Vec::new()),
+        Parent(parent),
+        crate::components::StableId(id),
     ));
     if let Ok(mut children) = world.get::<&mut Children>(parent) {
         children.0.push(entity);
@@ -125,11 +272,11 @@ pub fn spawn_node(world: &mut World, name: &str, parent: Entity) -> Entity {
 /// of nothing but ordering.
 pub fn spawn_node_at(world: &mut World, name: &str, parent: Entity, index: usize) -> Entity {
     let entity = spawn_node(world, name, parent);
-    if let Ok(mut children) = world.get::<&mut Children>(parent) {
-        if let Some(at) = children.0.iter().position(|&c| c == entity) {
-            let moved = children.0.remove(at);
-            children.0.insert(index.min(at), moved);
-        }
+    if let Ok(mut children) = world.get::<&mut Children>(parent)
+        && let Some(at) = children.0.iter().position(|&c| c == entity)
+    {
+        let moved = children.0.remove(at);
+        children.0.insert(index.min(at), moved);
     }
     entity
 }
@@ -146,11 +293,11 @@ pub fn find_node(world: &World, from: Entity, path: &str) -> Option<Entity> {
         let children = world.get::<&Children>(current).ok()?;
         let mut next = None;
         for &child in &children.0 {
-            if let Ok(name) = world.get::<&Name>(child) {
-                if name.0 == segment {
-                    next = Some(child);
-                    break;
-                }
+            if let Ok(name) = world.get::<&Name>(child)
+                && name.0 == segment
+            {
+                next = Some(child);
+                break;
             }
         }
         drop(children);
@@ -177,13 +324,19 @@ pub fn node_path(world: &World, entity: Entity) -> String {
     segments.join("/")
 }
 
-/// Recompute every `GlobalTransform` from the root down.
+/// Recompute every `GlobalTransform` and `GlobalAppearance` from the root down.
 pub fn propagate_transforms(world: &mut World, root: Entity) {
     let identity = GlobalTransform::identity();
-    propagate_recursive(world, root, &identity);
+    let visible = GlobalAppearance::identity();
+    propagate_recursive(world, root, &identity, visible);
 }
 
-fn propagate_recursive(world: &mut World, entity: Entity, parent_global: &GlobalTransform) {
+fn propagate_recursive(
+    world: &mut World,
+    entity: Entity,
+    parent_global: &GlobalTransform,
+    parent_appearance: GlobalAppearance,
+) {
     let global = match world.get::<&Transform>(entity) {
         Ok(local) => parent_global.mul(&local),
         Err(_) => *parent_global,
@@ -191,13 +344,39 @@ fn propagate_recursive(world: &mut World, entity: Entity, parent_global: &Global
     if let Ok(mut slot) = world.get::<&mut GlobalTransform>(entity) {
         *slot = global;
     }
+    let appearance = match world.get::<&Appearance>(entity) {
+        Ok(local) => parent_appearance.mul(*local),
+        Err(_) => parent_appearance,
+    };
+    if let Ok(mut slot) = world.get::<&mut GlobalAppearance>(entity) {
+        *slot = appearance;
+    }
     let children: Vec<Entity> = match world.get::<&Children>(entity) {
         Ok(children) => children.0.clone(),
         Err(_) => return,
     };
     for child in children {
-        propagate_recursive(world, child, &global);
+        propagate_recursive(world, child, &global, appearance);
     }
+}
+
+/// A node's world appearance composed from local ones, current this instant
+/// rather than as of the last scene sync.
+#[must_use]
+pub fn composed_appearance(world: &World, entity: Entity) -> GlobalAppearance {
+    let mut chain = vec![entity];
+    let mut current = entity;
+    while let Ok(parent) = world.get::<&Parent>(current) {
+        current = parent.0;
+        chain.push(current);
+    }
+    let mut appearance = GlobalAppearance::identity();
+    for e in chain.into_iter().rev() {
+        if let Ok(local) = world.get::<&Appearance>(e) {
+            appearance = appearance.mul(*local);
+        }
+    }
+    appearance
 }
 
 /// A node's world transform composed from local ones, current this instant
@@ -250,10 +429,10 @@ pub fn reparent(world: &mut World, entity: Entity, new_parent: Entity) -> anyhow
             child_global.scale.z / safe(parent_global.scale.z),
         ),
     };
-    if let Ok(old_parent) = world.get::<&Parent>(entity).map(|p| p.0) {
-        if let Ok(mut children) = world.get::<&mut Children>(old_parent) {
-            children.0.retain(|&c| c != entity);
-        }
+    if let Ok(old_parent) = world.get::<&Parent>(entity).map(|p| p.0)
+        && let Ok(mut children) = world.get::<&mut Children>(old_parent)
+    {
+        children.0.retain(|&c| c != entity);
     }
     if let Ok(mut children) = world.get::<&mut Children>(new_parent) {
         children.0.push(entity);
@@ -313,12 +492,53 @@ pub fn free_node(eng: &Engine, entity: Entity) {
     free_subtree(&mut eng.world_mut(), entity);
 }
 
+/// [`free_node`] for many nodes at once, which is what a frame's queued frees
+/// are.
+///
+/// One pass over each parent's children rather than one per freed node:
+/// fifty thousand siblings freed one at a time is fifty thousand scans of
+/// a fifty-thousand-entry list, and a frame that frees a whole container of
+/// them is ordinary.
+pub fn free_nodes(eng: &Engine, entities: &[Entity]) {
+    let mut subtree = Vec::new();
+    {
+        let world = eng.world();
+        for &entity in entities {
+            subtree.extend(collect_subtree(&world, entity));
+        }
+    }
+    if let Some(host) = eng.script_host() {
+        for &e in &subtree {
+            host.detach(crate::node_id_of(e));
+        }
+    }
+    for &e in &subtree {
+        crate::components::remove_present(eng, e);
+    }
+    let mut world = eng.world_mut();
+    let doomed: crate::collections::DetHashSet<Entity> = entities.iter().copied().collect();
+    let mut parents: Vec<Entity> = entities
+        .iter()
+        .filter_map(|&e| world.get::<&Parent>(e).ok().map(|p| p.0))
+        .collect();
+    parents.sort_unstable_by_key(|e| e.to_bits());
+    parents.dedup();
+    for parent in parents {
+        if let Ok(mut children) = world.get::<&mut Children>(parent) {
+            children.0.retain(|c| !doomed.contains(c));
+        }
+    }
+    for e in subtree {
+        let _ = world.despawn(e);
+    }
+}
+
 /// Despawn a node and its whole subtree, unlinking it from its parent.
 pub fn free_subtree(world: &mut World, entity: Entity) {
-    if let Ok(parent) = world.get::<&Parent>(entity).map(|p| p.0) {
-        if let Ok(mut children) = world.get::<&mut Children>(parent) {
-            children.0.retain(|&c| c != entity);
-        }
+    if let Ok(parent) = world.get::<&Parent>(entity).map(|p| p.0)
+        && let Ok(mut children) = world.get::<&mut Children>(parent)
+    {
+        children.0.retain(|&c| c != entity);
     }
     for e in collect_subtree(world, entity) {
         let _ = world.despawn(e);

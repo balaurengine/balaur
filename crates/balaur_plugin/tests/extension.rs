@@ -3,16 +3,13 @@
 use std::path::{Path, PathBuf};
 
 use balaur_core::{App, AppConfig, Engine};
-use balaur_plugin::{library_suffix, load_extension, load_extensions_in, AbiTag, Fingerprint};
+use balaur_plugin::{AbiTag, Fingerprint, library_suffix, load_extension, load_extensions_in};
 use balaur_script::{NodeId, Value};
 
 fn app_in(dir: &Path) -> App {
     App::new(AppConfig {
-        project_root: dir.to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
         script_backend: Some(balaur_script_rune::factory()),
+        ..AppConfig::bare(dir.to_path_buf())
     })
     .unwrap()
 }
@@ -211,9 +208,11 @@ fn a_directory_of_extensions_loads_them_all() {
 fn the_abi_tag_round_trips_through_its_c_representation() {
     let tag = AbiTag::current();
     assert_eq!(tag.fingerprint(), Fingerprint::current());
-    assert!(Fingerprint::current()
-        .differences(&tag.fingerprint())
-        .is_empty());
+    assert!(
+        Fingerprint::current()
+            .differences(&tag.fingerprint())
+            .is_empty()
+    );
 }
 
 #[test]
@@ -258,7 +257,7 @@ fn the_file_name_does_not_decide_the_plugin_name() {
 /// what is missing — not left half-loaded.
 #[test]
 fn a_directory_missing_a_requirement_is_refused() {
-    use balaur_plugin::{load_order, Manifest};
+    use balaur_plugin::{Manifest, load_order};
     let manifests = vec![Manifest::new("greeter", "0.1.0").requiring(&["absent_thing"])];
     let err = load_order(&manifests, &[]).unwrap_err().to_string();
     assert!(err.contains("absent_thing"), "unhelpful: {err}");

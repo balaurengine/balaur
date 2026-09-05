@@ -17,14 +17,14 @@ use std::collections::{BTreeMap, HashMap};
 use crate::assets::SceneAsset;
 use crate::collections::DetHashMap;
 use crate::components::StableId;
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use balaur_script::Value;
 use glamx::{EulerRot, Quat, Vec3};
 use hecs::Entity;
 use serde::Deserialize;
 
 use crate::engine::Engine;
-use crate::scene::{self, Transform};
+use crate::scene::{self, Appearance, Tags, Transform};
 
 /// A project's manifest, `project.toml`.
 ///
@@ -45,6 +45,11 @@ pub struct ProjectManifest {
     /// Which plugins this project wants. Every module the build linked in
     /// loads unless it is named `false` here.
     pub plugins: BTreeMap<String, PluginChoice>,
+    /// A project-relative picture the runtime shows over the first frames,
+    /// on every target; empty shows none.
+    pub splash: String,
+    /// How long the splash stays, in seconds of engine time.
+    pub splash_seconds: f32,
 }
 
 /// What a project says about one plugin: whether it wants it, and the
@@ -108,6 +113,14 @@ struct Application {
     language: String,
     #[serde(default)]
     assets: AssetSource,
+    #[serde(default)]
+    splash: String,
+    #[serde(default = "default_splash_seconds")]
+    splash_seconds: f32,
+}
+
+fn default_splash_seconds() -> f32 {
+    1.5
 }
 
 impl From<RawManifest> for ProjectManifest {
@@ -118,6 +131,8 @@ impl From<RawManifest> for ProjectManifest {
             language: raw.application.language,
             assets: raw.application.assets,
             plugins: raw.plugins,
+            splash: raw.application.splash,
+            splash_seconds: raw.application.splash_seconds.max(0.0),
         }
     }
 }
@@ -158,12 +173,21 @@ struct SceneNode {
     #[serde(default)]
     id: String,
     name: String,
-    /// The parent's `id`. Omitted or empty means a root child.
+    /// The parent's `id`, or a `/`-separated path of names from the scene's
+    /// root (`"World/Ground"`). Omitted or empty means a root child.
     #[serde(default)]
     parent: String,
     position: Option<[f32; 3]>,
     rotation_euler: Option<[f32; 3]>,
     scale: Option<[f32; 3]>,
+    /// Hides the node and everything under it. Physics is unaffected.
+    visible: Option<bool>,
+    z_index: Option<i32>,
+    /// False makes `z_index` absolute rather than added to the parent's.
+    z_relative: Option<bool>,
+    /// Names the node is filed under, for `scene.tagged`.
+    #[serde(default)]
+    tags: Vec<String>,
     script: Option<ScriptRef>,
     /// A prefab: another scene file, built as this node's children.
     ///
@@ -328,6 +352,20 @@ impl ProjectFiles {
         &self.root
     }
 
+    /// When the file behind a path last changed, in the backend's own units,
+    /// or `None` for one only the pack holds — the pack never changes.
+    #[must_use]
+    pub fn mtime(&self, path: &str) -> Option<f64> {
+        let p = std::path::Path::new(path);
+        if p.is_absolute() {
+            return self.fs.mtime(p);
+        }
+        if self.source == AssetSource::Embedded {
+            return None;
+        }
+        self.fs.mtime(&self.root.join(p))
+    }
+
     /// The bytes for a project-relative path. An absolute path is read from
     /// disk as given, so a tool pointing outside the project still works.
     ///
@@ -347,10 +385,8 @@ impl ProjectFiles {
             self.source,
             AssetSource::Embedded | AssetSource::EmbeddedThenFiles
         );
-        if embedded {
-            if let Some(bytes) = self.packed.get(&key) {
-                return Ok(bytes.clone());
-            }
+        if embedded && let Some(bytes) = self.packed.get(&key) {
+            return Ok(bytes.clone());
         }
         if self.source != AssetSource::Embedded {
             let full = self.root.join(p);
@@ -493,17 +529,7 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
     let mut by_id: DetHashMap<&str, Entity> = DetHashMap::default();
     let ids = repair_ids(&doc.nodes);
     for (index, node) in doc.nodes.iter().enumerate() {
-        let parent = if node.parent.is_empty() {
-            root
-        } else {
-            *by_id.get(node.parent.as_str()).ok_or_else(|| {
-                anyhow!(
-                    "node '{}' names parent id '{}', which no earlier node declares",
-                    node.name,
-                    node.parent
-                )
-            })?
-        };
+        let parent = resolve_parent(eng, node, root, &by_id)?;
         let entity = scene::spawn_node(&mut eng.world_mut(), &node.name, parent);
         by_id.insert(ids[index].as_str(), entity);
         eng.world_mut()
@@ -521,6 +547,24 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
             if let Some([x, y, z]) = node.scale {
                 transform.scale = Vec3::new(x, y, z);
             }
+            // spawn_node inserts an Appearance on every node it creates.
+            let mut appearance = world.get::<&mut Appearance>(entity).unwrap();
+            if let Some(on) = node.visible {
+                appearance.visible = on;
+            }
+            if let Some(z) = node.z_index {
+                appearance.z_index = z;
+            }
+            if let Some(on) = node.z_relative {
+                appearance.z_relative = on;
+            }
+        }
+        if !node.tags.is_empty() {
+            let mut tags = Tags::default();
+            for tag in &node.tags {
+                tags.add(tag);
+            }
+            eng.world_mut().insert_one(entity, tags)?;
         }
         for (key, handler) in handlers {
             if let Some(value) = node.extra.get(key) {
@@ -609,11 +653,11 @@ fn apply_overrides(
             );
             continue;
         };
-        apply_transform_keys(eng, target, table);
-        if let Some(script) = table.get("script") {
-            if let Err(err) = override_script(build, target, script) {
-                tracing::error!("override '{path}.script' on node '{}': {err:#}", node.name);
-            }
+        apply_node_keys(eng, target, table);
+        if let Some(script) = table.get("script")
+            && let Err(err) = override_script(build, target, script)
+        {
+            tracing::error!("override '{path}.script' on node '{}': {err:#}", node.name);
         }
         for (key, handler) in handlers {
             let Some(value) = table.get(key) else {
@@ -633,7 +677,7 @@ fn apply_overrides(
         }
         for key in table.keys() {
             if key != "script"
-                && !TRANSFORM_KEYS.contains(&key.as_str())
+                && !NODE_KEYS.contains(&key.as_str())
                 && !handlers.iter().any(|(k, _)| k == key)
             {
                 tracing::warn!(
@@ -672,21 +716,49 @@ fn override_script(build: &mut Build, target: Entity, value: &toml::Value) -> Re
 }
 
 /// The keys every node has, which an override may set like any other.
-const TRANSFORM_KEYS: [&str; 3] = ["position", "rotation_euler", "scale"];
+const NODE_KEYS: [&str; 7] = [
+    "position",
+    "rotation_euler",
+    "scale",
+    "visible",
+    "z_index",
+    "z_relative",
+    "tags",
+];
 
-fn apply_transform_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
+fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
     let world = eng.world();
-    let Ok(mut transform) = world.get::<&mut Transform>(entity) else {
+    if let Ok(mut transform) = world.get::<&mut Transform>(entity) {
+        if let Some([x, y, z]) = triple(table.get("position")) {
+            transform.position = Vec3::new(x, y, z);
+        }
+        if let Some([roll, pitch, yaw]) = triple(table.get("rotation_euler")) {
+            transform.rotation = Quat::from_euler(EulerRot::ZYX, yaw, pitch, roll);
+        }
+        if let Some([x, y, z]) = triple(table.get("scale")) {
+            transform.scale = Vec3::new(x, y, z);
+        }
+    }
+    let Ok(mut appearance) = world.get::<&mut Appearance>(entity) else {
         return;
     };
-    if let Some([x, y, z]) = triple(table.get("position")) {
-        transform.position = Vec3::new(x, y, z);
+    if let Some(on) = table.get("visible").and_then(toml::Value::as_bool) {
+        appearance.visible = on;
     }
-    if let Some([roll, pitch, yaw]) = triple(table.get("rotation_euler")) {
-        transform.rotation = Quat::from_euler(EulerRot::ZYX, yaw, pitch, roll);
+    if let Some(z) = table.get("z_index").and_then(toml::Value::as_integer) {
+        appearance.z_index = z as i32;
     }
-    if let Some([x, y, z]) = triple(table.get("scale")) {
-        transform.scale = Vec3::new(x, y, z);
+    if let Some(on) = table.get("z_relative").and_then(toml::Value::as_bool) {
+        appearance.z_relative = on;
+    }
+    drop(appearance);
+    if let Some(list) = table.get("tags").and_then(toml::Value::as_array) {
+        let mut tags = Tags::default();
+        for tag in list.iter().filter_map(toml::Value::as_str) {
+            tags.add(tag);
+        }
+        drop(world);
+        let _ = eng.world_mut().insert_one(entity, tags);
     }
 }
 
@@ -697,11 +769,45 @@ fn triple(value: Option<&toml::Value>) -> Option<[f32; 3]> {
     }
     let mut out = [0.0; 3];
     for (slot, item) in out.iter_mut().zip(items) {
-        *slot = item
-            .as_float()
-            .or_else(|| item.as_integer().map(|i| i as f64))? as f32;
+        *slot = crate::components::as_f64(item)? as f32;
     }
     Some(out)
+}
+
+/// A node's `parent`: the id of an earlier node, or a `/`-separated path of
+/// names down from the scene's own root.
+///
+/// Ids are tried first, so a scene written before paths existed keeps its
+/// meaning even where a node's name happens to match some id.
+fn resolve_parent(
+    eng: &Engine,
+    node: &SceneNode,
+    root: Entity,
+    by_id: &DetHashMap<&str, Entity>,
+) -> Result<Entity> {
+    if node.parent.is_empty() {
+        return Ok(root);
+    }
+    if let Some(&entity) = by_id.get(node.parent.as_str()) {
+        return Ok(entity);
+    }
+    // `find_node` walks `..`, which here would reparent a prefab's node into
+    // the scene that instanced it.
+    if node.parent.split('/').any(|segment| segment == "..") {
+        bail!(
+            "node '{}' names parent '{}': a parent path may not leave its scene with '..'",
+            node.name,
+            node.parent
+        );
+    }
+    scene::find_node(&eng.world(), root, &node.parent).ok_or_else(|| {
+        anyhow!(
+            "node '{}' names parent '{}', which no earlier node declares as an id \
+             or a path of names",
+            node.name,
+            node.parent
+        )
+    })
 }
 
 /// Give every node a unique id, repairing what the file got wrong.
@@ -711,6 +817,10 @@ fn triple(value: Option<&toml::Value>) -> Option<[f32; 3]> {
 /// the same file always yields the same ids — an id that changed between runs
 /// would defeat the point of having one. Repairs are logged: the fix is in
 /// memory only, and the file still needs saving to make it permanent.
+///
+/// Missing ids are counted into one line rather than warned about node by
+/// node: a scene that parents by path names no ids at all, and a warning per
+/// node would bury everything else the load has to say.
 fn repair_ids(nodes: &[SceneNode]) -> Vec<String> {
     let mut taken: std::collections::BTreeSet<String> = nodes
         .iter()
@@ -719,6 +829,7 @@ fn repair_ids(nodes: &[SceneNode]) -> Vec<String> {
         .collect();
     let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
     let mut out = Vec::with_capacity(nodes.len());
+    let mut generated: Vec<&str> = Vec::new();
 
     for node in nodes {
         let reason = if node.id.is_empty() {
@@ -739,13 +850,23 @@ fn repair_ids(nodes: &[SceneNode]) -> Vec<String> {
             candidate = format!("{base}_{n}");
             n += 1;
         }
-        tracing::warn!(
-            node = %node.name,
-            id = %candidate,
-            reason,
-            "generated a scene node id; save the scene to keep it"
-        );
+        if reason == "duplicate" {
+            tracing::warn!(
+                node = %node.name,
+                id = %candidate,
+                "two scene nodes share an id; the second was given a fresh one"
+            );
+        } else {
+            generated.push(node.name.as_str());
+        }
         out.push(candidate);
+    }
+    if !generated.is_empty() {
+        tracing::info!(
+            nodes = %generated.join(", "),
+            "generated {} scene node id(s); save the scene to keep them",
+            generated.len()
+        );
     }
     out
 }

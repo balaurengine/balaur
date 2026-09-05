@@ -11,16 +11,16 @@
 use crate::rapier3d::control::{DynamicRayCastVehicleController, WheelTuning};
 use crate::rapier3d::prelude::QueryFilter;
 use crate::scalar::{self, Real, Vector};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{Children, Transform};
-use balaur_core::{entity_of, Engine, Stage};
+use balaur_core::{Engine, Stage, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
-use crate::vocabulary::{self as v, map};
-use crate::{PhysicsState, FIXED_DT};
+use crate::vocabulary::{self as v, component as c, keys as k, map};
+use crate::{FIXED_DT, PhysicsState};
 
 /// The chassis settings, held on the node like a character's.
 pub struct Vehicle3d(pub toml::Value);
@@ -87,27 +87,27 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
         .get(&chassis)
         .ok_or_else(|| anyhow!("a vehicle3d needs a body3d on the same node"))?;
     let mut controller = DynamicRayCastVehicleController::new(handle);
-    controller.index_up_axis = v::f(&params, "up_axis", 1.0).clamp(0.0, 2.0) as usize;
-    controller.index_forward_axis = v::f(&params, "forward_axis", 2.0).clamp(0.0, 2.0) as usize;
+    controller.index_up_axis = v::f(&params, k::UP_AXIS, 1.0).clamp(0.0, 2.0) as usize;
+    controller.index_forward_axis = v::f(&params, k::FORWARD_AXIS, 2.0).clamp(0.0, 2.0) as usize;
     for (entity, wheel_params, at) in &wheels {
         let real = |key: &str, default: f32| scalar::real(v::f(wheel_params, key, default));
         let tuning = WheelTuning {
-            suspension_stiffness: real("stiffness", 30.0),
-            suspension_compression: real("compression", 0.82),
-            suspension_damping: real("damping", 0.88),
-            max_suspension_travel: real("max_travel", 5.0),
-            side_friction_stiffness: real("side_friction", 1.0),
-            friction_slip: real("friction_slip", 10.5),
-            max_suspension_force: real("max_force", 6000.0),
+            suspension_stiffness: real(k::STIFFNESS, 30.0),
+            suspension_compression: real(k::COMPRESSION, 0.82),
+            suspension_damping: real(k::DAMPING, 0.88),
+            max_suspension_travel: real(k::MAX_TRAVEL, 5.0),
+            side_friction_stiffness: real(k::SIDE_FRICTION, 1.0),
+            friction_slip: real(k::FRICTION_SLIP, 10.5),
+            max_suspension_force: real(k::MAX_FORCE, 6000.0),
         };
-        let direction = scalar::v3a(v::vec3(wheel_params, "direction", [0.0, -1.0, 0.0]));
-        let axle = scalar::v3a(v::vec3(wheel_params, "axle", [-1.0, 0.0, 0.0]));
+        let direction = scalar::v3a(v::vec3(wheel_params, k::DIRECTION, [0.0, -1.0, 0.0]));
+        let axle = scalar::v3a(v::vec3(wheel_params, k::AXLE, [-1.0, 0.0, 0.0]));
         let wheel = controller.add_wheel(
             scalar::v3(at.x, at.y, at.z),
             direction,
             axle,
-            real("rest_length", 0.3),
-            real("radius", 0.4).max(0.01),
+            real(k::REST_LENGTH, 0.3),
+            real(k::RADIUS, 0.4).max(0.01),
             &tuning,
         );
         // The inputs a script set since the last step, kept per wheel node so
@@ -154,11 +154,11 @@ pub struct WheelInput {
 
 pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_engine_force", &["wheel3d"], "", "How hard this wheel drives, in newtons; negative reverses."),
-        ("set_brake", &["wheel3d"], "", "How hard this wheel brakes."),
-        ("set_steering", &["wheel3d"], "", "Turn this wheel, in radians."),
-        ("wheel_state", &["wheel3d"], "", "What the last step did with this wheel: `#{ rotation, suspension_force, grounded, engine_force, brake, steering }`."),
-        ("vehicle_speed", &["vehicle3d"], "", "How fast the chassis is going along its forward axis, in units per second."),
+        ("set_engine_force", &[c::WHEEL_3D], "", "How hard this wheel drives, in newtons; negative reverses."),
+        ("set_brake", &[c::WHEEL_3D], "", "How hard this wheel brakes."),
+        ("set_steering", &[c::WHEEL_3D], "", "Turn this wheel, in radians."),
+        ("wheel_state", &[c::WHEEL_3D], "", "What the last step did with this wheel: `#{ rotation, suspension_force, grounded, engine_force, brake, steering }`."),
+        ("vehicle_speed", &[c::VEHICLE_3D], "", "How fast the chassis is going along its forward axis, in units per second."),
     ]);
     m.function(
         "set_engine_force",
@@ -183,15 +183,15 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
         let state = state.borrow();
         let input = state.wheel_inputs.get(&entity).copied().unwrap_or_default();
         Ok(map([
-            ("rotation", Value::Num(f64::from(input.rotation))),
+            (k::ROTATION, Value::Num(f64::from(input.rotation))),
             (
-                "suspension_force",
+                k::SUSPENSION_FORCE,
                 Value::Num(f64::from(input.suspension_force)),
             ),
-            ("grounded", Value::Bool(input.grounded)),
-            ("engine_force", Value::Num(f64::from(input.engine_force))),
-            ("brake", Value::Num(f64::from(input.brake))),
-            ("steering", Value::Num(f64::from(input.steering))),
+            (k::GROUNDED, Value::Bool(input.grounded)),
+            (k::ENGINE_FORCE, Value::Num(f64::from(input.engine_force))),
+            (k::BRAKE, Value::Num(f64::from(input.brake))),
+            (k::STEERING, Value::Num(f64::from(input.steering))),
         ]))
     });
     m.function("vehicle_speed", |eng: &Engine, node: NodeId| {
@@ -223,7 +223,7 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
 /// Which of the chassis's own axes points forward, as the index rapier's
 /// controller takes and `vehicle_speed` measures along.
 fn forward_axis(params: &toml::Value) -> Vector {
-    match v::f(params, "forward_axis", 2.0).clamp(0.0, 2.0) as usize {
+    match v::f(params, k::FORWARD_AXIS, 2.0).clamp(0.0, 2.0) as usize {
         0 => Vector::X,
         1 => Vector::Y,
         _ => Vector::Z,
@@ -240,16 +240,18 @@ fn with_wheel(eng: &Engine, node: NodeId, f: impl FnOnce(&mut WheelInput)) -> Re
 
 pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
     reg.register_component(
-        "vehicle3d",
+        c::VEHICLE_3D,
         ComponentDef {
             doc: "Makes this node's body a car chassis, driven by the `wheel3d` children under it. Rapier casts a ray down from each wheel and pushes the chassis along a spring, which is how driving games model cars: it never jams and never tunnels.",
             schema: ComponentDef::parse_schema(
-                "vehicle3d",
-                r#"up_axis = { type = "float", default = 1.0, min = 0.0, max = 2.0, description = "Which of the chassis's own axes points up: 0 for x, 1 for y, 2 for z" }
-forward_axis = { type = "float", default = 2.0, min = 0.0, max = 2.0, description = "Which of the chassis's own axes points forward" }"#,
+                c::VEHICLE_3D,
+                &v::schema(&[
+                    (k::UP_AXIS, r#"{ type = "float", default = 1.0, min = 0.0, max = 2.0, description = "Which of the chassis's own axes points up: 0 for x, 1 for y, 2 for z" }"#),
+                    (k::FORWARD_AXIS, r#"{ type = "float", default = 2.0, min = 0.0, max = 2.0, description = "Which of the chassis's own axes points forward" }"#),
+                ]),
             ),
-            tags: &["3d", "physics"],
-            expects: &["body3d"],
+            tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
+            expects: &[c::BODY_3D],
             apply: Box::new(|eng, entity, params| {
                 let _ = eng.world_mut().insert_one(entity, Vehicle3d(params.clone()));
                 Ok(())
@@ -266,25 +268,27 @@ forward_axis = { type = "float", default = 2.0, min = 0.0, max = 2.0, descriptio
         },
     );
     reg.register_component(
-        "wheel3d",
+        c::WHEEL_3D,
         ComponentDef {
             doc: "One wheel of the `vehicle3d` above it. Where the node sits on the chassis is where the wheel's ray starts; the rest is suspension tuning. Drive it with `physics3d.set_engine_force`, `set_brake` and `set_steering`.",
             schema: ComponentDef::parse_schema(
-                "wheel3d",
-                r#"radius = { type = "float", default = 0.4, min = 0.01, description = "The wheel's radius, which is how far off the ground it holds the ray's end" }
-rest_length = { type = "float", default = 0.3, min = 0.0, description = "How long the suspension is with no weight on it" }
-direction = { type = "vec3", default = [0.0, -1.0, 0.0], description = "Which way the suspension pushes, in the chassis's own space: down" }
-axle = { type = "vec3", default = [-1.0, 0.0, 0.0], description = "The axle the wheel turns about, in the chassis's own space" }
-stiffness = { type = "float", default = 30.0, min = 0.0, description = "Spring stiffness: higher is a stiffer, twitchier car" }
-compression = { type = "float", default = 0.82, min = 0.0, description = "Damping while the suspension is being squashed" }
-damping = { type = "float", default = 0.88, min = 0.0, description = "Damping while the suspension is coming back" }
-max_travel = { type = "float", default = 5.0, min = 0.0, description = "How far the suspension may move in total" }
-friction_slip = { type = "float", default = 10.5, min = 0.0, description = "Grip along the wheel's rolling direction; lower slides more" }
-side_friction = { type = "float", default = 1.0, min = 0.0, description = "Grip sideways: what stops the car sliding out of a corner" }
-max_force = { type = "float", default = 6000.0, min = 0.0, description = "The most force this suspension may push the chassis with" }"#,
+                c::WHEEL_3D,
+                &v::schema(&[
+                    (k::RADIUS, r#"{ type = "float", default = 0.4, min = 0.01, description = "The wheel's radius, which is how far off the ground it holds the ray's end" }"#),
+                    (k::REST_LENGTH, r#"{ type = "float", default = 0.3, min = 0.0, description = "How long the suspension is with no weight on it" }"#),
+                    (k::DIRECTION, r#"{ type = "vec3", default = [0.0, -1.0, 0.0], description = "Which way the suspension pushes, in the chassis's own space: down" }"#),
+                    (k::AXLE, r#"{ type = "vec3", default = [-1.0, 0.0, 0.0], description = "The axle the wheel turns about, in the chassis's own space" }"#),
+                    (k::STIFFNESS, r#"{ type = "float", default = 30.0, min = 0.0, description = "Spring stiffness: higher is a stiffer, twitchier car" }"#),
+                    (k::COMPRESSION, r#"{ type = "float", default = 0.82, min = 0.0, description = "Damping while the suspension is being squashed" }"#),
+                    (k::DAMPING, r#"{ type = "float", default = 0.88, min = 0.0, description = "Damping while the suspension is coming back" }"#),
+                    (k::MAX_TRAVEL, r#"{ type = "float", default = 5.0, min = 0.0, description = "How far the suspension may move in total" }"#),
+                    (k::FRICTION_SLIP, r#"{ type = "float", default = 10.5, min = 0.0, description = "Grip along the wheel's rolling direction; lower slides more" }"#),
+                    (k::SIDE_FRICTION, r#"{ type = "float", default = 1.0, min = 0.0, description = "Grip sideways: what stops the car sliding out of a corner" }"#),
+                    (k::MAX_FORCE, r#"{ type = "float", default = 6000.0, min = 0.0, description = "The most force this suspension may push the chassis with" }"#),
+                ]),
             ),
-            tags: &["3d", "physics"],
-            expects: &["vehicle3d"],
+            tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
+            expects: &[c::VEHICLE_3D],
             apply: Box::new(|eng, entity, params| {
                 let _ = eng.world_mut().insert_one(entity, Wheel3d(params.clone()));
                 Ok(())

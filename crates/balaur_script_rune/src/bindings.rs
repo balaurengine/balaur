@@ -183,33 +183,7 @@ impl balaur_script::Bindings<Engine> for RuneModule {
         };
         let registered = module.raw_function(
             name,
-            move |stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output| {
-                let values = rune::vm_try!(stack.slice_at(addr, args)).to_vec();
-                let _scope = CallbackScope::enter();
-                let mut neutral = Vec::with_capacity(values.len());
-                for v in &values {
-                    match crate::value::to_neutral(v) {
-                        Ok(n) => neutral.push(n),
-                        Err(err) => return VmResult::Err(VmError::panic(err.to_string())),
-                    }
-                }
-                let called =
-                    BOUND.with_borrow(|b| b.get(handle).map(|(engine, f)| f(engine, &neutral)));
-                let result = match called {
-                    Some(Ok(v)) => v,
-                    Some(Err(err)) => return VmResult::Err(VmError::panic(err.to_string())),
-                    None => {
-                        return VmResult::Err(VmError::panic(
-                            "binding was registered on another thread",
-                        ))
-                    }
-                };
-                match crate::value::from_neutral(&result) {
-                    Ok(v) => rune::vm_try!(out.store(stack, v)),
-                    Err(err) => return VmResult::Err(VmError::panic(err.to_string())),
-                }
-                VmResult::Ok(())
-            },
+            bound_handler(handle, "binding was registered on another thread"),
         );
         if let Err(err) = registered.build() {
             tracing::error!("binding {}::{name}: {err}", self.name);
@@ -293,29 +267,33 @@ pub(crate) fn hold_node_fn(
     })
 }
 
-/// The handler body shared by every node method.
-pub(crate) fn node_handler(
+/// The handler body shared by every binding and every node method: the
+/// arguments cross into neutral values, the bound Rust runs, and its answer
+/// crosses back. `orphaned` is the panic for a handle this thread never
+/// registered.
+pub(crate) fn bound_handler(
     handle: usize,
+    orphaned: &'static str,
 ) -> impl 'static + Fn(&mut dyn Memory, InstAddress, usize, Output) -> VmResult<()> + Send + Sync {
     move |stack: &mut dyn Memory, addr: InstAddress, args: usize, out: Output| {
-        let values = rune::vm_try!(stack.slice_at(addr, args)).to_vec();
         let _scope = CallbackScope::enter();
-        let mut neutral = Vec::with_capacity(values.len());
-        for v in &values {
-            match crate::value::to_neutral(v) {
-                Ok(n) => neutral.push(n),
-                Err(err) => return VmResult::Err(VmError::panic(err.to_string())),
+        // Converted straight off the stack: copying the arguments out first
+        // was an allocation and a refcount round on every call.
+        let mut neutral = Vec::with_capacity(args);
+        {
+            let values = rune::vm_try!(stack.slice_at(addr, args));
+            for v in values {
+                match crate::value::to_neutral(v) {
+                    Ok(n) => neutral.push(n),
+                    Err(err) => return VmResult::Err(VmError::panic(err.to_string())),
+                }
             }
         }
         let called = BOUND.with_borrow(|b| b.get(handle).map(|(engine, f)| f(engine, &neutral)));
         let result = match called {
             Some(Ok(v)) => v,
             Some(Err(err)) => return VmResult::Err(VmError::panic(err.to_string())),
-            None => {
-                return VmResult::Err(VmError::panic(
-                    "node method was registered on another thread",
-                ))
-            }
+            None => return VmResult::Err(VmError::panic(orphaned)),
         };
         match crate::value::from_neutral(&result) {
             Ok(v) => rune::vm_try!(out.store(stack, v)),

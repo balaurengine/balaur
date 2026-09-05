@@ -36,7 +36,6 @@ fn handle_signs() {
     ]
 }
 
-// World units per design pixel (design px = logical px / ui scale).
 fn line(a, b, color, width) {
     render::draw_line_2d(a[0], a[1], b[0], b[1], color[0], color[1], color[2], width);
 }
@@ -48,7 +47,6 @@ fn local_point(geo, ox, oy) {
     [geo.center[0] + c * ox - s * oy, geo.center[1] + s * ox + c * oy]
 }
 
-// World point -> box-local coordinates.
 fn to_local(geo, x, y) {
     let dx = x - geo.center[0];
     let dy = y - geo.center[1];
@@ -69,7 +67,7 @@ pub fn node_half_extents(node) {
     if !(shape is Object) {
         return None;
     }
-    if shape.get("kind") == Some("circle") {
+    if shape.get("kind") == Some(render::SHAPE_CIRCLE) {
         let r = util::f(shape.get("radius").unwrap_or(0.5));
         return Some((r, r));
     }
@@ -434,26 +432,11 @@ pub fn update(S, vp) {
 
     // Rail-tool fallbacks: drag anywhere in the viewport. Deltas in design
     // px; translation converts to world units through wpp.
-    let (dx, dy) = input::mouse_delta();
-    dx = dx / (dpi * S.ui_scale);
-    dy = dy / (dpi * S.ui_scale);
-    if dx == 0.0 && dy == 0.0 {
-        return;
-    }
-    let wpp = viewport::world_per_px(S);
-    let (_, found) = model::selected(S);
-    if found.is_some() && (S.tool == "move" || S.tool == "rotate" || S.tool == "scale") {
-        history::record(S, format!("{} node", S.tool), Some(format!("tool:{}:{}", S.tool, S.sel)));
-    }
-    let found = match found {
-        Some(found) => found,
-        None => {
-            if S.tool == "zoom" {
-                shell::set_zoom(S, S.zoom - dy * 0.5);
-            }
-            return;
-        }
+    let (dx, dy, found) = match viewport::rail_drag(S, dpi) {
+        Some(drag) => drag,
+        None => return,
     };
+    let wpp = viewport::world_per_px(S);
     if S.tool == "move" {
         let p = found.position();
         let x = p.x + dx * wpp;

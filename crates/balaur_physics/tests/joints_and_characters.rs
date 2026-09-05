@@ -1,7 +1,7 @@
 //! Collision events, joints and the character controller, driven from scripts
 //! because their whole surface is the script seam.
 
-use balaur::{standard_app, AppConfig};
+use balaur::{AppConfig, standard_app};
 
 static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -81,8 +81,6 @@ pub fn fixed_update(this, dt) {
     );
 }
 
-/// A revolute joint holds two bodies together: the hanging one swings rather
-/// than falling away.
 #[test]
 fn a_joint_holds_two_bodies_together() {
     run_clean(
@@ -120,6 +118,105 @@ pub fn fixed_update(this, dt) {
         let position = this.node.position();
         let far = math::sqrt(position.x * position.x + position.y * position.y);
         assert!(far < 1.2, "the joint let go: the body is {} from the anchor", far);
+        assert!(position.y < -0.1, "the body never swung: y is {}", position.y);
+    }
+}
+"#,
+    );
+}
+
+/// A body carries several joints by putting each on a bodiless child, which
+/// stands for the body above it, as a collider on a child does.
+#[test]
+fn a_joint_on_a_bodiless_child_ties_the_body_above_it() {
+    run_clean(
+        r#"[[nodes]]
+id = "n_anchor"
+name = "Anchor"
+body3d = "static"
+
+[nodes.collider3d]
+kind = "ball"
+radius = 0.2
+
+[[nodes]]
+id = "n_hanging"
+name = "Hanging"
+position = [1.0, 0.0, 0.0]
+body3d = "dynamic"
+script = "scripts/s.rn"
+
+[nodes.collider3d]
+kind = "ball"
+radius = 0.2
+
+[[nodes]]
+id = "n_link"
+name = "Link"
+parent = "n_hanging"
+
+[nodes.joint3d]
+kind = "revolute"
+body = "/Anchor"
+axis = [0.0, 0.0, 1.0]
+anchor = [-1.0, 0.0, 0.0]
+"#,
+        r#"pub fn init(this) { this.ticks = 0; }
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 110 {
+        let position = this.node.position();
+        let far = math::sqrt(position.x * position.x + position.y * position.y);
+        assert!(far < 1.2, "the child's joint did not hold: the body is {} from the anchor", far);
+        assert!(position.y < -0.1, "the body never swung: y is {}", position.y);
+    }
+}
+"#,
+    );
+}
+
+#[test]
+fn a_2d_joint_on_a_bodiless_child_ties_the_body_above_it() {
+    run_clean(
+        r#"[[nodes]]
+id = "n_anchor"
+name = "Anchor"
+body2d = "static"
+
+[nodes.collider2d]
+kind = "circle"
+radius = 0.2
+
+[[nodes]]
+id = "n_hanging"
+name = "Hanging"
+position = [1.0, 0.0, 0.0]
+body2d = "dynamic"
+script = "scripts/s.rn"
+
+[nodes.collider2d]
+kind = "circle"
+radius = 0.2
+
+[[nodes]]
+id = "n_link"
+name = "Link"
+parent = "n_hanging"
+
+[nodes.joint2d]
+kind = "revolute"
+body = "/Anchor"
+anchor = [-1.0, 0.0]
+"#,
+        r#"pub fn init(this) { this.ticks = 0; }
+
+pub fn fixed_update(this, dt) {
+    this.ticks = this.ticks + 1;
+    if this.ticks == 110 {
+        let position = this.node.position();
+        let far = math::sqrt(position.x * position.x + position.y * position.y);
+        assert!(far < 1.2, "the child's joint did not hold: the body is {} from the anchor", far);
         assert!(position.y < -0.1, "the body never swung: y is {}", position.y);
     }
 }
@@ -202,7 +299,6 @@ snap_to_ground = 0.0
 
 pub fn fixed_update(this, dt) {
     this.ticks = this.ticks + 1;
-    // Walk into the wall, and along it.
     let moved = physics3d::move_character(this.node, 0.1, 0.0, 0.05);
     if this.ticks == 110 {
         let position = this.node.position();
@@ -221,17 +317,10 @@ pub fn fixed_update(this, dt) {
 fn joints_and_shape_edits_survive_a_snapshot() {
     use balaur_core::hecs::Entity;
     use balaur_core::scene::{self, Transform};
-    use balaur_core::{components, snapshot, App, AppConfig};
+    use balaur_core::{App, AppConfig, components, snapshot};
     use balaur_physics::{PhysicsPlugin, PhysicsState};
 
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
 
     let root = app.engine.root();

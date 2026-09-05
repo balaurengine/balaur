@@ -12,18 +12,18 @@ mod manifest;
 mod registry;
 
 pub use capi::{
-    host_api, BalaurApi, BalaurEntry, BalaurFn, BalaurModule, BalaurRegistry, BalaurSlice,
-    BalaurStr, BalaurValue, CExtension, BALAUR_ABI_VERSION,
+    BALAUR_ABI_VERSION, BalaurApi, BalaurEntry, BalaurFn, BalaurModule, BalaurRegistry,
+    BalaurSlice, BalaurStr, BalaurValue, CExtension, host_api,
 };
-pub use dylib::{library_suffix, AbiTag};
+pub use dylib::{AbiTag, library_suffix};
 #[cfg(feature = "dylib")]
-pub use loader::{load_extension, load_extensions_in, refuse_mismatch, Extension};
-pub use manifest::{Fingerprint, Manifest, ENGINE_VERSION, REGISTRY_ABI};
+pub use loader::{Extension, load_extension, load_extensions_in, refuse_mismatch};
+pub use manifest::{ENGINE_VERSION, Fingerprint, Manifest, REGISTRY_ABI};
 pub use registry::Registry;
 
-use anyhow::{anyhow, bail, Result};
-use balaur_core::plugins::PluginInfo;
+use anyhow::{Result, anyhow, bail};
 use balaur_core::App;
+use balaur_core::plugins::PluginInfo;
 
 pub trait Plugin {
     fn manifest(&self) -> &Manifest;

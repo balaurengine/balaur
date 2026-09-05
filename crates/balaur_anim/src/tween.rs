@@ -22,7 +22,10 @@
 //! animation::stop(id);  animation::is_running(id)
 //! ```
 //!
-//! Steps run one after another; `parallel = true` joins a step to the one
+//! `delay` holds the start values for that many seconds before the first
+//! step; `then = <id>` waits for another tween to end, and reads its start
+//! values then; the node's `on_tween_finished(id)` is called when a tween
+//! runs out. Steps run one after another; `parallel = true` joins a step to the one
 //! before it (DOTween's `Join`, Godot's `parallel()`) and the next step
 //! without it waits for the whole group (Godot's `chain()`). `to` is
 //! absolute, `by` is relative to wherever the property is when that step
@@ -50,11 +53,11 @@
 
 use std::rc::Rc;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
+use balaur_core::Engine;
 use balaur_core::components::{self, as_f64};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Transform};
-use balaur_core::Engine;
 use glamx::{Quat, Vec4};
 
 use crate::clip::{Clip, Interp, Key, Property, Track, Wrap};
@@ -102,6 +105,14 @@ pub struct Tween {
     pub loops: u32,
     /// How many times it has been played through.
     pub played: u32,
+    /// The tween this one waits for: it does not move until that handle
+    /// names nothing.
+    pub after: Option<TweenId>,
+    /// The specification of a waiting tween, rebuilt when its turn comes so
+    /// its start values are read then rather than when it was asked for.
+    pub pending: Option<String>,
+    /// Drives no node: a script reads it with [`value_of`].
+    pub value: bool,
 }
 
 /// Build a tween on `node` from a specification table and start it.
@@ -127,8 +138,13 @@ pub fn start(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<TweenId> 
         bail!("`speed` scales a tween's own duration, so it has to be a positive number");
     }
     let clip = build(eng, node, spec)?;
+    let after = after_of(spec)?;
     let state = eng.resource::<AnimationState>();
     let mut state = state.borrow_mut();
+    // Waiting only on a tween still in the table: one that already ended
+    // names nothing, and this one starts now.
+    let after = after.filter(|id| state.tweens.contains_key(id));
+    let pending = after.map(|_| toml::to_string(spec)).transpose()?;
     state.next_tween += 1;
     let id = state.next_tween;
     state.tweens.insert(
@@ -141,9 +157,147 @@ pub fn start(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<TweenId> 
             running: true,
             loops: loops_of(spec)?,
             played: 0,
+            after,
+            pending,
+            value: false,
         },
     );
     Ok(id)
+}
+
+/// A tween over a number, or a list of up to four, that drives no node: a
+/// script reads it each frame with [`value_of`] and writes it wherever it
+/// likes. The method tween without a callback into the middle of a tick.
+///
+/// # Errors
+/// If the ends are not numbers of one width, or the curve is unknown.
+pub fn start_value(
+    eng: &Engine,
+    from: &toml::Value,
+    to: &toml::Value,
+    duration: f32,
+    ease: Option<&str>,
+) -> Result<TweenId> {
+    let (from, channels) = numbers(from)?;
+    let (to, width) = numbers(to)?;
+    if width != channels {
+        bail!("`from` gives {channels} numbers and `to` gives {width}");
+    }
+    if !duration.is_finite() || duration < 0.0 {
+        bail!("a value tween lasts a number of seconds, and cannot last fewer than none");
+    }
+    let ease = ease
+        .filter(|name| !name.is_empty())
+        .map(Easing::parse)
+        .transpose()?;
+    let mut track = Track {
+        target: String::new(),
+        property: VALUE_PROPERTY,
+        channels,
+        interp: Interp::Linear,
+        keys: Vec::new(),
+    };
+    push_segment(&mut track, 0.0, duration, from, to, ease);
+    let clip = Clip {
+        length: duration.max(FIXED_DT),
+        wrap: Wrap::None,
+        tracks: vec![track],
+    };
+    let state = eng.resource::<AnimationState>();
+    let mut state = state.borrow_mut();
+    state.next_tween += 1;
+    let id = state.next_tween;
+    state.tweens.insert(
+        id,
+        Tween {
+            node: eng.root(),
+            clip: Rc::new(clip),
+            time: 0.0,
+            speed: 1.0,
+            running: true,
+            loops: 1,
+            played: 0,
+            after: None,
+            pending: None,
+            value: true,
+        },
+    );
+    Ok(id)
+}
+
+/// The property a value tween's one track is filed under. Never written:
+/// the step skips the pose of a value tween.
+const VALUE_PROPERTY: Property = Property::Component {
+    component: String::new(),
+    property: String::new(),
+};
+
+/// Where a value tween has got to: a number, or a list when it was started
+/// over one. `None` once it is over or when `id` names no value tween.
+#[must_use]
+pub fn value_of(eng: &Engine, id: TweenId) -> Option<balaur_script::Value> {
+    let state = eng.try_resource::<AnimationState>()?;
+    let state = state.borrow();
+    let tween = state.tweens.get(&id).filter(|tween| tween.value)?;
+    let (time, _) = sampler::clip_time(&tween.clip, tween.time);
+    let pose = sampler::sample(&tween.clip, time);
+    let sampler::TrackValue::Property { value, channels } = *pose.first()? else {
+        return None;
+    };
+    Some(if channels == 1 {
+        balaur_script::Value::Num(f64::from(value.x))
+    } else {
+        balaur_script::Value::List(
+            value
+                .to_array()
+                .into_iter()
+                .take(channels)
+                .map(|n| balaur_script::Value::Num(f64::from(n)))
+                .collect(),
+        )
+    })
+}
+
+/// Rebuild a waiting tween's clip now that its turn has come, so `by` and
+/// a captured `from` read the node as it is after the tween it waited for.
+///
+/// # Errors
+/// As [`start`]: the node may have lost what the steps name meanwhile.
+pub(crate) fn begin(eng: &Engine, tween: &mut Tween) -> Result<()> {
+    tween.after = None;
+    let Some(text) = tween.pending.take() else {
+        return Ok(());
+    };
+    let spec: toml::Value = toml::from_str(&text)?;
+    tween.clip = Rc::new(build(eng, tween.node, &spec)?);
+    Ok(())
+}
+
+/// The handle a `then` names, whichever numeric shape it came back in.
+fn after_of(spec: &toml::Value) -> Result<Option<TweenId>> {
+    let Some(value) = spec.get("then") else {
+        return Ok(None);
+    };
+    let id = as_f64(value)
+        .ok_or_else(|| anyhow!("`then` is {}, not a tween handle", value.type_str()))?;
+    if id < 1.0 || id.fract() != 0.0 {
+        bail!("`then` is {id}, not a tween handle");
+    }
+    Ok(Some(id as TweenId))
+}
+
+/// Seconds a tween holds its start values before its first step.
+fn delay_of(spec: &toml::Value) -> Result<f32> {
+    let Some(value) = spec.get("delay") else {
+        return Ok(0.0);
+    };
+    let delay = as_f64(value)
+        .ok_or_else(|| anyhow!("`delay` is {}, not seconds", value.type_str()))?
+        as f32;
+    if !delay.is_finite() || delay < 0.0 {
+        bail!("`delay` is a number of seconds, and cannot be fewer than none");
+    }
+    Ok(delay)
 }
 
 /// The 90% case, spelled without a table: send one property somewhere over a
@@ -211,16 +365,20 @@ fn loops_of(spec: &toml::Value) -> Result<u32> {
 /// One fixed step of one tween. Answers whether it is finished and should be
 /// forgotten.
 pub(crate) fn advance(world: &World, tween: &mut Tween, effects: &mut Vec<Effect>) -> bool {
+    // A value tween over is kept until the next tick, so a script reading
+    // it each frame sees where it landed; the tick's start lets it go.
     if !tween.running {
-        return true;
+        return !tween.value;
     }
     let clip = tween.clip.clone();
     let was = tween.time;
     tween.time += FIXED_DT * tween.speed;
     let (time, over) = sampler::clip_time(&clip, tween.time);
-    let pose = sampler::sample(&clip, time);
-    crate::system::write_pose(world, tween.node, "", &clip, &pose, effects);
-    crate::system::collect_calls(world, tween.node, "", &clip, was, tween.time, effects);
+    if !tween.value {
+        let pose = sampler::sample(&clip, time);
+        crate::system::write_pose(world, tween.node, "", &clip, &pose, effects);
+        crate::system::collect_calls(world, tween.node, "", &clip, was, tween.time, effects);
+    }
     if !over {
         return false;
     }
@@ -230,7 +388,7 @@ pub(crate) fn advance(world: &World, tween: &mut Tween, effects: &mut Vec<Effect
         return false;
     }
     tween.running = false;
-    true
+    !tween.value
 }
 
 /// The tracks a specification's steps add up to, in the order the steps first
@@ -253,12 +411,13 @@ fn build(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<Clip> {
     if steps.is_empty() {
         bail!("a tween needs at least one step");
     }
+    let delay = delay_of(spec)?;
     let mut builder = Builder {
         eng,
         node,
         tracks: Vec::new(),
-        chain: 0.0,
-        group: 0.0,
+        chain: delay,
+        group: delay,
     };
     for (index, step) in steps.iter().enumerate() {
         builder
@@ -414,10 +573,10 @@ impl Builder<'_> {
     /// step in this tween left on the same track, or else what the node
     /// holds right now.
     fn captured(&self, target: &str, property: &Property, channels: usize) -> Result<Vec4> {
-        if let Some(track) = self.find(target, property) {
-            if let Some(key) = self.tracks[track].keys.last() {
-                return Ok(key.value);
-            }
+        if let Some(track) = self.find(target, property)
+            && let Some(key) = self.tracks[track].keys.last()
+        {
+            return Ok(key.value);
         }
         let entity = target_of(self.eng, self.node, target)?;
         current_value(self.eng, entity, property, channels)
@@ -477,16 +636,17 @@ fn push_segment(
     // An explicit `from` after a pause is a jump, not a slow drift across the
     // pause: the previous value is held right up to the moment this step
     // begins, and the two keys at the same time are what say so.
-    if let Some(last) = track.keys.last() {
-        if last.t < start && last.value != from {
-            let held = last.value;
-            track.keys.push(Key {
-                t: start,
-                value: held,
-                call: None,
-                ease: None,
-            });
-        }
+    if let Some(last) = track.keys.last()
+        && last.t < start
+        && last.value != from
+    {
+        let held = last.value;
+        track.keys.push(Key {
+            t: start,
+            value: held,
+            call: None,
+            ease: None,
+        });
     }
     track.keys.push(Key {
         t: start,

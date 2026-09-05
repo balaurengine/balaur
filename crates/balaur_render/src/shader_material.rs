@@ -17,8 +17,7 @@ use kiss3d::camera::Camera2d;
 use kiss3d::context::Context;
 use kiss3d::resource::vertex_index::VERTEX_INDEX_FORMAT;
 use kiss3d::resource::{
-    multisample_state, GpuData, GpuMesh2d, Material2d, MaterialManager2d, PipelineCache,
-    RenderContext2d, Texture,
+    GpuData, GpuMesh2d, Material2d, MaterialManager2d, PipelineCache, RenderContext2d, Texture,
 };
 use kiss3d::scene::{InstancesBuffer2d, ObjectData2d};
 
@@ -65,6 +64,8 @@ struct ShaderGpuData {
     /// Which texture the bind group was built for, so it is rebuilt only when
     /// the node's image actually changes.
     texture_ptr: usize,
+    /// Which screen texture it was built with, for a material that reads one.
+    screen_generation: u64,
 }
 
 impl ShaderGpuData {
@@ -79,6 +80,7 @@ impl ShaderGpuData {
             object_bind_group: None,
             texture_bind_group: None,
             texture_ptr: 0,
+            screen_generation: u64::MAX,
         }
     }
 }
@@ -107,6 +109,8 @@ pub(crate) struct ShaderMaterial {
     started: Instant,
     frame_counter: Cell<u64>,
     last_frame: Cell<u64>,
+    /// The sampler `screen_texture` is read through, for a screen reader.
+    screen: Option<wgpu::Sampler>,
 }
 
 fn uniform_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
@@ -171,8 +175,9 @@ fn vertex_layouts() -> [Option<wgpu::VertexBufferLayout<'static>>; 5] {
 }
 
 /// The frame, object and texture layouts, in the order the pipeline binds
-/// them. `shaders/sprite.wesl` declares the matching groups.
-fn bind_group_layouts() -> [wgpu::BindGroupLayout; 3] {
+/// them. `shaders/sprite.wesl` declares the matching groups; a material
+/// reading the screen has it at bindings 2 and 3 of the texture group.
+fn bind_group_layouts(screen: bool) -> [wgpu::BindGroupLayout; 3] {
     let ctxt = Context::get();
     let uniform = |label| {
         ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -180,29 +185,16 @@ fn bind_group_layouts() -> [wgpu::BindGroupLayout; 3] {
             entries: &[uniform_entry(0)],
         })
     };
+    let mut entries = crate::bind_layout::sampled_entries(0).to_vec();
+    if screen {
+        entries.extend(crate::bind_layout::sampled_entries(2));
+    }
     [
         uniform("material_frame_layout"),
         uniform("material_object_layout"),
         ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("material_texture_layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
+            entries: &entries,
         }),
     ]
 }
@@ -255,48 +247,34 @@ fn material_group(
 
 fn build_pipeline(layout: wgpu::PipelineLayout, shader: wgpu::ShaderModule) -> PipelineCache {
     PipelineCache::new(move |sample_count| {
-        let layouts = vertex_layouts();
-        Context::get().create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("material_pipeline"),
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &layouts,
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: Context::render_format(),
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: multisample_state(sample_count),
-            multiview_mask: None,
-            cache: None,
-        })
+        crate::pipeline::material_pipeline(
+            "material_pipeline",
+            &layout,
+            &shader,
+            &vertex_layouts(),
+            None,
+            &crate::pipeline::Depth::Ignored,
+            sample_count,
+        )
     })
 }
 
 impl ShaderMaterial {
-    /// Build the pipeline for one linked material.
-    pub(crate) fn new(compiled: &Compiled, probe: Option<&Probe>) -> Self {
+    /// Build the pipeline for one linked material; `reads_screen` binds the
+    /// frame so far at the texture group's bindings 2 and 3.
+    pub(crate) fn new(compiled: &Compiled, probe: Option<&Probe>, reads_screen: bool) -> Self {
         let ctxt = Context::get();
-        let [frame_layout, object_layout, texture_layout] = bind_group_layouts();
+        let [frame_layout, object_layout, texture_layout] = bind_group_layouts(reads_screen);
+        let screen = reads_screen.then(|| {
+            ctxt.create_sampler(&wgpu::SamplerDescriptor {
+                label: Some("material_screen_sampler"),
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            })
+        });
         let params = material_group(&compiled.params, probe);
         let mut groups = vec![
             Some(&frame_layout),
@@ -340,30 +318,54 @@ impl ShaderMaterial {
             started: Instant::now(),
             frame_counter: Cell::new(0),
             last_frame: Cell::new(u64::MAX),
+            screen,
         }
     }
 
-    fn texture_bind_group(&self, texture: &Texture) -> wgpu::BindGroup {
-        Context::get().create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("material_texture_bind_group"),
-            layout: &self.texture_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
-                },
-            ],
-        })
+    /// `None` for a screen reader the frame has no copy for yet.
+    fn texture_bind_group(
+        &self,
+        texture: &Texture,
+        screen: Option<&wgpu::TextureView>,
+    ) -> Option<wgpu::BindGroup> {
+        let mut entries = vec![
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&texture.view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(&texture.sampler),
+            },
+        ];
+        if let Some(sampler) = &self.screen {
+            let view = screen?;
+            entries.push(wgpu::BindGroupEntry {
+                binding: 2,
+                resource: wgpu::BindingResource::TextureView(view),
+            });
+            entries.push(wgpu::BindGroupEntry {
+                binding: 3,
+                resource: wgpu::BindingResource::Sampler(sampler),
+            });
+        }
+        Some(
+            Context::get().create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("material_texture_bind_group"),
+                layout: &self.texture_layout,
+                entries: &entries,
+            }),
+        )
     }
 }
 
 impl Material2d for ShaderMaterial {
     fn create_gpu_data(&self) -> Box<dyn GpuData> {
         Box::new(ShaderGpuData::new())
+    }
+
+    fn reads_screen(&self) -> bool {
+        self.screen.is_some()
     }
 
     fn begin_frame(&mut self) {
@@ -380,7 +382,7 @@ impl Material2d for ShaderMaterial {
         _mesh: &mut GpuMesh2d,
         _instances: &mut InstancesBuffer2d,
         gpu_data: &mut dyn GpuData,
-        _context: &RenderContext2d,
+        context: &RenderContext2d,
     ) {
         let ctxt = Context::get();
         let gpu_data = gpu_data
@@ -399,7 +401,12 @@ impl Material2d for ShaderMaterial {
                 bytemuck::bytes_of(&FrameUniforms {
                     view: padded_mat3(&view),
                     proj: padded_mat3(&proj),
-                    clock: [elapsed, 0.0, 0.0, 0.0],
+                    clock: [
+                        elapsed,
+                        context.viewport_width as f32,
+                        context.viewport_height as f32,
+                        0.0,
+                    ],
                 }),
             );
         }
@@ -425,9 +432,18 @@ impl Material2d for ShaderMaterial {
         }
         let texture = data.texture();
         let ptr = Arc::as_ptr(texture) as usize;
-        if gpu_data.texture_bind_group.is_none() || gpu_data.texture_ptr != ptr {
-            gpu_data.texture_bind_group = Some(self.texture_bind_group(texture));
+        let screen = if self.screen.is_some() {
+            context.screen_generation
+        } else {
+            0
+        };
+        if gpu_data.texture_bind_group.is_none()
+            || gpu_data.texture_ptr != ptr
+            || gpu_data.screen_generation != screen
+        {
+            gpu_data.texture_bind_group = self.texture_bind_group(texture, context.screen.as_ref());
             gpu_data.texture_ptr = ptr;
+            gpu_data.screen_generation = screen;
         }
     }
 
@@ -505,170 +521,22 @@ impl Material2d for ShaderMaterial {
     }
 }
 
-/// The materials this run has linked: one pipeline per `material` reference,
-/// however many nodes name it.
-#[derive(Default)]
-pub(crate) struct MaterialCache {
-    /// `None` records a material that would not link, so the error is logged
-    /// once rather than every frame.
-    linked: std::collections::HashMap<String, Option<SharedMaterial>>,
-    /// The asset generation these were linked at.
-    generation: u64,
-    /// The channel material and which channel it draws.
-    channel: Option<(String, SharedMaterial)>,
-    /// The channel the last frame drew; a change rebuilds every node.
-    active: String,
-    /// The previewing material's probe, shared with it.
-    probe: Option<std::rc::Rc<Probe>>,
-}
-
 /// What kiss3d takes on a node.
 type SharedMaterial = std::rc::Rc<std::cell::RefCell<Box<dyn Material2d + 'static>>>;
 
-impl MaterialCache {
-    /// Drop everything linked before the last reload, and say whether that
-    /// happened.
-    ///
-    /// A caller that answers `true` must also rebuild the nodes drawing with
-    /// a material: they hold the old pipeline, and clearing a cache does not
-    /// reach into a scene graph.
-    pub(crate) fn refresh(&mut self, app: &balaur_core::App) -> bool {
-        let now = balaur_core::assets::generation(&app.engine);
-        if now == self.generation {
-            return false;
-        }
-        self.generation = now;
-        let had = !self.linked.is_empty();
-        for reference in self.linked.keys() {
-            MaterialManager2d::get_global_manager(|manager| {
-                manager.remove(&manager_name(reference));
-            });
-        }
-        self.linked.clear();
-        had
-    }
+crate::material_cache::define!(
+    cache = MaterialCache,
+    shared = SharedMaterial,
+    boxed = Box<dyn Material2d>,
+    manager = MaterialManager2d,
+    prefix = "balaur",
+    channel_shader = crate::shaders::CHANNEL_2D,
+    channel_material = channel_material,
+);
 
-    /// Point the previewing material's probe at a pixel and read what the
-    /// frame before wrote there. The 3D counterpart's doc has the details.
-    pub(crate) fn answer_probe(&self, app: &balaur_core::App) {
-        let Some(at) = crate::debug_view::probe_at(&app.engine) else {
-            return;
-        };
-        crate::debug_view::publish_probe(&app.engine, self.probe(at));
-    }
-
-    fn probe(&self, at: [f32; 2]) -> Option<[f32; 4]> {
-        let probe = self.probe.as_ref()?;
-        let read = probe.read();
-        probe.aim(at);
-        read
-    }
-
-    /// Whether the channel view changed since the last frame.
-    ///
-    /// Turning one on or off changes every node, not only those naming a
-    /// material, so the caller rebuilds all of them.
-    pub(crate) fn channel_changed(&mut self, channel: &str) -> bool {
-        if self.active == channel {
-            return false;
-        }
-        self.active = channel.to_string();
-        true
-    }
-
-    /// The material a node draws with: the channel while a view is on, its
-    /// own otherwise, and none at all — kiss3d's — when it names neither.
-    pub(crate) fn for_node(
-        &mut self,
-        app: &balaur_core::App,
-        reference: &str,
-        channel: &str,
-    ) -> Option<SharedMaterial> {
-        if !channel.is_empty() {
-            return self.channel(channel);
-        }
-        if reference.is_empty() {
-            return None;
-        }
-        self.get(app, reference)
-    }
-
-    /// The material that draws `channel`, built on first use.
-    pub(crate) fn channel(&mut self, channel: &str) -> Option<SharedMaterial> {
-        if let Some((drawn, material)) = &self.channel {
-            if drawn == channel {
-                return Some(material.clone());
-            }
-        }
-        let features: Vec<(&str, bool)> = crate::shaders::CHANNELS
-            .iter()
-            .map(|c| (*c, *c == channel))
-            .collect();
-        let built = crate::shaders::link(
-            &[("package::channel", crate::shaders::CHANNEL_2D)],
-            "package::channel",
-            &features,
-        )
-        .map(|unit| {
-            ShaderMaterial::new(
-                &crate::material::Compiled {
-                    wgsl: crate::shaders::wgsl(&unit),
-                    fields: Vec::new(),
-                    params: Vec::new(),
-                    probes: false,
-                },
-                None,
-            )
-        })
-        .inspect_err(|why| tracing::error!(channel, "{why:#}"))
-        .ok()?;
-        let shared: SharedMaterial = std::rc::Rc::new(std::cell::RefCell::new(Box::new(built)));
-        MaterialManager2d::get_global_manager(|manager| {
-            manager.add(shared.clone(), "balaur:channel");
-        });
-        self.channel = Some((channel.to_string(), shared.clone()));
-        Some(shared)
-    }
-
-    /// The material `reference` names, linking it on first use.
-    ///
-    /// `None` for one that will not link — the node keeps kiss3d's own
-    /// material, so a shader with a typo in it costs a log line and a plain
-    /// sprite rather than the frame.
-    pub(crate) fn get(
-        &mut self,
-        app: &balaur_core::App,
-        reference: &str,
-    ) -> Option<SharedMaterial> {
-        if let Some(hit) = self.linked.get(reference) {
-            return hit.clone();
-        }
-        let built = build(app, reference)
-            .inspect_err(|why| tracing::error!(material = reference, "{why:#}"))
-            .ok()
-            .map(|(material, probe)| {
-                self.probe = probe;
-                let shared: SharedMaterial = std::rc::Rc::new(std::cell::RefCell::new(Box::new(
-                    material,
-                )
-                    as Box<dyn Material2d>));
-                // Registered, not just attached: kiss3d calls `begin_frame`
-                // over the manager's materials, and a material that misses it
-                // writes its view and clock once and then never again.
-                MaterialManager2d::get_global_manager(|manager| {
-                    manager.add(shared.clone(), &manager_name(reference));
-                });
-                shared
-            });
-        self.linked.insert(reference.to_string(), built.clone());
-        built
-    }
-}
-
-/// What a material is registered under in kiss3d's global manager. Prefixed
-/// so a project's path can never collide with `object2d` or `lit2d`.
-fn manager_name(reference: &str) -> String {
-    format!("balaur:{reference}")
+/// The channel view's own material, which takes no params and writes no probe.
+fn channel_material(compiled: &crate::material::Compiled) -> ShaderMaterial {
+    ShaderMaterial::new(compiled, None, false)
 }
 
 /// A material and, when its shader carries one, the probe it writes into.
@@ -683,6 +551,6 @@ fn build(
     let modules = crate::shaders::plugin_modules(&app.engine);
     let compiled = crate::material::compile_with(&asset, &source, &modules)?;
     let probe = compiled.probes.then(|| std::rc::Rc::new(Probe::new()));
-    let material = ShaderMaterial::new(&compiled, probe.as_deref());
+    let material = ShaderMaterial::new(&compiled, probe.as_deref(), asset.reads_screen());
     Ok((material, probe))
 }

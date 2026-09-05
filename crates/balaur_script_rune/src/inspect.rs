@@ -7,13 +7,13 @@
 
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use rune::ast::Spanned as _;
 use rune::runtime::VmResult;
 use rune::{Diagnostics, Source, Sources};
 
 use crate::packed::PackSourceLoader;
-use crate::{value, RuneHost};
+use crate::{RuneHost, value};
 
 /// A `pub fn` a script declares, read off its source text. A `pub fn`
 /// starting a line is the whole public surface of the script model; its

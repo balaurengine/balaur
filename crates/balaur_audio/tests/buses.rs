@@ -16,14 +16,7 @@ fn app(buses: &str) -> (tempfile::TempDir, App) {
     )
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
-    let mut app = App::new(AppConfig {
-        project_root: dir.path().to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
     app.load_project().unwrap();
     (dir, app)
@@ -107,12 +100,13 @@ fn setting_a_volume_makes_a_bus_that_was_not_declared() {
         .borrow_mut()
         .set_volume("voice", 0.3);
     assert!((gain(&app, "voice") - 0.3).abs() < 1e-6);
-    assert!(app
-        .engine
-        .resource::<Buses>()
-        .borrow()
-        .names()
-        .contains(&"voice".to_string()));
+    assert!(
+        app.engine
+            .resource::<Buses>()
+            .borrow()
+            .names()
+            .contains(&"voice".to_string())
+    );
 }
 
 /// The rest of the mix is fine, so a cycle is cut and reported rather than
@@ -244,14 +238,7 @@ fn with_events(events: &str) -> (tempfile::TempDir, App) {
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
     std::fs::create_dir_all(dir.path().join("audio")).unwrap();
     std::fs::write(dir.path().join("audio/events.toml"), events).unwrap();
-    let mut app = App::new(AppConfig {
-        project_root: dir.path().to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
     app.load_project().unwrap();
     (dir, app)
@@ -325,7 +312,6 @@ fn events_are_listed_in_name_order() {
     );
 }
 
-/// A project with no events file is the normal case, not an error.
 #[test]
 fn a_project_with_no_events_file_is_empty() {
     let (_dir, app) = app(NESTED);

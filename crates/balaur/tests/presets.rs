@@ -6,17 +6,10 @@
 //! (expectations). None of them adds a type -- a node is still exactly the
 //! components on it.
 
-use balaur::{components, presets, scene, App, AppConfig};
+use balaur::{App, AppConfig, components, presets, scene};
 
 fn app() -> App {
-    App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 fn node(app: &App) -> balaur::hecs::Entity {
@@ -155,13 +148,11 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
         }
 
         pub fn init(this) {
-            // Tags are what the palette filters on.
             let tags = scene::component_tags("collider2d");
             assert!(has(tags, "2d"), "collider2d should be tagged 2d");
             assert!(has(tags, "physics"), "collider2d should be tagged physics");
             assert!(scene::component_tags("nope") is Tuple, "unknown component has no tags");
 
-            // Presets are listed and described for the picker.
             let names = scene::presets();
             assert!(has(names, "rigid_body2d"), "rigid_body2d missing");
             assert!(has(names, "static_body2d"), "static_body2d missing");
@@ -185,7 +176,6 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
             assert!(has(present, "collider2d"), "collider2d not applied");
             assert!(n.get_component("body2d").kind == "dynamic", "wrong body kind");
 
-            // Warnings are a list, empty when there is nothing to say.
             assert!(scene::unmet_expectations(n).len() == 0, "nothing should warn here");
             this.done = 1;
         }

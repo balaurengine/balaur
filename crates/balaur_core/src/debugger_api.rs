@@ -9,11 +9,11 @@
 
 use std::rc::Rc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_script::{Bindings, ScriptHost, StepMode, Value};
 
 use crate::engine::Engine;
-use crate::engine_api::{optional_node, text, EngineOp};
+use crate::engine_api::{EngineOp, optional_node, text};
 
 pub const DEBUGGER_OPS: &[EngineOp] = &[
     EngineOp {

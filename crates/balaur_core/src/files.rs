@@ -17,7 +17,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
 
-use anyhow::{anyhow, Context as _, Result};
+use anyhow::{Context as _, Result, anyhow};
 
 use crate::engine::Engine;
 
@@ -70,7 +70,6 @@ pub fn set_default(fs: Rc<dyn FileBackend>) {
     DEFAULT.with(|d| *d.borrow_mut() = Some(fs));
 }
 
-/// The thread's default backend.
 #[must_use]
 pub fn default_backend() -> Rc<dyn FileBackend> {
     DEFAULT

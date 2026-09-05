@@ -5,7 +5,7 @@
 //! readable without a window. Only `mouse_ray` needs a real viewport, and it
 //! is left to a windowed run.
 
-use balaur::{standard_app, AppConfig};
+use balaur::{AppConfig, standard_app};
 use balaur_core::App;
 
 /// The log buffer is global and tests run in parallel.
@@ -171,4 +171,32 @@ fn a_node_with_no_shape_answers_with_an_empty_kind() {
         assert!(kind == "", "expected an empty kind, got {}", kind);
         "#,
     );
+}
+
+#[test]
+fn immediate_shapes_are_accepted_from_a_script() {
+    run_clean(
+        r#"render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0]);
+render::draw_rect_2d(0.5, 0.5, 2.0, 1.0);
+render::draw_arc_2d(0.0, 0.0, 1.0, 0.0, 90.0, 2.0);
+render::draw_polyline_2d([[0.0, 0.0], [1.0, 1.0], [2.0, 0.0]], 1.0, [0.0, 1.0, 0.0, 1.0]);
+render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0);"#,
+    );
+}
+
+#[test]
+fn a_tile_set_from_a_script_reads_back_and_the_map_grows_to_fit() {
+    let (app, errors) = run(r#"this.node.set_component("tilemap", #{ cells: ".." });
+render::set_cell(this.node, 3, 1, 7);
+log::info(`cell ${render::cell(this.node, 3, 1)} ${render::cell(this.node, 0, 0)} ${render::cell(this.node, 9, 9)}`);"#);
+    assert!(errors.is_empty(), "{errors:#?}");
+    let lines: Vec<String> = balaur_core::logbuf::recent(50)
+        .into_iter()
+        .map(|e| e.message)
+        .collect();
+    assert!(
+        lines.iter().any(|l| l.contains("cell 7 -1 -1")),
+        "expected the cell readback, got {lines:#?}"
+    );
+    drop(app);
 }

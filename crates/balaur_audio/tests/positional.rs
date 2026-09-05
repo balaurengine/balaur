@@ -9,7 +9,7 @@ use balaur_audio::spatial::{self, Emitter, ListenerPose};
 use balaur_audio::{AudioPlugin, AudioState, Cue};
 use balaur_core::glamx::Vec3;
 use balaur_core::hecs::Entity;
-use balaur_core::{components, scene, App, AppConfig, Transform};
+use balaur_core::{App, AppConfig, Transform, components, scene};
 
 /// A valid 16-bit mono PCM wav of a few silent samples, so a machine that
 /// does have a device decodes something real.
@@ -32,14 +32,7 @@ fn write_wav(dir: &Path, name: &str) {
 }
 
 fn app_in(dir: &Path) -> App {
-    let mut app = App::new(AppConfig {
-        project_root: dir.to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(dir.to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
     app
 }

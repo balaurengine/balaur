@@ -14,10 +14,10 @@
 //! immediately, and handlers run at [`Stage::First`] of a later tick, in
 //! arrival order, never from an I/O thread.
 
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{Sender, channel};
 
-use anyhow::{anyhow, bail, Result};
-use balaur_core::handler::{handler_of, headers_of, id_value, opt, Handler};
+use anyhow::{Result, anyhow, bail};
+use balaur_core::handler::{Handler, handler_of, headers_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
@@ -319,14 +319,7 @@ impl balaur_plugin::Plugin for WebsocketPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
-        let config = {
-            let files = reg
-                .engine()
-                .resource::<balaur_core::project::ProjectFiles>();
-            let files = files.borrow();
-            WebsocketConfig::load(&files)
-        };
-        reg.insert_resource(config);
+        reg.insert_resource(reg.with_project_files(WebsocketConfig::load));
         reg.insert_resource(WebsocketState::default());
         reg.insert_resource(WebsocketSnapshot::default());
         reg.add_system(Stage::First, pump_websocket_system);
@@ -367,7 +360,7 @@ fn socket_options_of(opts: Option<&Value>, config: &WebsocketConfig) -> Result<S
         Some(other) => {
             return Err(anyhow!(
                 "compression should be true or false, got {other:?}"
-            ))
+            ));
         }
         None => config.compression,
     };

@@ -20,9 +20,9 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, bail, Result};
-use rune::runtime::{Logic, Unit};
+use anyhow::{Result, anyhow, bail};
 use rune::Source;
+use rune::runtime::{Logic, Unit};
 
 use crate::inspect::PublicSignature;
 
@@ -190,10 +190,10 @@ fn collect_scripts(root: &Path, dir: &Path, out: &mut Vec<String>) {
     for path in paths {
         if path.is_dir() {
             collect_scripts(root, &path, out);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rn") {
-            if let Ok(rel) = path.strip_prefix(root) {
-                out.push(rel.to_string_lossy().replace('\\', "/"));
-            }
+        } else if path.extension().and_then(|e| e.to_str()) == Some("rn")
+            && let Ok(rel) = path.strip_prefix(root)
+        {
+            out.push(rel.to_string_lossy().replace('\\', "/"));
         }
     }
 }
@@ -246,7 +246,7 @@ impl rune::compile::SourceLoader for PackSourceLoader {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode, is_encoded, FORMAT, MAGIC};
+    use super::{FORMAT, MAGIC, decode, is_encoded};
 
     #[test]
     fn source_is_not_mistaken_for_a_unit() {

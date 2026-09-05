@@ -1,19 +1,14 @@
-// The bar every row of tabs sits in: the persona bar and the document
-// tabs are the same object.
-pub const BAR_H = 36.0;
-
 // The strip along the stage's foot that the axis and zoom pills own. The
 // widget layer is inset by it, so a game's bottom-anchored HUD sits above
 // the editor's chrome rather than under it.
 pub const HUD_H = 28.0;
 
-// Center region: tool rail (46 px), document tabs (38 px), then either the
-// 3D viewport overlays or the script editor.
+// The centre: the tool rail, then the viewport's chrome, the code pane or
+// the event bindings over the stage. The document tabs are the top bar's.
 
 use crate::defs;
 use crate::highlight;
 use crate::icons;
-use crate::history;
 use crate::lint;
 use crate::model;
 use crate::polygon;
@@ -25,7 +20,14 @@ use crate::util;
 // computed, because the rail and the document both change what is left for
 // the scene.
 pub fn modes(S) {
-    let code = S.persona == "script" || S.doctab == "script";
+    // A tab the centre is showing is open, whoever pointed it there.
+    if S.doctab == "script" {
+        S.script_open = true;
+    }
+    if S.doctab == "events" {
+        S.events_open = true;
+    }
+    let code = S.doctab == "script";
     let document = S.doctab == "events" || code;
     let split = S.split && (S.doctab != "events");
     let live = split || !document;
@@ -78,57 +80,6 @@ fn rail(S, k) {
                     S.rail_shut = true;
                 }
             });
-        });
-    });
-}
-
-fn doc_tabs(S, k) {
-    let node = model::selected_node(S);
-    style::bar(k, "tabs", S.layout.tabs, 10, || {
-        ui::horizontal(#{ height: BAR_H }, || {
-            ui::spacing(6, 0);
-            let scene_name = util::last_segment(S.scene_rel);
-            let script_label = match model::script_rel(node) {
-                Some(script) => {
-                    let dirty = S.script_dirty.contains_key(S.game_root + "/" + script);
-                    util::last_segment(script) + (if dirty { " ●" } else { "" })
-                }
-                None => "no script",
-            };
-            let tabs = [
-                #{ id: "scene", icon: icons::panel("scene"), label: scene_name + (if history::dirty(S) { " ●" } else { "" }) },
-                #{ id: "script", icon: icons::ui("scriptfile"), label: script_label },
-                #{ id: "events", icon: icons::ui("events"), label: "events" },
-            ];
-            for tab in tabs {
-                let active = S.doctab == tab.id;
-                if ui::pill(tab.label, #{
-                    role: if active { "navtab_on" } else { "navtab" }, icon: tab.icon,
-                }) {
-                    S.doctab = tab.id;
-                    if tab.id == "script" {
-                        shell::set_persona(S, "script");
-                    }
-                }
-            }
-            ui::add_space(4);
-            if ui::pill("Split", #{
-                role: if S.split { "navtab_on" } else { "navtab" }, icon: icons::ui("split"),
-                tooltip: "Show the code and the viewport at once (⌘\\)",
-            }) {
-                shell::toggle_split(S);
-            }
-            if !S.compact {
-                ui::right(|| {
-                    let hint = if S.doctab == "script" && node.contains_key("script") {
-                        "Rune · " + model::script_rel(node).unwrap_or("")
-                    } else {
-                        let (nodes, _) = model::stats(S);
-                        format!("{} · {} nodes", S.game_name, nodes)
-                    };
-                    ui::label(hint, style::mono_sm(k.faint));
-                });
-            }
         });
     });
 }
@@ -237,7 +188,7 @@ fn viewport(S, k) {
                             shell::set_zoom(S, S.zoom - 25.0);
                         }
                         ui::label(format!("{} %", S.zoom as i64), style::mono_sm(k.text));
-                        if ui::pill("＋", #{ height: 20, size: 12, min_width: 20, color: k.dim }) {
+                        if ui::pill(icons::ui("add"), #{ height: 20, size: 12, min_width: 20, color: k.dim }) {
                             shell::set_zoom(S, S.zoom + 25.0);
                         }
                     });
@@ -392,7 +343,6 @@ pub fn draw(S) {
     if S.rail_visible {
         rail(S, k);
     }
-    doc_tabs(S, k);
     if S.viewport_live {
         viewport(S, k);
     }

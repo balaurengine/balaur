@@ -87,7 +87,6 @@ pub struct SettingsRegistry(pub Vec<SettingDef>);
 #[derive(Default)]
 pub struct SettingsValues(pub toml::value::Table);
 
-/// Define one setting.
 pub fn define(eng: &Engine, def: SettingDef) {
     if let Some(registry) = eng.try_resource::<SettingsRegistry>() {
         let mut registry = registry.borrow_mut();
@@ -131,8 +130,8 @@ pub fn all(eng: &Engine) -> Rc<RefCell<SettingsRegistry>> {
 #[must_use]
 pub fn def(eng: &Engine, path: &str) -> Option<SettingDef> {
     let registry = eng.try_resource::<SettingsRegistry>()?;
-    let found = registry.borrow().0.iter().find(|d| d.path == path).cloned();
-    found
+
+    registry.borrow().0.iter().find(|d| d.path == path).cloned()
 }
 
 /// A path split into the tables it nests through and the key it ends at.
@@ -145,24 +144,22 @@ fn split(path: &str) -> Option<(Vec<&str>, &str)> {
 /// One setting's value: what was set, else what its definition defaults to.
 #[must_use]
 pub fn get(eng: &Engine, path: &str) -> Option<toml::Value> {
-    if let Some(values) = eng.try_resource::<SettingsValues>() {
-        if let Some((tables, key)) = split(path) {
-            let values = values.borrow();
-            let mut at: &toml::value::Table = &values.0;
-            let mut reached = true;
-            for table in tables {
-                if let Some(next) = at.get(table).and_then(toml::Value::as_table) {
-                    at = next;
-                } else {
-                    reached = false;
-                    break;
-                }
+    if let Some(values) = eng.try_resource::<SettingsValues>()
+        && let Some((tables, key)) = split(path)
+    {
+        let values = values.borrow();
+        let mut at: &toml::value::Table = &values.0;
+        let mut reached = true;
+        for table in tables {
+            if let Some(next) = at.get(table).and_then(toml::Value::as_table) {
+                at = next;
+            } else {
+                reached = false;
+                break;
             }
-            if reached {
-                if let Some(found) = at.get(key) {
-                    return Some(found.clone());
-                }
-            }
+        }
+        if reached && let Some(found) = at.get(key) {
+            return Some(found.clone());
         }
     }
     def(eng, path).and_then(|d| d.spec.get("default").cloned())
@@ -177,18 +174,23 @@ pub fn set(eng: &Engine, path: &str, value: toml::Value) {
         return;
     };
     let mut values = values.borrow_mut();
-    let mut at: &mut toml::value::Table = &mut values.0;
+    table_at(&mut values.0, &tables).insert(key.to_string(), value);
+}
+
+/// The table `tables` names under `root`, made on the way down; a value
+/// sitting where a table belongs is replaced by one.
+fn table_at<'a>(root: &'a mut toml::value::Table, tables: &[&str]) -> &'a mut toml::value::Table {
+    let mut at = root;
     for table in tables {
         let entry = at
-            .entry(table.to_string())
+            .entry((*table).to_string())
             .or_insert_with(|| toml::Value::Table(toml::value::Table::new()));
         if !entry.is_table() {
             *entry = toml::Value::Table(toml::value::Table::new());
         }
-        // Just replaced with a table if it was not one.
         at = entry.as_table_mut().expect("made a table above");
     }
-    at.insert(key.to_string(), value);
+    at
 }
 
 /// Read every value out of a manifest's text.
@@ -249,17 +251,7 @@ pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
         let Some((tables, key)) = split(&path) else {
             continue;
         };
-        let mut at: &mut toml::value::Table = &mut doc;
-        for table in tables {
-            let entry = at
-                .entry(table.to_string())
-                .or_insert_with(|| toml::Value::Table(toml::value::Table::new()));
-            if !entry.is_table() {
-                *entry = toml::Value::Table(toml::value::Table::new());
-            }
-            at = entry.as_table_mut().expect("made a table above");
-        }
-        at.insert(key.to_string(), value);
+        table_at(&mut doc, &tables).insert(key.to_string(), value);
     }
     toml::to_string_pretty(&doc).context("writing settings")
 }

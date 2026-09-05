@@ -2,8 +2,36 @@
 // selection palette, the world-per-pixel scale, and the three questions a
 // tool asks about the current drag.
 
+use crate::history;
 use crate::layout;
+use crate::model;
+use crate::shell;
 use crate::util;
+
+/// A rail tool's drag this frame: the pointer's travel in design px and the
+/// selected node it moves, or `None` when the pointer stood still or a zoom
+/// took the drag instead. Recording the history step is part of taking it.
+pub fn rail_drag(S, dpi) {
+    let (dx, dy) = input::mouse_delta();
+    dx = dx / (dpi * S.ui_scale);
+    dy = dy / (dpi * S.ui_scale);
+    if dx == 0.0 && dy == 0.0 {
+        return None;
+    }
+    let (_, found) = model::selected(S);
+    if found.is_some() && (S.tool == "move" || S.tool == "rotate" || S.tool == "scale") {
+        history::record(S, format!("{} node", S.tool), Some(format!("tool:{}:{}", S.tool, S.sel)));
+    }
+    match found {
+        Some(found) => Some((dx, dy, found)),
+        None => {
+            if S.tool == "zoom" {
+                shell::set_zoom(S, S.zoom - dy * 0.5);
+            }
+            None
+        }
+    }
+}
 
 /// steadyum's selection orange.
 pub fn orange() {

@@ -7,11 +7,10 @@
 //! Lives in core rather than the render crate for the same reason `mesh` does:
 //! physics reads it and does not depend on rendering.
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 
 use crate::App;
 
-/// The `heightfield` asset type.
 pub const HEIGHTFIELD_ASSET_TYPE: &str = "heightfield";
 
 /// A grid of heights, row-major.

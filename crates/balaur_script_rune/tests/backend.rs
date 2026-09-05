@@ -12,11 +12,8 @@ use balaur_script::{Bindings, BindingsExt, CallbackHost, CallbackId};
 
 fn app_in(dir: &std::path::Path) -> App {
     App::new(AppConfig {
-        project_root: dir.to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
         script_backend: Some(balaur_script_rune::factory()),
+        ..AppConfig::bare(dir.to_path_buf())
     })
     .unwrap()
 }
@@ -171,7 +168,6 @@ fn a_required_module_shares_functions_and_hot_reloads_in_place() {
         balaur_core::logbuf::recent(10)
     );
 
-    // The module object held from init sees the new code after a reload.
     std::fs::write(dir.path().join("lib.rn"), "pub fn double(n) { n * 3 }\n").unwrap();
     host.reload("lib.rn").unwrap();
     host.call_on(balaur_core::node_id_of(node), "again", &[]);
@@ -577,4 +573,94 @@ fn object_iteration_order_does_not_move_between_runs() {
         order,
         &balaur_script::Value::Str("angle,target,speed,health,name,".into())
     );
+}
+
+#[test]
+fn a_frame_wait_resumes_after_that_many_fixed_steps() {
+    let dir = project(&[(
+        "a.rn",
+        "pub async fn init(this) { this.out = 0.0; task::frames(2).await; this.out = 1.0; }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    let node = spawn(&app, "Waiter");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "a.rn").unwrap();
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    assert_eq!(
+        rune.number_field(node, "out"),
+        Some(0.0),
+        "suspended at the wait"
+    );
+    app.tick(1.0 / 60.0);
+    assert_eq!(
+        rune.number_field(node, "out"),
+        Some(0.0),
+        "one step is not two"
+    );
+    app.tick(1.0 / 60.0);
+    assert_eq!(rune.number_field(node, "out"), Some(1.0));
+}
+
+#[test]
+fn a_second_wait_counts_simulation_time_not_the_clock() {
+    let dir = project(&[(
+        "a.rn",
+        "pub async fn init(this) { this.out = 0.0; task::seconds(0.05).await; this.out = 1.0; }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    let node = spawn(&app, "Waiter");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "a.rn").unwrap();
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    // Three fixed steps of 1/60 s are 0.05 s: the third one wakes it.
+    app.tick(1.0 / 60.0);
+    app.tick(1.0 / 60.0);
+    assert_eq!(rune.number_field(node, "out"), Some(0.0));
+    app.tick(1.0 / 60.0);
+    assert_eq!(rune.number_field(node, "out"), Some(1.0));
+}
+
+#[test]
+fn a_change_of_focus_or_dark_mode_reaches_every_script_once() {
+    let dir = project(&[(
+        "a.rn",
+        "pub fn init(this) { this.focus = 0.0; this.dark = 0.0; }\n\
+         pub fn on_focus_changed(this, focused) { if focused { this.focus += 1.0; } else { this.focus += 10.0; } }\n\
+         pub fn on_dark_mode(this, dark) { if dark { this.dark += 1.0; } }\n",
+    )]);
+    let mut app = app_in(dir.path());
+    let node = spawn(&app, "Listener");
+    let host = app.engine.script_host().unwrap();
+    host.attach(balaur_core::node_id_of(node), "a.rn").unwrap();
+    let rune = host
+        .as_any()
+        .downcast_ref::<balaur_script_rune::RuneHost>()
+        .unwrap();
+    app.tick(1.0 / 60.0);
+    assert_eq!(
+        rune.number_field(node, "focus"),
+        Some(0.0),
+        "nothing changed yet"
+    );
+    balaur_core::facts::update_device(&app.engine, |facts| {
+        facts.focused = false;
+        facts.dark_mode = true;
+    });
+    app.tick(1.0 / 60.0);
+    app.tick(1.0 / 60.0);
+    assert_eq!(
+        rune.number_field(node, "focus"),
+        Some(10.0),
+        "one call, with the new state"
+    );
+    assert_eq!(rune.number_field(node, "dark"), Some(1.0));
+    balaur_core::facts::update_device(&app.engine, |facts| facts.focused = true);
+    app.tick(1.0 / 60.0);
+    assert_eq!(rune.number_field(node, "focus"), Some(11.0));
 }

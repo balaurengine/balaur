@@ -8,18 +8,25 @@
 
 pub mod app;
 pub mod assets;
+mod batteries_api;
 pub mod collections;
 pub mod components;
 #[cfg(not(target_family = "wasm"))]
 pub mod dap;
 pub mod debug_lines;
 pub mod debugger_api;
+// Opening a URL or a folder is the OS's job, and a browser tab has neither.
+#[cfg(not(target_family = "wasm"))]
+pub mod desktop;
+pub mod desktop_api;
 pub mod digest;
 pub mod engine;
 pub mod engine_api;
 pub mod events;
+pub mod facts;
 pub mod file_api;
 pub mod files;
+pub mod geometry2d;
 pub mod glb;
 pub mod handler;
 pub mod heightfield;
@@ -48,13 +55,14 @@ pub mod snapshot;
 pub mod standalone;
 pub mod strings;
 pub mod time;
+pub mod timers;
 pub mod timings;
 pub mod transport;
 pub mod triangulate;
 pub mod voxels;
 
 pub use app::{
-    App, AppConfig, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage, FIXED_DT, MAX_SUBSTEPS,
+    App, AppConfig, FIXED_DT, MAX_SUBSTEPS, ScriptArgs, ScriptHostFactory, ScriptSetup, Stage,
     TICK_HZ,
 };
 pub use assets::{AssetRef, AssetState, AssetTypeRegistry};
@@ -71,9 +79,17 @@ pub use project::{PluginChoice, PluginConfigs};
 pub use replay::{ReplayMode, ReplayRegistry};
 pub use resources::Resources;
 pub use rollback::Session;
-pub use scene::{Children, GlobalTransform, Name, Parent, ScriptAttachment, Transform};
+pub use scene::{
+    Appearance, Children, GlobalAppearance, GlobalTransform, Name, Parent, ScriptAttachment,
+    Transform,
+};
 pub use snapshot::{Snapshot, SnapshotRegistry, SnapshotRing};
 pub use transport::{Delivery, Faults, Faulty, LinkState, Received, Transport};
+
+/// Inserted by a windowed backend on the first key, button or touch: the
+/// moment a browser lets a page start audio, and the only fact about the
+/// user a backend needs to share.
+pub struct UserActivation;
 
 pub use glamx;
 pub use hecs;

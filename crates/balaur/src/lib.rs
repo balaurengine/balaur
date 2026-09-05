@@ -30,7 +30,7 @@ pub use balaur_webtransport as webtransport;
 
 use std::collections::BTreeMap;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 /// Every optional module: the name it goes by, the cargo feature that
 /// switches it on, and the plugin it registers.
@@ -66,6 +66,7 @@ modules! {
     audio = "audio" => balaur_audio::AudioPlugin,
     gamend = "gamend" => balaur_gamend::GamendPlugin,
     http = "http" => balaur_http::HttpPlugin,
+    web = "web" => balaur_web::WebPlugin,
     websocket = "websocket" => balaur_websocket::WebsocketPlugin,
 }
 
@@ -107,7 +108,33 @@ pub fn build_pack(project_root: &std::path::Path) -> Result<Pack> {
 /// [`build_pack`], keeping script sources in the pack when `keep_sources`
 /// — see [`Pack::build_with`] for when a runtime needs that.
 pub fn build_pack_with(project_root: &std::path::Path, keep_sources: bool) -> Result<Pack> {
-    let app = standard_app(AppConfig::export(project_root))?;
+    build_pack_using(project_root, keep_sources, &mut [])
+}
+
+/// [`build_pack_with`], with the caller's own modules registered first.
+pub fn build_pack_using(
+    project_root: &std::path::Path,
+    keep_sources: bool,
+    extra: ExtraPlugins<'_>,
+) -> Result<Pack> {
+    with_rune_host(project_root, extra, |host| {
+        Pack::build_with(project_root, host, keep_sources)
+    })
+}
+
+/// Modules the calling binary registers on top of the standard set. The CLI's
+/// `export` is one: the editor's scripts call it, and Rune resolves a module
+/// while compiling, so a tool that compiles the editor has to load it first.
+pub type ExtraPlugins<'a> = &'a mut [Box<dyn balaur_plugin::Plugin>];
+
+/// Boot the project as a build tool does and hand its Rune host to `f`.
+fn with_rune_host<R>(
+    project_root: &std::path::Path,
+    extra: ExtraPlugins<'_>,
+    f: impl FnOnce(&balaur_script_rune::RuneHost) -> Result<R>,
+) -> Result<R> {
+    let mut app = standard_app(AppConfig::export(project_root))?;
+    balaur_plugin::load_all(&mut app, extra)?;
     let host = app
         .engine
         .script_host()
@@ -116,7 +143,7 @@ pub fn build_pack_with(project_root: &std::path::Path, keep_sources: bool) -> Re
         .as_any()
         .downcast_ref::<balaur_script_rune::RuneHost>()
         .context("expected the rune backend")?;
-    Pack::build_with(project_root, host, keep_sources)
+    f(host)
 }
 
 /// Every finding in a project: each script a scene attaches, compiled through
@@ -129,33 +156,37 @@ pub fn build_pack_with(project_root: &std::path::Path, keep_sources: bool) -> Re
 /// # Errors
 /// If the project will not boot.
 pub fn check_project(project_root: &std::path::Path) -> Result<Vec<balaur_script_rune::Finding>> {
-    let app = standard_app(AppConfig::export(project_root))?;
-    let host = app
-        .engine
-        .script_host()
-        .context("no script backend for the project")?;
-    let host = host
-        .as_any()
-        .downcast_ref::<balaur_script_rune::RuneHost>()
-        .context("expected the rune backend")?;
-    let mut found = Vec::new();
-    for rel in scene_scripts(project_root) {
-        let path = project_root.join(&rel);
-        let Ok(source) = std::fs::read_to_string(&path) else {
-            found.push(balaur_script_rune::Finding {
-                file: rel.clone(),
-                line: 0,
-                column: 0,
-                end_line: 0,
-                end_column: 0,
-                severity: "error",
-                message: format!("script {rel} does not exist"),
-            });
-            continue;
-        };
-        found.extend(host.check_source(&rel, &source)?);
-    }
-    Ok(found)
+    check_project_using(project_root, &mut [])
+}
+
+/// [`check_project`], with the caller's own modules registered first.
+///
+/// # Errors
+/// If the project will not boot.
+pub fn check_project_using(
+    project_root: &std::path::Path,
+    extra: ExtraPlugins<'_>,
+) -> Result<Vec<balaur_script_rune::Finding>> {
+    with_rune_host(project_root, extra, |host| {
+        let mut found = Vec::new();
+        for rel in scene_scripts(project_root) {
+            let path = project_root.join(&rel);
+            let Ok(source) = std::fs::read_to_string(&path) else {
+                found.push(balaur_script_rune::Finding {
+                    file: rel.clone(),
+                    line: 0,
+                    column: 0,
+                    end_line: 0,
+                    end_column: 0,
+                    severity: "error",
+                    message: format!("script {rel} does not exist"),
+                });
+                continue;
+            };
+            found.extend(host.check_source(&rel, &source)?);
+        }
+        Ok(found)
+    })
 }
 
 /// Every script path the project's scene files attach, deduplicated and in a

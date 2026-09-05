@@ -7,22 +7,21 @@
 //! Buttons record clicks into the component (`clicked` in `get_component`,
 //! reset each frame).
 
-use balaur_plugin::Registry;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use anyhow::Result;
-use balaur_core::components::ComponentDef;
-use balaur_core::hecs::Entity;
 use balaur_core::Engine;
-use egui::{pos2, vec2, Align2, Color32, Stroke};
+use balaur_core::hecs::Entity;
+use egui::{Align2, Color32, Stroke, pos2, vec2};
 
 use crate::theme::family;
+use crate::vocabulary::words as w;
 pub(crate) use crate::widget_arrange::drawn_at;
 use crate::widget_arrange::{
-    box_of, contain, hold_to, lay_out, padding_of, record_rect, roll_measurements, scroller,
-    settle_rects, tabs, Axis,
+    Axis, box_of, contain, hold_to, lay_out, padding_of, record_rect, roll_measurements, scroller,
+    settle_rects, tabs,
 };
+pub(crate) use crate::widget_schema::{register_widget_component, register_widget_presets};
 use crate::widget_theme::WidgetTheme;
 
 /// A component colour (`[r, g, b, a]` in 0..=1) as egui's 8-bit one.
@@ -102,6 +101,47 @@ pub struct Widget {
     pub text_align: String,
     /// A project-relative image for an `image` widget.
     pub source: String,
+    /// Whether the text carries inline marks: `[b]`, `[i]`, `[color=#hex]`,
+    /// `[center]`, `[wave]`, `[img=path width=N]`.
+    pub markup: bool,
+    /// Weight on the CSS scale, 100 to 900; 400 is regular, 700 bold.
+    pub font_weight: f32,
+    /// `normal` or `italic`.
+    pub font_style: String,
+    /// What a `field` shows while empty.
+    pub placeholder: String,
+    /// The most characters a `field` takes; 0 is no limit.
+    pub max_length: f32,
+    /// Draw a `field`'s text as dots.
+    pub secret: bool,
+    /// Keep a `field` to digits, a sign and a point.
+    pub numeric: bool,
+    /// Method on this node's script, called with the text after every edit.
+    pub on_change: String,
+    /// Method on this node's script, called with the text on Enter or when
+    /// focus leaves the field.
+    pub on_submit: String,
+    /// Whether a `check` is ticked.
+    pub checked: bool,
+    /// Where a `slider` or `progress` stands, between `min` and `max`.
+    pub value: f32,
+    pub min: f32,
+    pub max: f32,
+    /// The grid a `slider` snaps to; 0 is continuous.
+    pub step: f32,
+    /// What a `dropdown` offers; `text` is the one chosen.
+    pub options: Vec<String>,
+    /// How many children a `grid` puts on each row.
+    pub columns: u32,
+    /// Whether a `fold` shows its children.
+    pub open: bool,
+    /// Left, top, right and bottom margins a `fill` root keeps from its
+    /// surface, in design pixels.
+    pub inset: [f32; 4],
+    /// The nine-patch borders of an `image`, in the picture's own pixels.
+    pub slice: [f32; 4],
+    /// How far a finger drags a `scroll` before it scrolls, in design pixels.
+    pub deadzone: f32,
 }
 
 /// Whether focus can land on this widget.
@@ -110,7 +150,10 @@ pub struct Widget {
 /// widget with nothing to activate is never a stop on the way to one. The
 /// `focusable` flag can only take a candidate out, never put one in.
 fn takes_focus(widget: &Widget) -> bool {
-    widget.visible && widget.focusable && (widget.kind == "button" || !widget.on_click.is_empty())
+    widget.visible
+        && widget.focusable
+        && (matches!(widget.kind.as_str(), w::BUTTON | w::CHECK | w::FOLD)
+            || !widget.on_click.is_empty())
 }
 
 /// Whether this kind lays its widget children out rather than ignoring them.
@@ -118,7 +161,18 @@ fn takes_focus(widget: &Widget) -> bool {
 /// A `panel` counts: it already draws a frame, and a frame with things in it
 /// is what a menu is made of. One with no children behaves exactly as before.
 pub(crate) fn lays_out(kind: &str) -> bool {
-    matches!(kind, "row" | "column" | "panel" | "scroll" | "tab")
+    matches!(
+        kind,
+        w::ROW
+            | w::COLUMN
+            | w::PANEL
+            | w::SCROLL
+            | w::TAB
+            | w::GRID
+            | w::FLOW
+            | w::FOLD
+            | w::DIALOG
+    )
 }
 
 /// Where and whether the widget layer draws. Games leave the default (full
@@ -164,274 +218,6 @@ impl Default for WidgetLayerConfig {
             rect: None,
             layers: HashMap::new(),
         }
-    }
-}
-
-/// The `widget` key, backed by exactly one `Widget` component on the node.
-///
-/// `clicked` is declared `readonly`: [`crate::widget_input`] writes it every
-/// tick and `apply` always clears it, but it is in the schema so that `get`'s
-/// output round-trips and the inspector can see it.
-pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        "widget",
-        ComponentDef {
-            doc: "A HUD element the widget layer draws every frame: a label, button or panel \
-                  anchored to a screen corner or the center, offset in design pixels. A button \
-                  records its click in `clicked` and calls the node's `on_click` method.",
-            schema: ComponentDef::parse_schema(
-                "widget",
-                r#"kind = { type = "enum", default = "label", options = ["label", "button", "panel", "row", "column", "scroll", "tab", "draw", "image"], description = "The HUD element the widget layer draws" }
-text = { type = "string", default = "label", description = "Label or button caption" }
-visible = { type = "bool", default = true, description = "Draw the widget; hidden widgets keep their state" }
-anchor = { type = "enum", default = "top_left", options = ["top_left", "top_right", "bottom_left", "bottom_right", "center"], description = "Screen corner or center the offset is measured from" }
-x = { type = "float", default = 16.0, description = "Horizontal offset from the anchor, in design pixels" }
-y = { type = "float", default = 16.0, description = "Vertical offset from the anchor, in design pixels" }
-width = { type = "float", default = 0.0, min = 0.0, description = "Panel width in design pixels; 0 sizes to content" }
-height = { type = "float", default = 0.0, min = 0.0, description = "Panel height in design pixels; 0 sizes to content" }
-font_size = { type = "float", default = 16.0, min = 6.0, description = "Text size in design pixels" }
-text_color = { type = "color", default = [0.933, 0.945, 0.957, 1.0], description = "Text color" }
-padding = { type = "float", default = 0.0, min = 0.0, description = "Space inside a container's edge, in design pixels" }
-gap = { type = "float", default = 8.0, min = 0.0, description = "Space between a container's children, in design pixels" }
-align = { type = "enum", default = "start", options = ["start", "center", "end"], description = "Where a container puts its children across its own direction" }
-focusable = { type = "bool", default = true, description = "Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be" }
-on_focus = { type = "string", default = "", description = "Script method called on this node when focus arrives" }
-theme = { type = "asset", asset = "widget_theme", default = "", description = "How this widget and everything under it is drawn; inherited from the nearest ancestor that names one" }
-text_key = { type = "string", default = "", description = "A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once" }
-on_click = { type = "string", default = "", description = "Script method called on this node when the button is clicked" }
-clicked = { type = "bool", default = false, readonly = true, description = "True on the frame the button was clicked" }
-grow = { type = "float", default = 0.0, min = 0.0, description = "Share of the leftover space a container hands out along its own direction; 0 takes only what this widget asks for" }
-min_width = { type = "float", default = 0.0, min = 0.0, description = "Smallest width a container may give this widget, in design pixels" }
-min_height = { type = "float", default = 0.0, min = 0.0, description = "Smallest height a container may give this widget, in design pixels" }
-draw = { type = "string", default = "", description = "What fills a `draw` widget: a script method on this node or the nearest scripted ancestor, or `scripts/file.rn:function` for a free function" }
-handle = { type = "float", default = 0.0, min = 0.0, description = "How wide a grab the seams between this container's children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one" }
-active = { type = "string", default = "", description = "Which child a `tab` shows, by node name; empty shows the first" }
-layer = { type = "string", default = "", description = "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface" }
-wrap = { type = "bool", default = false, description = "Break text to the width the widget was given instead of running past it on one line" }
-text_align = { type = "enum", default = "start", options = ["start", "center", "end"], description = "Where text sits in the width the widget was given" }
-source = { type = "string", default = "", description = "The project-relative image an `image` widget draws" }"#,
-            ),
-            tags: &["ui"],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                eng.world_mut()
-                    .insert_one(entity, widget_from(params))
-                    .map_err(|_| anyhow::anyhow!("node is dead"))
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Widget>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let widget = world.get::<&Widget>(entity).ok()?;
-                Some(widget_to_toml(&widget))
-            }),
-        },
-    );
-}
-
-/// A `Widget` back as the property table the inspector and a script read.
-fn widget_to_toml(widget: &Widget) -> toml::Value {
-    let mut map = toml::map::Map::new();
-    map.insert("kind".into(), toml::Value::String(widget.kind.clone()));
-    map.insert("text".into(), toml::Value::String(widget.text.clone()));
-    map.insert("visible".into(), toml::Value::Boolean(widget.visible));
-    map.insert("anchor".into(), toml::Value::String(widget.anchor.clone()));
-    map.insert("x".into(), toml::Value::Float(f64::from(widget.x)));
-    map.insert("y".into(), toml::Value::Float(f64::from(widget.y)));
-    map.insert("width".into(), toml::Value::Float(f64::from(widget.width)));
-    map.insert(
-        "height".into(),
-        toml::Value::Float(f64::from(widget.height)),
-    );
-    map.insert(
-        "font_size".into(),
-        toml::Value::Float(f64::from(widget.font_size)),
-    );
-    map.insert(
-        "text_color".into(),
-        toml::Value::Array(
-            widget
-                .text_color
-                .iter()
-                .map(|c| toml::Value::Float(f64::from(*c)))
-                .collect(),
-        ),
-    );
-    map.insert("clicked".into(), toml::Value::Boolean(widget.clicked));
-    map.insert(
-        "on_click".into(),
-        toml::Value::String(widget.on_click.clone()),
-    );
-    map.insert(
-        "padding".into(),
-        toml::Value::Float(f64::from(widget.padding)),
-    );
-    map.insert("gap".into(), toml::Value::Float(f64::from(widget.gap)));
-    map.insert("align".into(), toml::Value::String(widget.align.clone()));
-    map.insert("focusable".into(), toml::Value::Boolean(widget.focusable));
-    map.insert(
-        "on_focus".into(),
-        toml::Value::String(widget.on_focus.clone()),
-    );
-    map.insert("theme".into(), toml::Value::String(widget.theme.clone()));
-    map.insert(
-        "text_key".into(),
-        toml::Value::String(widget.text_key.clone()),
-    );
-    map.insert("grow".into(), toml::Value::Float(f64::from(widget.grow)));
-    map.insert(
-        "min_width".into(),
-        toml::Value::Float(f64::from(widget.min_width)),
-    );
-    map.insert(
-        "min_height".into(),
-        toml::Value::Float(f64::from(widget.min_height)),
-    );
-    map.insert("draw".into(), toml::Value::String(widget.draw.clone()));
-    map.insert(
-        "handle".into(),
-        toml::Value::Float(f64::from(widget.handle)),
-    );
-    map.insert("active".into(), toml::Value::String(widget.active.clone()));
-    map.insert("layer".into(), toml::Value::String(widget.layer.clone()));
-    map.insert("wrap".into(), toml::Value::Boolean(widget.wrap));
-    map.insert(
-        "text_align".into(),
-        toml::Value::String(widget.text_align.clone()),
-    );
-    map.insert("source".into(), toml::Value::String(widget.source.clone()));
-    toml::Value::Table(map)
-}
-
-/// The widget kinds as recipes, so the picker offers "Column" rather than
-/// "a `widget`, then set `kind`".
-///
-/// Presets, not node types: balaur has no classes, and one for UI alone would
-/// be a second model of what a node is (`balaur_core::presets`).
-pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
-    use balaur_core::presets::preset;
-    let recipes = [
-        ("label", "A line of text", "kind = \"label\""),
-        (
-            "button",
-            "Text that reports its clicks",
-            "kind = \"button\"",
-        ),
-        (
-            "panel",
-            "A framed box that lays out what is inside it",
-            "kind = \"panel\"",
-        ),
-        (
-            "row",
-            "Children side by side, sharing the leftover by `grow`",
-            "kind = \"row\"",
-        ),
-        (
-            "column",
-            "Children stacked, sharing the leftover by `grow`",
-            "kind = \"column\"",
-        ),
-        (
-            "scroll",
-            "A box that holds its size and clips what runs past it",
-            "kind = \"scroll\"",
-        ),
-        (
-            "tab",
-            "One child showing, the rest named on a strip above it",
-            "kind = \"tab\"",
-        ),
-        (
-            "draw",
-            "A rect a script fills, named by `draw`",
-            "kind = \"draw\"",
-        ),
-        (
-            "image",
-            "A picture from the project, sized by itself or by what it states",
-            "kind = \"image\"",
-        ),
-    ];
-    for (name, description, params) in recipes {
-        reg.register_preset(
-            name,
-            preset(description, &["ui"], &[("widget", Some(params))])?,
-        );
-    }
-    Ok(())
-}
-
-/// A `Widget` built from a full property table (defaults already merged).
-fn widget_from(params: &toml::Value) -> Widget {
-    let s = |key: &str, default: &str| {
-        params
-            .get(key)
-            .and_then(|v| v.as_str())
-            .unwrap_or(default)
-            .to_string()
-    };
-    let f = |key: &str, default: f64| {
-        params
-            .get(key)
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(default) as f32
-    };
-    // Hex strings were expanded to floats by `merge_defaults`.
-    let channel = |i: usize, default: f64| {
-        params
-            .get("text_color")
-            .and_then(|v| v.as_array())
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(default) as f32
-    };
-    Widget {
-        kind: s("kind", "label"),
-        text: s("text", "label"),
-        visible: params
-            .get("visible")
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(true),
-        anchor: s("anchor", "top_left"),
-        x: f("x", 16.0),
-        y: f("y", 16.0),
-        width: f("width", 0.0),
-        height: f("height", 0.0),
-        font_size: f("font_size", 16.0),
-        text_color: [
-            channel(0, 0.933),
-            channel(1, 0.945),
-            channel(2, 0.957),
-            channel(3, 1.0),
-        ],
-        on_click: s("on_click", ""),
-        clicked: false,
-        padding: f("padding", 0.0),
-        gap: f("gap", 8.0),
-        align: s("align", "start"),
-        focusable: params
-            .get("focusable")
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(true),
-        on_focus: s("on_focus", ""),
-        theme: s("theme", ""),
-        text_key: s("text_key", ""),
-        grow: f("grow", 0.0),
-        min_width: f("min_width", 0.0),
-        min_height: f("min_height", 0.0),
-        draw: s("draw", ""),
-        handle: f("handle", 0.0),
-        active: s("active", ""),
-        layer: s("layer", ""),
-        wrap: params
-            .get("wrap")
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(false),
-        text_align: s("text_align", "start"),
-        source: s("source", ""),
     }
 }
 
@@ -607,20 +393,53 @@ fn root_placement(widget: &Widget, area: egui::Rect, scale: f32) -> (egui::Pos2,
     let ox = widget.x * scale;
     let oy = widget.y * scale;
     let pos = match widget.anchor.as_str() {
-        "top_right" => pos2(area.max.x - ox, area.min.y + oy),
-        "bottom_left" => pos2(area.min.x + ox, area.max.y - oy),
-        "bottom_right" => pos2(area.max.x - ox, area.max.y - oy),
-        "center" => pos2(area.center().x + ox, area.center().y + oy),
+        w::TOP_RIGHT => pos2(area.max.x - ox, area.min.y + oy),
+        w::BOTTOM_LEFT => pos2(area.min.x + ox, area.max.y - oy),
+        w::BOTTOM_RIGHT => pos2(area.max.x - ox, area.max.y - oy),
+        w::CENTER => pos2(area.center().x + ox, area.center().y + oy),
         _ => pos2(area.min.x + ox, area.min.y + oy),
     };
     let align = match widget.anchor.as_str() {
-        "top_right" => Align2::RIGHT_TOP,
-        "bottom_left" => Align2::LEFT_BOTTOM,
-        "bottom_right" => Align2::RIGHT_BOTTOM,
-        "center" => Align2::CENTER_CENTER,
+        w::TOP_RIGHT => Align2::RIGHT_TOP,
+        w::BOTTOM_LEFT => Align2::LEFT_BOTTOM,
+        w::BOTTOM_RIGHT => Align2::RIGHT_BOTTOM,
+        w::CENTER => Align2::CENTER_CENTER,
         _ => Align2::LEFT_TOP,
     };
     (pos, align)
+}
+
+/// Where a root goes and what box it is handed: `fill` takes the surface
+/// less its insets so a container at the root fills the screen, a dialog
+/// sits in the middle over the dimmed screen, the rest anchor as before.
+fn root_frame(
+    widget: &Widget,
+    area: egui::Rect,
+    scale: f32,
+) -> (egui::Pos2, Align2, egui::Vec2, egui::Order) {
+    if widget.anchor == w::FILL {
+        let inset = widget.inset.map(|v| v * scale);
+        let rect = egui::Rect::from_min_max(
+            area.min + vec2(inset[0], inset[1]),
+            area.max - vec2(inset[2], inset[3]),
+        );
+        return (
+            rect.min,
+            Align2::LEFT_TOP,
+            rect.size().max(egui::Vec2::ZERO),
+            egui::Order::Middle,
+        );
+    }
+    if widget.kind == w::DIALOG {
+        return (
+            area.center(),
+            Align2::CENTER_CENTER,
+            egui::Vec2::ZERO,
+            egui::Order::Foreground,
+        );
+    }
+    let (pos, align) = root_placement(widget, area, scale);
+    (pos, align, egui::Vec2::ZERO, egui::Order::Middle)
 }
 
 /// Draw every widget entity. Runs inside the frame's egui pass, after the
@@ -698,15 +517,32 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context, scale: f32) {
             }
             None => screen,
         };
-        let (pos, align) = root_placement(widget, area, scale);
-        let shown = egui::Area::new(egui::Id::new(("balaur-widget", placed[root].entity)))
-            .order(egui::Order::Middle)
+        let entity = placed[root].entity;
+        if widget.kind == w::DIALOG {
+            crate::widget_kinds::dialog_backdrop(ctx, entity, area);
+        }
+        let (pos, align, assigned, order) = root_frame(widget, area, scale);
+        painting.assigned = assigned;
+        let shown = egui::Area::new(egui::Id::new(("balaur-widget", entity)))
+            .order(order)
             .pivot(align)
             .fixed_pos(pos)
-            .show(ctx, |ui| draw_one(ui, &mut painting, root));
-        // A root is placed by nobody, so it records its own rect: a script
-        // asking `ui.widget_rect` should get an answer for the whole tree.
-        record_rect(placed[root].entity, shown.response.rect);
+            // A widget appears when the scene says so, at the alpha its own
+            // theme sets; egui's fade would override both.
+            .fade_in(false)
+            .show(ctx, |ui| {
+                if assigned != egui::Vec2::ZERO {
+                    ui.set_max_size(assigned);
+                }
+                draw_one(ui, &mut painting, root);
+            });
+        painting.assigned = egui::Vec2::ZERO;
+        // A root is placed by nobody, so it records its own rect, from egui's
+        // memory: the response's rect can lag it by a frame.
+        let drawn = ctx
+            .memory(|m| m.area_rect(egui::Id::new(("balaur-widget", entity))))
+            .unwrap_or(shown.response.rect);
+        record_rect(entity, drawn);
     }
     // Published at the end of the draw, not the start of the next one: a
     // script's `draw_ui` runs after this and reads this frame's rects.
@@ -751,6 +587,16 @@ pub(crate) enum Edit {
     Width(f32),
     Height(f32),
     Active(String),
+    /// A field's text as typed so far.
+    Text(String),
+    /// A field's text when Enter was pressed or focus left it.
+    Submit(String),
+    /// A slider's number.
+    Value(f32),
+    /// A fold shown or hidden.
+    Open(bool),
+    /// A dropdown's pick.
+    Choice(String),
 }
 
 /// The theme in force for a widget: its own, or the nearest ancestor's.
@@ -817,56 +663,37 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let widget = &placed.widget;
     let caption = caption(at.eng, widget);
-    let style = at.theme.style(&widget.kind);
-    let (scale, focused) = (at.scale, at.focused);
+    let scale = at.scale;
     let color = rgba_color(widget.text_color);
-    let font = egui::FontId::new(widget.font_size * scale, family("ui"));
+    let font = egui::FontId::new(widget.font_size * scale, family(w::UI));
     match widget.kind.as_str() {
-        "button" => {
-            // Without a theme a button is as round as its text is tall,
-            // which is the pill the layer has always drawn.
-            let radius = egui::CornerRadius::same(
-                (style.radius.unwrap_or(widget.font_size) * scale).min(120.0) as u8,
-            );
-            let mut button =
-                egui::Button::new(egui::RichText::new(&caption).font(font).color(color))
-                    .corner_radius(radius)
-                    .stroke(Stroke::new(
-                        style.stroke_width,
-                        style.stroke.unwrap_or(color),
-                    ))
-                    .min_size(vec2(widget.width, widget.height) * scale);
-            if let Some(fill) = style.fill {
-                button = button.fill(fill);
-            }
-            let response = ui.add(button);
-            if response.clicked() {
-                at.clicked.push(placed.entity);
-            }
-            if focused == Some(placed.entity) {
-                // Drawn rather than egui's own focus ring: the ring follows
-                // egui's keyboard focus, and this follows the scene's.
-                ui.painter().rect_stroke(
-                    response.rect.expand(2.0),
-                    radius,
-                    Stroke::new(2.0, style.stroke.unwrap_or(color)),
-                    egui::StrokeKind::Outside,
-                );
-            }
-        }
-        "panel" => panel(ui, at, index, &caption, &font, color),
+        w::BUTTON => button(ui, at, index, &caption, &font, color),
+        // A line the player types into. The text lives on the widget; the
+        // draw only reports what was typed, and the next tick writes it.
+        w::FIELD => crate::widget_text::field(ui, at, index, &font, color),
+        // A dialog is a panel drawn over a dimmed screen; the dimming is the
+        // root draw's, so here it is the panel.
+        w::PANEL | w::DIALOG => panel(ui, at, index, &caption, &font, color),
+        w::CHECK => crate::widget_kinds::check(ui, at, index, &caption, &font, color),
+        w::DROPDOWN => crate::widget_kinds::dropdown(ui, at, index, &font, color),
+        w::SLIDER => crate::widget_kinds::slider(ui, at, index),
+        w::PROGRESS => crate::widget_kinds::progress(ui, at, index, &caption, &font, color),
+        w::SEPARATOR => crate::widget_kinds::separator(ui, at, index),
+        w::GRID => crate::widget_kinds::grid(ui, at, index),
+        w::FLOW => crate::widget_kinds::flow(ui, at, index),
+        w::FOLD => crate::widget_kinds::fold(ui, at, index, &caption, &font, color),
         // A picture from the project, sized by what it states or by itself.
-        "image" => image(ui, at, index),
-        "row" => contain(ui, at, index, Axis::Row),
-        "column" => contain(ui, at, index, Axis::Column),
+        w::IMAGE => image(ui, at, index),
+        w::ROW => contain(ui, at, index, Axis::Row),
+        w::COLUMN => contain(ui, at, index, Axis::Column),
         // A box that clips, with its children free to run past it.
-        "scroll" => scroller(ui, at, index),
+        w::SCROLL => scroller(ui, at, index),
         // One child at a time, with a strip of the rest above it. The strip is
         // drawn here rather than authored, so adding a page is adding a node.
-        "tab" => tabs(ui, at, index),
+        w::TAB => tabs(ui, at, index),
         // The rect a script fills. The node owns the placement, the script
         // owns everything inside it, and neither has to know the other.
-        "draw" => {
+        w::DRAW => {
             if widget.draw.is_empty() {
                 return;
             }
@@ -899,25 +726,105 @@ fn draw_themed(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             ));
         }
         _ => {
-            let mut label = egui::Label::new(egui::RichText::new(&caption).font(font).color(color));
-            // `extend` is the old behaviour: one line, however wide it runs.
-            label = if widget.wrap {
-                label.wrap()
-            } else {
-                label.extend()
-            };
-            ui.with_layout(egui::Layout::top_down(across(&widget.text_align)), |ui| {
-                ui.add(label);
-            });
+            if !crate::widget_text::shaped_label(ui, at, widget, &caption, color) {
+                let mut label =
+                    egui::Label::new(egui::RichText::new(&caption).font(font).color(color));
+                // `extend` is the old behaviour: one line, however wide it runs.
+                label = if widget.wrap {
+                    label.wrap()
+                } else {
+                    label.extend()
+                };
+                ui.with_layout(egui::Layout::top_down(across(&widget.text_align)), |ui| {
+                    ui.add(label);
+                });
+            }
         }
+    }
+}
+
+/// A pill that reports its click.
+fn button(
+    ui: &mut egui::Ui,
+    at: &mut Painting<'_>,
+    index: usize,
+    caption: &str,
+    font: &egui::FontId,
+    color: egui::Color32,
+) {
+    let placed = &at.arena[index];
+    let widget = &placed.widget;
+    let style = at.theme.style(&widget.kind);
+    let (scale, focused) = (at.scale, at.focused);
+    // Without a theme a button is as round as its text is tall,
+    // which is the pill the layer has always drawn.
+    let radius = egui::CornerRadius::same(
+        (style.radius.unwrap_or(widget.font_size) * scale).min(120.0) as u8,
+    );
+    // The caption is shaped and painted over an empty button, so a button
+    // says in Arabic what it says in English.
+    let shaped = crate::widget_text::shaped_caption(ui, at, widget, caption);
+    let mut button = match &shaped {
+        Some((shaped, _)) => egui::Button::new("").min_size(
+            (shaped.size + 2.0 * ui.spacing().button_padding)
+                .max(vec2(widget.width, widget.height) * scale),
+        ),
+        None => egui::Button::new(egui::RichText::new(caption).font(font.clone()).color(color))
+            .min_size(vec2(widget.width, widget.height) * scale),
+    }
+    .corner_radius(radius)
+    .stroke(Stroke::new(
+        style.stroke_width,
+        style.stroke.unwrap_or(color),
+    ));
+    if let Some(fill) = style.fill {
+        button = button.fill(fill);
+    }
+    // A themed picture goes under the button, which then paints nothing of
+    // its own; the plate is reserved first so the picture sits below the text.
+    let plate = style
+        .image
+        .as_ref()
+        .map(|_| ui.painter().add(egui::Shape::Noop));
+    if plate.is_some() {
+        button = button.fill(Color32::TRANSPARENT).stroke(Stroke::NONE);
+    }
+    let response = ui.add(button);
+    if let (Some(plate), Some(path)) = (plate, style.image.as_ref()) {
+        crate::widget_kinds::nine_patch_plate(
+            ui,
+            at.eng,
+            plate,
+            path,
+            style.slice,
+            response.rect,
+            scale,
+        );
+    }
+    if let Some((shaped, texture)) = &shaped {
+        let origin = response.rect.center() - shaped.size / 2.0;
+        crate::text::paint(ui.painter(), *texture, shaped, origin, color, at.eng.time());
+    }
+    if response.clicked() {
+        at.clicked.push(placed.entity);
+    }
+    if focused == Some(placed.entity) {
+        // Drawn rather than egui's own focus ring: the ring follows
+        // egui's keyboard focus, and this follows the scene's.
+        ui.painter().rect_stroke(
+            response.rect.expand(2.0),
+            radius,
+            Stroke::new(2.0, style.stroke.unwrap_or(color)),
+            egui::StrokeKind::Outside,
+        );
     }
 }
 
 /// Where text sits in the width the widget was given.
 pub(crate) fn across(align: &str) -> egui::Align {
     match align {
-        "center" => egui::Align::Center,
-        "end" => egui::Align::Max,
+        w::CENTER => egui::Align::Center,
+        w::END => egui::Align::Max,
         _ => egui::Align::Min,
     }
 }
@@ -969,18 +876,30 @@ fn panel(
     lay_out(&mut inner, at, index, Axis::Column);
     at.bounds = held;
     let background = inner.min_rect().expand(pad);
-    ui.painter().set(
-        plate,
-        egui::epaint::RectShape::new(
+    if let Some(path) = style.image.as_ref() {
+        crate::widget_kinds::nine_patch_plate(
+            ui,
+            at.eng,
+            plate,
+            path,
+            style.slice,
             background,
-            egui::CornerRadius::same(style.radius.map_or(8.0, |r| r * scale) as u8),
-            style.fill.unwrap_or(Color32::from_black_alpha(96)),
-            style
-                .stroke
-                .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_width, c)),
-            egui::StrokeKind::Inside,
-        ),
-    );
+            scale,
+        );
+    } else {
+        ui.painter().set(
+            plate,
+            egui::epaint::RectShape::new(
+                background,
+                egui::CornerRadius::same(style.radius.map_or(8.0, |r| r * scale) as u8),
+                style.fill.unwrap_or(Color32::from_black_alpha(96)),
+                style
+                    .stroke
+                    .map_or(Stroke::NONE, |c| Stroke::new(style.stroke_width, c)),
+                egui::StrokeKind::Inside,
+            ),
+        );
+    }
     ui.advance_cursor_after_rect(background);
 }
 
@@ -994,11 +913,22 @@ fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let ctx = ui.ctx().clone();
     match crate::widgets::texture_of(at.eng, &ctx, &widget.source) {
         Ok(texture) => {
-            let size = image_size(
-                vec2(widget.width, widget.height) * at.scale,
-                texture.size_vec2(),
-            );
-            ui.add(egui::Image::new((texture.id(), size)));
+            let size = image_size(box_of(widget, at.assigned, at.scale), texture.size_vec2());
+            if widget.slice.iter().any(|v| *v > 0.0) {
+                // The borders stay the picture's own size; only the middle
+                // stretches to the box.
+                let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+                let shapes = crate::widget_kinds::nine_patch(
+                    texture.id(),
+                    texture.size_vec2(),
+                    rect,
+                    widget.slice,
+                    at.scale,
+                );
+                ui.painter().add(egui::Shape::Vec(shapes));
+            } else {
+                ui.add(egui::Image::new((texture.id(), size)));
+            }
         }
         Err(err) => warn_once(&widget.source, &err),
     }

@@ -3,17 +3,10 @@
 
 use balaur_core::components::ComponentRegistry;
 use balaur_core::{App, AppConfig};
-use balaur_ui::{ANCHORS, FONTS, MODIFIERS, WIDGET_KINDS};
+use balaur_ui::{ALIGNS, ANCHORS, FONT_STYLES, FONTS, MODIFIERS, PILL_ALIGNS, WIDGET_KINDS};
 
 fn registered_options(field: &str) -> Vec<String> {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut balaur_ui::UiPlugin::default()).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
     let registry = registry.borrow();
@@ -43,11 +36,23 @@ fn widget_kind_constants_match_the_registered_schema() {
 }
 
 #[test]
+fn align_and_font_style_constants_match_the_registered_schema() {
+    let aligns: Vec<&str> = ALIGNS.iter().map(|(_, v)| *v).collect();
+    assert_eq!(aligns, registered_options("align"));
+    assert_eq!(aligns, registered_options("text_align"));
+    let styles: Vec<&str> = FONT_STYLES.iter().map(|(_, v)| *v).collect();
+    assert_eq!(styles, registered_options("font_style"));
+}
+
+#[test]
 fn every_constant_is_screaming_snake_and_unique() {
     let mut seen = std::collections::BTreeSet::new();
     for (name, value) in ANCHORS
         .iter()
         .chain(WIDGET_KINDS)
+        .chain(ALIGNS)
+        .chain(PILL_ALIGNS)
+        .chain(FONT_STYLES)
         .chain(FONTS)
         .chain(MODIFIERS)
     {

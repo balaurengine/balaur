@@ -883,3 +883,80 @@ fn a_pending_move_from_a_script_is_taken_at_the_next_draw() {
     pass(&app, &ctx, vec![]);
     assert_eq!(focused(&app), Some(buttons[0]));
 }
+
+#[test]
+fn a_label_is_drawn_as_shaped_glyphs_not_egui_text() {
+    let (_dir, app) = app();
+    let params = toml::toml! { kind = "label" text = "Hello" x = 0.0 y = 0.0 };
+    add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    let shown = pass(&app, &ctx, vec![]);
+    let meshes = shown
+        .shapes
+        .iter()
+        .filter(|s| matches!(s.shape, egui::Shape::Mesh(_)))
+        .count();
+    let texts = shown
+        .shapes
+        .iter()
+        .filter(|s| matches!(s.shape, egui::Shape::Text(_)))
+        .count();
+    assert!(meshes >= 1, "the label paints a glyph mesh");
+    assert_eq!(texts, 0, "nothing goes through egui's own text layout");
+}
+
+#[test]
+fn typing_into_a_field_lands_on_its_text_the_next_tick() {
+    let (_dir, mut app) = app();
+    let params = toml::toml! { kind = "field" text = "" x = 0.0 y = 0.0 width = 200.0 };
+    let entity = add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    let target = pos2(20.0, 12.0);
+    pass(&app, &ctx, press(target, true));
+    pass(&app, &ctx, press(target, false));
+    pass(&app, &ctx, vec![egui::Event::Text("hi".into())]);
+    consume_input(&mut app);
+    let text = balaur::components::get(&app.engine, entity, "widget")
+        .unwrap()
+        .get("text")
+        .and_then(toml::Value::as_str)
+        .map(str::to_string);
+    assert_eq!(text.as_deref(), Some("hi"));
+}
+
+#[test]
+fn a_surface_appears_at_full_alpha_rather_than_fading_in() {
+    let (_dir, app) = app();
+    let params = toml::toml! { kind = "button" text = "new" x = 0.0 y = 0.0 };
+    let entity = add_widget(&app, &params.into());
+    let ctx = egui::Context::default();
+    // Fonts bind on the first pass, and a new area is sized invisibly on the
+    // next, so the third is the first that draws.
+    pass(&app, &ctx, vec![]);
+    pass(&app, &ctx, vec![]);
+    let first = format!("{:?}", pass(&app, &ctx, vec![]).shapes);
+    assert!(first.contains("Text"), "control: the button drew no text");
+    let settled = format!("{:?}", pass(&app, &ctx, vec![]).shapes);
+    assert_eq!(
+        first, settled,
+        "the surface's first drawn frame differs from its settled one, which is egui's fade-in"
+    );
+
+    // Hidden, then shown again: egui counts that as a new appearance, and
+    // this is the path a collapsing panel takes.
+    let hide = toml::toml! { visible = false };
+    balaur::components::patch(&app.engine, entity, "widget", &hide.into()).unwrap();
+    pass(&app, &ctx, vec![]);
+    let show = toml::toml! { visible = true };
+    balaur::components::patch(&app.engine, entity, "widget", &show.into()).unwrap();
+    let shown = format!("{:?}", pass(&app, &ctx, vec![]).shapes);
+    assert_eq!(
+        shown, settled,
+        "a surface shown again drew faded rather than at the alpha its theme set"
+    );
+}

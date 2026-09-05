@@ -4,7 +4,7 @@
 //! checkout, then `cargo test -p balaur_gamend -- --ignored`. Device login
 //! creates its own throwaway account, so a fresh dev database is enough.
 
-use balaur_gamend::client::{auth, Client, Credentials, Socket, SocketEvent};
+use balaur_gamend::client::{Client, Credentials, Socket, SocketEvent, auth};
 use serde_json::json;
 
 const SERVER: &str = "http://localhost:4000";
@@ -50,7 +50,6 @@ fn wait_for<T>(
 fn login_me_refresh_and_realtime_against_a_live_server() {
     let mut client = Client::new(SERVER);
 
-    // Unauthenticated health check proves the server is there.
     let health = client.call("GET", "/api/v1/health", None).unwrap();
     assert_eq!(health.status, 200, "is `mix dev.start` running?");
 
@@ -71,12 +70,10 @@ fn login_me_refresh_and_realtime_against_a_live_server() {
     assert_eq!(me.status, 200);
     assert_eq!(me.body["id"], json!(session.user_id));
 
-    // The refresh token trades for a working access token.
     let refreshed = auth::refresh(&client, &session.refresh_token).unwrap();
     assert!(!refreshed.access_token.is_empty());
     assert_eq!(refreshed.user_id, session.user_id);
 
-    // Realtime: connect with the raw access token, join the own-user topic.
     let ws = format!(
         "{}/socket/websocket?token={}&vsn=2.0.0",
         SERVER.replace("http", "ws"),

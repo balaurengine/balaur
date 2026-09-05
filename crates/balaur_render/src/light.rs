@@ -5,15 +5,16 @@
 //! so a test can assert on them without a GPU. The kiss3d backend
 //! (`light_map`) only rasterises what these hand it.
 
-use anyhow::{anyhow, Result};
-use balaur_core::components::{as_f64, ComponentDef};
+use anyhow::{Result, anyhow};
+use balaur_core::components::{ComponentDef, as_f64};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Vec2, Vec3};
 
-use crate::{color_from_params, color_to_toml, Renderable2d, Shape2d};
+use crate::shape::{keys as k, words};
+use crate::{Renderable2d, Shape2d, color_from_params, color_to_toml};
 
 /// Which way a `light2d` throws light.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -182,11 +183,17 @@ fn set_light(eng: &Engine, entity: Entity, next: Light2d) -> Result<()> {
         .map_err(|_| anyhow!("node is dead"))
 }
 
-const LIGHT_SCHEMA: &str = r#"kind = { type = "enum", default = "point", options = ["point", "directional"], description = "A point light fades to nothing at `radius`; a directional one lights the whole view" }
-color = { type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Light colour, as channel floats or #rrggbb / #rrggbbaa" }
-radius = { type = "float", default = 6.0, min = 0.0, description = "How far a point light reaches, in world units" }
-intensity = { type = "float", default = 1.0, min = 0.0, description = "Brightness multiplier; over 1 blows past white" }
-shadows = { type = "bool", default = true, description = "Whether `occluder2d` outlines cast shadows from this light" }"#;
+fn light_schema() -> String {
+    let kinds = crate::shape::options(words::LIGHT_KINDS);
+    let default = words::POINT;
+    format!(
+        r#"kind = {{ type = "enum", default = "{default}", options = [{kinds}], description = "A point light fades to nothing at `radius`; a directional one lights the whole view" }}
+color = {{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Light colour, as channel floats or #rrggbb / #rrggbbaa" }}
+radius = {{ type = "float", default = 6.0, min = 0.0, description = "How far a point light reaches, in world units" }}
+intensity = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness multiplier; over 1 blows past white" }}
+shadows = {{ type = "bool", default = true, description = "Whether `occluder2d` outlines cast shadows from this light" }}"#
+    )
+}
 
 /// The `light2d` component. The node's position places it and its rotation
 /// aims it; the light map pass in the backend draws it.
@@ -195,13 +202,17 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
         "light2d",
         ComponentDef {
             doc: "A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it — sprites, polygons, tiles, a 3D scene behind them — is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.",
-            schema: ComponentDef::parse_schema("light2d", LIGHT_SCHEMA),
-            tags: &["2d", "render"],
+            schema: ComponentDef::parse_schema("light2d", &light_schema()),
+            tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let kind = match params.get("kind").and_then(|v| v.as_str()).unwrap_or("point") {
-                    "point" => LightKind2d::Point,
-                    "directional" => LightKind2d::Directional,
+                let kind = match params
+                    .get(k::KIND)
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(words::POINT)
+                {
+                    words::POINT => LightKind2d::Point,
+                    words::DIRECTIONAL => LightKind2d::Directional,
                     other => return Err(anyhow!("unknown light2d kind '{other}'")),
                 };
                 let num = |key: &str, default: f64| {
@@ -213,8 +224,8 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
                     Light2d {
                         kind,
                         color: color_from_params(params),
-                        radius: num("radius", 6.0).max(0.0),
-                        intensity: num("intensity", 1.0).max(0.0),
+                        radius: num(k::RADIUS, 6.0).max(0.0),
+                        intensity: num(k::INTENSITY, 1.0).max(0.0),
                         shadows: params
                             .get("shadows")
                             .and_then(toml::Value::as_bool)
@@ -230,15 +241,15 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
                 let world = eng.world();
                 let light = world.get::<&Light2d>(entity).ok()?;
                 let kind = match light.kind {
-                    LightKind2d::Point => "point",
-                    LightKind2d::Directional => "directional",
+                    LightKind2d::Point => words::POINT,
+                    LightKind2d::Directional => words::DIRECTIONAL,
                 };
                 let mut map = toml::map::Map::new();
-                map.insert("kind".into(), toml::Value::String(kind.into()));
-                map.insert("color".into(), color_to_toml(light.color));
-                map.insert("radius".into(), toml::Value::Float(f64::from(light.radius)));
+                map.insert(k::KIND.into(), toml::Value::String(kind.into()));
+                map.insert(k::COLOR.into(), color_to_toml(light.color));
+                map.insert(k::RADIUS.into(), toml::Value::Float(f64::from(light.radius)));
                 map.insert(
-                    "intensity".into(),
+                    k::INTENSITY.into(),
                     toml::Value::Float(f64::from(light.intensity)),
                 );
                 map.insert("shadows".into(), toml::Value::Boolean(light.shadows));
@@ -248,8 +259,21 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
     );
 }
 
-const OCCLUDER_SCHEMA: &str = r#"mesh = { type = "asset", asset = "mesh", default = "", description = "Outline points in order, [x, y] in the node's space; empty derives the outline from the node's `collider2d`, then from its 2D shape" }
-closed = { type = "bool", default = true, description = "Whether the last point joins the first, making the outline a loop" }"#;
+fn occluder_schema() -> String {
+    balaur_core::components::ComponentDef::schema(&[
+        (
+            k::MESH,
+            &format!(
+                r#"{{ type = "asset", asset = "{}", default = "", description = "Outline points in order, [x, y] in the node's space; empty derives the outline from the node's `collider2d`, then from its 2D shape" }}"#,
+                balaur_core::mesh::MESH_ASSET_TYPE
+            ),
+        ),
+        (
+            k::CLOSED,
+            r#"{ type = "bool", default = true, description = "Whether the last point joins the first, making the outline a loop" }"#,
+        ),
+    ])
+}
 
 /// The `occluder2d` component. An outline with no `mesh` is derived every
 /// tick by [`resolve_occluders_system`], so a collider added after the
@@ -259,8 +283,8 @@ pub(crate) fn register_occluder2d_component(reg: &mut Registry<'_>) {
         "occluder2d",
         ComponentDef {
             doc: "The outline this node blocks 2D light with. Left empty it follows the node's `collider2d`, or failing that its circle, capsule, rect or sprite shape, so the thing a player sees is the thing that casts the shadow. Every edge casts, so an occluder stands in its own shadow: a node that should stay lit wants a smaller outline or a light with `shadows = false`.",
-            schema: ComponentDef::parse_schema("occluder2d", OCCLUDER_SCHEMA),
-            tags: &["2d", "render"],
+            schema: ComponentDef::parse_schema("occluder2d", &occluder_schema()),
+            tags: &[words::ORTHOGRAPHIC, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
                 let mesh = params
@@ -269,7 +293,7 @@ pub(crate) fn register_occluder2d_component(reg: &mut Registry<'_>) {
                     .unwrap_or_default()
                     .to_string();
                 let closed = params
-                    .get("closed")
+                    .get(k::CLOSED)
                     .and_then(toml::Value::as_bool)
                     .unwrap_or(true);
                 let points = if mesh.is_empty() {
@@ -300,7 +324,7 @@ pub(crate) fn register_occluder2d_component(reg: &mut Registry<'_>) {
                 let occluder = world.get::<&Occluder2d>(entity).ok()?;
                 let mut map = toml::map::Map::new();
                 map.insert("mesh".into(), toml::Value::String(occluder.mesh.clone()));
-                map.insert("closed".into(), toml::Value::Boolean(occluder.closed));
+                map.insert(k::CLOSED.into(), toml::Value::Boolean(occluder.closed));
                 Some(toml::Value::Table(map))
             }),
         },
@@ -355,10 +379,10 @@ pub(crate) fn resolve_occluders_system(eng: &Engine, _dt: f32) {
         .collect();
     let world = eng.world_mut();
     for (entity, points) in resolved {
-        if let Ok(mut occluder) = world.get::<&mut Occluder2d>(entity) {
-            if occluder.points != points {
-                occluder.points = points;
-            }
+        if let Ok(mut occluder) = world.get::<&mut Occluder2d>(entity)
+            && occluder.points != points
+        {
+            occluder.points = points;
         }
     }
 }
@@ -391,15 +415,15 @@ fn collider_outline(eng: &Engine, entity: Entity) -> Option<Vec<Vec2>> {
         };
         Vec2::new(axis(0), axis(1))
     };
-    match params.get("kind").and_then(toml::Value::as_str)? {
-        "circle" => Some(circle_outline(num("radius", 0.5))),
-        "rect" => {
-            let he = point("half_extents");
+    match params.get(k::KIND).and_then(toml::Value::as_str)? {
+        words::CIRCLE => Some(circle_outline(num(k::RADIUS, 0.5))),
+        words::RECT => {
+            let he = point(k::HALF_EXTENTS);
             Some(rect_outline(he.x, he.y))
         }
-        "capsule" => Some(capsule_outline(num("radius", 0.5), num("height", 1.0))),
-        "triangle" => Some(vec![point("a"), point("b"), point("c")]),
-        "segment" => Some(vec![point("a"), point("b")]),
+        words::CAPSULE => Some(capsule_outline(num(k::RADIUS, 0.5), num(k::HEIGHT, 1.0))),
+        words::TRIANGLE => Some(vec![point(k::A), point(k::B), point(k::C)]),
+        words::SEGMENT => Some(vec![point(k::A), point(k::B)]),
         _ => None,
     }
 }

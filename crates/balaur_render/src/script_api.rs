@@ -5,15 +5,16 @@
 //! scene-file keys; nothing here is called from outside `RenderPlugin::build`.
 
 use anyhow::anyhow;
-use balaur_core::entity_of;
 use balaur_core::Engine;
+use balaur_core::entity_of;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
+use crate::shape::words;
 use crate::{
-    set_color, set_shape2d, set_sprite, AppIconConfig, CameraConfig, CameraConfig2d,
-    CameraInputConfig, ClearColorConfig, DebugLineBuffer, DebugLineBuffer2d, DrawLineArgs,
-    GridConfig, Renderable, Renderable2d, ScreenshotRequest, Shape, Shape2d, SpriteSheet2d,
-    SpriteTexture, ViewportSnapshot, ViewportSnapshot2d, WindowConfig, DEFAULT_PIXELS_PER_UNIT,
+    AppIconConfig, CameraConfig, CameraConfig2d, CameraInputConfig, ClearColorConfig,
+    DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer, DebugLineBuffer2d, DrawLineArgs, GridConfig,
+    Renderable, Renderable2d, ScreenshotRequest, Shape, Shape2d, SpriteSheet2d, SpriteTexture,
+    ViewportSnapshot, ViewportSnapshot2d, WindowConfig, set_color, set_shape2d, set_sprite,
 };
 
 /// The 3D camera: where it looks from, whether it takes the mouse, and the
@@ -155,6 +156,9 @@ pub(crate) fn install_window_api(m: &mut dyn Bindings<Engine>) {
         ("set_fullscreen", &[], "", "Put the window into borderless fullscreen on the current monitor, or back into a window."),
         ("set_cursor_grab", &[], "", "Confine the cursor to the window, for FPS-style mouse look."),
         ("set_cursor_hidden", &[], "", "Hide or show the mouse cursor over the window."),
+        ("set_keep_awake", &[], "(on: bool)", "Keep the screen from dimming while the game runs: a page takes a wake lock, a phone its equivalent, a desktop needs nothing."),
+        ("safe_area", &[], "() -> map", "The display's insets in pixels, `{ left, top, right, bottom }`: what a notch or a home bar covers, read once per frame and recorded. Zero on a desktop."),
+        ("refresh_rate", &[], "() -> float", "Frames per second the display refreshes at, as measured over the last frames; 60 with no window."),
     ]);
     // PNG on the next rendered frame; a run with no renderer says so. Fire
     // and forget — the log line naming the file is the completion signal.
@@ -206,6 +210,26 @@ pub(crate) fn install_window_api(m: &mut dyn Bindings<Engine>) {
         config.cursor_hidden = hidden;
         config.changed = true;
         Ok(())
+    });
+    m.function("set_keep_awake", |eng: &Engine, on: bool| {
+        let config = eng.resource::<WindowConfig>();
+        let mut config = config.borrow_mut();
+        config.keep_awake = on;
+        config.changed = true;
+        Ok(())
+    });
+    m.function("safe_area", |eng: &Engine, ()| {
+        let [left, top, right, bottom] = balaur_core::facts::device(eng).safe_area;
+        let num = |v: f32| balaur_script::Value::Num(f64::from(v));
+        Ok(balaur_script::Value::Map(vec![
+            ("left".into(), num(left)),
+            ("top".into(), num(top)),
+            ("right".into(), num(right)),
+            ("bottom".into(), num(bottom)),
+        ]))
+    });
+    m.function("refresh_rate", |eng: &Engine, ()| {
+        Ok(f64::from(balaur_core::facts::device(eng).refresh_rate))
     });
 }
 
@@ -326,6 +350,7 @@ pub(crate) fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
                     frame: 0,
                     flip_x: false,
                     flip_y: false,
+                    region: None,
                 },
                 None,
                 DEFAULT_PIXELS_PER_UNIT,
@@ -349,6 +374,7 @@ pub(crate) fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
                     frame: 0,
                     flip_x: false,
                     flip_y: false,
+                    region: None,
                 },
                 None,
                 DEFAULT_PIXELS_PER_UNIT,
@@ -460,18 +486,18 @@ fn install_shape_readers(m: &mut dyn Bindings<Engine>) {
         let world = eng.world();
         let result = match world.get::<&Renderable>(entity_of(node)?) {
             Ok(r) => match r.shape {
-                Shape::Ball { radius } => ("ball".to_string(), radius, radius, radius),
-                Shape::Cuboid { hx, hy, hz } => ("cuboid".to_string(), hx, hy, hz),
+                Shape::Ball { radius } => (words::BALL.to_string(), radius, radius, radius),
+                Shape::Cuboid { hx, hy, hz } => (words::CUBOID.to_string(), hx, hy, hz),
                 // Radius, height, radius — the same order the dimensions
                 // occupy in space, so x and z always mean the same thing.
                 Shape::Capsule { radius, height } => {
-                    ("capsule".to_string(), radius, height, radius)
+                    (words::CAPSULE.to_string(), radius, height, radius)
                 }
                 Shape::Cylinder { radius, height } => {
-                    ("cylinder".to_string(), radius, height, radius)
+                    (words::CYLINDER.to_string(), radius, height, radius)
                 }
-                Shape::Cone { radius, height } => ("cone".to_string(), radius, height, radius),
-                Shape::Plane { hx, hz } => ("plane".to_string(), hx, 0.0, hz),
+                Shape::Cone { radius, height } => (words::CONE.to_string(), radius, height, radius),
+                Shape::Plane { hx, hz } => (words::PLANE.to_string(), hx, 0.0, hz),
                 Shape::Mesh => ("mesh".to_string(), 0.0, 0.0, 0.0),
             },
             Err(_) => (String::new(), 0.0, 0.0, 0.0),
@@ -483,11 +509,11 @@ fn install_shape_readers(m: &mut dyn Bindings<Engine>) {
         let world = eng.world();
         let result = match world.get::<&Renderable2d>(entity_of(node)?) {
             Ok(r) => match r.shape {
-                Shape2d::Circle { radius } => ("circle".to_string(), radius, radius),
-                Shape2d::Capsule { radius, height } => ("capsule".to_string(), radius, height),
-                Shape2d::Polyline { width, .. } => ("polyline".to_string(), width, width),
+                Shape2d::Circle { radius } => (words::CIRCLE.to_string(), radius, radius),
+                Shape2d::Capsule { radius, height } => (words::CAPSULE.to_string(), radius, height),
+                Shape2d::Polyline { width, .. } => (words::POLYLINE.to_string(), width, width),
                 Shape2d::Polygon => ("polygon".to_string(), 0.0, 0.0),
-                Shape2d::Rect { hx, hy } => ("rect".to_string(), hx, hy),
+                Shape2d::Rect { hx, hy } => (words::RECT.to_string(), hx, hy),
                 Shape2d::Sprite { hx, hy } => ("sprite".to_string(), hx, hy),
             },
             Err(_) => (String::new(), 0.0, 0.0),

@@ -6,14 +6,7 @@ use balaur_core::replay::{
 use balaur_core::{App, AppConfig, Engine};
 
 fn app() -> App {
-    App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 /// A stand-in for a subsystem that receives something from outside.
@@ -293,8 +286,6 @@ fn a_paused_replay_holds_the_world_still() {
     assert!(app.engine.frozen_root().is_some());
 }
 
-/// Seeking runs many recorded frames in one call, and stops on the tick asked
-/// for rather than running to the end.
 #[test]
 fn seeking_runs_to_the_tick_and_stops() {
     let dir = tempfile::tempdir().unwrap();

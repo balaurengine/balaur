@@ -2,7 +2,7 @@
 //! to, how UVs default from the texture, and what reads back.
 
 use balaur_core::scene;
-use balaur_core::{components, App, AppConfig};
+use balaur_core::{App, AppConfig, components};
 use balaur_render::{PolygonMesh, RenderPlugin, Renderable2d, Shape2d};
 use glamx::Vec2;
 
@@ -16,14 +16,7 @@ fn project() -> tempfile::TempDir {
 }
 
 fn app_in(root: &std::path::Path) -> App {
-    let mut app = App::new(AppConfig {
-        project_root: root.to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(root.to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
     app
 }

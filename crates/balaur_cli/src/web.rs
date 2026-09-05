@@ -6,8 +6,8 @@
 //! and the URL of a `.bpak`. The pack is fetched, decoded and booted exactly
 //! as `boot_pack` boots an embedded one on desktop, on the windowed loop —
 //! spawned rather than blocked on, since a page may never block.
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
 /// Fetch `pack_url` and run it on the canvas with id `canvas_id`. Resolves
@@ -24,6 +24,9 @@ pub async fn start(canvas_id: String, pack_url: String) -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
     balaur::logbuf::capture(tracing::level_filters::LevelFilter::INFO);
     let bytes = fetch_bytes(&pack_url).await?;
+    // The pack's URL names the game on this origin: what an earlier visit
+    // saved under it comes back before the first scene loads.
+    balaur::files::set_default(std::rc::Rc::new(crate::web_fs::StorageFs::open(&pack_url)));
     balaur::boot_pack_on_canvas(&bytes, &canvas_id)
         .await
         .map_err(err)

@@ -4,8 +4,8 @@
 //! the shader file being found, the `Params` struct being read off the linked
 //! output — runs wherever CI does. What a GPU would add is the pipeline.
 
-use balaur_core::{components, scene, App, AppConfig};
-use balaur_render::material::{compile, Material};
+use balaur_core::{App, AppConfig, components, scene};
+use balaur_render::material::{Material, compile};
 use balaur_render::{RenderPlugin, Renderable2d};
 
 const SHADER: &str = r"
@@ -69,14 +69,7 @@ fn project() -> tempfile::TempDir {
 }
 
 fn app(root: &std::path::Path) -> App {
-    let mut app = App::new(AppConfig {
-        project_root: root.to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(root.to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
     app
 }

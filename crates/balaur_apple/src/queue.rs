@@ -8,8 +8,8 @@
 //! thrown away by one that is not. Every one of them carries request 0,
 //! which no call is ever given: `Engine::next_token` starts at 1.
 
-use std::sync::mpsc::Sender;
 use std::sync::Mutex;
+use std::sync::mpsc::Sender;
 
 use balaur_platform::PlatformEvent;
 

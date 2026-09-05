@@ -165,4 +165,17 @@ impl<'a> Registry<'a> {
     pub fn engine(&self) -> &Engine {
         &self.app.engine
     }
+
+    /// The project's files, for a plugin reading its own config out of them.
+    pub fn with_project_files<R>(
+        &self,
+        f: impl FnOnce(&balaur_core::project::ProjectFiles) -> R,
+    ) -> R {
+        let files = self
+            .app
+            .engine
+            .resource::<balaur_core::project::ProjectFiles>();
+        let files = files.borrow();
+        f(&files)
+    }
 }

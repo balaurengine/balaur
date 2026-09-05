@@ -24,12 +24,10 @@ use kiss3d::camera::Camera3d;
 use kiss3d::context::Context;
 use kiss3d::light::LightCollection;
 use kiss3d::resource::vertex_index::VERTEX_INDEX_FORMAT;
-use kiss3d::resource::{
-    multisample_state, GpuData, GpuMesh3d, Material3d, PipelineCache, RenderContext, Texture,
-};
+use kiss3d::resource::{GpuData, GpuMesh3d, Material3d, PipelineCache, RenderContext, Texture};
 use kiss3d::scene::{InstancesBuffer3d, ObjectData3d, SceneNode3d};
 
-use crate::shader_material_3d::{bind_group_layouts, frame_uniforms, uniform_entry, FrameUniforms};
+use crate::shader_material_3d::{FrameUniforms, bind_group_layouts, frame_uniforms, uniform_entry};
 use crate::shaders;
 
 /// The most bones one mesh may name. 128 `mat4` is 8 KB, which keeps the
@@ -223,47 +221,17 @@ fn vertex_layouts() -> [Option<wgpu::VertexBufferLayout<'static>>; 5] {
 
 fn build_pipeline(layout: wgpu::PipelineLayout, shader: wgpu::ShaderModule) -> PipelineCache {
     PipelineCache::new(move |sample_count| {
-        let layouts = vertex_layouts();
-        Context::get().create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("skinned3d_pipeline"),
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &layouts,
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: Context::render_format(),
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                // A rig can turn a triangle inside out; culling would drop it.
-                cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: Context::depth_format(),
-                depth_write_enabled: Some(true),
-                depth_compare: Some(wgpu::CompareFunction::Less),
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: multisample_state(sample_count),
-            multiview_mask: None,
-            cache: None,
-        })
+        // No culling: a rig can turn a triangle inside out, and culling
+        // would drop it.
+        crate::pipeline::material_pipeline(
+            "skinned3d_pipeline",
+            &layout,
+            &shader,
+            &vertex_layouts(),
+            None,
+            &crate::pipeline::Depth::Tested,
+            sample_count,
+        )
     })
 }
 

@@ -2,7 +2,7 @@
 
 mod component;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_script::{CallbackId, Value as Neutral};
 use rune::alloc::clone::TryClone as _;
 
@@ -68,35 +68,45 @@ pub(crate) fn install(
         let call = declared.call;
         let engine = engine.clone();
         let handle = crate::bindings::hold_node_fn(engine, call);
-        m.raw_function(declared.name, crate::bindings::node_handler(handle))
-            .build_associated::<Node>()?;
+        m.raw_function(
+            declared.name,
+            crate::bindings::bound_handler(handle, "node method was registered on another thread"),
+        )
+        .build_associated::<Node>()?;
     }
     component::install(m, engine)?;
     Ok(())
 }
 
 /// Rune value -> neutral. A function becomes a call-scoped callback.
+///
+/// Tested in the order a binding call sees them — the node receiver, then
+/// strings and numbers — and through the accessors that only inspect the
+/// representation, so a mismatch costs a compare and never a clone.
 pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
     use rune::runtime::Object;
-    if let Ok(b) = rune::from_value::<bool>(v.clone()) {
-        return Ok(Neutral::Bool(b));
-    }
-    if let Ok(i) = rune::from_value::<i64>(v.clone()) {
-        return Ok(Neutral::Int(i));
-    }
-    if let Ok(f) = rune::from_value::<f64>(v.clone()) {
-        return Ok(Neutral::Num(f));
-    }
-    if let Ok(s) = v.borrow_string_ref() {
-        return Ok(Neutral::Str(s.to_string()));
-    }
-    if let Ok(b) = v.borrow_ref::<rune::runtime::Bytes>() {
-        return Ok(Neutral::Bytes(b.as_slice().to_vec()));
-    }
     // Borrow rather than convert: `from_value` on a Rune `Any` moves the value
     // out of its shared cell, so reading a node would destroy it.
     if let Ok(n) = v.borrow_ref::<Node>() {
         return Ok(Neutral::Node(n.id));
+    }
+    if let Ok(s) = v.borrow_string_ref() {
+        return Ok(Neutral::Str(s.to_string()));
+    }
+    if let Ok(i) = v.as_signed() {
+        return Ok(Neutral::Int(i));
+    }
+    // A count — `len()`, an index — is unsigned in Rune and an `Int` here.
+    if let Ok(u) = v.as_unsigned() {
+        return Ok(Neutral::Int(
+            i64::try_from(u).map_err(|_| anyhow!("{u} does not fit a script integer"))?,
+        ));
+    }
+    if let Ok(f) = v.as_float() {
+        return Ok(Neutral::Num(f));
+    }
+    if let Ok(b) = v.as_bool() {
+        return Ok(Neutral::Bool(b));
     }
     if let Ok(p) = v.borrow_ref::<Vec2>() {
         return Ok(Neutral::Vec2([p.x as f32, p.y as f32]));
@@ -108,11 +118,6 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
         return Ok(Neutral::Color([
             c.r as f32, c.g as f32, c.b as f32, c.a as f32,
         ]));
-    }
-    if let Ok(f) = v.borrow_ref::<rune::runtime::Function>() {
-        return Ok(Neutral::Callback(crate::bindings::hold_callback(
-            f.try_clone()?,
-        )));
     }
     if let Ok(items) = v.borrow_ref::<rune::runtime::Vec>() {
         return Ok(Neutral::List(
@@ -128,6 +133,14 @@ pub(crate) fn to_neutral(v: &rune::Value) -> Result<Neutral> {
         // the same map every run.
         out.sort_by(|a, b| a.0.cmp(&b.0));
         return Ok(Neutral::Map(out));
+    }
+    if let Ok(f) = v.borrow_ref::<rune::runtime::Function>() {
+        return Ok(Neutral::Callback(crate::bindings::hold_callback(
+            f.try_clone()?,
+        )));
+    }
+    if let Ok(b) = v.borrow_ref::<rune::runtime::Bytes>() {
+        return Ok(Neutral::Bytes(b.as_slice().to_vec()));
     }
     if let Ok(t) = v.borrow_tuple_ref() {
         // Unit is the empty tuple in Rune, and it is how a void function
@@ -189,10 +202,10 @@ pub(crate) fn to_plain(v: &rune::Value) -> Option<Neutral> {
         out.sort_by(|a, b| a.0.cmp(&b.0));
         return Some(Neutral::Map(out));
     }
-    if let Ok(t) = v.borrow_tuple_ref() {
-        if t.is_empty() {
-            return Some(Neutral::Nil);
-        }
+    if let Ok(t) = v.borrow_tuple_ref()
+        && t.is_empty()
+    {
+        return Some(Neutral::Nil);
     }
     None
 }
@@ -248,7 +261,7 @@ pub(crate) fn from_neutral(v: &Neutral) -> Result<rune::Value> {
             rune::to_value(obj)?
         }
         Neutral::Callback(CallbackId(id)) => {
-            return Err(anyhow!("cannot hand callback {id} back to a script"))
+            return Err(anyhow!("cannot hand callback {id} back to a script"));
         }
     };
     Ok(out)

@@ -241,14 +241,16 @@ mod tests {
         let beside = Vec3::new(0.0, 0.0, -3.0);
         let across = Vec3::new(1.0, 0.0, 0.0);
         // Long on x, so a ray along x down its length meets its end.
-        assert!(hit_box(
-            &place,
-            Vec3::ZERO,
-            half,
-            Vec3::new(-20.0, 0.0, -10.0),
-            across
-        )
-        .is_some());
+        assert!(
+            hit_box(
+                &place,
+                Vec3::ZERO,
+                half,
+                Vec3::new(-20.0, 0.0, -10.0),
+                across
+            )
+            .is_some()
+        );
         // Turned, the same node no longer reaches a ray 3 units off its side.
         place.rotation = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
         assert!(hit_box(&place, Vec3::ZERO, half, beside, Vec3::new(0.0, 1.0, 0.0)).is_none());
@@ -290,8 +292,6 @@ mod tests {
         assert!(hit_box(&place, Vec3::ZERO, half, above, down).is_some());
     }
 
-    /// A mesh is picked over the box its vertices filled, wherever that box
-    /// sits relative to the node's origin.
     #[test]
     fn a_mesh_is_picked_over_the_box_its_vertices_filled() {
         let mut r = renderable(Shape::Mesh);

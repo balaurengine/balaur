@@ -64,7 +64,6 @@ fn tree_row(S, k, row) {
         }
         let (icon, token) = model::node_icon(node);
         let icon_color = k.get(token).unwrap_or(k.faint);
-        // Row spans the rest of the panel, content left-aligned.
         if ui::pill(node.name, #{
             role: if selected { "row_on" } else { "row" },
             strong: depth == 0,
@@ -91,7 +90,7 @@ fn tree_row(S, k, row) {
             },
             trailing_color: if selected { k.on_accent } else { k.sage },
             menu: || {
-                if ui::menu_item("＋  Add child", #{ color: k.text }) {
+                if ui::menu_item(icons::ui("add") + "  Add child", #{ color: k.text }) {
                     shell::choose(S, i);
                     model::add_child(S, None);
                 }
@@ -99,7 +98,7 @@ fn tree_row(S, k, row) {
                     shell::choose(S, i);
                     shell::attach_script(S);
                 }
-                if ui::menu_item("⧉  Duplicate", #{ color: k.text }) {
+                if ui::menu_item(icons::ui("instance") + "  Duplicate", #{ color: k.text }) {
                     shell::choose(S, i);
                     model::duplicate_selected(S);
                 }
@@ -132,8 +131,6 @@ fn walk(S, k, kids, parent_id, depth) {
 }
 
 
-// A row: `#{ icon, name, meta, run }`.
-
 fn row(icon, name, meta, run) {
     #{ icon: icon, name: name, meta: meta, run: run }
 }
@@ -148,7 +145,6 @@ fn secondary_content(S) {
             if !f.is_dir && f.name.ends_with(".rn") {
                 let rel = "scripts/" + f.name;
                 rows.push(row("‹›", f.name, format!("{} L", model::line_count(S, rel)), || {
-                    // Jump to the node using this script.
                     for (i, node) in S.doc.iter().enumerate() {
                         if model::script_rel(node) == Some(rel) {
                             shell::choose(S, i);
@@ -195,7 +191,7 @@ fn secondary_content(S) {
             }
         }
         if rows.len() == 0 {
-            rows.push(row("◷", "no clips — ＋ Key in Timeline", "", || {}));
+            rows.push(row("◷", format!("no clips — {} Key in Timeline", icons::ui("add")), "", || {}));
         }
         return ("Clips", rows);
     } else if S.persona == "ui" {

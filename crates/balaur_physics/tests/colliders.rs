@@ -3,18 +3,11 @@
 
 use balaur_core::hecs::Entity;
 use balaur_core::scene;
-use balaur_core::{components, App, AppConfig};
+use balaur_core::{App, AppConfig, components};
 use balaur_physics::{PhysicsPlugin, PhysicsState};
 
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
     app
 }
@@ -282,7 +275,9 @@ fn a_2d_one_way_collider_carries_its_axis_into_the_world() {
         0,
         "no one-way axis reached the collider"
     );
-    assert!(collider
-        .active_hooks()
-        .contains(balaur_physics::rapier2d::prelude::ActiveHooks::MODIFY_SOLVER_CONTACTS));
+    assert!(
+        collider
+            .active_hooks()
+            .contains(balaur_physics::rapier2d::prelude::ActiveHooks::MODIFY_SOLVER_CONTACTS)
+    );
 }

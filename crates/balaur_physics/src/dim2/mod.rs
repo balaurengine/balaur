@@ -9,7 +9,7 @@ use crate::rapier2d::prelude::{
     ColliderHandle as ColliderHandle2, RigidBodyHandle as RigidBodyHandle2,
 };
 use crate::scalar::{self, Pose2, Rotation2};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_core::collections::DetHashMap;
 use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
@@ -30,8 +30,9 @@ use collider::{add_collider, collider_builder, max_contact_impulse};
 pub use query::overlaps;
 use query::overlaps_value;
 
-use balaur_core::digest::{node_label, Entry, Hasher};
+use balaur_core::digest::{Entry, Hasher, node_label};
 
+use crate::vocabulary::{component as c, hook};
 use balaur_core::FIXED_DT;
 
 pub struct PhysicsState2d {
@@ -78,12 +79,12 @@ impl PhysicsState2d {
 
 /// The node's global pose flattened to 2D (x, y, angle about z).
 pub(crate) fn node_pose_2d(eng: &Engine, entity: Entity) -> Result<Pose2> {
-    let root = eng.root();
-    balaur_core::scene::propagate_transforms(&mut eng.world_mut(), root);
+    // Composed from the ancestors, as in 3D: see `crate::node_pose`.
     let world = eng.world();
-    let global = world
-        .get::<&balaur_core::GlobalTransform>(entity)
-        .map_err(|_| anyhow!("node is dead or not in the scene tree"))?;
+    if !world.contains(entity) {
+        return Err(anyhow!("node is dead or not in the scene tree"));
+    }
+    let global = balaur_core::scene::composed_global(&world, entity);
     let (angle, _, _) = global.rotation.to_euler(EulerRot::ZYX);
     Ok(Pose2::from_parts(
         scalar::v2(global.position.x, global.position.y),
@@ -91,64 +92,11 @@ pub(crate) fn node_pose_2d(eng: &Engine, entity: Entity) -> Result<Pose2> {
     ))
 }
 
-/// Make the 2D joints whose other end had not been spawned when they were
-/// applied — a scene file names nodes in whatever order it likes.
-fn resolve_pending_joints(eng: &Engine) {
-    let pending = {
-        let state = eng.resource::<PhysicsState2d>();
-        let state = state.borrow();
-        joint::pending(&state)
-    };
-    for entity in pending {
-        let params = {
-            let state = eng.resource::<PhysicsState2d>();
-            let state = state.borrow();
-            state.joint_params.get(&entity).cloned()
-        };
-        let Some(params) = params else { continue };
-        if let Err(why) = joint::apply_joint(eng, entity, &params) {
-            tracing::debug!("joint2d is still waiting: {why:#}");
-        }
-    }
-}
-
-/// The 2D twin of `crate::prune_freed_nodes`, and run at the same point:
-/// before the pause check, because a paused editor still frees nodes.
-pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState2d) {
-    let world = eng.world();
-    let before = state.world.colliders.len();
-    state.bodies.retain(|&entity, handle| {
-        if world.contains(entity) {
-            return true;
-        }
-        state.world.remove_body(*handle);
-        false
-    });
-    state.colliders.retain(|&entity, handles| {
-        let alive = world.contains(entity);
-        handles.retain(|&handle| {
-            if alive && state.world.colliders.contains(handle) {
-                return true;
-            }
-            state.world.remove_collider(handle);
-            false
-        });
-        !handles.is_empty()
-    });
-    state.joints.retain(|&entity, reference| {
-        if !world.contains(entity) {
-            joint::drop_joint(&mut state.world, reference);
-            return false;
-        }
-        joint::is_live(&state.world, reference)
-    });
-    state.collider_params.retain(|e, _| world.contains(*e));
-    state.joint_params.retain(|e, _| world.contains(*e));
-    state.grounded.retain(|e, _| world.contains(*e));
-    if state.world.colliders.len() != before {
-        state.queries_ready = false;
-    }
-}
+crate::shared::world::functions!(
+    state = PhysicsState2d,
+    component = c::JOINT_2D,
+    prune = prune_freed_nodes
+);
 
 fn step_system(eng: &Engine, _dt: f32) {
     {
@@ -170,14 +118,14 @@ fn step_system(eng: &Engine, _dt: f32) {
             let world = eng.world();
             for (&entity, &handle) in &state.bodies {
                 let body = &mut state.world.bodies[handle];
-                if body.is_kinematic() {
-                    if let Ok(t) = world.get::<&Transform>(entity) {
-                        let (angle, _, _) = t.rotation.to_euler(EulerRot::ZYX);
-                        body.set_next_kinematic_position(Pose2::from_parts(
-                            scalar::v2(t.position.x, t.position.y),
-                            Rotation2::from_angle(scalar::real(angle)),
-                        ));
-                    }
+                if body.is_kinematic()
+                    && let Ok(t) = world.get::<&Transform>(entity)
+                {
+                    let (angle, _, _) = t.rotation.to_euler(EulerRot::ZYX);
+                    body.set_next_kinematic_position(Pose2::from_parts(
+                        scalar::v2(t.position.x, t.position.y),
+                        Rotation2::from_angle(scalar::real(angle)),
+                    ));
                 }
             }
         }
@@ -185,8 +133,13 @@ fn step_system(eng: &Engine, _dt: f32) {
         // Exactly one step: Stage::FixedUpdate already repeats at FIXED_DT, and a
         // second accumulator here would drift out of step with the scripts.
         state.world.integration_parameters.dt = scalar::real(FIXED_DT);
+        // The step rebuilds the broad phase itself, as in 3D; without this a
+        // query after a collider was added rebuilds it a second time.
+        state.queries_ready = true;
         let collector = events::Collector::default();
-        state.world.step_with_events(&events::Hooks, &collector);
+        balaur_core::timings::measure(eng, "physics2d/step", || {
+            state.world.step_with_events(&events::Hooks, &collector);
+        });
 
         // Write simulated poses back (x, y and the rotation about z).
         let world = eng.world();
@@ -208,7 +161,7 @@ fn step_system(eng: &Engine, _dt: f32) {
     for entity in &events.1 {
         joint::remove_joint(eng, *entity);
         if let Some(host) = eng.script_host() {
-            host.call_on(balaur_core::node_id_of(*entity), "on_joint_break", &[]);
+            host.call_on(balaur_core::node_id_of(*entity), hook::ON_JOINT_BREAK, &[]);
         }
     }
 }
@@ -259,7 +212,7 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
 
     {
         let mut m = reg.script_module("physics2d")?;
-        crate::install_constants(&mut *m, crate::BODY_KINDS, crate::SHAPE_KINDS_2D);
+        crate::install_constants(&mut *m, crate::CONSTANTS_2D);
         install_physics2d_api(&mut *m);
         body::install_body2d_force_api(&mut *m);
         body::install_body2d_state_api(&mut *m);
@@ -269,6 +222,7 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
         body::install_body2d_sleep_api(&mut *m);
         body::install_body2d_force_reader_api(&mut *m);
         query::install_physics2d_query_api(&mut *m);
+        query::install_physics2d_raycast_all_api(&mut *m);
         query::install_physics2d_shapecast_api(&mut *m);
         query::install_physics2d_volume_query_api(&mut *m);
         query::install_physics2d_shape_query_api(&mut *m);
@@ -285,16 +239,28 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
         "rigid_body2d",
         balaur_core::presets::preset(
             "A 2D body physics simulates, with a rect collider",
-            &["2d", "physics"],
-            &[("body2d", Some("kind = \"dynamic\"")), ("collider2d", None)],
+            &[
+                balaur_core::components::tag::DIM_2D,
+                balaur_core::components::tag::PHYSICS,
+            ],
+            &[
+                (c::BODY_2D, Some("kind = \"dynamic\"")),
+                (c::COLLIDER_2D, None),
+            ],
         )?,
     );
     reg.register_preset(
         "static_body2d",
         balaur_core::presets::preset(
             "An immovable 2D body with a rect collider: ground, walls",
-            &["2d", "physics"],
-            &[("body2d", Some("kind = \"static\"")), ("collider2d", None)],
+            &[
+                balaur_core::components::tag::DIM_2D,
+                balaur_core::components::tag::PHYSICS,
+            ],
+            &[
+                (c::BODY_2D, Some("kind = \"static\"")),
+                (c::COLLIDER_2D, None),
+            ],
         )?,
     );
 
@@ -382,20 +348,6 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
     restamp_collider_owners(&mut state);
 }
 
-/// Point every restored collider at the entity its node has now, as in 3D:
-/// the owner rides in `user_data` and a respawn mints a new entity.
-fn restamp_collider_owners(state: &mut PhysicsState2d) {
-    for (entity, handles) in &state.colliders {
-        for &handle in handles {
-            let Some(collider) = state.world.colliders.get_mut(handle) else {
-                continue;
-            };
-            let flags = collider.user_data & !u128::from(u64::MAX);
-            collider.user_data = flags | u128::from(entity.to_bits().get());
-        }
-    }
-}
-
 fn build_physics2d_snapshot(reg: &mut Registry<'_>) {
     reg.add_snapshot_source("physics2d", save_physics2d, load_physics2d);
 }
@@ -435,16 +387,16 @@ fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
          worlds.",
     );
     m.describe(&[
-        ("add_body", &["body2d"], "", "Give the node a 2D rigid body of the given kind (`BODY_DYNAMIC`, `BODY_STATIC`, `BODY_KINEMATIC`)."),
-        ("add_collider", &["collider2d"], "", "Attach a 2D collider from a `collider2d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component's own vocabulary."),
+        ("add_body", &[c::BODY_2D], "", "Give the node a 2D rigid body of the given kind (`BODY_DYNAMIC`, `BODY_STATIC`, `BODY_KINEMATIC`)."),
+        ("add_collider", &[c::COLLIDER_2D], "", "Attach a 2D collider from a `collider2d` table: `kind`, `radius`, `half_extents`, `friction`, and the rest of the component's own vocabulary."),
         ("set_gravity", &[], "", "Set the 2D world's gravity, in units per second squared."),
-        ("apply_impulse", &["body2d"], "", "Add an instant change in momentum, as if the body were struck."),
-        ("set_linear_velocity", &["body2d"], "", "Set how fast the body travels, in units per second."),
-        ("linear_velocity", &["body2d"], "", "How fast the body is travelling, in units per second."),
-        ("set_angular_velocity", &["body2d"], "", "Set how fast the body spins, in radians per second."),
-        ("angular_velocity", &["body2d"], "", "How fast the body is spinning, in radians per second."),
-        ("max_contact_impulse", &["body2d"], "", "The hardest contact this body took in the last step, zero when nothing touched it."),
-        ("overlaps", &["collider2d"], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
+        ("apply_impulse", &[c::BODY_2D], "", "Add an instant change in momentum, as if the body were struck."),
+        ("set_linear_velocity", &[c::BODY_2D], "", "Set how fast the body travels, in units per second."),
+        ("linear_velocity", &[c::BODY_2D], "", "How fast the body is travelling, in units per second."),
+        ("set_angular_velocity", &[c::BODY_2D], "", "Set how fast the body spins, in radians per second."),
+        ("angular_velocity", &[c::BODY_2D], "", "How fast the body is spinning, in radians per second."),
+        ("max_contact_impulse", &[c::BODY_2D], "", "The hardest contact this body took in the last step, zero when nothing touched it."),
+        ("overlaps", &[c::COLLIDER_2D], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
     ]);
     // Constructors, so a 2D body can be built from script rather than only
     // declared in a scene file.

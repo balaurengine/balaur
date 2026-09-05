@@ -8,10 +8,12 @@ authors.workspace = true
 
 [dependencies]
 balaur = { workspace = true, default-features = false }
+balaur_plugin.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 toml.workspace = true
 tracing.workspace = true
+zip = { version = "8", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 tempfile = "3"

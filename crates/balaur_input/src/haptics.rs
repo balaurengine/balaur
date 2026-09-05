@@ -139,7 +139,12 @@ pub(crate) fn install_haptics_api(m: &mut dyn Bindings<Engine>) {
         ("gamepad_can_rumble", &[], "", "Whether the pad has motors to rumble; false for a pad that is not connected, and on a build with no force feedback."),
         ("gamepad_rumble", &[], "", "Rumble the pad, `{ strong, weak, duration }` — the two motors at 0..1 for that many seconds. Returns whether it started; a second rumble replaces the first."),
         ("gamepad_stop_rumble", &[], "", "Silence the pad now, rather than waiting out the rumble's duration."),
+        ("vibrate", &[], "(milliseconds: int)", "Buzz the device for that long: a phone's motor, or a page's `navigator.vibrate`. Nothing on a desktop, and never recorded, like rumble."),
     ]);
+    m.function("vibrate", |_: &Engine, milliseconds: i64| {
+        vibrate(u32::try_from(milliseconds.max(0)).unwrap_or(u32::MAX));
+        Ok(())
+    });
     m.function("gamepad_can_rumble", |eng: &Engine, id: i64| {
         let state = eng.resource::<GamepadState>();
         let v = state.borrow().pad(id).is_some_and(Pad::can_rumble);
@@ -175,4 +180,18 @@ fn number(opts: Option<&Value>, key: &str) -> Option<f32> {
         Some(Value::Int(i)) => Some(*i as f32),
         _ => None,
     }
+}
+
+/// The device's own motor. A page has `navigator.vibrate`; a desktop has
+/// nothing, and a phone's native hook is the export's to wire.
+#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+fn vibrate(milliseconds: u32) {
+    if let Some(window) = web_sys::window() {
+        let _ = window.navigator().vibrate_with_duration(milliseconds);
+    }
+}
+
+#[cfg(not(all(target_family = "wasm", not(target_os = "emscripten"))))]
+fn vibrate(milliseconds: u32) {
+    tracing::debug!(milliseconds, "vibrate: no motor on this platform");
 }

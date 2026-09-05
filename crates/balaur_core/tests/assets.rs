@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use balaur_core::components::ComponentDef;
-use balaur_core::{assets, components, scene, App, AppConfig, Engine, Pack};
+use balaur_core::{App, AppConfig, Engine, Pack, assets, components, scene};
 
 /// What the test's asset type parses to. A plugin's own struct, opaque to
 /// core: only the parser and the code downcasting it know this exists.
@@ -38,11 +38,8 @@ song = { type = "asset", asset = "note", default = "" }
 
 fn app_in(project_root: &std::path::Path, pack: Option<Pack>) -> App {
     let mut app = App::new(AppConfig {
-        project_root: project_root.to_path_buf(),
         pack,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
+        ..AppConfig::bare(project_root.to_path_buf())
     })
     .unwrap();
     app.engine.insert_resource(Heard::default());
@@ -222,7 +219,6 @@ fn duplicate_hands_back_a_private_copy_rather_than_the_shared_one() {
         Some(&Note { pitch: 880.0 }),
         "a private copy still holds the same content"
     );
-    // And taking a copy must not evict what everyone else is holding.
     let again = assets::load(&app.engine, "notes/scale.toml#high").unwrap();
     assert!(Rc::ptr_eq(&shared, &again));
 }
@@ -419,6 +415,7 @@ impl balaur_script::ScriptHost<Engine> for PackedHost {
         None
     }
     fn call_all(&self, _: &str) {}
+    fn call_all_with(&self, _: &str, _: &[balaur_script::Value]) {}
     fn wake(&self, _: u64, _: &balaur_script::Value) {}
     fn scene_source(&self, rel: &str) -> Option<String> {
         self.pack.scenes.get(rel).cloned()
@@ -577,7 +574,6 @@ fn saving_an_asset_writes_the_file_and_the_next_load_reads_it() {
     // is what a re-run of the game is.
     let reopened = app_in(dir.path(), None);
     assert!((pitch_of(&reopened.engine, "notes/scale.toml#high") - 1760.0).abs() < f64::EPSILON);
-    // And the entry cut from the old text is gone from the live cache too.
     assert!((pitch_of(&app.engine, "notes/scale.toml#high") - 1760.0).abs() < f64::EPSILON);
 }
 

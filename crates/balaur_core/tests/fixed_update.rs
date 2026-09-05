@@ -7,17 +7,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use balaur_core::{App, AppConfig, Stage, FIXED_DT, MAX_SUBSTEPS};
+use balaur_core::{App, AppConfig, FIXED_DT, MAX_SUBSTEPS, Stage};
 
 fn app() -> App {
-    App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 /// Every dt the fixed stage was called with, in order.

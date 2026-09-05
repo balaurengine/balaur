@@ -5,19 +5,12 @@
 //! casts — is resolved here and asserted on headless.
 
 use balaur_core::glamx::{Quat, Vec2, Vec3};
-use balaur_core::{components, scene, App, AppConfig, Transform};
-use balaur_render::light::{lights, occluder_edges, outline, shadow_quad, LightKind2d, LitLight2d};
+use balaur_core::{App, AppConfig, Transform, components, scene};
+use balaur_render::light::{LightKind2d, LitLight2d, lights, occluder_edges, outline, shadow_quad};
 use balaur_render::{CameraConfig2d, Occluder2d, RenderPlugin};
 
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
     app
 }

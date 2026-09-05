@@ -1,0 +1,112 @@
+// Percentiles and the run fingerprint, computed the way the Godot suite this
+// mirrors computes them, so a row here and a row there mean the same thing.
+
+/// Nearest-rank percentile over a sorted list, as `framework/stats.gd` does.
+pub fn percentile(sorted, q) {
+    if sorted.is_empty() {
+        return 0.0;
+    }
+    let idx = (math::ceil(q * (sorted.len() as f64)) as i64) - 1;
+    if idx < 0 {
+        idx = 0;
+    }
+    if idx > sorted.len() - 1 {
+        idx = sorted.len() - 1;
+    }
+    sorted[idx]
+}
+
+pub fn mean(samples) {
+    if samples.is_empty() {
+        return 0.0;
+    }
+    let total = 0.0;
+    for s in samples {
+        total = total + s;
+    }
+    total / (samples.len() as f64)
+}
+
+pub fn stddev(samples, m) {
+    if samples.len() < 2 {
+        return 0.0;
+    }
+    let acc = 0.0;
+    for s in samples {
+        acc = acc + (s - m) * (s - m);
+    }
+    math::sqrt(acc / ((samples.len() - 1) as f64))
+}
+
+/// The summary block every case reports, in the schema the Godot suite writes.
+pub fn summarize(samples) {
+    let sorted = sort(samples);
+    let m = mean(sorted);
+    #{
+        count: sorted.len(),
+        mean_ms: m,
+        stddev_ms: stddev(sorted, m),
+        min_ms: if sorted.is_empty() { 0.0 } else { sorted[0] },
+        p50_ms: percentile(sorted, 0.5),
+        p95_ms: percentile(sorted, 0.95),
+        p99_ms: percentile(sorted, 0.99),
+        max_ms: if sorted.is_empty() { 0.0 } else { sorted[sorted.len() - 1] },
+    }
+}
+
+/// Insertion sort over a copy. Rune's `sort` wants a comparator returning an
+/// Ordering, and a few hundred samples do not need better than this.
+pub fn sort(samples) {
+    let out = [];
+    for s in samples {
+        let at = out.len();
+        let i = 0;
+        while i < out.len() {
+            if s < out[i] {
+                at = i;
+                i = out.len();
+            } else {
+                i = i + 1;
+            }
+        }
+        out.insert(at, s);
+    }
+    out
+}
+
+const QUANTUM = 0.01;
+const FNV_PRIME = 16777619;
+const MASK = 0xffffffff;
+const NON_FINITE = 0x7fffffff;
+
+/// 32-bit FNV-1a over the bodies' quantized positions, as `stats.gd` computes
+/// it: two engines that report the same fingerprint simulated the same world.
+pub fn fingerprint(bodies, dimensions) {
+    let hash = 2166136261;
+    for body in bodies {
+        if !body.is_valid() {
+            continue;
+        }
+        let p = body.position();
+        let parts = if dimensions == 2 { [p.x, p.y] } else { [p.x, p.y, p.z] };
+        for c in parts {
+            let q = if finite(c) { math::round(c / QUANTUM) as i64 } else { NON_FINITE };
+            let byte = 0;
+            while byte < 8 {
+                hash = (hash ^ ((q >> (byte * 8)) & 0xff)) & MASK;
+                hash = (hash * FNV_PRIME) & MASK;
+                byte = byte + 1;
+            }
+        }
+    }
+    format!("{:08x}", hash)
+}
+
+/// A number that is neither NaN nor an infinity. NaN fails every comparison,
+/// which is what the first test reads.
+pub fn finite(x) {
+    if !(x <= 0.0 || x >= 0.0) {
+        return false;
+    }
+    math::abs(x) < 1.0e30
+}

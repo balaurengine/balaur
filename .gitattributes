@@ -1,2 +1,3 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# LF in the index and on every checkout: a CRLF checkout (Windows CI) exports
+# different pack bytes than Linux and macOS from the same sources.
+* text=auto eol=lf

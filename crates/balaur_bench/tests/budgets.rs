@@ -20,7 +20,7 @@ use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use balaur_bench::{app, attach_many, Backend, Project};
+use balaur_bench::{Backend, Project, app, attach_many};
 
 /// One measurement at a time: four spinning tests on a four-vCPU runner
 /// measure each other, not the engine.
@@ -105,8 +105,8 @@ fn attaching_to_a_compiled_script_is_cheap_per_node() {
         let project = Project::new(backend, source).unwrap();
         let app = app(backend, &project).unwrap();
         attach_many(&app, backend, 1).unwrap(); // pay the compile first
-                                                // A hundred at a time, because that is the batch the benchmark this
-                                                // gates measures, and the ceiling comes from it.
+        // A hundred at a time, because that is the batch the benchmark this
+        // gates measures, and the ceiling comes from it.
         let each = per_iteration(Duration::from_millis(120), || {
             attach_many(&app, backend, 100).unwrap();
         });

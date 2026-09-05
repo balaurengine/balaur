@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, bail, Context as _, Result};
+use anyhow::{Context as _, Result, anyhow, bail};
 use balaur_script::Value;
 
 use crate::engine::Engine;
@@ -212,16 +212,17 @@ fn as_item(value: &toml::Value) -> toml_edit::Item {
         }
         return toml_edit::Item::Table(out);
     }
-    if let toml::Value::Array(items) = value {
-        if items.iter().all(toml::Value::is_table) && !items.is_empty() {
-            let mut out = toml_edit::ArrayOfTables::new();
-            for item in items {
-                if let toml_edit::Item::Table(table) = as_item(item) {
-                    out.push(table);
-                }
+    if let toml::Value::Array(items) = value
+        && items.iter().all(toml::Value::is_table)
+        && !items.is_empty()
+    {
+        let mut out = toml_edit::ArrayOfTables::new();
+        for item in items {
+            if let toml_edit::Item::Table(table) = as_item(item) {
+                out.push(table);
             }
-            return toml_edit::Item::ArrayOfTables(out);
         }
+        return toml_edit::Item::ArrayOfTables(out);
     }
     let text = toml::to_string(&toml::toml! { v = (value.clone()) }).unwrap_or_default();
     text.parse::<toml_edit::DocumentMut>()
@@ -274,7 +275,7 @@ pub fn to_json(v: &Value) -> Result<serde_json::Value> {
             .ok_or_else(|| anyhow!("{n} has no JSON representation"))?,
         Value::Str(s) => serde_json::Value::String(s.clone()),
         Value::Node(_) | Value::Callback(_) => {
-            return Err(anyhow!("a node or callback is not JSON data"))
+            return Err(anyhow!("a node or callback is not JSON data"));
         }
         // JSON has no byte string, and guessing an encoding here would make
         // the round trip lossy in a way the caller never asked for.

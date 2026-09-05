@@ -10,17 +10,17 @@ use crate::rapier2d::prelude::{
     RevoluteJointBuilder, RigidBodyHandle, RopeJointBuilder, SpringJointBuilder,
 };
 use crate::scalar::{self, Real, Vector2};
-use anyhow::{anyhow, Result};
-use balaur_core::components::{as_node, ComponentDef};
+use anyhow::{Result, anyhow};
+use balaur_core::components::{ComponentDef, as_node};
 use balaur_core::hecs::Entity;
-use balaur_core::{entity_of, Engine};
+use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
-use crate::joint::SHARED_JOINT_SCHEMA;
-use crate::rapier2d::pipeline::PhysicsWorld as PhysicsWorld2;
-use crate::vocabulary as v;
 use crate::PhysicsState2d;
+use crate::joint::impulse_magnitude_2d;
+use crate::rapier2d::pipeline::PhysicsWorld as PhysicsWorld2;
+use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub enum JointHandle2d {
@@ -37,8 +37,8 @@ pub struct JointRef2d {
 
 fn free_axes(kind: &str) -> &'static [JointAxis] {
     match kind {
-        "revolute" => &[JointAxis::AngX],
-        "prismatic" | "rope" | "spring" | "pin_slot" => &[JointAxis::LinX],
+        w::REVOLUTE => &[JointAxis::AngX],
+        w::PRISMATIC | w::ROPE | w::SPRING | w::PIN_SLOT => &[JointAxis::LinX],
         _ => &[],
     }
 }
@@ -46,11 +46,11 @@ fn free_axes(kind: &str) -> &'static [JointAxis] {
 fn locked_axes(params: &toml::Value) -> JointAxesMask {
     let mut mask = JointAxesMask::empty();
     for (name, axis) in [
-        ("x", JointAxesMask::LIN_X),
-        ("y", JointAxesMask::LIN_Y),
-        ("ang_x", JointAxesMask::ANG_X),
+        (w::X, JointAxesMask::LIN_X),
+        (w::Y, JointAxesMask::LIN_Y),
+        (w::ANG_X, JointAxesMask::ANG_X),
     ] {
-        if v::flag(params, "locked_axes", name) {
+        if v::flag(params, k::LOCKED_AXES, name) {
             mask |= axis;
         }
     }
@@ -58,50 +58,50 @@ fn locked_axes(params: &toml::Value) -> JointAxesMask {
 }
 
 pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
-    let kind = v::text(params, "kind", "fixed");
-    let axis = scalar::v2a(v::vec2(params, "axis", [1.0, 0.0]));
+    let kind = v::text(params, k::KIND, w::FIXED);
+    let axis = scalar::v2a(v::vec2(params, k::AXIS, [1.0, 0.0]));
     let axis = if axis.length_squared() < 1.0e-12 {
         Vector2::X
     } else {
         axis.normalize()
     };
-    let anchor1 = scalar::v2a(v::vec2(params, "anchor", [0.0; 2]));
-    let anchor2 = scalar::v2a(v::vec2(params, "other_anchor", [0.0; 2]));
-    let length = scalar::real(v::f(params, "length", 0.0));
-    let stiffness = scalar::real(v::f(params, "stiffness", 0.0));
-    let damping = scalar::real(v::f(params, "damping", 1.0));
+    let anchor1 = scalar::v2a(v::vec2(params, k::ANCHOR, [0.0; 2]));
+    let anchor2 = scalar::v2a(v::vec2(params, k::OTHER_ANCHOR, [0.0; 2]));
+    let length = scalar::real(v::f(params, k::LENGTH, 0.0));
+    let stiffness = scalar::real(v::f(params, k::STIFFNESS, 0.0));
+    let damping = scalar::real(v::f(params, k::DAMPING, 1.0));
     let mut joint: GenericJoint = match kind {
-        "fixed" => FixedJointBuilder::new()
+        w::FIXED => FixedJointBuilder::new()
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
             .into(),
-        "revolute" => RevoluteJointBuilder::new()
+        w::REVOLUTE => RevoluteJointBuilder::new()
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
             .into(),
-        "prismatic" => PrismaticJointBuilder::new(axis)
+        w::PRISMATIC => PrismaticJointBuilder::new(axis)
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
             .into(),
-        "rope" => RopeJointBuilder::new(length.max(0.0))
+        w::ROPE => RopeJointBuilder::new(length.max(0.0))
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
             .into(),
-        "spring" => SpringJointBuilder::new(length.max(0.0), stiffness, damping)
+        w::SPRING => SpringJointBuilder::new(length.max(0.0), stiffness, damping)
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
             .into(),
-        "pin_slot" => PinSlotJointBuilder::new(axis)
+        w::PIN_SLOT => PinSlotJointBuilder::new(axis)
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .build()
             .into(),
-        "generic" => GenericJointBuilder::new(locked_axes(params))
+        w::GENERIC => GenericJointBuilder::new(locked_axes(params))
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .local_axis1(axis)
@@ -109,13 +109,13 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
             .build(),
         other => return Err(anyhow!("unknown joint2d kind '{other}'")),
     };
-    joint.set_contacts_enabled(v::boolean(params, "contacts", false));
-    let limits = scalar::v2a(v::vec2(params, "limits", [0.0; 2]));
-    let motor = v::text(params, "motor", "off");
-    let target = scalar::real(v::f(params, "motor_target", 0.0));
-    let max_force = scalar::real(v::f(params, "motor_max_force", 0.0));
-    let model = match v::text(params, "motor_model", "acceleration") {
-        "force" => MotorModel::ForceBased,
+    joint.set_contacts_enabled(v::boolean(params, k::CONTACTS, false));
+    let limits = scalar::v2a(v::vec2(params, k::LIMITS, [0.0; 2]));
+    let motor = v::text(params, k::MOTOR, w::OFF);
+    let target = scalar::real(v::f(params, k::MOTOR_TARGET, 0.0));
+    let max_force = scalar::real(v::f(params, k::MOTOR_MAX_FORCE, 0.0));
+    let model = match v::text(params, k::MOTOR_MODEL, w::ACCELERATION) {
+        w::FORCE => MotorModel::ForceBased,
         _ => MotorModel::AccelerationBased,
     };
     for axis in free_axes(kind).iter().copied() {
@@ -123,11 +123,11 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
             joint.set_limits(axis, [limits.x, limits.y]);
         }
         match motor {
-            "velocity" => {
+            w::VELOCITY => {
                 joint.set_motor_model(axis, model);
                 joint.set_motor_velocity(axis, target, damping);
             }
-            "position" => {
+            w::POSITION => {
                 joint.set_motor_model(axis, model);
                 joint.set_motor_position(axis, target, stiffness, damping);
             }
@@ -140,21 +140,15 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
     Ok(joint)
 }
 
-fn handles(
-    state: &PhysicsState2d,
-    a: Entity,
-    b: Entity,
-) -> Result<(RigidBodyHandle, RigidBodyHandle)> {
-    let first = *state
-        .bodies
-        .get(&a)
-        .ok_or_else(|| anyhow!("the node holding the joint has no body2d"))?;
-    let second = *state
-        .bodies
-        .get(&b)
-        .ok_or_else(|| anyhow!("the node at the joint's other end has no body2d"))?;
-    Ok((first, second))
-}
+crate::shared::joint::functions!(
+    state = PhysicsState2d,
+    world = PhysicsWorld2,
+    reference = JointRef2d,
+    handle = JointHandle2d,
+    component = c::JOINT_2D,
+    body = c::BODY_2D,
+    impulse_magnitude = impulse_magnitude_2d
+);
 
 pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     remove_joint(eng, entity);
@@ -167,17 +161,19 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
             .joint_params
             .insert(entity, params.clone());
     }
-    if !v::boolean(params, "enabled", true) {
+    if !v::boolean(params, k::ENABLED, true) {
         return Ok(());
     }
-    let Some(other) = as_node(eng, entity, params.get("body")) else {
+    let Some(other) = as_node(eng, entity, params.get(k::BODY)) else {
         return Ok(());
     };
+    // A bodiless child stands for the nearest body above it, as in 3D.
+    let (a, b) = (body_above(eng, entity), body_above(eng, other));
     let joint = joint_of(params)?;
-    let reduced = v::text(params, "solver", "impulse") == "reduced";
+    let reduced = v::text(params, k::SOLVER, w::IMPULSE) == w::REDUCED;
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
-    let (first, second) = handles(&state, entity, other)?;
+    let (first, second) = handles(&state, a, b)?;
     let handle = if reduced {
         state
             .world
@@ -193,37 +189,14 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
         entity,
         JointRef2d {
             handle,
-            break_force: scalar::real(v::f(params, "break_force", 0.0)),
+            break_force: scalar::real(v::f(params, k::BREAK_FORCE, 0.0)),
         },
     );
     Ok(())
 }
 
-pub(crate) fn remove_joint(eng: &Engine, entity: Entity) {
-    let state = eng.resource::<PhysicsState2d>();
-    let mut state = state.borrow_mut();
-    state.joint_params.swap_remove(&entity);
-    if let Some(reference) = state.joints.swap_remove(&entity) {
-        drop_joint(&mut state.world, &reference);
-    }
-}
-
-/// Whether rapier still holds this joint, as in 3D: it drops one when either
-/// end's body goes, and the map must not keep the handle.
-pub(crate) fn is_live(world: &PhysicsWorld2, reference: &JointRef2d) -> bool {
-    match reference.handle {
-        JointHandle2d::Impulse(handle) => world.impulse_joints.get(handle).is_some(),
-        JointHandle2d::Multibody(handle) => world.multibody_joints.get(handle).is_some(),
-    }
-}
-
-pub(crate) fn drop_joint(world: &mut PhysicsWorld2, reference: &JointRef2d) {
-    match reference.handle {
-        JointHandle2d::Impulse(handle) => {
-            world.remove_impulse_joint(handle);
-        }
-        JointHandle2d::Multibody(handle) => world.remove_multibody_joint(handle),
-    }
+fn body_above(eng: &Engine, entity: Entity) -> Entity {
+    super::collider::nearest_body(eng, entity).map_or(entity, |(node, _)| node)
 }
 
 pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
@@ -248,72 +221,34 @@ pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Val
     let f = |value: Real| toml::Value::Float(f64::from(value));
     let vec2 = |v: Vector2| toml::Value::Array(vec![f(v.x), f(v.y)]);
     let mut map = authored;
-    map.insert("anchor".into(), vec2(data.local_anchor1()));
-    map.insert("other_anchor".into(), vec2(data.local_anchor2()));
-    map.insert("contacts".into(), data.contacts_enabled().into());
+    map.insert(k::ANCHOR.into(), vec2(data.local_anchor1()));
+    map.insert(k::OTHER_ANCHOR.into(), vec2(data.local_anchor2()));
+    map.insert(k::CONTACTS.into(), data.contacts_enabled().into());
     map.insert(
-        "solver".into(),
+        k::SOLVER.into(),
         toml::Value::String(
             match reference.handle {
-                JointHandle2d::Impulse(_) => "impulse",
-                JointHandle2d::Multibody(_) => "reduced",
+                JointHandle2d::Impulse(_) => w::IMPULSE,
+                JointHandle2d::Multibody(_) => w::REDUCED,
             }
             .into(),
         ),
     );
     map.insert(
-        "break_force".into(),
+        k::BREAK_FORCE.into(),
         toml::Value::Float(f64::from(reference.break_force)),
     );
     Some(toml::Value::Table(map))
 }
 
-/// Joints authored but not yet made, because the node at the other end had not
-/// been spawned when this one was.
-pub fn pending(state: &PhysicsState2d) -> Vec<Entity> {
-    let mut out: Vec<Entity> = state
-        .joint_params
-        .iter()
-        // A joint switched off never gets a handle; retrying it every step
-        // would re-apply the component sixty times a second.
-        .filter(|(entity, params)| {
-            !state.joints.contains_key(*entity) && v::boolean(params, "enabled", true)
-        })
-        .map(|(entity, _)| *entity)
-        .collect();
-    out.sort_unstable_by_key(|e| e.to_bits());
-    out
-}
-
-/// Joints whose pull passed their `break_force` this step.
-pub(crate) fn broken(state: &PhysicsState2d) -> Vec<Entity> {
-    let mut out = Vec::new();
-    for (entity, reference) in &state.joints {
-        if reference.break_force <= 0.0 {
-            continue;
-        }
-        let JointHandle2d::Impulse(handle) = reference.handle else {
-            continue;
-        };
-        let Some(joint) = state.world.impulse_joints.get(handle) else {
-            continue;
-        };
-        if crate::joint::impulse_magnitude_2d(&joint.impulses) > reference.break_force {
-            out.push(*entity);
-        }
-    }
-    out.sort_unstable_by_key(|e| e.to_bits());
-    out
-}
-
 pub(crate) fn install_joint2d_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("add_joint", &["joint2d"], "", "Tie this node's body to another with a 2D joint, from a `joint2d` table."),
-        ("remove_joint", &["joint2d"], "", "Undo the node's joint, leaving both bodies free."),
-        ("set_motor_velocity", &["joint2d"], "", "Drive the joint towards a speed: how a wheel is powered."),
-        ("set_motor_position", &["joint2d"], "", "Drive the joint towards an angle or a distance, with a spring's stiffness and damping."),
-        ("set_joint_limits", &["joint2d"], "", "Set how far the joint may travel."),
-        ("joint_impulse", &["joint2d"], "", "How hard the joint is pulling right now."),
+        ("add_joint", &[c::JOINT_2D], "", "Tie this node's body to another with a 2D joint, from a `joint2d` table."),
+        ("remove_joint", &[c::JOINT_2D], "", "Undo the node's joint, leaving both bodies free."),
+        ("set_motor_velocity", &[c::JOINT_2D], "", "Drive the joint towards a speed: how a wheel is powered."),
+        ("set_motor_position", &[c::JOINT_2D], "", "Drive the joint towards an angle or a distance, with a spring's stiffness and damping."),
+        ("set_joint_limits", &[c::JOINT_2D], "", "Set how far the joint may travel."),
+        ("joint_impulse", &[c::JOINT_2D], "", "How hard the joint is pulling right now."),
     ]);
     m.function(
         "add_joint",
@@ -324,7 +259,7 @@ pub(crate) fn install_joint2d_api(m: &mut dyn Bindings<Engine>) {
             let schema = {
                 let registry = registry.borrow();
                 registry
-                    .def("joint2d")
+                    .def(c::JOINT_2D)
                     .ok_or_else(|| anyhow!("joint2d is not registered"))?
                     .schema
                     .clone()
@@ -388,62 +323,31 @@ pub(crate) fn install_joint2d_api(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-fn with_joint(eng: &Engine, node: NodeId, f: impl FnOnce(&mut GenericJoint, &str)) -> Result<()> {
-    let entity = entity_of(node)?;
-    let kind = balaur_core::components::get(eng, entity, "joint2d")
-        .and_then(|params| {
-            params
-                .get("kind")
-                .and_then(toml::Value::as_str)
-                .map(str::to_string)
-        })
-        .unwrap_or_else(|| "revolute".to_string());
-    let state = eng.resource::<PhysicsState2d>();
-    let mut state = state.borrow_mut();
-    match state.joints.get(&entity).map(|j| j.handle) {
-        Some(JointHandle2d::Impulse(handle)) => {
-            let joint = state
-                .world
-                .impulse_joints
-                .get_mut(handle, true)
-                .ok_or_else(|| anyhow!("this node's joint is gone"))?;
-            f(&mut joint.data, &kind);
-            Ok(())
-        }
-        Some(JointHandle2d::Multibody(handle)) => {
-            let (multibody, link) = state
-                .world
-                .multibody_joints
-                .get_mut(handle)
-                .ok_or_else(|| anyhow!("this node's joint is gone"))?;
-            let link = multibody
-                .link_mut(link)
-                .ok_or_else(|| anyhow!("this node's joint is gone"))?;
-            f(&mut link.joint.data, &kind);
-            Ok(())
-        }
-        None => Err(anyhow!("node has no joint2d")),
-    }
-}
-
 pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {
-    let schema = format!(
-        r#"kind = {{ type = "enum", default = "fixed", options = ["fixed", "revolute", "prismatic", "rope", "spring", "pin_slot", "generic"], shorthand = true, description = "How the two bodies may move relative to each other" }}
-body = {{ type = "node", default = "", description = "The node at the joint's other end; this node is the first end" }}
-anchor = {{ type = "vec2", default = [0.0, 0.0], description = "Where the joint attaches on this node, in its own space" }}
-other_anchor = {{ type = "vec2", default = [0.0, 0.0], description = "Where it attaches on the other node, in that node's space" }}
-axis = {{ type = "vec2", default = [1.0, 0.0], description = "The direction a prismatic joint slides along" }}
-limits = {{ type = "vec2", default = [0.0, 0.0], description = "How far the joint may travel, as a low and a high; equal values mean no limit" }}
-locked_axes = {{ type = "flags", default = [], options = ["x", "y", "ang_x"], description = "Which of the three freedoms a generic joint takes away" }}
-{SHARED_JOINT_SCHEMA}"#
-    );
+    let kinds = v::options(w::JOINT_KINDS_2D);
+    let axes = v::options(w::JOINT_AXES_2D);
+    let default = w::FIXED;
+    let shared = crate::joint::shared_joint_schema();
+    let schema = [
+        v::schema(&[
+            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{kinds}], shorthand = true, description = "How the two bodies may move relative to each other" }}"#)),
+            (k::BODY, r#"{ type = "node", default = "", description = "The node at the joint's other end; this node is the first end" }"#),
+            (k::ANCHOR, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the joint attaches on this node, in its own space" }"#),
+            (k::OTHER_ANCHOR, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where it attaches on the other node, in that node's space" }"#),
+            (k::AXIS, r#"{ type = "vec2", default = [1.0, 0.0], description = "The direction a prismatic joint slides along" }"#),
+            (k::LIMITS, r#"{ type = "vec2", default = [0.0, 0.0], description = "How far the joint may travel, as a low and a high; equal values mean no limit" }"#),
+            (k::LOCKED_AXES, &format!(r#"{{ type = "flags", default = [], options = [{axes}], description = "Which of the three freedoms a generic joint takes away" }}"#)),
+        ]),
+        shared,
+    ]
+    .join("\n");
     reg.register_component(
-        "joint2d",
+        c::JOINT_2D,
         ComponentDef {
-            doc: "Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`.",
-            schema: ComponentDef::parse_schema("joint2d", &schema),
-            tags: &["2d", "physics"],
-            expects: &["body2d"],
+            doc: "Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.",
+            schema: ComponentDef::parse_schema(c::JOINT_2D, &schema),
+            tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
+            expects: &[c::BODY_2D],
             apply: Box::new(apply_joint),
             remove: Box::new(|eng, entity| {
                 remove_joint(eng, entity);

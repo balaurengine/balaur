@@ -197,7 +197,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -208,7 +208,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -404,6 +404,7 @@ dependencies = [
  "balaur_script",
  "balaur_script_rune",
  "balaur_ui",
+ "balaur_web",
  "balaur_websocket",
  "balaur_webtransport",
  "serde_json",
@@ -499,12 +500,17 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "balaur",
+ "balaur_core",
  "balaur_export",
+ "balaur_plugin",
+ "balaur_script",
+ "base64 0.22.1",
  "clap",
  "console_error_panic_hook",
  "dirs",
  "flate2",
  "js-sys",
+ "serde",
  "serde_json",
  "sha2",
  "tar",
@@ -525,16 +531,19 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "balaur_script",
+ "base64 0.22.1",
  "dirs",
  "glamx",
  "gltf",
  "hecs",
+ "i_overlay",
  "indexmap",
  "libm",
  "rustc-hash 2.1.3",
  "serde",
  "serde_json",
  "sha2",
+ "sys-locale",
  "tempfile",
  "toml",
  "toml_edit",
@@ -551,10 +560,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "balaur",
+ "balaur_plugin",
  "serde",
  "tempfile",
  "toml",
  "tracing",
+ "zip",
 ]
 
 [[package]]
@@ -566,12 +577,16 @@ dependencies = [
  "balaur_core",
  "balaur_plugin",
  "balaur_script",
+ "js-sys",
  "serde",
  "serde_json",
  "tempfile",
  "tracing",
  "tungstenite",
  "ureq",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
@@ -611,6 +626,7 @@ dependencies = [
  "tempfile",
  "toml",
  "tracing",
+ "web-sys",
 ]
 
 [[package]]
@@ -680,6 +696,7 @@ dependencies = [
  "bytemuck",
  "glamx",
  "image",
+ "js-sys",
  "kiss3d",
  "libm",
  "objc2 0.6.4",
@@ -689,6 +706,9 @@ dependencies = [
  "tempfile",
  "toml",
  "tracing",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
  "wesl",
  "wgpu",
 ]
@@ -730,12 +750,33 @@ dependencies = [
  "balaur_core",
  "balaur_plugin",
  "balaur_script",
+ "cosmic-text",
  "egui",
  "image",
+ "libm",
  "serde",
  "tempfile",
  "toml",
  "tracing",
+ "unicode-script",
+]
+
+[[package]]
+name = "balaur_web"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "balaur",
+ "balaur_core",
+ "balaur_plugin",
+ "balaur_script",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tracing",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -1246,6 +1287,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "core_maths"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77745e017f5edba1a9c1d854f6f3a52dac8a12dd5af5d2f54aecf61e43d80d30"
+dependencies = [
+ "libm",
+]
+
+[[package]]
 name = "coreaudio-rs"
 version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1257,6 +1307,30 @@ dependencies = [
  "objc2-core-audio",
  "objc2-core-audio-types",
  "objc2-core-foundation",
+]
+
+[[package]]
+name = "cosmic-text"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be17b688510d934ce13f48a2beba700e11583e281e0fda99c22bb256a14eda73"
+dependencies = [
+ "bitflags 2.13.1",
+ "fontdb",
+ "harfrust 0.5.2",
+ "linebender_resource_handle",
+ "log",
+ "rangemap",
+ "rustc-hash 2.1.3",
+ "self_cell",
+ "skrifa 0.40.0",
+ "smol_str 0.3.6",
+ "swash",
+ "sys-locale",
+ "unicode-bidi",
+ "unicode-linebreak",
+ "unicode-script",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -1667,14 +1741,14 @@ dependencies = [
  "ecolor",
  "emath",
  "epaint_default_fonts",
- "font-types",
- "harfrust",
+ "font-types 0.12.4",
+ "harfrust 0.12.0",
  "log",
  "nohash-hasher",
  "parking_lot",
  "profiling",
  "self_cell",
- "skrifa",
+ "skrifa 0.44.0",
  "smallvec",
  "unicode-general-category",
  "unicode-segmentation",
@@ -1846,11 +1920,33 @@ checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "font-types"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b38ad915f6dadd993ced50848a8291a543bd41ca62bc10740d5e64e2ab4cfd7"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
+name = "font-types"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e64eb721ca85a34323425f4041adc5d82704d3782d5f8f03793bc012419dce23"
 dependencies = [
  "bytemuck",
+]
+
+[[package]]
+name = "fontdb"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "457e789b3d1202543297a350643cf459f836cade38934e7a4cf6a39e7cde2905"
+dependencies = [
+ "log",
+ "memmap2",
+ "slotmap",
+ "tinyvec",
+ "ttf-parser 0.25.1",
 ]
 
 [[package]]
@@ -2173,7 +2269,7 @@ dependencies = [
  "hashbrown 0.17.1",
  "log",
  "peniko",
- "skrifa",
+ "skrifa 0.44.0",
  "smallvec",
  "vello_common",
 ]
@@ -2275,13 +2371,26 @@ dependencies = [
 
 [[package]]
 name = "harfrust"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9da2e5ae821f6e96664977bf974d6d6a2d6682f9ccee23e62ec1d134246845f9"
+dependencies = [
+ "bitflags 2.13.1",
+ "bytemuck",
+ "core_maths",
+ "read-fonts 0.37.0",
+ "smallvec",
+]
+
+[[package]]
+name = "harfrust"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c03d949a14aa089bbb282f7dd76a498a7f684428e4257202efc119ec010376f9"
 dependencies = [
  "bitflags 2.13.1",
  "bytemuck",
- "read-fonts",
+ "read-fonts 0.41.0",
  "smallvec",
 ]
 
@@ -2395,6 +2504,48 @@ checksum = "707114b52a152fa7bdb290cd7cd5912d9467273b6d74e21b8d81aca1f8533f6b"
 dependencies = [
  "typenum",
 ]
+
+[[package]]
+name = "i_float"
+version = "4.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c614c2cfc06cfe8809ccc48cd445864502478e673721ca2a05931fc057ec33a0"
+dependencies = [
+ "libm",
+]
+
+[[package]]
+name = "i_key_sort"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c6c58d0c60705e66264ce0f788a69a2f21472aeb8188559e7c8c619dbdc10fa"
+
+[[package]]
+name = "i_overlay"
+version = "8.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca5d3f41731d03eafa48213609113563099a479f593cc7c635b7e836fc52a3c8"
+dependencies = [
+ "i_float",
+ "i_key_sort",
+ "i_shape",
+ "i_tree",
+]
+
+[[package]]
+name = "i_shape"
+version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67ec1fc3ad980a24e4761b763bf5bfbf58c1d88be1bffb14654d369d7f420258"
+dependencies = [
+ "i_float",
+]
+
+[[package]]
+name = "i_tree"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e9d4a992a9fe83130f41ceacceac3bb116a4355dfc9c8d6ecea4f1e4b4c6caf"
 
 [[package]]
 name = "icu_collections"
@@ -2761,7 +2912,7 @@ dependencies = [
 [[package]]
 name = "kiss3d"
 version = "0.46.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=web-fixes#3c6a149f012005e6f4e044d9267e71a6f3ba994a"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#db8ad10291e1ae547adf4dc9e63a13b432792cb6"
 dependencies = [
  "android-activity",
  "bitflags 2.13.1",
@@ -2796,7 +2947,7 @@ dependencies = [
 [[package]]
 name = "kiss3d-macro"
 version = "0.36.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=web-fixes#3c6a149f012005e6f4e044d9267e71a6f3ba994a"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#db8ad10291e1ae547adf4dc9e63a13b432792cb6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4737,6 +4888,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca45419789ae5a7899559e9512e58ca889e41f04f1f2445e9f4b290ceccd1d08"
 
 [[package]]
+name = "rangemap"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a611d15b50743feb4c76b7d03edcb0e64f399c26961e4efe6975bc398be6aa3d"
+
+[[package]]
 name = "rapier2d"
 version = "0.35.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4900,12 +5057,23 @@ dependencies = [
 
 [[package]]
 name = "read-fonts"
+version = "0.37.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b634fabf032fab15307ffd272149b622260f55974d9fad689292a5d33df02e5"
+dependencies = [
+ "bytemuck",
+ "core_maths",
+ "font-types 0.11.3",
+]
+
+[[package]]
+name = "read-fonts"
 version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "046a7d674daf459825b32f5062056d6882db0d2f5a479fbd76ccfc870ac18709"
 dependencies = [
  "bytemuck",
- "font-types",
+ "font-types 0.12.4",
  "once_cell",
 ]
 
@@ -5100,7 +5268,7 @@ checksum = "fae8ee26b0371a29a77d2b2d6b3ae13aa81def6f9bf1b1b92a32d279a5e709b7"
 [[package]]
 name = "rune"
 version = "0.14.2"
-source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#6a4e1cfeeb705f7904f2a9da0833735c40ea2529"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#2feb52a2ce69810ee78d077ed122e514d6039ac7"
 dependencies = [
  "anyhow",
  "codespan-reporting 0.11.1",
@@ -5126,7 +5294,7 @@ dependencies = [
 [[package]]
 name = "rune-alloc"
 version = "0.14.2"
-source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#6a4e1cfeeb705f7904f2a9da0833735c40ea2529"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#2feb52a2ce69810ee78d077ed122e514d6039ac7"
 dependencies = [
  "pin-project",
  "rune-alloc-macros",
@@ -5137,7 +5305,7 @@ dependencies = [
 [[package]]
 name = "rune-alloc-macros"
 version = "0.14.2"
-source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#6a4e1cfeeb705f7904f2a9da0833735c40ea2529"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#2feb52a2ce69810ee78d077ed122e514d6039ac7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5147,7 +5315,7 @@ dependencies = [
 [[package]]
 name = "rune-core"
 version = "0.14.2"
-source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#6a4e1cfeeb705f7904f2a9da0833735c40ea2529"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#2feb52a2ce69810ee78d077ed122e514d6039ac7"
 dependencies = [
  "musli",
  "rune-alloc",
@@ -5158,7 +5326,7 @@ dependencies = [
 [[package]]
 name = "rune-macros"
 version = "0.14.2"
-source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#6a4e1cfeeb705f7904f2a9da0833735c40ea2529"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#2feb52a2ce69810ee78d077ed122e514d6039ac7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5169,7 +5337,7 @@ dependencies = [
 [[package]]
 name = "rune-tracing"
 version = "0.14.2"
-source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#6a4e1cfeeb705f7904f2a9da0833735c40ea2529"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#2feb52a2ce69810ee78d077ed122e514d6039ac7"
 dependencies = [
  "rune-tracing-macros",
 ]
@@ -5177,7 +5345,7 @@ dependencies = [
 [[package]]
 name = "rune-tracing-macros"
 version = "0.14.2"
-source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#6a4e1cfeeb705f7904f2a9da0833735c40ea2529"
+source = "git+https://github.com/balaurengine/rune.git?branch=deterministic-pow#2feb52a2ce69810ee78d077ed122e514d6039ac7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5600,12 +5768,22 @@ checksum = "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649"
 
 [[package]]
 name = "skrifa"
+version = "0.40.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fbdfe3d2475fbd7ddd1f3e5cf8288a30eb3e5f95832829570cd88115a7434ac"
+dependencies = [
+ "bytemuck",
+ "read-fonts 0.37.0",
+]
+
+[[package]]
+name = "skrifa"
 version = "0.44.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "819ab7d62b1d3e72d9d9dea5650bac30424f9111364bb94928dbf5ecad1baa68"
 dependencies = [
  "bytemuck",
- "read-fonts",
+ "read-fonts 0.41.0",
 ]
 
 [[package]]
@@ -5664,13 +5842,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "smol_str"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4aaa7368fcf4852a4c2dd92df0cace6a71f2091ca0a23391ce7f3a31833f1523"
+
+[[package]]
 name = "socket2"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5742,6 +5926,17 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
+
+[[package]]
+name = "swash"
+version = "0.2.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c2499c2d826531388872b2268718aed907a39bd785ab0dcfe57fab26283f92e"
+dependencies = [
+ "skrifa 0.40.0",
+ "yazi",
+ "zeno",
+]
 
 [[package]]
 name = "swift-rs"
@@ -5939,6 +6134,15 @@ name = "syntree"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00c99c9cda412afe293a6b962af651b4594161ba88c1affe7ef66459ea040a06"
+
+[[package]]
+name = "sys-locale"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8eab9a99a024a169fe8a903cf9d4a3b3601109bcc13bd9e3c6fff259138626c4"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "tar"
@@ -6317,6 +6521,9 @@ name = "ttf-parser"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
+dependencies = [
+ "core_maths",
+]
 
 [[package]]
 name = "tungstenite"
@@ -6365,6 +6572,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
+name = "unicode-bidi"
+version = "0.3.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5"
+
+[[package]]
 name = "unicode-general-category"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6375,6 +6588,18 @@ name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+
+[[package]]
+name = "unicode-linebreak"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b09c83c3c29d37506a3e260c08c03743a6bb66a9cd432c6934ab501a190571f"
+
+[[package]]
+name = "unicode-script"
+version = "0.5.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "383ad40bb927465ec0ce7720e033cb4ca06912855fc35db31b5755d0de75b1ee"
 
 [[package]]
 name = "unicode-segmentation"
@@ -7511,7 +7736,7 @@ dependencies = [
  "rustix 0.38.44",
  "sctk-adwaita",
  "smithay-client-toolkit",
- "smol_str",
+ "smol_str 0.2.2",
  "tracing",
  "unicode-segmentation",
  "wasm-bindgen",
@@ -7657,6 +7882,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "yazi"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e01738255b5a16e78bbb83e7fbba0a1e7dd506905cfc53f4622d89015a03fbb5"
+
+[[package]]
 name = "yoke"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7678,6 +7909,12 @@ dependencies = [
  "syn 2.0.119",
  "synstructure",
 ]
+
+[[package]]
+name = "zeno"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6df3dc4292935e51816d896edcd52aa30bc297907c26167fec31e2b0c6a32524"
 
 [[package]]
 name = "zerocopy"

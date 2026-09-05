@@ -17,7 +17,7 @@
 //! the interval: `back`, `elastic` and `spring` overshoot on purpose, and the
 //! interpolation they shape carries the overshoot through to the value.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 /// The shape of a curve, before a [`Mode`] decides which end it applies to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

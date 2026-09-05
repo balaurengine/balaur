@@ -1,0 +1,127 @@
+name: Build the Balaur engine
+description: >-
+  Build the editor and the runtime templates from the checkout this action
+  stands in, with whichever cargo features the game needs — the way to get an
+  engine the published build does not offer.
+
+inputs:
+  target:
+    description: >-
+      A desktop target to build for this runner: linux-x64, linux-arm64,
+      macos-universal or windows-x64. Each is built on its own OS, except
+      macos-universal, which lipos both Mac slices into one binary.
+    required: false
+    default: ""
+  platform:
+    description: >-
+      A runtime template to build instead of a desktop one: ios, android or
+      web.
+    required: false
+    default: ""
+  features:
+    description: >-
+      Cargo features for the editor and desktop runtime, replacing the
+      default `window,extensions` (`window,apple,extensions` on a Mac). See
+      docs/generated/features.md for what each costs.
+    required: false
+    default: ""
+  web-features:
+    description: Cargo features for the web template, replacing its default.
+    required: false
+    default: ""
+  build-deps:
+    description: >-
+      Install the system libraries the build links on Linux. Turn off if the
+      job installed them already.
+    required: false
+    default: "true"
+  upload:
+    description: >-
+      Upload what was built, under the same `balaur-*` names a release holds.
+    required: false
+    default: "true"
+  attest:
+    description: >-
+      Attach Sigstore build provenance to the artifacts. The calling job needs
+      `id-token: write` and `attestations: write`.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    # A desktop build produces the editor and its runtime; a platform build
+    # produces a template. Each is uploaded under the name a release holds.
+    - id: what
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -n '${{ inputs.target }}' ]; then
+          echo 'artifact=balaur-${{ inputs.target }}' >>"$GITHUB_OUTPUT"
+        elif [ -n '${{ inputs.platform }}' ]; then
+          echo 'artifact=balaur-template-${{ inputs.platform }}' >>"$GITHUB_OUTPUT"
+        else
+          echo '::error::build-engine needs either a target or a platform'
+          exit 1
+        fi
+
+    # A windowed build links winit's X11 and Wayland stacks; a headless one
+    # still needs the audio and input libraries.
+    - if: inputs.build-deps == 'true' && runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libasound2-dev libudev-dev \
+          libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
+          libxkbcommon-dev libwayland-dev
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: ${{ steps.what.outputs.artifact }}-${{ inputs.features }}${{ inputs.web-features }}
+
+    - if: inputs.platform == 'android'
+      shell: bash
+      run: |
+        set -euo pipefail
+        bin=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin
+        {
+          echo "CC_aarch64_linux_android=$bin/aarch64-linux-android26-clang"
+          echo "CXX_aarch64_linux_android=$bin/aarch64-linux-android26-clang++"
+          echo "AR_aarch64_linux_android=$bin/llvm-ar"
+          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$bin/aarch64-linux-android26-clang"
+        } >>"$GITHUB_ENV"
+
+    # The bindgen CLI has to be the exact version the build links against, so
+    # the pin is read off Cargo.lock rather than written down twice.
+    - if: inputs.platform == 'web'
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update && sudo apt-get install -y binaryen brotli bc
+        want=$(awk '/^name = "wasm-bindgen"$/{getline; gsub(/[" ]/,""); sub(/version=/,""); print; exit}' Cargo.lock)
+        cargo install wasm-bindgen-cli --version "$want" --locked
+
+    - shell: bash
+      env:
+        BALAUR_FEATURES: ${{ inputs.features }}
+        WEB_FEATURES: ${{ inputs.web-features }}
+      run: |
+        set -euo pipefail
+        if [ -n '${{ inputs.target }}' ]; then
+          ./scripts/package.sh '${{ inputs.target }}'
+        else
+          ./scripts/package_template.sh '${{ inputs.platform }}'
+        fi
+
+    - if: inputs.upload == 'true'
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ steps.what.outputs.artifact }}
+        path: dist/*
+        if-no-files-found: error
+
+    - if: inputs.attest == 'true'
+      uses: actions/attest-build-provenance@v2
+      with:
+        subject-path: dist/*

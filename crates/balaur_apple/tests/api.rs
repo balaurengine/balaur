@@ -11,14 +11,7 @@ use balaur_platform::{Call, PlatformPlugin, PlatformSnapshot, PlatformState};
 use balaur_script::Value;
 
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut PlatformPlugin::default()).unwrap();
     balaur_plugin::load(&mut app, &mut ApplePlugin::default()).unwrap();
     app
@@ -26,7 +19,8 @@ fn app() -> App {
 
 fn kinds(app: &App) -> Vec<String> {
     let snapshot = app.engine.resource::<PlatformSnapshot>();
-    let kinds = snapshot
+
+    snapshot
         .borrow()
         .events
         .iter()
@@ -42,8 +36,7 @@ fn kinds(app: &App) -> Vec<String> {
             }
             _ => None,
         })
-        .collect();
-    kinds
+        .collect()
 }
 
 #[test]

@@ -7,7 +7,7 @@ use anyhow::Result;
 use rune::runtime::Function;
 
 use crate::inspect::{export_rows, finding_rows};
-use crate::{trampoline, RuneHost, HOSTS, SHARED_FNS};
+use crate::{HOSTS, RuneHost, SHARED_FNS, trampoline};
 
 /// Everything a script may ask about — or borrow from — another script.
 ///

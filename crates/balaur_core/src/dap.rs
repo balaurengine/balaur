@@ -30,7 +30,7 @@ use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -38,12 +38,12 @@ use crate::time::Instant;
 
 use anyhow::{Context, Result};
 use balaur_script::{Pause, PauseReason, ScriptHost, StepMode, Value};
-use serde_json::{json, Map as JsonMap, Value as Json};
+use serde_json::{Map as JsonMap, Value as Json, json};
 
+use crate::Stage;
 use crate::app::App;
 use crate::engine::Engine;
 use crate::project::ProjectRoot;
-use crate::Stage;
 
 /// The one thread a client sees. The engine runs the game on a single thread
 /// and stops all of it at once, so there is exactly one, always id 1.

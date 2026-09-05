@@ -100,11 +100,6 @@ MANIFEST
   printf 'A game exported for Android puts game.bpak in this directory.\n' \
     >"$skeleton/assets/README"
   (cd "$dist" && tar -czf balaur-template-android.tar.gz balaur-template-android)
-
-  step "assemble (debug apk)"
-  # The skeleton assembled into an `adb install`-able APK. Hard-required: a
-  # silent skip would read as "template works" while shipping uninstallable.
-  ./scripts/assemble_apk.sh "$skeleton" "$dist/balaur-template-debug.apk"
   rm -rf "$skeleton"
   ;;
 
@@ -112,11 +107,14 @@ web)
   target=wasm32-unknown-unknown
   step "build ($target, windowed)"
   rustup target add "$target"
+  # WEB_FEATURES builds a smaller template; docs/generated/features.md says
+  # what each feature costs, and gen_docs.py reads the default off this line.
+  features=${WEB_FEATURES:-audio,http,websocket,gamend,web,window}
   # wasm-bindgen, not emscripten: kiss3d declares its web dependencies under
   # [target.wasm32-unknown-unknown] and wgpu reaches WebGPU only through web-sys.
   # webtransport is left out until it grows the wasm stub http and websocket have.
   cargo build --profile web --target "$target" -p balaur_cli \
-    --no-default-features --features audio,http,websocket,gamend,window
+    --no-default-features --features "$features"
 
   wasm="target/$target/web/balaur.wasm"
   [ -f "$wasm" ] || { printf '::error::no %s\n' "$wasm"; exit 1; }
@@ -166,6 +164,15 @@ web)
       [ "$br" -gt 0 ] && printf '| brotli | %.2f |\n' "$(echo "$br/1048576" | bc -l)"
     } >>"$GITHUB_STEP_SUMMARY"
   fi
+
+  # The directory `balaur export --target web` copies: the glue and the wasm.
+  # The exporter adds the page and the pack beside them.
+  step "template dir"
+  skeleton="$dist/balaur-template-web"
+  rm -rf "$skeleton"
+  mkdir -p "$skeleton"
+  cp "$dist/balaur.js" "$dist/balaur_bg.wasm" "$skeleton/"
+  (cd "$dist" && tar -czf balaur-template-web.tar.gz balaur-template-web)
   ;;
 
 *)

@@ -32,6 +32,7 @@ git config core.hooksPath .githooks
 
 Names follow `docs/NAMING.md`; comments are one or two lines stating a
 constraint, with the rationale in `ARCHITECTURE.md`. A change that alters a
-recorded determinism digest has to say why.
+recorded determinism digest has to say why. `docs/QUALITY.md` lists every
+check CI runs and what each one is for.
 
 Contributions are licensed under the project's MIT license; there is no CLA.

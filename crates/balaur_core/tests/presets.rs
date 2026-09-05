@@ -4,17 +4,10 @@
 //! the components, so those tests are in the facade crate.
 
 use balaur_core::components::ComponentDef;
-use balaur_core::{components, presets, scene, App, AppConfig};
+use balaur_core::{App, AppConfig, components, presets, scene};
 
 fn app() -> App {
-    App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 /// Two components that behave like real ones -- each owns storage, so
@@ -185,6 +178,7 @@ impl balaur_script::ScriptHost<balaur_core::Engine> for PackedHost {
         None
     }
     fn call_all(&self, _: &str) {}
+    fn call_all_with(&self, _: &str, _: &[balaur_script::Value]) {}
     fn wake(&self, _: u64, _: &balaur_script::Value) {}
     fn scene_source(&self, rel: &str) -> Option<String> {
         self.0.scenes.get(rel).cloned()
@@ -239,11 +233,8 @@ fn a_packed_run_resolves_a_project_preset_as_a_dev_run_does() {
     let pack = balaur_core::Pack::build(dir.path(), &NoScripts).unwrap();
     // A project root that does not exist, so nothing can fall back to disk.
     let mut packed = App::new(AppConfig {
-        project_root: dir.path().join("shipped"),
         pack: Some(pack.clone()),
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
+        ..AppConfig::bare(dir.path().join("shipped"))
     })
     .unwrap();
     register_pair(&mut packed);

@@ -65,6 +65,18 @@ propagation, and recursive free are core systems. Plugins hang their own
 components off the same entities, so "node" is an API surface, not a data
 structure with a cost.
 
+A scene file spells `parent` either way: the parent's `id`, or a path of names
+down from the scene's own root (`parent = "World/Ground"`). Ids are resolved
+first, so no file written before paths existed can change meaning, and a path
+may not climb out of its scene with `..` — that would let a prefab reparent
+into whatever instanced it. The path form exists for hand-written scenes,
+which would otherwise have to mint an id per node just to point at one; ids
+stay what the editor writes and what `StableId` is built from, because a
+replay addresses a node by id and a rename must not move it. The editor
+resolves a path to its id when it loads the document (`normalize` in
+`editor/scripts/model.rn`), so saving a hand-written scene normalises its
+parents to ids.
+
 ### Frame schedule
 
 Fixed stage order: `First → PreUpdate (reload pump) → Update (scripts,
@@ -1972,9 +1984,11 @@ release finished.
 | Voice in a session | no plan yet; the transport carries unreliable datagrams and audio has buses to mix a stream into. What is missing is a codec |
 | A crash report that reproduces itself: the recording, the log and the build id in one file | no plan yet; `replay` already writes a file that re-runs a session bit for bit and `logbuf` holds the log — nothing packages the two when a game falls over |
 | Store and platform services on Steam and Google Play: sign-in, achievements, leaderboards, cloud saves, rich presence, in-app purchase | `docs/PLAN-steam.md` and `docs/PLAN-google.md`. Apple already built (`docs/PLAN-apple.md`) and built what both plug into: the `platform` script module, the `PlatformBackend` seam, and the rule that a store write waits for its tick to settle. Both remaining plans start with work that is worth doing anyway — Steam's redistributable beside the executable, and an Android package id, app bundle and 16 KB page alignment |
-| Signed binary releases, published benchmarks | `docs/PLAN-release.md` |
+| Signed binary releases, published benchmarks | `docs/PLAN-release.md`. The benchmarks are measured and written down: `examples/benchmark` runs the Godot suites' cases and `scripts/bench_compare.py` writes `docs/BENCHMARKS.md` (`docs/PLAN-benchmarks.md`). What is missing is a pinned runner per tag |
+| Node destruction that is not quadratic in siblings, and a sibling-reorder operation | no plan yet; `docs/BENCHMARKS.md` measures the first at fifty times Godot's, and the second is why `move_child` has no row |
 | Web export: a wgpu surface on a canvas, a shell page, and the pack fetched beside the wasm | `docs/PLAN-mobile-export.md` "Web". The headless wasm template already links and is packaged on every push (`scripts/package_template.sh web`); the window is what is missing, and it blocks `docs/PLAN-web-editor.md` too |
 | One-click deploy: a game on a URL or on a phone from one command or one button, rather than a bundle in `dist/` | `docs/PLAN-deploy.md`. `balaur export` builds and signs; nothing sends the result anywhere, and the three store plans each end at a file on the developer's disk |
+| Signing on every target, GitHub Actions a game's repository reuses (`setup`, `export-game`, `build-engine`), and an Export sheet in the editor | `docs/PLAN-actions.md`. Only the macOS `.app` signs today; the reusable workflows serve this repo's own CI; the editor's one "export" copies a replay session |
 | Console export: Switch, PlayStation, Xbox | no plan yet, and not a target flag: `balaur export --target` and the pack shape travel, but each console's graphics, input and store layer is an NDA SDK that is not wgpu, winit or gilrs |
 | XR: OpenXR on desktop and standalone headsets, WebXR in the browser — stereo views, tracked poses, controller and hand input | no plan yet; the wgpu device, the offscreen path that renders with no OS window, and input actions (the shape an OpenXR action set wants) are the reusable half. kiss3d owning the window and the swapchain is what is in the way, and a 60 Hz fixed tick against a 90 Hz display is the open question |
 | Parallel system execution, once profiling demands it | no plan yet; the gameplay tick is serial by design |

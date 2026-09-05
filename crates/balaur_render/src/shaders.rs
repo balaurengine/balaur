@@ -7,7 +7,7 @@
 //! behind the `kiss3d` feature because linking needs no GPU: a shader that
 //! does not link is a bug a headless test can catch.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_core::Engine;
 use balaur_plugin::Registry;
 

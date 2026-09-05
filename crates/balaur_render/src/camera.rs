@@ -6,11 +6,14 @@ use balaur_core::components::ComponentDef;
 use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
 
-use crate::{color_to_toml, CameraConfig, CameraConfig2d, PostConfig};
+use crate::shape::{keys as k, options, words};
+use crate::{CameraConfig, CameraConfig2d, PostConfig, color_to_toml};
 
 /// The smallest 2D zoom, in logical pixels per world unit. Mirrors the `min`
 /// the `camera` schema below states, which `render.set_camera_2d` also takes.
-pub(crate) const MIN_ZOOM_2D: f32 = 1.0;
+/// A hundredth, not one: a pixel-scale level is thousands of units across,
+/// and a camera that cannot show it whole is a camera that cannot frame it.
+pub(crate) const MIN_ZOOM_2D: f32 = 0.01;
 
 /// Which view a `camera` component drives: `"3d"` in a scene file is the
 /// perspective camera, `"2d"` the orthographic one.
@@ -179,9 +182,13 @@ fn drive_post(eng: &Engine, post: Post) {
 
 /// The authored camera a full property table describes.
 fn camera_from_params(params: &toml::Value) -> anyhow::Result<Camera> {
-    let kind = match params.get("kind").and_then(|v| v.as_str()).unwrap_or("3d") {
-        "3d" => CameraKind::Perspective,
-        "2d" => CameraKind::Orthographic,
+    let kind = match params
+        .get(k::KIND)
+        .and_then(|v| v.as_str())
+        .unwrap_or(words::PERSPECTIVE)
+    {
+        words::PERSPECTIVE => CameraKind::Perspective,
+        words::ORTHOGRAPHIC => CameraKind::Orthographic,
         other => return Err(anyhow!("unknown camera kind '{other}'")),
     };
     let num = |key: &str, default: f64| {
@@ -198,7 +205,7 @@ fn camera_from_params(params: &toml::Value) -> anyhow::Result<Camera> {
             .and_then(balaur_core::components::as_f64)
             .unwrap_or(0.0) as f32
     };
-    let flag = |name| balaur_core::components::has_flag(params.get("post"), name);
+    let flag = |name| balaur_core::components::has_flag(params.get(k::POST), name);
     Ok(Camera {
         kind,
         ambient: color_from_params_named(params, "ambient"),
@@ -207,15 +214,15 @@ fn camera_from_params(params: &toml::Value) -> anyhow::Result<Camera> {
             ssao: flag("ssao"),
             ssr: flag("ssr"),
             dof: flag("dof"),
-            bloom_threshold: num("bloom_threshold", 1.0).max(0.0),
-            bloom_intensity: num("bloom_intensity", 0.6).max(0.0),
+            bloom_threshold: num(k::BLOOM_THRESHOLD, 1.0).max(0.0),
+            bloom_intensity: num(k::BLOOM_INTENSITY, 0.6).max(0.0),
         },
         current: params
             .get("current")
             .and_then(toml::Value::as_bool)
             .unwrap_or(true),
         look_at: glamx::Vec3::new(la(0), la(1), la(2)),
-        zoom: num("zoom", 60.0).max(MIN_ZOOM_2D),
+        zoom: num(k::ZOOM, 60.0).max(MIN_ZOOM_2D),
     })
 }
 
@@ -228,16 +235,18 @@ pub(crate) fn register_camera_component(reg: &mut Registry<'_>) {
             doc: "The view the scene is drawn from, following the node's global pose: `look_at` aims the 3D camera, `zoom` scales the 2D one in logical pixels per world unit. The last `current` camera of a kind, in tree order, drives that view.",
             schema: ComponentDef::parse_schema(
                 "camera",
-                r#"kind = { type = "enum", default = "3d", options = ["3d", "2d"], description = "Which camera this node drives" }
-current = { type = "bool", default = true, description = "Whether this camera drives the view; the last current one wins" }
-look_at = { type = "vec3", default = [0.0, 0.0, 0.0], description = "World point the 3D camera looks at" }
-zoom = { type = "float", default = 60.0, min = 1.0, description = "2D zoom in logical pixels per world unit" }
-ambient = { type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`; only a `2d` camera's is read" }
-post = { type = "flags", options = ["bloom", "ssao", "ssr", "dof"], default = [], description = "Screen-space effects the frame resolves through; `ssao`, `ssr` and `dof` are 3D only" }
-bloom_threshold = { type = "float", default = 1.0, min = 0.0, description = "Brightness a pixel has to pass to bloom" }
-bloom_intensity = { type = "float", default = 0.6, min = 0.0, description = "How much of the bloom is added back over the frame" }"#,
+                &balaur_core::components::ComponentDef::schema(&[
+                    (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Which camera this node drives" }}"#, words::PERSPECTIVE, options(words::CAMERA_KINDS))),
+                    (k::CURRENT, r#"{ type = "bool", default = true, description = "Whether this camera drives the view; the last current one wins" }"#),
+                    (k::LOOK_AT, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "World point the 3D camera looks at" }"#),
+                    (k::ZOOM, r#"{ type = "float", default = 60.0, min = 0.01, description = "2D zoom in logical pixels per world unit" }"#),
+                    (k::AMBIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "Light every 2D surface gets before any `light2d`; only a `2d` camera's is read" }"#),
+                    (k::POST, r#"{ type = "flags", options = ["bloom", "ssao", "ssr", "dof"], default = [], description = "Screen-space effects the frame resolves through; `ssao`, `ssr` and `dof` are 3D only" }"#),
+                    (k::BLOOM_THRESHOLD, r#"{ type = "float", default = 1.0, min = 0.0, description = "Brightness a pixel has to pass to bloom" }"#),
+                    (k::BLOOM_INTENSITY, r#"{ type = "float", default = 0.6, min = 0.0, description = "How much of the bloom is added back over the frame" }"#),
+                ]),
             ),
-            tags: &["3d", "render"],
+            tags: &[words::PERSPECTIVE, "render"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
                 let camera = camera_from_params(params)?;
@@ -260,10 +269,10 @@ bloom_intensity = { type = "float", default = 0.6, min = 0.0, description = "How
                 let camera = world.get::<&Camera>(entity).ok()?;
                 let mut map = toml::map::Map::new();
                 let kind = match camera.kind {
-                    CameraKind::Perspective => "3d",
-                    CameraKind::Orthographic => "2d",
+                    CameraKind::Perspective => words::PERSPECTIVE,
+                    CameraKind::Orthographic => words::ORTHOGRAPHIC,
                 };
-                map.insert("kind".into(), toml::Value::String(kind.into()));
+                map.insert(k::KIND.into(), toml::Value::String(kind.into()));
                 map.insert("current".into(), toml::Value::Boolean(camera.current));
                 map.insert(
                     "look_at".into(),
@@ -274,10 +283,10 @@ bloom_intensity = { type = "float", default = 0.6, min = 0.0, description = "How
                             .collect(),
                     ),
                 );
-                map.insert("zoom".into(), toml::Value::Float(f64::from(camera.zoom)));
+                map.insert(k::ZOOM.into(), toml::Value::Float(f64::from(camera.zoom)));
                 map.insert("ambient".into(), color_to_toml(camera.ambient));
                 map.insert(
-                    "post".into(),
+                    k::POST.into(),
                     toml::Value::Array(
                         POST_EFFECTS
                             .iter()
@@ -287,11 +296,11 @@ bloom_intensity = { type = "float", default = 0.6, min = 0.0, description = "How
                     ),
                 );
                 map.insert(
-                    "bloom_threshold".into(),
+                    k::BLOOM_THRESHOLD.into(),
                     toml::Value::Float(f64::from(camera.post.bloom_threshold)),
                 );
                 map.insert(
-                    "bloom_intensity".into(),
+                    k::BLOOM_INTENSITY.into(),
                     toml::Value::Float(f64::from(camera.post.bloom_intensity)),
                 );
                 Some(toml::Value::Table(map))

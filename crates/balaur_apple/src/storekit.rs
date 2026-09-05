@@ -15,10 +15,10 @@ use std::sync::mpsc::Sender;
 use crate::{AppleEvent, StoreCall};
 
 #[cfg(swift_shim)]
-use std::ffi::{c_char, CStr, CString};
+use std::ffi::{CStr, CString, c_char};
 
 #[cfg(swift_shim)]
-extern "C" {
+unsafe extern "C" {
     fn balaur_storekit_products(request: u64, ids: *const c_char);
     fn balaur_storekit_purchase(request: u64, product: *const c_char);
     fn balaur_storekit_entitlements(request: u64);
@@ -33,7 +33,7 @@ extern "C" {
 /// playing would be taken for recorded input, so it waits in the queue until
 /// a pump that may reach the outside world moves it across.
 #[cfg(swift_shim)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub(crate) extern "C" fn balaur_storekit_report(request: u64, json: *const c_char) {
     if json.is_null() {
         return;

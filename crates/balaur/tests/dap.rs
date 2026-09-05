@@ -6,8 +6,8 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
 
-use balaur::{dap, standard_app, App, AppConfig, FIXED_DT};
-use serde_json::{json, Value as Json};
+use balaur::{App, AppConfig, FIXED_DT, dap, standard_app};
+use serde_json::{Value as Json, json};
 
 /// Line 4 has no code on it, so a breakpoint asked for there lands on 5.
 /// Line 6 calls out, for stepping into.
@@ -243,7 +243,6 @@ fn a_client_sets_a_breakpoint_then_reads_and_walks_the_stopped_game() {
         "line 4 has no code; the breakpoint moves to the next line that has"
     );
 
-    // The tick that hits it stops the game, and says so.
     let stopped = client.event(&mut app, "stopped");
     assert_eq!(stopped["body"]["reason"], json!("breakpoint"));
     assert_eq!(stopped["body"]["threadId"], json!(1));
@@ -284,7 +283,6 @@ fn a_client_sets_a_breakpoint_then_reads_and_walks_the_stopped_game() {
     assert_eq!(n["type"], json!("int"));
     assert_eq!(n["value"], ran["value"], "line 5 has not run yet");
 
-    // A watch on a name in the frame answers; an expression says why not.
     let watch = client.ask(
         &mut app,
         "evaluate",
@@ -298,7 +296,6 @@ fn a_client_sets_a_breakpoint_then_reads_and_walks_the_stopped_game() {
     let refused = client.response(&mut app, seq);
     assert_eq!(refused["success"], json!(false));
 
-    // Stepping walks a line at a time and stays stopped.
     client.ask(&mut app, "next", &json!({ "threadId": 1 }));
     let after_step = client.event(&mut app, "stopped");
     assert_eq!(after_step["body"]["reason"], json!("step"));
@@ -315,20 +312,17 @@ fn a_client_sets_a_breakpoint_then_reads_and_walks_the_stopped_game() {
     let earlier: i64 = n["value"].as_str().unwrap().parse().unwrap();
     assert_eq!(stepped_n, earlier + 1, "one line, one increment");
 
-    // Stepping into the call puts the callee on top of its caller.
     client.ask(&mut app, "stepIn", &json!({ "threadId": 1 }));
     client.event(&mut app, "stopped");
     let trace = client.ask(&mut app, "stackTrace", &json!({ "threadId": 1 }));
     assert_eq!(trace["stackFrames"][0]["name"], json!("bump"));
     assert_eq!(trace["stackFrames"][1]["name"], json!("update"));
 
-    // And out again, back into the caller.
     client.ask(&mut app, "stepOut", &json!({ "threadId": 1 }));
     client.event(&mut app, "stopped");
     let trace = client.ask(&mut app, "stackTrace", &json!({ "threadId": 1 }));
     assert_eq!(trace["stackFrames"][0]["name"], json!("update"));
 
-    // Continue lets go, and the client is told.
     client.ask(&mut app, "continue", &json!({ "threadId": 1 }));
     client.event(&mut app, "continued");
 }

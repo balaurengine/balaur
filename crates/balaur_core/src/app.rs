@@ -111,6 +111,12 @@ impl AppConfig {
     /// build tool that leaves a file watcher running is a build tool that
     /// never exits.
     pub fn export(project_root: impl Into<PathBuf>) -> Self {
+        Self::bare(project_root)
+    }
+
+    /// An engine and nothing else: no pack, no watcher, no script backend.
+    /// What a test loads one plugin into.
+    pub fn bare(project_root: impl Into<PathBuf>) -> Self {
         Self {
             watch: false,
             ..Self::dev(project_root)
@@ -119,11 +125,8 @@ impl AppConfig {
 
     pub fn packed(pack: Pack) -> Self {
         Self {
-            project_root: PathBuf::from("."),
             pack: Some(pack),
-            watch: false,
-            script_args: Vec::new(),
-            script_backend: None,
+            ..Self::bare(".")
         }
     }
 }
@@ -189,20 +192,69 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(crate::snapshot::SnapshotRegistry::default());
 }
 
+/// The facts and timers every app carries: recorded as replay sources so a
+/// replay answers as the original run did, and timers in the snapshot.
+fn register_facts(app: &mut App) {
+    app.engine.insert_resource(crate::facts::Facts::default());
+    app.engine
+        .insert_resource(crate::facts::WallClock::default());
+    app.engine.insert_resource(crate::timers::Timers::default());
+    app.engine.insert_resource(crate::facts::Device::default());
+    app.add_replay_source(
+        "device",
+        |eng| serde_json::to_value(crate::facts::device(eng)).unwrap_or_default(),
+        |eng, value| {
+            if let Ok(facts) = serde_json::from_value::<crate::facts::DeviceFacts>(value.clone()) {
+                eng.resource::<crate::facts::Device>().borrow_mut().now = facts;
+            }
+        },
+    );
+    app.add_replay_source(
+        "wall_clock",
+        |eng| {
+            serde_json::to_value(*eng.resource::<crate::facts::WallClock>().borrow())
+                .unwrap_or_default()
+        },
+        |eng, value| {
+            if let Ok(clock) = serde_json::from_value::<crate::facts::WallClock>(value.clone()) {
+                *eng.resource::<crate::facts::WallClock>().borrow_mut() = clock;
+            }
+        },
+    );
+    app.add_replay_setup(
+        "platform",
+        |eng| serde_json::to_value(crate::facts::platform(eng)).unwrap_or_default(),
+        |eng, value| {
+            if let Ok(facts) = serde_json::from_value::<crate::facts::PlatformFacts>(value.clone())
+            {
+                eng.resource::<crate::facts::Facts>().borrow_mut().0 = Some(facts);
+            }
+        },
+    );
+    app.add_snapshot_source(
+        "timers",
+        crate::timers::save_timers,
+        crate::timers::load_timers,
+    );
+}
+
 impl App {
     pub fn new(mut config: AppConfig) -> Result<Self> {
         let engine = Engine::new();
         insert_core_resources(&engine, &config);
-        if let Some(make) = config.script_backend.take() {
-            engine.set_script_host(make(ScriptSetup {
-                engine: &engine,
-                project_root: &config.project_root,
-                pack: config.pack.clone(),
-                watch: config.watch,
-            })?);
-            crate::engine_api::install_engine_api(&engine)?;
-        } else {
-            tracing::info!("no script backend configured; scripting is off");
+        match config.script_backend.take() {
+            Some(make) => {
+                engine.set_script_host(make(ScriptSetup {
+                    engine: &engine,
+                    project_root: &config.project_root,
+                    pack: config.pack.clone(),
+                    watch: config.watch,
+                })?);
+                crate::engine_api::install_engine_api(&engine)?;
+            }
+            _ => {
+                tracing::info!("no script backend configured; scripting is off");
+            }
         }
         let mut app = Self {
             engine,
@@ -225,6 +277,7 @@ impl App {
         crate::skeleton::register_bone3d_component(&mut app);
         crate::snapshot::build_core_sources(&mut app);
         crate::netsession::build_session_source(&mut app);
+        register_facts(&mut app);
         crate::settings::build_core_settings(&app.engine);
         // Before every plugin's First work, so a subsystem that dispatches
         // incoming traffic there sees the recording rather than the network.
@@ -235,6 +288,9 @@ impl App {
                 crate::replay::restore(eng, &frame);
             }
         });
+        app.add_system(Stage::First, crate::facts::read_clock_system);
+        app.add_system(Stage::First, crate::facts::announce_device_system);
+        app.add_system(Stage::FixedUpdate, crate::timers::step_timers_system);
         app.add_system(Stage::PreUpdate, |eng, _| {
             if let Some(host) = eng.script_host() {
                 crate::timings::measure(eng, "scripts/reload", || host.pump_reloads());
@@ -262,19 +318,24 @@ impl App {
             });
         });
         app.add_system(Stage::Last, |eng, _| {
+            // Every free of the frame in one batch: see `scene::free_nodes`.
+            let mut freed = Vec::new();
             for cmd in eng.take_commands() {
                 match cmd {
                     Command::Free(entity) => {
                         let label = crate::digest::node_label(&eng.world(), entity);
-                        scene::free_node(eng, entity);
                         crate::replay::event(
                             eng,
                             "scene.free",
                             format!("freed {label}"),
                             Some(serde_json::json!({ "node": label })),
                         );
+                        freed.push(entity);
                     }
                 }
+            }
+            if !freed.is_empty() {
+                scene::free_nodes(eng, &freed);
             }
         });
         // After deferred destruction, so a recorded digest describes the

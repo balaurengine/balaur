@@ -39,9 +39,17 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 # lets a headless test catch a shader that will not link.
 wesl = { version = "0.4", features = ["eval"] }
 
+# A hidden tab gets no animation frames, so the simulation is stepped on a
+# timer there instead; the page's clock and visibility come from web-sys.
+[target.'cfg(all(target_family = "wasm", not(target_os = "emscripten")))'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["CssStyleDeclaration", "Document", "Element", "MediaQueryList", "Navigator", "VisualViewport", "Window"] }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6", optional = true }
-objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSImage", "NSResponder"], optional = true }
+objc2-app-kit = { version = "0.3", features = ["NSAppearance", "NSApplication", "NSImage", "NSResponder"], optional = true }
 objc2-foundation = { version = "0.3", optional = true }
 
 [dev-dependencies]

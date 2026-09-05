@@ -93,7 +93,7 @@ heights = [0, 0, 0, 0, -1, 0, 0, 0, 0]
 
 ### `material`
 
-Files: `materials/`. Used by: `mesh.material`, `shape2d.material`, `shape3d.material`, `sprite.material`.
+Files: `materials/`. Used by: `mesh.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `tilemap.material`.
 
 A shader and the values it draws with. `shader` names a `.wesl` file
 (project-relative); `[features]` are the `@if` flags that pick a variant when
@@ -167,7 +167,7 @@ cells = [[0, 0, 0], [0, 1, 0], [0, 2, 0]]
 
 Files: `themes/`. Used by: `widget.theme`.
 
-How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius` and `padding` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...). A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root.
+How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius` and `padding` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own pixels. A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root.
 
 
 ## The `assets` script module

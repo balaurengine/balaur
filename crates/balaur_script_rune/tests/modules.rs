@@ -92,7 +92,10 @@ fn pump_until(host: &balaur_script_rune::RuneHost, check: impl Fn() -> bool) -> 
 #[test]
 fn saving_a_mod_submodule_reloads_the_root_that_folded_it_in() {
     let dir = project(&[
-        ("root.rn", "mod helper;\npub const BASE = 10;\npub fn init(this) { this.out = helper::value(); }\npub fn again(this) { this.out = helper::value(); }\n"),
+        (
+            "root.rn",
+            "mod helper;\npub const BASE = 10;\npub fn init(this) { this.out = helper::value(); }\npub fn again(this) { this.out = helper::value(); }\n",
+        ),
         ("helper.rn", HELPER),
     ]);
     let app = app_in(dir.path(), true, None);
@@ -191,7 +194,10 @@ fn open_recording(app: &App) -> bool {
 #[test]
 fn an_export_compiles_roots_and_lets_them_carry_their_modules() {
     let dir = project(&[
-        ("root.rn", "mod helper;\npub const BASE = 10;\npub fn init(this) { this.out = helper::value(); }\n"),
+        (
+            "root.rn",
+            "mod helper;\npub const BASE = 10;\npub fn init(this) { this.out = helper::value(); }\n",
+        ),
         ("helper.rn", HELPER),
     ]);
     let app = app_in(dir.path(), false, None);

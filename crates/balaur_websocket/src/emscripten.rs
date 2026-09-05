@@ -11,12 +11,12 @@
 //! `.cargo/config.toml`; see `build.rs`.
 
 use std::cell::{Cell, RefCell};
-use std::ffi::{c_char, c_int, c_void, CString};
+use std::ffi::{CString, c_char, c_int, c_void};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
 use crate::{SocketCommand, SocketEvent, SocketOptions};
 
-extern "C" {
+unsafe extern "C" {
     fn balaur_ws_connect(
         url: *const c_char,
         user: *mut c_void,

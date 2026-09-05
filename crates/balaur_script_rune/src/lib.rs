@@ -27,10 +27,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::mpsc::Receiver;
 use std::sync::Arc;
+use std::sync::mpsc::Receiver;
 
-use anyhow::{anyhow, Context as _, Result};
+use anyhow::{Context as _, Result, anyhow};
 use balaur_core::scene::ScriptAttachment;
 use balaur_core::{Engine, Pack};
 use balaur_script::{Pause, StepMode};
@@ -44,7 +44,7 @@ use rune::{Diagnostics, Source, Sources, Vm};
 pub use api::{api_json, rune_of};
 pub use bindings::{ApiEntry, RuneModule};
 pub use inspect::Finding;
-use inspect::{public_functions, render, PublicSignature};
+use inspect::{PublicSignature, public_functions, render};
 use packed::PackSourceLoader;
 pub use profile::ScriptCost;
 use script_module::script_module;
@@ -404,6 +404,7 @@ impl RuneHost {
             token: u64::try_from(token).unwrap_or(u64::MAX),
         })
         .build()?;
+        task::declare_waits(self, &mut task)?;
         ctx.install(task)?;
         ctx.install(script_module(self)?)?;
         let pending = self.state.borrow().pending.clone();
@@ -604,10 +605,11 @@ impl RuneHost {
     /// Dropped rather than pooled once the pool is full, and dropped when the
     /// script has been reloaded out from under it — its unit is stale.
     fn return_vm(&self, key: &str, vm: Vm) {
-        if let Some(script) = self.state.borrow_mut().scripts.get_mut(key) {
-            if script.vms.len() < VM_POOL && vm.is_same_unit(&script.unit) {
-                script.vms.push(vm);
-            }
+        if let Some(script) = self.state.borrow_mut().scripts.get_mut(key)
+            && script.vms.len() < VM_POOL
+            && vm.is_same_unit(&script.unit)
+        {
+            script.vms.push(vm);
         }
     }
 
@@ -676,12 +678,11 @@ impl RuneHost {
         if let Some(paused) = paused {
             self.drop_pause(&paused);
         }
-        if let Some(inst) = inst {
-            if let Some(on_free) = self.method(&inst.key, "on_free") {
-                if let Err(err) = on_free.call::<()>((inst.state,)).into_result() {
-                    self.report(&inst.key, "on_free", &err);
-                }
-            }
+        if let Some(inst) = inst
+            && let Some(on_free) = self.method(&inst.key, "on_free")
+            && let Err(err) = on_free.call::<()>((inst.state,)).into_result()
+        {
+            self.report(&inst.key, "on_free", &err);
         }
     }
 
@@ -827,6 +828,25 @@ impl RuneHost {
     pub fn call_all(&self, method: &str) {
         for (entity, key, state) in self.live_batch() {
             self.invoke(entity, &key, method, vec![state], true);
+        }
+    }
+
+    /// As [`Self::call_all`], with `args` after the instance.
+    pub fn call_all_with(&self, method: &str, args: &[balaur_script::Value]) {
+        let mut extra = Vec::with_capacity(args.len());
+        for arg in args {
+            match value::from_neutral(arg) {
+                Ok(value) => extra.push(value),
+                Err(err) => {
+                    tracing::error!("{method}: {err}");
+                    return;
+                }
+            }
+        }
+        for (entity, key, state) in self.live_batch() {
+            let mut call_args = vec![state];
+            call_args.extend(extra.iter().cloned());
+            self.invoke(entity, &key, method, call_args, true);
         }
     }
 
@@ -1097,6 +1117,10 @@ impl balaur_script::ScriptHost<Engine> for RuneHost {
 
     fn call_all(&self, method: &str) {
         RuneHost::call_all(self, method);
+    }
+
+    fn call_all_with(&self, method: &str, args: &[balaur_script::Value]) {
+        RuneHost::call_all_with(self, method, args);
     }
 
     fn wake(&self, token: u64, payload: &balaur_script::Value) {

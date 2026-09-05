@@ -1,0 +1,123 @@
+// The scene-tree cases from godotengine/godot-benchmarks: fifty thousand
+// children added, removed in three orders, and looked up by path. Each is one
+// loop timed whole, in whichever frame stages its work lands in.
+
+const ITERATIONS = 50000;
+const REPEATS = 5;
+
+pub fn all() {
+    [
+        adding(),
+        deleting("delete_children_in_order", "order"),
+        deleting("delete_children_reverse", "reverse"),
+        deleting("delete_children_random", "random"),
+        getting(),
+    ]
+}
+
+fn case(name, stages, parts) {
+    let out = #{
+        name: name, kind: "nodes", iterations: ITERATIONS, repeats: REPEATS,
+        stages: stages, prepare: |w| {}, run: |w| {},
+    };
+    for (key, value) in parts {
+        out.insert(key, value);
+    }
+    out
+}
+
+/// `add_child` fifty thousand times under one fresh parent, every child
+/// named alike, as the Godot case is: formatting a fresh name per child
+/// costs the script more than the engine costs to add it.
+fn adding() {
+    case("add_children", ["update"], [
+        ("run", |w| {
+            let parent = scene::spawn("Adds", w.container);
+            for i in 0..ITERATIONS {
+                parent.add_child("n");
+            }
+            w.made.push(parent);
+        }),
+    ])
+}
+
+/// Destroying fifty thousand children in a given order.
+///
+/// A script cannot free a node where it stands — `queue_free` records the
+/// intent and the destruction runs in `last` — so the loop and the work it
+/// asks for land in two stages, and the case reads both.
+fn deleting(name, order) {
+    case(name, ["update", "last"], [
+        ("prepare", |w| {
+            let parent = scene::spawn("Deletes", w.container);
+            let children = [];
+            for i in 0..ITERATIONS {
+                children.push(parent.add_child(format!("n{}", i)));
+            }
+            w.made.push(parent);
+            w.targets = ordered(children, order);
+        }),
+        ("run", |w| {
+            for node in w.targets {
+                node.queue_free();
+            }
+        }),
+    ])
+}
+
+fn ordered(children, order) {
+    if order == "order" {
+        return children;
+    }
+    if order == "reverse" {
+        let out = [];
+        let i = children.len();
+        while i > 0 {
+            i = i - 1;
+            out.push(children[i]);
+        }
+        return out;
+    }
+    // A shuffle from the deterministic stream, so two runs walk the same
+    // order and a repeat compares with a repeat.
+    let out = [];
+    for c in children {
+        out.push(c);
+    }
+    let i = out.len();
+    while i > 1 {
+        i = i - 1;
+        let j = rng::int(0, i as i64);
+        let held = out[i];
+        out[i] = out[j];
+        out[j] = held;
+    }
+    out
+}
+
+/// `get_node` on every node of a randomly nested tree, by the path from its
+/// root, as `benchmarks/scene_nodes/get_node.gd` does.
+fn getting() {
+    case("get_node", ["update"], [
+        ("prepare", |w| {
+            let root = scene::spawn("Lookups", w.container);
+            w.made.push(root);
+            let nodes = [root];
+            let paths = [""];
+            for i in 0..ITERATIONS {
+                let at = rng::int(0, (nodes.len() - 1) as i64);
+                let name = format!("n{}", i);
+                nodes.push(nodes[at].add_child(name));
+                let above = paths[at];
+                paths.push(if above == "" { name } else { format!("{}/{}", above, name) });
+            }
+            w.root = root;
+            w.targets = paths;
+        }),
+        ("run", |w| {
+            for path in w.targets {
+                w.root.get_node(path);
+            }
+        }),
+    ])
+}

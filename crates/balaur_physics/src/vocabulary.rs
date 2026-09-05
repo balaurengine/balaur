@@ -9,6 +9,352 @@
 use balaur_core::components::as_f64;
 use balaur_script::Value;
 
+/// The closed sets of words a scene file, a script table and the inspector all
+/// spell. Written once here so a matcher, a schema's `options` list and the
+/// read-back cannot disagree about what a word is.
+pub(crate) mod words {
+    pub(crate) const DYNAMIC: &str = "dynamic";
+    pub(crate) const STATIC: &str = "static";
+    pub(crate) const KINEMATIC: &str = "kinematic";
+    pub(crate) const KINEMATIC_VELOCITY: &str = "kinematic_velocity";
+    /// The body kinds both dimensions accept (N14).
+    pub(crate) const BODY_KINDS: &[&str] = &[DYNAMIC, STATIC, KINEMATIC, KINEMATIC_VELOCITY];
+
+    pub(crate) const AVERAGE: &str = "average";
+    pub(crate) const MIN: &str = "min";
+    pub(crate) const MULTIPLY: &str = "multiply";
+    pub(crate) const MAX: &str = "max";
+    pub(crate) const CLAMPED_SUM: &str = "clamped_sum";
+    pub(crate) const GEOMETRIC_MEAN: &str = "geometric_mean";
+    /// How two surfaces' friction or bounciness are combined.
+    pub(crate) const COMBINE_RULES: &[&str] =
+        &[AVERAGE, MIN, MULTIPLY, MAX, CLAMPED_SUM, GEOMETRIC_MEAN];
+
+    pub(crate) const BALL: &str = "ball";
+    pub(crate) const CUBOID: &str = "cuboid";
+    pub(crate) const CIRCLE: &str = "circle";
+    pub(crate) const RECT: &str = "rect";
+    pub(crate) const CAPSULE: &str = "capsule";
+    pub(crate) const CYLINDER: &str = "cylinder";
+    pub(crate) const CONE: &str = "cone";
+    pub(crate) const TRIANGLE: &str = "triangle";
+    pub(crate) const SEGMENT: &str = "segment";
+    pub(crate) const HALFSPACE: &str = "halfspace";
+    pub(crate) const TRIMESH: &str = "trimesh";
+    pub(crate) const CONVEX_HULL: &str = "convex_hull";
+    pub(crate) const CONVEX_DECOMPOSITION: &str = "convex_decomposition";
+    pub(crate) const POLYLINE: &str = "polyline";
+    pub(crate) const HEIGHTFIELD: &str = "heightfield";
+    pub(crate) const VOXELS: &str = "voxels";
+    pub(crate) const VOXELIZED_MESH: &str = "voxelized_mesh";
+    pub(crate) const FIT: &str = "fit";
+    /// The 3D collider shapes, in the order the inspector offers them.
+    pub(crate) const SHAPES: &[&str] = &[
+        BALL,
+        CUBOID,
+        CAPSULE,
+        CYLINDER,
+        CONE,
+        TRIANGLE,
+        SEGMENT,
+        HALFSPACE,
+        TRIMESH,
+        CONVEX_HULL,
+        CONVEX_DECOMPOSITION,
+        POLYLINE,
+        HEIGHTFIELD,
+        VOXELS,
+        VOXELIZED_MESH,
+        FIT,
+    ];
+    /// The 2D shapes. A circle is not a ball and a rect is not a cuboid: the
+    /// two worlds name their own shapes.
+    pub(crate) const SHAPES_2D: &[&str] = &[
+        CIRCLE,
+        RECT,
+        CAPSULE,
+        TRIANGLE,
+        SEGMENT,
+        HALFSPACE,
+        TRIMESH,
+        CONVEX_HULL,
+        POLYLINE,
+        HEIGHTFIELD,
+    ];
+
+    pub(crate) const SOLID: &str = "solid";
+    pub(crate) const SURFACE: &str = "surface";
+    /// Whether voxelizing a mesh fills its inside or only its shell.
+    pub(crate) const FILL_MODES: &[&str] = &[SOLID, SURFACE];
+
+    pub(crate) const AABB: &str = "aabb";
+    pub(crate) const OBB: &str = "obb";
+    /// The shapes a mesh can be fitted to, when a collider's kind is `fit`.
+    pub(crate) const FIT_MODES: &[&str] = &[CONVEX_HULL, AABB, OBB, CONVEX_DECOMPOSITION];
+
+    pub(crate) const FIXED: &str = "fixed";
+    pub(crate) const REVOLUTE: &str = "revolute";
+    pub(crate) const PRISMATIC: &str = "prismatic";
+    pub(crate) const SPHERICAL: &str = "spherical";
+    pub(crate) const ROPE: &str = "rope";
+    pub(crate) const SPRING: &str = "spring";
+    pub(crate) const PIN_SLOT: &str = "pin_slot";
+    pub(crate) const GENERIC: &str = "generic";
+    /// The 3D joints. `spherical` needs three angular axes, so 2D has none.
+    pub(crate) const JOINT_KINDS: &[&str] =
+        &[FIXED, REVOLUTE, PRISMATIC, SPHERICAL, ROPE, SPRING, GENERIC];
+    /// The 2D joints. `pin_slot` is rapier's, and 2D-only.
+    pub(crate) const JOINT_KINDS_2D: &[&str] =
+        &[FIXED, REVOLUTE, PRISMATIC, ROPE, SPRING, PIN_SLOT, GENERIC];
+
+    pub(crate) const OFF: &str = "off";
+    pub(crate) const VELOCITY: &str = "velocity";
+    pub(crate) const POSITION: &str = "position";
+    /// What a joint's motor drives towards, if anything.
+    pub(crate) const MOTOR_MODES: &[&str] = &[OFF, VELOCITY, POSITION];
+
+    pub(crate) const ACCELERATION: &str = "acceleration";
+    pub(crate) const FORCE: &str = "force";
+    /// Whether a motor's strength ignores mass.
+    pub(crate) const MOTOR_MODELS: &[&str] = &[ACCELERATION, FORCE];
+
+    pub(crate) const IMPULSE: &str = "impulse";
+    pub(crate) const REDUCED: &str = "reduced";
+    /// Which of rapier's two joint sets holds the joint.
+    pub(crate) const JOINT_SOLVERS: &[&str] = &[IMPULSE, REDUCED];
+
+    pub(crate) const ABSOLUTE: &str = "absolute";
+    pub(crate) const RELATIVE: &str = "relative";
+    /// Whether a character's lengths are world units or a fraction of it.
+    pub(crate) const LENGTH_MODES: &[&str] = &[ABSOLUTE, RELATIVE];
+
+    pub(crate) const X: &str = "x";
+    pub(crate) const Y: &str = "y";
+    pub(crate) const Z: &str = "z";
+    pub(crate) const ANG_X: &str = "ang_x";
+    pub(crate) const ANG_Y: &str = "ang_y";
+    pub(crate) const ANG_Z: &str = "ang_z";
+    /// The world axes a 3D body may lock, and the 2D pair.
+    pub(crate) const LOCK_AXES: &[&str] = &[X, Y, Z];
+    pub(crate) const LOCK_AXES_2D: &[&str] = &[X, Y];
+    /// The freedoms a generic joint takes away: six in 3D, three in 2D.
+    pub(crate) const JOINT_AXES: &[&str] = &[X, Y, Z, ANG_X, ANG_Y, ANG_Z];
+    pub(crate) const JOINT_AXES_2D: &[&str] = &[X, Y, ANG_X];
+
+    pub(crate) const COLLISION: &str = "collision";
+    pub(crate) const CONTACT_FORCE: &str = "contact_force";
+
+    pub(crate) const DYNAMIC_DYNAMIC: &str = "dynamic_dynamic";
+    pub(crate) const DYNAMIC_KINEMATIC: &str = "dynamic_kinematic";
+    pub(crate) const DYNAMIC_STATIC: &str = "dynamic_static";
+    pub(crate) const KINEMATIC_KINEMATIC: &str = "kinematic_kinematic";
+    pub(crate) const KINEMATIC_STATIC: &str = "kinematic_static";
+    pub(crate) const STATIC_STATIC: &str = "static_static";
+    /// The pairs a collider is tested against unless it asks for more.
+    pub(crate) const DEFAULT_COLLISIONS: &[&str] =
+        &[DYNAMIC_DYNAMIC, DYNAMIC_KINEMATIC, DYNAMIC_STATIC];
+}
+
+/// Every property, options-table and result key the physics components and
+/// calls spell, so a schema line and the reader behind it name the same key.
+pub(crate) mod keys {
+    pub(crate) const A: &str = "a";
+    pub(crate) const ACTIVE_COLLISIONS: &str = "active_collisions";
+    pub(crate) const ALLOWED_LINEAR_ERROR: &str = "allowed_linear_error";
+    pub(crate) const ANCHOR: &str = "anchor";
+    pub(crate) const ANGULAR_DAMPING: &str = "angular_damping";
+    pub(crate) const AT: &str = "at";
+    pub(crate) const AUTOSTEP: &str = "autostep";
+    pub(crate) const AUTOSTEP_DYNAMIC: &str = "autostep_dynamic";
+    pub(crate) const AUTOSTEP_MIN_WIDTH: &str = "autostep_min_width";
+    pub(crate) const AXIS: &str = "axis";
+    pub(crate) const AXLE: &str = "axle";
+    pub(crate) const B: &str = "b";
+    pub(crate) const BODY: &str = "body";
+    pub(crate) const BORDER: &str = "border";
+    pub(crate) const BRAKE: &str = "brake";
+    pub(crate) const BREAK_FORCE: &str = "break_force";
+    pub(crate) const BROAD_PHASE_MS: &str = "broad_phase_ms";
+    pub(crate) const C: &str = "c";
+    pub(crate) const CAN_SLEEP: &str = "can_sleep";
+    pub(crate) const CCD: &str = "ccd";
+    pub(crate) const CCD_SUBSTEPS: &str = "ccd_substeps";
+    pub(crate) const CELLS: &str = "cells";
+    pub(crate) const CENTER_OF_MASS: &str = "center_of_mass";
+    pub(crate) const CLEAN: &str = "clean";
+    pub(crate) const COLLIDERS: &str = "colliders";
+    pub(crate) const COLLISIONS: &str = "collisions";
+    pub(crate) const COMPRESSION: &str = "compression";
+    pub(crate) const CONCAVITY: &str = "concavity";
+    pub(crate) const CONTACTS: &str = "contacts";
+    pub(crate) const CONTACT_CLUSTERING: &str = "contact_clustering";
+    pub(crate) const CONTACT_DAMPING: &str = "contact_damping";
+    pub(crate) const CONTACT_FORCE_THRESHOLD: &str = "contact_force_threshold";
+    pub(crate) const CONTACT_FREQUENCY: &str = "contact_frequency";
+    pub(crate) const CONTACT_PAIRS: &str = "contact_pairs";
+    pub(crate) const CONTACT_RECYCLING: &str = "contact_recycling";
+    pub(crate) const CONTACT_SKIN: &str = "contact_skin";
+    pub(crate) const DAMPING: &str = "damping";
+    pub(crate) const DENSITY: &str = "density";
+    pub(crate) const DIR: &str = "dir";
+    pub(crate) const DIRECTION: &str = "direction";
+    pub(crate) const DOMINANCE: &str = "dominance";
+    pub(crate) const ENABLED: &str = "enabled";
+    pub(crate) const ENGINE_FORCE: &str = "engine_force";
+    pub(crate) const EVENTS: &str = "events";
+    pub(crate) const EXCLUDE: &str = "exclude";
+    pub(crate) const EXCLUDE_BODY: &str = "exclude_body";
+    pub(crate) const FAST_ROTATION: &str = "fast_rotation";
+    pub(crate) const FILL: &str = "fill";
+    pub(crate) const FILTER: &str = "filter";
+    pub(crate) const FIT: &str = "fit";
+    pub(crate) const FIX_INTERNAL_EDGES: &str = "fix_internal_edges";
+    pub(crate) const FORWARD_AXIS: &str = "forward_axis";
+    pub(crate) const FRICTION: &str = "friction";
+    pub(crate) const FRICTION_COMBINE: &str = "friction_combine";
+    pub(crate) const FRICTION_IN_BIAS_PASS: &str = "friction_in_bias_pass";
+    pub(crate) const FRICTION_SLIP: &str = "friction_slip";
+    pub(crate) const FROM: &str = "from";
+    pub(crate) const GRAVITY_SCALE: &str = "gravity_scale";
+    pub(crate) const GROUNDED: &str = "grounded";
+    pub(crate) const GYROSCOPIC: &str = "gyroscopic";
+    pub(crate) const HALF_EXTENTS: &str = "half_extents";
+    pub(crate) const HEIGHT: &str = "height";
+    pub(crate) const HEIGHTFIELD: &str = "heightfield";
+    pub(crate) const IMPULSE: &str = "impulse";
+    pub(crate) const INDICES: &str = "indices";
+    pub(crate) const INERTIA: &str = "inertia";
+    pub(crate) const INSIDE: &str = "inside";
+    pub(crate) const INTERNAL_ITERATIONS: &str = "internal_iterations";
+    pub(crate) const KIND: &str = "kind";
+    pub(crate) const LAYERS: &str = "layers";
+    pub(crate) const LENGTH: &str = "length";
+    pub(crate) const LENGTHS: &str = "lengths";
+    pub(crate) const LENGTH_UNIT: &str = "length_unit";
+    pub(crate) const LIMITS: &str = "limits";
+    pub(crate) const LINEAR_DAMPING: &str = "linear_damping";
+    pub(crate) const LOCKED_AXES: &str = "locked_axes";
+    pub(crate) const LOCK_ROTATION: &str = "lock_rotation";
+    pub(crate) const LOCK_TRANSLATION: &str = "lock_translation";
+    pub(crate) const MASK: &str = "mask";
+    pub(crate) const MASS: &str = "mass";
+    pub(crate) const MAX: &str = "max";
+    pub(crate) const MAX_CLIMB_ANGLE: &str = "max_climb_angle";
+    pub(crate) const MAX_CORRECTIVE_VELOCITY: &str = "max_corrective_velocity";
+    pub(crate) const MAX_FORCE: &str = "max_force";
+    pub(crate) const MAX_LINEAR_VELOCITY: &str = "max_linear_velocity";
+    pub(crate) const MAX_PIECES: &str = "max_pieces";
+    pub(crate) const MAX_TRAVEL: &str = "max_travel";
+    pub(crate) const MESH: &str = "mesh";
+    pub(crate) const MIN: &str = "min";
+    pub(crate) const MIN_CCD_DT: &str = "min_ccd_dt";
+    pub(crate) const MIN_SLIDE_ANGLE: &str = "min_slide_angle";
+    pub(crate) const MOTOR: &str = "motor";
+    pub(crate) const MOTOR_MAX_FORCE: &str = "motor_max_force";
+    pub(crate) const MOTOR_MODEL: &str = "motor_model";
+    pub(crate) const MOTOR_TARGET: &str = "motor_target";
+    pub(crate) const NARROW_PHASE_MS: &str = "narrow_phase_ms";
+    pub(crate) const NODE: &str = "node";
+    pub(crate) const NORMAL: &str = "normal";
+    pub(crate) const NORMAL_NUDGE: &str = "normal_nudge";
+    pub(crate) const OFFSET: &str = "offset";
+    pub(crate) const OFFSET_ROTATION: &str = "offset_rotation";
+    pub(crate) const ONE_WAY: &str = "one_way";
+    pub(crate) const ONE_WAY_AXIS: &str = "one_way_axis";
+    pub(crate) const ONLY: &str = "only";
+    pub(crate) const ORIENTED: &str = "oriented";
+    pub(crate) const OTHER_ANCHOR: &str = "other_anchor";
+    pub(crate) const POINT: &str = "point";
+    pub(crate) const POINTS: &str = "points";
+    pub(crate) const PREDICATE: &str = "predicate";
+    pub(crate) const PREDICTION_DISTANCE: &str = "prediction_distance";
+    pub(crate) const PUSH_BODIES: &str = "push_bodies";
+    pub(crate) const RADIUS: &str = "radius";
+    pub(crate) const REMAINING: &str = "remaining";
+    pub(crate) const RESOLUTION: &str = "resolution";
+    pub(crate) const RESTITUTION: &str = "restitution";
+    pub(crate) const RESTITUTION_COMBINE: &str = "restitution_combine";
+    pub(crate) const REST_LENGTH: &str = "rest_length";
+    pub(crate) const ROTATION: &str = "rotation";
+    pub(crate) const SCALE: &str = "scale";
+    pub(crate) const SENSOR: &str = "sensor";
+    pub(crate) const SENSORS: &str = "sensors";
+    pub(crate) const SHAPE: &str = "shape";
+    pub(crate) const SIDE_FRICTION: &str = "side_friction";
+    pub(crate) const SIZE: &str = "size";
+    pub(crate) const SLEEP_TIME: &str = "sleep_time";
+    pub(crate) const SLIDE: &str = "slide";
+    pub(crate) const SLIDING: &str = "sliding";
+    pub(crate) const SNAP_TO_GROUND: &str = "snap_to_ground";
+    pub(crate) const SOFT_CCD: &str = "soft_ccd";
+    pub(crate) const SOLID: &str = "solid";
+    pub(crate) const SOLIDS: &str = "solids";
+    pub(crate) const SOLVER: &str = "solver";
+    pub(crate) const SOLVER_ITERATIONS: &str = "solver_iterations";
+    pub(crate) const SOLVER_LAYERS: &str = "solver_layers";
+    pub(crate) const SOLVER_MASK: &str = "solver_mask";
+    pub(crate) const STABILIZATION_ITERATIONS: &str = "stabilization_iterations";
+    pub(crate) const STATIC_CONTACT_DAMPING: &str = "static_contact_damping";
+    pub(crate) const STATIC_CONTACT_FREQUENCY: &str = "static_contact_frequency";
+    pub(crate) const STEERING: &str = "steering";
+    pub(crate) const STEP_MS: &str = "step_ms";
+    pub(crate) const STIFFNESS: &str = "stiffness";
+    pub(crate) const STOP_AT_PENETRATION: &str = "stop_at_penetration";
+    pub(crate) const SUSPENSION_FORCE: &str = "suspension_force";
+    pub(crate) const UP: &str = "up";
+    pub(crate) const UP_AXIS: &str = "up_axis";
+    pub(crate) const VELOCITY_A: &str = "velocity_a";
+    pub(crate) const VELOCITY_B: &str = "velocity_b";
+    pub(crate) const VOXELS: &str = "voxels";
+    pub(crate) const VOXEL_SIZE: &str = "voxel_size";
+    pub(crate) const WARMSTART: &str = "warmstart";
+    pub(crate) const WARMSTART_JOINTS: &str = "warmstart_joints";
+    pub(crate) const X: &str = "x";
+    pub(crate) const Y: &str = "y";
+    pub(crate) const Z: &str = "z";
+}
+
+/// The component keys, as the registry and every `describe` entry spell them.
+pub(crate) mod component {
+    pub(crate) const BODY_3D: &str = "body3d";
+    pub(crate) const BODY_2D: &str = "body2d";
+    pub(crate) const COLLIDER_3D: &str = "collider3d";
+    pub(crate) const COLLIDER_2D: &str = "collider2d";
+    pub(crate) const JOINT_3D: &str = "joint3d";
+    pub(crate) const JOINT_2D: &str = "joint2d";
+    pub(crate) const CHARACTER_3D: &str = "character3d";
+    pub(crate) const CHARACTER_2D: &str = "character2d";
+    pub(crate) const WHEEL_3D: &str = "wheel3d";
+    pub(crate) const VEHICLE_3D: &str = "vehicle3d";
+}
+
+/// The script methods physics calls on a node.
+pub(crate) mod hook {
+    pub(crate) const ON_COLLISION_START: &str = "on_collision_start";
+    pub(crate) const ON_COLLISION_STOP: &str = "on_collision_stop";
+    pub(crate) const ON_CONTACT_FORCE: &str = "on_contact_force";
+    pub(crate) const ON_JOINT_BREAK: &str = "on_joint_break";
+}
+
+/// Schema text from `(key, spec)` lines: the key comes from `keys`, the spec
+/// is the `{ type = ..., description = ... }` table the inspector reads.
+pub(crate) fn schema(lines: &[(&str, &str)]) -> String {
+    lines
+        .iter()
+        .map(|(key, spec)| format!("{key} = {spec}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// The words a schema property offers, as its `options` list.
+pub(crate) fn options(words: &[&str]) -> String {
+    words
+        .iter()
+        .map(|word| format!("\"{word}\""))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// A property of a component's TOML params table, as f32.
 pub(crate) fn f(params: &toml::Value, key: &str, default: f32) -> f32 {
     params
@@ -162,31 +508,43 @@ pub(crate) mod flags {
 
     pub(crate) fn events() -> [(&'static str, u32); 2] {
         [
-            ("collision", ActiveEvents::COLLISION_EVENTS.bits()),
-            ("contact_force", ActiveEvents::CONTACT_FORCE_EVENTS.bits()),
+            (
+                super::words::COLLISION,
+                ActiveEvents::COLLISION_EVENTS.bits(),
+            ),
+            (
+                super::words::CONTACT_FORCE,
+                ActiveEvents::CONTACT_FORCE_EVENTS.bits(),
+            ),
         ]
     }
 
     pub(crate) fn collision_types() -> [(&'static str, u16); 6] {
         [
             (
-                "dynamic_dynamic",
+                super::words::DYNAMIC_DYNAMIC,
                 ActiveCollisionTypes::DYNAMIC_DYNAMIC.bits(),
             ),
             (
-                "dynamic_kinematic",
+                super::words::DYNAMIC_KINEMATIC,
                 ActiveCollisionTypes::DYNAMIC_KINEMATIC.bits(),
             ),
-            ("dynamic_static", ActiveCollisionTypes::DYNAMIC_FIXED.bits()),
             (
-                "kinematic_kinematic",
+                super::words::DYNAMIC_STATIC,
+                ActiveCollisionTypes::DYNAMIC_FIXED.bits(),
+            ),
+            (
+                super::words::KINEMATIC_KINEMATIC,
                 ActiveCollisionTypes::KINEMATIC_KINEMATIC.bits(),
             ),
             (
-                "kinematic_static",
+                super::words::KINEMATIC_STATIC,
                 ActiveCollisionTypes::KINEMATIC_FIXED.bits(),
             ),
-            ("static_static", ActiveCollisionTypes::FIXED_FIXED.bits()),
+            (
+                super::words::STATIC_STATIC,
+                ActiveCollisionTypes::FIXED_FIXED.bits(),
+            ),
         ]
     }
 }
@@ -228,10 +586,10 @@ pub(crate) fn names<T: Copy + Into<u32>>(set: T, table: &[(&str, T)]) -> toml::V
 pub(crate) fn layer_bits(params: &toml::Value, key: &str, empty_is_all: bool) -> u32 {
     let mut bits = 0u32;
     for name in balaur_core::components::as_flags(params.get(key)) {
-        if let Ok(layer) = name.parse::<u32>() {
-            if layer < 32 {
-                bits |= 1 << layer;
-            }
+        if let Ok(layer) = name.parse::<u32>()
+            && layer < 32
+        {
+            bits |= 1 << layer;
         }
     }
     if bits != 0 {

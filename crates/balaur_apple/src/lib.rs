@@ -20,10 +20,10 @@
 //! `unsupported`, so a script does not change shape between a phone and a CI
 //! runner.
 
-use anyhow::anyhow;
 use anyhow::Result;
+use anyhow::anyhow;
 use balaur_core::engine_api::from_json;
-use balaur_core::handler::{handler_of, id_value, opt, Handler};
+use balaur_core::handler::{Handler, handler_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_platform::{Call, PlatformBackend, PlatformEvent};
@@ -381,14 +381,7 @@ fn pump_apple_system(eng: &Engine, _: f32) {
             dispatches.push((targets, request, value));
         }
     }
-    if let Some(host) = eng.script_host() {
-        for (targets, token, value) in dispatches {
-            for handler in targets {
-                host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
-            }
-            host.wake(token, &value);
-        }
-    }
+    balaur_core::handler::dispatch(eng, dispatches);
 }
 
 fn event_value(event: AppleEvent) -> Value {

@@ -25,10 +25,11 @@
 
 use std::collections::BTreeMap;
 
+use crate::vocabulary::keys as k;
 use egui::Color32;
 
 /// How one widget kind is drawn.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct Style {
     pub fill: Option<Color32>,
     pub stroke: Option<Color32>,
@@ -37,6 +38,12 @@ pub struct Style {
     pub radius: Option<f32>,
     pub padding: Option<f32>,
     pub stroke_width: f32,
+    /// A project-relative picture drawn as the kind's background instead of
+    /// `fill`, stretched by `slice`.
+    pub image: Option<String>,
+    /// Left, top, right and bottom borders of `image` kept unstretched, in
+    /// the picture's own pixels.
+    pub slice: [f32; 4],
 }
 
 impl Default for Style {
@@ -47,6 +54,8 @@ impl Default for Style {
             radius: None,
             padding: None,
             stroke_width: 1.0,
+            image: None,
+            slice: [0.0; 4],
         }
     }
 }
@@ -62,7 +71,7 @@ impl WidgetTheme {
     /// The style for a kind, or the empty one — which means "as before".
     #[must_use]
     pub fn style(&self, kind: &str) -> Style {
-        self.kinds.get(kind).copied().unwrap_or_default()
+        self.kinds.get(kind).cloned().unwrap_or_default()
     }
 }
 
@@ -117,22 +126,39 @@ pub(crate) fn parse(value: &toml::Value) -> WidgetTheme {
         theme.kinds.insert(
             kind.clone(),
             Style {
-                fill: body.get("fill").and_then(|v| color(v, "fill")),
-                stroke: body.get("stroke").and_then(|v| color(v, "stroke")),
-                radius: number("radius"),
-                padding: number("padding"),
+                fill: body.get(k::FILL).and_then(|v| color(v, "fill")),
+                stroke: body.get(k::STROKE).and_then(|v| color(v, "stroke")),
+                radius: number(k::RADIUS),
+                padding: number(k::PADDING),
                 stroke_width: number("stroke_width").unwrap_or(1.0),
+                image: body
+                    .get(k::IMAGE)
+                    .and_then(toml::Value::as_str)
+                    .filter(|path| !path.is_empty())
+                    .map(str::to_string),
+                slice: four_of(body.get(k::SLICE)),
             },
         );
     }
     theme
 }
 
+/// Four numbers, or zeros for anything else.
+pub(crate) fn four_of(value: Option<&toml::Value>) -> [f32; 4] {
+    let mut out = [0.0; 4];
+    if let Some(items) = value.and_then(toml::Value::as_array) {
+        for (slot, item) in out.iter_mut().zip(items) {
+            *slot = balaur_core::components::as_f64(item).unwrap_or(0.0) as f32;
+        }
+    }
+    out
+}
+
 /// The doc string `balaur api` and the editor's asset picker show.
-pub(crate) const ASSET_DOC: &str =
-    "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, \
+pub(crate) const ASSET_DOC: &str = "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, \
      `radius` and `padding` under a table named for the kind (`[button]`, `[panel]`, `[row]`, \
-     ...). A kind the file leaves out keeps the built-in look. A widget takes the theme of the \
-     nearest ancestor that names one, so a screen is themed by its root.";
+     ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own \
+     pixels. A kind the file leaves out keeps the built-in look. A widget takes the theme of \
+     the nearest ancestor that names one, so a screen is themed by its root.";
 
 pub(crate) const ASSET_TYPE: &str = "widget_theme";

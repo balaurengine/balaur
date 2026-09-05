@@ -16,7 +16,6 @@ use glamx::{Quat, Vec3, Vec4};
 
 use crate::clip::{Clip, Interp, Key, Property, Track, Wrap};
 
-/// One track's value at a moment.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TrackValue {
     Position(Vec3),
@@ -322,11 +321,7 @@ fn catmull_rom_quat(p0: Quat, p1: Quat, p2: Quat, p3: Quat, u: f32) -> Quat {
 /// nothing about what is being represented and everything about which way
 /// round the interpolation goes.
 fn align(q: Quat, reference: Quat) -> Quat {
-    if q.dot(reference) < 0.0 {
-        -q
-    } else {
-        q
-    }
+    if q.dot(reference) < 0.0 { -q } else { q }
 }
 
 /// Shortest-arc spherical interpolation, on `libm`.

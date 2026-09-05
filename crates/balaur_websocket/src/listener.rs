@@ -12,11 +12,11 @@
 
 use std::io::Write as _;
 use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
+use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
 
-use anyhow::{bail, Context, Result};
-use balaur_core::replay;
+use anyhow::{Context, Result, bail};
 use balaur_core::Engine;
+use balaur_core::replay;
 use tungstenite::handshake::derive_accept_key;
 use tungstenite::protocol::frame::FrameSocket;
 use tungstenite::stream::MaybeTlsStream;

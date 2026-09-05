@@ -12,11 +12,11 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
+use crate::Engine;
 use crate::components;
 use crate::hecs::Entity;
-use crate::Engine;
 
 /// One component of a preset, with the parameters that make the preset mean
 /// something (a `rigid_body2d`'s body is dynamic; a `static_body2d`'s is not).

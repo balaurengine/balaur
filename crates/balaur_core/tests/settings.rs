@@ -9,14 +9,7 @@ use balaur_core::settings::{self, Scope, SettingDef};
 use balaur_core::{App, AppConfig, ComponentDef};
 
 fn app() -> App {
-    App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 #[test]
@@ -165,7 +158,6 @@ help = "Whether it rains.""#,
     );
 }
 
-/// The faults the Netcode page asks for reach whoever builds a link.
 #[test]
 fn the_netcode_page_produces_the_faults_it_describes() {
     let app = app();

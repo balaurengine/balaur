@@ -11,7 +11,7 @@ name = "balaur"
 path = "src/main.rs"
 
 [features]
-default = ["audio", "http", "websocket", "webtransport", "gamend"]
+default = ["audio", "http", "websocket", "webtransport", "gamend", "web"]
 # Build with a real window (kiss3d/wgpu). Without it, runs are headless.
 window = ["balaur/window"]
 # Sound. Off, the build drops rodio, cpal and the platform audio stack.
@@ -26,6 +26,9 @@ websocket = ["balaur/websocket"]
 webtransport = ["balaur/webtransport"]
 # `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks).
 gamend = ["balaur/gamend"]
+# `web.*` for scripts: the page a browser build runs in. Native builds answer
+# nil, so a script written for the web still runs on a desktop.
+web = ["balaur/web"]
 # `apple.*` for scripts, and Game Center and iCloud under `platform.*`. The
 # Apple templates ship with it on, because a template is prebuilt and a game
 # cannot add a framework to one it was handed.
@@ -33,9 +36,13 @@ apple = ["balaur/apple"]
 
 [dependencies]
 balaur = { workspace = true, default-features = false }
+balaur_core.workspace = true
 balaur_export.workspace = true
+balaur_plugin.workspace = true
+balaur_script.workspace = true
 anyhow.workspace = true
 clap.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 tracing-subscriber.workspace = true
 tracing-log.workspace = true
@@ -61,7 +68,9 @@ zip = { version = "8", default-features = false, features = ["deflate"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["Window", "Response"] }
+web-sys = { version = "0.3", features = ["Window", "Response", "Storage"] }
+# The user directory is mirrored into localStorage as text.
+base64 = "0.22"
 console_error_panic_hook = "0.1"
 
 [dev-dependencies]

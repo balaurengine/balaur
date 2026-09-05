@@ -1,12 +1,12 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 members = ["crates/*"]
 # Out-of-workspace on purpose: extension tests must load a separately built plugin.
 exclude = ["examples/extension_greeter"]
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 # Pinned to the toolchain, so a build that cannot work fails saying so.
 rust-version = "1.98.1"
 license = "MIT"
@@ -55,6 +55,7 @@ balaur_http = { path = "crates/balaur_http", version = "0.1.0" }
 balaur_websocket = { path = "crates/balaur_websocket", version = "0.1.0" }
 balaur_webtransport = { path = "crates/balaur_webtransport", version = "0.1.0" }
 balaur_gamend = { path = "crates/balaur_gamend", version = "0.1.0" }
+balaur_web = { path = "crates/balaur_web", version = "0.1.0" }
 balaur_platform = { path = "crates/balaur_platform", version = "0.1.0" }
 balaur_apple = { path = "crates/balaur_apple", version = "0.1.0" }
 balaur_ui = { path = "crates/balaur_ui", version = "0.1.0" }
@@ -96,6 +97,12 @@ tungstenite = { version = "0.30", features = ["rustls-tls-webpki-roots"] }
 [profile.dev]
 debug = "line-tables-only"
 
+# What ships: whole-program LTO and one codegen unit, a slower link for a
+# smaller, faster binary. `panic` stays unwind for the extension seam.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
 # Every byte is a download the player waits for. Kept off `release` so a
 # native build pays nothing for a web trade. `panic = "abort"` is sound only
 # here: no browser has `dlopen`, so nothing can panic across the C ABI.
@@ -114,7 +121,6 @@ strip = true
 # platform, break points in the VM, an instruction counter. Rune installs its
 # stdlib wholesale and nothing can be overridden, so a fork is the only way.
 rune = { git = "https://github.com/balaurengine/rune.git", branch = "deterministic-pow" }
-# Upstream master (v0.46.0, the egui Command-modifier fix and iOS/Android
-# support, all merged) plus one web fix: present the canvas opaque, or a
-# browser composites the page through a frame whose alpha nothing ever sets.
-kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "web-fixes" }
+# Upstream v0.46.0 plus the opaque web canvas and the engine's three hooks:
+# IME events, a mid-pass screen copy for 2D materials, UIKit's safe area.
+kiss3d = { git = "https://github.com/Ughuuu/kiss3d.git", branch = "balaur-hooks" }

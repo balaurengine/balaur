@@ -18,8 +18,8 @@
 //! (Steam Input, `docs/PLAN-steam.md`) fills them the same way through
 //! [`GamepadState::set_motion`] and [`GamepadState::set_touchpad`].
 
-use balaur_core::collections::DetHashSet;
 use balaur_core::Engine;
+use balaur_core::collections::DetHashSet;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 /// Buttons scripts can ask about, in gilrs's naming. The list is the
@@ -464,8 +464,8 @@ pub(crate) fn install_touchpad_api(m: &mut dyn Bindings<Engine>) {
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tests {
     use super::{
-        capture, restore, GamepadState, Motion, Pad, PadTouch, AXES, BUTTONS, PAD_AXIS_NAMES,
-        PAD_BUTTON_NAMES,
+        AXES, BUTTONS, GamepadState, Motion, PAD_AXIS_NAMES, PAD_BUTTON_NAMES, Pad, PadTouch,
+        capture, restore,
     };
     use balaur_core::collections::DetHashSet;
 

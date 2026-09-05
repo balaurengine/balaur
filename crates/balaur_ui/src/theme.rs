@@ -8,8 +8,9 @@
 
 use std::collections::HashMap;
 
-use balaur_core::project::ProjectFiles;
+use crate::vocabulary::words as w;
 use balaur_core::Engine;
+use balaur_core::project::ProjectFiles;
 use egui::{Color32, CornerRadius, FontFamily, Shadow, Stroke};
 
 #[derive(Clone)]
@@ -123,10 +124,10 @@ pub(crate) fn apply(tokens: &ThemeTokens, ctx: &egui::Context) {
 /// The named family for a widget option value.
 pub(crate) fn family(name: &str) -> FontFamily {
     match name {
-        "heading" => FontFamily::Name("heading".into()),
-        "mono" => FontFamily::Name("mono".into()),
-        "icon" => FontFamily::Name("icon".into()),
-        _ => FontFamily::Name("ui".into()),
+        w::HEADING => FontFamily::Name(w::HEADING.into()),
+        w::MONO => FontFamily::Name(w::MONO.into()),
+        w::ICON => FontFamily::Name(w::ICON.into()),
+        _ => FontFamily::Name(w::UI.into()),
     }
 }
 
@@ -191,16 +192,33 @@ fn chain_of(stem: &str) -> &'static str {
     "ui"
 }
 
-/// Load the four named families into `ctx`. A project's own `fonts/*.ttf`
-/// come first, then what the editor bundles, then the system's — so a game
-/// can ship the face its language needs without patching the editor.
-pub(crate) fn load_fonts(eng: &Engine, ctx: &egui::Context) {
-    let mut fonts = egui::FontDefinitions::default();
-    let mut heading_chain: Vec<String> = Vec::new();
-    let mut ui_chain: Vec<String> = Vec::new();
-    let mut mono_chain: Vec<String> = Vec::new();
-    let mut icon_chain: Vec<String> = Vec::new();
+/// One face the theme found, and which chain it joins.
+pub(crate) struct FontFace {
+    pub(crate) name: String,
+    /// `heading`, `ui`, `mono`, `icons`, or `system` for an OS face.
+    pub(crate) chain: &'static str,
+    pub(crate) bytes: std::sync::Arc<Vec<u8>>,
+}
 
+/// The faces the operating system ships, whichever of them are present.
+pub(crate) fn system_faces() -> Vec<FontFace> {
+    SYSTEM_FACES
+        .iter()
+        .filter_map(|path| {
+            let bytes = std::fs::read(path).ok()?;
+            Some(FontFace {
+                name: format!("system:{path}"),
+                chain: "system",
+                bytes: std::sync::Arc::new(bytes),
+            })
+        })
+        .collect()
+}
+
+/// Every face, in chain order: a project's own `fonts/*.ttf` first, then the
+/// system's. Read once here for both egui and the shaper.
+pub(crate) fn font_faces(eng: &Engine) -> Vec<FontFace> {
+    let mut faces = Vec::new();
     if let Some(files) = eng.try_resource::<ProjectFiles>() {
         let files = files.borrow();
         let mut paths: Vec<String> = files
@@ -222,32 +240,41 @@ pub(crate) fn load_fonts(eng: &Engine, ctx: &egui::Context) {
             let Ok(bytes) = files.read(&rel) else {
                 continue;
             };
-            let name = stem.to_string();
-            fonts.font_data.insert(
-                name.clone(),
-                std::sync::Arc::new(egui::FontData::from_owned(bytes)),
-            );
-            match chain_of(stem) {
-                "heading" => heading_chain.push(name),
-                "mono" => mono_chain.push(name),
-                "icons" => icon_chain.push(name),
-                _ => ui_chain.push(name),
-            }
+            faces.push(FontFace {
+                name: stem.to_string(),
+                chain: chain_of(stem),
+                bytes: std::sync::Arc::new(bytes),
+            });
             tracing::info!("ui: loaded font {stem}");
         }
     }
+    faces.extend(system_faces());
+    faces
+}
 
+/// Load the four named families into `ctx`. A project's own `fonts/*.ttf`
+/// come first, then what the editor bundles, then the system's — so a game
+/// can ship the face its language needs without patching the editor.
+pub(crate) fn load_fonts(ctx: &egui::Context, faces: &[FontFace]) {
+    let mut fonts = egui::FontDefinitions::default();
+    let mut heading_chain: Vec<String> = Vec::new();
+    let mut ui_chain: Vec<String> = Vec::new();
+    let mut mono_chain: Vec<String> = Vec::new();
+    let mut icon_chain: Vec<String> = Vec::new();
     let mut system_chain: Vec<String> = Vec::new();
-    for path in SYSTEM_FACES {
-        let Ok(bytes) = std::fs::read(path) else {
-            continue;
-        };
-        let name = format!("system:{path}");
+
+    for face in faces {
         fonts.font_data.insert(
-            name.clone(),
-            std::sync::Arc::new(egui::FontData::from_owned(bytes)),
+            face.name.clone(),
+            std::sync::Arc::new(egui::FontData::from_owned((*face.bytes).clone())),
         );
-        system_chain.push(name);
+        match face.chain {
+            "heading" => heading_chain.push(face.name.clone()),
+            "mono" => mono_chain.push(face.name.clone()),
+            "icons" => icon_chain.push(face.name.clone()),
+            "system" => system_chain.push(face.name.clone()),
+            _ => ui_chain.push(face.name.clone()),
+        }
     }
 
     // Fall back to the built-ins so the named families always resolve.

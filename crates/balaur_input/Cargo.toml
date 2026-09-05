@@ -26,6 +26,10 @@ gilrs = "0.11"
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
 hidapi = { version = "2.6", features = ["macos-shared-device"] }
 
+# A page's motor is `navigator.vibrate`; nothing else here reaches the browser.
+[target.'cfg(all(target_family = "wasm", not(target_os = "emscripten")))'.dependencies]
+web-sys = { version = "0.3", features = ["Navigator", "Window"] }
+
 [dev-dependencies]
 tempfile = "3"
 

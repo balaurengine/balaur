@@ -11,6 +11,11 @@ defect table still refers to it; the rects that matter now are the table in
 [PLAN-editor-redesign.md](PLAN-editor-redesign.md) §1. Re-capture before
 reading further — the screenshots are regenerated, the prose is not.
 
+Since 2026-09-05 the persona bar, the command pill and the document tabs are
+one full-width bar (`chrome::top_bar`), and the script and events tabs close.
+The status strip is the bottom dock's foot, and all of it once minimised; a
+side dock minimises to a 32 px handle at the top of its column.
+
 Regenerate the PNGs into `target/uiaudit/` with:
 
     scripts/uiaudit.sh

@@ -1,0 +1,194 @@
+// Building a case's world in the words the case describes. Bodies land in row
+// groups of `ROW`: a joint names its other end by path, and a flat container
+// of ten thousand siblings would make every one of those a linear scan.
+
+pub const ROW = 100;
+
+/// A fresh world under `parent`, in `dimensions`, drawing shapes or not.
+pub fn new(parent, dimensions, draw) {
+    let container = scene::spawn("World", parent);
+    #{
+        container: container,
+        dimensions: dimensions,
+        draw: draw,
+        bodies: [],
+        rows: [],
+        statics: 0,
+        anchor: (),
+        queries: 0,
+        hits: 0,
+        joints: 0,
+    }
+}
+
+/// The group body `i` belongs to, made on demand.
+fn row_for(w, i) {
+    let index = i / ROW;
+    while w.rows.len() <= index {
+        w.rows.push(scene::spawn(format!("r{}", w.rows.len()), w.container));
+    }
+    w.rows[index]
+}
+
+/// A dynamic body at `at` with `shape`, in the collider component's own
+/// vocabulary. Sleeping is off, as it is in every case of the suite this
+/// mirrors: the solver is what is being measured, not the sleep heuristic.
+pub fn body(w, at, shape) {
+    let i = w.bodies.len();
+    let node = scene::spawn(format!("b{}", i % ROW), row_for(w, i));
+    place(w, node, at);
+    let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
+    node.set_component(kind, #{ kind: "dynamic", can_sleep: false });
+    node.set_component(collider_key(w), shape);
+    draw(w, node, shape);
+    w.bodies.push(node);
+    node
+}
+
+/// An immovable body: the ground, the walls, the anchor bar.
+pub fn fixed(w, at, shape) {
+    let node = wall(w, at, shape);
+    draw(w, node, shape);
+    node
+}
+
+/// An immovable body that is never drawn: the walls of a pit, which would
+/// hide what is inside it from the camera.
+pub fn wall(w, at, shape) {
+    let node = scene::spawn(format!("s{}", w.statics), w.container);
+    w.statics = w.statics + 1;
+    place(w, node, at);
+    let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
+    node.set_component(kind, #{ kind: "static" });
+    node.set_component(collider_key(w), shape);
+    node
+}
+
+/// Tie two bodies at the point half way between them.
+///
+/// The joint sits on a child of `a`, because a joint component is one per
+/// node and a lattice body needs three; a node with no body of its own
+/// stands for the nearest body above it.
+pub fn pin(w, a, b, at_a, at_b) {
+    let node = scene::spawn(format!("j{}", w.joints), a);
+    w.joints = w.joints + 1;
+    let mid = midpoint(at_a, at_b);
+    let anchor = sub(mid, at_a);
+    let other = sub(mid, at_b);
+    let path = relative(w, b);
+    if w.dimensions == 2 {
+        node.set_component("joint2d", #{
+            kind: "revolute", body: path,
+            anchor: [anchor[0], anchor[1]], other_anchor: [other[0], other[1]],
+        });
+    } else {
+        node.set_component("joint3d", #{
+            kind: "spherical", body: path,
+            anchor: anchor, other_anchor: other,
+        });
+    }
+    node
+}
+
+/// The path from a joint node to another body: out of the body it hangs
+/// under, out of that body's row group, and back down. A static is a direct
+/// child of the container and has no group to descend into.
+fn relative(w, target) {
+    let name = target.name();
+    if name.starts_with("s") {
+        format!("../../../{}", name)
+    } else {
+        format!("../../../{}/{}", target.parent().name(), name)
+    }
+}
+
+/// Free everything this world made. The nodes go at the end of the frame and
+/// the physics world is rebuilt on the next one.
+pub fn tear_down(w) {
+    w.container.queue_free();
+}
+
+fn collider_key(w) {
+    if w.dimensions == 2 { "collider2d" } else { "collider3d" }
+}
+
+fn place(w, node, at) {
+    if w.dimensions == 2 {
+        node.set_position(at[0], at[1], 0.0);
+    } else {
+        node.set_position(at[0], at[1], at[2]);
+    }
+}
+
+/// The same shape again as something the renderer can draw, when a case is
+/// being watched rather than measured. A convex hull has no drawable
+/// primitive, so it stands in as the ball it fits inside.
+fn draw(w, node, shape) {
+    if !w.draw {
+        return;
+    }
+    let kind = shape.get("kind").unwrap_or(if w.dimensions == 2 { "rect" } else { "cuboid" });
+    let drawn = if w.dimensions == 2 {
+        if kind == "convex_hull" { #{ kind: "circle", radius: 13.0 } } else { copy(shape) }
+    } else {
+        if kind == "convex_hull" { #{ kind: "ball", radius: 0.45 } } else { copy(shape) }
+    };
+    // A few colours in turn, so a stack reads as bodies rather than as a slab.
+    drawn.insert("color", PALETTE[(w.bodies.len() + w.statics) % PALETTE.len()]);
+    node.set_component(if w.dimensions == 2 { "shape2d" } else { "shape3d" }, drawn);
+}
+
+const PALETTE = [
+    [0.86, 0.36, 0.30, 1.0],
+    [0.95, 0.68, 0.25, 1.0],
+    [0.40, 0.70, 0.45, 1.0],
+    [0.30, 0.55, 0.85, 1.0],
+    [0.62, 0.45, 0.80, 1.0],
+];
+
+/// A shape table without the collider-only keys the renderer would reject.
+fn copy(shape) {
+    let out = #{};
+    for key in ["kind", "radius", "height", "half_extents"] {
+        let found = shape.get(key);
+        if let Some(value) = found {
+            out.insert(key, value);
+        }
+    }
+    out
+}
+
+pub fn midpoint(a, b) {
+    [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5, (a[2] + b[2]) * 0.5]
+}
+
+pub fn sub(a, b) {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+pub fn distance(a, b) {
+    let d = sub(a, b);
+    math::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2])
+}
+
+/// A jittered lattice, as `bench_case.gd` places its piles: scattering N
+/// bodies independently starts a large fraction deeply overlapping, and the
+/// opening ticks then measure how an engine untangles a soup.
+pub fn lattice(i, cell, columns, depth, origin, jitter) {
+    let per_layer = columns * depth;
+    let within = i % per_layer;
+    [
+        origin[0] + ((within % columns) as f64) * cell[0] + rng::range(-jitter, jitter) * cell[0],
+        origin[1] + ((i / per_layer) as f64) * cell[1] + rng::range(-jitter, jitter) * cell[1],
+        origin[2] + ((within / columns) as f64) * cell[2] + rng::range(-jitter, jitter) * cell[2],
+    ]
+}
+
+/// The 2D lattice: columns across, rows downward in Godot's y-down plane.
+pub fn lattice_2d(i, cell, columns, origin, jitter) {
+    [
+        origin[0] + ((i % columns) as f64) * cell[0] + rng::range(-jitter, jitter) * cell[0],
+        origin[1] - ((i / columns) as f64) * cell[1] + rng::range(-jitter, jitter) * cell[1],
+        0.0,
+    ]
+}

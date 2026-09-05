@@ -26,6 +26,7 @@ graph TD
   balaur_script[balaur_script]
   balaur_script_rune[balaur_script_rune]
   balaur_ui[balaur_ui]
+  balaur_web[balaur_web]
   balaur_websocket[balaur_websocket]
   balaur_webtransport[balaur_webtransport]
   balaur --> balaur_anim
@@ -42,6 +43,7 @@ graph TD
   balaur --> balaur_script
   balaur --> balaur_script_rune
   balaur --> balaur_ui
+  balaur --> balaur_web
   balaur --> balaur_websocket
   balaur --> balaur_webtransport
   balaur_android --> balaur
@@ -61,9 +63,13 @@ graph TD
   balaur_bench --> balaur_script
   balaur_bench --> balaur_script_rune
   balaur_cli --> balaur
+  balaur_cli --> balaur_core
   balaur_cli --> balaur_export
+  balaur_cli --> balaur_plugin
+  balaur_cli --> balaur_script
   balaur_core --> balaur_script
   balaur_export --> balaur
+  balaur_export --> balaur_plugin
   balaur_gamend --> balaur_core
   balaur_gamend --> balaur_plugin
   balaur_gamend --> balaur_script
@@ -91,6 +97,9 @@ graph TD
   balaur_ui --> balaur_core
   balaur_ui --> balaur_plugin
   balaur_ui --> balaur_script
+  balaur_web --> balaur_core
+  balaur_web --> balaur_plugin
+  balaur_web --> balaur_script
   balaur_websocket --> balaur_core
   balaur_websocket --> balaur_plugin
   balaur_websocket --> balaur_script

@@ -7,11 +7,11 @@
 //! speed, the queue and the clips a script defined at run time all live here
 //! rather than on the asset.
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
+use balaur_core::Engine;
 use balaur_core::assets;
 use balaur_core::collections::DetHashMap;
 use balaur_core::hecs::Entity;
-use balaur_core::Engine;
 
 use crate::clip::Clip;
 use crate::tween::{Tween, TweenId};

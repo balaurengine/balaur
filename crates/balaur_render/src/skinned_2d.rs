@@ -22,13 +22,12 @@ use glamx::{Mat3, Pose2, Vec2};
 use kiss3d::camera::Camera2d;
 use kiss3d::context::Context;
 use kiss3d::resource::{
-    multisample_state, GpuData, GpuMesh2d, Material2d, PipelineCache, RenderContext2d,
-    TextureManager,
+    GpuData, GpuMesh2d, Material2d, PipelineCache, RenderContext2d, TextureManager,
 };
 use kiss3d::scene::{InstancesBuffer2d, Object2d, ObjectData2d, SceneNode2d};
 
-use crate::shaders;
 use crate::PolygonMesh;
+use crate::shaders;
 
 /// The skinning shader, linked from WESL to WGSL.
 ///
@@ -256,27 +255,7 @@ fn bind_group_layouts(
             wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
         )],
     });
-    let texture = ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("polygon_texture_layout"),
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    multisampled: false,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
-        ],
-    });
+    let texture = crate::bind_layout::sampled_layout(ctxt, "polygon_texture_layout");
     (frame, object, texture)
 }
 
@@ -286,46 +265,21 @@ fn build_pipeline(
     shader: wgpu::ShaderModule,
 ) -> PipelineCache {
     PipelineCache::new(move |sample_count| {
-        let ctxt = Context::get();
         let layouts = [
             Some(vertex_layout(8, 0, wgpu::VertexFormat::Float32x2)),
             Some(vertex_layout(8, 1, wgpu::VertexFormat::Float32x2)),
             Some(vertex_layout(16, 2, wgpu::VertexFormat::Uint32x4)),
             Some(vertex_layout(16, 3, wgpu::VertexFormat::Float32x4)),
         ];
-        ctxt.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("polygon_pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &layouts,
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: Context::render_format(),
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: multisample_state(sample_count),
-            multiview_mask: None,
-            cache: None,
-        })
+        crate::pipeline::material_pipeline(
+            "polygon_pipeline",
+            &pipeline_layout,
+            &shader,
+            &layouts,
+            None,
+            &crate::pipeline::Depth::Ignored,
+            sample_count,
+        )
     })
 }
 

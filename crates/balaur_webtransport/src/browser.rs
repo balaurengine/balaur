@@ -85,7 +85,7 @@ export function bt_close(handle) {
   try { handle.wt.close(); } catch (e) { /* already gone */ }
 }
 "#)]
-extern "C" {
+unsafe extern "C" {
     fn bt_open(
         url: &str,
         hashes: JsValue,

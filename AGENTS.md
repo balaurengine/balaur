@@ -50,6 +50,15 @@ The same shape with an index target (`arr[i] = a || b`) is affected. A plain
 `let`, a call argument and an `if` condition are all safe, and a left operand
 that is itself a field is safe.
 
+A `}` followed by `(` or `[` **continues the expression**: the block's own
+value is called, or indexed. So a statement `if ... { }` above a line starting
+with `(` compiles, runs, and fails at that line with a type that has nothing
+to do with it. Bind to a local first:
+
+    let work = case.run;
+    if again { prepare(world); }
+    work(world);
+
 ## Tests
 
 A test's name is a sentence about behaviour, not a label for a function:

@@ -7,9 +7,9 @@
 //! — a material that sets a value the shader does not read says so, and a
 //! shader that grows a field needs no edit anywhere else.
 
-use anyhow::{anyhow, bail, Result};
-use balaur_core::hecs::Entity;
+use anyhow::{Result, anyhow, bail};
 use balaur_core::Engine;
+use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt};
 use wesl::syntax::{GlobalDeclaration, TranslationUnit};
@@ -89,6 +89,16 @@ pub struct Material {
     pub features: Vec<(String, bool)>,
     /// Values for the shader's `Params` fields, by name.
     pub params: Vec<(String, Param)>,
+}
+
+impl Material {
+    /// Whether `features` asks for the last frame as `screen_texture`.
+    #[must_use]
+    pub fn reads_screen(&self) -> bool {
+        self.features
+            .iter()
+            .any(|(name, on)| name == "screen" && *on)
+    }
 }
 
 /// What a definition table holds, for the generated reference.
@@ -741,6 +751,27 @@ struct Params { speed: f32, tint: vec4<f32> }
         assert_eq!(compiled.params.len(), 32);
         let at = |o: usize| f32::from_le_bytes(compiled.params[o..o + 4].try_into().unwrap());
         assert_eq!((at(0), at(16), at(28)), (2.0, 0.25, 1.0));
+    }
+
+    #[test]
+    fn the_screen_feature_binds_the_last_frame_and_nothing_else_does() {
+        const READS: &str = r"
+import package::sprite::{VertexInput, VertexOutput, vertex, screen_uv, sample_screen};
+@vertex fn vs_main(in: VertexInput) -> VertexOutput { return vertex(in); }
+@fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    return sample_screen(screen_uv(in.clip_position));
+}
+";
+        let on = parse(&table("shader = \"s.wesl\"\nfeatures = { screen = true }")).unwrap();
+        assert!(on.reads_screen());
+        let wgsl = compile(&on, READS).unwrap().wgsl;
+        assert!(wgsl.contains("screen_texture"), "{wgsl}");
+        let off = parse(&table("shader = \"s.wesl\"")).unwrap();
+        assert!(!off.reads_screen());
+        assert!(
+            compile(&off, READS).is_err(),
+            "without the feature there is nothing to sample"
+        );
     }
 
     #[test]

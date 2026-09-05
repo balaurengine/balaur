@@ -2,7 +2,7 @@
 //! file apart, and the `overrides` that make them differ.
 
 use balaur_core::components::{ComponentDef, StableId};
-use balaur_core::scene::{find_node, Children, Name};
+use balaur_core::scene::{Children, Name, find_node};
 use balaur_core::{App, AppConfig, Engine};
 
 struct Marker(toml::Value);
@@ -19,14 +19,7 @@ fn project(files: &[(&str, &str)]) -> tempfile::TempDir {
 }
 
 fn app_in(dir: &std::path::Path) -> App {
-    let mut app = App::new(AppConfig {
-        project_root: dir.to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(dir.to_path_buf())).unwrap();
     app.register_component(
         "marker",
         ComponentDef {

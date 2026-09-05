@@ -8,11 +8,10 @@
 //! Lives in core rather than in physics because an asset type belongs to the
 //! asset layer, and because a renderer will want to read the same grid.
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 
 use crate::App;
 
-/// The `voxels` asset type.
 pub const VOXELS_ASSET_TYPE: &str = "voxels";
 
 /// The filled cells of a grid, and how big one cell is.

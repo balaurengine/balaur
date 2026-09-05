@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 use balaur_core::components::StableId;
 use balaur_core::rollback::{self, Session};
-use balaur_core::{digest, App, AppConfig, Stage, Transform};
+use balaur_core::{App, AppConfig, Stage, Transform, digest};
 use balaur_script::Value;
 
 const PLAYER: u32 = 1;
@@ -27,14 +27,7 @@ struct Trace {
 /// restores and what the digest hashes, so a rollback that half worked shows
 /// up as a wrong number rather than as nothing.
 fn app_driven_by_input() -> (App, Rc<RefCell<Trace>>) {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     let root = app.engine.root();
     let mover = {
         let mut world = app.engine.world_mut();
@@ -59,7 +52,6 @@ fn app_driven_by_input() -> (App, Rc<RefCell<Trace>>) {
         let Ok(mut t) = world.get::<&mut Transform>(mover) else {
             return;
         };
-        // The test's inputs are small whole numbers.
         #[allow(clippy::cast_precision_loss, reason = "small whole numbers")]
         {
             t.position.x += step as f32;

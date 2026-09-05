@@ -5,18 +5,11 @@
 
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
-use balaur_core::{components, App, AppConfig};
+use balaur_core::{App, AppConfig, components};
 use balaur_physics::{PhysicsPlugin, PhysicsState, PhysicsState2d};
 
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
     app
 }
@@ -157,7 +150,6 @@ fn re_applying_a_body_keeps_its_velocity() {
     );
 }
 
-/// Changing kind in place is the same promise, one property over.
 #[test]
 fn changing_kind_keeps_the_body() {
     let app = app();
@@ -233,7 +225,6 @@ fn can_sleep_false_keeps_a_body_awake() {
     );
 }
 
-/// 2D carries the same properties, spelled for two dimensions.
 #[test]
 fn the_2d_body_carries_the_same_properties() {
     let app = app();

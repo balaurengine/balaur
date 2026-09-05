@@ -32,7 +32,6 @@ fn basis_from_euler(r) {
     ]
 }
 
-// Euler (roll, pitch, yaw) back from a basis (columns bx, by, bz).
 fn euler_from_basis(b) {
     let pitch = math::asin(util::clamp(-b[0][2], -1.0, 1.0));
     let yaw = math::atan(b[0][1], b[0][0]);
@@ -40,7 +39,6 @@ fn euler_from_basis(b) {
     [roll, pitch, yaw]
 }
 
-// basis * elementary rotation about local axis `axis` by `angle`.
 fn rotate_basis_local(b, axis, angle) {
     let c = math::cos(angle);
     let s = math::sin(angle);
@@ -148,7 +146,7 @@ fn geometry(S) {
     let shape_some = shape;
     if let Some(shape) = shape_some {
         if shape is Object {
-            if shape.contains_key("radius") && shape.get("kind") == Some("ball") {
+            if shape.contains_key("radius") && shape.get("kind") == Some(render::SHAPE_BALL) {
                 let r = util::f(shape.radius);
                 hx = r;
                 hy = r;
@@ -306,7 +304,6 @@ fn near(cam, p, mx, my, radius) {
 // always wins over the face behind it, then the face-center scale rects,
 // then corner brackets, and finally the face surfaces (plane translate).
 fn hit_test(cam, geo, mx, my) {
-    // The rotation ball wins over everything behind it.
     for axis in 0..3 {
         for t in 0..48 {
             if near(cam, ring_point(geo, axis, (t as f64) / 48.0), mx, my, 12.0) {
@@ -454,7 +451,6 @@ pub fn draw(S) {
             line(pts[j], pts[(j + 1) % 4], color, W, false);
         }
     }
-    // The rotation ball renders on top of everything.
     for axis in 0..3 {
         let hot_ring = match hot {
             Some(part) => part.kind == "ring" && part.axis == axis,
@@ -572,7 +568,6 @@ fn apply_gizmo_drag(S, cam, mx, my) {
     }
 }
 
-// Runs every frame from the root's `update`.
 pub fn update(S) {
     if model::is_2d(S) {
         gizmo2d::update(S, viewport_rect(S));
@@ -603,7 +598,6 @@ pub fn update(S) {
     }
     S.rig.hover = None;
 
-    // Hover state (skipped while a drag is latched).
     if S.gizmo.drag.is_none() {
         S.gizmo.hover = match geo {
             Some(geo) => if over_viewport && S.persona != "script" { hit_test(cam, geo, mx, my) } else { None },
@@ -664,24 +658,9 @@ pub fn update(S) {
     }
 
     // Rail-tool fallbacks: drag anywhere in the viewport.
-    let (dx, dy) = input::mouse_delta();
-    dx = dx / (cam.dpi * S.ui_scale);
-    dy = dy / (cam.dpi * S.ui_scale);
-    if dx == 0.0 && dy == 0.0 {
-        return;
-    }
-    let (_, found) = model::selected(S);
-    if found.is_some() && (S.tool == "move" || S.tool == "rotate" || S.tool == "scale") {
-        history::record(S, format!("{} node", S.tool), Some(format!("tool:{}:{}", S.tool, S.sel)));
-    }
-    let found = match found {
-        Some(found) => found,
-        None => {
-            if S.tool == "zoom" {
-                shell::set_zoom(S, S.zoom - dy * 0.5);
-            }
-            return;
-        }
+    let (dx, dy, found) = match viewport::rail_drag(S, cam.dpi) {
+        Some(drag) => drag,
+        None => return,
     };
     if S.tool == "move" {
         let p = found.position();

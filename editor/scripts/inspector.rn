@@ -13,7 +13,10 @@ use crate::util;
 const LABEL_W = 82.0;
 // Control area width: 308 panel − 24 padding − 84 label − spacing.
 const CONTROL_W = 184.0;
-// Replaced by `control_w(S)` wherever the panel width is reachable.
+// Above the scroll: the dock's tab row, the node header and the search
+// field. Below it: the Add component button and its margins.
+const HEAD_H = 112.0;
+const FOOT_H = 58.0;
 
 // A section heading that folds its rows away on click. Returns whether the
 // caller should draw them; the fold state lives on `S.collapsed` beside the
@@ -25,7 +28,7 @@ fn section(S, k, title) {
     ui::horizontal(#{ height: 15 }, || {
         ui::add_space(2);
         if ui::pill(title.to_uppercase(), util::merge(style::heading(k), #{
-            height: 15, radius: 4, align: "left",
+            height: 15, radius: 4, align: ui::ALIGN_LEFT,
             icon: if open { icons::ui("caret-open") } else { icons::ui("caret-shut") }, icon_size: 7, icon_color: k.faint,
         })) {
             if open {
@@ -104,18 +107,6 @@ fn value_field(k, value, opts) {
     })
 }
 
-// A select shell: a value the user cannot change here yet.
-fn select_row(S, k, label, value) {
-    row(S, k, label, || {
-        ui::pill(value, #{
-            height: 28, size: 12, align: "left",
-            min_width: control_w(S),
-            fill: k.sunken, color: k.text,
-            trailing: "▼", trailing_color: k.faint, trailing_size: 10,
-        });
-    });
-}
-
 fn transform_section(S, k) {
     if !section(S, k, "Transform") {
         return;
@@ -176,7 +167,7 @@ fn instance_note(S, k) {
                 // A prefab path is as long as the project makes it: ellipsis
                 // rather than a note that stretches the panel.
                 ui::horizontal(#{ height: 24, width: panel_w(S) - 90.0 }, || {
-                    ui::label("⧉ from " + model::prefab_of(S, node),
+                    ui::label(icons::ui("instance") + " from " + model::prefab_of(S, node),
                         util::merge(style::mono_sm(k.dim), #{ truncate: true }));
                 });
                 ui::add_space(8);
@@ -221,32 +212,49 @@ fn instance_source_row(S, k, node) {
     });
 }
 
+// The script's path is a field: typing a name moves the file, and the
+// picker beside it attaches one that already exists.
 fn script_section(S, k, title) {
     let node = model::selected_node(S);
     if !section(S, k, title) {
         return;
     }
+    let has = node.contains_key("script");
     row(S, k, "Script", || {
-        ui::frame(#{ fill: k.sage_soft, radius: 5, padding_x: 8 }, || {
-            ui::horizontal(#{ height: 22, width: control_w(S) - 18.0 }, || {
-                let name = model::script_rel(node).unwrap_or("— none —");
-                ui::label(name, #{ role: "value", color: k.sage, truncate: true });
-                ui::right(|| {
-                    let has = node.contains_key("script");
-                    let action = if has { "open" } else { "add" };
-                    if ui::pill(action, #{
-                        height: 18, size: 9.5, radius: 4, strong: true,
-                        fill: k.panel, color: k.dim,
-                    }) {
-                        if has {
-                            shell::set_persona(S, "script");
-                        } else {
-                            shell::attach_script(S);
-                        }
-                    }
-                });
+        let id = format!("script:{}", S.sel);
+        let (text, _, submitted) = ui::text_field(id, "scripts/name.rn",
+            util::merge(style::field(k, control_w(S) - 52.0),
+                #{ value: model::script_rel(node).unwrap_or(""), color: k.sage }));
+        if submitted {
+            shell::set_script_path(S, text);
+        }
+        ui::right(|| {
+            let (picked, changed) = ui::dropdown(format!("pick:{}", id), "pick", shell::script_files(S), #{
+                width: 46, size: 10, height: 20, color: k.text,
             });
+            if changed {
+                shell::set_script_path(S, picked);
+            }
         });
+    });
+    row(S, k, "", || {
+        if has {
+            if ui::pill("open", #{ role: "row_action_on", tooltip: "Edit it in the code pane" }) {
+                shell::set_persona(S, "script");
+            }
+            ui::add_space(6);
+            if ui::pill("remove", #{
+                role: "row_action", color: k.accent,
+                tooltip: "Detach the script from this node; the file stays",
+            }) {
+                shell::detach_script(S);
+            }
+        } else if ui::pill(icons::ui("add") + " new script", #{
+            role: "row_action_on",
+            tooltip: "Write scripts/" + node.name.to_lowercase() + ".rn and attach it",
+        }) {
+            shell::attach_script(S);
+        }
     });
     script_props_rows(S, k, node);
 }
@@ -346,7 +354,7 @@ fn skeleton_section(S, k) {
                 util::merge(style::mono(k.text), #{ truncate: true }));
         });
         ui::right(|| {
-            if ui::pill("＋ bone", #{
+            if ui::pill(icons::ui("add") + " bone", #{
                 role: "row_action_on",
                 tooltip: "Grow a bone under this node (in 2D, the Rig bone tool places one by clicking)",
             }) {
@@ -443,7 +451,7 @@ fn polygon_section(S, k) {
             ui::spacing(8, 0);
             ui::add_space(label_w(S));
             if ui::pill(bone.path, #{
-                height: 22, size: 11, align: "left", min_width: CONTROL_W,
+                height: 22, size: 11, align: ui::ALIGN_LEFT, min_width: CONTROL_W,
                 icon: "⋈", icon_size: 11,
                 fill: if active { k.accent_soft } else { k.sunken },
                 color: if active { k.accent } else { k.text },
@@ -483,7 +491,7 @@ fn animation_section(S, k) {
         Some(def) => def,
         None => {
             row(S, k, "Clip", || {
-                if ui::pill("＋ Create clip", #{
+                if ui::pill(icons::ui("add") + " Create clip", #{
                     height: 28, size: 12, strong: true,
                     min_width: CONTROL_W,
                     fill: k.accent_soft, color: k.accent,
@@ -1055,7 +1063,6 @@ fn component_sections(S, k, filter) {
         if !crate::search::matches(query, format!("{} {}", comp, props)) {
             continue;
         }
-        // Section header: a fold toggle with a right-aligned remove button.
         let key = format!("inspector/{}", comp);
         let open = !S.collapsed.contains_key(key);
         ui::add_space(12);
@@ -1102,7 +1109,6 @@ fn component_sections(S, k, filter) {
     }
 }
 
-// Hooks defined by the attached script, shown as the events surface.
 fn events_section(S, k) {
     let node = model::selected_node(S);
     if !section(S, k, "Events") {
@@ -1132,7 +1138,7 @@ pub fn body(S, k) {
                 // Ellipsised: the header is the panel's width, and a node is
                 // named whatever the scene named it.
                 ui::label(node.name, #{
-                    size: 16, font: "heading", strong: true, color: k.text, truncate: true,
+                    size: 16, font: ui::FONT_HEADING, strong: true, color: k.text, truncate: true,
                 });
                 ui::label(model::node_type(node),
                     util::merge(style::mono_sm(k.faint), #{ truncate: true }));
@@ -1141,7 +1147,9 @@ pub fn body(S, k) {
 
         ui::add_space(6);
         let query = crate::search::field(S, k, "inspector", "Find a property…", panel_w(S) - 16.0);
-        ui::scroll("inspector-scroll", #{ max_height: ui::available_height() - 58.0 }, || {
+        // Sized from the sheet, like every other dock's scroll: the header
+        // above and the Add component button below are fixed heights.
+        ui::scroll("inspector-scroll", #{ max_height: util::max(40.0, S.layout.right.h - HEAD_H - FOOT_H) }, || {
             instance_note(S, k);
             instance_source_row(S, k, node);
             if S.persona == "phys" {
@@ -1150,8 +1158,6 @@ pub fn body(S, k) {
                 script_section(S, k, "Script");
             } else if S.persona == "script" {
                 script_section(S, k, "Attached script");
-                select_row(S, k, "Language", "Rune");
-                select_row(S, k, "Hot reload", "on save");
             } else if S.persona == "anim" {
                 skeleton_section(S, k);
                 polygon_section(S, k);
@@ -1175,7 +1181,6 @@ pub fn body(S, k) {
             ui::add_space(12);
         });
 
-        // Footer: full-width accent button.
         ui::add_space(6);
         if ui::pill(icons::ui("add") + "  Add component", #{
             role: "button", height: 34, min_width: S.layout.right.w - 26.0,

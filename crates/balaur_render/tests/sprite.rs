@@ -3,22 +3,15 @@
 //! A sprite's size lands in a component scripts read back, so it is simulation
 //! state and every number here has to come out the same headless as windowed.
 
-use balaur_core::{components, scene, App, AppConfig};
-use balaur_render::{RenderPlugin, Renderable2d, Shape2d, DEFAULT_PIXELS_PER_UNIT};
+use balaur_core::{App, AppConfig, components, scene};
+use balaur_render::{DEFAULT_PIXELS_PER_UNIT, RenderPlugin, Renderable2d, Shape2d};
 
 /// 200x100 px, so width and height are never confused for each other, and a
 /// 4x2 sheet divides both evenly.
 const FIXTURE: &str = "tests/fixtures/sprite_200x100.png";
 
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
     app
 }
@@ -278,4 +271,24 @@ fn patching_a_sheet_field_leaves_an_authored_size_alone() {
     let (hx, hy) = half_extents(&app, entity);
     assert_close(hx, 3.0);
     assert_close(hy, 7.0);
+}
+
+/// An atlas cell states its own size: the quad is the cell, not the sheet.
+#[test]
+fn a_region_sizes_the_quad_from_the_cell_not_the_image() {
+    let app = app();
+    let entity = node(&app);
+    apply(
+        &app,
+        entity,
+        "region_origin = [10.0, 20.0]\nregion_size = [50.0, 25.0]\npixels_per_unit = 100.0",
+    );
+    let (hx, hy) = half_extents(&app, entity);
+    assert_close(hx, 0.25);
+    assert_close(hy, 0.125);
+    let saved = components::get(&app.engine, entity, "sprite").unwrap();
+    let origin = saved["region_origin"].as_array().unwrap();
+    assert_close(origin[0].as_float().unwrap() as f32, 10.0);
+    let size = saved["region_size"].as_array().unwrap();
+    assert_close(size[1].as_float().unwrap() as f32, 25.0);
 }

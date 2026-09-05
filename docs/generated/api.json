@@ -26,7 +26,7 @@
     },
     "widget_theme": {
       "directory": "themes",
-      "doc": "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius` and `padding` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...). A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root."
+      "doc": "How each widget kind is drawn: `fill`, `stroke`, `stroke_width`, `radius` and `padding` under a table named for the kind (`[button]`, `[panel]`, `[row]`, ...), or an `image` with a nine-patch `slice = [left, top, right, bottom]` in its own pixels. A kind the file leaves out keeps the built-in look. A widget takes the theme of the nearest ancestor that names one, so a screen is themed by its root."
     }
   },
   "component_docs": {
@@ -40,8 +40,8 @@
     "character3d": "Moves a node the way a player expects rather than the way physics would: `physics3d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider3d`; a `body3d` of kind kinematic lets it push what it walks into.",
     "collider2d": "The shape the node collides with in 2D. On a node with a `body2d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
     "collider3d": "The shape the node collides with in 3D. On a node with a `body3d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
-    "joint2d": "Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`.",
-    "joint3d": "Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`.",
+    "joint2d": "Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.",
+    "joint3d": "Holds this node's body to another one: a hinge, a slider, a rope, a spring, a ball socket, or a generic joint you lock axis by axis. Both ends need a `body3d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.",
     "light2d": "A 2D light: the node's position places it, its rotation aims a directional one, and everything drawn under it \u2014 sprites, polygons, tiles, a 3D scene behind them \u2014 is multiplied by the light map the scene's lights build. A scene with no `light2d` draws exactly as it does unlit; the first one added makes everything else fall to the camera's `ambient`. Debug lines and particles draw after the light map and stay unlit.",
     "listener": "The ears a positional sound is heard from: its distance to this node sets its volume, and its offset across this node's right sets its pan. The last `current` listener applied wins; with no listener in the scene at all, every sound plays flat.",
     "mesh": "Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the rig `skeleton` names when the asset carries a skin.",
@@ -544,7 +544,7 @@
       "zoom": {
         "default": 60.0,
         "description": "2D zoom in logical pixels per world unit",
-        "min": 1.0,
+        "min": 0.01,
         "type": "float"
       }
     },
@@ -1943,10 +1943,27 @@
         "description": "Tint, as channel floats or #rrggbb / #rrggbbaa",
         "type": "color"
       },
+      "color_end": {
+        "default": [
+          0.8,
+          0.8,
+          0.8,
+          0.0
+        ],
+        "description": "The tint a particle fades to by the end of its life",
+        "type": "color"
+      },
       "emitting": {
         "default": true,
         "description": "Whether new particles are born; live ones finish either way",
         "type": "bool"
+      },
+      "explosiveness": {
+        "default": 0.0,
+        "description": "How much of a one-shot burst is born at once; the rest is spread over the lifetime",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
       },
       "gravity": {
         "default": [
@@ -1962,6 +1979,11 @@
         "min": 0.05,
         "type": "float"
       },
+      "one_shot": {
+        "default": false,
+        "description": "Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another",
+        "type": "bool"
+      },
       "rate": {
         "default": 20.0,
         "description": "Particles born per second",
@@ -1972,6 +1994,11 @@
         "default": 4.0,
         "description": "Particle size in logical pixels",
         "min": 0.5,
+        "type": "float"
+      },
+      "size_end": {
+        "default": -1.0,
+        "description": "The size a particle grows or shrinks to by the end of its life, in logical pixels; below zero keeps `size`",
         "type": "float"
       },
       "speed": {
@@ -1985,6 +2012,11 @@
         "description": "Half-angle of the emission cone in degrees",
         "min": 0.0,
         "type": "float"
+      },
+      "texture": {
+        "default": "",
+        "description": "An image each particle draws with, project-relative; empty draws a flat square",
+        "type": "string"
       }
     },
     "polygon": {
@@ -2037,6 +2069,16 @@
         "description": "Tint, as channel floats or #rrggbb / #rrggbbaa",
         "type": "color"
       },
+      "gradient": {
+        "default": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient",
+        "type": "color"
+      },
       "half_extents": {
         "default": [
           0.5,
@@ -2079,6 +2121,11 @@
         "description": "Radius, when kind is circle or capsule",
         "min": 0.01,
         "type": "float"
+      },
+      "texture": {
+        "default": "",
+        "description": "An image drawn along a polyline, repeating once per world unit of its length",
+        "type": "string"
       },
       "width": {
         "default": 0.02,
@@ -2249,6 +2296,22 @@
         "min": 0.01,
         "type": "float"
       },
+      "region_origin": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "Top-left corner of the atlas cell to draw, in texture pixels; used with `region_size`",
+        "type": "vec2"
+      },
+      "region_size": {
+        "default": [
+          0.0,
+          0.0
+        ],
+        "description": "Size of the atlas cell to draw, in texture pixels; [0, 0] draws the whole image and sizes the quad from the cell",
+        "type": "vec2"
+      },
       "rows": {
         "default": 0.0,
         "description": "Sheet grid rows for flipbook sprites; 0 means a single image",
@@ -2264,8 +2327,14 @@
     "tilemap": {
       "cells": {
         "default": "",
-        "description": "Rows of tile characters, one row per line: . is empty, 0-9 then a-z index into the tileset",
+        "description": "Rows of tile characters, one row per line: . is empty, 0-9 then a-z index into the tileset. Also accepted: a list of rows of tile ids, -1 for empty, for a tileset past 36 tiles",
         "type": "string"
+      },
+      "material": {
+        "asset": "material",
+        "default": "",
+        "description": "The material the whole map draws with; empty draws with the built-in one",
+        "type": "asset"
       },
       "pixels_per_unit": {
         "default": 100.0,
@@ -2388,21 +2457,39 @@
       },
       "anchor": {
         "default": "top_left",
-        "description": "Screen corner or center the offset is measured from",
+        "description": "Screen corner or center the offset is measured from; `fill` takes the whole surface less `inset`",
         "options": [
           "top_left",
           "top_right",
           "bottom_left",
           "bottom_right",
-          "center"
+          "center",
+          "fill"
         ],
         "type": "enum"
+      },
+      "checked": {
+        "default": false,
+        "description": "Whether a `check` is ticked; every click flips it and calls `on_change` with the new state",
+        "type": "bool"
       },
       "clicked": {
         "default": false,
         "description": "True on the frame the button was clicked",
         "readonly": true,
         "type": "bool"
+      },
+      "columns": {
+        "default": 2,
+        "description": "How many children a `grid` puts on each row",
+        "min": 1,
+        "type": "int"
+      },
+      "deadzone": {
+        "default": 0.0,
+        "description": "How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once",
+        "min": 0.0,
+        "type": "float"
       },
       "draw": {
         "default": "",
@@ -2418,6 +2505,22 @@
         "default": 16.0,
         "description": "Text size in design pixels",
         "min": 6.0,
+        "type": "float"
+      },
+      "font_style": {
+        "default": "normal",
+        "description": "Slant, from an italic face the project ships",
+        "options": [
+          "normal",
+          "italic"
+        ],
+        "type": "enum"
+      },
+      "font_weight": {
+        "default": 400.0,
+        "description": "Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold",
+        "max": 900.0,
+        "min": 100.0,
         "type": "float"
       },
       "gap": {
@@ -2444,6 +2547,16 @@
         "min": 0.0,
         "type": "float"
       },
+      "inset": {
+        "default": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Left, top, right and bottom margins a root with `anchor = \"fill\"` keeps from its surface, in design pixels",
+        "type": "vec4"
+      },
       "kind": {
         "default": "label",
         "description": "The HUD element the widget layer draws",
@@ -2456,7 +2569,17 @@
           "scroll",
           "tab",
           "draw",
-          "image"
+          "image",
+          "field",
+          "check",
+          "dropdown",
+          "slider",
+          "progress",
+          "grid",
+          "flow",
+          "fold",
+          "dialog",
+          "separator"
         ],
         "type": "enum"
       },
@@ -2464,6 +2587,27 @@
         "default": "",
         "description": "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface",
         "type": "string"
+      },
+      "markup": {
+        "default": false,
+        "description": "Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text",
+        "type": "bool"
+      },
+      "max": {
+        "default": 1.0,
+        "description": "The high end of a `slider` or `progress`",
+        "type": "float"
+      },
+      "max_length": {
+        "default": 0.0,
+        "description": "The most characters a `field` takes; 0 is no limit",
+        "min": 0.0,
+        "type": "float"
+      },
+      "min": {
+        "default": 0.0,
+        "description": "The low end of a `slider` or `progress`",
+        "type": "float"
       },
       "min_height": {
         "default": 0.0,
@@ -2477,6 +2621,16 @@
         "min": 0.0,
         "type": "float"
       },
+      "numeric": {
+        "default": false,
+        "description": "Keep a `field` to digits, a sign and a point",
+        "type": "bool"
+      },
+      "on_change": {
+        "default": "",
+        "description": "Script method called on this node with a `field`'s text after every edit",
+        "type": "string"
+      },
       "on_click": {
         "default": "",
         "description": "Script method called on this node when the button is clicked",
@@ -2487,16 +2641,57 @@
         "description": "Script method called on this node when focus arrives",
         "type": "string"
       },
+      "on_submit": {
+        "default": "",
+        "description": "Script method called on this node with a `field`'s text on Enter, or when focus leaves it",
+        "type": "string"
+      },
+      "open": {
+        "default": true,
+        "description": "Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state",
+        "type": "bool"
+      },
+      "options": {
+        "default": [],
+        "description": "What a `dropdown` offers; `text` is the one chosen, and `on_change` hears the new one",
+        "type": "strings"
+      },
       "padding": {
         "default": 0.0,
         "description": "Space inside a container's edge, in design pixels",
         "min": 0.0,
         "type": "float"
       },
+      "placeholder": {
+        "default": "",
+        "description": "What a `field` shows while it is empty",
+        "type": "string"
+      },
+      "secret": {
+        "default": false,
+        "description": "Draw a `field`'s text as dots, for a password",
+        "type": "bool"
+      },
+      "slice": {
+        "default": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "description": "Left, top, right and bottom borders of an `image` kept unstretched, in the picture's own pixels; all zero stretches the whole picture",
+        "type": "vec4"
+      },
       "source": {
         "default": "",
         "description": "The project-relative image an `image` widget draws",
         "type": "string"
+      },
+      "step": {
+        "default": 0.0,
+        "description": "The grid a `slider` snaps to; 0 is continuous",
+        "min": 0.0,
+        "type": "float"
       },
       "text": {
         "default": "label",
@@ -2533,6 +2728,11 @@
         "default": "",
         "description": "How this widget and everything under it is drawn; inherited from the nearest ancestor that names one",
         "type": "asset"
+      },
+      "value": {
+        "default": 0.0,
+        "description": "Where a `slider` or `progress` stands, between `min` and `max`; a slider writes it and calls `on_change` with it",
+        "type": "float"
       },
       "visible": {
         "default": true,
@@ -2617,8 +2817,10 @@
         "seek": "Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip.",
         "stop": "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it.",
         "time": "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped.",
-        "tween": "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take.",
-        "tween_to": "Move one property of the node to a value over a number of seconds on an optional easing curve, returning a handle."
+        "tween": "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed`; the node's `on_tween_finished(handle)` is called when it runs out.",
+        "tween_to": "Move one property of the node to a value over a number of seconds on an optional easing curve, returning a handle.",
+        "tween_value": "A tween over a number, or a list of up to four, that drives no node: read it each frame with `tween_value_of` and write it wherever you like. Returns a handle `stop` takes.",
+        "tween_value_of": "Where a value tween has got to, in the shape it was started with; nil once it is over."
       },
       "functions": [
         "current",
@@ -2634,7 +2836,9 @@
         "stop",
         "time",
         "tween",
-        "tween_to"
+        "tween_to",
+        "tween_value",
+        "tween_value_of"
       ],
       "name": "animation",
       "signatures": {
@@ -2651,7 +2855,9 @@
         "stop": "Value -> ()",
         "time": "NodeId -> f32",
         "tween": "(NodeId, Value) -> u64",
-        "tween_to": "(NodeId, String, Value, f32, Option<String>) -> u64"
+        "tween_to": "(NodeId, String, Value, f32, Option<String>) -> u64",
+        "tween_value": "(Value, Value, f32, Option<String>) -> u64",
+        "tween_value_of": "Value -> Value"
       }
     },
     {
@@ -2781,6 +2987,7 @@
         "play": "Start the audio file at a path and return the handle `stop`, `set_volume`, `set_pitch` and `is_playing` take. The options table takes `volume`, `pitch`, `loop`, `bus`, and a `position` with `min_distance`, `max_distance` and `doppler`.",
         "play_event": "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared.",
         "play_on": "Start the node's own `sound` from the top, replacing what it had going, and return the new handle.",
+        "ready": "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound.",
         "set_bus_volume": "Set one bus's gain and re-apply it to everything already playing on it \u2014 which is what a volume slider is.",
         "set_emitter_position": "Move what a handle plays from, so a sound follows something the script is driving; the frame takes its doppler from how far it moved.",
         "set_listener": "Put the ears at a point by hand, for a game whose view is not a node; a `listener` node in the scene takes it back on the next frame.",
@@ -2802,6 +3009,7 @@
         "play",
         "play_event",
         "play_on",
+        "ready",
         "set_bus_volume",
         "set_emitter_position",
         "set_listener",
@@ -2824,6 +3032,7 @@
         "play": "(String, Option<Value>) -> u64",
         "play_event": "(String, Option<Value>) -> Value",
         "play_on": "NodeId -> u64",
+        "ready": "() -> bool",
         "set_bus_volume": "(String, f32) -> ()",
         "set_emitter_position": "(i64, Value, Option<Value>, Option<Value>) -> ()",
         "set_listener": "(Value, Option<Value>, Option<Value>) -> ()",
@@ -2895,45 +3104,85 @@
       "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "Bytes as text and back, for what a server hands over in base64.",
+      "docs": {
+        "base64": "Bytes, or a string's UTF-8, as standard base64 with padding.",
+        "from_base64": "The bytes a base64 string encodes; an error for text that is not base64."
+      },
+      "functions": [
+        "base64",
+        "from_base64"
+      ],
+      "name": "encoding",
+      "signatures": {
+        "base64": "(data: bytes | string)",
+        "from_base64": "(text: string)"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
       "doc": "The running app itself: the clock a frame reads, the command line it was started with, the directory it may write to, and the way out.",
       "docs": {
         "args": "The command-line arguments the app was started with, empty when it was given none.",
+        "dark_mode": "Whether the system is in dark mode this tick; every script's `on_dark_mode(bool)` is called when it changes. False where nothing says.",
         "delta": "Seconds the frame in progress covers, the same number a system is handed.",
+        "device_id": "One id per install, made on first use and kept in the user directory: what a device login sends. Recorded with the session.",
+        "focused": "Whether the window is in front of the player this tick; every script's `on_focus_changed(bool)` is called when it changes. True with no window.",
         "has_plugin": "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there.",
+        "open_url": "Open an http, https or mailto URL in whatever the player browses with. An effect on the world outside the game: never recorded, and it does nothing while a recording plays.",
+        "platform": "Where this runs: `{ os, web, mobile, editor }`. Recorded in a session's header, so a replay on another machine answers as the original did.",
         "plugin_version": "The version of one loaded plugin, or nil when it did not load.",
         "plugins": "Every plugin this build loaded, named, in load order.",
         "quit": "Ask the app to shut down; the frame in flight still finishes.",
         "reload_script": "Recompile one script by its project-relative key, for a tool editing files outside the watched root.",
+        "reveal": "Show a file or directory in the system file manager, selected where the platform can. Never recorded, like `open_url`.",
         "tick": "Which frame this is, counted whole \u2014 what simulation code branches on instead of `time`.",
         "time": "Seconds of engine time since the app started, accumulated as a float.",
         "timings": "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only \u2014 branching a `fixed_update` on wall time desyncs, and nothing records it.",
+        "unix_time": "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw.",
         "user_data_dir": "A writable per-user directory for saves and settings, created on first call and named after the project."
       },
       "functions": [
         "args",
+        "dark_mode",
         "delta",
+        "device_id",
+        "focused",
         "has_plugin",
+        "open_url",
+        "platform",
         "plugin_version",
         "plugins",
         "quit",
         "reload_script",
+        "reveal",
         "tick",
         "time",
         "timings",
+        "unix_time",
         "user_data_dir"
       ],
       "name": "engine",
       "signatures": {
         "args": "()",
+        "dark_mode": "()",
         "delta": "()",
+        "device_id": "()",
+        "focused": "()",
         "has_plugin": "(name: string)",
+        "open_url": "(url: string)",
+        "platform": "()",
         "plugin_version": "(name: string)",
         "plugins": "()",
         "quit": "()",
         "reload_script": "(key: string)",
+        "reveal": "(path: string)",
         "tick": "()",
         "time": "()",
         "timings": "()",
+        "unix_time": "()",
         "user_data_dir": "()"
       }
     },
@@ -2960,6 +3209,34 @@
         "emitted": "String -> Value",
         "subscribe": "(NodeId, String) -> ()",
         "unsubscribe": "(NodeId, String) -> ()"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "Exporting the project being edited. `targets` says what this install can build and what it would have to fetch; `start` runs one off the frame and reports to `on_export`. Nothing here exports while a recording plays.",
+      "docs": {
+        "listen": "Have the node's `on_export(event)` \u2014 or the `on_event` method the options name \u2014 called as each export starts, finishes or fails.",
+        "output": "Where an export for this target will be written, as the project's `[export] output` decides.",
+        "running": "How many exports are in flight.",
+        "start": "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays.",
+        "targets": "Every target, each `{ name, bundle, installed, note }`: whether its runtime template is already here, and what a signed build of it would additionally need."
+      },
+      "functions": [
+        "listen",
+        "output",
+        "running",
+        "start",
+        "targets"
+      ],
+      "name": "export",
+      "signatures": {
+        "listen": "(NodeId, Option<Value>) -> ()",
+        "output": "String -> Value",
+        "running": "() -> i64",
+        "start": "(String, Option<Value>) -> bool",
+        "targets": "() -> Value"
       }
     },
     {
@@ -3043,6 +3320,46 @@
       "acts_on": {},
       "components": [],
       "constants": [],
+      "doc": "Polygons on the plane, as lists of `[x, y]` points in outline order: triangulation, booleans, hulls and containment. Every answer is the same on every platform: the booleans run in fixed point and the rest is plain arithmetic.",
+      "docs": {
+        "area": "The polygon's area, always positive whatever its winding.",
+        "contains": "Whether a point lies inside the polygon; a point on an edge counts as inside.",
+        "convex_hull": "The smallest convex polygon around the points, counter-clockwise.",
+        "difference": "Everything inside the first polygon and outside the second, shaped as `union` shapes it.",
+        "intersection": "Everything inside both polygons, shaped as `union` shapes it.",
+        "is_clockwise": "Whether the points run clockwise, with y up.",
+        "segments_intersect": "Where two segments cross, or nil when they do not; touching at an endpoint counts.",
+        "triangulate": "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted.",
+        "union": "Everything inside either polygon: a list of shapes, each a list of paths whose first is the outline and the rest holes."
+      },
+      "functions": [
+        "area",
+        "contains",
+        "convex_hull",
+        "difference",
+        "intersection",
+        "is_clockwise",
+        "segments_intersect",
+        "triangulate",
+        "union"
+      ],
+      "name": "geometry2d",
+      "signatures": {
+        "area": "Value -> f64",
+        "contains": "(Value, Value) -> bool",
+        "convex_hull": "Value -> Value",
+        "difference": "(Value, Value) -> Value",
+        "intersection": "(Value, Value) -> Value",
+        "is_clockwise": "Value -> bool",
+        "segments_intersect": "(Value, Value, Value, Value) -> Value",
+        "triangulate": "Value -> Value",
+        "union": "(Value, Value) -> Value"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
       "doc": "Mesh operations that stand outside the simulation: hulls, convex decomposition, voxelisation, cutting and boolean intersection. A mesh is an asset's name or a table of `points` and `indices`.",
       "docs": {
         "convex_decomposition": "The mesh cut into convex pieces, each one a mesh: the only way to collide a concave shape dynamically.",
@@ -3074,9 +3391,28 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "HTTP calls, off the frame: the reply arrives on a later tick as a map with `status`, `headers` and `body`, or with `error`, both to the node's `on_response` method and to whoever awaits the returned id. Options are `method`, `headers`, `body` and a `timeout` in seconds, which falls back to the project's `[http] timeout`.",
+      "doc": "Content hashes, for a download a game verifies before it trusts it.",
       "docs": {
-        "request": "Start an HTTP request and return the id its reply carries, to await or to match inside the handler."
+        "sha256": "The SHA-256 of a file as lowercase hex, read through the project's file roots; an absolute path is read as given.",
+        "sha256_text": "The SHA-256 of a string as lowercase hex."
+      },
+      "functions": [
+        "sha256",
+        "sha256_text"
+      ],
+      "name": "hash",
+      "signatures": {
+        "sha256": "(path: string)",
+        "sha256_text": "(text: string)"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "HTTP calls, off the frame: the reply arrives on a later tick as a map with `status`, `headers` and `body`, or with `error`, both to the node's `on_response` method and to whoever awaits the returned id. Options are `method`, `headers`, `body` and a `timeout` in seconds, which falls back to the project's `[http] timeout`. `save_to` streams a 2xx body to that path under the user directory instead, the reply carrying `path`, and each chunk reaches the node's `on_progress` as `{ request, received, total }`.",
+      "docs": {
+        "request": "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."
       },
       "functions": [
         "request"
@@ -3860,6 +4196,7 @@
         "actions": "Every action `[input.actions]` declares, so a rebinding screen can list them.",
         "bind": "Rebind the action to one binding or a list of them, replacing what it had and saving to the user data directory.",
         "bindings": "What the action is bound to now, whether from the project or from the player's own rebinding.",
+        "composing": "The text an input method is still composing, for a field to show under its caret; empty once it commits into `typed`, and always empty without an input method.",
         "declare_actions": "Declare the actions a project's `[input.actions]` would, from a table of name to binding list; for a host running a project other than its own, such as the editor.",
         "dropped_files": "The absolute paths of files dropped onto the window this frame, in drop order; desktop only.",
         "feed_key": "Press or release a `KEY_*` key as if the window had reported it; the edge lasts this frame, the state until the opposite feed.",
@@ -3881,6 +4218,7 @@
         "is_mouse_down": "Whether the `MOUSE_*` button is held down right now, however many frames it has been down.",
         "just_pressed": "Whether the `KEY_*` key went down this frame; true for that one frame only.",
         "just_released": "Whether the `KEY_*` key came up this frame; true for that one frame only.",
+        "keyboard_height": "How much of the window the on-screen keyboard covers, in pixels from the bottom: what a form moves up by. Zero with no keyboard up, and always zero on a desktop.",
         "mouse_delta": "How far the cursor moved this frame, in pixels; movement, not a position.",
         "mouse_just_pressed": "Whether the `MOUSE_*` button went down this frame; true for that one frame only.",
         "mouse_just_released": "Whether the `MOUSE_*` button came up this frame; true for that one frame only.",
@@ -3890,7 +4228,8 @@
         "touches": "Every finger on the screen as `{ id, x, y }`, oldest first, in the same pixels as `mouse_position`.",
         "touches_ended": "The ids of the fingers that lifted or were cancelled this frame.",
         "touches_started": "The ids of the fingers that touched down this frame.",
-        "typed": "The characters typed this frame, in order: what a text field appends, where `just_pressed` says which key went down."
+        "typed": "The characters typed this frame, in order: what a text field appends, where `just_pressed` says which key went down.",
+        "vibrate": "Buzz the device for that long: a phone's motor, or a page's `navigator.vibrate`. Nothing on a desktop, and never recorded, like rumble."
       },
       "functions": [
         "action_just_pressed",
@@ -3900,6 +4239,7 @@
         "actions",
         "bind",
         "bindings",
+        "composing",
         "declare_actions",
         "dropped_files",
         "feed_key",
@@ -3921,6 +4261,7 @@
         "is_mouse_down",
         "just_pressed",
         "just_released",
+        "keyboard_height",
         "mouse_delta",
         "mouse_just_pressed",
         "mouse_just_released",
@@ -3930,7 +4271,8 @@
         "touches",
         "touches_ended",
         "touches_started",
-        "typed"
+        "typed",
+        "vibrate"
       ],
       "name": "input",
       "signatures": {
@@ -3941,6 +4283,7 @@
         "actions": "() -> Value",
         "bind": "(String, Value) -> ()",
         "bindings": "String -> Value",
+        "composing": "() -> Value",
         "declare_actions": "Value -> ()",
         "dropped_files": "() -> Value",
         "feed_key": "(String, bool) -> ()",
@@ -3962,6 +4305,7 @@
         "is_mouse_down": "usize -> bool",
         "just_pressed": "String -> bool",
         "just_released": "String -> bool",
+        "keyboard_height": "() -> Value",
         "mouse_delta": "() -> (f32, f32)",
         "mouse_just_pressed": "usize -> bool",
         "mouse_just_released": "usize -> bool",
@@ -3971,7 +4315,8 @@
         "touches": "() -> Value",
         "touches_ended": "() -> Value",
         "touches_started": "() -> Value",
-        "typed": "() -> Value"
+        "typed": "() -> Value",
+        "vibrate": "i64 -> ()"
       }
     },
     {
@@ -4126,6 +4471,7 @@
       "doc": "What every node has: its name and path, its transform in local and world space, its children, its components and its script. Each operation takes the node as its first argument, so scripts normally call them as methods on a node value (`this.node.position()`).",
       "docs": {
         "add_child": "Create a named child node under this one and return it.",
+        "add_tag": "File the node under a name; `scene.tagged` finds it from then on.",
         "attach_script": "Attach the script at a path, with an optional table overriding what the script exports.",
         "call": "Call a method on the node's script and return what it gives back; nil when there is no such script or method.",
         "children": "The node's direct children, an empty list when it has none.",
@@ -4137,8 +4483,11 @@
         "global_position": "The node's position in world space, as of the last transform sync.",
         "global_rotation_euler": "The node's world rotation as euler angles in radians, as of the last transform sync.",
         "global_scale": "The node's scale in world space, as of the last transform sync.",
+        "global_visible": "What the renderer sees: false when the node or any ancestor is hidden.",
+        "global_z_index": "The layer the node actually draws on, with every ancestor's added in.",
         "has_component": "Whether the node carries the named component.",
         "has_method": "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\".",
+        "has_tag": "Whether the node is filed under a name.",
         "is_valid": "Whether the node is still in the world; false rather than an error when the value is not a node.",
         "name": "The node's own name, empty when it carries none.",
         "parent": "The node's parent, nil at the root.",
@@ -4147,6 +4496,7 @@
         "position": "The node's position in its parent's space.",
         "queue_free": "Destroy the node and its subtree at the end of the frame.",
         "remove_component": "Take the named component off the node.",
+        "remove_tag": "Take a name off the node; a name it never had is left alone.",
         "rotation_degrees": "The same local rotation as `rotation_euler`, in degrees.",
         "rotation_euler": "The node's local rotation as euler angles in radians, x then y then z.",
         "scale": "The node's scale relative to its parent.",
@@ -4158,11 +4508,17 @@
         "set_rotation_degrees": "Set the node's local rotation from euler angles in degrees.",
         "set_rotation_euler": "Set the node's local rotation from euler angles in radians.",
         "set_scale": "Set the node's scale relative to its parent, as three numbers or one vector.",
+        "set_visible": "Show or hide the node and everything under it. Physics is untouched: a hidden collider still collides.",
+        "set_z_index": "Put the node and its subtree on a draw layer: higher draws later. Relative by default, adding to the parent's layer; false makes it absolute.",
         "stable_id": "The node's stable id \u2014 what a scene file declared or what `ids::mint` gave a spawned node \u2014 empty when it carries none. Survives rename and reparent, which a path does not.",
-        "translate": "Move the node by an offset in its parent's space, given as three numbers or one vector."
+        "tags": "The names the node is filed under, sorted.",
+        "translate": "Move the node by an offset in its parent's space, given as three numbers or one vector.",
+        "visible": "Whether the node itself is set to draw; an ancestor may still hide it.",
+        "z_index": "The node's own draw layer, added to its parent's unless set absolute."
       },
       "functions": [
         "add_child",
+        "add_tag",
         "attach_script",
         "call",
         "children",
@@ -4174,8 +4530,11 @@
         "global_position",
         "global_rotation_euler",
         "global_scale",
+        "global_visible",
+        "global_z_index",
         "has_component",
         "has_method",
+        "has_tag",
         "is_valid",
         "name",
         "parent",
@@ -4184,6 +4543,7 @@
         "position",
         "queue_free",
         "remove_component",
+        "remove_tag",
         "rotation_degrees",
         "rotation_euler",
         "scale",
@@ -4195,12 +4555,18 @@
         "set_rotation_degrees",
         "set_rotation_euler",
         "set_scale",
+        "set_visible",
+        "set_z_index",
         "stable_id",
-        "translate"
+        "tags",
+        "translate",
+        "visible",
+        "z_index"
       ],
       "name": "node",
       "signatures": {
         "add_child": "(name: string)",
+        "add_tag": "(node, tag: string)",
         "attach_script": "(path: string, props: any?)",
         "call": "(method: string, args: any?)",
         "children": "()",
@@ -4212,8 +4578,11 @@
         "global_position": "()",
         "global_rotation_euler": "()",
         "global_scale": "()",
+        "global_visible": "(node)",
+        "global_z_index": "(node)",
         "has_component": "(component: string)",
         "has_method": "(method: string)",
+        "has_tag": "(node, tag: string)",
         "is_valid": "()",
         "name": "()",
         "parent": "()",
@@ -4222,6 +4591,7 @@
         "position": "()",
         "queue_free": "()",
         "remove_component": "(component: string)",
+        "remove_tag": "(node, tag: string)",
         "rotation_degrees": "()",
         "rotation_euler": "()",
         "scale": "()",
@@ -4233,8 +4603,13 @@
         "set_rotation_degrees": "(x: float, y: float, z: float)",
         "set_rotation_euler": "(x: float, y: float, z: float)",
         "set_scale": "(x: float, y: float, z: float)",
+        "set_visible": "(node, on: bool)",
+        "set_z_index": "(node, z: int, relative: bool)",
         "stable_id": "()",
-        "translate": "(x: float, y: float, z: float)"
+        "tags": "(node)",
+        "translate": "(x: float, y: float, z: float)",
+        "visible": "(node)",
+        "z_index": "(node)"
       }
     },
     {
@@ -4450,6 +4825,18 @@
       ],
       "constants": [
         {
+          "name": "AXIS_ANG_X",
+          "value": "ang_x"
+        },
+        {
+          "name": "AXIS_X",
+          "value": "x"
+        },
+        {
+          "name": "AXIS_Y",
+          "value": "y"
+        },
+        {
           "name": "BODY_DYNAMIC",
           "value": "dynamic"
         },
@@ -4466,12 +4853,164 @@
           "value": "static"
         },
         {
+          "name": "COLLIDE_DYNAMIC_DYNAMIC",
+          "value": "dynamic_dynamic"
+        },
+        {
+          "name": "COLLIDE_DYNAMIC_KINEMATIC",
+          "value": "dynamic_kinematic"
+        },
+        {
+          "name": "COLLIDE_DYNAMIC_STATIC",
+          "value": "dynamic_static"
+        },
+        {
+          "name": "COLLIDE_KINEMATIC_KINEMATIC",
+          "value": "kinematic_kinematic"
+        },
+        {
+          "name": "COLLIDE_KINEMATIC_STATIC",
+          "value": "kinematic_static"
+        },
+        {
+          "name": "COLLIDE_STATIC_STATIC",
+          "value": "static_static"
+        },
+        {
+          "name": "COMBINE_AVERAGE",
+          "value": "average"
+        },
+        {
+          "name": "COMBINE_CLAMPED_SUM",
+          "value": "clamped_sum"
+        },
+        {
+          "name": "COMBINE_GEOMETRIC_MEAN",
+          "value": "geometric_mean"
+        },
+        {
+          "name": "COMBINE_MAX",
+          "value": "max"
+        },
+        {
+          "name": "COMBINE_MIN",
+          "value": "min"
+        },
+        {
+          "name": "COMBINE_MULTIPLY",
+          "value": "multiply"
+        },
+        {
+          "name": "EVENT_COLLISION",
+          "value": "collision"
+        },
+        {
+          "name": "EVENT_CONTACT_FORCE",
+          "value": "contact_force"
+        },
+        {
+          "name": "JOINT_FIXED",
+          "value": "fixed"
+        },
+        {
+          "name": "JOINT_GENERIC",
+          "value": "generic"
+        },
+        {
+          "name": "JOINT_PIN_SLOT",
+          "value": "pin_slot"
+        },
+        {
+          "name": "JOINT_PRISMATIC",
+          "value": "prismatic"
+        },
+        {
+          "name": "JOINT_REVOLUTE",
+          "value": "revolute"
+        },
+        {
+          "name": "JOINT_ROPE",
+          "value": "rope"
+        },
+        {
+          "name": "JOINT_SPRING",
+          "value": "spring"
+        },
+        {
+          "name": "LENGTHS_ABSOLUTE",
+          "value": "absolute"
+        },
+        {
+          "name": "LENGTHS_RELATIVE",
+          "value": "relative"
+        },
+        {
+          "name": "MOTOR_MODEL_ACCELERATION",
+          "value": "acceleration"
+        },
+        {
+          "name": "MOTOR_MODEL_FORCE",
+          "value": "force"
+        },
+        {
+          "name": "MOTOR_OFF",
+          "value": "off"
+        },
+        {
+          "name": "MOTOR_POSITION",
+          "value": "position"
+        },
+        {
+          "name": "MOTOR_VELOCITY",
+          "value": "velocity"
+        },
+        {
+          "name": "SHAPE_CAPSULE",
+          "value": "capsule"
+        },
+        {
           "name": "SHAPE_CIRCLE",
           "value": "circle"
         },
         {
+          "name": "SHAPE_CONVEX_HULL",
+          "value": "convex_hull"
+        },
+        {
+          "name": "SHAPE_HALFSPACE",
+          "value": "halfspace"
+        },
+        {
+          "name": "SHAPE_HEIGHTFIELD",
+          "value": "heightfield"
+        },
+        {
+          "name": "SHAPE_POLYLINE",
+          "value": "polyline"
+        },
+        {
           "name": "SHAPE_RECT",
           "value": "rect"
+        },
+        {
+          "name": "SHAPE_SEGMENT",
+          "value": "segment"
+        },
+        {
+          "name": "SHAPE_TRIANGLE",
+          "value": "triangle"
+        },
+        {
+          "name": "SHAPE_TRIMESH",
+          "value": "trimesh"
+        },
+        {
+          "name": "SOLVER_IMPULSE",
+          "value": "impulse"
+        },
+        {
+          "name": "SOLVER_REDUCED",
+          "value": "reduced"
         }
       ],
       "doc": "The 2D rigid-body world: bodies and colliders on nodes, their velocities, and overlap queries. `physics` holds what spans both worlds.",
@@ -4898,6 +5437,30 @@
       ],
       "constants": [
         {
+          "name": "AXIS_ANG_X",
+          "value": "ang_x"
+        },
+        {
+          "name": "AXIS_ANG_Y",
+          "value": "ang_y"
+        },
+        {
+          "name": "AXIS_ANG_Z",
+          "value": "ang_z"
+        },
+        {
+          "name": "AXIS_X",
+          "value": "x"
+        },
+        {
+          "name": "AXIS_Y",
+          "value": "y"
+        },
+        {
+          "name": "AXIS_Z",
+          "value": "z"
+        },
+        {
           "name": "BODY_DYNAMIC",
           "value": "dynamic"
         },
@@ -4914,12 +5477,212 @@
           "value": "static"
         },
         {
+          "name": "COLLIDE_DYNAMIC_DYNAMIC",
+          "value": "dynamic_dynamic"
+        },
+        {
+          "name": "COLLIDE_DYNAMIC_KINEMATIC",
+          "value": "dynamic_kinematic"
+        },
+        {
+          "name": "COLLIDE_DYNAMIC_STATIC",
+          "value": "dynamic_static"
+        },
+        {
+          "name": "COLLIDE_KINEMATIC_KINEMATIC",
+          "value": "kinematic_kinematic"
+        },
+        {
+          "name": "COLLIDE_KINEMATIC_STATIC",
+          "value": "kinematic_static"
+        },
+        {
+          "name": "COLLIDE_STATIC_STATIC",
+          "value": "static_static"
+        },
+        {
+          "name": "COMBINE_AVERAGE",
+          "value": "average"
+        },
+        {
+          "name": "COMBINE_CLAMPED_SUM",
+          "value": "clamped_sum"
+        },
+        {
+          "name": "COMBINE_GEOMETRIC_MEAN",
+          "value": "geometric_mean"
+        },
+        {
+          "name": "COMBINE_MAX",
+          "value": "max"
+        },
+        {
+          "name": "COMBINE_MIN",
+          "value": "min"
+        },
+        {
+          "name": "COMBINE_MULTIPLY",
+          "value": "multiply"
+        },
+        {
+          "name": "EVENT_COLLISION",
+          "value": "collision"
+        },
+        {
+          "name": "EVENT_CONTACT_FORCE",
+          "value": "contact_force"
+        },
+        {
+          "name": "FILL_SOLID",
+          "value": "solid"
+        },
+        {
+          "name": "FILL_SURFACE",
+          "value": "surface"
+        },
+        {
+          "name": "FIT_AABB",
+          "value": "aabb"
+        },
+        {
+          "name": "FIT_CONVEX_DECOMPOSITION",
+          "value": "convex_decomposition"
+        },
+        {
+          "name": "FIT_CONVEX_HULL",
+          "value": "convex_hull"
+        },
+        {
+          "name": "FIT_OBB",
+          "value": "obb"
+        },
+        {
+          "name": "JOINT_FIXED",
+          "value": "fixed"
+        },
+        {
+          "name": "JOINT_GENERIC",
+          "value": "generic"
+        },
+        {
+          "name": "JOINT_PRISMATIC",
+          "value": "prismatic"
+        },
+        {
+          "name": "JOINT_REVOLUTE",
+          "value": "revolute"
+        },
+        {
+          "name": "JOINT_ROPE",
+          "value": "rope"
+        },
+        {
+          "name": "JOINT_SPHERICAL",
+          "value": "spherical"
+        },
+        {
+          "name": "JOINT_SPRING",
+          "value": "spring"
+        },
+        {
+          "name": "LENGTHS_ABSOLUTE",
+          "value": "absolute"
+        },
+        {
+          "name": "LENGTHS_RELATIVE",
+          "value": "relative"
+        },
+        {
+          "name": "MOTOR_MODEL_ACCELERATION",
+          "value": "acceleration"
+        },
+        {
+          "name": "MOTOR_MODEL_FORCE",
+          "value": "force"
+        },
+        {
+          "name": "MOTOR_OFF",
+          "value": "off"
+        },
+        {
+          "name": "MOTOR_POSITION",
+          "value": "position"
+        },
+        {
+          "name": "MOTOR_VELOCITY",
+          "value": "velocity"
+        },
+        {
           "name": "SHAPE_BALL",
           "value": "ball"
         },
         {
+          "name": "SHAPE_CAPSULE",
+          "value": "capsule"
+        },
+        {
+          "name": "SHAPE_CONE",
+          "value": "cone"
+        },
+        {
+          "name": "SHAPE_CONVEX_DECOMPOSITION",
+          "value": "convex_decomposition"
+        },
+        {
+          "name": "SHAPE_CONVEX_HULL",
+          "value": "convex_hull"
+        },
+        {
           "name": "SHAPE_CUBOID",
           "value": "cuboid"
+        },
+        {
+          "name": "SHAPE_CYLINDER",
+          "value": "cylinder"
+        },
+        {
+          "name": "SHAPE_FIT",
+          "value": "fit"
+        },
+        {
+          "name": "SHAPE_HALFSPACE",
+          "value": "halfspace"
+        },
+        {
+          "name": "SHAPE_HEIGHTFIELD",
+          "value": "heightfield"
+        },
+        {
+          "name": "SHAPE_POLYLINE",
+          "value": "polyline"
+        },
+        {
+          "name": "SHAPE_SEGMENT",
+          "value": "segment"
+        },
+        {
+          "name": "SHAPE_TRIANGLE",
+          "value": "triangle"
+        },
+        {
+          "name": "SHAPE_TRIMESH",
+          "value": "trimesh"
+        },
+        {
+          "name": "SHAPE_VOXELIZED_MESH",
+          "value": "voxelized_mesh"
+        },
+        {
+          "name": "SHAPE_VOXELS",
+          "value": "voxels"
+        },
+        {
+          "name": "SOLVER_IMPULSE",
+          "value": "impulse"
+        },
+        {
+          "name": "SOLVER_REDUCED",
+          "value": "reduced"
         }
       ],
       "doc": "The 3D rigid-body world: bodies and colliders on nodes, their velocities, and overlap queries. `physics` holds what spans both worlds.",
@@ -5243,6 +6006,9 @@
     },
     {
       "acts_on": {
+        "cell": [
+          "tilemap"
+        ],
         "color": [
           "polygon",
           "shape2d",
@@ -5254,6 +6020,9 @@
         ],
         "set_ball": [
           "shape3d"
+        ],
+        "set_cell": [
+          "tilemap"
         ],
         "set_circle": [
           "shape2d"
@@ -5299,25 +6068,87 @@
         "polygon",
         "shape2d",
         "shape3d",
-        "sprite"
+        "sprite",
+        "tilemap"
       ],
-      "constants": [],
+      "constants": [
+        {
+          "name": "CAMERA_2D",
+          "value": "2d"
+        },
+        {
+          "name": "CAMERA_3D",
+          "value": "3d"
+        },
+        {
+          "name": "LIGHT_DIRECTIONAL",
+          "value": "directional"
+        },
+        {
+          "name": "LIGHT_POINT",
+          "value": "point"
+        },
+        {
+          "name": "SHAPE_BALL",
+          "value": "ball"
+        },
+        {
+          "name": "SHAPE_CAPSULE",
+          "value": "capsule"
+        },
+        {
+          "name": "SHAPE_CIRCLE",
+          "value": "circle"
+        },
+        {
+          "name": "SHAPE_CONE",
+          "value": "cone"
+        },
+        {
+          "name": "SHAPE_CUBOID",
+          "value": "cuboid"
+        },
+        {
+          "name": "SHAPE_CYLINDER",
+          "value": "cylinder"
+        },
+        {
+          "name": "SHAPE_PLANE",
+          "value": "plane"
+        },
+        {
+          "name": "SHAPE_POLYLINE",
+          "value": "polyline"
+        },
+        {
+          "name": "SHAPE_RECT",
+          "value": "rect"
+        }
+      ],
       "doc": "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the OS window, and the backdrop and debug lines drawn around the scene.",
       "docs": {
         "camera_2d": "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window.",
         "camera_matrix": "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window.",
         "camera_pose": "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale.",
+        "cell": "The tile at a column and row, or -1 for an empty cell or one past the edge.",
         "channel": "Which channel the viewport is drawing instead of the scene's colour, or empty for the scene as it is.",
         "channels": "Every channel name `set_channel` accepts, as a list.",
         "check_material": "Every diagnostic about the material at that path, as `[#{ file, line, column, severity, message }]`; empty when it links.",
         "color": "The node's tint as r, g, b, a channel floats; opaque white when the node draws nothing at all.",
+        "draw_arc_2d": "Stroke an arc between two angles in degrees, counter-clockwise from the x axis, for this frame; width is in pixels.",
+        "draw_circle_2d": "Fill a circle in world units for this frame, over everything the scene drew.",
         "draw_line": "Draw one 3D world-space line for this frame; the width is in pixels unless perspective scales it with distance.",
         "draw_line_2d": "Draw one 2D world-space line for this frame; width is in pixels.",
+        "draw_polyline_2d": "Stroke a chain of world-space points for this frame; width is in pixels.",
+        "draw_rect_2d": "Fill a rectangle centred at a point, in world units, for this frame.",
+        "draw_texture_2d": "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it.",
         "material_params": "The material's editable rows, one `#{ name, type, value }` per field its linked shader declares; empty when it will not link.",
         "mouse_ray": "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units.",
         "mouse_world_2d": "The mouse position in 2D world coordinates, for picking.",
         "outline": "The outline this node blocks 2D light with, in world space: x then y for each point in turn, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.",
         "pick_ray": "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz.",
+        "refresh_rate": "Frames per second the display refreshes at, as measured over the last frames; 60 with no window.",
+        "safe_area": "The display's insets in pixels, `{ left, top, right, bottom }`: what a notch or a home bar covers, read once per frame and recorded. Zero on a desktop.",
         "screenshot": "Save the next rendered frame as a PNG at a project-relative path; a run with no renderer says so.",
         "set_app_icon": "Set the application icon (the dock or taskbar one) from a PNG in the project, named by its path.",
         "set_background": "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats.",
@@ -5325,6 +6156,7 @@
         "set_camera": "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units.",
         "set_camera_2d": "Point the 2D camera: the world centre xy, then the zoom in logical pixels per world unit.",
         "set_camera_input": "Allow or inhibit the backend's own mouse camera controls, so an editor can take the pointer for a drag.",
+        "set_cell": "Put one tile at a column and row, counted from the top left; below zero clears the cell, and a cell past the edge grows the map. The mesh rebuilds on the next frame.",
         "set_channel": "Draw one channel of the scene \u2014 normals, uv, depth or albedo \u2014 instead of its colour; an empty name puts the picture back.",
         "set_circle": "Draw the node as a circle of the given radius in world units, replacing any other 2D shape.",
         "set_color": "Tint whatever the node draws, as r, g, b channel floats and an optional alpha, one meaning opaque.",
@@ -5334,6 +6166,7 @@
         "set_fullscreen": "Put the window into borderless fullscreen on the current monitor, or back into a window.",
         "set_grid": "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent.",
         "set_grid_colors": "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats.",
+        "set_keep_awake": "Keep the screen from dimming while the game runs: a page takes a wake lock, a phone its equivalent, a desktop needs nothing.",
         "set_rect": "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape.",
         "set_shader_preview": "Draw the value a shader's line computes for every pixel that reaches it; line 0 puts the picture back.",
         "set_shader_probe": "Ask what the previewed line computed at one framebuffer pixel; the answer arrives through `shader_probe` a frame later.",
@@ -5351,17 +6184,25 @@
         "camera_2d",
         "camera_matrix",
         "camera_pose",
+        "cell",
         "channel",
         "channels",
         "check_material",
         "color",
+        "draw_arc_2d",
+        "draw_circle_2d",
         "draw_line",
         "draw_line_2d",
+        "draw_polyline_2d",
+        "draw_rect_2d",
+        "draw_texture_2d",
         "material_params",
         "mouse_ray",
         "mouse_world_2d",
         "outline",
         "pick_ray",
+        "refresh_rate",
+        "safe_area",
         "screenshot",
         "set_app_icon",
         "set_background",
@@ -5369,6 +6210,7 @@
         "set_camera",
         "set_camera_2d",
         "set_camera_input",
+        "set_cell",
         "set_channel",
         "set_circle",
         "set_color",
@@ -5378,6 +6220,7 @@
         "set_fullscreen",
         "set_grid",
         "set_grid_colors",
+        "set_keep_awake",
         "set_rect",
         "set_shader_preview",
         "set_shader_probe",
@@ -5396,17 +6239,25 @@
         "camera_2d": "() -> (f32, f32, f32)",
         "camera_matrix": "() -> Vec<f32>",
         "camera_pose": "() -> (f32, f32, f32, f32, f32, f32, f32, f32)",
+        "cell": "(NodeId, i64, i64) -> i64",
         "channel": "() -> String",
         "channels": "() -> Value",
         "check_material": "String -> Value",
         "color": "NodeId -> (f32, f32, f32, f32)",
+        "draw_arc_2d": "(f32, f32, f32, f32, f32, Option<f32>, Option<Value>) -> ()",
+        "draw_circle_2d": "(f32, f32, f32, Option<Value>) -> ()",
         "draw_line": "(f32, f32, f32, f32, f32, f32, f32, f32, f32, Option<f32>, Option<bool>, Option<bool>) -> ()",
         "draw_line_2d": "(f32, f32, f32, f32, f32, f32, f32, Option<f32>) -> ()",
+        "draw_polyline_2d": "(Value, Option<f32>, Option<Value>) -> ()",
+        "draw_rect_2d": "(f32, f32, f32, f32, Option<Value>) -> ()",
+        "draw_texture_2d": "(String, f32, f32, f32, f32, Option<Value>) -> ()",
         "material_params": "String -> Value",
         "mouse_ray": "() -> (f32, f32, f32, f32, f32, f32)",
         "mouse_world_2d": "() -> (f32, f32)",
         "outline": "NodeId -> Vec<f32>",
         "pick_ray": "(f64, f64, f64, f64, f64, f64) -> Option<NodeId>",
+        "refresh_rate": "() -> f64",
+        "safe_area": "() -> Value",
         "screenshot": "String -> ()",
         "set_app_icon": "String -> ()",
         "set_background": "(f32, f32, f32) -> ()",
@@ -5414,6 +6265,7 @@
         "set_camera": "(f32, f32, f32, f32, f32, f32) -> ()",
         "set_camera_2d": "(f32, f32, f32) -> ()",
         "set_camera_input": "bool -> ()",
+        "set_cell": "(NodeId, i64, i64, i64) -> ()",
         "set_channel": "String -> ()",
         "set_circle": "(NodeId, f32) -> ()",
         "set_color": "(NodeId, f32, f32, f32, Option<f32>) -> ()",
@@ -5423,6 +6275,7 @@
         "set_fullscreen": "bool -> ()",
         "set_grid": "(bool, Option<f32>, Option<u32>, Option<i32>) -> ()",
         "set_grid_colors": "(f32, f32, f32, f32, f32, f32) -> ()",
+        "set_keep_awake": "bool -> ()",
         "set_rect": "(NodeId, f32, f32) -> ()",
         "set_shader_preview": "(String, i64) -> ()",
         "set_shader_probe": "(f64, f64) -> ()",
@@ -5527,20 +6380,23 @@
         "int": "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included.",
         "random": "A float from the deterministic engine stream, uniform in `[0, 1)`.",
         "range": "A float from the deterministic engine stream, uniform in `[low, high)` \u2014 the two arguments.",
-        "seed": "Restart the deterministic engine stream at the given seed, so every draw after it repeats."
+        "seed": "Restart the deterministic engine stream at the given seed, so every draw after it repeats.",
+        "uuid": "A version-4 UUID drawn from the deterministic engine stream, so a replay makes the same ids; not for anything that must be unique across machines."
       },
       "functions": [
         "int",
         "random",
         "range",
-        "seed"
+        "seed",
+        "uuid"
       ],
       "name": "rng",
       "signatures": {
         "int": "(low: int, high: int)",
         "random": "()",
         "range": "(low: float, high: float)",
-        "seed": "(seed: int)"
+        "seed": "(seed: int)",
+        "uuid": "()"
       }
     },
     {
@@ -5609,6 +6465,7 @@
         "root": "The tree's root node.",
         "source": "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing.",
         "spawn": "Create one empty named node under the given parent, or under the root when none is given.",
+        "tagged": "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed.",
         "unmet_expectations": "Components on the node whose expectations nothing satisfies, as `{ component, expects }`; advisory only.",
         "with_component": "Every node carrying the named component, in tree order. What a script asks instead of walking the tree itself."
       },
@@ -5626,6 +6483,7 @@
         "root",
         "source",
         "spawn",
+        "tagged",
         "unmet_expectations",
         "with_component"
       ],
@@ -5644,6 +6502,7 @@
         "root": "()",
         "source": "(path: string)",
         "spawn": "(name: string, parent: node?)",
+        "tagged": "(tag: string)",
         "unmet_expectations": "(node: node)",
         "with_component": "(component: string)"
       }
@@ -5758,6 +6617,7 @@
         "locales": "Every locale the project ships a `strings/<locale>.toml` for, in name order.",
         "set_locale": "Switch locale; the next `tr` answers in it, which for a widget showing a key is the next frame.",
         "set_root": "Read the catalogues from this directory instead of the project root, forgetting the ones already read; an empty string puts it back. For a host running a project other than its own \u2014 the editor, whose own root has no `strings/`, so without this every `text_key` in a played scene draws as its key.",
+        "system_locale": "The locale the operating system reports, like `en-US`, or nil when it says nothing; recorded with the session. A game picks its starting locale from it once and saves the choice.",
         "tr": "The string for a key in the current locale. `{name}` in it is replaced by the argument called `name`, and an `n` argument also picks the plural form the locale's language calls for."
       },
       "functions": [
@@ -5765,6 +6625,7 @@
         "locales",
         "set_locale",
         "set_root",
+        "system_locale",
         "tr"
       ],
       "name": "strings",
@@ -5773,6 +6634,7 @@
         "locales": "()",
         "set_locale": "(locale: string)",
         "set_root": "(root: string)",
+        "system_locale": "()",
         "tr": "(key: string, args: table?)"
       }
     },
@@ -5782,13 +6644,19 @@
       "constants": [],
       "doc": "Waiting inside an async handler: `init` and event handlers may await, `update` is deliberately synchronous.",
       "docs": {
+        "frames": "Park an async handler for a number of fixed steps; counted on the tick, so a replay waits exactly as long.",
+        "seconds": "Park an async handler for a span of simulation time, in fixed steps; the wall clock never enters it.",
         "wait": "Park an async handler until the engine wakes the token it was given."
       },
       "functions": [
+        "frames",
+        "seconds",
         "wait"
       ],
       "name": "task",
       "signatures": {
+        "frames": "(count: int)",
+        "seconds": "(seconds: float)",
         "wait": "(token: int)"
       }
     },
@@ -5819,6 +6687,22 @@
       "components": [],
       "constants": [
         {
+          "name": "ALIGN_CENTER",
+          "value": "center"
+        },
+        {
+          "name": "ALIGN_END",
+          "value": "end"
+        },
+        {
+          "name": "ALIGN_LEFT",
+          "value": "left"
+        },
+        {
+          "name": "ALIGN_START",
+          "value": "start"
+        },
+        {
           "name": "ANCHOR_BOTTOM_LEFT",
           "value": "bottom_left"
         },
@@ -5829,6 +6713,10 @@
         {
           "name": "ANCHOR_CENTER",
           "value": "center"
+        },
+        {
+          "name": "ANCHOR_FILL",
+          "value": "fill"
         },
         {
           "name": "ANCHOR_TOP_LEFT",
@@ -5845,6 +6733,14 @@
         {
           "name": "FONT_MONO",
           "value": "mono"
+        },
+        {
+          "name": "FONT_STYLE_ITALIC",
+          "value": "italic"
+        },
+        {
+          "name": "FONT_STYLE_NORMAL",
+          "value": "normal"
         },
         {
           "name": "MOD_ALT",
@@ -5867,12 +6763,40 @@
           "value": "button"
         },
         {
+          "name": "WIDGET_CHECK",
+          "value": "check"
+        },
+        {
           "name": "WIDGET_COLUMN",
           "value": "column"
         },
         {
+          "name": "WIDGET_DIALOG",
+          "value": "dialog"
+        },
+        {
           "name": "WIDGET_DRAW",
           "value": "draw"
+        },
+        {
+          "name": "WIDGET_DROPDOWN",
+          "value": "dropdown"
+        },
+        {
+          "name": "WIDGET_FIELD",
+          "value": "field"
+        },
+        {
+          "name": "WIDGET_FLOW",
+          "value": "flow"
+        },
+        {
+          "name": "WIDGET_FOLD",
+          "value": "fold"
+        },
+        {
+          "name": "WIDGET_GRID",
+          "value": "grid"
         },
         {
           "name": "WIDGET_IMAGE",
@@ -5887,12 +6811,24 @@
           "value": "panel"
         },
         {
+          "name": "WIDGET_PROGRESS",
+          "value": "progress"
+        },
+        {
           "name": "WIDGET_ROW",
           "value": "row"
         },
         {
           "name": "WIDGET_SCROLL",
           "value": "scroll"
+        },
+        {
+          "name": "WIDGET_SEPARATOR",
+          "value": "separator"
+        },
+        {
+          "name": "WIDGET_SLIDER",
+          "value": "slider"
         },
         {
           "name": "WIDGET_TAB",
@@ -5908,7 +6844,7 @@
         "bottom_panel": "Dock a strip across the bottom of the window and draw the callback inside it; `height` is in design pixels. Answers the height it ended up with.",
         "central_panel": "Draw the callback into whatever room the docked panels left over.",
         "central_rect": "The x, y, width and height of the surface being drawn into, in design pixels.",
-        "circle_button": "Draw a round button holding one glyph, `d` design pixels across; true on the frame it was clicked.",
+        "circle_button": "Draw a round button holding one glyph, `d` design pixels across; true on the frame it was clicked. `disabled` greys it out and swallows the click.",
         "clipboard": "The text pasted this frame, empty otherwise: the platform clipboard is not readable on demand.",
         "code_editor": "Draw an editable, highlighted buffer with a gutter; returns the text, whether it changed, and any line clicked.",
         "code_line": "Draw one read-only code row from a list of `{ text, color, strong }` spans, with a gutter label on the left.",
@@ -5928,7 +6864,7 @@
         "menu_item": "Draw a row inside a context menu; true on the frame it was clicked, which also closes the menu.",
         "modal": "Draw the callback in a centered dialog over a dimming scrim; true on the frame the scrim was clicked. `width`, `height` and `top` size and place it, `fill`, `stroke` and `scrim` colour it; height follows the content when it is not given.",
         "overlay": "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `w`/`h` fix its size, and `fill`, `stroke`, `radius` and padding make it a sheet.",
-        "pill": "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked.",
+        "pill": "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked. `disabled` greys it out and swallows the click.",
         "rect_stroke": "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked.",
         "right": "Lay the callback's widgets out against the right edge, still declared left to right.",
         "right_panel": "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
@@ -5939,7 +6875,7 @@
         "set_clipboard": "Copy text to the system clipboard.",
         "set_focus": "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",
         "set_keyboard_focus": "Let the arrows, Tab, Enter and Space move and activate the focused widget. Off unless asked for, so a game that moves with the arrows does not click its own HUD; `standard_app` turns it on for a project declaring the `ui_*` actions.",
-        "set_scale": "Set the global UI scale, clamped to between 0.5 and 3.0 real pixels per design pixel.",
+        "set_scale": "Set the global UI scale, clamped to between 0.25 and 3.0 real pixels per design pixel; a design resolution is `screen_size` divided by it.",
         "set_text": "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone.",
         "set_theme": "Replace the theme: `name = \"#rrggbb\"` colour tokens, `dark = true|false`, and a `roles` table of named looks a widget takes with `role:`.",
         "set_widget_layer": "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
@@ -6065,6 +7001,40 @@
         "wants_keyboard": "() -> bool",
         "widget_rect": "NodeId -> Value",
         "window": "(String, Option<Value>, CallbackId) -> bool"
+      }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [],
+      "doc": "The page a browser build runs in. Facts about it are read once per tick and recorded, so a replay answers as the browser did; a message from the parent frame reaches `on_web_message` on every node that called `listen`. Off the web every query answers nil.",
+      "docs": {
+        "hardware_concurrency": "How many threads the browser reports, or nil off the web.",
+        "listen": "Have the node's `on_web_message(payload)` \u2014 or the `on_event` method the options name \u2014 called for every message the parent frame posts.",
+        "location": "The page's URL, or nil off the web.",
+        "messages": "Every message the parent frame posted this tick, for a script that would rather ask than declare a method.",
+        "post_message": "Post a value to the page that embeds this one. False off the web, and false while a recording plays.",
+        "user_agent": "The browser's user agent string, or nil off the web.",
+        "visible": "Whether the tab is in front of the player; true off the web."
+      },
+      "functions": [
+        "hardware_concurrency",
+        "listen",
+        "location",
+        "messages",
+        "post_message",
+        "user_agent",
+        "visible"
+      ],
+      "name": "web",
+      "signatures": {
+        "hardware_concurrency": "() -> Value",
+        "listen": "(NodeId, Option<Value>) -> ()",
+        "location": "() -> Value",
+        "messages": "() -> Value",
+        "post_message": "Value -> bool",
+        "user_agent": "() -> Value",
+        "visible": "() -> bool"
       }
     },
     {

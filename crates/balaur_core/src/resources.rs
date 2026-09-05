@@ -1,7 +1,8 @@
 use std::any::{Any, TypeId};
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
+
+use crate::collections::DetHashMap;
 
 /// Type-indexed storage for engine-global singletons: the physics worlds
 /// (`PhysicsState`, `PhysicsState2d`), the audio device (`AudioState`), the
@@ -11,9 +12,13 @@ use std::rc::Rc;
 /// loop outside the map and only inserts a `WindowedBackend` marker so the
 /// headless fallbacks know to stand down. Each resource lives behind its own
 /// `RefCell` so plugins can borrow different resources at the same time.
+///
+/// Keyed with the same fast hasher as every other engine map: the standard
+/// one SipHashes a `TypeId` on every `resource()` call, and a binding makes
+/// several of those per script call.
 #[derive(Default)]
 pub struct Resources {
-    map: HashMap<TypeId, Rc<dyn Any>>,
+    map: DetHashMap<TypeId, Rc<dyn Any>>,
 }
 
 impl Resources {
@@ -30,6 +35,6 @@ impl Resources {
     }
 
     pub fn remove<T: 'static>(&mut self) {
-        self.map.remove(&TypeId::of::<T>());
+        self.map.swap_remove(&TypeId::of::<T>());
     }
 }

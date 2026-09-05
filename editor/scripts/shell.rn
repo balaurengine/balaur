@@ -54,8 +54,36 @@ pub fn redo(S) {
 pub fn set_persona(S, id) {
     S.persona = id;
     S.tool = "select";
-    S.doctab = if id == "script" { "script" } else { "scene" };
+    if id == "script" {
+        open_doc(S, "script");
+    } else {
+        S.doctab = "scene";
+    }
     crate::docks::show(S, if id == "anim" { "timeline" } else { "output" });
+}
+
+/// Show a document tab, opening it when it was closed.
+pub fn open_doc(S, id) {
+    if id == "script" {
+        S.script_open = true;
+    }
+    if id == "events" {
+        S.events_open = true;
+    }
+    S.doctab = id;
+}
+
+/// Close a document tab; the scene is what is left.
+pub fn close_doc(S, id) {
+    if id == "script" {
+        S.script_open = false;
+    }
+    if id == "events" {
+        S.events_open = false;
+    }
+    if S.doctab == id {
+        S.doctab = "scene";
+    }
 }
 
 // Show the code and the viewport at once, or go back to one at a time. The
@@ -202,20 +230,117 @@ pub fn on_pause(S, p) {
     log::info(format!("paused at {}:{} ({})", S.debug.paused_rel, p.line, p.reason));
 }
 
+const SCRIPT_TEMPLATE = "pub fn init(this) {\n}\n\npub fn update(this, dt) {\n}\n";
+
 pub fn attach_script(S) {
     let node = S.doc[S.sel];
     if node.contains_key("script") {
         return;
     }
-    let path = "scripts/" + node.name.to_lowercase() + ".rn";
-    let abs = S.game_root + "/" + path;
-    if !fs::exists(abs) {
-        fs::write(abs, "pub fn init(this) {\n}\n\npub fn update(this, dt) {\n}\n");
+    set_script_path(S, "scripts/" + node.name.to_lowercase() + ".rn");
+}
+
+/// Every `.rn` under scripts/, for the inspector's picker.
+pub fn script_files(S) {
+    let files = [];
+    for f in model::list(S, "scripts") {
+        if !f.is_dir && f.name.ends_with(".rn") {
+            files.push("scripts/" + f.name);
+        }
     }
-    history::record(S, "attach script", None);
+    files.sort();
+    files
+}
+
+/// Take the script off the selected node. The file stays.
+pub fn detach_script(S) {
+    let node = S.doc[S.sel];
+    let rel = match model::script_rel(node) {
+        Some(rel) => rel,
+        None => return,
+    };
+    history::record(S, "detach script", None);
+    node.remove("script");
+    close_doc(S, "script");
+    log::info("detached " + rel + " (undo re-attaches it; the file stays)");
+}
+
+/// Point the selected node's script at `path`. An existing file is attached
+/// as it is; a name nothing is at moves the current file there, or starts a
+/// new one when the node had none.
+pub fn set_script_path(S, path) {
+    let node = S.doc[S.sel];
+    let rel = path.trim();
+    if rel == "" {
+        return;
+    }
+    if !rel.ends_with(".rn") {
+        rel = rel + ".rn";
+    }
+    let was = model::script_rel(node);
+    if was == Some(rel) {
+        return;
+    }
+    let abs = S.game_root + "/" + rel;
+    history::record(S, if was.is_none() { "attach script" } else { "move script" }, None);
+    if let Some(old) = was {
+        let old_abs = S.game_root + "/" + old;
+        if fs::exists(old_abs) && !fs::exists(abs) {
+            // What is typed but unsaved goes with the file.
+            if let Some(buffer) = S.script_buffers.get(old_abs) {
+                fs::write(old_abs, buffer);
+            }
+            make_parent(S, rel);
+            fs::rename(old_abs, abs);
+            carry_script_state(S, old, rel);
+            log::info(format!("moved {} to {}", old, rel));
+        }
+    }
+    if !fs::exists(abs) {
+        make_parent(S, rel);
+        fs::write(abs, SCRIPT_TEMPLATE);
+    }
+    // The table form keeps the node's property overrides.
+    let current = node.get("script").unwrap_or(());
+    if current is Object {
+        current.source = rel;
+    } else {
+        node.script = rel;
+    }
     model::forget(S, None);
-    node.script = path;
-    log::info("attached " + path + " (undo detaches it; the file stays)");
+    S.script_open = true;
+    crate::lint::run(S);
+    log::info("script: " + rel + " (undo puts it back)");
+}
+
+fn make_parent(S, rel) {
+    let parts = rel.split('/').collect::<Vec>();
+    if parts.len() <= 1 {
+        return;
+    }
+    parts.pop();
+    let dir = S.game_root + "/" + util::join(parts, "/");
+    if !fs::exists(dir) {
+        fs::mkdir(dir);
+    }
+}
+
+// The editor's per-file state follows a moved file: its buffer, whether it
+// is unsaved, and its breakpoints.
+fn carry_script_state(S, old, rel) {
+    let old_abs = S.game_root + "/" + old;
+    let abs = S.game_root + "/" + rel;
+    if let Some(buffer) = S.script_buffers.get(old_abs) {
+        S.script_buffers[abs] = buffer;
+        S.script_buffers.remove(old_abs);
+    }
+    if S.script_dirty.contains_key(old_abs) {
+        S.script_dirty.remove(old_abs);
+    }
+    if let Some(lines) = S.debug.breakpoints.get(old) {
+        S.debug.breakpoints.remove(old);
+        S.debug.breakpoints[rel] = util::vec(debugger::set_breakpoints(abs, util::vec(lines)));
+    }
 }
 
 const BASE_EYE = [9.0, 6.0, 13.0];
@@ -362,6 +487,7 @@ fn states() {
         "assetdemo": crate::selftest::assets,
         "pickdemo": crate::selftest::picking,
         "propsdemo": crate::selftest::script_props,
+        "scriptdemo": crate::selftest::script_paths,
         "instancedemo": crate::selftest::instances,
         "timingsdemo": crate::selftest::timings,
         "placedemo": crate::selftest::placing,
@@ -471,7 +597,6 @@ fn state_tab(S, tab) {
     }
 }
 
-// `shut:left`, `shut:bottom`, `shut:right`: minimise a dock to its edge.
 fn state_fontdemo(S) {
     S.fontdemo = true;
 }

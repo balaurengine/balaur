@@ -101,9 +101,9 @@ drag on a sheet's edge is an assignment. Minimums 220 / 268 / 26. Each sheet
 also hides outright, which is the honest answer to Stage costing 12 % of the
 work area: a hidden tree gives 236 px straight back to the scene.
 
-Below 1240 px the sheets would cover most of the window. There, the tree and
-the inspector collapse to 32 px handles on their gutters and open over the
-scene on click.
+Each sheet hides outright: the tree and the inspector minimise to a 32 px
+handle at the top of their column (done, at every width), and the bottom dock
+to its status strip.
 
 ## 6. The other two switches
 
@@ -114,7 +114,7 @@ panel declaration each. Neither is decided; both default to the arrangement
 | Switch | Default | Other setting |
 |---|---|---|
 | Personas | a floating bar at the top centre | a floating rail down the left gutter, carrying personas and tools together |
-| Document tabs | a floating pill row above the stage | a 38 px icon column beside the tool rail; the filename moves to the status pill |
+| Document tabs | in the top bar, beside the personas (since 2026-09-05) | a 38 px icon column beside the tool rail; the filename moves to the status pill |
 
 Both are `S.layout` inputs, so the one rect authority covers them for free.
 

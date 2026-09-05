@@ -10,7 +10,7 @@
 //! matching text: the AST is what says which statement a line holds and where
 //! a `return` ends.
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use wesl::syntax::{
     Attribute, BuiltinValue, CompoundStatement, Expression, Function, GlobalDeclaration, Statement,
     StatementNode, TranslationUnit,
@@ -39,10 +39,10 @@ fn after_imports(source: &str) -> usize {
     let mut end = 0;
     let mut at = 0;
     for line in source.split_inclusive('\n') {
-        if line.trim_start().starts_with("import ") {
-            if let Some(semi) = source[at..].find(';') {
-                end = at + semi + 1;
-            }
+        if line.trim_start().starts_with("import ")
+            && let Some(semi) = source[at..].find(';')
+        {
+            end = at + semi + 1;
         }
         at += line.len();
     }
@@ -198,10 +198,10 @@ fn declared_type(declaration: &wesl::syntax::Declaration) -> Result<String> {
     if let Some(ty) = &declaration.ty {
         return Ok(ty.ident.name().to_string());
     }
-    if let Some(initializer) = &declaration.initializer {
-        if let Expression::FunctionCall(call) = initializer.node() {
-            return Ok(call.ty.ident.name().to_string());
-        }
+    if let Some(initializer) = &declaration.initializer
+        && let Expression::FunctionCall(call) = initializer.node()
+    {
+        return Ok(call.ty.ident.name().to_string());
     }
     Err(anyhow!(
         "`{}` has no written type, so there is nothing to say how to draw it; \

@@ -229,7 +229,9 @@ fn validate(buses: &mut Buses) {
                 break;
             }
             if !buses.buses.contains_key(&parent) {
-                tracing::warn!("audio bus '{at}' names a parent '{parent}' nothing declares; feeding it to master");
+                tracing::warn!(
+                    "audio bus '{at}' names a parent '{parent}' nothing declares; feeding it to master"
+                );
                 detach(buses, &at);
                 ended = true;
                 break;

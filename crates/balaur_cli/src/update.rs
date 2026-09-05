@@ -16,7 +16,7 @@ pub(crate) use imp::run;
 mod imp {
     use std::path::{Path, PathBuf};
 
-    use anyhow::{bail, Context, Result};
+    use anyhow::{Context, Result, bail};
 
     const RELEASE_BASE: &str = "https://github.com/balaurengine/balaur/releases";
 

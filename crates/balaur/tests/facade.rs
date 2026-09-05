@@ -1,7 +1,7 @@
 //! The batteries-included facade: backend selection, pack building, and
 //! booting a project. This is the entry point a game actually uses.
 
-use balaur::{standard_app, App, AppConfig};
+use balaur::{App, AppConfig, standard_app};
 
 fn project(dir: &std::path::Path, language: Option<&str>, script: (&str, &str)) {
     std::fs::create_dir_all(dir.join("scripts")).unwrap();
@@ -37,10 +37,11 @@ fn a_project_without_a_language_runs_on_rune() {
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
     let host = app.engine.script_host().expect("a backend was installed");
-    assert!(host
-        .as_any()
-        .downcast_ref::<balaur::rune::RuneHost>()
-        .is_some());
+    assert!(
+        host.as_any()
+            .downcast_ref::<balaur::rune::RuneHost>()
+            .is_some()
+    );
     assert_eq!(
         host.instance_count(),
         1,
@@ -55,10 +56,11 @@ fn language_rune_runs_on_rune() {
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
     let host = app.engine.script_host().unwrap();
-    assert!(host
-        .as_any()
-        .downcast_ref::<balaur::rune::RuneHost>()
-        .is_some());
+    assert!(
+        host.as_any()
+            .downcast_ref::<balaur::rune::RuneHost>()
+            .is_some()
+    );
     assert_eq!(host.instance_count(), 1);
 }
 

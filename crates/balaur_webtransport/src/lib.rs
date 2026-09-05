@@ -21,14 +21,14 @@
 
 #[cfg(not(target_family = "wasm"))]
 use std::net::SocketAddr;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 
 #[cfg(not(target_family = "wasm"))]
 use anyhow::Context;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
+use balaur_core::Engine;
 use balaur_core::replay;
 use balaur_core::transport::{Delivery, LinkState, Received, Transport};
-use balaur_core::Engine;
 
 #[cfg(target_family = "wasm")]
 mod browser;

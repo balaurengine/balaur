@@ -2,24 +2,17 @@
 //! nothing: a collider that answers raycasts forever, or a handle a script
 //! call indexes rapier's arena with, are the same bug seen twice.
 
-use balaur::{standard_app, AppConfig};
+use balaur::{AppConfig, standard_app};
 use balaur_core::components::StableId;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
-use balaur_core::{components, snapshot, App};
+use balaur_core::{App, components, snapshot};
 use balaur_physics::{PhysicsPlugin, PhysicsState};
 
 static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn app() -> App {
-    let mut app = App::new(balaur_core::AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(balaur_core::AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
     app
 }
@@ -61,8 +54,8 @@ fn spawn(app: &App, name: &str, id: &str, y: f32, body: bool) -> Entity {
 
 fn colliders_in_world(app: &App) -> usize {
     let state = app.engine.resource::<PhysicsState>();
-    let count = state.borrow().world.colliders.len();
-    count
+
+    state.borrow().world.colliders.len()
 }
 
 /// `free_subtree` is the raw despawn every free path ends in, so a plugin

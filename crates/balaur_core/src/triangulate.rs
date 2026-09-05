@@ -5,7 +5,7 @@
 //! transcendentals — and because a polygon someone traced over a sprite is
 //! small enough that the quadratic walk never shows up.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use glamx::Vec2;
 
 /// Triangulate the loop `ring` (indices into `points`, in outline order)

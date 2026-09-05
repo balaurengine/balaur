@@ -13,7 +13,7 @@ use anyhow::Result;
 use balaur_script::{Bindings, Value};
 
 use crate::engine::Engine;
-use crate::engine_api::{number, EngineOp};
+use crate::engine_api::{EngineOp, number};
 
 pub const MATH_OPS: &[EngineOp] = &[
     EngineOp {
@@ -181,7 +181,7 @@ pub fn install_math_api(m: &mut dyn Bindings<Engine>) {
 }
 
 macro_rules! unary {
-    ($($name:ident => $f:expr),* $(,)?) => { $(
+    ($($name:ident => $f:expr_2021),* $(,)?) => { $(
         fn $name(_: &Engine, args: &[Value]) -> Result<Value> {
             Ok(Value::Num($f(number(args, 0)?)))
         }

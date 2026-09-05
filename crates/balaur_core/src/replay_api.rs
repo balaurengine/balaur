@@ -9,11 +9,11 @@
 // function pointers; several of them have nothing to fail at.
 #![allow(clippy::unnecessary_wraps)]
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_script::{Bindings, Value};
 
 use crate::engine::Engine;
-use crate::engine_api::{number, text, EngineOp};
+use crate::engine_api::{EngineOp, number, text};
 use crate::replay::{self, PlayState, Recording, ReplayPlayer, Session};
 
 pub const REPLAY_OPS: &[EngineOp] = &[

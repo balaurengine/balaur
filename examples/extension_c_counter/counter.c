@@ -24,8 +24,6 @@ typedef struct Counter {
 
 static Counter COUNTER = {0};
 
-/* ---- the functions ------------------------------------------------------- */
-
 /* A script hands whole numbers over as BALAUR_INT and fractions as BALAUR_NUM, so
  * anything taking a number should accept both. */
 static bool as_number(const BalaurValue *value, double *out) {
@@ -132,8 +130,6 @@ static int32_t always_fails(void *user, const BalaurValue *args, size_t argc,
     *out = balaur_string("this function fails on purpose");
     return 1;
 }
-
-/* ---- the four exported symbols ------------------------------------------- */
 
 uint32_t balaur_extension_abi(void) { return BALAUR_ABI_VERSION; }
 

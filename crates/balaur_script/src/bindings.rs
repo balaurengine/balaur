@@ -101,41 +101,28 @@ pub(crate) fn short_type(name: &str) -> String {
 
 /// So `&mut dyn Bindings<C>` and `Box<dyn Bindings<C>>` are usable wherever a
 /// `Bindings` is expected, which is how every plugin receives one.
-impl<C: ?Sized, T: Bindings<C> + ?Sized> Bindings<C> for &mut T {
-    fn function_raw(&mut self, name: &str, f: BoundFn<C>) {
-        (**self).function_raw(name, f);
-    }
-    fn constant(&mut self, name: &str, value: Value) {
-        (**self).constant(name, value);
-    }
-    fn signature(&mut self, name: &str, args: &str, returns: &str) {
-        (**self).signature(name, args, returns);
-    }
-    fn module_doc(&mut self, doc: &'static str) {
-        (**self).module_doc(doc);
-    }
-    fn describe(&mut self, entries: &[FnDoc]) {
-        (**self).describe(entries);
-    }
+macro_rules! forward_bindings {
+    ($($pointer:ty),*) => {$(
+        impl<C: ?Sized, T: Bindings<C> + ?Sized> Bindings<C> for $pointer {
+            fn function_raw(&mut self, name: &str, f: BoundFn<C>) {
+                (**self).function_raw(name, f);
+            }
+            fn constant(&mut self, name: &str, value: Value) {
+                (**self).constant(name, value);
+            }
+            fn signature(&mut self, name: &str, args: &str, returns: &str) {
+                (**self).signature(name, args, returns);
+            }
+            fn module_doc(&mut self, doc: &'static str) {
+                (**self).module_doc(doc);
+            }
+            fn describe(&mut self, entries: &[FnDoc]) {
+                (**self).describe(entries);
+            }
+        }
+    )*};
 }
-
-impl<C: ?Sized, T: Bindings<C> + ?Sized> Bindings<C> for Box<T> {
-    fn function_raw(&mut self, name: &str, f: BoundFn<C>) {
-        (**self).function_raw(name, f);
-    }
-    fn constant(&mut self, name: &str, value: Value) {
-        (**self).constant(name, value);
-    }
-    fn signature(&mut self, name: &str, args: &str, returns: &str) {
-        (**self).signature(name, args, returns);
-    }
-    fn module_doc(&mut self, doc: &'static str) {
-        (**self).module_doc(doc);
-    }
-    fn describe(&mut self, entries: &[FnDoc]) {
-        (**self).describe(entries);
-    }
-}
+forward_bindings!(&mut T, Box<T>);
 
 impl<C: ?Sized, T: Bindings<C> + ?Sized> BindingsExt<C> for T {}
 

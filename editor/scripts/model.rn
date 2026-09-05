@@ -186,8 +186,8 @@ pub fn draws_ui(S, node) {
     }
 }
 
-// A scene node's `parent` is the parent's **id**, not a path
-// (`crates/balaur_core/src/project.rs`); everything below walks that id chain.
+// A scene file's `parent` is an id or a name path; `normalize` resolves the
+// path form on load, so everything below walks a chain of ids.
 pub fn by_id(doc, id) {
     for node in doc {
         if node.id == id {
@@ -215,7 +215,6 @@ pub fn node_path(doc, node) {
     util::join(names, "/")
 }
 
-// Whether `id` is an ancestor of `node`, for subtree operations.
 pub fn has_ancestor(doc, node, id) {
     let current = node;
     for _ in 0..MAX_DEPTH {
@@ -255,7 +254,6 @@ fn slug(name) {
     if out.len() > 2 { out } else { "n_node" }
 }
 
-// An id no node in `doc` is using, derived from `name`.
 pub fn fresh_id(doc, name) {
     let taken = #{};
     for node in doc {
@@ -274,21 +272,20 @@ pub fn fresh_id(doc, name) {
     candidate
 }
 
-// A friendly type name derived from the node's components.
 pub fn node_type(node) {
     let kind = body_kind(node);
     let kind2d = body2d_kind(node);
-    if kind == Some("dynamic") {
+    if kind == Some(physics3d::BODY_DYNAMIC) {
         "RigidBody3D"
-    } else if kind == Some("static") {
+    } else if kind == Some(physics3d::BODY_STATIC) {
         "StaticBody3D"
-    } else if kind == Some("kinematic") {
+    } else if kind == Some(physics3d::BODY_KINEMATIC) {
         "KinematicBody3D"
-    } else if kind2d == Some("dynamic") {
+    } else if kind2d == Some(physics2d::BODY_DYNAMIC) {
         "RigidBody2D"
-    } else if kind2d == Some("static") {
+    } else if kind2d == Some(physics2d::BODY_STATIC) {
         "StaticBody2D"
-    } else if kind2d == Some("kinematic") {
+    } else if kind2d == Some(physics2d::BODY_KINEMATIC) {
         "KinematicBody2D"
     } else if node.contains_key("widget") {
         "Widget"
@@ -539,6 +536,41 @@ fn normalize(doc) {
             node.id = fresh_id(doc, node.name);
         }
     }
+    // The engine also takes `parent` as a path of names down from the scene
+    // root; the editor walks ids, so a path becomes the id it denotes here.
+    for node in doc {
+        if node.parent == "" || by_id(doc, node.parent).is_some() {
+            continue;
+        }
+        let target = node_at_path(doc, node.parent);
+        if target.is_some() {
+            node.parent = target.unwrap().id;
+        } else {
+            log::warn("node " + node.name + " names parent " + node.parent
+                + ", which this scene has neither as an id nor as a path");
+        }
+    }
+}
+
+// The node a `/`-separated path of names denotes, walked down from the root.
+// Parents come before children, so each step's `parent` is already an id.
+fn node_at_path(doc, path) {
+    let parent_id = "";
+    let found = None;
+    for segment in path.split('/').collect::<Vec>() {
+        found = None;
+        for node in doc {
+            if node.name == segment && node.parent == parent_id {
+                found = Some(node);
+                break;
+            }
+        }
+        if found.is_none() {
+            return None;
+        }
+        parent_id = found.unwrap().id;
+    }
+    found
 }
 
 // Load the game project pointed at by `engine::args()[0]`.
@@ -641,7 +673,6 @@ pub fn relative_file(S, value) {
     value
 }
 
-// (Re)build the live mirror under a fresh container node.
 pub fn build_mirror(S) {
     // Before the world goes: a game script still attached would get one more
     // update against bodies `physics::clear` has already removed.
@@ -964,7 +995,6 @@ pub fn attach_game_scripts(S) {
     }
 }
 
-// Open another scene file from the game project.
 pub fn open_scene(S, rel) {
     S.scene_rel = rel;
     S.scene_path = S.game_root + "/" + rel;
@@ -1225,7 +1255,6 @@ pub fn delete_selected(S) {
     log::info("deleted " + victim.name);
 }
 
-// Count stats for the status bar.
 pub fn stats(S) {
     let scripts = 0;
     for node in S.doc {

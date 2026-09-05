@@ -9,20 +9,13 @@
 use balaur_anim::{AnimationPlugin, AnimationState};
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
-use balaur_core::{components, project, App, AppConfig};
+use balaur_core::{App, AppConfig, components, project};
 use glamx::{Quat, Vec3};
 
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        // Asset references resolve against the project root when no script
-        // host is running, which is every Rust-only app and every test.
-        project_root: std::path::PathBuf::from("tests/fixtures"),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    // Asset references resolve against the project root when no script host
+    // is running, which is every Rust-only app and every test.
+    let mut app = App::new(AppConfig::bare("tests/fixtures")).unwrap();
     balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
     app
 }
@@ -310,12 +303,13 @@ fn removing_the_component_stops_the_node_being_animated() {
         stopped_at.to_bits(),
         "a removed player kept animating"
     );
-    assert!(app
-        .engine
-        .resource::<AnimationState>()
-        .borrow()
-        .players
-        .is_empty());
+    assert!(
+        app.engine
+            .resource::<AnimationState>()
+            .borrow()
+            .players
+            .is_empty()
+    );
 }
 
 #[test]

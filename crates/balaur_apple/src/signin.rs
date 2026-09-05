@@ -16,8 +16,8 @@ use block2::RcBlock;
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, NSObject, NSObjectProtocol, ProtocolObject};
 use objc2::{
-    define_class, msg_send, AllocAnyThread, ClassType, DefinedClass, MainThreadMarker,
-    MainThreadOnly,
+    AllocAnyThread, ClassType, DefinedClass, MainThreadMarker, MainThreadOnly, define_class,
+    msg_send,
 };
 use objc2_authentication_services::{
     ASAuthorization, ASAuthorizationAppleIDProvider, ASAuthorizationAppleIDProviderCredentialState,

@@ -4,17 +4,10 @@
 use std::time::Duration;
 
 use balaur_core::timings::{TimingLog, Timings};
-use balaur_core::{App, AppConfig, Engine, Stage, FIXED_DT};
+use balaur_core::{App, AppConfig, Engine, FIXED_DT, Stage};
 
 fn app() -> App {
-    App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 fn last(app: &App) -> Timings {

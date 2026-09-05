@@ -1,16 +1,9 @@
 use balaur_core::{App, AppConfig, Engine, Stage};
-use balaur_plugin::{load, load_all, load_order, Fingerprint, Manifest, Plugin, Registry};
+use balaur_plugin::{Fingerprint, Manifest, Plugin, Registry, load, load_all, load_order};
 use balaur_script::BindingsExt as _;
 
 fn app() -> App {
-    App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 struct Marker(u32);

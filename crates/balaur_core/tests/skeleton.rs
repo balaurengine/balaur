@@ -1,25 +1,18 @@
 //! Bones: rest poses, the rig walk, and the joint palette a skin deforms by.
 
 use balaur_core::engine_api::ENGINE_OPS;
-use balaur_core::scene::{self, propagate_transforms, Transform};
+use balaur_core::scene::{self, Transform, propagate_transforms};
 use balaur_core::skeleton::{
-    self, affine_2d, apply_rest, bones_under, joint_matrices_2d, overwrite_rest, quat_about_z,
-    skin_positions, Bone,
+    self, Bone, affine_2d, apply_rest, bones_under, joint_matrices_2d, overwrite_rest,
+    quat_about_z, skin_positions,
 };
-use balaur_core::{components, App, AppConfig, Engine};
+use balaur_core::{App, AppConfig, Engine, components};
 use balaur_script::Value;
 use glamx::{Mat3, Vec2, Vec3};
 use hecs::Entity;
 
 fn app() -> App {
-    App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 fn close(a: f32, b: f32) -> bool {
@@ -183,7 +176,6 @@ fn rotating_a_bone_moves_the_vertices_it_weights_and_leaves_the_rest() {
         [0.0, 0.0, 0.0, 0.0],
     ];
     let moved = skin_positions(&positions, &joints, &weights, &palette);
-    // Hip did not move.
     assert!(close2(moved[0], positions[0]));
     // A point straight below the thigh's origin swings to its right... to
     // (1, 0): rotating (0, -1) by +90 degrees.
@@ -301,14 +293,7 @@ bone2d = { rest_position = [0, 1], rest_rotation = 0.25, length = 0.5 }
 "#,
     )
     .unwrap();
-    let mut app = App::new(AppConfig {
-        project_root: dir.path().to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
     app.load_project().unwrap();
     let hip = scene::find_node(&app.engine.world(), app.engine.root(), "Rig/Hip").unwrap();
     let got = components::get(&app.engine, hip, "bone2d").unwrap();

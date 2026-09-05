@@ -2,14 +2,7 @@ use balaur_core::plugins::{self, PluginInfo};
 use balaur_core::{App, AppConfig};
 
 fn app() -> App {
-    App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 #[test]

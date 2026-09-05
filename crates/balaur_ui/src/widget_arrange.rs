@@ -5,10 +5,11 @@
 //! over the world, and this is the arithmetic between them.
 
 use crate::theme::family;
-use crate::widget_layer::{draw_one, rgba_color, Edit, Painting, Widget};
+use crate::vocabulary::words as w;
+use crate::widget_layer::{Edit, Painting, Widget, draw_one, rgba_color};
 use crate::widget_measure::Measure;
 use balaur_core::hecs::Entity;
-use egui::{pos2, vec2, Color32, Stroke};
+use egui::{Color32, Stroke, pos2, vec2};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -44,7 +45,7 @@ fn measured_of(entity: Entity) -> egui::Vec2 {
     })
 }
 
-fn record_measure(entity: Entity, size: egui::Vec2) {
+pub(crate) fn record_measure(entity: Entity, size: egui::Vec2) {
     MEASURING.with(|m| {
         m.borrow_mut().insert(entity.to_bits().get(), size);
     });
@@ -80,7 +81,7 @@ pub(crate) fn settle_rects() {
 /// the built-in — 8 for a panel, which is the frame it has always drawn, and
 /// nothing for a box that only lays out.
 pub(crate) fn padding_of(widget: &Widget, style: &crate::widget_theme::Style, scale: f32) -> f32 {
-    let built_in = if widget.kind == "panel" { 8.0 } else { 0.0 };
+    let built_in = if widget.kind == w::PANEL { 8.0 } else { 0.0 };
     let stated = if widget.padding > 0.0 {
         widget.padding
     } else {
@@ -135,24 +136,44 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let pad = padding_of(&widget, &style, at.scale);
     let frame = themed_frame(&style, at.scale, None);
     let inner = (size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);
-    frame.show(ui, |ui| {
+    frame.show(ui, |frame_ui| {
         // The padding comes off the box in floats; the frame itself carries
         // none, so a scroll at a fractional scale keeps the size it was given.
-        let held = ui.max_rect();
-        let mut ui = ui.new_child(egui::UiBuilder::new().max_rect(held.shrink(pad)));
-        let ui = &mut ui;
+        let held = frame_ui.max_rect();
+        let mut inner_ui = frame_ui.new_child(egui::UiBuilder::new().max_rect(held.shrink(pad)));
+        let ui = &mut inner_ui;
         hold_to(ui, inner);
-        egui::ScrollArea::both()
+        let dead = widget.deadzone * at.scale;
+        let mut area = egui::ScrollArea::both()
             .id_salt(("balaur-scroll", entity))
             .max_width(inner.x)
-            .max_height(inner.y)
-            .show(ui, |ui| {
-                // Along the scroll the room is unbounded: children take what
-                // they measure and the bar makes up the difference.
-                let held = std::mem::replace(&mut at.bounds, vec2(inner.x, 0.0));
-                lay_out(ui, at, index, Axis::Column);
-                at.bounds = held;
+            .max_height(inner.y);
+        // With a deadzone the finger scrolls nothing until it has travelled
+        // that far, so a tap on a child lands; past it, this drags the
+        // offset itself.
+        let dragged = (dead > 0.0)
+            .then(|| crate::widget_kinds::deadzone_drag(ui, at.eng, entity, dead))
+            .flatten();
+        if dead > 0.0 {
+            area = area.scroll_source(egui::scroll_area::ScrollSource {
+                drag: egui::scroll_area::DragScroll::Never,
+                ..egui::scroll_area::ScrollSource::default()
             });
+        }
+        if let Some(offset) = dragged {
+            area = area.scroll_offset(offset);
+        }
+        area.show(ui, |ui| {
+            // Along the scroll the room is unbounded: children take what
+            // they measure and the bar makes up the difference.
+            let held = std::mem::replace(&mut at.bounds, vec2(inner.x, 0.0));
+            lay_out(ui, at, index, Axis::Column);
+            at.bounds = held;
+        });
+        // The frame, and the area above it, learn the box the child took;
+        // a child ui reports nothing to its parent on its own.
+        let used = inner_ui.min_rect().expand(pad);
+        frame_ui.allocate_rect(used, egui::Sense::hover());
     });
 }
 
@@ -201,22 +222,7 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         .unwrap_or(0);
 
     let box_size = box_of(&widget, at.assigned, scale);
-    let room = ui.max_rect();
-    let rect = egui::Rect::from_min_size(
-        room.min,
-        vec2(
-            if box_size.x > 0.0 {
-                box_size.x
-            } else {
-                room.width()
-            },
-            if box_size.y > 0.0 {
-                box_size.y
-            } else {
-                room.height()
-            },
-        ),
-    );
+    let rect = room_of(ui, box_size);
     let style = at.theme.style(&widget.kind);
     let font = egui::FontId::new(widget.font_size * scale, family("ui"));
     let color = rgba_color(widget.text_color);
@@ -307,7 +313,6 @@ impl Axis {
         }
     }
 
-    /// The component across it.
     fn across(self, v: egui::Vec2) -> f32 {
         match self {
             Axis::Row => v.y,
@@ -336,17 +341,11 @@ fn asked_of(widget: &Widget, axis: Axis, scale: f32) -> (f32, f32) {
     (stated, floor)
 }
 
-/// A bare container: padding, then the children along `axis`.
-pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
-    let widget = &at.arena[index].widget;
-    let scale = at.scale;
-    // The padding comes off in floats rather than through a `Margin`, which
-    // is whole device pixels: a 14 px gutter at 1.25 scale is not one, and
-    // the truncation moved every sheet in the editor's shell by 0.4 px.
-    let pad = padding_of(widget, &at.theme.style(&widget.kind), scale);
-    let box_size = box_of(widget, at.assigned, scale);
+/// The box a widget draws in: its stated size on each axis, else the room
+/// the parent left it.
+fn room_of(ui: &egui::Ui, box_size: egui::Vec2) -> egui::Rect {
     let room = ui.max_rect();
-    let outer = egui::Rect::from_min_size(
+    egui::Rect::from_min_size(
         room.min,
         vec2(
             if box_size.x > 0.0 {
@@ -361,7 +360,18 @@ pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
             },
         ),
     )
-    .shrink(pad);
+}
+
+/// A bare container: padding, then the children along `axis`.
+pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
+    let widget = &at.arena[index].widget;
+    let scale = at.scale;
+    // The padding comes off in floats rather than through a `Margin`, which
+    // is whole device pixels: a 14 px gutter at 1.25 scale is not one, and
+    // the truncation moved every sheet in the editor's shell by 0.4 px.
+    let pad = padding_of(widget, &at.theme.style(&widget.kind), scale);
+    let box_size = box_of(widget, at.assigned, scale);
+    let outer = room_of(ui, box_size).shrink(pad);
     let min = (box_size - egui::Vec2::splat(pad * 2.0)).max(egui::Vec2::ZERO);
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(outer));
     hold_to(&mut inner, min);
@@ -441,7 +451,7 @@ fn share_out(
 
 /// Whether the measure pass can answer for a kind, or only the last frame can.
 fn can_measure(kind: &str) -> bool {
-    !matches!(kind, "draw" | "scroll")
+    !matches!(kind, w::DRAW | w::SCROLL)
 }
 
 /// The children themselves: each given a rect along the container's axis,
@@ -461,8 +471,8 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
     let gap = placed.widget.gap * scale;
     let grab = placed.widget.handle * scale;
     let cross = match placed.widget.align.as_str() {
-        "center" => egui::Align::Center,
-        "end" => egui::Align::Max,
+        w::CENTER => egui::Align::Center,
+        w::END => egui::Align::Max,
         _ => egui::Align::Min,
     };
     let layout = match axis {

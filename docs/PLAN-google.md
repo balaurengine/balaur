@@ -21,7 +21,7 @@ Built, and not built for this:
 
 | Have | Where |
 | --- | --- |
-| An APK layout out of `balaur export --target android`, assembled and debug-signed | `crates/balaur_export/src/bundle.rs`, `scripts/assemble_apk.sh` |
+| An APK out of `balaur export --target android --apk`, assembled and signed | `crates/balaur_export/src/{bundle,android}.rs` |
 | A NativeActivity entry point holding the `AndroidApp` handle | `crates/balaur_android` |
 | The pack as an APK asset, read through the asset manager | `android_main`, `PACK_ASSET` |
 | Work off the frame landing on a tick boundary, recorded and replayable | `ExternalIo`, `Stage::First`, `balaur_core::handler` |
@@ -32,7 +32,7 @@ Missing, and each one blocks everything below it:
 
 - **A dex.** `AndroidManifest.xml` declares `android:hasCode="false"` and the
   APK carries no `classes.dex`. Every API in this plan is Java or Kotlin.
-- **A dependency resolver.** `assemble_apk.sh` is `aapt2 link`, `zip`,
+- **A dependency resolver.** `--apk` is `aapt2 link`, `zip`,
   `zipalign` and `apksigner` over a hand-written manifest. Play services ship
   as AARs on Google's Maven repository, with transitive dependencies,
   manifest fragments to merge and resources to compile.
@@ -96,7 +96,7 @@ transitive graph by hand, merging manifest fragments by hand, and running
 `scripts/package_template.sh android` gains a Gradle project whose only
 Kotlin/Java is the shim, whose native library is the one cargo already
 builds, and whose output is both an APK (installable, what CI checks) and an
-AAB (uploadable). `scripts/assemble_apk.sh` stays for the no-Google path: a
+AAB (uploadable). `--apk` stays for the no-Google path: a
 game that declares no Play capabilities exports through the existing
 aapt2 route and carries no dex at all.
 
@@ -202,7 +202,7 @@ something that works.
 
 ## 4. What CI can prove, and what it cannot
 
-`scripts/export_mobile.sh` already draws this line and this plan does not
+`scripts/export_check.sh` already draws this line and this plan does not
 move it. What a runner can check:
 
 - the Gradle template builds, the dex is in the APK, and the APK installs on
@@ -222,7 +222,7 @@ canned-event replay, which is the part that protects the simulation.
 
 ## 5. Open questions
 
-1. **Does the Gradle template replace `assemble_apk.sh` or sit beside it?**
+1. **Does the Gradle template replace `--apk` or sit beside it?**
    Beside it is written above, because a game with no Play capabilities
    should not need a JDK to export. The cost is two Android paths to keep
    working, and CI has to build both.

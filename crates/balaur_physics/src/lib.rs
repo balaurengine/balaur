@@ -8,7 +8,7 @@
 //! simulated pose is written to the local transform). Nest them under
 //! non-moving parents only.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_plugin::Registry;
 
 use balaur_core::collections::DetHashMap;
@@ -39,14 +39,16 @@ pub mod geometry;
 pub mod joint;
 pub mod query;
 pub(crate) mod scalar;
+mod shared;
 pub mod tuning;
 pub mod vehicle;
 mod vocabulary;
+use crate::vocabulary::{component as c, hook, words as w};
 
 pub use dim2::PhysicsState2d;
 pub use query::overlaps;
 
-use balaur_core::digest::{node_label, Entry, Hasher};
+use balaur_core::digest::{Entry, Hasher, node_label};
 
 use balaur_core::FIXED_DT;
 
@@ -171,7 +173,7 @@ prediction_distance = { type = "float", default = 0.002, min = 0.0, max = 1.0, h
              velocities, and overlap queries. `physics` holds what spans both \
              worlds.",
         );
-        install_constants(&mut *m, BODY_KINDS, SHAPE_KINDS);
+        install_constants(&mut *m, CONSTANTS_3D);
         body::install_body_api(&mut *m);
         body::install_force_api(&mut *m);
         body::install_force_reader_api(&mut *m);
@@ -185,6 +187,7 @@ prediction_distance = { type = "float", default = 0.002, min = 0.0, max = 1.0, h
         collider::install_voxel_api(&mut *m);
         collider::install_collider_reader_api(&mut *m);
         query::install_query_api(&mut *m);
+        query::install_raycast_all_api(&mut *m);
         query::install_shapecast_api(&mut *m);
         query::install_volume_query_api(&mut *m);
         query::install_pair_query_api(&mut *m);
@@ -310,10 +313,10 @@ pub(crate) fn keyed<V: Clone>(
 pub(crate) fn resolve_key(eng: &Engine, key: &NodeKey) -> Option<Entity> {
     let root = eng.root();
     let world = eng.world();
-    if !key.0.is_empty() {
-        if let Some(entity) = balaur_core::ids::find(&world, root, &key.0) {
-            return Some(entity);
-        }
+    if !key.0.is_empty()
+        && let Some(entity) = balaur_core::ids::find(&world, root, &key.0)
+    {
+        return Some(entity);
     }
     let entity = Entity::from_bits(key.1)?;
     world.contains(entity).then_some(entity)
@@ -376,22 +379,16 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
     restamp_collider_owners(&mut state);
 }
 
-/// Point every restored collider at the entity its node has *now*.
-///
-/// The id rides in a collider's `user_data`, so a world deserialised from
-/// before a respawn names an entity that no longer exists — and every event
-/// and query reads that field.
-fn restamp_collider_owners(state: &mut PhysicsState) {
-    for (entity, handles) in &state.colliders {
-        for &handle in handles {
-            let Some(collider) = state.world.colliders.get_mut(handle) else {
-                continue;
-            };
-            // The one-way platform's axis rides above the entity bits.
-            let flags = collider.user_data & !u128::from(u64::MAX);
-            collider.user_data = flags | u128::from(entity.to_bits().get());
-        }
-    }
+crate::shared::world::functions!(
+    state = PhysicsState,
+    component = c::JOINT_3D,
+    prune = prune_freed_nodes_except_wheels
+);
+
+pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState) {
+    prune_freed_nodes_except_wheels(eng, state);
+    let world = eng.world();
+    state.wheel_inputs.retain(|e, _| world.contains(*e));
 }
 
 fn build_physics_snapshot(reg: &mut Registry<'_>) {
@@ -404,73 +401,43 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
         "rigid_body3d",
         balaur_core::presets::preset(
             "A body physics simulates, with a box collider",
-            &["3d", "physics"],
-            &[("body3d", Some("kind = \"dynamic\"")), ("collider3d", None)],
+            &[
+                balaur_core::components::tag::DIM_3D,
+                balaur_core::components::tag::PHYSICS,
+            ],
+            &[
+                (c::BODY_3D, Some("kind = \"dynamic\"")),
+                (c::COLLIDER_3D, None),
+            ],
         )?,
     );
     reg.register_preset(
         "static_body3d",
         balaur_core::presets::preset(
             "An immovable body with a box collider: ground, walls",
-            &["3d", "physics"],
-            &[("body3d", Some("kind = \"static\"")), ("collider3d", None)],
+            &[
+                balaur_core::components::tag::DIM_3D,
+                balaur_core::components::tag::PHYSICS,
+            ],
+            &[
+                (c::BODY_3D, Some("kind = \"static\"")),
+                (c::COLLIDER_3D, None),
+            ],
         )?,
     );
     Ok(())
 }
 
 pub(crate) fn node_pose(eng: &Engine, entity: Entity) -> Result<scalar::Pose> {
-    // Make sure globals are up to date even before the first frame ran.
-    let root = eng.root();
-    balaur_core::scene::propagate_transforms(&mut eng.world_mut(), root);
+    // Composed from the node's own ancestors, not read off a propagated tree:
+    // right before the first frame, and O(depth) where propagating the whole
+    // tree per body made a spawning loop quadratic.
     let world = eng.world();
-    let global = world
-        .get::<&balaur_core::GlobalTransform>(entity)
-        .map_err(|_| anyhow!("node is dead or not in the scene tree"))?;
-    Ok(scalar::pose_of(global.position, global.rotation))
-}
-
-/// Drop everything a freed node left behind, in every map the plugin owns.
-///
-/// Before the pause check on purpose: an editor sits paused, and a handle
-/// left behind by a free is one script call away from indexing rapier's arena.
-pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState) {
-    let world = eng.world();
-    let before = state.world.colliders.len();
-    state.bodies.retain(|&entity, handle| {
-        if world.contains(entity) {
-            return true;
-        }
-        state.world.remove_body(*handle);
-        false
-    });
-    // Rapier drops a body's colliders with the body, so a handle here can be
-    // stale even when its node is alive.
-    state.colliders.retain(|&entity, handles| {
-        let alive = world.contains(entity);
-        handles.retain(|&handle| {
-            if alive && state.world.colliders.contains(handle) {
-                return true;
-            }
-            state.world.remove_collider(handle);
-            false
-        });
-        !handles.is_empty()
-    });
-    state.joints.retain(|&entity, reference| {
-        if !world.contains(entity) {
-            joint::drop_joint(&mut state.world, reference);
-            return false;
-        }
-        joint::is_live(&state.world, reference)
-    });
-    state.collider_params.retain(|e, _| world.contains(*e));
-    state.joint_params.retain(|e, _| world.contains(*e));
-    state.wheel_inputs.retain(|e, _| world.contains(*e));
-    state.grounded.retain(|e, _| world.contains(*e));
-    if state.world.colliders.len() != before {
-        state.queries_ready = false;
+    if !world.contains(entity) {
+        return Err(anyhow!("node is dead or not in the scene tree"));
     }
+    let global = balaur_core::scene::composed_global(&world, entity);
+    Ok(scalar::pose_of(global.position, global.rotation))
 }
 
 fn step_system(eng: &Engine, _dt: f32) {
@@ -493,10 +460,10 @@ fn step_system(eng: &Engine, _dt: f32) {
             let world = eng.world();
             for (&entity, &handle) in &state.bodies {
                 let body = &mut state.world.bodies[handle];
-                if body.is_kinematic() {
-                    if let Ok(t) = world.get::<&Transform>(entity) {
-                        body.set_next_kinematic_position(scalar::pose_of(t.position, t.rotation));
-                    }
+                if body.is_kinematic()
+                    && let Ok(t) = world.get::<&Transform>(entity)
+                {
+                    body.set_next_kinematic_position(scalar::pose_of(t.position, t.rotation));
                 }
             }
         }
@@ -507,7 +474,11 @@ fn step_system(eng: &Engine, _dt: f32) {
         // The step rebuilds the broad phase itself.
         state.queries_ready = true;
         let collector = events::Collector::default();
-        state.world.step_with_events(&events::Hooks, &collector);
+        // A span of its own, so a profiler tells rapier's step from what the
+        // engine wraps around it.
+        balaur_core::timings::measure(eng, "physics3d/step", || {
+            state.world.step_with_events(&events::Hooks, &collector);
+        });
 
         // Write simulated poses back to the scene tree.
         let world = eng.world();
@@ -532,31 +503,6 @@ fn step_system(eng: &Engine, _dt: f32) {
     tuning::warn_about_quarantine(eng);
 }
 
-/// Make the joints whose other end had not been spawned when they were
-/// applied.
-///
-/// A scene file names nodes in whatever order it likes, so a joint that points
-/// forwards is normal rather than an error; it is made on the first step after
-/// its partner exists.
-fn resolve_pending_joints(eng: &Engine) {
-    let pending = {
-        let state = eng.resource::<PhysicsState>();
-        let state = state.borrow();
-        joint::pending(&state)
-    };
-    for entity in pending {
-        let params = {
-            let state = eng.resource::<PhysicsState>();
-            let state = state.borrow();
-            state.joint_params.get(&entity).cloned()
-        };
-        let Some(params) = params else { continue };
-        if let Err(why) = joint::apply_joint(eng, entity, &params) {
-            tracing::debug!("joint3d is still waiting: {why:#}");
-        }
-    }
-}
-
 /// Remove the joints that gave way this step and tell both ends.
 ///
 /// A break is an event in every way that matters, so it travels the same
@@ -565,7 +511,7 @@ fn break_joints(eng: &Engine, broken: &[balaur_core::hecs::Entity]) {
     for entity in broken {
         joint::remove_joint(eng, *entity);
         if let Some(host) = eng.script_host() {
-            host.call_on(balaur_core::node_id_of(*entity), "on_joint_break", &[]);
+            host.call_on(balaur_core::node_id_of(*entity), hook::ON_JOINT_BREAK, &[]);
         }
     }
 }
@@ -659,24 +605,178 @@ fn install_world_controls(m: &mut dyn Bindings<Engine>) {
 /// `physics3d.BODY_DYNAMIC` rather than spelling "dynamic" and finding out at
 /// runtime that "Dynamic" silently fell through to the default.
 pub const BODY_KINDS: &[(&str, &str)] = &[
-    ("BODY_DYNAMIC", "dynamic"),
-    ("BODY_STATIC", "static"),
-    ("BODY_KINEMATIC", "kinematic"),
-    ("BODY_KINEMATIC_VELOCITY", "kinematic_velocity"),
+    ("BODY_DYNAMIC", w::DYNAMIC),
+    ("BODY_STATIC", w::STATIC),
+    ("BODY_KINEMATIC", w::KINEMATIC),
+    ("BODY_KINEMATIC_VELOCITY", w::KINEMATIC_VELOCITY),
 ];
 
-/// Collider shapes for the 3D world.
-pub const SHAPE_KINDS: &[(&str, &str)] = &[("SHAPE_BALL", "ball"), ("SHAPE_CUBOID", "cuboid")];
+/// Collider shapes for the 3D world, in the schema's order.
+pub const SHAPE_KINDS: &[(&str, &str)] = &[
+    ("SHAPE_BALL", w::BALL),
+    ("SHAPE_CUBOID", w::CUBOID),
+    ("SHAPE_CAPSULE", w::CAPSULE),
+    ("SHAPE_CYLINDER", w::CYLINDER),
+    ("SHAPE_CONE", w::CONE),
+    ("SHAPE_TRIANGLE", w::TRIANGLE),
+    ("SHAPE_SEGMENT", w::SEGMENT),
+    ("SHAPE_HALFSPACE", w::HALFSPACE),
+    ("SHAPE_TRIMESH", w::TRIMESH),
+    ("SHAPE_CONVEX_HULL", w::CONVEX_HULL),
+    ("SHAPE_CONVEX_DECOMPOSITION", w::CONVEX_DECOMPOSITION),
+    ("SHAPE_POLYLINE", w::POLYLINE),
+    ("SHAPE_HEIGHTFIELD", w::HEIGHTFIELD),
+    ("SHAPE_VOXELS", w::VOXELS),
+    ("SHAPE_VOXELIZED_MESH", w::VOXELIZED_MESH),
+    ("SHAPE_FIT", w::FIT),
+];
 
 /// Collider shapes for the 2D world.
-pub const SHAPE_KINDS_2D: &[(&str, &str)] = &[("SHAPE_CIRCLE", "circle"), ("SHAPE_RECT", "rect")];
+pub const SHAPE_KINDS_2D: &[(&str, &str)] = &[
+    ("SHAPE_CIRCLE", w::CIRCLE),
+    ("SHAPE_RECT", w::RECT),
+    ("SHAPE_CAPSULE", w::CAPSULE),
+    ("SHAPE_TRIANGLE", w::TRIANGLE),
+    ("SHAPE_SEGMENT", w::SEGMENT),
+    ("SHAPE_HALFSPACE", w::HALFSPACE),
+    ("SHAPE_TRIMESH", w::TRIMESH),
+    ("SHAPE_CONVEX_HULL", w::CONVEX_HULL),
+    ("SHAPE_POLYLINE", w::POLYLINE),
+    ("SHAPE_HEIGHTFIELD", w::HEIGHTFIELD),
+];
 
-pub(crate) fn install_constants(
-    m: &mut dyn Bindings<Engine>,
-    bodies: &[(&str, &str)],
-    shapes: &[(&str, &str)],
-) {
-    for (name, value) in bodies.iter().chain(shapes) {
+/// Joint kinds for the 3D world.
+pub const JOINT_KINDS: &[(&str, &str)] = &[
+    ("JOINT_FIXED", w::FIXED),
+    ("JOINT_REVOLUTE", w::REVOLUTE),
+    ("JOINT_PRISMATIC", w::PRISMATIC),
+    ("JOINT_SPHERICAL", w::SPHERICAL),
+    ("JOINT_ROPE", w::ROPE),
+    ("JOINT_SPRING", w::SPRING),
+    ("JOINT_GENERIC", w::GENERIC),
+];
+
+/// Joint kinds for the 2D world.
+pub const JOINT_KINDS_2D: &[(&str, &str)] = &[
+    ("JOINT_FIXED", w::FIXED),
+    ("JOINT_REVOLUTE", w::REVOLUTE),
+    ("JOINT_PRISMATIC", w::PRISMATIC),
+    ("JOINT_ROPE", w::ROPE),
+    ("JOINT_SPRING", w::SPRING),
+    ("JOINT_PIN_SLOT", w::PIN_SLOT),
+    ("JOINT_GENERIC", w::GENERIC),
+];
+
+/// How two colliders' friction or restitution combine.
+pub const COMBINE_RULES: &[(&str, &str)] = &[
+    ("COMBINE_AVERAGE", w::AVERAGE),
+    ("COMBINE_MIN", w::MIN),
+    ("COMBINE_MULTIPLY", w::MULTIPLY),
+    ("COMBINE_MAX", w::MAX),
+    ("COMBINE_CLAMPED_SUM", w::CLAMPED_SUM),
+    ("COMBINE_GEOMETRIC_MEAN", w::GEOMETRIC_MEAN),
+];
+
+/// What a joint motor drives towards.
+pub const MOTOR_MODES: &[(&str, &str)] = &[
+    ("MOTOR_OFF", w::OFF),
+    ("MOTOR_VELOCITY", w::VELOCITY),
+    ("MOTOR_POSITION", w::POSITION),
+];
+
+/// How a motor's strength is felt.
+pub const MOTOR_MODELS: &[(&str, &str)] = &[
+    ("MOTOR_MODEL_ACCELERATION", w::ACCELERATION),
+    ("MOTOR_MODEL_FORCE", w::FORCE),
+];
+
+/// Which of rapier's joint sets holds a joint.
+pub const JOINT_SOLVERS: &[(&str, &str)] = &[
+    ("SOLVER_IMPULSE", w::IMPULSE),
+    ("SOLVER_REDUCED", w::REDUCED),
+];
+
+/// Whether a character's lengths are world units or a fraction of it.
+pub const LENGTH_MODES: &[(&str, &str)] = &[
+    ("LENGTHS_ABSOLUTE", w::ABSOLUTE),
+    ("LENGTHS_RELATIVE", w::RELATIVE),
+];
+
+/// How a voxelized mesh is filled; 3D only.
+pub const FILL_MODES: &[(&str, &str)] = &[("FILL_SOLID", w::SOLID), ("FILL_SURFACE", w::SURFACE)];
+
+/// What a `fit` collider fits to its mesh; 3D only.
+pub const FIT_MODES: &[(&str, &str)] = &[
+    ("FIT_CONVEX_HULL", w::CONVEX_HULL),
+    ("FIT_AABB", w::AABB),
+    ("FIT_OBB", w::OBB),
+    ("FIT_CONVEX_DECOMPOSITION", w::CONVEX_DECOMPOSITION),
+];
+
+/// What a collider reports to its node's script.
+pub const EVENTS: &[(&str, &str)] = &[
+    ("EVENT_COLLISION", w::COLLISION),
+    ("EVENT_CONTACT_FORCE", w::CONTACT_FORCE),
+];
+
+/// The body-kind pairs a collider is tested against.
+pub const COLLISION_PAIRS: &[(&str, &str)] = &[
+    ("COLLIDE_DYNAMIC_DYNAMIC", w::DYNAMIC_DYNAMIC),
+    ("COLLIDE_DYNAMIC_KINEMATIC", w::DYNAMIC_KINEMATIC),
+    ("COLLIDE_DYNAMIC_STATIC", w::DYNAMIC_STATIC),
+    ("COLLIDE_KINEMATIC_KINEMATIC", w::KINEMATIC_KINEMATIC),
+    ("COLLIDE_KINEMATIC_STATIC", w::KINEMATIC_STATIC),
+    ("COLLIDE_STATIC_STATIC", w::STATIC_STATIC),
+];
+
+/// The freedoms a body lock or a generic joint names, in 3D.
+pub const AXES: &[(&str, &str)] = &[
+    ("AXIS_X", w::X),
+    ("AXIS_Y", w::Y),
+    ("AXIS_Z", w::Z),
+    ("AXIS_ANG_X", w::ANG_X),
+    ("AXIS_ANG_Y", w::ANG_Y),
+    ("AXIS_ANG_Z", w::ANG_Z),
+];
+
+/// The same, in 2D: two translations and the one rotation there is.
+pub const AXES_2D: &[(&str, &str)] =
+    &[("AXIS_X", w::X), ("AXIS_Y", w::Y), ("AXIS_ANG_X", w::ANG_X)];
+
+/// Every table `physics3d` spells as constants.
+pub const CONSTANTS_3D: &[&[(&str, &str)]] = &[
+    BODY_KINDS,
+    SHAPE_KINDS,
+    JOINT_KINDS,
+    COMBINE_RULES,
+    MOTOR_MODES,
+    MOTOR_MODELS,
+    JOINT_SOLVERS,
+    LENGTH_MODES,
+    FILL_MODES,
+    FIT_MODES,
+    EVENTS,
+    COLLISION_PAIRS,
+    AXES,
+];
+
+/// Every table `physics2d` spells as constants.
+pub const CONSTANTS_2D: &[&[(&str, &str)]] = &[
+    BODY_KINDS,
+    SHAPE_KINDS_2D,
+    JOINT_KINDS_2D,
+    COMBINE_RULES,
+    MOTOR_MODES,
+    MOTOR_MODELS,
+    JOINT_SOLVERS,
+    LENGTH_MODES,
+    EVENTS,
+    COLLISION_PAIRS,
+    AXES_2D,
+];
+
+pub(crate) fn install_constants(m: &mut dyn Bindings<Engine>, tables: &[&[(&str, &str)]]) {
+    for (name, value) in tables.iter().flat_map(|table| table.iter()) {
         m.constant(name, balaur_script::Value::Str((*value).to_string()));
     }
 }

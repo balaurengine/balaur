@@ -3,10 +3,10 @@
 //! The interesting number is per node per frame: a game's budget is 16.6 ms,
 //! and `update` runs on every scripted node in it. Everything here is headless.
 
-use balaur_bench::{app, attach_many, Backend, Project};
+use balaur_bench::{Backend, Project, app, attach_many};
 use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt};
-use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
+use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 
 /// Bodies that do the same work in each language.
 fn source(backend: Backend, body: Body) -> String {
@@ -70,7 +70,9 @@ fn binding_call(c: &mut Criterion) {
     let mut group = c.benchmark_group("binding_call");
     for backend in Backend::ALL {
         let body = match backend {
-            Backend::Rune => "pub fn init(this) {}\npub fn update(this, dt) { bench::noop(1, 2.0, \"three\"); }\n",
+            Backend::Rune => {
+                "pub fn init(this) {}\npub fn update(this, dt) { bench::noop(1, 2.0, \"three\"); }\n"
+            }
         };
         let project = Project::new(backend, body).unwrap();
         let mut app = app(backend, &project).unwrap();

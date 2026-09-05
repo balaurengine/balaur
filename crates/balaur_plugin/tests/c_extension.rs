@@ -11,16 +11,13 @@
 use std::path::{Path, PathBuf};
 
 use balaur_core::{App, AppConfig};
-use balaur_plugin::{library_suffix, load_extension, BalaurValue};
+use balaur_plugin::{BalaurValue, library_suffix, load_extension};
 use balaur_script::{NodeId, Value};
 
 fn app_in(dir: &Path) -> App {
     App::new(AppConfig {
-        project_root: dir.to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
         script_backend: Some(balaur_script_rune::factory()),
+        ..AppConfig::bare(dir.to_path_buf())
     })
     .unwrap()
 }

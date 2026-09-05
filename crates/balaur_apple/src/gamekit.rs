@@ -14,7 +14,7 @@ use core::ptr::NonNull;
 
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject};
-use objc2::{msg_send, AllocAnyThread};
+use objc2::{AllocAnyThread, msg_send};
 use objc2_foundation::{
     NSArray, NSError, NSNotification, NSNotificationCenter, NSRange, NSString, NSURL,
 };

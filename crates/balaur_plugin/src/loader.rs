@@ -4,14 +4,14 @@ use std::ffi::OsStr;
 use std::mem::ManuallyDrop;
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 
 use crate::capi::{
-    static_text, BalaurApi, BalaurRegistry, CExtension, BALAUR_ABI_VERSION, C_ABI_SYMBOL,
-    C_DECLARE_SYMBOL, C_NAME_SYMBOL, C_VERSION_SYMBOL,
+    BALAUR_ABI_VERSION, BalaurApi, BalaurRegistry, C_ABI_SYMBOL, C_DECLARE_SYMBOL, C_NAME_SYMBOL,
+    C_VERSION_SYMBOL, CExtension, static_text,
 };
 use crate::dylib::{AbiTag, CREATE_SYMBOL, TAG_SYMBOL};
-use crate::{library_suffix, Fingerprint, Manifest, Plugin};
+use crate::{Fingerprint, Manifest, Plugin, library_suffix};
 
 /// A plugin and the library it came from.
 ///

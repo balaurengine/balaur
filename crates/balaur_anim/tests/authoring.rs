@@ -8,17 +8,10 @@
 use balaur_anim::{AnimationPlugin, AnimationState};
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
-use balaur_core::{assets, components, project, App, AppConfig};
+use balaur_core::{App, AppConfig, assets, components, project};
 
 fn app_in(project_root: &std::path::Path) -> App {
-    let mut app = App::new(AppConfig {
-        project_root: project_root.to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(project_root.to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
     app
 }
@@ -232,12 +225,13 @@ tracks = [
         Some("rise"),
         "an encoded-and-reparsed inline clip did not come back"
     );
-    assert!(app
-        .engine
-        .resource::<AnimationState>()
-        .borrow()
-        .players
-        .contains_key(&entity));
+    assert!(
+        app.engine
+            .resource::<AnimationState>()
+            .borrow()
+            .players
+            .contains_key(&entity)
+    );
 }
 
 /// Saving a clip while it plays should look like saving a script: the change

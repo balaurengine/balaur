@@ -4,7 +4,7 @@
 use std::net::TcpListener;
 
 use balaur_gamend::client::{Socket, SocketEvent};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// A one-connection Phoenix-ish server: acks joins, echoes `echo` pushes
 /// into their replies, then pushes one server event on the joined topic.
@@ -105,7 +105,6 @@ fn join_reply_push_and_leave_round_trip() {
     });
     assert_eq!(status, "ok");
 
-    // The unprompted server push arrives as a message on the topic.
     let greeting = wait_for(&mut socket, &mut backlog, |event| match event {
         SocketEvent::Message { event, payload, .. } if event == "hello" => {
             Some(payload["greeting"].as_str().unwrap_or_default().to_string())

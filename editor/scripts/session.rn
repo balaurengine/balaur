@@ -195,7 +195,6 @@ pub fn export(S, name) {
     log::info("wrote " + out);
 }
 
-// One recorded tick forward, for reading a timeline a frame at a time.
 pub fn step(S) {
     if S.session.loaded == "" {
         return;

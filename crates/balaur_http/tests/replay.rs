@@ -13,14 +13,7 @@ use balaur_http::{HttpCall, HttpPlugin, HttpSnapshot, HttpState};
 use balaur_script::Value;
 
 fn app_with_http() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut HttpPlugin::default()).unwrap();
     app
 }
@@ -68,6 +61,7 @@ fn record_a_fetch(url: &str) -> Vec<serde_json::Map<String, serde_json::Value>> 
             headers: Vec::new(),
             body: None,
             timeout: Some(5.0),
+            save_to: None,
         },
         None,
     );
@@ -110,6 +104,7 @@ fn a_recorded_response_replays_with_no_server_listening() {
             headers: Vec::new(),
             body: None,
             timeout: Some(5.0),
+            save_to: None,
         },
         None,
     );
@@ -158,6 +153,7 @@ fn replaying_does_not_reach_the_network() {
             headers: Vec::new(),
             body: None,
             timeout: Some(5.0),
+            save_to: None,
         },
         None,
     );

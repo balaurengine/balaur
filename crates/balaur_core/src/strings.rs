@@ -198,7 +198,6 @@ fn ensure_ready(eng: &Engine) {
     strings.ready = true;
 }
 
-/// The locale in force.
 pub fn locale(eng: &Engine) -> String {
     ensure_ready(eng);
     eng.resource::<Strings>().borrow().current.clone()

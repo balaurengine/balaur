@@ -1,7 +1,7 @@
 //! Component registry end-to-end: plugin components are addable, readable,
 //! editable, and removable through the generic node API.
 
-use balaur::{standard_app, AppConfig};
+use balaur::{AppConfig, standard_app};
 
 #[test]
 fn plugin_components_roundtrip_through_the_registry() {
@@ -20,7 +20,6 @@ fn plugin_components_roundtrip_through_the_registry() {
         }
 
         pub fn init(this) {
-            // The registry lists every plugin's components.
             let names = scene::component_types();
             for expected in ["body3d", "collider3d", "shape3d", "widget"] {
                 assert!(has(names, expected), "{} not registered", expected);
@@ -44,12 +43,10 @@ fn plugin_components_roundtrip_through_the_registry() {
             let col = n.get_component("collider3d");
             assert!(math::abs(col.radius - 0.7) < 1e-5, "collider radius roundtrip");
 
-            // Schema drives editors.
             let schema = scene::component_schema("collider3d");
             assert!(schema["kind"]["type"] == "enum");
             assert!(schema["radius"]["default"] == 0.5);
 
-            // Removal: body removed, collider survives as static geometry.
             n.remove_component("body3d");
             assert!(n.get_component("body3d") is Tuple, "body removed");
             assert!(!(n.get_component("collider3d") is Tuple), "collider survives body removal");

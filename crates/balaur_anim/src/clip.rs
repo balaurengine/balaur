@@ -32,7 +32,7 @@
 //! asset cache hands out one `Rc`), so everything a player mutates — time,
 //! speed, which clip — lives in `crate::AnimationState` instead.
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use balaur_core::components::as_f64;
 use glamx::Vec4;
 
@@ -126,9 +126,7 @@ impl Property {
             "scale" => Ok(Self::Scale),
             other => match other.split_once('/') {
                 Some((component, property))
-                    if !component.is_empty()
-                        && !property.is_empty()
-                        && !property.contains('/') =>
+                    if !component.is_empty() && !property.is_empty() && !property.contains('/') =>
                 {
                     Ok(Self::Component {
                         component: component.to_string(),

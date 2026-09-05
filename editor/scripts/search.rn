@@ -11,7 +11,7 @@ use crate::util;
 pub fn field(S, k, id, placeholder, width) {
     let current = S.search.get(id).unwrap_or("");
     let (text, _, _) = ui::text_field("search:" + id, placeholder,
-        util::merge(style::field(k, width), #{ value: current, size: 11, font: "mono", height: 22 }));
+        util::merge(style::field(k, width), #{ value: current, size: 11, font: ui::FONT_MONO, height: 22 }));
     S.search[id] = text;
     text
 }

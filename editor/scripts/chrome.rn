@@ -1,18 +1,29 @@
-// The persona bar, and the status strip the bottom dock carries.
-
-// Brand and transport get the same width so the personas land centred.
-const SIDE_W = 104.0;
-const PAD_X = 10.0;
-// The transport's three buttons: 28 px each on 4 px spacing, in a 96 px block.
-const BUTTON_PITCH = 32.0;
-const BLOCK_W = 96.0;
+// The one bar across the top — brand, personas, the open documents, and the
+// transport, command and theme controls — and the status strip the bottom
+// dock carries at its foot, which is all of it once minimised.
 
 use crate::defs;
+use crate::history;
 use crate::icons;
 use crate::model;
 use crate::shell;
 use crate::style;
 use crate::theme;
+use crate::util;
+
+const PAD_X = 10.0;
+// The brand mark, and the name beside it when there is room.
+const MARK_W = 26.0;
+const NAME_W = 52.0;
+// The transport's three buttons: 28 px each on 4 px spacing, in a 96 px block.
+const BUTTON_PITCH = 32.0;
+const BLOCK_W = 96.0;
+// The theme switch and the command pill at the bar's right end.
+const THEME_W = 30.0;
+const CMD_W = 130.0;
+const CMD_W_COMPACT = 30.0;
+// One document tab, as the showcase's pointer estimates it.
+const TAB_W = 112.0;
 
 // The edited project's mark, when it ships one, else balaur's. A project
 // that brought its own logo gets its own name beside it too.
@@ -26,7 +37,7 @@ fn brand_logo(S) {
 }
 
 // Answered once per session: whether the project ships a mark is three disk
-// reads, and the persona bar asked for them on every frame it drew.
+// reads, and the bar asked for them on every frame it drew.
 fn brand(S) {
     let found = S.brand;
     if !(found is Object) {
@@ -45,42 +56,54 @@ fn plural(n, word) {
     if n == 1 { word } else { word + "s" }
 }
 
-/// Where one persona pill's centre lands in the bar, in design px. The bar is
-/// brand, personas, transport, and the two ends are the fixed ones — so the
+// Where the first persona pill starts, after the brand.
+fn personas_x(S) {
+    let name = if S.compact { 0.0 } else { 7.0 + NAME_W };
+    S.layout.bar.x + PAD_X + 2.0 + MARK_W + name + 12.0
+}
+
+/// Where one persona pill's centre lands in the bar, in design px, so the
 /// showcase's drawn cursor can be put on the pill its verb presses.
 pub fn persona_spot(S, id) {
     let bar = S.layout.bar;
     let per = crate::layout::persona_w(S);
-    let all = defs::personas();
     let slot = 0;
-    for (i, p) in all.iter().enumerate() {
+    for (i, p) in defs::personas().iter().enumerate() {
         if p.id == id {
             slot = i;
         }
     }
-    let right = bar.x + bar.w - SIDE_W - PAD_X;
-    let left = right - (all.len() as f64) * per;
     // `return`: a bare tuple after a block parses as a call on the block.
-    return (left + ((slot as f64) + 0.5) * per, bar.y + bar.h / 2.0);
+    return (personas_x(S) + ((slot as f64) + 0.5) * per, bar.y + bar.h / 2.0);
+}
+
+/// Where a document tab's centre lands: the scene's, then the script's.
+pub fn doc_spot(S, id) {
+    let bar = S.layout.bar;
+    let per = crate::layout::persona_w(S);
+    let first = personas_x(S) + (defs::personas().len() as f64) * per + 16.0;
+    let slot = if id == "script" { 1.0 } else { 0.0 };
+    (first + slot * (TAB_W + 4.0) + TAB_W / 2.0, bar.y + bar.h / 2.0)
 }
 
 /// Where one of the transport's three buttons sits: play, pause, stop.
 pub fn transport_spot(S, n) {
     let bar = S.layout.bar;
-    let block = bar.x + bar.w - PAD_X - BLOCK_W;
+    let cmd = if S.compact { CMD_W_COMPACT } else { CMD_W };
+    let block = bar.x + bar.w - PAD_X - THEME_W - 4.0 - cmd - 6.0 - BLOCK_W;
     (block + 14.0 + (n as f64) * BUTTON_PITCH, bar.y + bar.h / 2.0)
 }
 
-pub fn persona_bar(S) {
+pub fn top_bar(S) {
     let k = S.theme;
-    style::bar(k, "persona", S.layout.bar, PAD_X, || {
+    style::bar(k, "bar", S.layout.bar, PAD_X, || {
         ui::horizontal(#{ height: 36 }, || {
             ui::add_space(2);
             let mark = brand(S);
-            ui::image(mark.logo, #{ height: 26, radius: 13, bg: "#ffffff", padding: 3 });
+            ui::image(mark.logo, #{ height: MARK_W, radius: 13, bg: "#ffffff", padding: 3 });
             if !S.compact {
                 ui::add_space(7);
-                ui::label(mark.name, #{ size: 16, font: "heading", color: k.text });
+                ui::label(mark.name, #{ size: 16, font: ui::FONT_HEADING, color: k.text });
             }
             ui::add_space(12);
             for p in defs::personas() {
@@ -93,15 +116,23 @@ pub fn persona_bar(S) {
                     shell::set_persona(S, p.id);
                 }
             }
-            // What the row used, so the next frame's rect is its content and
-            // the personas land centred. A sheet with no size yet measures
-            // its own width instead, and overshoots by the transport.
-            if S.layout.bar.w > 0.0 && S.layout.bar.h > 0.0 {
-                let used = (S.layout.bar.w - 2.0 * PAD_X) - ui::available_width();
-                S.layout.bar_fit = used + SIDE_W + 2.0 * PAD_X;
-            }
+            ui::add_space(12);
+            doc_tabs(S, k);
             ui::right(|| {
-                ui::horizontal(#{ height: 36, width: SIDE_W }, || {
+                if ui::pill(if k.dark { icons::ui("dark") } else { icons::ui("light") }, #{
+                    height: 30, min_width: THEME_W, size: 15, radius: 8,
+                    fill: k.sunken, color: k.dim, tooltip: "Toggle theme",
+                }) {
+                    theme::set_dark(S, !k.dark);
+                }
+                if ui::pill(if S.compact { "" } else { "Run a command" }, #{
+                    height: 30, size: 12, radius: 8, icon: icons::ui("search"),
+                    fill: k.sunken, color: k.faint, tooltip: "⌘K",
+                }) {
+                    shell::open_palette(S, "");
+                }
+                ui::add_space(6);
+                ui::horizontal(#{ height: 36, width: BLOCK_W }, || {
                     ui::right(|| transport(S, k));
                 });
             });
@@ -109,82 +140,112 @@ pub fn persona_bar(S) {
     });
 }
 
-// Play, pause and stop. A loaded session pauses through the player: pausing
-// physics alone would let the scripts run on and the replay would stop
-// reproducing the recording.
-fn transport(S, k) {
-    // No frame: a panel inside a panel reads as two things when it is one.
-    {
-        ui::horizontal(#{ height: 30, width: 96, tight: true }, || {
-            ui::spacing(4, 0);
-            if ui::circle_button(icons::ui("play"), #{
-                role: if S.playing { "transport_on" } else { "transport" },
-                tooltip: "Run scene",
-            }) {
-                shell::toggle_play(S);
+// The open documents: the scene, always; the selection's script and the
+// event bindings while they are open. Only the last two close.
+fn doc_tabs(S, k) {
+    let node = model::selected_node(S);
+    let scene = util::last_segment(S.scene_rel) + (if history::dirty(S) { " ●" } else { "" });
+    tab(S, k, "scene", icons::panel("scene"), scene, false);
+    if S.script_open {
+        let label = match model::script_rel(node) {
+            Some(script) => {
+                let dirty = S.script_dirty.contains_key(S.game_root + "/" + script);
+                util::last_segment(script) + (if dirty { " ●" } else { "" })
             }
-            let replaying = crate::session::loaded(S);
-            let paused = if replaying {
-                replay::state() == replay::STATE_PAUSED
-            } else {
-                S.playing && (physics::is_paused())
-            };
-            if ui::circle_button(icons::ui("pause"), #{
-                role: if paused { "transport_on" } else { "transport" },
-                tooltip: if replaying { "Pause playback" } else { "Pause simulation" },
-            }) {
-                if replaying {
-                    crate::session::toggle_pause(S);
-                } else {
-                    physics::set_paused(!physics::is_paused());
-                }
-            }
-            if ui::circle_button(icons::ui("stop"), #{ role: "transport", tooltip: "Stop" }) {
-                if replaying {
-                    crate::session::close(S);
-                } else {
-                    shell::stop_play(S);
-                }
-            }
-        });
+            None => "no script",
+        };
+        tab(S, k, "script", icons::ui("scriptfile"), label, true);
+    }
+    if S.events_open {
+        tab(S, k, "events", icons::ui("events"), "events", true);
+    }
+    ui::add_space(4);
+    if ui::pill(if S.compact { "" } else { "Split" }, #{
+        role: if S.split { "navtab_on" } else { "navtab" }, icon: icons::ui("split"),
+        tooltip: "Show the code and the viewport at once (⌘\\)",
+    }) {
+        shell::toggle_split(S);
     }
 }
 
-// The command pill and the theme switch, opposite the persona bar.
-pub fn command_bar(S) {
-    let k = S.theme;
-    let r = S.layout.cmd;
-    if !style::placed(r) {
-        return;
-    }
-    ui::overlay("cmd", #{ x: r.x, y: r.y, w: r.w, h: r.h }, || {
-        ui::horizontal(#{ height: 30 }, || {
-            if ui::pill(if S.compact { "" } else { "Run a command" }, #{
-                height: 30, size: 12, radius: 8, icon: icons::ui("search"),
-                fill: k.panel, color: k.faint, tooltip: "⌘K",
+// One tab: the label pill and, when it closes, a close mark in the same
+// tile, so the two read as one control.
+fn tab(S, k, id, icon, label, closable) {
+    let active = S.doctab == id;
+    ui::frame(#{ fill: if active { k.accent_soft } else { k.panel }, radius: 5 }, || {
+        ui::horizontal(#{ height: 26, tight: true }, || {
+            ui::spacing(0, 0);
+            if ui::pill(label, #{
+                role: if active { "navtab_on" } else { "navtab" }, icon: icon, fill: "none",
             }) {
-                shell::open_palette(S, "");
+                shell::open_doc(S, id);
             }
-            ui::right(|| {
-                if ui::pill(if k.dark { icons::ui("dark") } else { icons::ui("light") }, #{
-                    height: 30, min_width: 30, size: 15, radius: 8,
-                    fill: k.panel, color: k.dim, tooltip: "Toggle theme",
+            if closable {
+                if ui::pill(icons::ui("close"), #{
+                    height: 26, min_width: 20, size: 9, fill: "none",
+                    color: if active { k.accent } else { k.faint }, tooltip: "Close",
                 }) {
-                    theme::set_dark(S, !k.dark);
+                    shell::close_doc(S, id);
                 }
-            });
+            }
         });
     });
 }
 
-/// The status strip, drawn inside the bottom dock's foot.
-pub fn status_row(S) {
-    let k = S.theme;
-    let r = S.layout.status;
-    if !style::placed(r) {
-        return;
-    }
-    ui::overlay("status", #{ x: r.x, y: r.y, w: r.w, h: r.h, padding_x: 10 }, || {
+// Play, pause and stop; the last two are off until something runs. A loaded
+// session pauses through the player, or the scripts would run on and the
+// replay would stop reproducing the recording.
+fn transport(S, k) {
+    ui::horizontal(#{ height: 30, width: BLOCK_W, tight: true }, || {
+        ui::spacing(4, 0);
+        let replaying = crate::session::loaded(S);
+        let running = S.playing || replaying;
+        if ui::circle_button(icons::ui("play"), #{
+            role: if S.playing { "transport_on" } else { "transport" },
+            tooltip: if S.playing { "Stop the scene (F5)" } else { "Run the scene (F5)" },
+        }) {
+            shell::toggle_play(S);
+        }
+        let paused = if replaying {
+            replay::state() == replay::STATE_PAUSED
+        } else {
+            S.playing && (physics::is_paused())
+        };
+        if ui::circle_button(icons::ui("pause"), #{
+            role: if paused { "transport_on" } else { "transport" },
+            disabled: !running,
+            tooltip: if !running {
+                "Run the scene first"
+            } else if replaying {
+                "Pause playback"
+            } else {
+                "Pause simulation"
+            },
+        }) {
+            if replaying {
+                crate::session::toggle_pause(S);
+            } else {
+                physics::set_paused(!physics::is_paused());
+            }
+        }
+        if ui::circle_button(icons::ui("stop"), #{
+            role: "transport", disabled: !running,
+            tooltip: if running { "Stop" } else { "Nothing is running" },
+        }) {
+            if replaying {
+                crate::session::close(S);
+            } else {
+                shell::stop_play(S);
+            }
+        }
+    });
+}
+
+/// The status strip: what the editor is doing, how big the scene is, and the
+/// persona and tool in hand. `room` is the width it has; `trailing` draws
+/// whatever the dock wants at the far right, which minimised is the handle
+/// that reopens it.
+pub fn status_strip(S, k, room, trailing) {
     ui::horizontal(#{ height: 22 }, || {
         ui::spacing(14, 0);
         ui::add_space(4);
@@ -200,7 +261,6 @@ pub fn status_row(S) {
         };
         ui::label(mode, style::mono_sm(k.dim));
         // Narrow: the columns go one at a time rather than running together.
-        let room = r.w;
         if room > 300.0 {
             let (nodes, scripts) = model::stats(S);
             ui::label(format!("{} {} · {} {}", nodes, plural(nodes, "node"), scripts, plural(scripts, "script")),
@@ -209,13 +269,13 @@ pub fn status_row(S) {
         if room > 560.0 {
             ui::label("kiss3d · wgpu", style::mono_sm(k.faint));
         }
-        if room > 420.0 {
-            ui::right(|| {
-                ui::add_space(4);
+        ui::right(|| {
+            ui::add_space(4);
+            trailing();
+            if room > 420.0 {
                 let pname = defs::persona_name(S.persona);
                 ui::label(format!("{} · {}", pname, defs::tool_name(S.tool)), style::mono_sm(k.faint));
-            });
-        }
-    });
+            }
+        });
     });
 }

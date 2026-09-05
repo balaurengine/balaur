@@ -22,13 +22,13 @@ use glamx::{Mat3, Pose2, Vec2};
 use kiss3d::camera::Camera2d;
 use kiss3d::context::Context;
 use kiss3d::resource::{
-    multisample_state, GpuData, GpuMesh2d, Material2d, PipelineCache, RenderContext2d,
-    TextureManager,
+    GpuData, GpuMesh2d, Material2d, PipelineCache, RenderContext2d, TextureManager,
+    multisample_state,
 };
 use kiss3d::scene::{InstancesBuffer2d, Object2d, ObjectData2d, SceneNode2d};
 
-use crate::light::{lights as scene_lights, occluder_edges, shadow_quad, LightKind2d, LitLight2d};
-use crate::{shaders, CameraConfig2d};
+use crate::light::{LightKind2d, LitLight2d, lights as scene_lights, occluder_edges, shadow_quad};
+use crate::{CameraConfig2d, shaders};
 
 /// The most lights one frame draws. A shadow-casting light costs a render
 /// pass, so a scene that blows past this is told once rather than quietly
@@ -332,27 +332,7 @@ fn frame_layout(ctxt: &Context) -> wgpu::BindGroupLayout {
 }
 
 fn texture_layout(ctxt: &Context) -> wgpu::BindGroupLayout {
-    ctxt.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("light_map_texture_layout"),
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    multisampled: false,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
-        ],
-    })
+    crate::bind_layout::sampled_layout(ctxt, "light_map_texture_layout")
 }
 
 /// The stencil state both light-map pipelines share, differing only in what

@@ -26,7 +26,16 @@ exe=""
 
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 
-step "build (release, windowed)"
+# `extensions` is on in a shipped build: the download carries the header an
+# addon compiles against, and a runtime that cannot dlopen one makes that a
+# promise the binary does not keep. BALAUR_FEATURES replaces the whole set.
+if [ "$target" = macos-universal ]; then
+  features=${BALAUR_FEATURES:-window,apple,extensions}
+else
+  features=${BALAUR_FEATURES:-window,extensions}
+fi
+
+step "build (release, windowed: $features)"
 if [ "$target" = macos-universal ]; then
   # One binary for both Apple Silicon and Intel. Shipping two macOS downloads
   # and asking the user which Mac they have is a worse answer than lipo.
@@ -35,16 +44,16 @@ if [ "$target" = macos-universal ]; then
   # cannot link GameKit afterwards. It costs bytes and no entitlement.
   # 12.0 is where StoreKit 2 starts, and the Swift shim is built for it.
   MACOSX_DEPLOYMENT_TARGET=12.0 \
-    cargo build --release -p balaur_cli --features "window,apple" --target aarch64-apple-darwin
+    cargo build --release -p balaur_cli --features "$features" --target aarch64-apple-darwin
   MACOSX_DEPLOYMENT_TARGET=12.0 \
-    cargo build --release -p balaur_cli --features "window,apple" --target x86_64-apple-darwin
+    cargo build --release -p balaur_cli --features "$features" --target x86_64-apple-darwin
   bin="target/balaur-universal"
   lipo -create -output "$bin" \
     "target/aarch64-apple-darwin/release/balaur" \
     "target/x86_64-apple-darwin/release/balaur"
   lipo -info "$bin"
 else
-  cargo build --release -p balaur_cli --features window
+  cargo build --release -p balaur_cli --features "$features"
   bin="target/release/balaur$exe"
 fi
 [ -f "$bin" ] || { printf '::error::no binary at %s\n' "$bin"; exit 1; }

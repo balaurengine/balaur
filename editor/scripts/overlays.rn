@@ -5,7 +5,6 @@ use crate::anim;
 use crate::model;
 use crate::util;
 
-// 2D grid, drawn as per-frame world-space lines over the visible extents.
 pub fn grid2d(S) {
     let k = S.theme;
     let (cx, cy, zoom) = render::camera_2d();
@@ -34,7 +33,6 @@ pub fn grid2d(S) {
     }
 }
 
-// Axis guide lines through the selection (Guides chip).
 pub fn guides(S) {
     let found = match model::live(S, S.sel) {
         Some(found) => found,
@@ -103,7 +101,6 @@ pub fn motion_path(S) {
     }
 }
 
-// 2D collider outlines (Show colliders chip, phys persona).
 pub fn colliders2d(S) {
     let k = S.theme;
     let c = util::rgb(k.sage);
@@ -122,7 +119,7 @@ pub fn colliders2d(S) {
         let ca = math::cos(angle);
         let sa = math::sin(angle);
         let pt = |ox, oy| (p.x + ca * ox - sa * oy, p.y + sa * ox + ca * oy);
-        if collider.get("kind") == Some("circle") {
+        if collider.get("kind") == Some(physics2d::SHAPE_CIRCLE) {
             let radius = util::f(collider.get("radius").unwrap_or(0.5)) * s.x;
             let (px, py) = pt(radius, 0.0);
             for t in 1..33 {
@@ -191,7 +188,7 @@ fn light_gizmo(found, light) {
     let dy = -ca;
     render::draw_line_2d(p.x - 0.2, p.y, p.x + 0.2, p.y, c[0], c[1], c[2], 2.0);
     render::draw_line_2d(p.x, p.y - 0.2, p.x, p.y + 0.2, c[0], c[1], c[2], 2.0);
-    if light.get("kind").unwrap_or("point") == "directional" {
+    if light.get("kind").unwrap_or(render::LIGHT_POINT) == render::LIGHT_DIRECTIONAL {
         for step in -2..3 {
             let ox = -dy * (step as f64) * 0.4;
             let oy = dx * (step as f64) * 0.4;
@@ -230,7 +227,6 @@ fn occluder_outline(S, found) {
     }
 }
 
-// Collider wireboxes + center-of-mass dots (Show colliders chip).
 pub fn colliders(S) {
     let k = S.theme;
     let c = util::rgb(k.sage);

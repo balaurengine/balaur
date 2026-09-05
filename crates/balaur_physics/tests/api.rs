@@ -3,18 +3,11 @@
 
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Transform};
-use balaur_core::{components, App, AppConfig};
+use balaur_core::{App, AppConfig, components};
 use balaur_physics::PhysicsPlugin;
 
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
     app
 }
@@ -73,8 +66,14 @@ fn every_declared_shape_is_accepted() {
             let root = app.engine.root();
             let e = scene::spawn_node(&mut app.engine.world_mut(), shape, root);
             let params: toml::Value = toml::from_str(&format!("kind = \"{shape}\"")).unwrap();
-            components::add(&app.engine, e, component, Some(&params))
-                .unwrap_or_else(|e| panic!("{component} shape `{shape}` was rejected: {e}"));
+            // A mesh-backed shape has no asset here and says so; only an
+            // unknown word is a rejection.
+            if let Err(e) = components::add(&app.engine, e, component, Some(&params)) {
+                assert!(
+                    !e.to_string().contains("unknown"),
+                    "{component} shape `{shape}` was rejected: {e}"
+                );
+            }
         }
     }
 }
@@ -364,8 +363,8 @@ fn named_body(app: &App, name: &str, kind: &str) -> Entity {
 
 fn joint_count(app: &App) -> usize {
     let state = app.engine.resource::<balaur_physics::PhysicsState>();
-    let n = state.borrow().joints.len();
-    n
+
+    state.borrow().joints.len()
 }
 
 /// Rapier drops a joint with either end's body, so the map must drop the

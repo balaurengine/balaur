@@ -7,6 +7,9 @@ use anyhow::{Context, Result};
 use balaur::{App, AppConfig, Pack};
 use clap::{Parser, Subcommand};
 
+// The editor's Export sheet, over the same library the command line drives.
+#[cfg(not(target_family = "wasm"))]
+mod export_api;
 mod lsp;
 mod templates;
 mod update;
@@ -64,6 +67,10 @@ enum Command {
         /// before the frame loop does.
         #[arg(long, requires = "debug")]
         debug_wait: bool,
+        /// Arguments for the project's own scripts, everything after `--`;
+        /// they read them back with `engine::args()`.
+        #[arg(last = true)]
+        args: Vec<String>,
     },
     /// Export the project as a pack: every script checked, scenes and
     /// manifest bundled.
@@ -98,16 +105,48 @@ enum Command {
         /// shape that can be code-signed.
         #[arg(long)]
         app: bool,
-        /// Code-sign the `.app` with this identity (implies `--app`);
-        /// without it the bundle is signed ad-hoc.
+        /// Sign with this identity, overriding `[export]`: a certificate name
+        /// on Apple platforms, a certificate file on Windows. On macOS it
+        /// implies `--app`, since a flat binary cannot be signed.
         #[arg(long)]
         sign: Option<String>,
+        /// Submit the signed macOS bundle to Apple's notary service and
+        /// staple the ticket. Reads BALAUR_NOTARY_KEY, _KEY_ID and _ISSUER_ID.
+        #[arg(long)]
+        notarize: bool,
+        /// The `.mobileprovision` an iOS build is signed against.
+        #[arg(long, value_name = "FILE")]
+        profile: Option<PathBuf>,
+        /// Wrap the iOS `.app` as the `.ipa` App Store Connect takes.
+        #[arg(long)]
+        ipa: bool,
+        /// Assemble the Android layout into an installable APK. Needs the
+        /// SDK's build-tools; signs with `[export] android_keystore`, or with
+        /// Android's debug identity when the project names none.
+        #[arg(long)]
+        apk: bool,
+        /// Wrap the macOS `.app` as the `.pkg` the Mac App Store takes.
+        #[arg(long)]
+        pkg: bool,
     },
     /// Serve diagnostics over the Language Server Protocol on stdin/stdout,
     /// for an editor outside Balaur. The same checks `balaur check` runs.
     Lsp {
         #[arg(default_value = ".")]
         path: PathBuf,
+    },
+    /// Run a project's own tests: every `tests/**/*.rn` is attached to a
+    /// fresh node in a headless copy of the project and ticked; a script
+    /// error, an `assert!` included, fails it.
+    Test {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        /// Frames each test runs for, so a test may await timers and replies.
+        #[arg(long, default_value_t = 120)]
+        frames: u64,
+        /// Only tests whose path contains this.
+        #[arg(long)]
+        filter: Option<String>,
     },
     /// Check a project without running it: every script a scene attaches is
     /// compiled, and every finding is printed with its file and line.
@@ -193,6 +232,8 @@ enum Command {
 
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web;
+#[cfg(all(target_arch = "wasm32", feature = "window"))]
+mod web_fs;
 
 /// In a browser there is no command line: the page calls `web::start` with
 /// a canvas and a pack instead, and wasm-bindgen runs this empty `main` on
@@ -244,6 +285,7 @@ fn main() -> Result<()> {
             record,
             debug,
             debug_wait,
+            args,
         } => run_project(&RunOpts {
             path,
             display: Display::of(headless, offscreen),
@@ -254,6 +296,7 @@ fn main() -> Result<()> {
             record,
             debug,
             debug_wait,
+            args,
         }),
         Command::Replay {
             file,
@@ -277,41 +320,52 @@ fn main() -> Result<()> {
             keep_sources,
             app,
             sign,
-        } => {
-            // The two policies balaur_export deliberately does not hold: where
-            // the per-user cache is (keyed by this binary's build id), and
-            // whether a missing template may be fetched.
-            let fetch = move |wanted: &str| templates::obtain(wanted, download);
-            balaur_export::export(&balaur_export::Options {
-                path,
-                output,
-                target,
-                template,
-                app,
-                keep_sources,
-                sign,
-                template_roots: balaur_export::default_roots(templates::cache_dir()),
-                obtain: if no_download { None } else { Some(&fetch) },
-            })
-        }
+            notarize,
+            profile,
+            ipa,
+            apk,
+            pkg,
+        } => export_game(&ExportArgs {
+            path,
+            output,
+            target,
+            template,
+            download,
+            no_download,
+            keep_sources,
+            app,
+            sign,
+            notarize,
+            profile,
+            ipa,
+            apk,
+            pkg,
+        }),
         Command::Check { path, strict } => check_project(&path, strict),
+        Command::Test {
+            path,
+            frames,
+            filter,
+        } => test_project(&path, frames, filter.as_deref()),
         Command::Lsp { path } => lsp::run(&path),
         Command::Update { tag, check } => update::run(tag.as_deref(), check),
-        Command::Play { pack, frames } => {
-            let bytes =
-                std::fs::read(&pack).with_context(|| format!("reading {}", pack.display()))?;
-            if let Some(frames) = frames {
-                let pack = Pack::decode(&bytes)?;
-                let mut app = balaur::standard_app(AppConfig::packed(pack))?;
-                app.load_project()?;
-                for _ in 0..frames {
-                    app.tick(balaur::FIXED_DT);
-                }
-                return Ok(());
-            }
-            balaur::boot_pack(&bytes)
-        }
+        Command::Play { pack, frames } => play_pack(&pack, frames),
     }
+}
+
+/// `balaur play`: an exported pack, windowed, or headless for a frame budget.
+fn play_pack(pack: &Path, frames: Option<u64>) -> Result<()> {
+    let bytes = std::fs::read(pack).with_context(|| format!("reading {}", pack.display()))?;
+    if let Some(frames) = frames {
+        let pack = Pack::decode(&bytes)?;
+        let mut app = balaur::standard_app(AppConfig::packed(pack))?;
+        app.load_project()?;
+        for _ in 0..frames {
+            app.tick(balaur::FIXED_DT);
+        }
+        return Ok(());
+    }
+    balaur::boot_pack(&bytes)
 }
 
 /// Frames a standalone game should run before quitting, from `BALAUR_FRAMES`.
@@ -349,6 +403,7 @@ struct RunOpts {
     record: Option<PathBuf>,
     debug: Option<u16>,
     debug_wait: bool,
+    args: Vec<String>,
 }
 
 /// Fold every frame's timings into one log, kept by the caller so it survives
@@ -410,30 +465,29 @@ fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<
 
     while balaur::replay::is_running(&app.engine) {
         app.advance(balaur::FIXED_DT);
-        if let Some(at) = entries_at {
-            if app.engine.tick() >= at {
-                for entry in balaur::digest::entries(&app.engine) {
-                    println!("{} {}", entry.label, entry.digest);
-                }
-                return Ok(());
+        if let Some(at) = entries_at
+            && app.engine.tick() >= at
+        {
+            for entry in balaur::digest::entries(&app.engine) {
+                println!("{} {}", entry.label, entry.digest);
             }
+            return Ok(());
         }
-        if verify {
-            if let Some(d) = app
+        if verify
+            && let Some(d) = app
                 .engine
                 .resource::<balaur::replay::ReplayPlayer>()
                 .borrow()
                 .diverged
-            {
-                anyhow::bail!(
-                    "tick {}: recorded {} but replayed {}\n\
+        {
+            anyhow::bail!(
+                "tick {}: recorded {} but replayed {}\n\
                      run `balaur replay <file> --entries-at {}` on both machines and diff",
-                    d.tick,
-                    balaur::digest::Digest(d.recorded),
-                    balaur::digest::Digest(d.replayed),
-                    d.tick
-                );
-            }
+                d.tick,
+                balaur::digest::Digest(d.recorded),
+                balaur::digest::Digest(d.replayed),
+                d.tick
+            );
         }
     }
 
@@ -465,9 +519,12 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         record,
         debug,
         debug_wait,
+        args,
     } = opts;
     let (display, frames) = (*display, *frames);
-    let mut app = balaur::standard_app(AppConfig::dev(path.to_string_lossy().as_ref()))?;
+    let mut config = AppConfig::dev(path.to_string_lossy().as_ref());
+    config.script_args.clone_from(args);
+    let mut app = balaur::standard_app(config)?;
     // Before the project loads, so a client that waits can have breakpoints
     // in place by the time `init` runs.
     let _debugger = start_debugger(&mut app, *debug, *debug_wait)?;
@@ -483,7 +540,9 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     }
     if let Some(trace) = trace_digest {
         if !*fixed_tick {
-            tracing::warn!("--trace-digest without --fixed-tick: the trace follows wall-clock frame times and will not match another machine's");
+            tracing::warn!(
+                "--trace-digest without --fixed-tick: the trace follows wall-clock frame times and will not match another machine's"
+            );
         }
         trace_digest_to(&mut app, trace)?;
     }
@@ -624,6 +683,10 @@ fn edit_project(
         config.script_args.push(state);
     }
     let mut app = balaur::standard_app(config)?;
+    // Registered here rather than in the engine: exporting is the CLI's
+    // library, and the editor is the only app with a button for it.
+    #[cfg(not(target_family = "wasm"))]
+    balaur_plugin::load(&mut app, &mut export_api::ExportPlugin::new(game.clone()))?;
     // The editor's project is the editor; the game it edits is another root,
     // and every path it reads back is an absolute one inside it.
     balaur::file_api::add_root(&app.engine, &game);
@@ -647,11 +710,161 @@ fn edit_project(
 ///
 /// The engine is asked, not the source: constants like `input.KEY_SPACE` are
 /// derived at registration, so parsing Rust would miss them.
+/// `balaur test`: each test script on its own node in its own headless app,
+/// failed by any script error the run logs. The project's main scene loads
+/// first, so a test finds the nodes a game would.
+fn test_project(path: &Path, frames: u64, filter: Option<&str>) -> Result<()> {
+    let tests = test_scripts(path);
+    let mut failed = 0usize;
+    let mut ran = 0usize;
+    for rel in tests {
+        if filter.is_some_and(|f| !rel.contains(f)) {
+            continue;
+        }
+        ran += 1;
+        balaur::logbuf::clear();
+        let outcome = run_test(path, &rel, frames);
+        let errors: Vec<String> = balaur::logbuf::recent(500)
+            .into_iter()
+            .filter(|entry| entry.level == "error")
+            .map(|entry| entry.message)
+            .collect();
+        match (outcome, errors.is_empty()) {
+            (Ok(()), true) => println!("test {rel} ... ok"),
+            (Ok(()), false) => {
+                failed += 1;
+                println!("test {rel} ... FAILED");
+                for message in errors {
+                    println!("    {message}");
+                }
+            }
+            (Err(why), _) => {
+                failed += 1;
+                println!("test {rel} ... FAILED\n    {why:#}");
+            }
+        }
+    }
+    if ran == 0 {
+        println!("no tests: put `.rn` files under tests/");
+        return Ok(());
+    }
+    println!("{} passed, {failed} failed", ran - failed);
+    if failed > 0 {
+        anyhow::bail!("{failed} of {ran} tests failed");
+    }
+    Ok(())
+}
+
+/// Every `.rn` under `tests/`, project-relative and sorted.
+fn test_scripts(project_root: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut dirs = vec![project_root.join("tests")];
+    while let Some(dir) = dirs.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                dirs.push(path);
+            } else if path.extension().and_then(|e| e.to_str()) == Some("rn")
+                && let Ok(rel) = path.strip_prefix(project_root)
+            {
+                out.push(rel.to_string_lossy().replace('\\', "/"));
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+fn run_test(project_root: &Path, rel: &str, frames: u64) -> Result<()> {
+    let mut app = balaur::standard_app(AppConfig::export(project_root))?;
+    app.load_project()?;
+    let root = app.engine.root();
+    let node = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Test", root);
+    let host = app
+        .engine
+        .script_host()
+        .context("no script backend for the project")?;
+    host.attach(balaur::node_id_of(node), rel)?;
+    for _ in 0..frames {
+        app.tick(balaur::FIXED_DT);
+    }
+    Ok(())
+}
+
 /// `balaur check`: the editor's Problems list, headless, for CI.
 ///
 /// Exits non-zero when anything would stop the project running, so a broken
 /// script fails a build rather than a play session.
+/// Everything `balaur export` was asked for, as the command line spells it.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each is one command-line flag, and they are not exclusive"
+)]
+struct ExportArgs {
+    path: PathBuf,
+    output: Option<PathBuf>,
+    target: Option<String>,
+    template: Option<PathBuf>,
+    download: bool,
+    no_download: bool,
+    keep_sources: bool,
+    app: bool,
+    sign: Option<String>,
+    notarize: bool,
+    profile: Option<PathBuf>,
+    ipa: bool,
+    apk: bool,
+    pkg: bool,
+}
+
+/// The two policies balaur_export deliberately does not hold: where the
+/// per-user cache is (keyed by this binary's build id), and whether a missing
+/// template may be fetched.
+fn export_game(args: &ExportArgs) -> Result<()> {
+    let download = args.download;
+    let fetch = move |wanted: &str| templates::obtain(wanted, download);
+    #[cfg(not(target_family = "wasm"))]
+    let modules = own_modules(args.path.clone());
+    #[cfg(not(target_family = "wasm"))]
+    let plugins: Option<&balaur_export::ExtraModules> = Some(&modules);
+    #[cfg(target_family = "wasm")]
+    let plugins = None;
+    balaur_export::export(&balaur_export::Options {
+        path: args.path.clone(),
+        output: args.output.clone(),
+        target: args.target.clone(),
+        template: args.template.clone(),
+        app: args.app,
+        keep_sources: args.keep_sources,
+        sign: args.sign.clone(),
+        notarize: args.notarize,
+        profile: args.profile.clone(),
+        ipa: args.ipa,
+        apk: args.apk,
+        pkg: args.pkg,
+        template_roots: balaur_export::default_roots(templates::cache_dir()),
+        plugins,
+        obtain: if args.no_download { None } else { Some(&fetch) },
+    })
+}
+
+/// What this binary adds to a project it compiles: the editor's `export`,
+/// which the editor's own scripts call and the engine does not carry.
+#[cfg(not(target_family = "wasm"))]
+fn own_modules(project: PathBuf) -> impl Fn() -> Vec<Box<dyn balaur_plugin::Plugin>> {
+    move || vec![Box::new(export_api::ExportPlugin::new(project.clone()))]
+}
+
 fn check_project(path: &std::path::Path, strict: bool) -> Result<()> {
+    #[cfg(not(target_family = "wasm"))]
+    let found = balaur::check_project_using(
+        path,
+        &mut [Box::new(export_api::ExportPlugin::new(path.to_path_buf()))],
+    )?;
+    #[cfg(target_family = "wasm")]
     let found = balaur::check_project(path)?;
     let mut errors = 0;
     let mut warnings = 0;
@@ -698,6 +911,10 @@ fn dump_api() -> Result<()> {
     )?;
 
     let mut app = balaur::standard_app(AppConfig::dev(dir.to_string_lossy().as_ref()))?;
+    // `export` is the editor's, registered by this binary rather than by the
+    // engine, so the probe has to load it or the reference would not list it.
+    #[cfg(not(target_family = "wasm"))]
+    balaur_plugin::load(&mut app, &mut export_api::ExportPlugin::new(dir.clone()))?;
     app.load_project()?;
     let host = balaur::rune::rune_of(&app.engine);
     let mut api: serde_json::Value = serde_json::from_str(&balaur::rune::api_json(&host)?)?;
@@ -723,7 +940,6 @@ fn dump_api() -> Result<()> {
         })
         .unwrap_or_default();
     api["component_docs"] = serde_json::to_value(component_docs)?;
-    // Facet tags per component, so the reference can group them.
     let component_tags: std::collections::BTreeMap<String, Vec<&'static str>> = app
         .engine
         .try_resource::<balaur::components::ComponentRegistry>()
@@ -845,7 +1061,7 @@ pub fn update(this, dt) {
 
 #[cfg(test)]
 mod tests {
-    use super::joinable;
+    use super::{joinable, run_test, test_scripts};
     use std::path::{Path, PathBuf};
 
     /// The editor joins `<root>/project.toml` by hand, which a `\\?\` path
@@ -863,6 +1079,47 @@ mod tests {
         assert_eq!(
             joinable(Path::new("/Users/x/balaur/examples/hello")),
             PathBuf::from("/Users/x/balaur/examples/hello")
+        );
+    }
+
+    #[test]
+    fn a_test_script_that_asserts_false_fails_and_one_that_passes_passes() {
+        balaur::logbuf::capture_for_test();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("project.toml"),
+            "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("main.toml"), "").unwrap();
+        std::fs::create_dir_all(dir.path().join("tests")).unwrap();
+        std::fs::write(
+            dir.path().join("tests/pass.rn"),
+            "pub fn init(this) { assert!(1 + 1 == 2); }\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("tests/fail.rn"),
+            "pub fn init(this) { assert!(false, \"boom\"); }\n",
+        )
+        .unwrap();
+        assert_eq!(test_scripts(dir.path()), ["tests/fail.rn", "tests/pass.rn"]);
+        let errors_of = |rel: &str| {
+            balaur::logbuf::clear();
+            run_test(dir.path(), rel, 2).unwrap();
+            balaur::logbuf::recent(500)
+                .into_iter()
+                .filter(|e| e.level == "error")
+                .count()
+        };
+        assert_eq!(
+            errors_of("tests/pass.rn"),
+            0,
+            "a passing test logs no error"
+        );
+        assert!(
+            errors_of("tests/fail.rn") >= 1,
+            "a failed assert is a logged error"
         );
     }
 }

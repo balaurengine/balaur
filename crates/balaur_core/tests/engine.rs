@@ -7,14 +7,7 @@ use balaur_core::{App, AppConfig, Engine};
 use balaur_script::BindingsExt as _;
 
 fn app() -> App {
-    App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 struct Counter(u32);

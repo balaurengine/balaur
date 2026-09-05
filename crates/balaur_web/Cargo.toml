@@ -1,0 +1,40 @@
+[package]
+name = "balaur_web"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Balaur web plugin: the page a browser build runs in, as named verbs for scripts"
+
+[dependencies]
+balaur_core.workspace = true
+balaur_plugin.workspace = true
+balaur_script.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+# The page itself, through web-sys. Native builds carry none of this and
+# answer every query with nil.
+[target.'cfg(all(target_family = "wasm", not(target_os = "emscripten")))'.dependencies]
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "Document",
+    "Event",
+    "EventTarget",
+    "Location",
+    "MessageEvent",
+    "Navigator",
+    "Window",
+] }
+
+[dev-dependencies]
+balaur = { workspace = true, features = ["web"] }
+tempfile = "3"
+
+[lints]
+workspace = true

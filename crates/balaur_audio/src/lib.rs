@@ -13,15 +13,16 @@
 //! `sound` component's "already started" check) is therefore tracked as
 //! intent on [`Sound`] and [`AudioState`], never read off a sink.
 //!
-//! Wasm builds are the extreme case of that rule: no audio stack compiles
-//! there at all (see the backend modules below), so the whole backend is the
-//! "no device" path and scripts calling `audio.*` still run.
+//! A browser refuses to start audio until the page has seen a gesture, so
+//! there the device is opened on the first key, button or touch —
+//! `UserActivation` — rather than at load. `audio.ready` says whether it is
+//! open yet; before that every call takes the "no device" path above.
 
-use anyhow::{anyhow, bail, Result};
-use balaur_core::components::{as_f64, ComponentDef};
+use anyhow::{Result, anyhow, bail};
+use balaur_core::components::{ComponentDef, as_f64};
 use balaur_core::glamx::Vec3;
 use balaur_core::hecs::Entity;
-use balaur_core::{entity_of, scene, DetHashMap, Engine, Stage};
+use balaur_core::{DetHashMap, Engine, Stage, entity_of, scene};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 pub mod bus;
@@ -29,14 +30,29 @@ pub mod cache;
 pub mod event;
 pub mod spatial;
 
+/// The `sound` and `listener` components' keys, for their schemas and readers alike.
+pub(crate) mod keys {
+    pub(crate) const AUTOPLAY: &str = "autoplay";
+    pub(crate) const BUS: &str = "bus";
+    pub(crate) const CURRENT: &str = "current";
+    pub(crate) const DOPPLER: &str = "doppler";
+    pub(crate) const FILE: &str = "file";
+    pub(crate) const LOOP: &str = "loop";
+    pub(crate) const MAX_DISTANCE: &str = "max_distance";
+    pub(crate) const MIN_DISTANCE: &str = "min_distance";
+    pub(crate) const PITCH: &str = "pitch";
+    pub(crate) const POSITIONAL: &str = "positional";
+    pub(crate) const VOLUME: &str = "volume";
+}
+
+use crate::keys as k;
 use bus::Buses;
 use spatial::{Emitter, Listener, ListenerPose, Placement};
 
-/// The rodio/cpal backend: every target with a real audio stack.
-#[cfg(not(target_family = "wasm"))]
+/// The rodio/cpal backend: native audio stacks, and WebAudio on wasm.
 mod backend {
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
     use std::time::Duration;
 
     use anyhow::Result;
@@ -81,7 +97,7 @@ mod backend {
     /// Mix a source down to mono and spread it across the two channels at
     /// gains the frame can move. Positioning a stereo file means giving up
     /// the channels it came with: a sound in one place has one direction.
-    fn spread<S>(source: S, pan: &Arc<Pan>) -> impl Source
+    fn spread<S>(source: S, pan: &Arc<Pan>) -> impl Source + use<S>
     where
         S: Source,
     {
@@ -186,56 +202,6 @@ mod backend {
     }
 }
 
-/// The wasm stub. cpal's emscripten host does not compile — broken upstream
-/// against current wasm-bindgen and deleted outright in cpal 0.18 — and its
-/// WebAudio host only runs inside a wasm-bindgen app, which an engine on
-/// emscripten is not. Both types are uninhabited: opening always fails, the
-/// plugin warns once, and the compiler proves the rest of this module dead.
-#[cfg(target_family = "wasm")]
-mod backend {
-    use anyhow::{bail, Result};
-
-    pub(crate) enum Device {}
-    pub(crate) enum Sound {}
-
-    pub(crate) fn open_default() -> Result<Device> {
-        bail!("no audio backend compiles for wasm")
-    }
-
-    pub(crate) fn play(
-        device: &Device,
-        _: Vec<u8>,
-        _: f32,
-        _: f32,
-        _: bool,
-        _: Option<[f32; 2]>,
-    ) -> Result<Sound> {
-        match *device {}
-    }
-
-    impl Sound {
-        pub(crate) fn stop(&self) {
-            match *self {}
-        }
-
-        pub(crate) fn set_volume(&self, _: f32) {
-            match *self {}
-        }
-
-        pub(crate) fn set_pitch(&self, _: f32) {
-            match *self {}
-        }
-
-        pub(crate) fn set_pan(&self, _: [f32; 2]) {
-            match *self {}
-        }
-
-        pub(crate) fn finished(&self) -> bool {
-            match *self {}
-        }
-    }
-}
-
 /// The floor `pitch` is clamped to, matching the schema's `min`: rodio takes
 /// a playback speed, and zero would park the sink forever.
 const MIN_PITCH: f32 = 0.01;
@@ -292,6 +258,9 @@ const DEFAULT_MAX_DISTANCE: f32 = 50.0;
 
 pub struct AudioState {
     device: Option<backend::Device>,
+    /// True while the device waits for `UserActivation`: a browser refuses
+    /// to start audio before a gesture, so the open is deferred to one.
+    awaiting_activation: bool,
     /// Live sinks by handle. A handle absent here answers `is_playing` false
     /// and its setters no-op.
     playing: DetHashMap<u64, backend::Sound>,
@@ -652,6 +621,27 @@ impl Default for AudioPlugin {
 }
 
 /// Drop finished sinks, and stop the sounds of nodes that were freed.
+fn open_device() -> Option<backend::Device> {
+    match backend::open_default() {
+        Ok(device) => Some(device),
+        Err(err) => {
+            tracing::warn!("audio disabled: {err}");
+            None
+        }
+    }
+}
+
+/// Open the device the first tick after the page has seen a gesture.
+fn open_on_activation_system(eng: &Engine, _: f32) {
+    let state = eng.resource::<AudioState>();
+    let mut state = state.borrow_mut();
+    if !state.awaiting_activation || eng.try_resource::<balaur_core::UserActivation>().is_none() {
+        return;
+    }
+    state.awaiting_activation = false;
+    state.device = open_device();
+}
+
 fn sweep_sounds_system(eng: &Engine, _: f32) {
     let state = eng.resource::<AudioState>();
     let mut state = state.borrow_mut();
@@ -697,15 +687,11 @@ impl balaur_plugin::Plugin for AudioPlugin {
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
-        let device = match backend::open_default() {
-            Ok(device) => Some(device),
-            Err(err) => {
-                tracing::warn!("audio disabled: {err}");
-                None
-            }
-        };
+        let eager = !cfg!(target_family = "wasm");
+        let device = if eager { open_device() } else { None };
         reg.insert_resource(AudioState {
             device,
+            awaiting_activation: !eager,
             playing: DetHashMap::default(),
             routing: DetHashMap::default(),
             nodes: DetHashMap::default(),
@@ -718,6 +704,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
         reg.insert_resource(event::Events::default());
         reg.insert_resource(cache::SoundCache::default());
 
+        reg.add_system(Stage::First, open_on_activation_system);
         reg.add_system(Stage::PostUpdate, sweep_sounds_system);
         reg.add_system(Stage::SceneSync, spatial::spatialize_system);
         register_sound_component(reg);
@@ -744,18 +731,20 @@ fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
                   sound is heard from where the node is, relative to the `listener`.",
             schema: ComponentDef::parse_schema(
                 "sound",
-                r#"file = { type = "string", default = "", description = "Audio file, project-relative; required to play" }
-autoplay = { type = "bool", default = false, description = "Start playing when the node enters the scene" }
-volume = { type = "float", default = 1.0, min = 0.0, description = "Linear gain; 1 is the file's own level" }
-pitch = { type = "float", default = 1.0, min = 0.01, description = "Playback speed multiplier" }
-loop = { type = "bool", default = false, description = "Restart the sound when it ends" }
-bus = { type = "string", default = "", description = "Audio bus this plays through; empty is `master`" }
-positional = { type = "bool", default = false, description = "Place the sound where the node is, heard from the `listener`" }
-min_distance = { type = "float", default = 1.0, min = 0.001, description = "Full volume within this distance of the listener" }
-max_distance = { type = "float", default = 50.0, min = 0.001, description = "Silent beyond this distance from the listener" }
-doppler = { type = "float", default = 0.0, min = 0.0, description = "How much the closing speed bends the pitch; 0 is off, 1 physical" }"#,
+                &balaur_core::components::ComponentDef::schema(&[
+                    (k::FILE, r#"{ type = "string", default = "", description = "Audio file, project-relative; required to play" }"#),
+                    (k::AUTOPLAY, r#"{ type = "bool", default = false, description = "Start playing when the node enters the scene" }"#),
+                    (k::VOLUME, r#"{ type = "float", default = 1.0, min = 0.0, description = "Linear gain; 1 is the file's own level" }"#),
+                    (k::PITCH, r#"{ type = "float", default = 1.0, min = 0.01, description = "Playback speed multiplier" }"#),
+                    (k::LOOP, r#"{ type = "bool", default = false, description = "Restart the sound when it ends" }"#),
+                    (k::BUS, r#"{ type = "string", default = "", description = "Audio bus this plays through; empty is `master`" }"#),
+                    (k::POSITIONAL, r#"{ type = "bool", default = false, description = "Place the sound where the node is, heard from the `listener`" }"#),
+                    (k::MIN_DISTANCE, r#"{ type = "float", default = 1.0, min = 0.001, description = "Full volume within this distance of the listener" }"#),
+                    (k::MAX_DISTANCE, r#"{ type = "float", default = 50.0, min = 0.001, description = "Silent beyond this distance from the listener" }"#),
+                    (k::DOPPLER, r#"{ type = "float", default = 0.0, min = 0.0, description = "How much the closing speed bends the pitch; 0 is off, 1 physical" }"#),
+                ]),
             ),
-            tags: &["audio"],
+            tags: &[balaur_core::components::tag::AUDIO],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
                 apply_sound(eng, entity, params);
@@ -772,14 +761,18 @@ doppler = { type = "float", default = 0.0, min = 0.0, description = "How much th
 
 fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
     let file = params
-        .get("file")
+        .get(k::FILE)
         .and_then(toml::Value::as_str)
         .unwrap_or_default()
         .to_string();
     let flag = |key: &str| params.get(key).and_then(toml::Value::as_bool) == Some(true);
     let level =
         |key: &str, default: f64| params.get(key).and_then(as_f64).unwrap_or(default) as f32;
-    let (autoplay, volume, pitch) = (flag("autoplay"), level("volume", 1.0), level("pitch", 1.0));
+    let (autoplay, volume, pitch) = (
+        flag(k::AUTOPLAY),
+        level(k::VOLUME, 1.0),
+        level(k::PITCH, 1.0),
+    );
     let has_file = !file.trim().is_empty();
     bus::ensure_loaded(eng);
     let start = {
@@ -794,16 +787,16 @@ fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
             sound.autoplay = autoplay;
             sound.volume = volume;
             sound.pitch = pitch;
-            sound.looped = flag("loop");
+            sound.looped = flag(k::LOOP);
             sound.bus = params
-                .get("bus")
+                .get(k::BUS)
                 .and_then(toml::Value::as_str)
                 .unwrap_or_default()
                 .to_string();
-            sound.positional = flag("positional");
-            sound.min_distance = level("min_distance", f64::from(DEFAULT_MIN_DISTANCE));
-            sound.max_distance = level("max_distance", f64::from(DEFAULT_MAX_DISTANCE));
-            sound.doppler = level("doppler", 0.0);
+            sound.positional = flag(k::POSITIONAL);
+            sound.min_distance = level(k::MIN_DISTANCE, f64::from(DEFAULT_MIN_DISTANCE));
+            sound.max_distance = level(k::MAX_DISTANCE, f64::from(DEFAULT_MAX_DISTANCE));
+            sound.doppler = level(k::DOPPLER, 0.0);
             // A `sound` now naming another file drops the old playback.
             if file_changed {
                 (true, sound.handle.take())
@@ -825,10 +818,8 @@ fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
     };
     // Re-applying the component must not restart a sound already started —
     // the same rule the `animation` component holds for its autoplay clip.
-    if start {
-        if let Err(why) = play_on(eng, entity) {
-            tracing::warn!("sound autoplay: {why:#}");
-        }
+    if start && let Err(why) = play_on(eng, entity) {
+        tracing::warn!("sound autoplay: {why:#}");
     }
 }
 
@@ -848,16 +839,16 @@ fn sound_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let state = state.borrow();
     let sound = state.nodes.get(&entity)?;
     let mut out = toml::map::Map::new();
-    out.insert("file".into(), sound.file.clone().into());
-    out.insert("autoplay".into(), sound.autoplay.into());
-    out.insert("volume".into(), f64::from(sound.volume).into());
-    out.insert("pitch".into(), f64::from(sound.pitch).into());
-    out.insert("loop".into(), sound.looped.into());
-    out.insert("bus".into(), sound.bus.clone().into());
-    out.insert("positional".into(), sound.positional.into());
-    out.insert("min_distance".into(), f64::from(sound.min_distance).into());
-    out.insert("max_distance".into(), f64::from(sound.max_distance).into());
-    out.insert("doppler".into(), f64::from(sound.doppler).into());
+    out.insert(k::FILE.into(), sound.file.clone().into());
+    out.insert(k::AUTOPLAY.into(), sound.autoplay.into());
+    out.insert(k::VOLUME.into(), f64::from(sound.volume).into());
+    out.insert(k::PITCH.into(), f64::from(sound.pitch).into());
+    out.insert(k::LOOP.into(), sound.looped.into());
+    out.insert(k::BUS.into(), sound.bus.clone().into());
+    out.insert(k::POSITIONAL.into(), sound.positional.into());
+    out.insert(k::MIN_DISTANCE.into(), f64::from(sound.min_distance).into());
+    out.insert(k::MAX_DISTANCE.into(), f64::from(sound.max_distance).into());
+    out.insert(k::DOPPLER.into(), f64::from(sound.doppler).into());
     Some(toml::Value::Table(out))
 }
 
@@ -939,6 +930,7 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
         ("stop", &[], "", "Silence the sound a handle names; a finished, stopped or unknown handle is left alone."),
         ("set_volume", &[], "", "Set a playing handle's linear gain, where 1 is the file's own level."),
         ("set_pitch", &[], "", "Set a playing handle's speed multiplier, which carries its pitch with it."),
+        ("ready", &[], "()", "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound."),
         ("is_playing", &[], "", "Whether a handle's sound is still audible; false once it ends, and always false with no output device."),
         ("stop_all", &[], "", "Silence everything at once and clear the playback every `sound` component was holding."),
         ("play_on", &["sound"], "", "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
@@ -994,6 +986,9 @@ fn install_audio_api(m: &mut dyn Bindings<Engine>) {
             .borrow_mut()
             .set_pitch(handle_of(handle), pitch);
         Ok(())
+    });
+    m.function("ready", |eng: &Engine, ()| {
+        Ok(eng.resource::<AudioState>().borrow().device.is_some())
     });
     m.function("is_playing", |eng: &Engine, handle: i64| {
         Ok(eng

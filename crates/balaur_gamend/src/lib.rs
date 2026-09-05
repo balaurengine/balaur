@@ -25,28 +25,37 @@
 //! map carries a `kind` — `login`, `rest`, `reply`, `error`, `open`,
 //! `message`, `closed` — so one handler can take them all.
 
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{Sender, channel};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use balaur_core::engine_api::from_json;
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 use serde_json::Value as Json;
 
-#[cfg(not(target_family = "wasm"))]
+#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+mod browser;
 pub mod client;
 #[cfg(not(target_family = "wasm"))]
 mod worker;
 
 #[cfg(not(target_family = "wasm"))]
 mod backend {
-    pub(crate) use crate::worker::{spawn_login, spawn_rest, spawn_socket, SharedClient};
+    pub(crate) use crate::worker::{SharedClient, spawn_login, spawn_rest, spawn_socket};
+
+    /// Nothing to pump: the worker threads deliver on their own.
+    pub(crate) fn pump() {}
 }
 
-/// The wasm stub: no networking stack compiles there, so every operation
-/// resolves to an error event and scripts keep running.
-#[cfg(target_family = "wasm")]
+#[cfg(all(target_family = "wasm", not(target_os = "emscripten")))]
+mod backend {
+    pub(crate) use crate::browser::{SharedClient, pump, spawn_login, spawn_rest, spawn_socket};
+}
+
+/// The emscripten stub: no networking stack compiles there, so every
+/// operation resolves to an error event and scripts keep running.
+#[cfg(all(target_family = "wasm", target_os = "emscripten"))]
 mod backend {
     use std::sync::mpsc::{Receiver, Sender};
 
@@ -60,6 +69,8 @@ mod backend {
             Self
         }
     }
+
+    pub(crate) fn pump() {}
 
     fn refuse(events: &Sender<GamendEvent>, request: u64) {
         let _ = events.send(GamendEvent::Failed {
@@ -176,6 +187,44 @@ pub(crate) enum GamendEvent {
         socket: u64,
         reason: String,
     },
+}
+
+impl GamendEvent {
+    /// A login's outcome, as the frame loop hears it.
+    pub(crate) fn logged_in(request: u64, outcome: Result<client::Session, String>) -> Self {
+        match outcome {
+            Ok(session) => Self::LoggedIn {
+                request,
+                user_id: session.user_id,
+                username: session.username,
+                display_name: session.display_name,
+            },
+            Err(message) => Self::Failed { request, message },
+        }
+    }
+
+    /// A REST call's outcome, as the frame loop hears it.
+    pub(crate) fn rest_done(request: u64, outcome: Result<client::rest::Reply, String>) -> Self {
+        match outcome {
+            Ok(reply) => Self::RestDone {
+                request,
+                status: reply.status,
+                body: reply.body,
+            },
+            Err(message) => Self::Failed { request, message },
+        }
+    }
+}
+
+impl From<LoginCredentials> for client::Credentials {
+    fn from(credentials: LoginCredentials) -> Self {
+        match credentials {
+            LoginCredentials::EmailPassword { email, password } => {
+                Self::EmailPassword { email, password }
+            }
+            LoginCredentials::Device { device_id } => Self::Device { device_id },
+        }
+    }
 }
 
 /// Where results go: a method on one node's script.
@@ -360,6 +409,9 @@ fn restore_gamend(eng: &Engine, value: &serde_json::Value) {
 }
 
 fn pump_gamend_system(eng: &Engine, _: f32) {
+    // A backend with no delivery threads (the browser) drives its sockets
+    // here; the native one is a no-op.
+    backend::pump();
     let mut dispatches: Vec<(Option<Handler>, Option<u64>, Value)> = Vec::new();
     {
         let state = eng.resource::<GamendState>();

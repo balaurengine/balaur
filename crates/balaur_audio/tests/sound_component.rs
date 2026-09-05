@@ -7,7 +7,7 @@ use std::path::Path;
 use balaur_audio::cache::SoundCache;
 use balaur_audio::{AudioPlugin, AudioState};
 use balaur_core::hecs::Entity;
-use balaur_core::{components, scene, App, AppConfig};
+use balaur_core::{App, AppConfig, components, scene};
 
 /// A valid 16-bit mono PCM wav of a few silent samples, so a machine that
 /// does have a device decodes something real.
@@ -30,14 +30,7 @@ fn write_wav(dir: &Path, name: &str) {
 }
 
 fn app_in(dir: &Path) -> App {
-    let mut app = App::new(AppConfig {
-        project_root: dir.to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(dir.to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
     app
 }
@@ -74,7 +67,6 @@ fn a_sound_component_autoplays_and_stop_on_silences_it() {
     let mut app = app_in(dir.path());
     let entity = sound_node(&app, CHIME);
 
-    // The control: apply stored the component and started a playback.
     let table =
         components::get(&app.engine, entity, "sound").expect("the sound component reports itself");
     assert_eq!(

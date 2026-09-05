@@ -6,6 +6,6 @@
 //! is the drop-in that reads `performance.now()` there and *is* `std::time`
 //! everywhere else, so every crate reads its clock through here.
 #[cfg(not(target_arch = "wasm32"))]
-pub use std::time::{Instant, SystemTime};
+pub use std::time::{Instant, SystemTime, UNIX_EPOCH};
 #[cfg(target_arch = "wasm32")]
-pub use web_time::{Instant, SystemTime};
+pub use web_time::{Instant, SystemTime, UNIX_EPOCH};

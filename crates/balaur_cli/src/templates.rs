@@ -35,7 +35,7 @@ mod fetch {
     use std::io::{IsTerminal, Read, Write};
     use std::path::{Path, PathBuf};
 
-    use anyhow::{bail, Context, Result};
+    use anyhow::{Context, Result, bail};
     use sha2::Digest;
 
     const RELEASE_BASE: &str = "https://github.com/balaurengine/balaur/releases/download";
@@ -190,11 +190,11 @@ mod fetch {
             let _ = write!(out, "{b:02x}");
             out
         });
-        if let Some(expected) = expected {
-            if got != expected {
-                std::fs::remove_file(&partial).ok();
-                bail!("checksum mismatch for {url}: expected {expected}, got {got}");
-            }
+        if let Some(expected) = expected
+            && got != expected
+        {
+            std::fs::remove_file(&partial).ok();
+            bail!("checksum mismatch for {url}: expected {expected}, got {got}");
         }
         #[cfg(unix)]
         {

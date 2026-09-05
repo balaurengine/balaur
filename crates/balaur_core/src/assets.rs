@@ -33,7 +33,7 @@ use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use serde::Deserialize;
 
 use crate::collections::DetHashMap;
@@ -167,10 +167,7 @@ pub struct AssetState {
 /// A subsystem caching a parsed asset re-resolves when this changes. Cheap
 /// enough to read every frame; it changes only on a `reload`.
 pub fn generation(eng: &Engine) -> u64 {
-    state(eng).map_or(0, |cache| {
-        let g = cache.borrow().generation;
-        g
-    })
+    state(eng).map_or(0, |cache| cache.borrow().generation)
 }
 
 /// Declare everything derived from project files stale, without forgetting
@@ -233,10 +230,10 @@ impl AssetState {
         // While a scene is being instantiated its own blocks win. Outside
         // instantiation — a script or a tool asking afterwards — the most
         // recently entered scene is the one meant.
-        if let Some(scene) = self.current_scope {
-            if self.scopes.get(&scene).is_some_and(|s| s.contains_key(id)) {
-                return Ok(AssetRef::Scoped(scene, id.to_string()));
-            }
+        if let Some(scene) = self.current_scope
+            && self.scopes.get(&scene).is_some_and(|s| s.contains_key(id))
+        {
+            return Ok(AssetRef::Scoped(scene, id.to_string()));
         }
         self.scopes
             .iter()
@@ -365,12 +362,12 @@ pub fn save(eng: &Engine, reference: &str, definition: &toml::Value) -> Result<(
         AssetRef::Entry(..) => {
             return Err(anyhow!(
                 "'{reference}' names one entry inside a file; save the whole document instead"
-            ))
+            ));
         }
         AssetRef::Scoped(..) | AssetRef::Inline(_) | AssetRef::InlineEntry(..) => {
             return Err(anyhow!(
                 "'{reference}' is not a file, so there is nothing to save it to"
-            ))
+            ));
         }
     };
     let root = eng

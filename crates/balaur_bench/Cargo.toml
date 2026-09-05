@@ -29,5 +29,9 @@ harness = false
 name = "engine"
 harness = false
 
+[[bench]]
+name = "nodes"
+harness = false
+
 [lints]
 workspace = true

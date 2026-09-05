@@ -12,14 +12,14 @@
 //! wants done and the frame does it once every borrow is gone, the same shape
 //! `balaur_ui` uses to settle its clicks.
 
+use balaur_core::Engine;
 use balaur_core::components;
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Transform};
-use balaur_core::Engine;
 use glamx::Vec4;
 
 use crate::clip::{Clip, Property, Wrap};
-use crate::player::{AnimationState, Playback, FIXED_DT, MAX_SUBSTEPS};
+use crate::player::{AnimationState, FIXED_DT, MAX_SUBSTEPS, Playback};
 use crate::sampler::{self, TrackValue};
 use crate::tween::{self, TweenId};
 
@@ -37,7 +37,12 @@ pub(crate) enum Effect {
     },
     /// Call a method on a node's script instance.
     Call { entity: Entity, method: String },
+    /// Tell a node's script the tween it holds a handle to has run out.
+    TweenFinished { entity: Entity, id: TweenId },
 }
+
+/// The method a node's script is called with when a tween on it ends.
+const TWEEN_FINISHED_METHOD: &str = "on_tween_finished";
 
 /// Re-resolve every live clip after an asset reload, keeping the playhead.
 ///
@@ -107,7 +112,9 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
         // `Playback` and `Tween` live here, not on the entity, so this is the
         // first place a `queue_free`d node's leftovers can be dropped.
         state.players.retain(|&entity, _| world.contains(entity));
-        state.tweens.retain(|_, tween| world.contains(tween.node));
+        state
+            .tweens
+            .retain(|_, tween| world.contains(tween.node) && (tween.running || !tween.value));
         // A frame's worth of `just_finished` expires here: the script tick
         // that could read it has already run.
         for playback in state.players.values_mut() {
@@ -121,10 +128,31 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
                 }
             }
             // Tweens come after the players, so a tween is what lands on a
-            // property both of them drive.
+            // property both of them drive. One waiting on another sits out
+            // the step; the step after that tween is gone, it begins.
+            let waiting: Vec<TweenId> = state
+                .tweens
+                .iter()
+                .filter(|(_, tween)| tween.after.is_some_and(|on| state.tweens.contains_key(&on)))
+                .map(|(&id, _)| id)
+                .collect();
             let mut done: Vec<TweenId> = Vec::new();
             for (&id, tween) in &mut state.tweens {
+                if waiting.contains(&id) {
+                    continue;
+                }
+                if let Err(why) = tween::begin(eng, tween) {
+                    tracing::warn!("a tween that waited its turn no longer builds: {why:#}");
+                    done.push(id);
+                    continue;
+                }
                 if tween::advance(&world, tween, &mut effects) {
+                    if tween.played > 0 {
+                        effects.push(Effect::TweenFinished {
+                            entity: tween.node,
+                            id,
+                        });
+                    }
                     done.push(id);
                 }
             }
@@ -356,6 +384,17 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
                     host.call_on(balaur_core::node_id_of(*entity), method, &[]);
                 }
             }
+            Effect::TweenFinished { entity, id } => {
+                if let Some(host) = host.as_ref() {
+                    host.call_on(
+                        balaur_core::node_id_of(*entity),
+                        TWEEN_FINISHED_METHOD,
+                        &[balaur_script::Value::Int(
+                            i64::try_from(*id).unwrap_or(i64::MAX),
+                        )],
+                    );
+                }
+            }
         }
     }
 }
@@ -379,10 +418,10 @@ fn settle_ended(eng: &Engine, ended: &[Entity]) {
                 .filter(|playback| !playback.queue.is_empty())
                 .map(|playback| playback.queue.remove(0))
         };
-        if let Some(name) = next {
-            if let Err(why) = crate::play(eng, entity, &name) {
-                tracing::warn!("queued animation '{name}': {why:#}");
-            }
+        if let Some(name) = next
+            && let Err(why) = crate::play(eng, entity, &name)
+        {
+            tracing::warn!("queued animation '{name}': {why:#}");
         }
         let finished = {
             let state = eng.resource::<AnimationState>();

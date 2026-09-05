@@ -18,8 +18,8 @@ use std::path::PathBuf;
 use balaur_core::Engine;
 use balaur_script::Bindings;
 
-use crate::gamepad::GamepadState;
 use crate::InputSnapshot;
+use crate::gamepad::GamepadState;
 
 /// Below this an axis reads as idle, so a worn stick does not hold an action
 /// down forever.
@@ -128,11 +128,7 @@ impl Binding {
                     .fold(
                         0.0_f32,
                         |best, v| {
-                            if v.abs() > best.abs() {
-                                v
-                            } else {
-                                best
-                            }
+                            if v.abs() > best.abs() { v } else { best }
                         },
                     );
                 let raw = if raw.abs() < DEADZONE { 0.0 } else { raw };
@@ -400,9 +396,10 @@ fn bindings_path(eng: &Engine) -> PathBuf {
 
 fn apply_saved_rebindings(eng: &Engine, actions: &mut InputActions) {
     let path = bindings_path(eng);
-    let Ok(source) = std::fs::read_to_string(&path) else {
+    let Ok(bytes) = balaur_core::files::backend(eng).read(&path) else {
         return;
     };
+    let source = String::from_utf8_lossy(&bytes);
     let saved: BTreeMap<String, Vec<String>> = match toml::from_str(&source) {
         Ok(saved) => saved,
         Err(err) => {
@@ -434,13 +431,14 @@ fn save_rebindings(eng: &Engine, actions: &InputActions) {
             return;
         }
     };
-    if let Some(parent) = path.parent() {
-        if let Err(err) = std::fs::create_dir_all(parent) {
-            tracing::error!("creating {}: {err}", parent.display());
-            return;
-        }
+    let fs = balaur_core::files::backend(eng);
+    if let Some(parent) = path.parent()
+        && let Err(err) = fs.mkdir(parent)
+    {
+        tracing::error!("creating {}: {err}", parent.display());
+        return;
     }
-    if let Err(err) = std::fs::write(&path, encoded) {
+    if let Err(err) = fs.write(&path, encoded.as_bytes()) {
         tracing::error!("writing {}: {err}", path.display());
     }
 }

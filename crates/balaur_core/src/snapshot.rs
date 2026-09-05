@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::components::StableId;
 use crate::engine::Engine;
-use crate::scene::{collect_subtree, Children, Name, Parent, ScriptAttachment};
+use crate::scene::{Children, Name, Parent, ScriptAttachment, collect_subtree};
 
 /// State a subsystem owns, in a form that survives being put down and picked
 /// back up.
@@ -147,6 +147,8 @@ pub(crate) fn build_core_sources(app: &mut crate::app::App) {
     // into them.
     app.add_snapshot_source("nodes", save_nodes, load_nodes);
     app.add_snapshot_source("transforms", save_transforms, load_transforms);
+    app.add_snapshot_source("appearance", save_appearance, load_appearance);
+    app.add_snapshot_source("tags", save_tags, load_tags);
     // The clock, so restoring a tick puts the tick number back too: a
     // rollback that re-ran tick 40 while the engine still counted 47 would
     // hand scripts a number the first run never saw.
@@ -232,18 +234,7 @@ fn save_transforms(eng: &Engine) -> serde_json::Value {
             Some(TransformFrame {
                 id: crate::ids::of(&world, entity),
                 entity: entity.to_bits().get(),
-                trs: [
-                    t.position.x,
-                    t.position.y,
-                    t.position.z,
-                    t.rotation.x,
-                    t.rotation.y,
-                    t.rotation.z,
-                    t.rotation.w,
-                    t.scale.x,
-                    t.scale.y,
-                    t.scale.z,
-                ],
+                trs: t.trs(),
             })
         })
         .collect();
@@ -271,6 +262,99 @@ fn load_transforms(eng: &Engine, value: &serde_json::Value) {
         t.position = glamx::Vec3::new(v[0], v[1], v[2]);
         t.rotation = glamx::Quat::from_xyzw(v[3], v[4], v[5], v[6]);
         t.scale = glamx::Vec3::new(v[7], v[8], v[9]);
+    }
+}
+
+/// Keyed the way `TransformFrame` is.
+#[derive(Serialize, Deserialize)]
+struct AppearanceFrame {
+    id: Option<String>,
+    entity: u64,
+    visible: bool,
+    z_index: i32,
+    z_relative: bool,
+}
+
+fn save_appearance(eng: &Engine) -> serde_json::Value {
+    let world = eng.world();
+    let frames: Vec<AppearanceFrame> = crate::scene::collect_subtree(&world, eng.root())
+        .into_iter()
+        .filter_map(|entity| {
+            let a = world.get::<&crate::scene::Appearance>(entity).ok()?;
+            Some(AppearanceFrame {
+                id: crate::ids::of(&world, entity),
+                entity: entity.to_bits().get(),
+                visible: a.visible,
+                z_index: a.z_index,
+                z_relative: a.z_relative,
+            })
+        })
+        .collect();
+    serde_json::to_value(frames).unwrap_or(serde_json::Value::Null)
+}
+
+fn load_appearance(eng: &Engine, value: &serde_json::Value) {
+    let frames: Vec<AppearanceFrame> = match serde_json::from_value(value.clone()) {
+        Ok(frames) => frames,
+        Err(e) => {
+            tracing::error!(error = %e, "restoring appearance");
+            return;
+        }
+    };
+    let world = eng.world();
+    let root = eng.root();
+    for frame in frames {
+        let Some(entity) = resolve(&world, root, frame.id.as_deref(), frame.entity) else {
+            continue;
+        };
+        let Ok(mut a) = world.get::<&mut crate::scene::Appearance>(entity) else {
+            continue;
+        };
+        a.visible = frame.visible;
+        a.z_index = frame.z_index;
+        a.z_relative = frame.z_relative;
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct TagsFrame {
+    id: Option<String>,
+    entity: u64,
+    tags: Vec<String>,
+}
+
+fn save_tags(eng: &Engine) -> serde_json::Value {
+    let world = eng.world();
+    let frames: Vec<TagsFrame> = crate::scene::collect_subtree(&world, eng.root())
+        .into_iter()
+        .filter_map(|entity| {
+            let tags = world.get::<&crate::scene::Tags>(entity).ok()?;
+            Some(TagsFrame {
+                id: crate::ids::of(&world, entity),
+                entity: entity.to_bits().get(),
+                tags: tags.0.clone(),
+            })
+        })
+        .collect();
+    serde_json::to_value(frames).unwrap_or(serde_json::Value::Null)
+}
+
+fn load_tags(eng: &Engine, value: &serde_json::Value) {
+    let Ok(frames) = serde_json::from_value::<Vec<TagsFrame>>(value.clone()) else {
+        return;
+    };
+    let root = eng.root();
+    // Every node's tags are replaced: a tag added after the snapshot goes.
+    let all: Vec<Entity> = crate::scene::collect_subtree(&eng.world(), root);
+    let mut world = eng.world_mut();
+    for entity in all {
+        let _ = world.remove_one::<crate::scene::Tags>(entity);
+    }
+    for frame in frames {
+        let Some(entity) = resolve(&world, root, frame.id.as_deref(), frame.entity) else {
+            continue;
+        };
+        let _ = world.insert_one(entity, crate::scene::Tags(frame.tags));
     }
 }
 
@@ -453,10 +537,10 @@ fn free_spawned_since(eng: &Engine, root: Entity, wanted: &crate::DetHashSet<&st
 /// walks the tree in order, and a node left under its new parent is a desync.
 fn restore_placement(eng: &Engine, entity: Entity, parent: Entity, node: &NodeFrame) {
     let mut world = eng.world_mut();
-    if let Ok(mut name) = world.get::<&mut Name>(entity) {
-        if name.0 != node.name {
-            name.0.clone_from(&node.name);
-        }
+    if let Ok(mut name) = world.get::<&mut Name>(entity)
+        && name.0 != node.name
+    {
+        name.0.clone_from(&node.name);
     }
     if world.get::<&Parent>(entity).ok().map(|p| p.0) == Some(parent) {
         return;
@@ -518,12 +602,12 @@ fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
             tracing::error!(error = %e, component = %name, node = %node.id, "restoring a component");
         }
     }
-    if let Some(path) = &node.script {
-        if let Some(host) = eng.script_host() {
-            crate::scene::remember_script_props(eng, entity, &node.props);
-            if let Err(e) = host.attach_with_props(crate::node_id_of(entity), path, &node.props) {
-                tracing::error!(error = %e, node = %node.id, "reattaching a script");
-            }
+    if let Some(path) = &node.script
+        && let Some(host) = eng.script_host()
+    {
+        crate::scene::remember_script_props(eng, entity, &node.props);
+        if let Err(e) = host.attach_with_props(crate::node_id_of(entity), path, &node.props) {
+            tracing::error!(error = %e, node = %node.id, "reattaching a script");
         }
     }
 }

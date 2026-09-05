@@ -10,12 +10,12 @@
 //! The final web binary links with `-sFETCH`, from `.cargo/config.toml`; see
 //! `build.rs`.
 
-use std::ffi::{c_char, c_int, c_void, CString};
+use std::ffi::{CString, c_char, c_int, c_void};
 use std::sync::mpsc::Sender;
 
 use crate::{HttpCall, HttpEvent};
 
-extern "C" {
+unsafe extern "C" {
     fn balaur_fetch(
         method: *const c_char,
         url: *const c_char,
@@ -31,6 +31,7 @@ extern "C" {
 struct FetchState {
     request: u64,
     events: Sender<HttpEvent>,
+    save_to: Option<std::path::PathBuf>,
 }
 
 extern "C" fn fetch_settled(
@@ -48,13 +49,34 @@ extern "C" fn fetch_settled(
         } else {
             unsafe { std::slice::from_raw_parts(body.cast::<u8>(), body_len as usize) }
         };
+        let saved = state
+            .save_to
+            .as_ref()
+            .filter(|_| (200..300).contains(&status))
+            .and_then(|path| {
+                // The whole body at once: the shim hands it over settled.
+                balaur_core::files::default_backend()
+                    .write(path, bytes)
+                    .ok()?;
+                let _ = state.events.send(HttpEvent::Progress {
+                    request: state.request,
+                    received: bytes.len() as u64,
+                    total: Some(bytes.len() as u64),
+                });
+                Some(path.display().to_string())
+            });
         HttpEvent::Response {
             request: state.request,
             status: status as u16,
             // Response headers are not surfaced by the shim; nothing in the
             // engine reads them yet, and the shape stays the native one.
             headers: Vec::new(),
-            body: String::from_utf8_lossy(bytes).into_owned(),
+            body: if saved.is_some() {
+                String::new()
+            } else {
+                String::from_utf8_lossy(bytes).into_owned()
+            },
+            saved,
         }
     } else {
         HttpEvent::Error {
@@ -96,6 +118,7 @@ pub(crate) fn spawn_request(call: HttpCall, events: Sender<HttpEvent>) {
     let state = Box::into_raw(Box::new(FetchState {
         request,
         events: events.clone(),
+        save_to: call.save_to,
     }));
     unsafe {
         balaur_fetch(

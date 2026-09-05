@@ -15,11 +15,30 @@ anyhow.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 
-# The wire client's networking stack does not compile for wasm; those builds
-# get the stub backend in lib.rs and every call resolves to an error event.
+# The blocking transports, for the worker threads a native build runs.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 ureq.workspace = true
 tungstenite.workspace = true
+
+# The browser: Fetch and the WebSocket API through web-sys, driving the same
+# protocol code from callbacks, with a pump per tick instead of a thread.
+[target.'cfg(all(target_family = "wasm", not(target_os = "emscripten")))'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "AbortSignal",
+    "BinaryType",
+    "CloseEvent",
+    "ErrorEvent",
+    "Headers",
+    "MessageEvent",
+    "Request",
+    "RequestInit",
+    "Response",
+    "WebSocket",
+    "Window",
+] }
 
 [dev-dependencies]
 tempfile = "3"

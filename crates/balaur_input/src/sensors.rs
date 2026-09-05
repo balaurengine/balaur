@@ -161,7 +161,7 @@ mod reader {
 
     use hidapi::{HidApi, HidDevice};
 
-    use super::{decode, layouts, Layout, Reading};
+    use super::{Layout, Reading, decode, layouts};
 
     /// Reports one pad may have queued between two frames before we stop
     /// draining. A DualSense sends 1000 a second over USB, so a slow frame
@@ -324,7 +324,7 @@ pub(crate) use reader::Sensors;
 
 #[cfg(test)]
 mod tests {
-    use super::{decode, layouts, SONY};
+    use super::{SONY, decode, layouts};
 
     const DUALSENSE: u16 = 0x0CE6;
     const DUALSHOCK4: u16 = 0x09CC;

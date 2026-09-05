@@ -183,7 +183,9 @@ def boolean_vocabulary() -> tuple[set[str], set[str]]:
 def boolean_shaped(body: str, bool_fns: set[str], bool_fields: set[str]) -> bool:
     if "-> bool" in body or "Value::Bool" in body:
         return True
-    if re.search(r"\b(true|false)\b|[=!]=|\.contains\(|\.is_empty\(|\.any\(", body):
+    # ` < ` and friends, spaced so a generic's `Vec<T>` and a `-> bool` arrow
+    # are not mistaken for comparisons.
+    if re.search(r"\b(true|false)\b|[=!]=|\s[<>]=?\s|\.contains\(|\.is_empty\(|\.any\(", body):
         return True
     if any(name in bool_fns for name in re.findall(r"\.([a-z_][a-z0-9_]*)\s*\(", body)):
         return True

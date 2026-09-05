@@ -2,10 +2,10 @@
 //! queries that read them back.
 
 use crate::rapier2d::math::Vector;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
+use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
-use balaur_core::Engine;
 use balaur_plugin::Registry;
 
 use crate::rapier2d::prelude::{
@@ -15,24 +15,10 @@ use crate::rapier2d::prelude::{
 };
 use crate::scalar::{self, Pose2, Real, Rotation2};
 
-use crate::dim2::{node_pose_2d, PhysicsState2d};
-use crate::vocabulary as v;
+use crate::dim2::{PhysicsState2d, node_pose_2d};
+use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 
-/// The nearest 2D body at or above `entity`, and the node that owns it: the
-/// 2D half of `crate::collider::nearest_body`, and the reason a child node's
-/// collider belongs to its parent's body.
-fn nearest_body(eng: &Engine, entity: Entity) -> Option<(Entity, RigidBodyHandle)> {
-    let state = eng.resource::<PhysicsState2d>();
-    let state = state.borrow();
-    let world = eng.world();
-    let mut current = entity;
-    loop {
-        if let Some(handle) = state.bodies.get(&current) {
-            return Some((current, *handle));
-        }
-        current = world.get::<&balaur_core::scene::Parent>(current).ok()?.0;
-    }
-}
+crate::shared::collider::functions!(state = PhysicsState2d);
 
 fn pose_relative_to(eng: &Engine, entity: Entity, body_node: Entity) -> Result<Pose2> {
     let here = node_pose_2d(eng, entity)?;
@@ -80,63 +66,36 @@ pub(crate) fn add_collider(eng: &Engine, entity: Entity, builder: ColliderBuilde
     add_collider_at(eng, entity, builder, Pose2::IDENTITY)
 }
 
-pub(crate) fn remove_colliders(eng: &Engine, entity: Entity) {
-    let state = eng.resource::<PhysicsState2d>();
-    let mut state = state.borrow_mut();
-    if let Some(handles) = state.colliders.swap_remove(&entity) {
-        for handle in handles {
-            state.world.remove_collider(handle);
-        }
-        state.collider_params.swap_remove(&entity);
-        state.queries_ready = false;
-    }
-}
-
-/// The 2D twin of `crate::collider::first_collider`: a handle checked against
-/// rapier's arena, because a freed node's outlives it by a step.
-pub(crate) fn first_collider(state: &PhysicsState2d, entity: Entity) -> Result<ColliderHandle> {
-    let handle = state
-        .colliders
-        .get(&entity)
-        .and_then(|handles| handles.first())
-        .copied()
-        .ok_or_else(|| anyhow!("node has no collider"))?;
-    if !state.world.colliders.contains(handle) {
-        return Err(anyhow!("this node's collider is gone: the node was freed"));
-    }
-    Ok(handle)
-}
-
 /// The collider described by `params`, in the `collider2d` schema's own
 /// vocabulary — so a script table and a scene-file entry build the same thing.
 pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder2> {
-    let kind = v::text(params, "kind", "rect");
-    let radius = scalar::real(v::f(params, "radius", 0.5)).max(0.01);
+    let kind = v::text(params, k::KIND, w::RECT);
+    let radius = scalar::real(v::f(params, k::RADIUS, 0.5)).max(0.01);
     // `height` is the straight part, caps excluded, as it is in 3D.
-    let half_height = scalar::real(v::f(params, "height", 1.0).max(0.01)) / 2.0;
-    let he = |i: usize| scalar::real(v::axis(params, "half_extents", i, 0.5)).max(0.01);
+    let half_height = scalar::real(v::f(params, k::HEIGHT, 1.0).max(0.01)) / 2.0;
+    let he = |i: usize| scalar::real(v::axis(params, k::HALF_EXTENTS, i, 0.5)).max(0.01);
     let point = |key: &str, fallback: [f32; 2]| scalar::v2a(v::vec2(params, key, fallback));
-    let border = scalar::real(v::f(params, "border", 0.0)).max(0.0);
+    let border = scalar::real(v::f(params, k::BORDER, 0.0)).max(0.0);
     let rounded = border > 0.0;
     let builder = match kind {
-        "circle" => ColliderBuilder2::ball(radius),
-        "rect" if rounded => ColliderBuilder2::round_cuboid(he(0), he(1), border),
-        "rect" => ColliderBuilder2::cuboid(he(0), he(1)),
-        "capsule" => ColliderBuilder2::capsule_y(half_height, radius),
-        "triangle" if rounded => ColliderBuilder2::round_triangle(
-            point("a", [0.0, 0.0]),
-            point("b", [1.0, 0.0]),
-            point("c", [0.0, 1.0]),
+        w::CIRCLE => ColliderBuilder2::ball(radius),
+        w::RECT if rounded => ColliderBuilder2::round_cuboid(he(0), he(1), border),
+        w::RECT => ColliderBuilder2::cuboid(he(0), he(1)),
+        w::CAPSULE => ColliderBuilder2::capsule_y(half_height, radius),
+        w::TRIANGLE if rounded => ColliderBuilder2::round_triangle(
+            point(k::A, [0.0, 0.0]),
+            point(k::B, [1.0, 0.0]),
+            point(k::C, [0.0, 1.0]),
             border,
         ),
-        "triangle" => ColliderBuilder2::triangle(
-            point("a", [0.0, 0.0]),
-            point("b", [1.0, 0.0]),
-            point("c", [0.0, 1.0]),
+        w::TRIANGLE => ColliderBuilder2::triangle(
+            point(k::A, [0.0, 0.0]),
+            point(k::B, [1.0, 0.0]),
+            point(k::C, [0.0, 1.0]),
         ),
-        "segment" => ColliderBuilder2::segment(point("a", [0.0, 0.0]), point("b", [1.0, 0.0])),
-        "halfspace" => {
-            let n = point("normal", [0.0, 1.0]);
+        w::SEGMENT => ColliderBuilder2::segment(point(k::A, [0.0, 0.0]), point(k::B, [1.0, 0.0])),
+        w::HALFSPACE => {
+            let n = point(k::NORMAL, [0.0, 1.0]);
             if n.length_squared() < 1.0e-12 {
                 return Err(anyhow!("a halfspace collider needs a non-zero `normal`"));
             }
@@ -144,8 +103,8 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
                 n.normalize(),
             ))
         }
-        "trimesh" | "convex_hull" | "polyline" => mesh_collider(eng, params, kind)?,
-        "heightfield" => heightfield_collider(eng, params)?,
+        w::TRIMESH | w::CONVEX_HULL | w::POLYLINE => mesh_collider(eng, params, kind)?,
+        w::HEIGHTFIELD => heightfield_collider(eng, params)?,
         other => return Err(anyhow!("unknown collider2d kind '{other}'")),
     };
     Ok(with_material(builder, params))
@@ -156,7 +115,7 @@ pub(crate) fn collider_builder(eng: &Engine, params: &toml::Value) -> Result<Col
 /// collide with are one authored thing.
 fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<ColliderBuilder2> {
     let reference = params
-        .get("mesh")
+        .get(k::MESH)
         .and_then(toml::Value::as_str)
         .filter(|s| !s.is_empty())
         .ok_or_else(|| anyhow!("a {kind} collider2d needs a `mesh` asset"))?;
@@ -169,9 +128,9 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
         .map(|p| scalar::v2(p[0], p[1]))
         .collect();
     match kind {
-        "trimesh" => ColliderBuilder2::trimesh(points, mesh.indices.clone())
+        w::TRIMESH => ColliderBuilder2::trimesh(points, mesh.indices.clone())
             .map_err(|e| anyhow!("that mesh cannot be a trimesh collider: {e}")),
-        "convex_hull" => ColliderBuilder2::convex_hull(&points)
+        w::CONVEX_HULL => ColliderBuilder2::convex_hull(&points)
             .ok_or_else(|| anyhow!("those {} points have no hull", points.len())),
         _ => {
             if points.len() < 2 {
@@ -188,7 +147,7 @@ fn mesh_collider(eng: &Engine, params: &toml::Value, kind: &str) -> Result<Colli
 /// A 2D heightfield is one row of heights: a side-scroller's ground.
 fn heightfield_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBuilder2> {
     let reference = params
-        .get("heightfield")
+        .get(k::HEIGHTFIELD)
         .and_then(toml::Value::as_str)
         .filter(|s| !s.is_empty())
         .ok_or_else(|| anyhow!("a heightfield collider2d needs a `heightfield` asset"))?;
@@ -197,7 +156,7 @@ fn heightfield_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBu
     )?;
     Ok(ColliderBuilder2::heightfield(
         field.heights.iter().map(|h| scalar::real(*h)).collect(),
-        scalar::v2a(v::vec2(params, "scale", [1.0, 1.0])),
+        scalar::v2a(v::vec2(params, k::SCALE, [1.0, 1.0])),
     ))
 }
 
@@ -206,76 +165,49 @@ fn heightfield_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBu
 /// are per-dimension.
 fn with_material(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBuilder2 {
     let mut builder = builder
-        .restitution(scalar::real(v::f(params, "restitution", 0.0)))
-        .friction(scalar::real(v::f(params, "friction", 0.5)))
-        .density(scalar::real(v::f(params, "density", 1.0).max(0.001)))
-        .friction_combine_rule(combine_rule(v::text(params, "friction_combine", "average")))
+        .restitution(scalar::real(v::f(params, k::RESTITUTION, 0.0)))
+        .friction(scalar::real(v::f(params, k::FRICTION, 0.5)))
+        .density(scalar::real(v::f(params, k::DENSITY, 1.0).max(0.001)))
+        .friction_combine_rule(combine_rule(v::text(
+            params,
+            k::FRICTION_COMBINE,
+            w::AVERAGE,
+        )))
         .restitution_combine_rule(combine_rule(v::text(
             params,
-            "restitution_combine",
-            "average",
+            k::RESTITUTION_COMBINE,
+            w::AVERAGE,
         )))
-        .contact_skin(scalar::real(v::f(params, "contact_skin", 0.0).max(0.0)))
-        .contact_force_event_threshold(scalar::real(v::f(params, "contact_force_threshold", 0.0)))
+        .contact_skin(scalar::real(v::f(params, k::CONTACT_SKIN, 0.0).max(0.0)))
+        .contact_force_event_threshold(scalar::real(v::f(params, k::CONTACT_FORCE_THRESHOLD, 0.0)))
         .collision_groups(InteractionGroups::new(
-            Group::from_bits_truncate(v::layer_bits(params, "layers", false)),
-            Group::from_bits_truncate(v::layer_bits(params, "mask", true)),
+            Group::from_bits_truncate(v::layer_bits(params, k::LAYERS, false)),
+            Group::from_bits_truncate(v::layer_bits(params, k::MASK, true)),
             InteractionTestMode::And,
         ))
         .solver_groups(InteractionGroups::new(
-            Group::from_bits_truncate(v::layer_bits(params, "solver_layers", false)),
-            Group::from_bits_truncate(v::layer_bits(params, "solver_mask", true)),
+            Group::from_bits_truncate(v::layer_bits(params, k::SOLVER_LAYERS, false)),
+            Group::from_bits_truncate(v::layer_bits(params, k::SOLVER_MASK, true)),
             InteractionTestMode::And,
         ))
         .active_collision_types(ActiveCollisionTypes::from_bits_truncate(v::bits(
             params,
-            "active_collisions",
+            k::ACTIVE_COLLISIONS,
             &v::flags::collision_types(),
         )))
         .active_events(ActiveEvents::from_bits_truncate(v::bits(
             params,
-            "events",
+            k::EVENTS,
             &v::flags::events(),
         )))
         .active_hooks(active_hooks(params))
-        .enabled(v::boolean(params, "enabled", true))
-        .sensor(v::boolean(params, "sensor", false));
-    let mass = scalar::real(v::f(params, "mass", 0.0));
+        .enabled(v::boolean(params, k::ENABLED, true))
+        .sensor(v::boolean(params, k::SENSOR, false));
+    let mass = scalar::real(v::f(params, k::MASS, 0.0));
     if mass > 0.0 {
         builder = builder.mass(mass);
     }
     builder
-}
-
-/// The one hook left: a one-way platform, whose axis is data on the collider.
-fn active_hooks(params: &toml::Value) -> ActiveHooks {
-    if v::boolean(params, "one_way", false) {
-        ActiveHooks::MODIFY_SOLVER_CONTACTS
-    } else {
-        ActiveHooks::empty()
-    }
-}
-
-fn combine_rule(name: &str) -> CoefficientCombineRule {
-    match name {
-        "min" => CoefficientCombineRule::Min,
-        "multiply" => CoefficientCombineRule::Multiply,
-        "max" => CoefficientCombineRule::Max,
-        "clamped_sum" => CoefficientCombineRule::ClampedSum,
-        "geometric_mean" => CoefficientCombineRule::GeometricMean,
-        _ => CoefficientCombineRule::Average,
-    }
-}
-
-fn combine_name(rule: CoefficientCombineRule) -> &'static str {
-    match rule {
-        CoefficientCombineRule::Min => "min",
-        CoefficientCombineRule::Multiply => "multiply",
-        CoefficientCombineRule::Max => "max",
-        CoefficientCombineRule::ClampedSum => "clamped_sum",
-        CoefficientCombineRule::GeometricMean => "geometric_mean",
-        CoefficientCombineRule::Average => "average",
-    }
 }
 
 /// Build and insert the collider described by `params`, replacing any
@@ -283,8 +215,8 @@ fn combine_name(rule: CoefficientCombineRule) -> &'static str {
 pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
     let builder = collider_builder(eng, params)?;
     let offset = Pose2::from_parts(
-        scalar::v2a(v::vec2(params, "offset", [0.0; 2])),
-        Rotation2::from_angle(scalar::real(v::f(params, "offset_rotation", 0.0))),
+        scalar::v2a(v::vec2(params, k::OFFSET, [0.0; 2])),
+        Rotation2::from_angle(scalar::real(v::f(params, k::OFFSET_ROTATION, 0.0))),
     );
     remove_colliders(eng, entity);
     add_collider_at(eng, entity, builder, offset)?;
@@ -295,10 +227,10 @@ pub(crate) fn apply_collider(eng: &Engine, entity: Entity, params: &toml::Value)
             .collider_params
             .insert(entity, params.clone());
     }
-    if v::boolean(params, "one_way", false) {
+    if v::boolean(params, k::ONE_WAY, false) {
         // The axis rides in the collider's `user_data`, where the hook can
         // read it mid-step; 2D packs the same three bits 3D does.
-        let axis = v::vec2(params, "one_way_axis", [0.0, 1.0]);
+        let axis = v::vec2(params, k::ONE_WAY_AXIS, [0.0, 1.0]);
         let state = eng.resource::<PhysicsState2d>();
         let mut state = state.borrow_mut();
         let handles = state.colliders.get(&entity).cloned().unwrap_or_default();
@@ -337,96 +269,52 @@ fn shape_params(collider: &Collider) -> Option<toml::map::Map<String, toml::Valu
     let shape = collider.shape();
     let mut map = toml::map::Map::new();
     if let Some(ball) = shape.as_ball() {
-        map.insert("kind".into(), "circle".into());
-        map.insert("radius".into(), f(ball.radius));
+        map.insert(k::KIND.into(), w::CIRCLE.into());
+        map.insert(k::RADIUS.into(), f(ball.radius));
         return Some(map);
     }
     if let Some(capsule) = shape.as_capsule() {
-        map.insert("kind".into(), "capsule".into());
-        map.insert("radius".into(), f(capsule.radius));
+        map.insert(k::KIND.into(), w::CAPSULE.into());
+        map.insert(k::RADIUS.into(), f(capsule.radius));
         let straight = (capsule.segment.b - capsule.segment.a).length();
-        map.insert("height".into(), f(straight));
+        map.insert(k::HEIGHT.into(), f(straight));
         return Some(map);
     }
     if let Some(cuboid) = shape.as_cuboid() {
-        map.insert("kind".into(), "rect".into());
+        map.insert(k::KIND.into(), w::RECT.into());
         let he = cuboid.half_extents;
-        map.insert("half_extents".into(), vec2(he.x, he.y));
+        map.insert(k::HALF_EXTENTS.into(), vec2(he.x, he.y));
         return Some(map);
     }
     if let Some(round) = shape.as_round_cuboid() {
-        map.insert("kind".into(), "rect".into());
+        map.insert(k::KIND.into(), w::RECT.into());
         let he = round.inner_shape.half_extents;
-        map.insert("half_extents".into(), vec2(he.x, he.y));
-        map.insert("border".into(), f(round.border_radius));
+        map.insert(k::HALF_EXTENTS.into(), vec2(he.x, he.y));
+        map.insert(k::BORDER.into(), f(round.border_radius));
         return Some(map);
     }
     if let Some(tri) = shape.as_triangle() {
-        map.insert("kind".into(), "triangle".into());
-        map.insert("a".into(), vec2(tri.a.x, tri.a.y));
-        map.insert("b".into(), vec2(tri.b.x, tri.b.y));
-        map.insert("c".into(), vec2(tri.c.x, tri.c.y));
+        map.insert(k::KIND.into(), w::TRIANGLE.into());
+        map.insert(k::A.into(), vec2(tri.a.x, tri.a.y));
+        map.insert(k::B.into(), vec2(tri.b.x, tri.b.y));
+        map.insert(k::C.into(), vec2(tri.c.x, tri.c.y));
         return Some(map);
     }
     if let Some(segment) = shape.as_segment() {
-        map.insert("kind".into(), "segment".into());
-        map.insert("a".into(), vec2(segment.a.x, segment.a.y));
-        map.insert("b".into(), vec2(segment.b.x, segment.b.y));
+        map.insert(k::KIND.into(), w::SEGMENT.into());
+        map.insert(k::A.into(), vec2(segment.a.x, segment.a.y));
+        map.insert(k::B.into(), vec2(segment.b.x, segment.b.y));
         return Some(map);
     }
     if let Some(halfspace) = shape.as_halfspace() {
-        map.insert("kind".into(), "halfspace".into());
+        map.insert(k::KIND.into(), w::HALFSPACE.into());
         map.insert(
-            "normal".into(),
+            k::NORMAL.into(),
             vec2(halfspace.normal.x, halfspace.normal.y),
         );
         return Some(map);
     }
     None
-}
-
-/// The 2D twin of `crate::collider::read_material`, property for property.
-fn read_material(collider: &Collider, map: &mut toml::map::Map<String, toml::Value>) {
-    let f = |value: Real| toml::Value::Float(f64::from(value));
-    map.insert("restitution".into(), f(collider.restitution()));
-    map.insert("friction".into(), f(collider.friction()));
-    map.insert("density".into(), f(collider.density()));
-    map.insert("mass".into(), f(collider.mass()));
-    map.insert("contact_skin".into(), f(collider.contact_skin()));
-    map.insert(
-        "contact_force_threshold".into(),
-        f(collider.contact_force_event_threshold()),
-    );
-    map.insert("sensor".into(), collider.is_sensor().into());
-    map.insert("enabled".into(), collider.is_enabled().into());
-    map.insert(
-        "friction_combine".into(),
-        combine_name(collider.friction_combine_rule()).into(),
-    );
-    map.insert(
-        "restitution_combine".into(),
-        combine_name(collider.restitution_combine_rule()).into(),
-    );
-    let groups = collider.collision_groups();
-    map.insert("layers".into(), v::layer_names(groups.memberships.bits()));
-    map.insert("mask".into(), v::layer_names(groups.filter.bits()));
-    let solver = collider.solver_groups();
-    map.insert(
-        "solver_layers".into(),
-        v::layer_names(solver.memberships.bits()),
-    );
-    map.insert("solver_mask".into(), v::layer_names(solver.filter.bits()));
-    map.insert(
-        "events".into(),
-        v::names(collider.active_events().bits(), &v::flags::events()),
-    );
-    map.insert(
-        "active_collisions".into(),
-        v::names(
-            collider.active_collision_types().bits(),
-            &v::flags::collision_types(),
-        ),
-    );
 }
 
 /// Largest contact normal impulse currently applied to the node's colliders
@@ -453,31 +341,35 @@ pub(crate) fn max_contact_impulse(eng: &Engine, entity: Entity) -> Real {
 /// The `collider2d` key, backed by no component type: it writes into
 /// [`crate::PhysicsState2d`].
 pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
-    let schema = format!(
-        r#"kind = {{ type = "enum", default = "rect", options = ["circle", "rect", "capsule", "triangle", "segment", "halfspace", "trimesh", "convex_hull", "polyline", "heightfield"], description = "Collision shape" }}
-radius = {{ type = "float", default = 0.5, min = 0.01, description = "Circle radius, when kind is circle or capsule" }}
-height = {{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, when kind is capsule" }}
-half_extents = {{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }}
-border = {{ type = "float", default = 0.0, min = 0.0, description = "Rounds a rect or triangle by this radius, so it slides over seams instead of catching on them" }}
-a = {{ type = "vec2", default = [0.0, 0.0], description = "First corner, when kind is triangle or segment" }}
-b = {{ type = "vec2", default = [1.0, 0.0], description = "Second corner, when kind is triangle or segment" }}
-c = {{ type = "vec2", default = [0.0, 1.0], description = "Third corner, when kind is triangle" }}
-normal = {{ type = "vec2", default = [0.0, 1.0], description = "Which way the infinite line faces, when kind is halfspace" }}
-mesh = {{ type = "asset", asset = "mesh", default = "", description = "Points and triangles for a trimesh, convex_hull or polyline collider: the same asset a polygon draws" }}
-heightfield = {{ type = "asset", asset = "heightfield", default = "", description = "A row of heights, when kind is heightfield: a side-scroller's ground" }}
-scale = {{ type = "vec2", default = [1.0, 1.0], description = "Width and height scale of a heightfield" }}
-offset = {{ type = "vec2", default = [0.0, 0.0], description = "Where the shape sits relative to the node" }}
-offset_rotation = {{ type = "float", default = 0.0, description = "How the shape is turned relative to the node, in radians" }}
-one_way_axis = {{ type = "vec2", default = [0.0, 1.0], description = "The direction a one-way platform lets bodies through from" }}
-{}"#,
-        crate::collider::shared_collider_schema()
-    );
+    let shapes = v::options(w::SHAPES_2D);
+    let default = w::RECT;
+    let schema = [
+        v::schema(&[
+            (k::KIND, &format!(r#"{{ type = "enum", default = "{default}", options = [{shapes}], description = "Collision shape" }}"#)),
+            (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Circle radius, when kind is circle or capsule" }"#),
+            (k::HEIGHT, r#"{ type = "float", default = 1.0, min = 0.01, description = "Length along y of the straight part, when kind is capsule" }"#),
+            (k::HALF_EXTENTS, r#"{ type = "vec2", default = [0.5, 0.5], description = "Half-sizes of the rect, when kind is rect" }"#),
+            (k::BORDER, r#"{ type = "float", default = 0.0, min = 0.0, description = "Rounds a rect or triangle by this radius, so it slides over seams instead of catching on them" }"#),
+            (k::A, r#"{ type = "vec2", default = [0.0, 0.0], description = "First corner, when kind is triangle or segment" }"#),
+            (k::B, r#"{ type = "vec2", default = [1.0, 0.0], description = "Second corner, when kind is triangle or segment" }"#),
+            (k::C, r#"{ type = "vec2", default = [0.0, 1.0], description = "Third corner, when kind is triangle" }"#),
+            (k::NORMAL, r#"{ type = "vec2", default = [0.0, 1.0], description = "Which way the infinite line faces, when kind is halfspace" }"#),
+            (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Points and triangles for a trimesh, convex_hull or polyline collider: the same asset a polygon draws" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
+            (k::HEIGHTFIELD, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "A row of heights, when kind is heightfield: a side-scroller's ground" }}"#, balaur_core::heightfield::HEIGHTFIELD_ASSET_TYPE)),
+            (k::SCALE, r#"{ type = "vec2", default = [1.0, 1.0], description = "Width and height scale of a heightfield" }"#),
+            (k::OFFSET, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the shape sits relative to the node" }"#),
+            (k::OFFSET_ROTATION, r#"{ type = "float", default = 0.0, description = "How the shape is turned relative to the node, in radians" }"#),
+            (k::ONE_WAY_AXIS, r#"{ type = "vec2", default = [0.0, 1.0], description = "The direction a one-way platform lets bodies through from" }"#),
+        ]),
+        crate::collider::shared_collider_schema(),
+    ]
+    .join("\n");
     reg.register_component(
-        "collider2d",
+        c::COLLIDER_2D,
         ComponentDef {
             doc: "The shape the node collides with in 2D. On a node with a `body2d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
-            schema: ComponentDef::parse_schema("collider2d", &schema),
-            tags: &["2d", "physics"],
+            schema: ComponentDef::parse_schema(c::COLLIDER_2D, &schema),
+            tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
             expects: &[],
             apply: Box::new(apply_collider),
             remove: Box::new(|eng, entity| {

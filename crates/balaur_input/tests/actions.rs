@@ -21,14 +21,7 @@ fn app(manifest: &str) -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("project.toml"), manifest).unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
-    let mut app = App::new(AppConfig {
-        project_root: dir.path().to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
     balaur_plugin::load(&mut app, &mut InputPlugin::default()).unwrap();
     app.load_project().unwrap();
     (dir, app)
@@ -181,12 +174,13 @@ fn the_declared_actions_are_listed_in_a_stable_order() {
 fn a_project_declaring_no_actions_is_not_an_error() {
     let (_dir, mut app) = app("[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n");
     frame(&mut app, &[("Space", true)]);
-    assert!(app
-        .engine
-        .resource::<InputActions>()
-        .borrow()
-        .names()
-        .is_empty());
+    assert!(
+        app.engine
+            .resource::<InputActions>()
+            .borrow()
+            .names()
+            .is_empty()
+    );
 }
 
 /// A replay records keys and the actions come back from them, so two runs of

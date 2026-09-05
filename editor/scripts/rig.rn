@@ -32,7 +32,6 @@ fn bone_data(node) {
     if has_object(node, "bone2d") { node.bone2d } else { util::obj(node.get("bone3d").unwrap_or(#{})) }
 }
 
-// Doc index of the first child bone of doc node `i`, or `None`.
 fn first_child_bone(S, i) {
     let id = S.doc[i].id;
     for (j, node) in S.doc.iter().enumerate() {
@@ -226,7 +225,6 @@ pub fn draw(S) {
     }
 }
 
-// A bone name no node has yet.
 fn fresh_name(S) {
     let taken = #{};
     for node in S.doc {

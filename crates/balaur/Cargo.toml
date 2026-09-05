@@ -7,7 +7,7 @@ license.workspace = true
 authors.workspace = true
 
 [features]
-default = ["audio", "http", "websocket", "webtransport", "gamend"]
+default = ["audio", "http", "websocket", "webtransport", "gamend", "web"]
 # Windowed rendering (kiss3d/wgpu).
 window = ["balaur_render/kiss3d"]
 # Sound. Off, a build drops rodio, cpal and the platform audio stack.
@@ -25,6 +25,9 @@ websocket = ["dep:balaur_websocket"]
 webtransport = ["dep:balaur_webtransport"]
 # `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks).
 gamend = ["dep:balaur_gamend"]
+# `web.*` for scripts: the page a browser build runs in. Always compiles;
+# off the web every call answers nil.
+web = ["dep:balaur_web"]
 # `apple.*` for scripts, and Game Center and iCloud under `platform.*`. Off,
 # a build drops GameKit and the objc2 bindings to it. `platform.*` is always
 # there; with no store behind it every call answers `unsupported`.
@@ -44,6 +47,7 @@ balaur_http = { workspace = true, optional = true }
 balaur_websocket = { workspace = true, optional = true }
 balaur_webtransport = { workspace = true, optional = true }
 balaur_gamend = { workspace = true, optional = true }
+balaur_web = { workspace = true, optional = true }
 balaur_platform.workspace = true
 balaur_apple = { workspace = true, optional = true }
 balaur_ui.workspace = true

@@ -16,7 +16,7 @@ use std::rc::Rc;
 use balaur_core::components::StableId;
 use balaur_core::netsession::NetSession;
 use balaur_core::transport::{Delivery, Faults, Faulty, LinkState, Received, Transport};
-use balaur_core::{rollback, App, AppConfig, Stage, Transform};
+use balaur_core::{App, AppConfig, Stage, Transform, rollback};
 use balaur_script::Value;
 
 const HOST: u32 = 1;
@@ -81,14 +81,7 @@ impl Transport for Pipe {
 /// Both players drive the same node, so an input landing on the wrong tick
 /// shows up in the digest.
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     let root = app.engine.root();
     let mover = {
         let mut world = app.engine.world_mut();
@@ -273,7 +266,6 @@ fn a_recorded_session_replays_with_no_peer() {
     }
     let recorded = pair.host.session().digest_at(6).expect("tick 6 was kept");
 
-    // Replay: one app, no peers, fed the recorded frames.
     let mut app = app();
     *app.engine.resource::<ReplayMode>().borrow_mut() = ReplayMode::Playing;
     let mut session = NetSession::new(HOST, &[HOST, GUEST], 64);
@@ -317,7 +309,6 @@ fn a_session_measures_its_link() {
     // assertion is that a ping came back at all rather than what it measured.
     assert!(link.rtt_ms >= 0.0);
 
-    // And the same numbers are published for a dock or a meter to read.
     let published = pair
         .guest_app
         .engine

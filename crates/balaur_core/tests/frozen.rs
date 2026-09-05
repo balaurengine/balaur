@@ -4,17 +4,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use balaur_core::scene::{is_within, spawn_node};
-use balaur_core::{App, AppConfig, Stage, FIXED_DT};
+use balaur_core::{App, AppConfig, FIXED_DT, Stage};
 
 fn app() -> App {
-    App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap()
+    App::new(AppConfig::bare(".")).unwrap()
 }
 
 #[test]

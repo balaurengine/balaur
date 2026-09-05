@@ -161,7 +161,9 @@ keys = [
 
 #[test]
 fn a_looping_clip_never_ends_and_a_plain_one_does() {
-    let looping = clip_of("length = 2.0\nloop = \"loop\"\n[[tracks]]\nproperty = \"position\"\nkeys = [ { t = 0.0, value = [0.0, 0.0, 0.0] } ]");
+    let looping = clip_of(
+        "length = 2.0\nloop = \"loop\"\n[[tracks]]\nproperty = \"position\"\nkeys = [ { t = 0.0, value = [0.0, 0.0, 0.0] } ]",
+    );
     let (time, finished) = sampler::clip_time(&looping, 5.0);
     assert!(!finished);
     assert!(
@@ -169,7 +171,9 @@ fn a_looping_clip_never_ends_and_a_plain_one_does() {
         "5s into a 2s loop is 1s, not {time}"
     );
 
-    let once = clip_of("length = 2.0\n[[tracks]]\nproperty = \"position\"\nkeys = [ { t = 0.0, value = [0.0, 0.0, 0.0] } ]");
+    let once = clip_of(
+        "length = 2.0\n[[tracks]]\nproperty = \"position\"\nkeys = [ { t = 0.0, value = [0.0, 0.0, 0.0] } ]",
+    );
     let (time, finished) = sampler::clip_time(&once, 5.0);
     assert!(finished);
     assert_eq!(
@@ -181,7 +185,9 @@ fn a_looping_clip_never_ends_and_a_plain_one_does() {
 
 #[test]
 fn a_pingpong_clip_folds_time_back_on_itself() {
-    let clip = clip_of("length = 2.0\nloop = \"pingpong\"\n[[tracks]]\nproperty = \"position\"\nkeys = [ { t = 0.0, value = [0.0, 0.0, 0.0] } ]");
+    let clip = clip_of(
+        "length = 2.0\nloop = \"pingpong\"\n[[tracks]]\nproperty = \"position\"\nkeys = [ { t = 0.0, value = [0.0, 0.0, 0.0] } ]",
+    );
     for (elapsed, expected) in [(0.5, 0.5), (2.5, 1.5), (3.5, 0.5), (4.5, 0.5)] {
         let (time, finished) = sampler::clip_time(&clip, elapsed);
         assert!(!finished);

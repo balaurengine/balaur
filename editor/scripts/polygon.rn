@@ -60,7 +60,6 @@ pub fn component(node) {
     }
 }
 
-// True when the tool is tracing an occluder outline rather than a polygon.
 pub fn occluding(S) {
     target(S.doc[S.sel]) == Some("occluder2d")
 }
@@ -331,25 +330,34 @@ pub fn remove_vertex(S, at) {
     apply(S);
 }
 
-pub fn move_vertex(S, at, wx, wy) {
+/// The mesh and frame an edit of vertex `at` works in, or `None` when the
+/// selection has no mesh, no frame, or no such vertex.
+fn vertex_target(S, at) {
     let mesh = match mesh(S) {
         Some(mesh) => mesh,
-        None => return,
+        None => return None,
     };
     let f = match frame(S) {
         Some(f) => f,
-        None => return,
+        None => return None,
     };
     if at >= mesh.positions.len() {
-        return;
+        return None;
     }
+    Some((mesh, f))
+}
+
+pub fn move_vertex(S, at, wx, wy) {
+    let (mesh, f) = match vertex_target(S, at) {
+        Some(target) => target,
+        None => return,
+    };
     begin(S, "move vertex", Some(format!("poly:move:{}:{}", S.sel, at)));
     let (lx, ly) = to_local(f, wx, wy);
     mesh.positions[at] = [lx, ly];
     apply(S);
 }
 
-// Close the loop being drawn into one of the mesh's polygons.
 pub fn close_loop(S) {
     let ring = match S.polygon.chain {
         Some(ring) => ring,
@@ -401,17 +409,10 @@ fn ensure_uvs(S, mesh) {
 }
 
 pub fn move_uv(S, at, wx, wy) {
-    let mesh = match mesh(S) {
-        Some(mesh) => mesh,
+    let (mesh, f) = match vertex_target(S, at) {
+        Some(target) => target,
         None => return,
     };
-    let f = match frame(S) {
-        Some(f) => f,
-        None => return,
-    };
-    if at >= mesh.positions.len() {
-        return;
-    }
     begin(S, "move uv", Some(format!("poly:uv:{}:{}", S.sel, at)));
     let uvs = ensure_uvs(S, mesh);
     let (lx, ly) = to_local(f, wx, wy);
@@ -527,7 +528,6 @@ fn uv_of(S, mesh, i, p) {
     default_uv(S, x, y)
 }
 
-// World points of every vertex, in position space or UV space.
 fn world_points(S, mesh, f, in_uv) {
     let out = [];
     for (i, p) in mesh.positions.iter().enumerate() {
@@ -544,7 +544,6 @@ fn world_points(S, mesh, f, in_uv) {
     out
 }
 
-// The vertex under the cursor, in position space or UV space.
 fn pick(S, mesh, f, mx, my, in_uv) {
     let best = None;
     let best_d = PICK_PX * viewport::world_per_px(S);
@@ -708,7 +707,6 @@ fn alt_down() {
     input::is_down("LAlt") || input::is_down("RAlt")
 }
 
-// Runs from the 2D gizmo while the Polygon tool is active.
 pub fn update(S, over_viewport, mx, my) {
     let mode = S.polygon.mode;
     let f = match frame(S) {
@@ -800,7 +798,6 @@ pub fn update(S, over_viewport, mx, my) {
     }
 }
 
-// The selection's modes as pills in the viewport's chip row.
 pub fn mode_chips(S, k) {
     let mode = S.polygon.mode;
     for id in modes(S) {

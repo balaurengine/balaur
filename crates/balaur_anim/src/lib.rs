@@ -45,19 +45,36 @@ mod snapshot;
 mod system;
 pub mod tween;
 
+/// The component key, as the registry and every `describe` entry spell it.
+pub(crate) const COMPONENT: &str = "animation";
+
+/// The `animation` and `modifier2d` components' keys, for their schemas and readers alike.
+pub(crate) mod keys {
+    pub(crate) const AUTOPLAY: &str = "autoplay";
+    pub(crate) const BONE: &str = "bone";
+    pub(crate) const ENABLED: &str = "enabled";
+    pub(crate) const FLIP: &str = "flip";
+    pub(crate) const KIND: &str = "kind";
+    pub(crate) const LIBRARY: &str = "library";
+    pub(crate) const ROOT: &str = "root";
+    pub(crate) const SPEED: &str = "speed";
+    pub(crate) const TARGET: &str = "target";
+}
+
 use balaur_plugin::Registry;
 use std::any::Any;
 use std::rc::Rc;
 
+use crate::keys as k;
 use anyhow::Result;
-use balaur_core::components::{as_f64, ComponentDef};
+use balaur_core::components::{ComponentDef, as_f64};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Stage};
 
 pub use crate::bindings::install_animation_api;
 pub use crate::player::{
-    current, define, is_playing, just_finished, pause, play, play_from, queue, resume, seek,
-    set_speed, stop, time, AnimationState, Playback, CLIP_ASSET_TYPE,
+    AnimationState, CLIP_ASSET_TYPE, Playback, current, define, is_playing, just_finished, pause,
+    play, play_from, queue, resume, seek, set_speed, stop, time,
 };
 pub use crate::tween::{Tween, TweenId};
 
@@ -130,19 +147,21 @@ impl balaur_plugin::Plugin for AnimationPlugin {
 /// nodes and the playhead is not.
 fn register_animation_component(reg: &mut Registry<'_>) {
     reg.register_component(
-        "animation",
+        COMPONENT,
         ComponentDef {
             doc: "Plays animation clips on a node: the library to play them from, one to start \
                   when the scene loads, and the rate every clip on the node runs at. The \
                   `animation` script module drives the playhead from there.",
             schema: ComponentDef::parse_schema(
                 "animation",
-                r#"library = { type = "asset", asset = "animation_clip", default = "", description = "The clip library this node plays from" }
-autoplay = { type = "string", default = "", description = "Clip to start when the scene loads; empty starts nothing" }
-speed = { type = "float", default = 1.0, description = "Playback rate for every clip on this node" }
-root = { type = "string", default = "", description = "Node path the clip's tracks resolve against; empty means this node" }"#,
+                &balaur_core::components::ComponentDef::schema(&[
+                    (k::LIBRARY, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The clip library this node plays from" }}"#, crate::player::CLIP_ASSET_TYPE)),
+                    (k::AUTOPLAY, r#"{ type = "string", default = "", description = "Clip to start when the scene loads; empty starts nothing" }"#),
+                    (k::SPEED, r#"{ type = "float", default = 1.0, description = "Playback rate for every clip on this node" }"#),
+                    (k::ROOT, r#"{ type = "string", default = "", description = "Node path the clip's tracks resolve against; empty means this node" }"#),
+                ]),
             ),
-            tags: &["animation"],
+            tags: &[balaur_core::components::tag::ANIMATION],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
                 apply_animation(eng, entity, params);
@@ -165,24 +184,25 @@ fn apply_animation(eng: &Engine, entity: Entity, params: &toml::Value) {
             .unwrap_or_default()
             .to_string()
     };
-    let autoplay = text("autoplay");
-    let speed = params.get("speed").and_then(as_f64).unwrap_or(1.0) as f32;
+    let autoplay = text(k::AUTOPLAY);
+    let speed = params.get(k::SPEED).and_then(as_f64).unwrap_or(1.0) as f32;
     let running = {
         let state = eng.resource::<AnimationState>();
         let mut state = state.borrow_mut();
         let playback = state.players.entry(entity).or_default();
-        playback.library = text("library");
-        playback.root = text("root");
+        playback.library = text(k::LIBRARY);
+        playback.root = text(k::ROOT);
         playback.autoplay.clone_from(&autoplay);
         playback.speed = speed;
         playback.active()
     };
     // Re-applying the component must not restart a running clip, and a clip
     // that will not load only warns — one bad reference must not kill the scene.
-    if !autoplay.is_empty() && !running {
-        if let Err(why) = play(eng, entity, &autoplay) {
-            tracing::warn!("autoplay '{autoplay}': {why:#}");
-        }
+    if !autoplay.is_empty()
+        && !running
+        && let Err(why) = play(eng, entity, &autoplay)
+    {
+        tracing::warn!("autoplay '{autoplay}': {why:#}");
     }
 }
 
@@ -197,9 +217,9 @@ fn animation_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let state = state.borrow();
     let playback = state.players.get(&entity)?;
     let mut out = toml::map::Map::new();
-    out.insert("library".into(), playback.library.clone().into());
-    out.insert("autoplay".into(), playback.autoplay.clone().into());
-    out.insert("speed".into(), f64::from(playback.speed).into());
-    out.insert("root".into(), playback.root.clone().into());
+    out.insert(k::LIBRARY.into(), playback.library.clone().into());
+    out.insert(k::AUTOPLAY.into(), playback.autoplay.clone().into());
+    out.insert(k::SPEED.into(), f64::from(playback.speed).into());
+    out.insert(k::ROOT.into(), playback.root.clone().into());
     Some(toml::Value::Table(out))
 }

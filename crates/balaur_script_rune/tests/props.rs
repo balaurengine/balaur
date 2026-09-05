@@ -18,11 +18,8 @@ fn project(files: &[(&str, &str)]) -> tempfile::TempDir {
 
 fn app_in(dir: &std::path::Path) -> App {
     App::new(AppConfig {
-        project_root: dir.to_path_buf(),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
         script_backend: Some(balaur_script_rune::factory()),
+        ..AppConfig::bare(dir.to_path_buf())
     })
     .unwrap()
 }
@@ -269,11 +266,9 @@ fn a_packed_game_boots_with_the_properties_its_scene_set() {
     drop(built);
 
     let mut app = App::new(AppConfig {
-        project_root: dir.path().to_path_buf(),
         pack: Some(pack),
-        watch: false,
-        script_args: Vec::new(),
         script_backend: Some(balaur_script_rune::factory()),
+        ..AppConfig::bare(dir.path().to_path_buf())
     })
     .unwrap();
     app.load_project().unwrap();
@@ -355,11 +350,9 @@ fn a_packed_game_builds_its_prefabs() {
     drop(built);
 
     let mut app = App::new(AppConfig {
-        project_root: dir.path().to_path_buf(),
         pack: Some(pack),
-        watch: false,
-        script_args: Vec::new(),
         script_backend: Some(balaur_script_rune::factory()),
+        ..AppConfig::bare(dir.path().to_path_buf())
     })
     .unwrap();
     app.load_project().unwrap();

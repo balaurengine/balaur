@@ -27,8 +27,8 @@
 
 use std::sync::mpsc::Sender;
 
-use anyhow::{anyhow, Result};
-use balaur_core::handler::{handler_of, id_value, opt, Handler};
+use anyhow::{Result, anyhow};
+use balaur_core::handler::{Handler, handler_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
@@ -369,10 +369,10 @@ fn pump_platform_system(eng: &Engine, _: f32) {
         state.release(eng, clock.settled);
         {
             let PlatformState { io, backend, .. } = &mut *state;
-            if let Some(backend) = backend {
-                if !io.start(eng, |report| backend.pump(report)) {
-                    backend.discard();
-                }
+            if let Some(backend) = backend
+                && !io.start(eng, |report| backend.pump(report))
+            {
+                backend.discard();
             }
         }
         snapshot.events.clear();
@@ -411,14 +411,7 @@ fn pump_platform_system(eng: &Engine, _: f32) {
             dispatches.push((targets, request, value));
         }
     }
-    if let Some(host) = eng.script_host() {
-        for (targets, token, value) in dispatches {
-            for handler in targets {
-                host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
-            }
-            host.wake(token, &value);
-        }
-    }
+    balaur_core::handler::dispatch(eng, dispatches);
 }
 
 fn player_value(player: &Player) -> Value {

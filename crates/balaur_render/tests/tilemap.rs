@@ -1,17 +1,10 @@
 //! The `tileset` asset and the `tilemap` component, without a window.
 
-use balaur_core::{components, scene, App, AppConfig};
+use balaur_core::{App, AppConfig, components, scene};
 use balaur_render::{Tilemap, Tileset};
 
 fn app() -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .expect("App::new builds headless");
+    let mut app = App::new(AppConfig::bare(".")).expect("App::new builds headless");
     balaur_plugin::load(&mut app, &mut balaur_render::RenderPlugin::default())
         .expect("the render plugin builds headless");
     app
@@ -85,14 +78,12 @@ fn a_tilemap_parses_cells_and_round_trips() {
         "an inline definition should have become a reference, got '{reference}'"
     );
 
-    // The reference resolves through the registered parser.
     let tileset = balaur_core::assets::load_typed::<Tileset>(&app.engine, reference)
         .expect("the inline tileset parses");
     assert_eq!(tileset.texture, "tests/fixtures/sprite_200x100.png");
     assert!((tileset.tile_size - 50.0).abs() < 1e-6);
     assert_eq!(tileset.columns, 4);
 
-    // What get returned applies again to the same grid.
     let reloaded = node(&app);
     components::add(&app.engine, reloaded, "tilemap", Some(&saved))
         .expect("a saved tilemap reloads");
@@ -186,4 +177,40 @@ tile_size = 50.0
         format!("{err:#}").contains("columns"),
         "the error should name the missing field: {err:#}"
     );
+}
+
+#[test]
+fn cells_as_rows_of_ids_reach_past_the_thirty_sixth_tile() {
+    let app = app();
+    let entity = node(&app);
+    let mut table = tilemap_table();
+    table.as_table_mut().unwrap().insert(
+        "cells".into(),
+        toml::from_str::<toml::Value>("v = [[40, -1], [0, 99]]").unwrap()["v"].clone(),
+    );
+    components::add(&app.engine, entity, "tilemap", Some(&table)).unwrap();
+    let world = app.engine.world();
+    let map = world.get::<&Tilemap>(entity).unwrap();
+    assert_eq!(
+        map.grid,
+        vec![vec![Some(40), None], vec![Some(0), Some(99)]]
+    );
+}
+
+#[test]
+fn a_material_on_the_map_is_kept_and_bumps_the_version_when_it_changes() {
+    let app = app();
+    let entity = node(&app);
+    components::add(&app.engine, entity, "tilemap", Some(&tilemap_table())).unwrap();
+    let before = app.engine.world().get::<&Tilemap>(entity).unwrap().version;
+    let mut table = tilemap_table();
+    table.as_table_mut().unwrap().insert(
+        "material".into(),
+        toml::Value::String("materials/water.toml".into()),
+    );
+    components::add(&app.engine, entity, "tilemap", Some(&table)).unwrap();
+    let world = app.engine.world();
+    let map = world.get::<&Tilemap>(entity).unwrap();
+    assert_eq!(map.material, "materials/water.toml");
+    assert_eq!(map.version, before + 1);
 }

@@ -19,7 +19,8 @@ artifacts and nothing is signed but a macOS bundle the developer signs itself.
 4. **Exported games.** `balaur export` signs with the developer's identity on
    macOS today; the same flag learns Windows signing, and the docs say what a
    store needs. Putting the signed result where a player can reach it is
-   `docs/PLAN-deploy.md`.
+   `docs/PLAN-deploy.md`; the flags themselves — notarization, an iOS
+   profile, a release keystore, Authenticode — are `docs/PLAN-actions.md` §2.
 5. **The Download page** on the website reads the latest release's assets and
    checksums; a nightly channel beside it.
 

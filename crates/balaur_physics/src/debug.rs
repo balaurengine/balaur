@@ -180,7 +180,7 @@ pub(crate) fn install_debug_api(m: &mut dyn Bindings<Engine>) {
                 return Err(anyhow::anyhow!(
                     "set_debug_draw takes true, false or a table of modes, not {}",
                     other.type_name()
-                ))
+                ));
             }
         }
         Ok(())

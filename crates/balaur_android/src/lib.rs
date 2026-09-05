@@ -18,7 +18,7 @@ use kiss3d::winit::platform::android::activity::AndroidApp;
 /// Where an exported game puts its pack inside the APK.
 const PACK_ASSET: &std::ffi::CStr = c"game.bpak";
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 fn android_main(app: AndroidApp) {
     balaur::logbuf::capture(tracing::level_filters::LevelFilter::INFO);
 

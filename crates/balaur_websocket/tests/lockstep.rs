@@ -14,9 +14,9 @@ use balaur_core::rollback;
 use balaur_core::transport::{LinkState, Transport};
 use balaur_core::{App, AppConfig, Stage, Transform};
 use balaur_script::Value;
+use balaur_websocket::SocketOptions;
 use balaur_websocket::listener::WebsocketListener;
 use balaur_websocket::transport::WebsocketTransport;
-use balaur_websocket::SocketOptions;
 
 const HOST: u32 = 1;
 const GUEST: u32 = 2;
@@ -30,14 +30,7 @@ const GUEST: u32 = 2;
 /// live in the tick rather than be poked into the world, because a rollback
 /// restores the world and would quietly heal anything poked in.
 fn app(bias: f32) -> App {
-    let mut app = App::new(AppConfig {
-        project_root: std::path::PathBuf::from("."),
-        pack: None,
-        watch: false,
-        script_args: Vec::new(),
-        script_backend: None,
-    })
-    .unwrap();
+    let mut app = App::new(AppConfig::bare(".")).unwrap();
     let root = app.engine.root();
     let mover = {
         let mut world = app.engine.world_mut();
