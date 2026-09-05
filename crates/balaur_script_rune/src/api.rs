@@ -80,9 +80,14 @@ fn collect_modules() -> BTreeMap<String, Module> {
     for (name, doc) in api_module_docs() {
         modules.entry(name).or_default().doc = doc;
     }
-    // The host installs these itself rather than through a plugin's
-    // `Bindings`, so nothing records them as they are declared; `api_lints.py`
-    // checks this list against `RuneHost::context`.
+    install_host_entries(&mut modules);
+    modules
+}
+
+/// The entries the host installs on Rune modules of its own rather than
+/// through a plugin's `Bindings`, so nothing records them as they are
+/// declared; `api_lints.py` checks this list against `RuneHost::context`.
+fn install_host_entries(modules: &mut BTreeMap<String, Module>) {
     for (module, name, args, doc) in [
         (
             "script",
@@ -156,7 +161,6 @@ fn collect_modules() -> BTreeMap<String, Module> {
     ] {
         modules.entry(module.to_string()).or_default().doc = doc.to_string();
     }
-    modules
 }
 
 /// Every module scripts can reach, with its functions and its constants:

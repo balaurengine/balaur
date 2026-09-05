@@ -25,7 +25,9 @@ present=()
 for asset in "${assets[@]}"; do
   [ -e "$asset" ] && present+=("$asset")
 done
-assets=("${present[@]}")
+# Guarded: an empty array expands to an unbound variable under `set -u` on
+# bash 3.2, which is what the macOS runners have.
+assets=(${present[@]+"${present[@]}"})
 if [ ${#assets[@]} -eq 0 ]; then
   printf '::error::no artifacts in %s — did the desktop builds upload theirs?\n' "$dist"
   exit 1
