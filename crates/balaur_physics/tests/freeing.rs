@@ -54,7 +54,7 @@ fn spawn(app: &App, name: &str, id: &str, y: f32, body: bool) -> Entity {
 
 fn colliders_in_world(app: &App) -> usize {
     let state = app.engine.resource::<PhysicsState>();
-    
+
     state.borrow().world.colliders.len()
 }
 

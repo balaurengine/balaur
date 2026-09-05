@@ -164,6 +164,10 @@ def scan_context(files: list[Path]) -> Context:
         for pat in (r'register_component\(\s*"([a-z0-9_]+)"', r'script_module\(\s*"([a-z0-9_]+)"',
                     r'host\.module\(\s*"([a-z0-9_]+)"'):
             glued.update(re.findall(pat, text, re.S))
+        # A key named through a constant rather than at the call site. Only
+        # the value is taken, and only where a plugin declares its vocabulary.
+        if path.name == "vocabulary.rs" or "register_component(" in text or "script_module(" in text:
+            glued.update(re.findall(r'const\s+[A-Z0-9_]+:\s*&str\s*=\s*"([a-z][a-z0-9_]*)"', text))
         if path.name == "collections.rs":
             det_aliases.update(re.findall(r"type\s+(Det[A-Za-z0-9_]*)", text))
         if "impl Plugin for" in text:

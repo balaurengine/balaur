@@ -237,13 +237,14 @@ pub(crate) fn frames(
         let mut locals = Vec::new();
         if level == 0
             && let Some(DebugArgs::Named(names)) = signature.map(|s| &s.args)
-                && let Ok(slots) = vm.stack().slice_at(InstAddress::ZERO, names.len()) {
-                    for (name, value) in names.iter().zip(slots) {
-                        if let Some(plain) = crate::value::to_plain(value) {
-                            locals.push((name.to_string(), plain));
-                        }
-                    }
+            && let Ok(slots) = vm.stack().slice_at(InstAddress::ZERO, names.len())
+        {
+            for (name, value) in names.iter().zip(slots) {
+                if let Some(plain) = crate::value::to_plain(value) {
+                    locals.push((name.to_string(), plain));
                 }
+            }
+        }
         frames.push(Frame {
             function,
             path: key.to_string(),

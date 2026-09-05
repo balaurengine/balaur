@@ -1,7 +1,8 @@
-> **Status:** planned. Written 2026-09-05. `crates/balaur_bench` measures the
-> engine against itself (criterion, `budgets.toml`); nothing puts a Balaur
-> number beside a Godot one, and nothing measures what the engine adds over
-> the rapier it wraps.
+> **Status:** mostly built, 2026-09-05. `examples/benchmark` runs all twelve
+> physics cases and the scene-tree ones, headless, in the editor and on the
+> web; `scripts/bench_compare.py` merges the Godot suites' results into
+> `docs/BENCHMARKS.md`, and the website syncs it. What is left is the
+> raw-rapier twin (§ "The raw-rapier twin") and the criterion node cases.
 
 # Plan: benchmarks beside Godot
 
@@ -96,11 +97,12 @@ the same protocol, measured on the same machine on the same day.
 - `scripts/bench.rn`: the runner. A menu (`ui`) listing the cases, a
   draw-shapes toggle (on with a window, off headless: shapes are the viewer's,
   not the measurement's), a run button, and a results table. The protocol:
-  build in one frame, warm up `max(60, settle_ticks)` ticks, time 300 steps
+  build a chunk of bodies per frame, warm up `max(60, settle_ticks)` ticks,
+  time 300 steps
   reading `engine::timings()` each frame, then report p50/p95/p99/mean/max
   of `step` (fixed stage per step), `physics` (the span), and `frame`. Headless
   it prints one `BENCH <json>` line and quits.
-- `scripts/physics3d.rn`, `scripts/physics2d.rn`: the six cases each,
+- `scripts/cases3d.rn`, `scripts/cases2d.rn`: the six cases each,
   written against the same three helpers the GDScript has — `body(at,
   shape)`, `fixed(at, shape)`, `pin(a, b)` — so a case reads as the scene it
   describes. `query_storm` runs its rays, casts and point queries from
@@ -129,16 +131,19 @@ the same protocol, measured on the same machine on the same day.
 
 ## The driver: `scripts/bench_compare.py`
 
-Runs every case headless through the project and through the twin under
-`/usr/bin/time -l` (cores used, peak RSS, as the Godot driver records them),
-reads the Godot suite's `results/` (`--godot-results DIR`; `--godot-suite
-DIR` runs it first), reads a godot-benchmarks JSON for the node rows, and
-writes `docs/BENCHMARKS.md`: machine, engine commit, Godot version, date; one
-table per case with Balaur, rapier alone, and every Godot engine, p50 / p99 /
-cores; the overhead ratio; the fingerprint pair; the caveats above. The file
-is committed from a run, like `CHANGELOG.md`, never generated in CI: a shared
-runner's numbers are noise, and `budgets.toml` already gates orders of
-magnitude.
+Runs every case headless, one process each, reads the Godot suite's
+`results/` (`--godot-results DIR`) and a godot-benchmarks JSON for the node
+rows (`--godot-nodes FILE`), and writes `docs/BENCHMARKS.md`: machine, engine
+commit, Godot version, date; a summary table of our tick beside the quickest
+Godot engine's; one table per case with our step, rapier's step inside it, the
+script seam, and every Godot engine at p50 and p99; the extra metrics and the
+fingerprint; the caveats above. `--no-run` rewrites the report from the last
+run's JSON. The file is committed from a run, like `CHANGELOG.md`, never
+generated in CI: a shared runner's numbers are noise, and `budgets.toml`
+already gates orders of magnitude.
+
+Not built: cores used and peak resident memory, which the Godot driver takes
+from `/usr/bin/time -l`.
 
 ## The website
 
@@ -152,14 +157,22 @@ magnitude.
 
 ## Phases
 
-1. The three engine changes, with tests.
-2. The project: runner, the twelve physics cases, headless runs of each,
-   a look at each in the editor.
-3. The twin and the driver; a full run on this machine beside the Godot
-   results already here; `docs/BENCHMARKS.md`.
-4. The node cases in Rune and in criterion; Godot's `scene_nodes` run
-   locally with the installed Godot.
-5. The website page and the pack.
+1. **Done.** The three engine changes, with tests. A fourth followed from
+   the first measurement: `node_pose` propagated the whole scene tree on
+   every body created, which made building a world quadratic; it composes
+   from the node's own ancestors now.
+2. **Done.** The project: runner, the twelve physics cases, the scene-tree
+   cases, headless runs of each.
+3. **Partly done.** The driver and `docs/BENCHMARKS.md` from a full run on
+   this machine beside the Godot results. The raw-rapier twin is not built:
+   the `physics3d/step` span already separates rapier from the engine
+   in-process, so the twin's remaining value is checking that our rapier is
+   configured as the addon's is.
+4. **Partly done.** The node cases run in Rune; the criterion ones and the
+   budget rows for them are not written.
+5. **Done.** The website: `sync-docs.sh` fetches the report, the docs
+   sidebar lists it, `package_play.sh` packs the project and `/benchmark`
+   runs it in a browser.
 6. Later, under `docs/PLAN-release.md`: the same run on a pinned runner per
    tag.
 
@@ -175,3 +188,11 @@ magnitude.
 3. **`move_child`.** Adding a sibling-reorder operation is an API question
    (`docs/NAMING.md` N9) before it is a benchmark one; the row stays empty
    until it exists.
+4. **Freeing nodes is quadratic**, which the first run of the scene-tree
+   cases showed: fifty thousand `queue_free` calls take about half a second
+   against Godot's ten milliseconds, because `scene::free_subtree` unlinks
+   each node from its parent with a `retain` over every sibling. Its own
+   plan, not this one.
+5. **The joint grid sags about twice as far as the addon's.** Same rapier
+   version, same joint kind, same pitch; the addon's build has SIMD and ours
+   does not, which is the first thing to rule out.

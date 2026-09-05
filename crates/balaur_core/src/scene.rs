@@ -252,10 +252,11 @@ pub fn spawn_node(world: &mut World, name: &str, parent: Entity) -> Entity {
 pub fn spawn_node_at(world: &mut World, name: &str, parent: Entity, index: usize) -> Entity {
     let entity = spawn_node(world, name, parent);
     if let Ok(mut children) = world.get::<&mut Children>(parent)
-        && let Some(at) = children.0.iter().position(|&c| c == entity) {
-            let moved = children.0.remove(at);
-            children.0.insert(index.min(at), moved);
-        }
+        && let Some(at) = children.0.iter().position(|&c| c == entity)
+    {
+        let moved = children.0.remove(at);
+        children.0.insert(index.min(at), moved);
+    }
     entity
 }
 
@@ -272,10 +273,11 @@ pub fn find_node(world: &World, from: Entity, path: &str) -> Option<Entity> {
         let mut next = None;
         for &child in &children.0 {
             if let Ok(name) = world.get::<&Name>(child)
-                && name.0 == segment {
-                    next = Some(child);
-                    break;
-                }
+                && name.0 == segment
+            {
+                next = Some(child);
+                break;
+            }
         }
         drop(children);
         current = next?;
@@ -407,9 +409,10 @@ pub fn reparent(world: &mut World, entity: Entity, new_parent: Entity) -> anyhow
         ),
     };
     if let Ok(old_parent) = world.get::<&Parent>(entity).map(|p| p.0)
-        && let Ok(mut children) = world.get::<&mut Children>(old_parent) {
-            children.0.retain(|&c| c != entity);
-        }
+        && let Ok(mut children) = world.get::<&mut Children>(old_parent)
+    {
+        children.0.retain(|&c| c != entity);
+    }
     if let Ok(mut children) = world.get::<&mut Children>(new_parent) {
         children.0.push(entity);
     }
@@ -471,9 +474,10 @@ pub fn free_node(eng: &Engine, entity: Entity) {
 /// Despawn a node and its whole subtree, unlinking it from its parent.
 pub fn free_subtree(world: &mut World, entity: Entity) {
     if let Ok(parent) = world.get::<&Parent>(entity).map(|p| p.0)
-        && let Ok(mut children) = world.get::<&mut Children>(parent) {
-            children.0.retain(|&c| c != entity);
-        }
+        && let Ok(mut children) = world.get::<&mut Children>(parent)
+    {
+        children.0.retain(|&c| c != entity);
+    }
     for e in collect_subtree(world, entity) {
         let _ = world.despawn(e);
     }

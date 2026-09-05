@@ -1,0 +1,329 @@
+// The six 3D cases, body for body the ones `bench3d/cases/*.gd` builds in
+// github.com/Ughuuu/benchmarks-repo. A case is a `setup`, a `place` per body,
+// an optional `link` pass, an `after`, a `step` per tick and its `extra`.
+
+use crate::stats;
+use crate::world;
+
+const BOX = 1.0;
+const PYRAMID_LEVELS = 22;
+
+pub fn all() {
+    [pyramid(), mixed_pile(), joint_grid(), smash(), query_storm(), drop()]
+}
+
+fn case(name, count, settle, parts) {
+    let out = #{
+        name: name, dimensions: 3, count: count, settle: settle, links: 0,
+        setup: |w| {}, place: |w, i| {}, link: |w, i| {}, after: |w| {},
+        step: |w, tick| {}, extra: |w| #{},
+    };
+    for (key, value) in parts {
+        out.insert(key, value);
+    }
+    out
+}
+
+/// Solver throughput on one large, well-conditioned stack: 3,795 boxes in a
+/// 22-level stepped pyramid, placed exactly touching so the solver starts
+/// from resting contact. Box against box only, the pair every engine
+/// special-cases.
+fn pyramid() {
+    let spots = pyramid_spots();
+    case("pyramid", spots.len(), 0, [
+        ("setup", |w| { world::fixed(w, [0.0, -0.5, 0.0], box3(200.0, 0.5, 200.0)); }),
+        ("place", |w, i| { world::body(w, spots[i], box3(0.5, 0.5, 0.5)); }),
+    ])
+}
+
+fn pyramid_spots() {
+    let out = [];
+    for level in 0..PYRAMID_LEVELS {
+        let side = PYRAMID_LEVELS - level;
+        let y = BOX * (0.5 + (level as f64));
+        let origin = -0.5 * ((side - 1) as f64) * BOX;
+        for ix in 0..side {
+            for iz in 0..side {
+                out.push([origin + (ix as f64) * BOX, y, origin + (iz as f64) * BOX]);
+            }
+        }
+    }
+    out
+}
+
+/// Narrow-phase breadth: 5,000 bodies across boxes, spheres, capsules and a
+/// convex hull that defeats shape-specific fast paths.
+fn mixed_pile() {
+    case("mixed_pile", 5000, 90, [
+        ("setup", |w| { bin(w, 16.0, 60.0); }),
+        ("place", |w, i| {
+            let at = world::lattice(i, [1.0, 1.0, 1.0], 28, 28, [-13.5, 0.6, -13.5], 0.05);
+            let node = world::body(w, at, pile_shape(i % 4));
+            node.set_rotation_euler(
+                rng::range(-3.14159, 3.14159),
+                rng::range(-3.14159, 3.14159),
+                rng::range(-3.14159, 3.14159),
+            );
+        }),
+    ])
+}
+
+fn pile_shape(kind) {
+    if kind == 0 {
+        box3(rng::range(0.25, 0.45), rng::range(0.25, 0.45), rng::range(0.25, 0.45))
+    } else if kind == 1 {
+        #{ kind: "ball", radius: rng::range(0.25, 0.45) }
+    } else if kind == 2 {
+        #{ kind: "capsule", radius: rng::range(0.2, 0.32), height: rng::range(0.9, 1.4) }
+    } else {
+        // One size rather than a random one: a hull is built from a mesh
+        // asset, and the collider has no scale to vary it with.
+        #{ kind: "convex_hull", mesh: "#octahedron" }
+    }
+}
+
+fn bin(w, half, height) {
+    world::fixed(w, [0.0, -0.5, 0.0], box3(half, 0.5, half));
+    for s in [-1.0, 1.0] {
+        world::fixed(w, [s * half, height * 0.5, 0.0], box3(0.5, height * 0.5, half));
+        world::fixed(w, [0.0, height * 0.5, s * half], box3(half, height * 0.5, 0.5));
+    }
+}
+
+/// A 100x50 lattice pinned to its right and lower neighbours — 5,000 bodies
+/// and about 9,950 joints — hung from a static anchor. Constraint-driven
+/// rather than contact-driven, and the lattice has cycles, so a solver
+/// leaning on tree-shaped island ordering cannot shortcut it.
+const COLS = 100;
+const ROWS = 50;
+const PITCH = 1.2;
+
+fn joint_grid() {
+    case("joint_grid", COLS * ROWS, 0, [
+        ("links", COLS * ROWS),
+        ("setup", |w| {
+            w.anchor = world::fixed(w, anchor_at(),
+                box3(0.5 * ((COLS as f64) * PITCH + 4.0), 0.25, 0.5));
+        }),
+        ("place", |w, i| {
+            world::body(w, lattice_at(i), #{ kind: "ball", radius: 0.25 });
+        }),
+        ("link", |w, i| {
+            let col = i % COLS;
+            let row = i / COLS;
+            if col + 1 < COLS {
+                world::pin(w, w.bodies[i], w.bodies[i + 1], lattice_at(i), lattice_at(i + 1));
+            }
+            if row + 1 < ROWS {
+                world::pin(w, w.bodies[i], w.bodies[i + COLS], lattice_at(i), lattice_at(i + COLS));
+            }
+            if row == 0 {
+                world::pin(w, w.bodies[i], w.anchor, lattice_at(i), anchor_at());
+            }
+        }),
+        ("extra", |w| {
+            // The silent failure this guards: joints that never resolved
+            // leave 5,000 bodies free-falling, which is fast and meaningless.
+            let worst = 0.0;
+            for (i, body) in w.bodies.iter().enumerate() {
+                let p = body.position();
+                let moved = world::distance([p.x, p.y, p.z], lattice_at(i));
+                if moved > worst {
+                    worst = moved;
+                }
+            }
+            #{ displacement_max: worst }
+        }),
+    ])
+}
+
+/// Where the anchor bar stands. A joint anchor is an offset in the other
+/// body's own space, so this has to be the bar's real origin, not the point
+/// on it above the body being pinned.
+fn anchor_at() {
+    [0.0, (ROWS as f64) * PITCH + PITCH, 0.0]
+}
+
+fn lattice_at(i) {
+    let origin = -0.5 * ((COLS - 1) as f64) * PITCH;
+    [
+        origin + ((i % COLS) as f64) * PITCH,
+        ((ROWS - i / COLS) as f64) * PITCH,
+        0.0,
+    ]
+}
+
+/// A heavy fast projectile into a 25x25x8 wall of 5,000 boxes placed exactly
+/// touching. Impact rather than steady state: one tick goes from a quiet
+/// island to thousands of simultaneous high-energy contacts.
+const SMASH_COLUMNS = 25;
+const SMASH_ROWS = 25;
+const SMASH_DEPTH = 8;
+
+fn smash() {
+    case("smash", SMASH_COLUMNS * SMASH_ROWS * SMASH_DEPTH, 90, [
+        ("setup", |w| { world::fixed(w, [0.0, -0.5, 0.0], box3(200.0, 0.5, 200.0)); }),
+        ("place", |w, i| { world::body(w, smash_at(i), box3(0.5, 0.5, 0.5)); }),
+        ("after", |w| {
+            let ox = -0.5 * ((SMASH_COLUMNS - 1) as f64) * BOX;
+            let shot = world::body(w, [ox - 30.0, (SMASH_ROWS as f64) * BOX * 0.5, 0.0],
+                #{ kind: "ball", radius: 1.6 });
+            shot.patch_component("body3d", #{ mass: 800.0, gravity_scale: 0.0, ccd: true });
+            physics3d::set_linear_velocity(shot, 120.0, 0.0, 0.0);
+        }),
+        ("extra", |w| { spread(w) }),
+    ])
+}
+
+fn smash_at(i) {
+    let ox = -0.5 * ((SMASH_COLUMNS - 1) as f64) * BOX;
+    let oz = -0.5 * ((SMASH_DEPTH - 1) as f64) * BOX;
+    let per_column = SMASH_ROWS * SMASH_DEPTH;
+    let col = i / per_column;
+    let rest = i % per_column;
+    [
+        ox + (col as f64) * BOX,
+        BOX * (0.5 + ((rest / SMASH_DEPTH) as f64)),
+        oz + ((rest % SMASH_DEPTH) as f64) * BOX,
+    ]
+}
+
+/// How far the wall flew, and whether anything went non-finite: the two
+/// numbers that tell an unstable solver's speed from a stable one's.
+fn spread(w) {
+    let centre = [0.0, 0.0, 0.0];
+    let counted = 0;
+    for body in w.bodies {
+        let p = body.position();
+        if stats::finite(p.x) && stats::finite(p.y) && stats::finite(p.z) {
+            centre = [centre[0] + p.x, centre[1] + p.y, centre[2] + p.z];
+            counted = counted + 1;
+        }
+    }
+    if counted > 0 {
+        centre = [centre[0] / (counted as f64), centre[1] / (counted as f64), centre[2] / (counted as f64)];
+    }
+    let worst = 0.0;
+    let non_finite = 0;
+    for body in w.bodies {
+        let p = body.position();
+        if stats::finite(p.x) && stats::finite(p.y) && stats::finite(p.z) {
+            let far = world::distance([p.x, p.y, p.z], centre);
+            if far > worst {
+                worst = far;
+            }
+        } else {
+            non_finite = non_finite + 1;
+        }
+    }
+    #{ spread: worst, non_finite: non_finite }
+}
+
+/// Queries against a populated broad phase: 8,000 static and 2,000 moving
+/// bodies, hit every tick with a fixed mix of rays, shape casts and point
+/// queries whose origins sweep the volume. This measures the acceleration
+/// structure, and the seam a script crosses to reach it.
+const STATICS = 8000;
+const MOVERS = 2000;
+const FIELD = 60.0;
+const RAYS = 500;
+const CASTS = 100;
+const POINTS = 150;
+
+fn query_storm() {
+    case("query_storm", STATICS + MOVERS, 0, [
+        ("place", |w, i| {
+            if i < STATICS {
+                let node = world::fixed(w, scatter(),
+                    box3(rng::range(0.4, 1.2), rng::range(0.4, 1.2), rng::range(0.4, 1.2)));
+                node.set_rotation_euler(
+                    rng::range(-3.14159, 3.14159),
+                    rng::range(-3.14159, 3.14159),
+                    rng::range(-3.14159, 3.14159),
+                );
+            } else {
+                let node = world::body(w, scatter(), #{ kind: "ball", radius: rng::range(0.3, 0.8) });
+                node.patch_component("body3d", #{ gravity_scale: 0.0 });
+                physics3d::set_linear_velocity(node,
+                    rng::range(-2.0, 2.0), rng::range(-2.0, 2.0), rng::range(-2.0, 2.0));
+            }
+        }),
+        ("step", |w, tick| { storm(w, tick); }),
+        ("extra", |w| { #{ queries: w.queries, hits: w.hits } }),
+    ])
+}
+
+fn scatter() {
+    [rng::range(-FIELD, FIELD), rng::range(-FIELD, FIELD), rng::range(-FIELD, FIELD)]
+}
+
+fn storm(w, tick) {
+    let phase = (tick as f64) * 0.017;
+    for i in 0..RAYS {
+        let a = phase + 6.28318 * (i as f64) / (RAYS as f64);
+        let h = math::sin(phase * 0.7 + (i as f64)) * FIELD * 0.5;
+        let from = [math::cos(a) * FIELD, h, math::sin(a) * FIELD];
+        let hit = physics3d::raycast(#{
+            from: from, dir: [-from[0], -h, -from[2]], max: FIELD * 2.5,
+        });
+        count(w, !(hit is Tuple));
+    }
+    for i in 0..CASTS {
+        let a = phase * 1.7 + 6.28318 * (i as f64) / (CASTS as f64);
+        let from = [math::cos(a) * FIELD, math::sin(a) * FIELD * 0.4, math::sin(a) * FIELD];
+        let hit = physics3d::shapecast(#{
+            shape: #{ kind: "ball", radius: 0.8 },
+            from: from, dir: [-from[0], -from[1], -from[2]], max: 2.0,
+        });
+        count(w, !(hit is Tuple));
+    }
+    for i in 0..POINTS {
+        let a = phase * 2.3 + 6.28318 * (i as f64) / (POINTS as f64);
+        let hits = physics3d::point_hits(#{
+            point: [math::cos(a) * FIELD * 0.6, math::sin(a * 1.3) * FIELD * 0.4, math::sin(a) * FIELD * 0.6],
+        });
+        count(w, !hits.is_empty());
+    }
+}
+
+fn count(w, hit) {
+    w.queries = w.queries + 1;
+    if hit {
+        w.hits = w.hits + 1;
+    }
+}
+
+/// 8,000 boxes dropped into a walled pit: they fall, collide and pile deep,
+/// so the measurement is an active contact-heavy pile rather than a settled
+/// one.
+const PIT = 9.2;
+const GAP = 1.15;
+
+fn drop() {
+    case("drop", 8000, 0, [
+        ("setup", |w| {
+            world::fixed(w, [0.0, -0.5, 0.0], box3(PIT + 4.0, 0.5, PIT + 4.0));
+            for s in [[1.0, 0.0], [-1.0, 0.0], [0.0, 1.0], [0.0, -1.0]] {
+                let thick = if s[0] != 0.0 { box3(0.5, 40.0, PIT) } else { box3(PIT, 40.0, 0.5) };
+                world::fixed(w, [s[0] * (PIT + 0.5), 40.0, s[1] * (PIT + 0.5)], thick);
+            }
+        }),
+        ("place", |w, i| { world::body(w, drop_at(i), box3(0.5, 0.5, 0.5)); }),
+    ])
+}
+
+fn drop_at(i) {
+    let per_side = (math::floor(PIT * 2.0 / GAP) as i64);
+    let per_layer = per_side * per_side;
+    let origin = -0.5 * ((per_side - 1) as f64) * GAP;
+    let within = i % per_layer;
+    [
+        origin + ((within / per_side) as f64) * GAP,
+        1.0 + ((i / per_layer) as f64) * GAP,
+        origin + ((within % per_side) as f64) * GAP,
+    ]
+}
+
+fn box3(x, y, z) {
+    #{ kind: "cuboid", half_extents: [x, y, z] }
+}

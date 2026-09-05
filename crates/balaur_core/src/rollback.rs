@@ -103,7 +103,7 @@ pub fn is_resimulating(eng: &Engine) -> bool {
 #[must_use]
 pub fn input(eng: &Engine, player: PlayerId) -> Option<Input> {
     let inputs = eng.try_resource::<TickInputs>()?;
-    
+
     inputs
         .borrow()
         .0

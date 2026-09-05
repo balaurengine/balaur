@@ -40,9 +40,10 @@ fn after_imports(source: &str) -> usize {
     let mut at = 0;
     for line in source.split_inclusive('\n') {
         if line.trim_start().starts_with("import ")
-            && let Some(semi) = source[at..].find(';') {
-                end = at + semi + 1;
-            }
+            && let Some(semi) = source[at..].find(';')
+        {
+            end = at + semi + 1;
+        }
         at += line.len();
     }
     end
@@ -198,9 +199,10 @@ fn declared_type(declaration: &wesl::syntax::Declaration) -> Result<String> {
         return Ok(ty.ident.name().to_string());
     }
     if let Some(initializer) = &declaration.initializer
-        && let Expression::FunctionCall(call) = initializer.node() {
-            return Ok(call.ty.ident.name().to_string());
-        }
+        && let Expression::FunctionCall(call) = initializer.node()
+    {
+        return Ok(call.ty.ident.name().to_string());
+    }
     Err(anyhow!(
         "`{}` has no written type, so there is nothing to say how to draw it; \
          annotate it (`let x: vec3<f32> = ...`) to preview this line",

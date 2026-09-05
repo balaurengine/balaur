@@ -1,0 +1,468 @@
+// The runner: build a case's world, settle it, time it, report it. Every
+// number comes out of `engine::timings()`, the profiler's own table, and
+// `docs/PLAN-benchmarks.md` says what each one means.
+
+mod cases2d;
+mod cases3d;
+mod nodes;
+mod stats;
+mod world;
+
+const STEPS = 300;
+const WARMUP = 60;
+const PLACE_PER_FRAME = 1500;
+const FRAME_BUDGET_MS = 16.667;
+
+pub fn init(this) {
+    this.cases = catalogue();
+    this.headless = false;
+    this.queue = [];
+    this.results = [];
+    this.state = "idle";
+    this.case = ();
+    this.world = ();
+    this.made = 0;
+    this.tick = 0;
+    this.repeat = 0;
+    this.samples = #{};
+    this.status = "pick a case";
+    this.out = "";
+    this.draw = true;
+    this.steps = STEPS;
+    this.warmup = WARMUP;
+    this.started = 0.0;
+    this.build_ms = 0.0;
+    read_args(this);
+    render::set_background(0.09, 0.10, 0.12);
+    frame_view(3);
+}
+
+/// Every case, keyed the way a `--case` argument names one.
+///
+/// A case's seed is its place in this list, so every run of it builds the
+/// same world; inserting a case ahead of another changes which world the
+/// later one gets, never what it measures.
+fn catalogue() {
+    let out = [];
+    for (prefix, group) in [("3d", cases3d::all()), ("2d", cases2d::all()), ("nodes", nodes::all())] {
+        for c in group {
+            out.push(#{ key: format!("{}/{}", prefix, c.name), case: c, seed: 8191 + out.len() * 131 });
+        }
+    }
+    out
+}
+
+/// `--case=3d/pyramid --steps=300 --warmup=60 --out=path`, or `--all`.
+/// A `--case` or `--all` means a headless run: no menu, no shapes, one BENCH
+/// line per case, then quit.
+fn read_args(this) {
+    let wanted = [];
+    for arg in engine::args() {
+        let parts = arg.split("=").collect::<Vec>();
+        let key = parts[0];
+        let value = if parts.len() > 1 { parts[1] } else { "" };
+        if key == "--case" {
+            wanted.push(value);
+        } else if key == "--all" {
+            for c in this.cases {
+                wanted.push(c.key);
+            }
+        } else if key == "--steps" {
+            this.steps = value.parse::<i64>().unwrap_or(STEPS);
+        } else if key == "--warmup" {
+            this.warmup = value.parse::<i64>().unwrap_or(WARMUP);
+        } else if key == "--out" {
+            this.out = value;
+        }
+    }
+    if wanted.is_empty() {
+        return;
+    }
+    this.headless = true;
+    this.draw = false;
+    for key in wanted {
+        let found = find(this, key);
+        if found is Object {
+            this.queue.push(found);
+        } else {
+            log::error(format!("no such case '{}'", key));
+        }
+    }
+    start_next(this);
+}
+
+fn find(this, key) {
+    for c in this.cases {
+        if c.key == key {
+            return c;
+        }
+    }
+    ()
+}
+
+pub fn update(this, dt) {
+    sample(this);
+    advance(this);
+}
+
+/// The menu, and the table of what has run. Called only when there is a UI
+/// frame to draw into, so a headless run never reaches it.
+pub fn draw_ui(this) {
+    if this.headless {
+        return;
+    }
+    draw_menu(this);
+}
+
+pub fn fixed_update(this, dt) {
+    if this.state == "warm" || this.state == "time" {
+        this.tick = this.tick + 1;
+        (this.case.case.step)(this.world, this.tick);
+    }
+}
+
+/// One entry per frame, read from the profiler's table for the frame before.
+fn sample(this) {
+    if this.state != "time" && this.state != "settle" {
+        return;
+    }
+    let t = engine::timings();
+    if !(t is Object) {
+        return;
+    }
+    let stages = util_obj(t.stages);
+    let spans = util_obj(t.spans);
+    if this.state == "settle" {
+        // A node case is one loop, timed whole, in whichever stages its work
+        // lands in.
+        let total = 0.0;
+        for name in this.case.case.stages {
+            total = total + ms(stages.get(name));
+        }
+        push(this, "loop_ms", total);
+        return;
+    }
+    let steps = t.fixed_steps;
+    if steps < 1 {
+        return;
+    }
+    let per = 1000.0 / (steps as f64);
+    let span = if this.case.case.dimensions == 2 { "physics2d/step" } else { "physics3d/step" };
+    push(this, "step_ms", secs(stages.get("fixed_update")) * per);
+    push(this, "physics_ms", secs(spans.get(span)) * per);
+    push(this, "script_ms", secs(spans.get("scripts/fixed_update")) * per);
+    push(this, "frame_ms", (t.frame as f64) * 1000.0);
+}
+
+fn push(this, key, value) {
+    let held = this.samples.get(key);
+    if let Some(list) = held {
+        list.push(value);
+    } else {
+        this.samples.insert(key, [value]);
+    }
+}
+
+/// Seconds out of a stage or span lookup, zero where the name is absent.
+fn secs(value) {
+    if let Some(found) = value {
+        return found as f64;
+    }
+    0.0
+}
+
+fn ms(value) {
+    secs(value) * 1000.0
+}
+
+fn util_obj(v) {
+    if v is Object { v } else { #{} }
+}
+
+/// Drop what the last pass built, in its own frame: a node case leaves a
+/// tree of fifty thousand behind, and the next pass must not measure the
+/// engine walking it.
+fn release(w) {
+    for node in w.made {
+        node.queue_free();
+    }
+    w.made = [];
+}
+
+/// The state machine: build, settle, measure, report, tear down.
+fn advance(this) {
+    let state = this.state;
+    if state == "idle" || state == "done" {
+        return;
+    }
+    let c = this.case.case;
+    if state == "setup" {
+        rng::seed(this.case.seed);
+        tune(this, c);
+        frame_view(dimensions_of(c));
+        this.world = world::new(this.node, dimensions_of(c), this.draw);
+        this.world.made = [];
+        this.world.targets = [];
+        this.world.root = ();
+        this.started = engine::time();
+        if is_nodes(c) {
+            this.state = "prep";
+            this.build_ms = 0.0;
+        } else {
+            (c.setup)(this.world);
+            this.state = "place";
+        }
+        return;
+    }
+    if state == "place" {
+        chunk(this, c.count, |i| { (c.place)(this.world, i) }, if c.links > 0 { "link" } else { "after" });
+        return;
+    }
+    if state == "link" {
+        chunk(this, c.links, |i| { (c.link)(this.world, i) }, "after");
+        return;
+    }
+    if state == "after" {
+        (c.after)(this.world);
+        this.build_ms = (engine::time() - this.started) * 1000.0;
+        this.tick = 0;
+        this.state = "warm";
+        this.status = format!("{}: settling", this.case.key);
+        return;
+    }
+    if state == "warm" {
+        let needed = if c.settle > this.warmup { c.settle } else { this.warmup };
+        if this.tick >= needed {
+            this.tick = 0;
+            this.samples = #{};
+            this.state = "time";
+            this.status = format!("{}: measuring", this.case.key);
+        }
+        return;
+    }
+    if state == "time" {
+        let taken = this.samples.get("step_ms");
+        let have = if let Some(list) = taken { list.len() } else { 0 };
+        if have >= this.steps {
+            finish(this);
+        }
+        return;
+    }
+    // A node case runs on three frames, so that only the middle one holds
+    // the work: the tree it needs is rebuilt on the first, the loop runs on
+    // the second, and the third reads what the profiler recorded for it.
+    if state == "prep" {
+        release(this.world);
+        let started = engine::time();
+        let prepare = c.prepare;
+        prepare(this.world);
+        this.build_ms = (engine::time() - started) * 1000.0;
+        this.state = "work";
+        return;
+    }
+    if state == "work" {
+        let work = c.run;
+        work(this.world);
+        this.repeat = this.repeat + 1;
+        this.status = format!("{}: pass {} of {}", this.case.key, this.repeat, c.repeats);
+        this.state = "settle";
+        return;
+    }
+    if state == "settle" {
+        let taken = this.samples.get("loop_ms");
+        let have = if let Some(list) = taken { list.len() } else { 0 };
+        if have >= c.repeats {
+            finish(this);
+        } else {
+            this.state = "prep";
+        }
+        return;
+    }
+    if state == "cool" {
+        physics::clear();
+        this.state = "idle";
+        this.status = "ready";
+        start_next(this);
+    }
+}
+
+/// `PLACE_PER_FRAME` at a time, so a ten thousand body build does not hold
+/// the editor or the browser for a second and a half.
+fn chunk(this, total, step, next) {
+    let end = this.made + PLACE_PER_FRAME;
+    if end > total {
+        end = total;
+    }
+    let i = this.made;
+    while i < end {
+        step(i);
+        i = i + 1;
+    }
+    this.made = end;
+    this.status = format!("{}: building {} of {}", this.case.key, this.made, total);
+    if this.made >= total {
+        this.made = 0;
+        this.state = next;
+    }
+}
+
+fn finish(this) {
+    let c = this.case.case;
+    let result = if is_nodes(c) { node_result(this, c) } else { physics_result(this, c) };
+    this.results.push(result);
+    let text = json::encode(result);
+    println!("BENCH {}", text);
+    if this.out != "" {
+        fs::write(this.out, text);
+    }
+    world::tear_down(this.world);
+    this.state = "cool";
+}
+
+fn physics_result(this, c) {
+    let dim = if c.dimensions == 2 { "2d" } else { "3d" };
+    #{
+        case: c.name,
+        dimensions: dim,
+        engine_label: "Balaur",
+        steps: this.steps,
+        warmup: this.warmup,
+        physics_ticks_per_second: 60,
+        body_count: this.world.bodies.len(),
+        static_count: this.world.statics,
+        joint_count: this.world.joints,
+        work_units: this.world.queries,
+        extra_metrics: (c.extra)(this.world),
+        fingerprint: stats::fingerprint(this.world.bodies, c.dimensions),
+        build_ms: this.build_ms,
+        step_ms: summary(this, "step_ms"),
+        physics_ms: summary(this, "physics_ms"),
+        script_ms: summary(this, "script_ms"),
+        frame_ms: summary(this, "frame_ms"),
+        platform: engine::platform(),
+    }
+}
+
+fn node_result(this, c) {
+    #{
+        case: c.name,
+        dimensions: "nodes",
+        engine_label: "Balaur",
+        iterations: c.iterations,
+        repeats: c.repeats,
+        stages: c.stages,
+        build_ms: this.build_ms,
+        loop_ms: summary(this, "loop_ms"),
+        platform: engine::platform(),
+    }
+}
+
+fn summary(this, key) {
+    let held = this.samples.get(key);
+    if let Some(list) = held {
+        return stats::summarize(list);
+    }
+    stats::summarize([])
+}
+
+fn start_next(this) {
+    this.repeat = 0;
+    this.made = 0;
+    this.samples = #{};
+    if this.queue.is_empty() {
+        if this.headless {
+            engine::quit();
+        }
+        this.case = ();
+        this.state = "idle";
+        return;
+    }
+    this.case = this.queue.remove(0);
+    this.state = "setup";
+    this.status = format!("{}: building", this.case.key);
+}
+
+/// Where to stand to watch a case. The 2D scenes are thousands of pixels
+/// across and the 3D ones tens of units, so the two need different cameras.
+fn frame_view(dimensions) {
+    if dimensions == 2 {
+        render::set_camera_2d(0.0, 0.0, 0.16);
+    } else {
+        render::set_camera(0.0, 40.0, 110.0, 0.0, 10.0, 0.0);
+    }
+}
+
+/// The solver settings the case is measured under. A 2D case is in pixels at
+/// Godot's gravity, so `length_unit` is 100 as godot-rapier's 2D default is;
+/// without it every tolerance in the solver is a hundred times too loose.
+fn tune(this, c) {
+    if is_nodes(c) {
+        return;
+    }
+    physics::set_sleeping_allowed(false);
+    if c.dimensions == 2 {
+        physics::set_tuning(#{ length_unit: 100.0 });
+        physics2d::set_gravity(0.0, -980.0);
+    } else {
+        physics::set_tuning(#{ length_unit: 1.0 });
+        physics3d::set_gravity(0.0, -9.81, 0.0);
+    }
+}
+
+fn is_nodes(c) {
+    let kind = c.get("kind");
+    if let Some(name) = kind {
+        return name == "nodes";
+    }
+    false
+}
+
+fn dimensions_of(c) {
+    let found = c.get("dimensions");
+    if let Some(n) = found {
+        return n;
+    }
+    3
+}
+
+fn draw_menu(this) {
+    // A docked column rather than the central panel, so the case being built
+    // stays on screen beside its own numbers.
+    ui::left_panel("bench", #{ width: 360.0 }, || {
+        ui::add_space(10.0);
+        ui::label("Balaur benchmarks", #{ role: "heading" });
+        ui::label(this.status, #{ role: "meta" });
+        ui::add_space(6.0);
+        let (on, changed) = ui::toggle(this.draw, #{ label: "Draw the shapes" });
+        this.draw = on;
+        ui::add_space(8.0);
+        ui::scroll("cases", (), || {
+            for entry in this.cases {
+                if ui::pill(entry.key, #{ align: "left", min_width: 220.0 }) {
+                    this.queue.push(entry);
+                    if this.state == "idle" {
+                        start_next(this);
+                    }
+                }
+            }
+            ui::separator(());
+            for row in this.results {
+                ui::label(line_of(row), #{ role: "mono", wrap: false });
+            }
+        });
+    });
+}
+
+/// One finished case as a line: the median tick, what rapier took inside it,
+/// and its share of a 60 Hz frame.
+fn line_of(row) {
+    if row.dimensions == "nodes" {
+        return format!("{:>18}  {:>8.1} ms  over {} iterations",
+            row.case, row.loop_ms.p50_ms, row.iterations);
+    }
+    format!("{:>18}  step {:>7.2} ms  rapier {:>7.2} ms  {:>5.0}% of a frame  fp {}",
+        format!("{}/{}", row.dimensions, row.case),
+        row.step_ms.p50_ms, row.physics_ms.p50_ms,
+        100.0 * row.step_ms.p50_ms / FRAME_BUDGET_MS,
+        row.fingerprint)
+}

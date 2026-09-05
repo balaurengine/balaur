@@ -64,7 +64,7 @@ fn field(map: &Value, key: &str) -> Option<Value> {
 /// The events one tick delivered, as `kind` strings.
 fn kinds(app: &App) -> Vec<String> {
     let snapshot = app.engine.resource::<PlatformSnapshot>();
-    
+
     snapshot
         .borrow()
         .events

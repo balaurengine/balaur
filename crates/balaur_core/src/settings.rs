@@ -130,7 +130,7 @@ pub fn all(eng: &Engine) -> Rc<RefCell<SettingsRegistry>> {
 #[must_use]
 pub fn def(eng: &Engine, path: &str) -> Option<SettingDef> {
     let registry = eng.try_resource::<SettingsRegistry>()?;
-    
+
     registry.borrow().0.iter().find(|d| d.path == path).cloned()
 }
 
@@ -145,23 +145,23 @@ fn split(path: &str) -> Option<(Vec<&str>, &str)> {
 #[must_use]
 pub fn get(eng: &Engine, path: &str) -> Option<toml::Value> {
     if let Some(values) = eng.try_resource::<SettingsValues>()
-        && let Some((tables, key)) = split(path) {
-            let values = values.borrow();
-            let mut at: &toml::value::Table = &values.0;
-            let mut reached = true;
-            for table in tables {
-                if let Some(next) = at.get(table).and_then(toml::Value::as_table) {
-                    at = next;
-                } else {
-                    reached = false;
-                    break;
-                }
+        && let Some((tables, key)) = split(path)
+    {
+        let values = values.borrow();
+        let mut at: &toml::value::Table = &values.0;
+        let mut reached = true;
+        for table in tables {
+            if let Some(next) = at.get(table).and_then(toml::Value::as_table) {
+                at = next;
+            } else {
+                reached = false;
+                break;
             }
-            if reached
-                && let Some(found) = at.get(key) {
-                    return Some(found.clone());
-                }
         }
+        if reached && let Some(found) = at.get(key) {
+            return Some(found.clone());
+        }
+    }
     def(eng, path).and_then(|d| d.spec.get("default").cloned())
 }
 

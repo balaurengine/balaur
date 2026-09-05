@@ -44,7 +44,7 @@ rm -rf "$out"
 mkdir -p "$out"
 # Sources rather than bytecode: /editor shows a project's scripts in its
 # code panel, and a compiled pack carries none.
-for project in editor examples/hello examples/angrynerds examples/rig; do
+for project in editor examples/hello examples/angrynerds examples/rig examples/benchmark; do
   pack="$out/$(basename "$project").bpak"
   "$balaur" export "$project" --keep-sources --output "$pack"
   [ -s "$pack" ] || fail "$project exported an empty pack"
@@ -53,5 +53,5 @@ cp "$dist/balaur.js" "$dist/balaur_bg.wasm" "$out/"
 
 step "bundle"
 (cd "$out" && tar -czf "$dist/balaur-play.tar.gz" \
-  balaur.js balaur_bg.wasm editor.bpak hello.bpak angrynerds.bpak rig.bpak)
+  balaur.js balaur_bg.wasm editor.bpak hello.bpak angrynerds.bpak rig.bpak benchmark.bpak)
 ls -l "$out" "$dist/balaur-play.tar.gz"

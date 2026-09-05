@@ -538,9 +538,10 @@ fn free_spawned_since(eng: &Engine, root: Entity, wanted: &crate::DetHashSet<&st
 fn restore_placement(eng: &Engine, entity: Entity, parent: Entity, node: &NodeFrame) {
     let mut world = eng.world_mut();
     if let Ok(mut name) = world.get::<&mut Name>(entity)
-        && name.0 != node.name {
-            name.0.clone_from(&node.name);
-        }
+        && name.0 != node.name
+    {
+        name.0.clone_from(&node.name);
+    }
     if world.get::<&Parent>(entity).ok().map(|p| p.0) == Some(parent) {
         return;
     }
@@ -602,10 +603,11 @@ fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
         }
     }
     if let Some(path) = &node.script
-        && let Some(host) = eng.script_host() {
-            crate::scene::remember_script_props(eng, entity, &node.props);
-            if let Err(e) = host.attach_with_props(crate::node_id_of(entity), path, &node.props) {
-                tracing::error!(error = %e, node = %node.id, "reattaching a script");
-            }
+        && let Some(host) = eng.script_host()
+    {
+        crate::scene::remember_script_props(eng, entity, &node.props);
+        if let Err(e) = host.attach_with_props(crate::node_id_of(entity), path, &node.props) {
+            tracing::error!(error = %e, node = %node.id, "reattaching a script");
         }
+    }
 }

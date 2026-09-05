@@ -428,13 +428,14 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
 }
 
 pub(crate) fn node_pose(eng: &Engine, entity: Entity) -> Result<scalar::Pose> {
-    // Make sure globals are up to date even before the first frame ran.
-    let root = eng.root();
-    balaur_core::scene::propagate_transforms(&mut eng.world_mut(), root);
+    // Composed from the node's own ancestors, not read off a propagated tree:
+    // right before the first frame, and O(depth) where propagating the whole
+    // tree per body made a spawning loop quadratic.
     let world = eng.world();
-    let global = world
-        .get::<&balaur_core::GlobalTransform>(entity)
-        .map_err(|_| anyhow!("node is dead or not in the scene tree"))?;
+    if !world.contains(entity) {
+        return Err(anyhow!("node is dead or not in the scene tree"));
+    }
+    let global = balaur_core::scene::composed_global(&world, entity);
     Ok(scalar::pose_of(global.position, global.rotation))
 }
 

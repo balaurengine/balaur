@@ -19,7 +19,7 @@ fn app() -> App {
 
 fn kinds(app: &App) -> Vec<String> {
     let snapshot = app.engine.resource::<PlatformSnapshot>();
-    
+
     snapshot
         .borrow()
         .events

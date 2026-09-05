@@ -191,9 +191,10 @@ fn collect_scripts(root: &Path, dir: &Path, out: &mut Vec<String>) {
         if path.is_dir() {
             collect_scripts(root, &path, out);
         } else if path.extension().and_then(|e| e.to_str()) == Some("rn")
-            && let Ok(rel) = path.strip_prefix(root) {
-                out.push(rel.to_string_lossy().replace('\\', "/"));
-            }
+            && let Ok(rel) = path.strip_prefix(root)
+        {
+            out.push(rel.to_string_lossy().replace('\\', "/"));
+        }
     }
 }
 

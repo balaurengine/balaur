@@ -79,12 +79,12 @@ impl PhysicsState2d {
 
 /// The node's global pose flattened to 2D (x, y, angle about z).
 pub(crate) fn node_pose_2d(eng: &Engine, entity: Entity) -> Result<Pose2> {
-    let root = eng.root();
-    balaur_core::scene::propagate_transforms(&mut eng.world_mut(), root);
+    // Composed from the ancestors, as in 3D: see `crate::node_pose`.
     let world = eng.world();
-    let global = world
-        .get::<&balaur_core::GlobalTransform>(entity)
-        .map_err(|_| anyhow!("node is dead or not in the scene tree"))?;
+    if !world.contains(entity) {
+        return Err(anyhow!("node is dead or not in the scene tree"));
+    }
+    let global = balaur_core::scene::composed_global(&world, entity);
     let (angle, _, _) = global.rotation.to_euler(EulerRot::ZYX);
     Ok(Pose2::from_parts(
         scalar::v2(global.position.x, global.position.y),

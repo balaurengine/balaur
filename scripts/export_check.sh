@@ -47,10 +47,12 @@ TOML
 fi
 # `--apk` on Android: assembling and signing belongs to the exporter, so a
 # game built in the editor and one built here take the same path.
-extra=()
-[ "$platform" = android ] && extra=(--apk)
+# A plain string, not an array: `"${empty[@]}"` is an unbound variable under
+# `set -u` on the bash 3.2 the macOS runners ship.
+apk=""
+[ "$platform" = android ] && apk=--apk
 (cd "$work" && BALAUR_TEMPLATES="$work/templates" \
-  "$balaur" export project --target "$platform" "${extra[@]}")
+  "$balaur" export project --target "$platform" ${apk:+"$apk"})
 
 case $platform in
 ios)

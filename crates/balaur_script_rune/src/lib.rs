@@ -513,7 +513,9 @@ impl RuneHost {
         if let Some(script) = self.state.borrow().scripts.get(key) {
             return Ok(script.unit.clone());
         }
-        let script = if let Some(script) = self.packed_script(key)? { script } else {
+        let script = if let Some(script) = self.packed_script(key)? {
+            script
+        } else {
             let source = self.source_of(key)?;
             let (unit, sources) = self.compile_unit(key, &source, Purpose::Dev)?;
             let deps = self.source_keys(&sources);
@@ -604,9 +606,11 @@ impl RuneHost {
     /// script has been reloaded out from under it — its unit is stale.
     fn return_vm(&self, key: &str, vm: Vm) {
         if let Some(script) = self.state.borrow_mut().scripts.get_mut(key)
-            && script.vms.len() < VM_POOL && vm.is_same_unit(&script.unit) {
-                script.vms.push(vm);
-            }
+            && script.vms.len() < VM_POOL
+            && vm.is_same_unit(&script.unit)
+        {
+            script.vms.push(vm);
+        }
     }
 
     pub fn attach(&self, entity: Entity, path: &str) -> Result<()> {
@@ -676,9 +680,10 @@ impl RuneHost {
         }
         if let Some(inst) = inst
             && let Some(on_free) = self.method(&inst.key, "on_free")
-                && let Err(err) = on_free.call::<()>((inst.state,)).into_result() {
-                    self.report(&inst.key, "on_free", &err);
-                }
+            && let Err(err) = on_free.call::<()>((inst.state,)).into_result()
+        {
+            self.report(&inst.key, "on_free", &err);
+        }
     }
 
     pub fn update(&self, dt: f32) {

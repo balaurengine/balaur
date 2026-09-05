@@ -193,9 +193,10 @@ pub(crate) fn to_plain(v: &rune::Value) -> Option<Neutral> {
         return Some(Neutral::Map(out));
     }
     if let Ok(t) = v.borrow_tuple_ref()
-        && t.is_empty() {
-            return Some(Neutral::Nil);
-        }
+        && t.is_empty()
+    {
+        return Some(Neutral::Nil);
+    }
     None
 }
 

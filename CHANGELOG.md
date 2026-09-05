@@ -54,6 +54,8 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - Ray-cast vehicles.
 - 3D geometry: hulls, decomposition, voxelising, booleans.
 - Physics debug draw and tuning.
+- A joint on a node with no body ties the nearest body above it.
+- `physics3d/step` and `physics2d/step` profiler spans.
 
 ### Determinism and networking
 
@@ -99,6 +101,9 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - `balaur test`.
 - Safe export directory check.
 - `scripts/lint.sh` mirrors CI; pre-push hook.
+- `examples/benchmark`: the Godot suites' physics and scene-tree cases, run headless, in the editor or on the web.
+- `scripts/bench_compare.py` writes `docs/BENCHMARKS.md` from a run beside Godot's own results.
+- `balaur run <project> -- <args>` passes arguments to `engine::args()`.
 
 ### Web
 
