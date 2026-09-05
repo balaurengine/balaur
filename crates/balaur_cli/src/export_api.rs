@@ -62,7 +62,7 @@ impl ExportEvent {
 }
 
 /// The project being edited, the channel exports report on, and who listens.
-pub struct ExportState {
+pub(crate) struct ExportState {
     io: ExternalIo<ExportEvent>,
     listeners: Vec<Handler>,
     project: PathBuf,
@@ -76,14 +76,14 @@ impl ExportState {
 
 /// The editor's export verb, registered by the CLI after the editor's app is
 /// built — the library is the CLI's dependency, not the engine's.
-pub struct ExportPlugin {
+pub(crate) struct ExportPlugin {
     manifest: balaur_plugin::Manifest,
     project: PathBuf,
 }
 
 impl ExportPlugin {
     #[must_use]
-    pub fn new(project: PathBuf) -> Self {
+    pub(crate) fn new(project: PathBuf) -> Self {
         Self {
             manifest: balaur_plugin::Manifest::new("export", env!("CARGO_PKG_VERSION")),
             project,
@@ -144,7 +144,7 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
         ("output", &[], "(target: string)", "Where an export for this target will be written, as the project's `[export] output` decides."),
         ("running", &[], "()", "How many exports are in flight."),
     ]);
-    m.function("targets", |eng: &Engine, ()| Ok(targets(eng)));
+    m.function("targets", |_: &Engine, ()| Ok(targets()));
     m.function(
         "listen",
         |eng: &Engine, (node, opts): (balaur_script::NodeId, Option<Value>)| {
@@ -158,7 +158,7 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
         },
     );
     m.function("start", |eng: &Engine, (target, opts): (String, Option<Value>)| {
-        start(eng, &target, opts.as_ref())
+        Ok(start(eng, &target, opts.as_ref()))
     });
     m.function("output", |eng: &Engine, target: String| {
         let state = eng.resource::<ExportState>();
@@ -172,7 +172,7 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
                 .into_owned(),
         ))
     });
-    m.function("running", |eng: &Engine, ()| {
+    m.function("running", |_: &Engine, ()| {
         Ok(i64::try_from(RUNNING.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or(i64::MAX))
     });
 }
@@ -182,7 +182,7 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
 static RUNNING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// What the sheet draws one row from.
-fn targets(eng: &Engine) -> Value {
+fn targets() -> Value {
     let roots = ExportState::roots();
     let rows = balaur_export::TARGETS
         .iter()
@@ -200,7 +200,6 @@ fn targets(eng: &Engine) -> Value {
             ])
         })
         .collect();
-    let _ = eng;
     Value::List(rows)
 }
 
@@ -220,7 +219,7 @@ fn note(target: &str) -> &'static str {
 }
 
 /// Begin one export on a thread, unless a recording is playing.
-fn start(eng: &Engine, target: &str, opts: Option<&Value>) -> Result<bool> {
+fn start(eng: &Engine, target: &str, opts: Option<&Value>) -> bool {
     let state = eng.resource::<ExportState>();
     let (project, download, sign, output) = {
         let state = state.borrow();
@@ -259,7 +258,7 @@ fn start(eng: &Engine, target: &str, opts: Option<&Value>) -> Result<bool> {
             RUNNING.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
         });
     });
-    Ok(started)
+    started
 }
 
 /// The export itself, on the worker thread. The prompt a terminal would show

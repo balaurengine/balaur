@@ -63,7 +63,7 @@ impl Default for ExportConfig {
 
 impl ExportConfig {
     /// The `[export]` table of a project, or the defaults when there is none.
-    pub(crate) fn load(project: &Path) -> Result<Self> {
+    pub fn load(project: &Path) -> Result<Self> {
         #[derive(serde::Deserialize)]
         struct Manifest {
             #[serde(default)]
@@ -80,13 +80,13 @@ impl ExportConfig {
 
     /// A path the project named, resolved against the project directory so a
     /// relative one means the same thing from any working directory.
-    pub(crate) fn beside(project: &Path, named: &str) -> Option<PathBuf> {
+    pub fn beside(project: &Path, named: &str) -> Option<PathBuf> {
         (!named.is_empty()).then(|| project.join(named))
     }
 
     /// Where a target's export goes when `-o` names nothing, or `None` for a
     /// project that declares no output and so exports where it stands.
-    pub(crate) fn output_for(&self, project: &Path, target: &str, name: &str) -> Option<PathBuf> {
+    pub fn output_for(&self, project: &Path, target: &str, name: &str) -> Option<PathBuf> {
         Self::beside(project, &self.output).map(|dir| dir.join(target).join(name))
     }
 }

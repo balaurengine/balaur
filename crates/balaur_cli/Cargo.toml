@@ -42,6 +42,7 @@ balaur_plugin.workspace = true
 balaur_script.workspace = true
 anyhow.workspace = true
 clap.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 tracing-subscriber.workspace = true
 tracing-log.workspace = true

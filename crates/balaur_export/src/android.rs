@@ -167,7 +167,9 @@ fn add_payload(apk: &Path, layout: &Path) -> Result<()> {
         .open(apk)?;
     let mut zip = zip::ZipWriter::new_append(file).context("reopening the linked APK")?;
     for (name, path) in payload_files(layout) {
-        let stored = name.ends_with(".so");
+        let stored = Path::new(&name)
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("so"));
         let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
             .compression_method(if stored {
                 zip::CompressionMethod::Stored

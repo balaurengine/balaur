@@ -22,6 +22,7 @@ mod bridge;
 mod splash;
 mod text;
 mod theme;
+mod vocabulary;
 mod widget_arrange;
 mod widget_bindings;
 mod widget_input;

@@ -510,6 +510,7 @@ dependencies = [
  "dirs",
  "flate2",
  "js-sys",
+ "serde",
  "serde_json",
  "sha2",
  "tar",

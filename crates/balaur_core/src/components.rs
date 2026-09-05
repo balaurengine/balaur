@@ -180,6 +180,26 @@ pub const PROPERTY_TYPES: [&str; 13] = [
 ];
 
 impl ComponentDef {
+    /// Schema text from `(key, spec)` lines, so a key is spelled once, by a
+    /// constant the reader uses too, and the spec stays the TOML table the
+    /// inspector reads.
+    pub fn schema(lines: &[(&str, &str)]) -> String {
+        lines
+            .iter()
+            .map(|(key, spec)| format!("{key} = {spec}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// The words an enum or flags property offers, as its `options` list.
+    pub fn options(words: &[&str]) -> String {
+        words
+            .iter()
+            .map(|word| format!("\"{word}\""))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
     /// Parse and validate a schema from TOML text.
     ///
     /// Panics naming the component, the property and the key at fault. Schemas

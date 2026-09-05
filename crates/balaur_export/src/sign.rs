@@ -250,7 +250,7 @@ pub(crate) fn sign_windows(exe: &Path, project: &Path, config: &ExportConfig) ->
             // Azure Trusted Signing keeps the key in an HSM: since 2023 an OV
             // certificate's key cannot be a file, so this is the common path.
             Some(path) if path.extension().is_some_and(|e| e == "json") => {
-                command.arg("/dlib").arg(dlib()?).arg("/dmdf").arg(path);
+                command.arg("/dlib").arg(dlib()).arg("/dmdf").arg(path);
             }
             Some(path) => {
                 command.arg("/f").arg(path);
@@ -284,8 +284,8 @@ pub(crate) fn sign_windows(exe: &Path, project: &Path, config: &ExportConfig) ->
 }
 
 /// Trusted Signing's signtool plug-in, wherever the developer installed it.
-fn dlib() -> Result<String> {
-    Ok(secret_or("BALAUR_SIGN_DLIB", "Azure.CodeSigning.Dlib.dll"))
+fn dlib() -> String {
+    secret_or("BALAUR_SIGN_DLIB", "Azure.CodeSigning.Dlib.dll")
 }
 
 fn absolute(path: &Path) -> Result<PathBuf> {
