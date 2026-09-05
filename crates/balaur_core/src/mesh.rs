@@ -29,6 +29,9 @@ pub struct MeshData {
     /// Set when the definition named a file instead of carrying vertices.
     /// Resolved by [`load_from`], which has the project reader to do it with.
     pub source: Option<String>,
+    /// Set when the definition asked for a word rather than a file or
+    /// vertices. Resolved by [`load_from`] through [`TextGeometry`].
+    pub text: Option<TextShape>,
     /// Bone influences, when the mesh is meant to deform with a rig.
     pub skin: Option<MeshSkin>,
 }
@@ -54,6 +57,37 @@ pub struct MeshSkin {
 
 /// How many bones may influence one vertex, which is what the shader blends.
 pub const INFLUENCES_PER_VERTEX: usize = 4;
+
+/// The `kind` a mesh definition names to be built out of a shaped string.
+pub const TEXT_SHAPE_KIND: &str = "text";
+
+/// A word to be turned into geometry: which string, in which face, at which
+/// size in world units.
+///
+/// Carried by a definition and resolved at load, the same two-step a
+/// `source` file takes, because shaping needs a font set core does not have.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct TextShape {
+    pub text: String,
+    /// The family to shape in, or empty for the project's own.
+    pub font: String,
+    /// The em size in world units: a capital letter is a little under this.
+    pub size: f32,
+    pub weight: u16,
+    pub italic: bool,
+}
+
+/// The shaper a text mesh is built by, filled in by whichever plugin owns
+/// the project's fonts.
+///
+/// Core carries the request and knows nothing about shaping; with no plugin
+/// to answer it, a text mesh is an error that says as much. The engine comes
+/// back in because the faces are read from the project, which is not open
+/// when a plugin declares itself.
+pub struct TextGeometry(pub Box<TextMesher>);
+
+/// What [`TextGeometry`] holds: a request in, triangles out.
+pub type TextMesher = dyn Fn(&crate::Engine, &TextShape) -> Result<MeshData>;
 
 impl MeshData {
     #[must_use]
@@ -261,7 +295,9 @@ build one at run time; naming more than one is refused. A `skin` table adds
 bone weights for skeletal animation.
 
 A primitive is built by the same mesher the `shape3d` component draws, so a
-collider over this asset collides exactly what is on screen.
+collider over this asset collides exactly what is on screen. A `text` mesh
+is the outlines of a shaped run, filled with the counters left as holes; it
+sits on its baseline and is sized in world units.
 
 ```toml
 [[assets]]
@@ -273,7 +309,11 @@ source = "models/blade.obj"      # imported...
 kind = "torus"
 radius = 1.0
 tube_radius = 0.3
-# ...or, instead of either:
+# ...or a word, shaped and filled from the project's fonts:
+kind = "text"
+text = "BALAUR"
+size = 1.0
+# ...or, instead of any of those:
 positions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
 indices = [[0, 1, 2]]
 ```"#;
@@ -304,14 +344,18 @@ pub(crate) fn register_mesh_asset(app: &mut App) {
 fn parse_definition(value: &toml::Value) -> Result<MeshData> {
     let source = value.get("source").and_then(toml::Value::as_str);
     let inline = value.get("positions").is_some() || value.get("indices").is_some();
-    let shape = value.get(crate::primitive::keys::KIND).is_some();
-    if shape && (source.is_some() || inline) {
+    let kind = value
+        .get(crate::primitive::keys::KIND)
+        .and_then(toml::Value::as_str);
+    if kind.is_some() && (source.is_some() || inline) {
         bail!(
             "a mesh names a primitive `kind` as well as a `source` file or inline `positions`; it can carry one or the other"
         );
     }
-    if shape {
-        return Ok(crate::primitive::Solid::from_params(value)?.build());
+    match kind {
+        Some(TEXT_SHAPE_KIND) => return Ok(parse_text_shape(value)),
+        Some(_) => return Ok(crate::primitive::Solid::from_params(value)?.build()),
+        None => {}
     }
     match (source, inline) {
         (Some(_), true) => bail!(
@@ -332,6 +376,37 @@ fn parse_definition(value: &toml::Value) -> Result<MeshData> {
                 "a mesh needs a `source` file, a primitive `kind`, or inline `positions` and `indices`"
             )
         }
+    }
+}
+
+/// A word to shape, recorded for [`load_from`] to resolve: an asset parser
+/// has no font set, the same way it has no project reader.
+fn parse_text_shape(value: &toml::Value) -> MeshData {
+    let text = |key: &str| {
+        value
+            .get(key)
+            .and_then(toml::Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    };
+    let number = |key: &str, fallback: f64| {
+        value
+            .get(key)
+            .and_then(crate::components::as_f64)
+            .unwrap_or(fallback)
+    };
+    MeshData {
+        text: Some(TextShape {
+            text: text("text"),
+            font: text("font"),
+            size: number("size", 1.0).max(f64::from(crate::primitive::MIN_EXTENT)) as f32,
+            weight: number("weight", 400.0).clamp(1.0, 1000.0) as u16,
+            italic: value
+                .get("italic")
+                .and_then(toml::Value::as_bool)
+                .unwrap_or(false),
+        }),
+        ..MeshData::default()
     }
 }
 
@@ -578,6 +653,13 @@ fn rows(value: &toml::Value, key: &str, lengths: &[usize], shape: &str) -> Resul
 /// # Errors
 /// If the referenced file is missing, or does not parse.
 pub fn load_from(eng: &crate::Engine, definition: &MeshData) -> Result<MeshData> {
+    if let Some(shape) = &definition.text {
+        let geometry = eng.try_resource::<TextGeometry>().ok_or_else(|| {
+            anyhow!("a text mesh needs the plugin that owns the fonts, and none is installed")
+        })?;
+        let geometry = geometry.borrow();
+        return (geometry.0)(eng, shape);
+    }
     let Some(source) = definition.source.as_deref() else {
         return Ok(definition.clone());
     };

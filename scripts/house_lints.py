@@ -60,7 +60,7 @@ KNOWN_RESOURCES = {
     "GamendSnapshot", "GamendState",
     "GridConfig", "HttpSnapshot", "HttpState", "InputSnapshot", "PhysicsState", "WebsocketSnapshot", "WebsocketState",
     "PhysicsState2d", "PostConfig", "ProjectRoot",
-    "RngState", "SceneKeyRegistry", "ScreenshotRequest", "ScriptArgs", "UiConfig",
+    "RngState", "SceneKeyRegistry", "ScreenshotRequest", "ScriptArgs", "TextGeometry", "UiConfig",
     "UiState", "ViewportSnapshot", "ViewportSnapshot2d", "WidgetInputBuffer",
     "WidgetInputSnapshot", "WidgetLayerConfig",
     "WindowedBackend",

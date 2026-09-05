@@ -110,11 +110,11 @@ position = [2.5, 1.6, -2.5]
 rotation = [90, 0, 0]
 
 [nodes.mesh]
-source = "ring"
+source = "#ring"
 
 [nodes.collider3d]
 kind = "trimesh"
-mesh = "ring"
+mesh = "#ring"
 
 [[nodes]]
 id = "n_hud"

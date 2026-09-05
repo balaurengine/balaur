@@ -93,6 +93,7 @@ impl Build {
             normals: Some(self.normals),
             uvs: Some(self.uvs),
             source: None,
+            text: None,
             skin: None,
         }
     }
