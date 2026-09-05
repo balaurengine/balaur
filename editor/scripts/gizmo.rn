@@ -146,7 +146,7 @@ fn geometry(S) {
     let shape_some = shape;
     if let Some(shape) = shape_some {
         if shape is Object {
-            if shape.contains_key("radius") && shape.get("kind") == Some("ball") {
+            if shape.contains_key("radius") && shape.get("kind") == Some(render::SHAPE_BALL) {
                 let r = util::f(shape.radius);
                 hx = r;
                 hy = r;

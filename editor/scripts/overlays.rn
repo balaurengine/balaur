@@ -119,7 +119,7 @@ pub fn colliders2d(S) {
         let ca = math::cos(angle);
         let sa = math::sin(angle);
         let pt = |ox, oy| (p.x + ca * ox - sa * oy, p.y + sa * ox + ca * oy);
-        if collider.get("kind") == Some("circle") {
+        if collider.get("kind") == Some(physics2d::SHAPE_CIRCLE) {
             let radius = util::f(collider.get("radius").unwrap_or(0.5)) * s.x;
             let (px, py) = pt(radius, 0.0);
             for t in 1..33 {

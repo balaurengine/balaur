@@ -275,17 +275,17 @@ pub fn fresh_id(doc, name) {
 pub fn node_type(node) {
     let kind = body_kind(node);
     let kind2d = body2d_kind(node);
-    if kind == Some("dynamic") {
+    if kind == Some(physics3d::BODY_DYNAMIC) {
         "RigidBody3D"
-    } else if kind == Some("static") {
+    } else if kind == Some(physics3d::BODY_STATIC) {
         "StaticBody3D"
-    } else if kind == Some("kinematic") {
+    } else if kind == Some(physics3d::BODY_KINEMATIC) {
         "KinematicBody3D"
-    } else if kind2d == Some("dynamic") {
+    } else if kind2d == Some(physics2d::BODY_DYNAMIC) {
         "RigidBody2D"
-    } else if kind2d == Some("static") {
+    } else if kind2d == Some(physics2d::BODY_STATIC) {
         "StaticBody2D"
-    } else if kind2d == Some("kinematic") {
+    } else if kind2d == Some(physics2d::BODY_KINEMATIC) {
         "KinematicBody2D"
     } else if node.contains_key("widget") {
         "Widget"

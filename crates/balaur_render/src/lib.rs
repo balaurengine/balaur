@@ -844,6 +844,9 @@ impl balaur_plugin::Plugin for RenderPlugin {
              node draws, the 2D and 3D cameras, the OS window, and the \
              backdrop and debug lines drawn around the scene.",
         );
+        for (name, value) in shape::CONSTANTS {
+            m.constant(name, balaur_script::Value::Str((*value).to_string()));
+        }
         script_api::install_camera_api(&mut *m);
         script_api::install_camera_2d_api(&mut *m);
         script_api::install_window_api(&mut *m);

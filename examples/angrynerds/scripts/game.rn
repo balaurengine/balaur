@@ -124,7 +124,7 @@ fn pigs_alive(this) {
 fn rearm_bird(this) {
     this.bird.set_position(ANCHOR_X, ANCHOR_Y, 0.0);
     this.bird.set_rotation_euler(0.0, 0.0, 0.0);
-    this.bird.set_component("body2d", #{ kind: "kinematic" });
+    this.bird.set_component("body2d", #{ kind: physics2d::BODY_KINEMATIC });
     this.launched = false;
     this.rest_timer = 0.0;
 }

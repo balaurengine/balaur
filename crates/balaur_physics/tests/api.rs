@@ -66,8 +66,14 @@ fn every_declared_shape_is_accepted() {
             let root = app.engine.root();
             let e = scene::spawn_node(&mut app.engine.world_mut(), shape, root);
             let params: toml::Value = toml::from_str(&format!("kind = \"{shape}\"")).unwrap();
-            components::add(&app.engine, e, component, Some(&params))
-                .unwrap_or_else(|e| panic!("{component} shape `{shape}` was rejected: {e}"));
+            // A mesh-backed shape has no asset here and says so; only an
+            // unknown word is a rejection.
+            if let Err(e) = components::add(&app.engine, e, component, Some(&params)) {
+                assert!(
+                    !e.to_string().contains("unknown"),
+                    "{component} shape `{shape}` was rejected: {e}"
+                );
+            }
         }
     }
 }

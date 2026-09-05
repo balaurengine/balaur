@@ -67,7 +67,7 @@ pub fn node_half_extents(node) {
     if !(shape is Object) {
         return None;
     }
-    if shape.get("kind") == Some("circle") {
+    if shape.get("kind") == Some(render::SHAPE_CIRCLE) {
         let r = util::f(shape.get("radius").unwrap_or(0.5));
         return Some((r, r));
     }

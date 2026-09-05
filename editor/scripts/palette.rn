@@ -66,6 +66,7 @@ fn commands(S) {
         // open script and the open shader the centre is showing.
         command("Save", "◇", "⌘S", || shell::save_active(S)),
         command("Reload scripts", "⟳", "⇧R", || shell::reload_scripts(S)),
+        command("Export game…", "⇧", "⌘E", || crate::exporter::open(S)),
         command("Settings…", "⚙", "⌘,", || crate::settings::open(S)),
         command("Toggle dark chrome", icons::ui("dark"), "⌥L", || theme::set_dark(S, !S.theme.dark)),
         command(if S.show_input { "Hide input overlay" } else { "Show input overlay" }, "⌨", "", || {

@@ -85,6 +85,25 @@ pub(crate) mod words {
     pub(crate) const LIGHT_KINDS: &[&str] = &[POINT, DIRECTIONAL];
 }
 
+/// The words as script constants, so a script writes `render.SHAPE_BALL`
+/// rather than spelling "ball" and finding out at runtime that "Ball" fell
+/// through to the default. One list: a capsule is a capsule in 2D and 3D.
+pub(crate) const CONSTANTS: &[(&str, &str)] = &[
+    ("SHAPE_BALL", words::BALL),
+    ("SHAPE_CUBOID", words::CUBOID),
+    ("SHAPE_CAPSULE", words::CAPSULE),
+    ("SHAPE_CYLINDER", words::CYLINDER),
+    ("SHAPE_CONE", words::CONE),
+    ("SHAPE_PLANE", words::PLANE),
+    ("SHAPE_CIRCLE", words::CIRCLE),
+    ("SHAPE_RECT", words::RECT),
+    ("SHAPE_POLYLINE", words::POLYLINE),
+    ("CAMERA_3D", words::PERSPECTIVE),
+    ("CAMERA_2D", words::ORTHOGRAPHIC),
+    ("LIGHT_POINT", words::POINT),
+    ("LIGHT_DIRECTIONAL", words::DIRECTIONAL),
+];
+
 /// The words a schema property offers, as its `options` list.
 pub(crate) fn options(words: &[&str]) -> String {
     words

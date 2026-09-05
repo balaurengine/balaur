@@ -1,0 +1,158 @@
+// The Export sheet: every target this install can build, what each one still
+// needs, and where the last build landed. The verb is the engine's `export`
+// module, which is the same library `balaur export` runs.
+
+use crate::style;
+use crate::util;
+
+pub fn state() {
+    #{
+        // One row per target, as `export::targets()` reports them.
+        rows: [],
+        // Per target: "started", "done" or "failed", and what it said.
+        status: #{},
+        said: #{},
+        // Where the last finished export landed, for the Open folder button.
+        landed: "",
+    }
+}
+
+pub fn open(S) {
+    refresh(S);
+    crate::window::show(S, "export");
+}
+
+fn refresh(S) {
+    S.exporter.rows = export::targets();
+}
+
+// One event from the exporter, delivered on the tick it arrived.
+pub fn report(S, e) {
+    let ev = util::obj(e);
+    let target = ev.get("target").unwrap_or("");
+    let kind = ev.get("kind").unwrap_or("");
+    if target == "" {
+        return;
+    }
+    let status = S.exporter.status;
+    status[target] = kind;
+    let said = S.exporter.said;
+    if kind == "done" {
+        let where_ = ev.get("path").unwrap_or("");
+        said[target] = where_;
+        S.exporter.landed = where_;
+        log::info(format!("exported {} -> {}", target, where_));
+        // A template that was downloaded on the way is installed now.
+        refresh(S);
+    } else if kind == "failed" {
+        let why = ev.get("message").unwrap_or("");
+        said[target] = why;
+        log::warn(format!("{}: {}", target, why));
+    } else {
+        said[target] = "";
+    }
+}
+
+pub fn draw(S) {
+    let k = S.theme;
+    crate::window::sheet(S, "export", "Export", || { folder_button(S, k); }, || {
+        if S.exporter.rows.is_empty() {
+            style::empty(k, "no targets — this build has no exporter");
+            return;
+        }
+        ui::vertical(|| {
+            ui::label(
+                "Builds the project this editor is editing. Signing identities \
+                 come from the project's [export] table.",
+                style::mono_sm(k.faint),
+            );
+            ui::add_space(12);
+            for row in S.exporter.rows {
+                target_row(S, k, util::obj(row));
+            }
+        });
+    });
+}
+
+fn folder_button(S, k) {
+    if S.exporter.landed == "" {
+        return;
+    }
+    if ui::pill("Open folder", #{
+        height: 26, size: 12, radius: 8, tooltip: "Show the last export in the file manager",
+        fill: k.sunken, color: k.dim,
+    }) {
+        engine::reveal(S.exporter.landed);
+    }
+}
+
+// What a target can do right now, in the words the button will use.
+fn readiness(installed, fetchable) {
+    if installed {
+        "installed"
+    } else if fetchable {
+        "downloads on first export"
+    } else {
+        "source build — no release to fetch a template from"
+    }
+}
+
+fn target_row(S, k, row) {
+    let name = row.get("name").unwrap_or("");
+    let installed = row.get("installed").unwrap_or(false);
+    let fetchable = row.get("fetchable").unwrap_or(false);
+    let note = row.get("note").unwrap_or("");
+    let status = S.exporter.status.get(name).unwrap_or("");
+    let said = S.exporter.said.get(name).unwrap_or("");
+    ui::horizontal(#{ height: 24 }, || {
+        ui::add_space(8);
+        ui::label(name, style::mono_sm(k.text));
+        ui::add_space(10);
+        ui::label(readiness(installed, fetchable), style::mono_sm(k.faint));
+        if note != "" {
+            ui::add_space(10);
+            ui::label(note, style::mono_sm(k.accent));
+        }
+        ui::right(|| {
+            ui::add_space(8);
+            export_button(S, k, name, installed, fetchable, status);
+            if status == "started" {
+                ui::label("building…", style::mono_sm(k.accent));
+            } else if status == "failed" {
+                ui::label("failed", style::mono_sm(k.accent));
+            } else if status == "done" {
+                ui::label("done", style::mono_sm(k.dim));
+            }
+        });
+    });
+    // The path it wrote, or the reason it did not, under the row that says so.
+    if said != "" {
+        ui::horizontal(#{ height: 18 }, || {
+            ui::add_space(20);
+            ui::label(said, style::mono_sm(if status == "failed" { k.accent } else { k.faint }));
+        });
+    }
+}
+
+fn export_button(S, k, name, installed, fetchable, status) {
+    if status == "started" {
+        return;
+    }
+    // Nothing to build with, and nowhere to get one: say so instead of
+    // offering a button that can only fail.
+    if !installed && !fetchable {
+        return;
+    }
+    let label = if installed { "export" } else { "download & export" };
+    if ui::pill(label, #{
+        height: 20, size: 10, strong: true,
+        tooltip: "Export the project for this target",
+        fill: k.sunken, color: k.dim,
+    }) {
+        let status_map = S.exporter.status;
+        status_map[name] = "started";
+        // `download` is the consent this click just gave: the engine never
+        // fetches a template without being told it may.
+        export::start(name, #{ download: true });
+    }
+}

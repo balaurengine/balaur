@@ -1,0 +1,120 @@
+name: Set up Balaur
+description: >-
+  Install the published Balaur build this action was called at, verified
+  against the release's checksums, and seed the runtime templates a game
+  exports onto.
+
+inputs:
+  version:
+    description: >-
+      The release tag to install. Defaults to the ref this action was called
+      at, so `@v0.2.0` installs v0.2.0 and the engine's own tag is the only
+      version number a game writes down. `nightly` follows the rolling build.
+    required: false
+    default: ""
+  targets:
+    description: >-
+      Space-separated targets whose runtime templates to fetch now, so a later
+      export needs no network. Empty fetches none.
+    required: false
+    default: ""
+
+outputs:
+  version:
+    description: The release tag that was installed.
+    value: ${{ steps.resolve.outputs.version }}
+  install:
+    description: The directory the editor and its templates were unpacked into.
+    value: ${{ steps.resolve.outputs.install }}
+
+runs:
+  using: composite
+  steps:
+    # `nightly` is a rolling tag: what it points at changes under a fixed
+    # name, so it is the one version that must never be restored from cache.
+    - id: resolve
+      shell: bash
+      run: |
+        set -euo pipefail
+        version='${{ inputs.version }}'
+        [ -n "$version" ] || version='${{ github.action_ref }}'
+        [ -n "$version" ] || version=nightly
+        install="$RUNNER_TEMP/balaur/$version"
+        {
+          echo "version=$version"
+          echo "install=$install"
+          echo "cacheable=$([ "$version" = nightly ] && echo false || echo true)"
+        } >>"$GITHUB_OUTPUT"
+
+    - id: cached
+      if: steps.resolve.outputs.cacheable == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.resolve.outputs.install }}
+        key: balaur-${{ steps.resolve.outputs.version }}-${{ runner.os }}-${{ runner.arch }}-${{ inputs.targets }}
+
+    - if: steps.cached.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        VERSION: ${{ steps.resolve.outputs.version }}
+        INSTALL: ${{ steps.resolve.outputs.install }}
+        TARGETS: ${{ inputs.targets }}
+      run: |
+        set -euo pipefail
+        base="https://github.com/${{ github.repository }}/releases/download/$VERSION"
+        case "$RUNNER_OS/$RUNNER_ARCH" in
+          Linux/X64) editor=balaur-editor-linux-x64.tar.gz ;;
+          Linux/ARM64) editor=balaur-editor-linux-arm64.tar.gz ;;
+          macOS/*) editor=balaur-editor-macos-universal.tar.gz ;;
+          Windows/*) editor=balaur-editor-windows-x64.zip ;;
+          *) echo "::error::no published Balaur build for $RUNNER_OS/$RUNNER_ARCH"; exit 1 ;;
+        esac
+        work=$(mktemp -d)
+        cd "$work"
+        # Every asset is checked against the release's own SHA256SUMS, which is
+        # what `balaur export` and `balaur update` verify downloads against too.
+        curl -fsSL -O "$base/SHA256SUMS"
+        fetch() {
+          curl -fsSL -o "$1" "$base/$1"
+          grep " \(\*\)\?$1\$" SHA256SUMS | sha256sum -c - >/dev/null \
+            || { echo "::error::$1 does not match the release's SHA256SUMS"; exit 1; }
+        }
+        fetch "$editor"
+        mkdir -p "$INSTALL"
+        case "$editor" in
+          *.zip) unzip -q "$editor" ;;
+          *) tar -xzf "$editor" ;;
+        esac
+        mv balaur-editor-*/* "$INSTALL/"
+        mkdir -p "$INSTALL/templates"
+        for target in $TARGETS; do
+          case "$target" in
+            ios|android|web)
+              asset="balaur-template-$target.tar.gz"
+              fetch "$asset"
+              tar -xzf "$asset" -C "$INSTALL/templates"
+              ;;
+            windows-*)
+              asset="balaur-runtime-$target.exe"
+              fetch "$asset"
+              mv "$asset" "$INSTALL/templates/"
+              ;;
+            *)
+              asset="balaur-runtime-$target"
+              fetch "$asset"
+              mv "$asset" "$INSTALL/templates/"
+              chmod +x "$INSTALL/templates/$asset"
+              ;;
+          esac
+        done
+        rm -rf "$work"
+
+    - shell: bash
+      run: |
+        set -euo pipefail
+        chmod +x '${{ steps.resolve.outputs.install }}/balaur' 2>/dev/null || true
+        echo '${{ steps.resolve.outputs.install }}' >>"$GITHUB_PATH"
+        echo "BALAUR_TEMPLATES=${{ steps.resolve.outputs.install }}/templates" >>"$GITHUB_ENV"
+
+    - shell: bash
+      run: balaur --version

@@ -173,7 +173,7 @@ prediction_distance = { type = "float", default = 0.002, min = 0.0, max = 1.0, h
              velocities, and overlap queries. `physics` holds what spans both \
              worlds.",
         );
-        install_constants(&mut *m, BODY_KINDS, SHAPE_KINDS);
+        install_constants(&mut *m, CONSTANTS_3D);
         body::install_body_api(&mut *m);
         body::install_force_api(&mut *m);
         body::install_force_reader_api(&mut *m);
@@ -591,20 +591,171 @@ pub const BODY_KINDS: &[(&str, &str)] = &[
     ("BODY_KINEMATIC_VELOCITY", w::KINEMATIC_VELOCITY),
 ];
 
-/// Collider shapes for the 3D world.
-pub const SHAPE_KINDS: &[(&str, &str)] =
-    &[("SHAPE_BALL", w::BALL), ("SHAPE_CUBOID", w::CUBOID)];
+/// Collider shapes for the 3D world, in the schema's order.
+pub const SHAPE_KINDS: &[(&str, &str)] = &[
+    ("SHAPE_BALL", w::BALL),
+    ("SHAPE_CUBOID", w::CUBOID),
+    ("SHAPE_CAPSULE", w::CAPSULE),
+    ("SHAPE_CYLINDER", w::CYLINDER),
+    ("SHAPE_CONE", w::CONE),
+    ("SHAPE_TRIANGLE", w::TRIANGLE),
+    ("SHAPE_SEGMENT", w::SEGMENT),
+    ("SHAPE_HALFSPACE", w::HALFSPACE),
+    ("SHAPE_TRIMESH", w::TRIMESH),
+    ("SHAPE_CONVEX_HULL", w::CONVEX_HULL),
+    ("SHAPE_CONVEX_DECOMPOSITION", w::CONVEX_DECOMPOSITION),
+    ("SHAPE_POLYLINE", w::POLYLINE),
+    ("SHAPE_HEIGHTFIELD", w::HEIGHTFIELD),
+    ("SHAPE_VOXELS", w::VOXELS),
+    ("SHAPE_VOXELIZED_MESH", w::VOXELIZED_MESH),
+    ("SHAPE_FIT", w::FIT),
+];
 
 /// Collider shapes for the 2D world.
-pub const SHAPE_KINDS_2D: &[(&str, &str)] =
-    &[("SHAPE_CIRCLE", w::CIRCLE), ("SHAPE_RECT", w::RECT)];
+pub const SHAPE_KINDS_2D: &[(&str, &str)] = &[
+    ("SHAPE_CIRCLE", w::CIRCLE),
+    ("SHAPE_RECT", w::RECT),
+    ("SHAPE_CAPSULE", w::CAPSULE),
+    ("SHAPE_TRIANGLE", w::TRIANGLE),
+    ("SHAPE_SEGMENT", w::SEGMENT),
+    ("SHAPE_HALFSPACE", w::HALFSPACE),
+    ("SHAPE_TRIMESH", w::TRIMESH),
+    ("SHAPE_CONVEX_HULL", w::CONVEX_HULL),
+    ("SHAPE_POLYLINE", w::POLYLINE),
+    ("SHAPE_HEIGHTFIELD", w::HEIGHTFIELD),
+];
 
-pub(crate) fn install_constants(
-    m: &mut dyn Bindings<Engine>,
-    bodies: &[(&str, &str)],
-    shapes: &[(&str, &str)],
-) {
-    for (name, value) in bodies.iter().chain(shapes) {
+/// Joint kinds for the 3D world.
+pub const JOINT_KINDS: &[(&str, &str)] = &[
+    ("JOINT_FIXED", w::FIXED),
+    ("JOINT_REVOLUTE", w::REVOLUTE),
+    ("JOINT_PRISMATIC", w::PRISMATIC),
+    ("JOINT_SPHERICAL", w::SPHERICAL),
+    ("JOINT_ROPE", w::ROPE),
+    ("JOINT_SPRING", w::SPRING),
+    ("JOINT_GENERIC", w::GENERIC),
+];
+
+/// Joint kinds for the 2D world.
+pub const JOINT_KINDS_2D: &[(&str, &str)] = &[
+    ("JOINT_FIXED", w::FIXED),
+    ("JOINT_REVOLUTE", w::REVOLUTE),
+    ("JOINT_PRISMATIC", w::PRISMATIC),
+    ("JOINT_ROPE", w::ROPE),
+    ("JOINT_SPRING", w::SPRING),
+    ("JOINT_PIN_SLOT", w::PIN_SLOT),
+    ("JOINT_GENERIC", w::GENERIC),
+];
+
+/// How two colliders' friction or restitution combine.
+pub const COMBINE_RULES: &[(&str, &str)] = &[
+    ("COMBINE_AVERAGE", w::AVERAGE),
+    ("COMBINE_MIN", w::MIN),
+    ("COMBINE_MULTIPLY", w::MULTIPLY),
+    ("COMBINE_MAX", w::MAX),
+    ("COMBINE_CLAMPED_SUM", w::CLAMPED_SUM),
+    ("COMBINE_GEOMETRIC_MEAN", w::GEOMETRIC_MEAN),
+];
+
+/// What a joint motor drives towards.
+pub const MOTOR_MODES: &[(&str, &str)] = &[
+    ("MOTOR_OFF", w::OFF),
+    ("MOTOR_VELOCITY", w::VELOCITY),
+    ("MOTOR_POSITION", w::POSITION),
+];
+
+/// How a motor's strength is felt.
+pub const MOTOR_MODELS: &[(&str, &str)] = &[
+    ("MOTOR_MODEL_ACCELERATION", w::ACCELERATION),
+    ("MOTOR_MODEL_FORCE", w::FORCE),
+];
+
+/// Which of rapier's joint sets holds a joint.
+pub const JOINT_SOLVERS: &[(&str, &str)] = &[
+    ("SOLVER_IMPULSE", w::IMPULSE),
+    ("SOLVER_REDUCED", w::REDUCED),
+];
+
+/// Whether a character's lengths are world units or a fraction of it.
+pub const LENGTH_MODES: &[(&str, &str)] = &[
+    ("LENGTHS_ABSOLUTE", w::ABSOLUTE),
+    ("LENGTHS_RELATIVE", w::RELATIVE),
+];
+
+/// How a voxelized mesh is filled; 3D only.
+pub const FILL_MODES: &[(&str, &str)] = &[("FILL_SOLID", w::SOLID), ("FILL_SURFACE", w::SURFACE)];
+
+/// What a `fit` collider fits to its mesh; 3D only.
+pub const FIT_MODES: &[(&str, &str)] = &[
+    ("FIT_CONVEX_HULL", w::CONVEX_HULL),
+    ("FIT_AABB", w::AABB),
+    ("FIT_OBB", w::OBB),
+    ("FIT_CONVEX_DECOMPOSITION", w::CONVEX_DECOMPOSITION),
+];
+
+/// What a collider reports to its node's script.
+pub const EVENTS: &[(&str, &str)] = &[
+    ("EVENT_COLLISION", w::COLLISION),
+    ("EVENT_CONTACT_FORCE", w::CONTACT_FORCE),
+];
+
+/// The body-kind pairs a collider is tested against.
+pub const COLLISION_PAIRS: &[(&str, &str)] = &[
+    ("COLLIDE_DYNAMIC_DYNAMIC", w::DYNAMIC_DYNAMIC),
+    ("COLLIDE_DYNAMIC_KINEMATIC", w::DYNAMIC_KINEMATIC),
+    ("COLLIDE_DYNAMIC_STATIC", w::DYNAMIC_STATIC),
+    ("COLLIDE_KINEMATIC_KINEMATIC", w::KINEMATIC_KINEMATIC),
+    ("COLLIDE_KINEMATIC_STATIC", w::KINEMATIC_STATIC),
+    ("COLLIDE_STATIC_STATIC", w::STATIC_STATIC),
+];
+
+/// The freedoms a body lock or a generic joint names, in 3D.
+pub const AXES: &[(&str, &str)] = &[
+    ("AXIS_X", w::X),
+    ("AXIS_Y", w::Y),
+    ("AXIS_Z", w::Z),
+    ("AXIS_ANG_X", w::ANG_X),
+    ("AXIS_ANG_Y", w::ANG_Y),
+    ("AXIS_ANG_Z", w::ANG_Z),
+];
+
+/// The same, in 2D: two translations and the one rotation there is.
+pub const AXES_2D: &[(&str, &str)] = &[("AXIS_X", w::X), ("AXIS_Y", w::Y), ("AXIS_ANG_X", w::ANG_X)];
+
+/// Every table `physics3d` spells as constants.
+pub const CONSTANTS_3D: &[&[(&str, &str)]] = &[
+    BODY_KINDS,
+    SHAPE_KINDS,
+    JOINT_KINDS,
+    COMBINE_RULES,
+    MOTOR_MODES,
+    MOTOR_MODELS,
+    JOINT_SOLVERS,
+    LENGTH_MODES,
+    FILL_MODES,
+    FIT_MODES,
+    EVENTS,
+    COLLISION_PAIRS,
+    AXES,
+];
+
+/// Every table `physics2d` spells as constants.
+pub const CONSTANTS_2D: &[&[(&str, &str)]] = &[
+    BODY_KINDS,
+    SHAPE_KINDS_2D,
+    JOINT_KINDS_2D,
+    COMBINE_RULES,
+    MOTOR_MODES,
+    MOTOR_MODELS,
+    JOINT_SOLVERS,
+    LENGTH_MODES,
+    EVENTS,
+    COLLISION_PAIRS,
+    AXES_2D,
+];
+
+pub(crate) fn install_constants(m: &mut dyn Bindings<Engine>, tables: &[&[(&str, &str)]]) {
+    for (name, value) in tables.iter().flat_map(|table| table.iter()) {
         m.constant(name, balaur_script::Value::Str((*value).to_string()));
     }
 }

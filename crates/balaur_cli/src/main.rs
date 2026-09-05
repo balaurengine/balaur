@@ -842,6 +842,10 @@ fn dump_api() -> Result<()> {
     )?;
 
     let mut app = balaur::standard_app(AppConfig::dev(dir.to_string_lossy().as_ref()))?;
+    // `export` is the editor's, registered by this binary rather than by the
+    // engine, so the probe has to load it or the reference would not list it.
+    #[cfg(not(target_family = "wasm"))]
+    balaur_plugin::load(&mut app, &mut export_api::ExportPlugin::new(dir.clone()))?;
     app.load_project()?;
     let host = balaur::rune::rune_of(&app.engine);
     let mut api: serde_json::Value = serde_json::from_str(&balaur::rune::api_json(&host)?)?;

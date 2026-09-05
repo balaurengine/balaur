@@ -7,6 +7,7 @@ mod chrome;
 mod defs;
 mod dock;
 mod docks;
+mod exporter;
 mod gizmo;
 mod gizmo2d;
 mod highlight;
@@ -111,6 +112,7 @@ pub fn init(this) {
         polygon: polygon::state(),
         anim: anim::state(),
         debug: shell::debug_state(),
+        exporter: exporter::state(),
         session: session::state(),
         settings: settings::state(),
         window: window::state(),
@@ -126,6 +128,8 @@ pub fn init(this) {
 
     model::load(S);
     plugins::load(S);
+    // Exports run off the frame and report back here as they go.
+    export::listen(this.node, #{});
     // Before the theme and the scale are pushed: the preferences decide both,
     // and until this ran they only took effect once Settings was opened.
     settings::load_files(S);
@@ -151,6 +155,11 @@ fn resolve_refs(S) {
     for node in S.doc {
         S.refs.push(S.mirror.get_node(model::node_path(S.doc, node)));
     }
+}
+
+// Every export reports here: started, done or failed, one call per step.
+pub fn on_export(this, e) {
+    exporter::report(this.S, e);
 }
 
 pub fn update(this, dt) {
@@ -295,6 +304,9 @@ pub fn draw_ui(this) {
     if ui::shortcut("cmd", "Comma") {
         settings::open(S);
     }
+    if ui::shortcut("cmd", "E") {
+        exporter::open(S);
+    }
     // Debugger keys work with the code editor focused: they are not text.
     if S.debug.paused is Object {
         if ui::shortcut("none", "F5") {
@@ -373,6 +385,7 @@ pub fn draw_ui(this) {
     }
     // Over everything but the palette: settings is a sheet you work in, the
     // palette is a thing you summon on top of whatever you are working in.
+    exporter::draw(S);
     settings::draw(S);
     palette::draw(S);
 }
