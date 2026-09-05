@@ -45,18 +45,27 @@ mod snapshot;
 mod system;
 pub mod tween;
 
-/// The `animation` component's keys, for its schema and its readers alike.
+/// The component key, as the registry and every `describe` entry spell it.
+pub(crate) const COMPONENT: &str = "animation";
+
+/// The `animation` and `modifier2d` components' keys, for their schemas and readers alike.
 pub(crate) mod keys {
     pub(crate) const AUTOPLAY: &str = "autoplay";
+    pub(crate) const BONE: &str = "bone";
+    pub(crate) const ENABLED: &str = "enabled";
+    pub(crate) const FLIP: &str = "flip";
+    pub(crate) const KIND: &str = "kind";
     pub(crate) const LIBRARY: &str = "library";
     pub(crate) const ROOT: &str = "root";
     pub(crate) const SPEED: &str = "speed";
+    pub(crate) const TARGET: &str = "target";
 }
 
 use balaur_plugin::Registry;
 use std::any::Any;
 use std::rc::Rc;
 
+use crate::keys as k;
 use anyhow::Result;
 use balaur_core::components::{ComponentDef, as_f64};
 use balaur_core::hecs::Entity;
@@ -138,7 +147,7 @@ impl balaur_plugin::Plugin for AnimationPlugin {
 /// nodes and the playhead is not.
 fn register_animation_component(reg: &mut Registry<'_>) {
     reg.register_component(
-        "animation",
+        COMPONENT,
         ComponentDef {
             doc: "Plays animation clips on a node: the library to play them from, one to start \
                   when the scene loads, and the rate every clip on the node runs at. The \
@@ -189,10 +198,12 @@ fn apply_animation(eng: &Engine, entity: Entity, params: &toml::Value) {
     };
     // Re-applying the component must not restart a running clip, and a clip
     // that will not load only warns — one bad reference must not kill the scene.
-    if !autoplay.is_empty() && !running
-        && let Err(why) = play(eng, entity, &autoplay) {
-            tracing::warn!("autoplay '{autoplay}': {why:#}");
-        }
+    if !autoplay.is_empty()
+        && !running
+        && let Err(why) = play(eng, entity, &autoplay)
+    {
+        tracing::warn!("autoplay '{autoplay}': {why:#}");
+    }
 }
 
 fn remove_animation(eng: &Engine, entity: Entity) {

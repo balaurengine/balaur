@@ -41,8 +41,18 @@ fn every_constant_table_matches_the_registered_schema() {
         ("SHAPE_KINDS_2D", SHAPE_KINDS_2D, "collider2d", "kind"),
         ("JOINT_KINDS", JOINT_KINDS, "joint3d", "kind"),
         ("JOINT_KINDS_2D", JOINT_KINDS_2D, "joint2d", "kind"),
-        ("COMBINE_RULES", COMBINE_RULES, "collider3d", "friction_combine"),
-        ("COMBINE_RULES", COMBINE_RULES, "collider2d", "restitution_combine"),
+        (
+            "COMBINE_RULES",
+            COMBINE_RULES,
+            "collider3d",
+            "friction_combine",
+        ),
+        (
+            "COMBINE_RULES",
+            COMBINE_RULES,
+            "collider2d",
+            "restitution_combine",
+        ),
         ("MOTOR_MODES", MOTOR_MODES, "joint3d", "motor"),
         ("MOTOR_MODES", MOTOR_MODES, "joint2d", "motor"),
         ("MOTOR_MODELS", MOTOR_MODELS, "joint3d", "motor_model"),
@@ -52,7 +62,12 @@ fn every_constant_table_matches_the_registered_schema() {
         ("FILL_MODES", FILL_MODES, "collider3d", "fill"),
         ("FIT_MODES", FIT_MODES, "collider3d", "fit"),
         ("EVENTS", EVENTS, "collider3d", "events"),
-        ("COLLISION_PAIRS", COLLISION_PAIRS, "collider2d", "active_collisions"),
+        (
+            "COLLISION_PAIRS",
+            COLLISION_PAIRS,
+            "collider2d",
+            "active_collisions",
+        ),
         ("AXES", AXES, "joint3d", "locked_axes"),
         ("AXES_2D", AXES_2D, "joint2d", "locked_axes"),
     ];
@@ -72,7 +87,8 @@ fn every_constant_is_screaming_snake_and_unique_in_its_world() {
         let mut seen = std::collections::BTreeSet::new();
         for (name, value) in tables.iter().flat_map(|t| t.iter()) {
             assert!(
-                name.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_'),
+                name.chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_'),
                 "{world}.{name} is not SCREAMING_SNAKE_CASE"
             );
             assert!(seen.insert(*name), "{world}.{name} is declared twice");
@@ -86,11 +102,16 @@ fn every_constant_is_screaming_snake_and_unique_in_its_world() {
 /// `SHAPE_BALL`, exists in one world only.
 #[test]
 fn a_name_the_two_worlds_share_has_one_meaning() {
-    let three: std::collections::BTreeMap<&str, &str> =
-        CONSTANTS_3D.iter().flat_map(|t| t.iter().copied()).collect();
+    let three: std::collections::BTreeMap<&str, &str> = CONSTANTS_3D
+        .iter()
+        .flat_map(|t| t.iter().copied())
+        .collect();
     for (name, value) in CONSTANTS_2D.iter().flat_map(|t| t.iter()) {
         if let Some(other) = three.get(name) {
-            assert_eq!(value, other, "{name} is `{value}` in 2D and `{other}` in 3D");
+            assert_eq!(
+                value, other,
+                "{name} is `{value}` in 2D and `{other}` in 3D"
+            );
         }
     }
 }

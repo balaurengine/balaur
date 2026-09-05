@@ -914,13 +914,23 @@ fn clear_debug_lines_system(eng: &Engine, _dt: f32) {
 fn register_render_presets(reg: &mut Registry<'_>) -> Result<()> {
     reg.register_preset(
         "sprite2d",
-        balaur_core::presets::preset("A textured 2D quad", &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::RENDER], &[("sprite", None)])?,
+        balaur_core::presets::preset(
+            "A textured 2D quad",
+            &[
+                balaur_core::components::tag::DIM_2D,
+                balaur_core::components::tag::RENDER,
+            ],
+            &[("sprite", None)],
+        )?,
     );
     reg.register_preset(
         "rect2d",
         balaur_core::presets::preset(
             "An untextured 2D rectangle",
-            &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::RENDER],
+            &[
+                balaur_core::components::tag::DIM_2D,
+                balaur_core::components::tag::RENDER,
+            ],
             &[("shape2d", Some("kind = \"rect\""))],
         )?,
     );
@@ -928,7 +938,10 @@ fn register_render_presets(reg: &mut Registry<'_>) -> Result<()> {
         "tilemap2d",
         balaur_core::presets::preset(
             "A grid of tiles from one tileset",
-            &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::RENDER],
+            &[
+                balaur_core::components::tag::DIM_2D,
+                balaur_core::components::tag::RENDER,
+            ],
             &[("tilemap", None)],
         )?,
     );
@@ -936,7 +949,11 @@ fn register_render_presets(reg: &mut Registry<'_>) -> Result<()> {
         "polygon2d",
         balaur_core::presets::preset(
             "A textured polygon that a rig can deform",
-            &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::RENDER, balaur_core::components::tag::ANIMATION],
+            &[
+                balaur_core::components::tag::DIM_2D,
+                balaur_core::components::tag::RENDER,
+                balaur_core::components::tag::ANIMATION,
+            ],
             &[("polygon", None)],
         )?,
     );

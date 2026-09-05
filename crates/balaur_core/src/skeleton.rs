@@ -19,6 +19,7 @@ use balaur_script::Value;
 use glamx::{Mat3, Mat4, Quat, Vec2, Vec3};
 use hecs::{Entity, World};
 
+use self::keys as k;
 use crate::App;
 use crate::components::{ComponentDef, as_f64};
 use crate::engine::Engine;
@@ -219,7 +220,9 @@ fn rest_in_rig_3d(world: &World, rig: Entity, bone: Entity) -> Option<Mat4> {
     }
     let mut matrix = Mat4::IDENTITY;
     for entity in chain.into_iter().rev() {
-        let local = if let Ok(bone) = world.get::<&Bone>(entity) { bone.rest_matrix_3d() } else {
+        let local = if let Ok(bone) = world.get::<&Bone>(entity) {
+            bone.rest_matrix_3d()
+        } else {
             let t = world.get::<&Transform>(entity).ok()?;
             affine_3d(t.position, t.rotation, t.scale)
         };
@@ -342,7 +345,9 @@ fn rest_in_rig(world: &World, rig: Entity, bone: Entity) -> Option<Mat3> {
     }
     let mut matrix = Mat3::IDENTITY;
     for entity in chain.into_iter().rev() {
-        let local = if let Ok(bone) = world.get::<&Bone>(entity) { bone.rest_matrix_2d() } else {
+        let local = if let Ok(bone) = world.get::<&Bone>(entity) {
+            bone.rest_matrix_2d()
+        } else {
             let t = world.get::<&Transform>(entity).ok()?;
             affine_2d(t.position, t.rotation, t.scale)
         };
@@ -431,10 +436,22 @@ pub fn skin_positions(
 
 fn bone2d_schema() -> String {
     crate::components::ComponentDef::schema(&[
-        (k::REST_POSITION, r#"{ type = "vec2", default = [0.0, 0.0], description = "Local rest translation" }"#),
-        (k::REST_ROTATION, r#"{ type = "float", default = 0.0, description = "Local rest rotation about z, in radians" }"#),
-        (k::LENGTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Gizmo length of a tip bone; 0 draws to the first child bone" }"#),
-        (k::ANGLE, r#"{ type = "float", default = 0.0, description = "Gizmo direction of a tip bone, in radians; ignored while a child bone exists" }"#),
+        (
+            k::REST_POSITION,
+            r#"{ type = "vec2", default = [0.0, 0.0], description = "Local rest translation" }"#,
+        ),
+        (
+            k::REST_ROTATION,
+            r#"{ type = "float", default = 0.0, description = "Local rest rotation about z, in radians" }"#,
+        ),
+        (
+            k::LENGTH,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Gizmo length of a tip bone; 0 draws to the first child bone" }"#,
+        ),
+        (
+            k::ANGLE,
+            r#"{ type = "float", default = 0.0, description = "Gizmo direction of a tip bone, in radians; ignored while a child bone exists" }"#,
+        ),
     ])
 }
 
@@ -447,7 +464,10 @@ pub(crate) fn register_bone2d_component(app: &mut App) {
                   to, plus the length and angle its gizmo is drawn with. A skin names its rig by \
                   node path and deforms by the bones under it, in tree order.",
             schema: ComponentDef::parse_schema("bone2d", &bone2d_schema()),
-            tags: &[crate::components::tag::DIM_2D, crate::components::tag::ANIMATION],
+            tags: &[
+                crate::components::tag::DIM_2D,
+                crate::components::tag::ANIMATION,
+            ],
             expects: &[],
             apply: Box::new(apply_bone2d),
             remove: Box::new(|eng, entity| {
@@ -485,10 +505,22 @@ fn apply_bone2d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()
 
 fn bone3d_schema() -> String {
     crate::components::ComponentDef::schema(&[
-        (k::REST_POSITION, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Local rest translation" }"#),
-        (k::REST_ROTATION, r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Local rest rotation, euler radians in the order rotation_euler uses" }"#),
-        (k::REST_SCALE, r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Local rest scale" }"#),
-        (k::LENGTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Gizmo length of a tip bone; 0 draws to the first child bone" }"#),
+        (
+            k::REST_POSITION,
+            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Local rest translation" }"#,
+        ),
+        (
+            k::REST_ROTATION,
+            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Local rest rotation, euler radians in the order rotation_euler uses" }"#,
+        ),
+        (
+            k::REST_SCALE,
+            r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Local rest scale" }"#,
+        ),
+        (
+            k::LENGTH,
+            r#"{ type = "float", default = 0.0, min = 0.0, description = "Gizmo length of a tip bone; 0 draws to the first child bone" }"#,
+        ),
     ])
 }
 
@@ -501,7 +533,10 @@ pub(crate) fn register_bone3d_component(app: &mut App) {
                   returns to, plus the length its gizmo is drawn with. A skinned mesh names its \
                   rig by node path and deforms by the bones under it, in tree order.",
             schema: ComponentDef::parse_schema("bone3d", &bone3d_schema()),
-            tags: &[crate::components::tag::DIM_3D, crate::components::tag::ANIMATION],
+            tags: &[
+                crate::components::tag::DIM_3D,
+                crate::components::tag::ANIMATION,
+            ],
             expects: &[],
             apply: Box::new(apply_bone3d),
             remove: Box::new(|eng, entity| {

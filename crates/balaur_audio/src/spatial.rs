@@ -19,8 +19,8 @@ use balaur_core::hecs::Entity;
 use balaur_core::{Engine, GlobalTransform, scene};
 
 use crate::bus::{self, Buses};
-use crate::{AudioState, MIN_PITCH};
 use crate::keys as k;
+use crate::{AudioState, MIN_PITCH};
 
 /// Metres per second. A game whose unit is not a metre tunes `doppler` per
 /// sound rather than this.
@@ -255,9 +255,10 @@ fn follow_nodes(state: &mut AudioState, eng: &Engine) {
         .find(|(_, node)| node.current)
         .map(|(entity, _)| *entity);
     if let Some(entity) = current
-        && let Ok(global) = world.get::<&GlobalTransform>(entity) {
-            listener.follow(&global);
-        }
+        && let Ok(global) = world.get::<&GlobalTransform>(entity)
+    {
+        listener.follow(&global);
+    }
     for (entity, sound) in nodes.iter() {
         let Some(handle) = sound.handle else { continue };
         let Some(emitter) = spatial.get_mut(&handle) else {

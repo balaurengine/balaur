@@ -45,6 +45,7 @@ pub(crate) mod keys {
     pub(crate) const VOLUME: &str = "volume";
 }
 
+use crate::keys as k;
 use bus::Buses;
 use spatial::{Emitter, Listener, ListenerPose, Placement};
 
@@ -767,7 +768,11 @@ fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
     let flag = |key: &str| params.get(key).and_then(toml::Value::as_bool) == Some(true);
     let level =
         |key: &str, default: f64| params.get(key).and_then(as_f64).unwrap_or(default) as f32;
-    let (autoplay, volume, pitch) = (flag(k::AUTOPLAY), level(k::VOLUME, 1.0), level(k::PITCH, 1.0));
+    let (autoplay, volume, pitch) = (
+        flag(k::AUTOPLAY),
+        level(k::VOLUME, 1.0),
+        level(k::PITCH, 1.0),
+    );
     let has_file = !file.trim().is_empty();
     bus::ensure_loaded(eng);
     let start = {
@@ -813,10 +818,9 @@ fn apply_sound(eng: &Engine, entity: Entity, params: &toml::Value) {
     };
     // Re-applying the component must not restart a sound already started —
     // the same rule the `animation` component holds for its autoplay clip.
-    if start
-        && let Err(why) = play_on(eng, entity) {
-            tracing::warn!("sound autoplay: {why:#}");
-        }
+    if start && let Err(why) = play_on(eng, entity) {
+        tracing::warn!("sound autoplay: {why:#}");
+    }
 }
 
 fn remove_sound(eng: &Engine, entity: Entity) {

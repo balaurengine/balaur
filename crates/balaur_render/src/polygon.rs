@@ -17,8 +17,8 @@ use balaur_core::hecs::Entity;
 use balaur_core::mesh::{MeshData, MeshSkin};
 use glamx::Vec2;
 
-use crate::{Renderable2d, Shape2d, color_from_params, color_to_toml, set_color, set_polygon};
 use crate::shape::{keys as k, words};
+use crate::{Renderable2d, Shape2d, color_from_params, color_to_toml, set_color, set_polygon};
 
 /// What a `Shape2d::Polygon` draws: resolved geometry, its texture, and the
 /// rig it deforms with.
@@ -54,11 +54,29 @@ impl PolygonMesh {
 
 fn polygon_schema() -> String {
     balaur_core::components::ComponentDef::schema(&[
-        (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node's space" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
-        (k::TEXTURE, r#"{ type = "string", default = "", description = "Image file, project-relative; empty draws the tint alone" }"#),
-        (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit, for the default UV mapping" }"#),
-        (k::SKELETON, r#"{ type = "string", default = "", description = "Node path to the rig root, relative to this node; empty means this node" }"#),
-        (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
+        (
+            k::MESH,
+            &format!(
+                r#"{{ type = "asset", asset = "{}", default = "", description = "Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node's space" }}"#,
+                balaur_core::mesh::MESH_ASSET_TYPE
+            ),
+        ),
+        (
+            k::TEXTURE,
+            r#"{ type = "string", default = "", description = "Image file, project-relative; empty draws the tint alone" }"#,
+        ),
+        (
+            k::PIXELS_PER_UNIT,
+            r#"{ type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit, for the default UV mapping" }"#,
+        ),
+        (
+            k::SKELETON,
+            r#"{ type = "string", default = "", description = "Node path to the rig root, relative to this node; empty means this node" }"#,
+        ),
+        (
+            k::COLOR,
+            r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
+        ),
     ])
 }
 

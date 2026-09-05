@@ -1,12 +1,12 @@
 //! The `shape` and `shape2d` components and the `render.set_*` shape API:
 //! untextured primitives, in both dimensions.
 
+use crate::shape::keys as k;
 use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
 use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, NodeId};
-use crate::shape::{keys as k};
 
 use crate::{
     Renderable, Renderable2d, Shape, Shape2d, color_from_params, color_to_toml, set_color,
@@ -104,7 +104,6 @@ pub(crate) const CONSTANTS: &[(&str, &str)] = &[
     ("LIGHT_POINT", words::POINT),
     ("LIGHT_DIRECTIONAL", words::DIRECTIONAL),
 ];
-
 
 /// Every property key the render components spell, so a schema line and the
 /// reader behind it name the same key.

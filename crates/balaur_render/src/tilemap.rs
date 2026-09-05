@@ -2,13 +2,13 @@
 //! from one atlas texture. The component and parser are backend-free; the
 //! kiss3d mirror at the bottom of the file is feature-gated.
 
+use crate::shape::{keys as k, words};
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt};
-use crate::shape::{keys as k, words};
 
 /// The asset type name a `tileset` definition declares.
 pub const TILESET_ASSET_TYPE: &str = "tileset";

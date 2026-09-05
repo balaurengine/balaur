@@ -261,8 +261,17 @@ pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
 
 fn occluder_schema() -> String {
     balaur_core::components::ComponentDef::schema(&[
-        (k::MESH, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Outline points in order, [x, y] in the node's space; empty derives the outline from the node's `collider2d`, then from its 2D shape" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
-        (k::CLOSED, r#"{ type = "bool", default = true, description = "Whether the last point joins the first, making the outline a loop" }"#),
+        (
+            k::MESH,
+            &format!(
+                r#"{{ type = "asset", asset = "{}", default = "", description = "Outline points in order, [x, y] in the node's space; empty derives the outline from the node's `collider2d`, then from its 2D shape" }}"#,
+                balaur_core::mesh::MESH_ASSET_TYPE
+            ),
+        ),
+        (
+            k::CLOSED,
+            r#"{ type = "bool", default = true, description = "Whether the last point joins the first, making the outline a loop" }"#,
+        ),
     ])
 }
 

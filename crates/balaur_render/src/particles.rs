@@ -6,12 +6,12 @@
 //! seeded from its entity bits, so the engine's `rng` stream is untouched and
 //! a headless run ticks bit-identically to a windowed one.
 
+use crate::shape::keys as k;
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
-use crate::shape::{keys as k};
 
 /// What the `particles` component wrote on the node: emitter settings only.
 /// Live particles are backend state the simulation never sees.

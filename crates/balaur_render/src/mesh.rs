@@ -4,9 +4,9 @@
 //! `balaur_core::mesh`: physics needs them too, and does not depend on this
 //! crate. What lives here is the component that points a node at one.
 
+use crate::shape::{keys as k, words};
 use balaur_core::mesh::{MESH_ASSET_TYPE, MeshData};
 use balaur_plugin::Registry;
-use crate::shape::{keys as k, words};
 
 /// The `mesh` component: authored geometry on a node.
 ///

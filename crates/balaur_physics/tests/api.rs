@@ -363,7 +363,7 @@ fn named_body(app: &App, name: &str, kind: &str) -> Entity {
 
 fn joint_count(app: &App) -> usize {
     let state = app.engine.resource::<balaur_physics::PhysicsState>();
-    
+
     state.borrow().joints.len()
 }
 
