@@ -14,7 +14,7 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 use glamx::{Vec2, Vec3};
 
 use crate::shape::{keys as k, words};
-use crate::{Renderable2d, Shape2d, color_from_params, color_to_toml};
+use crate::{Flat, Renderable2d, Shape2d, color_from_params, color_to_toml};
 
 /// Which way a `light2d` throws light.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -416,12 +416,21 @@ fn collider_outline(eng: &Engine, entity: Entity) -> Option<Vec<Vec2>> {
         Vec2::new(axis(0), axis(1))
     };
     match params.get(k::KIND).and_then(toml::Value::as_str)? {
-        words::CIRCLE => Some(circle_outline(num(k::RADIUS, 0.5))),
+        words::CIRCLE => Some(Flat::circle(num(k::RADIUS, 0.5)).outline()),
         words::RECT => {
             let he = point(k::HALF_EXTENTS);
-            Some(rect_outline(he.x, he.y))
+            Some(Flat::rect(he.x, he.y).outline())
         }
-        words::CAPSULE => Some(capsule_outline(num(k::RADIUS, 0.5), num(k::HEIGHT, 1.0))),
+        words::CAPSULE => Some(
+            Flat::Capsule {
+                radius: num(k::RADIUS, 0.5),
+                height: num(k::HEIGHT, 1.0),
+                segments: balaur_core::primitive::DEFAULT_SEGMENTS,
+            }
+            .outline(),
+        ),
+        // A collider's triangle and segment are not shapes a node draws, so
+        // the mesher has no word for them; they are two points and three.
         words::TRIANGLE => Some(vec![point(k::A), point(k::B), point(k::C)]),
         words::SEGMENT => Some(vec![point(k::A), point(k::B)]),
         _ => None,
@@ -437,53 +446,10 @@ fn shape_outline(eng: &Engine, entity: Entity) -> Vec<Vec2> {
         return Vec::new();
     };
     match renderable.shape {
-        Shape2d::Circle { radius } => circle_outline(radius),
-        Shape2d::Capsule { radius, height } => capsule_outline(radius, height),
-        Shape2d::Rect { hx, hy } | Shape2d::Sprite { hx, hy } => rect_outline(hx, hy),
+        // The same outline the shape fills from, so a shadow's edge and the
+        // lit shape's edge are the same points.
+        Shape2d::Flat(flat) => flat.outline(),
+        Shape2d::Sprite { hx, hy } => Flat::rect(hx, hy).outline(),
         Shape2d::Polyline { .. } | Shape2d::Polygon => Vec::new(),
     }
-}
-
-fn rect_outline(hx: f32, hy: f32) -> Vec<Vec2> {
-    vec![
-        Vec2::new(-hx, -hy),
-        Vec2::new(hx, -hy),
-        Vec2::new(hx, hy),
-        Vec2::new(-hx, hy),
-    ]
-}
-
-/// How many segments a traced circle or capsule cap gets. Sixteen is where a
-/// shadow's edge stops looking faceted at ordinary 2D zooms.
-const CIRCLE_SEGMENTS: usize = 16;
-
-/// `libm` rather than the platform's: an outline is not simulation state, but
-/// the house rule is one sin/cos for the whole tree (DETERMINISM.md).
-fn on_circle(radius: f32, turn: f32) -> Vec2 {
-    let (sin, cos) = libm::sincosf(turn);
-    Vec2::new(cos * radius, sin * radius)
-}
-
-fn circle_outline(radius: f32) -> Vec<Vec2> {
-    let step = std::f32::consts::TAU / CIRCLE_SEGMENTS as f32;
-    (0..CIRCLE_SEGMENTS)
-        .map(|i| on_circle(radius, i as f32 * step))
-        .collect()
-}
-
-/// A capsule's outline: the two caps traced, joined by the straight sides.
-/// `height` is the straight part, as it is on `collider2d`.
-fn capsule_outline(radius: f32, height: f32) -> Vec<Vec2> {
-    let half = height / 2.0;
-    let arc = CIRCLE_SEGMENTS / 2;
-    let step = std::f32::consts::PI / arc as f32;
-    let mut points = Vec::with_capacity(2 * (arc + 1));
-    for i in 0..=arc {
-        points.push(on_circle(radius, i as f32 * step) + Vec2::new(0.0, half));
-    }
-    for i in 0..=arc {
-        points
-            .push(on_circle(radius, std::f32::consts::PI + i as f32 * step) - Vec2::new(0.0, half));
-    }
-    points
 }

@@ -988,11 +988,15 @@ fn by_cost(table) {
     }
     let out = [];
     while !left.is_empty() {
+        // Indexed, not `left.iter()`: an iterator holds a read borrow until it
+        // goes out of scope, and `remove` below needs to write.
         let worst = 0;
-        for (i, row) in left.iter().enumerate() {
-            if row.ms > left[worst].ms {
+        let i = 1;
+        while i < left.len() {
+            if left[i].ms > left[worst].ms {
                 worst = i;
             }
+            i += 1;
         }
         out.push(left.remove(worst));
     }

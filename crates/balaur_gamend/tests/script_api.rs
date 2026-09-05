@@ -103,7 +103,28 @@ fn serve_http(mut stream: TcpStream) {
             Ok(n) => request.extend_from_slice(&chunk[..n]),
         }
     }
-    let head = String::from_utf8_lossy(&request);
+    // Read the body out too, not just the head: answering and closing over
+    // bytes the client is still sending resets the connection on Windows, and
+    // the reply the client never read is lost with it.
+    let head_end = request
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .map_or(request.len(), |at| at + 4);
+    let head = String::from_utf8_lossy(&request[..head_end]).into_owned();
+    let length: usize = head
+        .lines()
+        .find_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.eq_ignore_ascii_case("content-length")
+                .then(|| value.trim().parse().ok())?
+        })
+        .unwrap_or(0);
+    while request.len() < head_end + length {
+        match stream.read(&mut chunk) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => request.extend_from_slice(&chunk[..n]),
+        }
+    }
     let body = if head.starts_with("POST /api/v1/login/device") {
         json!({"data": {"access_token": "tok", "refresh_token": "ref", "expires_in": 900,
                         "user_id": "00000000-0000-7000-8000-000000000001",

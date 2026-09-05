@@ -533,20 +533,10 @@ fn sync(
                 old.node.remove();
             }
             let (mut node, skin, geometry) = match renderable.shape {
-                Shape::Ball { radius } => (scene.add_sphere(radius), None, None),
-                Shape::Cuboid { hx, hy, hz } => {
-                    (scene.add_cube(2.0 * hx, 2.0 * hy, 2.0 * hz), None, None)
-                }
-                Shape::Capsule { radius, height } => {
-                    (scene.add_capsule(radius, height), None, None)
-                }
-                Shape::Cylinder { radius, height } => {
-                    (scene.add_cylinder(radius, height), None, None)
-                }
-                Shape::Cone { radius, height } => (scene.add_cone(radius, height), None, None),
-                // One quad, no subdivisions: a flat plane needs no interior
-                // vertices, and fewer of them is fewer to transform.
-                Shape::Plane { hx, hz } => (scene.add_quad(2.0 * hx, 2.0 * hz, 1, 1), None, None),
+                // Built by the mesher rather than by kiss3d: the triangles a
+                // collider is fitted to and a ray is picked against are the
+                // ones uploaded here.
+                Shape::Solid(solid) => (upload_geometry(scene, &solid.build()), None, None),
                 Shape::Mesh => match upload_mesh(app, scene, renderable) {
                     Some(built) => built,
                     // Nothing to draw yet, and `upload_mesh` said why.
@@ -578,19 +568,9 @@ fn sync(
             pose_mesh(&world, entity, skin, slot.palette.as_ref(), &mut slot.node);
         }
         let [r, g, b, a] = renderable.color;
-        // kiss3d primitives encode their dimensions in the node's local
-        // scale, so the node scale is (shape size) * (scene scale).
-        let size = match renderable.shape {
-            Shape::Ball { radius } => Vec3::splat(2.0 * radius),
-            Shape::Cuboid { hx, hy, hz } => Vec3::new(2.0 * hx, 2.0 * hy, 2.0 * hz),
-            Shape::Cylinder { radius, height } | Shape::Cone { radius, height } => {
-                Vec3::new(2.0 * radius, height, 2.0 * radius)
-            }
-            // Capsule, quad and mesh are real geometry built at unit size,
-            // unlike the primitives above: scaling them would double them.
-            Shape::Capsule { .. } | Shape::Plane { .. } | Shape::Mesh => Vec3::ONE,
-        };
-        let scale = size * global.scale;
+        // Every shape is real geometry at its authored size now, so the node
+        // carries the scene's scale and nothing of the shape's.
+        let scale = global.scale;
         let visible = world
             .get::<&GlobalAppearance>(entity)
             .is_ok_and(|a| a.visible);
@@ -608,6 +588,27 @@ fn sync(
             false
         }
     });
+}
+
+/// Hand a mesh's triangles to kiss3d as a static node. Normals and UVs are
+/// optional in the format; kiss3d computes normals from the faces when they
+/// are absent, which is the right answer for a bare OBJ.
+fn upload_geometry(scene: &mut SceneNode3d, data: &balaur_core::mesh::MeshData) -> SceneNode3d {
+    let coords: Vec<Vec3> = data
+        .positions
+        .iter()
+        .map(|p| Vec3::from_array(*p))
+        .collect();
+    let normals = data
+        .normals
+        .as_ref()
+        .map(|ns| ns.iter().map(|n| Vec3::from_array(*n)).collect());
+    let uvs = data
+        .uvs
+        .as_ref()
+        .map(|us| us.iter().map(|u| Vec2::from_array(*u)).collect());
+    let gpu = GpuMesh3d::new(coords, data.indices.clone(), normals, uvs, false);
+    scene.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(gpu)), Vec3::ONE)
 }
 
 /// Resolve a `mesh` asset and hand its triangles to kiss3d, with the skin to
@@ -760,12 +761,26 @@ fn pose_mesh(
 /// The kiss3d node a 2D shape needs. `None` when a polyline names no usable
 /// points, which is the one shape that can fail to have any.
 fn build_2d_node(scene: &mut SceneNode2d, renderable: &Renderable2d) -> Option<SceneNode2d> {
-    // Unit primitives: like the 3D path, dimensions live in the node's local
-    // scale, which the caller updates every frame.
     Some(match renderable.shape {
-        Shape2d::Circle { .. } => scene.add_circle(0.5),
-        Shape2d::Capsule { radius, height } => scene.add_capsule(radius, height),
-        Shape2d::Rect { .. } | Shape2d::Sprite { .. } => scene.add_rectangle(1.0, 1.0),
+        // Real geometry from the mesher, at its authored size, so a star and
+        // a circle arrive by the same path.
+        Shape2d::Flat(flat) => {
+            let mesh = flat.build();
+            let coords: Vec<Vec2> = mesh
+                .positions
+                .iter()
+                .map(|p| Vec2::new(p[0], p[1]))
+                .collect();
+            let uvs = mesh
+                .uvs
+                .as_ref()
+                .map(|us| us.iter().map(|u| Vec2::from_array(*u)).collect());
+            let gpu = kiss3d::resource::GpuMesh2d::new(coords, mesh.indices, uvs, false);
+            scene.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(gpu)), Vec2::ONE)
+        }
+        // A sprite is a unit quad the caller scales, because its size comes
+        // from the image and changes without rebuilding the node.
+        Shape2d::Sprite { .. } => scene.add_rectangle(1.0, 1.0),
         // Built by `build_polyline_node` and `build_polygon_node`, which also
         // hand back the pieces and the palette.
         Shape2d::Polyline { .. } | Shape2d::Polygon => return None,
@@ -865,21 +880,38 @@ fn polyline_points(app: &App, reference: Option<&str>, closed: bool) -> Vec<Vec2
     let Some(reference) = reference.filter(|r| !r.is_empty()) else {
         return Vec::new();
     };
-    let loaded =
-        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(&app.engine, reference)
+    // A `path2d` first: a stroked curve names one, and a traced outline names
+    // a mesh. Both end as the same chain of points.
+    let mut points: Vec<Vec2> = match balaur_core::assets::load_typed::<balaur_core::path::Path2d>(
+        &app.engine,
+        reference,
+    ) {
+        Ok(path) => match path.sample(balaur_core::path::TOLERANCE) {
+            Ok(points) => points.into_iter().map(|p| Vec2::new(p.x, p.y)).collect(),
+            Err(err) => {
+                tracing::error!("path '{reference}': {err:#}");
+                return Vec::new();
+            }
+        },
+        Err(_) => {
+            let loaded = balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(
+                &app.engine,
+                reference,
+            )
             .and_then(|definition| balaur_core::mesh::load_from(&app.engine, &definition));
-    let data = match loaded {
-        Ok(data) => data,
-        Err(err) => {
-            tracing::error!("polyline '{reference}': {err:#}");
-            return Vec::new();
+            match loaded {
+                Ok(data) => data
+                    .positions
+                    .iter()
+                    .map(|p| Vec2::new(p[0], p[1]))
+                    .collect(),
+                Err(err) => {
+                    tracing::error!("polyline '{reference}': {err:#}");
+                    return Vec::new();
+                }
+            }
         }
     };
-    let mut points: Vec<Vec2> = data
-        .positions
-        .iter()
-        .map(|p| Vec2::new(p[0], p[1]))
-        .collect();
     // A closed chain repeats its first point rather than carrying a flag: the
     // renderer draws segments, and the join is just one more of them.
     if closed && points.len() > 2 {
@@ -1023,13 +1055,11 @@ fn sync_2d(
         // The block above inserts the slot when it is missing.
         let slot = slots.get_mut(&entity).unwrap();
         let [r, g, b, a] = renderable.color;
+        // A sprite is the one 2D shape still built at unit size: its extents
+        // come from the image and change without rebuilding the node.
         let size = match renderable.shape {
-            Shape2d::Circle { radius } => Vec2::splat(2.0 * radius),
-            // kiss3d's 2D capsule is real geometry like its 3D one, and a
-            // polyline's or polygon's points are already in world units: none
-            // is a unit primitive waiting to be scaled.
-            Shape2d::Capsule { .. } | Shape2d::Polyline { .. } | Shape2d::Polygon => Vec2::ONE,
-            Shape2d::Rect { hx, hy } | Shape2d::Sprite { hx, hy } => Vec2::new(2.0 * hx, 2.0 * hy),
+            Shape2d::Sprite { hx, hy } => Vec2::new(2.0 * hx, 2.0 * hy),
+            _ => Vec2::ONE,
         };
         // Every frame: the rig moved even when nothing about the polygon did.
         if let (Some(handle), Some(polygon)) = (&slot.skin, renderable.polygon.as_deref()) {

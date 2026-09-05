@@ -87,15 +87,22 @@ core already depends on, which scales to integers as it does. The caps are
 the 2D mesh; step 3's extrude closes the sides. The cache is by `(font,
 size, text)`.
 
-**A path is an asset; extrude, lathe and sweep are `shape3d` kinds over it.**
-`path2d` and `path3d` are lists of cubic segments with a `closed` flag,
-inline or under `paths/`. `shape2d = { kind = "path", path = "#outline",
-width = 0.05 }` strokes one through the polyline strip; `shape3d = { kind =
-"extrude", path = "#outline", depth = 0.5, bevel = 0.05, segments = 4 }`
-fills and extrudes; `lathe` revolves a `path2d` profile around y; `sweep`
-runs a profile along a `path3d`. Sampling is a core function on `libm`, so a
-path's mesh is the same everywhere. The pen tool that edits one is
-`docs/PLAN-editor-ergonomics.md`.
+**A path is an asset; extrude, lathe and sweep are `mesh` kinds over it.**
+`path2d` and `path3d` are lists of cubic control points with a `closed`
+flag, inline or under `paths/`. `shape2d = { kind = "polyline", mesh =
+"#outline", width = 0.05 }` strokes one through the polyline strip, the
+`mesh` key taking a path as readily as a mesh; `[[assets]] type = "mesh"`
+with `kind = "extrude"`, `path = "#outline"`, `depth`, `bevel` and
+`segments` fills and extrudes; `lathe` revolves a `path2d` profile around y;
+`sweep` runs a profile along a `path3d`. Sampling is a core function on
+`libm`, so a path's mesh is the same everywhere. The pen tool that edits one
+is `docs/PLAN-editor-ergonomics.md`.
+
+> Written as `shape3d` kinds when this was planned. They are `mesh` kinds
+> instead because `Shape` is `Copy` and an asset reference is not, which is
+> the same reason `Shape::Mesh` already keeps its reference beside the enum.
+> A path-built solid is therefore a `mesh` asset a node draws, which is what
+> the torus in `examples/hello` does too.
 
 **A boolean is a component on the parent, and its operands are its
 children.** `boolean3d = { op = "difference" }` on a node takes the meshes of
@@ -147,7 +154,7 @@ core.
 | Torus, pyramid, prism, tube, rounded cuboid, segmented plane | Step 1, core meshers |
 | Sphere, cuboid, capsule, cylinder, cone, quad, circle, hemisphere in the fork's `procedural` | Not used: the same shapes move into core so headless and drawn geometry agree |
 | Glyph outlines to a mesh, for `docs/PLAN-text.md`'s `text3d` when it takes outlines; that plan tries atlas quads first | Step 2, `swash` + `i_triangle` |
-| `path2d`, `path3d`, stroke, extrude, lathe, sweep | Step 3, sampling in core. The fork's `bezier_curve` and `polyline_path` pipe are not used |
+| `path2d`, `path3d`, stroke, extrude, lathe, sweep | Step 3, sampling in core. Extrude, lathe and sweep are `mesh` kinds rather than `shape3d` ones; the fork's `bezier_curve` and `polyline_path` pipe are not used |
 | `boolean2d` | Step 4, `geometry2d` |
 | `boolean3d` intersection | Step 4, `geometry3d.intersect` (parry) |
 | `boolean3d` union and difference | Step 4, `csgrs`; fallback an in-tree BSP |

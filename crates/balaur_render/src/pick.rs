@@ -8,7 +8,7 @@ use balaur_core::hecs;
 use balaur_core::scene::GlobalTransform;
 use glamx::Vec3;
 
-use crate::{Renderable, Shape};
+use crate::{Renderable, Shape, Solid};
 
 /// The box a renderable fills in its own space, as centre and half-extents.
 ///
@@ -16,24 +16,12 @@ use crate::{Renderable, Shape};
 /// vertices when the asset resolved. `None` is a mesh whose asset would not
 /// load, which is also a mesh that draws nothing.
 fn local_box(renderable: &Renderable) -> Option<(Vec3, Vec3)> {
-    let half = match renderable.shape {
-        Shape::Ball { radius } => Vec3::splat(radius),
-        Shape::Cuboid { hx, hy, hz } => Vec3::new(hx, hy, hz),
-        // The caps add a radius at each end of the straight part.
-        Shape::Capsule { radius, height } => Vec3::new(radius, height / 2.0 + radius, radius),
-        Shape::Cylinder { radius, height } | Shape::Cone { radius, height } => {
-            Vec3::new(radius, height / 2.0, radius)
-        }
-        // A quad has no thickness; picking one needs some, or the slab test
-        // divides by zero and every ray misses it.
-        Shape::Plane { hx, hz } => Vec3::new(hx, 1e-4, hz),
+    let Some(solid) = renderable.shape.solid() else {
         // A mesh is the one shape not centred on its own origin.
-        Shape::Mesh => {
-            let bounds = renderable.bounds?;
-            return Some((bounds.centre, bounds.half));
-        }
+        let bounds = renderable.bounds?;
+        return Some((bounds.centre, bounds.half));
     };
-    Some((Vec3::ZERO, half))
+    Some((Vec3::ZERO, Vec3::from_array(solid.half_extents())))
 }
 
 /// Distance along `dir` to the near face of the box, or `None` for a miss.
@@ -132,7 +120,7 @@ pub(crate) fn along_ray(
         &mut world.query::<(hecs::Entity, &Renderable, &GlobalTransform)>()
     {
         let hit = match renderable.shape {
-            Shape::Ball { radius } => hit_sphere(at, radius, origin, dir),
+            Shape::Solid(Solid::Ball { radius, .. }) => hit_sphere(at, radius, origin, dir),
             _ => local_box(renderable)
                 .and_then(|(centre, half)| hit_box(at, centre, half, origin, dir)),
         };
@@ -155,6 +143,12 @@ mod tests {
             rotation: Quat::IDENTITY,
             scale: Vec3::ONE,
         }
+    }
+
+    /// A cuboid, spelled once: the tests care about the box a shape covers,
+    /// not about how finely it is cut.
+    fn cuboid(hx: f32, hy: f32, hz: f32) -> Shape {
+        Shape::Solid(Solid::cuboid(hx, hy, hz))
     }
 
     fn renderable(shape: Shape) -> Renderable {
@@ -286,7 +280,12 @@ mod tests {
     #[test]
     fn a_plane_is_pickable_from_above() {
         let place = at(Vec3::ZERO);
-        let (_, half) = local_box(&renderable(Shape::Plane { hx: 5.0, hz: 5.0 })).unwrap();
+        let flat = Shape::Solid(Solid::Plane {
+            hx: 5.0,
+            hz: 5.0,
+            segments: 1,
+        });
+        let (_, half) = local_box(&renderable(flat)).unwrap();
         let above = Vec3::new(1.0, 4.0, 1.0);
         let down = Vec3::new(0.0, -1.0, 0.0);
         assert!(hit_box(&place, Vec3::ZERO, half, above, down).is_some());
@@ -318,19 +317,11 @@ mod tests {
     fn the_nearest_of_several_nodes_is_the_one_picked() {
         let mut world = hecs::World::new();
         let near = world.spawn((
-            renderable(Shape::Cuboid {
-                hx: 1.0,
-                hy: 1.0,
-                hz: 1.0,
-            }),
+            renderable(cuboid(1.0, 1.0, 1.0)),
             at(Vec3::new(0.0, 0.0, -5.0)),
         ));
         let _far = world.spawn((
-            renderable(Shape::Cuboid {
-                hx: 1.0,
-                hy: 1.0,
-                hz: 1.0,
-            }),
+            renderable(cuboid(1.0, 1.0, 1.0)),
             at(Vec3::new(0.0, 0.0, -20.0)),
         ));
         let (entity, distance) = along_ray(&world, Vec3::ZERO, Vec3::new(0.0, 0.0, -1.0)).unwrap();
@@ -345,11 +336,7 @@ mod tests {
     fn a_ray_that_meets_nothing_picks_nothing() {
         let mut world = hecs::World::new();
         world.spawn((
-            renderable(Shape::Cuboid {
-                hx: 1.0,
-                hy: 1.0,
-                hz: 1.0,
-            }),
+            renderable(cuboid(1.0, 1.0, 1.0)),
             at(Vec3::new(0.0, 0.0, -5.0)),
         ));
         assert!(along_ray(&world, Vec3::new(50.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -1.0)).is_none());

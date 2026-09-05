@@ -144,6 +144,8 @@ fn an_occluder_declared_before_its_collider_still_resolves() {
     );
     add(&app, wall, "collider2d", "kind = \"circle\"\nradius = 1.0");
     app.tick(1.0 / 60.0);
+    // A traced circle is cut as finely as a drawn one, because it is the
+    // same outline: a shadow's edge follows the shape's, not a coarser copy.
     assert_eq!(
         app.engine
             .world()
@@ -151,7 +153,7 @@ fn an_occluder_declared_before_its_collider_still_resolves() {
             .unwrap()
             .points
             .len(),
-        16
+        balaur_core::primitive::DEFAULT_SEGMENTS as usize
     );
 }
 
