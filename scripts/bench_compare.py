@@ -206,12 +206,6 @@ def summary_table(results, godot):
             )
             rows += 1
     lines.append("")
-    lines.append(
-        "The one case Balaur loses is `2d/query_storm`, and the table below "
-        "says why: nine hundred queries a tick cost 11 ms crossing the script "
-        "seam and 1 ms inside rapier. A game asking that many questions per "
-        "tick from script pays for the questions, not for the broad phase.\n"
-    )
     return lines if rows else []
 
 
@@ -243,7 +237,7 @@ def physics_table(dim, results, godot):
                 + (f", {found['static_count']} static" if found["static_count"] > 1 else "")
                 + f". {found['steps']} timed steps after {found['warmup']}.\n"
             )
-        lines.append("| engine | step p50 | step p99 | rapier's own step | script seam |")
+        lines.append("| engine | step p50 | step p99 | rapier's own step | script and its queries |")
         lines.append("| --- | ---: | ---: | ---: | ---: |")
         for row in rows:
             lines.append("| " + " | ".join(row) + " |")
@@ -302,8 +296,11 @@ def report(results, godot, nodes, args):  # noqa: C901
         "**step p50** is a whole physics tick: script `fixed_update`, the "
         "solver, and writing every simulated pose back to the scene tree — "
         "what the Godot suite calls `step_ms`. **rapier's own step** is the "
-        "solver alone, and the gap between the two is what the engine adds. "
-        "**script seam** is what the case's own script cost inside that tick.\n",
+        "solver alone. **script and its queries** is what the case's script "
+        "cost, the query pipeline included, since a query runs inside the "
+        "script call rather than inside the step; a binding call itself is "
+        "under a microsecond. What is left over is the engine: the scene "
+        "tree, the components, the pose write-back.\n",
     ]
     if ran:
         # What is left of a tick once rapier and the case's own script are
