@@ -170,7 +170,11 @@ fn a_duplicated_id_is_regenerated() {
 fn a_parent_path_of_names_builds_the_same_tree_as_ids() {
     assert_eq!(
         paths(BY_PATH).expect("a parent path should resolve"),
-        ["Root/World", "Root/World/Ground", "Root/World/Ground/Pebble"]
+        [
+            "Root/World",
+            "Root/World/Ground",
+            "Root/World/Ground/Pebble"
+        ]
     );
 }
 
