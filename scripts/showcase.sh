@@ -90,7 +90,7 @@ shot tiles_overview    examples/tiles      "scene,select:Ground,tool:tiles,dock:
 shot scenes_tree       examples/hello      "scene,select:Platform"
 shot scripting_editor  examples/hello      "script,select:Spinner"
 # The completion popup, and the Docs dock the reference is rendered into.
-shot script_completion examples/hello      "script,show:completion"
+shot script_completion examples/hello      "script,select:Spinner,show:completion"
 shot script_docs       examples/hello      "script,select:Spinner,dock:docs"
 shot ui_widgets        examples/angrynerds "ui,select:Restart,play"
 # One still per persona for the editor page, plus the pages that had no picture.

@@ -16,6 +16,7 @@ fn modules(S) {
     if S.docs.modules is Vec {
         return S.docs.modules;
     }
+    S.docs.pick = if S.docs.pick == "" { "engine" } else { S.docs.pick };
     let text = script::api();
     if text == "" {
         S.docs.modules = [];
@@ -26,8 +27,8 @@ fn modules(S) {
     S.docs.modules
 }
 
-/// Show a module's page, and one of its functions when named. What
-/// `shell::open_docs` calls after a definition landed outside the project.
+/// Show a module's page, and one of its functions when named.
+/// `shell::goto_definition` calls this when the definition is engine API.
 pub fn show(S, module, name) {
     S.docs.pick = module;
     S.docs.fn_pick = name;
@@ -56,38 +57,50 @@ pub fn draw(S, k) {
         return;
     }
     let query = search::query(S, "docs");
-    ui::horizontal((), || {
-        // The module column, then the page.
-        ui::vertical(#{ width: 150 }, || {
-            ui::scroll("docs-modules", (), || {
-                let shown = 0;
-                for m in list {
-                    if !search::matches(query, m.name) {
-                        continue;
-                    }
-                    shown += 1;
-                    let on = m.name == S.docs.pick;
-                    let opts = util::merge(style::list_row(k, 22), #{
-                        color: if on { k.text } else { k.dim }, size: 11,
-                    });
-                    if on {
-                        opts["fill"] = k.accent_soft;
-                    }
-                    ui::horizontal(#{ height: 22 }, || {
-                        if ui::pill(m.name, opts) {
-                            S.docs.pick = m.name;
-                            S.docs.fn_pick = "";
-                        }
-                    });
-                }
-                if shown == 0 {
-                    search::nothing(k, query);
-                }
-            });
-        });
-        ui::add_space(10);
+    ui::scroll("docs", #{ max_height: S.layout.body_h - 8.0 }, || {
+        module_pills(S, k, list, query);
         page(S, k, list);
     });
+}
+
+// Every module as a pill, in rows: 39 of them do not fit across a dock, and
+// the shell has no column primitive to put them in a sidebar.
+fn module_pills(S, k, list, query) {
+    let shown = [];
+    for m in list {
+        if search::matches(query, m.name) {
+            shown.push(m);
+        }
+    }
+    if shown.len() == 0 {
+        search::nothing(k, query);
+        return;
+    }
+    let per_row = 8;
+    let row = 0;
+    while row * per_row < shown.len() {
+        ui::horizontal(#{ height: 24 }, || {
+            ui::add_space(4);
+            let i = row * per_row;
+            while i < shown.len() && i < (row + 1) * per_row {
+                let m = shown[i];
+                let on = m.name == S.docs.pick;
+                let opts = #{
+                    height: 20, size: 11, min_width: 88,
+                    color: if on { k.text } else { k.dim },
+                };
+                if on {
+                    opts["fill"] = k.accent_soft;
+                }
+                if ui::pill(m.name, opts) {
+                    S.docs.pick = m.name;
+                    S.docs.fn_pick = "";
+                }
+                i += 1;
+            }
+        });
+        row += 1;
+    }
 }
 
 // One module's page: what it is for, then a row per function and constant.
@@ -100,43 +113,39 @@ fn page(S, k, list) {
             return;
         }
     };
-    ui::vertical((), || {
-        ui::scroll("docs-page", (), || {
-            style::section_label(k, m.name);
-            if m.doc != "" {
-                ui::label(m.doc, style::mono_sm(k.dim));
-                ui::add_space(6);
-            }
-            let signatures = util::obj(m.signatures);
-            let docs = util::obj(m.docs);
-            for name in m.functions {
-                let picked = name == S.docs.fn_pick;
-                let sig = signatures.get(name).unwrap_or("");
-                ui::horizontal(#{ height: 20 }, || {
-                    ui::add_space(4);
-                    ui::label(name + sig, style::mono(if picked { k.accent } else { k.text }));
-                });
-                let doc = docs.get(name).unwrap_or("");
-                if doc != "" {
-                    ui::horizontal(#{ height: 18 }, || {
-                        ui::add_space(12);
-                        ui::label(doc, style::mono_sm(k.faint));
-                    });
-                }
-            }
-            let constants = m.constants;
-            if constants.len() > 0 {
-                style::section_label(k, "constants");
-                for c in constants {
-                    ui::horizontal(#{ height: 18 }, || {
-                        ui::add_space(4);
-                        ui::label(c.name, style::mono(k.text));
-                        ui::right(|| {
-                            ui::label(c.value, style::mono_sm(k.faint));
-                        });
-                    });
-                }
-            }
+    style::section_label(k, m.name);
+    if m.doc != "" {
+        ui::horizontal(#{ height: 18 }, || {
+            ui::add_space(4);
+            ui::label(m.doc, style::mono_sm(k.dim));
         });
-    });
+    }
+    let signatures = util::obj(m.signatures);
+    let docs = util::obj(m.docs);
+    for name in m.functions {
+        let picked = name == S.docs.fn_pick;
+        let sig = signatures.get(name).unwrap_or("");
+        ui::horizontal(#{ height: 18 }, || {
+            ui::add_space(4);
+            ui::label(name + sig, style::mono(if picked { k.accent } else { k.text }));
+        });
+        let doc = docs.get(name).unwrap_or("");
+        if doc != "" {
+            ui::horizontal(#{ height: 16 }, || {
+                ui::add_space(14);
+                ui::label(doc, style::mono_sm(k.faint));
+            });
+        }
+    }
+    if m.constants.len() > 0 {
+        style::section_label(k, "constants");
+        for c in m.constants {
+            ui::horizontal(#{ height: 16 }, || {
+                ui::add_space(4);
+                ui::label(c.name, style::mono(k.text));
+                ui::add_space(8);
+                ui::label(c.value, style::mono_sm(k.faint));
+            });
+        }
+    }
 }
