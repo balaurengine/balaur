@@ -321,6 +321,7 @@ pub(crate) mod component {
     pub(crate) const BODY_2D: &str = "body2d";
     pub(crate) const COLLIDER_3D: &str = "collider3d";
     pub(crate) const COLLIDER_2D: &str = "collider2d";
+    pub(crate) const TILE_COLLISION: &str = "tile_collision";
     pub(crate) const JOINT_3D: &str = "joint3d";
     pub(crate) const JOINT_2D: &str = "joint2d";
     pub(crate) const CHARACTER_3D: &str = "character3d";

@@ -51,7 +51,7 @@ pub use mesh::MorphWeights;
 pub use particles::Particles;
 pub use polygon::PolygonMesh;
 pub use sheet::{SPRITE_SHEET_ASSET_TYPE, SheetFrame, SheetSlice, SheetTag, SpriteSheet};
-pub use tilemap::{TILESET_ASSET_TYPE, Tilemap, Tileset};
+pub use tilemap::{TILESET_ASSET_TYPE, TileSet, Tilemap};
 
 #[cfg(feature = "kiss3d")]
 mod app_icon;

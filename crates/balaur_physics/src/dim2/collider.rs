@@ -208,7 +208,7 @@ fn heightfield_collider(eng: &Engine, params: &toml::Value) -> Result<ColliderBu
 /// The 2D half of `crate::collider::with_material`. The flag tables are
 /// shared (`crate::vocabulary::flags`); only the types they are poured into
 /// are per-dimension.
-fn with_material(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBuilder2 {
+pub(crate) fn with_material(builder: ColliderBuilder2, params: &toml::Value) -> ColliderBuilder2 {
     let mut builder = builder
         .restitution(scalar::real(v::f(params, k::RESTITUTION, 0.0)))
         .friction(scalar::real(v::f(params, k::FRICTION, 0.5)))

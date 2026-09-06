@@ -27,6 +27,9 @@ notes are that version's section.
 - Component tags and presets.
 - Binary asset packs, sha256-verified.
 - Mesh (OBJ, glTF) and heightfield assets.
+- Import settings beside a file: `art/hero.png.toml`, with `[import.<kind>]` defaults in `project.toml`.
+- Nearest-neighbour filtering and linear-data textures, per image or per project.
+- Bitmap font descriptors ride in a pack, so a `text2d` naming one draws in an exported game.
 - Scene and node query APIs; reparenting keeps the world pose.
 - Node visibility, z-index and tags.
 - Comment-preserving TOML patching.
@@ -126,6 +129,10 @@ notes are that version's section.
 - Plugin requirements and toggles.
 - `balaur test`.
 - Safe export directory check.
+- `balaur export` reports what the pack weighs, by section, extension and largest entry, and names the assets nothing references.
+- `balaur export --report` measures without writing.
+- `[export] strip` drops assets no scene, script or `keep` glob names.
+- `[export] images`, `fonts` and `audio` re-encode losslessly at export: PNG recompressed or written as WebP, a face subset to the characters the project shows, WAV written as FLAC.
 - `scripts/lint.sh` mirrors CI; pre-push hook.
 - `examples/benchmark`: the Godot suites' physics and scene-tree cases, headless, in the editor or on the web.
 - `scripts/bench_compare.py` writes `docs/BENCHMARKS.md` from a run beside Godot's own results.

@@ -42,6 +42,25 @@ pub struct ExportConfig {
     /// when the key lives in a cloud HSM rather than in a file.
     pub windows_certificate: String,
     pub windows_timestamp_url: String,
+    /// Drop an asset no scene, script or keep-glob names. Off by default:
+    /// a script may compute a path this cannot see, and losing an asset is
+    /// worse than shipping one.
+    pub strip: bool,
+    /// Globs an export keeps whatever else it decides, for the paths a
+    /// script builds at run time.
+    pub keep: Vec<String>,
+    /// `keep`, `png`, `webp` or `smallest`: how an image is re-encoded on
+    /// the way into the pack. Every mode keeps the pixels and the size.
+    pub images: crate::recode::ImageMode,
+    /// `keep` or `subset`: whether a font is cut down to the characters the
+    /// project's scenes and scripts name.
+    pub fonts: crate::recode::FontMode,
+    /// Code points a subset font keeps beyond the ones found in the project,
+    /// as `first-last` hex ranges (`"0020-00FF"`), for text from a server or
+    /// typed by a player.
+    pub font_ranges: Vec<String>,
+    /// `keep` or `flac`: whether uncompressed audio is re-encoded losslessly.
+    pub audio: crate::recode::AudioMode,
 }
 
 impl Default for ExportConfig {
@@ -57,6 +76,12 @@ impl Default for ExportConfig {
             windows_certificate: String::new(),
             // DigiCert's, which is what signtool's own documentation uses.
             windows_timestamp_url: "http://timestamp.digicert.com".into(),
+            strip: false,
+            keep: Vec::new(),
+            images: crate::recode::ImageMode::Keep,
+            fonts: crate::recode::FontMode::Keep,
+            font_ranges: Vec::new(),
+            audio: crate::recode::AudioMode::Keep,
         }
     }
 }

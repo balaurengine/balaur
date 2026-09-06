@@ -6,7 +6,7 @@
 //! straight into a release binary with `include_bytes!`. Running from a pack
 //! needs no compiler, no source files, and no file watcher.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::path::Path;
 
@@ -17,9 +17,13 @@ const MAGIC: &[u8; 5] = b"BPAK\x02";
 /// File extensions that ship inside a pack. A game's textures, sounds and
 /// fonts have to travel with it; source art and notes do not.
 pub const ASSET_EXTENSIONS: &[&str] = &[
-    "png", "jpg", "jpeg", "webp", "bmp", "tga", "ogg", "wav", "mp3", "flac", "ttf", "otf", "glb",
-    "gltf", "bin", "obj",
+    "png", "jpg", "jpeg", "webp", "bmp", "tga", "ogg", "wav", "mp3", "flac", "ttf", "otf", "fnt",
+    "glb", "gltf", "bin", "obj",
 ];
+
+/// How many of the heaviest entries a report names: enough to see where the
+/// bytes went, few enough to read at a glance.
+const LARGEST_ENTRIES: usize = 10;
 
 /// A content hash, so a decoded pack can prove an entry arrived intact and a
 /// materialised file can be cached under a name that changes with its bytes.
@@ -202,6 +206,434 @@ impl Pack {
         }
         Ok(pack)
     }
+
+    /// What the pack weighs, section by section, and what nothing in it names.
+    #[must_use]
+    pub fn report(&self) -> PackReport {
+        self.report_with(&[])
+    }
+
+    /// [`report`](Self::report), told the `keep` globs an export protects
+    /// files with, so the report names what [`strip`](Self::strip) would drop.
+    #[must_use]
+    pub fn report_with(&self, keep: &[String]) -> PackReport {
+        // Every entry is a length-prefixed key and value, every section opens
+        // with its count, and an asset carries its hash between the two.
+        const LEN: usize = 4;
+        const HASH: usize = 64;
+
+        let text_bytes = |entries: &mut dyn Iterator<Item = (usize, usize)>| -> usize {
+            LEN + entries.map(|(k, v)| LEN + k + LEN + v).sum::<usize>()
+        };
+        let sections = vec![
+            SectionReport {
+                name: "manifest",
+                entries: 1,
+                bytes: MAGIC.len() + LEN + self.manifest.len(),
+            },
+            SectionReport {
+                name: "scenes",
+                entries: self.scenes.len(),
+                bytes: text_bytes(&mut self.scenes.iter().map(|(k, v)| (k.len(), v.len()))),
+            },
+            SectionReport {
+                name: "scripts",
+                entries: self.scripts.len(),
+                bytes: text_bytes(&mut self.scripts.iter().map(|(k, v)| (k.len(), v.len()))),
+            },
+            SectionReport {
+                name: "assets",
+                entries: self.assets.len(),
+                bytes: LEN
+                    + self
+                        .assets
+                        .iter()
+                        .map(|(k, v)| LEN + k.len() + LEN + HASH + LEN + v.len())
+                        .sum::<usize>(),
+            },
+        ];
+
+        let mut by_extension: BTreeMap<String, (usize, usize)> = BTreeMap::new();
+        for (key, value) in &self.assets {
+            let slot = by_extension.entry(extension_of(key)).or_default();
+            slot.0 += 1;
+            slot.1 += value.len();
+        }
+        let mut extensions: Vec<ExtensionReport> = by_extension
+            .into_iter()
+            .map(|(extension, (entries, bytes))| ExtensionReport {
+                extension,
+                entries,
+                bytes,
+            })
+            .collect();
+        extensions.sort_by(|a, b| {
+            b.bytes
+                .cmp(&a.bytes)
+                .then_with(|| a.extension.cmp(&b.extension))
+        });
+
+        let mut largest: Vec<EntryReport> = self
+            .assets
+            .iter()
+            .map(|(key, value)| EntryReport {
+                key: key.clone(),
+                bytes: value.len(),
+            })
+            .collect();
+        largest.sort_by(|a, b| b.bytes.cmp(&a.bytes).then_with(|| a.key.cmp(&b.key)));
+        largest.truncate(LARGEST_ENTRIES);
+
+        let unreferenced = self.unreferenced(keep);
+        let unreferenced_bytes = unreferenced
+            .iter()
+            .filter_map(|key| self.assets.get(key))
+            .map(Vec::len)
+            .sum();
+        PackReport {
+            total: sections.iter().map(|s| s.bytes).sum(),
+            sections,
+            extensions,
+            largest,
+            unreferenced,
+            unreferenced_bytes,
+        }
+    }
+
+    /// Asset keys nothing in the pack names, sorted.
+    ///
+    /// A reference is any string in a scene document, or any literal in a
+    /// script that is text, spelling the key, `key#entry`, a directory above
+    /// it, or an `id://` the project's index resolves to it. `keep` holds
+    /// globs — `*` inside a path segment, `**` across them — for the paths a
+    /// script computes instead of writing.
+    #[must_use]
+    pub fn unreferenced(&self, keep: &[String]) -> Vec<String> {
+        let references = self.references();
+        self.assets
+            .keys()
+            .filter(|key| {
+                !is_referenced(key, &references)
+                    && !keep.iter().any(|pattern| glob_matches(pattern, key))
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// Drop every asset [`unreferenced`](Self::unreferenced) names, answering
+    /// the keys removed.
+    pub fn strip(&mut self, keep: &[String]) -> Vec<String> {
+        let removed = self.unreferenced(keep);
+        for key in &removed {
+            self.assets.remove(key);
+        }
+        removed
+    }
+
+    /// Every path the pack's own files name, with any `#entry` cut off.
+    fn references(&self) -> BTreeSet<String> {
+        let mut out = BTreeSet::new();
+        for (key, text) in &self.scenes {
+            // The id index maps every id to its path, so its values would name
+            // every indexed asset; it answers `id://` below and nothing else.
+            if key == crate::assets::INDEX_PATH {
+                continue;
+            }
+            if let Ok(value) = toml::from_str::<toml::Value>(text) {
+                collect_toml_strings(&value, &mut out);
+            }
+        }
+        for bytes in self.scripts.values() {
+            // A script may be bytecode; only text can hold a literal to read.
+            if let Ok(text) = std::str::from_utf8(bytes) {
+                collect_string_literals(text, &mut out);
+            }
+        }
+        if let Some(index) = self
+            .scenes
+            .get(crate::assets::INDEX_PATH)
+            .and_then(|text| crate::asset_index::parse(text).ok())
+        {
+            let resolved: Vec<String> = out
+                .iter()
+                .filter_map(|reference| reference.strip_prefix("id://"))
+                .filter_map(|id| index.get(id).cloned())
+                .collect();
+            out.extend(resolved);
+        }
+        for (key, bytes) in &self.assets {
+            if extension_of(key) == "fnt"
+                && let Ok(text) = std::str::from_utf8(bytes)
+            {
+                out.extend(fnt_pages(key, text));
+            }
+        }
+        out
+    }
+}
+
+/// One pack section's share of the encoded bytes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SectionReport {
+    /// `manifest`, `scenes`, `scripts` or `assets`.
+    pub name: &'static str,
+    /// How many entries the section holds; the manifest is always one.
+    pub entries: usize,
+    /// What the section occupies in [`Pack::encode`], its keys, length
+    /// prefixes and asset hashes counted. The manifest row carries the pack's
+    /// five magic bytes too, so the four rows sum to [`PackReport::total`].
+    pub bytes: usize,
+}
+
+/// What one file extension weighs across the asset section.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExtensionReport {
+    /// Lowercased and without the dot; empty for an asset that has none.
+    pub extension: String,
+    pub entries: usize,
+    /// The files' own bytes, without the pack's framing around them.
+    pub bytes: usize,
+}
+
+/// One asset, for the heaviest-first list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EntryReport {
+    pub key: String,
+    /// The file's own bytes, without the pack's framing around them.
+    pub bytes: usize,
+}
+
+/// What a pack weighs and what nothing in it names.
+///
+/// Counts are exact bytes; [`Display`](std::fmt::Display) is the only place
+/// they become KB and MB.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PackReport {
+    /// The encoded pack's length: what an export writes.
+    pub total: usize,
+    /// Manifest, scenes, scripts and assets, in that order.
+    pub sections: Vec<SectionReport>,
+    /// Extensions across the asset section, heaviest first.
+    pub extensions: Vec<ExtensionReport>,
+    /// The heaviest assets, at most [`LARGEST_ENTRIES`] of them.
+    pub largest: Vec<EntryReport>,
+    /// What [`Pack::strip`] would drop, sorted.
+    pub unreferenced: Vec<String>,
+    /// What those files weigh together.
+    pub unreferenced_bytes: usize,
+}
+
+impl std::fmt::Display for PackReport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let width = self
+            .sections
+            .iter()
+            .map(|s| s.name.len())
+            .chain(self.extensions.iter().map(|e| e.extension.len()))
+            .chain(self.largest.iter().map(|e| e.key.len()))
+            .max()
+            .unwrap_or(0)
+            .max("extension".len());
+        // The two right-hand columns, and their width joined for the one-column
+        // list of entries below them.
+        let (count, size) = (8, 10);
+        let wide = count + 1 + size;
+
+        writeln!(f, "pack {}", human_bytes(self.total))?;
+        writeln!(
+            f,
+            "{:<width$} {:>count$} {:>size$}",
+            "section", "entries", "bytes"
+        )?;
+        for section in &self.sections {
+            let bytes = human_bytes(section.bytes);
+            writeln!(
+                f,
+                "{:<width$} {:>count$} {bytes:>size$}",
+                section.name, section.entries
+            )?;
+        }
+        if !self.extensions.is_empty() {
+            writeln!(f)?;
+            writeln!(
+                f,
+                "{:<width$} {:>count$} {:>size$}",
+                "extension", "entries", "bytes"
+            )?;
+            for entry in &self.extensions {
+                let name = if entry.extension.is_empty() {
+                    "(none)"
+                } else {
+                    entry.extension.as_str()
+                };
+                let bytes = human_bytes(entry.bytes);
+                writeln!(f, "{name:<width$} {:>count$} {bytes:>size$}", entry.entries)?;
+            }
+        }
+        if !self.largest.is_empty() {
+            writeln!(f)?;
+            writeln!(f, "{:<width$} {:>wide$}", "largest", "bytes")?;
+            for entry in &self.largest {
+                let bytes = human_bytes(entry.bytes);
+                writeln!(f, "{:<width$} {bytes:>wide$}", entry.key)?;
+            }
+        }
+        writeln!(f)?;
+        let files = if self.unreferenced.len() == 1 {
+            "file"
+        } else {
+            "files"
+        };
+        write!(
+            f,
+            "{} {files} nothing references, {}",
+            self.unreferenced.len(),
+            human_bytes(self.unreferenced_bytes)
+        )
+    }
+}
+
+/// Bytes as a person reads them, at one decimal place.
+fn human_bytes(bytes: usize) -> String {
+    const KB: f64 = 1024.0;
+    let value = bytes as f64;
+    if value < KB {
+        format!("{bytes} B")
+    } else if value < KB * KB {
+        format!("{:.1} KB", value / KB)
+    } else {
+        format!("{:.1} MB", value / (KB * KB))
+    }
+}
+
+/// A key's extension, lowercased and without the dot.
+fn extension_of(key: &str) -> String {
+    Path::new(key)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+}
+
+/// Whether anything in `references` names `key`: the path itself, or a
+/// directory holding it. `#entry` was cut off when the reference was gathered.
+fn is_referenced(key: &str, references: &BTreeSet<String>) -> bool {
+    references.contains(key)
+        || key
+            .match_indices('/')
+            .any(|(at, _)| references.contains(&key[..at]))
+}
+
+/// Keep one reference, without whatever `#entry` follows it.
+fn insert_reference(out: &mut BTreeSet<String>, value: &str) {
+    let path = value.split_once('#').map_or(value, |(head, _)| head);
+    let path = path.trim_end_matches('/');
+    if !path.is_empty() {
+        out.insert(path.to_string());
+    }
+}
+
+/// Every string value in a parsed document, however deep. Keys are names, not
+/// references, so only values are read.
+fn collect_toml_strings(value: &toml::Value, out: &mut BTreeSet<String>) {
+    match value {
+        toml::Value::String(text) => insert_reference(out, text),
+        toml::Value::Array(items) => {
+            for item in items {
+                collect_toml_strings(item, out);
+            }
+        }
+        toml::Value::Table(table) => {
+            for item in table.values() {
+                collect_toml_strings(item, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Every double-quoted literal in a script's source. Textual on purpose: a
+/// path in a script is a value it computes, and no type says which.
+fn collect_string_literals(source: &str, out: &mut BTreeSet<String>) {
+    let mut chars = source.chars();
+    while let Some(opening) = chars.next() {
+        if opening != '"' {
+            continue;
+        }
+        let mut literal = String::new();
+        loop {
+            match chars.next() {
+                Some('\\') => {
+                    chars.next();
+                }
+                Some('"') | None => break,
+                Some(character) => literal.push(character),
+            }
+        }
+        insert_reference(out, &literal);
+    }
+}
+
+/// The page images an AngelCode descriptor names, project-relative: the page
+/// sits beside the descriptor, as the tool that wrote it left it.
+fn fnt_pages(key: &str, source: &str) -> Vec<String> {
+    let directory = key.rsplit_once('/').map_or("", |(head, _)| head);
+    let mut out = Vec::new();
+    for line in source.lines() {
+        for field in ["file=", "page="] {
+            for value in descriptor_values(line, field) {
+                out.push(if directory.is_empty() {
+                    value
+                } else {
+                    format!("{directory}/{value}")
+                });
+            }
+        }
+    }
+    out
+}
+
+/// What one `name=` field carries on a descriptor line, quoted or bare.
+fn descriptor_values(line: &str, name: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = line;
+    while let Some(at) = rest.find(name) {
+        rest = &rest[at + name.len()..];
+        let value = if let Some(tail) = rest.strip_prefix('"') {
+            &tail[..tail.find('"').unwrap_or(tail.len())]
+        } else {
+            &rest[..rest.find(char::is_whitespace).unwrap_or(rest.len())]
+        };
+        if !value.is_empty() {
+            out.push(value.to_string());
+        }
+    }
+    out
+}
+
+/// Whether `pattern` matches `text`, with `*` inside a path segment and `**`
+/// across them. Byte-wise: a wildcard spans whatever it spans, and everything
+/// else is compared literally.
+fn glob_matches(pattern: &str, text: &str) -> bool {
+    fn matches(pattern: &[u8], text: &[u8]) -> bool {
+        match pattern.first() {
+            None => text.is_empty(),
+            Some(b'*') if pattern.get(1) == Some(&b'*') => {
+                let rest = &pattern[2..];
+                // `**/` stands for no directory at all as well as for many.
+                if rest.first() == Some(&b'/') && matches(&rest[1..], text) {
+                    return true;
+                }
+                (0..=text.len()).any(|at| matches(rest, &text[at..]))
+            }
+            Some(b'*') => {
+                let segment = text.iter().position(|&b| b == b'/').unwrap_or(text.len());
+                (0..=segment).any(|at| matches(&pattern[1..], &text[at..]))
+            }
+            Some(&byte) => text.first() == Some(&byte) && matches(&pattern[1..], &text[1..]),
+        }
+    }
+    matches(pattern.as_bytes(), text.as_bytes())
 }
 
 /// One file's text, wherever the backend keeps it.

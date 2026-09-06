@@ -16,20 +16,27 @@ pub(crate) fn image_size(bytes: &[u8], name: &str) -> Result<(u32, u32)> {
         .map_err(|why| anyhow!("reading the size of {name}: {why}"))
 }
 
-/// The name an image is uploaded under: its path and when the file was last
-/// written.
+/// The name an image is uploaded under: its path, when the file was last
+/// written, and the import settings it was read with.
 ///
 /// kiss3d's `TextureManager` caches by name and never invalidates, so without
 /// the stamp an edited PNG keeps drawing the old pixels for the session. The
 /// file's own time rather than the asset generation, which is global: saving
 /// one image would otherwise re-decode and re-upload every other one. A
 /// packed game has no times to read, and its textures are uploaded once.
+/// The settings ride in the name too, so changing one image's filter
+/// re-uploads that image and leaves every other one alone.
 #[cfg(any(feature = "kiss3d", test))]
-pub(crate) fn upload_name(path: &str, stamp: Option<f64>) -> String {
-    match stamp {
+pub(crate) fn upload_name(path: &str, stamp: Option<f64>, settings: &str) -> String {
+    let mut name = match stamp {
         Some(seconds) => format!("{path}#{:x}", seconds.to_bits()),
         None => path.to_string(),
+    };
+    if !settings.is_empty() {
+        name.push('@');
+        name.push_str(settings);
     }
+    name
 }
 
 #[cfg(feature = "kiss3d")]
@@ -56,6 +63,27 @@ mod windowed {
         }
     }
 
+    /// Hand the image to the manager the way its settings ask.
+    ///
+    /// A data texture takes the colour-space call, which samples linearly:
+    /// kiss3d exposes no call that is both nearest and linear-data, so a
+    /// `nearest` normal map is filtered until it does.
+    fn place(
+        tm: &mut TextureManager,
+        image: image::DynamicImage,
+        name: &str,
+        settings: &toml::Table,
+    ) -> Arc<Texture> {
+        use balaur_core::import::{flag, keys, word, words};
+        if !flag(settings, keys::SRGB, true) {
+            return tm.add_image_with_color_space(image, name, false);
+        }
+        if word(settings, keys::FILTER, words::LINEAR) == words::NEAREST {
+            return tm.add_image_pixelated(image, name);
+        }
+        tm.add_image(image, name)
+    }
+
     /// The uploaded texture, or `None` to leave the node's default one.
     ///
     /// Decoded here rather than through kiss3d's `add_image_from_memory`,
@@ -65,7 +93,12 @@ mod windowed {
             return None;
         }
         let files = eng.resource::<balaur_core::project::ProjectFiles>();
-        let name = super::upload_name(path, files.borrow().mtime(path));
+        let settings = balaur_core::import::settings(eng, path);
+        let name = super::upload_name(
+            path,
+            files.borrow().mtime(path),
+            &balaur_core::import::stamp(&settings),
+        );
         if let Some(cached) = TextureManager::get_global_manager(|tm| tm.get(&name)) {
             return Some(cached);
         }
@@ -82,7 +115,7 @@ mod windowed {
         };
         match image::load_from_memory(&bytes) {
             Ok(image) => Some(TextureManager::get_global_manager(|tm| {
-                tm.add_image(image.clone(), &name)
+                place(tm, image.clone(), &name, &settings)
             })),
             Err(why) => {
                 tracing::error!("decoding the image {path}: {why}");
@@ -128,16 +161,16 @@ mod tests {
     #[test]
     fn an_edited_image_is_uploaded_under_a_new_name() {
         assert_ne!(
-            upload_name("art/hero.png", Some(1.0)),
-            upload_name("art/hero.png", Some(2.0))
+            upload_name("art/hero.png", Some(1.0), ""),
+            upload_name("art/hero.png", Some(2.0), "")
         );
     }
 
     #[test]
     fn a_file_nobody_touched_keeps_its_name() {
         assert_eq!(
-            upload_name("art/hero.png", Some(1.0)),
-            upload_name("art/hero.png", Some(1.0)),
+            upload_name("art/hero.png", Some(1.0), ""),
+            upload_name("art/hero.png", Some(1.0), ""),
         );
     }
 
@@ -145,6 +178,14 @@ mod tests {
     /// once and none of them is ever renamed.
     #[test]
     fn a_packed_texture_is_named_by_its_path_alone() {
-        assert_eq!(upload_name("art/hero.png", None), "art/hero.png");
+        assert_eq!(upload_name("art/hero.png", None, ""), "art/hero.png");
+    }
+
+    #[test]
+    fn a_texture_read_with_other_settings_is_uploaded_under_another_name() {
+        assert_ne!(
+            upload_name("art/hero.png", None, ""),
+            upload_name("art/hero.png", None, "a1b2")
+        );
     }
 }

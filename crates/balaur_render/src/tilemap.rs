@@ -10,59 +10,20 @@ use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt};
 
-/// The asset type name a `tileset` definition declares.
-pub const TILESET_ASSET_TYPE: &str = "tileset";
-
-/// A parsed `tileset` asset: which image to cut tiles from and how.
-pub struct Tileset {
-    /// Project-relative path to the atlas image.
-    pub texture: String,
-    /// Pixels per tile edge; tiles are square.
-    pub tile_size: f32,
-    /// Tiles per texture row.
-    pub columns: u32,
-}
-
-fn parse_tileset(value: &toml::Value) -> Result<Tileset> {
-    let texture = value
-        .get(k::TEXTURE)
-        .and_then(toml::Value::as_str)
-        .ok_or_else(|| anyhow!("a tileset needs a `texture` string naming its image"))?
-        .to_string();
-    if texture.is_empty() {
-        return Err(anyhow!("a tileset's `texture` names no image"));
-    }
-    let tile_size = value
-        .get("tile_size")
-        .and_then(balaur_core::components::as_f64)
-        .ok_or_else(|| anyhow!("a tileset needs a `tile_size` in pixels per tile edge"))?
-        as f32;
-    if tile_size <= 0.0 {
-        return Err(anyhow!(
-            "a tileset's `tile_size` must be positive, not {tile_size}"
-        ));
-    }
-    let columns = value
-        .get(k::COLUMNS)
-        .and_then(toml::Value::as_integer)
-        .ok_or_else(|| anyhow!("a tileset needs an integer `columns` count of tiles per row"))?;
-    if columns < 1 {
-        return Err(anyhow!(
-            "a tileset's `columns` must be at least 1, not {columns}"
-        ));
-    }
-    Ok(Tileset {
-        texture,
-        tile_size,
-        columns: columns as u32,
-    })
-}
+pub use balaur_core::tiles::{TILESET_ASSET_TYPE, TileSet};
 
 /// What a definition table holds, for the generated reference.
 const TILESET_ASSET_DOC: &str = r#"An image cut into equal tiles for the `tilemap` component: `texture` names
-the image, `tile_size` is the pixel length of one tile edge and `columns` is
-how many tiles one row of the image holds. Tile indices count row by row
-from the top left.
+the image, `tile_size` is one tile in pixels — a number, or `[w, h]` for a
+sheet whose tiles are not square — and `columns` is how many tiles one row of
+the image holds. `spacing` is the gutter between tiles and `margin` the border
+around the sheet, both zero by default. Tile indices count row by row from the
+top left.
+
+A `[tiles.<id>]` table says what one tile is. `collision` is `"full"` for a
+solid cell, or a list of polygons in tile pixels with y down from the tile's
+top-left corner; `one_way` makes a platform a body passes through from below.
+A tile with no table of its own is the plain quad it always was.
 
 ```toml
 [[assets]]
@@ -71,12 +32,19 @@ type = "tileset"
 texture = "art/dungeon.png"
 tile_size = 16
 columns = 8
+
+[tiles.3]
+collision = "full"
+
+[tiles.7]
+collision = [[[0, 16], [16, 16], [16, 8]]]
 ```"#;
 
 /// The `tileset` asset type: files live in `tilesets/`.
 pub(crate) fn register_tileset_asset(reg: &mut Registry<'_>) {
     reg.register_asset_type(TILESET_ASSET_TYPE, "tilesets", TILESET_ASSET_DOC, |value| {
-        Ok(std::rc::Rc::new(parse_tileset(value)?) as std::rc::Rc<dyn std::any::Any>)
+        Ok(std::rc::Rc::new(balaur_core::tiles::parse_tileset(value)?)
+            as std::rc::Rc<dyn std::any::Any>)
     });
 }
 
@@ -166,21 +134,69 @@ fn parse_cells(cells: &str) -> Result<Vec<Vec<Option<u32>>>> {
         .collect()
 }
 
-fn set_tilemap(eng: &Engine, entity: Entity, next: Tilemap) -> Result<()> {
+/// Mirror the map into the [`TileGrid`] core carries, which is what physics
+/// reads: it may not see a render component, and both need the same cells.
+///
+/// A map whose tileset will not load carries no grid, so nothing collides
+/// with cells nobody can size.
+fn sync_grid(eng: &Engine, entity: Entity) {
+    let (tileset, rows, ppu, version) = {
+        let world = eng.world();
+        let Ok(map) = world.get::<&Tilemap>(entity) else {
+            return;
+        };
+        (
+            map.tileset.clone(),
+            map.grid.clone(),
+            map.pixels_per_unit,
+            map.version,
+        )
+    };
+    let set = balaur_core::assets::load_typed::<TileSet>(eng, &tileset).ok();
     let mut world = eng.world_mut();
-    if let Ok(mut map) = world.get::<&mut Tilemap>(entity) {
-        let changed = map.tileset != next.tileset
-            || map.grid != next.grid
-            || map.material != next.material
-            || map.pixels_per_unit.to_bits() != next.pixels_per_unit.to_bits();
-        let version = map.version + u64::from(changed);
-        *map = next;
-        map.version = version;
-        return Ok(());
+    let Some(set) = set else {
+        let _ = world.remove_one::<balaur_core::tiles::TileGrid>(entity);
+        return;
+    };
+    let tile_world = [set.tile_size[0] / ppu, set.tile_size[1] / ppu];
+    let grid = balaur_core::tiles::TileGrid {
+        tileset,
+        rows,
+        tile_world,
+        version,
+    };
+    if let Ok(mut current) = world.get::<&mut balaur_core::tiles::TileGrid>(entity) {
+        *current = grid;
+        return;
     }
-    world
-        .insert_one(entity, next)
-        .map_err(|_| anyhow!("node is dead"))
+    let _ = world.insert_one(entity, grid);
+}
+
+fn set_tilemap(eng: &Engine, entity: Entity, next: Tilemap) -> Result<()> {
+    // The world's borrow ends before the grid is mirrored: `sync_grid` takes
+    // it again, and it loads an asset in between.
+    let fresh = {
+        let mut world = eng.world_mut();
+        if let Ok(mut map) = world.get::<&mut Tilemap>(entity) {
+            let changed = map.tileset != next.tileset
+                || map.grid != next.grid
+                || map.material != next.material
+                || map.pixels_per_unit.to_bits() != next.pixels_per_unit.to_bits();
+            let version = map.version + u64::from(changed);
+            *map = next;
+            map.version = version;
+            None
+        } else {
+            Some(next)
+        }
+    };
+    if let Some(next) = fresh {
+        eng.world_mut()
+            .insert_one(entity, next)
+            .map_err(|_| anyhow!("node is dead"))?;
+    }
+    sync_grid(eng, entity);
+    Ok(())
 }
 
 /// The `tilemap` component. Writes a [`Tilemap`] on the node; the kiss3d
@@ -225,7 +241,7 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
                 // Checked here so a bad definition is reported where it was
                 // written, but only warned: one bad asset must not kill the scene.
                 if !tileset.is_empty()
-                    && let Err(why) = balaur_core::assets::load_typed::<Tileset>(eng, &tileset) {
+                    && let Err(why) = balaur_core::assets::load_typed::<TileSet>(eng, &tileset) {
                         tracing::warn!("tilemap tileset '{tileset}': {why:#}");
                     }
                 set_tilemap(
@@ -244,6 +260,7 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
             remove: Box::new(|eng, entity| {
                 let mut world = eng.world_mut();
                 let _ = world.remove_one::<Tilemap>(entity);
+                let _ = world.remove_one::<balaur_core::tiles::TileGrid>(entity);
                 Ok(())
             }),
             get: Box::new(|eng, entity| {
@@ -274,25 +291,32 @@ pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
         "set_cell",
         |eng: &Engine, (node, x, y, tile): (balaur_script::NodeId, i64, i64, i64)| {
             let entity = balaur_core::entity_of(node)?;
-            let world = eng.world();
-            let mut map = world
-                .get::<&mut Tilemap>(entity)
-                .map_err(|_| anyhow!("the node carries no tilemap"))?;
             let (x, y) = (
                 usize::try_from(x).map_err(|_| anyhow!("a column is not negative"))?,
                 usize::try_from(y).map_err(|_| anyhow!("a row is not negative"))?,
             );
-            if map.grid.len() <= y {
-                map.grid.resize(y + 1, Vec::new());
-            }
-            if map.grid[y].len() <= x {
-                map.grid[y].resize(x + 1, None);
-            }
-            let next = u32::try_from(tile).ok();
-            if map.grid[y][x] != next {
-                map.grid[y][x] = next;
-                map.cells = cells_value(&map.grid);
-                map.version += 1;
+            let changed = {
+                let world = eng.world();
+                let mut map = world
+                    .get::<&mut Tilemap>(entity)
+                    .map_err(|_| anyhow!("the node carries no tilemap"))?;
+                if map.grid.len() <= y {
+                    map.grid.resize(y + 1, Vec::new());
+                }
+                if map.grid[y].len() <= x {
+                    map.grid[y].resize(x + 1, None);
+                }
+                let next = u32::try_from(tile).ok();
+                let changed = map.grid[y][x] != next;
+                if changed {
+                    map.grid[y][x] = next;
+                    map.cells = cells_value(&map.grid);
+                    map.version += 1;
+                }
+                changed
+            };
+            if changed {
+                sync_grid(eng, entity);
             }
             Ok(())
         },
@@ -397,14 +421,22 @@ pub(crate) fn sync_tilemaps(
 fn build_map_node(eng: &Engine, map: &Tilemap) -> Result<kiss3d::scene::SceneNode2d> {
     use kiss3d::scene::{SpriteSheet, Tilemap as TilemapNode};
 
-    let tileset = balaur_core::assets::load_typed::<Tileset>(eng, &map.tileset)?;
+    let tileset = balaur_core::assets::load_typed::<TileSet>(eng, &map.tileset)?;
     let bytes = eng
         .resource::<balaur_core::project::ProjectFiles>()
         .borrow()
         .read(&tileset.texture)?;
     let (_, height) = crate::texture::image_size(&bytes, &tileset.texture)?;
     // The tileset declares columns; the atlas's row count comes off the image.
-    let sheet_rows = ((height as f32 / tileset.tile_size) as u32).max(1);
+    let sheet_rows = ((height as f32 / tileset.tile_size[1]) as u32).max(1);
+    // The fork's sheet is a uniform grid: it cannot skip a gutter. `spacing`
+    // and `margin` cut right once the mesh builder moves here (plan step 2).
+    if tileset.spacing > 0.0 || tileset.margin > 0.0 {
+        tracing::warn!(
+            "tileset '{}': spacing and margin do not cut the mesh yet",
+            map.tileset
+        );
+    }
     let sheet = SpriteSheet::new(tileset.columns.max(1), sheet_rows);
     let columns = map.grid.iter().map(Vec::len).max().unwrap_or(0).max(1);
     let rows = map.grid.len().max(1);
@@ -416,13 +448,9 @@ fn build_map_node(eng: &Engine, map: &Tilemap) -> Result<kiss3d::scene::SceneNod
             }
         }
     }
-    let tile_world = tileset.tile_size / map.pixels_per_unit;
-    let mut mesh = TilemapNode::new(
-        columns as u32,
-        rows as u32,
-        glamx::Vec2::splat(tile_world),
-        sheet,
-    );
+    let tile_world =
+        glamx::Vec2::new(tileset.tile_size[0], tileset.tile_size[1]) / map.pixels_per_unit;
+    let mut mesh = TilemapNode::new(columns as u32, rows as u32, tile_world, sheet);
     let mut node = mesh.node();
     // Texture before fill: the rebuild inside `fill` reads the texture size
     // for its anti-bleed UV inset.

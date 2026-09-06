@@ -6,6 +6,12 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+default = ["recode-fonts"]
+# The font subsetter is HarfBuzz, and HarfBuzz is a C++ build. Off, a target
+# that has no C++ toolchain still compiles and ships its faces whole.
+recode-fonts = ["dep:hb-subset"]
+
 [dependencies]
 balaur = { workspace = true, default-features = false }
 balaur_plugin.workspace = true
@@ -14,9 +20,21 @@ serde.workspace = true
 toml.workspace = true
 tracing.workspace = true
 zip = { version = "8", default-features = false, features = ["deflate"] }
+# Re-encoding assets smaller without changing what they mean.
+image = { version = "0.25", default-features = false, features = ["png"] }
+image-webp = "0.2"
+oxipng = { version = "10", default-features = false, features = ["parallel", "zopfli"] }
+flacenc = { version = "0.5", default-features = false }
+hound = "3"
+# `bundled` compiles HarfBuzz's subsetter from the crate's own sources; the
+# alternative asks pkg-config for a system copy no runner is promised to have.
+hb-subset = { version = "0.3", optional = true, features = ["bundled"] }
 
 [dev-dependencies]
 tempfile = "3"
+# The runtime decodes FLAC through rodio's symphonia; so does the test that
+# proves a re-encode kept every sample.
+symphonia = { version = "0.5", default-features = false, features = ["flac"] }
 
 [lints]
 workspace = true

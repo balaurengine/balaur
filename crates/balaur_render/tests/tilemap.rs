@@ -1,7 +1,7 @@
 //! The `tileset` asset and the `tilemap` component, without a window.
 
 use balaur_core::{App, AppConfig, components, scene};
-use balaur_render::{Tilemap, Tileset};
+use balaur_render::{TileSet, Tilemap};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).expect("App::new builds headless");
@@ -78,10 +78,10 @@ fn a_tilemap_parses_cells_and_round_trips() {
         "an inline definition should have become a reference, got '{reference}'"
     );
 
-    let tileset = balaur_core::assets::load_typed::<Tileset>(&app.engine, reference)
+    let tileset = balaur_core::assets::load_typed::<TileSet>(&app.engine, reference)
         .expect("the inline tileset parses");
     assert_eq!(tileset.texture, "tests/fixtures/sprite_200x100.png");
-    assert!((tileset.tile_size - 50.0).abs() < 1e-6);
+    assert_eq!(tileset.tile_size, [50.0, 50.0], "a square size reads as a pair");
     assert_eq!(tileset.columns, 4);
 
     let reloaded = node(&app);
@@ -170,7 +170,7 @@ tile_size = 50.0
         .get("tileset")
         .and_then(|v| v.as_str().map(str::to_string))
         .expect("the tileset reference reads back");
-    let Err(err) = balaur_core::assets::load_typed::<Tileset>(&app.engine, &reference) else {
+    let Err(err) = balaur_core::assets::load_typed::<TileSet>(&app.engine, &reference) else {
         panic!("a tileset without `columns` must not parse");
     };
     assert!(

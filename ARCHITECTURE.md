@@ -272,6 +272,15 @@ content is `asset`.
   `assets.assign_id` writes a digest of path and content, so a rebuilt index
   gives a file the id it had. Script sources are not rewritten. Binary assets
   landed with pack format 2, verified by sha256.
+- **Import settings are a sidecar**, Godot's `.import` by another name:
+  `art/hero.png.toml` states how `art/hero.png` is read, and `[import.<kind>]`
+  in `project.toml` sets the default for every file of that kind. A file's kind
+  comes from its extension — texture, audio, font, model. `balaur_core::import`
+  resolves the two, and the resolved settings ride in the name a texture is
+  uploaded under, so changing one image's filter re-uploads that image alone.
+- Settings change pixels and samples, never extents: a sprite is sized from its
+  image header, so a headless run resolves settings for nothing and computes the
+  same world. That is why downscaling is an export key and not an import one.
 
 ### Animation
 

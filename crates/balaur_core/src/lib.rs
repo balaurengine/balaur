@@ -34,6 +34,7 @@ pub mod glb;
 pub mod handler;
 pub mod heightfield;
 pub mod ids;
+pub mod import;
 pub mod logbuf;
 pub mod math_api;
 pub mod mesh;
@@ -63,6 +64,7 @@ pub mod time;
 pub mod timers;
 pub mod timings;
 pub mod transport;
+pub mod tiles;
 pub mod triangulate;
 pub mod voxels;
 
