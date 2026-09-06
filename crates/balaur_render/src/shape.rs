@@ -164,6 +164,7 @@ pub(crate) mod keys {
     pub(crate) const EXPLOSIVENESS: &str = "explosiveness";
     pub(crate) const FLIP_X: &str = "flip_x";
     pub(crate) const FLIP_Y: &str = "flip_y";
+    pub(crate) const FONT: &str = "font";
     pub(crate) const FONT_SIZE: &str = "font_size";
     pub(crate) const FONT_STYLE: &str = "font_style";
     pub(crate) const FONT_WEIGHT: &str = "font_weight";

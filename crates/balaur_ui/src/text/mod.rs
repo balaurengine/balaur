@@ -21,6 +21,7 @@ use cosmic_text::{
 };
 use egui::{Color32, Mesh, Pos2, Rect, Vec2, pos2, vec2};
 
+pub mod bitmap;
 pub mod markup;
 
 pub mod atlas;
@@ -42,6 +43,9 @@ pub struct Request {
     pub width: Option<f32>,
     pub align: Align,
     pub markup: bool,
+    /// A `font` asset naming a bitmap face; empty shapes with the project's
+    /// vector chain.
+    pub font: String,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -53,6 +57,7 @@ struct Key {
     width: Option<u32>,
     align: u8,
     markup: bool,
+    font: String,
     generation: u64,
 }
 
@@ -89,6 +94,15 @@ pub struct TextState {
     layouts: HashMap<Key, Rc<Shaped>>,
     /// The family scripts see as `ui`: the first face of that chain.
     family: Option<String>,
+    /// Bitmap fonts by asset name, with their page's box in the atlas.
+    pages: HashMap<String, BitmapPage>,
+}
+
+/// A loaded bitmap font: the descriptor, and where its page sits.
+struct BitmapPage {
+    font: std::rc::Rc<bitmap::BitmapFont>,
+    region: Rect,
+    page_size: Vec2,
 }
 
 /// The project's chain, in order, as the fallback list: what the engine
@@ -150,6 +164,7 @@ impl TextState {
             atlas: GlyphAtlas::default(),
             layouts: HashMap::new(),
             family,
+            pages: HashMap::new(),
         }
     }
 
@@ -196,6 +211,7 @@ impl TextState {
             width: request.width.map(f32::to_bits),
             align: request.align as u8,
             markup: request.markup,
+            font: request.font.clone(),
             generation: self.atlas.generation,
         };
         if let Some(found) = self.layouts.get(&key) {
@@ -212,6 +228,13 @@ impl TextState {
     }
 
     fn layout(&mut self, request: &Request) -> Shaped {
+        // A bitmap font has one glyph per character and no contextual forms,
+        // so it lays out rather than shapes.
+        if !request.font.is_empty()
+            && let Some(shaped) = self.layout_bitmap(request)
+        {
+            return shaped;
+        }
         let parsed = spans_of(request);
         let align = parsed.align.unwrap_or(request.align);
         let size = request.size.max(1.0);
@@ -252,6 +275,50 @@ impl TextState {
             buffer.shape_until_scroll(true);
         }
         self.place(&buffer, &parsed, request.width)
+    }
+
+    /// Lay a run out in a bitmap font, placing its page in the atlas the
+    /// first time. `None` when no such font is loaded.
+    fn layout_bitmap(&mut self, request: &Request) -> Option<Shaped> {
+        let page = self.pages.get(&request.font)?;
+        let (font, region, size) = (page.font.clone(), page.region, page.page_size);
+        Some(font.layout(&request.text, request.size, region, size))
+    }
+
+    /// Load a bitmap font and put its page in the atlas, under `name`.
+    ///
+    /// # Errors
+    /// If the descriptor does not parse, the page does not decode, or the
+    /// page is too large for the atlas.
+    pub fn add_bitmap_font(
+        &mut self,
+        name: &str,
+        descriptor: &str,
+        page_png: &[u8],
+    ) -> anyhow::Result<()> {
+        let font = bitmap::parse(descriptor)?;
+        let image = image::load_from_memory(page_png)?.to_rgba8();
+        let (width, height) = (image.width() as usize, image.height() as usize);
+        let region = self
+            .atlas
+            .place_image(image.as_raw(), width, height)
+            .ok_or_else(|| anyhow::anyhow!("the font's page does not fit the atlas"))?;
+        self.pages.insert(
+            name.to_string(),
+            BitmapPage {
+                font: std::rc::Rc::new(font),
+                region,
+                page_size: Vec2::new(width as f32, height as f32),
+            },
+        );
+        // Every layout cached before this was laid out without the page.
+        self.layouts.clear();
+        Ok(())
+    }
+
+    /// Whether a bitmap font is loaded under `name`.
+    pub fn has_bitmap_font(&self, name: &str) -> bool {
+        self.pages.contains_key(name)
     }
 
     /// Every laid-out glyph as a quad on the atlas, and every picture's box.
@@ -407,6 +474,7 @@ mod tests {
             width,
             align: Align::Start,
             markup: true,
+            font: String::new(),
         });
         (state, shaped)
     }
@@ -446,6 +514,7 @@ mod tests {
             width: None,
             align: Align::Start,
             markup: false,
+            font: String::new(),
         };
         state.shape(&request);
         let after_first = state.atlas().revision();

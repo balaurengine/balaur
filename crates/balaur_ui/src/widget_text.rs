@@ -26,6 +26,9 @@ pub(crate) fn text_request(
             _ => crate::text::Align::Start,
         },
         markup: widget.markup,
+        // A widget names no bitmap font yet; the world's text is where a
+        // pixel face is asked for.
+        font: String::new(),
     }
 }
 

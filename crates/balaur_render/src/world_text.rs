@@ -55,6 +55,9 @@ pub struct TextStyle {
     /// The width lines break at, in the same pixels as `size`.
     pub max_width: Option<f32>,
     pub decoration: Decoration,
+    /// A project-relative `.fnt` naming a bitmap face; empty shapes with the
+    /// project's vector fonts.
+    pub font: String,
 }
 
 impl Default for TextStyle {
@@ -68,6 +71,7 @@ impl Default for TextStyle {
             markup: false,
             max_width: None,
             decoration: Decoration::default(),
+            font: String::new(),
         }
     }
 }
@@ -179,6 +183,11 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
             "italic" => style.italic = matches!(value, Value::Bool(true)),
             "markup" => style.markup = matches!(value, Value::Bool(true)),
             "max_width" => style.max_width = number(value),
+            "font" => {
+                if let Value::Str(path) = value {
+                    style.font.clone_from(path);
+                }
+            }
             "outline_size" => {
                 style.decoration.outline_size = number(value).unwrap_or(0.0).max(0.0);
             }
@@ -282,6 +291,11 @@ mod backend {
     ) -> Result<std::rc::Rc<Shaped>> {
         let state = balaur_ui::text::state(eng)
             .ok_or_else(|| anyhow!("no text shaper: the ui plugin installs it with the fonts"))?;
+        // A bitmap face is loaded the first time it is asked for: the page
+        // goes into the atlas beside the rasterised glyphs.
+        if !style.font.is_empty() {
+            load_bitmap_font(eng, &style.font)?;
+        }
         let request = Request {
             text: text.to_string(),
             size: style.size.max(1.0),
@@ -294,9 +308,33 @@ mod backend {
                 super::Align::End => ShaperAlign::End,
             },
             markup: style.markup,
+            font: style.font.clone(),
         };
         let shaped = state.borrow_mut().shape(&request);
         Ok(shaped)
+    }
+
+    /// Read a `.fnt` and its page out of the project and hand them to the
+    /// shaper, once per face. Later calls find it already there.
+    fn load_bitmap_font(eng: &Engine, path: &str) -> Result<()> {
+        let state = balaur_ui::text::state(eng)
+            .ok_or_else(|| anyhow!("no text shaper: the ui plugin installs it with the fonts"))?;
+        if state.borrow().has_bitmap_font(path) {
+            return Ok(());
+        }
+        let files = eng.resource::<balaur_core::project::ProjectFiles>();
+        let descriptor = String::from_utf8(files.borrow().read(path)?)
+            .map_err(|_| anyhow!("{path} is not a text .fnt descriptor"))?;
+        // The page sits beside the descriptor, as the tool that wrote it left it.
+        let page_name = balaur_ui::text::bitmap::parse(&descriptor)?.page;
+        let directory = path.rsplit_once('/').map_or("", |(head, _)| head);
+        let page_path = if directory.is_empty() {
+            page_name
+        } else {
+            format!("{directory}/{page_name}")
+        };
+        let page = files.borrow().read(&page_path)?;
+        state.borrow_mut().add_bitmap_font(path, &descriptor, &page)
     }
 
     /// Where a shaped block's top-left corner sits so `align` lands the block

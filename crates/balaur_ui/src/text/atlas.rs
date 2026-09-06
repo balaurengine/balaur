@@ -114,6 +114,42 @@ impl GlyphAtlas {
         });
     }
 
+    /// Copy a whole image in — a bitmap font's page — and answer the box it
+    /// landed in, as atlas coordinates. `None` when it does not fit.
+    ///
+    /// A page is one allocation rather than one per glyph: its glyphs are
+    /// already packed, and re-packing them would only move them about.
+    pub(crate) fn place_image(&mut self, rgba: &[u8], width: usize, height: usize) -> Option<Rect> {
+        if width == 0 || height == 0 || width + 2 * PAD > SIDE || height + 2 * PAD > SIDE {
+            return None;
+        }
+        let (x, y) = match self.allocate(width + 2 * PAD, height + 2 * PAD) {
+            Some(at) => at,
+            None => {
+                self.reset();
+                self.allocate(width + 2 * PAD, height + 2 * PAD)?
+            }
+        };
+        let pixels: Vec<Color32> = rgba
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+            .collect();
+        if pixels.len() < width * height {
+            return None;
+        }
+        self.write(x + PAD, y + PAD, width, height, &pixels);
+        let side = SIDE as f32;
+        Some(Rect::from_min_max(
+            egui::pos2((x + PAD) as f32 / side, (y + PAD) as f32 / side),
+            egui::pos2(
+                (x + PAD + width) as f32 / side,
+                (y + PAD + height) as f32 / side,
+            ),
+        ))
+    }
+
     /// The whole image, for a consumer that uploads it entire.
     pub fn rgba(&self) -> &[u8] {
         &self.pixels.rgba

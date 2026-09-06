@@ -62,6 +62,7 @@ fn shared_schema() -> Vec<(&'static str, String)> {
         (k::MAX_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the lines wrap at; zero runs the text on one line" }"#.into()),
         (k::MARKUP, r#"{ type = "bool", default = false, description = "Read the text as markup: bold, italic, colour, alignment, wave and inline images" }"#.into()),
         (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Font pixels to one world unit, sizing the block the way a sprite is sized" }"#.into()),
+        (k::FONT, r#"{ type = "string", default = "", description = "A project-relative AngelCode .fnt naming a bitmap face; empty shapes with the project's vector fonts" }"#.into()),
         (k::OUTLINE_SIZE, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the outline reaches around the glyphs; zero draws none" }"#.into()),
         (k::OUTLINE_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "The outline's colour" }"#.into()),
         (k::SHADOW_OFFSET_X, r#"{ type = "float", default = 0.0, description = "Font pixels the shadow is moved along x; zero with y draws none" }"#.into()),
@@ -117,6 +118,7 @@ fn from_params(params: &toml::Value, in_3d: bool) -> TextRenderable {
             align: align_of(&text(k::ALIGN)),
             markup: flag(k::MARKUP, false),
             max_width: (max_width > 0.0).then_some(max_width),
+            font: text(k::FONT),
             decoration: crate::world_text::Decoration {
                 outline_size: number(k::OUTLINE_SIZE, 0.0).max(0.0),
                 outline_color: color_at(params, k::OUTLINE_COLOR, [0.0, 0.0, 0.0, 1.0]),
@@ -172,6 +174,7 @@ fn to_params(text: &TextRenderable) -> toml::Value {
         toml::Value::Float(f64::from(text.style.max_width.unwrap_or(0.0))),
     );
     put(k::MARKUP, toml::Value::Boolean(text.style.markup));
+    put(k::FONT, toml::Value::String(text.style.font.clone()));
     let decoration = text.style.decoration;
     put(
         k::OUTLINE_SIZE,
