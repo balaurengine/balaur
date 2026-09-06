@@ -198,3 +198,4 @@ built beside it.
 - `when` is a comparison over the scene's variables, not a Rune expression:
   a condition is data in a scene file, so the editor reads it, shows it and
   diffs it, and anything a comparison cannot say is a script.
+- Pointer hooks need a window. `docs/PLAN-interactivity.md` §4 says why.
