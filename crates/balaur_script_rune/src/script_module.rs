@@ -7,6 +7,7 @@ use anyhow::Result;
 use rune::runtime::Function;
 
 use crate::inspect::{export_rows, finding_rows};
+use crate::tooling::{completion_rows, hover_row};
 use crate::{HOSTS, RuneHost, SHARED_FNS, trampoline};
 
 /// Everything a script may ask about — or borrow from — another script.
@@ -85,7 +86,71 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
             }
         })
         .build()?;
-    // `script::shared(f, arity)` — a callback made in this unit, callable
+    // `script::complete(path, source, line, column)` — what may be typed at
+    // that caret, as `[#{ label, kind, detail, doc, insert }]`. The same
+    // answer `balaur lsp` gives an editor outside Balaur.
+    script
+        .function(
+            "complete",
+            move |path: &str, source: &str, line: i64, column: i64| {
+                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+                let (line, column) = at(line, column);
+                match host
+                    .complete(&RuneHost::normalize_key(path), source, line, column)
+                    .and_then(|found| completion_rows(&found))
+                {
+                    Ok(value) => value,
+                    Err(err) => {
+                        tracing::error!("script::complete({path}): {err}");
+                        rune::to_value(()).expect("unit always converts")
+                    }
+                }
+            },
+        )
+        .build()?;
+    // `script::hover(path, source, line, column)` — what is under that caret,
+    // as `#{ title, detail, doc }`, or `()`.
+    script
+        .function(
+            "hover",
+            move |path: &str, source: &str, line: i64, column: i64| {
+                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+                let (line, column) = at(line, column);
+                match host
+                    .hover(&RuneHost::normalize_key(path), source, line, column)
+                    .and_then(|found| hover_row(found.as_ref()))
+                {
+                    Ok(value) => value,
+                    Err(err) => {
+                        tracing::error!("script::hover({path}): {err}");
+                        rune::to_value(()).expect("unit always converts")
+                    }
+                }
+            },
+        )
+        .build()?;
+    // `script::signature(path, source, line, column)` — the call the caret is
+    // inside, as `#{ title, detail, doc, active }`, or `()`.
+    script
+        .function(
+            "signature",
+            move |path: &str, source: &str, line: i64, column: i64| {
+                let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+                let (line, column) = at(line, column);
+                match host
+                    .signature_help(&RuneHost::normalize_key(path), source, line, column)
+                    .and_then(|found| signature_row(found))
+                {
+                    Ok(value) => value,
+                    Err(err) => {
+                        tracing::error!("script::signature({path}): {err}");
+                        rune::to_value(()).expect("unit always converts")
+                    }
+                }
+            },
+        )
+        .build()?;
+    // `script::shared(f, arity)` — a callback made in this unit, callable    // `script::shared(f, arity)` — a callback made in this unit, callable
     // from another unit's VM. Arity is explicit: a wrapper is typed.
     script
         .function("shared", |f: Function, arity: i64| -> rune::Value {
@@ -115,4 +180,30 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
         })
         .build()?;
     Ok(script)
+}
+
+/// A script counts lines and columns from one, and a negative one is a caller
+/// that has not placed its caret yet.
+fn at(line: i64, column: i64) -> (usize, usize) {
+    (
+        usize::try_from(line).unwrap_or(1).max(1),
+        usize::try_from(column).unwrap_or(1).max(1),
+    )
+}
+
+/// A signature-help answer with the argument the caret is in.
+fn signature_row(found: Option<(crate::Hover, usize)>) -> Result<rune::Value> {
+    let Some((one, active)) = found else {
+        return Ok(rune::to_value(())?);
+    };
+    let mut object = rune::runtime::Object::new();
+    for (key, value) in [
+        ("title", rune::to_value(one.title)?),
+        ("detail", rune::to_value(one.detail)?),
+        ("doc", rune::to_value(one.doc)?),
+        ("active", rune::to_value(i64::try_from(active).unwrap_or(0))?),
+    ] {
+        object.insert(rune::alloc::String::try_from(key)?, value)?;
+    }
+    Ok(rune::to_value(object)?)
 }

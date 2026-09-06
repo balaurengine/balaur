@@ -124,6 +124,24 @@ fn install_host_entries(modules: &mut BTreeMap<String, Module>) {
         ),
         (
             "script",
+            "complete",
+            "(path: string, source: string, line: int, column: int)",
+            "Every completion valid at that caret, as `[#{ label, kind, detail, doc, insert }]`; an editor passes the buffer it is showing.",
+        ),
+        (
+            "script",
+            "hover",
+            "(path: string, source: string, line: int, column: int)",
+            "What is under that caret, as `#{ title, detail, doc }`, or `()` when it is nothing the engine knows.",
+        ),
+        (
+            "script",
+            "signature",
+            "(path: string, source: string, line: int, column: int)",
+            "The call the caret is inside, as `#{ title, detail, doc, active }`, where `active` is the argument being typed.",
+        ),
+        (
+            "script",
             "shared",
             "(f: fn, arity: int)",
             "Wrap a script function so it can be called from several places with a fixed argument count.",

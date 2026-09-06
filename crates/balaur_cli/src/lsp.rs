@@ -113,6 +113,8 @@ impl Server {
                             // `:` and `.` are the two characters that change
                             // what may follow; the rest arrive on a keystroke.
                             "completionProvider": { "triggerCharacters": [".", ":"] },
+                            "hoverProvider": true,
+                            "signatureHelpProvider": { "triggerCharacters": ["(", ","] },
                         },
                         "serverInfo": { "name": "balaur", "version": crate::version::long() },
                     }
@@ -167,6 +169,37 @@ impl Server {
                     &json!({ "jsonrpc": "2.0", "id": id, "result": items }),
                 )?;
             }
+            "textDocument/hover" => {
+                let found = self.one(&message["params"], |host, key, source, line, column| {
+                    Ok(host.hover(key, source, line, column)?.map(|h| {
+                        json!({ "contents": { "kind": "markdown", "value": markdown(&h) } })
+                    }))
+                });
+                write_message(
+                    writer,
+                    &json!({ "jsonrpc": "2.0", "id": id, "result": found }),
+                )?;
+            }
+            "textDocument/signatureHelp" => {
+                let found = self.one(&message["params"], |host, key, source, line, column| {
+                    Ok(host
+                        .signature_help(key, source, line, column)?
+                        .map(|(h, active)| {
+                            json!({
+                                "signatures": [{
+                                    "label": format!("{}{}", h.title, h.detail),
+                                    "documentation": h.doc,
+                                }],
+                                "activeSignature": 0,
+                                "activeParameter": active,
+                            })
+                        }))
+                });
+                write_message(
+                    writer,
+                    &json!({ "jsonrpc": "2.0", "id": id, "result": found }),
+                )?;
+            }
             // A request we do not serve still needs an answer, or a client
             // that waits for one hangs.
             _ if id.is_some() => {
@@ -191,15 +224,7 @@ impl Server {
     where
         T: Into<Json>,
     {
-        let Some(uri) = params["textDocument"]["uri"].as_str() else {
-            return Json::Null;
-        };
-        let line = params["position"]["line"].as_u64().unwrap_or(0) as usize + 1;
-        let column = params["position"]["character"].as_u64().unwrap_or(0) as usize + 1;
-        let Some(rel) = self.rel_of(uri) else {
-            return Json::Null;
-        };
-        let Some(source) = self.source_of(&rel) else {
+        let Some((rel, source, line, column)) = self.locate(params) else {
             return Json::Null;
         };
         match f(&self.host, &rel, &source, line, column) {
@@ -209,6 +234,35 @@ impl Server {
                 Json::Null
             }
         }
+    }
+
+    /// `at` for a request answering one value rather than a list.
+    fn one(
+        &self,
+        params: &Json,
+        f: impl FnOnce(&balaur::rune::RuneHost, &str, &str, usize, usize) -> Result<Option<Json>>,
+    ) -> Json {
+        let Some((rel, source, line, column)) = self.locate(params) else {
+            return Json::Null;
+        };
+        match f(&self.host, &rel, &source, line, column) {
+            Ok(Some(found)) => found,
+            Ok(None) => Json::Null,
+            Err(err) => {
+                tracing::error!("{rel}: {err:#}");
+                Json::Null
+            }
+        }
+    }
+
+    /// The file, its text, and the 1-based position a request names.
+    fn locate(&self, params: &Json) -> Option<(String, String, usize, usize)> {
+        let uri = params["textDocument"]["uri"].as_str()?;
+        let line = params["position"]["line"].as_u64().unwrap_or(0) as usize + 1;
+        let column = params["position"]["character"].as_u64().unwrap_or(0) as usize + 1;
+        let rel = self.rel_of(uri)?;
+        let source = self.source_of(&rel)?;
+        Some((rel, source, line, column))
     }
 
     /// The project-relative path a `file://` URI names, when it is under the
@@ -288,6 +342,17 @@ fn completion(one: &balaur::rune::Completion) -> Json {
         "documentation": one.doc,
         "insertText": one.insert,
     })
+}
+
+/// A hover as the markdown a client renders: the name in code, then the
+/// signature, then the reference's own doc line.
+fn markdown(one: &balaur::rune::Hover) -> String {
+    let mut out = format!("```rune\n{}{}\n```", one.title, one.detail);
+    if !one.doc.is_empty() {
+        out.push_str("\n\n");
+        out.push_str(&one.doc);
+    }
+    out
 }
 
 fn notification(uri: &str, diagnostics: &[Json]) -> Json {

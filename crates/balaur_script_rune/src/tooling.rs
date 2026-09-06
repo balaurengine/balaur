@@ -489,7 +489,145 @@ impl RuneHost {
         Ok(())
     }
 
-    /// Every function the unit compiled for this source, `mod` files
+    /// What is under the caret at `line`:`column`, for a hover card.
+    ///
+    /// # Errors
+    /// If the context cannot be built.
+    pub fn hover(
+        &self,
+        key: &str,
+        source: &str,
+        line: usize,
+        column: usize,
+    ) -> Result<Option<Hover>> {
+        let offset = offset_of(source, line, column);
+        // The caret may sit inside the word rather than after it, so the hover
+        // reads the whole identifier the offset touches.
+        let end = source[offset.min(source.len())..]
+            .char_indices()
+            .find(|(_, c)| !is_word(*c))
+            .map_or(source.len(), |(i, _)| offset + i);
+        let (name, start) = word_before(source, end);
+        if name.is_empty() {
+            return Ok(None);
+        }
+        Ok(self.describe(key, source, &source[..start], name))
+    }
+
+    /// The one thing `name` means, given what precedes it. The same four
+    /// sources completion reads, asked for one answer instead of a list.
+    fn describe(&self, key: &str, source: &str, head: &str, name: &str) -> Option<Hover> {
+        let modules = collect_modules();
+        if let Some(before) = head.strip_suffix("::") {
+            let (module, _) = word_before(before, before.len());
+            let found = modules.get(module)?;
+            if let Some(value) = found.constants.get(name) {
+                return Some(Hover {
+                    title: format!("{module}::{name}"),
+                    detail: value.clone(),
+                    doc: String::new(),
+                });
+            }
+            return Some(Hover {
+                title: format!("{module}::{name}"),
+                detail: found.signatures.get(name).cloned().unwrap_or_default(),
+                doc: found.docs.get(name).cloned().unwrap_or_default(),
+            });
+        }
+        if let Some(before) = head.strip_suffix('.') {
+            let (receiver, receiver_start) = word_before(before, before.len());
+            if receiver == "this" {
+                return Some(Hover {
+                    title: format!("this.{name}"),
+                    detail: "this script".to_string(),
+                    doc: String::new(),
+                });
+            }
+            if !receiver.is_empty() && source[..receiver_start].ends_with('.') {
+                let methods = handle_methods();
+                if let Some((detail, doc)) = methods.get(receiver).and_then(|m| m.get(name)) {
+                    return Some(Hover {
+                        title: format!("{receiver}.{name}"),
+                        detail: detail.clone(),
+                        doc: doc.clone(),
+                    });
+                }
+            }
+            if let Some((generic, doc)) = GENERIC.iter().find(|(g, _)| *g == name) {
+                return Some(Hover {
+                    title: (*generic).to_string(),
+                    detail: "component handle".to_string(),
+                    doc: (*doc).to_string(),
+                });
+            }
+            let node = modules.get("node")?;
+            if node.functions.contains(name) {
+                return Some(Hover {
+                    title: format!("node.{name}"),
+                    detail: node.signatures.get(name).cloned().unwrap_or_default(),
+                    doc: node.docs.get(name).cloned().unwrap_or_default(),
+                });
+            }
+            return None;
+        }
+        if let Some(module) = modules.get(name) {
+            return Some(Hover {
+                title: name.to_string(),
+                detail: format!("{} functions", module.functions.len()),
+                doc: module.doc.clone(),
+            });
+        }
+        // A name with no qualifier is this file's own, or nothing we know.
+        let declared = crate::inspect::public_functions(source)
+            .into_iter()
+            .find(|d| d.name == name)?;
+        Some(Hover {
+            title: format!("{}({})", declared.name, declared.arity),
+            detail: format!("{key}:{}", declared.line),
+            doc: String::new(),
+        })
+    }
+
+    /// The function being called at the caret, and which argument the caret
+    /// is in: `(signature, active)`. Walks back over balanced parentheses, so
+    /// a nested call reports the inner one.
+    ///
+    /// # Errors
+    /// If the context cannot be built.
+    pub fn signature_help(
+        &self,
+        key: &str,
+        source: &str,
+        line: usize,
+        column: usize,
+    ) -> Result<Option<(Hover, usize)>> {
+        let offset = offset_of(source, line, column).min(source.len());
+        let mut depth = 0usize;
+        let mut active = 0usize;
+        let mut open = None;
+        for (i, c) in source[..offset].char_indices().rev() {
+            match c {
+                ')' => depth += 1,
+                '(' if depth == 0 => {
+                    open = Some(i);
+                    break;
+                }
+                '(' => depth -= 1,
+                ',' if depth == 0 => active += 1,
+                _ => {}
+            }
+        }
+        let Some(open) = open else { return Ok(None) };
+        let (name, start) = word_before(source, open);
+        if name.is_empty() {
+            return Ok(None);
+        }
+        Ok(self
+            .describe(key, source, &source[..start], name)
+            .map(|found| (found, active)))
+    }
+
+    /// Every function the unit compiled for this source, `mod` files    /// Every function the unit compiled for this source, `mod` files
     /// included. A source that will not compile has none, which is why the
     /// caller also reads the file's own `pub fn`s.
     pub(crate) fn unit_functions(&self, key: &str, source: &str) -> BTreeSet<String> {
@@ -523,4 +661,85 @@ fn locals_before(source: &str, prefix: &str) -> BTreeSet<String> {
         }
     }
     out
+}
+
+/// One object per completion, for a script drawing the popup.
+pub(crate) fn completion_rows(found: &[Completion]) -> Result<rune::Value> {
+    let mut rows = Vec::with_capacity(found.len());
+    for one in found {
+        rows.push(row(&[
+            ("label", rune::to_value(one.label.clone())?),
+            ("kind", rune::to_value(one.kind.name())?),
+            ("detail", rune::to_value(one.detail.clone())?),
+            ("doc", rune::to_value(one.doc.clone())?),
+            ("insert", rune::to_value(one.insert.clone())?),
+        ])?);
+    }
+    Ok(rune::to_value(rows)?)
+}
+
+/// A hover as `#{ title, detail, doc }`, `()` when nothing is under the caret.
+pub(crate) fn hover_row(found: Option<&Hover>) -> Result<rune::Value> {
+    let Some(one) = found else {
+        return Ok(rune::to_value(())?);
+    };
+    row(&[
+        ("title", rune::to_value(one.title.clone())?),
+        ("detail", rune::to_value(one.detail.clone())?),
+        ("doc", rune::to_value(one.doc.clone())?),
+    ])
+}
+
+/// One object per symbol, for the Outline dock.
+pub(crate) fn symbol_rows(found: &[Symbol]) -> Result<rune::Value> {
+    let mut rows = Vec::with_capacity(found.len());
+    for one in found {
+        rows.push(row(&[
+            ("name", rune::to_value(one.name.clone())?),
+            ("kind", rune::to_value(one.kind.name())?),
+            ("detail", rune::to_value(one.detail.clone())?),
+            ("line", rune::to_value(i64::try_from(one.line).unwrap_or(0))?),
+            (
+                "column",
+                rune::to_value(i64::try_from(one.column).unwrap_or(0))?,
+            ),
+        ])?);
+    }
+    Ok(rune::to_value(rows)?)
+}
+
+/// A location as `#{ file, line, column, url }`, `()` when there is none.
+pub(crate) fn location_row(found: Option<&Location>) -> Result<rune::Value> {
+    let Some(one) = found else {
+        return Ok(rune::to_value(())?);
+    };
+    row(&[
+        ("file", rune::to_value(one.file.clone())?),
+        ("line", rune::to_value(i64::try_from(one.line).unwrap_or(0))?),
+        (
+            "column",
+            rune::to_value(i64::try_from(one.column).unwrap_or(0))?,
+        ),
+        ("url", rune::to_value(one.url.clone())?),
+    ])
+}
+
+/// One object per location, for a references list.
+pub(crate) fn location_rows(found: &[Location]) -> Result<rune::Value> {
+    let mut rows = Vec::with_capacity(found.len());
+    for one in found {
+        rows.push(location_row(Some(one))?);
+    }
+    Ok(rune::to_value(rows)?)
+}
+
+fn row(fields: &[(&str, rune::Value)]) -> Result<rune::Value> {
+    let mut object = rune::runtime::Object::new();
+    for (key, value) in fields {
+        object.insert(
+            rune::alloc::String::try_from(*key)?,
+            value.clone(),
+        )?;
+    }
+    Ok(rune::to_value(object)?)
 }
