@@ -29,11 +29,13 @@ source = "#wedge"
 /// node where the scene put it, and the assertions below would hold vacuously.
 const SCRIPT: &str = r#"pub fn init(this) {
     let through = render::pick_ray(-0.5, -0.5, 5.0, 0.0, 0.0, -1.0);
-    if !through.is_some() {
+    let hit = through is balaur::Node;
+    if !hit {
         log::error("the ray through the triangle picked nothing");
     }
     let gap = render::pick_ray(0.6, 0.6, 5.0, 0.0, 0.0, -1.0);
-    if gap.is_some() {
+    let missed = gap is balaur::Node;
+    if missed {
         log::error("the ray through the gap picked the node's box, not its triangles");
     }
     this.node.set_position(0.0, 3.0, 0.0);
