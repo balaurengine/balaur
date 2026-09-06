@@ -26,7 +26,7 @@ fi
 # The SDK ships one per version and the newest is the one that knows the
 # current timestamp policies.
 signtool=$(find "/c/Program Files (x86)/Windows Kits/10/bin" \
-  -name signtool.exe -path '*/x64/*' 2>/dev/null | sort | tail -1)
+  -name signtool.exe -path '*/x64/*' 2>/dev/null | sort -V | tail -1)
 [ -n "$signtool" ] || { printf '::error::no signtool.exe; install the Windows SDK\n'; exit 1; }
 
 # RFC 3161 over SHA-256: a signature outlives the certificate only if a
@@ -38,10 +38,12 @@ if [ "$source" = azure ]; then
   # itself, the way every Azure SDK does.
   client=${RUNNER_TEMP:-${TMPDIR:-/tmp}}/trusted-signing
   if [ ! -d "$client" ]; then
+    command -v nuget >/dev/null ||
+      { printf '::error::nuget is not on PATH; it ships on the GitHub Windows images\n'; exit 1; }
     # A NuGet package rather than a dotnet tool, so `dotnet tool install`
     # will not find it.
     nuget install Microsoft.Trusted.Signing.Client \
-      -Version "${TRUSTED_SIGNING_CLIENT_VERSION:-1.0.60}" \
+      -Version "${TRUSTED_SIGNING_CLIENT_VERSION:-1.0.95}" \
       -OutputDirectory "$client" -ExcludeVersion >/dev/null
   fi
   dlib=$(find "$client" -name 'Azure.CodeSigning.Dlib.dll' -path '*x64*' | head -1)
