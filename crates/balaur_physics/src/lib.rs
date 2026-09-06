@@ -650,6 +650,7 @@ pub const SHAPE_KINDS_2D: &[(&str, &str)] = &[
     ("SHAPE_CONVEX_HULL", w::CONVEX_HULL),
     ("SHAPE_POLYLINE", w::POLYLINE),
     ("SHAPE_HEIGHTFIELD", w::HEIGHTFIELD),
+    ("SHAPE_VOXELS", w::VOXELS),
 ];
 
 /// Joint kinds for the 3D world.
