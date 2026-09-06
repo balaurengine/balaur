@@ -31,7 +31,9 @@ parent = "shell"
 [nodes.widget]
 kind = "panel"
 text = ""
-height = 36
+# The bar's own row is 36; a panel keeps 8 inside each edge, so the box that
+# holds it is that much taller.
+height = 52
 gap = 0
 
 [[nodes]]
