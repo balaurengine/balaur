@@ -621,7 +621,10 @@ fn upload_geometry(scene: &mut SceneNode3d, data: &balaur_core::mesh::MeshData) 
         .uvs
         .as_ref()
         .map(|us| us.iter().map(|u| Vec2::from_array(*u)).collect());
-    let gpu = GpuMesh3d::new(coords, data.indices.clone(), normals, uvs, false);
+    let mut gpu = GpuMesh3d::new(coords, data.indices.clone(), normals, uvs, false);
+    if let Some(colors) = &data.colors {
+        gpu.set_colors(colors.clone());
+    }
     scene.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(gpu)), Vec3::ONE)
 }
 
@@ -689,8 +692,9 @@ fn upload_mesh(
             weights: skin.weights.clone(),
             indices: faces.clone(),
         });
-    // The shapes before the skin is moved out of the mesh data.
+    // The shapes and the colours before the skin is moved out of the data.
     let morphs = crate::morph::targets_of(&data);
+    let colors = data.colors.clone();
     let skin = data.skin.map(|skin| MeshSkinSlot {
         positions: coords.clone(),
         normals: normals.clone(),
@@ -704,6 +708,9 @@ fn upload_mesh(
     let mut gpu = GpuMesh3d::new(coords, faces, normals, uvs, skin.is_some());
     if let Some(targets) = morphs {
         gpu.set_morph_targets(targets);
+    }
+    if let Some(colors) = colors {
+        gpu.set_colors(colors);
     }
     let mut node = scene.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(gpu)), Vec3::ONE);
     crate::texture::attach_texture_3d(&app.engine, &mut node, &renderable.texture);

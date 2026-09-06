@@ -43,15 +43,21 @@ out="$dist/play"
 rm -rf "$out"
 mkdir -p "$out"
 # Sources rather than bytecode: /editor shows a project's scripts in its
-# code panel, and a compiled pack carries none.
-for project in editor examples/hello examples/angrynerds examples/rig examples/benchmark; do
-  pack="$out/$(basename "$project").bpak"
-  "$balaur" export "$project" --keep-sources --output "$pack"
-  [ -s "$pack" ] || fail "$project exported an empty pack"
+# code panel, and a compiled pack carries none. Examples are found rather
+# than listed, so a new one is not left out by being forgotten.
+packs=()
+for project in editor examples/*/; do
+  project=${project%/}
+  [ -f "$project/project.toml" ] || continue
+  name=$(basename "$project")
+  "$balaur" export "$project" --keep-sources --output "$out/$name.bpak"
+  [ -s "$out/$name.bpak" ] || fail "$project exported an empty pack"
+  packs+=("$name.bpak")
 done
+[ ${#packs[@]} -gt 1 ] || fail "only ${#packs[@]} project(s) packed; the examples were not found"
 cp "$dist/balaur.js" "$dist/balaur_bg.wasm" "$out/"
 
 step "bundle"
 (cd "$out" && tar -czf "$dist/balaur-play.tar.gz" \
-  balaur.js balaur_bg.wasm editor.bpak hello.bpak angrynerds.bpak rig.bpak benchmark.bpak)
+  balaur.js balaur_bg.wasm "${packs[@]}")
 ls -l "$out" "$dist/balaur-play.tar.gz"

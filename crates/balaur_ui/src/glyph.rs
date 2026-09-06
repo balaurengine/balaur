@@ -4,7 +4,7 @@
 //! uses, swash yields each glyph's outline, the curves flatten, and the
 //! contours are triangulated together so a letter's counters stay holes.
 //! What comes out is a `mesh` like any other: a collider fits it, a ray
-//! picks it, and `docs/PLAN-objects.md` step 3 extrudes it.
+//! picks it, and `balaur_core::path::extrude` gives it thickness.
 //!
 //! Nothing here touches a GPU, so a headless build shapes the same word into
 //! the same triangles a windowed one draws.

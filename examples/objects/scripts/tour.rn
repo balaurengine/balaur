@@ -1,0 +1,28 @@
+// Walks the camera down the rows and names the one it has reached. Every
+// row is one category of them, laid out along -z.
+
+const ROWS = [
+    #{ z: 0.0, name: "primitives" },
+    #{ z: -6.0, name: "paths: extruded, revolved, swept" },
+    #{ z: -12.0, name: "booleans: union, difference, intersection" },
+    #{ z: -18.0, name: "cloner: linear, radial, scattered grid" },
+    #{ z: -24.0, name: "a word as a mesh, and colour per vertex" },
+];
+
+// How long the camera rests on a row before moving to the next.
+const DWELL = 3.5;
+
+pub fn init(this) {
+    this.clock = 0.0;
+    this.at = 0;
+}
+
+pub fn update(this, dt) {
+    this.clock += dt;
+    if this.clock > DWELL {
+        this.clock = 0.0;
+        this.at = (this.at + 1) % ROWS.len();
+    }
+    let row = ROWS[this.at];
+    render::set_camera(0.0, 3.0, row.z + 7.0, 0.0, 1.0, row.z);
+}

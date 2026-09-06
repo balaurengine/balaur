@@ -59,6 +59,9 @@ struct VertexInput {
     @location(5) copy_x: vec3<f32>,
     @location(6) copy_y: vec3<f32>,
     @location(7) copy_z: vec3<f32>,
+    // One colour per vertex -- what a glTF's COLOR_0 carries -- bound only
+    // with `features = { vertex_color = true }`.
+    @if(vertex_color) @location(8) vertex_tint: vec4<f32>,
 }
 
 struct VertexOutput {
@@ -66,6 +69,9 @@ struct VertexOutput {
     @location(0) uv: vec2<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) world: vec3<f32>,
+    // What `shade` multiplies the albedo by, over and above the node's own
+    // colour. White unless a vertex stage put something there.
+    @location(3) tint: vec4<f32>,
 }
 
 // Seconds since the run began. Render time, never the simulation tick.
@@ -90,12 +96,20 @@ fn tint() -> vec4<f32> {
 // moves the normal with it.
 fn place_deformed(position: vec3<f32>, normal: vec3<f32>, uv: vec2<f32>) -> VertexOutput {
     var out: VertexOutput;
+    out.tint = vec4<f32>(1.0, 1.0, 1.0, 1.0);
     let world = object.model * vec4<f32>(position, 1.0);
     out.world = world.xyz;
     out.clip_position = frame.proj * frame.view * world;
     out.normal = (object.normal_matrix * vec4<f32>(normal, 0.0)).xyz;
     out.uv = uv;
     return out;
+}
+
+// The colour this vertex carries. Only with `features = { vertex_color =
+// true }`, and only for a mesh whose asset has them; a mesh without gets
+// white, so asking costs a material nothing but the attribute.
+@if(vertex_color) fn vertex_color(in: VertexInput) -> vec4<f32> {
+    return in.vertex_tint;
 }
 
 // Which copy of the mesh this vertex belongs to, counting from zero. One
@@ -199,6 +213,6 @@ fn apply_fog(color: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
 
 // The whole default look: texture, tint, lights and fog.
 fn shade(in: VertexOutput) -> vec4<f32> {
-    let albedo = sample_albedo(in.uv) * tint();
+    let albedo = sample_albedo(in.uv) * tint() * in.tint;
     return vec4<f32>(apply_fog(albedo.rgb * diffuse(in), in.world), albedo.a);
 }

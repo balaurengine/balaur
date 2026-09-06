@@ -114,7 +114,7 @@ capturing frames, muxed by ffmpeg when it is on the path — what
 `scripts/showcase.sh` does today — and by `MediaRecorder` in the browser
 editor; a bundled encoder is not planned. glTF: `gltf-json` writes the
 scene's meshes, materials, skins and clips as `.glb`, which is also how a
-boolean or a text mesh from `docs/PLAN-objects.md` leaves the engine.
+boolean or a text mesh leaves the engine.
 
 ## 2. The surface
 

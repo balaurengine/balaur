@@ -19,7 +19,7 @@
 - `docs/PLAN-editor.md` §3 names `render.draw_text_2d` and `draw_text` as
   what the editor works around: overlays cannot label a bone or a node.
 - `balaur_render` already depends on `balaur_ui`.
-- `docs/PLAN-objects.md` step 2 names the same two components in its order
+- the objects work names the same two components in its order
   of work and proposes glyph outlines triangulated through `i_triangle`;
   this plan is their specification, and §5 weighs the two draw paths.
 
@@ -95,7 +95,7 @@ looks right on a display it does not have.
    kiss3d, or one owned by the render crate that egui reads from; the first
    costs an upload on growth, the second inverts a dependency. The first,
    until it shows in a profile.
-3. **Quads or outlines.** `docs/PLAN-objects.md` would triangulate each
+3. **Quads or outlines.** `balaur_ui::glyph` triangulates each
    glyph's outline through `i_triangle`: resolution-independent, no atlas,
    and a mesh a collider can be fitted from — at the cost of a mesh per
    glyph, no hinting and heavier CJK text. Atlas quads reuse everything the

@@ -4,7 +4,7 @@
 > material from a list. The order is selection first, because group, align
 > and every multi-node command stand on it; then the gestures around the
 > viewport; then the panels that author what `docs/PLAN-3d-rendering.md`,
-> `docs/PLAN-objects.md` and `docs/PLAN-interactivity.md` add; then the
+> the objects work and `docs/PLAN-interactivity.md` add; then the
 > library, which is content more than code.
 
 # Plan: editor ergonomics
@@ -140,13 +140,13 @@ library. A Gamend-hosted catalogue with the same manifest is
 | Light and camera gizmos, look through | Step 3 |
 | Camera bookmarks | Step 3, four slots on the viewport chip |
 | View modes: shaded, wireframe, normals, UVs, unlit, overdraw | Step 3 |
-| Pen tool | Step 4, with `docs/PLAN-objects.md` step 3 |
+| Pen tool | Step 4, over the `path2d` and `path3d` assets already built |
 | Material panel, preview sphere, layers | Step 5, with `docs/PLAN-3d-rendering.md` steps 3 and 8 |
 | Events view authoring | Step 6, with `docs/PLAN-interactivity.md` step 3 |
 | Cost dock | Step 7 |
 | Library dock, stock content, templates | Step 8 |
 | Snap to vertex, edge, face | Not planned; grid snapping stays the one snap |
-| Mesh editing, sculpting | Not planned (`docs/PLAN-objects.md`) |
+| Mesh editing, sculpting | Not planned: they are a modeller, and a `.glb` from Blender is the answer |
 | A community library | `docs/PLAN-collaboration.md` |
 
 ## 3. Steps
