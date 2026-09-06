@@ -997,19 +997,91 @@ fn material_rows(S, k, reference) {
         ""
     };
     if shader != "" {
-        row(S, k, "  shader", || {
-            if ui::pill(util::last_segment(shader), #{
-                height: 20, size: 10, strong: true,
-                tooltip: "Edit " + shader,
-                fill: k.sage_soft, color: k.sage,
-            }) {
-                S.shader_rel = shader;
-                S.doctab = "script";
-            }
-        });
+        shader_row(S, k, reference, shader);
+        feature_rows(S, k, reference, util::obj(util::obj(definition).get("features").unwrap_or(#{})));
     }
     for p in render::material_params(reference) {
         material_row(S, k, reference, p["name"], p["type"], p["value"]);
+    }
+}
+
+/// Which `.wesl` the material draws with: a picker over the project's own
+/// shaders, and a click on the name opens it in the code pane.
+fn shader_row(S, k, reference, shader) {
+    // By leaf: an inlined material's `shader` is the absolute path the mirror
+    // resolved, and what a person picks from is the file's name.
+    let choices = [];
+    for f in model::list(S, "shaders") {
+        if !f.is_dir && f.name.ends_with(".wesl") {
+            choices.push(f.name);
+        }
+    }
+    let current = util::last_segment(shader);
+    if !util::contains(choices, current) {
+        choices.insert(0, current);
+    }
+    row(S, k, "  shader", || {
+        if ui::pill(icons::ui("open"), #{
+            role: "icon_button", min_width: 22, height: 22,
+            tooltip: "Edit " + current, fill: k.sage_soft, color: k.sage,
+        }) {
+            S.shader_rel = model::relative_file(S, shader);
+            S.doctab = "script";
+        }
+        ui::add_space(4);
+        let (picked, changed) = ui::dropdown(
+            format!("shader:{}", reference), current, choices,
+            #{ width: control_w(S) - 26.0, size: 11, height: 22, color: k.text },
+        );
+        if changed && picked != current {
+            write_material_key(S, reference, "shader", "shaders/" + picked);
+        }
+    });
+}
+
+/// The `@if` flags the shader declares, as toggles. A material naming one the
+/// shader does not have is what the flag list is read from, so a hand-written
+/// feature still shows.
+fn feature_rows(S, k, reference, features) {
+    for name in util::keys_sorted(features) {
+        let on = features[name] == true;
+        row(S, k, "  @" + name, || {
+            let (v, changed) = ui::toggle(on, #{ role: "toggle",
+                on_fill: k.accent_fill, off_fill: k.sunken,
+                on_knob: k.on_accent, off_knob: k.faint,
+            });
+            if changed {
+                write_material_feature(S, reference, name, v);
+            }
+        });
+    }
+}
+
+/// Write one top-level key of a `material` asset.
+fn write_material_key(S, reference, key, value) {
+    let (ok, definition) = script::attempt(|| assets::load(reference));
+    if !ok || !(definition is Object) {
+        log::warn(format!("cannot read the material {}", reference));
+        return;
+    }
+    definition[key] = value;
+    let (written, err) = script::attempt(|| assets::save(reference, definition));
+    if !written {
+        log::warn(format!("cannot write {}: {:?}", reference, err));
+    }
+}
+
+fn write_material_feature(S, reference, name, on) {
+    let (ok, definition) = script::attempt(|| assets::load(reference));
+    if !ok || !(definition is Object) {
+        return;
+    }
+    let features = util::obj(definition.get("features").unwrap_or(#{}));
+    features[name] = on;
+    definition["features"] = features;
+    let (written, err) = script::attempt(|| assets::save(reference, definition));
+    if !written {
+        log::warn(format!("cannot write {}: {:?}", reference, err));
     }
 }
 
