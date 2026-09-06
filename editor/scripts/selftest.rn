@@ -1497,6 +1497,34 @@ pub fn dropping(S) {
     shell::undo(S);
     check(S.doc.len() == was, "undo takes both back");
 
+    // A sky: it retargets the scene's `environment` when there is one, and
+    // places one when there is not.
+    let sky = root + "selftest-drop.hdr";
+    fs::copy("assets/balaur-logo.png", sky);
+    let had_env = false;
+    for node in S.doc {
+        if node.contains_key("environment") {
+            had_env = true;
+        }
+    }
+    dropin::take(S, sky);
+    let named = false;
+    for node in S.doc {
+        if let Some(found) = node.get("environment") {
+            if util::obj(found).get("sky").unwrap_or("") != "" {
+                named = true;
+            }
+        }
+    }
+    check(named, "dropping a sky names it on an environment");
+    check(S.doc.len() == was + if had_env { 0 } else { 1 },
+        "on the one that was there, or a new one");
+    shell::undo(S);
+    fs::remove(sky);
+    for f in util::vec(fs::list(root + "skies")) {
+        fs::remove(root + "skies/" + f.name);
+    }
+
     fs::remove(source);
     clear_drops(S);
     log::info("selftest dropping: done");
