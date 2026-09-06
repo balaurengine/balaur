@@ -24,21 +24,20 @@ the rows below.
 
 | Item | Tier | Plan |
 | --- | :-: | --- |
-| **Tile maps** — what is left: quarter-tile sheets, LDtk import, cells in their own chunked file, and a multi-tile stamp. | 1 | [PLAN-tilemap.md](PLAN-tilemap.md) |
+| **Tile maps** — what is left: quarter-tile sheets, where a cell is four half-tiles picked by its corners. | 3 | [PLAN-tilemap.md](PLAN-tilemap.md) |
 | **Script completion and hover** — go-to-definition, symbols, formatting, rename, references, a Docs dock, a VS Code extension. The server publishes diagnostics only. | 1 | [PLAN-script-tooling.md](PLAN-script-tooling.md) |
 | **Curve editor and onion skin** — tangent handles on keys, and ghosted neighbouring frames in the timeline. | 3 | [PLAN-editor.md#curve-editor-and-onion-skin](PLAN-editor.md#curve-editor-and-onion-skin) |
-| **Rigging panels** — a weight table, modifier gizmos, bone names in the viewport, mirror and symmetry, a mesh traced from alpha, deform keys, a bone map. The Rig and Polygon tools and the rest-pose verbs are built. | 3 | [PLAN-editor.md#rigging-panels](PLAN-editor.md#rigging-panels) |
 | **Selection, alignment and a library** — multi-select and box select, group, align, hide, lock, isolate, an outliner filter, drag-in import, light and camera gizmos, view modes, a pen tool, a material panel, an authoring Events view, a cost dock. `S.sel` is one index today. | 1 | [PLAN-editor-ergonomics.md](PLAN-editor-ergonomics.md) |
 | **Network dock and Play as two** — two peers started from the editor, with the link and its stats in a dock. | 2 | [PLAN-sessions.md#3-steps](PLAN-sessions.md#3-steps) |
 | **The editor in a browser** — a project kept on Gamend rather than only in the browser, and native targets exported from a tab. Built: the canvas, `fs` behind a backend, the editor as a page, reload driven by the write, IndexedDB projects, a folder opened from a machine, and the pack and web-bundle exports. | 2 | [PLAN-web-editor.md](PLAN-web-editor.md) |
-| **A green `main`** — the 2026-09-04 audit's holes: widget clicks and the animation player outside the digest and the snapshot, colliders that outlive their node, a bus mix that never reaches `master`, an `fs` module with no root. Phase 0 is CI. | — | [PLAN-hardening.md](PLAN-hardening.md) |
+| **A green `main`** — the 2026-09-04 audit's holes: widget clicks outside the digest and the snapshot, colliders that outlive their node, a bus mix that never reaches `master`, an `fs` module with no root. Phase 0 is CI. The animation player is in both since 2026-09-06. | — | [PLAN-hardening.md](PLAN-hardening.md) |
 | **Node conversions** — reparent, move to the top level, make scene root, save a branch as a scene, make an instance local, fit a collider or an occluder to what is drawn, sprite and shape to polygon, bake a boolean. Phase 0 is that plan's registry defect: `sprite`, `polygon`, `shape2d` and `boolean2d` all claim `Renderable2d` and every `remove` hook drops it unconditionally (N16). | — | [PLAN-node-conversions.md](PLAN-node-conversions.md) |
 
 ## Scripts and assets
 
 | Item | Tier | Plan |
 | --- | :-: | --- |
-| **Texture import settings** — repeat, mipmaps, anisotropy, premultiplied alpha, an Import section in the editor, GPU compression at export, atlases. Built: the sidecar, `[import.<kind>]` defaults, nearest filtering and linear-data textures. | 1 | [PLAN-textures.md](PLAN-textures.md) |
+| **Texture import settings** — repeat, mipmaps, anisotropy and premultiplied alpha, which wait on a sampler the renderer does not expose, plus GPU compression at export and atlases. Built: the sidecar, `[import.<kind>]` defaults, nearest filtering, linear-data textures and the editor's Import section. | 1 | [PLAN-textures.md](PLAN-textures.md) |
 | **Asset streaming** — a load that runs off the tick, a scene added to one already running, an asset dropped when nothing names it. A pack is held whole in memory today; `ExternalIo`, the `assets` cache and pack hashing are the pieces. | 2 | no plan |
 | **Extensions, tier two** — components, systems and calling back into scripts, across the C boundary. | 3 | [PLAN-c-api.md#what-tier-1-does-not-do](PLAN-c-api.md#what-tier-1-does-not-do) |
 | **`#[export]` on a script constant** — in place of the `exports` table. | — | [PLAN-scripting.md](PLAN-scripting.md) |
@@ -48,8 +47,7 @@ the rows below.
 | Item | Tier | Plan |
 | --- | :-: | --- |
 | **Soft bodies, tearing, fluids** — and granular materials, waiting on the solvers landing in Rapier itself. | 3 | [PLAN-physics.md](PLAN-physics.md) |
-| **Animation blending** — blend trees and state machines. 3D IK exists for a joint chain (`physics3d.solve_ik`); an animation-side solver over a rig does not. | 1 | [PLAN-animation-and-resources.md](PLAN-animation-and-resources.md) |
-| **More of a rig** — FABRIK and CCDIK chains, jiggle, retargeting through a `bone_map` asset, deform tracks, physical bones. `look_at` and `two_bone_ik` are built as `modifier2d`. | 3 | [PLAN-animation-and-resources.md#rig-tooling](PLAN-animation-and-resources.md#rig-tooling) |
+| **Animation blending** — blend trees and state machines. A rig is otherwise complete: `look_at`, `two_bone_ik`, `fabrik`, `ccdik` and `jiggle` in 2D and 3D, retargeting through a `bone_map`, deform tracks, and ragdolls. What is missing is running two clips at once. | 1 | [PLAN-animation-and-resources.md](PLAN-animation-and-resources.md) |
 | **A sequencer** — cutscenes and cameras on a timeline, with tracks that call something rather than only move it. The sampler, the easing curves and the timeline dock are there. | 3 | no plan |
 | **Pause, time scale and smooth frames** — a `process` mode per subtree, time scale, interpolation between fixed steps, `max_fps`, vsync, a tick rate setting. | 1 | [PLAN-time.md](PLAN-time.md) |
 | **The rest of rapier** — named collision layers, solver tuning carried in a recording's header, and a solver that actually threads. Everything else rapier has is built; a `f64` world is **not planned**, and `parallel` is inert until the physics hooks stop calling scripts. | — | [PLAN-rapier.md](PLAN-rapier.md) |

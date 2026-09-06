@@ -1,12 +1,14 @@
-> **Status:** steps 1 to 6, 8 and half of 9 shipped 2026-09-06. What a
-> tile is, collision from the solid cells as one parry voxel shape, a map
-> anchored on its node with an origin and per-cell flags, the rule table with
-> its templates, animated and light-blocking tiles, per-tile data, the Tiles
-> tool's fill, line, pick and terrain brushes, a Set panel that writes the
-> tile set, isometric and hexagonal layouts, and `balaur import` for Tiled.
-> Left: quarter-tile sheets (step 7), LDtk import, cells in their own chunked
-> file, and the multi-tile stamp. The tileset editor is a panel in the Tiles
-> dock rather than a document tab, which is what keeps it clear of D24.
+> **Status:** everything but step 7 shipped 2026-09-06. What a tile is,
+> collision from the solid cells as one parry voxel shape, a map anchored on
+> its node with an origin and per-cell flags, the rule table with its
+> templates, animated and light-blocking tiles, per-tile data, the Tiles
+> tool's fill, line, pick, stamp and terrain brushes, a Set panel that writes
+> the tile set, isometric and hexagonal layouts, cells a level may keep in its
+> own file, and `balaur import` for Tiled and LDtk. Left: **quarter-tile
+> sheets** (step 7), which need the mesh to draw four sub-quads per cell. The
+> tileset editor is a panel in the Tiles dock rather than a document tab, and
+> D24 is fixed: the mirror inlines an asset file's definition, so a tileset
+> kept in a file draws in the editor.
 
 # Plan: tile maps — collision, rules and terrains, animated and occluding tiles, and the two tile editors
 

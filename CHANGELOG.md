@@ -18,7 +18,7 @@ notes are that version's section.
 
 ### Scenes and assets
 
-- `balaur import level.tmx` brings a Tiled map in as a tileset, its atlas and a scene of tilemap nodes.
+- `balaur import level.tmx` and `level.ldtk` bring a Tiled map or an LDtk project in as tilesets, their atlases and a scene per level.
 - A frame's queued frees run as one pass per parent.
 - Children indexed by name: a path lookup is one hash per segment.
 - Freeing a node with no components asks no plugin anything.
@@ -30,6 +30,7 @@ notes are that version's section.
 - Mesh (OBJ, glTF) and heightfield assets.
 - Import settings beside a file: `art/hero.png.toml`, with `[import.<kind>]` defaults in `project.toml`.
 - Nearest-neighbour filtering and linear-data textures, per image or per project.
+- An Import tab beside the Inspector: the selected file's settings, where each value comes from, and a clear that drops the key.
 - Bitmap font descriptors ride in a pack, so a `text2d` naming one draws in an exported game.
 - Scene and node query APIs; reparenting keeps the world pose.
 - Node visibility, z-index and tags.
@@ -135,6 +136,8 @@ notes are that version's section.
 - `balaur export --report` measures without writing.
 - `[export] strip` drops assets no scene, script or `keep` glob names.
 - `[export] images`, `fonts` and `audio` re-encode losslessly at export: PNG recompressed or written as WebP, a face subset to the characters the project shows, WAV written as FLAC.
+- Lossy export modes, each its own key: `images = "quantised"` with `images_quality`, and `audio = "vorbis"` with `audio_quality`.
+- `recode` in a picture's import settings overrides the export's mode for that file alone.
 - `scripts/lint.sh` mirrors CI; pre-push hook.
 - `examples/benchmark`: the Godot suites' physics and scene-tree cases, headless, in the editor or on the web.
 - `scripts/bench_compare.py` writes `docs/BENCHMARKS.md` from a run beside Godot's own results.
@@ -163,7 +166,7 @@ notes are that version's section.
 
 ### Editor
 
-- The Tiles tool paints in every direction, fills, draws lines, picks a tile off the map and paints terrain; a Set panel writes collision, one-way, light and terrain back to the tile set.
+- The Tiles tool paints in every direction, fills, draws lines, stamps blocks, picks a tile off the map and paints terrain; a Set panel writes collision, one-way, light and terrain back to the tile set.
 - Undo/redo, copy/paste, collapsible inspector, search.
 - Prefab instances and overrides.
 - Rig, Polygon and Tiles tools.
