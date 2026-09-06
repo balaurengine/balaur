@@ -10,7 +10,7 @@ static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// One triangle filling the lower-left half of a two-by-two box, so the
 /// upper-right quadrant is inside the node's bounds and outside its geometry.
-const SCENE: &str = r#"[[assets]]
+const SCENE: &str = r##"[[assets]]
 id = "wedge"
 type = "mesh"
 positions = [[-1.0, -1.0, 0.0], [1.0, -1.0, 0.0], [-1.0, 1.0, 0.0]]
@@ -23,7 +23,7 @@ script = "scripts/s.rn"
 
 [nodes.mesh]
 source = "#wedge"
-"#;
+"##;
 
 /// The move at the end is the control: a script that never ran leaves the
 /// node where the scene put it, and the assertions below would hold vacuously.
