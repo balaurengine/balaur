@@ -21,26 +21,27 @@ use cosmic_text::{
 };
 use egui::{Color32, Mesh, Pos2, Rect, Vec2, pos2, vec2};
 
-mod atlas;
-pub(crate) mod markup;
+pub mod markup;
+
+pub mod atlas;
 
 use atlas::GlyphAtlas;
-pub(crate) use markup::Align;
+pub use markup::Align;
 
 /// Line height as a multiple of the font size: what browsers call `normal`.
 const LINE_HEIGHT: f32 = 1.25;
 
 /// Everything a label needs shaped, in physical pixels.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Request {
-    pub(crate) text: String,
-    pub(crate) size: f32,
-    pub(crate) weight: u16,
-    pub(crate) italic: bool,
+pub struct Request {
+    pub text: String,
+    pub size: f32,
+    pub weight: u16,
+    pub italic: bool,
     /// The width lines break at; `None` runs the text on one line.
-    pub(crate) width: Option<f32>,
-    pub(crate) align: Align,
-    pub(crate) markup: bool,
+    pub width: Option<f32>,
+    pub align: Align,
+    pub markup: bool,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -57,31 +58,31 @@ struct Key {
 
 /// One glyph, positioned relative to the block's top-left corner.
 #[derive(Clone, Copy)]
-pub(crate) struct Quad {
-    pub(crate) rect: Rect,
-    pub(crate) uv: Rect,
+pub struct Quad {
+    pub rect: Rect,
+    pub uv: Rect,
     /// A colour the markup set, else the label's.
-    pub(crate) color: Option<Color32>,
-    pub(crate) colored: bool,
-    pub(crate) wave: Option<(f32, f32)>,
+    pub color: Option<Color32>,
+    pub colored: bool,
+    pub wave: Option<(f32, f32)>,
 }
 
 /// An inline picture, positioned like a glyph.
 #[derive(Clone)]
-pub(crate) struct Picture {
-    pub(crate) rect: Rect,
-    pub(crate) path: String,
+pub struct Picture {
+    pub rect: Rect,
+    pub path: String,
 }
 
-pub(crate) struct Shaped {
-    pub(crate) size: Vec2,
-    pub(crate) quads: Vec<Quad>,
-    pub(crate) pictures: Vec<Picture>,
+pub struct Shaped {
+    pub size: Vec2,
+    pub quads: Vec<Quad>,
+    pub pictures: Vec<Picture>,
 }
 
 /// The shaper, its glyph cache and the atlas: one per engine, made when the
 /// fonts are installed.
-pub(crate) struct TextState {
+pub struct TextState {
     fonts: FontSystem,
     swash: SwashCache,
     atlas: GlyphAtlas,
@@ -152,8 +153,21 @@ impl TextState {
         }
     }
 
-    pub(crate) fn texture(&self) -> Option<egui::TextureId> {
+    pub fn texture(&self) -> Option<egui::TextureId> {
         self.atlas.texture()
+    }
+
+    /// Shape for the widget layer: lays out, then hands egui whatever the
+    /// atlas gained, so the texture behind `texture` holds these glyphs.
+    pub(crate) fn shape_for_egui(&mut self, ctx: &egui::Context, request: &Request) -> Rc<Shaped> {
+        let shaped = self.shape(request);
+        self.atlas.flush_egui(ctx);
+        shaped
+    }
+
+    /// The atlas, for a consumer that uploads the pixels itself.
+    pub fn atlas(&self) -> &atlas::GlyphAtlas {
+        &self.atlas
     }
 
     /// Whether any loaded face has a glyph for `c`, for a test that wants to
@@ -169,7 +183,11 @@ impl TextState {
     }
 
     /// Lay `request` out, from the cache when it was seen before.
-    pub(crate) fn shape(&mut self, ctx: &egui::Context, request: &Request) -> Rc<Shaped> {
+    ///
+    /// Rasterises into the atlas but uploads nothing: a consumer mirrors the
+    /// pixels itself, which is what lets the world draw the same glyphs as
+    /// the widgets.
+    pub fn shape(&mut self, request: &Request) -> Rc<Shaped> {
         let key = Key {
             text: request.text.clone(),
             size: request.size.to_bits(),
@@ -188,12 +206,12 @@ impl TextState {
         if self.layouts.len() > 4096 {
             self.layouts.clear();
         }
-        let shaped = Rc::new(self.layout(ctx, request));
+        let shaped = Rc::new(self.layout(request));
         self.layouts.insert(key, Rc::clone(&shaped));
         shaped
     }
 
-    fn layout(&mut self, ctx: &egui::Context, request: &Request) -> Shaped {
+    fn layout(&mut self, request: &Request) -> Shaped {
         let parsed = spans_of(request);
         let align = parsed.align.unwrap_or(request.align);
         let size = request.size.max(1.0);
@@ -233,17 +251,11 @@ impl TextState {
             buffer.set_rich_text(spans, &base, Shaping::Advanced, alignment);
             buffer.shape_until_scroll(true);
         }
-        self.place(ctx, &buffer, &parsed, request.width)
+        self.place(&buffer, &parsed, request.width)
     }
 
     /// Every laid-out glyph as a quad on the atlas, and every picture's box.
-    fn place(
-        &mut self,
-        ctx: &egui::Context,
-        buffer: &Buffer,
-        parsed: &markup::Markup,
-        width: Option<f32>,
-    ) -> Shaped {
+    fn place(&mut self, buffer: &Buffer, parsed: &markup::Markup, width: Option<f32>) -> Shaped {
         let mut quads = Vec::new();
         let mut pictures = Vec::new();
         let mut extent = Vec2::ZERO;
@@ -266,7 +278,7 @@ impl TextState {
                 let physical = glyph.physical((0.0, 0.0), 1.0);
                 let Some(slot) =
                     self.atlas
-                        .slot(ctx, &mut self.fonts, &mut self.swash, physical.cache_key)
+                        .slot(&mut self.fonts, &mut self.swash, physical.cache_key)
                 else {
                     continue;
                 };
@@ -365,7 +377,7 @@ pub(crate) fn paint(
 }
 
 /// The shaper for this engine, once the fonts are installed.
-pub(crate) fn state(eng: &Engine) -> Option<std::rc::Rc<std::cell::RefCell<TextState>>> {
+pub fn state(eng: &Engine) -> Option<std::rc::Rc<std::cell::RefCell<TextState>>> {
     eng.try_resource::<TextState>()
 }
 
@@ -387,21 +399,58 @@ mod tests {
 
     fn shape(text: &str, width: Option<f32>) -> (TextState, Shaped) {
         let mut state = TextState::new(&faces(), "en-US");
-        let ctx = egui::Context::default();
-        ctx.begin_pass(egui::RawInput::default());
-        let shaped = state.layout(
-            &ctx,
-            &Request {
-                text: text.into(),
-                size: 20.0,
-                weight: 400,
-                italic: false,
-                width,
-                align: Align::Start,
-                markup: true,
-            },
-        );
+        let shaped = state.layout(&Request {
+            text: text.into(),
+            size: 20.0,
+            weight: 400,
+            italic: false,
+            width,
+            align: Align::Start,
+            markup: true,
+        });
         (state, shaped)
+    }
+
+    /// The world reads the same pixels the widgets do, so the atlas has to
+    /// hold them rather than hand them straight to egui.
+    #[test]
+    fn a_shaped_glyph_lands_in_the_atlas_and_moves_its_revision() {
+        let (state, shaped) = shape("A", None);
+        assert_eq!(shaped.quads.len(), 1);
+        let atlas = state.atlas();
+        assert!(atlas.revision() > 0, "rasterising bumps the revision");
+        let side = atlas.side();
+        assert_eq!(atlas.rgba().len(), side * side * 4);
+        // The quad's UV names the box the glyph was written into; something
+        // in it has to be opaque, or the upload carries nothing.
+        let uv = shaped.quads[0].uv;
+        let x0 = (uv.min.x * side as f32) as usize;
+        let y0 = (uv.min.y * side as f32) as usize;
+        let x1 = (uv.max.x * side as f32).ceil() as usize;
+        let y1 = (uv.max.y * side as f32).ceil() as usize;
+        let inked = (y0..y1)
+            .any(|row| (x0..x1).any(|column| atlas.rgba()[(row * side + column) * 4 + 3] > 0));
+        assert!(inked, "the glyph's box in the atlas is blank");
+    }
+
+    /// A second consumer must see a stable atlas: shaping the same run twice
+    /// comes from the cache and writes nothing new.
+    #[test]
+    fn shaping_the_same_run_twice_writes_the_atlas_once() {
+        let mut state = TextState::new(&faces(), "en-US");
+        let request = Request {
+            text: "steady".into(),
+            size: 20.0,
+            weight: 400,
+            italic: false,
+            width: None,
+            align: Align::Start,
+            markup: false,
+        };
+        state.shape(&request);
+        let after_first = state.atlas().revision();
+        state.shape(&request);
+        assert_eq!(after_first, state.atlas().revision());
     }
 
     #[test]

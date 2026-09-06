@@ -291,7 +291,7 @@ impl<'a> Measure<'a> {
             let request = crate::widget_text::text_request(widget, text, self.scale, None);
             return state
                 .borrow_mut()
-                .shape(&self.painter.ctx().clone(), &request)
+                .shape_for_egui(&self.painter.ctx().clone(), &request)
                 .size;
         }
         let font = egui::FontId::new(widget.font_size * self.scale, family(w::UI));

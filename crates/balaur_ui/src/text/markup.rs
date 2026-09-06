@@ -27,7 +27,7 @@ pub(crate) struct Inline {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Align {
+pub enum Align {
     Start,
     Center,
     End,

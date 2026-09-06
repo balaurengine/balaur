@@ -40,7 +40,7 @@ pub(crate) fn shaped_caption(
     let state = crate::text::state(at.eng)?;
     let mut state = state.borrow_mut();
     let request = text_request(widget, caption, at.scale, None);
-    let shaped = state.shape(ui.ctx(), &request);
+    let shaped = state.shape_for_egui(ui.ctx(), &request);
     Some((shaped, state.texture()))
 }
 
@@ -61,7 +61,7 @@ pub(crate) fn shaped_label(
     let (shaped, texture) = {
         let mut state = state.borrow_mut();
         let request = text_request(widget, caption, at.scale, width);
-        (state.shape(ui.ctx(), &request), state.texture())
+        (state.shape_for_egui(ui.ctx(), &request), state.texture())
     };
     // An aligned line takes the width it is aligned in; a wrapped block
     // already did, and aligned its own lines.
