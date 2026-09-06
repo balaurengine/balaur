@@ -318,6 +318,24 @@ Lossy, and said in the output: LDtk's perlin modifiers and its tile stacking
 do not import, and an image-collection tileset needs the `sprite_sheet` form.
 The source file stays the tool's; nothing exports back.
 
+### The Tiled dependency
+
+`tiled` 0.16 pins `quick-xml` 0.31, which carries two denial-of-service
+advisories (RUSTSEC-2026-0194 and -0195: a crafted start tag pins a CPU core,
+a crafted namespace list exhausts memory). 0.16 is its newest release, so
+there is no version to move to, and `deny.toml` ignores both.
+
+That is a judgement about where the XML comes from, not about the bugs. It is
+parsed by `balaur import level.tmx`, which a developer runs by hand on a file
+they chose, at author time. `tiled` is a `cfg(not(target_family = "wasm"))`
+dependency of `balaur_cli` alone: no shipped game links it, and nothing in the
+engine parses XML at run time. A pipeline that imported maps a stranger
+uploaded would be a different question, and would want a wall-clock bound
+around the parse.
+
+Drop the ignore the day `tiled` moves to `quick-xml` 0.41, or the day the
+`.tmx` reader is the engine's own.
+
 ## 6. Steps
 
 1. Core `tiles`, tile metadata, the collision runs and outline, the grid

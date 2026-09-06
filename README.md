@@ -84,7 +84,7 @@ In this repository:
 | File | What it holds |
 | --- | --- |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | every decision |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | what the engine does not do yet, by tier |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | what the engine does not do yet, by milestone |
 | [docs/DETERMINISM.md](docs/DETERMINISM.md) | writing a game that reproduces; record and replay |
 | [docs/QUALITY.md](docs/QUALITY.md) | every check CI runs, and what enforces it |
 | [docs/NAMING.md](docs/NAMING.md) | the naming rules; governs the other docs |
