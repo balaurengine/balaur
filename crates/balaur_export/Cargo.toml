@@ -36,9 +36,10 @@ imagequant = { version = "4", default-features = false }
 oxipng = { version = "10", default-features = false, features = ["parallel", "zopfli"] }
 imagequant = { version = "4", features = ["threads"] }
 vorbis_rs = "0.5"
-# `bundled` compiles HarfBuzz's subsetter from the crate's own sources; the
-# alternative asks pkg-config for a system copy no runner is promised to have.
-hb-subset = { version = "0.3", optional = true, features = ["bundled"] }
+# The fork, for the bindings it ships ready-made: upstream runs bindgen at
+# build time, which types HarfBuzz's enums signed under MSVC, and reads paths
+# through a unix-only trait. Both keep it off Windows.
+hb-subset = { package = "mkwebfont_hb-subset", version = "0.5", optional = true }
 
 [dev-dependencies]
 tempfile = "3"

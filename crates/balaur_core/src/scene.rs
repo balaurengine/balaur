@@ -6,6 +6,7 @@
 
 use glamx::{Quat, Vec3};
 use hecs::{Entity, World};
+use smol_str::SmolStr;
 
 use crate::engine::Engine;
 
@@ -18,8 +19,12 @@ pub struct Children(pub Vec<Entity>);
 ///
 /// Kept by the functions in this module that add, remove, move or rename a
 /// child; a parent without one (a world built by hand in a test) is scanned.
+///
+/// Keyed on an inline string: a name of 23 bytes or fewer sits in the entry
+/// itself, so a probe compares bytes where it stands rather than following a
+/// pointer into the heap once per segment of a path.
 #[derive(Default)]
-pub struct NameIndex(pub crate::collections::DetHashMap<String, NameSlot>);
+pub struct NameIndex(pub crate::collections::DetHashMap<SmolStr, NameSlot>);
 
 /// One name among a parent's children: the earliest in tree order bearing
 /// it, which is what [`find_node`] answers, and how many do, so losing one of
@@ -313,7 +318,7 @@ pub fn move_child_to(world: &World, parent: Entity, entity: Entity, index: usize
     if let Ok(name) = world.get::<&Name>(entity)
         && world
             .get::<&NameIndex>(parent)
-            .is_ok_and(|index| index.0.get(&name.0).is_some_and(|slot| slot.count > 1))
+            .is_ok_and(|index| index.0.get(name.0.as_str()).is_some_and(|slot| slot.count > 1))
     {
         reindex(world, parent, &name.0);
     }
@@ -347,7 +352,7 @@ fn attach(world: &World, parent: Entity, name: &str, child: Entity) {
             slot.count += 1;
         } else {
             index.0.insert(
-                name.to_string(),
+                SmolStr::new(name),
                 NameSlot {
                     first: child,
                     count: 1,
@@ -379,7 +384,7 @@ fn index_in_place(world: &World, parent: Entity, name: &str, child: Entity) {
             true
         } else {
             index.0.insert(
-                name.to_string(),
+                SmolStr::new(name),
                 NameSlot {
                     first: child,
                     count: 1,
