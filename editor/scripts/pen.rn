@@ -40,8 +40,19 @@ pub fn editable(S) {
     found != "" && is_path(S, found)
 }
 
+/// Where the asset actually is. A node names it game-relative, and the
+/// editor's own asset resolver reads against the editor's project, so every
+/// read and write here goes through the game's root.
+fn asset_path(S, found) {
+    if found.starts_with("#") || found.starts_with("/") {
+        found
+    } else {
+        S.game_root + "/" + found
+    }
+}
+
 fn is_path(S, found) {
-    let (ok, definition) = script::attempt(|| assets::load(found));
+    let (ok, definition) = script::attempt(|| assets::load(asset_path(S, found)));
     ok && definition is Object && definition.get("type") == Some("path2d")
 }
 
@@ -57,7 +68,7 @@ pub fn current(S) {
     if S.pen.reference == found && S.pen.path is Object {
         return Some(S.pen.path);
     }
-    let (ok, definition) = script::attempt(|| assets::load(found));
+    let (ok, definition) = script::attempt(|| assets::load(asset_path(S, found)));
     if !ok || !(definition is Object) {
         return None;
     }
@@ -79,8 +90,7 @@ fn save(S) {
         return;
     }
     let definition = #{ type: "path2d", points: path.points, closed: path.closed };
-    let target = if found.starts_with("#") { found } else { S.game_root + "/" + found };
-    let (ok, err) = script::attempt(|| assets::save(target, definition));
+    let (ok, err) = script::attempt(|| assets::save(asset_path(S, found), definition));
     if !ok {
         log::warn(format!("cannot write {}: {:?}", found, err));
         return;

@@ -225,6 +225,11 @@ for ex in examples/*/; do
   printf '  library ...'
   edit_step "$name: library" "$ex" librarydemo
   printf 'ok\n'
+
+  # The Pen: anchors, a handle, the loop closed, and the asset it writes.
+  printf '  pen ...    '
+  edit_step "$name: pen" "$ex" pendemo
+  printf 'ok\n'
 done
 
 printf '\npack digests (compared across platforms in CI):\n'

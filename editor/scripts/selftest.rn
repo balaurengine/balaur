@@ -6,6 +6,7 @@ use crate::arrange;
 use crate::dock;
 use crate::dropin;
 use crate::events;
+use crate::pen;
 use crate::importer;
 use crate::library;
 use crate::history;
@@ -1621,4 +1622,55 @@ pub fn librarydemo(S) {
     }
     fs::remove(root + "shaders/pbr_surface.wesl");
     log::info("selftest librarydemo: done");
+}
+
+
+/// The Pen over a `path2d`: anchors appended, a handle pulled, the loop
+/// closed, an anchor removed, and every step written back to the asset.
+pub fn pendemo(S) {
+    let was = S.doc.len();
+    pen::new_path(S);
+    check(S.doc.len() == was + 1, "a new path adds one node");
+    check(pen::editable(S), "and the Pen has something to edit");
+    let rel = pen::reference(S);
+    check(rel.ends_with(".toml"), "which is a path2d asset: " + rel);
+
+    let count = || util::vec(util::obj(pen::current(S).unwrap_or(#{})).get("points").unwrap_or([])).len();
+    check(count() == 0, "a fresh path has no points");
+    pen::add_anchor(S, 0.0, 0.0);
+    pen::add_anchor(S, 1.0, 0.0);
+    check(count() == 2, "two points on their own are a straight line");
+    pen::add_anchor(S, 1.0, 1.0);
+    // The pair is promoted to cubics and the segment appended: four control
+    // points for the first curve, three more for the second.
+    check(count() == 7, "a third anchor makes it cubic: " + format!("{}", count()));
+
+    let path = pen::current(S).unwrap();
+    let anchor = util::vec2(path.points[3], [0.0, 0.0]);
+    pen::move_point(S, 3, anchor[0] + 0.5, anchor[1], false);
+    let moved = util::vec2(pen::current(S).unwrap().points[3], [0.0, 0.0]);
+    check(util::abs(moved[0] - (anchor[0] + 0.5)) < 1e-4, "an anchor moves where it is put");
+
+    check(!pen::current(S).unwrap().closed, "a path starts open");
+    pen::toggle_closed(S);
+    check(pen::current(S).unwrap().closed, "and closes");
+    check(count() == 9, "the closing segment brings two handles");
+    pen::toggle_closed(S);
+    check(!pen::current(S).unwrap().closed, "and opens again");
+
+    let before = count();
+    pen::remove_anchor(S, 3);
+    check(count() < before, "removing an anchor takes its handles with it");
+    check(mirror_resolves(S), "the mirror still resolves");
+
+    // Written back to the file each time, so what the renderer strokes is
+    // what the tool drew.
+    // Read as a file: `assets` here is this module's own demo, not the
+    // engine's, and the point is what landed on disk anyway.
+    let saved = util::obj(toml::parse(fs::read(S.game_root + "/" + rel)));
+    check(util::vec(saved.get("points").unwrap_or([])).len() == count(),
+        "and the asset on disk holds the same points");
+
+    fs::remove(S.game_root + "/" + rel);
+    log::info("selftest pendemo: done");
 }
