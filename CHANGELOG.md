@@ -18,6 +18,7 @@ notes are that version's section.
 
 ### Scenes and assets
 
+- `balaur import level.tmx` brings a Tiled map in as a tileset, its atlas and a scene of tilemap nodes.
 - A frame's queued frees run as one pass per parent.
 - Children indexed by name: a path lookup is one hash per segment.
 - Freeing a node with no components asks no plugin anything.
@@ -39,6 +40,7 @@ notes are that version's section.
 
 ### Rendering
 
+- Tile maps: a tileset that says what each tile is, collision from its solid cells as one voxel shape, autotiling from an ordered rule table, animated and light-blocking tiles, isometric and hexagonal layouts.
 - The 2D camera zooms out to a hundredth of a pixel per unit.
 - WESL shaders and material assets; screen-reading materials.
 - Sprites, atlas regions, tilemaps and GPU-skinned 2D polygons.
@@ -161,6 +163,7 @@ notes are that version's section.
 
 ### Editor
 
+- The Tiles tool paints in every direction, fills, draws lines, picks a tile off the map and paints terrain; a Set panel writes collision, one-way, light and terrain back to the tile set.
 - Undo/redo, copy/paste, collapsible inspector, search.
 - Prefab instances and overrides.
 - Rig, Polygon and Tiles tools.

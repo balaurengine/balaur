@@ -1,0 +1,23 @@
+type = "tileset"
+texture = "art/blocks.png"
+tile_size = 16
+columns = 4
+
+# Stone is solid, grass is solid, water is a hole you fall through, and the
+# lamp both blocks light and stands on its own.
+[tiles.0]
+collision = "full"
+
+[tiles.1]
+collision = "full"
+terrain = "grass"
+
+[tiles.3]
+collision = "full"
+occluder = true
+
+[[terrains]]
+name = "grass"
+value = 1
+mode = "sides"
+first_tile = 0

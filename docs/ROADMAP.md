@@ -24,7 +24,7 @@ the rows below.
 
 | Item | Tier | Plan |
 | --- | :-: | --- |
-| **Tile maps** — tileset collision over a core grid, terrains and autotiling, animated and occluding tiles, chunked cells, the Tiles tool, quarter-tile sheets, isometric and hexagonal layouts, Tiled and LDtk import. | 1 | [PLAN-tilemap.md](PLAN-tilemap.md) |
+| **Tile maps** — what is left: quarter-tile sheets, LDtk import, cells in their own chunked file, and a multi-tile stamp. | 1 | [PLAN-tilemap.md](PLAN-tilemap.md) |
 | **Script completion and hover** — go-to-definition, symbols, formatting, rename, references, a Docs dock, a VS Code extension. The server publishes diagnostics only. | 1 | [PLAN-script-tooling.md](PLAN-script-tooling.md) |
 | **Curve editor and onion skin** — tangent handles on keys, and ghosted neighbouring frames in the timeline. | 3 | [PLAN-editor.md#curve-editor-and-onion-skin](PLAN-editor.md#curve-editor-and-onion-skin) |
 | **Rigging panels** — a weight table, modifier gizmos, bone names in the viewport, mirror and symmetry, a mesh traced from alpha, deform keys, a bone map. The Rig and Polygon tools and the rest-pose verbs are built. | 3 | [PLAN-editor.md#rigging-panels](PLAN-editor.md#rigging-panels) |

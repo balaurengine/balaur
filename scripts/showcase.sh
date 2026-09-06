@@ -86,6 +86,7 @@ clip() { # clip <name> <project> <frames> <state>
 
 backup_examples
 shot editor_overview   examples/angrynerds "scene,select:Bird,dock:output,zoom:45"
+shot tiles_overview    examples/tiles      "scene,select:Ground,tool:tiles,dock:tiles,zoom:60"
 shot scenes_tree       examples/hello      "scene,select:Platform"
 shot scripting_editor  examples/hello      "script,select:Spinner"
 shot ui_widgets        examples/angrynerds "ui,select:Restart,play"

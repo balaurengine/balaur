@@ -1,10 +1,12 @@
-> **Status:** not started, but for the Tiles tool, which shipped 2026-09-05
-> (`docs/PLAN-editor.md` §6). Written 2026-09-05 from the Godot parity
-> investigation, rewritten 2026-09-06 after reading the code it touches: the
-> crate seam, the rule system and the two editing surfaces are new here. It
-> reverses a decision: `docs/PLAN-2d-games.md` marked autotile, terrains and
-> tile collision *not planned*; all three are planned here, and the tile
-> occluders `docs/PLAN-rendering.md` deferred move here too.
+> **Status:** steps 1 to 6, 8 and half of 9 shipped 2026-09-06. What a
+> tile is, collision from the solid cells as one parry voxel shape, a map
+> anchored on its node with an origin and per-cell flags, the rule table with
+> its templates, animated and light-blocking tiles, per-tile data, the Tiles
+> tool's fill, line, pick and terrain brushes, a Set panel that writes the
+> tile set, isometric and hexagonal layouts, and `balaur import` for Tiled.
+> Left: quarter-tile sheets (step 7), LDtk import, cells in their own chunked
+> file, and the multi-tile stamp. The tileset editor is a panel in the Tiles
+> dock rather than a document tab, which is what keeps it clear of D24.
 
 # Plan: tile maps — collision, rules and terrains, animated and occluding tiles, and the two tile editors
 
