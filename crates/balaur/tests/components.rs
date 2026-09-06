@@ -258,3 +258,29 @@ fn every_enum_option_a_schema_offers_round_trips() {
         "only {checked} options seen; schemas missing?"
     );
 }
+
+/// A `shape2d` polyline takes a `mesh` or a `path2d`, and the schema can only
+/// name one of them, so an inline table's own `type` is what decides.
+#[test]
+fn an_inline_asset_is_the_type_its_table_declares() {
+    let (dir, app) = app_with_every_component();
+    run_script(
+        dir.path(),
+        &app,
+        r##"
+        pub fn init(this) {
+            let n = scene::spawn("Curve");
+            n.set_component("shape2d", #{
+                kind: "polyline",
+                width: 0.05,
+                mesh: #{ type: "path2d", points: [[0.0, 0.0], [1.0, 0.0]], closed: false },
+            });
+            // It resolved to an inline reference rather than failing, and the
+            // component reads back with one.
+            let shape = n.get_component("shape2d");
+            assert!(shape.mesh.starts_with("#!"), "inline reference: {}", shape.mesh);
+            this.done = 1;
+        }
+        "##,
+    );
+}

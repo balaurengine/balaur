@@ -672,9 +672,17 @@ fn asset_reference(
             }
             Ok(None)
         }
-        toml::Value::Table(_) => Ok(Some(
-            crate::assets::define_inline(eng, type_name, value.clone())?.to_string(),
-        )),
+        // A table's own `type` wins over the schema's: `shape2d.mesh` takes a
+        // `mesh` or a `path2d`, and the schema can only name one of them.
+        toml::Value::Table(table) => {
+            let declared = table
+                .get("type")
+                .and_then(toml::Value::as_str)
+                .unwrap_or(type_name);
+            Ok(Some(
+                crate::assets::define_inline(eng, declared, value.clone())?.to_string(),
+            ))
+        }
         other => Err(anyhow!(
             "property '{prop}' is {}; an asset property takes either a reference string or a \
              definition table",

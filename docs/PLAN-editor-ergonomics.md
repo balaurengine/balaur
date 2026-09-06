@@ -163,7 +163,10 @@ built beside it.
    and `import_api.rs` for the seam `balaur import` never had. `dropdemo`.
 3. **Seeing.** *Built.* `overlays::lights3d`, the view-mode chip and four
    camera bookmarks in `center.rn`, over `light3d` and `environment`.
-4. **Pen.** *Built.* `pen.rn`, over `path2d`.
+4. **Pen.** *Built.* `pen.rn`, over `path2d`. Two engine defects came out of
+   it: an empty path did not parse, and an inline asset table was registered
+   as the type its schema named rather than the one it declared, so a polyline
+   naming an inlined `path2d` was read as a mesh.
 5. **Materials.** *Built.* `Param::Texture` and `package::pbr`; the panel is
    the inspector's material rows, which resolve an inline material too, with a
    shader picker and the `@if` flags as toggles. No preview sphere.
