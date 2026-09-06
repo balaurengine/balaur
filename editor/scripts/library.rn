@@ -1,4 +1,5 @@
-// The library dock: stock materials, lighting setups and project templates.
+// The library dock: stock materials, skies, models, lighting setups and
+// project templates.
 // Placing one copies its files in and then does what dropping them would.
 
 use crate::dropin;
@@ -13,7 +14,10 @@ pub fn state() {
 
 /// The kinds the dock filters by, in the order the chips offer them.
 fn kinds() {
-    [["material", "Materials"], ["scene", "Lighting"], ["template", "Templates"]]
+    [
+        ["material", "Materials"], ["sky", "Skies"], ["model", "Models"],
+        ["scene", "Lighting"], ["template", "Templates"],
+    ]
 }
 
 /// The library's own directory, inside the editor project rather than the
@@ -103,8 +107,12 @@ pub fn place(S, entry) {
         None => return,
     };
     match entry.kind {
-        // A lighting setup is a scene: instanced where a dropped one would be.
+        // A lighting setup and a model are both scenes: instanced where a
+        // dropped one would be.
         "scene" => dropin::take(S, S.game_root + "/" + rel),
+        "model" => dropin::take(S, S.game_root + "/" + rel),
+        // A sky is already under `skies/`, so only the naming is left.
+        "sky" => dropin::name_sky(S, rel, "library sky"),
         // A material is a file the inspector then points a node at, so the
         // placing is the copy and the log line says where it landed.
         _ => log::info("added " + rel),

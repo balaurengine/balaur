@@ -1,0 +1,47 @@
+# A lamp post: the head is a bright shape and the light that comes out of it,
+# so the model lights the scene it is dropped into.
+
+[[nodes]]
+name = "LampPost"
+
+[[nodes]]
+name = "Base"
+parent = "LampPost"
+position = [0, 0.06, 0]
+
+[nodes.shape3d]
+kind = "cylinder"
+radius = 0.2
+height = 0.12
+color = "#2f3236"
+
+[[nodes]]
+name = "Pole"
+parent = "LampPost"
+position = [0, 1.5, 0]
+
+[nodes.shape3d]
+kind = "cylinder"
+radius = 0.06
+height = 3.0
+color = "#2f3236"
+
+[[nodes]]
+name = "Head"
+parent = "LampPost"
+position = [0, 3.06, 0]
+
+[nodes.shape3d]
+kind = "ball"
+radius = 0.16
+color = "#ffe9b8"
+
+[[nodes]]
+name = "Glow"
+parent = "Head"
+
+[nodes.light3d]
+kind = "point"
+color = "#ffe1a8"
+intensity = 6
+radius = 12

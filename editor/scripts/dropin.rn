@@ -159,7 +159,13 @@ fn drop_sky(S, path) {
         Some(rel) => rel,
         None => return false,
     };
-    history::record(S, "drop sky", None);
+    name_sky(S, rel, "drop sky")
+}
+
+/// Point the scene at a sky image already inside the project, which is what
+/// a drop and a library placement both end in.
+pub fn name_sky(S, rel, label) {
+    history::record(S, label, None);
     // The last `environment` in tree order wins, so an existing one is
     // retargeted rather than joined by a second.
     for node in S.doc {

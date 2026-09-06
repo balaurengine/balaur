@@ -47,9 +47,6 @@ and `editor/library`.
 
 Still missing, and why:
 
-- **Skies in the library.** `environment.sky` loads an `.hdr`, and no
-  CC0 sky is shipped: they are megabytes each and the browser editor should
-  fetch them (question 2, still open).
 - **Image-based lighting, SSAO and the shadow reads in the shader.**
   `package::pbr` is GGX over the frame's lights; the fork's IBL and SSAO
   buffers are not bound. `docs/PLAN-3d-rendering.md` steps 2 and 3.
@@ -121,9 +118,10 @@ triangles, texture bytes per node — beside `engine.timings` and the pack's
 size per asset from `balaur export`, as a tab of the Profiler dock.
 
 **The library is files.** `editor/library/` holds `material` assets over the
-stock shaders, a handful of CC0 skies from Poly Haven at a modest resolution
-with their licence in `THIRD-PARTY-NOTICES.md`, a few `.glb` models, and
-project templates for `balaur new --template`. A library dock lists them with
+stock shaders, three gradient skies written by `scripts/make_skies.py`, three
+models built from primitives, lighting setups, and project templates for
+`balaur new --template`. Nothing in it is photographed or scanned, so it is
+kilobytes and carries no third-party licence. A library dock lists them with
 thumbnails rendered offscreen at build time; dragging one copies the file
 into the project and drops it as above. Nothing at runtime references the
 library. A Gamend-hosted catalogue with the same manifest is
@@ -190,14 +188,20 @@ built beside it.
 
 1. **The inspector over a mixed selection.** *Settled:* the banner, and a
    property edit reaching every selected node that carries the component.
-2. **How much library ships in the download.** Still open; no sky ships yet,
-   and the four materials and three templates are kilobytes.
+2. **How much library ships in the download.** *Settled:* only what is
+   written rather than captured. Four materials, three gradient skies, three
+   primitive models, two lighting setups and three templates, together under
+   twenty kilobytes. A photographic catalogue is fetched, not shipped.
 3. **Whether isolate and lock persist.** *Settled:* nowhere.
 
 ## 6. What is not built
 
-- Skies in the library, image-based lighting, SSAO, `shaders/layers.wesl`,
-  and overdraw as a view mode. Each is named in §0 with the plan it belongs to.
+- Image-based lighting, SSAO, `shaders/layers.wesl`, and overdraw as a view
+  mode. Each is named in §0 with the plan it belongs to.
+- Photographic skies and scanned models. The library's three skies are
+  gradients and its three models are primitives, so the whole library is
+  kilobytes and carries no third-party licence. A CC0 catalogue is fetched,
+  not shipped: `docs/PLAN-collaboration.md`.
 - The material panel's preview sphere. It wants a frame drawn offscreen into a
   texture the interface can show, which nothing else in the editor does yet.
 - A `path3d` pen. The Pen edits `path2d`.

@@ -1,0 +1,35 @@
+# A tree: a tapered trunk under two offset canopies, so it reads from any side.
+
+[[nodes]]
+name = "Tree"
+
+[[nodes]]
+name = "Trunk"
+parent = "Tree"
+position = [0, 1.1, 0]
+
+[nodes.shape3d]
+kind = "cone"
+radius = 0.16
+height = 2.2
+color = "#6b4f34"
+
+[[nodes]]
+name = "CanopyLow"
+parent = "Tree"
+position = [0.12, 2.0, -0.08]
+
+[nodes.shape3d]
+kind = "ball"
+radius = 0.78
+color = "#3f6b3a"
+
+[[nodes]]
+name = "CanopyHigh"
+parent = "Tree"
+position = [-0.1, 2.62, 0.06]
+
+[nodes.shape3d]
+kind = "ball"
+radius = 0.56
+color = "#4b7d42"

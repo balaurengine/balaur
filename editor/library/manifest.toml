@@ -34,6 +34,48 @@ needs = ["shaders/pbr_surface.wesl"]
 note = "Lit from inside; a lamp's own surface."
 
 [[entries]]
+id = "sky_clear_day"
+kind = "sky"
+name = "Clear day"
+file = "skies/clear-day.png"
+note = "A blue zenith over a pale horizon. A gradient, not a photograph."
+
+[[entries]]
+id = "sky_dusk"
+kind = "sky"
+name = "Dusk"
+file = "skies/dusk.png"
+note = "A warm horizon under a deep blue. A gradient, not a photograph."
+
+[[entries]]
+id = "sky_overcast"
+kind = "sky"
+name = "Overcast"
+file = "skies/overcast.png"
+note = "Flat grey, for lighting that casts no direction of its own."
+
+[[entries]]
+id = "model_table"
+kind = "model"
+name = "Table"
+file = "models/table.toml"
+note = "A top and four legs, from primitives."
+
+[[entries]]
+id = "model_tree"
+kind = "model"
+name = "Tree"
+file = "models/tree.toml"
+note = "A trunk under two canopies, from primitives."
+
+[[entries]]
+id = "model_lamp_post"
+kind = "model"
+name = "Lamp post"
+file = "models/lamp_post.toml"
+note = "A pole, a bright head, and the light it casts."
+
+[[entries]]
 id = "studio_light"
 kind = "scene"
 name = "Studio lights"

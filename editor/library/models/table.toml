@@ -1,0 +1,59 @@
+# A table, four legs and a top, built from primitives rather than a mesh file.
+
+[[nodes]]
+name = "Table"
+
+[[nodes]]
+name = "Top"
+parent = "Table"
+position = [0, 0.74, 0]
+
+[nodes.shape3d]
+kind = "cuboid"
+half_extents = [0.7, 0.03, 0.45]
+corner_radius = 0.02
+color = "#8a6a48"
+
+[[nodes]]
+name = "LegFrontLeft"
+parent = "Table"
+position = [-0.62, 0.355, -0.37]
+
+[nodes.shape3d]
+kind = "cylinder"
+radius = 0.035
+height = 0.71
+color = "#6d5236"
+
+[[nodes]]
+name = "LegFrontRight"
+parent = "Table"
+position = [0.62, 0.355, -0.37]
+
+[nodes.shape3d]
+kind = "cylinder"
+radius = 0.035
+height = 0.71
+color = "#6d5236"
+
+[[nodes]]
+name = "LegBackLeft"
+parent = "Table"
+position = [-0.62, 0.355, 0.37]
+
+[nodes.shape3d]
+kind = "cylinder"
+radius = 0.035
+height = 0.71
+color = "#6d5236"
+
+[[nodes]]
+name = "LegBackRight"
+parent = "Table"
+position = [0.62, 0.355, 0.37]
+
+[nodes.shape3d]
+kind = "cylinder"
+radius = 0.035
+height = 0.71
+color = "#6d5236"

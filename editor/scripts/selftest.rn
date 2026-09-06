@@ -1642,6 +1642,46 @@ pub fn librarydemo(S) {
     check(util::obj(S.doc[at].get("shape3d").unwrap_or(#{})).get("material").unwrap_or("") != placed,
         "undo takes the material off the node");
 
+    // A sky is copied under skies/ and then only named, since the drop that
+    // would have copied it already happened.
+    let skies_before = named_under(S, "skies");
+    library::place(S, #{
+        id: "sky_dusk", kind: "sky", name: "Dusk", file: "skies/dusk.png",
+    });
+    check(named_under(S, "skies").len() == skies_before.len() + 1,
+        "placing a sky adds an image");
+    let on_env = false;
+    for node in S.doc {
+        if let Some(found) = node.get("environment") {
+            if util::obj(found).get("sky").unwrap_or("").starts_with("skies/") {
+                on_env = true;
+            }
+        }
+    }
+    check(on_env, "and names it on an environment");
+    shell::undo(S);
+
+    // A model is a prefab of primitives, so placing one instances it.
+    let models_before = named_under(S, "models");
+    let had = S.doc.len();
+    library::place(S, #{
+        id: "model_tree", kind: "model", name: "Tree", file: "models/tree.toml",
+    });
+    check(named_under(S, "models").len() == models_before.len() + 1,
+        "placing a model adds a scene file");
+    check(S.doc.len() > had + 1, "and instances it as a prefab");
+    shell::undo(S);
+    check(S.doc.len() == had, "undo takes the model back");
+
+    for dir in ["skies", "models"] {
+        let keep = if dir == "skies" { skies_before } else { models_before };
+        for rel in named_under(S, dir) {
+            if !util::contains(keep, rel) {
+                fs::remove(root + rel);
+            }
+        }
+    }
+
     // Only what this run placed: `install` numbers a name it finds taken, so
     // nothing here can be a file the example owns.
     for rel in named_under(S, "materials") {

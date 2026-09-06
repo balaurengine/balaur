@@ -191,7 +191,9 @@ notes are that version's section.
 - The material rows resolve an inline material as well as a file, and a texture slot is a picker over the project's `art/`.
 - The Events view authors `[[nodes.bindings]]` rows and writes the Rune they are equivalent to.
 - A Cost dock beside the Profiler: draws, triangles and texture bytes per node.
-- A Library dock of stock materials, lighting setups and project templates.
+- A Library dock of stock materials, skies, models, lighting setups and
+  project templates. The skies are gradients and the models are primitives,
+  so the whole library is kilobytes and carries no third-party licence.
 - The Tiles tool paints in every direction, fills, draws lines, stamps blocks, picks a tile off the map and paints terrain; a Set panel writes collision, one-way, light and terrain back to the tile set.
 - Undo/redo, copy/paste, collapsible inspector, search.
 - Prefab instances and overrides.
