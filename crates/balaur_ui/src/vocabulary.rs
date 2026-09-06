@@ -185,6 +185,7 @@ pub(crate) mod keys {
     pub(crate) const WARNINGS: &str = "warnings";
     pub(crate) const WIDTH: &str = "width";
     pub(crate) const WRAP: &str = "wrap";
+    pub(crate) const INDEX: &str = "index";
     pub(crate) const X: &str = "x";
     pub(crate) const Y: &str = "y";
 }

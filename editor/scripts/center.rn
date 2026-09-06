@@ -6,6 +6,7 @@ pub const HUD_H = 28.0;
 // The centre: the tool rail, then the viewport's chrome, the code pane or
 // the event bindings over the stage. The document tabs are the top bar's.
 
+use crate::complete;
 use crate::defs;
 use crate::highlight;
 use crate::icons;
@@ -114,6 +115,66 @@ fn chip(S, k, key, label, default_on, near) {
     }
 }
 
+// What the viewport draws instead of the picture: the shaded scene, or one
+// channel of it. The channels come from the engine, so a plugin's is here too.
+fn view_modes() {
+    let out = [["", "Shaded"]];
+    for name in render::channels() {
+        out.push([name, crate::util::match_case("A", name)]);
+    }
+    out
+}
+
+/// The view-mode chip: shaded, or one channel drawn instead. Never a game
+/// feature; `render.set_channel` is the same call the palette makes.
+fn view_chip(S, k) {
+    let current = render::channel();
+    let label = "Shaded";
+    for mode in view_modes() {
+        if mode[0] == current {
+            label = mode[1];
+        }
+    }
+    ui::pill(icons::ui("viewmode") + "  " + label, #{
+        role: if current == "" { "chip" } else { "chip_on" },
+        menu: || {
+            for mode in view_modes() {
+                let name = mode[0];
+                if ui::menu_item(mode[1], #{ color: if name == current { k.accent } else { k.text } }) {
+                    render::set_channel(name);
+                }
+            }
+        },
+    });
+}
+
+/// Four camera slots on the chip row: click to go, hold ⇧ to store where the
+/// camera is now. Editor state, kept nowhere: a view is not the scene.
+fn bookmark_chips(S, k) {
+    ui::add_space(6);
+    for slot in 1..5 {
+        let key = format!("{}", slot);
+        let held = S.bookmarks.get(key);
+        if ui::pill(key, #{
+            height: 20, size: 10, min_width: 20, radius: 4,
+            fill: if held.is_some() { k.accent_soft } else { k.sunken },
+            color: if held.is_some() { k.accent } else { k.faint },
+            tooltip: if held.is_some() { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
+        }) {
+            if input::is_down("LShift") || input::is_down("RShift") {
+                let (ex, ey, ez, tx, ty, tz, _, _) = render::camera_pose();
+                S.bookmarks[key] = [ex, ey, ez, tx, ty, tz];
+                log::info("stored view " + key);
+            } else {
+                let held_some = held;
+                if let Some(pose) = held_some {
+                    render::set_camera(pose[0], pose[1], pose[2], pose[3], pose[4], pose[5]);
+                }
+            }
+        }
+    }
+}
+
 // The pointer inside the stage's top band, where the chips live.
 fn chips_wanted(S, vp) {
     let (px, py) = crate::inputview::pointer(S);
@@ -164,6 +225,11 @@ fn viewport(S, k) {
             if S.tool == "polygon" {
                 ui::add_space(8);
                 polygon::mode_chips(S, k);
+            }
+            if S.persona == "scene" {
+                ui::add_space(8);
+                view_chip(S, k);
+                bookmark_chips(S, k);
             }
         });
     });
@@ -276,7 +342,7 @@ fn code_pane(S, k) {
     ui::scroll("code", (), || {
         ui::add_space(12);
         let stopped_here = !shading && S.debug.paused is Object && S.debug.paused_rel == rel;
-        let (text, changed, hit) = ui::code_editor("edit:" + path, src, #{
+        let (text, changed, hit, caret) = ui::code_editor("edit:" + path, src, #{
             size: 12.5, gutter_width: 34, gutter_color: k.faint,
             k_key: k.k_key, k_str: k.k_str, k_num: k.k_num,
             k_com: k.k_com, k_fn: k.k_fn, k_type: k.k_type,
@@ -297,6 +363,12 @@ fn code_pane(S, k) {
         if changed {
             S.script_dirty[path] = true;
         }
+        // A shader has no script tooling behind it; a Rune buffer does.
+        if shading {
+            complete::reset(S);
+        } else {
+            complete::update(S, rel, text, caret);
+        }
         if hit is i64 {
             // A shader's gutter has no breakpoints, so the same click
             // asks for the line's value instead.
@@ -308,6 +380,7 @@ fn code_pane(S, k) {
         }
         ui::add_space(12);
     });
+    complete::draw(S, S.theme);
 }
 
 // The `events` document tab: every script's engine-facing hooks, per node.

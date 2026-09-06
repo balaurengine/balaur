@@ -1,0 +1,235 @@
+// The completion popup in the Script persona: what may be typed at the caret,
+// under the caret, from the same `script::complete` an editor outside Balaur
+// reaches through `balaur lsp`.
+
+use crate::model;
+use crate::style;
+use crate::util;
+
+// The list's box, in design pixels.
+const W = 320.0;
+const ROW = 22.0;
+const MAX_ROWS = 8;
+
+pub fn state() {
+    #{
+        open: false, items: [], pick: 0, at_index: -1, rel: "",
+        x: 0.0, y: 0.0, source: "", hover: (), signature: (),
+    }
+}
+
+/// The module's own slice of `S`, at `S.complete`.
+pub fn reset(S) {
+    S.complete.open = false;
+    S.complete.items = [];
+    S.complete.pick = 0;
+    S.complete.at_index = -1;
+}
+
+// The 1-based line and column of a character index into `source`.
+fn line_col(source, index) {
+    let line = 1;
+    let col = 1;
+    let seen = 0;
+    for c in source.chars() {
+        if seen >= index {
+            break;
+        }
+        if c == '\n' {
+            line += 1;
+            col = 1;
+        } else {
+            col += 1;
+        }
+        seen += 1;
+    }
+    (line, col)
+}
+
+// The word being typed, so an empty prefix after a space does not open a list
+// of every module in the engine.
+fn prefix_at(source, index) {
+    let out = "";
+    let seen = 0;
+    for c in source.chars() {
+        if seen >= index {
+            break;
+        }
+        if c.is_alphanumeric() || c == '_' {
+            out.push(c);
+        } else {
+            out = "";
+        }
+        seen += 1;
+    }
+    out
+}
+
+// Whether the caret sits right after `::` or `.`, which is where a list opens
+// with no prefix typed yet.
+fn after_dot(source, index) {
+    if index <= 0 {
+        return false;
+    }
+    let chars = source.chars().collect::<Vec>();
+    if index > chars.len() {
+        return false;
+    }
+    let last = chars[index - 1];
+    if last == '.' {
+        return true;
+    }
+    last == ':' && index >= 2 && chars[index - 2] == ':'
+}
+
+/// Ask the host what completes at the caret, and open the list when there is
+/// something to show. Called from the code pane once the editor reports one.
+pub fn update(S, rel, source, caret) {
+    if !(caret is Object) {
+        reset(S);
+        return;
+    }
+    let index = caret.index;
+    // Same caret, same text: the answer cannot have changed.
+    if S.complete.open && S.complete.at_index == index && S.complete.source == source {
+        return;
+    }
+    S.complete.x = caret.x;
+    S.complete.y = caret.y;
+    S.complete.at_index = index;
+    S.complete.source = source;
+    S.complete.rel = rel;
+    let prefix = prefix_at(source, index);
+    if prefix == "" && !after_dot(source, index) {
+        S.complete.open = false;
+        S.complete.items = [];
+        S.complete.hover = ();
+        return;
+    }
+    let (line, col) = line_col(source, index);
+    let found = script::complete(rel, source, line, col);
+    if !(found is Vec) {
+        S.complete.open = false;
+        return;
+    }
+    S.complete.items = found;
+    S.complete.pick = 0;
+    S.complete.open = found.len() > 0;
+    S.complete.signature = script::signature(rel, source, line, col);
+}
+
+/// Move the selection, accept, or close. Answers whether the key was ours, so
+/// the code editor does not also act on it.
+pub fn key(S) {
+    if !S.complete.open {
+        return false;
+    }
+    if ui::shortcut("none", "Escape") {
+        reset(S);
+        return true;
+    }
+    let count = S.complete.items.len();
+    if ui::shortcut("none", "ArrowDown") {
+        S.complete.pick = (S.complete.pick + 1) % count;
+        return true;
+    }
+    if ui::shortcut("none", "ArrowUp") {
+        S.complete.pick = (S.complete.pick + count - 1) % count;
+        return true;
+    }
+    if ui::shortcut("none", "Tab") || ui::shortcut("none", "Enter") {
+        accept(S);
+        return true;
+    }
+    false
+}
+
+// Replace the prefix under the caret with the chosen item.
+fn accept(S) {
+    let i = S.complete.pick;
+    if i < 0 || i >= S.complete.items.len() {
+        reset(S);
+        return;
+    }
+    let item = S.complete.items[i];
+    let index = S.complete.at_index;
+    let prefix = prefix_at(S.complete.source, index);
+    let chars = S.complete.source.chars().collect::<Vec>();
+    let start = index - prefix.len();
+    let head = "";
+    let tail = "";
+    for (n, c) in chars.iter().enumerate() {
+        if n < start {
+            head.push(c);
+        } else if n >= index {
+            tail.push(c);
+        }
+    }
+    let text = head + item.insert + tail;
+    let path = S.game_root + "/" + S.complete.rel;
+    S.script_buffers[path] = text;
+    S.script_dirty[path] = true;
+    reset(S);
+}
+
+// A row's leading glyph, by what the completion is.
+fn glyph(kind) {
+    match kind {
+        "module" => "◆",
+        "function" => "ƒ",
+        "method" => "→",
+        "constant" => "●",
+        "field" => "▪",
+        "property" => "▫",
+        "keyword" => "k",
+        _ => "·",
+    }
+}
+
+/// The list, under the caret, plus the doc line of whatever is picked.
+pub fn draw(S, k) {
+    if !S.complete.open {
+        return;
+    }
+    let rows = util::min(S.complete.items.len(), MAX_ROWS);
+    let h = (rows as f64) * ROW + 12.0;
+    ui::overlay("complete", #{
+        role: "sheet", x: S.complete.x, y: S.complete.y + 4.0, w: W, h: h,
+        padding_x: 6, padding_y: 6,
+    }, || {
+        let first = util::max(0, util::min(S.complete.pick - rows + 1, S.complete.items.len() - rows));
+        for n in 0..rows {
+            let i = first + n;
+            if i >= S.complete.items.len() {
+                break;
+            }
+            let item = S.complete.items[i];
+            let on = i == S.complete.pick;
+            let opts = util::merge(style::list_row(k, ROW), #{
+                icon: glyph(item.kind), icon_size: 10,
+                icon_color: if on { k.accent } else { k.faint },
+                color: if on { k.text } else { k.dim },
+                trailing: item.detail, trailing_color: k.faint,
+                size: 11,
+            });
+            if on {
+                opts["fill"] = k.accent_soft;
+            }
+            ui::horizontal(#{ height: ROW }, || {
+                if ui::pill(item.label, opts) {
+                    S.complete.pick = i;
+                    accept(S);
+                }
+            });
+        }
+    });
+    let item = S.complete.items[S.complete.pick];
+    if item.doc != "" {
+        ui::overlay("complete-doc", #{
+            role: "sheet", x: S.complete.x + W + 6.0, y: S.complete.y + 4.0,
+            w: 300.0, padding_x: 10, padding_y: 8,
+        }, || {
+            ui::label(item.doc, style::mono_sm(k.text));
+        });
+    }
+}

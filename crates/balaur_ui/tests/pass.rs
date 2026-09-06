@@ -142,10 +142,11 @@ fn the_code_editor_returns_its_buffer_unchanged() {
         this.drawn = this.get("drawn").unwrap_or(0);
         this.edits = this.get("edits").unwrap_or(0);
         ui::central_panel(#{}, || {
-            let (text, changed, hit) = ui::code_editor("ed", "let x = 1;\nx");
+            let (text, changed, hit, caret) = ui::code_editor("ed", "let x = 1;\nx");
             this.drawn = this.drawn + 1;
             if changed { this.edits = this.edits + 1; }
             assert!(hit is Tuple, "a gutter line was clicked with no input");
+            assert!(caret is Tuple, "an unfocused editor reported a caret");
             assert!(text.len() > 0, "the editor lost its buffer");
         });
         "#,
