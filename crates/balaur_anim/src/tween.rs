@@ -491,6 +491,7 @@ impl Builder<'_> {
             value: Vec4::ZERO,
             call: Some(method.to_string()),
             ease: None,
+            wide: Vec::new(),
         });
         Ok(())
     }
@@ -646,6 +647,7 @@ fn push_segment(
             value: held,
             call: None,
             ease: None,
+            wide: Vec::new(),
         });
     }
     track.keys.push(Key {
@@ -653,12 +655,14 @@ fn push_segment(
         value: from,
         call: None,
         ease: None,
+        wide: Vec::new(),
     });
     track.keys.push(Key {
         t: start + duration,
         value: to,
         call: None,
         ease,
+        wide: Vec::new(),
     });
 }
 
@@ -697,7 +701,7 @@ fn current_value(
         // be read back as one.
         Property::RotationEuler => euler_from_quat(transform.rotation).extend(0.0),
         Property::Rotation => Vec4::from(transform.rotation),
-        Property::Component { .. } | Property::Call => Vec4::ZERO,
+        Property::Component { .. } | Property::Call | Property::Deform => Vec4::ZERO,
     })
 }
 

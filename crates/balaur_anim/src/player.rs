@@ -131,6 +131,13 @@ pub struct AnimationState {
     /// else.
     pub(crate) next_tween: TweenId,
     pub(crate) accumulator: f32,
+    /// Every jiggle chain's dynamic points, keyed by the node carrying the
+    /// modifier. Ordered like `players`, and for the same reason.
+    pub(crate) jiggle: DetHashMap<Entity, crate::modifier::Jiggle>,
+    /// The jiggle springs' own fixed-step residual. Separate from
+    /// `accumulator` because the modifier system runs after the playhead has
+    /// already spent that one.
+    pub(crate) jiggle_accumulator: f32,
     /// The asset generation these players' clips were resolved at. When the
     /// cache moves past it — a file saved in dev mode, an editor writing a
     /// clip — every live playback re-resolves and keeps its playhead.

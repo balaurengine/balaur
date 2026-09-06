@@ -154,6 +154,8 @@ pub(crate) mod keys {
     pub(crate) const BLOOM_THRESHOLD: &str = "bloom_threshold";
     pub(crate) const C: &str = "c";
     pub(crate) const CELLS: &str = "cells";
+    pub(crate) const ORIGIN: &str = "origin";
+    pub(crate) const FLAGS: &str = "flags";
     pub(crate) const CLOSED: &str = "closed";
     pub(crate) const COLOR: &str = "color";
     pub(crate) const COLOR_END: &str = "color_end";

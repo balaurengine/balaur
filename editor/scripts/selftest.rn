@@ -306,13 +306,13 @@ pub fn tiles_tool(S) {
     check(set.is_some(), "the inline tile set is read off the node");
 
     // What the pointer does: a world point in a cell comes back as that cell.
-    // The map is two by two at one unit a tile, so its centre is the corner
-    // where all four meet and (0.5, -0.5) is the middle of the bottom-right.
+    // Cell 0,0 has its top-left corner on the node, so (0.5, -0.5) is the
+    // middle of it and (-0.5, 0.5) is the cell up and to the left.
     let frame_some = tiles::frame(S);
     check(frame_some.is_some(), "the map has a frame to aim at");
     if let Some(f) = frame_some {
-        check(tiles::cell_at(S, f, 0.5, -0.5) == (1, 1), format!("a world point lands in its cell ({:?})", tiles::cell_at(S, f, 0.5, -0.5)));
-        check(tiles::cell_at(S, f, -0.5, 0.5) == (0, 0), "and the opposite corner in the first one");
+        check(tiles::cell_at(S, f, 0.5, -0.5) == (0, 0), format!("a world point lands in its cell ({:?})", tiles::cell_at(S, f, 0.5, -0.5)));
+        check(tiles::cell_at(S, f, -0.5, 0.5) == (-1, -1), "and the one up and left of it");
     }
 
     check(tiles::paint(S, 0, 0, 3), "painting writes a cell");
@@ -325,15 +325,19 @@ pub fn tiles_tool(S) {
     check(tiles::paint(S, 0, 0, -1), "erasing writes an empty cell");
     check(tiles::cell(S, 0, 0) == -1, "the cell is empty again");
 
-    // Growing moves the node, so the tiles already down stay put. Read from
-    // the document: a global transform propagates on the next tick, not here.
+    // Growing leaves the node where it is: a cell's place is its coordinate,
+    // so the map may reach in any direction without sliding.
     let was_x = util::f(util::vec3(S.doc[S.sel].get("position").unwrap_or(()), [0.0, 0.0, 0.0])[0]);
     check(tiles::paint(S, 4, 0, 1), "painting past the edge grows the map");
     let rows = tiles::grid(S);
     check(tiles::columns(rows) == 5, format!("the map is five columns wide ({})", tiles::columns(rows)));
     let now_x = util::f(util::vec3(S.doc[S.sel].get("position").unwrap_or(()), [0.0, 0.0, 0.0])[0]);
-    // Three columns added at one world unit each: half of that to the right.
-    check(util::abs(now_x - was_x - 1.5) < 1e-4, format!("the node moved half the growth ({} to {})", was_x, now_x));
+    check(util::abs(now_x - was_x) < 1e-4, format!("the node stayed where it was ({} to {})", was_x, now_x));
+
+    // And reaching up and to the left, which the centred map could not do.
+    check(tiles::paint(S, -2, -1, 1), "painting above and left of the map grows it there");
+    check(tiles::cell(S, -2, -1) == 1, "the cell outside the old grid holds its tile");
+    check(tiles::origin(S) == (-2, -1), format!("the origin moved to reach it ({:?})", tiles::origin(S)));
 
     check(tiles::fill_rect(S, (0, 0), (1, 1), 2), "a rectangle fills every cell in it");
     check(tiles::cell(S, 0, 0) == 2 && tiles::cell(S, 1, 1) == 2, "the rectangle's corners are filled");

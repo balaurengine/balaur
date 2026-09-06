@@ -38,7 +38,7 @@ the rows below.
 
 | Item | Tier | Plan |
 | --- | :-: | --- |
-| **Texture import settings** — filtering, repeat, mipmaps, anisotropy, sRGB, premultiplied alpha, project defaults, a sidecar the editor writes, GPU compression at export, atlases. | 1 | [PLAN-textures.md](PLAN-textures.md) |
+| **Texture import settings** — repeat, mipmaps, anisotropy, premultiplied alpha, an Import section in the editor, GPU compression at export, atlases. Built: the sidecar, `[import.<kind>]` defaults, nearest filtering and linear-data textures. | 1 | [PLAN-textures.md](PLAN-textures.md) |
 | **Asset streaming** — a load that runs off the tick, a scene added to one already running, an asset dropped when nothing names it. A pack is held whole in memory today; `ExternalIo`, the `assets` cache and pack hashing are the pieces. | 2 | no plan |
 | **Extensions, tier two** — components, systems and calling back into scripts, across the C boundary. | 3 | [PLAN-c-api.md#what-tier-1-does-not-do](PLAN-c-api.md#what-tier-1-does-not-do) |
 | **`#[export]` on a script constant** — in place of the `exports` table. | — | [PLAN-scripting.md](PLAN-scripting.md) |
@@ -127,7 +127,6 @@ waits for its tick to settle.
 | **One-click deploy** — a game on a URL or on a phone from one command or one button. `balaur export` builds and signs; nothing sends the result anywhere. | 2 | [PLAN-deploy.md](PLAN-deploy.md) |
 | **Embedding on a page** — a runtime package on npm with a `<balaur-viewer>` element and a React wrapper, a typed page API over the message bridge, a web module sized to the game, and image, video and glTF export from the editor. | 3 | [PLAN-embed.md](PLAN-embed.md) |
 | **Sealed packs and stripped binaries** — bytecode on the web too, a pack sealed with ChaCha20-Poly1305 under a project key, names out of a unit. Never a DRM wrapper, a packer, anti-cheat or anti-debugging. | 2 | [PLAN-protection.md](PLAN-protection.md) |
-| **Export size** — a size report from `balaur export`, files nothing names dropped, PNGs recompressed or written as lossless WebP, fonts subset to the strings the game shows, WAV as FLAC. Atlases and GPU compression are not size levers. | 2 | [PLAN-export-size.md](PLAN-export-size.md) |
 | **Console export** — Switch, PlayStation, Xbox. Not a target flag: each console's graphics, input and store layer is an NDA SDK that is not wgpu, winit or gilrs. | 3 | no plan |
 | **XR** — OpenXR on desktop and standalone headsets, WebXR in the browser — stereo views, tracked poses, controller and hand input. kiss3d owning the window is what is in the way, and a 60 Hz tick against a 90 Hz display is the open question. | 3 | no plan |
 | **A progressive web app** — an offline manifest and a service worker around the shell `balaur export --target web` already writes. | — | [PLAN-embed.md](PLAN-embed.md) |

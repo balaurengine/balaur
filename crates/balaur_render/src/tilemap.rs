@@ -61,10 +61,38 @@ pub struct Tilemap {
     /// Tile indices, row 0 at the top so the text reads like the scene;
     /// `None` is an empty cell.
     pub grid: Vec<Vec<Option<u32>>>,
+    /// The grid coordinate of the first stored cell. A map grows in any
+    /// direction by moving this rather than moving the node.
+    pub origin: [i32; 2],
+    /// How each cell is turned, when any of them is; empty means none are.
+    pub flags: Vec<Vec<u8>>,
     /// Tile-texture pixels per world unit.
     pub pixels_per_unit: f32,
     /// Bumped when the content changes so backends rebuild their mesh.
     pub version: u64,
+}
+
+/// `flags` as rows of numbers, or nothing when no cell is turned.
+fn parse_flags(value: Option<&toml::Value>) -> Result<Vec<Vec<u8>>> {
+    let Some(toml::Value::Array(rows)) = value else {
+        return Ok(Vec::new());
+    };
+    rows.iter()
+        .enumerate()
+        .map(|(row, line)| {
+            let line = line
+                .as_array()
+                .ok_or_else(|| anyhow!("flags row {row} should be a list of numbers"))?;
+            line.iter()
+                .map(|value| {
+                    let bits = value
+                        .as_integer()
+                        .ok_or_else(|| anyhow!("flags row {row}: a cell's turn is a number"))?;
+                    u8::try_from(bits).map_err(|_| anyhow!("flags row {row}: {bits} is not a turn"))
+                })
+                .collect()
+        })
+        .collect()
 }
 
 /// `cells` as a grid: the one-character-per-cell text, or a list of rows of
@@ -139,8 +167,69 @@ fn parse_cells(cells: &str) -> Result<Vec<Vec<Option<u32>>>> {
 ///
 /// A map whose tileset will not load carries no grid, so nothing collides
 /// with cells nobody can size.
+/// The core grid a map describes: what physics collides with, and what the
+/// mesh is built from, so the two cannot disagree about a cell.
+fn grid_of(map: &Tilemap, set: &TileSet) -> balaur_core::tiles::TileGrid {
+    balaur_core::tiles::TileGrid {
+        tileset: map.tileset.clone(),
+        rows: map.grid.clone(),
+        origin: map.origin,
+        flags: map.flags.clone(),
+        tile_world: [
+            set.tile_size[0] / map.pixels_per_unit,
+            set.tile_size[1] / map.pixels_per_unit,
+        ],
+        version: map.version,
+    }
+}
+
+/// Put a tile at a coordinate, growing the grid in whatever direction it has
+/// to. Answers whether anything changed.
+fn write_cell(map: &mut Tilemap, column: i32, row: i32, tile: Option<u32>) -> bool {
+    let columns = map.grid.iter().map(Vec::len).max().unwrap_or(0) as i32;
+    let rows = map.grid.len() as i32;
+    let left = (map.origin[0] - column).max(0);
+    let up = (map.origin[1] - row).max(0);
+    let right = (column - (map.origin[0] + columns - 1)).max(0);
+    let down = (row - (map.origin[1] + rows - 1)).max(0);
+    if left > 0 || right > 0 {
+        for line in &mut map.grid {
+            let mut grown = vec![None; left as usize];
+            grown.append(line);
+            grown.resize((columns + left + right) as usize, None);
+            *line = grown;
+        }
+        map.origin[0] -= left;
+    }
+    let width = map.grid.iter().map(Vec::len).max().unwrap_or(0);
+    if up > 0 {
+        let mut grown = vec![vec![None; width]; up as usize];
+        grown.append(&mut map.grid);
+        map.grid = grown;
+        map.origin[1] -= up;
+    }
+    for _ in 0..down {
+        map.grid.push(vec![None; width]);
+    }
+    let Some((x, y)) = grid_index(map, column, row) else {
+        return false;
+    };
+    if map.grid[y][x] == tile {
+        return false;
+    }
+    map.grid[y][x] = tile;
+    true
+}
+
+/// Where a coordinate sits in the stored rows.
+fn grid_index(map: &Tilemap, column: i32, row: i32) -> Option<(usize, usize)> {
+    let x = usize::try_from(column - map.origin[0]).ok()?;
+    let y = usize::try_from(row - map.origin[1]).ok()?;
+    (y < map.grid.len() && x < map.grid[y].len()).then_some((x, y))
+}
+
 fn sync_grid(eng: &Engine, entity: Entity) {
-    let (tileset, rows, ppu, version) = {
+    let (tileset, rows, origin, flags, ppu, version) = {
         let world = eng.world();
         let Ok(map) = world.get::<&Tilemap>(entity) else {
             return;
@@ -148,6 +237,8 @@ fn sync_grid(eng: &Engine, entity: Entity) {
         (
             map.tileset.clone(),
             map.grid.clone(),
+            map.origin,
+            map.flags.clone(),
             map.pixels_per_unit,
             map.version,
         )
@@ -158,11 +249,12 @@ fn sync_grid(eng: &Engine, entity: Entity) {
         let _ = world.remove_one::<balaur_core::tiles::TileGrid>(entity);
         return;
     };
-    let tile_world = [set.tile_size[0] / ppu, set.tile_size[1] / ppu];
     let grid = balaur_core::tiles::TileGrid {
         tileset,
         rows,
-        tile_world,
+        origin,
+        flags,
+        tile_world: [set.tile_size[0] / ppu, set.tile_size[1] / ppu],
         version,
     };
     if let Ok(mut current) = world.get::<&mut balaur_core::tiles::TileGrid>(entity) {
@@ -213,6 +305,8 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
                     (k::TILESET, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The tileset naming the texture and tile grid" }}"#, crate::tilemap::TILESET_ASSET_TYPE)),
                     (k::CELLS, r#"{ type = "string", default = "", description = "Rows of tile characters, one row per line: . is empty, 0-9 then a-z index into the tileset. Also accepted: a list of rows of tile ids, -1 for empty, for a tileset past 36 tiles" }"#),
                     (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Tile-texture pixels per world unit" }"#),
+                    (k::ORIGIN, r#"{ type = "vec2", default = [0.0, 0.0], description = "The column and row of the first cell: a map grows in any direction by moving this, and cell 0,0 always has its top-left corner on the node" }"#),
+                    (k::FLAGS, r#"{ type = "string", default = "", description = "How each cell is turned, as rows of numbers beside `cells`: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal" }"#),
                     (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material the whole map draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
                 ]),
             ),
@@ -244,6 +338,17 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
                     && let Err(why) = balaur_core::assets::load_typed::<TileSet>(eng, &tileset) {
                         tracing::warn!("tilemap tileset '{tileset}': {why:#}");
                     }
+                let origin = params.get(k::ORIGIN).map_or([0, 0], |value| {
+                    let at = |i: usize| {
+                        value
+                            .as_array()
+                            .and_then(|pair| pair.get(i))
+                            .and_then(balaur_core::components::as_f64)
+                            .unwrap_or(0.0) as i32
+                    };
+                    [at(0), at(1)]
+                });
+                let flags = parse_flags(params.get(k::FLAGS))?;
                 set_tilemap(
                     eng,
                     entity,
@@ -252,6 +357,8 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
                         cells,
                         material,
                         grid,
+                        origin,
+                        flags,
                         pixels_per_unit: ppu.max(0.01),
                         version: 0,
                     },
@@ -274,6 +381,32 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
                     k::PIXELS_PER_UNIT.into(),
                     toml::Value::Float(f64::from(map.pixels_per_unit)),
                 );
+                out.insert(
+                    k::ORIGIN.into(),
+                    toml::Value::Array(
+                        map.origin
+                            .iter()
+                            .map(|at| toml::Value::Integer(i64::from(*at)))
+                            .collect(),
+                    ),
+                );
+                if !map.flags.is_empty() {
+                    out.insert(
+                        k::FLAGS.into(),
+                        toml::Value::Array(
+                            map.flags
+                                .iter()
+                                .map(|line| {
+                                    toml::Value::Array(
+                                        line.iter()
+                                            .map(|bits| toml::Value::Integer(i64::from(*bits)))
+                                            .collect(),
+                                    )
+                                })
+                                .collect(),
+                        ),
+                    );
+                }
                 Some(toml::Value::Table(out))
             }),
         },
@@ -284,7 +417,7 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
 /// script edits as it plays. A write past the grid's edge grows it.
 pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_cell", &["tilemap"], "(x: int, y: int, tile: int)", "Put one tile at a column and row, counted from the top left; below zero clears the cell, and a cell past the edge grows the map. The mesh rebuilds on the next frame."),
+        ("set_cell", &["tilemap"], "(x: int, y: int, tile: int)", "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame."),
         ("cell", &["tilemap"], "(x: int, y: int) -> int", "The tile at a column and row, or -1 for an empty cell or one past the edge."),
     ]);
     m.function(
@@ -292,24 +425,17 @@ pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (node, x, y, tile): (balaur_script::NodeId, i64, i64, i64)| {
             let entity = balaur_core::entity_of(node)?;
             let (x, y) = (
-                usize::try_from(x).map_err(|_| anyhow!("a column is not negative"))?,
-                usize::try_from(y).map_err(|_| anyhow!("a row is not negative"))?,
+                i32::try_from(x).map_err(|_| anyhow!("that column is too far out"))?,
+                i32::try_from(y).map_err(|_| anyhow!("that row is too far out"))?,
             );
             let changed = {
                 let world = eng.world();
                 let mut map = world
                     .get::<&mut Tilemap>(entity)
                     .map_err(|_| anyhow!("the node carries no tilemap"))?;
-                if map.grid.len() <= y {
-                    map.grid.resize(y + 1, Vec::new());
-                }
-                if map.grid[y].len() <= x {
-                    map.grid[y].resize(x + 1, None);
-                }
                 let next = u32::try_from(tile).ok();
-                let changed = map.grid[y][x] != next;
+                let changed = write_cell(&mut map, x, y, next);
                 if changed {
-                    map.grid[y][x] = next;
                     map.cells = cells_value(&map.grid);
                     map.version += 1;
                 }
@@ -329,12 +455,11 @@ pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
             let map = world
                 .get::<&Tilemap>(entity)
                 .map_err(|_| anyhow!("the node carries no tilemap"))?;
-            let found = usize::try_from(y)
+            let found = i32::try_from(x)
                 .ok()
-                .and_then(|y| map.grid.get(y))
-                .and_then(|row| usize::try_from(x).ok().and_then(|x| row.get(x)))
-                .copied()
-                .flatten();
+                .zip(i32::try_from(y).ok())
+                .and_then(|(x, y)| grid_index(&map, x, y))
+                .and_then(|(x, y)| map.grid[y][x]);
             Ok(found.map_or(-1, i64::from))
         },
     );
@@ -417,44 +542,86 @@ pub(crate) fn sync_tilemaps(
 }
 
 /// One mesh node for the whole map, cells indexing the tileset atlas.
+///
+/// Built here rather than by the fork's uniform sheet, which has no gutter to
+/// skip and no way to turn a cell: a quad per filled cell, placed by the
+/// grid's own maths so the map is anchored on its node.
 #[cfg(feature = "kiss3d")]
 fn build_map_node(eng: &Engine, map: &Tilemap) -> Result<kiss3d::scene::SceneNode2d> {
-    use kiss3d::scene::{SpriteSheet, Tilemap as TilemapNode};
+    use kiss3d::resource::GpuMesh2d;
 
     let tileset = balaur_core::assets::load_typed::<TileSet>(eng, &map.tileset)?;
     let bytes = eng
         .resource::<balaur_core::project::ProjectFiles>()
         .borrow()
         .read(&tileset.texture)?;
-    let (_, height) = crate::texture::image_size(&bytes, &tileset.texture)?;
-    // The tileset declares columns; the atlas's row count comes off the image.
-    let sheet_rows = ((height as f32 / tileset.tile_size[1]) as u32).max(1);
-    // The fork's sheet is a uniform grid: it cannot skip a gutter. `spacing`
-    // and `margin` cut right once the mesh builder moves here (plan step 2).
-    if tileset.spacing > 0.0 || tileset.margin > 0.0 {
-        tracing::warn!(
-            "tileset '{}': spacing and margin do not cut the mesh yet",
-            map.tileset
-        );
+    let (width, height) = crate::texture::image_size(&bytes, &tileset.texture)?;
+    let grid = grid_of(map, &tileset);
+    let sheet = glamx::Vec2::new(width as f32, height as f32);
+    // A hair off each edge of a tile's rect, or a neighbouring tile bleeds in
+    // at some zoom levels.
+    let inset = glamx::Vec2::new(0.05 / sheet.x, 0.05 / sheet.y);
+    let mut coords: Vec<glamx::Vec2> = Vec::new();
+    let mut uvs: Vec<glamx::Vec2> = Vec::new();
+    let mut faces: Vec<[u32; 3]> = Vec::new();
+    for (column, row, id) in grid.filled() {
+        let centre = grid.cell_centre(column, row);
+        let half = glamx::Vec2::new(grid.tile_world[0], grid.tile_world[1]) / 2.0;
+        let base = coords.len() as u32;
+        coords.extend([
+            centre + glamx::Vec2::new(-half.x, half.y),
+            centre + glamx::Vec2::new(half.x, half.y),
+            centre + glamx::Vec2::new(half.x, -half.y),
+            centre + glamx::Vec2::new(-half.x, -half.y),
+        ]);
+        uvs.extend(tile_uvs(
+            &tileset,
+            id,
+            sheet,
+            inset,
+            grid.cell_flags(column, row),
+        ));
+        faces.push([base, base + 1, base + 2]);
+        faces.push([base, base + 2, base + 3]);
     }
-    let sheet = SpriteSheet::new(tileset.columns.max(1), sheet_rows);
-    let columns = map.grid.iter().map(Vec::len).max().unwrap_or(0).max(1);
-    let rows = map.grid.len().max(1);
-    let mut tiles = vec![TilemapNode::EMPTY; columns * rows];
-    for (row, line) in map.grid.iter().enumerate() {
-        for (column, cell) in line.iter().enumerate() {
-            if let Some(index) = cell {
-                tiles[row * columns + column] = *index;
-            }
-        }
-    }
-    let tile_world =
-        glamx::Vec2::new(tileset.tile_size[0], tileset.tile_size[1]) / map.pixels_per_unit;
-    let mut mesh = TilemapNode::new(columns as u32, rows as u32, tile_world, sheet);
-    let mut node = mesh.node();
-    // Texture before fill: the rebuild inside `fill` reads the texture size
-    // for its anti-bleed UV inset.
+    let mesh = GpuMesh2d::new(coords, faces, Some(uvs), true);
+    let mut node = kiss3d::scene::SceneNode2d::mesh(
+        std::rc::Rc::new(std::cell::RefCell::new(mesh)),
+        glamx::Vec2::ONE,
+    );
     crate::texture::attach_texture_2d(eng, &mut node, &tileset.texture);
-    mesh.fill(&tiles);
     Ok(node)
+}
+
+/// The four corners of a tile on the sheet, in the order the quad above
+/// wants them, turned by the cell's flags.
+#[cfg(feature = "kiss3d")]
+fn tile_uvs(
+    set: &TileSet,
+    id: u32,
+    sheet: glamx::Vec2,
+    inset: glamx::Vec2,
+    flags: u8,
+) -> [glamx::Vec2; 4] {
+    let [x, y, w, h] = set.tile_rect(id);
+    let min = glamx::Vec2::new(x / sheet.x, y / sheet.y) + inset;
+    let max = glamx::Vec2::new((x + w) / sheet.x, (y + h) / sheet.y) - inset;
+    let mut corners = [
+        glamx::Vec2::new(min.x, min.y),
+        glamx::Vec2::new(max.x, min.y),
+        glamx::Vec2::new(max.x, max.y),
+        glamx::Vec2::new(min.x, max.y),
+    ];
+    if flags & balaur_core::tiles::TRANSPOSE != 0 {
+        corners.swap(1, 3);
+    }
+    if flags & balaur_core::tiles::FLIP_X != 0 {
+        corners.swap(0, 1);
+        corners.swap(2, 3);
+    }
+    if flags & balaur_core::tiles::FLIP_Y != 0 {
+        corners.swap(0, 3);
+        corners.swap(1, 2);
+    }
+    corners
 }

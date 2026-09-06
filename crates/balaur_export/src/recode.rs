@@ -162,7 +162,7 @@ fn to_webp(bytes: &[u8], format: ImageFormat) -> Result<Option<Vec<u8>>> {
 
 /// A RIFF/WAVE header, which is the only sound this module re-encodes.
 fn is_wav(bytes: &[u8]) -> bool {
-    bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WAVE"
+    bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WAVE"
 }
 
 /// The WAV's samples as FLAC, sample for sample.
@@ -194,12 +194,20 @@ fn to_flac(bytes: &[u8]) -> Result<Option<Vec<u8>>> {
         .map_err(|(_, why)| anyhow!("the FLAC encoder's configuration: {why}"))?;
     let source = flacenc::source::MemSource::from_samples(
         &samples,
-        spec.channels as usize,
-        spec.bits_per_sample as usize,
+        usize::from(spec.channels),
+        usize::from(spec.bits_per_sample),
         spec.sample_rate as usize,
     );
-    let stream = flacenc::encode_with_fixed_block_size(&config, source, config.block_size)
+    let mut stream = flacenc::encode_with_fixed_block_size(&config, source, config.block_size)
         .map_err(|why| anyhow!("encoding the FLAC: {why}"))?;
+    // flacenc reports the last, short frame as the stream's minimum block
+    // size, which makes a fixed-block-size stream look variable; symphonia
+    // then refuses to sync to a frame. libFLAC writes min == max here.
+    let longest = stream.stream_info().max_block_size();
+    stream
+        .stream_info_mut()
+        .set_block_sizes(longest, longest)
+        .map_err(|why| anyhow!("the FLAC stream's block sizes: {why}"))?;
     let mut sink = flacenc::bitsink::ByteSink::new();
     stream
         .write(&mut sink)
@@ -221,7 +229,9 @@ fn subset_face(bytes: &[u8], keep: &BTreeSet<char>) -> Result<Option<Vec<u8>>> {
     // cosmic-text shapes through rustybuzz, which reads GSUB and GPOS: `*`
     // keeps every layout feature rather than HarfBuzz's default shortlist, so
     // kerning, ligatures and Arabic joining survive the cut.
-    input.layout_feature_tag_set().insert(hb_subset::Tag::new(b"*   "));
+    input
+        .layout_feature_tag_set()
+        .insert(hb_subset::Tag::new(b"*   "));
     let subset = input.subset_font(&face)?;
     let out = subset.underlying_blob().to_vec();
     Ok(Some(out).filter(|out| out.len() < bytes.len()))
@@ -295,8 +305,10 @@ mod tests {
     #[test]
     fn an_image_with_nothing_left_to_save_is_left_alone() {
         let source = sample_png(64, 48);
-        let once = image(&source, ImageMode::Smallest).unwrap().unwrap();
-        assert_eq!(image(&once, ImageMode::Smallest).unwrap(), None);
+        let once = image(&source, ImageMode::Png).unwrap().expect("smaller");
+        // A second pass finds the same bytes, which are not smaller than the
+        // first pass's: no candidate may replace an entry it did not shrink.
+        assert_eq!(image(&once, ImageMode::Png).unwrap(), None);
     }
 
     #[test]
@@ -320,8 +332,7 @@ mod tests {
             sample_format: hound::SampleFormat::Int,
         };
         let mut out = Vec::new();
-        let mut writer =
-            hound::WavWriter::new(std::io::Cursor::new(&mut out), spec).unwrap();
+        let mut writer = hound::WavWriter::new(std::io::Cursor::new(&mut out), spec).unwrap();
         for n in 0..22_050u32 {
             let phase = f64::from(n) * 440.0 * std::f64::consts::TAU / 22_050.0;
             writer.write_sample((phase.sin() * 8000.0) as i16).unwrap();
@@ -349,8 +360,8 @@ mod tests {
                 stream,
                 &FormatOptions::default(),
                 &MetadataOptions::default(),
-            );
-        let probed = match probed { Ok(p) => p, Err(e) => panic!("probe failed: {e:?}") };
+            )
+            .unwrap();
         let mut format = probed.format;
         let track = format.default_track().unwrap();
         let mut decoder = symphonia::default::get_codecs()
@@ -371,8 +382,12 @@ mod tests {
     fn a_wav_becomes_a_smaller_flac_with_the_same_samples() {
         let source = sample_wav();
         let flac = audio(&source, AudioMode::Flac).unwrap().expect("a FLAC");
-        std::fs::write("/private/tmp/claude-501/-Users-dragosdaian-Documents-appsinacup-balaur/9230cd2c-ae75-498e-9af6-534170d09117/scratchpad/probe.flac", &flac).unwrap();
-        assert!(flac.len() < source.len(), "{} vs {}", flac.len(), source.len());
+        assert!(
+            flac.len() < source.len(),
+            "{} vs {}",
+            flac.len(),
+            source.len()
+        );
 
         let mut reader = hound::WavReader::new(std::io::Cursor::new(&source)).unwrap();
         let expected: Vec<i32> = reader.samples::<i32>().map(Result::unwrap).collect();
@@ -388,7 +403,10 @@ mod tests {
 
     #[test]
     fn a_sound_that_is_not_a_wav_is_left_alone() {
-        assert_eq!(audio(b"OggS\0\0\0\0\0\0\0\0", AudioMode::Flac).unwrap(), None);
+        assert_eq!(
+            audio(b"OggS\0\0\0\0\0\0\0\0", AudioMode::Flac).unwrap(),
+            None
+        );
     }
 
     /// The tags in a face's table directory, so a test can say GPOS survived.

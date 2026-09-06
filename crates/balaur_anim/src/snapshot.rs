@@ -20,12 +20,13 @@ use balaur_core::digest::{Entry, Hasher, node_label};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, assets, ids};
 use balaur_plugin::Registry;
-use glamx::Vec4;
+use glamx::{Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::clip::{Clip, Interp, Key, Property, Track, Wrap};
 use crate::ease::Easing;
+use crate::modifier::Jiggle;
 use crate::player::{AnimationState, Playback};
 use crate::tween::{Tween, TweenId};
 
@@ -118,12 +119,28 @@ struct KeyFrame {
     ease: Option<String>,
 }
 
+/// One jiggle chain mid-swing. A spring is state a rollback has to put back
+/// for the same reason a playhead is: restored without it, the chain settles
+/// from wherever it happened to be and every frame after diverges.
+#[derive(Serialize, Deserialize)]
+struct JiggleFrame {
+    id: String,
+    entity: u64,
+    points: Vec<[f32; 3]>,
+    velocities: Vec<[f32; 3]>,
+}
+
 #[derive(Serialize, Deserialize)]
 struct AnimationFrame {
     accumulator: f32,
     next_tween: TweenId,
     players: Vec<PlayerFrame>,
     tweens: Vec<TweenFrame>,
+    /// Defaulted so a snapshot taken before springs existed still restores.
+    #[serde(default)]
+    jiggle: Vec<JiggleFrame>,
+    #[serde(default)]
+    jiggle_accumulator: f32,
 }
 
 fn capture(eng: &Engine) -> Value {
@@ -177,6 +194,17 @@ fn capture(eng: &Engine) -> Value {
                 clip: clip_frame(&tween.clip),
             })
             .collect(),
+        jiggle: state
+            .jiggle
+            .iter()
+            .map(|(&entity, chain)| JiggleFrame {
+                id: id_of(entity),
+                entity: entity.to_bits().get(),
+                points: chain.points.iter().map(Vec3::to_array).collect(),
+                velocities: chain.velocities.iter().map(Vec3::to_array).collect(),
+            })
+            .collect(),
+        jiggle_accumulator: state.jiggle_accumulator,
     };
     serde_json::to_value(frame).unwrap_or(Value::Null)
 }
@@ -232,10 +260,33 @@ fn restore(eng: &Engine, value: &Value) {
             })
             .collect()
     };
+    let jiggle: Vec<(Entity, Jiggle)> = {
+        let world = eng.world();
+        let root = eng.root();
+        frame
+            .jiggle
+            .into_iter()
+            .filter_map(|chain| {
+                let entity = entity_of(&world, root, &chain.id, chain.entity)?;
+                Some((
+                    entity,
+                    Jiggle {
+                        points: chain.points.into_iter().map(Vec3::from).collect(),
+                        velocities: chain.velocities.into_iter().map(Vec3::from).collect(),
+                    },
+                ))
+            })
+            .collect()
+    };
     let state = eng.resource::<AnimationState>();
     let mut state = state.borrow_mut();
     state.accumulator = frame.accumulator;
+    state.jiggle_accumulator = frame.jiggle_accumulator;
     state.next_tween = frame.next_tween;
+    state.jiggle.clear();
+    for (entity, chain) in jiggle {
+        state.jiggle.insert(entity, chain);
+    }
     state.players.clear();
     for ((entity, player), clip) in resolved.into_iter().zip(clips) {
         state.players.insert(entity, playback_of(player, clip));
@@ -359,6 +410,7 @@ fn clip_of(frame: &ClipFrame) -> Clip {
                             .ease
                             .as_deref()
                             .and_then(|name| Easing::parse(name).ok()),
+                        wide: Vec::new(),
                     })
                     .collect(),
             })
@@ -392,6 +444,21 @@ fn digest_source(eng: &Engine, out: &mut Vec<Entry>) {
         }
         out.push(Entry {
             label: format!("{}/animation", node_label(&world, entity)),
+            digest: h.finish(),
+        });
+    }
+    for (&entity, chain) in &state.jiggle {
+        if !world.contains(entity) {
+            continue;
+        }
+        let mut h = Hasher::new();
+        for point in chain.points.iter().chain(chain.velocities.iter()) {
+            h.write_f32(point.x);
+            h.write_f32(point.y);
+            h.write_f32(point.z);
+        }
+        out.push(Entry {
+            label: format!("{}/jiggle", node_label(&world, entity)),
             digest: h.finish(),
         });
     }

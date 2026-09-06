@@ -1,6 +1,15 @@
-> **Status:** not started. Written 2026-09-05 from the Godot parity
-> investigation: a pixel-art sprite has no way to ask for nearest sampling,
-> and nothing about an image is an author's choice.
+> **Status:** step 1 part-built, 2026-09-06. The sidecar is
+> `art/hero.png.toml` and the project's defaults are `[import.<kind>]`, both
+> resolved by `balaur_core::import` for every kind of asset rather than
+> textures alone; `filter` and `srgb` reach the upload, and the resolved
+> settings ride in the name a texture is uploaded under. What is left of step
+> 1: `repeat`, `mipmaps`, `anisotropy`, `premultiply` and the per-axis keys,
+> which kiss3d's `TextureManager` does not expose per texture — `add_image`,
+> `add_image_pixelated` and `add_image_with_color_space` are the whole of what
+> a caller may ask for, so the fork gains a call that takes a sampler before
+> this plan can. The `texture` asset type and the inline table are not built:
+> a sidecar and a project default are, and an inline `{ source = ... }` is
+> not read yet.
 
 # Plan: texture import settings
 
@@ -65,19 +74,19 @@ a comparison sampler is what shadow maps use and nothing else).
 | Premultiplied alpha | Step 1: `premultiply = true` at upload, so a sprite with soft edges blends without a dark fringe |
 | A project-wide default | Step 1: `[textures]` in `project.toml` |
 | The editor writing the sidecar | Step 2: an Import section when an image is selected in the Assets dock, with the same generated rows every asset type gets; Settings shows the project defaults |
-| Compressed textures on the GPU | Step 3: `compression = "none" \| "bc" \| "etc2" \| "astc"` written at export per target into the pack as KTX2 (`ktx2` crate to read, `basis-universal` or `intel_tex_2` to encode — both carry a C++ build, which is the constraint); wgpu picks the format the adapter has, falling back to the decoded image. A memory and upload-time lever, not a download one: on disk BC7 is a byte a pixel, twelve times a 512² logo's PNG (`docs/PLAN-export-size.md` §2) |
-| Texture atlases | Have from Aseprite: `balaur import file.aseprite` writes one with a `sprite_sheet` of frames, tags and slices (`docs/PLAN-scenes-and-assets.md`). A `balaur atlas` over loose images is step 4 here, packing with `texture_packer` into the same `sprite_sheet`. Not a size lever, and no draw-call win while kiss3d draws one call per node (`docs/PLAN-export-size.md` §2) |
-| Maximum size and downscale on export | Step 3: `max_size` per target in `[export]`, for a phone build of a desktop art set. A sprite is sized by the image header, so this moves its extent and the digest; `docs/PLAN-export-size.md` §5 asks which side gives |
-| Smaller files at export — re-encoded images, fonts subset, WAV as FLAC, files nothing names dropped | `docs/PLAN-export-size.md` |
+| Compressed textures on the GPU | Step 3: `compression = "none" \| "bc" \| "etc2" \| "astc"` written at export per target into the pack as KTX2 (`ktx2` crate to read, `basis-universal` or `intel_tex_2` to encode — both carry a C++ build, which is the constraint); wgpu picks the format the adapter has, falling back to the decoded image. A memory and upload-time lever, not a download one: on disk BC7 is a byte a pixel, twelve times a 512² logo's PNG |
+| Texture atlases | Have from Aseprite: `balaur import file.aseprite` writes one with a `sprite_sheet` of frames, tags and slices (`docs/PLAN-scenes-and-assets.md`). A `balaur atlas` over loose images is step 4 here, packing with `texture_packer` into the same `sprite_sheet`. Not a size lever, and no draw-call win while kiss3d draws one call per node |
+| Maximum size and downscale on export | Step 3: `max_size` per target in `[export]`, for a phone build of a desktop art set. A sprite is sized by the image header, so this moves its extent and the digest, which §5 asks about |
 | HDR images for the sky | Read already through `image`'s EXR and HDR decoders; `docs/PLAN-3d-rendering.md` step 2 uses them |
 | Streaming and virtual textures | **Not planned**; the pack is in memory whole and the roadmap's asset streaming item owns the change |
 | Per-texture `pixels_per_unit` | §4, question 1 |
 
 ## 3. Steps
 
-1. The `texture` asset type, the sidecar, `[textures]` defaults, every
-   sampler key, and the upload path reading them. `examples/angrynerds`
-   moves to `nearest`.
+1. *Part done, 2026-09-06.* The sidecar, the project defaults and the upload
+   path reading them; `examples/rig` moves to `nearest`. Left: a kiss3d call
+   taking a whole sampler, then `repeat`, `mipmaps`, `anisotropy` and
+   `premultiply`; the `texture` asset type and the inline table.
 2. The editor's Import section and the Settings rows.
 3. Compression and `max_size` at export.
 4. `balaur atlas`.
@@ -98,6 +107,10 @@ that the fallback image is present.
    two scales. A default on the texture that the sprite overrides is one
    line; whether it is worth a second place to look is decided when the
    first project asks.
-2. **The sidecar's name.** `hero.png.toml` sorts beside its image and needs
-   no lookup; `hero.toml` would collide with a scene or a clip named the same.
-   The double extension is the proposal.
+2. **The sidecar's name.** *Settled 2026-09-06:* `hero.png.toml`, which
+   sorts beside its image and cannot collide with a scene or a clip.
+3. **What `max_size` does to a sprite.** A sprite reads its extent from the
+   image header, so downscaling art at export would halve the sprite and move
+   the digest — the one thing a texture setting must never do. Either the
+   pack records the source dimensions and the header read answers those, or
+   `max_size` scales `pixels_per_unit` with it. Decided before step 3.

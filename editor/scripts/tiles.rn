@@ -207,8 +207,10 @@ fn authored_as_text(S) {
     }
 }
 
-/// The map's frame: where its top-left corner sits and how a world point
-/// lands in it. `tile` is one cell's edge in world units.
+/// Where the map's own origin sits and how a world point lands in it.
+///
+/// Cell 0,0 has its top-left corner on the node, so a cell's place is its
+/// coordinate alone and the map may grow in any direction.
 pub fn frame(S) {
     let found = match model::live(S, S.sel) {
         Some(found) => found,
@@ -222,12 +224,14 @@ pub fn frame(S) {
     let p = found.global_position();
     let angle = found.global_rotation_euler().z;
     let s = found.global_scale();
+    let start = origin(S);
     Some(#{
         x: p.x, y: p.y, c: math::cos(angle), s: math::sin(angle),
         sx: s.x, sy: s.y,
         tile: set.size / pixels_per_unit(S),
         columns: util::max(columns(rows), 1),
         rows: util::max(rows.len(), 1),
+        ox: start.0, oy: start.1,
     })
 }
 
@@ -249,19 +253,25 @@ fn to_world(f, lx, ly) {
 /// grid is still a cell: painting there is what grows the map.
 pub fn cell_at(S, f, wx, wy) {
     let (lx, ly) = to_local(f, wx, wy);
-    let half_w = util::f(f.columns) * f.tile / 2.0;
-    let half_h = util::f(f.rows) * f.tile / 2.0;
-    let column = util::i(math::floor((lx + half_w) / f.tile));
-    let row = util::i(math::floor((half_h - ly) / f.tile));
+    let column = util::i(math::floor(lx / f.tile));
+    let row = util::i(math::floor(-ly / f.tile));
     (column, row)
+}
+
+/// The coordinate of the map's first stored cell.
+pub fn origin(S) {
+    let comp = match component(S.doc[S.sel]) {
+        Some(comp) => comp,
+        None => return (0, 0),
+    };
+    let at = util::vec3(comp.get("origin").unwrap_or(()), [0.0, 0.0, 0.0]);
+    (util::i(util::f(at[0])), util::i(util::f(at[1])))
 }
 
 /// A cell's four corners in world space, for the hover outline.
 fn cell_corners(f, column, row) {
-    let half_w = util::f(f.columns) * f.tile / 2.0;
-    let half_h = util::f(f.rows) * f.tile / 2.0;
-    let x0 = util::f(column) * f.tile - half_w;
-    let y1 = half_h - util::f(row) * f.tile;
+    let x0 = util::f(column) * f.tile;
+    let y1 = -util::f(row) * f.tile;
     [
         to_world(f, x0, y1),
         to_world(f, x0 + f.tile, y1),
@@ -287,28 +297,46 @@ pub fn write_cells(S, cells, tile, label, key) {
     };
     let rows = grid(S);
     let was_text = authored_as_text(S);
-    let before_columns = util::i(util::max(columns(rows), 1));
-    let before_rows = util::i(util::max(rows.len(), 1));
+    let (ox, oy) = origin(S);
+    // Reach every cell first: the rows grow left and up by moving the origin,
+    // which is what keeps the tiles already down where they are.
+    let low_x = ox;
+    let low_y = oy;
+    let high_x = ox + util::i(columns(rows));
+    let high_y = oy + util::i(rows.len());
+    for cell in cells {
+        let (x, y) = cell;
+        low_x = util::min(low_x, x);
+        low_y = util::min(low_y, y);
+        high_x = util::max(high_x, x + 1);
+        high_y = util::max(high_y, y + 1);
+    }
+    let width = high_x - low_x;
+    let grown = [];
+    for y in low_y..high_y {
+        let line = [];
+        for x in low_x..high_x {
+            let dy = y - oy;
+            let dx = x - ox;
+            let held = if dy >= 0 && dy < util::i(rows.len()) && dx >= 0 && dx < util::i(rows[dy].len()) {
+                rows[dy][dx]
+            } else {
+                -1
+            };
+            line.push(held);
+        }
+        grown.push(line);
+    }
+    rows = grown;
     let changed = false;
     for cell in cells {
         let (x, y) = cell;
-        // Negative cells have no index. The map is centred on its node, so
-        // reaching further up or left is a move, not a paint.
-        if x < 0 || y < 0 {
-            continue;
-        }
-        while rows.len() <= y {
-            rows.push([]);
-        }
-        let row = rows[y];
-        while row.len() <= x {
-            row.push(-1);
-        }
-        if row[x] != tile {
-            row[x] = tile;
+        let row = rows[y - low_y];
+        if row[x - low_x] != tile {
+            row[x - low_x] = tile;
             changed = true;
         }
-        rows[y] = row;
+        rows[y - low_y] = row;
     }
     if !changed {
         return false;
@@ -327,52 +355,25 @@ pub fn write_cells(S, cells, tile, label, key) {
     // step this undoes.
     history::record(S, label, key);
     comp.cells = cells_value(rows, was_text);
-    // The map grew around its centre, which would slide every tile already
-    // down. Move the node by half of what was added to hold them still.
-    let set_some = tileset(S);
-    if let Some(set) = set_some {
-        let tile_world = set.size / pixels_per_unit(S);
-        let dw = util::f(util::i(widest) - before_columns) * tile_world;
-        let dh = util::f(util::i(rows.len()) - before_rows) * tile_world;
-        if dw != 0.0 || dh != 0.0 {
-            recentre(S, dw / 2.0, -dh / 2.0);
-        }
-    }
+    comp.origin = [util::f(low_x), util::f(low_y)];
     apply(S);
     true
-}
-
-/// Move the node by a local offset, so growing the grid leaves the tiles
-/// already painted where they were.
-fn recentre(S, lx, ly) {
-    let node = S.doc[S.sel];
-    let angle = util::f(util::vec3(node.get("rotation_euler").unwrap_or(()), [0.0, 0.0, 0.0])[2]);
-    let scale = util::vec3(node.get("scale").unwrap_or(()), [1.0, 1.0, 1.0]);
-    let px = lx * util::f(scale[0]);
-    let py = ly * util::f(scale[1]);
-    let c = math::cos(angle);
-    let s = math::sin(angle);
-    let p = util::vec3(node.get("position").unwrap_or(()), [0.0, 0.0, 0.0]);
-    model::set_transform(S, S.sel, #{
-        position: [
-            util::f(p[0]) + c * px - s * py,
-            util::f(p[1]) + s * px + c * py,
-            util::f(p[2]),
-        ],
-    });
 }
 
 /// The tile at a cell, or -1 for an empty one or one off the grid.
 pub fn cell(S, x, y) {
     let rows = grid(S);
-    if y < 0 || y >= rows.len() {
+    let (ox, oy) = origin(S);
+    let dy = y - oy;
+    let dx = x - ox;
+    if dy < 0 || dy >= util::i(rows.len()) {
         return -1;
     }
-    let row = rows[y];
-    if x < 0 || x >= row.len() {
+    let row = rows[dy];
+    if dx < 0 || dx >= util::i(row.len()) {
         return -1;
     }
-    row[x]
+    row[dx]
 }
 
 /// One cell. Every cell of one drag shares a history key, so the stroke is
@@ -510,14 +511,16 @@ pub fn draw(S) {
     // The grid is a guide, not the drawing: one pixel wide, and skipped
     // entirely when a cell is too small on screen to aim at.
     if f.tile / w >= 6.0 {
-        for row in 0..(f.rows + 1) {
-            let a = cell_corners(f, 0, row)[0];
-            let b = cell_corners(f, f.columns - 1, row)[1];
+        let last_x = f.ox + f.columns - 1;
+        let last_y = f.oy + f.rows - 1;
+        for row in f.oy..(f.oy + f.rows + 1) {
+            let a = cell_corners(f, f.ox, row)[0];
+            let b = cell_corners(f, last_x, row)[1];
             line(a, b, faint, 1.0);
         }
-        for column in 0..(f.columns + 1) {
-            let a = cell_corners(f, column, 0)[0];
-            let b = cell_corners(f, column, f.rows - 1)[3];
+        for column in f.ox..(f.ox + f.columns + 1) {
+            let a = cell_corners(f, column, f.oy)[0];
+            let b = cell_corners(f, column, last_y)[3];
             line(a, b, faint, 1.0);
         }
     }

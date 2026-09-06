@@ -162,7 +162,6 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
     }
     let set = assets::load_typed::<TileSet>(eng, &grid.tileset)?;
     let before = handles_of(eng, entity);
-    let corner = grid.corner();
     for group in [Group::Solid, Group::OneWay] {
         let cells = grid.group_cells(&set, group);
         if cells.is_empty() {
@@ -175,17 +174,14 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
         let size = scalar::v2(grid.tile_world[0], grid.tile_world[1]);
         let builder = with_material(ColliderBuilder2::voxels(size, &keys), &params);
         let builder = builder.active_hooks(hooks(group));
-        add_collider_at(
-            eng,
-            entity,
-            builder,
-            Pose2::from_parts(scalar::v2(corner.x, corner.y), Default::default()),
-        )?;
+        // The voxel lattice is the grid's own: cell (0, 0) starts at the
+        // node, so the collider needs no offset.
+        add_collider_at(eng, entity, builder, Pose2::IDENTITY)?;
         if group == Group::OneWay {
             mark_one_way(eng, entity);
         }
     }
-    for (centre, tile) in grid.shaped_cells(&set) {
+    for (centre, tile) in grid.shaped_cells(&set).collect::<Vec<_>>() {
         let Collision::Shape(polygons) = &tile.collision else {
             continue;
         };

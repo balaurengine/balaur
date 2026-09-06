@@ -14,7 +14,7 @@ use anyhow::Result;
 use balaur::Pack;
 
 use crate::config::ExportConfig;
-use crate::recode::{self, FontMode, Saving};
+use crate::recode::{self, AudioMode, FontMode, ImageMode, Saving};
 
 /// Code points every subset face keeps, whatever the project shows: a game
 /// that prints a number or a slash should not lose it to a scan.
@@ -127,15 +127,32 @@ fn smaller(
 ) -> Result<Option<Vec<u8>>> {
     use balaur::import::{kind_of, kinds};
     match kind_of(path) {
-        Some(kinds::TEXTURE) => recode::image(bytes, config.images),
-        Some(kinds::AUDIO) => recode::audio(bytes, config.audio),
+        // The mode is read before the bytes are: an export that asked for no
+        // re-encoding must not fail over a file that does not decode.
+        Some(kinds::TEXTURE) if config.images != ImageMode::Keep => {
+            recode::image(bytes, config.images)
+        }
+        Some(kinds::AUDIO) if config.audio != AudioMode::Keep => {
+            recode::audio(bytes, config.audio)
+        }
         // A `.fnt` is a text descriptor and a page image, neither of them a
         // face a subsetter can read.
-        Some(kinds::FONT) if config.fonts == FontMode::Subset && !path.ends_with(".fnt") => {
+        Some(kinds::FONT)
+            if config.fonts == FontMode::Subset
+                && !path.ends_with(".fnt")
+                && !kept_whole(path, &config.font_keep) =>
+        {
             recode::font(bytes, keep)
         }
         _ => Ok(None),
     }
+}
+
+/// Whether a face is one `font_keep` protects from subsetting.
+fn kept_whole(path: &str, patterns: &[String]) -> bool {
+    patterns
+        .iter()
+        .any(|pattern| balaur::pack::glob_matches(pattern, path))
 }
 
 /// Every code point a subset face has to keep.

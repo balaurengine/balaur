@@ -59,6 +59,10 @@ pub struct ExportConfig {
     /// as `first-last` hex ranges (`"0020-00FF"`), for text from a server or
     /// typed by a player.
     pub font_ranges: Vec<String>,
+    /// Faces that ship whole however `fonts` is set, as globs: the one a
+    /// text field or a line from a server draws with cannot be subset to the
+    /// characters this project happens to contain.
+    pub font_keep: Vec<String>,
     /// `keep` or `flac`: whether uncompressed audio is re-encoded losslessly.
     pub audio: crate::recode::AudioMode,
 }
@@ -81,6 +85,7 @@ impl Default for ExportConfig {
             images: crate::recode::ImageMode::Keep,
             fonts: crate::recode::FontMode::Keep,
             font_ranges: Vec::new(),
+            font_keep: Vec::new(),
             audio: crate::recode::AudioMode::Keep,
         }
     }

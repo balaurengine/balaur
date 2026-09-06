@@ -614,7 +614,7 @@ fn descriptor_values(line: &str, name: &str) -> Vec<String> {
 /// Whether `pattern` matches `text`, with `*` inside a path segment and `**`
 /// across them. Byte-wise: a wildcard spans whatever it spans, and everything
 /// else is compared literally.
-fn glob_matches(pattern: &str, text: &str) -> bool {
+pub fn glob_matches(pattern: &str, text: &str) -> bool {
     fn matches(pattern: &[u8], text: &[u8]) -> bool {
         match pattern.first() {
             None => text.is_empty(),
