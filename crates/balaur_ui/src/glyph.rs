@@ -289,7 +289,11 @@ pub(crate) fn install(reg: &mut balaur_plugin::Registry<'_>) {
         move |eng, shape| {
             let mut slot = mesher.borrow_mut();
             let mesher = slot.get_or_insert_with(|| {
-                let faces = crate::theme::font_faces(eng);
+                // The project's and the bundled faces only: a text mesh is
+                // real geometry — colliders fit it and rays pick it — so the
+                // machine's own fonts must not reach it.
+                let mut faces = crate::theme::font_faces(eng);
+                faces.retain(|face| face.chain != "system");
                 GlyphMesher::new(&faces, &balaur_core::strings::locale(eng))
             });
             mesher.mesh(shape)

@@ -145,6 +145,7 @@ pub(crate) mod keys {
 
     pub(crate) const A: &str = "a";
     pub(crate) const ALIGN: &str = "align";
+    pub(crate) const ALPHA_CUT: &str = "alpha_cut";
     pub(crate) const AMBIENT: &str = "ambient";
     pub(crate) const ANGLE: &str = "angle";
     pub(crate) const B: &str = "b";
@@ -162,6 +163,7 @@ pub(crate) mod keys {
     pub(crate) const DOUBLE_SIDED: &str = "double_sided";
     pub(crate) const EMITTING: &str = "emitting";
     pub(crate) const EXPLOSIVENESS: &str = "explosiveness";
+    pub(crate) const FAMILY: &str = "family";
     pub(crate) const FLIP_X: &str = "flip_x";
     pub(crate) const FLIP_Y: &str = "flip_y";
     pub(crate) const FONT: &str = "font";
@@ -175,7 +177,9 @@ pub(crate) mod keys {
     pub(crate) const HEIGHT: &str = p::HEIGHT;
     pub(crate) const INTENSITY: &str = "intensity";
     pub(crate) const KIND: &str = p::KIND;
+    pub(crate) const LETTER_SPACING: &str = "letter_spacing";
     pub(crate) const LIFETIME: &str = "lifetime";
+    pub(crate) const LINE_HEIGHT: &str = "line_height";
     pub(crate) const LOOK_AT: &str = "look_at";
     pub(crate) const MATERIAL: &str = "material";
     pub(crate) const MARKUP: &str = "markup";

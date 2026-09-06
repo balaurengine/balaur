@@ -32,6 +32,21 @@ pub use markup::Align;
 /// Line height as a multiple of the font size: what browsers call `normal`.
 const LINE_HEIGHT: f32 = 1.25;
 
+/// Sizes are rasterised in buckets a twelfth of a step apart, so a camera
+/// zooming continuously re-shapes a few times rather than every frame — and
+/// so two sizes a hair apart share their glyphs in the atlas.
+const BUCKET: f32 = 1.0 / 12.0;
+
+/// The size `wanted` rasterises at: the next bucket up, so text is never
+/// magnified from a smaller one.
+#[must_use]
+pub fn bucket(wanted: f32) -> f32 {
+    let wanted = wanted.max(1.0);
+    // Geometric, not linear: a step matters in proportion to the size.
+    let steps = (wanted.ln() / BUCKET).ceil();
+    (steps * BUCKET).exp().max(1.0)
+}
+
 /// Everything a label needs shaped, in physical pixels.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Request {
@@ -46,6 +61,14 @@ pub struct Request {
     /// A `font` asset naming a bitmap face; empty shapes with the project's
     /// vector chain.
     pub font: String,
+    /// Which named chain to shape with — `heading`, `ui`, `mono` or `icons`.
+    /// Empty takes `ui`, which is what a label has always used.
+    pub family: String,
+    /// Baseline to baseline, as a multiple of the size; zero takes the
+    /// browser's `normal`, which is what every label has used.
+    pub line_height: f32,
+    /// Extra space between glyphs, in the same pixels as `size`.
+    pub letter_spacing: f32,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -58,6 +81,9 @@ struct Key {
     align: u8,
     markup: bool,
     font: String,
+    family: String,
+    line_height: u32,
+    letter_spacing: u32,
     generation: u64,
 }
 
@@ -92,8 +118,9 @@ pub struct TextState {
     swash: SwashCache,
     atlas: GlyphAtlas,
     layouts: HashMap<Key, Rc<Shaped>>,
-    /// The family scripts see as `ui`: the first face of that chain.
-    family: Option<String>,
+    /// The first face of each named chain, by chain: what `family` on a
+    /// request resolves to.
+    families: HashMap<String, String>,
     /// Bitmap fonts by asset name, with their page's box in the atlas.
     pages: HashMap<String, BitmapPage>,
     /// The project's and the bundled faces, without the system's: what a
@@ -138,7 +165,7 @@ impl TextState {
     pub(crate) fn new(faces: &[crate::theme::FontFace], locale: &str) -> Self {
         let mut db = fontdb::Database::new();
         let mut families: Vec<&'static str> = Vec::new();
-        let mut family = None;
+        let mut chains: HashMap<String, String> = HashMap::new();
         for face in faces {
             let shared: Arc<Vec<u8>> = Arc::clone(&face.bytes);
             let data: Arc<dyn AsRef<[u8]> + Send + Sync> = shared;
@@ -150,9 +177,9 @@ impl TextState {
                 let Some((name, _)) = info.families.first() else {
                     continue;
                 };
-                if face.chain == "ui" && family.is_none() {
-                    family = Some(name.clone());
-                }
+                chains
+                    .entry(face.chain.to_string())
+                    .or_insert_with(|| name.clone());
                 // The shaper's fallback list wants `'static`; a font set lives
                 // as long as the process, so the leak is the family's lifetime.
                 let leaked: &'static str = Box::leak(name.clone().into_boxed_str());
@@ -171,7 +198,7 @@ impl TextState {
             swash: SwashCache::new(),
             atlas: GlyphAtlas::default(),
             layouts: HashMap::new(),
-            family,
+            families: chains,
             pages: HashMap::new(),
             own: faces
                 .iter()
@@ -221,10 +248,10 @@ impl TextState {
         if self.strict.is_none() {
             self.strict = Some(Self::system_of(&self.own, &self.locale));
         }
+        let family = self.family_for(request);
         let Some(fonts) = self.strict.as_mut() else {
             return Vec2::ZERO;
         };
-        let family = self.family.clone();
         let buffer = shape_into(fonts, family.as_deref(), request);
         let mut extent = Vec2::ZERO;
         for run in buffer.layout_runs() {
@@ -252,6 +279,9 @@ impl TextState {
             align: request.align as u8,
             markup: request.markup,
             font: request.font.clone(),
+            family: request.family.clone(),
+            line_height: request.line_height.to_bits(),
+            letter_spacing: request.letter_spacing.to_bits(),
             generation: self.atlas.generation,
         };
         if let Some(found) = self.layouts.get(&key) {
@@ -265,6 +295,19 @@ impl TextState {
         let shaped = Rc::new(self.layout(request));
         self.layouts.insert(key, Rc::clone(&shaped));
         shaped
+    }
+
+    /// The face family a request shapes with: the chain it named, or `ui`.
+    fn family_for(&self, request: &Request) -> Option<String> {
+        let chain = if request.family.is_empty() {
+            "ui"
+        } else {
+            request.family.as_str()
+        };
+        self.families
+            .get(chain)
+            .or_else(|| self.families.get("ui"))
+            .cloned()
     }
 
     /// One font system over `faces`, with those faces as the fallback chain.
@@ -301,7 +344,7 @@ impl TextState {
             return shaped;
         }
         let parsed = spans_of(request);
-        let family = self.family.clone();
+        let family = self.family_for(request);
         let buffer = shape_into(&mut self.fonts, family.as_deref(), request);
         self.place(&buffer, &parsed, request.width)
     }
@@ -412,14 +455,22 @@ fn shape_into(fonts: &mut FontSystem, family: Option<&str>, request: &Request) -
         Some(name) => Attrs::new().family(Family::Name(name)),
         None => Attrs::new(),
     };
-    let base = base
+    let mut base = base
         .weight(Weight(request.weight))
         .style(if request.italic {
             Style::Italic
         } else {
             Style::Normal
         });
-    let mut buffer = Buffer::new(fonts, Metrics::new(size, size * LINE_HEIGHT));
+    if request.letter_spacing != 0.0 {
+        base = base.letter_spacing(request.letter_spacing / size);
+    }
+    let line_height = if request.line_height > 0.0 {
+        request.line_height
+    } else {
+        LINE_HEIGHT
+    };
+    let mut buffer = Buffer::new(fonts, Metrics::new(size, size * line_height));
     {
         let mut borrowed = buffer.borrow_with(fonts);
         borrowed.set_wrap(if request.width.is_some() {
@@ -547,6 +598,9 @@ mod tests {
             align: Align::Start,
             markup: true,
             font: String::new(),
+            family: String::new(),
+            line_height: 0.0,
+            letter_spacing: 0.0,
         });
         (state, shaped)
     }
@@ -587,6 +641,9 @@ mod tests {
             align: Align::Start,
             markup: false,
             font: String::new(),
+            family: String::new(),
+            line_height: 0.0,
+            letter_spacing: 0.0,
         };
         state.shape(&request);
         let after_first = state.atlas().revision();

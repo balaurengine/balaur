@@ -58,6 +58,15 @@ pub struct TextStyle {
     /// A project-relative `.fnt` naming a bitmap face; empty shapes with the
     /// project's vector fonts.
     pub font: String,
+    /// Which named chain to shape with — `heading`, `ui`, `mono` or `icons`.
+    pub family: String,
+    /// Baseline to baseline, as a multiple of the size; zero takes the default.
+    pub line_height: f32,
+    /// Extra space between glyphs, in the same pixels as `size`.
+    pub letter_spacing: f32,
+    /// 3D only: discard a pixel this transparent rather than blending it, so
+    /// text can be depth-sorted with the scene instead of over it.
+    pub alpha_cut: f32,
 }
 
 impl Default for TextStyle {
@@ -72,6 +81,10 @@ impl Default for TextStyle {
             max_width: None,
             decoration: Decoration::default(),
             font: String::new(),
+            family: String::new(),
+            line_height: 0.0,
+            letter_spacing: 0.0,
+            alpha_cut: 0.0,
         }
     }
 }
@@ -188,6 +201,14 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
                     style.font.clone_from(path);
                 }
             }
+            "family" => {
+                if let Value::Str(chain) = value {
+                    style.family.clone_from(chain);
+                }
+            }
+            "line_height" => style.line_height = number(value).unwrap_or(0.0).max(0.0),
+            "letter_spacing" => style.letter_spacing = number(value).unwrap_or(0.0),
+            "alpha_cut" => style.alpha_cut = number(value).unwrap_or(0.0).clamp(0.0, 1.0),
             "outline_size" => {
                 style.decoration.outline_size = number(value).unwrap_or(0.0).max(0.0);
             }
@@ -218,7 +239,9 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
 }
 
 #[cfg(feature = "kiss3d")]
-pub(crate) use backend::{atlas_texture, layers, mesh_2d, mesh_3d, shape};
+pub(crate) use backend::{
+    atlas_texture, bucket_ratio, layers, mesh_2d, mesh_3d, request_of, shape,
+};
 
 #[cfg(feature = "kiss3d")]
 mod backend {
@@ -296,9 +319,20 @@ mod backend {
         if !style.font.is_empty() {
             load_bitmap_font(eng, &style.font)?;
         }
-        let request = Request {
+        let request = request_of(text, style);
+        let shaped = state.borrow_mut().shape(&request);
+        Ok(shaped)
+    }
+
+    /// The shaper's request for a style.
+    ///
+    /// The size is the bucket above what was asked for, so a camera zooming
+    /// through it re-shapes a few times rather than every frame; the caller
+    /// scales the block back down.
+    pub(crate) fn request_of(text: &str, style: &super::TextStyle) -> Request {
+        Request {
             text: text.to_string(),
-            size: style.size.max(1.0),
+            size: balaur_ui::text::bucket(style.size),
             weight: style.weight,
             italic: style.italic,
             width: style.max_width,
@@ -309,9 +343,16 @@ mod backend {
             },
             markup: style.markup,
             font: style.font.clone(),
-        };
-        let shaped = state.borrow_mut().shape(&request);
-        Ok(shaped)
+            family: style.family.clone(),
+            line_height: style.line_height,
+            letter_spacing: style.letter_spacing,
+        }
+    }
+
+    /// How far the shaped block has to be scaled to land at the asked size:
+    /// it was rasterised at the bucket above it.
+    pub(crate) fn bucket_ratio(style: &super::TextStyle) -> f32 {
+        style.size.max(1.0) / balaur_ui::text::bucket(style.size)
     }
 
     /// Read a `.fnt` and its page out of the project and hand them to the
@@ -478,14 +519,22 @@ mod backend {
 
 /// The size `text` shapes to, in the same pixels as `style.size`.
 ///
-/// Deterministic: the project's fonts and the bundled ones, never a system
-/// face, so every platform answers the same. Without the shaper — a headless
-/// run with no UI plugin — this reports rather than guessing.
+/// Deterministic: measured against the project's fonts and the bundled ones
+/// only, never the machine's, so every platform answers the same. A bitmap
+/// face is measured from its own descriptor, which is as fixed. Without the
+/// shaper — a run with no UI plugin — this reports rather than guessing.
 pub fn measure(eng: &Engine, text: &str, style: &TextStyle) -> anyhow::Result<[f32; 2]> {
     #[cfg(feature = "kiss3d")]
     {
-        let shaped = shape(eng, text, style)?;
-        Ok([shaped.size.x, shaped.size.y])
+        let state = balaur_ui::text::state(eng)
+            .ok_or_else(|| anyhow::anyhow!("no text shaper: the ui plugin installs it"))?;
+        if !style.font.is_empty() {
+            let shaped = shape(eng, text, style)?;
+            return Ok([shaped.size.x, shaped.size.y]);
+        }
+        let request = request_of(text, style);
+        let size = state.borrow_mut().measure(&request);
+        Ok([size.x, size.y])
     }
     #[cfg(not(feature = "kiss3d"))]
     {
@@ -588,7 +637,7 @@ pub(crate) fn flush(
     };
     for (item, block) in items.iter().zip(shaped) {
         let Some(block) = block else { continue };
-        let scale = 1.0 / item.pixels_per_unit;
+        let scale = bucket_ratio(&item.style) / item.pixels_per_unit;
         // Shadow, outline and text: each is a node, because a mesh carries
         // one colour and they are drawn in that order.
         for (layer, (shifts, [r, g, b, a])) in layers(&item.style).into_iter().enumerate() {

@@ -84,9 +84,23 @@ Kept hand-written, each for a reason that survived the audit:
 - **`geometry2d`'s booleans on `i_overlay`**, which does union, intersection,
   difference and xor with holes, in fixed point, and is what georust's `geo`
   uses for the same job. parry offers polygon *intersection* alone.
-- **`triangulate` and the 2D hull.** parry has both. Swapping working,
-  deterministic, tested code for equivalent code moves the triangles of every
-  polygon mesh — and the digest with them — and buys nothing.
+- **The 2D convex hull.** parry's `convex_hull` is public and would do; the
+  swap moves no behaviour, so it waits for a reason to touch the file.
+
+Consolidated instead of kept: **triangulation**. parry's ear clipper is
+`pub(crate)` — `transformation/mod.rs` exports the hull, the mesh
+intersection, `hertel_mehlhorn`, vhacd and voxelization, and keeps
+`ear_clipping` to itself — so it was never reusable. The tree meanwhile
+carries two triangulators: `balaur_core::triangulate`, hand-written, and
+`i_triangle`, which `balaur_ui::glyph` fills glyph outlines with so a
+letter's counters stay holes. `i_triangle` becomes the one, in core, where
+both reach it: it is `i_overlay`'s sibling and depends on it, so a crate that
+already has the booleans pays two small crates for the triangulation; it
+handles holes, which the hand-written clipper does not — `mesh.polygons`
+triangulates each ring on its own today, so a hole ring fills; and it keeps
+the integer core that makes a result the same everywhere. The swap moves the
+triangles of every polygon mesh, so the fixtures and the digests move with it
+in the same commit.
 
 ### The `Engine` handle
 

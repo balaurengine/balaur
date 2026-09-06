@@ -29,6 +29,10 @@ pub(crate) fn text_request(
         // A widget names no bitmap font yet; the world's text is where a
         // pixel face is asked for.
         font: String::new(),
+        // The scene's widget names no chain yet, so `ui` as before.
+        family: String::new(),
+        line_height: 0.0,
+        letter_spacing: 0.0,
     }
 }
 

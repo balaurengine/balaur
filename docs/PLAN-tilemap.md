@@ -346,10 +346,10 @@ prove a brush feels right; the showcase clip is where a person checks.
 
 1. **A tile map on a dynamic body** has no mass model — nothing says what a
    tile weighs. Static and kinematic only, and the error says so.
-2. **One-way tiles wait on a defect.** `collider2d.one_way` is a no-op in 2D
-   — `dim2/collider.rs` never calls `encode_one_way`
-   (`docs/PLAN-rapier.md` item 5) — so a one-way tile group does nothing
-   until that is fixed.
+2. **One-way tiles wait on a defect.** A one-way platform fires only when
+   its collider is `collider1` of the pair, in both dimensions
+   (`docs/PLAN-rapier.md` item 5), so a one-way tile group works on about
+   half the bodies that meet it until that is fixed.
 3. **Chunk size.** Thirty-two is a guess; the benchmark project gets a
    tile-map case before step 2 picks a number.
 4. **Stacked rule output** — one rule writing into a second layer, which is

@@ -62,6 +62,9 @@ fn shared_schema() -> Vec<(&'static str, String)> {
         (k::MAX_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the lines wrap at; zero runs the text on one line" }"#.into()),
         (k::MARKUP, r#"{ type = "bool", default = false, description = "Read the text as markup: bold, italic, colour, alignment, wave and inline images" }"#.into()),
         (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Font pixels to one world unit, sizing the block the way a sprite is sized" }"#.into()),
+        (k::LINE_HEIGHT, r#"{ type = "float", default = 0.0, min = 0.0, description = "Baseline to baseline as a multiple of the size; zero takes the default" }"#.into()),
+        (k::LETTER_SPACING, r#"{ type = "float", default = 0.0, description = "Extra space between glyphs, in font pixels" }"#.into()),
+        (k::FAMILY, r#"{ type = "enum", default = "ui", options = ["ui", "heading", "mono", "icons"], description = "Which of the project's font chains to shape with" }"#.into()),
         (k::FONT, r#"{ type = "string", default = "", description = "A project-relative AngelCode .fnt naming a bitmap face; empty shapes with the project's vector fonts" }"#.into()),
         (k::OUTLINE_SIZE, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the outline reaches around the glyphs; zero draws none" }"#.into()),
         (k::OUTLINE_COLOR, r#"{ type = "color", default = [0.0, 0.0, 0.0, 1.0], description = "The outline's colour" }"#.into()),
@@ -119,6 +122,10 @@ fn from_params(params: &toml::Value, in_3d: bool) -> TextRenderable {
             markup: flag(k::MARKUP, false),
             max_width: (max_width > 0.0).then_some(max_width),
             font: text(k::FONT),
+            family: text(k::FAMILY),
+            line_height: number(k::LINE_HEIGHT, 0.0).max(0.0),
+            letter_spacing: number(k::LETTER_SPACING, 0.0),
+            alpha_cut: number(k::ALPHA_CUT, 0.0).clamp(0.0, 1.0),
             decoration: crate::world_text::Decoration {
                 outline_size: number(k::OUTLINE_SIZE, 0.0).max(0.0),
                 outline_color: color_at(params, k::OUTLINE_COLOR, [0.0, 0.0, 0.0, 1.0]),
@@ -175,6 +182,15 @@ fn to_params(text: &TextRenderable) -> toml::Value {
     );
     put(k::MARKUP, toml::Value::Boolean(text.style.markup));
     put(k::FONT, toml::Value::String(text.style.font.clone()));
+    put(k::FAMILY, toml::Value::String(text.style.family.clone()));
+    put(
+        k::LINE_HEIGHT,
+        toml::Value::Float(f64::from(text.style.line_height)),
+    );
+    put(
+        k::LETTER_SPACING,
+        toml::Value::Float(f64::from(text.style.letter_spacing)),
+    );
     let decoration = text.style.decoration;
     put(
         k::OUTLINE_SIZE,
@@ -403,7 +419,7 @@ pub(crate) fn sync_text(
         let Some(texture) = texture.clone() else {
             continue;
         };
-        let scale = 1.0 / text.pixels_per_unit;
+        let scale = crate::world_text::bucket_ratio(&text.style) / text.pixels_per_unit;
         let mut slot = TextSlot {
             two_d: Vec::new(),
             three_d: Vec::new(),

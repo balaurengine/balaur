@@ -54,17 +54,24 @@
    `effective_dominance`, `is_moving`, `potential_energy`,
    `predict_position_with_forces`, `set_collider`, `solve_ik`, `voxel`,
    `voxel_at`, `set_voxel` — and `collider2d` the `voxels`, `voxelized_mesh`,
-   `convex_decomposition` and `fit` kinds. Two of those are now owed to a
-   plan: `docs/PLAN-tilemap.md` step 1 builds tile collision out of the 2D
+   `convex_decomposition` and `fit` kinds. One is owed to a plan:
+   `docs/PLAN-tilemap.md` step 1 builds tile collision out of the 2D
    `voxels` kind, for the internal-edge handling that keeps a body from
-   catching on a seam, and its one-way tiles wait on the `one_way` defect
-   below. Beside the gaps, four defects:
-   `collider2d.one_way` is a no-op (`dim2/collider.rs:262-274` never calls
-   `encode_one_way`), the 2D `modify_contacts` hook never reaches a script
-   (`dim2/events.rs:160-220`), 2D `move_character` drops the node's rotation
-   (`dim2/character.rs:130`), and 2D colliders do not round-trip through
-   `get` (`dim2/collider.rs:276-285`: no `collider_params`, no offset, no
-   mesh kinds). `body2d` advertises `gyroscopic` and never applies it.
+   catching on a seam.
+
+   The four defects this item listed were re-audited on 2026-09-06 and are
+   gone: `one_way` encodes its axis (`dim2/collider.rs:239`) and the 2D hook
+   reads it (`dim2/events.rs:166-176`), `move_character` keeps the node's
+   rotation (`dim2/character.rs:103`), colliders round-trip through `get`
+   (`dim2/collider.rs:244-261`), `body2d` never advertised `gyroscopic`, and
+   a script physics hook is gone by design with the threaded solver (item 4).
+
+   One defect is real, in **both** dimensions: a one-way platform fires only
+   when it is `collider1` of the pair. `update_as_oneway_platform` reads the
+   axis in `collider1`'s local frame, and both hooks test that collider alone
+   (`events.rs:215-218`, `dim2/events.rs:166-176`), so which body falls
+   through a platform depends on the order rapier happens to give the pair.
+   Both sides need testing, with the axis flipped for `collider2`.
 6. **What rapier 0.35 still has that no scene or script reaches.** The rule
    is wrap everything and state the constraint, so each of these is a phase
    when someone asks: `IntegrationParameters.friction_model` and
@@ -123,15 +130,34 @@
    for culling and picking, exact ray and point queries — and never merely to
    delete equivalent code. `primitive` (no UVs in parry's tessellations),
    `csg` (parry has no mesh union or difference), `geometry2d`'s booleans on
-   `i_overlay` (parry has polygon intersection alone) and `triangulate` stay
-   as they are.
+   `i_overlay` (parry has polygon intersection alone) and its convex hull
+   stay as they are.
 
-   Two follow-ups when that lands: `balaur_render`'s `pick` is bounds-only
-   and becomes an exact ray cast against the mesh, over a `Bvh`
-   (`docs/PLAN-editor-ergonomics.md`); and `crates/balaur_core/src/csg.rs`
-   opens with a rationale that says core "should not learn to" depend on
-   parry, which is no longer the rule — the paragraph keeps its real reason,
-   that parry cannot do union or difference at all.
+   Three follow-ups when that lands:
+
+   - `balaur_render`'s `pick` is bounds-only and becomes an exact ray cast
+     against the mesh, over a `Bvh` (`docs/PLAN-editor-ergonomics.md`).
+   - `crates/balaur_core/src/csg.rs` opens with a rationale that says core
+     "should not learn to" depend on parry, which is no longer the rule — the
+     paragraph keeps its real reason, that parry cannot do union or
+     difference at all.
+   - **Triangulation consolidates onto `i_triangle`.** parry's ear clipper is
+     `pub(crate)` and cannot be called, so the duplication to remove is our
+     own: `balaur_core::triangulate` and the `i_triangle` that
+     `balaur_ui::glyph` already fills glyph outlines with. `i_triangle`
+     depends on `i_overlay`, which core has, so it costs two small crates.
+     The work: `uncheck_triangulate` for a `mesh` asset's authored
+     `polygons`, whose vertices carry uvs, colours and skin weights that an
+     inserted point would not have — assert it returns the input points
+     before relying on it, and interpolate attributes for any it does add;
+     `triangulate`, which resolves self-intersections, for the paths that
+     take a loop from a tool or a boolean, where
+     `a_self_crossing_loop_still_yields_a_triangulation` is the behaviour to
+     keep; holes become real, so `mesh::triangulated` stops filling every
+     ring on its own; `crates/balaur_core/src/triangulate.rs` and its 120
+     lines go, and `tests/polygon_mesh.rs` asserts through `mesh` and
+     `geometry2d.triangulate` instead. Every polygon mesh's triangle list
+     moves, so the fixtures and the digests are part of the same commit.
 
    Everything else already wraps rapier or parry: the character and vehicle
    controllers, the debug render pipeline, the query pipeline, and
