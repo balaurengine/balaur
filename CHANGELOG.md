@@ -43,6 +43,12 @@ is under Unreleased; a release is a `v*` tag whose notes become that version's s
 - 2D and 3D skeletal animation; IK and look-at modifiers.
 - Quaternion rotation tracks.
 - More 2D and 3D shapes; polyline strips with gradients and textures.
+- Ten 3D primitives and six 2D ones, every one a mesh built headless, so a collider fitted to a torus collides what is drawn.
+- A word as geometry: a shaped run's glyph outlines, filled with their counters left as holes.
+- `path2d` and `path3d` assets, stroked, extruded with a bevel, revolved, and swept along a rail.
+- `boolean3d` and `boolean2d`: a node drawn as its children joined, cut out of one another, or overlapped.
+- A `cloner` that draws its subtree along a line, around a ring or through a grid, in one call per mesh.
+- Vertex colours and named morph targets from glTF; a morph weight is a property a clip drives as `mesh/morph.<name>`.
 - Textured particles with end colour, end size and one-shot bursts.
 - Immediate-mode 2D draw calls.
 

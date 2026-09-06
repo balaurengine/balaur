@@ -19,6 +19,7 @@
 //! table), so entire themes live in scripts and hot reload with them.
 
 mod bridge;
+pub mod glyph;
 mod images;
 mod pacing;
 mod splash;
@@ -146,6 +147,7 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(Pacing::default());
         reg.insert_resource(WidgetLayerConfig::default());
         reg.insert_resource(UiFocus::default());
+        glyph::install(reg);
         reg.register_asset_type(
             widget_theme::ASSET_TYPE,
             "themes",

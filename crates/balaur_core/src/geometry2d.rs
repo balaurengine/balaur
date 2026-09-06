@@ -117,12 +117,45 @@ fn convex_hull(points: &[Vec2]) -> Vec<Vec2> {
     hull
 }
 
+/// One boolean of two polygons, as the shapes it leaves: each a list of
+/// paths, the first the outline and the rest its holes.
+///
+/// The Rust half of the script call below, so a `boolean2d` component and a
+/// script get the same answer out of the same two rings.
+#[must_use]
+pub fn overlay(a: &[Vec2], b: &[Vec2], op: crate::csg::Op) -> Vec<Vec<Vec<Vec2>>> {
+    overlay_with(
+        a,
+        b,
+        match op {
+            crate::csg::Op::Union => OverlayRule::Union,
+            crate::csg::Op::Difference => OverlayRule::Difference,
+            crate::csg::Op::Intersection => OverlayRule::Intersect,
+        },
+    )
+}
+
+/// The same, keyed by i_overlay's own rule: the script call reaches two more
+/// of them than the three a component offers.
+fn overlay_with(a: &[Vec2], b: &[Vec2], rule: OverlayRule) -> Vec<Vec<Vec<Vec2>>> {
+    let subject: Vec<[f32; 2]> = a.iter().map(|p| [p.x, p.y]).collect();
+    let clip: Vec<[f32; 2]> = b.iter().map(|p| [p.x, p.y]).collect();
+    subject
+        .overlay(&clip, rule, FillRule::EvenOdd)
+        .into_iter()
+        .map(|shape| {
+            shape
+                .into_iter()
+                .map(|path| path.into_iter().map(|p| Vec2::new(p[0], p[1])).collect())
+                .collect()
+        })
+        .collect()
+}
+
 /// One boolean of two polygons: a list of shapes, each a list of paths, the
 /// first the outline and the rest its holes.
 fn boolean(a: &[Vec2], b: &[Vec2], rule: OverlayRule) -> Value {
-    let subject: Vec<[f32; 2]> = a.iter().map(|p| [p.x, p.y]).collect();
-    let clip: Vec<[f32; 2]> = b.iter().map(|p| [p.x, p.y]).collect();
-    let shapes = subject.overlay(&clip, rule, FillRule::EvenOdd);
+    let shapes = overlay_with(a, b, rule);
     Value::List(
         shapes
             .into_iter()
@@ -131,11 +164,7 @@ fn boolean(a: &[Vec2], b: &[Vec2], rule: OverlayRule) -> Value {
                     shape
                         .into_iter()
                         .map(|path| {
-                            Value::List(
-                                path.into_iter()
-                                    .map(|p| Value::Vec2([p[0], p[1]]))
-                                    .collect(),
-                            )
+                            Value::List(path.into_iter().map(|p| Value::Vec2([p.x, p.y])).collect())
                         })
                         .collect(),
                 )

@@ -14,7 +14,15 @@
     },
     "mesh": {
       "directory": "models",
-      "doc": "Geometry for `mesh`-typed properties. A definition either names a `source`\nmodel file to import or carries the vertices itself as `positions` and\n`indices`, which is what lets a script build one at run time; naming both is\nrefused. A `skin` table adds bone weights for skeletal animation.\n\n```toml\n[[assets]]\nid = \"blade\"\ntype = \"mesh\"\nsource = \"models/blade.obj\"      # imported...\n# ...or, instead of `source`:\npositions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]\nindices = [[0, 1, 2]]\n```"
+      "doc": "Geometry for `mesh`-typed properties. A definition names a `source` model\nfile to import, or a `kind` of parametric primitive to build, or carries the\nvertices itself as `positions` and `indices`, which is what lets a script\nbuild one at run time; naming more than one is refused. A `skin` table adds\nbone weights for skeletal animation, `colors` a tint per vertex, and each\n`[[morphs]]` a named shape the mesh can be blended towards -- which a clip\ndrives as `mesh/morph.<name>`.\n\nA primitive is built by the same mesher the `shape3d` component draws, so a\ncollider over this asset collides exactly what is on screen. A `text` mesh\nis the outlines of a shaped run, filled with the counters left as holes; it\nsits on its baseline and is sized in world units.\n\n```toml\n[[assets]]\nid = \"blade\"\ntype = \"mesh\"\nsource = \"models/blade.obj\"      # imported...\n# ...or a primitive, one of ball, cuboid, capsule, cylinder, cone, plane,\n# torus, pyramid, prism, tube:\nkind = \"torus\"\nradius = 1.0\ntube_radius = 0.3\n# ...or a word, shaped and filled from the project's fonts:\nkind = \"text\"\ntext = \"BALAUR\"\nsize = 1.0\n# ...or, instead of any of those:\npositions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]\nindices = [[0, 1, 2]]\n```"
+    },
+    "path2d": {
+      "directory": "paths",
+      "doc": "A bezier path: `points` is a run of cubic control points -- an anchor, two\nhandles, the next anchor, and three more for every segment after that -- and\n`closed` joins the last segment back to the first anchor. Two points on their\nown are read as a straight line.\n\nA `path2d` is flat and a `path3d` is in space. What fills, extrudes, revolves\nor sweeps one is a `mesh` asset naming it; what strokes one is `shape2d`.\n\n```toml\n[[assets]]\nid = \"outline\"\ntype = \"path2d\"\nclosed = true\npoints = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]\n```"
+    },
+    "path3d": {
+      "directory": "paths",
+      "doc": "A bezier path: `points` is a run of cubic control points -- an anchor, two\nhandles, the next anchor, and three more for every segment after that -- and\n`closed` joins the last segment back to the first anchor. Two points on their\nown are read as a straight line.\n\nA `path2d` is flat and a `path3d` is in space. What fills, extrudes, revolves\nor sweeps one is a `mesh` asset naming it; what strokes one is `shape2d`.\n\n```toml\n[[assets]]\nid = \"outline\"\ntype = \"path2d\"\nclosed = true\npoints = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]\n```"
     },
     "sprite_sheet": {
       "directory": "sheets",
@@ -39,9 +47,12 @@
     "body3d": "Makes the node a 3D rigid body rapier simulates: `dynamic` falls and responds to forces, `static` never moves, `kinematic` is moved by script or animation and pushes what it meets. On its own a body has no shape; add a `collider3d` for it to collide with anything.",
     "bone2d": "Makes the node a 2D bone: the rest position and rotation about z a rig returns to, plus the length and angle its gizmo is drawn with. A skin names its rig by node path and deforms by the bones under it, in tree order.",
     "bone3d": "Makes the node a 3D bone: the rest position, euler rotation and scale a rig returns to, plus the length its gizmo is drawn with. A skinned mesh names its rig by node path and deforms by the bones under it, in tree order.",
+    "boolean2d": "Draw this node as its 2D children combined -- joined, cut out of one another, or only where they overlap. The children stay in the tree, hidden and editable.",
+    "boolean3d": "Draw this node as its children combined -- joined, cut out of one another, or only where they overlap. The children stay in the tree, hidden and editable, and moving one recomputes the result.",
     "camera": "The view the scene is drawn from, following the node's global pose: `look_at` aims the 3D camera, `zoom` scales the 2D one in logical pixels per world unit. The last `current` camera of a kind, in tree order, drives that view.",
     "character2d": "Moves a node the way a 2D player expects: `physics2d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider2d`.",
     "character3d": "Moves a node the way a player expects rather than the way physics would: `physics3d.move_character` slides it along walls, steps it up ledges, keeps it off slopes that are too steep and holds it to the ground over a crest. Needs a `collider3d`; a `body3d` of kind kinematic lets it push what it walks into.",
+    "cloner": "Draw this node's whole subtree many times over -- along a line, around a ring, or through a grid -- in one call per mesh. The tree, physics and scripts still see one node; `seed` and `random` scatter the copies.",
     "collider2d": "The shape the node collides with in 2D. On a node with a `body2d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
     "collider3d": "The shape the node collides with in 3D. On a node with a `body3d` it is that body's shape; on a node without one it is immovable world geometry. A collider on a child node belongs to the nearest body above it, which is how one body carries several shapes.",
     "joint2d": "Holds this node's body to another one in 2D: a hinge, a slider, a rope, a spring, or a generic joint you lock axis by axis. Both ends need a `body2d`; a node without one stands for the nearest body above it, which is how one body carries several joints on child nodes.",
@@ -53,8 +64,8 @@
     "occluder2d": "The outline this node blocks 2D light with. Left empty it follows the node's `collider2d`, or failing that its circle, capsule, rect or sprite shape, so the thing a player sees is the thing that casts the shadow. Every edge casts, so an occluder stands in its own shadow: a node that should stay lit wants a smaller outline or a light with `shadows = false`.",
     "particles": "A purely visual 2D emitter at the node: rate, lifetime, speed, cone and gravity. The live particles and the randomness scattering them are backend state the simulation never sees.",
     "polygon": "A filled, textured 2D polygon from a `mesh` asset's points and triangles, deformed by the rig `skeleton` names when the mesh carries skin weights.",
-    "shape2d": "An untextured 2D primitive drawn at the node -- circle, rect, capsule or a polyline traced through a mesh asset's points -- sized in world units.",
-    "shape3d": "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone or plane -- sized in world units and tinted by `color`.",
+    "shape2d": "An untextured 2D primitive drawn at the node -- circle, rect, capsule, ellipse, star, ngon, or a polyline through a `mesh` asset's points or a stroked `path2d` -- sized in world units.",
+    "shape3d": "An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone, plane, torus, pyramid, prism or tube -- sized in world units and tinted by `color`. Built as a mesh, so a collider fitted to it collides what is drawn.",
     "sound": "A sound of the node's own: which file, at what volume and pitch, looping or not. `audio.play_on` and `audio.stop_on` trigger it, and `autoplay` starts it when the node enters the scene. A `positional` sound is heard from where the node is, relative to the `listener`.",
     "sprite": "A textured 2D quad at the node, sized from its image at `pixels_per_unit` texture pixels per world unit. A `columns` x `rows` grid, or a `sprite_sheet` asset on `sheet`, makes it a flipbook `frame` steps through.",
     "tilemap": "A grid of tiles cut from one `tileset` atlas and centred on the node, one character per cell, drawn at `pixels_per_unit` tile-texture pixels per world unit.",
@@ -82,6 +93,14 @@
       "3d",
       "animation"
     ],
+    "boolean2d": [
+      "2d",
+      "render"
+    ],
+    "boolean3d": [
+      "3d",
+      "render"
+    ],
     "camera": [
       "3d",
       "render"
@@ -93,6 +112,9 @@
     "character3d": [
       "3d",
       "physics"
+    ],
+    "cloner": [
+      "render"
     ],
     "collider2d": [
       "2d",
@@ -488,6 +510,30 @@
         "type": "vec3"
       }
     },
+    "boolean2d": {
+      "op": {
+        "default": "union",
+        "description": "How the children are combined, in the order they are declared",
+        "options": [
+          "union",
+          "difference",
+          "intersection"
+        ],
+        "type": "enum"
+      }
+    },
+    "boolean3d": {
+      "op": {
+        "default": "union",
+        "description": "How the children are combined, in the order they are declared",
+        "options": [
+          "union",
+          "difference",
+          "intersection"
+        ],
+        "type": "enum"
+      }
+    },
     "camera": {
       "ambient": {
         "default": [
@@ -706,6 +752,65 @@
           0.0
         ],
         "description": "Which way is up for this character: the axis it stands along and measures slopes against",
+        "type": "vec3"
+      }
+    },
+    "cloner": {
+      "angle": {
+        "default": 0.0,
+        "description": "Degrees between copies on a ring; zero closes the ring evenly",
+        "type": "float"
+      },
+      "count": {
+        "default": 4,
+        "description": "How many copies, when mode is linear or radial",
+        "min": 1,
+        "type": "int"
+      },
+      "counts": {
+        "default": [
+          3,
+          1,
+          3
+        ],
+        "description": "How many along each axis, when mode is grid",
+        "type": "vec3"
+      },
+      "mode": {
+        "default": "linear",
+        "description": "How the copies are laid out",
+        "options": [
+          "linear",
+          "radial",
+          "grid"
+        ],
+        "type": "enum"
+      },
+      "radius": {
+        "default": 2.0,
+        "description": "How far out the ring sits, when mode is radial",
+        "type": "float"
+      },
+      "random": {
+        "default": 0.0,
+        "description": "How far a copy may wander in position, turn and size",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      },
+      "seed": {
+        "default": 0,
+        "description": "The seed the scatter runs off; zero scatters nothing",
+        "min": 0,
+        "type": "int"
+      },
+      "step": {
+        "default": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "description": "The gap between copies, when mode is linear or grid",
         "type": "vec3"
       }
     },
@@ -2073,6 +2178,12 @@
         "description": "Tint, as channel floats or #rrggbb / #rrggbbaa",
         "type": "color"
       },
+      "corner_radius": {
+        "default": 0.0,
+        "description": "How far the corners are rounded off, when kind is rect; zero is a square corner",
+        "min": 0.0,
+        "type": "float"
+      },
       "gradient": {
         "default": [
           0.0,
@@ -2088,12 +2199,18 @@
           0.5,
           0.5
         ],
-        "description": "Half-sizes of the rect, when kind is rect",
+        "description": "Half-sizes, when kind is rect or ellipse",
         "type": "vec2"
       },
       "height": {
         "default": 1.0,
         "description": "Length along y of the straight part, when kind is capsule",
+        "min": 0.01,
+        "type": "float"
+      },
+      "inner_radius": {
+        "default": 0.2,
+        "description": "How far the notches between a star's tips reach",
         "min": 0.01,
         "type": "float"
       },
@@ -2104,6 +2221,9 @@
           "circle",
           "rect",
           "capsule",
+          "ellipse",
+          "star",
+          "ngon",
           "polyline"
         ],
         "type": "enum"
@@ -2117,14 +2237,32 @@
       "mesh": {
         "asset": "mesh",
         "default": "",
-        "description": "Points of a polyline, taken from a mesh asset's vertices",
+        "description": "Where a polyline's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve",
         "type": "asset"
+      },
+      "points": {
+        "default": 5,
+        "description": "Tips, when kind is star",
+        "min": 3,
+        "type": "int"
       },
       "radius": {
         "default": 0.5,
-        "description": "Radius, when kind is circle or capsule",
+        "description": "Radius, when kind is circle, capsule, star or ngon",
         "min": 0.01,
         "type": "float"
+      },
+      "segments": {
+        "default": 32,
+        "description": "Cuts around a circle, an ellipse or a rounded corner",
+        "min": 3,
+        "type": "int"
+      },
+      "sides": {
+        "default": 4,
+        "description": "Sides, when kind is ngon",
+        "min": 3,
+        "type": "int"
       },
       "texture": {
         "default": "",
@@ -2149,18 +2287,30 @@
         "description": "Tint, as channel floats or #rrggbb / #rrggbbaa",
         "type": "color"
       },
+      "corner_radius": {
+        "default": 0.0,
+        "description": "How far the edges are rounded off, when kind is cuboid; zero is a square edge",
+        "min": 0.0,
+        "type": "float"
+      },
       "half_extents": {
         "default": [
           0.5,
           0.5,
           0.5
         ],
-        "description": "Half-sizes of the cuboid, when kind is cuboid",
+        "description": "Half-sizes, when kind is cuboid, plane or pyramid",
         "type": "vec3"
       },
       "height": {
         "default": 1.0,
-        "description": "Length along y, for capsule, cylinder and cone",
+        "description": "Length along y, for capsule, cylinder, cone, prism and tube",
+        "min": 0.01,
+        "type": "float"
+      },
+      "inner_radius": {
+        "default": 0.25,
+        "description": "Radius of the hole, when kind is tube",
         "min": 0.01,
         "type": "float"
       },
@@ -2173,7 +2323,11 @@
           "capsule",
           "cylinder",
           "cone",
-          "plane"
+          "plane",
+          "torus",
+          "pyramid",
+          "prism",
+          "tube"
         ],
         "type": "enum"
       },
@@ -2185,7 +2339,31 @@
       },
       "radius": {
         "default": 0.5,
-        "description": "Radius, for every kind but cuboid",
+        "description": "Radius, for every kind but cuboid, plane and pyramid",
+        "min": 0.01,
+        "type": "float"
+      },
+      "rings": {
+        "default": 16,
+        "description": "Cuts along the axis, for ball, capsule and torus",
+        "min": 3,
+        "type": "int"
+      },
+      "segments": {
+        "default": 32,
+        "description": "Cuts around the axis, or across a plane",
+        "min": 3,
+        "type": "int"
+      },
+      "sides": {
+        "default": 4,
+        "description": "Flat faces, when kind is pyramid or prism",
+        "min": 3,
+        "type": "int"
+      },
+      "tube_radius": {
+        "default": 0.2,
+        "description": "Thickness of the ring, when kind is torus",
         "min": 0.01,
         "type": "float"
       }
@@ -6028,8 +6206,14 @@
     },
     {
       "acts_on": {
+        "built_mesh": [
+          "boolean3d"
+        ],
         "cell": [
           "tilemap"
+        ],
+        "clones": [
+          "cloner"
         ],
         "color": [
           "polygon",
@@ -6085,6 +6269,8 @@
         ]
       },
       "components": [
+        "boolean3d",
+        "cloner",
         "occluder2d",
         "particles",
         "polygon",
@@ -6135,6 +6321,14 @@
           "value": "cylinder"
         },
         {
+          "name": "SHAPE_ELLIPSE",
+          "value": "ellipse"
+        },
+        {
+          "name": "SHAPE_NGON",
+          "value": "ngon"
+        },
+        {
           "name": "SHAPE_PLANE",
           "value": "plane"
         },
@@ -6143,12 +6337,33 @@
           "value": "polyline"
         },
         {
+          "name": "SHAPE_PRISM",
+          "value": "prism"
+        },
+        {
+          "name": "SHAPE_PYRAMID",
+          "value": "pyramid"
+        },
+        {
           "name": "SHAPE_RECT",
           "value": "rect"
+        },
+        {
+          "name": "SHAPE_STAR",
+          "value": "star"
+        },
+        {
+          "name": "SHAPE_TORUS",
+          "value": "torus"
+        },
+        {
+          "name": "SHAPE_TUBE",
+          "value": "tube"
         }
       ],
       "doc": "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the OS window, and the backdrop and debug lines drawn around the scene.",
       "docs": {
+        "built_mesh": "The triangles the node's boolean settled on, as `#{ positions, indices }` ready to be written out as a `mesh` asset; nil when the node draws no built geometry.",
         "camera_2d": "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window.",
         "camera_matrix": "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window.",
         "camera_pose": "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale.",
@@ -6156,6 +6371,7 @@
         "channel": "Which channel the viewport is drawing instead of the scene's colour, or empty for the scene as it is.",
         "channels": "Every channel name `set_channel` accepts, as a list.",
         "check_material": "Every diagnostic about the material at that path, as `[#{ file, line, column, severity, message }]`; empty when it links.",
+        "clones": "Where the node's cloner puts each copy, in the node's own space, as `#{ position, rotation, scale }`; an empty list when the node has no cloner. What a bake-to-nodes command spawns from.",
         "color": "The node's tint as r, g, b, a channel floats; opaque white when the node draws nothing at all.",
         "draw_arc_2d": "Stroke an arc between two angles in degrees, counter-clockwise from the x axis, for this frame; width is in pixels.",
         "draw_circle_2d": "Fill a circle in world units for this frame, over everything the scene drew.",
@@ -6203,6 +6419,7 @@
         "texture_size": "An image's width and height in pixels, read from the file's own header."
       },
       "functions": [
+        "built_mesh",
         "camera_2d",
         "camera_matrix",
         "camera_pose",
@@ -6210,6 +6427,7 @@
         "channel",
         "channels",
         "check_material",
+        "clones",
         "color",
         "draw_arc_2d",
         "draw_circle_2d",
@@ -6258,6 +6476,7 @@
       ],
       "name": "render",
       "signatures": {
+        "built_mesh": "NodeId -> Value",
         "camera_2d": "() -> (f32, f32, f32)",
         "camera_matrix": "() -> Vec<f32>",
         "camera_pose": "() -> (f32, f32, f32, f32, f32, f32, f32, f32)",
@@ -6265,6 +6484,7 @@
         "channel": "() -> String",
         "channels": "() -> Value",
         "check_material": "String -> Value",
+        "clones": "NodeId -> Value",
         "color": "NodeId -> (f32, f32, f32, f32)",
         "draw_arc_2d": "(f32, f32, f32, f32, f32, Option<f32>, Option<Value>) -> ()",
         "draw_circle_2d": "(f32, f32, f32, Option<Value>) -> ()",
@@ -6889,6 +7109,7 @@
         "overlay": "Draw the callback in a foreground area at `x`/`y` design pixels, above the panels and the widget layer. `w`/`h` fix its size, and `fill`, `stroke`, `radius` and padding make it a sheet.",
         "pill": "Draw a rounded button, or a left-aligned row when `align = \"left\"`; true on the frame it was clicked. `disabled` greys it out and swallows the click.",
         "rect_stroke": "Outline a rectangle at x/y/w/h design pixels from the current panel's corner, `dashed` when asked.",
+        "request_repaint": "Run the UI pass this frame even when lazy; call it every frame something on screen moves without input, such as while the scene plays.",
         "right": "Lay the callback's widgets out against the right edge, still declared left to right.",
         "right_panel": "Dock a column down the right of the window and draw the callback inside it; `width` is in design pixels. Answers the width it ended up with.",
         "scale": "The global UI scale: real pixels per design pixel.",
@@ -6898,6 +7119,7 @@
         "set_clipboard": "Copy text to the system clipboard.",
         "set_focus": "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",
         "set_keyboard_focus": "Let the arrows, Tab, Enter and Space move and activate the focused widget. Off unless asked for, so a game that moves with the arrows does not click its own HUD; `standard_app` turns it on for a project declaring the `ui_*` actions.",
+        "set_lazy": "Run the UI pass only when something asks for it \u2014 input, `request_repaint`, a log line, an asset reload, an egui animation, or the idle tick every 250 ms \u2014 and re-present the last pass in between. Off by default: a HUD that reads live state each frame should leave it off. Ignored offscreen.",
         "set_scale": "Set the global UI scale, clamped to between 0.25 and 3.0 real pixels per design pixel; a design resolution is `screen_size` divided by it.",
         "set_text": "Overwrite what the field with this `id` is editing, leaving the seed its `value` option last wrote alone.",
         "set_theme": "Replace the theme: `name = \"#rrggbb\"` colour tokens, `dark = true|false`, and a `roles` table of named looks a widget takes with `role:`.",
@@ -6945,6 +7167,7 @@
         "overlay",
         "pill",
         "rect_stroke",
+        "request_repaint",
         "right",
         "right_panel",
         "scale",
@@ -6954,6 +7177,7 @@
         "set_clipboard",
         "set_focus",
         "set_keyboard_focus",
+        "set_lazy",
         "set_scale",
         "set_text",
         "set_theme",
@@ -7002,6 +7226,7 @@
         "overlay": "(String, Option<Value>, CallbackId) -> ()",
         "pill": "(String, Option<Value>) -> bool",
         "rect_stroke": "(f32, f32, f32, f32, Option<Value>) -> ()",
+        "request_repaint": "() -> ()",
         "right": "CallbackId -> ()",
         "right_panel": "(String, Option<Value>, CallbackId) -> f64",
         "scale": "() -> f32",
@@ -7011,6 +7236,7 @@
         "set_clipboard": "String -> ()",
         "set_focus": "NodeId -> ()",
         "set_keyboard_focus": "bool -> ()",
+        "set_lazy": "bool -> ()",
         "set_scale": "f32 -> ()",
         "set_text": "(String, String) -> ()",
         "set_theme": "Value -> ()",

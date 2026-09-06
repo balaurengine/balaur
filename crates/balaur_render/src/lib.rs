@@ -8,18 +8,24 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::hecs::Entity;
+pub use balaur_core::primitive::{Flat, Solid};
 use balaur_core::{Engine, Stage};
 use balaur_plugin::Registry;
 use balaur_script::Bindings;
 
 #[cfg(feature = "aseprite")]
 pub mod aseprite;
+mod boolean;
 mod camera;
+mod cloner;
 mod debug_view;
 mod draw_2d;
+mod instancing;
 pub mod light;
 pub mod material;
 pub mod mesh;
+#[cfg(feature = "kiss3d")]
+mod morph;
 mod particles;
 mod pick;
 mod polygon;
@@ -36,8 +42,10 @@ mod sprite;
 mod texture;
 mod tilemap;
 pub use camera::{Camera, CameraKind};
+pub use cloner::Clones;
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
 pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
+pub use mesh::MorphWeights;
 pub use particles::Particles;
 pub use polygon::PolygonMesh;
 pub use sheet::{SPRITE_SHEET_ASSET_TYPE, SheetFrame, SheetSlice, SheetTag, SpriteSheet};
@@ -322,38 +330,33 @@ impl Default for CameraConfig {
     }
 }
 
+/// What a node draws in 3D: a primitive with its dimensions, or geometry
+/// somebody authored.
+///
+/// The primitive is `balaur_core`'s, and so is the mesher behind it: the
+/// triangles a backend uploads are the ones a collider is fitted to and a
+/// ray is tested against, rather than a lookalike the renderer built.
 #[derive(Clone, Copy, PartialEq)]
 pub enum Shape {
-    Ball {
-        radius: f32,
-    },
-    Cuboid {
-        hx: f32,
-        hy: f32,
-        hz: f32,
-    },
-    /// A cylinder with hemispherical caps, principal axis on y. `height` is
-    /// the cylindrical part, so the whole thing is `height + 2 * radius` tall.
-    Capsule {
-        radius: f32,
-        height: f32,
-    },
-    Cylinder {
-        radius: f32,
-        height: f32,
-    },
-    Cone {
-        radius: f32,
-        height: f32,
-    },
-    /// A flat quad in the xz plane, for ground and walls.
-    Plane {
-        hx: f32,
-        hz: f32,
-    },
+    Solid(Solid),
     /// Authored geometry. The vertices live in `Renderable::mesh`, the way a
     /// sprite's texture lives beside its quad — the enum stays `Copy`.
     Mesh,
+    /// Geometry the engine worked out rather than an author wrote: a
+    /// boolean's result. It lives in `Renderable::built`, the way a filled
+    /// polygon's does in 2D.
+    Built,
+}
+
+impl Shape {
+    /// The primitive this draws, or `None` for authored geometry.
+    #[must_use]
+    pub const fn solid(self) -> Option<Solid> {
+        match self {
+            Self::Solid(solid) => Some(solid),
+            Self::Mesh | Self::Built => None,
+        }
+    }
 }
 
 /// A local axis-aligned box. A mesh is not centred on its origin, so the
@@ -372,6 +375,10 @@ pub struct Renderable {
     pub color: [f32; 4],
     /// The `mesh` asset this draws, present exactly when `shape` is a mesh.
     pub mesh: Option<String>,
+    /// Geometry computed for this node, present exactly when `shape` is
+    /// built. Shared rather than copied: a backend keeps a handle to it
+    /// between rebuilds.
+    pub built: Option<std::sync::Arc<balaur_core::mesh::MeshData>>,
     /// Node path to the rig a skinned mesh deforms with, relative to the
     /// node; empty means the node itself. Ignored by a mesh with no skin.
     pub skeleton: String,
@@ -383,21 +390,11 @@ pub struct Renderable {
     pub version: u64,
 }
 
+/// What a node draws in 2D: a primitive, a textured quad, a chain of points
+/// or a filled polygon.
 #[derive(Clone, Copy, PartialEq)]
 pub enum Shape2d {
-    Circle {
-        radius: f32,
-    },
-    /// The straight part is `height`; the caps add `radius` at each end, the
-    /// same meaning the `collider2d` capsule gives them.
-    Capsule {
-        radius: f32,
-        height: f32,
-    },
-    Rect {
-        hx: f32,
-        hy: f32,
-    },
+    Flat(Flat),
     /// A textured quad. Its half-extents are resolved when the sprite is set,
     /// so they are simulation state a script can read back, the same as a rect.
     Sprite {
@@ -414,6 +411,18 @@ pub enum Shape2d {
     /// A filled, textured polygon, deformed by a rig when its mesh carries
     /// skin weights. The geometry lives in `Renderable2d::polygon`.
     Polygon,
+}
+
+impl Shape2d {
+    /// The primitive this draws, or `None` for a sprite, a chain or a
+    /// polygon, each of which carries its geometry beside the shape.
+    #[must_use]
+    pub const fn flat(self) -> Option<Flat> {
+        match self {
+            Self::Flat(flat) => Some(flat),
+            _ => None,
+        }
+    }
 }
 
 /// Pixels of texture per world unit when a sprite is sized from its image.
@@ -580,6 +589,7 @@ pub(crate) fn set_mesh(
                 bounds,
                 color: [0.8, 0.8, 0.8, 1.0],
                 mesh: Some(source),
+                built: None,
                 skeleton,
                 texture,
                 material: String::new(),
@@ -592,8 +602,12 @@ pub(crate) fn set_mesh(
 pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()> {
     let mut world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable>(entity) {
-        r.shape = shape;
-        r.version += 1;
+        // A shape carries its own tessellation now, so a rebuild re-runs the
+        // mesher: only a shape that actually changed asks for one.
+        if r.shape != shape {
+            r.shape = shape;
+            r.version += 1;
+        }
         return Ok(());
     }
     world
@@ -604,6 +618,7 @@ pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape) -> Result<()
                 bounds: None,
                 color: [0.8, 0.8, 0.8, 1.0],
                 mesh: None,
+                built: None,
                 skeleton: String::new(),
                 texture: String::new(),
                 material: String::new(),
@@ -655,8 +670,10 @@ pub(crate) fn set_polyline(
 pub(crate) fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Result<()> {
     let mut world = eng.world_mut();
     if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
-        r.shape = shape;
-        r.version += 1;
+        if r.shape != shape {
+            r.shape = shape;
+            r.version += 1;
+        }
         return Ok(());
     }
     world
@@ -867,6 +884,8 @@ impl balaur_plugin::Plugin for RenderPlugin {
         material::install_material_check(&mut *m);
         material::install_material_params(&mut *m);
         shape::install_shape_api(&mut *m);
+        boolean::install_boolean_api(&mut *m);
+        cloner::install_cloner_api(&mut *m);
         light::install_occluder_api(&mut *m);
         script_api::install_sprite_api(&mut *m);
         script_api::install_sprite_state_api(&mut *m);
@@ -881,6 +900,9 @@ impl balaur_plugin::Plugin for RenderPlugin {
         camera::register_camera_component(reg);
         light::register_light2d_component(reg);
         light::register_occluder2d_component(reg);
+        boolean::register_boolean3d_component(reg);
+        boolean::register_boolean2d_component(reg);
+        cloner::register_cloner_component(reg);
         mesh::register_mesh_component(reg);
         material::register_material_asset(reg);
         sheet::register_sheet_asset(reg);
@@ -893,6 +915,11 @@ impl balaur_plugin::Plugin for RenderPlugin {
         // Same stage, after the camera: an outline follows the collider or
         // shape the node has settled on this tick.
         reg.add_system(Stage::SceneSync, light::resolve_occluders_system);
+        // Same stage: a boolean's operands have settled, so its result is
+        // built from where they ended up this tick.
+        reg.add_system(Stage::SceneSync, boolean::resolve_booleans_system);
+        // After the booleans: a cloner may multiply their result too.
+        reg.add_system(Stage::SceneSync, cloner::resolve_cloners_system);
         reg.add_system(Stage::Render, clear_debug_lines_system);
 
         Ok(())

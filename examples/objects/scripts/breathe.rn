@@ -1,0 +1,12 @@
+// Blends the triangle towards its `peak` shape and back. A morph weight is
+// an ordinary property, so a clip drives it as `mesh/morph.peak` too.
+
+pub fn init(this) {
+    this.clock = 0.0;
+}
+
+pub fn update(this, dt) {
+    this.clock += dt;
+    let weight = 0.5 + 0.5 * math::sin(this.clock * 1.5);
+    this.node.patch_component("mesh", #{ "morph.peak": weight });
+}

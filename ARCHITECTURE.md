@@ -603,6 +603,37 @@ Deliberately not now, and not precluded: blend trees and state machines
 section below, and it cost this crate nothing: a bone is a node, so a clip
 already animates it by path.
 
+### Objects: every shape is a mesh (core + render)
+
+A shape is a function from its parameters to a `MeshData`, written in
+`balaur_core::primitive` on `libm` and never taken from the fork's
+`procedural` module. That is the whole rule, and everything else follows
+from it: a collider fitted to a torus, a ray picking one, a headless test
+and the triangles on screen are the same triangles, and the digest covers a
+mesh a script builds.
+
+Ten 3D primitives and six 2D ones come out of it, `balaur_core::path` adds
+bezier paths and what they extrude, revolve and sweep into, and
+`balaur_core::csg` combines two of them with a BSP over their faces --
+written out rather than taken from a crate, because the candidates reach for
+parry and a BSP is dot products and lerps with no transcendental to pin.
+`balaur_ui::glyph` is the one mesher outside core, because shaping a word
+needs the font set that crate owns.
+
+A `mesh` asset therefore names one of four things: a model file, a
+primitive, a word, or a path to give thickness to. The two that reach
+another asset are resolved by `mesh::load_from`, which has the engine to
+reach it with, the same two-step a `source` file already took.
+
+**A node draws a shape, geometry, or what the engine worked out.**
+`Shape::Solid` carries parameters, `Shape::Mesh` an asset reference, and
+`Shape::Built` the triangles a `boolean3d` settled on -- the split
+`Shape2d::Polygon` already used in 2D. A `cloner` multiplies whatever is
+under it: `balaur_core::cloner` says where the copies go, and
+`balaur_render::instancing` splits each copy's world matrix into the two
+halves the shader reads. That seam is reached once, and automatic
+instancing and a scripted mass of copies will draw through it too.
+
 ### Skeletons and skins (core + render)
 
 A bone is a node with a rest pose — the `bone2d` component, registered by
@@ -1994,12 +2025,11 @@ release finished.
 | Rigging panels: a weight table, modifier gizmos, bone names in the viewport, mirror and symmetry, a mesh traced from alpha, deform keys, a bone map | `docs/PLAN-editor.md` §6 "Rigging panels". The Rig and Polygon tools, four mesh modes with a brush, and the rest-pose verbs are built |
 | Editor ergonomics: multi-select and box select, group, align and distribute, hide, lock and isolate, an outliner filter, drag-in import, light and camera gizmos, view modes, a pen tool, a material panel, an Events view that authors, a cost dock, and a library of materials, skies, models and templates | `docs/PLAN-editor-ergonomics.md`. `S.sel` is one index today and every command reads it; the fork's wireframe, normals and UV materials are the view modes |
 | The 3D look: `light3d` with shadows, an `environment` component for sky, image-based lighting, fog, exposure, tonemap and grading, a PBR material contract with texture maps and glTF import, alpha modes and glass, mirrors and reflection probes, finishing passes as post-process materials, a path-traced still | `docs/PLAN-3d-rendering.md`. The fork carries each pass; the only light today is hard-coded at window creation. Baked lightmaps are **not planned** |
-| Objects: torus and parametric primitives, glyph outlines as meshes, bezier paths with extrude, lathe and sweep, a boolean node, a cloner, the instanced draw path, vertex colours and morph targets, ellipse, star and ngon in 2D | `docs/PLAN-objects.md`. Every one is a `mesh` built headless in core, so colliders, picking and tests share the triangles; `docs/PLAN-text.md`, `docs/PLAN-particles.md` and `docs/PLAN-views-and-culling.md` draw through the paths it opens |
 | Texture import settings: nearest or linear filtering, repeat, mipmaps, anisotropy, sRGB, premultiplied alpha, project defaults, a sidecar the editor writes, GPU compression at export, atlases | `docs/PLAN-textures.md` |
 | Pause with a `process` mode per subtree, time scale, interpolation between fixed steps for smooth motion on fast displays, `max_fps` and vsync, a tick rate setting | `docs/PLAN-time.md` |
 | Script completion, hover, signature help, go-to-definition, symbols, formatting, rename and references in `balaur lsp` and the Script persona, a Docs dock, a VS Code extension | `docs/PLAN-script-tooling.md`. The server publishes diagnostics only today |
 | Text in the world: `render.draw_text_2d` and `draw_text`, `text2d`, `text3d`, outline and shadow, `render.text_size`, a `font` asset with bitmap fonts | `docs/PLAN-text.md` |
-| Particles in 3D as `particles3d`, and in both: emission shapes, randomness, sheets, attractors, colliders, trails, sub-emitters, mesh and lit particles, a compute stepper | `docs/PLAN-particles.md`; the instanced draw path is `docs/PLAN-objects.md` step 6. Renames `particles` to `particles2d` |
+| Particles in 3D as `particles3d`, and in both: emission shapes, randomness, sheets, attractors, colliders, trails, sub-emitters, mesh and lit particles, a compute stepper | `docs/PLAN-particles.md`; the instanced draw path is built, in `balaur_render::instancing`. Renames `particles` to `particles2d` |
 | The editor in a browser: a project kept on Gamend rather than only in the browser, and the native targets exported from a tab | `docs/PLAN-web-editor.md`, steps 4, 5 and the rest of 7. Built: the canvas, `fs` behind a backend, the editor as a page, hot reload driven by the write, a project kept in IndexedDB, a folder opened from a machine, and the pack and web-bundle exports a tab can finish by itself |
 | Projects in the cloud: files on a Gamend account with a version per save, share links with roles, presence in the viewport, comments anchored to nodes, a lock per scene, and a CRDT over the node table (`automerge`) if a team asks | `docs/PLAN-collaboration.md`. Gamend's accounts, REST, channels and object storage are the substrate; the browser editor keeps a project in IndexedDB today and nothing names one outside the browser it is in |
 | An MCP server: `balaur mcp` over stdio (`rmcp`) with the project, `check`, a headless run and a screenshot as tools, and `balaur edit --mcp` exposing the palette to an agent | `docs/PLAN-mcp.md`. Files are the API — the editor reloads what changes on disk — and `balaur api`, `check`, the debug adapter and the palette are the verbs; generation stays an extension |

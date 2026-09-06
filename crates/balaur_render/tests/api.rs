@@ -63,7 +63,7 @@ fn a_shape_component_puts_a_renderable_on_the_node() {
         .get::<&Renderable>(e)
         .expect("no Renderable was added");
     assert!(
-        matches!(r.shape, Shape::Ball { .. }),
+        matches!(r.shape, Shape::Solid(balaur_render::Solid::Ball { .. })),
         "a ball shape produced something else"
     );
 }

@@ -114,19 +114,76 @@ params = { speed = 0.4, tint = "#3aa0ff" }
 
 Files: `models/`. Used by: `collider2d.mesh`, `collider3d.mesh`, `mesh.source`, `occluder2d.mesh`, `polygon.mesh`, `shape2d.mesh`.
 
-Geometry for `mesh`-typed properties. A definition either names a `source`
-model file to import or carries the vertices itself as `positions` and
-`indices`, which is what lets a script build one at run time; naming both is
-refused. A `skin` table adds bone weights for skeletal animation.
+Geometry for `mesh`-typed properties. A definition names a `source` model
+file to import, or a `kind` of parametric primitive to build, or carries the
+vertices itself as `positions` and `indices`, which is what lets a script
+build one at run time; naming more than one is refused. A `skin` table adds
+bone weights for skeletal animation, `colors` a tint per vertex, and each
+`[[morphs]]` a named shape the mesh can be blended towards -- which a clip
+drives as `mesh/morph.<name>`.
+
+A primitive is built by the same mesher the `shape3d` component draws, so a
+collider over this asset collides exactly what is on screen. A `text` mesh
+is the outlines of a shaped run, filled with the counters left as holes; it
+sits on its baseline and is sized in world units.
 
 ```toml
 [[assets]]
 id = "blade"
 type = "mesh"
 source = "models/blade.obj"      # imported...
-# ...or, instead of `source`:
+# ...or a primitive, one of ball, cuboid, capsule, cylinder, cone, plane,
+# torus, pyramid, prism, tube:
+kind = "torus"
+radius = 1.0
+tube_radius = 0.3
+# ...or a word, shaped and filled from the project's fonts:
+kind = "text"
+text = "BALAUR"
+size = 1.0
+# ...or, instead of any of those:
 positions = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
 indices = [[0, 1, 2]]
+```
+
+### `path2d`
+
+Files: `paths/`. Used by: no component property yet.
+
+A bezier path: `points` is a run of cubic control points -- an anchor, two
+handles, the next anchor, and three more for every segment after that -- and
+`closed` joins the last segment back to the first anchor. Two points on their
+own are read as a straight line.
+
+A `path2d` is flat and a `path3d` is in space. What fills, extrudes, revolves
+or sweeps one is a `mesh` asset naming it; what strokes one is `shape2d`.
+
+```toml
+[[assets]]
+id = "outline"
+type = "path2d"
+closed = true
+points = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]
+```
+
+### `path3d`
+
+Files: `paths/`. Used by: no component property yet.
+
+A bezier path: `points` is a run of cubic control points -- an anchor, two
+handles, the next anchor, and three more for every segment after that -- and
+`closed` joins the last segment back to the first anchor. Two points on their
+own are read as a straight line.
+
+A `path2d` is flat and a `path3d` is in space. What fills, extrudes, revolves
+or sweeps one is a `mesh` asset naming it; what strokes one is `shape2d`.
+
+```toml
+[[assets]]
+id = "outline"
+type = "path2d"
+closed = true
+points = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]
 ```
 
 ### `sprite_sheet`

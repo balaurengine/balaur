@@ -27,7 +27,7 @@ same stepping code, so a feature added to one arrives in the other in the
 same step. The 2D key becomes `particles2d`, because D5 marks both sides
 once a sibling exists; `particles` is read for one release with a warning
 and listed under Breaking. The billboards draw through the fork's
-`set_instances`, the one instancing seam `docs/PLAN-objects.md` opens for
+`set_instances`, the one instancing seam `balaur_render::instancing` opens for
 its cloner and names as its step 6; this plan is what the emitter offers,
 that one is where the draw lands.
 

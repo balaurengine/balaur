@@ -20,6 +20,14 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 libm.workspace = true
 cosmic-text = { version = "0.19", default-features = false, features = ["std", "shape-run-cache", "swash"] }
 unicode-script = "0.5"
+# A glyph's outline, for text that is geometry rather than an atlas quad.
+# The version is cosmic-text's, so `Font::as_swash` hands back this crate's
+# `FontRef` and not a second copy of it.
+swash = "0.2.10"
+# Triangulation with holes: the ear clipper in core takes one ring, and a
+# letter's counters are rings of their own. `i_overlay`'s sibling, and it
+# scales to integers the same way.
+i_triangle = "0.48"
 
 [dev-dependencies]
 balaur.workspace = true

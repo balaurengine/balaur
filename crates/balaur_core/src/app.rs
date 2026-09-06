@@ -271,6 +271,7 @@ impl App {
         // the same asset for its trimesh and convex-hull colliders, and it
         // does not depend on the render crate.
         crate::mesh::register_mesh_asset(&mut app);
+        crate::path::register_path_assets(&mut app);
         crate::heightfield::register_heightfield_asset(&mut app);
         crate::voxels::register_voxels_asset(&mut app);
         // A bone is scene-tree data the same way: rendering skins with it,

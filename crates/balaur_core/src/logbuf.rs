@@ -128,11 +128,7 @@ impl<S: Subscriber> Layer<S> for CaptureLayer {
 /// Idempotent — a second call is a no-op, which keeps tests from fighting.
 #[allow(clippy::disallowed_methods, reason = "log timestamps, not simulation")]
 pub fn capture(max_level: LevelFilter) {
-    *lock_buffer() = Some(Buffer {
-        start: Instant::now(),
-        entries: VecDeque::new(),
-        total: 0,
-    });
+    open_buffer();
     let _ = tracing_log::LogTracer::init();
     let filter = EnvFilter::builder()
         .with_default_directive(max_level.into())
@@ -195,14 +191,28 @@ mod console {
 }
 
 /// Capture only, without stderr output. For tests.
-#[allow(clippy::disallowed_methods, reason = "log timestamps, not simulation")]
 pub fn capture_for_test() {
-    *lock_buffer() = Some(Buffer {
-        start: Instant::now(),
-        entries: VecDeque::new(),
-        total: 0,
-    });
+    open_buffer();
     let _ = tracing_subscriber::registry().with(CaptureLayer).try_init();
+}
+
+/// The buffer, opened if it is not open already.
+///
+/// Emphatically not a reset: the buffer is one per process, and the tests of
+/// one binary run in parallel threads that each ask for capture. Emptying it
+/// here would let one test wipe the lines another was still counting, which
+/// is a failure that only shows up on a machine scheduling them differently.
+/// A caller that wants a fresh start calls [`clear`], and they all do.
+#[allow(clippy::disallowed_methods, reason = "log timestamps, not simulation")]
+fn open_buffer() {
+    let mut guard = lock_buffer();
+    if guard.is_none() {
+        *guard = Some(Buffer {
+            start: Instant::now(),
+            entries: VecDeque::new(),
+            total: 0,
+        });
+    }
 }
 
 /// The most recent `n` entries, oldest first.

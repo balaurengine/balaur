@@ -769,9 +769,11 @@ dependencies = [
  "balaur_script",
  "cosmic-text",
  "egui",
+ "i_triangle",
  "image",
  "libm",
  "serde",
+ "swash",
  "tempfile",
  "toml",
  "tracing",
@@ -2565,6 +2567,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e9d4a992a9fe83130f41ceacceac3bb116a4355dfc9c8d6ecea4f1e4b4c6caf"
 
 [[package]]
+name = "i_triangle"
+version = "0.48.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "724353137db54dc96e4e92373f8e6017fcaac6e300ea41e5e320a132ab9264b2"
+dependencies = [
+ "i_key_sort",
+ "i_overlay",
+ "i_tree",
+]
+
+[[package]]
 name = "icu_collections"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2929,7 +2942,7 @@ dependencies = [
 [[package]]
 name = "kiss3d"
 version = "0.46.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#f4f389bbd2990ec35eecfd98146c04c58c7cb770"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#2fac4f359457038482a32f14a92c047b9b2c4841"
 dependencies = [
  "android-activity",
  "bitflags 2.13.1",
@@ -2964,7 +2977,7 @@ dependencies = [
 [[package]]
 name = "kiss3d-macro"
 version = "0.36.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#f4f389bbd2990ec35eecfd98146c04c58c7cb770"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-hooks#2fac4f359457038482a32f14a92c047b9b2c4841"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -12,7 +12,44 @@ use crate::viewport;
 
 /// The gizmo's own state, hung on `S.gizmo`.
 pub fn state() {
-    #{ hover: None, drag: None, in_viewport: false }
+    // `key` is what the hover test last answered to; see `hover_key`.
+    #{ hover: None, drag: None, in_viewport: false, key: [] }
+}
+
+// What the hover answers to: the pointer, the camera and the gizmo's own box.
+// Comparing them is cheap; `hit_test` behind them is the frame's dearest call.
+fn hover_key(S, cam, geo, mx, my) {
+    let out = [mx, my, S.screen_w, S.screen_h, cam.dpi, cam.dist];
+    for v in cam.eye { out.push(v); }
+    for v in cam.forward { out.push(v); }
+    match geo {
+        Some(geo) => {
+            for v in geo.center { out.push(v); }
+            for v in geo.he { out.push(v); }
+            for row in geo.basis {
+                for v in row { out.push(v); }
+            }
+            out.push(geo.ring);
+            out.push(geo.marker);
+        }
+        None => out.push(0.0),
+    }
+    out
+}
+
+// Element-wise: an array compares by identity in Rune, not by value.
+fn same_key(a, b) {
+    if a.len() != b.len() {
+        return false;
+    }
+    let i = 0;
+    while i < a.len() {
+        if a[i] != b[i] {
+            return false;
+        }
+        i += 1;
+    }
+    true
 }
 
 // Rotation basis from the engine's ZYX euler (roll=x, pitch=y, yaw=z):
@@ -599,10 +636,21 @@ pub fn update(S) {
     S.rig.hover = None;
 
     if S.gizmo.drag.is_none() {
-        S.gizmo.hover = match geo {
-            Some(geo) => if over_viewport && S.persona != "script" { hit_test(cam, geo, mx, my) } else { None },
-            None => None,
-        };
+        // Re-test only when something the answer depends on moved. A click is
+        // always let through: it acts on the hover rather than changing it.
+        let key = hover_key(S, cam, geo, mx, my);
+        let pressed = input::mouse_just_pressed(input::MOUSE_LEFT);
+        if pressed || !same_key(key, S.gizmo.key) {
+            S.gizmo.key = key;
+            S.gizmo.hover = match geo {
+                Some(geo) => if over_viewport && S.persona != "script" { hit_test(cam, geo, mx, my) } else { None },
+                None => None,
+            };
+        }
+    } else {
+        // A drag moves the node under the gizmo, so the key it was tested
+        // against is stale the moment the drag ends.
+        S.gizmo.key = [];
     }
 
     // The camera keeps the pointer unless a manipulation tool is active or

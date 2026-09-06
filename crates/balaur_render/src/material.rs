@@ -91,6 +91,9 @@ pub struct Material {
     pub params: Vec<(String, Param)>,
 }
 
+/// The feature a material names to be handed a colour per vertex.
+pub const VERTEX_COLOR: &str = "vertex_color";
+
 impl Material {
     /// Whether `features` asks for the last frame as `screen_texture`.
     #[must_use]
@@ -98,6 +101,15 @@ impl Material {
         self.features
             .iter()
             .any(|(name, on)| name == "screen" && *on)
+    }
+
+    /// Whether `features` asks for a colour per vertex. Only a material that
+    /// does gets the attribute, so nothing else pays for the buffer.
+    #[must_use]
+    pub fn reads_vertex_color(&self) -> bool {
+        self.features
+            .iter()
+            .any(|(name, on)| name == VERTEX_COLOR && *on)
     }
 }
 
@@ -525,6 +537,9 @@ pub struct Compiled {
     /// Whether the shader writes a previewed value out for one pixel — true
     /// only for a source `preview` rewrote.
     pub probes: bool,
+    /// Whether the material asked for a colour per vertex, which decides
+    /// whether its pipeline carries the attribute at all.
+    pub vertex_color: bool,
 }
 
 /// Link `material`'s shader and pack its values against what it declares.
@@ -572,6 +587,7 @@ pub fn compile_with(
         fields,
         params,
         probes,
+        vertex_color: material.reads_vertex_color(),
     })
 }
 

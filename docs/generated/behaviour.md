@@ -14,10 +14,12 @@ flow nothing checks.
 - a 2d one way collider carries its axis into the world
 - a 2d shape component puts a 2d renderable on the node
 - a 3d collider takes friction restitution and density
+- a 3d material carries the per copy inputs it never asked for
 - a 3d material links against the mesh contract
 - a 3d rig at rest is identity and a turned bone swings its vertices
 - a bad schema is rejected at registration
 - a ball is not picked at the corner a box would have
+- a bevel rounds the edges off
 - a binary file reads by id too
 - a binding call stays sub microsecond
 - a binding can call the function it was passed
@@ -27,7 +29,9 @@ flow nothing checks.
 - a body whose node was freed and restored falls again
 - a bone reports only the key that wrote it
 - a bone too short for the solver leaves the pose alone
+- a boolean can take another booleans result
 - a boolean lands on the same vertices twice
+- a boolean that did not change is not rebuilt
 - a border rounds a cuboid
 - a breakpoint lands on the next line with code
 - a breakpoint pauses update on its line with the arguments as locals
@@ -72,7 +76,12 @@ flow nothing checks.
 - a clip turns a bone by path and the palette follows
 - a clip with no positive length is rejected
 - a clockwise loop gives the same cover as the counter clockwise one
+- a cloner gives its child a pose per copy
+- a cloner reads back as it was written
+- a cloner stops at the cap
+- a cloner with no seed lays out exactly
 - a closed occluder edge list wraps around
+- a colour for every vertex or none at all
 - a colour may be a list of three or four channels
 - a colour may be set without alpha
 - a colour nests and pops back to the one outside
@@ -93,13 +102,18 @@ flow nothing checks.
 - a contact point is reported in world space
 - a container sizes to a label that changed this frame
 - a containers own padding is measured as well as drawn
+- a copy moved sideways lands where it was moved
+- a copy turned about the cloner lands turned
 - a corrupted asset is caught by its hash
+- a count of none still draws the template once
+- a counter stays a hole
 - a cue can be played at a point with no node behind it
 - a current camera component drives the camera config
 - a curve matches the shape godot gives that name
 - a curve name nothing defines is rejected naming it
 - a curve reads its own name back as a transition and a mode
 - a curve returns exactly the same bits twice
+- a cut keeps the shading of what it cut
 - a cycle is cut rather than looping forever
 - a data uri buffer needs no reader
 - a datagram over the path limit is refused rather than sent
@@ -112,6 +126,9 @@ flow nothing checks.
 - a definition with no type cannot choose a parser and says so
 - a delay holds the start before the first step
 - a dialog dims the screen and keeps clicks from what is behind
+- a difference is not the other way round
+- a difference takes the overlap out of the first
+- a difference takes the second child out of the first
 - a different seed gives a different stream
 - a directional light is aimed by the nodes rotation
 - a directional shadow quad is a parallel strip
@@ -160,7 +177,11 @@ flow nothing checks.
 - a full turn by on euler lands where it started
 - a gain is the product of the chain
 - a glb becomes a mesh with its skin
+- a glb keeps the colours it carries
+- a glb keeps the shapes it can blend towards
 - a gltf reads its buffer beside itself through the reader
+- a grid cloner fills a box
+- a grid cloner lays its child out in a box
 - a grid parses its cells
 - a grid parses row major
 - a grid places children in rows of columns
@@ -176,6 +197,7 @@ flow nothing checks.
 - a hex string is a colour wherever a colour is taken
 - a hidden layer is left out unless named
 - a hidden widget draws nothing and takes no clicks
+- a host clock stamps in its own seconds and a move keeps the stamp
 - a join frame carries its own ref as join ref
 - a joint holds two bodies together
 - a joint is remade when the body it lost returns
@@ -200,6 +222,7 @@ flow nothing checks.
 - a light is collected where the scene tree puts it
 - a light straight on contributes its colour over pi
 - a line that declares nothing says so
+- a linear cloner walks the step
 - a link error points at the file and line the author wrote
 - a link opened while resimulating never connects
 - a link with no faults delivers immediately and in order
@@ -220,16 +243,20 @@ flow nothing checks.
 - a malformed reference fails with a message naming the reference
 - a marked up colour lands on its own glyphs only
 - a matching fingerprint reports no differences
+- a material can read the copy it is drawing
 - a material names its shader
 - a material naming a missing shader says which file
 - a material on the map is kept and bumps the version when it changes
 - a material without a shader is an error
 - a matrix says it cannot be drawn
 - a measured span is filed under its name
+- a mesh carries a weight for every shape its asset has
 - a mesh collider without its asset says so
 - a mesh is picked over the box its vertices filled
 - a mesh that does not resolve warns and leaves the polygon empty
 - a mesh with no bounds is not pickable
+- a mesh with no shapes carries no weights
+- a mesh with no shapes carries none
 - a message round trips through one side and back
 - a message with no span places nothing
 - a method key fires on the node its track targets
@@ -264,8 +291,10 @@ flow nothing checks.
 - a node path round trips through find
 - a node present on one side only is reported as missing
 - a node returned to a script is still a node
+- a node squashed flat has no copies to place
 - a node starts visible and remembers being hidden
 - a node starts with no components
+- a node stops being cloned when the cloner goes
 - a node with no shape answers with an empty kind
 - a node without a script reports nil
 - a node without an occluder has no outline
@@ -297,6 +326,7 @@ flow nothing checks.
 - a pass with no widgets is quiet
 - a patch leaves the properties it does not name
 - a path finds a descendant and missing ones are none
+- a path with a broken segment count is refused
 - a pause holds the scope and nothing outside it
 - a paused player digests differently from a playing one
 - a paused replay holds the world still
@@ -310,6 +340,7 @@ flow nothing checks.
 - a plain node between container and child is seen through
 - a plain path is left alone
 - a plain string is one span
+- a plane is a grid facing up
 - a plane is pickable from above
 - a played handle answers playing until it is stopped
 - a played handle remembers its bus and volume
@@ -355,6 +386,8 @@ flow nothing checks.
 - a quad is triangulated as a fan
 - a queued clip starts when the one before it ends
 - a quic link carries both deliveries and keeps their labels
+- a radial cloner closes its ring
+- a rail too short to sweep says so
 - a ray beside the box misses
 - a ray down the z axis hits the near face of a cube
 - a ray finds the nearest collider
@@ -405,6 +438,7 @@ flow nothing checks.
 - a respawned node brings its components back
 - a response arrives in the snapshot with status and body
 - a restored world digests as it did when captured
+- a revolved profile makes a solid of revolution
 - a rig at rest has an identity palette
 - a rig that has not started playing is at rest
 - a rollback across a playing clip restores the playhead
@@ -422,11 +456,13 @@ flow nothing checks.
 - a rune script logs in and calls a hook
 - a rune script opens echoes and closes
 - a rune script sends and receives a binary frame
+- a sampled curve stays within the tolerance
 - a save from a newer build is refused
 - a saved animation node no longer warns that nothing handles it
 - a scaled rig scales the rest pose with it
 - a scene and a binary are indexed but not stamped
 - a scene asset block resolves by its id from a node in that scene
+- a scene can set one shapes weight
 - a scene document holding an inline clip encodes and parses back
 - a scene files a node under its tags
 - a scene property is on this before init runs
@@ -468,6 +504,7 @@ flow nothing checks.
 - a scrub poses a paused clip where the playhead lands
 - a second wait counts simulation time not the clock
 - a security directory that does not end the file is ignored
+- a seed scatters and the same seed scatters the same way
 - a seek does not fire the keys it skipped
 - a self crossing loop still yields a triangulation
 - a sensor reports overlap without collision response
@@ -491,6 +528,7 @@ flow nothing checks.
 - a shape3d remembers the material it names
 - a shape component puts a renderable on the node
 - a shape query finds what it overlaps
+- a shape round trips through its properties
 - a shapecast stops at the first thing in the way
 - a share is measured against one sixty hertz frame
 - a shared closure is callable from another unit
@@ -512,6 +550,8 @@ flow nothing checks.
 - a slot name that could escape the directory is refused
 - a slot round trips what the game put in it
 - a snapshot round trips through bytes
+- a solid carries a normal and a uv per vertex
+- a solid fills the box it claims
 - a sound component autoplays and stop on silences it
 - a sound on a bus nobody declared is left at unity
 - a sound on a child bus follows master the slider and its own volume
@@ -531,9 +571,11 @@ flow nothing checks.
 - a sprite with no material names none
 - a sprite with no texture is a placeholder
 - a square becomes two triangles
+- a square cornered cuboid is twelve triangles
 - a stale input does not mask a correction that can still be made
 - a standalone binary gives the pack back
 - a standalone file is read back from disk
+- a star keeps its notches
 - a step can tween another node from the same call
 - a step over the whole clip passes every key exactly once
 - a step targeting a node that is not there says which one
@@ -543,6 +585,7 @@ flow nothing checks.
 - a subtree is collected parent first
 - a surface appears at full alpha rather than fading in
 - a suspended task dies with its node
+- a swept profile follows its rail
 - a tab shows the page it names and only that one
 - a table for a plugin this build has not got is still an error
 - a table in plugins leaves the module on
@@ -558,6 +601,7 @@ flow nothing checks.
 - a texture named beside the sheet wins and reads back
 - a theme can be set from a script
 - a theme is inherited by everything under it
+- a thousand copies are one list
 - a throw is logged and passed over unless break on error is on
 - a throw is reported at the line that threw
 - a tick publishes the frame it just ran
@@ -577,6 +621,7 @@ flow nothing checks.
 - a transform survives a write and read
 - a triangle becomes three vertices and one face
 - a trigger calls its script when something enters
+- a turned and scaled node still lands its copies
 - a tween captures the component value it starts from
 - a tween dies with the node it was made on
 - a tween drives a component property the animation crate does not depend on
@@ -585,7 +630,10 @@ flow nothing checks.
 - a tween that finished after the snapshot comes back with it
 - a tween that reaches its end stops being a tween
 - a tween that would run backwards forever is rejected
+- a two dimensional boolean fills the shapes combined
 - a typed binding reaches rune
+- a union draws both children as one solid
+- a union is both solids less the overlap
 - a uuid from the engine stream is well formed and repeats from a seed
 - a value inside a helper is previewable
 - a value tween is read not written
@@ -606,6 +654,11 @@ flow nothing checks.
 - a width breaks a long line into more than one
 - a windowed backend keeps the fallback off its buffers
 - a windows target downloads the exe asset
+- a word becomes triangles in the plane
+- a word is a mesh asset a scene can name
+- a word is sized in world units
+- a word nothing can draw says so
+- a word sits on its baseline
 - a write is read back and moves the clock
 - a write makes its directories
 - a written spec is taken as it stands and orders the rows
@@ -623,6 +676,7 @@ flow nothing checks.
 - alignment is a block property not a span
 - an absent pad reads neutral and cannot be written
 - an access point corner is one of four
+- an angle overrides the closing ring
 - an app without a backend has no script host
 - an arc starts and ends on its angles
 - an argument is interpolated by name
@@ -657,6 +711,7 @@ flow nothing checks.
 - an event reaches its subscribers on the next frame
 - an expectation warns while unmet and clears when met
 - an export compiles roots and lets them carry their modules
+- an extruded outline is a closed solid
 - an http error status is a response not an error
 - an id reference loads the file the index names
 - an image is a span of its own with a box
@@ -670,6 +725,7 @@ flow nothing checks.
 - an injected divergence is caught and named
 - an inline definition survives being duplicated and reloaded
 - an inline library autoplays the entry it names
+- an inline mesh can carry its own colours
 - an inline mesh resolves to triangles in the nodes space
 - an inline table is a definition and a string is a reference
 - an input for an unknown player or an impossible tick is refused
@@ -677,6 +733,8 @@ flow nothing checks.
 - an installer identity is the application one renamed
 - an instance builds the prefab under the node that names it
 - an integer is accepted where a float is wanted
+- an intersection is only the overlap
+- an intersection keeps only the overlap
 - an interval and a call sequence among the property steps
 - an occluder declared before its collider still resolves
 - an occluder defaults to the nodes collider outline
@@ -705,6 +763,8 @@ flow nothing checks.
 - an unknown language is a named error
 - an unknown light kind is an error not a panic
 - an unknown loop mode is rejected naming it
+- an unknown mode is refused rather than guessed
+- an unknown operation is refused rather than guessed
 - an unknown path is nil rather than an error
 - an unknown preset is an error
 - an unknown scene asset id is named in a warning and the scene still loads
@@ -792,6 +852,7 @@ flow nothing checks.
 - dot dot is popped before the key
 - draw ui is actually called
 - draw ui sees the rects from its own frame
+- driving one weight leaves the others alone
 - duplicate hands back a private copy rather than the shared one
 - each event keeps its own place
 - each part of a fingerprint is reported separately
@@ -822,14 +883,21 @@ flow nothing checks.
 - every declared body kind is accepted
 - every declared shape builds
 - every declared shape is accepted
+- every drawn node under a cloner is multiplied
 - every enum option a schema offers round trips
+- every flat shape fills
+- every mode has a word and answers to it
 - every named curve is reachable by name
 - every named key can actually be pressed
+- every operation has a word and answers to it
+- every outline runs counter clockwise
 - every parametric collider kind applies
 - every player advances in the same order on every run
 - every plugin loads in name order
 - every registered component is tagged
 - every shape kind the schema offers is accepted
+- every solid faces outwards
+- every solid is closed
 - every tuning key that can be written reads back
 - exists answers for all three reference forms
 - expect arity names the function and both counts
@@ -842,6 +910,7 @@ flow nothing checks.
 - first divergence names the node that moved
 - fixed steps counts what the accumulator drained
 - fixed update ignores the frame time that update follows
+- flattening spends points where the curve bends
 - flip bends the elbow the other way to the same tip
 - flips round trip and do not force a rebuild
 - focus skips what it could not activate
@@ -925,6 +994,7 @@ flow nothing checks.
 - moving a node by one ulp changes the digest
 - moving a parent bus reroutes the sounds on its children
 - moving a parent moves the subtree
+- moving an operand recomputes the result
 - naming a source and vertices at once is refused
 - naming another file swaps the playback to it
 - no bindings accepts registrations and discards them
@@ -1048,6 +1118,7 @@ flow nothing checks.
 - simulation 2d is bitwise reproducible
 - simulation is bitwise reproducible
 - slots lists what was written and remove takes it back
+- solids that miss each other answer plainly
 - source is not mistaken for a unit
 - spans sharing a name are summed for the reader
 - speed scales the whole sequence
@@ -1117,6 +1188,7 @@ flow nothing checks.
 - the netcode page produces the faults it describes
 - the neutral value accepts anything
 - the node api is available as methods
+- the operands stay in the tree and stop drawing
 - the order does not depend on how the plugins were listed
 - the pad vocabulary and the gilrs mapping agree
 - the padding before a certificate table is searched
@@ -1141,8 +1213,12 @@ flow nothing checks.
 - the rng is reproducible from a seed
 - the rng stream position is part of the digest
 - the same keys produce the same actions every run
+- the same parameters give the same mesh
+- the same path gives the same mesh
 - the same setup animates identically twice
 - the same setup simulates identically twice
+- the same two solids give the same result
+- the same word comes back the same
 - the scale factor is readable and settable
 - the scene root is a node and can be spawned under
 - the screen feature binds the last frame and nothing else does
@@ -1165,6 +1241,7 @@ flow nothing checks.
 - the value at the line replaces the colour
 - the wall clock is read at the top of a tick
 - the websocket table of the manifest sets the defaults
+- the weights read back under their names
 - the widget layer can be placed and turned off
 - then on a tween already over starts at once
 - then waits for the other tween and starts from where it left the node
@@ -1181,6 +1258,7 @@ flow nothing checks.
 - tuples map positionally
 - turning off a plugin every build has is refused
 - turning off a plugin this build has not got is not an error
+- turning the cloner turns the arrangement
 - tween to is the same tween spelled shorter
 - two bone ik puts the tip on a reachable target
 - two engines agree tick for tick over quic
@@ -1217,3 +1295,4 @@ flow nothing checks.
 - world transforms compose down the chain
 - world transforms report the composed result
 - writing a manifest leaves what it does not describe alone
+- writing one file leaves the others stamps alone

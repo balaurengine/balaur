@@ -4,7 +4,7 @@
 
 Balaur's own source is licensed MIT (see [LICENSE](LICENSE)). A built
 engine, editor or exported game is a combined work that also contains the
-733 packages listed here, some under licences that are not MIT.
+734 packages listed here, some under licences that are not MIT.
 Ship this file with any binary you distribute.
 
 Two consequences worth stating plainly:
@@ -22,7 +22,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 
 | Licence | Packages |
 | --- | --- |
-| `MIT OR Apache-2.0` | 393 |
+| `MIT OR Apache-2.0` | 394 |
 | `MIT` | 134 |
 | `Apache-2.0 OR MIT` | 50 |
 | `Zlib OR Apache-2.0 OR MIT` | 27 |
@@ -270,6 +270,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [i_overlay](https://github.com/iShape-Rust/iOverlay) | 8.1.0 | `MIT OR Apache-2.0` |
 | [i_shape](https://github.com/iShape-Rust/i_shape) | 4.0.0 | `MIT` |
 | [i_tree](https://github.com/iShape-Rust/iTree) | 0.19.0 | `MIT` |
+| [i_triangle](https://github.com/iShape-Rust/iTriangle) | 0.48.0 | `MIT OR Apache-2.0` |
 | [icu_collections](https://github.com/unicode-org/icu4x) | 2.3.0 | `Unicode-3.0` |
 | [icu_locale_core](https://github.com/unicode-org/icu4x) | 2.3.0 | `Unicode-3.0` |
 | [icu_normalizer](https://github.com/unicode-org/icu4x) | 2.3.0 | `Unicode-3.0` |
@@ -799,7 +800,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 These packages ship no licence file in their published archive, so the
 SPDX expression in the table above is the whole of what their authors
 granted; where it names a licence, that licence's text appears below,
-reproduced from a crate that does ship it: accesskit, asn1-rs-impl, block2, codespan-reporting, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gilrs, gilrs-core, gl_generator, harfrust, i_key_sort, i_overlay, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, musli, musli-core, musli-macros, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, parry2d, parry3d, profiling, profiling-procmacros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, rstar, rune, rune-alloc, rune-alloc-macros, rune-core, rune-macros, rune-tracing, rune-tracing-macros, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, syntree, tokrepr, tokrepr-derive, valuable, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, zune-inflate.
+reproduced from a crate that does ship it: accesskit, asn1-rs-impl, block2, codespan-reporting, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gilrs, gilrs-core, gl_generator, harfrust, i_key_sort, i_overlay, i_triangle, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, musli, musli-core, musli-macros, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, parry2d, parry3d, profiling, profiling-procmacros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, rstar, rune, rune-alloc, rune-alloc-macros, rune-core, rune-macros, rune-tracing, rune-tracing-macros, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, syntree, tokrepr, tokrepr-derive, valuable, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, zune-inflate.
 
 ### LICENSE-APACHE — 158 packages
 

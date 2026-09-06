@@ -162,8 +162,8 @@ the module.
 | The progressive path tracer, denoise, aperture (*fork* `renderer/raytracer`) | Step 7: a still from the editor's Export sheet. Never a run mode; a game never depends on it |
 | AOVs: depth, normals, segmentation (*fork* `builtin/aov.rs`) | Not planned for games. `docs/PLAN-editor-ergonomics.md` may borrow the normals view |
 | 2D global illumination (*fork* `post_processing/gi2d.rs`) | Not planned; the light map is 2D's answer. Revisit only if `light2d` shadows prove too hard-edged |
-| Morph targets and vertex colours (*fork* `builtin/deform.rs`) | `docs/PLAN-objects.md` |
-| Instancing (*fork* `set_instances`) | `docs/PLAN-objects.md`, the cloner |
+| Morph targets and vertex colours | Built: `MeshData` carries both, and a material asks for the colours with `features = { vertex_color = true }` |
+| Instancing (*fork* `set_instances`) | Built: `balaur_render::instancing`, which the `cloner` draws through |
 | Baked lightmaps | Not planned; nothing in the fork bakes, and IBL plus shadows is what a design tool ships |
 
 ## 3. Steps
