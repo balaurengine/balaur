@@ -25,3 +25,9 @@ rustflags = ["-Clink-arg=-Wl,-rpath,/usr/lib/swift"]
 
 [target.aarch64-apple-ios-sim]
 rustflags = ["-Clink-arg=-Wl,-rpath,/usr/lib/swift"]
+
+# HarfBuzz's subsetter is one translation unit, and a debug build of it holds
+# more sections than a COFF object takes without /bigobj. cc reads this per
+# target, so no other host sees the flag.
+[env]
+CXXFLAGS_x86_64-pc-windows-msvc = "/bigobj"
