@@ -216,10 +216,8 @@ fn tab_row(S, k, side, d) {
     ui::separator(k.line_soft);
 }
 
-// How wide the tab row's own pills are, near enough to decide what fits
-// beside them. Measured from the names rather than counted at a flat width:
-// `Bone map` is four times `Set`, and a count that ignores them ran the hint
-// over the row as soon as a dock was added.
+// How wide the tab row's own pills are, from the names: a flat width per tab
+// ran the hint over the row as soon as `Bone map` joined.
 fn tabs_width(S, id) {
     let total = 0.0;
     for tab in S.docks[side_for(S, id)].tabs {

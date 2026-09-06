@@ -425,7 +425,7 @@ pub struct PackReport {
     pub sections: Vec<SectionReport>,
     /// Extensions across the asset section, heaviest first.
     pub extensions: Vec<ExtensionReport>,
-    /// The heaviest assets, at most [`LARGEST_ENTRIES`] of them.
+    /// The heaviest assets, ten of them at most.
     pub largest: Vec<EntryReport>,
     /// What [`Pack::strip`] would drop, sorted.
     pub unreferenced: Vec<String>,

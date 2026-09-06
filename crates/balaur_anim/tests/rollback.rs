@@ -242,13 +242,16 @@ fn a_rollback_puts_a_jiggle_spring_back_mid_swing() {
     let hip = bone("Hip", rig, "rest_position = [0.0, 0.0]");
     bone("Tail", hip, "rest_position = [1.0, 0.0]\nlength = 1.0");
     balaur_core::skeleton::apply_rest(&mut app.engine.world_mut(), rig);
+    // On the Hip rather than on the rig: the rig node carries no bone, so a
+    // chain starting there spends its first segment on nothing.
     let params: toml::Value =
-        toml::from_str("kind = \"jiggle\"\nuse_gravity = true\nstiffness = 5.0").unwrap();
+        toml::from_str("kind = \"jiggle\"\nbone = \"Hip\"\nuse_gravity = true\nstiffness = 5.0")
+            .unwrap();
     components::add(&app.engine, rig, "modifier2d", Some(&params)).unwrap();
 
     tick(&mut app, 20);
     let taken = snapshot::capture(&app.engine);
-    let mid = digest::of(&app.engine);
+    let mid = digest::digest(&app.engine).0;
     let swinging = app
         .engine
         .world()
@@ -272,7 +275,7 @@ fn a_rollback_puts_a_jiggle_spring_back_mid_swing() {
 
     snapshot::restore(&app.engine, &taken);
     assert_eq!(
-        digest::of(&app.engine),
+        digest::digest(&app.engine).0,
         mid,
         "a restored spring must hash the way it did"
     );

@@ -14,7 +14,7 @@
 //! body under a moved parent would drift by the parent's transform every
 //! step. The container's own transform is identity and stays that way.
 //!
-//! [`blend_system`] is the way back: the `ragdoll` component on the rig root
+//! The blend system is the way back: the `ragdoll` component on the rig root
 //! carries a weight, and each frame every bone is moved from the pose the
 //! clip just wrote toward the pose its body ended up in. At `0` the clip wins
 //! outright and the bodies simulate unseen, at `1` the rig is limp, and

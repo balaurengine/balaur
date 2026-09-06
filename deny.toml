@@ -16,6 +16,13 @@ yanked = "deny"
 # The unmaintained crates (rusttype, ttf-parser, paste) all come from kiss3d.
 # Actual vulnerabilities stay errors in cargo-deny regardless of this setting.
 unmaintained = "none"
+# Two denial-of-service advisories against `quick-xml` 0.31, which `tiled`
+# 0.16 pins and which is its newest release. Both need XML an attacker chose:
+# they are reachable only through `balaur import level.tmx`, which a developer
+# runs on a file they picked, at author time. No shipped game parses XML, and
+# `tiled` is not in a runtime build. Drop these the day `tiled` moves to
+# `quick-xml` 0.41, or the day the engine reads TMX itself.
+ignore = ["RUSTSEC-2026-0194", "RUSTSEC-2026-0195"]
 
 [sources]
 unknown-registry = "deny"
