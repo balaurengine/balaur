@@ -1608,6 +1608,12 @@ pub fn librarydemo(S) {
     shell::undo(S);
     check(S.doc.len() == was, "undo takes the instance back");
 
+    // The material assignment goes too: leaving the node pointing at a file
+    // this then removes is a shader the renderer relinks and cannot find.
+    shell::undo(S);
+    check(util::obj(S.doc[at].get("shape3d").unwrap_or(#{})).get("material").unwrap_or("") != placed,
+        "undo takes the material off the node");
+
     // Only what this run placed: `install` numbers a name it finds taken, so
     // nothing here can be a file the example owns.
     for rel in named_under(S, "materials") {
