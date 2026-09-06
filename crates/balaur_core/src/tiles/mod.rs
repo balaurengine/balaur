@@ -10,6 +10,10 @@ use std::collections::BTreeMap;
 use anyhow::{Result, anyhow, bail};
 use glamx::Vec2;
 
+pub mod rules;
+
+pub use rules::{Mode, Outside, Rule, Terrain, resolve, template};
+
 use crate::components::as_f64;
 
 pub const TILESET_ASSET_TYPE: &str = "tileset";
@@ -74,6 +78,10 @@ pub struct TileSet {
     pub columns: u32,
     /// Keyed by tile id, ordered so two runs build a collider the same way.
     pub tiles: BTreeMap<u32, Tile>,
+    /// What a painted value is called, and how its tiles are chosen.
+    pub terrains: Vec<Terrain>,
+    /// Ordered: the first rule that matches a cell wins.
+    pub rules: Vec<Rule>,
 }
 
 impl TileSet {
@@ -135,6 +143,8 @@ pub fn parse_tileset(value: &toml::Value) -> Result<TileSet> {
         margin: gap("margin")?,
         columns: columns as u32,
         tiles: parse_tiles(value)?,
+        terrains: rules::parse_terrains(value)?,
+        rules: rules::parse_rules(value)?,
     })
 }
 
@@ -444,11 +454,9 @@ mod tests {
 
     #[test]
     fn a_tile_says_what_it_collides_as() {
-        let set = set(
-            "texture = \"a.png\"\ntile_size = 16\ncolumns = 4\n\
+        let set = set("texture = \"a.png\"\ntile_size = 16\ncolumns = 4\n\
              [tiles.1]\ncollision = \"full\"\n\
-             [tiles.2]\ncollision = \"full\"\none_way = true\n",
-        );
+             [tiles.2]\ncollision = \"full\"\none_way = true\n");
         assert_eq!(set.group(1), Some(Group::Solid));
         assert_eq!(set.group(2), Some(Group::OneWay));
         assert_eq!(
@@ -506,10 +514,8 @@ mod tests {
 
     #[test]
     fn only_the_solid_cells_reach_a_collider() {
-        let set = set(
-            "texture = \"a.png\"\ntile_size = 16\ncolumns = 4\n\
-             [tiles.1]\ncollision = \"full\"\n",
-        );
+        let set = set("texture = \"a.png\"\ntile_size = 16\ncolumns = 4\n\
+             [tiles.1]\ncollision = \"full\"\n");
         let map = grid(&[&[1, -1], &[1, 1]]);
         let solid = map.group_cells(&set, Group::Solid);
         assert_eq!(solid.len(), 3);
