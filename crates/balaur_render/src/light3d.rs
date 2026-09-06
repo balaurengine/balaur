@@ -309,7 +309,7 @@ fn environment_schema() -> String {
     let tonemaps = crate::shape::options(words::TONEMAPS);
     format!(
         r#"current = {{ type = "bool", default = true, description = "Whether this is the environment the scene draws under; the last current one in tree order wins" }}
-sky = {{ type = "asset", asset = "texture", default = "", description = "Equirectangular .hdr or .exr; it draws behind the scene and lights it. Empty is no sky" }}
+sky = {{ type = "string", default = "", description = "Equirectangular image, project-relative: .hdr, .exr or .png. It draws behind the scene and lights it. Empty is no sky" }}
 sky_intensity = {{ type = "float", default = 1.0, min = 0.0, description = "Brightness of the sky, and of the light it casts" }}
 sky_rotation = {{ type = "float", default = 0.0, description = "Turn of the sky about y, in degrees" }}
 show_sky = {{ type = "bool", default = true, description = "False lights the scene from the sky without drawing it, leaving the background colour" }}
