@@ -47,7 +47,9 @@ fn catalogue(S) {
     S.library.catalogue
 }
 
-/// Copy one library file into the edited project, keeping its directory.
+/// Copy one library file into the edited project, keeping its directory and
+/// never writing over a file already there: a project with its own
+/// `materials/metal.toml` keeps it, and the library's lands beside it.
 /// Answers the project-relative path, or `None` when it could not be read.
 fn install(S, rel) {
     let from = ROOT + "/" + rel;
@@ -66,9 +68,29 @@ fn install(S, rel) {
     if dir != "" {
         fs::mkdir(S.game_root + "/" + dir);
     }
-    fs::copy(from, S.game_root + "/" + rel);
+    let target = free_name(S, rel);
+    fs::copy(from, S.game_root + "/" + target);
     model::forget(S, None);
-    Some(rel)
+    Some(target)
+}
+
+/// `rel`, or `rel` with a number before its extension when the project
+/// already has that file.
+fn free_name(S, rel) {
+    if !fs::exists(S.game_root + "/" + rel) {
+        return rel;
+    }
+    let cut = util::index_of(rel, ".");
+    let stem = match cut {
+        Some(at) => rel[..at],
+        None => rel,
+    };
+    let extension = if rel.len() > stem.len() { rel[stem.len()..] } else { "" };
+    let n = 2;
+    while fs::exists(S.game_root + "/" + format!("{}_{}{}", stem, n, extension)) {
+        n += 1;
+    }
+    format!("{}_{}{}", stem, n, extension)
 }
 
 /// Put an entry into the project: its own file, then whatever it needs.

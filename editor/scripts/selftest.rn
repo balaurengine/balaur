@@ -1451,6 +1451,15 @@ pub fn selecting(S) {
     log::info("selftest selecting: done");
 }
 
+/// Every file a previous drop test left under `art/`.
+fn clear_drops(S) {
+    for f in util::vec(fs::list(S.game_root + "/art")) {
+        if f.name.starts_with("selftest-drop") {
+            fs::remove(S.game_root + "/art/" + f.name);
+        }
+    }
+}
+
 /// Drag-in: one case per extension, with no window. The image and font cases
 /// copy a real file; the import case is only asked whether it claims the name,
 /// because running `balaur import` needs a model to import.
@@ -1466,6 +1475,9 @@ pub fn dropping(S) {
 
     let root = S.game_root + "/";
     let source = root + "selftest-drop.png";
+    // Anything a previous run left: `copy_in` numbers a name it finds taken,
+    // so a leftover would make this run write `_3` and assert on `_2`.
+    clear_drops(S);
     // A real image: a 2D drop makes a `sprite`, which sizes itself from the
     // picture and cannot do that with a file of prose.
     fs::copy("assets/balaur-logo.png", source);
@@ -1485,8 +1497,7 @@ pub fn dropping(S) {
     check(S.doc.len() == was, "undo takes both back");
 
     fs::remove(source);
-    fs::remove(root + "art/selftest-drop.png");
-    fs::remove(root + "art/selftest-drop_2.png");
+    clear_drops(S);
     log::info("selftest dropping: done");
 }
 
@@ -1533,6 +1544,17 @@ pub fn eventviews(S) {
 }
 
 
+/// The project-relative files directly under one directory.
+fn named_under(S, dir) {
+    let out = [];
+    for f in util::vec(fs::list(S.game_root + "/" + dir)) {
+        if !f.is_dir {
+            out.push(dir + "/" + f.name);
+        }
+    }
+    out
+}
+
 /// The library: what the manifest lists, what placing an entry copies, and
 /// that a material lands on the selected node.
 pub fn librarydemo(S) {
@@ -1555,30 +1577,48 @@ pub fn librarydemo(S) {
             return;
         }
     };
+    // Which files the project already had, so the check below is that the
+    // library added one rather than wrote over one.
+    let before = named_under(S, "materials");
     selection::only(S, at);
     library::apply_material(S, metal);
-    check(fs::exists(root + "materials/metal.toml"), "placing a material copies its file");
-    check(fs::exists(root + "shaders/pbr_surface.wesl"), "and the shader it needs");
-    let shape = util::obj(S.doc[at].get("shape3d").unwrap_or(#{}));
-    check(shape.get("material") == Some("materials/metal.toml"),
-        "and points the selected node at it");
+    let after = named_under(S, "materials");
+    check(after.len() == before.len() + 1, "placing a material adds a file");
+    let placed = util::obj(S.doc[at].get("shape3d").unwrap_or(#{})).get("material").unwrap_or("");
+    check(fs::exists(root + placed), "the node points at a file that is there");
+    check(placed.starts_with("materials/"), "under materials/: " + placed);
+    for rel in before {
+        check(rel != placed, "and never over a file the project already had");
+    }
     check(mirror_resolves(S), "the mirror still resolves");
 
     // A lighting setup is a scene, so placing one instances it.
+    let scenes_before = named_under(S, "scenes");
     let was = S.doc.len();
     library::place(S, #{
         id: "studio_light", kind: "scene", name: "Studio lights",
         file: "scenes/studio.toml",
     });
-    check(fs::exists(root + "scenes/studio.toml"), "placing a setup copies its scene");
+    check(named_under(S, "scenes").len() == scenes_before.len() + 1,
+        "placing a setup adds a scene");
     // One row for the instance and one per node inside it: expanding a
     // prefab puts its own rows in the document too.
     check(S.doc.len() > was + 1, "and instances it as a prefab");
     shell::undo(S);
     check(S.doc.len() == was, "undo takes the instance back");
 
-    fs::remove(root + "materials/metal.toml");
+    // Only what this run placed: `install` numbers a name it finds taken, so
+    // nothing here can be a file the example owns.
+    for rel in named_under(S, "materials") {
+        if !util::contains(before, rel) {
+            fs::remove(root + rel);
+        }
+    }
+    for rel in named_under(S, "scenes") {
+        if !util::contains(scenes_before, rel) {
+            fs::remove(root + rel);
+        }
+    }
     fs::remove(root + "shaders/pbr_surface.wesl");
-    fs::remove(root + "scenes/studio.toml");
     log::info("selftest librarydemo: done");
 }

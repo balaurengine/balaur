@@ -83,7 +83,8 @@ fn state_of(app: &balaur::App, entity: balaur::hecs::Entity) -> String {
 fn score(app: &balaur::App) -> f64 {
     let variables = app.engine.resource::<Variables>();
     let held = variables.borrow();
-    held.get("score").map_or(-1.0, balaur_core::variables::as_num)
+    held.get("score")
+        .map_or(-1.0, balaur_core::variables::as_num)
 }
 
 /// Three clicks on the ball, and nothing in the project is a script.
@@ -184,7 +185,8 @@ pub fn on_variable_changed(this, name, value) {
             .set("score", &Value::Num(7.0))
             .unwrap();
     }
-    app.update(0.016);
+    // One frame, so the dispatch at the end of the tick runs.
+    app.tick(0.016);
 
     let rune = balaur::rune::rune_of(&app.engine);
     assert_eq!(
