@@ -244,3 +244,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: ./scripts/draft_release.sh dist
+      # The site follows the rolling nightly; it pulls a version tag by hand.
+      - name: Tell the website
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.WEBSITE_DISPATCH_TOKEN }}
+        run: |
+          gh api repos/balaurengine/balaur-website/dispatches \
+            -f event_type=engine-nightly \
+            -f "client_payload[version]=$(cat dist/VERSION)"
