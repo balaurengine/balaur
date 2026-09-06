@@ -893,43 +893,51 @@ fn polygon_palette(
     balaur_core::skeleton::joint_matrices_2d(world, entity, rig, &bones)
 }
 
-/// A polyline's points from its `mesh` asset, flattened to xy. Empty when the
-/// asset is missing or unreadable, which the caller treats as nothing to draw.
+/// A `path2d` asset sampled into points, or `None` when the reference names
+/// no path -- which is a mesh reference and not a mistake.
+fn sampled_path(app: &App, reference: &str) -> Option<Vec<Vec2>> {
+    let path = balaur_core::assets::load_typed::<balaur_core::path::Path2d>(&app.engine, reference)
+        .ok()?;
+    match path.sample(balaur_core::path::TOLERANCE) {
+        Ok(points) => Some(points.into_iter().map(|p| Vec2::new(p.x, p.y)).collect()),
+        Err(err) => {
+            tracing::error!("path '{reference}': {err:#}");
+            Some(Vec::new())
+        }
+    }
+}
+
+/// A `mesh` asset's vertices, flattened to xy. `None` when it will not load,
+/// which is logged rather than fatal.
+fn mesh_points(app: &App, reference: &str) -> Option<Vec<Vec2>> {
+    let loaded =
+        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(&app.engine, reference)
+            .and_then(|definition| balaur_core::mesh::load_from(&app.engine, &definition));
+    match loaded {
+        Ok(data) => Some(
+            data.positions
+                .iter()
+                .map(|p| Vec2::new(p[0], p[1]))
+                .collect(),
+        ),
+        Err(err) => {
+            tracing::error!("polyline '{reference}': {err:#}");
+            None
+        }
+    }
+}
+
+/// A polyline's points from the `path2d` or `mesh` asset it names, flattened
+/// to xy. Empty when neither loads, which the caller treats as nothing to draw.
 fn polyline_points(app: &App, reference: Option<&str>, closed: bool) -> Vec<Vec2> {
     let Some(reference) = reference.filter(|r| !r.is_empty()) else {
         return Vec::new();
     };
     // A `path2d` first: a stroked curve names one, and a traced outline names
     // a mesh. Both end as the same chain of points.
-    let mut points: Vec<Vec2> = match balaur_core::assets::load_typed::<balaur_core::path::Path2d>(
-        &app.engine,
-        reference,
-    ) {
-        Ok(path) => match path.sample(balaur_core::path::TOLERANCE) {
-            Ok(points) => points.into_iter().map(|p| Vec2::new(p.x, p.y)).collect(),
-            Err(err) => {
-                tracing::error!("path '{reference}': {err:#}");
-                return Vec::new();
-            }
-        },
-        Err(_) => {
-            let loaded = balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(
-                &app.engine,
-                reference,
-            )
-            .and_then(|definition| balaur_core::mesh::load_from(&app.engine, &definition));
-            match loaded {
-                Ok(data) => data
-                    .positions
-                    .iter()
-                    .map(|p| Vec2::new(p[0], p[1]))
-                    .collect(),
-                Err(err) => {
-                    tracing::error!("polyline '{reference}': {err:#}");
-                    return Vec::new();
-                }
-            }
-        }
+    let Some(mut points) = sampled_path(app, reference).or_else(|| mesh_points(app, reference))
+    else {
+        return Vec::new();
     };
     // A closed chain repeats its first point rather than carrying a flag: the
     // renderer draws segments, and the join is just one more of them.

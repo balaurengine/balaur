@@ -20,8 +20,8 @@ use crate::{Renderable, Renderable2d};
 /// Where a node draws its copies: one world matrix each, the first being
 /// where the node already is.
 ///
-/// Written by [`resolve_cloners_system`] onto every drawn node under a
-/// cloner, and read by a backend, which turns them into instances.
+/// Written onto every drawn node under a cloner once the poses have settled
+/// for the tick, and read by a backend, which turns them into instances.
 pub struct Clones(pub Vec<Mat4>);
 
 /// The number a params table holds at `key`.

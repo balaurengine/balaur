@@ -137,6 +137,19 @@ On a node carrying `bone2d`, as `node.bone2d.<method>`:
 </tbody>
 </table>
 
+### `boolean2d`
+
+`2d` · `render` · 1 property
+
+Draw this node as its 2D children combined -- joined, cut out of one another, or only where they overlap. The children stay in the tree, hidden and editable.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>op</code></td><td>enum</td><td><code>union</code></td><td>How the children are combined, in the order they are declared One of <code>union</code>, <code>difference</code>, <code>intersection</code>.</td></tr>
+</tbody>
+</table>
+
 ### `character2d`
 
 `2d` · `physics` · 12 properties · 2 methods
@@ -355,22 +368,27 @@ On a node carrying `polygon`, as `node.polygon.<method>`:
 
 ### `shape2d`
 
-`2d` · `render` · 11 properties · 5 methods
+`2d` · `render` · 16 properties · 5 methods
 
-An untextured 2D primitive drawn at the node -- circle, rect, capsule or a polyline traced through a mesh asset's points -- sized in world units.
+An untextured 2D primitive drawn at the node -- circle, rect, capsule, ellipse, star, ngon, or a polyline through a `mesh` asset's points or a stroked `path2d` -- sized in world units.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>closed</code></td><td>bool</td><td><code>false</code></td><td>Join the last point back to the first, making a polygon outline</td></tr>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
+<tr><td><code>corner_radius</code></td><td>float</td><td><code>0.0</code></td><td>How far the corners are rounded off, when kind is rect; zero is a square corner At least 0.0.</td></tr>
 <tr><td><code>gradient</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient</td></tr>
-<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>Half-sizes of the rect, when kind is rect</td></tr>
+<tr><td><code>half_extents</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>Half-sizes, when kind is rect or ellipse</td></tr>
 <tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y of the straight part, when kind is capsule At least 0.01.</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>rect</code></td><td>Rendered 2D shape One of <code>circle</code>, <code>rect</code>, <code>capsule</code>, <code>polyline</code>.</td></tr>
+<tr><td><code>inner_radius</code></td><td>float</td><td><code>0.2</code></td><td>How far the notches between a star&#x27;s tips reach At least 0.01.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>rect</code></td><td>Rendered 2D shape One of <code>circle</code>, <code>rect</code>, <code>capsule</code>, <code>ellipse</code>, <code>star</code>, <code>ngon</code>, <code>polyline</code>.</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
-<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Points of a polyline, taken from a mesh asset&#x27;s vertices</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, when kind is circle or capsule At least 0.01.</td></tr>
+<tr><td><code>mesh</code></td><td>asset · <code>mesh</code></td><td>—</td><td>Where a polyline&#x27;s points come from: a `mesh` asset&#x27;s vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve</td></tr>
+<tr><td><code>points</code></td><td>int</td><td><code>5</code></td><td>Tips, when kind is star At least 3.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, when kind is circle, capsule, star or ngon At least 0.01.</td></tr>
+<tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around a circle, an ellipse or a rounded corner At least 3.</td></tr>
+<tr><td><code>sides</code></td><td>int</td><td><code>4</code></td><td>Sides, when kind is ngon At least 3.</td></tr>
 <tr><td><code>texture</code></td><td>string</td><td>—</td><td>An image drawn along a polyline, repeating once per world unit of its length</td></tr>
 <tr><td><code>width</code></td><td>float</td><td><code>0.02</code></td><td>Line thickness in world units, when kind is polyline At least 0.001.</td></tr>
 </tbody>
@@ -565,6 +583,28 @@ On a node carrying `bone3d`, as `node.bone3d.<method>`:
 </tbody>
 </table>
 
+### `boolean3d`
+
+`3d` · `render` · 1 property · 1 method
+
+Draw this node as its children combined -- joined, cut out of one another, or only where they overlap. The children stay in the tree, hidden and editable, and moving one recomputes the result.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>op</code></td><td>enum</td><td><code>union</code></td><td>How the children are combined, in the order they are declared One of <code>union</code>, <code>difference</code>, <code>intersection</code>.</td></tr>
+</tbody>
+</table>
+
+On a node carrying `boolean3d`, as `node.boolean3d.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>built_meshNodeId</code></td><td><code>Value</code></td><td>The triangles the node&#x27;s boolean settled on, as `#{ positions, indices }` ready to be written out as a `mesh` asset; nil when the node draws no built geometry.</td><td><code>render</code></td></tr>
+</tbody>
+</table>
+
 ### `camera`
 
 `3d` · `render` · 8 properties
@@ -756,19 +796,25 @@ Authored 3D geometry from a `mesh` asset, drawn at the node and deformed by the 
 
 ### `shape3d`
 
-`3d` · `render` · 6 properties · 5 methods
+`3d` · `render` · 12 properties · 5 methods
 
-An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone or plane -- sized in world units and tinted by `color`.
+An untextured 3D primitive drawn at the node -- ball, cuboid, capsule, cylinder, cone, plane, torus, pyramid, prism or tube -- sized in world units and tinted by `color`. Built as a mesh, so a collider fitted to it collides what is drawn.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>color</code></td><td>color</td><td><code>[0.8, 0.8, 0.8, 1.0]</code></td><td>Tint, as channel floats or #rrggbb / #rrggbbaa</td></tr>
-<tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td>Half-sizes of the cuboid, when kind is cuboid</td></tr>
-<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y, for capsule, cylinder and cone At least 0.01.</td></tr>
-<tr><td><code>kind</code></td><td>enum</td><td><code>cuboid</code></td><td>Rendered 3D shape One of <code>ball</code>, <code>cuboid</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>plane</code>.</td></tr>
+<tr><td><code>corner_radius</code></td><td>float</td><td><code>0.0</code></td><td>How far the edges are rounded off, when kind is cuboid; zero is a square edge At least 0.0.</td></tr>
+<tr><td><code>half_extents</code></td><td>vec3</td><td><code>[0.5, 0.5, 0.5]</code></td><td>Half-sizes, when kind is cuboid, plane or pyramid</td></tr>
+<tr><td><code>height</code></td><td>float</td><td><code>1.0</code></td><td>Length along y, for capsule, cylinder, cone, prism and tube At least 0.01.</td></tr>
+<tr><td><code>inner_radius</code></td><td>float</td><td><code>0.25</code></td><td>Radius of the hole, when kind is tube At least 0.01.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>cuboid</code></td><td>Rendered 3D shape One of <code>ball</code>, <code>cuboid</code>, <code>capsule</code>, <code>cylinder</code>, <code>cone</code>, <code>plane</code>, <code>torus</code>, <code>pyramid</code>, <code>prism</code>, <code>tube</code>.</td></tr>
 <tr><td><code>material</code></td><td>asset · <code>material</code></td><td>—</td><td>The material this draws with; empty draws with the built-in one</td></tr>
-<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for every kind but cuboid At least 0.01.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>0.5</code></td><td>Radius, for every kind but cuboid, plane and pyramid At least 0.01.</td></tr>
+<tr><td><code>rings</code></td><td>int</td><td><code>16</code></td><td>Cuts along the axis, for ball, capsule and torus At least 3.</td></tr>
+<tr><td><code>segments</code></td><td>int</td><td><code>32</code></td><td>Cuts around the axis, or across a plane At least 3.</td></tr>
+<tr><td><code>sides</code></td><td>int</td><td><code>4</code></td><td>Flat faces, when kind is pyramid or prism At least 3.</td></tr>
+<tr><td><code>tube_radius</code></td><td>float</td><td><code>0.2</code></td><td>Thickness of the ring, when kind is torus At least 0.01.</td></tr>
 </tbody>
 </table>
 
@@ -844,6 +890,35 @@ On a node carrying `wheel3d`, as `node.wheel3d.<method>`:
 </table>
 
 ## Rendering
+
+### `cloner`
+
+`render` · 8 properties · 1 method
+
+Draw this node's whole subtree many times over -- along a line, around a ring, or through a grid -- in one call per mesh. The tree, physics and scripts still see one node; `seed` and `random` scatter the copies.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>angle</code></td><td>float</td><td><code>0.0</code></td><td>Degrees between copies on a ring; zero closes the ring evenly</td></tr>
+<tr><td><code>count</code></td><td>int</td><td><code>4</code></td><td>How many copies, when mode is linear or radial At least 1.</td></tr>
+<tr><td><code>counts</code></td><td>vec3</td><td><code>[3, 1, 3]</code></td><td>How many along each axis, when mode is grid</td></tr>
+<tr><td><code>mode</code></td><td>enum</td><td><code>linear</code></td><td>How the copies are laid out One of <code>linear</code>, <code>radial</code>, <code>grid</code>.</td></tr>
+<tr><td><code>radius</code></td><td>float</td><td><code>2.0</code></td><td>How far out the ring sits, when mode is radial</td></tr>
+<tr><td><code>random</code></td><td>float</td><td><code>0.0</code></td><td>How far a copy may wander in position, turn and size Range 0.0–1.0.</td></tr>
+<tr><td><code>seed</code></td><td>int</td><td><code>0</code></td><td>The seed the scatter runs off; zero scatters nothing At least 0.</td></tr>
+<tr><td><code>step</code></td><td>vec3</td><td><code>[1.0, 0.0, 0.0]</code></td><td>The gap between copies, when mode is linear or grid</td></tr>
+</tbody>
+</table>
+
+On a node carrying `cloner`, as `node.cloner.<method>`:
+
+<table>
+<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
+<tbody>
+<tr><td><code>clonesNodeId</code></td><td><code>Value</code></td><td>Where the node&#x27;s cloner puts each copy, in the node&#x27;s own space, as `#{ position, rotation, scale }`; an empty list when the node has no cloner. What a bake-to-nodes command spawns from.</td><td><code>render</code></td></tr>
+</tbody>
+</table>
 
 ### `particles`
 

@@ -501,7 +501,11 @@ mod tests {
         let untouched = fs.mtime(Path::new("/p/project.toml")).unwrap();
         fs.write(Path::new("/p/scripts/a.rn"), b"pub fn init(this) { 1 }")
             .unwrap();
-        assert_eq!(fs.mtime(Path::new("/p/project.toml")).unwrap(), untouched);
+        // The stamp is not recomputed, it is left alone, so the two are the
+        // same bits and not merely near each other.
+        #[allow(clippy::float_cmp, reason = "an untouched stamp is the same stamp")]
+        let kept = fs.mtime(Path::new("/p/project.toml")).unwrap() == untouched;
+        assert!(kept, "writing one file restamped another");
         assert!(fs.mtime(Path::new("/p/scripts/a.rn")).unwrap() > untouched);
         assert!(fs.mtime(Path::new("/p/none.toml")).is_none());
     }
