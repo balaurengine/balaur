@@ -1,23 +1,25 @@
 # Roadmap
 
-What the engine does not do yet. `CHANGELOG.md` is what each release added, and
-`docs/PLAN-*.md` is how each item gets built.
+What each milestone carries. A **0.1** row is built and waiting on a tag; every
+other row does not exist yet. `CHANGELOG.md` is the per-feature record of what
+0.1 holds, and `docs/PLAN-*.md` is how each unbuilt item gets there.
 
-Every row carries the milestone that ships it. `Later` is work that waits for a
-game that asks for it, with no version against it. A milestone in parentheses,
-`(0.2)`, is in-tree work the public page does not carry. A milestone holds
-about ten rows; past that, split it rather than letting one grow.
+`Later` is work that waits for a game that asks for it, with no version against
+it. A milestone in parentheses, `(0.2)`, is in-tree work the public page does
+not carry. A milestone holds about ten rows; past that, split it rather than
+letting one grow.
 
 ## Milestones
 
-| Milestone | What it is |
-| --- | --- |
-| **0.2** | Nothing blocks an ordinary game |
-| **0.3** | The picture: what draws, and what authors it |
-| **0.4** | Multiplayer, end to end |
-| **0.5** | A game built without writing a script |
-| **0.6** | A game gets out: export, stores, the browser |
-| **Later** | When a game asks |
+| Milestone | State | What it is |
+| --- | --- | --- |
+| **0.1** | built | The engine as it stands, waiting on a tag |
+| **0.2** | building | Nothing blocks an ordinary game |
+| **0.3** | planned | The picture: what draws, and what authors it |
+| **0.4** | planned | Multiplayer, end to end |
+| **0.5** | planned | A game built without writing a script |
+| **0.6** | planned | A game gets out: export, stores, the browser |
+| **Later** | planned | When a game asks |
 
 **This file is the source for the website's
 [roadmap page](https://balaurengine.org/docs/roadmap)**, which is the long form
@@ -27,15 +29,17 @@ each card's longer text from its own copy file. So keep the shape — one row pe
 item, `**Title** — one line`, a milestone from the table above, and a link to a
 plan or `no plan` — and keep a title stable once the site has it.
 
-The engine is at **0.1.0**, one version for the workspace. A release is a `v*`
-tag whose notes are that version's changelog section: move `Unreleased` into a
-dated section, bump `[workspace.package] version`, and strike what shipped from
-the rows below.
+The engine is at **0.1.0**, one version for the workspace, and nothing is tagged
+yet. A release is a `v*` tag whose notes are that version's changelog section:
+move `Unreleased` into a dated section, bump `[workspace.package] version`, and
+rewrite that milestone's rows as what landed rather than striking them, so a
+shipped tab keeps its history.
 
 ## Editor
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
+| **The editor** — a stage shell of tabbed, resizable docks built from the engine's own widgets. Undo, copy and paste, a searchable inspector, prefab overrides, ray picking, a profiler dock, and the Rig, Polygon and Tiles tools. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
 | **Tile maps** — what is left: quarter-tile sheets, where a cell is four half-tiles picked by its corners. | 0.5 | [PLAN-tilemap.md](PLAN-tilemap.md) |
 | **Script completion and hover** — go-to-definition, symbols, formatting, rename, references, a Docs dock, a VS Code extension. The server publishes diagnostics only. | 0.2 | [PLAN-script-tooling.md](PLAN-script-tooling.md) |
 | **Curve editor and onion skin** — tangent handles on keys, and ghosted neighbouring frames in the timeline. | 0.3 | [PLAN-editor.md#curve-editor-and-onion-skin](PLAN-editor.md#curve-editor-and-onion-skin) |
@@ -49,6 +53,8 @@ the rows below.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
+| **Rune scripting** — one deterministic language with a `math` module, exported properties, component handles on nodes, a Debug Adapter Protocol debugger, hot reload, named events between scripts, and a self-documenting API that `balaur api` prints. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
+| **Scenes, assets and packs** — prefabs with per-path overrides, stable `id://` references that survive a rename, import settings beside each file, sprite sheets, Aseprite, Tiled and LDtk import, and sha256-verified binary packs. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
 | **Texture import settings** — repeat, mipmaps, anisotropy and premultiplied alpha, which wait on a sampler the renderer does not expose, plus GPU compression at export and atlases. Built: the sidecar, `[import.<kind>]` defaults, nearest filtering, linear-data textures and the editor's Import section. | 0.2 | [PLAN-textures.md](PLAN-textures.md) |
 | **Asset streaming** — a load that runs off the tick, a scene added to one already running, an asset dropped when nothing names it. A pack is held whole in memory today; `ExternalIo`, the `assets` cache and pack hashing are the pieces. | 0.6 | no plan |
 | **Extensions, tier two** — components, systems and calling back into scripts, across the C boundary. | 0.5 | [PLAN-c-api.md#what-tier-1-does-not-do](PLAN-c-api.md#what-tier-1-does-not-do) |
@@ -58,6 +64,8 @@ the rows below.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
+| **Rapier in 2D and 3D** — bodies, joints with motors and breaking, character controllers, the query pipeline, collision events, every collider shape including editable voxels, ray-cast vehicles, layers, and a multithreaded solver. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
+| **Rigs and animation** — 2D and 3D skeletons with `look_at`, `two_bone_ik`, `fabrik`, `ccdik` and `jiggle`, GPU skinning, deform and morph tracks, retargeting through a `bone_map`, ragdolls, and tweens. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
 | **Falling sand** — a 2D cellular grid of sand, water, lava and fire, with its rules in a `cell_set` table and one texture per chunk to draw it. Bodies couple through parry's 2D `Voxels` collider, which `collider2d` already has. Not physics and not in rapier: a `balaur_cells` plugin behind a feature that is off in `default`. On the fixed step and in the digest. A grid inside a networked simulation, 3D, GPU compute and a rule written in script are **not planned**. | Later | no plan |
 | **Soft bodies, tearing, fluids** — and granular materials, waiting on the solvers landing in Rapier itself. | Later | [PLAN-physics.md](PLAN-physics.md) |
 | **Animation blending** — blend trees and state machines. A rig is otherwise complete: `look_at`, `two_bone_ik`, `fabrik`, `ccdik` and `jiggle` in 2D and 3D, retargeting through a `bone_map`, deform tracks, and ragdolls. What is missing is running two clips at once. | 0.2 | [PLAN-animation-and-resources.md](PLAN-animation-and-resources.md) |
@@ -70,6 +78,7 @@ the rows below.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
+| **Widgets, text and the batteries** — fourteen widget kinds with containers, themes and focus, over cosmic-text shaping with bidi and CJK. Beside them: text in the world, audio buses, positional audio, input actions with rebinding, saves with migrations, and localisation. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
 | **Interactivity without a script** — pointer, key, action and resize hooks on any drawn node, states with transitions, scene variables in the digest, event bindings edited in the Events view, and camera rigs as presets. Picking is headless already (`render.pick_ray`); tweens and `patch_component` are the transition. | 0.5 | [PLAN-interactivity.md](PLAN-interactivity.md) |
 | **Navigation** — a `navmesh` asset, paths over it through `polyanya`, `agent2d` and `agent3d` with ORCA avoidance, obstacles and links, a 2D baker over `i_overlay` and a 3D baker ported from Recast, grid paths over a tile map — all on the fixed step and in the digest. Behaviour over a path stays a script's job. | 0.5 | [PLAN-navigation.md](PLAN-navigation.md) |
 | **Voice in a session** — capture, Opus, a jitter buffer, push-to-talk and voice activity, echo cancellation, positional voice on a bus, a browser path. Voice never enters the simulation, the digest or a recording. | 0.5 | [PLAN-voice.md](PLAN-voice.md) |
@@ -80,6 +89,7 @@ the rows below.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
+| **What draws today** — sprites, atlases, tile maps, 2D lights and shadows, WESL shaders and materials, bloom, SSAO, SSR and depth of field, sixteen primitives, path assets stroked and extruded, booleans, a `cloner`, and particles. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
 | **The 3D look** — `light3d` with shadows, an `environment` component for sky, image-based lighting, fog, exposure, tonemap and grading, a PBR material contract with glTF import, alpha modes and glass, mirrors and reflection probes, finishing passes, a path-traced still. The fork carries each pass; today's only light is hard-coded. Baked lightmaps are **not planned**. | 0.2 | [PLAN-3d-rendering.md](PLAN-3d-rendering.md) |
 | **Lit normal-mapped sprites** — 2D lights and shadows are built; the normal map is what is left. | 0.3 | [PLAN-rendering.md](PLAN-rendering.md) |
 | **Particles in 3D** — `particles3d`, and in both dimensions: emission shapes, randomness, sheets, attractors, colliders, trails, sub-emitters, mesh and lit particles, a compute stepper. The instanced draw path is built; renames `particles` to `particles2d`. | 0.3 | [PLAN-particles.md](PLAN-particles.md) |
@@ -93,6 +103,7 @@ the rows below.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
+| **The deterministic core** — a fixed 60 Hz step, a per-tick digest checked across operating systems in CI, record and replay, rollback with stable ids across spawns, lockstep sessions, and three transports behind one trait. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
 | **WebTransport in the browser** — native QUIC datagrams, binary frames, run-time stable ids and rollback are built; the browser side is not. | 0.4 | [PLAN-networking.md#2-transports](PLAN-networking.md#2-transports) |
 | **Sessions from a script** — host, join, leave, a roster whose slots are bound to links; `peer`, `host` and headless `server` roles; server-ordered inputs and digest verification on the server; spectators; bincode on the wire. `NetSession` is built and reachable only from Rust tests. | 0.2 | [PLAN-sessions.md](PLAN-sessions.md) |
 | **Late join, reconnect and host migration** — under lockstep, out of the snapshot ring. | 0.4 | [PLAN-sessions.md#3-steps](PLAN-sessions.md#3-steps) |
@@ -119,6 +130,7 @@ side each step belongs to.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
+| **Apple and the `platform` module** — sign-in, achievements, leaderboards, cloud saves and presence behind one module, with Game Center, iCloud, in-app purchase, notifications, and an export that writes `Info.plist` and signs. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
 | **An MCP server** — `balaur mcp` over stdio with the project, `check`, a headless run and a screenshot as tools, and `balaur edit --mcp` exposing the palette to an agent. Files are the API; generation stays an extension. | 0.5 | [PLAN-mcp.md](PLAN-mcp.md) |
 | **Projects in the cloud** — files on a Gamend account with a version per save, share links with roles, presence in the viewport, comments anchored to nodes, a lock per scene, and a CRDT over the node table if a team asks. | Later | [PLAN-collaboration.md](PLAN-collaboration.md) |
 | **Accessibility** — a screen reader over the widget tree, text scaling, captions, colour-blind-safe defaults. The retained tree carries text, `focusable` and a focus order, and egui can emit an AccessKit tree. | 0.6 | no plan |
@@ -134,6 +146,7 @@ waits for its tick to settle.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
+| **Export, the web and the CLI** — `balaur export` for native and web with a size report, `strip` and re-encoding per asset kind, `balaur test`, a browser editor over IndexedDB, and a benchmark suite measured beside Godot's. | 0.1 | [CHANGELOG.md](https://github.com/balaurengine/balaur/blob/main/CHANGELOG.md) |
 | **Signed releases** — signed binaries per platform, cut by the release workflow. | 0.2 | [PLAN-release.md#binary-releases](PLAN-release.md#binary-releases) |
 | **One-click deploy** — a game on a URL or on a phone from one command or one button. `balaur export` builds and signs; nothing sends the result anywhere. | 0.6 | [PLAN-deploy.md](PLAN-deploy.md) |
 | **Embedding on a page** — a runtime package on npm with a `<balaur-viewer>` element and a React wrapper, a typed page API over the message bridge, a web module sized to the game, and image, video and glTF export from the editor. | Later | [PLAN-embed.md](PLAN-embed.md) |

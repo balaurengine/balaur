@@ -229,7 +229,7 @@ fn a_rollback_puts_a_jiggle_spring_back_mid_swing() {
         .world_mut()
         .insert_one(rig, StableId("rig".into()))
         .unwrap();
-    let mut bone = |name: &str, parent: Entity, rest: &str| {
+    let bone = |name: &str, parent: Entity, rest: &str| {
         let e = scene::spawn_node(&mut app.engine.world_mut(), name, parent);
         app.engine
             .world_mut()
