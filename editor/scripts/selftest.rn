@@ -1379,12 +1379,24 @@ pub fn selecting(S) {
         log::error("selftest FAILED: selecting needs a scene with two nodes");
         return;
     }
+    // Two siblings: a parent and its child are one root between them, and
+    // group would then adopt one node rather than two.
     let a = 0;
     let b = 1;
+    let found = false;
     for i in 0..S.doc.len() {
-        if S.doc[i].get("parent").unwrap_or("") == "" && i != a {
-            b = i;
+        for j in i + 1..S.doc.len() {
+            let same = S.doc[i].get("parent").unwrap_or("") == S.doc[j].get("parent").unwrap_or("");
+            if same && !found {
+                a = i;
+                b = j;
+                found = true;
+            }
         }
+    }
+    if !found {
+        log::info("selftest selecting: this scene has no two siblings, skipping");
+        return;
     }
     selection::only(S, a);
     check(selection::count(S) == 1, "a plain choose selects one node");
