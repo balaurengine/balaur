@@ -266,6 +266,12 @@ pub(crate) fn install_window_api(m: &mut dyn Bindings<Engine>) {
 
 /// What is drawn behind and around the scene: clear colour, ground grid,
 /// and the per-frame debug lines (3D and 2D).
+/// The text calls are here rather than in a module of their own because they
+/// are the same shape as the lines above them: one frame, no node, unrecorded.
+#[allow(
+    clippy::too_many_lines,
+    reason = "one registration per call, and they belong beside the lines"
+)]
 pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_background", &[], "", "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats."),

@@ -86,6 +86,11 @@ fn fill(contours: &[Vec<[f32; 2]>]) -> (Vec<[f32; 2]>, Vec<[u32; 3]>) {
 /// The ring vertex a filled point came from. Exact first, because the
 /// triangulator hands back the coordinates it was given; then nearest, for a
 /// point far enough from the origin that its fixed-point form rounds.
+#[allow(
+    clippy::float_cmp,
+    reason = "the exact pass looks for the coordinates the triangulator was \
+              handed back unchanged; the nearest pass below is the tolerant one"
+)]
 fn index_of(points: &[Vec2], ring: &[u32], point: [f32; 2]) -> Option<u32> {
     if let Some(&index) = ring
         .iter()

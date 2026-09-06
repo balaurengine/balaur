@@ -89,7 +89,7 @@ fn a_2d_voxel_grid_can_be_read_and_dug_into() {
     assert!(
         voxels
             .voxel_state(IVector::new(0, 1))
-            .is_none_or(|cell| cell.is_empty()),
+            .is_none_or(balaur_physics::rapier2d::geometry::VoxelState::is_empty),
         "the cell the script dug is filled again"
     );
     assert!(

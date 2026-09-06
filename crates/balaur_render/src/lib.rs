@@ -59,6 +59,7 @@ mod app_icon;
 mod bind_layout;
 #[cfg(feature = "kiss3d")]
 mod debug_lines;
+#[cfg(feature = "kiss3d")]
 mod device;
 #[cfg(all(
     feature = "kiss3d",

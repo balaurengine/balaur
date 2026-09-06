@@ -123,12 +123,11 @@ impl GlyphAtlas {
         if width == 0 || height == 0 || width + 2 * PAD > SIDE || height + 2 * PAD > SIDE {
             return None;
         }
-        let (x, y) = match self.allocate(width + 2 * PAD, height + 2 * PAD) {
-            Some(at) => at,
-            None => {
-                self.reset();
-                self.allocate(width + 2 * PAD, height + 2 * PAD)?
-            }
+        let (x, y) = if let Some(at) = self.allocate(width + 2 * PAD, height + 2 * PAD) {
+            at
+        } else {
+            self.reset();
+            self.allocate(width + 2 * PAD, height + 2 * PAD)?
         };
         let pixels: Vec<Color32> = rgba
             .as_chunks::<4>()

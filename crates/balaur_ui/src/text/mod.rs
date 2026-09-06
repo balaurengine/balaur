@@ -643,7 +643,7 @@ mod tests {
     /// glyphs for both and a zooming camera re-shapes rarely.
     #[test]
     fn near_sizes_land_in_one_bucket() {
-        assert_eq!(bucket(24.0), bucket(24.2));
+        assert!((bucket(24.0) - bucket(24.2)).abs() < f32::EPSILON);
         assert!(bucket(24.0) >= 24.0, "a bucket never shrinks the text");
         assert!(bucket(48.0) > bucket(24.0));
     }

@@ -224,10 +224,10 @@ kerning first=65 second=66 amount=-1
     fn a_descriptor_reads_its_page_glyphs_and_kerning() {
         let font = parse(SAMPLE).expect("the sample parses");
         assert_eq!(font.page, "pixel_0.png");
-        assert_eq!(font.size, 16.0);
-        assert_eq!(font.line_height, 18.0);
+        assert!((font.size - 16.0).abs() < f32::EPSILON);
+        assert!((font.line_height - 18.0).abs() < f32::EPSILON);
         assert_eq!(font.glyphs.len(), 2);
-        assert_eq!(font.kerning.get(&('A', 'B')), Some(&-1.0));
+        assert!(font.kerning.get(&('A', 'B')).is_some_and(|v| (v + 1.0).abs() < f32::EPSILON));
     }
 
     #[test]
