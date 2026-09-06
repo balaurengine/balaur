@@ -41,6 +41,7 @@ mod sheet;
 mod sprite;
 mod texture;
 mod tilemap;
+pub mod world_text;
 pub use camera::{Camera, CameraKind};
 pub use cloner::Clones;
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
@@ -862,6 +863,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         reg.insert_resource(DebugLineBuffer::default());
         reg.insert_resource(DebugLineBuffer2d::default());
         reg.insert_resource(DrawBuffer2d::default());
+        reg.insert_resource(world_text::TextDrawBuffer::default());
         reg.insert_resource(CameraConfig2d::default());
         reg.insert_resource(PostConfig::default());
         reg.insert_resource(ViewportSnapshot2d::default());
@@ -946,6 +948,9 @@ fn clear_debug_lines_system(eng: &Engine, _dt: f32) {
     }
     if let Some(shapes) = eng.try_resource::<DrawBuffer2d>() {
         shapes.borrow_mut().shapes.clear();
+    }
+    if let Some(text) = eng.try_resource::<world_text::TextDrawBuffer>() {
+        text.borrow_mut().items.clear();
     }
 }
 

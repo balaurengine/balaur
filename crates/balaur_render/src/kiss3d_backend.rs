@@ -73,6 +73,7 @@ struct Frontend {
     order_2d: Vec<Entity>,
     /// Last frame's immediate 2D shapes, detached before this frame's are drawn.
     transients: Vec<SceneNode2d>,
+    text_nodes: crate::world_text::Transients,
     frame: u64,
     /// Whether the on-screen keyboard was summoned last frame, so it is
     /// shown/hidden on the edge rather than re-requested every frame.
@@ -115,6 +116,7 @@ impl Frontend {
             light_map: crate::light_map::LightMap::new(),
             order_2d: Vec::new(),
             transients: Vec::new(),
+            text_nodes: crate::world_text::Transients::default(),
             frame: 0,
             keyboard_shown: false,
             camera_buttons,
@@ -193,6 +195,12 @@ impl Frontend {
         self.light_map.sync(app, &mut self.scene_2d);
         // Immediate shapes go over the composite, unlit, like debug lines.
         crate::draw_2d::flush(app, window, &mut self.scene_2d, &mut self.transients);
+        crate::world_text::flush(
+            app,
+            &mut self.scene_2d,
+            &mut self.scene,
+            &mut self.text_nodes,
+        );
         draw_grid(app, window);
         flush_debug_lines(app, window);
         flush_debug_lines_2d(app, window);
