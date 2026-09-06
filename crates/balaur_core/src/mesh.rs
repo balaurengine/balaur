@@ -26,6 +26,12 @@ pub struct MeshData {
     pub normals: Option<Vec<[f32; 3]>>,
     /// Per-vertex, same length as `positions` when present.
     pub uvs: Option<Vec<[f32; 2]>>,
+    /// Per-vertex tint, same length as `positions` when present. A material
+    /// that asks for it multiplies its albedo by this.
+    pub colors: Option<Vec<[f32; 4]>>,
+    /// The shapes this mesh can be blended towards, each named so a clip can
+    /// drive it. Empty for a mesh that has none.
+    pub morphs: Vec<MorphTarget>,
     /// Set when the definition named a file instead of carrying vertices.
     /// Resolved by [`load_from`], which has the project reader to do it with.
     pub source: Option<String>,
@@ -37,6 +43,20 @@ pub struct MeshData {
     pub path: Option<PathShape>,
     /// Bone influences, when the mesh is meant to deform with a rig.
     pub skin: Option<MeshSkin>,
+}
+
+/// One shape a mesh can be blended towards: a smile, a blink, a wince.
+///
+/// The deltas are relative to the mesh's own vertices, which is the form
+/// glTF stores and the form a GPU blends: a weight of one adds them whole.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct MorphTarget {
+    /// What a clip track and a script call this shape.
+    pub name: String,
+    /// Per vertex, same length as the mesh's `positions`.
+    pub positions: Vec<[f32; 3]>,
+    /// Per vertex when the target moves normals too.
+    pub normals: Option<Vec<[f32; 3]>>,
 }
 
 /// Per-vertex bone influences, in the form a GPU reads: up to four joints
@@ -319,7 +339,9 @@ const MESH_ASSET_DOC: &str = r#"Geometry for `mesh`-typed properties. A definiti
 file to import, or a `kind` of parametric primitive to build, or carries the
 vertices itself as `positions` and `indices`, which is what lets a script
 build one at run time; naming more than one is refused. A `skin` table adds
-bone weights for skeletal animation.
+bone weights for skeletal animation, `colors` a tint per vertex, and each
+`[[morphs]]` a named shape the mesh can be blended towards -- which a clip
+drives as `mesh/morph.<name>`.
 
 A primitive is built by the same mesher the `shape3d` component draws, so a
 collider over this asset collides exactly what is on screen. A `text` mesh
@@ -365,10 +387,17 @@ pub(crate) fn register_mesh_asset(app: &mut App) {
 }
 
 /// A `mesh` definition: `source` names a file to import, `kind` names a
-/// primitive to build, or `positions` and `indices` carry the geometry
-/// directly. Naming more than one is a contradiction rather than a
-/// precedence puzzle, so it is refused.
-fn parse_definition(value: &toml::Value) -> Result<MeshData> {
+/// primitive to build or a word to shape, or `positions` and `indices` carry
+/// the geometry directly. Naming more than one is a contradiction rather
+/// than a precedence puzzle, so it is refused.
+///
+/// A `source` or a `kind` that reaches another asset is recorded here and
+/// followed by [`load_from`], which has the engine to follow it with.
+///
+/// # Errors
+/// If the definition names nothing, names more than one thing, or the
+/// geometry it carries does not hold together.
+pub fn parse_definition(value: &toml::Value) -> Result<MeshData> {
     let source = value.get("source").and_then(toml::Value::as_str);
     let inline = value.get("positions").is_some() || value.get("indices").is_some();
     let kind = value
@@ -516,11 +545,24 @@ fn parse_inline(value: &toml::Value) -> Result<MeshData> {
             positions.len()
         );
     }
+    let colors = quads(value, "colors")?;
+    if let Some(colors) = &colors
+        && colors.len() != positions.len()
+    {
+        bail!(
+            "a mesh has {} `colors` for {} positions; it needs one per vertex",
+            colors.len(),
+            positions.len()
+        );
+    }
+    let morphs = parse_morphs(value, positions.len())?;
     let skin = parse_skin(value, positions.len())?;
     Ok(MeshData {
         positions,
         indices,
         uvs,
+        colors,
+        morphs,
         skin,
         ..MeshData::default()
     })
@@ -680,6 +722,66 @@ fn pairs(value: &toml::Value, key: &str) -> Result<Option<Vec<[f32; 2]>>> {
             .map(|[u, v, _]| [u, v])
             .collect(),
     ))
+}
+
+/// The shapes a definition lists under `[[morphs]]`, each a name and one
+/// delta per vertex.
+///
+/// # Errors
+/// If a target has no name, or its deltas do not match the vertex count.
+fn parse_morphs(value: &toml::Value, vertices: usize) -> Result<Vec<MorphTarget>> {
+    let Some(rows) = value.get("morphs").and_then(toml::Value::as_array) else {
+        return Ok(Vec::new());
+    };
+    let mut out = Vec::with_capacity(rows.len());
+    for (i, row) in rows.iter().enumerate() {
+        let name = row
+            .get("name")
+            .and_then(toml::Value::as_str)
+            .filter(|name| !name.is_empty())
+            .ok_or_else(|| anyhow!("a mesh's `morphs[{i}]` has no `name` for a clip to call it"))?;
+        let positions = points(row, "positions")?;
+        if positions.len() != vertices {
+            bail!(
+                "a mesh's morph '{name}' has {} deltas for {vertices} vertices",
+                positions.len()
+            );
+        }
+        let normals = row
+            .get("normals")
+            .map(|_| points(row, "normals"))
+            .transpose()?
+            .filter(|normals| normals.len() == vertices);
+        out.push(MorphTarget {
+            name: name.to_string(),
+            positions,
+            normals,
+        });
+    }
+    Ok(out)
+}
+
+/// `[[r, g, b], ...]` or `[[r, g, b, a], ...]`, when present. A colour with
+/// no alpha is opaque, which is what an author leaving it out means.
+fn quads(value: &toml::Value, key: &str) -> Result<Option<Vec<[f32; 4]>>> {
+    let Some(rows) = value.get(key).and_then(toml::Value::as_array) else {
+        return Ok(None);
+    };
+    let mut out = Vec::with_capacity(rows.len());
+    for (i, row) in rows.iter().enumerate() {
+        let row = row
+            .as_array()
+            .filter(|r| r.len() == 3 || r.len() == 4)
+            .ok_or_else(|| anyhow!("a mesh's `{key}[{i}]` is not an rgb or rgba colour"))?;
+        let mut color = [0.0, 0.0, 0.0, 1.0];
+        for (slot, number) in color.iter_mut().zip(row) {
+            *slot = crate::components::as_f64(number)
+                .ok_or_else(|| anyhow!("a mesh's `{key}[{i}]` holds a non-number"))?
+                as f32;
+        }
+        out.push(color);
+    }
+    Ok(Some(out))
 }
 
 /// Rows of numbers from a definition key, each of one of `lengths`, padded

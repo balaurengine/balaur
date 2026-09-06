@@ -24,6 +24,8 @@ mod instancing;
 pub mod light;
 pub mod material;
 pub mod mesh;
+#[cfg(feature = "kiss3d")]
+mod morph;
 mod particles;
 mod pick;
 mod polygon;
@@ -43,6 +45,7 @@ pub use camera::{Camera, CameraKind};
 pub use cloner::Clones;
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
 pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
+pub use mesh::MorphWeights;
 pub use particles::Particles;
 pub use polygon::PolygonMesh;
 pub use sheet::{SPRITE_SHEET_ASSET_TYPE, SheetFrame, SheetSlice, SheetTag, SpriteSheet};

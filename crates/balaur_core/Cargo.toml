@@ -28,9 +28,9 @@ sha2.workspace = true
 # Bone rest poses go through sin/cos once per bone; the platform libm differs
 # across operating systems and this one does not.
 libm.workspace = true
-# `.glb` meshes, skins and clips. No `import` feature: a pack hands the
-# reader bytes, and nothing here decodes an image.
-gltf = { version = "1.4", default-features = false, features = ["utils", "names"] }
+# `.glb` meshes, skins, clips and morph targets. No `import` feature: a pack
+# hands the reader bytes. `extras` carries `targetNames`, a shape's own name.
+gltf = { version = "1.4", default-features = false, features = ["utils", "names", "extras"] }
 sys-locale = "0.3"
 i_overlay = "8"
 base64 = "0.22"

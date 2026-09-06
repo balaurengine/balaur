@@ -189,6 +189,8 @@ fn fill_mesh(points: &[[f32; 2]], indices: &[u32]) -> MeshData {
                 .map(|p| [(p[0] - min[0]) / span[0], (p[1] - min[1]) / span[1]])
                 .collect(),
         ),
+        colors: None,
+        morphs: Vec::new(),
         source: None,
         text: None,
         path: None,

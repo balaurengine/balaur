@@ -586,6 +586,10 @@ fn sync(
             .set_local_scale(scale.x, scale.y, scale.z)
             .set_color(Color::new(r, g, b, a))
             .set_visible(visible);
+        // How far the mesh is blended towards each of its shapes, this tick.
+        if let Ok(morphs) = world.get::<&crate::MorphWeights>(entity) {
+            slot.node.set_morph_weights(&morphs.weights);
+        }
         // A cloner above this node turns it into one draw of many copies.
         let clones = world.get::<&crate::Clones>(entity).ok();
         crate::instancing::set_instances_3d(&mut slot.node, clones.as_deref(), global);
@@ -685,6 +689,8 @@ fn upload_mesh(
             weights: skin.weights.clone(),
             indices: faces.clone(),
         });
+    // The shapes before the skin is moved out of the mesh data.
+    let morphs = crate::morph::targets_of(&data);
     let skin = data.skin.map(|skin| MeshSkinSlot {
         positions: coords.clone(),
         normals: normals.clone(),
@@ -695,7 +701,10 @@ fn upload_mesh(
         skeleton: renderable.skeleton.clone(),
     });
     // A skinned mesh is rewritten every frame; a rigid one is uploaded once.
-    let gpu = GpuMesh3d::new(coords, faces, normals, uvs, skin.is_some());
+    let mut gpu = GpuMesh3d::new(coords, faces, normals, uvs, skin.is_some());
+    if let Some(targets) = morphs {
+        gpu.set_morph_targets(targets);
+    }
     let mut node = scene.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(gpu)), Vec3::ONE);
     crate::texture::attach_texture_3d(&app.engine, &mut node, &renderable.texture);
     Some((node, skin, geometry))

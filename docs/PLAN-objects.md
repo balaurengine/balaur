@@ -137,10 +137,15 @@ shapes and the `particles2d` rename are `docs/PLAN-particles.md`'s.
 
 **`MeshData` grows colours and morphs.** `colors: Option<Vec<[f32; 4]>>` and
 `morphs: Vec<MorphTarget { name, positions, normals }>`; `glb.rs` keeps
-both; the fork's deform path draws them. A `vertex_color` feature in the
-material contract multiplies the albedo; morph weights are
-`mesh/morph.<name>` properties, so a clip animates a smile with the tracks
-it already has.
+both, and an inline definition can carry either; the fork's deform path
+draws the morphs. Morph weights are `mesh/morph.<name>` properties, so a
+clip animates a smile with the tracks it already has.
+
+> Vertex colours are carried, not yet drawn. The fork's mesh has positions,
+> normals and texture coordinates and no colour stream, so there is nothing
+> for a material to bind. Adding one is a fork change; until then a glTF's
+> colours reach a script, a tool and a collider, and the material contract's
+> `vertex_color` waits on the buffer.
 
 **2D shapes complete the canvas.** `shape2d` gains `ellipse`
 (`half_extents`), `star` (`points`, `inner_radius`, `radius`) and `ngon`

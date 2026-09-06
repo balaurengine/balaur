@@ -346,8 +346,13 @@ struct Streams {
     uvs: Vec<[f32; 2]>,
     joints: Vec<[u32; 4]>,
     weights: Vec<[f32; 4]>,
+    colors: Vec<[f32; 4]>,
+    /// One entry per target, each gathered across every primitive so its
+    /// deltas line up with the vertices they belong to.
+    morphs: Vec<crate::mesh::MorphTarget>,
     had_normals: bool,
     had_uvs: bool,
+    had_colors: bool,
 }
 
 impl Streams {
@@ -410,6 +415,15 @@ impl Streams {
             }
             None => self.uvs.extend(std::iter::repeat_n([0.0, 0.0], count)),
         }
+        // A primitive with no colours of its own is white, so one that has
+        // them can be mixed with one that has not in the same mesh.
+        match reader.read_colors(0) {
+            Some(cs) => {
+                self.had_colors = true;
+                self.colors.extend(cs.into_rgba_f32());
+            }
+            None => self.colors.extend(std::iter::repeat_n([1.0; 4], count)),
+        }
         if skinned {
             let js = reader
                 .read_joints(0)
@@ -431,6 +445,50 @@ impl Streams {
         }
         self.mesh.positions.extend(positions);
         Ok(())
+    }
+
+    /// One primitive's morph targets, named by the mesh that owns them.
+    ///
+    /// A target the primitive does not carry leaves this primitive's
+    /// vertices where they are, so a mesh whose primitives disagree about
+    /// which shapes they have still blends the ones they share.
+    fn add_morphs<'a, 's, F>(
+        &mut self,
+        reader: &gltf::mesh::Reader<'a, 's, F>,
+        frame: Mat4,
+        names: &[String],
+        count: usize,
+    ) where
+        F: Clone + Fn(gltf::Buffer<'a>) -> Option<&'s [u8]>,
+    {
+        let base = self.mesh.positions.len() - count;
+        for (index, name) in names.iter().enumerate() {
+            if self.morphs.len() <= index {
+                self.morphs.push(crate::mesh::MorphTarget {
+                    name: name.clone(),
+                    positions: vec![[0.0; 3]; base],
+                    normals: None,
+                });
+            }
+        }
+        let mut targets = reader.read_morph_targets();
+        for target in &mut self.morphs {
+            let (positions, normals, _) = targets.next().unwrap_or((None, None, None));
+            target.positions.resize(base, [0.0; 3]);
+            match positions {
+                Some(ps) => target
+                    .positions
+                    .extend(ps.map(|p| frame.transform_vector3(Vec3::from(p)).to_array())),
+                None => target
+                    .positions
+                    .extend(std::iter::repeat_n([0.0; 3], count)),
+            }
+            if let Some(ns) = normals {
+                let moved = target.normals.get_or_insert_with(|| vec![[0.0; 3]; base]);
+                moved.resize(base, [0.0; 3]);
+                moved.extend(ns.map(|n| frame.transform_vector3(Vec3::from(n)).to_array()));
+            }
+        }
     }
 }
 
@@ -467,7 +525,16 @@ pub fn parse_gltf(bytes: &[u8], name: &str, side: SideReader<'_>) -> Result<Mesh
                 );
             }
             let reader = primitive.reader(|b| model.buffer(&b));
+            let count = primitive
+                .get(&gltf::Semantic::Positions)
+                .map_or(0, |accessor| accessor.count());
             streams.add(&reader, frame, skinned, name)?;
+            streams.add_morphs(
+                &reader,
+                frame,
+                &morph_names(&mesh, primitive.index()),
+                count,
+            );
         }
     }
     let Streams {
@@ -476,8 +543,11 @@ pub fn parse_gltf(bytes: &[u8], name: &str, side: SideReader<'_>) -> Result<Mesh
         uvs,
         joints,
         weights,
+        colors,
+        morphs,
         had_normals,
         had_uvs,
+        had_colors,
     } = streams;
     if mesh.positions.is_empty() {
         bail!("{name} draws no triangles");
@@ -488,6 +558,21 @@ pub fn parse_gltf(bytes: &[u8], name: &str, side: SideReader<'_>) -> Result<Mesh
     if had_uvs {
         mesh.uvs = Some(uvs);
     }
+    if had_colors {
+        mesh.colors = Some(colors);
+    }
+    // A target whose deltas fell short of the last primitive is padded, so
+    // every target is one delta per vertex whatever the file did.
+    mesh.morphs = morphs
+        .into_iter()
+        .map(|mut target| {
+            target.positions.resize(mesh.positions.len(), [0.0; 3]);
+            if let Some(normals) = &mut target.normals {
+                normals.resize(mesh.positions.len(), [0.0; 3]);
+            }
+            target
+        })
+        .collect();
     if let Some(rig) = rig {
         mesh.skin = Some(MeshSkin {
             bones: rig.bone_paths,
@@ -497,6 +582,31 @@ pub fn parse_gltf(bytes: &[u8], name: &str, side: SideReader<'_>) -> Result<Mesh
         });
     }
     Ok(mesh)
+}
+
+/// What a mesh's morph targets are called: the `targetNames` extra glTF
+/// writes, or `morph0`, `morph1` and so on when the file names none.
+fn morph_names(mesh: &gltf::Mesh<'_>, primitive: usize) -> Vec<String> {
+    let count = mesh
+        .primitives()
+        .nth(primitive)
+        .map_or(0, |p| p.morph_targets().count());
+    let named: Vec<String> = mesh
+        .extras()
+        .as_deref()
+        .and_then(|extras| serde_json::from_str::<serde_json::Value>(extras.get()).ok())
+        .and_then(|extras| {
+            extras.get("targetNames")?.as_array().map(|names| {
+                names
+                    .iter()
+                    .filter_map(|n| n.as_str().map(str::to_string))
+                    .collect()
+            })
+        })
+        .unwrap_or_default();
+    (0..count)
+        .map(|i| named.get(i).cloned().unwrap_or_else(|| format!("morph{i}")))
+        .collect()
 }
 
 /// What `balaur import` writes for a model: a scene and, when the file has

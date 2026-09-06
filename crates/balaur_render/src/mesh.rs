@@ -5,6 +5,8 @@
 //! crate. What lives here is the component that points a node at one.
 
 use crate::shape::{keys as k, words};
+use balaur_core::Engine;
+use balaur_core::hecs::Entity;
 use balaur_core::mesh::{MESH_ASSET_TYPE, MeshData};
 use balaur_plugin::Registry;
 
@@ -14,6 +16,65 @@ use balaur_plugin::Registry;
 /// `shape2d`'s polyline use — the shape enum carries parameters, the
 /// renderable carries the reference. A mesh whose asset carries a skin
 /// deforms with the rig `skeleton` names.
+/// What a morph weight's property key starts with: `morph.smile` is the
+/// weight of the target a glTF called `smile`.
+pub(crate) const MORPH_PREFIX: &str = "morph.";
+
+/// How far a mesh is blended towards each of its shapes.
+///
+/// The names come from the asset and the weights from the component's
+/// params, so a clip track driving `mesh/morph.smile` writes one number and
+/// leaves the others where they were.
+pub struct MorphWeights {
+    pub names: Vec<String>,
+    pub weights: Vec<f32>,
+    /// Bumped when a weight changes, so a backend knows to push them.
+    pub version: u64,
+}
+
+/// Read the weights a params table names and put them on the node, in the
+/// order the asset carries its targets.
+///
+/// A mesh with no shapes to blend gets no component at all, and a name the
+/// asset does not carry is ignored rather than refused: a clip written for
+/// one model should not stop another from loading.
+fn set_morph_weights(eng: &Engine, entity: Entity, source: &str, params: &toml::Value) {
+    let names: Vec<String> = balaur_core::assets::load_typed::<MeshData>(eng, source)
+        .and_then(|definition| balaur_core::mesh::load_from(eng, &definition))
+        .map(|mesh| mesh.morphs.into_iter().map(|target| target.name).collect())
+        .unwrap_or_default();
+    let mut world = eng.world_mut();
+    if names.is_empty() {
+        let _ = world.remove_one::<MorphWeights>(entity);
+        return;
+    }
+    let weights: Vec<f32> = names
+        .iter()
+        .map(|name| {
+            params
+                .get(format!("{MORPH_PREFIX}{name}").as_str())
+                .and_then(balaur_core::components::as_f64)
+                .unwrap_or(0.0) as f32
+        })
+        .collect();
+    if let Ok(mut existing) = world.get::<&mut MorphWeights>(entity) {
+        if existing.names != names || existing.weights != weights {
+            existing.names = names;
+            existing.weights = weights;
+            existing.version += 1;
+        }
+        return;
+    }
+    let _ = world.insert_one(
+        entity,
+        MorphWeights {
+            names,
+            weights,
+            version: 0,
+        },
+    );
+}
+
 pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
     reg.register_component(
         MESH_ASSET_TYPE,
@@ -45,7 +106,8 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                     && let Err(why) = balaur_core::assets::load_typed::<MeshData>(eng, &source) {
                         tracing::warn!("mesh '{source}': {why:#}");
                     }
-                crate::set_mesh(eng, entity, source, text(k::SKELETON), text(k::TEXTURE))?;
+                crate::set_mesh(eng, entity, source.clone(), text(k::SKELETON), text(k::TEXTURE))?;
+                set_morph_weights(eng, entity, &source, params);
                 crate::material::set_material_3d(eng, entity, &text("material"))
             }),
             remove: Box::new(|eng, entity| {
@@ -71,6 +133,16 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                     "material".into(),
                     toml::Value::String(renderable.material.clone()),
                 );
+                // One key per shape the mesh can blend towards, so a clip
+                // track spells `mesh/morph.smile` and a patch keeps the rest.
+                if let Ok(morphs) = world.get::<&MorphWeights>(entity) {
+                    for (name, weight) in morphs.names.iter().zip(&morphs.weights) {
+                        map.insert(
+                            format!("{MORPH_PREFIX}{name}"),
+                            toml::Value::Float(f64::from(*weight)),
+                        );
+                    }
+                }
                 Some(toml::Value::Table(map))
             }),
         },

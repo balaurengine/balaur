@@ -98,6 +98,8 @@ impl Build {
             indices: self.indices,
             normals: Some(self.normals),
             uvs: Some(self.uvs),
+            colors: None,
+            morphs: Vec::new(),
             source: None,
             text: None,
             path: None,
