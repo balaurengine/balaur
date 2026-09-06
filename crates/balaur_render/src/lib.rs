@@ -898,6 +898,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         draw_2d::install_draw_2d_api(&mut *m);
         text_component::install_text_api(&mut *m);
         tilemap::install_tilemap_api(&mut *m);
+        tilemap::install_tilemap_terrain_api(&mut *m);
         shape::register_shape_component(reg);
         shape::register_shape2d_component(reg);
         register_render_presets(reg)?;
