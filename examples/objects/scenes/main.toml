@@ -1,5 +1,5 @@
-# Every object the engine builds, one row per category along -z: primitives,
-# paths, booleans, cloners, then a word and colour per vertex.
+# Every object the engine builds, one row per category twelve units apart
+# along -z: primitives, paths, booleans, cloners, then a word and paint.
 
 [[assets]]
 id = "ring"
@@ -60,7 +60,7 @@ points = [
   [0.16, 0.0], [0.16, 0.09], [0.09, 0.16], [0.0, 0.16],
   [-0.09, 0.16], [-0.16, 0.09], [-0.16, 0.0],
   [-0.16, -0.09], [-0.09, -0.16], [0.0, -0.16],
-  [0.09, -0.16], [0.16, -0.09], [0.16, 0.0],
+  [0.09, -0.16], [0.16, -0.09],
 ]
 
 [[assets]]
@@ -110,11 +110,11 @@ look_at = [0.0, 1.0, 0.0]
 id = "n_ground"
 name = "Ground"
 parent = "n_world"
-position = [0, -0.02, -12]
+position = [0, -0.02, -24]
 
 [nodes.shape3d]
 kind = "plane"
-half_extents = [10, 0, 16]
+half_extents = [10, 0, 30]
 segments = 8
 color = [0.22, 0.24, 0.27, 1]
 
@@ -185,7 +185,7 @@ color = [0.75, 0.75, 0.78, 1]
 id = "n_arch"
 name = "Arch"
 parent = "n_world"
-position = [-3.2, 0, -6]
+position = [-3.2, 0, -12]
 
 [nodes.mesh]
 source = "#arch"
@@ -194,7 +194,7 @@ source = "#arch"
 id = "n_goblet"
 name = "Goblet"
 parent = "n_world"
-position = [0, 0, -6]
+position = [0, 0, -12]
 
 [nodes.mesh]
 source = "#goblet"
@@ -203,7 +203,7 @@ source = "#goblet"
 id = "n_handrail"
 name = "Handrail"
 parent = "n_world"
-position = [3.4, 0, -6]
+position = [3.4, 0, -12]
 
 [nodes.mesh]
 source = "#handrail"
@@ -212,7 +212,7 @@ source = "#handrail"
 id = "n_union"
 name = "Union"
 parent = "n_world"
-position = [-3.5, 1, -12]
+position = [-3.5, 1, -24]
 
 [nodes.boolean3d]
 op = "union"
@@ -224,23 +224,23 @@ parent = "n_union"
 
 [nodes.shape3d]
 kind = "cuboid"
-half_extents = [0.6, 0.6, 0.6]
+half_extents = [0.7, 0.7, 0.7]
 
 [[nodes]]
 id = "n_union_b"
 name = "B"
 parent = "n_union"
-position = [0.5, 0.5, 0.5]
+position = [0.55, 0.55, 0.55]
 
 [nodes.shape3d]
 kind = "ball"
-radius = 0.7
+radius = 0.5
 
 [[nodes]]
 id = "n_difference"
 name = "Difference"
 parent = "n_world"
-position = [0, 1, -12]
+position = [0, 1, -24]
 
 [nodes.boolean3d]
 op = "difference"
@@ -258,17 +258,17 @@ half_extents = [0.7, 0.7, 0.7]
 id = "n_difference_b"
 name = "B"
 parent = "n_difference"
-position = [0.45, 0.45, 0.45]
+position = [0.6, 0.6, 0.6]
 
 [nodes.shape3d]
 kind = "ball"
-radius = 0.75
+radius = 0.55
 
 [[nodes]]
 id = "n_intersection"
 name = "Intersection"
 parent = "n_world"
-position = [3.5, 1, -12]
+position = [3.5, 1, -24]
 
 [nodes.boolean3d]
 op = "intersection"
@@ -295,7 +295,7 @@ radius = 0.9
 id = "n_row"
 name = "Row"
 parent = "n_world"
-position = [-4.5, 0.4, -18]
+position = [-5.6, 0.4, -36]
 
 [nodes.cloner]
 mode = "linear"
@@ -318,7 +318,7 @@ color = [0.7, 0.6, 0.4, 1]
 id = "n_ring_of"
 name = "Ring"
 parent = "n_world"
-position = [0.5, 0.4, -18]
+position = [0.6, 0.4, -36]
 
 [nodes.cloner]
 mode = "radial"
@@ -341,7 +341,7 @@ color = [0.5, 0.65, 0.75, 1]
 id = "n_field"
 name = "Field"
 parent = "n_world"
-position = [4.0, 0.3, -19]
+position = [4.0, 0.3, -37]
 
 [nodes.cloner]
 mode = "grid"
@@ -365,7 +365,7 @@ color = [0.45, 0.7, 0.4, 1]
 id = "n_title"
 name = "Title"
 parent = "n_world"
-position = [-2.6, 0.9, -24]
+position = [-2.6, 0.9, -48]
 
 [nodes.mesh]
 source = "#title"
@@ -374,7 +374,7 @@ source = "#title"
 id = "n_painted"
 name = "Painted"
 parent = "n_world"
-position = [2.4, 0.2, -24]
+position = [2.4, 0.2, -48]
 script = "scripts/breathe.rn"
 
 [nodes.mesh]

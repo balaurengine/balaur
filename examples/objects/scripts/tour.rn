@@ -1,28 +1,57 @@
-// Walks the camera down the rows and names the one it has reached. Every
-// row is one category of them, laid out along -z.
+// Walks the camera down the rows and, when asked, photographs each one.
+// `balaur run examples/objects -- shots=<dir>` writes one PNG per pose there,
+// which is how the website's pictures of this example are made.
 
-const ROWS = [
-    #{ z: 0.0, name: "primitives" },
-    #{ z: -6.0, name: "paths: extruded, revolved, swept" },
-    #{ z: -12.0, name: "booleans: union, difference, intersection" },
-    #{ z: -18.0, name: "cloner: linear, radial, scattered grid" },
-    #{ z: -24.0, name: "a word as a mesh, and colour per vertex" },
+const POSES = [
+    #{ slug: "overview", eye: [0.0, 16.0, 18.0], at: [0.0, 0.5, -16.0] },
+    #{ slug: "primitives", eye: [0.0, 3.6, 10.0], at: [0.0, 0.8, 0.0] },
+    #{ slug: "paths", eye: [0.0, 3.6, -2.0], at: [0.0, 0.9, -12.0] },
+    #{ slug: "booleans", eye: [0.0, 3.6, -14.0], at: [0.0, 0.9, -24.0] },
+    #{ slug: "cloner", eye: [1.0, 3.6, -26.0], at: [1.0, 0.4, -36.0] },
+    #{ slug: "text", eye: [0.0, 3.0, -39.5], at: [0.0, 0.9, -48.0] },
 ];
 
-// How long the camera rests on a row before moving to the next.
+// Seconds the camera rests on a pose, and the frame within that rest on which
+// its picture is taken: the camera node moves as the pose starts, and a
+// screenshot saves the frame after it is asked for.
 const DWELL = 3.5;
+const SETTLE = 12;
 
 pub fn init(this) {
+    this.root = this.node.parent();
     this.clock = 0.0;
-    this.at = 0;
+    this.frame = 0;
+    this.at = -1;
+    this.shots = "";
+    for arg in engine::args() {
+        let parts = arg.split('=').collect::<Vec>();
+        if parts.len() == 2 && parts[0] == "shots" {
+            this.shots = parts[1];
+        }
+    }
+}
+
+// The camera is a node, so it is the node that moves: the camera component
+// reads its own transform every tick, and would undo a bare set_camera.
+// The scene always has one, so there is nothing to check for here.
+fn look(this, pose) {
+    let camera = this.root.get_node("Camera");
+    let e = pose.eye;
+    camera.set_position(e[0], e[1], e[2]);
+    camera.patch_component("camera", #{ look_at: pose.at });
 }
 
 pub fn update(this, dt) {
     this.clock += dt;
-    if this.clock > DWELL {
+    this.frame += 1;
+    if this.at < 0 || this.clock > DWELL {
         this.clock = 0.0;
-        this.at = (this.at + 1) % ROWS.len();
+        this.frame = 0;
+        this.at = (this.at + 1) % POSES.len();
+        look(this, POSES[this.at]);
     }
-    let row = ROWS[this.at];
-    render::set_camera(0.0, 3.0, row.z + 7.0, 0.0, 1.0, row.z);
+    if this.shots != "" && this.frame == SETTLE {
+        let pose = POSES[this.at];
+        render::screenshot(format!("{}/{}-{}.png", this.shots, this.at, pose.slug));
+    }
 }

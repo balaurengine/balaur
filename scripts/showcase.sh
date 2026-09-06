@@ -94,6 +94,25 @@ shot hello_open        examples/hello      "scene,select:World,dock:output"
 shot persona_scene     examples/angrynerds "scene,select:Bird"
 shot persona_script    examples/hello      "script,select:Spinner"
 shot persona_animate   examples/rig        "anim,select:Thigh"
+
+# The objects example photographs itself: its tour script saves one frame per
+# pose when run with `shots=`, so these come from `run` and not an editor state.
+objects_shots() {
+  wanted objects || return 0
+  printf '%-22s images ' objects
+  rm -rf examples/objects/shots
+  mkdir -p examples/objects/shots
+  balaur run examples/objects --offscreen --fixed-tick --frames 1300 -- shots=shots >"$work/objects.log" 2>&1 || true
+  local any=0 f
+  for f in examples/objects/shots/*.png; do
+    [ -f "$f" ] || continue
+    cp "$f" "$img/objects_$(basename "$f" | sed 's/^[0-9]*-//')"
+    any=1
+  done
+  rm -rf examples/objects/shots
+  if [ $any = 1 ]; then echo ok; else failed objects; fi
+}
+objects_shots
 shot persona_physics   examples/angrynerds "phys,select:Bird"
 shot persona_interface examples/angrynerds "ui,select:Restart,play"
 shot physics_overlays  examples/angrynerds "phys,select:Bird"
