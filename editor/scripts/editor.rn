@@ -12,6 +12,7 @@ mod dock;
 mod docks;
 mod docs;
 mod dropin;
+mod events;
 mod exporter;
 mod gizmo;
 mod gizmo2d;
@@ -146,6 +147,7 @@ pub fn init(this) {
         tiles: tiles::state(),
         anim: anim::state(),
         debug: shell::debug_state(),
+        events: events::state(),
         exporter: exporter::state(),
         session: session::state(),
         settings: settings::state(),

@@ -192,6 +192,16 @@ pub const ENGINE_OPS: &[EngineOp] = &[
     },
     EngineOp {
         module: "scene",
+        name: "bindable_events",
+        call: bindable_events,
+    },
+    EngineOp {
+        module: "scene",
+        name: "binding_actions",
+        call: binding_actions,
+    },
+    EngineOp {
+        module: "scene",
         name: "variable",
         call: scene_variable,
     },
@@ -617,6 +627,26 @@ fn document_encoding(m: &mut dyn balaur_script::Bindings<Engine>) {
             "The bytes a base64 string encodes; an error for text that is not base64.",
         ),
     ]);
+}
+
+/// The events a `[[nodes.bindings]]` row may answer, for the Events view.
+fn bindable_events(_eng: &Engine, _args: &[Value]) -> Result<Value> {
+    Ok(Value::List(
+        crate::hooks::BINDABLE
+            .iter()
+            .map(|name| Value::Str((*name).to_string()))
+            .collect(),
+    ))
+}
+
+/// The actions one may do, in the order the Events view offers them.
+fn binding_actions(_eng: &Engine, _args: &[Value]) -> Result<Value> {
+    Ok(Value::List(
+        crate::bindings::ACTIONS
+            .iter()
+            .map(|(word, _)| Value::Str((*word).to_string()))
+            .collect(),
+    ))
 }
 
 /// `scene.switch(path, options)` — replace the scene at the end of the tick.

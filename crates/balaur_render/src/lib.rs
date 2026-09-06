@@ -23,6 +23,7 @@ mod draw_2d;
 mod instancing;
 pub mod light;
 pub mod light3d;
+pub mod stats;
 pub mod material;
 pub mod mesh;
 #[cfg(feature = "kiss3d")]
@@ -939,6 +940,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         reg.insert_resource(PostConfig::default());
         reg.insert_resource(ViewportSnapshot2d::default());
         reg.insert_resource(ViewportSnapshot::default());
+        reg.insert_resource(stats::Stats::default());
         reg.insert_resource(CameraInputConfig { enabled: true });
         let mut m = reg.script_module("render")?;
         m.module_doc(
@@ -960,6 +962,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         boolean::install_boolean_api(&mut *m);
         cloner::install_cloner_api(&mut *m);
         light::install_occluder_api(&mut *m);
+        stats::install_stats_api(&mut *m);
         script_api::install_sprite_api(&mut *m);
         script_api::install_sprite_state_api(&mut *m);
         script_api::install_texture_api(&mut *m);
@@ -999,6 +1002,8 @@ impl balaur_plugin::Plugin for RenderPlugin {
         reg.add_system(Stage::SceneSync, boolean::resolve_booleans_system);
         // After the booleans: a cloner may multiply their result too.
         reg.add_system(Stage::SceneSync, cloner::resolve_cloners_system);
+        // After the cloners, so a node's copies are counted with it.
+        reg.add_system(Stage::Render, stats::measure_system);
         reg.add_system(Stage::Render, clear_debug_lines_system);
 
         Ok(())

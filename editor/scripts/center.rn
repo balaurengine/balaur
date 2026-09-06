@@ -391,31 +391,6 @@ fn code_pane(S, k) {
     crate::refactor::draw(S, S.theme);
 }
 
-// The `events` document tab: every script's engine-facing hooks, per node.
-fn events_view(S, k) {
-    let r = S.layout.doc;
-    if !style::placed(r) {
-        return;
-    }
-    ui::overlay("events", #{
-        x: r.x, y: r.y, w: r.w, h: r.h,
-        fill: k.bg, stroke: k.line, radius: 11,
-        padding_x: 20, padding_y: 14,
-    }, || {
-        style::section_label(k, "event bindings");
-        for node in S.doc {
-            let script_some = model::script_rel(node);
-            if let Some(script) = script_some {
-                for hook in model::hooks(S, script) {
-                    style::hook_pill(k, hook.name,
-                        format!("{}.{}()", node.name, hook.name),
-                        format!("{}:{}", script, hook.line));
-                }
-            }
-        }
-    });
-}
-
 pub fn draw(S) {
     let k = S.theme;
     // The scene is the window: a transparent central panel is the hole egui
@@ -429,7 +404,7 @@ pub fn draw(S) {
     }
     if S.doc_open {
         if S.doctab == "events" {
-            events_view(S, k);
+            crate::events::view(S, k);
         } else if S.viewport_live {
             split_code(S, k);
         } else {

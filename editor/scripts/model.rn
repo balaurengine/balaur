@@ -1149,6 +1149,11 @@ pub fn open_scene(S, rel) {
 // `readonly` properties are stripped, and an `asset` property keeps the
 // document's authored spelling — the engine's resolved one cannot be saved.
 fn doc_value(S, name, data, previous) {
+    // A component whose whole value is a list — `bindings` is the one — has
+    // no properties to rewrite, and reading it as pairs would lose the rows.
+    if !(data is Object) {
+        return data;
+    }
     let spec_of = schema(S, name);
     let out = #{};
     for (key, value) in data.iter() {
@@ -1185,7 +1190,9 @@ pub fn sync_component_doc_at(S, i, name) {
         None => return,
     };
     let data = found.get_component(name);
-    if data is Object {
+    // A list too: `bindings` reports its rows, and a component that reports
+    // nothing at all is one the node no longer has.
+    if data is Object || data is Vec {
         node[name] = doc_value(S, name, data, node.get(name));
     } else {
         node.remove(name);

@@ -5,6 +5,7 @@ use crate::anim;
 use crate::arrange;
 use crate::dock;
 use crate::dropin;
+use crate::events;
 use crate::importer;
 use crate::history;
 use crate::lint;
@@ -1472,4 +1473,46 @@ pub fn dropping(S) {
     fs::remove(root + "art/selftest-drop.png");
     fs::remove(root + "art/selftest-drop_2.png");
     log::info("selftest dropping: done");
+}
+
+
+/// The Events view authors rows and writes the script they are equivalent to.
+pub fn eventviews(S) {
+    let target = None;
+    for i in 0..S.doc.len() {
+        if S.doc[i].contains_key("bindings") {
+            target = Some(i);
+        }
+    }
+    let at = match target {
+        Some(at) => at,
+        None => {
+            log::info("selftest eventviews: this scene has no bindings, skipping");
+            return;
+        }
+    };
+    selection::only(S, at);
+    let was = events::rows(S).len();
+    check(was > 0, "the selected node carries binding rows");
+
+    events::add_row(S);
+    check(events::rows(S).len() == was + 1, "adding a row adds one");
+    shell::undo(S);
+    check(events::rows(S).len() == was, "and undo takes it back");
+
+    let written = events::as_script(S);
+    check(written.contains("pub fn on_pointer_click(this, button)"),
+        "the script it writes declares the hook the rows answer");
+    check(written.contains(".go(\"open\")"),
+        "a state row becomes the call that goes to it");
+    check(written.contains("scene::variable(\"score\")"),
+        "a `when` becomes the read that fetches the variable");
+
+    let known = util::vec(scene::bindable_events());
+    check(util::contains(known, "pointer_click"), "the engine names the events");
+    let verbs = util::vec(scene::binding_actions());
+    check(util::contains(verbs, "state") && util::contains(verbs, "set_variable"),
+        "and the actions");
+    check(mirror_resolves(S), "the mirror still resolves");
+    log::info("selftest eventviews: done");
 }

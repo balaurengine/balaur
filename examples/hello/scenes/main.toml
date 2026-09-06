@@ -1,3 +1,8 @@
+# Values the scene owns. A binding's `when` reads them, and so does a page
+# the game is embedded in.
+[variables]
+score = { type = "int", value = 0 }
+
 # The torus below is drawn from this asset and collided with it: one mesher
 # builds both, so the ring a ball rolls through is the ring on screen.
 [[assets]]
@@ -41,6 +46,20 @@ script = "scripts/ball.rn"
 kind = "ball"
 radius = 0.5
 color = [0.9, 0.9, 0.9, 1]
+
+# Two rows, in order: the click counts, and the count opens the door.
+[[nodes.bindings]]
+event = "pointer_click"
+action = "add_variable"
+target = "score"
+value = 1
+
+[[nodes.bindings]]
+event = "pointer_click"
+when = "score >= 3"
+action = "state"
+target = "../Door"
+value = "open"
 
 [[nodes]]
 id = "n_spinner"
@@ -115,6 +134,29 @@ source = "#ring"
 [nodes.collider3d]
 kind = "trimesh"
 mesh = "#ring"
+
+# Interactivity with no script in the project: clicking the ball counts, and
+# on the third click the door opens. The door is two named looks; the count and
+# the condition are the scene's own.
+[[nodes]]
+id = "n_door"
+name = "Door"
+parent = "n_world"
+position = [-4.5, 0.75, 0]
+
+[nodes.shape3d]
+kind = "cuboid"
+half_extents = [0.15, 1.25, 1.1]
+color = [0.45, 0.32, 0.17, 1]
+
+[nodes.states]
+current = "shut"
+
+[nodes.states.shut]
+shape3d = { color = [0.45, 0.32, 0.17, 1] }
+
+[nodes.states.open]
+shape3d = { color = [0.3, 0.75, 0.4, 1] }
 
 # The scene lights itself: a key light with a shadow, and the environment it
 # sits in. Without these the engine's own sun draws it, which is what every

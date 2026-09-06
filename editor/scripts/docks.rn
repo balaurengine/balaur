@@ -17,7 +17,7 @@ pub fn state() {
     #{
         left: #{ tabs: ["scene", "outline"], active: "scene", shut: false },
         bottom: #{
-            tabs: ["output", "problems", "assets", "docs", "timeline", "debugger", "session", "profiler", "tiles", "weights", "bonemap"],
+            tabs: ["output", "problems", "assets", "docs", "timeline", "debugger", "session", "profiler", "cost", "tiles", "weights", "bonemap"],
             active: "output", shut: false,
         },
         right: #{ tabs: ["inspector", "import"], active: "inspector", shut: false },
@@ -47,6 +47,7 @@ pub fn panels(S) {
         "debugger": #{ name: "Debugger", icon: icons::panel("debugger"), tall: true },
         "session": #{ name: "Session", icon: icons::panel("session"), tall: true },
         "profiler": #{ name: "Profiler", icon: icons::panel("profiler"), tall: true },
+        "cost": #{ name: "Cost", icon: icons::panel("cost"), tall: true },
         "tiles": #{ name: "Tiles", icon: icons::panel("tiles"), tall: true },
         "weights": #{ name: "Weights", icon: icons::panel("weights"), tall: true },
         "bonemap": #{ name: "Bone map", icon: icons::panel("bonemap"), tall: true },
@@ -162,6 +163,7 @@ fn body(S, k, id) {
         "debugger" => dock::debugger_view(S, k),
         "session" => dock::session_view(S, k),
         "profiler" => dock::profiler(S, k),
+        "cost" => dock::cost(S, k),
         "tiles" => crate::tiles::palette(S, k),
         "weights" => crate::weights::body(S, k),
         "bonemap" => crate::bonemap::body(S, k),

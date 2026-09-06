@@ -1029,3 +1029,113 @@ fn rows(k, table, kind) {
     }
 }
 
+
+
+// --- the cost dock ---
+
+/// Bytes as the unit a person reads them in.
+fn bytes(n) {
+    if n < 1024.0 {
+        return format!("{} B", n as i64);
+    }
+    if n < 1048576.0 {
+        return fixed(n / 1024.0, 1) + " KB";
+    }
+    fixed(n / 1048576.0, 1) + " MB"
+}
+
+/// Rows sorted by one key, worst first. The same insertion pass `by_cost`
+/// uses; a frame's node list is short and Rune's `sort` takes no comparator.
+fn by_key(rows, key) {
+    let left = [];
+    for row in rows {
+        left.push(row);
+    }
+    let out = [];
+    while left.len() > 0 {
+        let worst = 0;
+        let i = 1;
+        while i < left.len() {
+            if util::f(left[i][key]) > util::f(left[worst][key]) {
+                worst = i;
+            }
+            i += 1;
+        }
+        out.push(left.remove(worst));
+    }
+    out
+}
+
+/// What the frame draws, per node: the other half of the Profiler, beside the
+/// milliseconds. `render.stats` counts it from the scene, so a headless run
+/// reports the same triangles a windowed one does.
+pub fn cost(S, k) {
+    ui::request_repaint();
+    let stats = util::obj(render::stats());
+    ui::add_space(8);
+    ui::horizontal((), || {
+        ui::add_space(12);
+        ui::label("FRAME", style::heading(k));
+        ui::add_space(8);
+        ui::label(format!("{} draws · {} triangles · {} in {} textures",
+            util::i(stats.get("draws").unwrap_or(0)),
+            util::i(stats.get("triangles").unwrap_or(0)),
+            bytes(util::f(stats.get("texture_bytes").unwrap_or(0))),
+            util::i(stats.get("textures").unwrap_or(0))),
+            style::mono(k.text));
+    });
+    ui::add_space(4);
+    ui::horizontal((), || {
+        ui::add_space(12);
+        ui::label(format!("pack · {}", pack_size(S)), style::mono_sm(k.faint));
+    });
+    ui::add_space(6);
+    let nodes = util::vec(stats.get("nodes").unwrap_or([]));
+    if nodes.len() == 0 {
+        style::empty(k, "nothing is drawing");
+        return;
+    }
+    let worst = util::f(by_key(nodes, "triangles")[0].triangles);
+    ui::scroll("cost", (), || {
+        for row in by_key(nodes, "triangles") {
+            let share = util::clamp(util::f(row.triangles) / util::max(worst, 1.0), 0.0, 1.0);
+            ui::horizontal(#{ height: 20 }, || {
+                ui::add_space(12);
+                ui::horizontal(#{ height: 20, width: 150 }, || {
+                    ui::label(util::leaf(row.node), style::mono_sm(k.text));
+                });
+                ui::horizontal(#{ height: 20, width: 76 }, || {
+                    ui::label(format!("{} tri", util::i(row.triangles)), style::mono_sm(k.dim));
+                });
+                ui::horizontal(#{ height: 20, width: 62 }, || {
+                    ui::label(bytes(util::f(row.texture_bytes)), style::mono_sm(k.dim));
+                });
+                let copies = util::i(row.copies);
+                ui::horizontal(#{ height: 20, width: 46 }, || {
+                    if copies > 1 {
+                        ui::label(format!("x{}", copies), style::mono_sm(k.sage));
+                    }
+                });
+                ui::frame(#{ fill: k.sage, radius: 3, padding_x: 0 }, || {
+                    ui::horizontal(#{ height: 8, width: util::max(1.0, share * 150.0) }, || {});
+                });
+            });
+        }
+    });
+}
+
+/// How big the last export was, or a line saying none has been made. The
+/// pack is what a player downloads, so it belongs beside the frame's cost.
+fn pack_size(S) {
+    let out = export::output("web");
+    if !(out is String) || !fs::exists(out) {
+        return "not exported yet";
+    }
+    let total = 0.0;
+    for entry in util::vec(fs::list(out)) {
+        if !entry.is_dir {
+            total += 1.0;
+        }
+    }
+    format!("{} file(s) at {}", total as i64, util::leaf(out))
+}

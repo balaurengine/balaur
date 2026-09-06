@@ -987,7 +987,7 @@ fn edit_asset(S, k, comp, prop, spec, value) {
 // The values a material's shader takes, read off the linked shader so the
 // rows cannot drift from it. One that will not link has none.
 fn material_rows(S, k, reference) {
-    if reference == "" || reference.starts_with("#") {
+    if reference == "" {
         return;
     }
     let (ok, definition) = script::attempt(|| assets::load(reference));
@@ -1026,6 +1026,25 @@ fn material_row(S, k, reference, name, datatype, value) {
             if changed {
                 write_material_param(S, reference, name, v);
             }
+        } else if datatype == "texture" {
+            // A slot names an image, or nothing: the picker is over what the
+            // project has under `art/`, plus the choice of no map at all.
+            let current = if value is String { value } else { "" };
+            let choices = ["none"];
+            for f in model::list(S, "art") {
+                if !f.is_dir {
+                    choices.push("art/" + f.name);
+                }
+            }
+            let (picked, changed) = ui::dropdown(
+                format!("mat:{}:{}", reference, name),
+                if current == "" { "none" } else { current },
+                choices,
+                #{ width: control_w(S), size: 11.5, height: 22, color: k.text },
+            );
+            if changed {
+                write_material_param(S, reference, name, if picked == "none" { "" } else { picked });
+            }
         } else {
             let count = if datatype == "vec2" { 2 } else { 3 };
             let letters = ["x", "y", "z"];
@@ -1063,7 +1082,13 @@ fn write_material_param(S, reference, name, value) {
         Some(existing) => existing,
         None => #{},
     };
-    params[name] = value;
+    // An empty texture slot is cleared rather than written as "": a param
+    // naming no file is not a param.
+    if value is String && value == "" {
+        params.remove(name);
+    } else {
+        params[name] = value;
+    }
     definition["params"] = params;
     let (written, err) = script::attempt(|| assets::save(reference, definition));
     if !written {
@@ -1135,6 +1160,23 @@ fn readonly_row(S, k, prop, spec, data) {
     });
 }
 
+// A pointer at the Events view, in place of a section no derived editor can
+// draw: the rows are tables, not properties.
+fn bindings_note(S, k) {
+    section(S, k, "BINDINGS");
+    ui::horizontal(#{ height: 26 }, || {
+        ui::add_space(2);
+        if ui::pill(format!("{}  {} row(s) · open the Events view",
+            icons::ui("events"), crate::events::rows(S).len()), #{
+            height: 24, size: 11, align: ui::ALIGN_LEFT,
+            min_width: panel_w(S) - 16.0,
+            fill: k.sunken, color: k.text,
+        }) {
+            shell::open_doc(S, "events");
+        }
+    });
+}
+
 // One auto-generated section per component present on the node.
 // `filter` limits which components a persona shows (`None` = all).
 fn component_sections(S, k, filter) {
@@ -1155,6 +1197,12 @@ fn component_sections(S, k, filter) {
             None => true,
         };
         if !shown {
+            continue;
+        }
+        // Its rows are a table of tables, which no derived editor can draw
+        // and the Events view already draws properly.
+        if comp == "bindings" {
+            bindings_note(S, k);
             continue;
         }
         // The component's name and every property it has, so a query for a

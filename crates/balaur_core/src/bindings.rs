@@ -331,16 +331,28 @@ pub(crate) fn register_bindings_component(app: &mut crate::App) {
         "bindings",
         ComponentDef {
             doc: "What this node does when something happens to it, without a script. Each row is `event`, an optional `when` over the scene's `[variables]`, an `action`, a `target` node path and a `value`. Every action is a call a script could make, and the editor's Events view writes the script when a row outgrows the table.",
-            schema: ComponentDef::parse_schema("bindings", &String::new()),
+            // One shorthand property, so `[[nodes.bindings]]` -- which is an
+            // array where every other component is a table -- reaches `apply`
+            // as the rows the author wrote rather than as an empty table.
+            schema: ComponentDef::parse_schema(
+                "bindings",
+                r#"rows = { type = "strings", default = [], shorthand = true, description = "The binding rows, each `{ event, when, action, target, value }`" }"#,
+            ),
             tags: &["interaction"],
             expects: &[],
             apply: Box::new(|eng, entity, params| {
-                let rows = match params {
+                let written = params.get("rows").unwrap_or(params);
+                let rows = match written {
                     toml::Value::Array(rows) => rows
                         .iter()
                         .map(parse_binding)
                         .collect::<Result<Vec<_>>>()?,
-                    toml::Value::Table(_) => vec![parse_binding(params)?],
+                    // One row on its own, which is what a script setting the
+                    // component with a single table means.
+                    toml::Value::Table(row) if row.contains_key("event") => {
+                        vec![parse_binding(written)?]
+                    }
+                    toml::Value::Table(_) => Vec::new(),
                     _ => bail!("`bindings` is a list of rows"),
                 };
                 let mut world = eng.world_mut();
