@@ -33,6 +33,7 @@ mod shell;
 mod showcase;
 mod style;
 mod theme;
+mod textedit;
 mod tiles;
 mod util;
 mod viewport;
@@ -115,6 +116,7 @@ pub fn init(this) {
         mirror: (),
         theme: theme::dark(),
         gizmo: gizmo::state(),
+        textedit: textedit::state(),
         rig: rig::state(),
         polygon: polygon::state(),
         tiles: tiles::state(),
@@ -233,6 +235,7 @@ pub fn update(this, dt) {
     // tools read, so a drag would follow the feed rather than the mouse.
     if !session::scrubbing(S) && !showcase::feeding(S) {
         gizmo::update(S);
+    textedit::update(S);
     }
     anim::update(S);
     // Scene-tree UI widgets draw during play (and for preview in the Interface
@@ -406,6 +409,9 @@ pub fn draw_ui(this) {
     // Over everything but the palette: settings is a sheet you work in, the
     // palette is a thing you summon on top of whatever you are working in.
     exporter::draw(S);
+    // Under the sheets, over the viewport: a field that edits what is drawn
+    // belongs with the drawing, not over a dialog.
+    textedit::draw(S, S.theme);
     settings::draw(S);
     palette::draw(S);
 }
