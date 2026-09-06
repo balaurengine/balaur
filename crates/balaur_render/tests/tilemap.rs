@@ -216,3 +216,38 @@ fn a_material_on_the_map_is_kept_and_bumps_the_version_when_it_changes() {
     assert_eq!(map.material, "materials/water.toml");
     assert_eq!(map.version, before + 1);
 }
+
+/// A level too big to read in a scene keeps its rows in a file of its own.
+#[test]
+fn a_map_may_keep_its_cells_in_a_file() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("levels")).unwrap();
+    std::fs::write(dir.path().join("levels/cave.cells"), "0 1 -1\n1 1 0\n").unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"p\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("main.toml"),
+        "[[assets]]\nid = \"set\"\ntype = \"tileset\"\ntexture = \"tests/fixtures/sprite_200x100.png\"\ntile_size = 50\ncolumns = 4\n\n[[nodes]]\nid = \"n\"\nname = \"Map\"\n\n[nodes.tilemap]\ntileset = \"#set\"\ncells = \"levels/cave.cells\"\n",
+    )
+    .unwrap();
+    let mut app = balaur::standard_app(balaur::AppConfig::dev(
+        dir.path().to_string_lossy().as_ref(),
+    ))
+    .unwrap();
+    app.load_project().unwrap();
+    app.tick(1.0 / 60.0);
+    let world = app.engine.world();
+    let node = balaur_core::scene::find_node(&world, app.engine.root(), "Map").unwrap();
+    let map = world
+        .get::<&Tilemap>(node)
+        .expect("the map loaded its file");
+    assert_eq!(map.grid.len(), 2, "one row per line");
+    assert_eq!(
+        map.grid[0],
+        vec![Some(0), Some(1), None],
+        "-1 is an empty cell"
+    );
+}

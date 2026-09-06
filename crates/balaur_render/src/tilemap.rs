@@ -3,7 +3,7 @@
 //! kiss3d mirror at the bottom of the file is feature-gated.
 
 use crate::shape::{keys as k, words};
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
 use balaur_core::hecs::Entity;
@@ -75,6 +75,41 @@ pub struct Tilemap {
     pub pixels_per_unit: f32,
     /// Bumped when the content changes so backends rebuild their mesh.
     pub version: u64,
+}
+
+/// The cells themselves, or the file they are kept in.
+///
+/// A level too big to read in a scene keeps its rows in a `.cells` file of
+/// its own — one row per line, ids separated by spaces, `-1` for an empty
+/// cell — and the scene names the file.
+fn cells_of(eng: &Engine, cells: &toml::Value) -> Result<toml::Value> {
+    let named = |path: &&str| {
+        std::path::Path::new(path)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("cells"))
+    };
+    let Some(path) = cells.as_str().filter(named) else {
+        return Ok(cells.clone());
+    };
+    let text = eng
+        .resource::<balaur_core::project::ProjectFiles>()
+        .borrow()
+        .read(path)
+        .map(String::from_utf8)
+        .with_context(|| format!("a tilemap's cells file '{path}'"))?
+        .with_context(|| format!("a tilemap's cells file '{path}' is not text"))?;
+    let rows: Vec<toml::Value> = text
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            toml::Value::Array(
+                line.split_whitespace()
+                    .map(|cell| toml::Value::Integer(cell.parse().unwrap_or(-1)))
+                    .collect(),
+            )
+        })
+        .collect();
+    Ok(toml::Value::Array(rows))
 }
 
 /// `flags` as rows of numbers, or nothing when no cell is turned.
@@ -502,7 +537,7 @@ fn apply_tilemap(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<(
         .get(k::CELLS)
         .cloned()
         .unwrap_or_else(|| toml::Value::String(String::new()));
-    let grid = parse_cells_value(&cells)?;
+    let grid = parse_cells_value(&cells_of(eng, &cells)?)?;
     let material = text("material");
     let ppu = params
         .get(k::PIXELS_PER_UNIT)
@@ -562,7 +597,7 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
                 "tilemap",
                 &balaur_core::components::ComponentDef::schema(&[
                     (k::TILESET, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The tileset naming the texture and tile grid" }}"#, crate::tilemap::TILESET_ASSET_TYPE)),
-                    (k::CELLS, r#"{ type = "string", default = "", description = "Rows of tile characters, one row per line: . is empty, 0-9 then a-z index into the tileset. Also accepted: a list of rows of tile ids, -1 for empty, for a tileset past 36 tiles" }"#),
+                    (k::CELLS, r#"{ type = "string", default = "", description = "Rows of tile characters, one row per line: . is empty, 0-9 then a-z index into the tileset. Also accepted: a list of rows of tile ids, -1 for empty, for a tileset past 36 tiles; or the name of a .cells file holding those rows, for a level too big to read in a scene" }"#),
                     (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Tile-texture pixels per world unit" }"#),
                     (k::ORIGIN, r#"{ type = "vec2", default = [0.0, 0.0], description = "The column and row of the first cell: a map grows in any direction by moving this, and cell 0,0 always has its top-left corner on the node" }"#),
                     (k::FLAGS, r#"{ type = "string", default = "", description = "How each cell is turned, as rows of numbers beside `cells`: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal" }"#),
