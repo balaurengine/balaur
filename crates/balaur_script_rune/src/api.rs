@@ -142,6 +142,12 @@ fn install_host_entries(modules: &mut BTreeMap<String, Module>) {
         ),
         (
             "script",
+            "format",
+            "(path: string, source: string)",
+            "That source laid out by Rune's own formatter; the source unchanged when it will not parse.",
+        ),
+        (
+            "script",
             "shared",
             "(f: fn, arity: int)",
             "Wrap a script function so it can be called from several places with a fixed argument count.",

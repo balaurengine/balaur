@@ -150,7 +150,21 @@ pub(crate) fn script_module(host: &RuneHost) -> Result<rune::Module> {
             },
         )
         .build()?;
-    // `script::shared(f, arity)` — a callback made in this unit, callable    // `script::shared(f, arity)` — a callback made in this unit, callable
+    // `script::format(path, source)` — that source laid out by Rune's own
+    // formatter, or the source unchanged when it will not parse.
+    script
+        .function("format", move |path: &str, source: &str| {
+            let host = HOSTS.with(|hosts| hosts.borrow()[slot].clone());
+            match host.format(&RuneHost::normalize_key(path), source) {
+                Ok(text) => rune::to_value(text).expect("a string always converts"),
+                Err(err) => {
+                    tracing::error!("script::format({path}): {err}");
+                    rune::to_value(source.to_string()).expect("a string always converts")
+                }
+            }
+        })
+        .build()?;
+    // `script::shared(f, arity)` — a callback made in this unit, callable
     // from another unit's VM. Arity is explicit: a wrapper is typed.
     script
         .function("shared", |f: Function, arity: i64| -> rune::Value {

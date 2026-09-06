@@ -396,6 +396,37 @@ pub fn toggle_shader_preview(S, rel, line) {
 
 // cmd+S saves the visible script buffer when the code editor is open, the
 // scene document otherwise.
+/// Lay the visible script buffer out with Rune's own formatter. A shader is
+/// not Rune, so it is left alone.
+pub fn format_active(S) {
+    if S.shader_rel != "" && S.doctab == "script" {
+        return;
+    }
+    let node = S.doc[S.sel];
+    if !node.contains_key("script") {
+        return;
+    }
+    let rel = model::script_rel(node).unwrap_or("");
+    if rel == "" {
+        return;
+    }
+    let abs = S.game_root + "/" + rel;
+    let source = match S.script_buffers.get(abs) {
+        Some(buffer) => buffer,
+        None => model::source(S, rel).unwrap_or(""),
+    };
+    let formatted = script::format(rel, source);
+    if formatted == source {
+        return;
+    }
+    S.script_buffers[abs] = formatted;
+    S.script_dirty[abs] = true;
+    // The widget keeps its own copy per id, so the pane would redraw the old
+    // text until the next keystroke without this.
+    ui::set_text(("edit:" + abs), formatted);
+    log::info("formatted " + rel);
+}
+
 pub fn save_active(S) {
     // A shader is not a script: it is written and the watcher relinks the
     // materials naming it, with no unit to rebuild.

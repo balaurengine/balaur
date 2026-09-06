@@ -115,6 +115,7 @@ impl Server {
                             "completionProvider": { "triggerCharacters": [".", ":"] },
                             "hoverProvider": true,
                             "signatureHelpProvider": { "triggerCharacters": ["(", ","] },
+                            "documentFormattingProvider": true,
                         },
                         "serverInfo": { "name": "balaur", "version": crate::version::long() },
                     }
@@ -200,6 +201,13 @@ impl Server {
                     &json!({ "jsonrpc": "2.0", "id": id, "result": found }),
                 )?;
             }
+            "textDocument/formatting" => {
+                let edit = self.formatting(&message["params"]);
+                write_message(
+                    writer,
+                    &json!({ "jsonrpc": "2.0", "id": id, "result": edit }),
+                )?;
+            }
             // A request we do not serve still needs an answer, or a client
             // that waits for one hangs.
             _ if id.is_some() => {
@@ -253,6 +261,36 @@ impl Server {
                 Json::Null
             }
         }
+    }
+
+    /// The whole file formatted, as the one edit LSP wants: a range covering
+    /// everything, replaced. `null` when the source will not parse, which is
+    /// what a client should see rather than a mangled buffer.
+    fn formatting(&self, params: &Json) -> Json {
+        let Some(uri) = params["textDocument"]["uri"].as_str() else {
+            return Json::Null;
+        };
+        let Some(rel) = self.rel_of(uri) else {
+            return Json::Null;
+        };
+        let Some(source) = self.source_of(&rel) else {
+            return Json::Null;
+        };
+        let Ok(formatted) = self.host.format(&rel, &source) else {
+            return Json::Null;
+        };
+        if formatted == source {
+            return json!([]);
+        }
+        // The end is past any real position, which is how LSP says "to the
+        // end of the document" without counting its lines.
+        json!([{
+            "range": {
+                "start": { "line": 0, "character": 0 },
+                "end": { "line": u32::MAX, "character": 0 },
+            },
+            "newText": formatted,
+        }])
     }
 
     /// The file, its text, and the 1-based position a request names.

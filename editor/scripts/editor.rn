@@ -343,6 +343,9 @@ pub fn draw_ui(this) {
     if ui::shortcut("cmd", "S") {
         shell::save_active(S);
     }
+    if ui::shortcut("alt+shift", "F") {
+        shell::format_active(S);
+    }
     if ui::shortcut("cmd", "Backslash") {
         shell::toggle_split(S);
     }

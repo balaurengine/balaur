@@ -15,6 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::Result;
 use rune::compile::meta;
+use rune::{Source, Sources};
 
 use crate::RuneHost;
 use crate::api::collect_modules;
@@ -489,7 +490,26 @@ impl RuneHost {
         Ok(())
     }
 
-    /// What is under the caret at `line`:`column`, for a hover card.
+    /// `source` formatted, or the message saying why it could not be.
+    ///
+    /// Rune's own formatter, so a Balaur script and a Rune script are laid out
+    /// the same way. A source that will not parse comes back unchanged.
+    ///
+    /// # Errors
+    /// If the source will not parse.
+    pub fn format(&self, key: &str, source: &str) -> Result<String> {
+        let mut sources = Sources::new();
+        sources.insert(Source::new(key, source)?)?;
+        let formatted = rune::fmt::prepare(&sources)
+            .format()
+            .map_err(|err| anyhow::anyhow!("{err}"))?;
+        Ok(formatted
+            .into_iter()
+            .next()
+            .map_or_else(|| source.to_string(), |(_, text)| text.into_std()))
+    }
+
+    /// What is under the caret at `line`:`column`, for a hover card.    /// What is under the caret at `line`:`column`, for a hover card.
     ///
     /// # Errors
     /// If the context cannot be built.
