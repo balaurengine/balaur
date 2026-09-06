@@ -84,9 +84,10 @@ pub(crate) fn sync_tile_colliders(eng: &Engine) {
                 let Ok(grid) = world.get::<&TileGrid>(*entity) else {
                     return false;
                 };
-                let built = state.tile_built.get(entity).copied().unwrap_or_default();
-                built
-                    != (Built {
+                // A map that has never been built has no record at all,
+                // which a zero version and a zero generation would look like.
+                state.tile_built.get(entity)
+                    != Some(&Built {
                         version: grid.version,
                         generation,
                     })

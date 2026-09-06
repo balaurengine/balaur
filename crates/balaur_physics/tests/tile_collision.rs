@@ -10,7 +10,8 @@ use balaur_physics::rapier2d::math::IVector;
 static LOG: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// A two-by-two map of one-unit cells, three of them solid. `pixels_per_unit`
-/// matches `tile_size`, so a cell is one world unit and the map spans -1..1.
+/// matches `tile_size`, so a cell is one world unit and cell 0,0 has its
+/// top-left corner on the node.
 const SCENE: &str = r##"[[assets]]
 id = "dungeon"
 type = "tileset"
@@ -18,7 +19,7 @@ texture = "art/dungeon.png"
 tile_size = 16
 columns = 4
 
-[tiles.1]
+[assets.tiles.1]
 collision = "full"
 
 [[nodes]]
@@ -66,8 +67,8 @@ fn run(script: &str, frames: u32) -> (App, Vec<String>) {
     (app, errors)
 }
 
-/// Whether each of the map's four cells is filled, read off the shape, keyed
-/// the way the grid keys them: from the bottom left.
+/// Whether each of the map's four cells is filled, read off the shape. The
+/// grid's keys count up where its rows count down, so row 0 is key -1.
 fn filled(app: &App) -> [bool; 4] {
     let world = app.engine.world();
     let node = find_node(&world, app.engine.root(), "Map").expect("the scene's map");
@@ -88,7 +89,7 @@ fn filled(app: &App) -> [bool; 4] {
             .voxel_state(IVector::new(x, y))
             .is_some_and(|cell| !cell.is_empty())
     };
-    [at(0, 1), at(1, 1), at(0, 0), at(1, 0)]
+    [at(0, -1), at(1, -1), at(0, -2), at(1, -2)]
 }
 
 #[test]
@@ -109,8 +110,8 @@ fn the_solid_cells_of_a_map_become_one_voxel_collider() {
     let collider = &state.world.colliders[handle];
     let at = collider.position().translation;
     assert!(
-        (at.x + 1.0).abs() < 1e-5 && (at.y + 1.0).abs() < 1e-5,
-        "the grid starts at the map's bottom-left corner, not its centre ({at:?})"
+        at.x.abs() < 1e-5 && at.y.abs() < 1e-5,
+        "the voxel lattice is the map's own, so the collider needs no offset ({at:?})"
     );
     assert!(
         (collider.friction() - 0.9).abs() < 1e-5,
