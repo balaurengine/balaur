@@ -50,6 +50,55 @@ pub struct ProjectManifest {
     pub splash: String,
     /// How long the splash stays, in seconds of engine time.
     pub splash_seconds: f32,
+    /// The window a windowed build opens, and how it is drawn.
+    pub window: WindowSettings,
+    /// What the UI layer loads before it draws.
+    pub ui: UiSettings,
+}
+
+/// `[window]`: the window a windowed build opens, and how it is drawn.
+///
+/// A headless run holds these and opens nothing, so a project states them
+/// once and still ticks identically in CI.
+#[derive(Clone, Deserialize)]
+#[serde(default)]
+pub struct WindowSettings {
+    /// Logical width. The backing store is this times the display's scale,
+    /// which is what the render targets are sized from.
+    pub width: u32,
+    pub height: u32,
+    /// Samples per pixel. `1` is off; `4` is the only other count the
+    /// renderer offers, and it costs two render targets of four samples
+    /// each — tens of megabytes at a retina backing store.
+    pub msaa: u32,
+    /// Present in step with the display.
+    pub vsync: bool,
+}
+
+impl Default for WindowSettings {
+    fn default() -> Self {
+        Self { width: 1600, height: 1000, msaa: 4, vsync: true }
+    }
+}
+
+/// `[ui]`: what the UI layer loads before it draws.
+#[derive(Clone, Deserialize)]
+#[serde(default)]
+pub struct UiSettings {
+    /// Append the operating system's own faces to every font chain, so text
+    /// in a script balaur does not vendor draws instead of tofu.
+    ///
+    /// They are the largest files on the machine — one CJK collection runs
+    /// to tens of megabytes, and macOS ships three — so a game that only
+    /// ever draws the faces it vendors can turn them off and not pay for
+    /// them.
+    pub system_fonts: bool,
+}
+
+impl Default for UiSettings {
+    fn default() -> Self {
+        Self { system_fonts: true }
+    }
 }
 
 /// What a project says about one plugin: whether it wants it, and the
@@ -103,6 +152,10 @@ struct RawManifest {
     application: Application,
     #[serde(default)]
     plugins: BTreeMap<String, PluginChoice>,
+    #[serde(default)]
+    window: WindowSettings,
+    #[serde(default)]
+    ui: UiSettings,
 }
 
 #[derive(Deserialize)]
@@ -133,6 +186,8 @@ impl From<RawManifest> for ProjectManifest {
             plugins: raw.plugins,
             splash: raw.application.splash,
             splash_seconds: raw.application.splash_seconds.max(0.0),
+            window: raw.window,
+            ui: raw.ui,
         }
     }
 }

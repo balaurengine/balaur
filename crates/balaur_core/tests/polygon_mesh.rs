@@ -196,7 +196,7 @@ fn internal_vertices_stay_out_of_the_outline_until_a_polygon_names_them() {
 }
 
 #[test]
-fn a_polygon_loop_of_five_is_ear_clipped_into_three() {
+fn a_polygon_loop_of_five_becomes_three_triangles() {
     let drawn = mesh(
         "positions = [[0, 0], [2, 0], [2, 1], [1, 1], [1, 2], [0, 2]]\n\
          polygons = [[0, 1, 2, 3], [0, 3, 4, 5]]",

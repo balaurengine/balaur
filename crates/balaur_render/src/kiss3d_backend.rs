@@ -195,7 +195,14 @@ impl Frontend {
         self.light_map.sync(app, &mut self.scene_2d);
         // Immediate shapes go over the composite, unlit, like debug lines.
         crate::draw_2d::flush(app, window, &mut self.scene_2d, &mut self.transients);
-        crate::world_text::draw(app, &mut self.scene_2d, &mut self.scene, &mut self.text);
+        let viewport_height = window.height() as f32;
+        crate::world_text::draw(
+            app,
+            &mut self.scene_2d,
+            &mut self.scene,
+            &mut self.text,
+            viewport_height,
+        );
         draw_grid(app, window);
         flush_debug_lines(app, window);
         flush_debug_lines_2d(app, window);
@@ -243,11 +250,27 @@ pub async fn run_windowed_async(
     // them as they draw, so the plugin's headless fallback stands down.
     app.engine.insert_resource(WindowedBackend);
     balaur_ui::honour_lazy(&app.engine);
+    // `[window]` in project.toml, or its defaults when a project says
+    // nothing. Read before the window exists, so it cannot come from a
+    // resource the first frame inserts.
+    let window_settings = app
+        .manifest()
+        .map(|manifest| manifest.window.clone())
+        .unwrap_or_default();
     let setup = CanvasSetup {
         canvas_id: canvas_id.unwrap_or("canvas").to_string(),
+        vsync: window_settings.vsync,
+        samples: NumSamples::from_u32(window_settings.msaa).unwrap_or_else(|| {
+            tracing::warn!(
+                "project.toml asks for msaa = {}; this renderer offers 1 or 4, using 4",
+                window_settings.msaa
+            );
+            NumSamples::Four
+        }),
         ..CanvasSetup::default()
     };
-    let mut window = Window::new_with_setup(title, 1600, 1000, setup).await;
+    let mut window =
+        Window::new_with_setup(title, window_settings.width, window_settings.height, setup).await;
     window.set_ime_allowed(true);
     let mut f = Frontend::new();
     let mut last = Instant::now();

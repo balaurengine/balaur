@@ -240,7 +240,7 @@ pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<Tex
 
 #[cfg(feature = "kiss3d")]
 pub(crate) use backend::{
-    atlas_texture, bucket_ratio, layers, mesh_2d, mesh_3d, request_of, shape,
+    atlas_texture, bucket_ratio, layers, mesh_2d, mesh_3d, request_of, shape, shape_at,
 };
 
 #[cfg(feature = "kiss3d")]
@@ -312,6 +312,17 @@ mod backend {
         text: &str,
         style: &super::TextStyle,
     ) -> Result<std::rc::Rc<Shaped>> {
+        shape_at(eng, text, style, balaur_ui::text::bucket(style.size))
+    }
+
+    /// The same, rasterised at `raster` pixels rather than the style's size:
+    /// what a block far from the camera or magnified by one asks for.
+    pub(crate) fn shape_at(
+        eng: &Engine,
+        text: &str,
+        style: &super::TextStyle,
+        raster: f32,
+    ) -> Result<std::rc::Rc<Shaped>> {
         let state = balaur_ui::text::state(eng)
             .ok_or_else(|| anyhow!("no text shaper: the ui plugin installs it with the fonts"))?;
         // A bitmap face is loaded the first time it is asked for: the page
@@ -319,7 +330,8 @@ mod backend {
         if !style.font.is_empty() {
             load_bitmap_font(eng, &style.font)?;
         }
-        let request = request_of(text, style);
+        let mut request = request_of(text, style);
+        request.size = raster.max(1.0);
         let shaped = state.borrow_mut().shape(&request);
         Ok(shaped)
     }
@@ -620,8 +632,9 @@ pub(crate) fn draw(
     scene_2d: &mut kiss3d::scene::SceneNode2d,
     scene_3d: &mut kiss3d::scene::SceneNode3d,
     frame: &mut Frame,
+    viewport_height: f32,
 ) {
-    crate::text_component::sync_text(app, scene_2d, scene_3d, &mut frame.slots);
+    crate::text_component::sync_text(app, scene_2d, scene_3d, &mut frame.slots, viewport_height);
     flush(app, scene_2d, scene_3d, &mut frame.transients);
 }
 

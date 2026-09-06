@@ -338,6 +338,10 @@ pub(crate) struct TextSlot {
     two_d: Vec<kiss3d::scene::SceneNode2d>,
     three_d: Vec<kiss3d::scene::SceneNode3d>,
     version: u64,
+    /// The size the glyphs were rasterised at. A camera that moves changes
+    /// how many pixels the block covers, and past a bucket it is re-shaped
+    /// rather than magnified.
+    raster: f32,
     /// The string last shaped, so a `text_key` that resolves differently
     /// after a language change rebuilds without the component moving.
     shaped: String,
@@ -367,20 +371,25 @@ pub(crate) fn sync_text(
     scene_2d: &mut kiss3d::scene::SceneNode2d,
     scene_3d: &mut kiss3d::scene::SceneNode3d,
     slots: &mut std::collections::HashMap<Entity, TextSlot>,
+    viewport_height: f32,
 ) {
     use balaur_core::GlobalTransform;
 
     let world = app.engine.world();
     let mut seen: std::collections::HashSet<Entity> = std::collections::HashSet::new();
-    let mut wanted: Vec<(Entity, TextRenderable, String)> = Vec::new();
-    for (entity, text, _) in &mut world.query::<(Entity, &TextRenderable, &GlobalTransform)>() {
+    let mut wanted: Vec<(Entity, TextRenderable, String, f32)> = Vec::new();
+    for (entity, text, global) in &mut world.query::<(Entity, &TextRenderable, &GlobalTransform)>()
+    {
         seen.insert(entity);
         let resolved = text.resolved(&app.engine);
-        let rebuild = slots
-            .get(&entity)
-            .is_none_or(|slot| slot.version != text.version || slot.shaped != resolved);
+        let raster = raster_size(app, &text, global, viewport_height);
+        let rebuild = slots.get(&entity).is_none_or(|slot| {
+            slot.version != text.version
+                || slot.shaped != resolved
+                || (slot.raster - raster).abs() > f32::EPSILON
+        });
         if rebuild {
-            wanted.push((entity, text.clone(), resolved));
+            wanted.push((entity, text.clone(), resolved, raster));
         }
     }
     drop(world);
@@ -388,8 +397,8 @@ pub(crate) fn sync_text(
     // Shape every block that moved before the atlas is uploaded, so one
     // upload covers the lot.
     let mut blocks = Vec::with_capacity(wanted.len());
-    for (entity, text, resolved) in &wanted {
-        match crate::world_text::shape(&app.engine, resolved, &text.style) {
+    for (entity, text, resolved, raster) in &wanted {
+        match crate::world_text::shape_at(&app.engine, resolved, &text.style, *raster) {
             Ok(block) => blocks.push(Some(block)),
             // The fonts install on the first UI pass, later in this frame:
             // said once, since the frame after it draws.
@@ -413,7 +422,7 @@ pub(crate) fn sync_text(
         );
     }
 
-    for ((entity, text, resolved), block) in wanted.into_iter().zip(blocks) {
+    for ((entity, text, resolved, raster), block) in wanted.into_iter().zip(blocks) {
         if let Some(mut old) = slots.remove(&entity) {
             old.detach();
         }
@@ -421,11 +430,13 @@ pub(crate) fn sync_text(
         let Some(texture) = texture.clone() else {
             continue;
         };
-        let scale = crate::world_text::bucket_ratio(&text.style) / text.pixels_per_unit;
+        // Shaped at `raster`, wanted at `font_size`: the block is scaled back.
+        let scale = (text.style.size / raster) / text.pixels_per_unit;
         let mut slot = TextSlot {
             two_d: Vec::new(),
             three_d: Vec::new(),
             version: text.version,
+            raster,
             shaped: resolved,
         };
         // Shadow, outline and text: a node each, drawn in that order.
@@ -538,4 +549,37 @@ fn facing(towards: glamx::Vec3) -> glamx::Quat {
     let right = reference.cross(forward).normalize_or_zero();
     let up = forward.cross(right);
     glamx::Quat::from_mat3(&glamx::Mat3::from_cols(right, up, forward))
+}
+
+/// The size a block's glyphs should be rasterised at: how many pixels one em
+/// covers on screen, in buckets so a moving camera re-shapes rarely.
+///
+/// Falls back to the asked size when nothing has published a camera yet.
+#[cfg(feature = "kiss3d")]
+fn raster_size(
+    app: &balaur_core::App,
+    text: &TextRenderable,
+    global: &balaur_core::GlobalTransform,
+    viewport_height: f32,
+) -> f32 {
+    let em_world = text.style.size / text.pixels_per_unit.max(0.01);
+    let per_unit = if text.in_3d {
+        let Some(snapshot) = app.engine.try_resource::<crate::ViewportSnapshot>() else {
+            return balaur_ui::text::bucket(text.style.size);
+        };
+        let snapshot = snapshot.borrow();
+        let eye = glamx::Vec3::new(snapshot.eye[0], snapshot.eye[1], snapshot.eye[2]);
+        let distance = (eye - global.position).length().max(0.01);
+        // Half the frustum's height at that distance is what fills half the
+        // viewport, so this is pixels to the world unit.
+        let half = (snapshot.fov / 2.0).tan().max(1e-4) * distance;
+        viewport_height / (2.0 * half)
+    } else {
+        let Some(snapshot) = app.engine.try_resource::<crate::ViewportSnapshot2d>() else {
+            return balaur_ui::text::bucket(text.style.size);
+        };
+        // The 2D camera's zoom is already pixels to the world unit.
+        snapshot.borrow().zoom.max(0.01)
+    };
+    balaur_ui::text::bucket((em_world * per_unit).clamp(1.0, 512.0))
 }

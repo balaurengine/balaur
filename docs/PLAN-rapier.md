@@ -132,28 +132,33 @@
    Two follow-ups shipped 2026-09-06: `balaur_render`'s `pick` now casts
    against the triangles (below), and `csg.rs` keeps only its real reason.
 
-   **Triangulation does not consolidate, and here is the evidence.** parry's
-   ear clipper is `pub(crate)`, so the duplication to remove was our own:
-   `balaur_core::triangulate` and the `i_triangle` that `balaur_ui::glyph`
-   fills glyph outlines with. Both of `i_triangle`'s entry points were tried
-   against `tests/polygon_mesh.rs` and neither can stand behind
-   `triangulate(points, ring) -> [u32; 3]`:
+   **Triangulation consolidated onto `i_triangle`, 2026-09-06.** parry's ear
+   clipper is `pub(crate)`, so the duplication to remove was our own: the
+   hand-written clipper in core and the `i_triangle` that `balaur_ui::glyph`
+   filled glyph outlines with. `balaur_core::triangulate` is now the only
+   place either is named, in two forms, because the two callers want
+   different things:
 
-   - `triangulate` validates, and resolves a self-crossing loop by inventing
-     a point at the crossing. A vertex invented there has no index in the
-     caller's list, and so no uv, colour or skin weight — every triangle
-     leaning on it has to be dropped, which leaves
-     `a_self_crossing_loop_still_yields_a_triangulation` with nothing.
-   - `uncheck_triangulate` preserves the points and **aborts** on a
-     clockwise loop: `slice::get_unchecked_mut` out of bounds inside
-     `i_tree`, a hard abort, not an error. Unvalidated input is not
-     something authored polygons can promise.
+   - `triangulate(points, ring)` returns triangles over the caller's own
+     points. The checked entry point hands every input point back
+     unchanged — winding and concavity included — so the mapping is exact.
+     It refuses a loop that crosses itself and names the crossing, because
+     filling one correctly needs a vertex there, and a vertex the author
+     never wrote has no uv, colour, morph offset or skin weight in the mesh
+     that indexes it.
+   - `triangulate_shape(contours)` returns the points a fill needed as well
+     as the triangles: holes subtracted rather than filled over, and the
+     crossing vertex included. What the glyph filler wants, and anything
+     else that can take a point it did not author.
 
-   So the swap needs an API that carries points as well as indices, and
-   `mesh::triangulated` has to interpolate uvs, colours and weights for the
-   vertices the triangulator adds. That is a change to what a `mesh` asset
-   means, not a refactor, and it wants its own commit with the fixtures and
-   digests it moves.
+   `uncheck_triangulate` is not used and should not be: it preserves the
+   points but **aborts** on a clockwise loop — `slice::get_unchecked_mut` out
+   of bounds inside `i_tree`, a hard abort rather than an error — and
+   authored polygons cannot promise validated input. Worth reporting
+   upstream.
+
+   What changed for a scene: a self-crossing `polygons` loop used to fill
+   with two overlapping triangles and now reports where it crosses.
 
    Everything else already wraps rapier or parry: the character and vehicle
    controllers, the debug render pipeline, the query pipeline, and

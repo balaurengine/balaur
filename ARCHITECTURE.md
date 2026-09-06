@@ -41,9 +41,10 @@ the direction, and it is what keeps core language-free.
   and picking, exact ray and point queries, and the 2D shape tools.
 - Hand-written instead: `primitive` (parry returns no UVs or normals and lacks
   half the shapes), `csg` (parry has intersection only), `geometry2d`'s booleans
-  on `i_overlay`, the 2D convex hull, and triangulation: parry's ear clipper is
-  `pub(crate)`, and `i_triangle` either invents vertices a mesh cannot carry or
-  aborts on a clockwise loop (`docs/PLAN-rapier.md` item 8).
+  on `i_overlay`, the 2D convex hull. Triangulation is `i_triangle`, named in
+  `balaur_core::triangulate` alone — parry's ear clipper is `pub(crate)` —
+  with two forms: one over the caller's own points, which refuses a loop that
+  crosses itself, and one that returns the vertex a crossing or a hole needed.
 - **`Engine`** is a clonable `Rc` handle over world, resources, command queue
   and script host, with interior mutability and short borrows: Rust systems and
   script bindings see one state, unmarshalled. Single-threaded by design;
