@@ -12,6 +12,7 @@ id = "shell"
 name = "Shell"
 parent = "n_editor"
 [nodes.widget]
+theme = "themes/shell-dark.toml"
 kind = "column"
 layer = "shell"
 anchor = "top_left"
@@ -47,8 +48,18 @@ id = "left"
 name = "Left"
 parent = "body"
 [nodes.widget]
-kind = "row"
+kind = "panel"
+text = ""
 width = 236
+
+[[nodes]]
+id = "left_body"
+name = "LeftBody"
+parent = "left"
+[nodes.widget]
+kind = "draw"
+draw = "draw_dock_left"
+grow = 1
 
 [[nodes]]
 id = "centre"
@@ -64,8 +75,18 @@ id = "right"
 name = "Right"
 parent = "body"
 [nodes.widget]
-kind = "row"
+kind = "panel"
+text = ""
 width = 288
+
+[[nodes]]
+id = "right_body"
+name = "RightBody"
+parent = "right"
+[nodes.widget]
+kind = "draw"
+draw = "draw_dock_right"
+grow = 1
 
 # Everything above the bottom dock. The tool rail sits in its own column so
 # the scene starts clear of it, while the dock below does not.

@@ -1,0 +1,16 @@
+# What the shell's own boxes are painted with. The `editor_theme` beside this
+# dresses everything a script draws; this dresses the nodes in `scenes/main.toml`,
+# and the two carry the same colours because they are the same shell.
+type = "widget_theme"
+
+[panel]
+fill = "#12161c"
+radius = 8
+# What `style::sheet` kept, so a dock's contents sit where they always did.
+padding = 8
+
+[row]
+radius = 8
+
+[column]
+radius = 8

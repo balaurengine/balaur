@@ -395,9 +395,9 @@ pub fn draw_ui(this) {
     center::modes(S);
     layout::compute(S);
     center::draw(S);
-    for side in docks::sides() {
-        docks::draw(S, S.theme, side);
-    }
+    // The side docks are nodes now: the scene lays them out, paints them, and
+    // calls `draw_dock_*` to fill them. The bottom one is still script-drawn.
+    docks::draw(S, S.theme, "bottom");
     chrome::top_bar(S);
     plugins::draw_windows(S, S.theme);
     if S.show_input {
@@ -423,6 +423,16 @@ fn padded(n) {
         s = "0" + s;
     }
     s
+}
+
+// The shell's side docks: the scene lays the box out and paints it, and this
+// fills it. `docks::draw` still owns what goes in.
+pub fn draw_dock_left(this) {
+    docks::draw_body(this.S, this.S.theme, "left");
+}
+
+pub fn draw_dock_right(this) {
+    docks::draw_body(this.S, this.S.theme, "right");
 }
 
 pub fn hot_reload(this) {

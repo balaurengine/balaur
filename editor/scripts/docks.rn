@@ -287,6 +287,55 @@ fn handle(S, k, side, r) {
     });
 }
 
+/// A dock's contents, drawn into the rect the scene's `draw` node hands over.
+///
+/// The sheet around it is the node's own paint now, so this draws no frame:
+/// the tab row, the panel, and for the bottom dock the status strip.
+pub fn draw_body(S, k, side) {
+    let d = S.docks[side];
+    if d.shut {
+        handle_body(S, k, side);
+        return;
+    }
+    if d.tabs.len() == 0 {
+        return;
+    }
+    tab_row(S, k, side, d);
+    if side != "bottom" {
+        body(S, k, d.active);
+        return;
+    }
+    ui::scroll("dock-body", #{ max_height: S.layout.body_h - 8.0 }, || {
+        body(S, k, d.active);
+    });
+    ui::separator(k.line_soft);
+    chrome::status_strip(S, k, S.layout[side].w, || {});
+}
+
+// Minimised, without the sheet: one control that opens the dock back.
+fn handle_body(S, k, side) {
+    let p = panel(S, S.docks[side].active);
+    if side == "bottom" {
+        ui::add_space(2);
+        chrome::status_strip(S, k, S.layout[side].w, || {
+            if ui::pill(icons::ui(open_icon(side)), #{
+                role: "icon_button", height: 22, size: 12, tooltip: "Open the dock",
+            }) {
+                S.docks[side].shut = false;
+            }
+        });
+        return;
+    }
+    ui::horizontal(#{ height: 34 }, || {
+        ui::add_space(2);
+        if ui::circle_button(icons::ui(open_icon(side)), #{
+            role: "tool", tooltip: format!("Open the {}", p.name.to_lowercase()),
+        }) {
+            S.docks[side].shut = false;
+        }
+    });
+}
+
 pub fn draw(S, k, side) {
     let d = S.docks[side];
     let r = S.layout[side];
