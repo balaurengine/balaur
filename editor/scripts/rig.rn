@@ -21,8 +21,10 @@ const PICK_PX = 10.0;
 // clear of the joint it names.
 const LABEL_PPU = 90.0;
 const LABEL_LIFT = 0.12;
-// The modifier target handle, in design px.
-const HANDLE_PX = 6.0;
+// The modifier target handle, in design px, and the width its chain is drawn
+// at: heavier than a bone, because it sits on top of one.
+const HANDLE_PX = 7.0;
+const CHAIN_W = 3.6;
 // The name halves Mirror swaps a bone across, longest first.
 const SIDE_PAIRS = [["left", "right"], ["_l_", "_r_"], ["l_", "r_"], ["_l", "_r"], [".l", ".r"]];
 
@@ -238,8 +240,6 @@ pub fn draw(S) {
     draw_modifiers(S);
 }
 
-// -------------------------------------------------------- modifier gizmos
-
 // The `modifier2d` or `modifier3d` table on a node, or `None`.
 pub fn modifier(node) {
     for key in ["modifier2d", "modifier3d"] {
@@ -262,10 +262,7 @@ fn modifier_key(node) {
 }
 
 // What a modifier reaches for and with: the world point of its target, and
-// the bones it actually solves. Godot's SkeletonModification2D editor shows
-// the target and the elbow; here the whole chain is drawn, because `chain`
-// makes how far it reaches a number the inspector holds rather than a shape
-// the rig implies.
+// the bones it actually solves, which `chain` makes a number not a shape.
 fn modifier_reach(S, i) {
     let node = S.doc[i];
     let comp = match modifier(node) {
@@ -314,7 +311,7 @@ fn modifier_reach(S, i) {
 // handle at the target itself.
 fn draw_modifiers(S) {
     let k = S.theme;
-    let color = util::rgb(k.node_bone);
+    let color = util::rgb(k.modifier);
     for i in 0..S.doc.len() {
         let reach = match modifier_reach(S, i) {
             Some(found) => found,
@@ -326,7 +323,7 @@ fn draw_modifiers(S) {
                 Some(g) => g,
                 None => continue,
             };
-            line3(g.origin, g.tip, color);
+            line_at(S, g.origin, g.tip, color, CHAIN_W);
             last = g.tip;
         }
         let target = match reach.target {
@@ -342,8 +339,14 @@ fn draw_modifiers(S) {
     }
 }
 
-fn line3(a, b, color) {
-    render::draw_line(a[0], a[1], a[2], b[0], b[1], b[2], color[0], color[1], color[2], W);
+// A line in whichever layer the viewport is drawing: the 2D pass has its own,
+// and a 3D line in a 2D scene lands where nothing is looking.
+fn line_at(S, a, b, color, width) {
+    if S.mode2d {
+        render::draw_line_2d(a[0], a[1], b[0], b[1], color[0], color[1], color[2], width);
+    } else {
+        render::draw_line(a[0], a[1], a[2], b[0], b[1], b[2], color[0], color[1], color[2], width);
+    }
 }
 
 // A dashed run, so a modifier's reach reads differently from a bone.
@@ -353,22 +356,24 @@ fn dashed(S, a, b, color) {
         if i % 2 == 1 {
             continue;
         }
-        let t0 = util::f(i) / util::f(steps);
-        let t1 = util::f(i + 1) / util::f(steps);
         let at = |t| [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-        line3(at(t0), at(t1), color);
+        line_at(S, at(util::f(i) / util::f(steps)), at(util::f(i + 1) / util::f(steps)), color, W);
     }
 }
 
+// A ring with a cross through it at the target, big enough to grab.
 fn handle(S, p, color) {
     let h = HANDLE_PX * viewport::world_per_px(S);
-    for (dx, dy) in [(-h, 0.0), (0.0, -h)] {
-        let a = [p[0] + dx, p[1] + dy, p[2]];
-        let b = [p[0] - dx, p[1] - dy, p[2]];
-        line3(a, b, color);
+    let sides = 12;
+    for i in 0..sides {
+        let at = |j| {
+            let a = math::PI * 2.0 * util::f(j) / util::f(sides);
+            [p[0] + math::cos(a) * h, p[1] + math::sin(a) * h, p[2]]
+        };
+        line_at(S, at(i), at(i + 1), color, W);
     }
-    line3([p[0] - h, p[1] - h, p[2]], [p[0] + h, p[1] + h, p[2]], color);
-    line3([p[0] - h, p[1] + h, p[2]], [p[0] + h, p[1] - h, p[2]], color);
+    line_at(S, [p[0] - h, p[1], p[2]], [p[0] + h, p[1], p[2]], color, W);
+    line_at(S, [p[0], p[1] - h, p[2]], [p[0], p[1] + h, p[2]], color, W);
 }
 
 // The modifier whose target handle is under the cursor, for dragging it.
@@ -448,18 +453,14 @@ pub fn flip_modifier(S, i) {
     model::apply_component(S, modifier_key(node));
 }
 
-// --------------------------------------------------------------- mirror
-
 // The same name on the other side, or `None`. Shared spelling with the
 // Polygon tool's, so a bone and its weights mirror to the same place.
 pub fn mirror_name(path) {
     crate::polygon::mirror_name(path)
 }
 
-// Mirror every bone under the selection: reflect its rest over the node's x
-// or y axis, and hand each bone's rest to the bone whose name differs by a
-// side. A rig with no side names is reflected in place, which is what
-// mirroring one arm onto nothing can mean.
+// Mirror every bone under the selection, handing each bone's rest to the one
+// whose name differs by a side. A rig with no side names reflects in place.
 pub fn mirror(S, axis) {
     let root = match model::live(S, S.sel) {
         Some(root) => root,
@@ -697,11 +698,8 @@ fn sync_bones(S, root_i, transforms) {
 }
 
 // Create Physical Skeleton: walk the rig into bodies and joints, and leave
-// the `ragdoll` component that drives the bones back from them.
-//
-// One engine call. The nodes it makes are ordinary ones with ordinary
-// components, so they land in the tree, in the inspector and in the file the
-// way anything else the editor builds does.
+// the `ragdoll` component that drives the bones back from them. The nodes it
+// makes are ordinary ones, so they land in the tree and in the file.
 pub fn physical_bones(S) {
     let found = match model::live(S, S.sel) {
         Some(found) => found,

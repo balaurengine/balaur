@@ -31,44 +31,64 @@ solver already in the tree, but it solves a reduced-coordinates joint chain
 (`physics3d.solve_ik`), not a rig. Everything stays on `libm` and the fixed
 step; the digest already covers bone transforms.
 
-## Rig tooling
+## Rig tooling — built, 2026-09-06
 
 The engine halves of what `docs/PLAN-editor.md` §6 "Rigging panels" draws,
-written down on 2026-09-05. Each is a data change with a headless test
-before it is a panel.
+written down on 2026-09-05 and built the next day. Each landed as a data
+change with a headless test before it was a panel.
 
-- **Chain solvers and jiggle.** `modifier2d` and, with 3D IK above,
-  `modifier3d` gain kinds beside `look_at` and `two_bone_ik`: `fabrik` and
-  `ccdik` over a chain of any length (Godot's SkeletonModification2DFABRIK
-  and CCDIK; iterations and a per-bone angle limit), and `jiggle` (a
-  spring per bone toward its rest, stepped on the fixed tick so it
-  replays). Planned; every transcendental on `libm`.
-- **Retargeting through a bone map.** A `bone_map` asset: canonical bone
-  names (a `skeleton_profile` shipped for a humanoid, or one the project
-  writes) to a rig's node paths. `animation.play(node, clip, { retarget =
-  "maps/hero.toml" })` renames each track's `target` through the map
-  before sampling, and rest-pose differences are corrected per bone by
-  the rig's `Bone` rest against the profile's. Planned; the editor panel
-  follows the asset.
-- **Deform tracks.** A `polygon/deform` track keys a list of `[dx, dy]`
-  per vertex, added to `positions` before skinning; the sampler already
-  lerps any width, and `skin_positions` is where the offset lands. Planned,
-  behind a `channels` change: a track today holds four numbers a key.
-- **Physical bones.** A body and a joint per bone, built from a rig by one
-  call (`physics2d.ragdoll(root)`, and the 3D twin) and blended back with
-  the clip by a weight. `docs/PLAN-physics.md`'s, listed here so the panel
-  and the call are one item.
+- **Chain solvers and jiggle.** `modifier2d` gained `fabrik` and `ccdik`
+  over a chain of any length (Godot's SkeletonModification2DFABRIK and
+  CCDIK; `iterations`, a `tolerance` and a per-bone `angle_limit`) and
+  `jiggle` (a spring per bone toward the pose, stepped on the fixed tick
+  so it replays), and **`modifier3d`** is the same five kinds over
+  `bone3d`. FABRIK and the spring move points in `Vec3` and 2D passes them
+  with `z = 0`, so there is one reaching algorithm rather than two that
+  drift apart; only the step that turns a solved point back into a
+  rotation is written twice. Every transcendental is `libm`'s.
+
+  Two things the spring needed that the plan did not say. It keeps the
+  pose the clip wrote separately from the pose it wrote itself, or it
+  springs toward its own last answer — a pair that agree at any angle,
+  including upside down. And its point is a direction to aim along, not a
+  joint position: holding it on the bone's own circle adds a second fixed
+  point, exactly opposite the pose, where the pull is along the radius the
+  projection cancels.
+- **Retargeting through a bone map.** `bone_map` and `skeleton_profile`
+  assets, with a humanoid profile built in rather than shipped as a file
+  so `retarget` works in a project that has written no assets of its own.
+  `animation.play(node, clip, { retarget = "maps/hero.toml" })` renames
+  each track's `target` through the map before the pose is written, reads
+  a rotation key as a turn away from the profile's rest and applies it to
+  this rig's, and scales a position key by how much longer this rig's bone
+  rests. A track the map says nothing about keeps the path it was authored
+  with, so a clip that half matches plays the half that does.
+- **Deform tracks.** A `polygon/deform` track keys a list of `[dx, dy]` per
+  vertex. The `channels` change it was behind is a *wide* key beside the
+  `Vec4` one rather than a widening of every key, so the transform hot path
+  still allocates nothing; the offsets land on the node as a
+  `balaur_core::mesh::Deform`, which the renderer adds to the authored
+  positions before it skins. The vertex buffer is rewritten in place on the
+  frames a deform actually moved something, rather than the node being
+  rebuilt.
+- **Physical bones.** `physics2d.ragdoll(root, opts)` and the 3D twin walk a
+  rig into a body and a capsule per bone, hinged to its parent's, and leave
+  a `ragdoll` component whose `blend` moves each bone from the pose the clip
+  wrote toward the pose its body ended up in — 0 simulates unseen, 1 goes
+  limp, and `physics.ragdoll_blend` tweens between them. The bodies are
+  ordinary nodes with ordinary components, under a container at the scene
+  root because physics reads and writes a body's transform as a world one.
 
 ## Also deferred
 
-- **The player is in neither the snapshot nor the digest.** `balaur_anim`
-  registers no `snapshot` or `digest` source, so a rollback rewinds the
-  transforms a clip wrote and not the playhead that wrote them, and the
-  accumulator keeps its residual across a record restart. First item of
-  `docs/PLAN-hardening.md` phase 1; nothing above should be built on top of
-  a player that rollback cannot put back.
-- **Skinning, rigs and retargeting** shipped since, in 2D and 3D; retargeting
-  a clip from one rig to another did not — "Rig tooling" above.
+- ~~**The player is in neither the snapshot nor the digest.**~~ Built:
+  `balaur_anim::snapshot` registers both, plus a replay setup for the
+  fixed-step residual. Every playhead, every running tween with its
+  generated clip, and every jiggle spring rides a rollback; the digest
+  hashes the playhead and the spring but not the pose, which the transform
+  walk already covers.
+- ~~**Skinning, rigs and retargeting**~~ — all three shipped, in 2D and 3D;
+  retargeting last, as "Rig tooling" above.
 - ~~**Stable asset ids**~~ — built 2026-09-05 as `id://` over
   `assets/index.toml`, with `assets.rename` for the paths
   (`docs/PLAN-scenes-and-assets.md`).

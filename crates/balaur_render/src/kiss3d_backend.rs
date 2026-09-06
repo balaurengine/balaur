@@ -852,54 +852,6 @@ fn build_polyline_node(
 
 /// A polygon's kiss3d node and, when its mesh carries a skin, the palette
 /// handle the frame writes joint matrices into. `None` with nothing to draw.
-fn build_polygon_node(
-    app: &App,
-    scene: &mut SceneNode2d,
-    renderable: &Renderable2d,
-) -> Option<(
-    SceneNode2d,
-    Option<crate::skinned_2d::SkinHandle>,
-    Option<crate::skinned_2d::DeformHandle>,
-)> {
-    let polygon = renderable.polygon.as_ref()?;
-    if polygon.positions.is_empty() || polygon.indices.is_empty() {
-        return None;
-    }
-    let (mut node, skin, deform) = crate::skinned_2d::build(scene, polygon);
-    crate::texture::attach_texture_2d(&app.engine, &mut node, &polygon.texture);
-    Some((node, skin, Some(deform)))
-}
-
-/// This frame's vertex positions for a polygon carrying a `Deform`, or
-/// nothing to upload when it carries none.
-///
-/// Answers whether the buffer now holds deformed vertices, so the frame a
-/// deform track stops writing puts the authored positions back exactly once
-/// rather than uploading them again for the rest of the session.
-fn write_deform(
-    world: &balaur_core::hecs::World,
-    entity: Entity,
-    polygon: &crate::PolygonMesh,
-    handle: &crate::skinned_2d::DeformHandle,
-    was_deformed: bool,
-) -> bool {
-    let deform = world.get::<&balaur_core::mesh::Deform>(entity).ok();
-    let deforming = deform.as_ref().is_some_and(|d| !d.is_rest());
-    if !deforming {
-        if was_deformed {
-            handle.fill(polygon.positions.len(), |i| polygon.positions[i].to_array());
-        }
-        return false;
-    }
-    let deform = deform.expect("a deforming node has the component");
-    handle.fill(polygon.positions.len(), |i| {
-        let p = polygon.positions[i];
-        let [dx, dy] = deform.at(i);
-        [p.x + dx, p.y + dy]
-    });
-    true
-}
-
 /// The joint matrices a skinned polygon deforms by this frame, resolved
 /// from the rig it names. A path that resolves to nothing is logged at
 /// debug and the polygon draws rigid, the same as a clip track that targets
@@ -1046,6 +998,46 @@ fn draw_order_2d(
 /// global z coordinate (z acts as a 2D layer; equal z means later-declared
 /// nodes draw on top). When the order changes, the kiss3d nodes are rebuilt
 /// in the new order.
+/// The scene node one 2D renderable draws through, with the handles a frame
+/// writes into it. `None` for a renderable with nothing to draw.
+fn build_slot_2d(
+    app: &App,
+    scene: &mut SceneNode2d,
+    materials: &mut crate::shader_material::MaterialCache,
+    channel: &str,
+    renderable: &Renderable2d,
+) -> Option<Slot2d> {
+    let mut pieces = Vec::new();
+    let built = match renderable.shape {
+        Shape2d::Polygon => crate::skinned_2d::build_polygon_node(app, scene, renderable),
+        Shape2d::Polyline { width, closed } => {
+            build_polyline_node(app, scene, renderable, width, closed).map(|(node, built)| {
+                pieces = built;
+                (node, None, None)
+            })
+        }
+        _ => build_2d_node(scene, renderable).map(|node| (node, None, None)),
+    };
+    let (mut node, skin, deform) = built?;
+    if let Some(sprite) = &renderable.sprite {
+        crate::texture::attach_texture_2d(&app.engine, &mut node, &sprite.path);
+    }
+    // After the texture: a material reads it, and kiss3d's own material stays
+    // on a node whose shader would not link.
+    if let Some(material) = materials.for_node(app, &renderable.material, channel) {
+        node.set_material(material);
+    }
+    Some(Slot2d {
+        node,
+        version: renderable.version,
+        flip: (false, false),
+        skin,
+        deform,
+        deformed: false,
+        pieces,
+    })
+}
+
 fn sync_2d(
     app: &App,
     scene: &mut SceneNode2d,
@@ -1089,42 +1081,10 @@ fn sync_2d(
             if let Some(mut old) = slots.remove(&entity) {
                 old.node.detach();
             }
-            let mut pieces = Vec::new();
-            let built = match renderable.shape {
-                Shape2d::Polygon => build_polygon_node(app, scene, &renderable),
-                Shape2d::Polyline { width, closed } => {
-                    build_polyline_node(app, scene, &renderable, width, closed).map(
-                        |(node, built)| {
-                            pieces = built;
-                            (node, None, None)
-                        },
-                    )
-                }
-                _ => build_2d_node(scene, &renderable).map(|node| (node, None, None)),
-            };
-            let Some((mut node, skin, deform)) = built else {
+            let Some(slot) = build_slot_2d(app, scene, materials, &channel, &renderable) else {
                 continue;
             };
-            if let Some(sprite) = &renderable.sprite {
-                crate::texture::attach_texture_2d(&app.engine, &mut node, &sprite.path);
-            }
-            // After the texture: a material reads it, and kiss3d's own
-            // material stays on a node whose shader would not link.
-            if let Some(material) = materials.for_node(app, &renderable.material, &channel) {
-                node.set_material(material);
-            }
-            slots.insert(
-                entity,
-                Slot2d {
-                    node,
-                    version: renderable.version,
-                    flip: (false, false),
-                    skin,
-                    deform,
-                    deformed: false,
-                    pieces,
-                },
-            );
+            slots.insert(entity, slot);
         }
         // The block above inserts the slot when it is missing.
         let slot = slots.get_mut(&entity).unwrap();
@@ -1140,7 +1100,8 @@ fn sync_2d(
             handle.set(polygon_palette(&world, entity, polygon));
         }
         if let (Some(handle), Some(polygon)) = (&slot.deform, renderable.polygon.as_deref()) {
-            slot.deformed = write_deform(&world, entity, polygon, handle, slot.deformed);
+            slot.deformed =
+                crate::skinned_2d::write_deform(&world, entity, polygon, handle, slot.deformed);
         }
         tint_pieces(slot, &renderable);
         // Every sync, not just on rebuild: frames and flips are UV changes, so

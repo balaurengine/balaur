@@ -95,6 +95,10 @@ shot hello_open        examples/hello      "scene,select:World,dock:output"
 shot persona_scene     examples/angrynerds "scene,select:Bird"
 shot persona_script    examples/hello      "script,select:Spinner"
 shot persona_animate   examples/rig        "anim,select:Thigh"
+# The rigging panels, each over the rig example's own figure.
+shot rigging_weights   examples/rig        "anim,select:Limb,tool:polygon,mode:weights,dock:weights,zoom:70"
+shot rigging_bonemap   examples/rig        "anim,select:Hip,dock:bonemap"
+shot rigging_modifiers examples/rig        "anim,select:Hero,dock:inspector,zoom:80"
 
 # The objects example photographs itself: its tour script saves one frame per
 # pose when run with `shots=`, so these come from `run` and not an editor state.
@@ -127,6 +131,7 @@ shot export_sheet      examples/angrynerds "scene,export"
 shot extensions_greeter examples/extension_greeter "scene"
 # Stills for the website's examples page.
 shot example_rig3d      examples/rig3d      "scene"
+shot example_rig        examples/rig        "scene,select:Hero"
 shot example_c_counter  examples/extension_c_counter "scene"
 
 clip scenes_inspect    examples/hello      800  "show:scenes"

@@ -594,6 +594,7 @@ dependencies = [
  "image",
  "image-webp",
  "imagequant",
+ "libm",
  "oxipng",
  "serde",
  "symphonia",

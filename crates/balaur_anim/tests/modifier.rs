@@ -249,7 +249,7 @@ fn tip_of(app: &App, last: Entity) -> Vec2 {
     let world = app.engine.world();
     let g = world.get::<&GlobalTransform>(last).unwrap();
     let angle = angle_about_z(g.rotation);
-    Vec2::new(g.position.x, g.position.y) + Vec2::new(angle.cos(), angle.sin())
+    Vec2::new(g.position.x, g.position.y) + Vec2::new(libm::cosf(angle), libm::sinf(angle))
 }
 
 #[test]

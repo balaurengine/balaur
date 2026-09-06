@@ -411,7 +411,6 @@ pub fn assets(S, k) {
             style::empty(k, "empty folder");
         }
     });
-    crate::importer::panel(S, k);
 }
 
 // Keyframe timeline over the engine's clip (scripts/anim.rn is the adapter):

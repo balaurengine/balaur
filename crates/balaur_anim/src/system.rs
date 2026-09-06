@@ -276,10 +276,8 @@ pub(crate) fn write_pose(
         let Some(target) = target_of(world, entity, root, path) else {
             continue;
         };
-        // A deform is written on the node rather than patched into a table:
-        // it is a vector as long as the mesh, and no component property is.
-        // Deferred like a patch, because writing a component wants the world
-        // mutably and this walk is holding it shared.
+        // On the node rather than in a table: it is as long as the mesh, and
+        // deferred because this walk holds the world shared.
         if let TrackValue::Deform(offsets) = value {
             effects.push(Effect::Deform {
                 entity: target,

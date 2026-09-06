@@ -1,6 +1,6 @@
-# A 2D rig: a body of three bones with an arm branching off the top, each with
-# a textured polygon skinned to it, and a clip on the character root swinging
-# the joints while the arm reaches. No scripts: bones are nodes, keyed by path.
+# A 2D rig: three bones with an arm off the top, a textured polygon skinned to
+# each, and five kinds of rigging in one figure — a clip, `two_bone_ik`,
+# `jiggle`, a `polygon/deform` track, and the ragdoll `scripts/fall.rn` builds.
 
 [[nodes]]
 id = "n_camera"
@@ -23,11 +23,18 @@ kind = "rect"
 half_extents = [6, 0.25]
 color = [0.35, 0.5, 0.3, 1.0]
 
+# Something for the ragdoll to land on. A collider with no body is static.
+[nodes.collider2d]
+kind = "rect"
+half_extents = [6, 0.25]
+friction = 0.9
+
 [[nodes]]
 id = "n_hero"
 name = "Hero"
 parent = ""
 position = [0, -1.25, 0]
+script = "scripts/fall.rn"
 
 [nodes.animation]
 autoplay = "wave"
@@ -68,6 +75,19 @@ keys = [
   { t = 1.0, value = [1.0, 2.5, 0], ease = "in_out_sine" },
   { t = 1.5, value = [1.4, 1.6, 0], ease = "in_out_sine" },
   { t = 2.0, value = [2.0, 1.4, 0], ease = "in_out_sine" },
+]
+
+# The body's outline breathing, as an [dx, dy] offset per vertex over the
+# eight the Limb polygon carries. The engine adds these before it skins, so
+# the deform rides the bones rather than fighting them.
+[[nodes.animation.library.clips.wave.tracks]]
+target = "Limb"
+property = "polygon/deform"
+interp = "linear"
+keys = [
+  { t = 0.0, value = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { t = 1.0, value = [-0.09, 0, 0.09, 0, 0.07, 0, 0.05, 0, 0.04, 0, -0.04, 0, -0.05, 0, -0.07, 0], ease = "in_out_sine" },
+  { t = 2.0, value = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], ease = "in_out_sine" },
 ]
 
 [nodes.modifier2d]
@@ -200,6 +220,80 @@ weights = [0, 0.5, 0.5, 0, 0, 0.5, 0.5, 0]
 path = "Shoulder/Elbow/Hand"
 weights = [0, 0, 0.5, 1, 1, 0.5, 0, 0]
 
+# The plume: three bones off the head that no clip touches. `jiggle` springs
+# each toward the pose the walk leaves it in, one fixed tick at a time, so it
+# lags the body and settles when the body stops.
+[[nodes]]
+id = "n_plume"
+name = "Plume"
+parent = "n_shin"
+position = [0, 0.86, 0]
+bone2d = { rest_position = [0, 0.86], rest_rotation = 0.0 }
+
+[[nodes]]
+id = "n_plume2"
+name = "Plume2"
+parent = "n_plume"
+position = [0, 0.3, 0]
+bone2d = { rest_position = [0, 0.3], rest_rotation = 0.0 }
+
+[[nodes]]
+id = "n_plume3"
+name = "Plume3"
+parent = "n_plume2"
+position = [0, 0.3, 0]
+bone2d = { rest_position = [0, 0.3], rest_rotation = 0.0, length = 0.3, angle = 1.5708 }
+
+[[nodes]]
+id = "n_jiggle"
+name = "Plumespring"
+parent = "n_hero"
+
+[nodes.modifier2d]
+kind = "jiggle"
+bone = "Hip/Thigh/Shin/Plume"
+stiffness = 26.0
+damping = 0.32
+mass = 0.5
+gravity = [0.0, -3.0, 0.0]
+use_gravity = true
+
+[[nodes]]
+id = "n_plumeskin"
+name = "Plumeskin"
+parent = "n_shin"
+position = [0, 0.86, 0]
+
+[nodes.polygon]
+texture = "art/limb.png"
+skeleton = "../.."
+pixels_per_unit = 100.0
+
+[nodes.polygon.mesh]
+positions = [
+  [-0.09, 0.0], [0.09, 0.0],
+  [0.07, 0.3], [0.05, 0.6], [0.0, 0.9],
+  [-0.05, 0.6], [-0.07, 0.3],
+]
+polygons = [[0, 1, 2, 6], [6, 2, 3, 5], [5, 3, 4]]
+uvs = [
+  [0, 1], [1, 1],
+  [1, 0.66], [1, 0.33], [1, 0],
+  [0, 0.33], [0, 0.66],
+]
+
+[[nodes.polygon.mesh.skin.bones]]
+path = "Hip/Thigh/Shin/Plume"
+weights = [1, 1, 0.5, 0, 0, 0, 0.5]
+
+[[nodes.polygon.mesh.skin.bones]]
+path = "Hip/Thigh/Shin/Plume/Plume2"
+weights = [0, 0, 0.5, 0.6, 0.2, 0.6, 0.5]
+
+[[nodes.polygon.mesh.skin.bones]]
+path = "Hip/Thigh/Shin/Plume/Plume2/Plume3"
+weights = [0, 0, 0, 0.4, 0.8, 0.4, 0]
+
 [[nodes]]
 id = "n_hud"
 name = "Hud"
@@ -209,7 +303,7 @@ parent = ""
 anchor = "top_left"
 kind = "label"
 font_size = 16
-text = "rig · one figure: a clip swings the body, two-bone IK reaches the arm"
+text = "rig · a clip swings the body, IK reaches the arm, the plume jiggles, the outline breathes, and it falls over every few seconds"
 text_color = "#f9f4ed"
 x = 16
 y = 16

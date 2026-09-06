@@ -1,11 +1,6 @@
 // The Weights dock: the picked vertices as a table, one number per bone,
-// editable in place, with the five verbs a rigger reaches for.
-//
-// Spine's Weights view. The Polygon tool's brush paints one bone at a time by
-// feel; this is the other half — the exact numbers, and the operations that
-// are arithmetic rather than gesture. Everything here writes through
-// `history`, as the brush does, so one undo takes back a Normalise over
-// three hundred vertices.
+// editable in place, with the five verbs a rigger reaches for. Everything
+// here writes through `history`, so one undo takes back a whole Normalise.
 
 use crate::polygon;
 use crate::rig;
@@ -64,8 +59,6 @@ fn edit(S, label, body) {
     body();
     crate::model::apply_component(S, "polygon");
 }
-
-// ---------------------------------------------------------------- verbs
 
 // Bind: give every listed vertex all of its weight to the active bone.
 pub fn bind(S) {
@@ -259,8 +252,6 @@ fn bone_segments(S, bones) {
     }
     out
 }
-
-// ----------------------------------------------------------------- body
 
 pub fn body(S, k) {
     ui::add_space(4);

@@ -991,8 +991,8 @@ fn chunks_of(
         let entry = out.entry(key).or_insert_with(|| (Vec::new(), seed));
         entry.0.push((column, row, id, flags));
         for part in [
-            column as i64 as u64,
-            row as i64 as u64,
+            i64::from(column) as u64,
+            i64::from(row) as u64,
             id.into(),
             flags.into(),
         ] {

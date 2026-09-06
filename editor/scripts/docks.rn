@@ -20,7 +20,7 @@ pub fn state() {
             tabs: ["output", "problems", "assets", "timeline", "debugger", "session", "profiler", "tiles", "weights", "bonemap"],
             active: "output", shut: false,
         },
-        right: #{ tabs: ["inspector"], active: "inspector", shut: false },
+        right: #{ tabs: ["inspector", "import"], active: "inspector", shut: false },
     }
 }
 
@@ -38,6 +38,7 @@ pub fn panels(S) {
         "scene": #{ name: "Scene", icon: icons::panel("scene"), tall: false },
         "outline": #{ name: left::outline_title(S), icon: icons::panel("outline"), tall: false },
         "inspector": #{ name: "Inspector", icon: icons::panel("inspector"), tall: false },
+        "import": #{ name: "Import", icon: icons::panel("import"), tall: false },
         "output": #{ name: "Output", icon: icons::panel("output"), tall: false },
         "problems": #{ name: "Problems", icon: icons::panel("problems"), tall: false },
         "assets": #{ name: "Assets", icon: icons::panel("assets"), tall: false },
@@ -151,6 +152,7 @@ fn body(S, k, id) {
         "scene" => left::tree_body(S, k),
         "outline" => left::outline_body(S, k),
         "inspector" => inspector::body(S, k),
+        "import" => crate::importer::panel(S, k),
         "output" => dock::output(S, k),
         "problems" => dock::problems(S, k),
         "assets" => dock::assets(S, k),
@@ -214,6 +216,20 @@ fn tab_row(S, k, side, d) {
     ui::separator(k.line_soft);
 }
 
+// How wide the tab row's own pills are, near enough to decide what fits
+// beside them. Measured from the names rather than counted at a flat width:
+// `Bone map` is four times `Set`, and a count that ignores them ran the hint
+// over the row as soon as a dock was added.
+fn tabs_width(S, id) {
+    let total = 0.0;
+    for tab in S.docks[side_for(S, id)].tabs {
+        // 11 px, semibold: about 6.4 px a character, plus the pill's padding
+        // and the gap to the next one.
+        total += 18.0 + 6.4 * util::f(panel(S, tab).name.len());
+    }
+    total
+}
+
 // The controls that belong to the panel showing, in the tab row's one slot.
 // A narrow dock keeps its tabs: the tools are what give way, not the names.
 fn tools(S, k, id, width) {
@@ -221,7 +237,7 @@ fn tools(S, k, id, width) {
         left::tree_tools(S, k);
         return;
     }
-    let room = width - 60.0 - 26.0 * (S.docks[side_for(S, id)].tabs.len() as f64);
+    let room = width - 60.0 - tabs_width(S, id);
     if id == "output" {
         dock::output_tools(S, k, room);
         return;

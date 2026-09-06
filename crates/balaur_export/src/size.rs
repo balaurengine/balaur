@@ -140,8 +140,12 @@ fn smaller(
     match kind_of(path) {
         // The mode is read before the bytes are: an export that asked for no
         // re-encoding must not fail over a file that does not decode.
-        Some(kinds::TEXTURE) if images != ImageMode::Keep => recode::image(bytes, images),
-        Some(kinds::AUDIO) if audio != AudioMode::Keep => recode::audio(bytes, audio),
+        Some(kinds::TEXTURE) if images != ImageMode::Keep => {
+            recode::image_at(bytes, images, config.images_quality)
+        }
+        Some(kinds::AUDIO) if audio != AudioMode::Keep => {
+            recode::audio_at(bytes, audio, config.audio_quality)
+        }
         // A `.fnt` is a text descriptor and a page image, neither of them a
         // face a subsetter can read.
         Some(kinds::FONT)

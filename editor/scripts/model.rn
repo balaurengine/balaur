@@ -1040,10 +1040,7 @@ pub fn add_child(S, preset) {
 
 // Take a live subtree the engine built into the document, so it lands in the
 // tree, the inspector and the saved scene like anything the editor made.
-//
-// An engine call that spawns nodes — `physics2d.ragdoll` is the first — has
-// no way to write document rows, and a row is what the editor edits. Nodes
-// already mirrored are left alone, so calling this twice is not two copies.
+// Nodes already mirrored are left alone, so calling this twice is not two.
 pub fn adopt(S, found, parent_i) {
     if !(found is balaur::Node && found.is_valid()) {
         return None;

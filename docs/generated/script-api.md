@@ -15,7 +15,7 @@ cannot drift from what scripts actually see.
 | [`debugger`](#debugger) | 9 | 4 | the engine |
 | [`encoding`](#encoding) | 2 | 0 | the engine |
 | [`engine`](#engine) | 18 | 0 | the engine |
-| [`events`](#events) | 4 | 0 | the engine |
+| [`events`](#events) | 5 | 0 | the engine |
 | [`export`](#export) | 5 | 0 | the engine |
 | [`fs`](#fs) | 8 | 0 | the engine |
 | [`gamend`](#gamend) | 9 | 0 | the engine |
@@ -27,12 +27,12 @@ cannot drift from what scripts actually see.
 | [`json`](#json) | 2 | 0 | the engine |
 | [`log`](#log) | 5 | 0 | the engine |
 | [`math`](#math) | 24 | 3 | the engine |
-| [`node`](#node) | 45 | 0 | the engine |
-| [`physics`](#physics) | 13 | 0 | the engine |
-| [`physics2d`](#physics2d) | 62 | 47 | the engine |
-| [`physics3d`](#physics3d) | 88 | 62 | the engine |
+| [`node`](#node) | 46 | 0 | the engine |
+| [`physics`](#physics) | 14 | 0 | the engine |
+| [`physics2d`](#physics2d) | 66 | 48 | the engine |
+| [`physics3d`](#physics3d) | 89 | 62 | the engine |
 | [`platform`](#platform) | 11 | 0 | the engine |
-| [`render`](#render) | 54 | 20 | the engine |
+| [`render`](#render) | 63 | 20 | the engine |
 | [`replay`](#replay) | 17 | 4 | the engine |
 | [`rng`](#rng) | 5 | 0 | the engine |
 | [`rollback`](#rollback) | 2 | 0 | the engine |
@@ -87,7 +87,7 @@ cannot drift from what scripts actually see.
 
 ## `events`
 
-**Functions:** `emit`, `emitted`, `subscribe`, `unsubscribe`
+**Functions:** `emit`, `emitted`, `emitted_from`, `subscribe`, `unsubscribe`
 
 ## `export`
 
@@ -174,17 +174,17 @@ cannot drift from what scripts actually see.
 
 ## `node`
 
-**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `children`, `component_names`, `descendants`, `detach_script`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `global_visible`, `global_z_index`, `has_component`, `has_method`, `has_tag`, `is_valid`, `name`, `parent`, `patch_component`, `path`, `position`, `queue_free`, `remove_component`, `remove_tag`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_parent`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `set_visible`, `set_z_index`, `stable_id`, `tags`, `translate`, `visible`, `z_index`
+**Functions:** `add_child`, `add_tag`, `attach_script`, `call`, `children`, `component_names`, `descendants`, `detach_script`, `emit`, `get_component`, `get_node`, `global_position`, `global_rotation_euler`, `global_scale`, `global_visible`, `global_z_index`, `has_component`, `has_method`, `has_tag`, `is_valid`, `name`, `parent`, `patch_component`, `path`, `position`, `queue_free`, `remove_component`, `remove_tag`, `rotation_degrees`, `rotation_euler`, `scale`, `script_path`, `set_component`, `set_name`, `set_parent`, `set_position`, `set_rotation_degrees`, `set_rotation_euler`, `set_scale`, `set_visible`, `set_z_index`, `stable_id`, `tags`, `translate`, `visible`, `z_index`
 
 ## `physics`
 
-**Functions:** `clear`, `counters`, `debug_draw`, `is_paused`, `quarantined`, `set_debug_draw`, `set_paused`, `set_sleeping_allowed`, `set_threads`, `set_tuning`, `sleeping_allowed`, `threads`, `tuning`
+**Functions:** `clear`, `counters`, `debug_draw`, `is_paused`, `quarantined`, `ragdoll_blend`, `set_debug_draw`, `set_paused`, `set_sleeping_allowed`, `set_threads`, `set_tuning`, `sleeping_allowed`, `threads`, `tuning`
 
 ## `physics2d`
 
-**Functions:** `add_body`, `add_collider`, `add_force`, `add_force_at_point`, `add_joint`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `body_kind`, `box_hits`, `damping`, `distance`, `dominance`, `gravity`, `gravity_scale`, `intersects`, `is_ccd`, `is_enabled`, `is_grounded`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `locked_axes`, `mass`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `point_hits`, `predict_position`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_body_kind`, `set_ccd`, `set_damping`, `set_dominance`, `set_enabled`, `set_gravity`, `set_gravity_scale`, `set_joint_limits`, `set_linear_velocity`, `set_lock_rotation`, `set_lock_translation`, `set_motor_position`, `set_motor_velocity`, `shape_hits`, `shapecast`, `sleep`, `teleport`, `user_force`, `user_torque`, `velocity_at_point`, `wake_all`, `wake_up`
+**Functions:** `add_body`, `add_collider`, `add_force`, `add_force_at_point`, `add_joint`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `body_kind`, `box_hits`, `damping`, `distance`, `dominance`, `gravity`, `gravity_scale`, `intersects`, `is_ccd`, `is_enabled`, `is_grounded`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `locked_axes`, `mass`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `point_hits`, `predict_position`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_body_kind`, `set_ccd`, `set_damping`, `set_dominance`, `set_enabled`, `set_gravity`, `set_gravity_scale`, `set_joint_limits`, `set_linear_velocity`, `set_lock_rotation`, `set_lock_translation`, `set_motor_position`, `set_motor_velocity`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `teleport`, `user_force`, `user_torque`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`
 
-**Constants** (47):
+**Constants** (48):
 
 | Name | Value |
 | --- | --- |
@@ -213,11 +213,11 @@ cannot drift from what scripts actually see.
 | `JOINT_GENERIC` | `generic` |
 | `JOINT_PIN_SLOT` | `pin_slot` |
 
-…and 23 more.
+…and 24 more.
 
 ## `physics3d`
 
-**Functions:** `aabb`, `active_bodies`, `add_ball_collider`, `add_body`, `add_cuboid_collider`, `add_force`, `add_force_at_point`, `add_joint`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `bodies`, `body_kind`, `box_hits`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `contacts`, `damping`, `distance`, `dominance`, `effective_dominance`, `gravity`, `gravity_scale`, `handles`, `intersects`, `is_ccd`, `is_enabled`, `is_grounded`, `is_moving`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `locked_axes`, `mass`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `point_hits`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_body_kind`, `set_brake`, `set_ccd`, `set_collider`, `set_damping`, `set_dominance`, `set_enabled`, `set_engine_force`, `set_gravity`, `set_gravity_scale`, `set_joint_limits`, `set_linear_velocity`, `set_lock_rotation`, `set_lock_translation`, `set_motor_position`, `set_motor_velocity`, `set_steering`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `user_force`, `user_torque`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`, `wheel_state`
+**Functions:** `aabb`, `active_bodies`, `add_ball_collider`, `add_body`, `add_cuboid_collider`, `add_force`, `add_force_at_point`, `add_joint`, `add_torque`, `angular_velocity`, `apply_impulse`, `apply_impulse_at_point`, `apply_torque_impulse`, `bodies`, `body_kind`, `box_hits`, `closest_points`, `collider_mass`, `collider_mesh`, `collider_volume`, `contacts`, `damping`, `distance`, `dominance`, `effective_dominance`, `gravity`, `gravity_scale`, `handles`, `intersects`, `is_ccd`, `is_enabled`, `is_grounded`, `is_moving`, `is_sleeping`, `joint_impulse`, `kinetic_energy`, `linear_velocity`, `locked_axes`, `mass`, `max_contact_impulse`, `move_character`, `nearest_point`, `next_position`, `overlaps`, `point_hits`, `potential_energy`, `predict_position`, `predict_position_with_forces`, `ragdoll`, `raycast`, `raycast_all`, `remove_joint`, `reset_forces`, `reset_torques`, `set_angular_velocity`, `set_body_kind`, `set_brake`, `set_ccd`, `set_collider`, `set_damping`, `set_dominance`, `set_enabled`, `set_engine_force`, `set_gravity`, `set_gravity_scale`, `set_joint_limits`, `set_linear_velocity`, `set_lock_rotation`, `set_lock_translation`, `set_motor_position`, `set_motor_velocity`, `set_steering`, `set_voxel`, `shape_hits`, `shapecast`, `sleep`, `solve_ik`, `swept_aabb`, `teleport`, `time_of_impact`, `user_force`, `user_torque`, `vehicle_speed`, `velocity_at_point`, `voxel`, `voxel_at`, `wake_all`, `wake_up`, `wheel_state`
 
 **Constants** (62):
 
@@ -256,7 +256,7 @@ cannot drift from what scripts actually see.
 
 ## `render`
 
-**Functions:** `built_mesh`, `camera_2d`, `camera_matrix`, `camera_pose`, `cell`, `channel`, `channels`, `check_material`, `clones`, `color`, `draw_arc_2d`, `draw_circle_2d`, `draw_line`, `draw_line_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `refresh_rate`, `safe_area`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_channel`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_keep_awake`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `shader_probe`, `shape2d`, `shape3d`, `sprite`, `texture_size`
+**Functions:** `built_mesh`, `camera_2d`, `camera_matrix`, `camera_pose`, `cell`, `channel`, `channels`, `check_material`, `clones`, `color`, `draw_arc_2d`, `draw_circle_2d`, `draw_line`, `draw_line_2d`, `draw_polyline_2d`, `draw_rect_2d`, `draw_text`, `draw_text_2d`, `draw_texture_2d`, `material_params`, `mouse_ray`, `mouse_world_2d`, `outline`, `pick_ray`, `refresh_rate`, `safe_area`, `screenshot`, `set_app_icon`, `set_background`, `set_ball`, `set_camera`, `set_camera_2d`, `set_camera_input`, `set_cell`, `set_channel`, `set_circle`, `set_color`, `set_cuboid`, `set_cursor_grab`, `set_cursor_hidden`, `set_fullscreen`, `set_grid`, `set_grid_colors`, `set_keep_awake`, `set_rect`, `set_shader_preview`, `set_shader_probe`, `set_sprite`, `set_sprite_frame`, `set_sprite_sheet`, `set_sprite_size`, `set_terrain`, `set_text`, `shader_probe`, `shape2d`, `shape3d`, `sprite`, `terrain`, `text`, `text_size`, `texture_size`, `tile_data`, `trace_texture`
 
 **Constants** (20):
 

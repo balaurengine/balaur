@@ -33,8 +33,8 @@ Animation as a Balaur plugin: clips, a pure sampler, and playback.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
 - **external deps:** 7 (anyhow, glamx, libm, serde, serde_json, toml, tracing)
-- **public surface:** 29 fn, 9 struct, 6 enum, 1 const, 2 type
-- **structs:** `AnimationPlugin`, `AnimationState`, `Clip`, `Easing`, `Key`, `Modifier2d`, `Playback`, `Track`, `Tween`
+- **public surface:** 33 fn, 16 struct, 6 enum, 5 const, 2 type
+- **structs:** `AnimationPlugin`, `AnimationState`, `BoneMap`, `Clip`, `Easing`, `Jiggle`, `Key`, `Modifier2d`, `Modifier3d`, `Params`, `Playback`, `ProfileBone`, `Retarget`, `SkeletonProfile`, `Track`, `Tween`
 - **enums:** `Interp`, `Mode`, `Property`, `TrackValue`, `Transition`, `Wrap`
 
 ## `balaur_apple`
@@ -79,7 +79,7 @@ The `balaur` command: run, edit, export, replay and check a project
 The `balaur` command line tool: create, run, export, and play projects.
 
 - **workspace deps:** `balaur`, `balaur_core`, `balaur_export`, `balaur_plugin`, `balaur_render`, `balaur_script`
-- **external deps:** 20 (anyhow, clap, console_error_panic_hook, dirs, flate2, js-sys, serde, serde_json, …)
+- **external deps:** 21 (anyhow, clap, console_error_panic_hook, dirs, flate2, js-sys, serde, serde_json, …)
 - **public surface:** 12 fn
 
 ## `balaur_core`
@@ -89,11 +89,11 @@ Balaur engine core: ECS world, scene tree, frame scheduler, plugin API
 Balaur engine core: the ECS world every plugin builds on.
 
 - **workspace deps:** `balaur_script`
-- **external deps:** 21 (anyhow, base64, dirs, glamx, gltf, hecs, i_overlay, indexmap, …)
-- **public surface:** 203 fn, 116 struct, 16 enum, 3 trait, 36 const, 22 type
+- **external deps:** 22 (anyhow, base64, dirs, glamx, gltf, hecs, i_overlay, i_triangle, …)
+- **public surface:** 222 fn, 130 struct, 21 enum, 3 trait, 43 const, 22 type
 - **traits:** `Anchor`, `FileBackend`, `Transport`
-- **structs:** `App`, `AppConfig`, `Appearance`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Attached`, `Bone`, `Build`, `Children`, `Clock`, `Clone3d`, `Cloner`, `ComponentDef`, `ComponentRegistry`, `DebugLineBuffer`, `DebugLineBuffer2d`, `Desync`, `Device`, `DeviceFacts`, `Digest`, `DigestRegistry`, `DiskFs`, `Divergence`, `Engine`, `EngineOp`, `Entry`, `Event`, `EventLog`, `EventState`, `ExternalIo`, `Facts`, `Faults`, `Faulty`, `FileRoots`, `Files`, `Frame`, `GlbImport`, `GlobalAppearance`, `GlobalTransform`, `Handler`, `Hasher`, `Header`, `HeightfieldData`, `IdAllocator`, `LinkStats`, `LocaleConfig`, `LogEntry`, `ManifestSource`, `MemoryFs`, `MeshData`, `MeshSkin`, `MorphTarget`, `Name`, `NameIndex`, `NameSlot`, `NetSession`, `NodeOp`, `Origin`, `Pack`, `Parent`, `Path`, `PathShape`, `Pcg32`, `PeerTraffic`, `PlatformFacts`, `PluginConfigs`, `PluginInfo`, `PluginRegistry`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProfilePoint`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Received`, `Recorder`, `Recording`, `ReplayFeed`, `ReplayPlayer`, `ReplayRegistry`, `ReplaySetupRegistry`, `Resimulating`, `Resources`, `RngState`, `SaveConfig`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptProps`, `ScriptSetup`, `Server`, `Session`, `SessionStats`, `SettingDef`, `SettingsRegistry`, `SettingsValues`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `Strings`, `Tags`, `TextGeometry`, `TextShape`, `TickInputs`, `Timers`, `TimingLog`, `Timings`, `Trailer`, `Transform`, `UserActivation`, `VoxelsData`, `WallClock`
-- **enums:** `AssetRef`, `AssetSource`, `Command`, `Delivery`, `Facets`, `Flat`, `LinkState`, `Mode`, `Op`, `PlayState`, `PluginChoice`, `ReplayMode`, `Scope`, `Solid`, `Stage`, `Step`
+- **structs:** `Animation`, `App`, `AppConfig`, `Appearance`, `AssetState`, `AssetType`, `AssetTypeRegistry`, `Attached`, `Bone`, `Build`, `Children`, `Clock`, `Clone3d`, `Cloner`, `ComponentDef`, `ComponentRegistry`, `DebugLineBuffer`, `DebugLineBuffer2d`, `Deform`, `Desync`, `Device`, `DeviceFacts`, `Digest`, `DigestRegistry`, `DiskFs`, `Divergence`, `Engine`, `EngineOp`, `Entry`, `EntryReport`, `Event`, `EventLog`, `EventState`, `ExtensionReport`, `ExternalIo`, `Facts`, `Faults`, `Faulty`, `FileRoots`, `Files`, `Frame`, `GlbImport`, `GlobalAppearance`, `GlobalTransform`, `Handler`, `Hasher`, `Header`, `HeightfieldData`, `IdAllocator`, `LinkStats`, `LocaleConfig`, `LogEntry`, `ManifestSource`, `MemoryFs`, `MeshData`, `MeshSkin`, `MorphTarget`, `Name`, `NameIndex`, `NameSlot`, `NetSession`, `NodeOp`, `Origin`, `Pack`, `PackReport`, `Parent`, `Path`, `PathShape`, `Pcg32`, `PeerTraffic`, `PlatformFacts`, `PluginConfigs`, `PluginInfo`, `PluginRegistry`, `PresetDef`, `PresetPart`, `PresetRegistry`, `ProfilePoint`, `ProjectFiles`, `ProjectManifest`, `ProjectRoot`, `Received`, `Recorder`, `Recording`, `ReplayFeed`, `ReplayPlayer`, `ReplayRegistry`, `ReplaySetupRegistry`, `Resimulating`, `Resolved`, `Resources`, `RngState`, `Rule`, `SaveConfig`, `SceneAsset`, `SceneKeyRegistry`, `ScriptArgs`, `ScriptAttachment`, `ScriptProps`, `ScriptSetup`, `SectionReport`, `Server`, `Session`, `SessionStats`, `SettingDef`, `SettingsRegistry`, `SettingsValues`, `Snapshot`, `SnapshotRegistry`, `SnapshotRing`, `StableId`, `Strings`, `Tags`, `Terrain`, `TextGeometry`, `TextShape`, `TickInputs`, `Tile`, `TileGrid`, `TileSet`, `Timers`, `TimingLog`, `Timings`, `Trailer`, `Transform`, `UiSettings`, `UserActivation`, `VoxelsData`, `WallClock`, `WindowSettings`
+- **enums:** `AssetRef`, `AssetSource`, `Collision`, `Command`, `Delivery`, `Demand`, `Facets`, `Flat`, `Group`, `Layout`, `LinkState`, `Mode`, `Op`, `Outside`, `PlayState`, `PluginChoice`, `ReplayMode`, `Scope`, `Solid`, `Stage`, `Step`
 
 ## `balaur_export`
 
@@ -102,9 +102,10 @@ Exporting a project: packs, fused executables, and the platform bundles
 `balaur export` as a library: a project directory in, a `.bpak` or a game the player can run out.
 
 - **workspace deps:** `balaur`, `balaur_plugin`
-- **external deps:** 5 (anyhow, serde, toml, tracing, zip)
-- **public surface:** 4 fn, 2 struct, 2 const, 2 type
-- **structs:** `ExportConfig`, `Options`
+- **external deps:** 14 (anyhow, flacenc, hb-subset, hound, image, image-webp, imagequant, imagequant, …)
+- **public surface:** 11 fn, 4 struct, 3 enum, 4 const, 2 type
+- **structs:** `ExportConfig`, `Options`, `Saving`, `Summary`
+- **enums:** `AudioMode`, `FontMode`, `ImageMode`
 
 ## `balaur_gamend`
 
@@ -148,9 +149,9 @@ Balaur plugin wrapping the Rapier physics engine
 Rapier physics as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
-- **external deps:** 11 (anyhow, glamx, parry2d, parry3d, rapier2d, rapier3d, rayon, serde, …)
-- **public surface:** 4 fn, 12 struct, 2 enum, 19 const
-- **structs:** `Character2d`, `Character3d`, `JointRef`, `JointRef2d`, `PhysicsDebugConfig`, `PhysicsDebugState`, `PhysicsPlugin`, `PhysicsState`, `PhysicsState2d`, `Vehicle3d`, `Wheel3d`, `WheelInput`
+- **external deps:** 12 (anyhow, glamx, libm, parry2d, parry3d, rapier2d, rapier3d, rayon, …)
+- **public surface:** 6 fn, 13 struct, 2 enum, 19 const
+- **structs:** `Character2d`, `Character3d`, `JointRef`, `JointRef2d`, `PhysicsDebugConfig`, `PhysicsDebugState`, `PhysicsPlugin`, `PhysicsState`, `PhysicsState2d`, `Ragdoll`, `Vehicle3d`, `Wheel3d`, `WheelInput`
 - **enums:** `JointHandle`, `JointHandle2d`
 
 ## `balaur_platform`
@@ -185,10 +186,10 @@ Balaur rendering plugin: renderable components, with a kiss3d backend
 Rendering as a Balaur plugin.
 
 - **workspace deps:** `balaur_core`, `balaur_input`, `balaur_plugin`, `balaur_script`, `balaur_ui`
-- **external deps:** 19 (anyhow, aseprite-loader, bytemuck, glamx, image, js-sys, kiss3d, libm, …)
-- **public surface:** 20 fn, 45 struct, 7 enum, 6 const
-- **structs:** `AppIconConfig`, `AsepriteImport`, `Bounds`, `Camera`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ChannelView`, `ClearColorConfig`, `Clones`, `Compiled`, `DrawBuffer2d`, `Field`, `GridConfig`, `Light2d`, `LineStyle`, `LitLight2d`, `Material`, `MorphWeights`, `Occluder2d`, `Particles`, `PolygonMesh`, `Post`, `PostConfig`, `Preview`, `PreviewRequest`, `ProbeReading`, `ProbeRequest`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `ShaderModules`, `SheetFrame`, `SheetSlice`, `SheetTag`, `SpriteSheet`, `SpriteSheet2d`, `SpriteTexture`, `Tilemap`, `Tileset`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
-- **enums:** `CameraKind`, `Draw2d`, `FieldType`, `LightKind2d`, `Param`, `Shape`, `Shape2d`
+- **external deps:** 20 (anyhow, aseprite-loader, bytemuck, glamx, image, js-sys, kiss3d, libm, …)
+- **public surface:** 21 fn, 50 struct, 8 enum, 6 const
+- **structs:** `AppIconConfig`, `AsepriteImport`, `Bounds`, `Camera`, `CameraConfig`, `CameraConfig2d`, `CameraInputConfig`, `ChannelView`, `ClearColorConfig`, `Clones`, `Compiled`, `Decoration`, `DrawBuffer2d`, `Field`, `GridConfig`, `Light2d`, `LineStyle`, `LitLight2d`, `Material`, `MorphWeights`, `Occluder2d`, `Particles`, `PolygonMesh`, `Post`, `PostConfig`, `Preview`, `PreviewRequest`, `ProbeReading`, `ProbeRequest`, `RenderPlugin`, `Renderable`, `Renderable2d`, `ScreenshotRequest`, `ShaderModules`, `SheetFrame`, `SheetSlice`, `SheetTag`, `SpaceOptions`, `SpriteSheet`, `SpriteSheet2d`, `SpriteTexture`, `TextDraw`, `TextDrawBuffer`, `TextRenderable`, `TextStyle`, `Tilemap`, `ViewportSnapshot`, `ViewportSnapshot2d`, `WindowConfig`, `WindowedBackend`
+- **enums:** `Align`, `CameraKind`, `Draw2d`, `FieldType`, `LightKind2d`, `Param`, `Shape`, `Shape2d`
 
 ## `balaur_script`
 
@@ -221,10 +222,10 @@ Balaur UI plugin: an immediate-mode egui API for scripts
 Immediate-mode UI for scripts, rendered with egui.
 
 - **workspace deps:** `balaur_core`, `balaur_plugin`, `balaur_script`
-- **external deps:** 11 (anyhow, cosmic-text, egui, i_triangle, image, libm, serde, swash, …)
-- **public surface:** 5 fn, 14 struct, 1 enum, 7 const
-- **structs:** `GlyphMesher`, `Pacing`, `Style`, `Surface`, `ThemeTokens`, `UiConfig`, `UiFocus`, `UiPlugin`, `UiState`, `Widget`, `WidgetInputBuffer`, `WidgetInputSnapshot`, `WidgetLayerConfig`, `WidgetTheme`
-- **enums:** `Move`
+- **external deps:** 10 (anyhow, cosmic-text, egui, image, libm, serde, swash, toml, …)
+- **public surface:** 8 fn, 21 struct, 2 enum, 7 const
+- **structs:** `BitmapFont`, `GlyphAtlas`, `GlyphMesher`, `Pacing`, `Picture`, `Quad`, `Request`, `Shaped`, `Style`, `Surface`, `TextState`, `ThemeTokens`, `UiConfig`, `UiFocus`, `UiPlugin`, `UiState`, `Widget`, `WidgetInputBuffer`, `WidgetInputSnapshot`, `WidgetLayerConfig`, `WidgetTheme`
+- **enums:** `Align`, `Move`
 
 ## `balaur_web`
 

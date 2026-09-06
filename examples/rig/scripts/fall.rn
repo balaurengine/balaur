@@ -1,0 +1,40 @@
+// The figure falls over and gets back up: a ragdoll built from its own bones
+// at load, and a blend tweened between the clip and the simulation. Nothing
+// else here is a script, because everything else is what a scene file says.
+
+const LIMP = 2.2;
+const UPRIGHT = 3.4;
+
+pub fn init(this) {
+    this.at = 0.0;
+    this.limp = false;
+    // A blend of zero: the bodies simulate from the first frame, so the pose
+    // is one they fell into. `limits` keeps a collapse a body, not a bag.
+    physics2d::ragdoll(this.node, #{
+        blend: 0.0, thickness: 0.22, friction: 0.9, limits: [-0.7, 0.7],
+    });
+}
+
+pub fn update(this, dt) {
+    this.at += dt;
+    // Upright for a few seconds, limp for a couple, forever. Upright first,
+    // so the figure is seen doing what the clip says before it falls.
+    let period = LIMP + UPRIGHT;
+    let phase = this.at - math::floor(this.at / period) * period;
+    let limp = phase >= UPRIGHT;
+    if limp != this.limp {
+        this.limp = limp;
+        // Not a step: a tween is what makes the transfer readable, and the
+        // way back up is slower than the way down.
+        animation::tween(this.node, #{
+            "steps": [
+                #{
+                    "property": "ragdoll/blend",
+                    "to": if limp { 1.0 } else { 0.0 },
+                    "duration": if limp { 0.25 } else { 0.9 },
+                    "ease": "in_out_sine",
+                },
+            ],
+        });
+    }
+}

@@ -241,7 +241,7 @@ fn quantise(bytes: &[u8], format: ImageFormat, quality: u8) -> Result<Option<Vec
         .write_to(&mut std::io::Cursor::new(&mut out), ImageFormat::Png)
         .map_err(|why| anyhow!("encoding the quantised PNG: {why}"))?;
     let shrunk = shrink_png(&out, ImageFormat::Png)?;
-    Ok(Some(shrunk.unwrap_or(out)))
+    Ok(smaller_of(shrunk, Some(out)))
 }
 
 /// A RIFF/WAVE header, which is the only sound this module re-encodes.
@@ -299,8 +299,98 @@ fn to_flac(bytes: &[u8]) -> Result<Option<Vec<u8>>> {
     Ok(Some(sink.into_inner()))
 }
 
+/// The WAV's samples as Ogg Vorbis at libvorbis's quality `quality`.
+///
+/// Absent on wasm, where libvorbis and libogg do not build: a browser tab
+/// ships the author's WAV, as it ships an unshrunk PNG.
+#[cfg(not(target_family = "wasm"))]
+fn to_vorbis(bytes: &[u8], quality: f32) -> Result<Option<Vec<u8>>> {
+    use std::num::{NonZeroU8, NonZeroU32};
+
+    use vorbis_rs::{VorbisBitrateManagementStrategy, VorbisEncoderBuilder};
+
+    // libvorbis takes one plane of floats a channel; a block near its own
+    // 8192-sample window keeps the encoder's memory and time flat.
+    const BLOCK: usize = 4096;
+
+    let mut reader = hound::WavReader::new(std::io::Cursor::new(bytes))
+        .map_err(|why| anyhow!("reading the WAV: {why}"))?;
+    let spec = reader.spec();
+    let channel_count = u8::try_from(spec.channels).unwrap_or(0);
+    let (Some(rate), Some(channels)) = (
+        NonZeroU32::new(spec.sample_rate),
+        NonZeroU8::new(channel_count),
+    ) else {
+        return Ok(None);
+    };
+    if !(1..=32).contains(&spec.bits_per_sample) {
+        return Ok(None);
+    }
+    let lanes = usize::from(channels.get());
+    let mut interleaved = wav_floats(&mut reader, spec)?;
+    // libvorbis reads whole frames, and a block of none of them ends the
+    // stream early; a WAV whose samples do not divide by its channels has one.
+    let frames = interleaved.len() / lanes;
+    if frames == 0 {
+        return Ok(None);
+    }
+    interleaved.truncate(frames * lanes);
+
+    let mut out = Vec::new();
+    let mut builder = VorbisEncoderBuilder::new(rate, channels, &mut out)
+        .map_err(|why| anyhow!("starting the Vorbis encoder: {why}"))?;
+    builder.bitrate_management_strategy(VorbisBitrateManagementStrategy::QualityVbr {
+        target_quality: quality.clamp(-0.1, 1.0),
+    });
+    let mut encoder = builder
+        .build()
+        .map_err(|why| anyhow!("building the Vorbis encoder: {why}"))?;
+    for block in interleaved.chunks(BLOCK * lanes) {
+        let held = block.len() / lanes;
+        let planes: Vec<Vec<f32>> = (0..lanes)
+            .map(|lane| (0..held).map(|at| block[at * lanes + lane]).collect())
+            .collect();
+        encoder
+            .encode_audio_block(&planes)
+            .map_err(|why| anyhow!("encoding the Vorbis stream: {why}"))?;
+    }
+    encoder
+        .finish()
+        .map_err(|why| anyhow!("finishing the Vorbis stream: {why}"))?;
+    Ok(Some(out))
+}
+
+/// A WAV's samples as interleaved floats in -1.0 to 1.0, whatever its own
+/// sample format was, because libvorbis analyses floats.
+#[cfg(not(target_family = "wasm"))]
+fn wav_floats(
+    reader: &mut hound::WavReader<std::io::Cursor<&[u8]>>,
+    spec: hound::WavSpec,
+) -> Result<Vec<f32>> {
+    let read = |why| anyhow!("reading the WAV's samples: {why}");
+    match spec.sample_format {
+        hound::SampleFormat::Float => reader
+            .samples::<f32>()
+            .collect::<Result<_, _>>()
+            .map_err(read),
+        hound::SampleFormat::Int => {
+            let full = 2f32.powi(i32::from(spec.bits_per_sample) - 1);
+            reader
+                .samples::<i32>()
+                .map(|sample| sample.map(|sample| sample as f32 / full))
+                .collect::<Result<_, _>>()
+                .map_err(read)
+        }
+    }
+}
+
 #[cfg(target_family = "wasm")]
 fn shrink_png(_bytes: &[u8], _format: ImageFormat) -> Result<Option<Vec<u8>>> {
+    Ok(None)
+}
+
+#[cfg(target_family = "wasm")]
+fn to_vorbis(_bytes: &[u8], _quality: f32) -> Result<Option<Vec<u8>>> {
     Ok(None)
 }
 
@@ -387,37 +477,65 @@ mod tests {
         }
     }
 
+    /// Far more colours than a palette holds and no structure a lossless
+    /// encoder can find, which is what a photograph is to a quantiser.
+    fn photo_png(width: u32, height: u32) -> Vec<u8> {
+        let pixels = image::RgbaImage::from_fn(width, height, |x, y| {
+            // An avalanche hash, not a gradient: PNG's own filters subtract a
+            // linear one away and leave a palette nothing to beat.
+            let mut mixed = x.wrapping_mul(2_654_435_761) ^ y.wrapping_mul(2_246_822_519);
+            mixed ^= mixed >> 15;
+            mixed = mixed.wrapping_mul(2_246_822_519);
+            mixed ^= mixed >> 13;
+            image::Rgba([mixed as u8, (mixed >> 8) as u8, (mixed >> 16) as u8, 255])
+        });
+        let mut out = Vec::new();
+        image::DynamicImage::ImageRgba8(pixels)
+            .write_to(&mut std::io::Cursor::new(&mut out), ImageFormat::Png)
+            .unwrap();
+        out
+    }
+
     #[test]
-    fn measure_me() {
-        for name in ["editor/assets/balaur-logo.png", "examples/rig/art/limb.png"] {
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../..")
-                .join(name);
-            let src = std::fs::read(&path).unwrap();
-            let png = image(&src, ImageMode::Png)
-                .unwrap()
-                .map_or(src.len(), |v| v.len());
-            let webp = image(&src, ImageMode::Webp)
-                .unwrap()
-                .map_or(src.len(), |v| v.len());
-            let best = image(&src, ImageMode::Smallest)
-                .unwrap()
-                .map_or(src.len(), |v| v.len());
-            println!(
-                "MEASURE {name}: source {} png {png} webp {webp} smallest {best}",
-                src.len()
-            );
-        }
-        let face = ui_face();
-        let keep: BTreeSet<char> =
-            "Hello, world! The quick brown fox jumps over the lazy dog 0123456789"
-                .chars()
-                .collect();
-        let sub = font(&face, &keep).unwrap().unwrap();
-        println!("MEASURE font: source {} subset {}", face.len(), sub.len());
-        let wav = sample_wav();
-        let flac = audio(&wav, AudioMode::Flac).unwrap().unwrap();
-        println!("MEASURE wav: source {} flac {}", wav.len(), flac.len());
+    fn a_quantised_image_keeps_its_dimensions_and_its_alpha() {
+        let source = sample_png(64, 48);
+        let out = image(&source, ImageMode::Quantised)
+            .unwrap()
+            .expect("something smaller");
+        let (width, height, pixels) = read_rgba(&out);
+        assert_eq!((width, height), (64, 48));
+        let alphas: BTreeSet<u8> = pixels.iter().skip(3).step_by(4).copied().collect();
+        assert!(
+            alphas.contains(&0),
+            "transparency was flattened: {alphas:?}"
+        );
+        assert!(alphas.contains(&255), "opacity was flattened: {alphas:?}");
+    }
+
+    #[test]
+    fn a_quantised_image_is_smaller_than_the_lossless_one() {
+        let source = photo_png(96, 96);
+        let lossless = image(&source, ImageMode::Smallest)
+            .unwrap()
+            .map_or(source.len(), |out| out.len());
+        let quantised = image(&source, ImageMode::Quantised)
+            .unwrap()
+            .expect("something smaller");
+        assert!(
+            quantised.len() < lossless,
+            "{} vs {lossless}",
+            quantised.len()
+        );
+    }
+
+    #[test]
+    fn smallest_never_quantises() {
+        let source = photo_png(96, 96);
+        let wanted = read_rgba(&source);
+        let out = image(&source, ImageMode::Smallest)
+            .unwrap()
+            .unwrap_or_else(|| source.clone());
+        assert_eq!(read_rgba(&out), wanted, "Smallest lost a colour");
     }
 
     #[test]
@@ -459,7 +577,8 @@ mod tests {
         let mut writer = hound::WavWriter::new(std::io::Cursor::new(&mut out), spec).unwrap();
         for n in 0..22_050u32 {
             let phase = f64::from(n) * 440.0 * std::f64::consts::TAU / 22_050.0;
-            writer.write_sample((phase.sin() * 8000.0) as i16).unwrap();
+            let sample = (libm::sin(phase) * 8000.0) as i16;
+            writer.write_sample(sample).unwrap();
         }
         writer.finalize().unwrap();
         out
@@ -518,6 +637,62 @@ mod tests {
         // symphonia hands FLAC back left-aligned in 32 bits; the WAV's are 16.
         let decoded: Vec<i32> = decode_flac(&flac).iter().map(|s| s >> 16).collect();
         assert_eq!(decoded, expected);
+    }
+
+    /// How many frames symphonia reads back out of an Ogg Vorbis stream,
+    /// which is the decoder the runtime uses.
+    fn decode_ogg_frames(bytes: &[u8]) -> u64 {
+        use symphonia::core::codecs::DecoderOptions;
+        use symphonia::core::formats::FormatOptions;
+        use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
+        use symphonia::core::meta::MetadataOptions;
+        use symphonia::core::probe::Hint;
+
+        let source = std::io::Cursor::new(bytes.to_vec());
+        let stream = MediaSourceStream::new(Box::new(source), MediaSourceStreamOptions::default());
+        let mut hint = Hint::new();
+        hint.with_extension("ogg");
+        let probed = symphonia::default::get_probe()
+            .format(
+                &hint,
+                stream,
+                &FormatOptions::default(),
+                &MetadataOptions::default(),
+            )
+            .unwrap();
+        let mut format = probed.format;
+        let track = format.default_track().unwrap();
+        let mut decoder = symphonia::default::get_codecs()
+            .make(&track.codec_params, &DecoderOptions::default())
+            .unwrap();
+
+        let mut frames = 0;
+        while let Ok(packet) = format.next_packet() {
+            frames += decoder.decode(&packet).unwrap().frames() as u64;
+        }
+        frames
+    }
+
+    #[test]
+    fn a_wav_becomes_a_smaller_ogg_of_the_same_duration() {
+        let source = sample_wav();
+        let ogg = audio(&source, AudioMode::Vorbis)
+            .unwrap()
+            .expect("an Ogg Vorbis stream");
+        assert!(
+            ogg.len() < source.len(),
+            "{} vs {}",
+            ogg.len(),
+            source.len()
+        );
+
+        // Vorbis codes overlapping windows, so a stream carries a lead-in and
+        // a tail beyond the samples; a long window is 2048 of them.
+        let frames = decode_ogg_frames(&ogg);
+        assert!(
+            frames.abs_diff(22_050) <= 2048,
+            "{frames} frames, not 22050"
+        );
     }
 
     #[test]

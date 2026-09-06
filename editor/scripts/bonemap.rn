@@ -1,9 +1,5 @@
 // The Bone map dock: a canonical skeleton against this rig's bones, so a clip
-// authored for one rig plays on another.
-//
-// Godot's BoneMap panel. Two columns — the canonical name on the left, the
-// bone it means here on the right — with a guess by name for the rows a
-// tidy rig already agrees on, and a `bone_map` asset written out for
+// authored for one rig plays on another. Writes a `bone_map` asset for
 // `animation.play(node, clip, { retarget = ... })` to read.
 
 use crate::model;
@@ -165,8 +161,6 @@ pub fn save(S) {
     S.bonemap.path = path;
     log::info(format!("{} bones written to {}", mapped.len(), path));
 }
-
-// ----------------------------------------------------------------- body
 
 pub fn body(S, k) {
     ui::add_space(4);

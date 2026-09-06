@@ -504,3 +504,49 @@ impl Material2d for SkinnedMaterial {
         render_pass.draw_indexed(0..self.buffers.index_count, 0, 0..1);
     }
 }
+
+/// The scene node a polygon draws through, with the handles a rig and a
+/// deform track write into it. `None` for a polygon with no triangles.
+pub(crate) fn build_polygon_node(
+    app: &balaur_core::App,
+    scene: &mut SceneNode2d,
+    renderable: &crate::Renderable2d,
+) -> Option<(SceneNode2d, Option<SkinHandle>, Option<DeformHandle>)> {
+    let polygon = renderable.polygon.as_ref()?;
+    if polygon.positions.is_empty() || polygon.indices.is_empty() {
+        return None;
+    }
+    let (mut node, skin, deform) = build(scene, polygon);
+    crate::texture::attach_texture_2d(&app.engine, &mut node, &polygon.texture);
+    Some((node, skin, Some(deform)))
+}
+
+/// This frame's vertex positions for a polygon carrying a `Deform`, or
+/// nothing to upload when it carries none.
+///
+/// Answers whether the buffer now holds deformed vertices, so the frame a
+/// deform track stops writing puts the authored positions back exactly once
+/// rather than uploading them again for the rest of the session.
+pub(crate) fn write_deform(
+    world: &balaur_core::hecs::World,
+    entity: balaur_core::hecs::Entity,
+    polygon: &crate::PolygonMesh,
+    handle: &DeformHandle,
+    was_deformed: bool,
+) -> bool {
+    let deform = world.get::<&balaur_core::mesh::Deform>(entity).ok();
+    let deforming = deform.as_ref().is_some_and(|d| !d.is_rest());
+    if !deforming {
+        if was_deformed {
+            handle.fill(polygon.positions.len(), |i| polygon.positions[i].to_array());
+        }
+        return false;
+    }
+    let deform = deform.expect("a deforming node has the component");
+    handle.fill(polygon.positions.len(), |i| {
+        let p = polygon.positions[i];
+        let [dx, dy] = deform.at(i);
+        [p.x + dx, p.y + dy]
+    });
+    true
+}

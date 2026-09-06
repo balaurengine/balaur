@@ -93,19 +93,10 @@ fn global_y(app: &App, entity: Entity) -> f32 {
 fn a_ragdoll_gives_every_bone_a_body_and_a_joint() {
     let (app, errors) = run(
         RIG,
-        r#"pub fn init(this) { physics2d::ragdoll(this.node, #{ blend: 0.0 }); }"#,
+        r"pub fn init(this) { physics2d::ragdoll(this.node, #{ blend: 0.0 }); }",
         2,
     );
     assert!(errors.is_empty(), "{errors:#?}");
-    // What actually got built, when the name below does not resolve.
-    {
-        let world = app.engine.world();
-        let mut names = Vec::new();
-        for (e, name) in world.query::<&scene::Name>().iter() {
-            names.push(format!("{} ({:?})", name.0, e));
-        }
-        eprintln!("nodes: {names:?}");
-    }
     // A container beside the rig, named after it, with one body per bone.
     for bone in ["Hip", "Knee", "Foot"] {
         let body = find(&app, &format!("Rig_ragdoll/{bone}"))
@@ -137,7 +128,7 @@ fn a_ragdoll_gives_every_bone_a_body_and_a_joint() {
 fn a_ragdoll_at_full_blend_makes_the_rig_fall() {
     let (app, errors) = run(
         RIG,
-        r#"pub fn init(this) { physics2d::ragdoll(this.node, #{}); }"#,
+        r"pub fn init(this) { physics2d::ragdoll(this.node, #{}); }",
         90,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -150,7 +141,7 @@ fn a_ragdoll_at_full_blend_makes_the_rig_fall() {
 fn a_blend_of_zero_leaves_the_rig_where_the_clip_put_it() {
     let (app, errors) = run(
         RIG,
-        r#"pub fn init(this) { physics2d::ragdoll(this.node, #{ blend: 0.0 }); }"#,
+        r"pub fn init(this) { physics2d::ragdoll(this.node, #{ blend: 0.0 }); }",
         90,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -170,7 +161,7 @@ fn a_blend_of_zero_leaves_the_rig_where_the_clip_put_it() {
 fn ragdoll_blend_turns_it_on_partway_through() {
     let (app, errors) = run(
         RIG,
-        r#"pub fn init(this) {
+        r"pub fn init(this) {
     physics2d::ragdoll(this.node, #{ blend: 0.0 });
     this.ticks = 0;
 }
@@ -180,7 +171,7 @@ pub fn update(this, dt) {
     if this.ticks == 30 {
         physics::ragdoll_blend(this.node, 1.0);
     }
-}"#,
+}",
         90,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -200,7 +191,7 @@ id = "n"
 name = "Plain"
 script = "scripts/s.rn"
 "#,
-        r#"pub fn init(this) { physics2d::ragdoll(this.node, #{}); }"#,
+        r"pub fn init(this) { physics2d::ragdoll(this.node, #{}); }",
         2,
     );
     assert!(

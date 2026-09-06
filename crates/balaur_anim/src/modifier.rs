@@ -390,8 +390,6 @@ fn table_of(m: &Params) -> toml::Value {
     toml::Value::Table(out)
 }
 
-// ---------------------------------------------------------------- poses
-
 /// A node's 2D world pose composed from local transforms, so a bone this
 /// frame has already moved sees the move.
 fn pose_2d(world: &World, entity: Entity) -> Mat3 {
@@ -499,8 +497,6 @@ fn chain_of(world: &World, root: Entity, len: usize) -> Vec<Entity> {
     out
 }
 
-// ------------------------------------------------------------ 2D aiming
-
 /// The direction a bone points along in its own frame: toward its first
 /// child bone, else its gizmo `angle`.
 fn aim_local_2d(world: &World, bone: Entity) -> f32 {
@@ -566,8 +562,6 @@ fn wrap_pi(angle: f32) -> f32 {
     }
     a
 }
-
-// ------------------------------------------------------------ 3D aiming
 
 /// The direction a bone points along in its own frame, as a unit vector:
 /// toward its first child bone, else `+X`, which is what a bone with no
@@ -638,8 +632,6 @@ fn clamp_angle_3d(world: &World, bone: Entity, limit: f32) {
     let axis = axis.normalize() * delta.w.signum();
     t.rotation = rest * Quat::from_axis_angle(axis, limit);
 }
-
-// ------------------------------------------------------------- solvers
 
 /// The joints a chain reaches with: every bone's origin, and the last bone's
 /// tip when it has one, so there is a segment per bone rather than per gap.
@@ -924,12 +916,8 @@ fn jiggle_step(world: &World, chain: &[Entity], p: &Params, dim3: bool, state: &
         }
         velocity = (velocity + force * FIXED_DT) * keep;
         point += velocity * FIXED_DT;
-        // The point is a direction to aim along, not a joint position, so it
-        // is left where the spring puts it. Holding it on the bone's own
-        // circle would look tidier and has one fixed point too many: a point
-        // flung to the far side of the origin sits exactly opposite the pose,
-        // where the pull is along the radius the projection cancels, and the
-        // bone stays upside down for good.
+        // A direction to aim along, not a joint position: held to the bone's
+        // own circle, a point flung past the origin would stay upside down.
         let _ = origin;
         // A non-finite point would be aimed at once and then hold the bone
         // there for the rest of the session; the pose is the safe fallback.
@@ -971,8 +959,6 @@ fn apply_points(world: &World, chain: &[Entity], points: &[Vec3], dim3: bool) {
     }
 }
 
-// -------------------------------------------------------------- system
-
 /// Every modifier, in a fixed order, from the transforms as they are now.
 pub(crate) fn modify_system(eng: &Engine, dt: f32) {
     // Nothing has moved under a held game, so there is nothing to re-pose.
@@ -994,10 +980,8 @@ pub(crate) fn modify_system(eng: &Engine, dt: f32) {
             .filter(|(_, m, _)| m.enabled && !(m.kind.wants_target() && m.target.is_empty()))
             .map(|(e, m, dim3)| (scene_order(&world, e), e, m, dim3))
             .collect();
-        // A set order is what makes two modifiers on one bone land the same
-        // way twice. The scene's own reading order, not the entity's number:
-        // that would move when a node somewhere else in the scene is added,
-        // and the same rig would then solve differently.
+        // Two modifiers on one bone have to land the same way twice, and the
+        // scene's reading order does not move when another node is added.
         work.sort_by(|a, b| (a.3, &a.0).cmp(&(b.3, &b.0)));
         work.into_iter()
             .map(|(_, e, m, dim3)| (e, m, dim3))

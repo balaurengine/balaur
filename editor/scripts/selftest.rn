@@ -3,6 +3,7 @@
 
 use crate::anim;
 use crate::dock;
+use crate::importer;
 use crate::history;
 use crate::lint;
 use crate::model;
@@ -367,6 +368,26 @@ pub fn weighting(S) {
     polygon::clear_deform(S);
     check(!polygon::deformed(S), "a fresh polygon is at rest");
 
+    // Trace: the example's texture is fully opaque, so its outline is the
+    // picture's own rectangle — four corners once the run of edge pixels is
+    // simplified away, and the mesh's other lists dropped with the shape.
+    let before = polygon::mesh(S).unwrap().positions.len();
+    polygon::trace(S);
+    let traced = polygon::mesh(S).unwrap();
+    check(traced.positions.len() == 4,
+        format!("tracing an opaque texture gives its four corners ({}, was {})",
+            traced.positions.len(), before));
+    check(traced.get("skin").is_none(), "and drops the weights the old vertices carried");
+    let wide = 0.0;
+    let tall = 0.0;
+    for p in traced.positions {
+        wide = util::max(wide, util::abs(util::f(p[0])));
+        tall = util::max(tall, util::abs(util::f(p[1])));
+    }
+    // 128 x 256 pixels at the polygon's 100 px to the unit.
+    check(util::abs(wide - 0.64) < 0.05 && util::abs(tall - 1.28) < 0.05,
+        format!("the outline is the picture's own size ({:.2} x {:.2})", wide * 2.0, tall * 2.0));
+
     undo_all(S);
     check(S.doc.len() == start, format!("undoing everything returns the original scene ({})", S.doc.len()));
     check(mirror_resolves(S), "every node still resolves");
@@ -392,6 +413,49 @@ fn inline_polygon(S) {
         }
     }
     None
+}
+
+/// Create Physical Skeleton: one engine call, and the nodes it spawns adopted
+/// into the document so they are in the tree and in the saved scene.
+pub fn physical_bones(S) {
+    let rig_i = None;
+    for i in 0..S.doc.len() {
+        if rig::bone_count(S, i) > 1 && !rig::is_bone(S.doc[i]) {
+            rig_i = Some(i);
+            break;
+        }
+    }
+    let rig_i = match rig_i {
+        Some(rig_i) => rig_i,
+        None => {
+            log::info("selftest physical bones: no rig; skipped");
+            return;
+        }
+    };
+    shell::choose(S, rig_i);
+    let start = S.doc.len();
+    let bones = rig::bone_count(S, rig_i);
+    rig::physical_bones(S);
+    check(S.doc.len() > start,
+        format!("building a ragdoll adds nodes to the document ({} to {})", start, S.doc.len()));
+    // A body per bone, plus the container they hang from.
+    check(S.doc.len() <= start + bones + 1,
+        format!("and no more than one per bone ({} bones, {} nodes)", bones, S.doc.len() - start));
+    check(mirror_resolves(S), "every new node resolves in the mirror");
+    let ragdoll = S.doc[rig_i].get("ragdoll");
+    check(ragdoll.is_some() && ragdoll.unwrap() is Object,
+        "the rig carries the ragdoll component that drives its bones back");
+    let bodies = 0;
+    for node in S.doc {
+        if node.contains_key("body2d") || node.contains_key("body3d") {
+            bodies += 1;
+        }
+    }
+    check(bodies > 0, format!("and every bone got a body ({})", bodies));
+
+    undo_all(S);
+    check(mirror_resolves(S), "the undone scene resolves");
+    log::info("selftest physical bones: done");
 }
 
 /// The bone map dock: the humanoid guessed against a rig's own names, and
@@ -599,6 +663,42 @@ pub fn assets(S) {
     dock::delete_asset(S);
     check(!fs::exists(root + second), "the second folder is cleaned up too");
     log::info("selftest assets: done");
+}
+
+/// The Import panel: what it writes beside a picture, and what clearing a key
+/// leaves behind. The panel itself is drawn by the Assets dock; this drives
+/// the same calls its controls do.
+pub fn imports(S) {
+    let root = S.game_root + "/";
+    let rel = "selftest-import.png";
+    fs::write(root + rel, "not really a png, and never decoded here");
+    let side = root + importer::sidecar_of(rel);
+
+    check(importer::kind_of(rel) == "texture", "a .png is a texture");
+    check(importer::kind_of("scenes/main.toml") == "", "a scene is no importer's business");
+    check(importer::kind_of("ART/HERO.PNG") == "texture", "the extension is matched whatever its case");
+
+    check(!fs::exists(side), "a picture starts with no settings beside it");
+    importer::write(S, rel, "filter", "nearest");
+    check(fs::exists(side), "setting a key writes the sidecar");
+    let table = importer::sidecar(S, rel);
+    check(table.get("filter") == Some("nearest"), "and the sidecar holds what was set");
+
+    importer::write(S, rel, "srgb", false);
+    let both = importer::sidecar(S, rel);
+    check(both.get("filter") == Some("nearest") && both.get("srgb") == Some(false),
+        "a second key joins the first rather than replacing it");
+
+    importer::write(S, rel, "srgb", ());
+    let one = importer::sidecar(S, rel);
+    check(one.get("srgb").is_none() && one.get("filter") == Some("nearest"),
+        "clearing one key leaves the other");
+
+    importer::write(S, rel, "filter", ());
+    check(!fs::exists(side), "clearing the last key removes the sidecar");
+
+    fs::remove(root + rel);
+    log::info("selftest imports: done");
 }
 
 /// Picking, aimed by hand. The viewport snapshot a real click reads is empty

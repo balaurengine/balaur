@@ -6,6 +6,7 @@
 //! `tilemap` nodes, entities as nodes with the fields they carried.
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::path::Path;
 
 use anyhow::{Context, Result, anyhow, bail};
@@ -84,10 +85,10 @@ fn tileset_toml(set: &Value, texture: &str) -> Vec<u8> {
     let spacing = number(set, "spacing", 0);
     let margin = number(set, "padding", 0);
     if spacing > 0 {
-        out.push_str(&format!("spacing = {spacing}\n"));
+        let _ = writeln!(out, "spacing = {spacing}");
     }
     if margin > 0 {
-        out.push_str(&format!("margin = {margin}\n"));
+        let _ = writeln!(out, "margin = {margin}");
     }
     out.into_bytes()
 }
@@ -101,7 +102,7 @@ fn level_toml(level: &Value, sets: &BTreeMap<i64, String>) -> Result<(String, us
     // A tileset kept in a file is named by its path, not re-declared here.
     let mut out = String::new();
     let mut drawn = 0;
-    let mut z = layers.len() as i64;
+    let mut z = i64::try_from(layers.len()).unwrap_or(0);
     for layer in layers {
         z -= 1;
         let kind = text_of(layer, "__type", "");
@@ -150,18 +151,19 @@ fn level_toml(level: &Value, sets: &BTreeMap<i64, String>) -> Result<(String, us
             continue;
         }
         drawn += 1;
-        out.push_str(&format!(
+        let _ = write!(
+            out,
             "[[nodes]]\nid = \"n_{name}\"\nname = \"{}\"\nz_index = {z}\n\n[nodes.tilemap]\ntileset = \"tilesets/{set}.toml\"\npixels_per_unit = {grid}\ncells = [\n",
             text_of(layer, "__identifier", "Layer")
-        ));
+        );
         for row in &cells {
-            out.push_str(&format!("  [{}],\n", spell(row)));
+            let _ = writeln!(out, "  [{}],", spell(row));
         }
         out.push_str("]\n");
         if flags.iter().any(|row| row.iter().any(|bits| *bits != 0)) {
             out.push_str("flags = [\n");
             for row in &flags {
-                out.push_str(&format!("  [{}],\n", spell(row)));
+                let _ = writeln!(out, "  [{}],", spell(row));
             }
             out.push_str("]\n");
         }
@@ -198,19 +200,20 @@ fn entities_toml(layer: &Value, layer_name: &str) -> String {
             .and_then(Value::as_f64)
             .unwrap_or(0.0)
             / grid;
-        out.push_str(&format!(
+        let _ = write!(
+            out,
             "[[nodes]]\nid = \"n_{layer_name}_{index}\"\nname = \"{name}\"\nposition = [{x}, {}, 0.0]\n\n",
             -y
-        ));
+        );
         let fields = array(entity, &["fieldInstances"]);
         if fields.is_empty() {
             continue;
         }
-        out.push_str(&format!("[nodes.props.data_{layer_name}_{index}]\n"));
+        let _ = writeln!(out, "[nodes.props.data_{layer_name}_{index}]");
         for field in fields {
             let key = tidy(text_of(field, "__identifier", "field"));
             let value = field.get("__value").cloned().unwrap_or(Value::Null);
-            out.push_str(&format!("{key} = {}\n", spell_value(&value)));
+            let _ = writeln!(out, "{key} = {}", spell_value(&value));
         }
         out.push('\n');
     }

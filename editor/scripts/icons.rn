@@ -36,6 +36,7 @@ pub fn panel(id) {
         "scene" => "\u{e67c}",
         "outline" => "\u{e2f0}",
         "inspector" => "\u{e432}",
+        "import" => "\u{e2c6}",
         "output" => "\u{eae8}",
         "problems" => "\u{e4e0}",
         "assets" => "\u{e24a}",

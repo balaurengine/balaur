@@ -485,9 +485,11 @@ fn states() {
         "polydemo": crate::selftest::polygons,
         "weightdemo": crate::selftest::weighting,
         "bonemapdemo": crate::selftest::bonemap_panel,
+        "ragdolldemo": crate::selftest::physical_bones,
         "tilesdemo": crate::selftest::tiles_tool,
         "clipdemo": crate::selftest::clipboard,
         "assetdemo": crate::selftest::assets,
+        "importdemo": crate::selftest::imports,
         "pickdemo": crate::selftest::picking,
         "propsdemo": crate::selftest::script_props,
         "scriptdemo": crate::selftest::script_paths,
@@ -517,6 +519,7 @@ fn prefixed_states() {
         ("show:", state_show),
         ("tool:", state_tool),
         ("dock:", state_dock),
+        ("asset:", state_asset),
         ("tab:", state_tab),
         ("shut:", state_shut),
         ("scale:", state_scale),
@@ -641,6 +644,22 @@ fn state_move(S, arg) {
 
 fn state_dock(S, dock) {
     crate::docks::show(S, dock);
+}
+
+// Self-test state: open the Assets dock on a file, which is what the Import
+// section draws for (e.g. asset:art/limb.png).
+fn state_asset(S, rel) {
+    crate::docks::show(S, "assets");
+    let parts = rel.split('/').collect::<Vec>();
+    let dir = "";
+    let n = 0;
+    while n + 1 < parts.len() {
+        let step = if dir == "" { parts[n] } else { dir + "/" + parts[n] };
+        dir = step;
+        n += 1;
+    }
+    S.assets.dir = dir;
+    S.assets.sel = rel;
 }
 
 fn state_mode(S, mode) {

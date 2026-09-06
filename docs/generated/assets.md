@@ -75,6 +75,28 @@ keys = [
 ]
 ```
 
+### `bone_map`
+
+Files: `animations/`. Used by: no component property yet.
+
+A bone map lets one rig play another's clips. `[bones]` pairs a canonical
+bone name with the node path it takes on this rig, relative to the playing
+node; `profile` names a `skeleton_profile` asset whose rests the clip was
+authored against, and defaults to the built-in humanoid. Pass the map to
+`animation.play(node, clip, { retarget = "maps/hero.toml" })`: each track's
+target is renamed through it, rotations are re-read as turns away from the
+profile's rest, and positions are scaled by how much longer this rig's bones
+are.
+
+```toml
+type = "bone_map"
+
+[bones]
+Hips = "Armature/Hips"
+Spine = "Armature/Hips/Spine"
+Head = "Armature/Hips/Spine/Neck/Head"
+```
+
 ### `heightfield`
 
 Files: `terrain/`. Used by: `collider2d.heightfield`, `collider3d.heightfield`.
@@ -186,6 +208,28 @@ closed = true
 points = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]
 ```
 
+### `skeleton_profile`
+
+Files: `animations/`. Used by: no component property yet.
+
+A skeleton profile is the canonical skeleton a bone map's names come from,
+and the rest pose a clip written against it was keyed relative to. Each bone
+has a `name` and, optionally, a `rest_rotation` in euler radians and a
+`rest_position` whose length scales a retargeted position track. A document
+with no `bones` is the built-in humanoid.
+
+```toml
+type = "skeleton_profile"
+
+[[bones]]
+name = "Hips"
+rest_position = [0.0, 1.0, 0.0]
+
+[[bones]]
+name = "Spine"
+rest_rotation = [0.0, 0.0, 0.0]
+```
+
 ### `sprite_sheet`
 
 Files: `sheets/`. Used by: `sprite.sheet`.
@@ -223,9 +267,16 @@ rect = [8, 4, 16, 28]
 Files: `tilesets/`. Used by: `tilemap.tileset`.
 
 An image cut into equal tiles for the `tilemap` component: `texture` names
-the image, `tile_size` is the pixel length of one tile edge and `columns` is
-how many tiles one row of the image holds. Tile indices count row by row
-from the top left.
+the image, `tile_size` is one tile in pixels — a number, or `[w, h]` for a
+sheet whose tiles are not square — and `columns` is how many tiles one row of
+the image holds. `spacing` is the gutter between tiles and `margin` the border
+around the sheet, both zero by default. Tile indices count row by row from the
+top left.
+
+A `[tiles.<id>]` table says what one tile is. `collision` is `"full"` for a
+solid cell, or a list of polygons in tile pixels with y down from the tile's
+top-left corner; `one_way` makes a platform a body passes through from below.
+A tile with no table of its own is the plain quad it always was.
 
 ```toml
 [[assets]]
@@ -234,11 +285,17 @@ type = "tileset"
 texture = "art/dungeon.png"
 tile_size = 16
 columns = 8
+
+[tiles.3]
+collision = "full"
+
+[tiles.7]
+collision = [[[0, 16], [16, 16], [16, 8]]]
 ```
 
 ### `voxels`
 
-Files: `terrain/`. Used by: `collider3d.voxels`.
+Files: `terrain/`. Used by: `collider2d.voxels`, `collider3d.voxels`.
 
 A voxel grid for a collider: `size` is one cell in world units, `cells` the
 filled coordinates. Coordinates are signed, so a grid has no origin corner,

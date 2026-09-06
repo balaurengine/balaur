@@ -118,22 +118,37 @@ impl Segment {
     }
 }
 
+/// A node's world pose composed from local transforms rather than read from
+/// `GlobalTransform`.
+///
+/// A ragdoll is built from a script's `init` or an editor button, and neither
+/// waits for the scene sync: the globals of a node placed this frame are
+/// still identity, and every bone would measure zero long.
+fn world_pose(world: &balaur_core::hecs::World, entity: Entity) -> (Vec3, Quat) {
+    let mut chain = vec![entity];
+    let mut current = entity;
+    while let Ok(parent) = world.get::<&Parent>(current) {
+        current = parent.0;
+        chain.push(current);
+    }
+    let (mut position, mut rotation, mut scale) = (Vec3::ZERO, Quat::IDENTITY, Vec3::ONE);
+    for e in chain.into_iter().rev() {
+        if let Ok(t) = world.get::<&Transform>(e) {
+            position += rotation * (t.position * scale);
+            rotation *= t.rotation;
+            scale *= t.scale;
+        }
+    }
+    (position, rotation)
+}
+
 /// Every bone under `rig` as a world-space segment, tip bones included when
 /// their gizmo `length` says how far they reach.
 fn segments(eng: &Engine, rig: Entity, dim3: bool) -> Vec<Segment> {
     let world = eng.world();
     let bones = skeleton::bones_under(&world, rig);
-    let origin = |e: Entity| {
-        world
-            .get::<&GlobalTransform>(e)
-            .map(|g| g.position)
-            .unwrap_or_default()
-    };
-    let rotation = |e: Entity| {
-        world
-            .get::<&GlobalTransform>(e)
-            .map_or(Quat::IDENTITY, |g| g.rotation)
-    };
+    let origin = |e: Entity| world_pose(&world, e).0;
+    let rotation = |e: Entity| world_pose(&world, e).1;
     let child_bone = |e: Entity| {
         world.get::<&scene::Children>(e).ok().and_then(|children| {
             children

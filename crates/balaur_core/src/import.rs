@@ -90,9 +90,9 @@ pub struct Resolved {
     pub stamp: String,
 }
 
-/// What has already been resolved, dropped whole when an asset is saved.
+/// The settings already resolved, dropped whole when an asset is saved.
 #[derive(Default)]
-struct Settings {
+struct ImportState {
     generation: u64,
     files: HashMap<String, Rc<Resolved>>,
 }
@@ -105,11 +105,11 @@ struct Settings {
 #[must_use]
 pub fn resolved(eng: &Engine, path: &str) -> Rc<Resolved> {
     let generation = crate::assets::generation(eng);
-    let cache = if let Some(found) = eng.try_resource::<Settings>() {
+    let cache = if let Some(found) = eng.try_resource::<ImportState>() {
         found
     } else {
-        eng.insert_resource(Settings::default());
-        eng.resource::<Settings>()
+        eng.insert_resource(ImportState::default());
+        eng.resource::<ImportState>()
     };
     {
         let held = cache.borrow();

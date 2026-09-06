@@ -126,10 +126,10 @@ fn the_solid_cells_of_a_map_become_one_voxel_collider() {
 #[test]
 fn digging_a_cell_rebuilds_what_the_map_collides_with() {
     let (app, errors) = run(
-        r#"pub fn init(this) {
+        r"pub fn init(this) {
     render::set_cell(this.node, 0, 0, -1);
 }
-"#,
+",
         2,
     );
     assert!(errors.is_empty(), "the script logged errors: {errors:#?}");

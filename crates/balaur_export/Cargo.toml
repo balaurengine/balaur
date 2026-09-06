@@ -42,9 +42,12 @@ hb-subset = { version = "0.3", optional = true, features = ["bundled"] }
 
 [dev-dependencies]
 tempfile = "3"
-# The runtime decodes FLAC through rodio's symphonia; so does the test that
-# proves a re-encode kept every sample.
-symphonia = { version = "0.5", default-features = false, features = ["flac"] }
+# A test's own sine has to be the same sine on every operating system, which
+# the platform's `sin` is not (DETERMINISM.md).
+libm.workspace = true
+# The runtime decodes FLAC and Vorbis through rodio's symphonia; so do the
+# tests that prove a re-encode kept the samples and the length.
+symphonia = { version = "0.5", default-features = false, features = ["flac", "ogg", "vorbis"] }
 
 [lints]
 workspace = true

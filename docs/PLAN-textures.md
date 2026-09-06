@@ -87,7 +87,12 @@ a comparison sampler is what shadow maps use and nothing else).
    path reading them; `examples/rig` moves to `nearest`. Left: a kiss3d call
    taking a whole sampler, then `repeat`, `mipmaps`, `anisotropy` and
    `premultiply`; the `texture` asset type and the inline table.
-2. The editor's Import section and the Settings rows.
+2. *Part done, 2026-09-06.* An Import tab in the right dock, beside the
+   Inspector, for the file the Assets dock has selected: `filter` and `srgb`,
+   each row saying whether the value is the file's own, the project's or the
+   engine's, with a clear that drops the key and removes an emptied sidecar.
+   `importdemo` covers it. Left: the Settings rows for the project-wide
+   defaults.
 3. Compression and `max_size` at export.
 4. `balaur atlas`.
 

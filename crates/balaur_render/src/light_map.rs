@@ -121,7 +121,6 @@ impl LightMap {
         }
         let casting = lights.iter().any(|light| light.shadows);
         let edges = if casting {
-            let world = app.engine.world();
             occluder_edges(&app.engine, app.engine.root())
         } else {
             Vec::new()

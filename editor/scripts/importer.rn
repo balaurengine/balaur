@@ -33,7 +33,7 @@ pub fn kind_of(rel) {
     found
 }
 
-fn sidecar_of(rel) {
+pub fn sidecar_of(rel) {
     rel + ".toml"
 }
 
@@ -44,8 +44,12 @@ fn full(S, rel) {
 // The sidecar's own table, empty when there is none. A file that does not
 // parse is reported once and treated as empty, so a typo cannot wedge the
 // panel.
-fn sidecar(S, rel) {
-    let path = full(S, sidecar_of(rel));
+pub fn sidecar(S, rel) {
+    table_at(full(S, sidecar_of(rel)))
+}
+
+// The settings held in one sidecar file, by absolute path.
+fn table_at(path) {
     if !fs::exists(path) {
         return #{};
     }
@@ -53,10 +57,9 @@ fn sidecar(S, rel) {
     if !(text is String) {
         return #{};
     }
-    let parsed = script::attempt(|| toml::parse(text));
-    let (ok, value) = parsed;
+    let (ok, value) = script::attempt(|| toml::parse(text));
     if !ok {
-        log::warn(format!("{} is not a settings file", sidecar_of(rel)));
+        log::warn(format!("{} is not a settings file", path));
         return #{};
     }
     util::obj(value)
@@ -71,109 +74,138 @@ fn project_default(S, kind, key) {
 
 // Write one key, or drop it when `value` is nil. An empty sidecar is removed
 // rather than left behind: a file of no settings is noise in a project.
-fn write(S, rel, key, value) {
-    let table = sidecar(S, rel);
-    if value is Tuple {
+pub fn write(S, rel, key, value) {
+    // `insert` takes the key and the value, so everything read from them is
+    // read before the write, and the log goes out first.
+    let cleared = value is Tuple;
+    let what = if cleared { "cleared" } else { "set" };
+    let path = full(S, sidecar_of(rel));
+    log::info(format!("import: {} {} for {}", key, what, rel));
+    let table = table_at(path);
+    if cleared {
         table.remove(key);
     } else {
         table.insert(key, value);
     }
-    let path = full(S, sidecar_of(rel));
     if table.len() == 0 {
         if fs::exists(path) {
             fs::remove(path);
         }
     } else {
-        let (ok, why) = script::attempt(|| fs::write(path, toml::encode(table)));
-        if !ok {
-            log::error(format!("writing {}: {}", sidecar_of(rel), why));
-            return;
-        }
+        fs::write(path, toml::encode(table));
     }
     // The renderer uploads a texture under a name built from its settings, so
     // the change shows without a restart.
     assets::invalidate();
-    log::info(format!("import: {} {} for {}", key, if value is Tuple { "cleared" } else { "set" }, rel));
+}
+
+// The three columns, all derived from the dock's width so the right-hand
+// note is never clipped: at a width nothing fits, the label gives way first.
+fn label_w(S) {
+    util::clamp(S.layout.right.w * 0.28, 40.0, 84.0)
+}
+
+fn note_w(S) {
+    util::clamp(S.layout.right.w * 0.20, 40.0, 60.0)
+}
+
+fn control_w(S) {
+    util::max(64.0, S.layout.right.w - 26.0 - label_w(S) - note_w(S))
 }
 
 // One row: the label, the control, and where the value came from.
 fn row(S, k, rel, kind, spec) {
     let key = spec.key;
-    let table = sidecar(S, rel);
-    let own = table.get(key);
+    let own = sidecar(S, rel).get(key);
     let inherited = project_default(S, kind, key);
-    let effective = if !(own is Tuple) {
-        own
-    } else if !(inherited is Tuple) {
-        inherited
-    } else {
-        spec.fallback
-    };
+    // Read before either Option is unwrapped: unwrapping takes the value.
+    let has_own = own.is_some();
+    let source = if inherited.is_some() { "project" } else { "default" };
+    let effective = spec.fallback;
+    if let Some(value) = inherited {
+        effective = value;
+    }
+    if let Some(value) = own {
+        effective = value;
+    }
     ui::horizontal(#{ height: 24 }, || {
         ui::add_space(10);
-        ui::horizontal(#{ height: 24, width: 92.0 }, || {
+        ui::horizontal(#{ height: 24, width: label_w(S) }, || {
             ui::label(key, #{ size: 11.5, color: k.dim });
         });
-        if spec.kind == "bool" {
-            let (on, changed) = ui::toggle(effective == true, #{ role: "toggle",
-                on_fill: k.accent_fill, off_fill: k.sunken,
-                on_knob: k.on_accent, off_knob: k.faint,
-            });
-            if changed {
-                write(S, rel, key, on);
+        ui::horizontal(#{ height: 24, width: control_w(S) }, || {
+            if spec.kind == "bool" {
+                let (on, changed) = ui::toggle(effective == true, #{ role: "toggle",
+                    tooltip: spec.help,
+                    on_fill: k.accent_fill, off_fill: k.sunken,
+                    on_knob: k.on_accent, off_knob: k.faint,
+                });
+                if changed {
+                    write(S, rel, key, on);
+                }
+            } else {
+                let now = if effective is String { effective } else { spec.fallback };
+                let (picked, changed) = ui::dropdown(
+                    format!("import:{}:{}", rel, key), now, spec.options,
+                    #{ width: control_w(S) - 6.0, size: 11.5, height: 22, color: k.text,
+                       tooltip: spec.help },
+                );
+                if changed {
+                    write(S, rel, key, picked);
+                }
             }
-        } else {
-            let now = if effective is String { effective } else { spec.fallback };
-            let (picked, changed) = ui::dropdown(
-                format!("import:{}:{}", rel, key), now, spec.options,
-                #{ width: 150, size: 11.5, height: 22, color: k.text },
-            );
-            if changed {
-                write(S, rel, key, picked);
-            }
-        }
-        ui::right(|| {
-            ui::add_space(10);
-            if !(own is Tuple) {
+        });
+        ui::horizontal(#{ height: 24, width: note_w(S) }, || {
+            if has_own {
                 if ui::pill("clear", #{ height: 20, size: 10, strong: true,
                     tooltip: "Drop this key and follow the project again",
                     fill: k.sunken, color: k.dim }) {
                     write(S, rel, key, ());
                 }
             } else {
-                let source = if inherited is Tuple { "default" } else { "project" };
                 ui::label(source, style::mono_sm(k.faint));
             }
         });
     });
-    ui::label(spec.help, style::mono_sm(k.faint));
-    ui::add_space(6);
+    ui::add_space(2);
 }
 
-// Drawn under the Assets dock's grid, for the file selected there.
-pub fn panel(S, k) {
+// The rows the selected file offers, empty when nothing is selected or the
+// file is one no importer claims.
+fn specs_for(S) {
     let rel = S.assets.sel;
     if rel == "" {
-        return;
+        return [];
     }
     let kind = kind_of(rel);
     if kind == "" {
+        return [];
+    }
+    ROWS.get(kind).unwrap_or([])
+}
+
+// The Import tab, for whatever the Assets dock has selected. Empty until a
+// file is picked, the way the Inspector is empty without a node.
+pub fn panel(S, k) {
+    let rel = S.assets.sel;
+    let specs = specs_for(S);
+    if specs.len() == 0 {
+        let why = if rel == "" { "select a file in Assets" } else { "nothing to import for this file" };
+        style::empty(k, why);
         return;
     }
-    let specs = ROWS.get(kind).unwrap_or([]);
+    let kind = kind_of(rel);
     ui::add_space(6);
     ui::horizontal(#{ height: 22 }, || {
         ui::add_space(10);
-        ui::label("Import", #{ size: 12, strong: true, color: k.text });
-        ui::add_space(8);
-        ui::label(format!("{}  ·  {}", util::last_segment(rel), kind), style::mono_sm(k.faint));
-        ui::right(|| {
-            ui::add_space(10);
-            if fs::exists(full(S, sidecar_of(rel))) {
-                ui::label(sidecar_of(util::last_segment(rel)), style::mono_sm(k.faint));
-            }
-        });
+        ui::label(util::last_segment(rel), #{ size: 12, strong: true, color: k.text });
     });
+    ui::horizontal(#{ height: 18 }, || {
+        ui::add_space(10);
+        let where_from = if fs::exists(full(S, sidecar_of(rel))) { sidecar_of(util::last_segment(rel)) } else { "no settings file yet" };
+        ui::label(format!("{}  ·  {}", kind, where_from), style::mono_sm(k.faint));
+    });
+    ui::add_space(4);
     for spec in specs {
         row(S, k, rel, kind, spec);
     }

@@ -552,8 +552,6 @@ pub fn paint(S, at, amount) {
     apply(S);
 }
 
-// ------------------------------------------------------------ selection
-
 // The vertices the Weights dock lists and Mirror reflects. An empty pick
 // means the whole mesh, so a first-time user gets the obvious thing.
 pub fn picked(S) {
@@ -606,8 +604,6 @@ pub fn clear_pick(S) {
     S.polygon.picked = [];
 }
 
-// --------------------------------------------------------------- mirror
-
 // The same name on the other side, or `None` when it names no side. Tried
 // longest first, so `left_arm` does not match on its leading `l`.
 pub fn mirror_name(path) {
@@ -638,9 +634,6 @@ pub fn mirror_name(path) {
 
 // Reflect the picked vertices over the node's own x or y axis, and hand each
 // bone's weights to the bone whose name differs by a side.
-//
-// Godot has no such verb; Spine's is what a rigger reaches for after
-// weighting one arm.
 pub fn mirror(S, axis) {
     let mesh = match mesh(S) {
         Some(mesh) => mesh,
@@ -739,8 +732,6 @@ fn mirror_weights(mesh) {
     }
 }
 
-// ---------------------------------------------------------------- trace
-
 // Trace the texture's alpha into this polygon's outline. Spine's Generate:
 // the shape a sprite already has, without clicking it out.
 pub fn trace(S) {
@@ -794,15 +785,9 @@ pub fn trace(S) {
     log::info(format!("traced {} points from {}", points.len(), texture));
 }
 
-// ---------------------------------------------------------- deform keys
-
-// Free-form deformation: an offset per vertex, over the mesh's authored
-// positions, which the engine adds before it skins. Spine's FFD.
-//
-// The offsets live on the tool rather than in the document, because the
-// document's `positions` are the rest the offsets are measured from — the
-// same thing the engine adds them to. Moving a vertex with the Animate
-// persona armed edits the offset; moving one otherwise edits the rest.
+// Free-form deformation: an offset per vertex over the mesh's authored
+// positions, which the engine adds before it skins. The offsets live on the
+// tool, because the document's `positions` are the rest they measure from.
 
 // Whether a vertex drag is deforming rather than reshaping.
 pub fn deforming(S) {

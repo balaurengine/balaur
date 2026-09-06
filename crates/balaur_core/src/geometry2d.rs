@@ -56,10 +56,8 @@ pub fn trace(mask: &[bool], width: usize, height: usize) -> Vec<Vec<Vec2>> {
         }
         mask.get(y * width + x).copied().unwrap_or(false)
     };
-    // Edges keyed by where they start. A corner where two loops touch
-    // diagonally starts two edges, so the value is a list and a walk takes
-    // whichever is left — which splits the touch into two loops rather than
-    // joining them into one that crosses itself.
+    // Edges keyed by where they start, as a list: a diagonal touch starts two
+    // there, and taking whichever is left splits it into two loops.
     let mut edges: std::collections::BTreeMap<(i32, i32), Vec<(i32, i32)>> =
         std::collections::BTreeMap::new();
     let mut edge = |from: (i32, i32), to: (i32, i32)| {
