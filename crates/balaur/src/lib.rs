@@ -28,6 +28,8 @@ pub use balaur_ui as ui;
 #[cfg(feature = "webtransport")]
 pub use balaur_webtransport as webtransport;
 
+mod interact;
+
 use std::collections::BTreeMap;
 
 use anyhow::{Context, Result, bail};
@@ -250,6 +252,7 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     app.engine.insert_resource(configs_from(&asked));
     balaur_plugin::load_all(&mut app, &mut standard_plugins(&asked)?)?;
     drive_ui_focus(&mut app);
+    interact::install(&mut app);
     #[cfg(feature = "extensions")]
     load_project_extensions(&mut app, &asked)?;
     refuse_absent(&app, &asked)?;

@@ -278,6 +278,17 @@ impl App {
         // and nothing about a rest pose belongs to the renderer.
         crate::skeleton::register_bone2d_component(&mut app);
         crate::skeleton::register_bone3d_component(&mut app);
+        // Interactivity without a script: named looks, and the table that
+        // says what one event does. Core because a binding's actions are
+        // calls core already has, and because the digest carries the state.
+        crate::states::register_states_component(&mut app);
+        crate::bindings::register_bindings_component(&mut app);
+        app.engine
+            .insert_resource(crate::variables::Variables::default());
+        app.engine
+            .insert_resource(crate::bindings::Runners::default());
+        app.engine
+            .insert_resource(crate::scene_switch::Pending::default());
         crate::snapshot::build_core_sources(&mut app);
         crate::netsession::build_session_source(&mut app);
         register_facts(&mut app);

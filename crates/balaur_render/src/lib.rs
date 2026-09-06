@@ -28,7 +28,7 @@ pub mod mesh;
 #[cfg(feature = "kiss3d")]
 mod morph;
 mod particles;
-mod pick;
+pub mod pick;
 mod polygon;
 #[cfg(feature = "kiss3d")]
 mod polyline_strip;
@@ -48,6 +48,16 @@ pub use camera::{Camera, CameraKind};
 pub use cloner::Clones;
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
 pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
+pub use pick::under_pointer as pick_under_pointer;
+
+/// The window the renderer last drew into, in logical points. Zero with no
+/// window, which is what keeps a headless run from reporting a resize.
+#[must_use]
+pub fn viewport_size(eng: &Engine) -> (u32, u32) {
+    let vp = eng.resource::<ViewportSnapshot>();
+    let vp = vp.borrow();
+    (vp.width, vp.height)
+}
 pub use light3d::{Environment, FogKind, Light3d, LightKind3d, LitLight3d, Tonemap};
 pub use mesh::MorphWeights;
 pub use particles::Particles;
@@ -308,6 +318,9 @@ pub struct ViewportSnapshot {
     /// Picking ray through the current mouse position.
     pub ray_origin: [f32; 3],
     pub ray_dir: [f32; 3],
+    /// The window this was drawn into, in logical points. Zero headless.
+    pub width: u32,
+    pub height: u32,
 }
 
 /// When `enabled` is false, windowed backends inhibit the camera's mouse

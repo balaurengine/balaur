@@ -231,6 +231,10 @@ struct SceneDoc {
     /// Godot's `[sub_resource]`. See `crate::assets`.
     #[serde(default)]
     assets: Vec<SceneAsset>,
+    /// Typed values the scene owns: what a binding's `when` reads and what a
+    /// page embedding the game sets. See `crate::variables`.
+    #[serde(default)]
+    variables: toml::Table,
     #[serde(default)]
     nodes: Vec<SceneNode>,
 }
@@ -660,6 +664,7 @@ fn build_scene(eng: &Engine, source: &str, base: Entity, build: &mut Build) -> R
     // A scene's `[[assets]]` are in scope only while it is being built, so
     // `#id` never resolves against a sibling scene; a prefab's own blocks nest
     // inside that rather than accumulating.
+    crate::variables::declare_from_toml(eng, &doc.variables)?;
     let previous = crate::assets::enter_scene_scope(eng, source, &doc.assets)?;
     let outcome = instantiate_nodes(eng, &doc, base, build);
     crate::assets::leave_scene_scope(eng, previous);

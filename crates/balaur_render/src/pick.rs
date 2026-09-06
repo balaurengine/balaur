@@ -455,3 +455,85 @@ mod tests {
         );
     }
 }
+
+
+/// The node the pointer is over, or `None`.
+///
+/// 3D casts the viewport's own picking ray, which the backend publishes each
+/// frame and a replay restores; 2D takes the smallest shape whose box holds
+/// the point. Headless the snapshots are zero, so nothing is ever under the
+/// pointer and no hook fires, which is what a test with no window wants.
+pub fn under_pointer(eng: &Engine) -> Option<hecs::Entity> {
+    let (origin, dir) = {
+        let vp = eng.resource::<crate::ViewportSnapshot>();
+        let vp = vp.borrow();
+        (Vec3::from_array(vp.ray_origin), Vec3::from_array(vp.ray_dir))
+    };
+    if dir.length_squared() > 1e-8
+        && let Some((entity, _)) = along_ray(eng, origin, dir)
+    {
+        return Some(entity);
+    }
+    under_pointer_2d(eng)
+}
+
+/// The smallest 2D shape whose box holds the pointer. The same rule the
+/// editor's own picker uses, so what a click selects and what a hook fires on
+/// are the same node.
+fn under_pointer_2d(eng: &Engine) -> Option<hecs::Entity> {
+    let point = {
+        let vp = eng.resource::<crate::ViewportSnapshot2d>();
+        let vp = vp.borrow();
+        vp.mouse_world
+    };
+    let world = eng.world();
+    let mut best: Option<(hecs::Entity, f32)> = None;
+    for (entity, renderable, at) in &mut world.query::<(
+        hecs::Entity,
+        &crate::Renderable2d,
+        &balaur_core::GlobalTransform,
+    )>() {
+        let visible = world
+            .get::<&balaur_core::GlobalAppearance>(entity)
+            .is_ok_and(|a| a.visible);
+        if !visible {
+            continue;
+        }
+        let Some((hx, hy)) = half_extents_2d(renderable) else {
+            continue;
+        };
+        let hx = hx * at.scale.x;
+        let hy = hy * at.scale.y;
+        let (angle, _, _) = at.rotation.to_euler(glamx::EulerRot::ZYX);
+        let (sin, cos) = angle.sin_cos();
+        let dx = point[0] - at.position.x;
+        let dy = point[1] - at.position.y;
+        let lx = cos * dx + sin * dy;
+        let ly = -sin * dx + cos * dy;
+        if lx.abs() <= hx && ly.abs() <= hy {
+            let area = hx * hy;
+            if best.is_none_or(|(_, so_far)| area < so_far) {
+                best = Some((entity, area));
+            }
+        }
+    }
+    best.map(|(entity, _)| entity)
+}
+
+/// A 2D renderable's half extents, or `None` for a shape with no box —
+/// a polyline and a polygon carry their points in a mesh asset.
+fn half_extents_2d(renderable: &crate::Renderable2d) -> Option<(f32, f32)> {
+    match renderable.shape {
+        crate::Shape2d::Sprite { hx, hy } => Some((hx, hy)),
+        crate::Shape2d::Flat(flat) => {
+            let points = flat.outline();
+            if points.is_empty() {
+                return None;
+            }
+            let hx = points.iter().map(|p| p.x.abs()).fold(0.0, f32::max);
+            let hy = points.iter().map(|p| p.y.abs()).fold(0.0, f32::max);
+            Some((hx, hy))
+        }
+        crate::Shape2d::Polyline { .. } | crate::Shape2d::Polygon => None,
+    }
+}

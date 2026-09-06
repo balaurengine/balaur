@@ -503,6 +503,13 @@ fn const_name(key: &str) -> String {
     out
 }
 
+/// Every key name this engine can ever report, so a dispatcher can ask about
+/// each rather than keeping its own list.
+#[must_use]
+pub fn known_keys() -> &'static [&'static str] {
+    KEY_NAMES
+}
+
 /// True when `key` is a name this engine can ever report.
 pub fn is_known_key(key: &str) -> bool {
     KEY_NAMES.contains(&key)
