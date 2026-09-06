@@ -144,9 +144,11 @@ pub(crate) mod keys {
     pub(crate) const TUBE_RADIUS: &str = p::TUBE_RADIUS;
 
     pub(crate) const A: &str = "a";
+    pub(crate) const ALIGN: &str = "align";
     pub(crate) const AMBIENT: &str = "ambient";
     pub(crate) const ANGLE: &str = "angle";
     pub(crate) const B: &str = "b";
+    pub(crate) const BILLBOARD: &str = "billboard";
     pub(crate) const BLOOM_INTENSITY: &str = "bloom_intensity";
     pub(crate) const BLOOM_THRESHOLD: &str = "bloom_threshold";
     pub(crate) const C: &str = "c";
@@ -156,10 +158,15 @@ pub(crate) mod keys {
     pub(crate) const COLOR_END: &str = "color_end";
     pub(crate) const COLUMNS: &str = "columns";
     pub(crate) const CURRENT: &str = "current";
+    pub(crate) const DEPTH_TEST: &str = "depth_test";
+    pub(crate) const DOUBLE_SIDED: &str = "double_sided";
     pub(crate) const EMITTING: &str = "emitting";
     pub(crate) const EXPLOSIVENESS: &str = "explosiveness";
     pub(crate) const FLIP_X: &str = "flip_x";
     pub(crate) const FLIP_Y: &str = "flip_y";
+    pub(crate) const FONT_SIZE: &str = "font_size";
+    pub(crate) const FONT_STYLE: &str = "font_style";
+    pub(crate) const FONT_WEIGHT: &str = "font_weight";
     pub(crate) const FRAME: &str = "frame";
     pub(crate) const GRADIENT: &str = "gradient";
     pub(crate) const GRAVITY: &str = "gravity";
@@ -170,6 +177,8 @@ pub(crate) mod keys {
     pub(crate) const LIFETIME: &str = "lifetime";
     pub(crate) const LOOK_AT: &str = "look_at";
     pub(crate) const MATERIAL: &str = "material";
+    pub(crate) const MARKUP: &str = "markup";
+    pub(crate) const MAX_WIDTH: &str = "max_width";
     pub(crate) const MESH: &str = "mesh";
     pub(crate) const ONE_SHOT: &str = "one_shot";
     pub(crate) const OP: &str = "op";
@@ -187,6 +196,8 @@ pub(crate) mod keys {
     pub(crate) const SOURCE: &str = "source";
     pub(crate) const SPEED: &str = "speed";
     pub(crate) const SPREAD: &str = "spread";
+    pub(crate) const TEXT: &str = "text";
+    pub(crate) const TEXT_KEY: &str = "text_key";
     pub(crate) const TEXTURE: &str = "texture";
     pub(crate) const TILESET: &str = "tileset";
     pub(crate) const WIDTH: &str = "width";

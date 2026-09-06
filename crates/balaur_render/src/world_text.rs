@@ -5,6 +5,8 @@
 //! over a character and a label in a panel come from one bitmap and one set of
 //! font rules.
 
+use balaur_core::Engine;
+
 /// Where a block sits relative to the point it was drawn at.
 ///
 /// Its own enum rather than the shaper's: the buffer and its bindings are in
@@ -40,6 +42,74 @@ impl Default for TextStyle {
             markup: false,
             max_width: None,
         }
+    }
+}
+
+/// How a block sits in three dimensions; the 2D pass reads none of it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SpaceOptions {
+    /// Turn to face the camera each frame.
+    pub billboard: bool,
+    /// Draw the back of the quad as well as the front.
+    pub double_sided: bool,
+    /// Let the scene's depth hide it.
+    pub depth_test: bool,
+}
+
+impl Default for SpaceOptions {
+    fn default() -> Self {
+        Self {
+            billboard: true,
+            double_sided: true,
+            depth_test: true,
+        }
+    }
+}
+
+/// What a `text2d` or `text3d` node draws.
+///
+/// One component for both: the keys are the same, and which pass draws it is
+/// `in_3d`, the way a node's dimension is settled everywhere else.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextRenderable {
+    /// The literal text; `text_key` wins over it when set.
+    pub text: String,
+    /// A key in the project's strings, re-read every frame so a language
+    /// change shows without touching the scene.
+    pub text_key: String,
+    pub style: TextStyle,
+    /// 2D: font pixels to one world unit. 3D: the same, as Godot's
+    /// `pixel_size` inverted, so a size reads the same in both.
+    pub pixels_per_unit: f32,
+    pub in_3d: bool,
+    /// What only the 3D pass reads.
+    pub in_space: SpaceOptions,
+    /// Bumped by every write, so the backend rebuilds only what moved.
+    pub version: u64,
+}
+
+impl Default for TextRenderable {
+    fn default() -> Self {
+        Self {
+            text: String::new(),
+            text_key: String::new(),
+            style: TextStyle::default(),
+            pixels_per_unit: 100.0,
+            in_3d: false,
+            in_space: SpaceOptions::default(),
+            version: 0,
+        }
+    }
+}
+
+impl TextRenderable {
+    /// What this draws right now: the localized string when a key names one,
+    /// and the literal otherwise.
+    pub fn resolved(&self, eng: &Engine) -> String {
+        if self.text_key.is_empty() {
+            return self.text.clone();
+        }
+        balaur_core::strings::tr(eng, &self.text_key, &[])
     }
 }
 
@@ -288,6 +358,29 @@ fn warn_once(err: &anyhow::Error) {
     if !SAID.replace(true) {
         tracing::warn!("{err:#}");
     }
+}
+
+/// Everything the backend keeps for text between frames: the nodes the
+/// immediate calls made, and one slot per node carrying a `text2d` or
+/// `text3d`.
+#[cfg(feature = "kiss3d")]
+#[derive(Default)]
+pub(crate) struct Frame {
+    transients: Transients,
+    slots: std::collections::HashMap<balaur_core::hecs::Entity, crate::text_component::TextSlot>,
+}
+
+/// Draw this frame's text: the nodes that carry it, then the calls that asked
+/// for it. Both come from the same atlas, uploaded once for the pair.
+#[cfg(feature = "kiss3d")]
+pub(crate) fn draw(
+    app: &balaur_core::App,
+    scene_2d: &mut kiss3d::scene::SceneNode2d,
+    scene_3d: &mut kiss3d::scene::SceneNode3d,
+    frame: &mut Frame,
+) {
+    crate::text_component::sync_text(app, scene_2d, scene_3d, &mut frame.slots);
+    flush(app, scene_2d, scene_3d, &mut frame.transients);
 }
 
 /// The nodes one frame's text made, dropped when the next frame draws.
